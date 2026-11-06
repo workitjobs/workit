@@ -139,7 +139,7 @@ landing page's `hiringSystems` yet: each needs its logo file in
   `[]` for the second. Collapsing them turns a typo in `boards.csv` into "this
   company stopped hiring", which nobody notices. **Only a board's first request
   can say it does not exist**: a paged reader turns a 404 on a later page into
-  `Incomplete` (Oracle's and Workday's). As "no such board", one bad page of a
+  `Incomplete` (Oracle's, Workday's and Jibe's). As "no such board", one bad page of a
   large Oracle board closed every posting on it.
 - **Providers disagree about types.** Lever sends `createdAt` as an `int` in
   some records and a numeric string in others; trusting one shape silently

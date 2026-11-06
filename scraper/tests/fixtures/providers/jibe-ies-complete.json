@@ -1,0 +1,6072 @@
+{
+  "captured_on": "2026-11-06",
+  "token": "joinus.ies-co.com",
+  "page_size": 100,
+  "note": "Live complete listing, reduced to identity/title/ATS fields. Totals, row count and order unmodified. Descriptions omitted; not an eligibility fixture.",
+  "pages": [
+    {
+      "totalCount": 753,
+      "jobs": [
+        {
+          "data": {
+            "slug": "24208",
+            "req_id": "24208",
+            "title": "Experienced Bilingual Administrative Assistant",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25182",
+            "req_id": "25182",
+            "title": "Crew Lead - Distributed Antenna Systems",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24867",
+            "req_id": "24867",
+            "title": "Electrical Estimator",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25309",
+            "req_id": "25309",
+            "title": "Superintendent",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24029",
+            "req_id": "24029",
+            "title": "General Superintendent 100% Traveler RPL",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "23228",
+            "req_id": "23228",
+            "title": "Junior Tester",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24699",
+            "req_id": "24699",
+            "title": "Purchasing Data Processing Specialist",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25190",
+            "req_id": "25190",
+            "title": "Piece-Rate Electrical Technician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24901",
+            "req_id": "24901",
+            "title": "Project Manager - Assistant",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25060",
+            "req_id": "25060",
+            "title": "Assistant Project Manager",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "20477",
+            "req_id": "20477",
+            "title": "HVAC Lead Service Technician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25173",
+            "req_id": "25173",
+            "title": "Quality Assurance Specialist - Data Center",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24590",
+            "req_id": "24590",
+            "title": "Electrical Foreman",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25148",
+            "req_id": "25148",
+            "title": "Electrical Helper SR",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25108",
+            "req_id": "25108",
+            "title": "Senior BIM Engineer - Data Center",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24796",
+            "req_id": "24796",
+            "title": "Pre-Apprentice Electrician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24097",
+            "req_id": "24097",
+            "title": "Residential Electrical Apprentice",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "22533",
+            "req_id": "22533",
+            "title": "Motor Winder (AC & DC)",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24459",
+            "req_id": "24459",
+            "title": "Electric Service Technician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24333",
+            "req_id": "24333",
+            "title": "Residential Electrician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24377",
+            "req_id": "24377",
+            "title": "Plumbing Foreman",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "22680",
+            "req_id": "22680",
+            "title": "Crew Lead - Stuctured Cabling 100% Full time traveler",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "22756",
+            "req_id": "22756",
+            "title": "Lead Scheduler",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24255",
+            "req_id": "24255",
+            "title": "Entry-Level Electrical Helper",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24373",
+            "req_id": "24373",
+            "title": "Instructional Designer",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25274",
+            "req_id": "25274",
+            "title": "Technician I- AV",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24088",
+            "req_id": "24088",
+            "title": "Fleet Coordinator",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24781",
+            "req_id": "24781",
+            "title": "Project Manager - Telecommunications - 100% Travel",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24163",
+            "req_id": "24163",
+            "title": "Field Service Technician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24722",
+            "req_id": "24722",
+            "title": "Technician II- Data Center",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25268",
+            "req_id": "25268",
+            "title": "Technician I -Logistics",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "23804",
+            "req_id": "23804",
+            "title": "HVAC Designer",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24074",
+            "req_id": "24074",
+            "title": "Plumbing Warehouse Associate",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24522",
+            "req_id": "24522",
+            "title": "Project Lead - Structured Cabling",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25260",
+            "req_id": "25260",
+            "title": "Department Manager - Low Voltage Cabling - MCG I",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25019",
+            "req_id": "25019",
+            "title": "Technician II - Structured Cabling",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25157",
+            "req_id": "25157",
+            "title": "Technician I-Security Systems",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24702",
+            "req_id": "24702",
+            "title": "Office Administrator",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24531",
+            "req_id": "24531",
+            "title": "Multi-Family HVAC Superintendent",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24712",
+            "req_id": "24712",
+            "title": "Piece-Rate Service Technician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "22985",
+            "req_id": "22985",
+            "title": "Field Service Technician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24104",
+            "req_id": "24104",
+            "title": "Electrician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24056",
+            "req_id": "24056",
+            "title": "Final Assembler",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24386",
+            "req_id": "24386",
+            "title": "Electrical Foreman",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24093",
+            "req_id": "24093",
+            "title": "Industrial Electrician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24512",
+            "req_id": "24512",
+            "title": "Assembler (Manufacturing)",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24183",
+            "req_id": "24183",
+            "title": "Material Handler - Fabrication - 2nd shift",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25205",
+            "req_id": "25205",
+            "title": "Fire Alarm Technician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "23203",
+            "req_id": "23203",
+            "title": "Lead Scheduler",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24743",
+            "req_id": "24743",
+            "title": "Electrical Panel Wiring Assembler",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24766",
+            "req_id": "24766",
+            "title": "Department Manager \u2013 Data Center & Structured Cabling",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24609",
+            "req_id": "24609",
+            "title": "Electric Service Technician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24999",
+            "req_id": "24999",
+            "title": "Crew Lead - Structured Cabling ($3500 Sign-on Bonus)",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24247",
+            "req_id": "24247",
+            "title": "Electrical Helper SR",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25299",
+            "req_id": "25299",
+            "title": "Senior Field Engineer - Data Centers",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25166",
+            "req_id": "25166",
+            "title": "Human Resources Manager",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25115",
+            "req_id": "25115",
+            "title": "QA/QC Inspector level 2 (Qualified Journeyman)",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25152",
+            "req_id": "25152",
+            "title": "Fleet Manager",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "23982",
+            "req_id": "23982",
+            "title": "Accounts Receivable Auditor",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24994",
+            "req_id": "24994",
+            "title": "Electrician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24329",
+            "req_id": "24329",
+            "title": "Asset Management Specialist",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24861",
+            "req_id": "24861",
+            "title": "Technician I -Logistics",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "23641",
+            "req_id": "23641",
+            "title": "Quality Assurance Specialist - Data Center Low Voltage",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24909",
+            "req_id": "24909",
+            "title": "Electrical Project Manager",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "23688",
+            "req_id": "23688",
+            "title": "Senior Field Engineer - Structured Cabling",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25206",
+            "req_id": "25206",
+            "title": "Materials and Logistic Manager",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24285",
+            "req_id": "24285",
+            "title": "QA/QC Coordinator",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25146",
+            "req_id": "25146",
+            "title": "PMO - SR Project Manager",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24397",
+            "req_id": "24397",
+            "title": "Electric Service Technician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24646",
+            "req_id": "24646",
+            "title": "Journeyman Electrician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24562",
+            "req_id": "24562",
+            "title": "Residential Electric Technician - Leadman",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24515",
+            "req_id": "24515",
+            "title": "Financial Planning and Analysis Manager",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24107",
+            "req_id": "24107",
+            "title": "Experienced HVAC Service Technician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25072",
+            "req_id": "25072",
+            "title": "Estimator - Security",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25254",
+            "req_id": "25254",
+            "title": "Field Engineer I - Structured Cabling",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24767",
+            "req_id": "24767",
+            "title": "Crew Lead - Data Center Services",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24263",
+            "req_id": "24263",
+            "title": "Foreman Electrical",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "23670",
+            "req_id": "23670",
+            "title": "New Construction Plumber Residential",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "21776",
+            "req_id": "21776",
+            "title": "HVAC Service Area Manager",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25304",
+            "req_id": "25304",
+            "title": "General Superintendent - Structured Cabling - NIS",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24962",
+            "req_id": "24962",
+            "title": "Machinist",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24768",
+            "req_id": "24768",
+            "title": "Project Lead - Structured Cabling",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25197",
+            "req_id": "25197",
+            "title": "Project Lead - Security",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24389",
+            "req_id": "24389",
+            "title": "Electric Service Technician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24841",
+            "req_id": "24841",
+            "title": "Electrical Helper",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25226",
+            "req_id": "25226",
+            "title": "Entry-Level Electrical Helper",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24398",
+            "req_id": "24398",
+            "title": "Inside Sales Representative",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24991",
+            "req_id": "24991",
+            "title": "Electrical Technician - Multi-Family",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25215",
+            "req_id": "25215",
+            "title": "Site Safety Coordinator",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24801",
+            "req_id": "24801",
+            "title": "Warehouse Lead",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25287",
+            "req_id": "25287",
+            "title": "Project Manager - Data Center - Low Voltage",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24192",
+            "req_id": "24192",
+            "title": "General Superintendent - 100% on-site traveler MCGI TSE East TFO",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24402",
+            "req_id": "24402",
+            "title": "Electrical Foreman",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24332",
+            "req_id": "24332",
+            "title": "Residential SF Electrical Supervisor",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24421",
+            "req_id": "24421",
+            "title": "Warehouse Technician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25156",
+            "req_id": "25156",
+            "title": "Field Engineer I - Structured Cabling - Data Center",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24758",
+            "req_id": "24758",
+            "title": "General Superintendent - Low Voltage - NIS Southeast",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24454",
+            "req_id": "24454",
+            "title": "Part-time Electric Technician - Single Family",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24987",
+            "req_id": "24987",
+            "title": "Senior Field Engineer - Data Center Services",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "23018",
+            "req_id": "23018",
+            "title": "Experienced HVAC Technician",
+            "ats_code": "icims"
+          }
+        }
+      ]
+    },
+    {
+      "totalCount": 753,
+      "jobs": [
+        {
+          "data": {
+            "slug": "24241",
+            "req_id": "24241",
+            "title": "Electrical Quality Control Inspector - Commercial & Residential",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24298",
+            "req_id": "24298",
+            "title": "Safety Coordinator",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25023",
+            "req_id": "25023",
+            "title": "Crew Lead - Stuctured Cabling",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24856",
+            "req_id": "24856",
+            "title": "Project Manager Assistant",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25293",
+            "req_id": "25293",
+            "title": "HVAC Helper",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24495",
+            "req_id": "24495",
+            "title": "Plumbing Warehouse Manager",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "23035",
+            "req_id": "23035",
+            "title": "New Construction Plumber Residential",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24965",
+            "req_id": "24965",
+            "title": "Department Manager - Low Voltage Cabling",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "23880",
+            "req_id": "23880",
+            "title": "Plumbing Field Supervisor - New Construction",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24819",
+            "req_id": "24819",
+            "title": "Project Lead - Structured Cabling",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24136",
+            "req_id": "24136",
+            "title": "Electric Technician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24235",
+            "req_id": "24235",
+            "title": "Residential Service Technician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25155",
+            "req_id": "25155",
+            "title": "Service Electrical Helper",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25236",
+            "req_id": "25236",
+            "title": "Commercial HVAC Project Manager",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24697",
+            "req_id": "24697",
+            "title": "Piecework Electrical Technician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25275",
+            "req_id": "25275",
+            "title": "Multi-Family Plumbing Foreman",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25239",
+            "req_id": "25239",
+            "title": "Motor Winder (AC & DC)",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24709",
+            "req_id": "24709",
+            "title": "Safety Coordinator",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "23405",
+            "req_id": "23405",
+            "title": "Welder",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25204",
+            "req_id": "25204",
+            "title": "Electrical Foreman - Multi-Family",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "21901",
+            "req_id": "21901",
+            "title": "Safety Coordinator",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25286",
+            "req_id": "25286",
+            "title": "Project Controller",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24492",
+            "req_id": "24492",
+            "title": "Field Engineer I - Data Center Services",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "23416",
+            "req_id": "23416",
+            "title": "Electrical Helper",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "22577",
+            "req_id": "22577",
+            "title": "Safety Coordinator",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24448",
+            "req_id": "24448",
+            "title": "Residential Electrician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24940",
+            "req_id": "24940",
+            "title": "Estimator",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24214",
+            "req_id": "24214",
+            "title": "Electrical Helper",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24737",
+            "req_id": "24737",
+            "title": "Journeyman Electrician Commercial",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24663",
+            "req_id": "24663",
+            "title": "Project Manager - Telecommunications - 100% Travel",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25131",
+            "req_id": "25131",
+            "title": "Project Manager - Security Systems",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25207",
+            "req_id": "25207",
+            "title": "Safety Coordinator",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24375",
+            "req_id": "24375",
+            "title": "Electrical Service Technician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24974",
+            "req_id": "24974",
+            "title": "Property Manager",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24219",
+            "req_id": "24219",
+            "title": "Electrician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25294",
+            "req_id": "25294",
+            "title": "Technician I-Structured Cabling",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24177",
+            "req_id": "24177",
+            "title": "Lead Residential Electrician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "23940",
+            "req_id": "23940",
+            "title": "Sewer Repair Technician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24912",
+            "req_id": "24912",
+            "title": "Technician II- AV",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24277",
+            "req_id": "24277",
+            "title": "Project Engineer - Entry Level",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25267",
+            "req_id": "25267",
+            "title": "Electrician - Lead",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24364",
+            "req_id": "24364",
+            "title": "Electrical Technician - Multi-Family",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "23833",
+            "req_id": "23833",
+            "title": "Service Plumbing Area Manager",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24917",
+            "req_id": "24917",
+            "title": "Electrical Supervisor - Single Family",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24887",
+            "req_id": "24887",
+            "title": "Safety Coordinator",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25281",
+            "req_id": "25281",
+            "title": "Electrical Estimator",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24316",
+            "req_id": "24316",
+            "title": "Plumbing Foreman",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24983",
+            "req_id": "24983",
+            "title": "Electrical Residential Apprentice",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24281",
+            "req_id": "24281",
+            "title": "Project Scheduler - Data Center",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24967",
+            "req_id": "24967",
+            "title": "Senior Field Engineer - Structured Cabling",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25202",
+            "req_id": "25202",
+            "title": "Senior Electrical Project Manager - Data Center",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25216",
+            "req_id": "25216",
+            "title": "Low Voltage Technician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25068",
+            "req_id": "25068",
+            "title": "Operations Trainer",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25306",
+            "req_id": "25306",
+            "title": "Developer",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "22219",
+            "req_id": "22219",
+            "title": "Quality Control Inspector",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24908",
+            "req_id": "24908",
+            "title": "Technician I -Logistics",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25242",
+            "req_id": "25242",
+            "title": "Finisher",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24643",
+            "req_id": "24643",
+            "title": "Fabricator/Fitter",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25308",
+            "req_id": "25308",
+            "title": "Technical Trainer",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25101",
+            "req_id": "25101",
+            "title": "Talent Acquisition Systems Administrator",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24511",
+            "req_id": "24511",
+            "title": "Assembler/Welder",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24780",
+            "req_id": "24780",
+            "title": "Electrical Foreman",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25117",
+            "req_id": "25117",
+            "title": "Quality Assurance Specialist - Security Systems - Data Center Low Voltage",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24838",
+            "req_id": "24838",
+            "title": "Field Engineer - Data Center Services",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "23857",
+            "req_id": "23857",
+            "title": "Lead - Logistics",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24828",
+            "req_id": "24828",
+            "title": "Accounts Receivable Specialist",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "22526",
+            "req_id": "22526",
+            "title": "Machinist (Manual)",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24253",
+            "req_id": "24253",
+            "title": "Entry-Level Electrical Helper",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25085",
+            "req_id": "25085",
+            "title": "Electrical Foreman - Multi-Family",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24223",
+            "req_id": "24223",
+            "title": "Electrical Superintendent - Data Center",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25118",
+            "req_id": "25118",
+            "title": "Quality Assurance Specialist - Data Center Low Voltage - New Employee Bonus $7000",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25250",
+            "req_id": "25250",
+            "title": "Project Manager Assistant - Expert Excel experience REQUIRED",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25139",
+            "req_id": "25139",
+            "title": "QA/QC Inspector level 2 (Qualified Journeyman)",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24407",
+            "req_id": "24407",
+            "title": "HVAC Field Supervisor",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "23498",
+            "req_id": "23498",
+            "title": "Journeyman Millwright (TIG Welding)",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25158",
+            "req_id": "25158",
+            "title": "Technician II - Structured Cabling",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25022",
+            "req_id": "25022",
+            "title": "Technician II - Structured Cabling",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25291",
+            "req_id": "25291",
+            "title": "Field Engineer I - Structured Cabling - MCG I NEO Cloud (100% TRAVEL REQUIRED)",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24251",
+            "req_id": "24251",
+            "title": "MC Energy Marshall",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24921",
+            "req_id": "24921",
+            "title": "Assembly Technician I",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24799",
+            "req_id": "24799",
+            "title": "Electrical Estimator",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24475",
+            "req_id": "24475",
+            "title": "Senior Project Manager",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24460",
+            "req_id": "24460",
+            "title": "Electric Service Technician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24520",
+            "req_id": "24520",
+            "title": "Project Lead - Structured Cabling",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25121",
+            "req_id": "25121",
+            "title": "Electrical Warehouse Associate",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25218",
+            "req_id": "25218",
+            "title": "Low Voltage Supervisor",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24896",
+            "req_id": "24896",
+            "title": "Quality Department Manager",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24961",
+            "req_id": "24961",
+            "title": "Truck Driver",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24206",
+            "req_id": "24206",
+            "title": "Plumbing Service Technician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25246",
+            "req_id": "25246",
+            "title": "Superintendent - Fabrication",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24200",
+            "req_id": "24200",
+            "title": "General Superintendent 100% Traveler",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24357",
+            "req_id": "24357",
+            "title": "HVAC Punch Out Technician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24455",
+            "req_id": "24455",
+            "title": "Electrical Apprentice",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24708",
+            "req_id": "24708",
+            "title": "Data Architect",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25256",
+            "req_id": "25256",
+            "title": "Project Coordinator",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25129",
+            "req_id": "25129",
+            "title": "Technician I-Structured Cabling",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24545",
+            "req_id": "24545",
+            "title": "Experienced Estimating Administrative Assistant",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25145",
+            "req_id": "25145",
+            "title": "Technician I-Security Systems",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24825",
+            "req_id": "24825",
+            "title": "Recruiter Data Center",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25194",
+            "req_id": "25194",
+            "title": "Lead Logistics",
+            "ats_code": "icims"
+          }
+        }
+      ]
+    },
+    {
+      "totalCount": 753,
+      "jobs": [
+        {
+          "data": {
+            "slug": "24914",
+            "req_id": "24914",
+            "title": "Senior Electrical Project Manager - Data Center",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24092",
+            "req_id": "24092",
+            "title": "Residential Electrical Leadman",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24404",
+            "req_id": "24404",
+            "title": "Residential Piece-Rate Electrician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24885",
+            "req_id": "24885",
+            "title": "Fire Alarm Helper",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25073",
+            "req_id": "25073",
+            "title": "Estimator - Hyperscale Data Centers",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24348",
+            "req_id": "24348",
+            "title": "Senior Electrical Project Manager - Data Center",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24607",
+            "req_id": "24607",
+            "title": "Administrative Assistant",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25266",
+            "req_id": "25266",
+            "title": "Department Manager - Low Voltage Cabling",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24820",
+            "req_id": "24820",
+            "title": "HVAC Warehouse Associate",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25302",
+            "req_id": "25302",
+            "title": "Multifamily Electrical Supervisor",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24311",
+            "req_id": "24311",
+            "title": "Project Manager (IT & Enterprise Transformation)",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25230",
+            "req_id": "25230",
+            "title": "Sewer Camera Operator",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25091",
+            "req_id": "25091",
+            "title": "QA/QC  Inspector - Level 1",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25229",
+            "req_id": "25229",
+            "title": "Sewer Repair Technician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24881",
+            "req_id": "24881",
+            "title": "Administrative Assistant - Safety",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24353",
+            "req_id": "24353",
+            "title": "Electrical Superintendent - Data Center",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24662",
+            "req_id": "24662",
+            "title": "Department Manager - Low Voltage Cabling - MCG I",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24840",
+            "req_id": "24840",
+            "title": "Project Manager",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25272",
+            "req_id": "25272",
+            "title": "Assistant Project Manager",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25013",
+            "req_id": "25013",
+            "title": "Motor Mechanic (Industrial)",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24464",
+            "req_id": "24464",
+            "title": "Safety Coordinator",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24498",
+            "req_id": "24498",
+            "title": "HVAC Service Technician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24174",
+            "req_id": "24174",
+            "title": "Residential Electrical Leadman/Service Technician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25169",
+            "req_id": "25169",
+            "title": "Site Safety Coordinator",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24889",
+            "req_id": "24889",
+            "title": "Safety Manager",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24488",
+            "req_id": "24488",
+            "title": "BIM Coordinator",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24155",
+            "req_id": "24155",
+            "title": "Lead Residential Electrician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24786",
+            "req_id": "24786",
+            "title": "Electrical Leadman",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24510",
+            "req_id": "24510",
+            "title": "Fitter/Welder - 2nd Shift | $2,500 Sign-On Bonus",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25066",
+            "req_id": "25066",
+            "title": "Journeyman - Licensed LEA or LEB Required",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24907",
+            "req_id": "24907",
+            "title": "Technician II -Logistics",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25127",
+            "req_id": "25127",
+            "title": "Technician II- AV 100% Travel",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25026",
+            "req_id": "25026",
+            "title": "Delivery Driver",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "21074",
+            "req_id": "21074",
+            "title": "Residential Electrical Helper",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25175",
+            "req_id": "25175",
+            "title": "Project Administrative Assistant",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24827",
+            "req_id": "24827",
+            "title": "Technician I -Logistics",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25125",
+            "req_id": "25125",
+            "title": "Project Manager - Data Center - Low Voltage",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25047",
+            "req_id": "25047",
+            "title": "Material Handler",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25124",
+            "req_id": "25124",
+            "title": "DOL Apprentice Electrical - New Braunfels, TX",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "23256",
+            "req_id": "23256",
+            "title": "Safety Coordinator",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25288",
+            "req_id": "25288",
+            "title": "Safety Manager",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24942",
+            "req_id": "24942",
+            "title": "HVAC Service Technician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24947",
+            "req_id": "24947",
+            "title": "Warehouse Associate",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25033",
+            "req_id": "25033",
+            "title": "Foreman Electrician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24249",
+            "req_id": "24249",
+            "title": "Electrical Helper SR",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25089",
+            "req_id": "25089",
+            "title": "Electrical Superintendent - Multi-Family",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "23915",
+            "req_id": "23915",
+            "title": "Project Manager Assistant",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24986",
+            "req_id": "24986",
+            "title": "Branch Manager - National Program - United States",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24756",
+            "req_id": "24756",
+            "title": "General Superintendent",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24320",
+            "req_id": "24320",
+            "title": "Multi-Family Electrical Supervisor",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25029",
+            "req_id": "25029",
+            "title": "Technology Foreman",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24302",
+            "req_id": "24302",
+            "title": "HVAC Foreman",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24294",
+            "req_id": "24294",
+            "title": "Residential Electrician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24830",
+            "req_id": "24830",
+            "title": "Journeyman Electrician-New Braunfels, TX",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24919",
+            "req_id": "24919",
+            "title": "Area Manager - Low Voltage Installation",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25237",
+            "req_id": "25237",
+            "title": "Technician I-Structured Cabling",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25111",
+            "req_id": "25111",
+            "title": "Project Manager",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24953",
+            "req_id": "24953",
+            "title": "General Superintendent - New Hire Bonus $7000",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "22452",
+            "req_id": "22452",
+            "title": "Production Supervisor - Fabrication",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25289",
+            "req_id": "25289",
+            "title": "CNC AutoCAD Programmer",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24279",
+            "req_id": "24279",
+            "title": "Electrical Project Manager - Data Center",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24842",
+            "req_id": "24842",
+            "title": "General Superintendent ($7,000 Sign-on Bonus)",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25276",
+            "req_id": "25276",
+            "title": "Multi-Family Plumbing Project Manager",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "23420",
+            "req_id": "23420",
+            "title": "Engine Assembler",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "22722",
+            "req_id": "22722",
+            "title": "Paint Helper",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "23424",
+            "req_id": "23424",
+            "title": "Outside Sales Representative",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24966",
+            "req_id": "24966",
+            "title": "Quality Assurance Specialist - Data Center Low Voltage",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24334",
+            "req_id": "24334",
+            "title": "Electrician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24625",
+            "req_id": "24625",
+            "title": "Superintendent",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25183",
+            "req_id": "25183",
+            "title": "Electrical Helper",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25245",
+            "req_id": "25245",
+            "title": "Crew Lead - Structured Cabling",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "23925",
+            "req_id": "23925",
+            "title": "Journeyman Lineman Foreman",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "23933",
+            "req_id": "23933",
+            "title": "BIM Detailer - Data Center",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "23033",
+            "req_id": "23033",
+            "title": "New Construction Plumber Residential",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24477",
+            "req_id": "24477",
+            "title": "Multi Family HVAC Service Start-Up Technician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24716",
+            "req_id": "24716",
+            "title": "Field Service Technician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24191",
+            "req_id": "24191",
+            "title": "Project Manager - low voltage - Data Center 100% Traveler MCG1 - TSE Cloud & Infra",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24158",
+            "req_id": "24158",
+            "title": "Residential Electrician - Single Family",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24826",
+            "req_id": "24826",
+            "title": "Accounts Payable Specialist",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24301",
+            "req_id": "24301",
+            "title": "Licensed Journeyman Plumber",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25020",
+            "req_id": "25020",
+            "title": "Warehouse Associate / Delivery Driver",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24287",
+            "req_id": "24287",
+            "title": "QA/QC Coordinator",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24779",
+            "req_id": "24779",
+            "title": "Journeyman Electrician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "23372",
+            "req_id": "23372",
+            "title": "Painter",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25116",
+            "req_id": "25116",
+            "title": "Brake Operator",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25171",
+            "req_id": "25171",
+            "title": "AV Project Engineer",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24290",
+            "req_id": "24290",
+            "title": "QA/QC Site Manager - Data Center",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25240",
+            "req_id": "25240",
+            "title": "Quality Control Inspector \u2013 Tank Fabrication \u2013 Second Shift",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24388",
+            "req_id": "24388",
+            "title": "Residential Electrical Foreman",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25222",
+            "req_id": "25222",
+            "title": "Field Engineer I - Structured Cabling",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24469",
+            "req_id": "24469",
+            "title": "Plumbing Supervisor New Construction",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25249",
+            "req_id": "25249",
+            "title": "General Superintendent 100% Traveler NIS Special Systems DAS",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24115",
+            "req_id": "24115",
+            "title": "Litigation Specialist",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25113",
+            "req_id": "25113",
+            "title": "QA/QC Site Manager - Data Center",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25208",
+            "req_id": "25208",
+            "title": "2nd Shift Supervisor",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24754",
+            "req_id": "24754",
+            "title": "Technician I - Fiber-100 % Traveler",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24645",
+            "req_id": "24645",
+            "title": "Plumbing Field Supervisor - New Construction",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "22685",
+            "req_id": "22685",
+            "title": "Crane Operator",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25283",
+            "req_id": "25283",
+            "title": "Residential Underground Technician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24420",
+            "req_id": "24420",
+            "title": "Warehouse Associate - Plumbing",
+            "ats_code": "icims"
+          }
+        }
+      ]
+    },
+    {
+      "totalCount": 753,
+      "jobs": [
+        {
+          "data": {
+            "slug": "24851",
+            "req_id": "24851",
+            "title": "Project Manager/Estimator - Electrical",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24445",
+            "req_id": "24445",
+            "title": "Plumbing Supervisor",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24519",
+            "req_id": "24519",
+            "title": "Associate Project Manager - Construction",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25136",
+            "req_id": "25136",
+            "title": "Superintendent 100% Full time traveler",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24982",
+            "req_id": "24982",
+            "title": "Field Engineer I - Data Center Services",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24276",
+            "req_id": "24276",
+            "title": "Project Engineer - Entry Level",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24534",
+            "req_id": "24534",
+            "title": "Residential Wireman",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25142",
+            "req_id": "25142",
+            "title": "QA/QC Inspector level 2 (Qualified Journeyman)",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25270",
+            "req_id": "25270",
+            "title": "Estimator - AV",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "22259",
+            "req_id": "22259",
+            "title": "Welder - Generator & Enclosure Welder",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25172",
+            "req_id": "25172",
+            "title": "CNC Machinist",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24139",
+            "req_id": "24139",
+            "title": "Project Manager",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24303",
+            "req_id": "24303",
+            "title": "HVAC Foreman",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24188",
+            "req_id": "24188",
+            "title": "Residential Electrical Helper",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24476",
+            "req_id": "24476",
+            "title": "Plumbing Helper",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24268",
+            "req_id": "24268",
+            "title": "Journeyman Electrician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24517",
+            "req_id": "24517",
+            "title": "Field Engineer I- Structured Cabling",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24706",
+            "req_id": "24706",
+            "title": "Maintenance Technician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24823",
+            "req_id": "24823",
+            "title": "HVAC New Construction Installer",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25143",
+            "req_id": "25143",
+            "title": "QA/QC Inspector level 2 (Qualified Journeyman)",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24621",
+            "req_id": "24621",
+            "title": "Electrical Foreman - Multi-Family",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24066",
+            "req_id": "24066",
+            "title": "Plumbing Supervisor",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24536",
+            "req_id": "24536",
+            "title": "Deputy General Counsel",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24453",
+            "req_id": "24453",
+            "title": "Electric Technician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24312",
+            "req_id": "24312",
+            "title": "General Superintendent - Low Voltage Cable - NIS Region 2",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25258",
+            "req_id": "25258",
+            "title": "Superintendent - Security",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24933",
+            "req_id": "24933",
+            "title": "Assembler/Welder - 2nd Shift",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24369",
+            "req_id": "24369",
+            "title": "Electrical Helper (Quick Hire!)",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25016",
+            "req_id": "25016",
+            "title": "Motor Winder (AC & DC)",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25059",
+            "req_id": "25059",
+            "title": "Project Manager - low voltage - Data Center 100% Traveler MCG1 - NIS Vega Support",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24170",
+            "req_id": "24170",
+            "title": "Baffles Assembler - Entry-level Welding",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "23927",
+            "req_id": "23927",
+            "title": "Quality Assurance Specialist - Data Center Low Voltage 100% Traveler MCG1 RPL",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24222",
+            "req_id": "24222",
+            "title": "Electrical Superintendent - Data Center",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "23037",
+            "req_id": "23037",
+            "title": "Plumbing Supervisor New Construction",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25056",
+            "req_id": "25056",
+            "title": "Electrical Helper - Single Family",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24035",
+            "req_id": "24035",
+            "title": "Residential Warehouse Technician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25277",
+            "req_id": "25277",
+            "title": "Electrical Foreman",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25099",
+            "req_id": "25099",
+            "title": "Senior Field Engineer Audio Visual",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25163",
+            "req_id": "25163",
+            "title": "Site Safety Manager",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24295",
+            "req_id": "24295",
+            "title": "Senior Electrical Estimator - Mission Critical",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24550",
+            "req_id": "24550",
+            "title": "Safety Coordinator",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24993",
+            "req_id": "24993",
+            "title": "Electrician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24330",
+            "req_id": "24330",
+            "title": "Plumbing Supervisor",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24390",
+            "req_id": "24390",
+            "title": "Residential Electrical Leadman",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25247",
+            "req_id": "25247",
+            "title": "Senior Estimator",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24102",
+            "req_id": "24102",
+            "title": "Residential Piece-Rate Electrician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24205",
+            "req_id": "24205",
+            "title": "Press Brake Operator - Fabrication",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24225",
+            "req_id": "24225",
+            "title": "Accounts Payable Specialist",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24913",
+            "req_id": "24913",
+            "title": "Technician II - Security Systems",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24261",
+            "req_id": "24261",
+            "title": "Foreman Electrical",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24927",
+            "req_id": "24927",
+            "title": "Plumbing Service Technician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25177",
+            "req_id": "25177",
+            "title": "Project Lead-Structured Cabling",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "22534",
+            "req_id": "22534",
+            "title": "Machinist",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25200",
+            "req_id": "25200",
+            "title": "Technician II - Services",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "23120",
+            "req_id": "23120",
+            "title": "Utility Worker - Entry Level",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24262",
+            "req_id": "24262",
+            "title": "Foreman Electrical",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "23106",
+            "req_id": "23106",
+            "title": "Bilingual-Safety Coordinator",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24138",
+            "req_id": "24138",
+            "title": "Cable Technician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24812",
+            "req_id": "24812",
+            "title": "Department Manager - Telecommunications",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24150",
+            "req_id": "24150",
+            "title": "HVAC New Construction Installer",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25134",
+            "req_id": "25134",
+            "title": "Pre-Construction Coordinator",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24250",
+            "req_id": "24250",
+            "title": "MC Energy Marshall",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25076",
+            "req_id": "25076",
+            "title": "Field Engineer II - Audio Visual",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24696",
+            "req_id": "24696",
+            "title": "Electrical Apprentice",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24400",
+            "req_id": "24400",
+            "title": "Licensed Journeyman Plumber",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24072",
+            "req_id": "24072",
+            "title": "Plumbing Helper",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24944",
+            "req_id": "24944",
+            "title": "CMM Inspector",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24110",
+            "req_id": "24110",
+            "title": "Project Manager Assistant",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25161",
+            "req_id": "25161",
+            "title": "Electrical Helper",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "23019",
+            "req_id": "23019",
+            "title": "HVAC Lead Service Technician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24836",
+            "req_id": "24836",
+            "title": "Electrical Helper",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24765",
+            "req_id": "24765",
+            "title": "Superintendent - Low Voltage",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "22481",
+            "req_id": "22481",
+            "title": "Safety Coordinator",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24212",
+            "req_id": "24212",
+            "title": "Electrical Helper",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24849",
+            "req_id": "24849",
+            "title": "Project Manager/Estimator - Electrical",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24989",
+            "req_id": "24989",
+            "title": "Safety Coordinator",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24299",
+            "req_id": "24299",
+            "title": "Electrical Estimator",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24203",
+            "req_id": "24203",
+            "title": "Plasma Cutter - Fabrication",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24976",
+            "req_id": "24976",
+            "title": "Assistant Foreman",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25271",
+            "req_id": "25271",
+            "title": "Electrical Helper-Laredo, TX",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24207",
+            "req_id": "24207",
+            "title": "Residential Electrical Leadman",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24350",
+            "req_id": "24350",
+            "title": "Senior Project Scheduling - Data Center",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25238",
+            "req_id": "25238",
+            "title": "Electrical Foreman - Multi-Family",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25227",
+            "req_id": "25227",
+            "title": "Technician II - Structured Cabling",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24879",
+            "req_id": "24879",
+            "title": "Technician II - Structured Cabling-100 %  Traveler",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24416",
+            "req_id": "24416",
+            "title": "Warehouse Associate - Plumbing",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "23001",
+            "req_id": "23001",
+            "title": "HVAC New Construction Installer",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24349",
+            "req_id": "24349",
+            "title": "Project Scheduler - Data Center",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24142",
+            "req_id": "24142",
+            "title": "Electrical Foreman",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24273",
+            "req_id": "24273",
+            "title": "Electrical Foreman",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25251",
+            "req_id": "25251",
+            "title": "Field Engineer I- Structured Cable",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "22579",
+            "req_id": "22579",
+            "title": "Safety Coordinator",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25062",
+            "req_id": "25062",
+            "title": "Technician I -Logistics",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25050",
+            "req_id": "25050",
+            "title": "Admin Assistant",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25144",
+            "req_id": "25144",
+            "title": "QA/QC Inspector level 2 (Qualified Journeyman)",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25248",
+            "req_id": "25248",
+            "title": "Electrical Supervisor - Single Family",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24157",
+            "req_id": "24157",
+            "title": "Service Technician - Single Family",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25252",
+            "req_id": "25252",
+            "title": "Field Engineer I - Structured Cabling",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24058",
+            "req_id": "24058",
+            "title": "Residential HVAC Estimator",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24204",
+            "req_id": "24204",
+            "title": "Electrical Helper",
+            "ats_code": "icims"
+          }
+        }
+      ]
+    },
+    {
+      "totalCount": 753,
+      "jobs": [
+        {
+          "data": {
+            "slug": "25098",
+            "req_id": "25098",
+            "title": "Construction Scheduler",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24547",
+            "req_id": "24547",
+            "title": "Project Manager",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "23911",
+            "req_id": "23911",
+            "title": "Project Manager - low voltage - Data Center 100% Traveler",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24286",
+            "req_id": "24286",
+            "title": "QA/QC Coordinator",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24345",
+            "req_id": "24345",
+            "title": "Lead HVAC Service Technician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25273",
+            "req_id": "25273",
+            "title": "BIM Modeler - Data Center",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24359",
+            "req_id": "24359",
+            "title": "Warehouse Associate",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24063",
+            "req_id": "24063",
+            "title": "Plumbing Service Technician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25063",
+            "req_id": "25063",
+            "title": "Project Manager - low voltage - MCG1 - NIS TX Colocations",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24985",
+            "req_id": "24985",
+            "title": "Senior Field Engineer - Data Center Services",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25105",
+            "req_id": "25105",
+            "title": "Senior Project Scheduler - Data Center",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "23831",
+            "req_id": "23831",
+            "title": "Security Systems Solutions Engineer",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "23222",
+            "req_id": "23222",
+            "title": "HVAC Supervisor New Construction",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24282",
+            "req_id": "24282",
+            "title": "Project Scheduler - Data Center",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24764",
+            "req_id": "24764",
+            "title": "Project Lead - Infrastructure",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25164",
+            "req_id": "25164",
+            "title": "HVAC Service Technician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24289",
+            "req_id": "24289",
+            "title": "QA/QC Site Manager - Data Center",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25180",
+            "req_id": "25180",
+            "title": "Technician II - Structured Cabling",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24946",
+            "req_id": "24946",
+            "title": "Burn Table Operator - 2nd Shift",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24101",
+            "req_id": "24101",
+            "title": "Residential Electrical Service Technician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "22701",
+            "req_id": "22701",
+            "title": "General Laborer",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25292",
+            "req_id": "25292",
+            "title": "Technician II - Security Systems",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24450",
+            "req_id": "24450",
+            "title": "Residential Electrician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24975",
+            "req_id": "24975",
+            "title": "Safety Manager",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24751",
+            "req_id": "24751",
+            "title": "Administrative Assistant",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25141",
+            "req_id": "25141",
+            "title": "Material Handler",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24804",
+            "req_id": "24804",
+            "title": "Electrical Foreman",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24486",
+            "req_id": "24486",
+            "title": "Residential Electrical Supervisor - Single Family",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "23247",
+            "req_id": "23247",
+            "title": "Multi-Trade Assistant Project Manager - HVAC, Plumbing, Electrical",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25234",
+            "req_id": "25234",
+            "title": "Electrical Supervisor - Single Family",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24740",
+            "req_id": "24740",
+            "title": "Accounts Payable Specialist - Part-Time",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25112",
+            "req_id": "25112",
+            "title": "Site Safety Coordinator",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25278",
+            "req_id": "25278",
+            "title": "HVAC Installation Apprentice",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24166",
+            "req_id": "24166",
+            "title": "Combi-Lift Driver - Logistics",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24055",
+            "req_id": "24055",
+            "title": "In- House Contracts Paralegal",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24897",
+            "req_id": "24897",
+            "title": "HVAC Warehouse Assistant",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24814",
+            "req_id": "24814",
+            "title": "Project Manager - Telecommunications",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24073",
+            "req_id": "24073",
+            "title": "Dispatcher",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25058",
+            "req_id": "25058",
+            "title": "Electrical Helper - Single Family",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25132",
+            "req_id": "25132",
+            "title": "Quality Assurance Supervisor - Security Systems - Data Center",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24149",
+            "req_id": "24149",
+            "title": "Financial Analyst",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24424",
+            "req_id": "24424",
+            "title": "Project Manager Fire Alarm",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24664",
+            "req_id": "24664",
+            "title": "Technical Director - Hyperscale Data Center Construction",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24558",
+            "req_id": "24558",
+            "title": "Project Manager Assistant",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24152",
+            "req_id": "24152",
+            "title": "Electrician Helper",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24832",
+            "req_id": "24832",
+            "title": "Safety Manager",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24278",
+            "req_id": "24278",
+            "title": "Electrical Project Manager - Data Center",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24829",
+            "req_id": "24829",
+            "title": "Contract Administrator",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "22417",
+            "req_id": "22417",
+            "title": "Safety Coordinator",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25259",
+            "req_id": "25259",
+            "title": "Crew Lead - Audio Visual",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24173",
+            "req_id": "24173",
+            "title": "Industrial Painter",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24695",
+            "req_id": "24695",
+            "title": "Electric Service Technician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24995",
+            "req_id": "24995",
+            "title": "Technician I -Logistics",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24843",
+            "req_id": "24843",
+            "title": "Commercial Project Manager",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25096",
+            "req_id": "25096",
+            "title": "Residential Service Electrician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24133",
+            "req_id": "24133",
+            "title": "Welder/Fabricator - 2nd Shift",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24808",
+            "req_id": "24808",
+            "title": "Project Manager - low voltage - Data Center 100 percent travel  MCG1 TSE EAST PROJECTS",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "23830",
+            "req_id": "23830",
+            "title": "HVAC New Construction Installer",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24931",
+            "req_id": "24931",
+            "title": "Commercial Lighting and Plumbing Fixture Buyer",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "23906",
+            "req_id": "23906",
+            "title": "Quality Assurance Specialist - Data Center Low Voltage",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25265",
+            "req_id": "25265",
+            "title": "Warehouse Manager",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24438",
+            "req_id": "24438",
+            "title": "Shipping Supervisor",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24264",
+            "req_id": "24264",
+            "title": "Foreman Electrical",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "23110",
+            "req_id": "23110",
+            "title": "Electrician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "22962",
+            "req_id": "22962",
+            "title": "Safety Manager",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24415",
+            "req_id": "24415",
+            "title": "Warehouse Associate",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24805",
+            "req_id": "24805",
+            "title": "Journeyman Electrician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25233",
+            "req_id": "25233",
+            "title": "Electrical Supervisor - Single Family",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25154",
+            "req_id": "25154",
+            "title": "Senior HVAC Quality Control Technician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24075",
+            "req_id": "24075",
+            "title": "Plumbing Service Technician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25028",
+            "req_id": "25028",
+            "title": "Lead HVAC Installer",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25032",
+            "req_id": "25032",
+            "title": "Foreman Electrician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24911",
+            "req_id": "24911",
+            "title": "Branch Manager",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24356",
+            "req_id": "24356",
+            "title": "Final Install HVAC Technician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "23491",
+            "req_id": "23491",
+            "title": "HVAC Supervisor - New Construction",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24872",
+            "req_id": "24872",
+            "title": "Project Lead - Data Center Services",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24417",
+            "req_id": "24417",
+            "title": "Warehouse Technician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25203",
+            "req_id": "25203",
+            "title": "Electrical Helper SR",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "22593",
+            "req_id": "22593",
+            "title": "Technician I - Structured Cabling",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24996",
+            "req_id": "24996",
+            "title": "Electrical Engineer - Freeman",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25064",
+            "req_id": "25064",
+            "title": "Electrical Leadman",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24284",
+            "req_id": "24284",
+            "title": "QA/QC Coordinator",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25147",
+            "req_id": "25147",
+            "title": "Electrical Construction Estimator - Data Center",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24242",
+            "req_id": "24242",
+            "title": "Electrical Quality Control Inspector - Commercial & Residential",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24532",
+            "req_id": "24532",
+            "title": "Journeyman Plumber",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25042",
+            "req_id": "25042",
+            "title": "Technician I- Data Center",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24569",
+            "req_id": "24569",
+            "title": "HVAC Energy Code Compliance Specialist (Florida Energy Gauge)",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25211",
+            "req_id": "25211",
+            "title": "Crew Lead - Infrastructure",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25140",
+            "req_id": "25140",
+            "title": "Payroll Specialist",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24778",
+            "req_id": "24778",
+            "title": "Residential Wireman",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24401",
+            "req_id": "24401",
+            "title": "Electrical Foreman",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25198",
+            "req_id": "25198",
+            "title": "Technician II -Logistics",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24670",
+            "req_id": "24670",
+            "title": "Department Manager",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "23481",
+            "req_id": "23481",
+            "title": "Electrician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24652",
+            "req_id": "24652",
+            "title": "Experienced Service Plumber",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24283",
+            "req_id": "24283",
+            "title": "Project Lead- Structured Cabling",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24040",
+            "req_id": "24040",
+            "title": "Safety Coordinator",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24990",
+            "req_id": "24990",
+            "title": "Field Engineer I - Data Center Services",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24265",
+            "req_id": "24265",
+            "title": "Journeyman Electrician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24259",
+            "req_id": "24259",
+            "title": "Fire Alarm Project Manager - Data Center",
+            "ats_code": "icims"
+          }
+        }
+      ]
+    },
+    {
+      "totalCount": 753,
+      "jobs": [
+        {
+          "data": {
+            "slug": "23895",
+            "req_id": "23895",
+            "title": "Estimator Electrical",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24516",
+            "req_id": "24516",
+            "title": "Project Lead - Services (Hospital)",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25269",
+            "req_id": "25269",
+            "title": "Lead Logistics",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "23637",
+            "req_id": "23637",
+            "title": "Project Manager - Data Center - Low Voltage",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24800",
+            "req_id": "24800",
+            "title": "Vehicle Mechanic",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24507",
+            "req_id": "24507",
+            "title": "Industrial Painter - 2nd Shift | $1,000 Sign-On Bonus | Tulsa, OK",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "22089",
+            "req_id": "22089",
+            "title": "Material Handler",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24548",
+            "req_id": "24548",
+            "title": "Quality Assurance Specialist - Data Center Low Voltage 100% Traveler  MCGI TSE East TFO",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24246",
+            "req_id": "24246",
+            "title": "Electrical Helper SR",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24922",
+            "req_id": "24922",
+            "title": "Assembly Technician II",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24694",
+            "req_id": "24694",
+            "title": "Journeyman Electrician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24413",
+            "req_id": "24413",
+            "title": "Warehouse Associate",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "22088",
+            "req_id": "22088",
+            "title": "Mechanical Assembler",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24862",
+            "req_id": "24862",
+            "title": "Technician II -Logistics",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24762",
+            "req_id": "24762",
+            "title": "Quality Inspector 2nd Shift",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25070",
+            "req_id": "25070",
+            "title": "Technician I - Security",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24794",
+            "req_id": "24794",
+            "title": "HVAC Superintendent - Multi-Family",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25170",
+            "req_id": "25170",
+            "title": "Senior HVAC Quality Control Technician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25000",
+            "req_id": "25000",
+            "title": "Project Manager - Security Systems",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25162",
+            "req_id": "25162",
+            "title": "Electrical Helper",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24408",
+            "req_id": "24408",
+            "title": "Plumbing Estimator",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24895",
+            "req_id": "24895",
+            "title": "Electrical Field Supervisor",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24713",
+            "req_id": "24713",
+            "title": "Electrical Helper",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24472",
+            "req_id": "24472",
+            "title": "Mechanical Quality Control Inspector",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24816",
+            "req_id": "24816",
+            "title": "Administrative Coordinator",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24792",
+            "req_id": "24792",
+            "title": "Welder/Fabricator",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24561",
+            "req_id": "24561",
+            "title": "Residential Electric Technician - Leadman",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "22755",
+            "req_id": "22755",
+            "title": "HVAC Start Up Technician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24620",
+            "req_id": "24620",
+            "title": "Quality Training Specialist",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25049",
+            "req_id": "25049",
+            "title": "Electrician-Data Center",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24890",
+            "req_id": "24890",
+            "title": "Electrical Helper - Williamsburg, VA",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24549",
+            "req_id": "24549",
+            "title": "Journeyman Pipefitter",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24854",
+            "req_id": "24854",
+            "title": "Project Manager",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25128",
+            "req_id": "25128",
+            "title": "Technician II - Structured Cabling",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24391",
+            "req_id": "24391",
+            "title": "Plumbing Apprentice",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25307",
+            "req_id": "25307",
+            "title": "Property Manager",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25052",
+            "req_id": "25052",
+            "title": "Electrical Supervisor - Single Family",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24797",
+            "req_id": "24797",
+            "title": "Assistant Project Manager Utility",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25015",
+            "req_id": "25015",
+            "title": "Technical Accounting Manager",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24367",
+            "req_id": "24367",
+            "title": "Electrical Apprentice",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24883",
+            "req_id": "24883",
+            "title": "Electrical Helper - Virginia Beach, VA",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25055",
+            "req_id": "25055",
+            "title": "Residential Piece Rate Electrician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "22679",
+            "req_id": "22679",
+            "title": "Lead Communication Tech 100% Traveler",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24817",
+            "req_id": "24817",
+            "title": "Department Manager",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25094",
+            "req_id": "25094",
+            "title": "Warehouse Associate",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25188",
+            "req_id": "25188",
+            "title": "Electrical Service Leadman",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24266",
+            "req_id": "24266",
+            "title": "Journeyman Electrician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25257",
+            "req_id": "25257",
+            "title": "Project Manager - 100% Travel Required",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24598",
+            "req_id": "24598",
+            "title": "Client Development Manager - Telecommunications",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25178",
+            "req_id": "25178",
+            "title": "Talent Acquisition Specialist",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25120",
+            "req_id": "25120",
+            "title": "Final Assembler",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24252",
+            "req_id": "24252",
+            "title": "Entry-Level Electrical Helper",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24172",
+            "req_id": "24172",
+            "title": "Residential Electrical Helper",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24925",
+            "req_id": "24925",
+            "title": "Industrial Powder Coat Paint Lead",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25280",
+            "req_id": "25280",
+            "title": "Electrical Service Technician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24622",
+            "req_id": "24622",
+            "title": "Electrical Helper - Multi-Family",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24141",
+            "req_id": "24141",
+            "title": "Electrical Foreman",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24324",
+            "req_id": "24324",
+            "title": "Electrical Foreman",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25300",
+            "req_id": "25300",
+            "title": "Technical Manager - Quality and Training",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24426",
+            "req_id": "24426",
+            "title": "Associate Project Manager - 100% Travel - MC TSE West Projects",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24813",
+            "req_id": "24813",
+            "title": "Project Manager - Telecommunications",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24070",
+            "req_id": "24070",
+            "title": "HVAC Helper",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24288",
+            "req_id": "24288",
+            "title": "QA/QC Site Manager - Data Center",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24757",
+            "req_id": "24757",
+            "title": "General Superintendent",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25212",
+            "req_id": "25212",
+            "title": "Warehouse Associate",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "23030",
+            "req_id": "23030",
+            "title": "Warehouse Associate",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25209",
+            "req_id": "25209",
+            "title": "Trimble Design/Operator",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25179",
+            "req_id": "25179",
+            "title": "Project Manager Assistant",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25106",
+            "req_id": "25106",
+            "title": "Construction Scheduler",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24952",
+            "req_id": "24952",
+            "title": "General Superintendent - New Hire Bonus $7000",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24535",
+            "req_id": "24535",
+            "title": "Pre-Construction Specialist",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24190",
+            "req_id": "24190",
+            "title": "General Superintendent 100% Traveler MCG1 TSE EAST PROJECTS",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24118",
+            "req_id": "24118",
+            "title": "Litigation Attorney",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24552",
+            "req_id": "24552",
+            "title": "Dispatcher",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24850",
+            "req_id": "24850",
+            "title": "Electrical Foreman",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24091",
+            "req_id": "24091",
+            "title": "Residential Electrician Leadman",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "23034",
+            "req_id": "23034",
+            "title": "New Construction Plumber Residential",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25253",
+            "req_id": "25253",
+            "title": "Field Engineer I - Structured Cabling",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24837",
+            "req_id": "24837",
+            "title": "Superintendent - Data Centers",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24591",
+            "req_id": "24591",
+            "title": "Plumbing Supervisor New Construction",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25048",
+            "req_id": "25048",
+            "title": "Solutions Architect (Enterprise Applications)",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "23038",
+            "req_id": "23038",
+            "title": "Residential Plumbing Estimator",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24368",
+            "req_id": "24368",
+            "title": "Electrical Service Technician - Quick Hire!",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24783",
+            "req_id": "24783",
+            "title": "HVAC Maintenance Technician - Experienced",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24151",
+            "req_id": "24151",
+            "title": "HVAC Project Manager",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25219",
+            "req_id": "25219",
+            "title": "Technician I-Structured Cabling",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24444",
+            "req_id": "24444",
+            "title": "HVAC Field Supervisor",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25214",
+            "req_id": "25214",
+            "title": "Superintendent",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24728",
+            "req_id": "24728",
+            "title": "General Laborer",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24513",
+            "req_id": "24513",
+            "title": "Electrical Foreman - Multi Family",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24260",
+            "req_id": "24260",
+            "title": "Fire Alarm Project Manager - Data Center",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "21717",
+            "req_id": "21717",
+            "title": "HVAC New Construction Installer",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24902",
+            "req_id": "24902",
+            "title": "Associate Project Manager - NIS East",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25061",
+            "req_id": "25061",
+            "title": "Project Manager - low voltage - Data Center 100% Traveler MCG1 - NIS Special Systems DAS",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25279",
+            "req_id": "25279",
+            "title": "Technician I - Logistics",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24693",
+            "req_id": "24693",
+            "title": "Residential Wireman",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25007",
+            "req_id": "25007",
+            "title": "Lead DAS Technician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24566",
+            "req_id": "24566",
+            "title": "Quality Control Specialist - Multi Family",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "23440",
+            "req_id": "23440",
+            "title": "Production Single Pass Mig Welder",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24688",
+            "req_id": "24688",
+            "title": "Lead Communication Tech 100% Traveler",
+            "ats_code": "icims"
+          }
+        }
+      ]
+    },
+    {
+      "totalCount": 753,
+      "jobs": [
+        {
+          "data": {
+            "slug": "24297",
+            "req_id": "24297",
+            "title": "Electrical Estimator",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24213",
+            "req_id": "24213",
+            "title": "Electrical Helper",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24337",
+            "req_id": "24337",
+            "title": "Plumbing Field Instructor",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "22545",
+            "req_id": "22545",
+            "title": "Machinist (Manual)",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24153",
+            "req_id": "24153",
+            "title": "Electrician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25138",
+            "req_id": "25138",
+            "title": "Licensed Electric Technician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "22429",
+            "req_id": "22429",
+            "title": "Safety Coordinator",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "22543",
+            "req_id": "22543",
+            "title": "Field Service Technician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24490",
+            "req_id": "24490",
+            "title": "Operations Manager - Plumbing Division",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24945",
+            "req_id": "24945",
+            "title": "Project Manager Assistant",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24095",
+            "req_id": "24095",
+            "title": "Residential Electrical Leadman",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24306",
+            "req_id": "24306",
+            "title": "Multi-Family Electrical Supervisor",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25189",
+            "req_id": "25189",
+            "title": "Electrical Service Helper",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "23662",
+            "req_id": "23662",
+            "title": "HVAC Start Up Technician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24238",
+            "req_id": "24238",
+            "title": "Residential Electrician Helper",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25213",
+            "req_id": "25213",
+            "title": "Service Electrician - Greenville, SC",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25100",
+            "req_id": "25100",
+            "title": "Client Development Associate",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24988",
+            "req_id": "24988",
+            "title": "Electrical Estimator - Mission Critical",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24742",
+            "req_id": "24742",
+            "title": "Crew Lead Infrastructure",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25284",
+            "req_id": "25284",
+            "title": "Electrical Service Technician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24595",
+            "req_id": "24595",
+            "title": "Electrical Quality Assurance Inspector - 2nd Shift - Freeman",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "23257",
+            "req_id": "23257",
+            "title": "Safety Coordinator",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25261",
+            "req_id": "25261",
+            "title": "Accounts Payable Clerk",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25199",
+            "req_id": "25199",
+            "title": "Senior Tax Analyst",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24291",
+            "req_id": "24291",
+            "title": "QA/QC Site Manager - Data Center",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24544",
+            "req_id": "24544",
+            "title": "CNC/Nesting Programmer",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24156",
+            "req_id": "24156",
+            "title": "Commercial Electrical Apprentice",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25228",
+            "req_id": "25228",
+            "title": "Contracts Attorney",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25282",
+            "req_id": "25282",
+            "title": "Residential Electrical Supervisor",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25030",
+            "req_id": "25030",
+            "title": "Journeyman Electrician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24563",
+            "req_id": "24563",
+            "title": "Residential Electric Technician - Leadman",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24267",
+            "req_id": "24267",
+            "title": "Journeyman Electrician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25043",
+            "req_id": "25043",
+            "title": "DOL Apprentice Electrical - San Antonio, TX",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25151",
+            "req_id": "25151",
+            "title": "Recruiter",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24090",
+            "req_id": "24090",
+            "title": "Residential Electrician Supervisor-SF",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24650",
+            "req_id": "24650",
+            "title": "Industrial Painter",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "23163",
+            "req_id": "23163",
+            "title": "Safety Coordinator",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "23784",
+            "req_id": "23784",
+            "title": "Safety Coordinator- Traveler",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25034",
+            "req_id": "25034",
+            "title": "Project Lead Fiber Tech 100% Traveler",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25223",
+            "req_id": "25223",
+            "title": "Field Engineer II - Audio Visual",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24379",
+            "req_id": "24379",
+            "title": "Electrical Leadman",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24396",
+            "req_id": "24396",
+            "title": "Licensed Journeyman Plumber",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25051",
+            "req_id": "25051",
+            "title": "Safety Coordinator",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24920",
+            "req_id": "24920",
+            "title": "Press Brake Operator",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24753",
+            "req_id": "24753",
+            "title": "Project Manager Assistant",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "22257",
+            "req_id": "22257",
+            "title": "Safety Coordinator",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24352",
+            "req_id": "24352",
+            "title": "Superintendent",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25090",
+            "req_id": "25090",
+            "title": "Warehouse Technician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24144",
+            "req_id": "24144",
+            "title": "Electrician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "22535",
+            "req_id": "22535",
+            "title": "Motor Mechanic (Industrial)",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24543",
+            "req_id": "24543",
+            "title": "Project Coordinator - Data Center Cable Installation",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25160",
+            "req_id": "25160",
+            "title": "Site Safety Manager",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24089",
+            "req_id": "24089",
+            "title": "Fleet Administrator",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25181",
+            "req_id": "25181",
+            "title": "Technician I-Structured Cabling",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25174",
+            "req_id": "25174",
+            "title": "Warehouse Manager",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24596",
+            "req_id": "24596",
+            "title": "Warehouse Associate",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "23124",
+            "req_id": "23124",
+            "title": "Quality Assurance Specialist - Data Center Low Voltage 100% Traveling",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24981",
+            "req_id": "24981",
+            "title": "Plumbing Field Operations Manager",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24194",
+            "req_id": "24194",
+            "title": "Project Manager 100% Traveler MCGI TSE East TFO",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24254",
+            "req_id": "24254",
+            "title": "Entry-Level Electrical Helper",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25038",
+            "req_id": "25038",
+            "title": "Field Engineer II- Security Systems",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "23204",
+            "req_id": "23204",
+            "title": "Technical Director - MCG I TSE",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24809",
+            "req_id": "24809",
+            "title": "Apprentice Electrician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24381",
+            "req_id": "24381",
+            "title": "Plumbing Foreman",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24160",
+            "req_id": "24160",
+            "title": "Commercial Licensed Electrician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24275",
+            "req_id": "24275",
+            "title": "Project Engineer - Entry Level",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24960",
+            "req_id": "24960",
+            "title": "Mechanical Inspector",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24701",
+            "req_id": "24701",
+            "title": "General Superintendent - Low Voltage - NIS Special Systems",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24776",
+            "req_id": "24776",
+            "title": "Supervisor Assistant",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24846",
+            "req_id": "24846",
+            "title": "Electrical Helper",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25184",
+            "req_id": "25184",
+            "title": "Electrical Foreman",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24923",
+            "req_id": "24923",
+            "title": "Industrial Powder Coat Painter",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25122",
+            "req_id": "25122",
+            "title": "Quality Inspector",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24866",
+            "req_id": "24866",
+            "title": "Plumbing Superintendent",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25053",
+            "req_id": "25053",
+            "title": "Electrical Supervisor - Single Family",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24441",
+            "req_id": "24441",
+            "title": "Electrical Foreman",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24524",
+            "req_id": "24524",
+            "title": "Superintendent",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25054",
+            "req_id": "25054",
+            "title": "Residential Piece Rate Electrician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25126",
+            "req_id": "25126",
+            "title": "HVAC New Construction Installer",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "22529",
+            "req_id": "22529",
+            "title": "Motor Winder (AC & DC)",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25187",
+            "req_id": "25187",
+            "title": "Estimating Bid Coordinator",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25255",
+            "req_id": "25255",
+            "title": "Accounting Specialist - Accounts Receivable & Accounts Payable",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25014",
+            "req_id": "25014",
+            "title": "Senior Financial Reporting Analyst",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24593",
+            "req_id": "24593",
+            "title": "Electric Assembler - Freeman",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25305",
+            "req_id": "25305",
+            "title": "Project Manager Assistant - Expert Excel experience REQUIRED - must be local to Brownsburg, IN",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25231",
+            "req_id": "25231",
+            "title": "Experienced Service Plumber",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24626",
+            "req_id": "24626",
+            "title": "Technician I - Structured Cabling",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "23967",
+            "req_id": "23967",
+            "title": "Field Engineer I- Structured Cable",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24117",
+            "req_id": "24117",
+            "title": "Experienced HVAC Tech",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24992",
+            "req_id": "24992",
+            "title": "Electrician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24769",
+            "req_id": "24769",
+            "title": "Crew Lead - Structured Cabling",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24248",
+            "req_id": "24248",
+            "title": "Electrical Helper SR",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24790",
+            "req_id": "24790",
+            "title": "Technician I - Structured Cabling",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "21754",
+            "req_id": "21754",
+            "title": "HVAC Maintenance Technician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24521",
+            "req_id": "24521",
+            "title": "Project Lead - Structured Cabling",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "23396",
+            "req_id": "23396",
+            "title": "TRAVELING Project Manager - Low Voltage Cabling",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24355",
+            "req_id": "24355",
+            "title": "HVAC Installation Technician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25107",
+            "req_id": "25107",
+            "title": "QA/QC  Inspector - Level 1",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24220",
+            "req_id": "24220",
+            "title": "Electrician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25201",
+            "req_id": "25201",
+            "title": "Electrician",
+            "ats_code": "icims"
+          }
+        }
+      ]
+    },
+    {
+      "totalCount": 753,
+      "jobs": [
+        {
+          "data": {
+            "slug": "24613",
+            "req_id": "24613",
+            "title": "Field Engineer I- Structured Cable",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24484",
+            "req_id": "24484",
+            "title": "Plumbing Installation Technician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24721",
+            "req_id": "24721",
+            "title": "Technician I-Structured Cabling",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24984",
+            "req_id": "24984",
+            "title": "Field Engineer II - Data Center Services",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "23771",
+            "req_id": "23771",
+            "title": "Safety Coordinator",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24122",
+            "req_id": "24122",
+            "title": "General Superintendent 100% Traveler MCG1 RPL",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25092",
+            "req_id": "25092",
+            "title": "QA/QC Inspector level 2",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25217",
+            "req_id": "25217",
+            "title": "Technician I-Structured Cabling",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25165",
+            "req_id": "25165",
+            "title": "Quality Assurance Specialist - Mission Critical",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "23944",
+            "req_id": "23944",
+            "title": "Journeyman Electrician - San Antonio, TX",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24718",
+            "req_id": "24718",
+            "title": "Project Manager - low voltage - Data Center",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24891",
+            "req_id": "24891",
+            "title": "Project Manager - Telecommunications",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24215",
+            "req_id": "24215",
+            "title": "Electrical Helper SR",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24956",
+            "req_id": "24956",
+            "title": "Project Manager Assistant",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "23908",
+            "req_id": "23908",
+            "title": "Senior Field Engineer - Structured Cabling",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24941",
+            "req_id": "24941",
+            "title": "Project Manager",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24403",
+            "req_id": "24403",
+            "title": "Electrical Lead - Single Family",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24116",
+            "req_id": "24116",
+            "title": "Foreman Electrical",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25044",
+            "req_id": "25044",
+            "title": "Safety Trainer",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24612",
+            "req_id": "24612",
+            "title": "Electrical Foreman",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25069",
+            "req_id": "25069",
+            "title": "Project Lead - Structured Cabling",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24217",
+            "req_id": "24217",
+            "title": "Electrician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24187",
+            "req_id": "24187",
+            "title": "Final Assembler",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25040",
+            "req_id": "25040",
+            "title": "Technician I- AV",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25103",
+            "req_id": "25103",
+            "title": "HVAC/Plumbing Quality Control Specialist",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24938",
+            "req_id": "24938",
+            "title": "Bilingual-Safety Coordinator",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24449",
+            "req_id": "24449",
+            "title": "Residential Electrician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24280",
+            "req_id": "24280",
+            "title": "Project Scheduler - Data Center",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24969",
+            "req_id": "24969",
+            "title": "Quality Assurance Specialist - Data Center Low Voltage",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "23400",
+            "req_id": "23400",
+            "title": "Project Manager - Low Voltage Cabling ($9000 Sign-on Bonus)",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25031",
+            "req_id": "25031",
+            "title": "Crew Lead - Structured Cabling",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "20475",
+            "req_id": "20475",
+            "title": "HVAC Lead Service Technician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25074",
+            "req_id": "25074",
+            "title": "Estimator - Structured Cabling",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24078",
+            "req_id": "24078",
+            "title": "Project Lead-Structured Cabling- 100% Traveler Required",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24328",
+            "req_id": "24328",
+            "title": "Plumbing Supervisor",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "23669",
+            "req_id": "23669",
+            "title": "Residential HVAC Estimator",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24462",
+            "req_id": "24462",
+            "title": "Electrical Estimator",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24918",
+            "req_id": "24918",
+            "title": "Technician II - Structured Cabling ($2500 Sign-on Bonus)",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24539",
+            "req_id": "24539",
+            "title": "Field Engineer II - Structured Cabling",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "23692",
+            "req_id": "23692",
+            "title": "Quality Assurance Specialist - Low Voltage Cabling - 100% TRAVEL REQUIRED",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25224",
+            "req_id": "25224",
+            "title": "General Superintendent - Structured Cabling - MC TSE West",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25298",
+            "req_id": "25298",
+            "title": "Electrician",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24957",
+            "req_id": "24957",
+            "title": "Project Manager Assistant",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25296",
+            "req_id": "25296",
+            "title": "Technician II - Structured Cabling",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24181",
+            "req_id": "24181",
+            "title": "Assembler - Housing",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24619",
+            "req_id": "24619",
+            "title": "Project Lead - Structured Cabling ($3500 Sign-on Bonus)",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24863",
+            "req_id": "24863",
+            "title": "Quality Supervisor - Low Voltage Cabling & 50% TRAVEL REQUIRED",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24951",
+            "req_id": "24951",
+            "title": "Technician I - Structured Cabling ($1,500 Sign-on bonus)",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24540",
+            "req_id": "24540",
+            "title": "Quality Assurance Specialist - Low Voltage Cabling",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "24689",
+            "req_id": "24689",
+            "title": "Technician II - Structured Cabling-100 %  Traveler",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25137",
+            "req_id": "25137",
+            "title": "Technician II - Structured Cabling -100% Full time traveler",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25297",
+            "req_id": "25297",
+            "title": "Technician I - Structured Cabling ($1,500 Sign-on bonus)",
+            "ats_code": "icims"
+          }
+        },
+        {
+          "data": {
+            "slug": "25109",
+            "req_id": "25109",
+            "title": "Quality Supervisor - Low Voltage Cabling & 50% TRAVEL REQUIRED",
+            "ats_code": "icims"
+          }
+        }
+      ]
+    }
+  ]
+}

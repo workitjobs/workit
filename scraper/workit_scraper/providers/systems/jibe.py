@@ -15,7 +15,7 @@ from collections.abc import Callable
 from workit_scraper import details
 from workit_scraper.providers import fetch
 from workit_scraper.providers.fetch import _iso
-from workit_scraper.providers.model import Incomplete, Job, Provider, TooLarge
+from workit_scraper.providers.model import BoardNotFound, Incomplete, Job, Provider, TooLarge
 from workit_scraper.providers.text import _listed_page, _place
 
 #: Postings per Jibe request (its own page asks for 10).
@@ -43,7 +43,13 @@ def jibe(token: str, company: str, *, pace: Callable[[str], None] = lambda url: 
         url = f"https://{token}/api/jobs?page={number}&limit={JIBE_PAGE}"
         if number > 1:
             pace(url)
-        payload = fetch._get_json(url)
+        try:
+            payload = fetch._get_json(url)
+        except BoardNotFound as error:
+            if number == 1:
+                raise
+            # A later page disappearing is not evidence that the board is gone.
+            raise Incomplete(f"no page at number {number:,}") from error
         assert isinstance(payload, dict)
         if expected is None:
             expected = int(payload.get("totalCount") or 0)
