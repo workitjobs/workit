@@ -222,6 +222,18 @@ _Avoid_: Dashboard (the seeker's page was renamed; the company side keeps its Da
 
 ## Jobs
 
+**Qualifying job posting**:
+A job posting with sufficient evidence to satisfy WorkIt's current eligibility rules.
+_Avoid_: raw posting, title match (as a synonym)
+
+**Verified-active qualifying inventory**:
+Qualifying job postings with a positive employer-source observation and eligibility evidence within their applicable freshness windows. Multiple sources supporting the same apply URL count once.
+_Avoid_: historical inventory, feed size (as synonyms)
+
+**Stale or unknown inventory**:
+Previously observed postings whose current activity or eligibility cannot be established within the applicable freshness windows. This uncertainty alone does not mean a posting is closed.
+_Avoid_: closed inventory (as a synonym)
+
 **Job Type**:
 What kind of job a job posting is: Full-Time, Part-Time, Contract or Internship. The Jobs page and the Tracker both filter on it under this name.
 _Avoid_: Track, employment type, position type
