@@ -770,7 +770,11 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   clicks Submit on each, so no page says WorkIt submits, sends or
   applies. Scout's page is about Fill With Scout, the one way into Scout
   while Ask Scout is greyed out; bring the job questions back to it when
-  `ASK_SCOUT_LIVE` turns on. **A content file imports its animation from
+  `ASK_SCOUT_LIVE` turns on. **Still open (KAN-732):** Fill With Scout is
+  off too (`FILL_WITH_SCOUT_LIVE`), so Scout's page, the pricing table's
+  Scout row and the Resumes page's FAQ ("let Scout ask you about them")
+  now promise a feature with no way in; what the site says instead is
+  the team's call. **A content file imports its animation from
   `features/animations.tsx`, never the animation itself**: each there is
   a `next/dynamic` wrapper, server-rendered as before, whose chunk only
   the page that shows it loads. A client component a server file imports
@@ -2053,10 +2057,16 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   on a click (the panel's rule), never on page load; a link a student
   clicked to get here may open it once, then drop its query param.
   **The bar's Scout button is archived** (`SCOUT_LAUNCHER_LIVE` in
-  `(seeker)/layout.tsx`, 2026-11-01): Fill With Scout still opens the panel,
-  and closing it leaves focus on the page, since no launcher takes it back.
+  `(seeker)/layout.tsx`, 2026-11-01). **Fill With Scout is off too**
+  (`FILL_WITH_SCOUT_LIVE` in `components/scout/live.ts`, KAN-732): it was
+  the last way into Scout, and onboarding no longer names Scout. Off,
+  Experiences shows no Fill With Scout and takes no panel, and the Jobs
+  page's Import Your Resume imports in place (`jobs/import-resume-button.tsx`).
+  The flag lives in its own module, not beside `ASK_SCOUT_LIVE`, because
+  server components read it: a value a server component imports from a
+  "use client" file arrives as a client reference, which is never false.
   The editor's assistant has no other way in on a laptop, so it is out of reach
-  until the flag is on or the toolbar gets a button. **Ask Scout is greyed
+  until `SCOUT_LAUNCHER_LIVE` is on or the toolbar gets a button. **Ask Scout is greyed
   out** (`ASK_SCOUT_LIVE` in `components/scout/scout-buttons.tsx`, 2026-11-02,
   it does not work): every job's button and the phone editor's two buttons
   stay in place, disabled, the panel's hint is hidden, and the flag brings

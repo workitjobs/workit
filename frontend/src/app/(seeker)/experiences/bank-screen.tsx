@@ -14,6 +14,7 @@ import {
 } from "react";
 
 import { EllipsisIcon } from "@/components/icons";
+import { FILL_WITH_SCOUT_LIVE } from "@/components/scout/live";
 import { setScoutOpen, useScout } from "@/components/scout/scout-store";
 import { ScoutTakeover } from "@/components/scout/scout-takeover";
 import {
@@ -84,9 +85,10 @@ import { SkillGroups } from "./skill-groups";
  * from the bar's launcher or the title's Fill With Scout, so the page is the
  * bank itself. `autoImport` (the Jobs page's Import Your Resume) opens the
  * panel on arrival, since the student clicked to get there, and drops
- * ?import=1 so a reload or Back does not open it again. An empty bank gets
- * no card of its own: the title's Fill With Scout and each section's +
- * already say where to start.
+ * ?import=1 so a reload or Back does not open it again. While Fill With
+ * Scout is off (`FILL_WITH_SCOUT_LIVE`, KAN-732) the page takes no panel at
+ * all. An empty bank gets no card of its own: each section's + already
+ * says where to start, as Fill With Scout did too while it was offered.
  *
  * It opens on All Experiences, the whole bank with copies shown once, so
  * nothing is out of reach (KAN-440). The Showing card (KAN-343, KAN-361,
@@ -338,18 +340,22 @@ export function BankScreen({
           )
         }
       />
-      <ScoutTakeover title="Scout" subtitle="Fills your experience bank as you talk">
-        <Intake
-          filled={bank.entries.map((e) => e.section)}
-          entries={bank.entries}
-          walk
-          importable
-          autoImport={autoImport}
-          onSaved={reload}
-          docked
-          onFocus={setFocus}
-        />
-      </ScoutTakeover>
+      {/* No panel while Fill With Scout is off: a panel the editor left
+          open would otherwise show intake here, with no button to explain it. */}
+      {FILL_WITH_SCOUT_LIVE && (
+        <ScoutTakeover title="Scout" subtitle="Fills your experience bank as you talk">
+          <Intake
+            filled={bank.entries.map((e) => e.section)}
+            entries={bank.entries}
+            walk
+            importable
+            autoImport={autoImport}
+            onSaved={reload}
+            docked
+            onFocus={setFocus}
+          />
+        </ScoutTakeover>
+      )}
       {bank.resumes.length > 0 && (
         <ResumeBar resumes={bank.resumes} value={current} onChange={setPick} />
       )}

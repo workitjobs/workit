@@ -67,8 +67,10 @@ API would refuse, so a stale link narrows by what was valid instead of erroring.
 An empty experience bank gets a card above the /jobs feed, "Add Your
 Experiences" or, with an upload, "Import Your Resume"
 (`jobs/bank-prompt.tsx`, stories 22 and 102): with an uploaded resume,
-"Import Your Resume" opens `/experiences?import=1`, which runs Import Again at
-once (one click; it writes into the bank, ADR 0003). An upload imports
+"Import Your Resume" runs Import Again at once (one click; it writes into
+the bank, ADR 0003): in place, then Experiences opens on that resume, while
+Fill With Scout is off (`jobs/import-resume-button.tsx`, KAN-732), else by
+opening `/experiences?import=1`, intake's import. An upload imports
 itself, so the card shows only for an upload the parser read nothing in or
 one from before KAN-240. With none, Upload a Resume (to `/resumes`) and Add What You Did. It streams in its own Suspense
 boundary and shows nothing when the bank has entries or fails to load. The
@@ -2167,7 +2169,8 @@ beside the Resumes view though `/experiences` imports it too, since the two rout
 are one page's views, not two consumers), laid out as the Jobs page's and the
 Applications Tracker's top row is: the view's search on the left and the
 segmented switcher between the two views at the right, after Experiences'
-primary action, Fill With Scout; on a phone the search takes its own line.
+primary action, Fill With Scout, while it is offered (off since KAN-732,
+`FILL_WITH_SCOUT_LIVE`); on a phone the search takes its own line.
 The title is in the top bar. A shared "Resumes & Experiences" title on both views
 said less about where the student was. The views stay two routes, so every link to either still
 lands (the Jobs page's `/experiences?import=1` included), and the switcher is plain
@@ -2184,7 +2187,8 @@ see for the experience bank; the glossary term stays.
 kept, once (`GLOSSARY.md`), and the only place they are edited: the
 Resumes view keeps the uploads, and its upload note links here.
 
-**Layout, top to bottom**: the shared header (above) with Fill With Scout,
+**Layout, top to bottom**: the shared header (above) with Fill With Scout
+while it is offered,
 the Showing card (All Experiences, where the page opens, with Filter by
 Resume; or the picked resume, drawn as the Resumes page draws one, with
 Show All and Change Resume in it, and a click on it opens the resume), the
@@ -2231,7 +2235,11 @@ while closed, since it stops a Generate, and the row Scout is working on
 stays open. Every entry fully open made a bank of six entries a long page.
 
 **Intake lives in Scout's panel** (2026-10-13), where Scout does: the bar's
-Scout button or Fill With Scout opens it. On this page the panel shows
+Scout button or Fill With Scout opens it. **Both are off** (the launcher
+since 2026-11-01; Fill With Scout since KAN-732, `FILL_WITH_SCOUT_LIVE` in
+`components/scout/live.ts`), so intake has no way in and the page takes no
+panel: a panel the editor left open showed intake here with no button to
+explain it. The flag brings it all back. On this page the panel shows
 intake in place of Scout's job chat (`components/scout/scout-takeover.tsx`)
 and widens to 448px (460px of room with its gap). Three bands, top to
 bottom: the stage card (the step chips), the chat (with the draft in it,
@@ -2322,8 +2330,8 @@ question is the next step. Edit opens the
 full form over the panel, with Back to Chat (Escape goes back too). The
 import card opens in the chat's place. A save
 reads the bank again, so the page behind updates at once. An empty bank
-gets no card of its own (removed in KAN-249): the title's Fill With Scout
-and each card's + already say where to start, and the card only
+gets no card of its own (removed in KAN-249): each card's + already says
+where to start (with the title's Fill With Scout, while it is offered), and the card only
 repeated them. Any other page gets Scout's own
 chat back. Intake used to lead the page, with the card in a column beside
 the chat; onboarding still shows it that way.
@@ -3373,7 +3381,9 @@ room appears at once and the page settles into its new width, while the panel
 slides in from the window's edge (`docs/motion.md` has why). Escape or its X
 closes it and hands focus back to the bar's launcher, which shows pressed while
 the panel is open. The launcher is archived (`SCOUT_LAUNCHER_LIVE`, 2026-11-01),
-so Ask Scout and Fill With Scout are the ways in for now. `chat.tsx` holds the message bubble, typing dots and
+Ask Scout is greyed out (`ASK_SCOUT_LIVE`) and Fill With Scout is off
+(`FILL_WITH_SCOUT_LIVE`, KAN-732), so Scout has no way in for now; the
+resume editor still takes the panel for its toolbar's views. `chat.tsx` holds the message bubble, typing dots and
 composer (with the mic, `use-speech-input`) and Scout's mark, shared with
 intake on the bank page and the editor assistant; the panel's header wears
 the same mark (KAN-257), where a brand-tint circle with a hand-drawn
