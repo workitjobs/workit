@@ -2360,8 +2360,8 @@ in Docs (suggested answers in the chat, not a banner).
 - **Clear All empties a card** (KAN-352): in the card's ⋯, on each
   section card and on Skills, while one resume is picked. It deletes
   what the card shows in one call (`POST .../experiences/entries/delete` or
-  `.../skills/delete`, all or none), after a confirm (`bank/clear-all.tsx`)
-  that names the count and the built resumes that show them
+  `.../skills/delete`, all or none), after a modal (`experiences/clear-all.tsx`,
+  `DeleteDialog`, KAN-732) that names the count and the built resumes that show them
   (`builtShowing` in `holdings.ts`, from the bank's `resume_ids`). It
   deletes from the whole bank, as Delete Entry does: under a built
   resume's pick the items belong to uploads (ADR 0005), so the confirm
@@ -2373,7 +2373,10 @@ in Docs (suggested answers in the chat, not a banner).
   heading with Clear All and Add, put four controls in one corner, and a
   student could not tell which acted on the section and which on the
   entry (KAN-363). Save Entry and Cancel give the focus back to the
-  pencil, and Delete Entry to the pencil of the entry beside.
+  pencil, and Delete Entry to the pencil of the entry beside. **One editor
+  at a time** (KAN-732): while an entry is in the editor, the other
+  pencils, the cards' + and ⋯ and the empty-group line hide, since any of
+  them moved the editor and dropped what was typed in it.
 - **An entry's dates sit under its title below `@xl/main`**, beside the
   pencil above it. Beside them on a phone, the dates never
   shrank and left the title a column a few letters wide ("Universi / ty").
@@ -2388,7 +2391,8 @@ in Docs (suggested answers in the chat, not a banner).
   resume preview shows the same one (`MissingFacts`, KAN-732).
 - **Deleting an entry confirms with how many built resumes show it**
   (story 18): the editor's Delete Entry reads `GET .../entries/{id}/resumes` first,
-  then asks. A resume that hides the entry is not counted.
+  then asks in a modal that names the entry (`DeleteDialog`, KAN-732), with
+  Keep It, the safe answer, focused. A resume that hides the entry is not counted.
 - **Bullets show their original wording only** (KAN-218). Wording typed on
   a resume in the editor is that resume's local variant and never shows
   here (`docs/resume.md`).
@@ -3449,8 +3453,9 @@ under the file's name (no "Optional", no intro line), a card per section
 with the bank's heading and `EntryRow`s, every entry open with its details
 and bullets and no chevron, unlike the bank's closed rows, so the whole
 reading is in view. Each entry's pencil opens the shared `EntryEditor`
-(Save Entry, Cancel, and Delete Entry, which asks first and says the file
-does not change); the other pencils hide while one entry is open. An entry
+(Save Entry, Cancel, and Delete Entry, which asks in the bank's modal and
+says the entry is not saved and the file does not change); the other
+pencils hide while one entry is open, as on Experiences. An entry
 that lacks a date or an organization warns as on Experiences. Skills are
 the bank's purple chips in their groups, and their pencil shows each ×,
 with Done to end it. Save Resume waits while an entry is open, and the

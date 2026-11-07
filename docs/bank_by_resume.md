@@ -190,8 +190,9 @@ created_at, and `edited_at` for the resume list's date, KAN-361).
   yet. [Import Again]") shows for an upload that owns nothing. Import
   Again writes that upload's own entries.
 - **Delete Entry** deletes that one row, from the foot of the entry's
-  editor (KAN-363), which the entry's pencil opens; the pencil is always
-  in view (KAN-732). Its confirm still counts the built resumes that show it.
+  editor (KAN-363), which the entry's pencil opens; the pencil is in view
+  while no other entry is open (KAN-732). Its confirm, a modal since
+  KAN-732, still counts the built resumes that show it.
 - **Clear All** (KAN-352), in a card's ⋯ menu (KAN-732), deletes every row a card shows, as Delete Entry
   does each one. Under a built resume's pick those rows belong to uploads,
   so the confirm names the uploads that lose them too.

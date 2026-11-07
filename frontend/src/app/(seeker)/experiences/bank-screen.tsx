@@ -46,7 +46,7 @@ import {
   type Skill,
 } from "@/lib/bank-actions";
 
-import { DeleteConfirm } from "../resumes/delete-confirm";
+import { DeleteDialog } from "../resumes/delete-confirm";
 import { RESUMES_SEARCH, ResumesHeader } from "../resumes/header";
 import { ClearAll } from "./clear-all";
 import { EntryEditor } from "./entry-editor";
@@ -386,7 +386,9 @@ export function BankScreen({
                 <SectionMark id={section.id} />
                 {section.label}
               </h2>
-              {!adding && (
+              {/* One editor at a time (KAN-732): a + or a pencil pressed while
+                  an entry is open moved the editor and dropped its typing. */}
+              {editing === null && (
                 <CardActions
                   name={section.label}
                   addLabel={`Add an Entry to ${section.label}`}
@@ -466,7 +468,7 @@ export function BankScreen({
                         row={row}
                         resumes={bank.resumes}
                         open={searching || here?.entryId === entry.id}
-                        onEdit={() => open({ kind: "edit", entry })}
+                        onEdit={editing === null ? () => open({ kind: "edit", entry }) : undefined}
                         onShowResume={showResume}
                       />
                     )}
@@ -510,7 +512,7 @@ export function BankScreen({
         />
       </div>
 
-      {!searching && emptySections.length > 0 && (
+      {!searching && editing === null && emptySections.length > 0 && (
         <EmptySections
           sections={emptySections}
           picked={picked !== null}
@@ -761,8 +763,9 @@ function CardActions({
 
 /**
  * An entry open in the editor, with Delete Entry at the editor's foot
- * (KAN-363). It confirms with how many built resumes show the entry (story
- * 18), read when Delete Entry is pressed. A delete closes the editor and
+ * (KAN-363). It asks in a modal (`DeleteDialog`, KAN-732) with how many
+ * built resumes show the entry (story 18), read when Delete Entry is
+ * pressed. A delete closes the editor and
  * reads the bank again (`onDeleted`). Over the buttons, a note names the
  * other built resumes a save changes too (`AlsoChanges`).
  */
@@ -820,21 +823,27 @@ function EditEntry({
         note={usedIn.length > 0 && <AlsoChanges resumes={usedIn} onShow={onShowResume} />}
       />
       {confirming && (
-        <DeleteConfirm
+        <DeleteDialog
+          title={`Delete ${entry.title || "this entry"}?`}
           label="Delete Entry"
           busy={busy}
+          error={deleteError}
           onDelete={remove}
-          onKeep={() => setConfirming(null)}
+          onKeep={() => {
+            setConfirming(null);
+            setDeleteError(null);
+          }}
         >
-          Delete this entry{entry.bullets.length > 0 && " and its bullets"}?{" "}
+          {entry.bullets.length > 0 && "Its bullets are deleted too. "}
           {confirming.resumes === 0
             ? "No built resume shows it."
             : confirming.resumes === 1
               ? "It comes off the 1 built resume that shows it."
               : `It comes off all ${confirming.resumes} built resumes that show it.`}
-        </DeleteConfirm>
+        </DeleteDialog>
       )}
-      {deleteError && (
+      {/* The count's read failed, before the question could open. */}
+      {deleteError && !confirming && (
         <p role="alert" className="text-note text-danger mt-1">
           {deleteError}
         </p>
@@ -843,13 +852,14 @@ function EditEntry({
   );
 }
 
-/** An entry as the bank shows it (`EntryRow`), with its pencil always in
- *  view (KAN-732): until then only its section's edit mode showed it
- *  (KAN-363). Delete Entry is in the editor the pencil opens, with the
- *  other resumes a save changes. What the entry lacks stays in view while
- *  it is closed (`MissingFacts`): it stops a Generate. So does a copy with
- *  other bullets: All Experiences shows one copy, so the note is the way to
- *  the others. */
+/** An entry as the bank shows it (`EntryRow`), with its pencil in view
+ *  (KAN-732): until then only its section's edit mode showed it (KAN-363).
+ *  The pencil hides while another entry is in the editor, one editor at a
+ *  time, as in onboarding's resume preview. Delete Entry is in the editor
+ *  the pencil opens, with the other resumes a save changes. What the entry
+ *  lacks stays in view while it is closed (`MissingFacts`): it stops a
+ *  Generate. So does a copy with other bullets: All Experiences shows one
+ *  copy, so the note is the way to the others. */
 function EntryView({
   row,
   resumes,
@@ -861,7 +871,8 @@ function EntryView({
   resumes: BankResume[];
   /** Scout is working on it, or a search found it: a bullet may be why. */
   open: boolean;
-  onEdit: () => void;
+  /** Unset while another entry is in the editor, which hides the pencil. */
+  onEdit?: () => void;
   onShowResume: (id: Pick, entryId: string) => void;
 }) {
   const { entry } = row;
@@ -871,14 +882,16 @@ function EntryView({
       entry={entry}
       open={open}
       actions={
-        <IconButton
-          id={pencilId(entry.id)}
-          label={`Edit ${entry.title}`}
-          tooltip="Edit this entry"
-          onClick={onEdit}
-        >
-          <PencilSimpleIcon aria-hidden className="size-4" />
-        </IconButton>
+        onEdit && (
+          <IconButton
+            id={pencilId(entry.id)}
+            label={`Edit ${entry.title}`}
+            tooltip="Edit this entry"
+            onClick={onEdit}
+          >
+            <PencilSimpleIcon aria-hidden className="size-4" />
+          </IconButton>
+        )
       }
       note={
         <>

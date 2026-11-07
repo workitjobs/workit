@@ -2589,15 +2589,14 @@ are in `docs/auth.md`.
   (`EntryRow`, `(seeker)/experiences/entry-row.tsx`, which takes an entry's
   fields and bullets, saved or not), each entry's pencil in view, which
   opens the shared `EntryEditor` as it stands (Save Entry, Cancel, and
-  Delete Entry, which asks first, to leave the entry out), the bank's
+  Delete Entry, which asks in the bank's modal, to leave the entry out), the bank's
   warning for what an entry lacks (`MissingFacts`, beside `EntryRow`), and
   the bank's skills (`SkillGroups`, `skill-groups.tsx`: purple chips, one
   row per group), whose × shows only in Skills' edit mode. **Every entry is
   open, with no chevron** (`EntryRow`'s `open`), unlike Experiences: the
   student checks all of a reading here, so none of it waits behind a press.
-  **The other pencils hide while an entry is in the editor**, unlike
-  Experiences: the reading lives only in the browser, so a second pencil
-  that moved the editor would drop the first entry's edits. No intro line:
+  The other pencils hide while an entry is in the editor, as on
+  Experiences. No intro line:
   the headline says what to do. Edits change only the reading in the
   browser (`onboarding/applicant/preview-entry.ts` turns preview entries
   into the row's and editor's shapes), and Save Resume waits while an entry
@@ -2730,7 +2729,15 @@ are in `docs/auth.md`.
   profile), and only in it did entries show their pencil: a press before
   every edit, and in a card of one entry a press that only showed the
   next. Never put Clear All back in the heading as a word: there it sat
-  one slip from Add. A control that takes another's place or closes (the
+  one slip from Add. **One editor at a time** (KAN-732): while an entry is
+  in the editor, the other pencils, the cards' + and ⋯ and the empty-group
+  line hide, here and in onboarding's preview; any of them moved the editor
+  and dropped what was typed in it. **Delete Entry and Clear All ask in a
+  modal** (`DeleteDialog` in `resumes/delete-confirm.tsx`, drawn as
+  `company/jobs/close-job-dialog.tsx`): the question names what goes. As a
+  line under the editor it opened out of view on a long entry and took no
+  focus, so a screen reader never heard it; the answer bank still asks on
+  a line (`DeleteConfirm`). A control that takes another's place or closes (the
   pencil and Done, Keep It, Cancel, Save Entry, Delete Entry) hands the
   focus on by id (`focusSoon`), or it fell to the page's top and a
   keyboard user lost their place.

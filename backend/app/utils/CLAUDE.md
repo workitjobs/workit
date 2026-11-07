@@ -313,6 +313,19 @@ of the router so the router stays the HTTP layer. Two extractors:
 Both return `str | None`. Errors are logged and return `None` -- extraction
 failure does not block the upload.
 
+**A PDF edited in a PDF editor reads out of order in plain mode.** The editor
+writes each changed line as a new object at the end of the page's content
+stream, so plain mode puts those lines after the last section. On the test
+account's Brian_Cao_Resume.pdf (uploaded 2026-10-26, read by the parser) the
+edited name "BRIAN CAO", a filled-in Tools line and a rewritten bullet came
+after Projects; the parser made "BRIAN CAO" a project with the other two as
+its bullet, while the Tools line and the first bullet stood empty where they
+belong. Signs in `raw_text`: an empty label or "•" line, and lines with
+non-breaking spaces (`\xa0`) at the end. Layout mode orders text by
+position, so it may put them back (not checked). Not fixed in the parser:
+AI reads every upload first (ADR 0007), and a fix here needs that resume as
+a fixture first.
+
 ## Tests
 
 `tests/test_resume_parser.py` with fixtures in `tests/fixtures/*.txt`. Each

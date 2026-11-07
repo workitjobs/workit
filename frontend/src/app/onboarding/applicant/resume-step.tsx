@@ -3,7 +3,7 @@
 import { PencilSimpleIcon } from "@phosphor-icons/react/ssr";
 import { useState, type ReactNode } from "react";
 
-import { DeleteConfirm } from "@/app/(seeker)/resumes/delete-confirm";
+import { DeleteDialog } from "@/app/(seeker)/resumes/delete-confirm";
 import { EntryEditor } from "@/app/(seeker)/experiences/entry-editor";
 import { EntryRow, MissingFacts } from "@/app/(seeker)/experiences/entry-row";
 import { SectionMark } from "@/app/(seeker)/experiences/section-icons";
@@ -36,19 +36,19 @@ import { Field } from "./role-step";
  * THE READING LOOKS AND WORKS AS EXPERIENCES DOES (KAN-732): a card per
  * section with the page's own heading and rows (`EntryRow`), each entry's
  * pencil in view, which opens the page's editor (`EntryEditor`: Save Entry,
- * and Delete Entry, which asks first, to leave the entry out), the page's
+ * and Delete Entry, which asks in the page's modal, to leave the entry
+ * out), the page's
  * warning for what an entry lacks (`MissingFacts`), and the page's skills
  * (`SkillGroups`), purple and grouped, whose × shows in their edit mode.
  * Edits change only the reading in the browser: Save Resume writes it as
  * the student left it, each entry checked again as an Add is.
  *
- * Two differences, on purpose. Every entry is open, with no chevron, since
+ * One difference, on purpose: every entry is open, with no chevron, since
  * the student checks all of a reading here and nothing should wait behind a
- * press. And while an entry is in the editor the other pencils hide: the
- * reading lives only in the browser, so a second pencil that moved the
- * editor would drop the first entry's edits, and Save Resume waits for the
- * editor to close anyway. Add Entry stays on Experiences, to keep
- * onboarding short.
+ * press. While an entry is in the editor the other pencils hide, as on
+ * Experiences: a second pencil that moved the editor would drop the first
+ * entry's edits, and Save Resume waits for the editor to close anyway. Add
+ * Entry stays on Experiences, to keep onboarding short.
  *
  * The step had a row of its own until then, which hid the location, degree,
  * GPA, coursework, issuer and link; then a pencil and a × on every row,
@@ -339,9 +339,10 @@ function Reading({
 
 /**
  * An entry of the reading open in the page's editor, as Experiences'
- * `EditEntry` is: Delete Entry asks first, under the editor, then leaves the
- * entry out of the reading. The question says the file stays as it is,
- * since nothing of the reading is saved yet.
+ * `EditEntry` is: Delete Entry asks first, in the same modal
+ * (`DeleteDialog`), then leaves the entry out of the reading. The question
+ * says the entry is not saved and the file stays as it is, since nothing of
+ * the reading is saved yet.
  */
 function EditReadEntry({
   entry,
@@ -364,10 +365,15 @@ function EditReadEntry({
         onDelete={() => setConfirming(true)}
       />
       {confirming && (
-        <DeleteConfirm label="Delete Entry" onDelete={onDelete} onKeep={() => setConfirming(false)}>
-          Delete this entry{entry.bullets.length > 0 && " and its bullets"}? Your file does not
-          change.
-        </DeleteConfirm>
+        <DeleteDialog
+          title={`Delete ${entry.title || "this entry"}?`}
+          label="Delete Entry"
+          onDelete={onDelete}
+          onKeep={() => setConfirming(false)}
+        >
+          {entry.bullets.length > 0 && "Its bullets are deleted too. "}
+          It is not saved to your Experiences. Your file does not change.
+        </DeleteDialog>
       )}
     </>
   );
