@@ -32,8 +32,10 @@ type RowBullet = { id: string; text: string };
  * `note` shows open or closed, for what must not hide (a missing date).
  * `bullets` gives the row its own words, `bulletLead` a control before each
  * bullet, `summary` the closed row's count and `muted` a quieter title, for
- * an entry not on the resume. `open` holds the row open, for Scout working
- * on the entry.
+ * an entry not on the resume. `open` holds the row open, with no chevron:
+ * for Scout working on the entry, and for every entry of onboarding's resume
+ * preview, where the student checks all of a reading before saving it, so
+ * none of it waits behind a press.
  */
 export function EntryRow({
   entry,

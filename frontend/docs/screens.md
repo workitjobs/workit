@@ -3440,12 +3440,14 @@ step asks two questions**: "Next, upload your resume for WorkIt to read."
 while the student picks a file, and "Now, check what WorkIt found, then save
 it." once the reading is on screen ("Already Uploaded" keeps the first, with
 nothing to save). The second fades in and takes focus like a new step's.
-**The reading is the Experiences page's own rows** (KAN-732): a card titled
-with the file's name, one line of counts ("Edit or leave out anything before
-you save."), no "Optional", then each section's entries as `EntryRow`s in one
-bordered list, closed to their title, place, dates and degree, each with
-Edit (the shared `EntryEditor` in place, "Done") and Leave Out (×). Save
-Resume waits while an entry is open, and the footer says why.
+**The reading is drawn as the Experiences page draws a bank** (KAN-732):
+under the file's name (no "Optional", no intro line), a card per section
+with the bank's heading and `EntryRow`s, every entry open with its details
+and bullets and no chevron, unlike the bank's closed rows, so the whole
+reading is in view. The heading's pencil opens the bank's edit mode: each
+entry's pencil opens the shared `EntryEditor` (Save Entry, Cancel, Delete
+Entry), Skills shows each ×, and Done ends it. Save Resume waits while an
+entry is open, and the footer says why.
 
 **The way out is quiet (KAN-259).** "Signed in as … Not you? Sign Out"
 (`onboarding/applicant/signed-in-as.tsx`) closes the wizard, under the

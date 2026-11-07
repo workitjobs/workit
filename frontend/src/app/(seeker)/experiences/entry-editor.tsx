@@ -63,7 +63,6 @@ export function EntryEditor({
   onDelete,
   note,
   cancelLabel = "Cancel",
-  saveLabel = "Save Entry",
 }: {
   initial: EntryDraft;
   onSave: (draft: EntryDraft) => void;
@@ -88,10 +87,6 @@ export function EntryEditor({
    *  save changes too (KAN-363). */
   note?: ReactNode;
   cancelLabel?: string;
-  /** "Done" in onboarding's resume preview (KAN-732), where the editor only
-   *  changes the reading and the footer's Save Resume writes it: two Saves
-   *  on one screen did not say which one saved. */
-  saveLabel?: string;
 }) {
   const [draft, setDraft] = useState(initial);
   const uid = useId();
@@ -413,7 +408,7 @@ export function EntryEditor({
           </Button>
         ) : (
           <Button type="submit" disabled={saving}>
-            {saving ? "Saving…" : saveLabel}
+            {saving ? "Saving…" : "Save Entry"}
           </Button>
         )}
       </div>

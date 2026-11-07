@@ -494,7 +494,7 @@ export function OnboardingForm({
         ? `Pick ${andList(missing)} to continue.`
         : step === RESUME
           ? editingEntry !== null
-            ? "Press Done or Cancel on the entry you are editing to save your resume."
+            ? "Press Save Entry or Cancel on the entry you are editing to save your resume."
             : "Choose a resume file to read it, or skip this step."
           : step === EXTENSION
             ? "Add the WorkIt extension to continue, or skip setup."

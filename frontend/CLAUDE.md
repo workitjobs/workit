@@ -2584,17 +2584,25 @@ are in `docs/auth.md`.
   Resume sends the preview back** (`uploadResume`'s `reading`, the API's
   `reading` form field): the save keeps what the student checked and asks
   AI for nothing more, since the day's one AI reading went to the preview.
-  **The preview looks and works as Experiences does** (KAN-732): each entry
-  is the shared `EntryRow` (`(seeker)/experiences/entry-row.tsx`, which
-  takes an entry's fields and bullets, saved or not), with Edit, which opens
-  the shared `EntryEditor` in place with "Done" for its save label, and
-  Leave Out, as a skill's × does for a skill. Both change only the reading
-  in the browser (`onboarding/applicant/preview-entry.ts` turns preview
-  entries into the row's and editor's shapes), and Save Resume waits while
-  an entry is open in the editor, since saving then dropped the typing.
-  Never give the preview a row or editor of its own: its own row hid the
+  **The preview looks and works as Experiences does** (KAN-732): a card per
+  section with the bank's heading (`SectionMark`, the name, a pencil) and
+  rows (`EntryRow`, `(seeker)/experiences/entry-row.tsx`, which takes an
+  entry's fields and bullets, saved or not), and the bank's edit mode
+  (KAN-363): the heading's pencil turns to Done and gives each entry its
+  pencil, which opens the shared `EntryEditor` as it stands (Save Entry,
+  Cancel, Delete Entry to leave the entry out); Skills shows each skill's ×
+  in edit mode only. **Every entry is open, with no chevron** (`EntryRow`'s
+  `open`), unlike Experiences: the student checks all of a reading here,
+  so none of it waits behind a press. No intro line: the headline says
+  what to do. Edits change only the reading in the browser
+  (`onboarding/applicant/preview-entry.ts` turns preview entries into the
+  row's and editor's shapes), and Save Resume waits while an entry is open
+  in the editor, since saving then dropped the typing. Never give the
+  preview a row, editor or controls of its own: its own row hid the
   location, degree, GPA, coursework, issuer and link the student was asked
-  to check. Add Entry stays on Experiences, to keep onboarding short.
+  to check, and a pencil and a × on every row brought back the controls
+  side by side that KAN-363 took off the bank's rows. Add Entry stays on
+  Experiences, to keep onboarding short.
 - **The Resumes view is one list of every resume** (KAN-362, KAN-404,
   `(seeker)/resumes/built-resumes.tsx`): uploaded, generated and tailored,
   newest first, each as its card (`components/resume-row.tsx`'s box, star
