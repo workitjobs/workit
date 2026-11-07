@@ -2347,16 +2347,18 @@ in Docs (suggested answers in the chat, not a banner).
   never sorts. After every change it reads the whole bank again, so the
   order shown is always the API's; a skill's × only drops that skill,
   which changes no order.
-- **A card's heading is a + and a pencil** (KAN-363), as LinkedIn's
-  profile draws them: the + adds an entry (a skill on Skills), on every
-  card; the pencil, shown while the card lists something, opens that
-  card's edit mode, one card at a time. In edit mode each entry shows its
-  pencil (each skill its pencil and ×), and the heading's pencil gives way
-  to Clear All and Done. Outside it a card is its content alone. Each
-  heading held Clear All and Add as words, and every entry a pencil and a
-  trash, so a card read as a row of controls before what it holds.
-- **Clear All empties a card** (KAN-352): in the card's edit mode, on each
-  section card and on Skills. It deletes
+- **A card's heading is a + and a ⋯** (KAN-732): the + adds an entry (a
+  skill on Skills), on every card; the ⋯ holds Clear All, and shows only
+  where Clear All applies. Skills alone add a pencil, shown while the card
+  lists something, that opens their edit mode: each skill shows its pencil
+  and ×, and the pencil gives way to Done. Every card had that mode until
+  KAN-732 (KAN-363, as LinkedIn's profile draws it), and entries showed
+  their pencils only in it, which put a press before every edit. Before
+  KAN-363 each heading held Clear All and Add as words, and every entry a
+  pencil and a trash, so a card read as a row of controls before what it
+  holds.
+- **Clear All empties a card** (KAN-352): in the card's ⋯, on each
+  section card and on Skills, while one resume is picked. It deletes
   what the card shows in one call (`POST .../experiences/entries/delete` or
   `.../skills/delete`, all or none), after a confirm (`bank/clear-all.tsx`)
   that names the count and the built resumes that show them
@@ -2365,12 +2367,13 @@ in Docs (suggested answers in the chat, not a banner).
   resume's pick the items belong to uploads (ADR 0005), so the confirm
   names the uploads that lose them too (`uploadsOwning`). It never deletes
   what the pick hides: a button on a card acts on what the card shows.
-- **An entry's row holds its dates, and its pencil in edit mode**
-  (KAN-363). Delete Entry sits at the foot of the editor the pencil opens
+- **An entry's row holds its dates and its pencil, always in view**
+  (KAN-732). Delete Entry sits at the foot of the editor the pencil opens
   (`entry-editor.tsx`'s `onDelete`). A trash beside the pencil, under a
   heading with Clear All and Add, put four controls in one corner, and a
   student could not tell which acted on the section and which on the
-  entry.
+  entry (KAN-363). Save Entry and Cancel give the focus back to the
+  pencil, and Delete Entry to the pencil of the entry beside.
 - **An entry's dates sit under its title below `@xl/main`**, beside the
   pencil above it. Beside them on a phone, the dates never
   shrank and left the title a column a few letters wide ("Universi / ty").
@@ -2381,7 +2384,8 @@ in Docs (suggested answers in the chat, not a banner).
   (or "present"), and for Experience and Leadership no organization. A
   project, role or award has no dates warning: no application form asks for
   them (Greenhouse, Lever, Ashby, Workday; settled 2026-10-14). It still saves; the warning says to add them before
-  Generate.
+  Generate. It lines up with the title, past the chevron, and onboarding's
+  resume preview shows the same one (`MissingFacts`, KAN-732).
 - **Deleting an entry confirms with how many built resumes show it**
   (story 18): the editor's Delete Entry reads `GET .../entries/{id}/resumes` first,
   then asks. A resume that hides the entry is not counted.
@@ -3444,10 +3448,13 @@ nothing to save). The second fades in and takes focus like a new step's.
 under the file's name (no "Optional", no intro line), a card per section
 with the bank's heading and `EntryRow`s, every entry open with its details
 and bullets and no chevron, unlike the bank's closed rows, so the whole
-reading is in view. The heading's pencil opens the bank's edit mode: each
-entry's pencil opens the shared `EntryEditor` (Save Entry, Cancel, Delete
-Entry), Skills shows each ×, and Done ends it. Save Resume waits while an
-entry is open, and the footer says why.
+reading is in view. Each entry's pencil opens the shared `EntryEditor`
+(Save Entry, Cancel, and Delete Entry, which asks first and says the file
+does not change); the other pencils hide while one entry is open. An entry
+that lacks a date or an organization warns as on Experiences. Skills are
+the bank's purple chips in their groups, and their pencil shows each ×,
+with Done to end it. Save Resume waits while an entry is open, and the
+footer says why.
 
 **The way out is quiet (KAN-259).** "Signed in as … Not you? Sign Out"
 (`onboarding/applicant/signed-in-as.tsx`) closes the wizard, under the

@@ -6,7 +6,7 @@ import { ChevronDownIcon } from "@/components/icons";
 import type { EntryFields } from "@/lib/bank-actions";
 import { cn } from "@/lib/cn";
 
-import { degreeLine, entryDetails, formatDates } from "./sections";
+import { degreeLine, entryDetails, formatDates, missingFacts } from "./sections";
 
 /** A bullet as a row shows it: the bank's, or this resume's own wording. */
 type RowBullet = { id: string; text: string };
@@ -29,8 +29,8 @@ type RowBullet = { id: string; text: string };
  *
  * The slots are the surface's own: `lead` and `actions` sit beside the
  * heading, outside the press, so a control in them never opens the row, and
- * `note` shows open or closed, for what must not hide (a missing date).
- * `bullets` gives the row its own words, `bulletLead` a control before each
+ * `note` shows open or closed, for what must not hide (a missing date),
+ * lined up with the title. `bullets` gives the row its own words, `bulletLead` a control before each
  * bullet, `summary` the closed row's count and `muted` a quieter title, for
  * an entry not on the resume. `open` holds the row open, with no chevron:
  * for Scout working on the entry, and for every entry of onboarding's resume
@@ -151,7 +151,26 @@ export function EntryRow({
         </div>
       )}
 
-      {note}
+      {/* Under the title, as the bullets are: past the chevron, the
+          warning sat under it, apart from the entry it is about. */}
+      {note && <div className={cn(opens && "pl-6")}>{note}</div>}
     </div>
+  );
+}
+
+/**
+ * What an entry lacks that a resume needs (`missingFacts`), as a warning in
+ * a row's `note`, so it shows open or closed. Shared by the Experiences page
+ * and onboarding's resume preview (KAN-732), where the student can add it
+ * with the row's pencil before anything is saved; the preview showed none.
+ */
+export function MissingFacts({ entry }: { entry: EntryFields }) {
+  const missing = missingFacts(entry);
+  if (missing.length === 0) return null;
+  return (
+    <p className="text-note text-warning mt-1">
+      No {missing.join(" or ")} yet. Add {missing.length > 1 ? "them" : "it"} before you Generate a
+      resume.
+    </p>
   );
 }

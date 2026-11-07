@@ -2585,24 +2585,29 @@ are in `docs/auth.md`.
   `reading` form field): the save keeps what the student checked and asks
   AI for nothing more, since the day's one AI reading went to the preview.
   **The preview looks and works as Experiences does** (KAN-732): a card per
-  section with the bank's heading (`SectionMark`, the name, a pencil) and
-  rows (`EntryRow`, `(seeker)/experiences/entry-row.tsx`, which takes an
-  entry's fields and bullets, saved or not), and the bank's edit mode
-  (KAN-363): the heading's pencil turns to Done and gives each entry its
-  pencil, which opens the shared `EntryEditor` as it stands (Save Entry,
-  Cancel, Delete Entry to leave the entry out); Skills shows each skill's ×
-  in edit mode only. **Every entry is open, with no chevron** (`EntryRow`'s
-  `open`), unlike Experiences: the student checks all of a reading here,
-  so none of it waits behind a press. No intro line: the headline says
-  what to do. Edits change only the reading in the browser
-  (`onboarding/applicant/preview-entry.ts` turns preview entries into the
-  row's and editor's shapes), and Save Resume waits while an entry is open
-  in the editor, since saving then dropped the typing. Never give the
-  preview a row, editor or controls of its own: its own row hid the
-  location, degree, GPA, coursework, issuer and link the student was asked
-  to check, and a pencil and a × on every row brought back the controls
-  side by side that KAN-363 took off the bank's rows. Add Entry stays on
-  Experiences, to keep onboarding short.
+  section with the bank's heading (`SectionMark`, the name) and rows
+  (`EntryRow`, `(seeker)/experiences/entry-row.tsx`, which takes an entry's
+  fields and bullets, saved or not), each entry's pencil in view, which
+  opens the shared `EntryEditor` as it stands (Save Entry, Cancel, and
+  Delete Entry, which asks first, to leave the entry out), the bank's
+  warning for what an entry lacks (`MissingFacts`, beside `EntryRow`), and
+  the bank's skills (`SkillGroups`, `skill-groups.tsx`: purple chips, one
+  row per group), whose × shows only in Skills' edit mode. **Every entry is
+  open, with no chevron** (`EntryRow`'s `open`), unlike Experiences: the
+  student checks all of a reading here, so none of it waits behind a press.
+  **The other pencils hide while an entry is in the editor**, unlike
+  Experiences: the reading lives only in the browser, so a second pencil
+  that moved the editor would drop the first entry's edits. No intro line:
+  the headline says what to do. Edits change only the reading in the
+  browser (`onboarding/applicant/preview-entry.ts` turns preview entries
+  into the row's and editor's shapes), and Save Resume waits while an entry
+  is open in the editor, since saving then dropped the typing. Never give
+  the preview a row, editor, chips or controls of its own: its own row hid
+  the location, degree, GPA, coursework, issuer and link the student was
+  asked to check, its own grey chips dropped the groups, and a pencil and a
+  × on every row brought back the controls side by side that KAN-363 took
+  off the bank's rows. Add Entry stays on Experiences, to keep onboarding
+  short.
 - **The Resumes view is one list of every resume** (KAN-362, KAN-404,
   `(seeker)/resumes/built-resumes.tsx`): uploaded, generated and tailored,
   newest first, each as its card (`components/resume-row.tsx`'s box, star
@@ -2712,13 +2717,23 @@ are in `docs/auth.md`.
   left 96 entries and 242 skills of 8 students that every reader used but
   no student could see, edit or delete, so it came back (2026-10-24).
   Clear All (KAN-352) deletes what a card shows, from the whole bank, as
-  Delete Entry does (`docs/screens.md`, Resumes & Experiences). **Every
-  card's heading is LinkedIn's** (KAN-363, `SectionActions` in
-  `bank-screen.tsx`): a + that adds, on all seven cards, and a pencil
-  (hidden while the card is empty) that opens the card's edit mode, one
-  card at a time. Only in edit mode do entries show their pencil, skills
-  their pencil and ×, and the heading Clear All and Done. Delete Entry is
-  at the foot of the editor an entry's pencil opens.
+  Delete Entry does (`docs/screens.md`, Resumes & Experiences). **An
+  entry's pencil is always in view** (KAN-732, `EntryView` in
+  `bank-screen.tsx`): one press opens its editor, with Delete Entry at the
+  editor's foot. **A card's heading holds a + and a ⋯** (`CardActions`):
+  the + adds, on all seven cards; the ⋯ holds Clear All and shows only
+  where Clear All applies (one resume picked, no search, something to
+  clear). Skills alone keep an edit mode: their heading's pencil (hidden
+  while the card is empty) shows each skill's pencil and × and turns to
+  Done, since a pencil and × on every chip, always, made the list hard to
+  read. Every card had that mode until KAN-732 (KAN-363, after LinkedIn's
+  profile), and only in it did entries show their pencil: a press before
+  every edit, and in a card of one entry a press that only showed the
+  next. Never put Clear All back in the heading as a word: there it sat
+  one slip from Add. A control that takes another's place or closes (the
+  pencil and Done, Keep It, Cancel, Save Entry, Delete Entry) hands the
+  focus on by id (`focusSoon`), or it fell to the page's top and a
+  keyboard user lost their place.
 - **A skill's × and a resume's Delete Resume are optimistic** (KAN-388):
   the item leaves the screen at once and the delete runs behind it. The
   screen that holds the list owns the delete, through `useOptimistic` in
