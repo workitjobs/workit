@@ -770,11 +770,12 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   clicks Submit on each, so no page says WorkIt submits, sends or
   applies. Scout's page is about Fill With Scout, the one way into Scout
   while Ask Scout is greyed out; bring the job questions back to it when
-  `ASK_SCOUT_LIVE` turns on. **Still open (KAN-732):** Fill With Scout is
-  off too (`FILL_WITH_SCOUT_LIVE`), so Scout's page, the pricing table's
-  Scout row and the Resumes page's FAQ ("let Scout ask you about them")
-  now promise a feature with no way in; what the site says instead is
-  the team's call. **A content file imports its animation from
+  `ASK_SCOUT_LIVE` turns on. Fill With Scout is off in the app
+  (`FILL_WITH_SCOUT_LIVE`, KAN-732) until it gets a new place, which is
+  still open; **the site keeps Scout on purpose meanwhile** (settled
+  2026-11-07): its page, the pricing table's Scout row and the Resumes
+  page's FAQ stay. Revisit them when Fill With Scout's new place is
+  settled. **A content file imports its animation from
   `features/animations.tsx`, never the animation itself**: each there is
   a `next/dynamic` wrapper, server-rendered as before, whose chunk only
   the page that shows it loads. A client component a server file imports
@@ -2058,8 +2059,9 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   clicked to get here may open it once, then drop its query param.
   **The bar's Scout button is archived** (`SCOUT_LAUNCHER_LIVE` in
   `(seeker)/layout.tsx`, 2026-11-01). **Fill With Scout is off too**
-  (`FILL_WITH_SCOUT_LIVE` in `components/scout/live.ts`, KAN-732): it was
-  the last way into Scout, and onboarding no longer names Scout. Off,
+  (`FILL_WITH_SCOUT_LIVE` in `components/scout/live.ts`, KAN-732) until it
+  gets a new place, which is still open; the landing site keeps describing
+  Scout meanwhile, on purpose. Off,
   Experiences shows no Fill With Scout and takes no panel, and the Jobs
   page's Import Your Resume imports in place (`jobs/import-resume-button.tsx`).
   The flag lives in its own module, not beside `ASK_SCOUT_LIVE`, because

@@ -1,8 +1,10 @@
 /**
- * Whether Fill With Scout is offered. Off (2026-11-07, KAN-732): it was the
- * last way into Scout while the rest of Scout is off (`ASK_SCOUT_LIVE` in
- * ./scout-buttons.tsx, the bar's launcher in (seeker)/layout.tsx), and
- * onboarding no longer names Scout.
+ * Whether Fill With Scout is offered. Off (2026-11-07, KAN-732) until it
+ * gets a new place in the app, which is still open: it sat at the top of
+ * Experiences as the last way into Scout while the rest of Scout is off
+ * (`ASK_SCOUT_LIVE` in ./scout-buttons.tsx, the bar's launcher in
+ * (seeker)/layout.tsx). The landing site keeps describing Scout meanwhile,
+ * on purpose.
  *
  * Off, Experiences shows no Fill With Scout and takes no panel, so intake
  * has no way in ((seeker)/experiences/page.tsx, bank-screen.tsx and
