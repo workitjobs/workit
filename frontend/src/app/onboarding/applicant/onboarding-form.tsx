@@ -128,67 +128,44 @@ import { StoryPanel } from "./story-panel";
  * seeker who comes back edits them rather than starting over.
  */
 
-/** Each step's question, and the tip Scout types in its bubble below it: a
- *  tip, not the question again, which is what made the two hard to tell
- *  apart (KAN-259). */
-const STEPS: { question: ReactNode; line: string }[] = [
-  {
-    question: (
-      <>
-        To get started, <strong>what type of role</strong> are you looking for?
-      </>
-    ),
-    line: "Hi, I'm Scout. Pick everything that fits, and I'll do the digging.",
-  },
-  {
-    question: (
-      <>
-        Next, <strong>upload your resume</strong> and check what I read.
-      </>
-    ),
-    line: "Nothing is saved until you say so. No resume yet? Skip it.",
-  },
-  {
-    question: (
-      <>
-        Then, the questions <strong>every application asks</strong>.
-      </>
-    ),
-    line: "All optional. Answer once, and I'll keep them ready for your applications.",
-  },
-  {
-    question: (
-      <>
-        Next, <strong>when you can work</strong>, and a few screening facts.
-      </>
-    ),
-    line: "All optional. Skip it, and fill the rest in on your Profile later.",
-  },
-  {
-    question: (
-      <>
-        Now, <strong>add the WorkIt extension</strong> to Chrome.
-      </>
-    ),
-    line: "It fills each form in its own tab. Pin it, so it's one click away.",
-  },
-  {
-    question: (
-      <>
-        Then, let <strong>your Claude write your answers</strong>, if you want.
-      </>
-    ),
-    line: "Optional. WorkIt never runs a model: your own Claude writes them.",
-  },
-  {
-    question: (
-      <>
-        Last, try a <strong>practice batch</strong> before a real one.
-      </>
-    ),
-    line: "These forms are WorkIt's own. Nothing you submit reaches an employer.",
-  },
+/** Each step's question, the left half's heading (./story-panel). It speaks
+ *  as the page, never as "I" (KAN-732): Scout's bubble, which said "Hi, I'm
+ *  Scout", is gone, and "check what I read" then had no speaker. */
+const STEPS: ReactNode[] = [
+  <>
+    To get started, <strong>what type of role</strong> are you looking for?
+  </>,
+  // While the student picks a file; `REVIEW` once its reading is on screen.
+  <>
+    Next, <strong>upload your resume</strong> for WorkIt to read.
+  </>,
+  <>
+    Then, the questions <strong>every application asks</strong>.
+  </>,
+  <>
+    Next, <strong>when you can work</strong>, and a few screening facts.
+  </>,
+  <>
+    Now, <strong>add the WorkIt extension</strong> to Chrome.
+  </>,
+  <>
+    Then, let <strong>your Claude write your answers</strong>, if you want.
+  </>,
+  <>
+    Last, try a <strong>practice batch</strong> before a real one.
+  </>,
 ];
+
+/** The resume step's second question, once "What WorkIt Found" is on screen
+ *  (KAN-732): the step is two moments, reading the file and checking the
+ *  reading before Save Resume. Not for "Already Uploaded", which has nothing
+ *  to save, so its step keeps the first question. Says "WorkIt", never "AI":
+ *  the parser reads when the student has no AI reading left. */
+const REVIEW = (
+  <>
+    Now, <strong>check what WorkIt found</strong>, then save it.
+  </>
+);
 
 /** The wizard's pages by name (./steps.ts WIZARD_PAGES). */
 const ROLE = WIZARD_PAGES.indexOf("Role");
@@ -289,12 +266,15 @@ export function OnboardingForm({
             ? claude === true
             : true;
 
+  // The resume step asks its second question once a reading is on screen.
+  const reviewing = step === RESUME && preview != null && !preview.duplicate_of;
+
   // EACH NEW QUESTION TAKES FOCUS, so a screen reader reads it out. Focus used
   // to stay on the footer's button, which only changed its label, and the new
-  // question went unannounced.
+  // question went unannounced. The resume step's second question counts.
   useEffect(() => {
     if (moved.current) heading.current?.focus({ preventScroll: true });
-  }, [step]);
+  }, [step, reviewing]);
 
   function goTo(next: number) {
     moved.current = true;
@@ -514,9 +494,8 @@ export function OnboardingForm({
   return (
     <main className="flex min-h-svh flex-1 flex-col lg:h-svh lg:flex-none lg:flex-row">
       <StoryPanel
-        step={step}
-        question={STEPS[step].question}
-        line={STEPS[step].line}
+        questionKey={reviewing ? `${step}-review` : String(step)}
+        question={reviewing ? REVIEW : STEPS[step]}
         headingRef={heading}
       />
 

@@ -69,7 +69,7 @@ export function ResumeStep({
         hint={
           savedName
             ? "Have a newer version? Read it the same way."
-            : "Nothing is saved until you check what WorkIt read."
+            : "Nothing is saved until you check what WorkIt found."
         }
       >
         <ResumeUpload file={file} onFileChange={onFileChange} onRemove={onRemove} busy={reading} />

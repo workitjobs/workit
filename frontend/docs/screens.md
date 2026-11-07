@@ -3428,11 +3428,18 @@ named by the button's `aria-describedby`. In the button row an error was a
 forward button grows to fill the row, and takes its own row when the three
 buttons do not fit.
 
-**The question and Scout stand apart (KAN-259).** The question sits under the
-logo; Scout sits at the left half's foot, from lg only, and types a tip the
-question does not give ("Both are optional..."). They were one block, the
-bubble 28px over the question and asking it again in other words, so it was
-not clear who was asking.
+**The question stands alone; Scout is gone (KAN-259, KAN-732).** The question
+sits under the logo as the page's heading and speaks as the page, never as
+"I". Scout sat at the left half's foot from lg (an avatar, "Your WorkIt job
+assistant" and a bubble that typed a tip on every step) until KAN-732: it
+acted on nothing while Scout's chat is off, every tip repeated the step, and
+the Claude step's "WorkIt never runs a model" went false once AI read every
+upload. Before that (KAN-259) the bubble sat 28px over the question and asked
+it again in other words, so it was not clear who was asking. **The resume
+step asks two questions**: "Next, upload your resume for WorkIt to read."
+while the student picks a file, and "Now, check what WorkIt found, then save
+it." once the reading is on screen ("Already Uploaded" keeps the first, with
+nothing to save). The second fades in and takes focus like a new step's.
 
 **The way out is quiet (KAN-259).** "Signed in as … Not you? Sign Out"
 (`onboarding/applicant/signed-in-as.tsx`) closes the wizard, under the
@@ -3442,7 +3449,7 @@ unfinished applicant back here, so the screen needs an exit; as a Sign Out
 button at the top right of the form it was the column's first thing and read
 as part of the step.
 
-**The left half moves, from lg.** Between the question and Scout a showcase
+**The left half moves, from lg.** Under the question a showcase
 (`onboarding/applicant/showcase.tsx`) cycles three scenes on one clock: a
 mock screen (a matched job, a resume, the applications board) with the
 notification that screen would send tucked over its corner. A scene glides
@@ -3451,9 +3458,8 @@ next arrives (`--animate-arrive` and `--animate-leave`), so the change is a
 crossfade. Two clocks, one per part, drifted out of step. The scenes are
 scaled as a whole to fill the room the panel leaves (up to 1.8x), so a tall
 window gets a big picture; under 0.85x the stage hides and its room stays
-empty, with the question still at the top. Scout types its tip in a chat
-bubble on every step. It is all decoration over made-up data, so it is
-aria-hidden, and it holds still under reduced motion.
+empty, with the question still at the top. It is all decoration over
+made-up data, so it is aria-hidden, and it holds still under reduced motion.
 
 **Profile asks what every application asks (KAN-283).** Authorization to
 Work and Visa Sponsorship (yes or no), then Location and Links (KAN-372:
