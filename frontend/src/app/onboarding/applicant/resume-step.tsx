@@ -1,14 +1,17 @@
 "use client";
 
-import { XIcon } from "@phosphor-icons/react/ssr";
+import { PencilSimpleIcon, XIcon } from "@phosphor-icons/react/ssr";
 
-import { formatDates, SECTIONS } from "@/app/(seeker)/experiences/sections";
+import { EntryEditor } from "@/app/(seeker)/experiences/entry-editor";
+import { EntryRow } from "@/app/(seeker)/experiences/entry-row";
+import { SECTIONS } from "@/app/(seeker)/experiences/sections";
 import { CheckIcon, FileIcon } from "@/components/icons";
 import { ResumeUpload } from "@/components/resume-upload";
 import { Badge } from "@/components/ui/badge";
 import { IconButton } from "@/components/ui/icon-button";
 import type { PreviewEntry, ResumePreview } from "@/lib/resume-actions";
 
+import { draftOfPreview, previewOfDraft, rowOfPreview } from "./preview-entry";
 import { Field } from "./role-step";
 
 /**
@@ -22,6 +25,17 @@ import { Field } from "./role-step";
  * the student agrees. Each skill has a × (KAN-369): a skill taken out is not
  * saved, and no later reading adds it again. The footer's buttons live in
  * ./onboarding-form, which owns the step's state.
+ *
+ * THE READING LOOKS AND WORKS AS EXPERIENCES DOES (KAN-732). Each entry is the
+ * Experiences page's own row (`EntryRow`): closed it shows the title, place,
+ * dates and a school's degree; open, the rest and its bullets. Edit opens the
+ * page's own editor (`EntryEditor`, "Done" in place of "Save Entry"), and
+ * Leave Out drops the entry, as a skill's × drops a skill. Both change only
+ * the reading in the browser: Save Resume writes it as the student left it,
+ * each entry checked again as an Add is. The step had its own row until
+ * then, which hid the location, degree, GPA, coursework, issuer and link, so
+ * the student could not check them, and fixing an entry meant saving it
+ * first. Add Entry stays on Experiences, to keep onboarding short.
  */
 export function ResumeStep({
   file,
@@ -31,6 +45,10 @@ export function ResumeStep({
   preview,
   removedSkills,
   onRemoveSkill,
+  editing,
+  onEditEntry,
+  onSaveEntry,
+  onLeaveOutEntry,
   savedName,
 }: {
   file: File | null;
@@ -38,11 +56,17 @@ export function ResumeStep({
   onRemove: () => void;
   /** Read Resume is in flight. */
   reading: boolean;
-  /** The picked file's reading, once Read Resume answered. */
+  /** The picked file's reading, once Read Resume answered, with the student's edits. */
   preview: ResumePreview | null;
   /** The skills the student took out of the reading (×). */
   removedSkills: readonly string[];
   onRemoveSkill: (name: string) => void;
+  /** The entry open in the editor, by its place in the reading. */
+  editing: number | null;
+  onEditEntry: (index: number | null) => void;
+  /** Done in the editor: the entry as the student left it. */
+  onSaveEntry: (index: number, entry: PreviewEntry) => void;
+  onLeaveOutEntry: (index: number) => void;
   /** The file this visit saved, if any. */
   savedName: string | null;
 }) {
@@ -53,6 +77,10 @@ export function ResumeStep({
         preview={preview}
         removedSkills={removedSkills}
         onRemoveSkill={onRemoveSkill}
+        editing={editing}
+        onEditEntry={onEditEntry}
+        onSaveEntry={onSaveEntry}
+        onLeaveOutEntry={onLeaveOutEntry}
       />
     );
   return (
@@ -82,17 +110,36 @@ function count(n: number, one: string, many = `${one}s`) {
   return `${n} ${n === 1 ? one : many}`;
 }
 
-/** What WorkIt read, by section, before anything is saved. */
+/** The Edit button of the reading's entry at `index`. */
+const editId = (index: number) => `preview-entry-${index}-edit`;
+
+/** Focus back on an entry's Edit button once the list has drawn again: Done,
+ *  Cancel and Leave Out each take away the control that had focus, which
+ *  then fell to the page's top and lost a keyboard user's place. */
+function focusEdit(index: number) {
+  setTimeout(() => document.getElementById(editId(index))?.focus(), 0);
+}
+
+/** What WorkIt read, by section, before anything is saved, each entry in the
+ *  Experiences page's own row (`EntryRow`) and editor (`EntryEditor`). */
 function Reading({
   name,
   preview,
   removedSkills,
   onRemoveSkill,
+  editing,
+  onEditEntry,
+  onSaveEntry,
+  onLeaveOutEntry,
 }: {
   name: string;
   preview: ResumePreview;
   removedSkills: readonly string[];
   onRemoveSkill: (name: string) => void;
+  editing: number | null;
+  onEditEntry: (index: number | null) => void;
+  onSaveEntry: (index: number, entry: PreviewEntry) => void;
+  onLeaveOutEntry: (index: number) => void;
 }) {
   const { entries, duplicate_of: duplicate } = preview;
   const skills = preview.skills.filter((s) => !removedSkills.includes(s.name));
@@ -125,25 +172,88 @@ function Reading({
   return (
     <Field
       Icon={FileIcon}
-      label="What WorkIt Found"
+      label={name}
+      tag={false}
       hint={
-        `${count(entries.length, "entry", "entries")} and ${count(skills.length, "skill")} in ${name}. ` +
+        `${count(entries.length, "entry", "entries")} and ${count(skills.length, "skill")}. ` +
         (replacing
-          ? `${count(replacing, "item")} will replace the copy an earlier upload holds. `
+          ? `${count(replacing, "item")} will replace their copies from an earlier upload. `
           : "") +
-        "Nothing is saved until you press Save Resume. You can edit everything later in Experiences."
+        "Edit or leave out anything before you save."
       }
     >
       <div className="flex flex-col gap-6">
         {SECTIONS.map((section) => {
-          const found = entries.filter((e) => e.section === section.id);
+          // Each entry keeps its place in the reading, which Edit and Leave Out name.
+          const found = entries
+            .map((entry, index) => ({ entry, index }))
+            .filter(({ entry }) => entry.section === section.id);
           if (!found.length) return null;
           return (
             <section key={section.id} aria-label={section.label}>
               <h3 className="text-caption text-ink-muted mb-2 uppercase">{section.label}</h3>
-              <ul className="flex flex-col gap-3">
-                {found.map((entry, i) => (
-                  <EntryRow key={i} entry={entry} />
+              <ul
+                role="list"
+                className="border-border-subtle divide-border-subtle rounded-card flex flex-col divide-y border px-4"
+              >
+                {found.map(({ entry, index }) => (
+                  <li key={index} className="py-3">
+                    {editing === index ? (
+                      <EntryEditor
+                        initial={draftOfPreview(entry)}
+                        saveLabel="Done"
+                        onSave={(draft) => {
+                          onSaveEntry(index, previewOfDraft(draft, entry));
+                          focusEdit(index);
+                        }}
+                        onCancel={() => {
+                          onEditEntry(null);
+                          focusEdit(index);
+                        }}
+                      />
+                    ) : (
+                      <EntryRow
+                        entry={rowOfPreview(entry)}
+                        actions={
+                          // Hidden while another entry is open, so one edit is open at a time.
+                          editing === null && (
+                            <span className="flex shrink-0 items-center gap-1">
+                              <IconButton
+                                id={editId(index)}
+                                label={`Edit ${entry.title}`}
+                                tooltip="Edit this entry"
+                                onClick={() => onEditEntry(index)}
+                              >
+                                <PencilSimpleIcon aria-hidden className="size-4" />
+                              </IconButton>
+                              <IconButton
+                                label={`Leave out ${entry.title}`}
+                                tooltip="Leave this entry out"
+                                onClick={() => {
+                                  onLeaveOutEntry(index);
+                                  // The next entry takes this place; the last one's goes to the one before.
+                                  focusEdit(index < entries.length - 1 ? index : index - 1);
+                                }}
+                              >
+                                <XIcon aria-hidden className="size-4" />
+                              </IconButton>
+                            </span>
+                          )
+                        }
+                        note={
+                          entry.replaces.length > 0 && (
+                            // Inert, not a status colour: replacing is no stage and owes
+                            // nothing (frontend/docs/design.md, colour meanings).
+                            <div className="mt-1.5 pl-6">
+                              <Badge variant="tag" tone="inert">
+                                Replaces Earlier Copy
+                              </Badge>
+                            </div>
+                          )
+                        }
+                      />
+                    )}
+                  </li>
                 ))}
               </ul>
             </section>
@@ -173,31 +283,5 @@ function Reading({
         )}
       </div>
     </Field>
-  );
-}
-
-function EntryRow({ entry }: { entry: PreviewEntry }) {
-  const meta = [entry.organization, formatDates(entry)].filter(Boolean).join(" · ");
-  return (
-    <li className="border-border-subtle rounded-card border px-4 py-3">
-      <div className="flex items-start justify-between gap-3">
-        <p className="text-subtitle text-ink font-medium">{entry.title}</p>
-        {entry.replaces.length > 0 && (
-          // Inert, not a status colour: replacing is no stage and owes
-          // nothing (frontend/docs/design.md, colour meanings).
-          <Badge variant="tag" tone="inert">
-            Replaces Earlier Copy
-          </Badge>
-        )}
-      </div>
-      {meta && <p className="text-body text-ink-meta">{meta}</p>}
-      {entry.bullets.length > 0 && (
-        <ul className="text-body text-ink-muted mt-2 list-disc space-y-1 pl-5">
-          {entry.bullets.map((bullet, i) => (
-            <li key={i}>{bullet}</li>
-          ))}
-        </ul>
-      )}
-    </li>
   );
 }

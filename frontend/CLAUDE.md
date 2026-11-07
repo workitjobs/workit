@@ -2584,6 +2584,17 @@ are in `docs/auth.md`.
   Resume sends the preview back** (`uploadResume`'s `reading`, the API's
   `reading` form field): the save keeps what the student checked and asks
   AI for nothing more, since the day's one AI reading went to the preview.
+  **The preview looks and works as Experiences does** (KAN-732): each entry
+  is the shared `EntryRow` (`(seeker)/experiences/entry-row.tsx`, which
+  takes an entry's fields and bullets, saved or not), with Edit, which opens
+  the shared `EntryEditor` in place with "Done" for its save label, and
+  Leave Out, as a skill's × does for a skill. Both change only the reading
+  in the browser (`onboarding/applicant/preview-entry.ts` turns preview
+  entries into the row's and editor's shapes), and Save Resume waits while
+  an entry is open in the editor, since saving then dropped the typing.
+  Never give the preview a row or editor of its own: its own row hid the
+  location, degree, GPA, coursework, issuer and link the student was asked
+  to check. Add Entry stays on Experiences, to keep onboarding short.
 - **The Resumes view is one list of every resume** (KAN-362, KAN-404,
   `(seeker)/resumes/built-resumes.tsx`): uploaded, generated and tailored,
   newest first, each as its card (`components/resume-row.tsx`'s box, star

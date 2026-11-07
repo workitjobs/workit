@@ -3,7 +3,7 @@
 import { useState, type ReactNode } from "react";
 
 import { ChevronDownIcon } from "@/components/icons";
-import type { BankEntry } from "@/lib/bank-actions";
+import type { EntryFields } from "@/lib/bank-actions";
 import { cn } from "@/lib/cn";
 
 import { degreeLine, entryDetails, formatDates } from "./sections";
@@ -12,8 +12,12 @@ import { degreeLine, entryDetails, formatDates } from "./sections";
 type RowBullet = { id: string; text: string };
 
 /**
- * One entry as every bank surface draws it (KAN-440): the Experiences page
- * and the resume editor's panel, so the two cannot drift apart. Closed, it
+ * One entry as every bank surface draws it (KAN-440): the Experiences page,
+ * the resume editor's panel and onboarding's resume preview (KAN-732), so
+ * they cannot drift apart. The preview's copy of this row had drifted: it
+ * left out the location, a school's degree and GPA, coursework, an issuer and
+ * a link, the facts the student was asked to check. It takes an entry's
+ * fields and its bullets, saved or not: a preview entry has no ids. Closed, it
  * is the entry's title, place, dates, a school's degree and how many bullets
  * it holds; a press on it opens the other details and the bullets. It opens
  * closed: every entry fully open made a bank of six entries a long page, and
@@ -42,7 +46,7 @@ export function EntryRow({
   bullets = entry.bullets,
   bulletLead,
 }: {
-  entry: BankEntry;
+  entry: EntryFields & { bullets: RowBullet[] };
   lead?: ReactNode;
   actions?: ReactNode;
   note?: ReactNode;

@@ -806,7 +806,8 @@ Find files with a directory listing; these are the rules for where code goes.
   owner), so a newer resume leaves one copy. The preview lists those rows
   beside each item. **The confirm sends the preview's reading back**
   (KAN-732, ADR 0007): the form field `reading` (`ConfirmedReading`, 422
-  when it is not one), which the upload saves, each entry checked as an
+  when it is not one), as the student edited it there (an entry changed or
+  left out), which the upload saves, each entry checked as an
   Add is, without reading the file again; a second reading would be a
   second AI use, and at the daily limit of 1 it would give the confirm the
   parser's reading instead of what the student checked. Every other upload

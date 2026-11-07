@@ -17,7 +17,12 @@ import { ChoiceTile } from "@/components/ui/choice-tile";
 import { cn } from "@/lib/cn";
 import { updateProfile } from "@/lib/profile-actions";
 import { webLink } from "@/lib/profile-links";
-import { previewResume, uploadResume, type ResumePreview } from "@/lib/resume-actions";
+import {
+  previewResume,
+  uploadResume,
+  type PreviewEntry,
+  type ResumePreview,
+} from "@/lib/resume-actions";
 import { showRunTab, startPractice } from "@/lib/autofill-extension";
 import { PRACTICE_JOBS, practiceFormUrl } from "@/lib/practice-form";
 
@@ -232,6 +237,8 @@ export function OnboardingForm({
   const [preview, setPreview] = useState<ResumePreview | null>(null);
   /** The reading's skills the student took out (×, KAN-369); cleared with the file. */
   const [removedSkills, setRemovedSkills] = useState<string[]>([]);
+  /** The reading's entry open in the editor, by its place (KAN-732); cleared with the file. */
+  const [editingEntry, setEditingEntry] = useState<number | null>(null);
   /** The file name this visit saved, for the resume step's "Saved" line. */
   const [savedResume, setSavedResume] = useState<string | null>(null);
   // What is in flight. "reading" alone shows on the dropzone ("Reading your
@@ -255,11 +262,13 @@ export function OnboardingForm({
     answers.jobTypes.length === 0 && "a job type",
     answers.workStyles.length === 0 && "a workplace",
   ].filter((m) => m !== false);
+  // Save Resume waits while an entry is open in the editor: saving then would
+  // drop what the student typed into it, since only Done keeps it.
   const canNext =
     step === ROLE
       ? missing.length === 0
       : step === RESUME
-        ? resume != null || savedResume != null
+        ? (resume != null || savedResume != null) && editingEntry === null
         : step === EXTENSION
           ? extension?.installed === true
           : step === CLAUDE
@@ -288,7 +297,15 @@ export function OnboardingForm({
     setResume(file);
     setPreview(null);
     setRemovedSkills([]);
+    setEditingEntry(null);
     setError(null);
+  }
+
+  /** Done in the editor, or Leave Out: the reading the save will send back
+   *  changes, and nothing is written until Save Resume (KAN-732). */
+  function changeEntries(change: (entries: PreviewEntry[]) => PreviewEntry[]) {
+    setPreview((reading) => reading && { ...reading, entries: change(reading.entries) });
+    setEditingEntry(null);
   }
 
   function resumeForm() {
@@ -476,7 +493,9 @@ export function OnboardingForm({
       : step === ROLE
         ? `Pick ${andList(missing)} to continue.`
         : step === RESUME
-          ? "Choose a resume file to read it, or skip this step."
+          ? editingEntry !== null
+            ? "Press Done or Cancel on the entry you are editing to save your resume."
+            : "Choose a resume file to read it, or skip this step."
           : step === EXTENSION
             ? "Add the WorkIt extension to continue, or skip setup."
             : null;
@@ -530,6 +549,12 @@ export function OnboardingForm({
               preview={preview}
               removedSkills={removedSkills}
               onRemoveSkill={(name) => setRemovedSkills((all) => [...all, name])}
+              editing={editingEntry}
+              onEditEntry={setEditingEntry}
+              onSaveEntry={(index, entry) =>
+                changeEntries((all) => all.map((e, i) => (i === index ? entry : e)))
+              }
+              onLeaveOutEntry={(index) => changeEntries((all) => all.filter((_, i) => i !== index))}
               savedName={savedResume}
             />
           )}

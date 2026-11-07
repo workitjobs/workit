@@ -47,6 +47,11 @@ The rules:
   ADR 0006 read the file twice because the parser gives the same entries
   each time; the model does not, and a second reading would meet the day's
   limit and give the confirm the parser's reading instead.
+- **The student can fix the reading before it is saved.** The preview draws
+  each entry with the Experiences page's own row and edits it with its own
+  editor, and an entry can be left out; Save Resume sends the reading as the
+  student left it. ADR 0006 still holds: nothing is saved before the
+  student agrees, and what they agree to is now what they edited.
 
 ## Why
 
