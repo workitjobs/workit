@@ -614,7 +614,7 @@ export function Intake({
         onClick={() => fileInput.current?.click()}
         disabled={uploading || answering || saving}
       >
-        <FileArrowUpIcon aria-hidden /> {uploading ? "Uploading…" : "Upload Resume"}
+        <FileArrowUpIcon aria-hidden /> {uploading ? "Reading Resume…" : "Upload Resume"}
       </Button>
       {uploadError && (
         <p role="alert" className="text-note text-danger basis-full">
@@ -641,7 +641,7 @@ export function Intake({
           disabled={uploading || answering || saving}
         >
           <FileArrowUpIcon aria-hidden />
-          {uploading ? "Uploading…" : "Upload Resume"}
+          {uploading ? "Reading Resume…" : "Upload Resume"}
         </Chip>
         <Chip variant="suggestion" disabled={uploading} onClick={() => setImporting(true)}>
           <FileTextIcon aria-hidden /> Use One I Uploaded

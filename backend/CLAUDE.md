@@ -146,7 +146,7 @@ module docstring has the steps.
 
 - **Never test what an AI prompt says.** No test checks a system prompt's
   wording or the facts text in it, for Scout, intake, Tailor, the editor
-  assistant or Read It With AI. Test behaviour instead: what a reply saves,
+  assistant or resume reading. Test behaviour instead: what a reply saves,
   counts or refuses. They were removed on 2026-10-18 as upkeep with no
   catch: a wording change broke them and proved nothing. The tests that no
   identity data reaches the model stay (`../scout/CLAUDE.md`, Tests).
@@ -267,8 +267,9 @@ Find files with a directory listing; these are the rules for where code goes.
   matching: `app/services/matching/CLAUDE.md`.
 - **Every AI feature gets its model from `app/services/models.py`**
   (KAN-356), as a FastAPI dependency by size: `get_large_llm` (Tailor's
-  rewrite, Read It With AI, the editor assistant), `get_small_llm` (every
-  keyword extraction) or `get_llm` (Scout, intake, essay answers). A new
+  rewrite, the editor assistant), `get_small_llm` (every keyword
+  extraction) or `get_llm` (Scout, intake, and reading every upload,
+  KAN-732, whose long resumes need the chain's first model, Gemini). A new
   feature picks a size there; it never builds an `LLM` itself, so the
   `SCOUT_*` settings stay the one place a model is named
   (`../scout/CLAUDE.md`, "Which model, where").
@@ -769,14 +770,14 @@ Find files with a directory listing; these are the rules for where code goes.
   (`resume_render.HeaderIdentity`): display, never model input, so the
   two names stay apart.
 - **An upload fills the bank** (KAN-240, `../docs/adr/0003-upload-fills-the-experience-bank.md`).
-  `POST .../resumes` extracts `raw_text`, reads it with the heuristic
-  parser (`services/bank_import.py`'s `read`, pure) and writes it with
+  `POST .../resumes` extracts `raw_text`, reads it (`services/resume_reading.py`:
+  the model first, the heuristic parser behind it; below) and writes it with
   `services/bank.py`'s `import_upload`, in the same transaction as the
   resume row: if the commit fails, nothing is kept and the Storage file is
-  removed. The parser's reading is stored nowhere else (`parsed_json` is
+  removed. The reading is stored nowhere else (`parsed_json` is
   gone). The response's `bank` says what went in (`found`,
-  `entries_added`, `skills_added`). A reading never fails an upload: a
-  parser crash reads as nothing.
+  `entries_added`, `skills_added`) and who read it (`read_by`). A reading
+  never fails an upload: a parser crash reads as nothing.
 - **Each upload owns its entries and skills; uploads never merge** (ADR
   0005, `../docs/bank_by_resume.md`). `import_upload` deletes what the
   upload owns (`bank_entries.resume_id`, `bank_skills.resume_id`), then
@@ -797,14 +798,20 @@ Find files with a directory listing; these are the rules for where code goes.
   "Add under a resume pick".
 - **Onboarding reads a resume before saving it** (KAN-372, ADR 0006).
   `POST .../resumes/preview` runs upload's read (`_extract`, then
-  `bank_import.read`) and writes nothing: no Storage file, no row, no bank
-  row. The student confirms with the normal upload plus `?replace=matching`,
-  which also deletes the other uploads' entries and skills the reading
-  matches (`bank.upload_matches`: section, title and organization, or a
-  skill's name, ignoring case; never an entry with no owner), so a newer
-  resume leaves one copy. The preview lists those rows beside each item.
-  Every other upload keeps ADR 0005's no-merge rule. Tests:
-  `tests/test_bank_import.py`, "the parse preview and its confirm".
+  `read_upload`) and writes nothing but the AI use: no Storage file, no
+  row, no bank row. The student confirms with the normal upload plus
+  `?replace=matching`, which also deletes the other uploads' entries and
+  skills the reading matches (`bank.upload_matches`: section, title and
+  organization, or a skill's name, ignoring case; never an entry with no
+  owner), so a newer resume leaves one copy. The preview lists those rows
+  beside each item. **The confirm sends the preview's reading back**
+  (KAN-732, ADR 0007): the form field `reading` (`ConfirmedReading`, 422
+  when it is not one), which the upload saves, each entry checked as an
+  Add is, without reading the file again; a second reading would be a
+  second AI use, and at the daily limit of 1 it would give the confirm the
+  parser's reading instead of what the student checked. Every other upload
+  keeps ADR 0005's no-merge rule. Tests: `tests/test_bank_import.py`, "the
+  parse preview and its confirm" and "reading with the model".
 - **Import Again** is `POST /applicants/{id}/bank/import`: the same read on
   a stored upload, replacing what it owns, from intake's Use One I
   Uploaded, the Jobs page's empty-bank card and the Experiences view's
@@ -828,16 +835,30 @@ Find files with a directory listing; these are the rules for where code goes.
   as a file no program opens. There is no separate name column, so Import
   Updated Resume names the row after the new file again. Tests:
   `tests/test_bank_import.py`.
-- **The model reads a resume only when the student asks** (KAN-222, ADR
-  0003): Import Again's `read_with_ai: true`, "Read It With AI". Upload and
-  a plain Import Again never fall back to it, even when the parser finds
-  nothing. It counts a `PARSING` use only when the reading succeeds,
-  committed with the bank writes; it answers 429 at the limit and 503 when
-  the model fails, and then writes nothing. The prompt and checks are in
+- **The model reads every upload first, the parser behind it** (KAN-732,
+  `../docs/adr/0007-ai-reads-every-upload-with-the-parser-behind-it.md`;
+  it reverses ADR 0003's "only when the student asks"). Upload, the
+  preview, Import Updated Resume and Import Again all read through
+  `services/resume_reading.py`'s `read_upload`, on the default model size:
+  while the student has a `PARSING` use left today (cap 1, 10% of the
+  pool), `bank_import.read_resume` asks the model, checks every field it
+  wrote against the resume's text (`_backed`), and takes project links,
+  and the words of any bullet the seam put a placeholder in
+  (`with_own_wording`), from the parser's reading; it saves the parser's reading when no use is
+  left, the model fails or runs past `MODEL_WAIT_SECONDS` (45), its reply
+  fails the schema, or the text backs none of its entries. Only a model
+  reading counts a use, committed with the bank writes (the preview
+  commits it alone). No 429 and no 503: the limit and a failure both mean
+  the parser. **Every test gets an unreachable model** (`tests/conftest.py`'s
+  `_model_down`) unless it installs its own: without it, a test's upload
+  asked the real model the root `.env` names. The prompt and checks are in
   `services/bank_import.py`; the rules are in `app/utils/CLAUDE.md`, "The
-  model upgrade path". Tests: `tests/test_bank_import.py` (the upload's
-  writes, the merge, Import Again, no identity data in the prompt, an
-  invalid or failed reply writes and counts nothing, the cap and the share).
+  model reads first". Tests: `tests/test_bank_import.py` (the upload's
+  writes, the merge, Import Again, no identity data or contact block in the
+  prompt, a failed reply saves the parser's reading and counts nothing, the
+  check against the text, the cap and the share, the confirm's one reading).
+  Tailor's one-time read of an upload that owns nothing, and a frozen sent
+  resume's snapshot, still read with the parser alone.
 - **Uploads from before KAN-240 are not backfilled.** Their facts reach the
   bank only when the student clicks Import Again; the Jobs page's empty-bank
   card offers it in one click.

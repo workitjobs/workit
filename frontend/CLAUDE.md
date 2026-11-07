@@ -2571,12 +2571,19 @@ are in `docs/auth.md`.
   or a replace (the resume picker's, at the limit), or Import Again's
   response. A newer version of an upload is a delete and an upload: the
   Resumes view's row offered Import Updated Resume until KAN-362, and never
-  a re-read of the stored file, which only ever read the same text. **No
-  screen offers an AI reading of a resume** (KAN-353): upload, Import Again
-  and intake's Import Your Resume read with the parser only. Read It With
-  AI (KAN-222) sat beside the upload note and in the import card until
-  then; the API's `read_with_ai` and `importResume`'s `readWithAi` stay,
-  with no caller.
+  a re-read of the stored file, which only ever read the same text. **The
+  API reads every upload with AI first, the parser behind it** (KAN-732,
+  ADR 0007), so no screen offers an AI reading: Read It With AI (KAN-222)
+  sat beside the upload note and in the import card until KAN-353, and
+  `read_with_ai` and `readWithAi` are gone. A reading takes a few seconds,
+  so every upload screen says so while it waits: "Reading your resume…" on
+  the dropzone (`components/resume-upload.tsx`) and the Resumes view's
+  pending card, "Reading Resume…" or "Reading…" on a button (intake, the
+  resume picker, the Resumes view, onboarding's Read Resume). The summary
+  line adds "read with AI" when `read_by` is "model". **Onboarding's Save
+  Resume sends the preview back** (`uploadResume`'s `reading`, the API's
+  `reading` form field): the save keeps what the student checked and asks
+  AI for nothing more, since the day's one AI reading went to the preview.
 - **The Resumes view is one list of every resume** (KAN-362, KAN-404,
   `(seeker)/resumes/built-resumes.tsx`): uploaded, generated and tailored,
   newest first, each as its card (`components/resume-row.tsx`'s box, star

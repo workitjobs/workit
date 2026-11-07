@@ -244,31 +244,59 @@ as `None` (null end date).
 - Single-column assumption. Multi-column PDFs may interleave columns.
 - No OCR. Scanned-image PDFs produce no text, so nothing to parse.
 
-### The model upgrade path (KAN-222)
+### The model reads first (KAN-222, KAN-732)
 
-The model is the parser's upgrade path, and it is built: import's model
-parsing (`app/services/bank_import.py`, `read_with_model`) sends the stored
+Every upload is read by the model first, and this parser runs behind it on
+every upload (ADR 0007; it reversed ADR 0003's "only when the student
+asks"). `app/services/bank_import.py`'s `read_resume` sends the stored
 `raw_text` and the `ModelReading` schema through `LLM.complete_json`, the
-provider seam that removes identity data from every message first. It runs
-only when the student asks ("Read It With AI", Import Again's
-`read_with_ai: true`), never as a fallback (ADR 0003). Rules:
+provider seam that removes identity data from every message first;
+`services/resume_reading.py` decides whether a use is left and counts it.
+Rules:
 
-- **This parser stays first and stays free.** Every upload and every plain
-  Import Again runs it alone; the model costs a parsing use (cap 1 a day,
-  10% of the pool), so it waits for the student's click. A resume that parses wrong still becomes a fixture
-  here before the parser changes; the model is not a reason to stop fixing it.
+- **This parser always runs, and stays free.** Its reading is saved when the
+  student has no AI reading left today (cap 1, 10% of the pool), the model
+  fails, is slower than `MODEL_WAIT_SECONDS`, answers in the wrong shape, or
+  keeps no entry the text backs. A resume that parses wrong still becomes a
+  fixture here before the parser changes: the model is not a reason to stop
+  fixing it, since the parser reads whenever the model does not.
 - **The model's reading is checked, never trusted.** `ModelReading` is loose so
   one odd field does not throw away the whole reply (a `null` list, which
   Groq's gpt-oss sends for a job's coursework, is an empty one); each entry then passes
   the entry schema on its own (`model_drafts`), which clips text, drops an
   entry with no title and drops dates that do not fit together. A reply that
   is not JSON or misses the shape raises `InvalidReply` and counts no use.
-- **It never sees links.** URLs reach the model as `[link]`, so the model
-  schema has no `link` field and a field holding a placeholder is emptied.
-  Project links come only from this parser.
+- **Every field must be on the resume** (`_backed`, KAN-732). A title,
+  organization, location, degree, field, honor, bullet, course or skill the
+  model wrote stays only when the resume's words back it: every number in
+  it is on the resume, every word of a field of three words or fewer
+  (common words aside), and three in four of a longer one, which lets a
+  word the PDF broke in two through. A date whose year is not on the resume
+  takes the entry's dates; a GPA not on it (3.8 may be "3.80") goes with its
+  scale; an entry whose title goes is dropped. The prompt asks for names
+  copied as written ("B.S." stays "B.S."): an expanded degree fails the
+  check and is dropped, not saved wrong.
+- **It never sees links or the contact block.** URLs reach the model as
+  `[link]`, so the model schema has no `link` field and a field holding a
+  placeholder is emptied; `with_links` gives a model project the link of
+  this parser's project with its title (word for word, or two words or more
+  as the start of the other's). When the first heading this parser knows
+  (`section_of`) is in the first 12 lines, the model gets the text from it
+  on (`_from_first_heading`), so a name the resume spells unlike the
+  profile never reaches it; this parser drops that block too.
+- **A bullet the seam put a placeholder in takes this parser's words**
+  (`with_own_wording`). The seam removes every part of the name, in any
+  case, even where it is a common word, so the shared test account (Test
+  User) got "[name] flow" and "[name] stories" back from the model for
+  "user flow" and "user stories" (found 2026-11-06); a Page or a Drew would
+  lose "landing page" or "drew". Such a bullet becomes the bullet of this
+  parser's reading it matches (three in four of its other words): a line
+  of the resume, never a value put back for the placeholder. One with no
+  match is dropped (`model_drafts`), never saved with "[name]".
 - Either reading goes straight into the experience bank through
   `services/bank.py`'s `import_upload`; nothing keeps the reading itself
-  (`resumes.parsed_json` was dropped in KAN-240).
+  (`resumes.parsed_json` was dropped in KAN-240). The upload response's
+  `read_by` says which one it was.
 
 ## Text extraction (lives in `app/services/text_extraction.py`, not here)
 

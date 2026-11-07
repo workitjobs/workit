@@ -13,9 +13,10 @@ import { Field } from "./role-step";
 
 /**
  * Onboarding's resume step (KAN-372, ADR 0006). The student picks a file and
- * Read Resume shows what the parser found in it, with nothing saved yet
- * (POST .../resumes/preview). Save Resume then uploads the same file with
- * `replace=matching`, so the reading lands in the experience bank and
+ * Read Resume shows what WorkIt read in it (AI first, the parser behind it,
+ * KAN-732), with nothing saved yet (POST .../resumes/preview). Save Resume
+ * then uploads the same file with `replace=matching` and that reading, so
+ * the reading lands in the experience bank and
  * replaces, rather than copies, what an earlier upload holds of the same
  * entries. Each entry and skill that would replace one says so here, before
  * the student agrees. Each skill has a × (KAN-369): a skill taken out is not
@@ -81,7 +82,7 @@ function count(n: number, one: string, many = `${one}s`) {
   return `${n} ${n === 1 ? one : many}`;
 }
 
-/** What the parser read, by section, before anything is saved. */
+/** What WorkIt read, by section, before anything is saved. */
 function Reading({
   name,
   preview,

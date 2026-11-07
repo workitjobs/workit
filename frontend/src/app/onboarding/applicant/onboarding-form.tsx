@@ -59,10 +59,12 @@ import { StoryPanel } from "./story-panel";
  * the feed within days.
  *
  * STEP 2 IS THE RESUME, CHECKED BEFORE IT IS SAVED (KAN-372, ADR 0006;
- * ./resume-step). Read Resume shows what the parser found and saves nothing;
- * Save Resume uploads the file with `replace=matching`, so a second resume
- * replaces the first one's copies of the same entries instead of adding
- * them again. The upload saves at once, before onboarding is done; Skip goes
+ * ./resume-step). Read Resume shows what WorkIt read (AI first, the parser
+ * behind it, KAN-732) and saves nothing; Save Resume uploads the file with
+ * `replace=matching` and that reading, so the save keeps what the student
+ * checked without a second AI reading, and a second resume replaces the
+ * first one's copies of the same entries instead of adding them again. The
+ * upload saves at once, before onboarding is done; Skip goes
  * on without one. It replaced intake's chat (KAN-275 put the resume last).
  *
  * STEP 3 IS WHAT EVERY APPLICATION ASKS (KAN-283), right after the resume
@@ -255,8 +257,8 @@ export function OnboardingForm({
   const [removedSkills, setRemovedSkills] = useState<string[]>([]);
   /** The file name this visit saved, for the resume step's "Saved" line. */
   const [savedResume, setSavedResume] = useState<string | null>(null);
-  // What is in flight. "reading" alone shows on the dropzone, so it never
-  // says "Uploading…" for a save.
+  // What is in flight. "reading" alone shows on the dropzone ("Reading your
+  // resume…"): a save sends the reading back and reads nothing.
   const [busy, setBusy] = useState<"reading" | "saving" | null>(null);
   const saving = busy != null;
   const [error, setError] = useState<string | null>(null);
@@ -337,8 +339,11 @@ export function OnboardingForm({
       const form = resumeForm();
       // Not saved, and no later reading adds them again (KAN-369).
       for (const name of removedSkills) form.append("removed_skills", name);
+      // The reading the student checked, so the save asks AI for nothing
+      // more (KAN-732): one AI reading per resume.
       const { error: uploadError, duplicateOf } = await uploadResume(form, {
         replaceMatching: true,
+        reading: preview ?? undefined,
       });
       // A duplicate is already uploaded (KAN-267): an upload that reached
       // the API before a dropped connection, sent again on retry. Not a
@@ -367,7 +372,7 @@ export function OnboardingForm({
 
   const resumeLabel =
     busy === "reading"
-      ? "Reading…"
+      ? "Reading Resume…"
       : preview
         ? preview.duplicate_of
           ? "Next"
