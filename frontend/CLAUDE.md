@@ -2067,15 +2067,23 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   The flag lives in its own module, not beside `ASK_SCOUT_LIVE`, because
   server components read it: a value a server component imports from a
   "use client" file arrives as a client reference, which is never false.
-  The editor's assistant has no other way in on a laptop, so it is out of reach
-  until `SCOUT_LAUNCHER_LIVE` is on or the toolbar gets a button. **Ask Scout is greyed
-  out** (`ASK_SCOUT_LIVE` in `components/scout/scout-buttons.tsx`, 2026-11-02,
-  it does not work): every job's button and the phone editor's two buttons
-  stay in place, disabled, the panel's hint is hidden, and the flag brings
-  them back. A job's button, and Not Interested, which stores nothing yet,
-  are `soon` on `IconButton` (KAN-569): faded and inert, but still hovered
-  and focused, so the tooltip says "Coming Soon". A disabled button shows no
-  tooltip, so nothing said why; a control that is not built takes `soon`. The phone editor has no other way into its assistant. **The
+  **Ask Scout is greyed out** (`ASK_SCOUT_LIVE` in
+  `components/scout/scout-buttons.tsx`, 2026-11-02, it does not work): every
+  job's button and the phone editor's two buttons stay in place, disabled,
+  the panel's hint is hidden, and the flag brings them back. A job's
+  button, and Not Interested, which stores nothing yet, are `soon` on
+  `IconButton` (KAN-569): faded and inert, but still hovered and focused,
+  so the tooltip says "Coming Soon". A disabled button shows no tooltip, so
+  nothing said why; a control that is not built takes `soon`. **While it
+  is off, Scout's chat and the editor's assistant cannot be reached at
+  all** (2026-11-06): the panel shows only while a page holds it
+  (`scout-panel.tsx` reads `open` as open and taken over), and the editor
+  takes the panel only for its toolbar's views (Experiences, Cut, Format,
+  Sections), never the assistant's. Hiding the buttons alone was not
+  enough: the panel's open state outlives the page, so Fill With Scout on
+  Experiences, then the Jobs page, showed Scout's chat, and then the editor
+  showed its assistant, both working; the editor's toolbar views can still
+  leave the panel open. **The
   Calendar's sidebar row is greyed out too** (`disabled` on a nav item,
   `seeker-sidebar.tsx`): /calendar still answers, and Home's Up Next links to it. The landing page still describes
   it.

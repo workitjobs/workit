@@ -33,6 +33,7 @@ import {
 } from "react";
 
 import { CloseIcon, EllipsisIcon, FileIcon, PlusIcon } from "@/components/icons";
+import { ASK_SCOUT_LIVE } from "@/components/scout/scout-buttons";
 import { setScoutOpen, useScout } from "@/components/scout/scout-store";
 import { ScoutTakeover } from "@/components/scout/scout-takeover";
 import {
@@ -2376,8 +2377,12 @@ export function Editor({
           the toolbar's Experiences opens it, and the top bar's Scout goes
           back to the assistant, which stays mounted under it, for its chat.
           It floats over the page below xl (`float`, KAN-576): docked at
-          1024, it left the resume a 416px column with about 4px text */}
-      {rendered && !suggestions && (
+          1024, it left the resume a 416px column with about 4px text.
+          While ASK_SCOUT_LIVE is off the assistant is off too, as on the
+          phone: the panel takes over only for the toolbar's own views, so a
+          panel left open on another page shows nothing here instead of the
+          assistant */}
+      {rendered && !suggestions && (ASK_SCOUT_LIVE || panelView !== "scout") && (
         <ScoutTakeover
           float
           mark={
@@ -2413,7 +2418,7 @@ export function Editor({
         >
           <div data-keeps-selection className="flex min-h-0 flex-1 flex-col">
             <div className={cn("flex min-h-0 flex-1 flex-col", panelView !== "scout" && "hidden")}>
-              {assistant("flex-1")}
+              {ASK_SCOUT_LIVE && assistant("flex-1")}
             </div>
             {panelView === "experiences" && (
               <div className="min-h-0 flex-1 overflow-y-auto overscroll-none px-4 pt-2 pb-4">

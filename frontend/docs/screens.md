@@ -3382,8 +3382,10 @@ slides in from the window's edge (`docs/motion.md` has why). Escape or its X
 closes it and hands focus back to the bar's launcher, which shows pressed while
 the panel is open. The launcher is archived (`SCOUT_LAUNCHER_LIVE`, 2026-11-01),
 Ask Scout is greyed out (`ASK_SCOUT_LIVE`) and Fill With Scout is off
-(`FILL_WITH_SCOUT_LIVE`, KAN-732), so Scout has no way in for now; the
-resume editor still takes the panel for its toolbar's views. `chat.tsx` holds the message bubble, typing dots and
+(`FILL_WITH_SCOUT_LIVE`, KAN-732), so Scout has no way in for now. While Ask
+Scout is off the panel shows only for a page that holds it, so neither
+Scout's chat nor the editor assistant shows; the resume editor still takes
+the panel for its toolbar's views. `chat.tsx` holds the message bubble, typing dots and
 composer (with the mic, `use-speech-input`) and Scout's mark, shared with
 intake on the bank page and the editor assistant; the panel's header wears
 the same mark (KAN-257), where a brand-tint circle with a hand-drawn
