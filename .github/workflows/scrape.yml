@@ -115,10 +115,11 @@ jobs:
         working-directory: backend
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          # No vectors until every writer moves to one local model (KAN-726,
-          # Decision 3): the computer runs Ollama, so the default `ollama`
-          # would write Nomic vectors beside other models' and score wrong.
-          EMBEDDING_PROVIDER: none
+          # The computer's Ollama embeds the jobs (KAN-726, Decision 3), with
+          # the code's default model, qwen3-embedding:4b: the one model every
+          # vector in the database comes from, banks included (its bank job).
+          # A PR run is a dry run, which never calls the provider.
+          EMBEDDING_PROVIDER: ollama
           # The model the keyword pass reads (scout/CLAUDE.md): the small
           # chain, then the default chain after it. The small chain is the
           # computer's own Ollama, so it is a plain value, not a secret; the

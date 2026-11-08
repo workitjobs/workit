@@ -294,3 +294,38 @@ def test_job_text_with_only_pay_and_details_reads_the_description_whole():
 def test_job_text_without_a_description_is_the_title():
     assert embeddings.job_text("Intern", None) == "Intern"
     assert embeddings.job_text("Intern", "") == "Intern"
+
+
+# KAN-726: Qwen3 answers longer vectors, and a bank is sent as a query.
+
+def test_a_longer_ollama_vector_keeps_its_first_part_at_unit_length(ollama):
+    long = [3.0, 4.0] + [0.0] * (embeddings.DIMENSIONS - 2) + [9.0] * 1792
+    ollama(httpx.Response(200, json={"embeddings": [long]}))
+    [vector] = asyncio.run(embeddings.embed(["job"]))
+    assert len(vector) == embeddings.DIMENSIONS
+    assert vector[:2] == [0.6, 0.8]
+    assert set(vector[2:]) == {0.0}
+
+
+def test_an_all_zero_head_is_rejected(ollama):
+    ollama(httpx.Response(200, json={"embeddings": [[0.0] * embeddings.DIMENSIONS + [1.0]]}))
+    assert asyncio.run(embeddings.embed(["job"])) is None
+
+
+def test_gemini_must_answer_the_exact_size(provider):
+    provider(httpx.Response(200, json={"embeddings": [{"values": [0.1] * (embeddings.DIMENSIONS + 1)}]}))
+    assert asyncio.run(embeddings.embed(["job"])) is None
+
+
+def test_only_a_query_gets_the_prefix(ollama, monkeypatch):
+    requests = ollama(httpx.Response(200, json={"embeddings": [[0.1] * embeddings.DIMENSIONS]}))
+    settings = embeddings.get_settings()
+    settings.ollama_embedding_query_prefix = "Task:\n"
+    asyncio.run(embeddings.embed(["a bank"], query=True))
+    asyncio.run(embeddings.embed(["a posting"]))
+    assert [json.loads(r.content)["input"] for r in requests] == [["Task:\na bank"], ["a posting"]]
+
+
+def test_the_default_provider_embeds_nothing():
+    # Only the team computer opts in; every other machine must write nothing.
+    assert Settings(_env_file=None).embedding_provider == "none"

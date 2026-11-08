@@ -1,9 +1,8 @@
 # Moving the scheduled scrape to our own computer
 
-KAN-726. A plan agreed on 2026-11-08. Built: Decisions 1 and 2 in
-`scrape.yml`, and `EMBEDDING_PROVIDER=none` so the import writes no vectors
-meanwhile. The computer's setup is by hand (Setting up the computer, below).
-Not built: Decisions 3 and 4 and the shorter PR run.
+KAN-726. Agreed on 2026-11-08; Decisions 1 to 4 are built. The computer's
+setup and the cutover are by hand (Setting up the computer, The cutover,
+below). Not built: the shorter PR run.
 
 It moves the scheduled scrape and import (`.github/workflows/scrape.yml`, KAN-160) off
 GitHub's hosted runners onto a team computer, and moves keyword extraction
@@ -130,13 +129,13 @@ which model made a vector, so a model change clears both columns first.
 - A separate job on the computer, run every few minutes by a plain local
   timer (not GitHub's schedule, which is too unreliable for that), embeds
   every bank whose vector is stale (Decision 4).
-- The API only reads stored vectors. It needs a way to never embed, for
-  example `EMBEDDING_PROVIDER=none` (to build); today it tries the provider
-  for up to 10 seconds on a recommendations request (`REQUEST_EMBED_SECONDS`).
-- **Every other writer stops embedding too**: the job alerts on EC2 set
-  `EMBEDDING_PROVIDER=gemini` and would write Gemini bank vectors, and a
-  laptop's API defaults to Ollama's Nomic against the shared database. Both
-  must change to `none`, or the columns mix models silently.
+- The API only reads stored vectors: `EMBEDDING_PROVIDER` defaults to
+  `none`, which embeds nothing and calls nothing.
+- **Every other writer stops embedding too**, by the same default: the job
+  alerts set `EMBEDDING_PROVIDER=gemini` and wrote Gemini bank vectors, and
+  a laptop's API defaulted to Ollama's Nomic against the shared database.
+  `job-alerts.yml` no longer sets it; the EC2 crontab's environment must
+  drop it by hand (The cutover).
 
 Rejected:
 
@@ -150,22 +149,22 @@ Rejected:
 
 ### The model
 
-First pick: **`qwen3-embedding:4b`** (about 2.5 GB, high on the public MTEB
-benchmarks). Test it against `qwen3-embedding:0.6b` and `embeddinggemma`
-(768 wide, fits the current columns) on 20 to 50 real jobs and a few banks,
-judging whether the top matches make sense, before choosing.
+**`qwen3-embedding:4b`** (about 2.5 GB, high on the public MTEB
+benchmarks), now the code's default `OLLAMA_EMBEDDING_MODEL`.
+`nomic-embed-text:v1.5`, the old default, was dropped: it is small and
+older, and its results were judged too weak.
 
-`nomic-embed-text:v1.5`, the code's current Ollama default, is not chosen:
-it is small and older, and its results were judged too weak.
-
-Still open:
-
-- **The width.** Qwen3 embeddings are trained so the first part of a vector
-  stands alone. Keep 768 (no migration) or move to 1024 (a migration to
-  `vector(1024)` on both columns). Either way, clear both columns first.
-- **An instruction on the bank side.** Qwen3 embeds a query better with a
-  short instruction ("find jobs that match this candidate"); the bank is the
-  query, the posting the document. The code sends none today.
+- **The width: 768, no migration.** Qwen3's 4B answers 2,560 values; its
+  training makes the first part of a vector stand alone, so `embed()` keeps
+  the first 768 and scales them to length 1 (`_shortened`). Moving to 1024
+  later is a migration to `vector(1024)` on both columns and a clear.
+- **An instruction on the bank side, built.** A bank is the query, a
+  posting the document; `embed(..., query=True)` puts
+  `OLLAMA_EMBEDDING_QUERY_PREFIX` before each bank's text.
+- **Still open: no side-by-side test.** It was picked from benchmarks.
+  Before or soon after the cutover, embed 20 to 50 real jobs and a few
+  banks and check that the top matches make sense; `qwen3-embedding:0.6b`
+  and `embeddinggemma` are the alternatives, each a clear and re-embed.
 
 Ollama loads a model on first call, keeps it about 5 minutes and unloads it
 when VRAM runs short, so the embedding model and `qwen3.5:9b` need no
@@ -173,21 +172,21 @@ manual sequencing; the two fit in 10 GB together anyway.
 
 ### The backfill
 
-No new script is needed for jobs:
-`uv run python -m app.scripts.import_jobs --embeddings-only` with no
-`--embed-limit` embeds every scraped job with no vector.
+Jobs: `uv run python -m app.scripts.import_jobs --embeddings-only` with no
+`--embed-limit`, on the computer, embeds every scraped job with no vector.
+Banks: the bank job sweeps every stale bank when it starts.
 
-### Why every scheduled import embeds 0 today
+### Why every scheduled import embedded 0 before KAN-726
 
-`scrape.yml` passes `GEMINI_API_KEY` but never sets `EMBEDDING_PROVIDER`.
-The default is `ollama` (`backend/app/config.py`), GitHub's runner has no
-Ollama, and a failed embed stores nothing, so no scraped job has a vector.
-Bank embedding on the deployed API likely fails the same way unless
-`CF_API_SECRETS_JSON` sets the provider, so it retries on every visit.
+`scrape.yml` passed `GEMINI_API_KEY` but never set `EMBEDDING_PROVIDER`.
+The default was `ollama`, GitHub's runner has no Ollama, and a failed embed
+stores nothing, so no scraped job had a vector. Bank embedding on the
+deployed API likely failed the same way unless `CF_API_SECRETS_JSON` set
+the provider, so it retried on every visit.
 
 ## Decision 4: a stale bank vector stays until its replacement is ready
 
-Today every bank change sets `experience_banks.embedding` to NULL
+Before KAN-726, every bank change set `experience_banks.embedding` to NULL
 (`services/bank.py`, `clear_embedding`). Under option C that opens a window,
 growing with scale, in which the student's matches score with no semantic
 part at all.
@@ -250,17 +249,37 @@ vector sets `embedded_at` and keeps `updated_at` as it was (KAN-425). So:
 - While the computer is off, new students get no semantic part, and changed
   banks keep their last vector, until it is back.
 
-Changes with it: the `Experience_Bank` docstring
-(`backend/app/models/bank.py`) and the "Banks: on demand" rule in
-`backend/app/services/matching/CLAUDE.md`.
+Built with it: the `Experience_Bank` docstring
+(`backend/app/models/bank.py`) and the "When things are embedded" rules in
+`backend/app/services/matching/CLAUDE.md`. `embedded_at` holds the bank
+version the vector was made from (the `updated_at` read), not the time of
+the write: a change whose transaction began before the write but committed
+after it would carry an earlier time, and the stale check would miss it.
+
+## Who runs what
+
+All of it merges to `main`: every machine runs the same code, and what a
+machine does comes from its environment and from which processes it starts.
+
+| Machine | Starts | Its `EMBEDDING_PROVIDER` |
+| --- | --- | --- |
+| The team computer | the GitHub runner (scrape, import, keywords, job vectors) and the bank job (`embed_banks`) | `ollama`: `scrape.yml` sets it for the import; the computer's root `.env` sets it for the bank job |
+| The deployed API (Cloudflare) | the API | unset, so `none`: reads vectors, makes none |
+| Job alerts (EC2) | the digest | unset, so `none` |
+| Laptops | the API, tests | unset, so `none` |
+
+The bank job runs only where someone starts it, and it refuses to start
+with `none`. A laptop that set `ollama` and ran it would write the same
+model's vectors, so nothing breaks, but there is no reason to.
 
 ## Setting up the computer
 
 A person does this once, on the computer, with admin rights on the repo.
 
 1. **Install** Git (on Windows, Git for Windows: the job runs bash, and it
-   must be on the runner's PATH) and Ollama, then `ollama pull qwen3.5:9b`.
-   `curl http://localhost:11434/v1/models` lists it when Ollama is up.
+   must be on the runner's PATH), uv and Ollama, then
+   `ollama pull qwen3.5:9b` and `ollama pull qwen3-embedding:4b`.
+   `curl http://localhost:11434/v1/models` lists them when Ollama is up.
 2. **Ollama starts on boot.** The Linux installer makes a systemd service.
    On Windows the app starts at sign-in only, so add `ollama serve` as a
    Task Scheduler task at startup, or keep a user signed in. Turn sleep off.
@@ -280,11 +299,59 @@ A person does this once, on the computer, with admin rights on the repo.
    runs to GitHub's runner; this is a second guard.
 7. **Try it**: `gh workflow run scrape.yml --ref <branch> -f dry_run=true`
    runs the branch's workflow on the computer and writes nothing (a dry run
-   calls no model). Then a run without `dry_run`, whose log should end with
-   a keyword count above 0 and `embedded 0`.
+   calls no model). The real run waits for the cutover, below.
+8. **A checkout for the bank job**: clone the repo, run `uv sync` in
+   `backend/`, and give it a root `.env` with `DATABASE_URL`, `DIRECT_URL`
+   (the session pooler, port 5432, where it listens) and
+   `EMBEDDING_PROVIDER=ollama`. The session pooler is IPv4, so a campus
+   network reaches it; check port 5432 as in step 3.
+9. **Make the bank job a service**, not started until the cutover. On Linux,
+   a systemd unit:
+
+   ```ini
+   [Unit]
+   Description=WorkIt bank job
+   After=network-online.target ollama.service
+
+   [Service]
+   WorkingDirectory=/path/to/checkout/backend
+   ExecStart=/path/to/uv run python -m app.scripts.embed_banks
+   Restart=always
+   RestartSec=30
+
+   [Install]
+   WantedBy=multi-user.target
+   ```
+
+   On Windows, a Task Scheduler task at startup that runs
+   `uv run python -m app.scripts.embed_banks` in `backend\`, restarting on
+   failure. Its log says "Listening on bank_dirty", then one line a sweep.
 
 While the runner is offline, scheduled runs wait in the queue and nothing
-is scraped; GitHub cancels a job that waits 24 hours.
+is scraped; GitHub cancels a job that waits 24 hours. While the bank job is
+off, changed banks keep their last vector and new banks score without the
+semantic part; it catches up when it starts.
+
+## The cutover
+
+In this order, because merging moves the scrape to the runner and makes
+every other machine stop embedding:
+
+1. **Before merging**: make sure `CF_API_SECRETS_JSON` sets no
+   `EMBEDDING_PROVIDER` (remove it if it does, then rerun the deploy so the
+   secret takes), and drop `EMBEDDING_PROVIDER=gemini` from the EC2
+   crontab's environment. The computer's setup, steps 1 to 9, is done and
+   the runner is online.
+2. **Merge.** The API deploys with `none`, and the next scheduled scrape
+   runs on the computer.
+3. **Apply the migration** `e8c3f1a7b925` (`uv run alembic upgrade head`,
+   by a person): it clears every old vector. Do it right after the deploy;
+   job vectors the computer wrote in between are cleared too, and made again
+   in step 5.
+4. **Start the bank job.** Its first sweep embeds every bank.
+5. **Backfill the jobs** on the computer:
+   `EMBEDDING_PROVIDER=ollama uv run python -m app.scripts.import_jobs --embeddings-only`
+   in the bank job's checkout. Then the keyword backfill (Decision 2).
 
 ## Not now: a shorter PR run
 
@@ -309,18 +376,18 @@ Lost: a bug that shows only at full scale, or on a board outside the sample,
 is caught by the next scheduled run instead of before the merge. The
 mass-close guard still protects scheduled runs.
 
-## Build order
+## What was built
 
-1. Set up the computer: the runner (scheduled and manual runs only), Ollama
-   with `qwen3.5:9b`, the network checks above.
-2. Keywords: `SCOUT_ENDPOINTS_SMALL` at the local Ollama, after a comparison
-   on sample postings.
-3. Test the embedding models; choose the model and width.
-4. Decision 4 (stale, not NULL) and `EMBEDDING_PROVIDER=none` for the API,
-   the job alerts and laptops.
-5. Clear both embedding columns (a migration if the width changes), then
-   backfill jobs with `--embeddings-only` and banks with the bank job.
-6. Start the bank job: `LISTEN` on the session pooler with reconnects,
-   notifications grouped into one batch a minute at most, new banks first,
-   a backup check on start, on reconnect and every 6 hours; `pg_notify` in
-   `clear_embedding`.
+- `scrape.yml`: scheduled and manual runs on the runner; keywords from
+  local `qwen3.5:9b`; jobs embedded with `EMBEDDING_PROVIDER: ollama`.
+- `EMBEDDING_PROVIDER` defaults to `none`; `job-alerts.yml` no longer sets
+  `gemini`.
+- `embeddings.py`: `qwen3-embedding:4b` by default, cut to 768; banks sent
+  with the query prefix.
+- `services/bank.py`: a change keeps the vector, moves `updated_at` and
+  sends `pg_notify('bank_dirty', <applicant id>)` in its `RETURNING`, so
+  the editor's save stays one statement.
+- `services/matching/bank_vectors.py`: the stale rule and the conditional
+  store, shared by the request path and the bank job.
+- `app/scripts/embed_banks.py`: the bank job.
+- Migration `e8c3f1a7b925`: clears every vector.

@@ -126,8 +126,8 @@ Scheduled and manual runs run on a team computer, not on GitHub's servers
 (KAN-726, `docs/scraper_gh_action/plan.md`). GitHub keeps the schedule and
 the logs; the computer does the work, and reads each job posting's keywords
 with a model of its own. A pull request's test run stays on GitHub's
-servers. The import embeds no job postings for now, until one embedding
-model is chosen for every part of WorkIt.
+servers. The computer also embeds each new job posting, and every
+experience bank, with one model of its own, the only machine that does.
 
 ### What one run does
 

@@ -75,11 +75,20 @@ class Settings(BaseSettings):
     turnstile_secret_key: str | None = None
 
     gemini_api_key: str | None = None
-    # "none" embeds nothing and calls nothing (KAN-726): for a writer that
-    # must not put vectors from another model into the shared columns.
-    embedding_provider: Literal["gemini", "ollama", "none"] = "ollama"
+    # Only the team computer makes vectors (KAN-726,
+    # docs/scraper_gh_action/plan.md, Decision 3): its bank job and its
+    # scheduled import set "ollama". Everywhere else, the deployed API, job
+    # alerts and laptops, the default "none" embeds nothing and calls
+    # nothing, so no other machine can write another model's vectors into
+    # the shared columns.
+    embedding_provider: Literal["gemini", "ollama", "none"] = "none"
     ollama_embedding_url: str = "http://localhost:11434"
-    ollama_embedding_model: str = Field(default="nomic-embed-text:v1.5", min_length=1)
+    ollama_embedding_model: str = Field(default="qwen3-embedding:4b", min_length=1)
+    # Put before a bank's text, never a posting's: Qwen3 embeds the asking
+    # side (the bank) better with a one-line task. Empty sends none.
+    ollama_embedding_query_prefix: str = (
+        "Instruct: Given a candidate's experience and skills, retrieve job postings that fit them\nQuery:"
+    )
     embedding_timeout_seconds: float = Field(default=120, gt=0)
 
     # AI usage limits (app/services/usage.py). A use counts only when the

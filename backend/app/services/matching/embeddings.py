@@ -17,9 +17,10 @@ logger = logging.getLogger(__name__)
 
 # Every writer that shares a database must use one provider and model:
 # vectors from different models can't be compared, even at equal
-# dimensions. Gemini stays fixed for production; local Ollama models are
-# configurable, and model_key() names the space a vector came from.
-# Changing the model or DIMENSIONS means re-embedding every job and bank.
+# dimensions. Production's is Ollama's Qwen3 embedding model on the team
+# computer (KAN-726, ollama_embedding_model); model_key() names the space a
+# vector came from. Changing the model or DIMENSIONS means clearing and
+# re-embedding every job and bank. Gemini's model stays callable by name.
 MODEL = "gemini-embedding-001"
 
 DIMENSIONS = EMBEDDING_DIMENSIONS
@@ -99,7 +100,7 @@ def model_key() -> str:
 
 
 async def embed(
-    texts: Sequence[str], *, timeout: float | None = None
+    texts: Sequence[str], *, timeout: float | None = None, query: bool = False
 ) -> list[list[float]] | None:
     """One vector per text, or None on provider failure; never fall back to another model.
 
@@ -108,6 +109,10 @@ async def embed(
     `timeout` overrides `embedding_timeout_seconds` (120s, sized for the
     import's batches): a call inside a user's request passes a short one, so
     a provider that is down or absent costs seconds, not the whole request.
+    `query` marks the texts as banks, the asking side: Ollama gets
+    `ollama_embedding_query_prefix` before each. Postings are never queries.
+    An Ollama vector longer than DIMENSIONS keeps its first DIMENSIONS values,
+    scaled back to length 1 (`_shortened`).
     """
     if len(texts) > BATCH_SIZE:
         raise ValueError(f"embed() takes at most {BATCH_SIZE} texts at a time")
@@ -138,7 +143,7 @@ async def embed(
         url = settings.ollama_embedding_url.rstrip("/") + "/api/embed"
         body = {
             "model": settings.ollama_embedding_model,
-            "input": [text[:_MAX_CHARS] for text in texts],
+            "input": [_as_query(text, settings.ollama_embedding_query_prefix, query) for text in texts],
             "truncate": True,
         }
     try:
@@ -166,7 +171,10 @@ async def embed(
                 values = embedding.get("values") if isinstance(embedding, dict) else None
             else:
                 values = embedding
-            if not isinstance(values, list) or len(values) != DIMENSIONS:
+            # Gemini is asked for DIMENSIONS exactly; an Ollama model answers
+            # its own size, which may be longer (Qwen3's 4B: 2560).
+            too_short = len(values) < DIMENSIONS if isinstance(values, list) else True
+            if too_short or (provider == "gemini" and len(values) != DIMENSIONS):
                 raise ValueError(f"expected {DIMENSIONS} values per embedding")
             if any(
                 isinstance(value, bool)
@@ -175,8 +183,28 @@ async def embed(
                 for value in values
             ):
                 raise ValueError("embedding values must be finite numbers")
-            vectors.append([float(value) for value in values])
+            vector = [float(value) for value in values]
+            vectors.append(_shortened(vector) if len(vector) > DIMENSIONS else vector)
         return vectors
     except (TypeError, ValueError, OverflowError) as exc:
         logger.warning("%s embedding returned an invalid response: %s", provider, exc)
         return None
+
+
+def _as_query(text: str, prefix: str, query: bool) -> str:
+    """A bank's text with the model's task line before it; a posting's as it is.
+    The cut leaves room for the prefix, so the bank's own text loses no more."""
+    text = text[:_MAX_CHARS]
+    return f"{prefix}{text}" if query and prefix else text
+
+
+def _shortened(vector: list[float]) -> list[float]:
+    """The first DIMENSIONS values, scaled to length 1. Qwen3's embedding
+    models are trained so a vector's first part stands on its own (Matryoshka
+    training), so the cut keeps the columns at vector(768) with no migration.
+    The scale changes no cosine distance; it keeps the stored vectors alike."""
+    head = vector[:DIMENSIONS]
+    norm = math.sqrt(sum(value * value for value in head))
+    if norm == 0:
+        raise ValueError("embedding is all zeros")
+    return [value / norm for value in head]

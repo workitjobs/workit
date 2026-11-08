@@ -196,8 +196,9 @@ stay on `ubuntu-latest`, since the repo is public and a PR run executes the
 PR's code. With no such runner online, a scheduled run waits in the queue
 and none runs. The job runs bash on both (a Windows runner needs Git for
 Windows' bash on its PATH) and calls `python`, not `python3`, which Windows
-lacks. The setup, why every import embedded 0 before, and a shorter PR run
-not yet taken up are in `../docs/scraper_gh_action/plan.md`.
+lacks. The setup (the runner and the bank job), why every import embedded 0
+before, and a shorter PR run not yet taken up are in
+`../docs/scraper_gh_action/plan.md`.
 
 - **Secret:** `DATABASE_URL` (the API's pooler URL, from the root `.env`), in the
   repo's Actions secrets. Without it the run fails at the import step and says so.
@@ -212,10 +213,10 @@ not yet taken up are in `../docs/scraper_gh_action/plan.md`.
   settings refuse as a list. The `SCOUT_ENDPOINTS_SMALL` and
   `GEMINI_API_KEY` secrets are no longer read here; `GEMINI_API_KEY` stays
   for the job alerts.
-- **`EMBEDDING_PROVIDER: none`**: the import writes no vectors until every
-  writer moves to one local model (the plan's Decision 3). The default,
-  `ollama`, would succeed on the computer and write Nomic vectors beside
-  other models'.
+- **`EMBEDDING_PROVIDER: ollama`**: the import embeds jobs on the
+  computer's Ollama with the code's default model, `qwen3-embedding:4b`, the
+  one model every vector comes from (the computer's bank job embeds the
+  banks). Every other workflow leaves the default, `none`.
 - **The company list** (`scraper/boards.csv`) is grown by `build_boards.py`
   before every scrape, from the curated GitHub lists, so a company they name
   today is read on the next run without a commit. It only ever adds; the rules
@@ -267,12 +268,11 @@ bell-notification path — `send_email` catches the missing-credentials
 error, logs it, and returns `False`, the same best-effort outcome as a
 bounced send.
 
-- **Secrets:** `DATABASE_URL` and `GEMINI_API_KEY` only (both already set
-  for the scrape workflow — reused here, not duplicated).
-  `EMBEDDING_PROVIDER=gemini` is a plain env value here, not a secret, so
-  the digest scores with the semantic part the deployed API itself
-  doesn't have on by default (`backend/CLAUDE.md`'s "Still open" note on
-  that).
+- **Secret:** `DATABASE_URL` only. **It makes no embeddings** (KAN-726):
+  the default provider `none` reads the bank vectors the team computer
+  stores. It set `EMBEDDING_PROVIDER=gemini` until then, which wrote
+  Gemini bank vectors beside the others; **the EC2 crontab's environment
+  must drop it too**, since that crontab lives outside this repo.
 - **One run at a time**, same reasoning as the scrape's concurrency group:
   two overlapping runs would double-send the same applicant. This guards
   against two *workflow* runs overlapping; it says nothing about the EC2
