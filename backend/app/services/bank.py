@@ -6,10 +6,11 @@ place:
 - Every function takes the applicant id and touches only that applicant's
   rows. A row of another applicant answers `NotFound`, the same as a missing
   one, so ids cannot be probed.
-- Every create, edit or delete of an entry, bullet or skill clears the bank
-  embedding (`clear_embedding`), so the next recommendations request remakes
-  it. A later bullet-variant change must not call it: variants never reach
-  the embedding.
+- Every create, edit or delete of an entry, bullet or skill marks the bank
+  embedding stale and notifies the bank job (`clear_embedding`, KAN-726),
+  which replaces it; the old vector serves until then. A later
+  bullet-variant change must not call it: variants never reach the
+  embedding.
 - An entry or skill belongs to the upload whose import wrote it, or to
   none when the student made it (`resume_id`, ADR 0005,
   docs/bank_by_resume.md). Uploads never share one: an import
@@ -34,9 +35,10 @@ import uuid
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 
-from sqlalchemy import delete, func, null, or_, select, update
+from sqlalchemy import Text, cast, delete, func, null, or_, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql.elements import ColumnElement
 
 from app.models.bank import (
     Bank_Bullet,
@@ -142,14 +144,32 @@ def _newest_first(entry: Bank_Entry) -> tuple:
     )
 
 
+# The channel the team computer's bank job listens on (KAN-726,
+# app/scripts/embed_banks.py). Postgres delivers a NOTIFY only when its
+# transaction commits, so a refused or rolled-back change wakes nothing.
+BANK_CHANNEL = "bank_dirty"
+
+
+def _notify(applicant_id) -> ColumnElement:
+    """pg_notify for one bank, to go in a RETURNING: no extra round trip."""
+    return func.pg_notify(BANK_CHANNEL, cast(applicant_id, Text))
+
+
+# A bank change keeps the bank's vector and only moves updated_at past the
+# version it was made from (embedded_at), which marks it stale (KAN-726,
+# Decision 4): recommendations keep scoring on the last version until the
+# bank job replaces it. Clearing it, as before, scored the student with no
+# semantic part at all until then.
+_STALE = {"updated_at": func.now()}
+
+
 async def clear_embedding(session: AsyncSession, applicant_id: uuid.UUID) -> None:
-    """Mark the bank embedding stale, making the bank row on first use."""
+    """Mark the bank embedding stale and wake the bank job, making the bank
+    row on first use. The old vector stays until its replacement is stored."""
     stmt = insert(Experience_Bank).values(applicant_id=applicant_id, embedding=None, embedded_at=None)
     await session.execute(
-        stmt.on_conflict_do_update(
-            index_elements=[Experience_Bank.applicant_id],
-            set_={"embedding": None, "embedded_at": None, "updated_at": func.now()},
-        )
+        stmt.on_conflict_do_update(index_elements=[Experience_Bank.applicant_id], set_=_STALE)
+        .returning(_notify(Experience_Bank.applicant_id))
     )
 
 
@@ -352,9 +372,8 @@ async def write_entry(
         select(edited.c.applicant_id, null(), null()),
     )
     stale = stale.on_conflict_do_update(
-        index_elements=[Experience_Bank.applicant_id],
-        set_={"embedding": None, "embedded_at": None, "updated_at": func.now()},
-    ).returning(Experience_Bank.applicant_id)
+        index_elements=[Experience_Bank.applicant_id], set_=_STALE,
+    ).returning(Experience_Bank.applicant_id, _notify(Experience_Bank.applicant_id))
     if (await session.execute(stale)).first() is None:
         raise NotFound
 
