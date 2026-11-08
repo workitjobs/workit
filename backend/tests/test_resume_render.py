@@ -357,8 +357,9 @@ def read_only_vendor(tmp_path, monkeypatch):
     (vendor / "cache" / "fonts").mkdir(parents=True)
     for i in range(50):
         (vendor / "cache" / "fonts" / f"{i}.otf").write_bytes(os.urandom(4096))
-    (vendor / "tectonic").write_bytes(b"#!/bin/sh\n")
-    (vendor / "tectonic").chmod(0o644)
+    binary = vendor / resume_render.binary_name()  # tectonic.exe on Windows
+    binary.write_bytes(b"#!/bin/sh\n")
+    binary.chmod(0o644)
     tmp = tmp_path / "tmp"
     tmp.mkdir()
     monkeypatch.setattr(resume_render, "VENDOR", vendor)
@@ -677,13 +678,15 @@ def test_the_api_takes_exactly_what_the_page_can_print() -> None:
                     settings(**{field: size})
 
 
-def test_a_compile_gets_windows_own_folder_and_no_secret(monkeypatch, tmp_path) -> None:
+def test_a_compile_gets_windows_own_folders_and_no_secret(monkeypatch, tmp_path) -> None:
     monkeypatch.setenv("SYSTEMROOT", "C:/Windows")
     monkeypatch.setenv("DATABASE_URL", "postgresql://secret")
+    monkeypatch.setattr(resume_render.os, "name", "nt")
     env = resume_render._env(tmp_path, "work")
     assert env["SYSTEMROOT"] == "C:/Windows"
     assert "DATABASE_URL" not in env
-    monkeypatch.delenv("SYSTEMROOT")
+    # Off Windows the compile gets no Windows folder, even when one is set
+    monkeypatch.setattr(resume_render.os, "name", "posix")
     assert "SYSTEMROOT" not in resume_render._env(tmp_path, "work")
 
 

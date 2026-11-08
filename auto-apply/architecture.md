@@ -26,6 +26,11 @@ built. It replaces the earlier `design.md`.
 > fill in that tab ("The first fill", 8.3, KAN-305); the application stays
 > `queued`. Everything else is a plan. The exact function names are a
 > sketch, to be settled when each step is built.
+>
+> **Not `apply-agent/`.** `apply-agent/` is Apply, a separate Python agent
+> for developers that fills forms in its own Chrome with Claude's answers
+> and keeps its data in files, not in WorkIt; it shares only the Fill
+> engine with the extension (`apply-agent/CLAUDE.md`).
 
 ## Terms
 
@@ -898,8 +903,9 @@ disagree. Migration `c0467afe819c` added:
 | `created_at` | timestamptz | When the row was made: the queue's order. Queueing a saved row moves it to now, so a job saved last month doesn't jump the queue |
 | `applied_at` | timestamptz **null** now | Set when the student clicks **Submitted** or the Applied button; `NULL` while queued. A CHECK keeps an `applied` row dated |
 
-- **The Jobs page hides `applied` rows only** (`JobFilters.applied_by`). A
-  saved or queued job stays on it; matches leave out every stage, saved too
+- **The Jobs page hides saved and applied rows** (`JobFilters.tracked_by`,
+  KAN-217: both live on the Tracker). A queued, needs-you or
+  skipped job stays on it; matches leave out every stage, saved too
   (`JobFilters.no_application_by`).
 - **The Applied button turns a saved, queued, skipped or needs_you row
   applied** (`mark_applied`, an upsert); an applied row keeps its first date.
@@ -938,8 +944,9 @@ This data also shows which hiring systems need adapter work.
 
 **Built** (KAN-283): one JSONB bank of answers per student for the questions
 hiring systems repeat, `backend/app/models/CLAUDE.md`, "The answer bank".
-Onboarding's Profile step fills it, and My Profile's Application Questions
-edits it later (KAN-269): work authorization, sponsorship,
+Onboarding's Profile step fills it, and Application Info's Work
+Authorization and Voluntary Self-Identification cards edit it later
+(KAN-269; on My Profile until KAN-550): work authorization, sponsorship,
 citizenship and visa status, security clearance, gender, Hispanic or
 Latino, race, veteran status and disability. Contact details and links are not in it: auto apply reads
 them from `applicant_profiles`, their one home. `GET` and `PATCH /applicants/{id}/autofill-answers` read and

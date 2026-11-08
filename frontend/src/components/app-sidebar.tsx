@@ -129,13 +129,13 @@ const MENU_BUTTON = "h-9";
 const CURRENT_ITEM = "data-active:text-brand-ink hover:text-brand-ink active:text-brand-ink";
 
 /**
- * THE FILLS GLIDE. A row no longer paints its own hover or current fill;
- * each menu draws one hover highlight and one current highlight behind its
- * rows (GlideMenu below), and moves them. Pointing down the panel, the hover
- * fill travels from row to row instead of blinking off one and onto the
- * next; following a link, the current fill travels to the new section from
- * the click (GlideMenu says how), while the page changes beside it. Both
- * ride --ease-glide, 320ms.
+ * THE HOVER FILL GLIDES. A row no longer paints its own hover or current
+ * fill; each menu draws one hover highlight and one current highlight behind
+ * its rows (GlideMenu below), and moves them. Pointing down the panel, the
+ * hover fill travels from row to row on --ease-glide, 320ms, instead of
+ * blinking off one and onto the next. The current fill does not travel: it
+ * slid to the new section until 2026-11-02, and the slide read as confusing,
+ * so it now lands on the row at once.
  *
  * So every row clears the fills shadcn's button paints itself
  * (hover:, active: and data-active: bg-sidebar-accent), each restated with
@@ -172,9 +172,10 @@ function currentIndex(items: SidebarNavItem[], pathname: string) {
  * at i * (row + 4px). Nothing is measured, so the server draws the current
  * fill in place and nothing jumps when the page hydrates.
  *
- * `glide` false moves it without a transition, for the hover fill's first
- * appearance: arriving from outside the menu, it should appear under the
- * pointer, not slide in from wherever it last faded out. Width and height
+ * `glide` false moves it without a transition, for the current fill and the
+ * hover fill's first appearance: arriving from outside the menu, the hover
+ * fill should appear under the pointer, not slide in from wherever it last
+ * faded out. Width and height
  * follow the panel's own 200ms linear when it collapses to the rail.
  */
 function Highlight({
@@ -207,10 +208,9 @@ function Highlight({
 }
 
 type NavRowBase = {
+  /** The section's one name: the rail's tile and the phone's sheet show
+   *  the same one, short enough for a 72px tile. */
   label: string;
-  /** The name a rail tile shows where `label` does not fit 72px; `label`
-   *  must contain it, so the accessible name holds what is seen. */
-  short?: string;
   /** A Phosphor icon — see "THE ICONS ARE PHOSPHOR'S" above. */
   Icon: ComponentType<{ className?: string }>;
 };
@@ -229,6 +229,9 @@ export type SidebarNavItem = NavRowBase &
         /** Other paths this row owns, with their subtrees: one section shown
          *  as two routes, like Resumes & Experiences (/resumes and /experiences). */
         also?: string[];
+        /** A section that does not work yet: its row stays, greyed out, with
+         *  no link. */
+        disabled?: boolean;
       }
     | { action: () => void | Promise<void> }
   );
@@ -248,10 +251,11 @@ export type SidebarNavGroup = { label?: string; items: SidebarNavItem[] };
  *
  * 88px wide (--sidebar-width, set by the shell), white, flush with the
  * window and ruled off by one hairline. Each row is a 72px by 64px tile:
- * a 24px icon over a 12px name, centred, with 8px of panel either side. A
- * name that does not fit there takes its item's `short` ("Tracker" for
- * Applications Tracker), and the full name stays the link's accessible
- * name, which contains the short one.
+ * a 24px icon over a 12px name, centred, with 8px of panel either side.
+ * Each row has one name, short enough for that tile ("Tracker"), and the
+ * sheet below shows the same one. Rows had a `short` for the tile and a
+ * longer name for the sheet ("Applications Tracker") until 2026-11-05: the
+ * user found two sets of names for the same sections confusing.
  *
  * Below md the panel is shadcn's sheet, as before: there the rows go back
  * to an icon beside the full name (RAIL_SHEET_*), since a sheet has the
@@ -263,7 +267,8 @@ export type SidebarNavGroup = { label?: string; items: SidebarNavItem[] };
  * DOCKED is the company shell's: the full-bleed lavender panel under a
  * full-width bar, offset by the bar's height. See "WHY IT IS OFFSET".
  */
-const RAIL = "group-data-[side=left]:border-border-subtle [&>[data-slot=sidebar-inner]]:bg-panel";
+// The rail's edge is the control edge, as the top bar's rule is (2026-11-03).
+const RAIL = "group-data-[side=left]:border-border-control [&>[data-slot=sidebar-inner]]:bg-panel";
 const RAIL_GROUP = "px-2 py-2";
 const RAIL_BUTTON =
   "h-16 flex-col justify-center gap-1 px-1 text-center text-note leading-tight font-medium [&_svg]:size-6 " +
@@ -273,7 +278,9 @@ const RAIL_BUTTON =
   // the custom glyphs' 24 grid alike.
   "[&_svg[viewBox='0_0_256_256']]:[stroke-width:2] [&_svg[viewBox='0_0_24_24']]:[stroke-width:1.7]";
 const RAIL_SHEET_GROUP = "px-4 py-2";
-const RAIL_SHEET_BUTTON = "h-10 px-3";
+// 44px on a touch screen (KAN-557), 40px with a mouse. The rows touch, so
+// the row grows rather than its hit area; GlideMenu's --row follows.
+const RAIL_SHEET_BUTTON = "h-10 px-3 pointer-coarse:h-11";
 const RAIL_CAPTION = "text-caption text-ink-meta px-3 font-semibold uppercase";
 
 /** The seeker shell's provider: shadcn's, held open on a desktop, so the
@@ -336,7 +343,10 @@ export function AppSidebar({
       <div className={cn("flex size-full min-h-0 flex-col", rail && "bg-panel")}>
         {isMobile && (
           <SidebarHeader className="border-rail-border h-16 shrink-0 flex-row items-center gap-3 border-b px-4 sm:px-8">
-            <SidebarTrigger className="text-ink-meta hover:text-ink shrink-0 hover:bg-transparent [&_svg]:size-4" />
+            <SidebarTrigger
+              aria-label="Close Menu"
+              className="text-ink hover:text-brand shrink-0 hover:bg-transparent [&_svg]:size-4"
+            />
             {rail ? <LogoLockup /> : <Logo size="bar" />}
           </SidebarHeader>
         )}
@@ -379,14 +389,16 @@ export function AppSidebar({
 }
 
 /**
- * The rail's logo: WorkIt's mark alone, centred in a 64px header with a
- * bottom rule, the top bar's height, so the header's rule and the bar's run
- * on as one line across the window. The wordmark does not fit 88px. It goes
+ * The rail's logo: WorkIt's mark alone, centred in a 64px header, the top
+ * bar's height, with no rule under it: the rail's edge runs the window's full
+ * height and the bar's rule stops at it. A rule here ran on as one line with
+ * the bar's and crossed the rail's edge in a "+" by the logo (2026-11-03).
+ * The wordmark does not fit 88px. It goes
  * home, and presses in on the click like every control.
  */
 function RailBrand({ href }: { href: string }) {
   return (
-    <SidebarHeader className="border-border-subtle h-16 shrink-0 flex-row items-center justify-center border-b p-0">
+    <SidebarHeader className="h-16 shrink-0 flex-row items-center justify-center p-0">
       <Link
         href={href}
         aria-label="WorkIt Home"
@@ -399,8 +411,8 @@ function RailBrand({ href }: { href: string }) {
 }
 
 /**
- * A menu with its two gliding fills: hover under the current, so pointing
- * at the current row leaves its stronger fill in charge. The hover fill
+ * A menu with its two fills: hover under the current, so pointing at the
+ * current row leaves its stronger fill in charge. The hover fill
  * follows the pointer and keyboard focus (focus-visible only, so a click does
  * not leave it behind), and fades where it is when the pointer leaves.
  *
@@ -409,8 +421,8 @@ function RailBrand({ href }: { href: string }) {
  * pathname changes, and the fill, placed from the pathname, sat on the old
  * row for that whole wait, so the click looked ignored. Each row's link
  * reports while its navigation is pending (PendingMark, Next's
- * useLinkStatus), and the fill glides to that row at once, on the same
- * 320ms glide; its label takes the current colour with it. The pending row
+ * useLinkStatus), and the fill moves to that row at once; its label takes
+ * the current colour with it. The pending row
  * holds only for the pathname it was clicked from, so the commit, or any
  * other move, hands the fill back to the pathname. `aria-current` stays on
  * the committed row: a screen reader is not told of a page that has not
@@ -455,12 +467,13 @@ function GlideMenu({
     <div
       className={cn(
         "relative",
-        // A row's height: the rail's 64px tile, its sheet's 40px row, and
+        // A row's height: the rail's 64px tile, its sheet's 40px row (44px
+        // on touch, RAIL_SHEET_BUTTON), and
         // MENU_BUTTON's 36px open and shadcn's 32px square collapsed.
         look === "tile"
           ? "[--row:4rem]"
           : look === "sheet"
-            ? "[--row:2.5rem]"
+            ? "[--row:2.5rem] pointer-coarse:[--row:2.75rem]"
             : "[--row:2.25rem] group-data-[collapsible=icon]:[--row:2rem]",
       )}
       onPointerLeave={() => setHover(null)}
@@ -471,7 +484,7 @@ function GlideMenu({
         glide={hover?.glide ?? false}
         className="bg-rail-hover"
       />
-      <Highlight index={lit} visible={lit >= 0} glide className="bg-rail-selected" />
+      <Highlight index={lit} visible={lit >= 0} glide={false} className="bg-rail-selected" />
       <SidebarMenu className={cn(MENU, "relative")}>
         {items.map((item, i) => (
           <NavRow
@@ -510,13 +523,10 @@ function NavRow({
   onUnhighlight: () => void;
   onPending: (pending: boolean) => void;
 }) {
-  const { label, short, Icon } = item;
+  const { label, Icon } = item;
   const { setOpenMobile } = useSidebar();
   const tile = look === "tile";
   const size = tile ? RAIL_BUTTON : look === "sheet" ? RAIL_SHEET_BUTTON : MENU_BUTTON;
-  // A tile shows the short name; the full one stays the accessible name.
-  const text = tile && short ? short : label;
-  const name = text === label ? undefined : label;
 
   // Keyboard focus moves the hover fill too; a mouse click's focus does not.
   const focusProps = {
@@ -536,11 +546,22 @@ function NavRow({
             void item.action();
           }}
           {...focusProps}
-          aria-label={name}
+
           className={cn(size, ROW, "cursor-pointer")}
         >
           <Icon aria-hidden className="size-4" />
-          <span>{text}</span>
+          <span>{label}</span>
+        </SidebarMenuButton>
+      </SidebarMenuItem>
+    );
+  }
+
+  if (item.disabled) {
+    return (
+      <SidebarMenuItem>
+        <SidebarMenuButton disabled className={cn(size, ROW, "opacity-50")}>
+          <Icon aria-hidden className="size-4" />
+          <span>{label}</span>
         </SidebarMenuButton>
       </SidebarMenuItem>
     );
@@ -551,16 +572,14 @@ function NavRow({
       <SidebarMenuButton
         isActive={lit}
         tooltip={label}
-        render={
-          <Link href={item.href} aria-current={current ? "page" : undefined} aria-label={name} />
-        }
+        render={<Link href={item.href} aria-current={current ? "page" : undefined} />}
         // Closes the phone sheet on the way out; a no-op on the desktop panel.
         onClick={() => setOpenMobile(false)}
         {...focusProps}
         className={cn(size, ROW, lit && CURRENT_ITEM)}
       >
         <Icon aria-hidden className="size-4" />
-        <span>{text}</span>
+        <span>{label}</span>
         <PendingMark onPending={onPending} />
       </SidebarMenuButton>
     </SidebarMenuItem>

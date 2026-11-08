@@ -51,11 +51,15 @@ class TestRow:
         assert feed_row(role(board_key="lever/nologo"))["logo_url"] is None
 
     def test_company_domain_comes_from_the_boards_website(self) -> None:
-        # An uploaded logo names no website; a favicon does.
+        # An uploaded logo names no website by itself; a favicon does.
         assert feed_row(role())["company_domain"] is None
         favicon = "https://www.google.com/s2/favicons?domain=careers.gevernova.com&sz=128"
         row = feed.row(role(board_key="workday/x"), {"workday/x": favicon})
         assert (row["logo_url"], row["company_domain"]) == (favicon, "gevernova.com")
+
+    def test_an_upload_takes_the_domain_of_the_website_its_board_named(self) -> None:
+        row = feed.row(role(), {"ashby/terranova": LOGO}, {"ashby/terranova": "terranova.com"})
+        assert (row["logo_url"], row["company_domain"]) == (LOGO, "terranova.com")
 
     def test_labels_become_the_schemas_enum_values(self) -> None:
         row = feed_row(role())
@@ -190,3 +194,26 @@ class TestClosings:
             "https://a.test",
             "https://b.test",
         ]
+
+
+class TestWithoutDomain:
+    """The flag list: boards whose roles go out with no company_domain, for a
+    person to add to checked_websites.csv."""
+
+    def test_boards_with_no_domain_are_listed_most_roles_first(self) -> None:
+        roles = [
+            role(board_key="workday/cir.wd108/x", company="Cambridge"),
+            role(board_key="workday/cir.wd108/x", company="Cambridge"),
+            role(board_key="greenhouse/arc", company="Arc"),
+            role(board_key="jibe/careers.garmin.com", company="Garmin"),
+        ]
+        addresses = {"workday/cir.wd108/x": None, "jibe/careers.garmin.com": "garmin.com"}
+        assert feed.without_domain(roles, {}, {}, addresses) == [
+            {"board": "workday/cir.wd108/x", "company": "Cambridge", "roles": 2, "tried": True},
+            {"board": "greenhouse/arc", "company": "Arc", "roles": 1, "tried": False},
+        ]
+
+    def test_a_proved_address_reaches_the_row(self) -> None:
+        r = role(board_key="jibe/careers.garmin.com")
+        row = feed.row(r, {}, {}, {"jibe/careers.garmin.com": "garmin.com"})
+        assert row["company_domain"] == "garmin.com"

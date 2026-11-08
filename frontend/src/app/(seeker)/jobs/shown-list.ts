@@ -13,6 +13,8 @@
  * back, on a return, roles that have since left the server's first page.
  */
 
+import type { ApplicationStage } from "../auto-apply/actions";
+import { withChange, type StageChange } from "./feed-stages";
 import { LIST_FRESH_FOR, type ListSource } from "./list-pages";
 import type { JobListing } from "./listings";
 import { sessionStore } from "./session-store";
@@ -25,6 +27,9 @@ export type ShownList = {
   /** The next Load More's offset, and whether the API has more. */
   offset: number;
   more: boolean;
+  /** Each job's application, for the Save button on a compact card. A job
+   *  saved and then taken out is null. Lists kept by an older build have none. */
+  stages?: Record<string, ApplicationStage | null>;
   at: number;
 };
 
@@ -40,4 +45,21 @@ export function isFresh(list: ShownList): boolean {
 
 export function rememberList(list: Omit<ShownList, "at">) {
   store.write({ ...list, at: Date.now() });
+}
+
+/** The stages the seeker set in this tab, each with when (./feed-stages):
+ *  every list lays the ones made after its render over its own. */
+const changes = sessionStore<Record<string, StageChange>>("workit:stage-changes");
+
+export const readStageChanges = changes.read;
+export const subscribeStageChanges = changes.subscribe;
+
+/** One job's new application, so its other buttons and every list follow: a
+ *  job saved on its page fills the bookmark on its compact card and leaves
+ *  the feed and the rail (KAN-217), and the reverse. Save, its Undo, Did You
+ *  Apply? and Auto Apply all call it. */
+export function rememberStage(jobId: string, stage: ApplicationStage | null) {
+  const list = readShownList();
+  if (list) store.write({ ...list, stages: { ...list.stages, [jobId]: stage } });
+  changes.write(withChange(changes.read(), jobId, { stage, at: Date.now() }));
 }

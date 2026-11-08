@@ -10,9 +10,9 @@ from workit_scraper.providers.fetch import _iso
 from workit_scraper.providers.model import Job, Provider
 from workit_scraper.providers.registry import listing_url
 from workit_scraper.providers.text import (
-    _described,
-    _page,
+    _listed_page,
     _work_style,
+    title_name,
 )
 
 
@@ -37,7 +37,6 @@ def ashby(token: str, company: str) -> list[Job]:
         if not row.get("isListed", True):
             continue
         title = (row.get("title") or "").strip()
-        full, roles = _described(row.get("descriptionPlain") or row.get("descriptionHtml"))
         jobs.append(
             Job(
                 ats="ashby",
@@ -49,10 +48,9 @@ def ashby(token: str, company: str) -> list[Job]:
                 location=row.get("location"),
                 department=row.get("department"),
                 posted_at=_iso(row.get("publishedAt")),
-                page=_page(
+                page=_listed_page(
                     title,
-                    full,
-                    roles=roles,
+                    row.get("descriptionPlain") or row.get("descriptionHtml"),
                     stated_type=details.job_type_label(row.get("employmentType")),
                     # Some boards leave `workplaceType` unset but still flag `isRemote`.
                     stated_style=_work_style(
@@ -74,4 +72,8 @@ PROVIDER = Provider(
     logo_page="https://jobs.ashbyhq.com/{}",
     # The square mark, not `logoWordmarkImageUrl`: the card's tile is square.
     logo_pattern=re.compile(r'"logoSquareImageUrl":"(https://app\.ashbyhq\.com/api/images/[^"]+)"'),
+    # "Joko Jobs": the board page's title. Its JSON API is under /api/, which
+    # jobs.ashbyhq.com's robots.txt disallows.
+    name_url="https://jobs.ashbyhq.com/{token}",
+    read_name=lambda text: title_name(text, " Jobs"),
 )

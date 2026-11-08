@@ -154,6 +154,10 @@ class job_post_status(enum.StrEnum):
     # added by 1ea834081a48; ALTER TYPE, not an edit here, is what changes the column
     paused= "paused"
     closed= "closed"
+    # added by c2e4a6b8d051 (KAN-542), which production already has. Unused:
+    # an added job is job_postings.added_by_student (f7b2d4a6c815), never a
+    # status. Nothing writes it; a later migration drops the value
+    unlisted= "unlisted"
 
 
 class application_stage(enum.StrEnum):
@@ -197,6 +201,18 @@ APPLIED_STAGES = (
 # joins this list.
 BEFORE_APPLIED = (
     application_stage.saved,
+    application_stage.queued,
+    application_stage.needs_you,
+    application_stage.skipped,
+)
+
+# The stages that keep a job on the Jobs page (JobFilters.tracked_by): a job
+# auto apply holds is still the student's to see there. Every other stage
+# is on the Tracker instead: saved (the Save button and every
+# Tailor run, KAN-217) and applied and after. Asked as NOT IN these, as
+# BEFORE_APPLIED is, and for the same reason. A new stage before applied
+# joins this list too unless it belongs on the tracker.
+ON_THE_JOBS_PAGE = (
     application_stage.queued,
     application_stage.needs_you,
     application_stage.skipped,

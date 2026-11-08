@@ -187,12 +187,17 @@ def serve(pages: dict[str, bytes | str]):
     return get
 
 
-def fetch(board: tuple[str, str, str], pages: dict[str, bytes | str]) -> dict:
+def fetch_both(board: tuple[str, str, str], pages: dict[str, bytes | str]) -> tuple[dict, dict]:
+    """`logos.fetch` on one board: its logos and its websites."""
     with (
         mock.patch.object(logos, "Robots"),
         mock.patch.object(logos.web, "get", serve(pages)),
     ):
         return logos.fetch([board])
+
+
+def fetch(board: tuple[str, str, str], pages: dict[str, bytes | str]) -> dict:
+    return fetch_both(board, pages)[0]
 
 
 # The Greenhouse jobs API JSON-escapes the HTML in `content` -- `\u0026lt;` -- which
@@ -338,7 +343,69 @@ class TestFetch:
         }
 
     def test_an_unreadable_board_is_left_for_the_next_run(self) -> None:
-        assert fetch(("lever", "gone", "Gone"), {}) == {}
+        assert fetch_both(("lever", "gone", "Gone"), {}) == ({}, {})
+
+
+class TestWebsiteBesideAnUpload:
+    """KAN-442's cards draw the logo from Brandfetch by the website, so a board with
+    an uploaded logo keeps its website too: on 2026-11-03, 4,238 jobs at 865
+    companies had an upload, no website and so no `company_domain`."""
+
+    def test_an_ashby_upload_keeps_its_public_website(self) -> None:
+        page = (
+            b'"logoSquareImageUrl":"https://app.ashbyhq.com/api/images/org-theme-logo/b.png",'
+            b'"publicWebsite":"https://bedrockrobotics.com/"'
+        )
+        found, sites = fetch_both(
+            ("ashby", "bedrock-robotics", "Bedrock Robotics"),
+            {"https://jobs.ashbyhq.com/": page, "https://app.ashbyhq.com/": png(400)},
+        )
+        assert found == {
+            "ashby/bedrock-robotics": "https://app.ashbyhq.com/api/images/org-theme-logo/b.png"
+        }
+        assert sites == {"ashby/bedrock-robotics": "bedrockrobotics.com"}
+
+    def test_a_greenhouse_upload_finds_its_website_in_the_descriptions(self) -> None:
+        found, sites = fetch_both(
+            ("greenhouse", "scaleai", "Scale AI"),
+            {
+                "https://job-boards.greenhouse.io/": GREENHOUSE.encode(),
+                "https://boards-api.greenhouse.io/": greenhouse_jobs(
+                    "https://www.eeoc.gov/poster", "https://scale.com/careers"
+                ),
+            },
+        )
+        assert found == {"greenhouse/scaleai": logos.extract("greenhouse", GREENHOUSE)}
+        assert sites == {"greenhouse/scaleai": "scale.com"}
+
+    def test_an_upload_whose_descriptions_are_gone_is_kept_with_no_website(self) -> None:
+        # A 404 is an answer: left out, the board would be read on every run.
+        found, sites = fetch_both(
+            ("greenhouse", "axios", "Axios"),
+            {"https://job-boards.greenhouse.io/": GREENHOUSE.encode()},
+        )
+        assert found == {"greenhouse/axios": logos.extract("greenhouse", GREENHOUSE)}
+        assert sites == {"greenhouse/axios": None}
+
+    def test_a_failed_read_of_the_descriptions_leaves_it_for_the_next_run(self) -> None:
+        def get(url: str, *, timeout: float) -> bytes:
+            if url.startswith("https://job-boards.greenhouse.io/"):
+                return GREENHOUSE.encode()
+            raise TimeoutError
+
+        with mock.patch.object(logos, "Robots"), mock.patch.object(logos.web, "get", get):
+            assert logos.fetch([("greenhouse", "axios", "Axios")]) == ({}, {})
+
+    def test_a_board_read_with_an_upload_before_websites_were_kept_is_read_again(self) -> None:
+        upload = "https://app.ashbyhq.com/api/images/x.png"
+        read = {"ashby/a": upload, "ashby/b": logos.favicon("b.com"), "lever/c": None}
+        assert logos.needs_read("ashby/a", read, {})
+        assert not logos.needs_read("ashby/a", read, {"ashby/a": None})
+        # A favicon names its website already, and a board with no logo waits for
+        # `VERSION`, as before.
+        assert not logos.needs_read("ashby/b", read, {})
+        assert not logos.needs_read("lever/c", read, {})
+        assert logos.needs_read("ashby/new", read, {})
 
 
 class TestStore:
@@ -358,6 +425,19 @@ class TestStore:
         previous = store.Store("2026-09-28T00:00:00+00:00", RunStats(), [], {}, {"ashby/a": "u"})
         now = "2026-09-29T00:00:00+00:00"
         assert store.update(previous, [], [], RunStats(), now).logos == {"ashby/a": "u"}
+
+    def test_websites_survive_a_save_an_update_and_old_files_load(self, tmp_path: Path) -> None:
+        sites = {"ashby/a": "a.com", "lever/b": None}
+        run = store.Store("2026-11-03T00:00:00+00:00", RunStats(), [], {}, websites=sites)
+        path = tmp_path / "jobs.json"
+        store.save(run, path)
+        assert store.load(path).websites == sites
+        now = "2026-11-04T00:00:00+00:00"
+        assert store.update(run, [], [], RunStats(), now).websites == sites
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        del payload["websites"]
+        path.write_text(json.dumps(payload), encoding="utf-8")
+        assert store.load(path).websites == {}
 
     def test_a_newer_reader_reads_the_boards_that_had_no_logo_again(self, tmp_path: Path) -> None:
         old = store.Store(
@@ -408,11 +488,138 @@ class TestCompanyDomain:
         assert logos.company_domain("icims/careers-kimley-horn", None) == "kimley-horn.com"
         assert logos.company_domain("oracle/hdpc.fa.us2/LateralHiring", None) == "goldmansachs.com"
 
-    def test_an_uploaded_logo_or_none_gives_no_domain(self) -> None:
+    def test_an_uploaded_logo_or_none_gives_no_domain_without_a_website(self) -> None:
         upload = "https://app.ashbyhq.com/api/images/x.png"
         assert logos.company_domain("ashby/terranova", upload) is None
         assert logos.company_domain("lever/nologo", None) is None
 
+    def test_an_uploaded_logo_gives_the_domain_of_the_website_beside_it(self) -> None:
+        upload = "https://app.ashbyhq.com/api/images/x.png"
+        assert logos.company_domain("ashby/x", upload, "www.terranova.com") == "terranova.com"
+        assert logos.company_domain("ashby/x", upload, "x.eightfold.ai") is None
+        # The checked website still wins.
+        micron = "workday/micron.wd1/external"
+        assert logos.company_domain(micron, None, "micron.eightfold.ai") == "micron.com"
+
     def test_every_checked_website_fits_the_columns_check(self) -> None:
         for key, site in logos.CHECKED_WEBSITES.items():
             assert logos.DOMAIN.fullmatch(logos.registered_domain(site)), key
+
+
+class TestBoardAddress:
+    """A board with no domain is checked once by its own address (2026-11-04):
+    7,089 jobs at 811 companies had none, most on Workday, Jibe and
+    SuccessFactors, whose boards name no website."""
+
+    def test_a_careers_host_gives_the_companys_own_domain(self) -> None:
+        assert logos.board_address("jibe", "careers.garmin.com") == ("garmin.com", False)
+        assert logos.board_address("successfactors", "jobs.mcdonalds.com") == (
+            "mcdonalds.com",
+            False,
+        )
+
+    def test_a_hiring_vendors_host_gives_none(self) -> None:
+        # Six Jibe boards in boards.csv live on Jibe's own host.
+        assert logos.board_address("jibe", "githubinc.jibeapply.com") is None
+
+    def test_a_workday_tenant_is_only_a_guess(self) -> None:
+        assert logos.board_address("workday", "sbdinc.wd1/stanley_black_decker_career_site") == (
+            "sbdinc.com",
+            True,
+        )
+
+    def test_other_systems_give_none(self) -> None:
+        assert logos.board_address("greenhouse", "stripe") is None
+        assert logos.board_address("oracle", "hdpc.fa.us2/LateralHiring") is None
+
+
+class TestNamesCompany:
+    def test_a_guess_needs_the_whole_name_in_the_title(self) -> None:
+        title = "Stanley Black & Decker | Tools, Storage and Security"
+        assert logos.names_company("sbdinc.com", "Stanley Black & Decker", title, guess=True)
+        # The Workday tenant `yale` belongs to Yale University; yale.com sells locks.
+        home = "Yale Home | Smart Locks and Home Security"
+        assert not logos.names_company("yale.com", "Yale University", home, guess=True)
+        # FedEx Freight's tenant `freight`: freight.com is not FedEx's.
+        assert not logos.names_company("freight.com", "FedEx Freight", "Freight", guess=True)
+        # A one-word name is in too many titles: denver.com is Denver Media.
+        assert not logos.names_company("denver.com", "Denver", "Denver Media", guess=True)
+        assert not logos.names_company(
+            "nexstar.com", "Nexstar", "Shared Web Hosting by NEXSTAR", guess=True
+        )
+
+    def test_a_board_host_needs_less(self) -> None:
+        assert logos.names_company("garmin.com", "Garmin", "", guess=False)
+        assert logos.names_company("gxo.com", "GXO Logistics", "", guess=False)
+        assert logos.names_company("chsinc.com", "CHS", "", guess=False)
+        assert logos.names_company("cdmsmith.com", "CDM Smith", "CDM Smith", guess=False)
+        assert not logos.names_company("example.com", "Garmin", "Example Domain", guess=False)
+
+
+def check(board: tuple[str, str, str], pages: dict[str, bytes | str]) -> dict:
+    with (
+        mock.patch.object(logos, "Robots"),
+        mock.patch.object(logos.web, "get", serve(pages)),
+    ):
+        return logos.check_addresses([board])
+
+
+class TestCheckAddresses:
+    def test_a_redirect_to_www_is_followed_and_the_domain_proved(self) -> None:
+        found = check(
+            ("jibe", "careers.garmin.com", "Garmin"),
+            {
+                "https://garmin.com/": "https://www.garmin.com/en-US/",
+                "https://www.garmin.com/": b"<html><title>Garmin Official Site</title>",
+            },
+        )
+        assert found == {"jibe/careers.garmin.com": "garmin.com"}
+
+    def test_a_redirect_to_another_domain_proves_nothing(self) -> None:
+        found = check(
+            ("jibe", "careers.example.com", "Example"),
+            {"https://example.com/": "https://parked.test/"},
+        )
+        assert found == {"jibe/careers.example.com": None}
+
+    def test_a_guess_whose_page_names_another_company_is_flagged(self) -> None:
+        found = check(
+            ("workday", "yale.wd1/yale_careers", "Yale University"),
+            {"https://yale.com/": b"<title>Yale Home | Smart Locks</title>"},
+        )
+        assert found == {"workday/yale.wd1/yale_careers": None}
+
+    def test_a_missing_page_is_flagged(self) -> None:
+        found = check(("workday", "cir.wd108/cir_external_career_site", "Cambridge"), {})
+        assert found == {"workday/cir.wd108/cir_external_career_site": None}
+
+    def test_an_unreachable_site_is_left_for_the_next_run(self) -> None:
+        def unreachable(url: str, *, timeout: float) -> bytes:
+            raise TimeoutError
+
+        with (
+            mock.patch.object(logos, "Robots"),
+            mock.patch.object(logos.web, "get", unreachable),
+        ):
+            assert logos.check_addresses([("jibe", "careers.garmin.com", "Garmin")]) == {}
+
+    def test_a_proved_address_comes_after_every_other_source(self) -> None:
+        assert logos.company_domain("jibe/careers.garmin.com", None, None, "garmin.com") == (
+            "garmin.com"
+        )
+        favicon = logos.favicon("www.zoox.com")
+        assert logos.company_domain("lever/zoox", favicon, None, "other.com") == "zoox.com"
+        assert logos.company_domain("jibe/careers.hrblock.com", None, None, None) == "hrblock.com"
+
+    def test_addresses_survive_a_save_an_update_and_old_files_load(self, tmp_path: Path) -> None:
+        found = {"jibe/careers.garmin.com": "garmin.com", "workday/yale.wd1/x": None}
+        run = store.Store("2026-11-04T00:00:00+00:00", RunStats(), [], {}, addresses=found)
+        path = tmp_path / "jobs.json"
+        store.save(run, path)
+        assert store.load(path).addresses == found
+        now = "2026-11-05T00:00:00+00:00"
+        assert store.update(run, [], [], RunStats(), now).addresses == found
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        del payload["addresses"]
+        path.write_text(json.dumps(payload), encoding="utf-8")
+        assert store.load(path).addresses == {}

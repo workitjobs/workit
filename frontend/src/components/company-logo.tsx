@@ -11,6 +11,10 @@ import { BRANDFETCH, type LogoSrc } from "@/lib/job-logo";
  *  its own colour), not a wordmark. */
 const SQUARE = { min: 0.8, max: 1.25 };
 
+/** Every tile's shape, whatever its size: a square that never shrinks in a
+ *  row (below). */
+const TILE = "aspect-square shrink-0";
+
 /**
  * A company's own logo, or its initials when there is none —
  * or when every source fails to load: logo URLs come from job boards and go
@@ -24,7 +28,12 @@ const SQUARE = { min: 0.8, max: 1.25 };
  * white with padding, since cropped it reads as a mistake. The padding is a
  * share of the tile, so the 32px tile on a job posting's page keeps room for
  * its logo. The image stays hidden until its shape is known, so it never
- * jumps from framed to filled.
+ * jumps from framed to filled, and the initials show under it until then.
+ *
+ * ALWAYS SQUARE (`TILE`, KAN-217): the call site sizes it (`size-*`), and
+ * it never takes a size from its row. A tile as tall as the feed card's
+ * header grew taller than wide on a narrow window, as the title wrapped,
+ * and a flex row too tight for it squeezed its width.
  *
  * BRANDFETCH LOADS STRAIGHT FROM THE BROWSER (`unoptimized`). Its terms allow
  * hotlinking only, with the page's Referer, and refuse a server fetching the
@@ -49,16 +58,21 @@ export function CompanyLogo({
   const [shape, setShape] = useState<{ url: string; square: boolean } | null>(null);
   const url = sources[failed.key === key ? failed.count : 0];
 
-  if (!url) return <Avatar name={name} className={className} />;
+  if (!url) return <Avatar name={name} className={cn(TILE, className)} />;
   const square = shape?.url === url ? shape.square : null;
 
   return (
     <span
       className={cn(
         "border-border-subtle bg-panel relative block overflow-hidden border",
+        TILE,
         className,
       )}
     >
+      {/* The initials until the image shows (KAN-569): a slow or refused
+          image left an empty white box. Gone once it shows, since a
+          wordmark's padding would let them through. */}
+      {square == null && <Avatar name={name} className="absolute inset-0 size-full rounded-none" />}
       <Image
         key={url}
         src={url}

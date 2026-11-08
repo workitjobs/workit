@@ -30,9 +30,7 @@ import {
   BriefcaseIcon,
   CalendarIcon,
   CoinIcon,
-  ExternalLinkIcon,
   FileIcon,
-  PencilIcon,
   PinIcon,
   SortIcon,
   workStyleIcon,
@@ -49,14 +47,16 @@ import { ClickableRow } from "@/components/clickable-row";
 import { MatchBadge } from "@/components/match-badge";
 import { Reflow } from "@/components/reflow";
 import { useShallowPush } from "@/components/shallow-routing";
-import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Fact } from "@/components/ui/fact";
+import { TailoredChip } from "@/components/tailored-chip";
 import { cn } from "@/lib/cn";
 
-import { STAGE_COLOR, STAGE_LABEL, STAGE_ORDER } from "../stage-colors";
+import { STAGE_ORDER } from "../stage-colors";
+import { StageMenu } from "./[jobId]/tracker-controls";
+import { ClosedSavedControl } from "./closed-saved";
 import { LocalDate } from "../local-time";
-import { sortKey, type Application } from "../tracker";
+import { isClosedSaved, sortKey, type Application } from "../tracker";
 import { ApplicationTile } from "./application-tile";
 import {
   COLUMNS,
@@ -77,16 +77,21 @@ import { ViewResumeButton } from "./view-resume";
  * The applications as a table, one row each, in the order job trackers read
  * (KAN-256): what and who (Role, with its company under it), where it stands (Status, Date
  * Applied), how good it is (Match), the job's facts (Job Type;
- * Location; Work Model; Pay Range), where and what was sent (Source, the
- * hiring system its posting is on; Resume; Posting, open or not), and Notes /
- * Next Step last, the widest and least scanned. Role stays frozen at the
+ * Location; Work Model; Pay Range), and what was sent and whether it is still
+ * open (Resume; Posting). Role stays frozen at the
  * left while the rest scrolls. Company and Role were two frozen columns
  * (KAN-256) until they took so much width that few other columns showed;
  * stacked in one again, the company's name is still filtered and sorted on
  * as its own field.
  *
- * Notes / Next Step is a placeholder for now: nothing stores notes yet, and
- * Status can only be Saved or Applied until the API keeps later stages.
+ * Source and Notes / Next Step left the table (2026-11-05): the user found
+ * them more than a row needs. Source, the hiring system the posting is on,
+ * is on the application's page (./[jobId]/your-application.tsx) and stays a
+ * filter here; Notes was a placeholder, since nothing stores notes yet.
+ *
+ * Status is the stage menu (./[jobId]/tracker-controls.tsx's StageMenu,
+ * 2026-11-05), so a stage changes from the row as from a card; its cell
+ * keeps a click, or a pick in its popup, from opening the application.
  *
  * Its frame follows the company Home's Recent Applicants
  * (company/applicants-preview.tsx): one white card, 12px grey headings,
@@ -196,22 +201,33 @@ const CELL: Record<ColumnId, (app: Application) => ReactNode> = {
   // keyboard reaches.
   role: (app) => (
     <div className="flex min-w-0 items-center gap-3">
-      <ApplicationTile application={app} size="sm" />
+      <ApplicationTile application={app} size="sm" muted={isClosedSaved(app)} />
       <div className="min-w-0">
         <Link
           href={applicationHref(app.id)}
           title={app.role}
-          className="text-label text-ink hover:text-brand focus-visible:ring-brand-ring block truncate rounded-xs font-semibold transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none"
+          className="text-label text-ink hover:text-brand focus-visible:ring-brand-ring -my-1 block truncate rounded-xs py-1 font-semibold transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none"
         >
           {app.role}
         </Link>
-        <p className="text-note text-ink-meta truncate" title={app.company}>
-          {app.company}
-        </p>
+        <div className="flex min-w-0 items-center gap-1.5">
+          <p className="text-note text-ink-meta truncate" title={app.company}>
+            {app.company}
+          </p>
+          {/* A resume made for this job, ready to send (KAN-217). */}
+          {app.tailored && <TailoredChip />}
+        </div>
       </div>
     </div>
   ),
-  status: (app) => <Badge tone={STAGE_COLOR[app.stage].tone}>{STAGE_LABEL[app.stage]}</Badge>,
+  // The stage menu, as on a card and the application's page: a stage
+  // changes from the row, without opening the application.
+  status: (app) =>
+    isClosedSaved(app) ? (
+      <ClosedSavedControl app={app} />
+    ) : (
+      <StageMenu jobId={app.id} stage={app.stage} placeholder="Saved" className="w-full" />
+    ),
   applied: (app) => (
     <FactValue
       Icon={CalendarIcon}
@@ -242,20 +258,13 @@ const CELL: Record<ColumnId, (app: Application) => ReactNode> = {
     />
   ),
   pay: (app) => <FactValue Icon={CoinIcon} value={app.pay} missing="Not listed" />,
-  source: (app) => <FactValue Icon={ExternalLinkIcon} value={app.source} missing="Unknown" />,
   // View Resume (KAN-267): the button names the resume, filling the cell.
   resume: (app) =>
     app.sentResume ? (
-      <ViewResumeButton resume={app.sentResume} className="w-full" />
+      <ViewResumeButton resume={app.sentResume} />
     ) : (
       <FactValue Icon={FileIcon} value={null} missing="Not sent" />
     ),
-  // A pill: positive is the badge's tone for a live posting, inert for one
-  // that is over.
-  posting: (app) =>
-    app.open === false ? <Badge tone="inert">Closed</Badge> : <Badge tone="positive">Open</Badge>,
-  // A placeholder until notes are stored.
-  notes: () => <FactValue Icon={PencilIcon} value={null} missing="No notes yet" />,
 };
 
 const helper = createColumnHelper<typeof FEATURES, Application>();
@@ -390,8 +399,10 @@ export function ApplicationsList({ applications }: { applications: Application[]
                       // A click in the resume cell around View Resume is a
                       // near miss, not a wish to open the application:
                       // ClickableRow leaves a prevented click alone.
+                      // The stage menu's cell too: its options open in a
+                      // popup, whose clicks still reach the row in React.
                       onClick={
-                        id === "resume" && row.original.sentResume
+                        id === "status" || (id === "resume" && row.original.sentResume)
                           ? (event) => event.preventDefault()
                           : undefined
                       }
@@ -430,7 +441,9 @@ type Drag = { id: ColumnId; over: ColumnId | null } | null;
  * on. Frozen columns neither drag nor take a drop. A drag needs a mouse;
  * a phone keeps the default order, which the Columns menu can reset to.
  *
- * THE RESIZE HANDLE is TanStack's resize handler on mouse and touch, a
+ * THE RESIZE HANDLE is 24px wide across the edge, a target the size the
+ * rest of the table's controls are, with a 2px line (KAN-577; it was 8px).
+ * It is TanStack's resize handler on mouse and touch, a
  * double click back to the default width, and the arrow keys for a
  * keyboard (a focusable separator with its width as its value). Its mouse
  * press cancels the browser's own default, and no move starts while a
@@ -531,7 +544,7 @@ function HeadCell({
             type="button"
             onClick={() => onSort(columnSort)}
             title={SORT_HINT[columnSort]}
-            className="hover:text-ink focus-visible:ring-brand-ring inline-flex min-w-0 items-center gap-1 rounded-xs transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none"
+            className="hover:text-ink focus-visible:ring-brand-ring inline-flex min-h-6 min-w-0 items-center gap-1 rounded-xs transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none"
           >
             <span className="truncate">{label}</span>
             {/* Keyed on its state, so the glyph pops in when the column
@@ -540,7 +553,7 @@ function HeadCell({
               key={active ? direction : "none"}
               className={cn(
                 "animate-pop size-3.5 shrink-0",
-                active ? "text-brand" : "text-ink-faint",
+                active ? "text-brand" : "text-ink-meta",
               )}
               direction={active ? direction : undefined}
             />
@@ -577,7 +590,7 @@ function HeadCell({
         onDoubleClick={() => column.resetSize()}
         onKeyDown={onKeyDown}
         className={cn(
-          "group/resize focus-visible:ring-brand-ring absolute inset-y-0 -right-1 z-2 flex w-2 cursor-col-resize touch-none justify-center select-none focus-visible:ring-2 focus-visible:outline-none",
+          "group/resize focus-visible:ring-brand-ring absolute inset-y-0 -right-3 z-2 flex w-6 cursor-col-resize touch-none justify-center select-none focus-visible:ring-2 focus-visible:outline-none",
         )}
       >
         <span

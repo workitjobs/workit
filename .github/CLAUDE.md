@@ -18,6 +18,24 @@ the same image and port as the local test container, and sets
 there, a test database that cannot be reached fails the job instead of
 skipping the tests.
 
+**The backend job runs only on a PR that touches `backend/`, `scout/`,
+`scraper/` or `ci.yml`** (the `changes` job's `backend` filter). The API
+installs both packages (`workit-scout` and `workit-scraper`, path
+dependencies in `backend/pyproject.toml`), and its tests read no other
+folder: the root `.env` is absent in CI, and the Fill engine test skips
+without the submodule. A new path dependency joins the filter too. Only 3 of the 40 PRs merged before
+2026-11-04 touched either folder; the rest waited about 7 minutes for a
+job their change could not fail. A skipped job passes a required check. A
+new backend test that reads a file outside those folders adds that folder
+to the filter, or a PR that changes the file merges untested.
+
+The backend job runs pytest with one worker per core (`-n auto`,
+pytest-xdist). One at a time, its 2,368 tests took 6.5 of the job's 7.3
+minutes (2026-11-04): about 40% resume tests that each compile a real PDF
+(about 1 s), the rest database tests that each empty every table after
+them. Each worker imports `tests/conftest.py` on its own, so each makes and
+migrates its own randomly named database and the workers share no table.
+
 The backend job installs real Tectonic with `backend/scripts/fetch_tectonic.py`
 (kept in the Actions cache) before pytest. Because `CI` is set, the resume
 template text test fails, never skips, when Tectonic is missing
@@ -28,7 +46,7 @@ The `extension-store-build` job (KAN-463) builds the Chrome Web Store package
 localhost, vercel.app or "Prototype", and runs `store-build.spec.ts` and
 `extension-id.spec.ts`. The package needs the private fill-engine submodule,
 which the default token can't read, so the build steps run only once a
-`FILL_ENGINE_TOKEN` secret (read access to WorkIt-CSE-416/fill-engine) is set;
+`FILL_ENGINE_TOKEN` secret (read access to workitjobs/fill-engine) is set;
 without it they show as skipped and the job checks the extension ID only.
 
 **Without `FILL_ENGINE_TOKEN`, the engine's tests are skipped, never green.**
@@ -59,6 +77,23 @@ view (`panel-reopen`, `workday-show`), found in the Playwright image
 2026-10-31. On CI each spec gets two retries; a broken one fails all three.
 The fill-engine repo has its own CI (its `.github/workflows/ci.yml`):
 typecheck, the same stale-`dist/` check, and its tests, on every PR.
+
+The `apply` job (KAN-535) lints and tests Apply (`apply-agent/`) on
+Ubuntu: `uv sync --locked`, `uv run ruff check .` and a fixed list of test
+files. The list holds only the 44 files that need no browser, no network
+and no `claude` CLI: about 770 tests (28 skipped), 10 s of pytest and 14 s
+with `uv sync --locked` and ruff, timed in a Linux container
+(`ghcr.io/astral-sh/uv:python3.12-bookworm`) on 2026-11-02. The tests read
+the engine's saved forms, so the job needs the fill-engine submodule: it
+needs `FILL_ENGINE_TOKEN` and is skipped without it. It runs only on a PR
+that touches `apply-agent/`, the engine pointer, `ci.yml` or
+`engine-token.yml` (the `changes` job).
+**CI does not run the other 28 test files**, which hold the Filler tests
+(`test_*_filler.py`, `test_claude_fill.py`, `test_run.py`,
+`test_rehearse.py` and more). Most of them need Chromium or the macOS
+`security` tool. The full suite takes more than 20
+minutes. Run the files that a change touches on a Mac, with `-k`
+(`apply-agent/CLAUDE.md`, Testing).
 
 The frontend job runs `format:check`, so an unformatted file fails the PR.
 Run `npm run format` before pushing. Markdown docs are in
@@ -155,22 +190,55 @@ so the real gap between runs was a median 5.5 hours, at most 8.7. The fix being
 weighed is a Cloudflare Cron Trigger that starts this workflow through GitHub's
 API at exact times (`scraper/docs/coverage.md`, "Later").
 
+**Scheduled and manual runs go to a self-hosted runner** (KAN-726) on a
+team computer with Ollama, picked by its `workit-scraper` label; PR runs
+stay on `ubuntu-latest`, since the repo is public and a PR run executes the
+PR's code. With no such runner online, a scheduled run waits in the queue
+and none runs. The job runs bash on both (a Windows runner needs Git for
+Windows' bash on its PATH) and calls `python`, not `python3`, which Windows
+lacks. A Windows runner also needs the machine's PowerShell policy at
+`RemoteSigned`: Windows' default blocks `setup-python`'s installer script,
+which failed the first dry run there (2026-11-08). It also needs Python
+3.12 put in its tool cache once by an admin, because the installer cannot
+install as Network Service; a change to `python-version` in `scrape.yml`
+needs that step again (the plan, step 5). And Git's `bin` folder must be
+first in the `PATH=` line of the runner's own `C:\actions-runner\.env`
+(a `.path` file did nothing for the service): the machine PATH holds
+only `Git\cmd`, and the scrape step failed with "bash: command not found".
+The job sets `PYTHONUTF8=1`: Windows' default output encoding (cp1252)
+failed the import's report on a place name, after the import had worked.
+The setup (the runner
+and the bank job), why every import embedded 0
+before, and a shorter PR run not yet taken up are in
+`../docs/scraper_gh_action/plan.md`.
+
 - **Secret:** `DATABASE_URL` (the API's pooler URL, from the root `.env`), in the
   repo's Actions secrets. Without it the run fails at the import step and says so.
-- **Secrets:** `SCOUT_ENDPOINTS_SMALL` and `SCOUT_ENDPOINTS`, for the
-  import's keyword pass (`backend/CLAUDE.md`, The feed import): the small
-  chain (KAN-356), then the default chain after it, each a JSON array on one
-  line, copied from the root `.env`. The four single `SCOUT_*` variables are
-  not passed: a chain says the same in one secret. These are the import's
-  own: the deployed API reads its chains from `CF_API_SECRETS_JSON`, so the
-  import can run on another account's quota than the students' features.
-  Without either the run warns and extracts no keywords; the import itself
-  still runs. The step unsets each one that is empty, because GitHub passes
-  a missing secret as `""`, which Scout's settings refuse as a list.
+- **The keyword pass's model** (`backend/CLAUDE.md`, The feed import):
+  `SCOUT_ENDPOINTS_SMALL` is a plain value in the workflow, the computer's
+  own Ollama (`qwen3.5:9b` at `localhost:11434`), since it holds no key; the
+  `SCOUT_ENDPOINTS` secret, the hosted default chain copied from the root
+  `.env` as one JSON line, is its fallback. The four single `SCOUT_*`
+  variables are not passed. These are the import's own: the deployed API
+  reads its chains from `CF_API_SECRETS_JSON`. The step unsets an empty
+  one, because GitHub passes a missing secret as `""`, which Scout's
+  settings refuse as a list. The `SCOUT_ENDPOINTS_SMALL` and
+  `GEMINI_API_KEY` secrets are no longer read here; `GEMINI_API_KEY` stays
+  for the job alerts.
+- **`EMBEDDING_PROVIDER: ollama`**: the import embeds jobs on the
+  computer's Ollama with the code's default model, `qwen3-embedding:4b`, the
+  one model every vector comes from (the computer's bank job embeds the
+  banks). Every other workflow leaves the default, `none`.
 - **The company list** (`scraper/boards.csv`) is grown by `build_boards.py`
   before every scrape, from the curated GitHub lists, so a company they name
   today is read on the next run without a commit. It only ever adds; the rules
   are in `scraper/CLAUDE.md`.
+- **The import retries its own transaction when the connection drops**
+  (`import_jobs.IMPORT_ATTEMPTS`, three tries 10 seconds apart), so a
+  `DATABASE_URL` pooler disconnect doesn't fail a good scrape. Nothing else is
+  retried: an `ImportRefused` or a bad row fails the same way again, and the
+  keyword pass after the commit makes paid Scout calls, so the workflow step
+  itself runs the import once.
 - **The scraper's memory** (`scraper/jobs.json`) lives in the Actions cache,
   restored from the newest entry and saved only after a scrape that finished. A
   missed cache is safe, just slow: that run re-reads every Greenhouse page and
@@ -212,12 +280,11 @@ bell-notification path — `send_email` catches the missing-credentials
 error, logs it, and returns `False`, the same best-effort outcome as a
 bounced send.
 
-- **Secrets:** `DATABASE_URL` and `GEMINI_API_KEY` only (both already set
-  for the scrape workflow — reused here, not duplicated).
-  `EMBEDDING_PROVIDER=gemini` is a plain env value here, not a secret, so
-  the digest scores with the semantic part the deployed API itself
-  doesn't have on by default (`backend/CLAUDE.md`'s "Still open" note on
-  that).
+- **Secret:** `DATABASE_URL` only. **It makes no embeddings** (KAN-726):
+  the default provider `none` reads the bank vectors the team computer
+  stores. It set `EMBEDDING_PROVIDER=gemini` until then, which wrote
+  Gemini bank vectors beside the others; **the EC2 crontab's environment
+  must drop it too**, since that crontab lives outside this repo.
 - **One run at a time**, same reasoning as the scrape's concurrency group:
   two overlapping runs would double-send the same applicant. This guards
   against two *workflow* runs overlapping; it says nothing about the EC2
@@ -299,3 +366,93 @@ them with those saved forms.
   without a commit there (`gh workflow enable live-canary.yml`).
 - **Run it locally:** `cd autofiller_extension/test && npm ci && node
   canary/run.mjs` writes `canary-out/report.md` and `canary-out/issues/`.
+
+## Publish extension to Chrome Web Store (`workflows/publish-extension.yml`, KAN-447)
+
+Keeps the Store listing in step with `autofiller_extension/` (its own
+`CLAUDE.md` has the extension itself), so published users run what a PR
+here actually reviewed, never a build off someone's machine. Against the
+Chrome Web Store API's **v2** endpoints (`chromewebstore.googleapis.com`)
+— v1.1 (`www.googleapis.com/chromewebstore`) stopped taking requests on
+2026-10-15. v2's resource name is `publishers/<PUBLISHER_ID>/items/<id>`,
+never the item id alone, and upload/publish each return a `state`-style
+enum (`uploadState`, `state`) rather than v1.1's `status` array. Two jobs:
+
+- **`check-version-bump`**, every PR touching the extension's own files
+  (`manifest.json`, `icons/`, `fonts/`, `src/`, `store/`; KAN-669): fails unless
+  `autofiller_extension/store/store.json`'s `version` is strictly greater
+  than `main`'s (`dpkg --compare-versions`) — the Store package's own
+  version (`store/build.mjs`, KAN-463, writes it over whatever
+  `manifest.json`'s own `version` says, which is the unpacked dev build's
+  only; the two are deliberately separate numbers, so bumping the wrong
+  one here is a real, easy mistake). The Store API refuses a re-upload of
+  a version it already has, so this catches a forgotten bump before merge
+  rather than after, with no PR left open to fix it from. **The bump is a
+  one-line, by-hand part of the PR**, on purpose — not something this
+  workflow writes and commits itself, which would need write-back
+  permissions and risks a loop for little gained.
+- **`publish`**, on a push to `main` that touches those same files (or by
+  hand — **main only**: a push trigger is already branch-filtered, but `workflow_dispatch` has no such
+  filter on GitHub's side, so the job itself checks `github.ref ==
+  'refs/heads/main'` or a dispatch from any other branch would submit
+  unreviewed code for real Store review). Runs `store/build.mjs` (the
+  same Store package `extension-store-build` already builds and checks
+  in CI, above — never a second, ad-hoc zip step here) and pushes the
+  result through the Chrome Web Store API, then submits it for review.
+
+An engine pointer move alone needs no bump and starts no publish, so Store
+users get that engine with the next bump. To ship an engine fix sooner, bump
+`store.json` in the pointer's PR: that PR then publishes the new pointer too.
+These path filters skip the whole workflow, so GitHub reports no check for a
+skipped PR. Do not make `check-version-bump` a required check, or those PRs
+wait for it forever.
+
+**This does not make an update live by itself.** The extension asks for
+sensitive permissions (`cookies`, several hosts), so Google reviews every
+submission by hand regardless of this workflow — a green run here means
+"queued for review," not "published." A failed or stuck review needs a
+human in the [Developer Dashboard](https://chrome.google.com/webstore/devconsole),
+not a re-run.
+
+- **Secrets:** `CHROME_CLIENT_ID`, `CHROME_CLIENT_SECRET`,
+  `CHROME_REFRESH_TOKEN` (a Google Cloud OAuth client with the Chrome Web
+  Store API enabled, and a refresh token for the account that owns the
+  Store listing — a one-time human setup, not reproducible from this
+  file), `CHROME_EXTENSION_ID` (the Store item id; this extension pins it
+  via `manifest.json`'s `key`, so it matches the id Chrome already
+  assigns the unpacked dev build, `cpklhdkoafegnndlafmiceehfloodjgi`) and
+  **`CHROME_PUBLISHER_ID`** (Publisher > Settings in the Developer
+  Dashboard — a different value from the item id, and new with the v2
+  endpoints above; v1.1 never needed it) and **`FILL_ENGINE_TOKEN`** (a
+  PAT with read access to the private `workitjobs/fill-engine` repo
+  — the same secret `ci.yml`'s `extension-store-build` job uses; without
+  it `publish`'s checkout can't read the submodule at all, since the
+  default `GITHUB_TOKEN` has no cross-repo access, and the job fails at
+  checkout rather than silently skipping, unlike CI's own gentler
+  `engine-token.yml` skip-when-unset pattern — a real publish with no
+  engine isn't something to skip quietly).
+  **All six must be Actions *secrets*, never Actions *variables*:**
+  a repo variable's value is plaintext, readable by anyone with
+  Settings access and unmasked in logs — found live on 2026-10-31, all
+  three sensitive values set as variables instead (the fourth, the
+  Store item id, under a typo'd name a variable never read by this
+  workflow at all). Fixed by resetting the OAuth client secret, minting
+  a fresh refresh token (Google's Desktop-app loopback flow:
+  `accounts.google.com/o/oauth2/v2/auth` with `redirect_uri=
+  http://localhost:<port>`, copy the `code` off the failed redirect's
+  address bar, then `POST oauth2.googleapis.com/token` for the
+  `refresh_token` — the OAuth Playground's "use your own credentials"
+  only works for a *Web application* client, which this one isn't),
+  deleting the leaked variables, and `gh secret set`-ing all four as
+  secrets. The workflow already read `secrets.*`, never `vars.*`, the
+  whole time — so this cost no code change, only means the publish job
+  silently couldn't have authenticated until the real secrets existed.
+- **The API can only update an existing Store item.** The very first
+  submission — store listing, screenshots, privacy-practice
+  justifications — is a one-time manual step in the Dashboard; this
+  workflow has nothing to push to until that exists.
+- **One run at a time**, same reasoning as the other workflows: two
+  overlapping publishes could submit two versions out of order.
+- **Still open:** no notification when a submitted version clears (or
+  fails) Google's review — that's checked by hand in the Dashboard for
+  now.

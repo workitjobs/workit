@@ -69,7 +69,7 @@ export function EmailRowContent({
           <ReceivedShort at={email.receivedAt} bold={unread} />
         </div>
         <p
-          className={cn("text-meta text-ink truncate", unread ? "font-semibold" : "text-ink-muted")}
+          className={cn("text-note text-ink truncate", unread ? "font-semibold" : "text-ink-muted")}
         >
           {email.title}
         </p>
@@ -151,7 +151,7 @@ export function rowFill({
 }) {
   return cn(
     "relative transition-[background-color,box-shadow] duration-150 hover:z-[1] hover:shadow-row",
-    open || picked ? "bg-brand-tint" : read ? "bg-app" : "bg-panel",
+    open || picked ? "bg-brand-tint" : read ? "bg-well" : "bg-panel",
     open && "before:bg-brand before:absolute before:inset-y-0 before:left-0 before:w-[3px]",
   );
 }

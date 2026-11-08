@@ -21,6 +21,8 @@ import type { BankEntry } from "@/lib/bank-actions";
 import type { FontFamily, PageSettings } from "@/lib/built-resume-actions";
 import { cn } from "@/lib/cn";
 
+import { FoldButton } from "./bar-fold";
+
 /**
  * How the resume looks (KAN-435). **The toolbar holds what acts on the line
  * clicked, this panel what acts on the whole resume.** The toolbar names the
@@ -265,7 +267,7 @@ export function SizeStepper({
     <div role="group" aria-label={role.label} className="flex shrink-0 items-center gap-0.5">
       <Button
         variant="ghost"
-        size="icon-sm"
+        size="icon-lg"
         aria-label={`Smaller ${role.label}`}
         title={`Smaller ${role.label}`}
         disabled={disabled || smaller < role.min}
@@ -291,11 +293,11 @@ export function SizeStepper({
             setTyped(null);
           }
         }}
-        className={cn(FIELD_CONTROL, "sm:text-note h-7 w-11 px-1 text-center font-medium")}
+        className={cn(FIELD_CONTROL, "sm:text-note h-9 w-11 px-1 text-center font-medium")}
       />
       <Button
         variant="ghost"
-        size="icon-sm"
+        size="icon-lg"
         aria-label={`Larger ${role.label}`}
         title={`Larger ${role.label}`}
         disabled={disabled || larger > role.max}
@@ -308,32 +310,44 @@ export function SizeStepper({
 }
 
 /** A toolbar button that opens a panel beside the page, tinted while it
- *  is open: Sections, Format Options. */
+ *  is open: Sections, Format Options. `sm`, as every text button on the bar
+ *  is (KAN-576): at `xs` it stood 26px with 12px type beside 36px ones. Its
+ *  word folds away as the bar narrows (`fold`, ./bar-fold.tsx), leaving the
+ *  glyph named by a tooltip; the button's own `hit-area` keeps it 44px on
+ *  touch. */
 export function PanelButton({
   label,
   Icon,
+  fold,
   open,
   disabled,
   onToggle,
 }: {
   label: string;
   Icon: PhosphorIcon;
+  /** The `FOLD` step that hides the word. */
+  fold: string;
   open: boolean;
   disabled: boolean;
   onToggle: () => void;
 }) {
   return (
-    <Button
-      variant="ghost"
-      size="xs"
-      aria-pressed={open}
-      title={label}
+    <FoldButton
+      label={label}
+      icon={<Icon aria-hidden />}
+      fold={fold}
       disabled={disabled}
-      className={cn("shrink-0", open && ON)}
-      onClick={onToggle}
-    >
-      <Icon aria-hidden /> <span className="@max-5xl/main:sr-only">{label}</span>
-    </Button>
+      render={
+        <Button
+          variant="ghost"
+          size="sm"
+          aria-pressed={open}
+          disabled={disabled}
+          className={cn("shrink-0", open && ON)}
+          onClick={onToggle}
+        />
+      }
+    />
   );
 }
 

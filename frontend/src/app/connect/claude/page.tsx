@@ -63,7 +63,7 @@ export default async function ConnectClaudePage({
     <main className="flex flex-1 items-start justify-center p-6 lg:pt-[12vh]">
       <SkylineBackdrop />
 
-      <div className="max-w-auth rounded-card border-border bg-surface shadow-card w-full border p-6">
+      <div className="max-w-auth rounded-card border-border-control bg-surface shadow-card w-full border p-6">
         <Logo size="card" className="mx-auto" />
 
         <h1 className="text-title text-ink mt-2.5 text-center">Connect Claude</h1>
@@ -87,7 +87,7 @@ export default async function ConnectClaudePage({
                 Read your next application&apos;s questions, its job posting and your experience
               </li>
               <li className="flex items-start gap-2">
-                <CheckIcon className="text-positive mt-0.5 size-4 shrink-0" />
+                <CheckIcon className="text-positive-ink mt-0.5 size-4 shrink-0" />
                 Save answers, which WorkIt fills into your open application tabs
               </li>
             </ul>

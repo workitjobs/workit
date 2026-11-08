@@ -31,14 +31,23 @@ them). Notes the scripts don't say:
   `npm ci` in a `node:22` container before pushing.
 - `typecheck` runs `next typegen` first because `LayoutProps`/`PageProps` are
   generated route types that do not exist on a fresh clone; bare `tsc` fails.
-- **Tests are Node's own runner** (`node --test`, Node 24 strips the types;
-  on Node 22 add `--experimental-strip-types`, or every test fails with
-  "Unknown file extension .ts"),
-  for pure modules only: `npm test`, or one file with
-  `node --test src/lib/autofill-answers.test.ts`. A test sits beside its
-  module as `<name>.test.ts` and imports it with the `.ts` extension
+- **Tests are Node's own runner** (`node --test`), for pure modules only:
+  `npm test`, or one file with `node --experimental-strip-types --test
+  src/lib/autofill-answers.test.ts`. `npm test` passes the flag itself:
+  Node 24 strips the types anyway, but Node 22 before 22.18 does not, and
+  every test failed with "Unknown file extension .ts". A test sits beside
+  its module as `<name>.test.ts` and imports it with the `.ts` extension
   (`allowImportingTsExtensions` in tsconfig), so the module under test must
-  use relative imports, not `@/`. There is no component or browser runner.
+  use relative imports with the `.ts` extension too, not `@/` and not a
+  bare path: Node resolves no extension, and `model.ts`'s bare import of
+  `holdings` failed `cuts.test.ts` with "Cannot find module" (2026-11-01).
+  A type-only import can use `@/`, since it is erased. There is no
+  component or browser runner. **`node --test` reads its paths as globs**,
+  so a test under a dynamic route's folder (`[jobId]`, `[resumeId]`) runs
+  nothing when named as it is: write the brackets as `[[]jobId[]]` in a
+  quoted path (unquoted, the shell globs it back to `[jobId]`), or the run
+  passes with "tests 0". A `$(find ...)` list skips those files the same
+  way: 44 of 74 tests ran on 2026-11-03 (KAN-577).
 - **To test a resume upload**, use a file from `frontend/public/resumes/`.
   The folder is git-ignored because it holds real people's resumes, so put
   your own there once, in the primary checkout: `npm run worktree` and every
@@ -59,7 +68,8 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   `cf:deploy` uploads it. Each is one binary, so `cf:preview` and `cf:deploy`
   need a fresh `cf:build` first. `npx wrangler deploy --dry-run --outdir
   <dir>` prints the upload size with no Cloudflare login: the Workers Paid cap
-  is 10 MiB gzip (3.6 MiB on 2026-10-20). Never run a real deploy locally.
+  is 10 MiB gzip (4.8 MiB on 2026-11-02; the cached pages are assets and
+  do not count). Never run a real deploy locally.
 - **`@opennextjs/cloudflare` is pinned exactly**: each release's peer range
   sets a floor on `next` (1.20.6 is the newest that takes `next` 16.3.3).
   Raise them together; a newer adapter on an older Next fails to install.
@@ -91,10 +101,32 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   would stop updating for users after a deploy. After a
   deploy, `curl -sI` one chunk, one CSS file and one woff2 and look for
   `immutable`.
-- **Still open: on Cloudflare the prerendered marketing pages render per
-  request** until an incremental cache is set (OpenNext's default is the
-  "dummy" cache), so production does not get the prerender gain below yet
-  (KAN-368).
+- **Prerendered pages come from the static-assets cache**
+  (`open-next.config.ts`, KAN-368). `cf:deploy` copies each prerendered
+  page's `.cache` file (`/`, `/pricing`, `/features/*`, `/privacy`,
+  `/terms`) into the Worker's static assets under `cdn-cgi/`, which only
+  the Worker can read, and the Worker answers from it with no render.
+  Under OpenNext's default "dummy" cache every request rendered the page:
+  `x-nextjs-cache: MISS` and a first byte of 0.17 to 1.4 s on 2026-11-02.
+  It needs no bucket, tag cache or queue (none to create on Cloudflare),
+  and its keys carry the build ID, so a deploy never serves the last
+  build's HTML. **It is read-only**: a page given `revalidate` would never
+  refresh, and the data cache stays off, as under "dummy", so
+  `apiGet`'s `revalidate` fetches reach the API every time. **A
+  prerendered page reads no runtime value** (`API_URL`, a Worker var or
+  secret): it is served as the build drew it, and CI builds with none of
+  them. `/docs/mcp`'s Add WorkIt to Claude link read `API_URL` and would
+  have pointed at `localhost:8000/mcp`; it links to `/connect/claude/add`,
+  which builds the link per request. The config
+  drops writes, which the stock cache logs as an error each, and keeps
+  the stock cache's `name`, which `cf:deploy` checks before it copies the
+  pages. A page that must refresh, or a working data cache, needs the R2
+  cache and a bucket instead. After a deploy, `curl -sI
+  https://workitjobs.ai/` must show `x-nextjs-cache: HIT`, and `curl -so
+  /dev/null -w '%{time_starttransfer}\n' https://workitjobs.ai/` run a few
+  times should stay well under 0.2 s. **Still open:** a cold isolate still
+  loads the Next server before it reads the cache; `enableCacheInterception`
+  (in `dangerous`) would answer before that, and is untried.
 - **The OpenNext build is not guaranteed on Windows.** Run `cf:*` in WSL, or
   leave them to CI; `dev`, `build` and the rest work natively.
 - **OAuth needs each origin allow-listed in Supabase** (Authentication → URL
@@ -108,6 +140,14 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   browser sent. It assumes https for any host
   but localhost when `x-forwarded-proto` is missing; Supabase silently falls
   back to its Site URL for any origin not on the list.
+- **Google sign-in needs each origin's `/auth/google/callback` on the
+  Google OAuth client** (Google Cloud Console, Credentials, Authorized
+  redirect URIs): `https://workitjobs.ai/auth/google/callback` and
+  `http://localhost:3000/auth/google/callback`. Google takes no wildcards,
+  so a preview origin signs in with Google only once it is added. The
+  Worker needs the `GOOGLE_CLIENT_SECRET` secret (`GOOGLE_CLIENT_ID` is a
+  var in `wrangler.jsonc`); without it, Google falls back to Supabase's
+  callback (docs/auth.md).
 - **Uploads up to the 5 MB cap reach Next in production**: Cloudflare allows
   100 MB request bodies. Vercel, now retired, refused bodies over 4.5 MB
   before Next ran, so a 4.5–5 MB upload failed there with a bare 413.
@@ -120,27 +160,34 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   segment, so two groups cannot both define `/profile` and both audiences need
   one; the prefix also makes the auth guard one path check. Auth screens
   (`login/`, `signup/`), the connector's consent page (`connect/claude/`,
-  KAN-377) and `design-kit/` sit outside both shells. `/login?next=` goes
-  back only to `/connect/claude` and to onboarding's extension step
-  (`/onboarding/applicant?step=extension`, the tab the extension opens on
-  install, KAN-471; `login/actions.ts`): never widen it to any path, which
-  would make the sign-in page an open redirect. A Google or LinkedIn
-  sign-in drops `next` (`auth/callback` follows `/settings/` only).
+  KAN-377), `extension-setup/` (what a fresh Chrome Web Store install
+  opens, and the popup's "Set Up WorkIt" button, KAN-495) and
+  `design-kit/` sit outside both shells. `/login?next=` goes back only to
+  `/connect/claude` and to onboarding's Extension step
+  (`/onboarding/applicant?step=extension`, which leads to Practice --
+  `/extension-setup`'s "I Already Have One" button sends a signed-out
+  visitor through this, not plain `/login`, so a student who already
+  finished onboarding keeps a route back to Practice instead of landing
+  on /home with no way there, KAN-495; `login/actions.ts`): never widen
+  it to any path, which would make the
+  sign-in page an open redirect. A Google or LinkedIn sign-in drops
+  `next` (`auth/callback` follows `/settings/` only).
   **Every way into the connector is one link**, `lib/claude-connector.ts`
   (KAN-383): Claude's Add Custom Connector dialog filled in with WorkIt's
   name and `<api>/mcp`, or the directory listing once
   `CLAUDE_CONNECTOR_LINK` is set. Read it on the server and pass it down;
   never write the claude.ai URL anywhere else. What can't read it (the
-  extension's add-Claude step, KAN-387) opens `/connect/claude/add`, a
-  route handler that redirects to it.
+  extension's add-Claude step, KAN-387, and the prerendered `/docs/mcp`,
+  Deployment) opens `/connect/claude/add`, a route handler that redirects
+  to it.
   **Starting the student's Claude is one link too**: `CLAUDE_START_URL`
   and `CLAUDE_TRIGGER` in the same file (a new claude.ai chat with "Write
   my WorkIt answers", the connector prompt's title, in its box, not sent),
   used only by Write with Claude (`auto-apply/write-with-claude.tsx`),
   which also copies the trigger since claude.ai's `?q=` is undocumented.
   Never put the student's data in that link: it lands in browser history.
-  Disconnecting is WorkIt's, in Settings' Sign-In & Security, Connected
-  Apps (`lib/connector-actions.ts`, `DELETE /applicants/{id}/connector`):
+  Disconnecting is WorkIt's, in Settings' Integrations, on Claude's row
+  (`lib/connector-actions.ts`, `DELETE /applicants/{id}/connector`):
   it revokes every token the student's Claude holds, which removing the
   connector in Claude alone doesn't.
 - **The business side is hidden until it ships** (KAN-239). `src/proxy.ts`
@@ -148,10 +195,30 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   to `/coming-soon`, "Waiting for Deployment", before its env check, so a
   clone with no env file is gated too. `components/account-type-switcher.tsx`
   has its toggle commented out and always submits `applicant`, so login,
-  signup and choose-account-type show no Company option. The company code
+  signup and choose-account-type show no Company option. A first Google or
+  LinkedIn sign-in skips `/signup/choose-account-type`: `/auth/callback`
+  finishes it as an applicant itself and goes to onboarding (KAN-573),
+  since the page asked a question it offered no answer to. The company code
   stays in place. To bring it back, delete the proxy block and
-  `app/coming-soon/`, then uncomment the switcher's toggle. The API still
-  accepts company signups; the gate is the UI only.
+  `app/coming-soon/`, uncomment the switcher's toggle, and have the callback
+  redirect a new identity to `/signup/choose-account-type` again. The API
+  still accepts company signups; the gate is the UI only.
+- **A link to the site unfurls into one card** (`lib/share-card.ts`,
+  `public/og-image.jpg`, KAN-540). The fallback description was "CSE 416 final
+  project" and no page had preview tags, so a shared link showed that and no
+  image. The root layout sets the image, `metadataBase` and no title or
+  description for it, so each page's own carry over to its preview. Next
+  replaces a parent's `openGraph` whole, so a page that sets its own spreads
+  `SHARE_DEFAULTS`, or it loses the image. The image is a static file, not an
+  `opengraph-image` route: a crawler gets it from the assets with no Worker or
+  proxy (`src/proxy.ts` skips `.jpg`), and it needs no image rendering on
+  Cloudflare. It is the hero recomposed at 1200 x 630 (2x): the logo, the
+  headline on its widest phrase and the city, taken when a strong match shows,
+  since a red 67% was the wrong first impression. A change to the hero's look
+  means taking it again. The home page's tab title is short (`site.tabTitle`,
+  a tab shows about 30 characters); its preview carries the whole tagline.
+  After a deploy, check a link in a preview debugger: a platform caches the
+  old card for days.
 - **The page at `/` is the landing page, `app/(landing)/`**, ported from
   the team's Astro marketing site (`WorkIt-Website`, kept outside this repo)
   in place of the old Job Seeker / Hiring chooser. Its components keep the
@@ -168,7 +235,8 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   footer) is a rounded panel inset from the window (`PANEL` and
   `PANEL_INSET` in `layout-parts.tsx`, the frame every marketing page
   shares with `CONTAINER` and `SectionHeading`; the group's `layout.tsx`
-  renders the header and footer, and each page renders its own `<main>`); the header floats as a white rounded bar
+  renders a Skip to Content link, the header and the footer, and each page
+  renders its own `<main id="main">`, the link's target, KAN-580); the header floats as a white rounded bar
   once the page scrolls (`floating-header.tsx`); and the site's feature
   carousel and grey product placeholder became one pinned product tour
   (`product-tour.tsx`): from lg up it pins to the screen and scrolling steps
@@ -185,12 +253,17 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   in view, from the start each time (its stage remounts on each return,
   so a scene that plays on mount starts when it is seen), and holds one
   finished scene for reduced motion. All four stops are on it (KAN-316).
+  A story is `aria-hidden` and draws no heading (KAN-560): the copy beside it
+  says what it shows, and the Auto Apply mock's real h4 broke the page's
+  heading order.
   Auto Apply (`auto-apply-visual.tsx`, the stop the team renamed from
   Autofill as the bigger claim): one Greenhouse-style application fills
   field by field (typed, picked, the tailored resume attached, an answer
   drafted from the bank) while the page scrolls to Submit, and the
   student's pointer clicks Submit; then the camera pulls back to 3 × 3,
-  5 × 5 and 7 × 7 windows of the queue, filled for the student. Each far
+  5 × 5 and 7 × 7 windows of the queue, filled for the student. The first
+  window has no green ring in the grid, and the browser bar's chip carries
+  WorkIt's mark in white, not a sparkle (KAN-540). Each far
   window shows its match (`scoreTone`), and the queue leaves out the weak
   fits (under 70), so it reads as the best fits, not as the mass
   copy-paste the statement warns about. **Its copy
@@ -282,7 +355,11 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   430px: twelve cards in three columns, the fit ones wider, buried each
   other, and two even columns read as a table. Unpinned, the 520px section
   left the screen before its last phase; a timed loop played whether or
-  not the reader scrolled, which the team rejected. The four tabs' labels, icons and colours are one list,
+  not the reader scrolled, which the team rejected. The scene's pin needs
+  538px of height under the header, so a phone on its side gets the still
+  block (`SHORT_QUERY`, KAN-540): pinned, its line sat behind the header.
+  The four steps run two and two, then one row from 35rem (`STEP_PILLS`):
+  in the 384px stage they wrapped three and one. The four tabs' labels, icons and colours are one list,
   `TOUR_TABS` in `tour-tabs.ts`, a plain module that both the tour and the
   bridge import: a server page cannot pass icon components to a client
   one as props. **Keep every scroll-linked range inside 0 to 1**: motion
@@ -302,8 +379,9 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   climbs. While the page writes itself, the status above it is a loader
   card the shape of the job card that replaces it (the team found a
   pulsing dot and a line of text too plain): a spinning ring round the
-  page icon, the section being written, a percentage, and a bar along its
-  foot edge, then a green "Resume ready". It keeps time from the page's own
+  page icon, the section being written and a percentage, then a green
+  "Resume ready"; a bar along its foot said the percentage twice, so the
+  team had it taken out (KAN-540). It keeps time from the page's own
   line count (`FIRST_LINE`, `LINE_STEP`, `LINE_FOR`), so it ends as the
   last line lands; a line added to the page needs no change there. The
   page sizes to its content; fixed to the stage's height it
@@ -332,10 +410,12 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   (`board-data.ts`), each logo a favicon tile (`favicon-logo.tsx`). Scores
   on the hero, the board and both stories are green, amber or red through
   `scoreTone` (`score-tone.ts`). Below lg the
-  stops are one row that swipes sideways, a stop at a time, the next
-  peeking in, with a 44px dot per stop under it (`StackedTour`, KAN-368),
-  because a pinned card with the resume animation does not fit a phone:
-  stacked, they took 3,290px of a 390px phone. A story's root is
+  stops are one row that swipes sideways, a stop at a time, with a 44px
+  dot per stop under it (`StackedTour`, KAN-368), because a pinned card
+  with the resume animation does not fit a phone: stacked, they took
+  3,290px of a 390px phone. Each stop fills the row, with no next stop
+  peeking in, which the team found a distraction (KAN-540); the gap stays
+  at least the row's padding, or a sliver shows. A story's root is
   `shrink-0`: as `Fit`'s flex child it shrank to its title's 380px, so
   `Fit` scaled it too little and its 520px scenes were cut at the panel
   (the Auto Apply window, the Matching card). Where `Fit` draws a story
@@ -348,97 +428,72 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   told the tour's four steps a third time, after the reader had seen
   each one, and made the page about 15% longer. It had carried the page's
   only "Coming soon" mark for employer replies, so the tour's Updates stop
-  and the route's Interview and Job Offers stops now carry their own
+  and the tracker's Interview and Job Offers steps now carry their own
   (`SoonChip` in `layout-parts.tsx`, from `soon` on the feature or the
   stage): the tracker stores no employer replies. **The statement**
-  (`statement.tsx`, between the hiring-systems section and the
-  applications section, after Twain's) tells one thing at a time and
-  plays on its own like a carousel that loops (`useStoryLoop`): once the
-  scene is on screen the beats follow one another in time, the finale
-  holds about three seconds, then both columns fade, the story resets
-  (bin emptied, count back to nothing) and starts again; it pauses off
-  screen and in a hidden tab. The scroll plays no part: the section is a
-  screen-high panel, not pinned, and nothing the scroll does moves the
-  story. Cued beat by beat by the scroll, it stopped whenever the reader
-  did, which the team found broken; then, pinned for 260vh with a bar per
-  beat over the caption and the scroll taking it to its finale near the
-  pin's end (a hand-off for the card's flight into the applications
-  section), it still read as driven by the scroll, and the bars sat close
-  over the gate's red chip, so the team had the bars, the pin and the
-  hand-off taken out on 2026-10-22. A dark panel that opened out to the
-  window's edges as it came up (a scroll-linked clip path) was tried on
-  2026-10-25, to set this section apart from the light ones round it; the
-  team found its background and transition odd, and it went back to the
-  light panel. A beat lasts about four seconds (`RATE`), so the page, its
-  marks, its notes and its verdict hold together for over a second, the
-  evidence its caption names: at three seconds they shared the screen for
-  a quarter of one. The team found
-  four captions at
-  once too much text and the first scene's gates, glass bin and rubber
-  stamps "AI slop". The headline, "Slop
-  applications get skipped.", runs one line across the top from lg up.
-  "Slop" is drawn as AI slop (`SlopWord`, slop-word.tsx, KAN-368): a
-  glossy magenta-to-cyan gradient with a pink glow, a sweeping gloss,
-  twinkling sparkles and goo dripping off the letters, picked by the team
-  from six treatments over a red spell-checker wave they found too plain.
-  It is still text for screen readers and copying. Its drips run only as
-  far as the room under the headline allows (`--reach` in landing.css:
-  0.4 on a phone, where "get skipped." wraps under it, 0.6 on a tablet,
-  0.7 from lg up, with `pt-14` above the first caption's chip), stop
-  with the section's loop (`data-paused`) and hang still with reduced
-  motion. It was "Stop sending slop applications.", a second
-  "Stop" right after the hero's tagline; it now says what the three beats
-  show. On the left only the current beat's caption shows,
-  under its gate's chip; it lifts away as the next comes in, and its words
-  come into focus as they are read. The chips are label-sized, each gate's
-  mark on a white disc, and from lg up the marks move (`GateIcon`,
-  `.gate-*` in landing.css: a scan line runs down the page, the shield
-  shakes and its "!" blinks, the bot blinks and its antenna light pulses);
-  the team found small chips with still icons hard to notice. The finale's
-  chip is "With" and WorkIt's own logo, mark and word, its figure's head
-  hopping now and then (`.workit-hop`), where it had a check and "With
-  WorkIt" in text, and the screening panel's header names WorkIt with the
-  logo too. The marks rest while the section is off screen (`data-paused`)
-  and with reduced motion. On the right
-  one screening panel for one posting (`followedJob`) reads three things
-  a student sends blind, one after another: a generic resume (ATS
-  filter), a copy-paste application (spam detection), a template cover
-  letter (slop detection). A scan line runs down each page, the lines
-  that sink it get a red mark and a note beside the page (the reason, not
-  a stamp), the panel's status turns to its verdict, and the page
-  crumples into a paper ball thrown on an arc into a solid wastebasket
-  (never see-through: its far wall is drawn behind the balls, its body in
-  front), which rocks as each lands; the balls pile at the rim under a
-  count. The pages are laid out on fixed lines (`top-[..]`) so each
-  note's `y` meets its line. Then the same panel reads WorkIt's
-  application, `<FollowedCard stage="saved" />`, and finds it ready to
-  submit, with three green checks; it sits inside the panel, clear of the
-  bin. The captions, the panel's titles and
-  statuses and the notes are array ranges on `opacity` and `transform`,
-  so the browser runs them; the pages and balls are one pose per frame
-  on `will-change` layers. The scene is drawn at a fixed size and scaled
-  by `Fit`; its root is `shrink-0`, since its children are all absolute
-  and, as Fit's flex child, it shrank to the column, so Fit read that
-  width and never scaled it down on a phone. Below lg it loops too, in
-  one column (`CompactStatement`, KAN-368): the beat's caption over the
-  screening panel alone, without the bin, drawn at about 0.85 on a phone,
-  a thrown page leaving the panel's edge (the whole scene scaled into the
-  column was a 58% miniature, its labels 7px, which is why phones showed
-  it still until then). With reduced motion it is still: every caption in
-  a short list, then the finished frame. The captions and notes are product copy: the gates' are hedged
-  ("often", "look like"), since they describe the market, and the last
-  one's claims follow the rules above, never a promise to pass an ATS. The site's closing "Be first in line" banner is
+  (`statement.tsx`, between the hiring-systems section and the applications
+  section) is the real words as art (KAN-540, "slop to specific"): one white
+  card for one posting (`followedJob`) shows three things a student sends
+  blind, one at a time, in large type. A generic line writes itself, the
+  phrases that sink it are marked and say why (red chips under it), then it
+  rewrites itself word by word into a specific line, whose facts are marked in
+  violet, with where it came from under it. The three are a resume line (its
+  rewrite is the Tailor scene's own), a written answer and a cover letter, each
+  a thing WorkIt's tailoring or the extension's drafted answers really produce.
+  Beside the card, one caption shows at a time, its words coming into focus as
+  they are read: the problem under its gate's red chip while the generic line is
+  up, then, as the line is rewritten, why the fix helps under WorkIt's chip (`fix`
+  on the beat). The problem left beside the fixed line read as a complaint about
+  the fix, which the team found confusing. Then the same place holds `<FollowedCard />` with
+  three green checks, beside WorkIt's closing line. It replaced a screening
+  panel that crumpled each page into a paper ball thrown into a metal
+  wastebasket, the page's only realistic illustration, whose art style the team
+  disliked. An earlier scene's gates, glass bin and rubber stamps were found
+  "AI slop"; a bar per beat over the caption read as the scroll's progress; and
+  four captions at once were too much text. It plays on its own like a carousel
+  that loops (`useStoryLoop`): once on screen the beats follow one another in
+  time, the finale holds, then it fades, resets and starts again, pausing off
+  screen and in a hidden tab. The scroll plays no part, the section is a
+  screen-high panel, not pinned: cued by the scroll, it stopped whenever the
+  reader did, which the team found broken. **Pace** (`RATE`, about eleven
+  seconds a beat): each phase ends before the next begins and the line holds
+  once it is done, since at six seconds the marks, the caption and the new line
+  were still arriving as the beat moved on and the team could not read them.
+  The whole story is about 45 seconds. **"Slop" is one flowing gradient**
+  (`.slop-word`): the headline's word and the marked phrases share it, so the
+  word and what it means read as one thing. They are real text, so they sit
+  flush with the words beside them; the headline's word was an SVG drawing with
+  goo, a glow and sparkles (KAN-368), which had its own weight and box. The
+  tile is in em and ends on the colour it starts with, so a short word shows the
+  same stretch as a long one and the loop has no seam. Each word starts the
+  flow a little later, so the colour runs along a phrase. A marked word
+  crossfades from its grey copy to the gradient copy, since a gradient's
+  clipped text shows anything under it. The headline runs one line across the
+  top from lg up; it was "Stop sending slop applications.", a second "Stop"
+  right after the hero's tagline. All three lines sit in one grid cell, so the
+  card stands still and takes the tallest line's room; the same goes for the
+  captions. It needs no `Fit`, so a phone gets the type at full size, in one
+  column, where the old scene was a 58% miniature. The moving card is hidden
+  from screen readers, and the caption column reads its lines. With reduced
+  motion it is a still list, each generic line struck through over its
+  replacement. The chips are label-sized, each gate's mark on a white disc,
+  and the marks move (`GateIcon`, `.gate-*` in landing.css), since the team found
+  small chips with still icons hard to notice; the finale's chip is "With" and
+  WorkIt's own logo, its figure's head hopping now and then (`.workit-hop`). They
+  rest while the section is off screen (`data-paused`) and with reduced motion.
+  The lines, reasons and captions are product copy: the gates' are hedged
+  ("often", "look like"), since they describe the market, and the last one's
+  claims follow the rules above, never a promise to pass an ATS. The site's closing "Be first in line" banner is
   removed for now. **The applications section** ("Every application, from
-  saved to signed.", KAN-316) is one search's route (`applications.tsx`,
-  "The home page's lower half", below): four stops, Saved, Applied,
-  Interview and Job Offers, each with its stage's line and count
-  (`stages` in `board-data.ts`), and under each a pile of real employers'
-  logos counting the search down. Its copy says what the tracker keeps
-  today: one list, each job's match score and the resume each
-  application went out with. A board, a next step and a deadline per card,
-  and a follow-up day are not built, so no line promises them, and
-  Interview and Job Offers say "Coming soon". Its heading is centred over
-  the route, and the FAQ after it holds its heading on the left while the
+  saved to signed.", KAN-316, KAN-540) is one card, four states
+  (`applications.tsx`, "The home page's lower half", below): one large
+  application moves through Saved, Applied, Interview and Job Offers beside a
+  slim rail, each stage's line from `stages` in `board-data.ts`. Its copy
+  says what the tracker keeps today: one list, each job's match score and the
+  resume each application went out with. A board, a next step and a deadline
+  per card, and a follow-up day are not built, so no line or card promises
+  them, and Interview and Job Offers say "Coming soon". Its heading is centred
+  over the card, and the FAQ after it holds its heading on the left while the
   questions pass on the right (lg up), so neighbouring sections open
   differently (KAN-368). Its eyebrow is the
   feature's name, "Application tracker": "For applicants" said nothing
@@ -455,18 +510,21 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   host had only 16-32px copies of BambooHR's and Workday's, which looked
   blurry. A hiring system added to the list needs its file there too.
   **The hiring-systems section** draws the job pipeline
-  (`docs/job-pipeline.md`). From lg up it is a 3D scene after Twain's ring
-  of logo coins (`hiring-pipeline.tsx`, "The home page's lower half",
+  (`docs/job-pipeline.md`). From lg up it is a ring of logo coins after
+  Twain's that lands on an isometric sorting line (`hiring-pipeline.tsx`,
+  `sorting-line.tsx`, "The home page's lower half",
   below); the flat stream (`hiring-systems.tsx`) is its still version,
   below lg and with reduced motion, and lends it `JobCard`. In the stream, from lg up, one lane per
   hiring system carries job postings from real employers on that system
   in `scraper/boards.csv` (`streams` in `data.ts`) into WorkIt's mark: a
   senior role is struck through and falls away, an internship or new-grad
   role goes in and comes out as a glossy card on the Jobs page side,
-  sorted by Best Match. Below lg it runs top to bottom in two or three
+  the newest on top. Below lg it runs top to bottom in two or three
   columns. The lines under the mark are pipeline steps, so each is a
   claim. The team dropped the two cards that sat under it (Autofill for
-  Chrome, Scout): their feature pages cover them. One clock (a motion
+  Chrome, Scout): their feature pages cover them. On the sorting line the
+  Jobs page cards keep at least 316px, which shows every title whole
+  (KAN-540). One clock (a motion
   value, in seconds) drives every chip and moves only in view and in a
   visible tab; with reduced motion it stays at `STILL_AT`, the one still
   frame. A lane's chips are evenly spaced slots, and each takes the lane's
@@ -513,9 +571,17 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   carries `data-hero-text` for the job cards' placement, is hidden from
   them. From lg up "Stop filling out applications" must fit one line (the
   h1's clamp size and `max-w-6xl`). Below lg a phrase wraps between words,
-  the stroke goes under its last word (under the whole box it ran past the
-  text), and the h1 keeps four lines' room, centred, so the subtitle does
-  not jump on each swap, and "by hand." glides with the phrase. The swaps
+  each line gets its own stroke, placed from the words' measured lines
+  (`linesOf`, KAN-540): under the whole box it ran past the text, and under
+  the last word alone it left most of the phrase bare. The h1 keeps the
+  room of the most lines any phrase takes at that width, centred, so the
+  subtitle does not jump on each swap, and "by hand." glides with the
+  phrase. Those widths are in rem so they sort with `sm`: in px, a
+  `min-[720px]` lost to it and did nothing. A change to the h1's size or the
+  phrases means measuring the widths again. `Phrase` shares its ref with
+  `useImperativeHandle` and empty deps: rebuilt on each render, the ref was
+  empty as `popLayout` read it, so the old phrase stayed in the flow and
+  pushed the subtitle down on every swap. The swaps
   pause in a hidden tab, and the hidden sentence for screen readers is not
   selectable (a drag over the headline copied it as well). With reduced
   motion it rests and never swaps.
@@ -525,10 +591,23 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   The hero's backdrop is an animated SVG city (`city-model.ts` draws it,
   `hero-city.tsx` renders it after hydration, since server-rendered its path
   data would add hundreds of KB to the page): New York-style towers, six of
-  which rise as violet wireframes with a job tag. **It is drawn as layers**
+  which rise as violet towers with a job tag. Its layers are built in the
+  browser's idle time (`requestIdleCallback`, at most 800 ms late; a timer
+  on Safari, which has none), never in the hydration task: built there,
+  its 5,700 paths made the page's first freeze longer (KAN-540). **The violet towers are solid**
+  (KAN-540): faces lit like the buildings' (`gl`, `gr`, `gt`, darker on the
+  left), white floor lines and deep violet edges, drawing only the edges and
+  floor lines a viewer can see. Drawn as see-through wireframes, 7% filled with
+  every edge and floor ring, the buildings behind showed through and their lines
+  crossed the towers', which read as an X-ray and looked off to the team. The
+  city around them is calmer since: window grids and cross-hatching are a hint
+  (`--floor`, `--pier`), the faces a step lighter and the spires softer, so the
+  towers stand out from it; the dense grid on every face made the buildings run
+  together. A change to the hero's look means retaking `public/og-image.jpg`.
+  **It is drawn as layers**
   (`getLayers`, KAN-368): each run of still buildings is one image (an SVG
   document as a blob URL, made once per build), and the pieces that move
-  (the six towers and the two pulsing wireframes) are small inline SVGs
+  (the six towers and the two pulsing towers) are small inline SVGs
   between them, split where they fall in the draw order, so every building
   in front of a tower stays in front; the ground, streaks and pools are
   one inline SVG under them all. One inline SVG of some 5,700 paths made
@@ -588,8 +667,10 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   wanted the hero to show a spread of fits at a glance. In the
   pinned product tour, `Fit` (`fit.tsx`, shared with the feature pages'
   stage) scales a visual to the visual area's height
-  and width, up to 1.5x (and, in the stacked stops, down to their width
-  only), so the 520px-wide stories fit a short laptop screen and fill a
+  and width, up to 1.5x on the feature pages and 1.15x in the tour
+  (`TOUR_FIT`: at about 1.3x on a laptop the team found its type too big
+  beside the copy; KAN-540), and, in the stacked stops, down to their width
+  only, so the 520px-wide stories fit a short laptop screen and fill a
   big one: at 1x they sat small in an area of empty colour, which the team
   flagged. Each story's stage is the height of its tallest scene, no more,
   since spare stage height is what shrinks the scale. `Fit` is a motion
@@ -597,9 +678,15 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   scaled div (Matching's Best Match sort) started each card from its old
   place times the scale. Under 50rem of window height the tour's padding
   tightens, so the stories keep their design size on a laptop. The visual
-  area's colour crossfades with the panel's, one layer per stop, siblings
-  of the story so its glass still blurs them: as one gradient it changed
-  in a single frame. The scene count in each title pill swaps with the
+  area has more padding over the story than under it, since a story's stage
+  keeps its tallest scene's height and at an even 16px each stop read as
+  sitting high (KAN-540). The visual area's colour crossfades with the
+  panel's, one layer per stop, siblings of the story so its glass still
+  blurs them: as one gradient it changed in a single frame. It is the
+  feature's flat tint, never the panel's gradient: the same gradient inside
+  and out made the white card look hollow (KAN-540). The title pill is
+  400px, the width of the longest caption at either size. The scene count
+  in each title pill swaps with the
   number and caption. The pinned card
   takes the height left inside the panel's padding (flex, not a height
   worked out from the window's): sized as 100dvh minus the chrome it left
@@ -613,7 +700,7 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   animation of every motion element inside it: the old Matching stop's
   rows once sat still at their end value until a tab switch remounted
   them. Violet is
-  the wireframes' alone; keep roofs and spires neutral. It does not use
+  the towers' alone; keep roofs and spires neutral. It does not use
   `ui/` components, Title Case or the type tokens; those rules are for app
   screens. Rules in `landing.css` that set `display` or a size sit in
   `@layer components`, or they beat a `hidden` or `h-12` utility on the
@@ -676,16 +763,41 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   writing one page never touches another's file; all five exist, and
   `content/index.ts`, which maps them, is never edited per page. A content
   file's `line` is also the Features menu's line under the name. Its copy
-  is a product claim like the FAQ's: auto apply fills one application at
-  a time and the student clicks Submit on each, so no page says WorkIt
-  submits or applies in parallel. Until each page's own session rewrites
-  it, a file holds stub copy, marked as such at its top. A content file
-  imports its animation, a client component (the four tour visuals carry
-  `"use client"` so a server file can import them); the template wraps it
-  in `FeatureMotion` (`MotionConfig reducedMotion="user"`) and `Fit`. A
-  page with no animation (Scout, for now), or a deep dive with no
-  `visual`, shows a placeholder in the feature's colour. The hero uses
-  `SocialSignUpButton` (`social-sign-up.tsx`, shared with the home hero),
+  is a product claim like the FAQ's, checked against the app and tied to
+  its sources in the file's top comment (KAN-579): auto apply fills up to
+  five applications at once, each in its own tab, attaches the default
+  resume and writes no answer to a new written question, and the student
+  clicks Submit on each, so no page says WorkIt submits, sends or
+  applies. Scout's page is about Fill With Scout, the one way into Scout
+  while Ask Scout is greyed out; bring the job questions back to it when
+  `ASK_SCOUT_LIVE` turns on. **A content file imports its animation from
+  `features/animations.tsx`, never the animation itself**: each there is
+  a `next/dynamic` wrapper, server-rendered as before, whose chunk only
+  the page that shows it loads. A client component a server file imports
+  joins the browser bundle of every route that imports that file, and the
+  header reads every content file for its menu lines: imported directly,
+  all four tour visuals and motion loaded on every marketing page
+  (`/privacy` loaded 340 KB compressed of JavaScript, the same as a
+  feature page), and each feature page carried the ones it does not show.
+  A new animation joins `animations.tsx` the same way. The template wraps
+  it in `FeatureMotion` (`MotionConfig reducedMotion="user"`) and `Fit`.
+  **A page never ships a placeholder** (KAN-579, design audit marketing
+  H1: empty icon tiles read as an unfinished site): `animation` and every
+  deep dive's `visual` are required in `types.ts`. A deep dive's visual is
+  a still scene in `features/visuals/<slug>.tsx`, one piece of the real
+  app drawn with the tour's student and employers (`feature-data.ts`) at
+  400 × 300 (`Vignette` in `visuals/parts.tsx`), which `DeepDiveStage`
+  scales to its 4:3 panel with `Fit`. The scenes are server components,
+  so they ship no script; one that needs the browser goes through
+  `animations.tsx` too. Each is `aria-hidden` and draws no
+  heading, button or link. A scene is `shrink-0`: as a flex item it
+  otherwise shrank to its content's width on a phone before `Fit` scaled
+  it, and its text was cut off. Scout's hero (`visuals/scout-animation.tsx`)
+  plays its exchange once and holds, so it needs no pause control. The hero uses
+  `SocialSignUpButton` (`social-sign-up.tsx`, shared with the home hero;
+  its form is `oauth-form.tsx`, disabled and "Opening Google…" while the
+  action runs, so a second click cannot post again, and a failure lands on
+  `/login`, which says so in words: KAN-581),
   the closing call to action is `ClosingCta` (`closing-cta.tsx`, shared
   with the home page; its own file so the client scenes that import
   `layout-parts.tsx` do not pull the sign-up's server action in), and the
@@ -697,7 +809,10 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   without changing the look**: an FAQ row's padding is its summary's, so
   the whole row opens it (on the `<details>` only a 28px strip did), and
   the footer links, the tour's "Learn more" and the email link widen
-  their tap with an `::after` (18 to 23px boxes before).
+  their tap with an `::after` (18 to 23px boxes before). Below sm the
+  header's logo link, Get started, the menu's open and close buttons and
+  the social sign-up buttons are 44px tall (KAN-580; 32 to 40px before);
+  from sm up the social pair keeps 40px.
   **The header menus** (`NavMenu` in `nav-menu.tsx`, both Features and
   Resources) are disclosures with `aria-expanded`, not ARIA menus, since
   their items are links: a mouse hover opens one, a click pins it, Esc
@@ -790,58 +905,37 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   action and the footer; the testimonial is hidden) reads as one story, like the hero, bridge and tour
   above it. **One object is carried down the page**: the application the
   tour followed (`followedJob`), drawn as a tracker card by `FollowedCard`
-  (`thread.tsx`; its text per stage is `followedStages` in
-  `board-data.ts`, dated after the Updates stop). The statement's finale
-  reads it, and it waits on the applications route's first stop and rides
-  the route stop by stop to the offer, where its trip ends. A `Flight`
-  once carried it from the statement's last frame onto the route, and on
-  from the route to a "How it works" card: both went (the cards with
-  their section, the first when the statement came to loop on its own,
-  since its finale was rarely on screen as the reader moved on, and the
-  card flew out of nowhere). **The applications section** (`applications.tsx`)
-  pins for 280vh from lg up; the scroll cues each move to the next stop
-  (`CUES`) and the move plays in time (`useSceneTime`, about 1.25 s a
-  stop), so the card never rests between two stops. The card rides above
-  a line through the four stops, flush with the line's ends at the first
-  and last; `stageAt` in `stage-timeline.tsx` glides between whole stops,
-  and the card, the line's fill and the flying logos all read it, so they
-  arrive together as the stop lights. Each stop's line sits beside the
-  card while it rests there (`RouteCaption`), right of it at the first
-  two stops and left at the last two, where the route ends; beside the
-  heading, far from the card, the team found it out of place. Each stop
-  has its own caption, fixed at that stop, shown only while the card
-  rests on that stop once the section has pinned: it fades in just
-  after the landing pop and out as soon as the card moves, so no caption
-  changes its words or side while it can be seen. One caption that
-  swapped both glitched: the card's stage changes at the landing, and
-  that caption had already faded back in with the old words, then
-  swapped them and jumped sides in view. The logos come from one list,
-  `LOGOS`, furthest first: the first `count` of each stage (24, 12, 4, 1)
-  reach it, so every logo that reaches a stop came from the pile before
-  and the last one is the followed application. **Each logo is drawn once
-  and moves** (`MovingTile`, KAN-368): as the card glides to a stop, the
-  logos going on fly there from the pile before on an arc, and the ones
-  that went no further close up behind them, so at the offer the piles
-  hold 12, 8, 3 and 1, each role in one place. A copy once flew on from
-  over its twin and left the twin behind, so every role that went on sat
-  in two piles, which the team read as duplicates. The stage chips keep
-  the totals that passed through (24 roles, 12 sent). The stops ahead show
-  dashed slots where their logos will land, gone once they have. The
-  piles' places are plain arithmetic from the stops, nothing measured but
-  the route's width. One violet runs the route; the stage colour shows
-  only in the card's chip and ring: the team found the old four-colour
-  gradient ugly. Under 800px of height the card is drawn at 78% so the
-  heading, route and piles fit at 1280 × 720. `Burst` keeps its 0.55s
-  delay for the Updates stop; the route passes its own. The tracker
-  card's next step fits one line at every stage (Saved's reads "Apply with
-  tailored resume"), so the card keeps one height (`CARD_HEIGHT`): on two
-  lines at Saved it stood taller and its top dropped as it moved on. Its
-  new words come in as the old ones finish going (`swap`'s delay):
-  `popLayout` ran both at once, and two lines showed through each other.
-  Below lg the stops are a still list, each with the logos left there at
-  the route's end (`leftAt`), seven at most and a "+N" (`STILL_PILE`; the
-  full piles, 24 and 12 tiles, read as noise on a phone), and the card at
-  its offer.
+  (`thread.tsx`). The statement's finale reads it, and the applications
+  section takes it from there, drawn large, to the offer, where its trip
+  ends. It shows only what the tracker keeps: a next step and a deadline were
+  drawn on it, and neither is built. A `Flight` once carried it from the
+  statement's last frame on down the page: it went when the statement came to
+  loop on its own, since its finale was rarely on screen as the reader moved
+  on, and the card flew out of nowhere. **The applications section**
+  (`applications.tsx`, KAN-540) is one card, four states, picked over a depth
+  stack, a bento board and an isometric tower. It replaced a route where a small
+  card rode a line through four stops over piles of logos that flew from one
+  stop to the next, with a caption beside the card and dashed slots ahead: the
+  team wanted something more premium, and the parts all pulled at the eye at
+  once. Showing less is the point, so **no logo piles, no counts, no second
+  card**. From lg up it pins for 280vh; the scroll cues each move (`CUES`) and
+  the move plays in time (`useSceneTime`, about 1.25 s a stage), so the card
+  never rests between two states. `stageAt` in `stage-timeline.tsx` glides
+  between whole stages, and the card's lift and the rail's fill both read it,
+  so they arrive together as the stage lights. The card is one record that
+  grows (`FACTS`): a dash until the application reaches a fact, then its value,
+  so at the offer it is full, and the status chip and the coloured glow behind
+  it change with the stage, one glow layer per stage so the colour crossfades.
+  `Burst` keeps its 0.55s delay for the Updates stop; the card passes its own.
+  New words come in as the old ones finish going (a delay on the swap):
+  `popLayout` ran both at once, and two lines showed through each other. Every
+  rail step keeps one height, its line only fading in, so the rail's fill meets
+  each node and nothing moves. Under 40rem of window height the subtitle goes
+  and the padding tightens, or the eyebrow went under the header. Below lg it
+  is not pinned: the states follow one another in time while the card is on
+  screen (`LoopingApplications`), the card over the rail on a phone and beside
+  it from md. With reduced motion, and before the screen's size is known, it
+  is the card at its last state over the full rail.
   **Headings come into
   focus** through `FocusIn` (`focus-in.tsx`): an observer marks the
   wrapper and a CSS transition ends at the element's own `filter: none`.
@@ -862,79 +956,82 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   where the postings come from, the proof behind the bridge's flood and
   Matching, and it names the systems whose filter is the statement's
   first beat. At the page's end it read as an afterthought, just above
-  the FAQ's "Where do the jobs come from?". **It slides up over the
-  tour** (KAN-368): the tour keeps its last stop pinned for
-  `TOUR_COVER_VH` more (`layout-parts.tsx`), and this section starts that
-  far up the page, so its panel rises over the tour's while the tour sinks
-  back (scaled to 0.94, shaded by a layer over it, since a filter would
-  stop its glass blurring) and fades as the cover ends: once unpinned it
-  scrolled away in the strip above this section's panel. The panel casts
-  a soft shadow on the tour as it comes (a blurred ellipse under its top
-  edge, faded as it pins): without it the grey edge barely showed and the
-  cover read as a fog. The tour reads the cover's progress from a box
-  the cover's height at the foot of its pin: a box of no height gave the
-  browser's view timeline nothing to measure, it stood at its end, and
-  the tour vanished at once and left the screen blank, which read as an
-  abrupt cut. Both read the one constant; with reduced motion neither
-  moves. It pins for 220vh in a grey
-  panel: the seven hiring systems
-  come in as thick coins (CSS 3D: a face, three stacked discs for the
-  edge, a back, under the stage's `perspective`; seven discs read the
-  same at every angle but edge-on) and keep tumbling in a slowly turning
-  ring beside the heading, on their own clock (`useLoopClock`), for as
-  long as the reader rests there: scrubbed by the scroll, the ring froze
-  whenever the reader stopped. The clock alone turns them, at one steady
-  pace (`ORBIT`, `TUMBLE`), whether or not the page moves: the scroll
-  added its own turn as the section came up, so the coins spun fast while
-  scrolling and crawled once the reader stopped. The scroll's cue, a third through, sends
-  each coin to the pipe, in time, to turn side-on as a coupling; the
-  glass pipe grows out to WorkIt's mark, and the postings flow. The
+  the FAQ's "Where do the jobs come from?". **It comes in on the
+  tour's own panel** (KAN-540): one panel, new content. The tour keeps its
+  last stop pinned for `TOUR_COVER_VH` more (`layout-parts.tsx`), and this
+  section starts pinned twice that far up the page, unseen, with the tour's
+  size and place (`pt-24 pb-6`, or the panels would not line up). Over the
+  stretch the tour's tabs and card fade out, this panel fades in over the
+  tour's, so the one panel seems to change colour, and the heading and coins
+  rise in. It replaced a grey panel sliding up over a tour shrunk to 0.94
+  under a dark shade, which the team found muddy, with a hard edge. The
+  section lies over the last stop, so it takes no pointer events itself and
+  its panel takes them back only once it shows: it swallowed the tour's tab
+  clicks. The tour fades as the cover ends: once unpinned it scrolled away
+  in the strip above this panel. `#hiring-systems` is a span past the cover,
+  since the section's top is still the tour's last stop. The tour reads the
+  cover's progress from a box the cover's height at the foot of its pin: a
+  box of no height gave the browser's view timeline nothing to measure, it
+  stood at its end, and the tour vanished at once. Both read the one
+  constant; with reduced motion neither moves. It pins for 120vh past the
+  cover in a grey panel: the seven hiring systems come in as thick coins (CSS
+  3D: a face, three stacked discs for the edge, a back, under the stage's
+  `perspective`; seven discs read the same at every angle but edge-on) and
+  keep tumbling in a slowly turning ring beside the heading, on their own
+  clock (`useLoopClock`), for as long as the reader rests there: scrubbed by
+  the scroll, the ring froze whenever the reader stopped. The clock alone
+  turns them, at one steady pace (`ORBIT`, `TUMBLE`), whether or not the page
+  moves. The scroll's cue, a third past the cover, sends each coin down onto
+  its dock on **the sorting line** (`sorting-line.tsx`, KAN-540, which
+  replaced a glass pipe the team found boring): a raised belt on the hero
+  city's own axes (`AXES` in `city-model.ts`), so the section reads as part
+  of that city, running up to the right from seven docks through WorkIt's
+  solid violet gate (see-through, the belt and posts showed through each
+  other) to the Jobs page cards. The
   ring's clock stops while the coins fly, so their landing turns, reckoned
   from the ring, hold still. Each coin carries its logo on both faces and
   stands near upright, a few degrees askew: turned with its place on the
-  ring, a logo stood on its side or upside down, and the blank back hid it
-  for half the tumble. The
-  couplings sit together at the intake end like a manifold: spread along
-  the whole pipe they hid most titles. The postings ride a conveyor of
-  evenly spaced places (`SPACING`), each given to the hiring systems in
-  turn and shown from that system's coupling on, so they never overlap
-  in the one pipe; a senior role is struck through and filtered out
-  before the mark, a kept role goes in and comes out as a `JobCard` as it
-  folds into the mark: sent at the end of its lap, out of sight past the
-  mark, a card came some six seconds after its posting and read as
-  unrelated to it. The pipe fills from the couplings when the flow first
-  runs (`fresh`): shown at once, three postings popped in mid-pipe; a
-  return to a running flow fades it in. So the fill is quick, the
-  conveyor starts with a place at the last coupling, where the coins end,
-  and on the first lap each place takes the coupling just ahead of it
-  (KAN-368): started at the pipe's end with the systems in turn, only one
-  posting could come out, behind the coins, and the first one cleared
-  them 7.1 s after the scroll's cue (now 1.5 to 1.9 s, then one about
-  every 2.7 s). Where a place is compared with the coupling it starts
-  on, the test allows a pixel (`EPS`): the first place starts exactly on
-  the last coupling, and rounding put it a hair past on some frames and not
-  on others, so the first posting flickered on and off all the way down
-  the pipe. The flow's clock runs as soon as the pipe has formed
-  (`PIPE_IN`'s end), in view and in a visible tab. The pipe starts just behind the first coupling, whose coin
-  hides its end: an open-end ellipse there, and later the bare rounded
-  end, read as a stray circle. WorkIt's mark is plain glass on the grey,
-  with no violet glow behind it (the team found it decorative). A card
-  comes at most every `CARD_GAP` (2.8 s), so each settles before the
-  next; `JobCard` takes the `ref` that `AnimatePresence`'s `popLayout`
-  passes (dropped, a leaving card could not pop out and the rest jumped)
-  and animates its position only. The copy says "freshest", never the
-  scraper's 3-hour schedule, at the team's ask, and the diagram labels
-  only its two ends, "Company job boards" and "Your Jobs page", in one
-  annotation style (`DiagramLabel`: small capitals set wide, in the body
-  grey, since the meta grey spaced 0.14em read faint on the tinted
-  panels); the team found a bold label with "Always fresh" beside it and a "Sorted by
-  Best Match" note cluttered. The first coin's edge and the left label
-  sit on the heading's left edge. A posting pill has a fixed width
-  (`PILL_W`), so its right edge is known: it stops `MARK_GAP` short of
-  WorkIt's mark and a kept one folds into it from that edge; sized to
-  its title, a pill slid under the mark. Its level (Intern, New Grad,
-  Co-op) stays whole while the role before it is cut short: it is why
-  WorkIt keeps the posting, as "Senior" is why it drops one. The testimonial's panel grows into place (`GrowIn`, a
+  ring, a logo stood on its side or upside down. The paragraph fades as the
+  line forms, since the belt climbs into its room, and under 44rem of window
+  height the whole heading goes. The line is two SVGs, `LineBack` under the
+  parcels and `LineFront` over them, so a parcel rides between the gate's
+  posts; the pills sit over both on a layer of their own (a portal), or the
+  near post crossed each title. Everything is placed from the stage's size in
+  `lineFor`, in (u, d, z): along the belt, across it and up. The docks' pitch,
+  the coins' size and the chute's length shrink with the belt, and the first
+  dock starts 64px in, or it was cut by the panel's edge. The parcels ride a conveyor of
+  evenly spaced places (`SPACING`), each given to the hiring systems in turn
+  and shown from that system's dock on, so they never overlap. At the gate a
+  parcel's lid takes the verdict: a senior role turns red, is struck through
+  and is pushed off down the chute into the bin; a kept one turns violet, rides
+  on, and comes out as a `JobCard` at the belt's end, always at the top of the
+  list, with the oldest leaving at the foot (KAN-540; sorted by score, a new
+  card landed anywhere): sent at the end of its lap, a card came some six
+  seconds after its parcel and read as unrelated to it. The belt fills from the docks when the flow first runs (`fresh`): shown
+  at once, three postings popped in mid-belt; a return to a running flow fades
+  it in. So the fill is quick, the conveyor starts with a place at the last
+  dock, and on the first lap each place takes the dock just ahead of it
+  (KAN-368). Where a place is compared with the dock it starts on, the test
+  allows a pixel (`EPS`): rounding put the first place a hair past on some
+  frames and not on others, so it flickered. The flow's clock runs as soon as
+  the line has formed (`LINE_IN`'s end), in view and in a visible tab, and
+  drives the belt's ribs too. WorkIt's mark is plain glass, with no violet glow
+  behind it (the team found it decorative). The steps run on an LED sign by the
+  belt (`StatusSign`): a dark board on two posts, skewed to the belt's line,
+  the words rolling over with a lamp per step, since a line of small grey text
+  under the belt was easy to miss. A card comes at most every
+  `CARD_GAP` (2.8 s), so each settles before the next; `JobCard` takes the
+  `ref` that `AnimatePresence`'s `popLayout` passes (dropped, a leaving card
+  could not pop out and the rest jumped) and animates its position only. The
+  copy says "freshest", never the scraper's 3-hour schedule, at the team's ask,
+  and the sorting line labels only its end, "Your Jobs page" (the team had
+  "Company job boards" taken off it; the flat stream keeps both), in one
+  annotation style (`DiagramLabel`: small capitals set wide, in
+  the body grey, since the meta grey spaced 0.14em read faint on the tinted
+  panels); the team found a bold label with "Always fresh" beside it and a
+  "Sorted by Best Match" note cluttered. A pill's level (Intern, New Grad,
+  Co-op) stays whole while the role before it is cut short: it is why WorkIt
+  keeps the posting, as "Senior" is why it drops one. The testimonial's panel grows into place (`GrowIn`, a
   scale only: a fade or filter on a panel would make it the backdrop root
   of the glass inside; a `transform` string over an offset the browser
   can express, so it runs as a scroll animation, below). The testimonial reads word by word, in
@@ -943,7 +1040,12 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   on every marketing page, closes on "workit" (the logo's own outline,
   `LOGO_WORD` from `components/logo.tsx`, as a CSS mask) filled with
   HTML rows of the page's job titles, the followed one in the pale
-  brand violet a weight up, which slide in from alternate sides, in time,
+  brand violet a weight up (each row one run of text, with only that
+  title in an element of its own: a span per title made the wordmark
+  about 950 of the 1,400 elements on a legal page, all styled, laid out
+  and hydrated on every marketing page; the titles are read by
+  `footer.tsx` on the server and passed in, or the three data files they
+  come from load on every page), which slide in from alternate sides, in time,
   once 60% of the word shows (`footer-wordmark.tsx`, `useArrived` with a
   threshold: a line a third up the screen was out of reach on a tall
   window), then keep drifting slowly (`.wordmark-drift`, a track of the
@@ -968,7 +1070,7 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   script, then wheel one notch, then look. IntersectionObservers and CSS
   transitions wait for frames too: take a screenshot before reading
   `data-paused` or a transitioned colour. Each screenshot draws one frame,
-  so a scene on a clock (the pipe's flow, the statement's loop, a held
+  so a scene on a clock (the sorting line's flow, the statement's loop, a held
   scroll) moves about 40ms per screenshot: take a batch of small ones to
   move it on.
 - **Scroll cues, time plays.** The home page's scenes move on their own;
@@ -990,8 +1092,9 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     beats rest on their boundary, and with the swap before it a resting
     beat showed no caption, title or verdict (`fadeWindow`).
   - A phase that should keep moving while it rests runs its own loop on
-    `useLoopClock`, stopped off screen and in a hidden tab: the coin
-    ring, the pipe's flow, the bridge's floating postings (CSS).
+    `useLoopClock`, stopped off screen, in a hidden tab and on Pause
+    Animations (`useLoopsHeld`): the coin ring, the sorting line's flow,
+    the bridge's floating postings (CSS).
   - A reveal on arrival (the testimonial's words, the footer wordmark's
     rows, the headings' and the FAQ's `FocusIn`) plays in time once the
     element is well on screen (`useArrived`), and resets only once it is
@@ -1000,12 +1103,35 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     reader scrolled back a little.
   - Still scroll-linked, by design: entrances and exits that track their
     section's position (the tour panel's and `GrowIn`'s scale, the tour
-    sinking under the hiring-systems section). The bridge's hand-off to the tour's
+    turning into the hiring-systems panel). The bridge's hand-off to the tour's
     tabs is cued by the scroll and plays in time.
   - Timeline values from `useSceneTime` are animated by script, so their
     transforms run on the main thread while a phase plays and cost
     nothing at rest; the array-range rule below matters for what is
     still scroll-linked.
+- **Every loop has a pause: Pause Animations** (KAN-580, WCAG 2.2.2), in
+  the footer's bottom row and at the foot of the phone menu
+  (`motion-toggle.tsx`; it reads Play Animations once pressed, and is
+  hidden with reduced motion, where nothing loops). It writes
+  `data-motion="paused"` on `<html>` and keeps it in localStorage
+  (`workit:motion`, `motion-pause.ts`), so it holds on every marketing
+  page and the next visit. It is not reduced motion: that swaps a scene
+  for its still frame, while a pause keeps the frame on screen and Play
+  goes on from it. Two halves, and a new loop joins one of them:
+  - CSS loops hold on their frame through one rule at the top of
+    landing.css that names each loop (`animation-play-state: paused
+    !important`). Never pause every animation there: an entrance (the
+    city's fade in, the hero's rise, Pricing's rows) paused before it ran
+    hides what it brings in.
+  - Timed loops read `useLoopsHeld` (hooks.ts: a hidden tab or the pause),
+    as they read a hidden tab before: the tagline, each `Story`, the
+    statement, the coin ring, the sorting line's flow, the applications
+    section's loop below lg, and the two long scene
+    steps (Resumes' tailoring beats, Auto Apply's form, one field at a
+    time). A story holds on its scene and its hold starts again on Play.
+    A short move already under way, under about 2.5 s (a motion
+    transition, a one-off timer in a scene), still ends: motion has no
+    clock to stop.
 - **The marketing pages run Lenis with the wheel left native**
   (`smooth-scroll.tsx`, mounted by the `(landing)` layout;
   `smoothWheel: false`, as twain.ai runs it, KAN-368): Lenis glides
@@ -1018,7 +1144,16 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   native and reduced motion turns Lenis off. It ticks in motion's
   `frame.setup`, before motion reads the scroll; in `frame.update`, as
   Lenis's docs show, every scroll-linked value ran a frame behind and the
-  flying card and pills trailed their ends. A script scroll goes through
+  flying card and pills trailed their ends. **It ticks only while it
+  glides** (`GlideLenis`: every glide starts in `scrollTo`, and the tick
+  stops once `isSmooth` is false). Ticked on every frame, it kept the
+  browser drawing a main-thread frame at rest on every marketing page, and
+  each of those frames updated every running CSS animation: at the footer,
+  with the wordmark's 29 drifting rows, the main thread was 96% busy at
+  rest on a 4x slower CPU, and under 1% with no frame loop. So nothing on
+  these pages runs a frame loop at rest (a `keepAlive` frame, an endless
+  `requestAnimationFrame`): a composited CSS animation is free only while
+  nothing else asks for frames. A script scroll goes through
   `scrollPageTo` (a native smooth scroll fought the glide), which
   measures the page again first, since Lenis clamps a scroll to the
   height it measured up to 250 ms before; a scroll area inside a page
@@ -1062,7 +1197,26 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   card over colour, where its blur has something to show; over a grey or
   white panel it read as that same flat card. An element with it carries
   no `ring-*` or `shadow-*` utility, which would replace its shadows, and
-  paper (a resume page, the statement's pages) stays flat paper.
+  paper (a resume page, the statement's pages) stays flat paper. The
+  feature pages' steps and "More from WorkIt" cards are `.gloss-card` too
+  (KAN-581); a related card's hover lifts it by translate alone.
+- **A marketing button is one of three roles in `buttons.tsx`** (KAN-581):
+  `GlassButton` (primary), `OutlineButton` (secondary) and `OnFillButton`
+  (white on a coloured or grey panel, the plan cards), all in one shape
+  (`rounded-control`, the app's) and two heights, `md` 44px and `lg`
+  48px. A page may change a role's colours for a tier (Pricing's Free ring
+  and Plus violet), never its shape or height. The site had five recipes,
+  three corner shapes and four heights, three of them in Pricing's one
+  row. The social sign-up pair keeps Google's branded colours but takes
+  the same shape and `md` height (`BUTTON_SHAPE`, `BUTTON_SIZES`).
+  `.glass-btn` in landing.css is only the glass fill and edge.
+- **A signed-in visitor's header says "Open WorkIt"** (KAN-581), to
+  `/go-home`, in place of Log in and Get started, in the bar and the phone
+  menu. The pages stay prerendered: the header is drawn signed out, and
+  `session-swap.tsx` (a client island) asks `GET /api/session` once it
+  mounts, which answers whether an `sb-*-auth-token` cookie exists, never
+  its value. The page cannot look itself, since the cookies are httpOnly.
+  A signed-in visitor sees Log in for the moment the answer takes.
 - **Type on the marketing pages.** Plus Jakarta Sans is 1.26em tall
   (ascent 1.038, descent 0.222), taller than any display line, so a
   wrapped heading's lines overlap by a few pixels. The selection
@@ -1081,7 +1235,11 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   lines, Soon chips, the tour's scene count); on plain white `ink-meta`
   holds 5.6:1. White text
   sits only on a fill that holds 4.5:1: `positive-ink`, not `positive`
-  (2.8:1), and ink, not white, on the amber fill. The header's links tint
+  (2.8:1), and ink, not white, on the amber fill. So a feature's marks
+  (`FeatureIcon`, a How it works step's number, a deep dive's check) take
+  its `onGlow` pair in `features/catalog.ts`, never its `glow`, which is
+  for the blobs only (KAN-580): on `glow` white read 2.8:1 on Auto Apply's
+  green and 3.19:1 on Scout's amber. The header's links tint
   their box on hover (`NAV_ITEM`), as the menus' items do: slate-800
   darkening to ink was too slight to see.
 - **Scroll-driven motion stays cheap, or the page lags.** A team member
@@ -1107,7 +1265,7 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     a swap plays, while its letters only roll.
   - Animate transforms, never `top`, `left`, `width` or `height`: a bar
     that fills is drawn at its full length and grows by `scaleX` from
-    its left end (the applications route, Matching's factor bars, Auto
+    its left end (the tracker's rail, by `scaleY`, Matching's factor bars, Auto
     Apply's upload bar, the hiring-systems strike), and a sweep moves by
     `x` on a layer the size of the card it crosses.
   - Nothing scroll-linked is SVG: the browser never moves SVG content on
@@ -1134,6 +1292,43 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   - Logos from the Google favicon host load `unoptimized`: they are
     small PNGs already, and some 60 each went through `/_next/image`.
   - Write a `data-*` mark on `<html>` only when it changes.
+- **What a shell pulls into the browser, every page under it loads**
+  (2026-11-02). The root layout's and the `(landing)` layout's client
+  components, and every client component that a server file in their
+  import graph reaches (the header reads the feature content files), go
+  into one bundle that every marketing page loads, `/privacy` included.
+  So a client component only some pages draw is lazy
+  (`features/animations.tsx`), and data a client component in the shell
+  needs is read on the server and passed in (the footer wordmark's
+  titles). Check after changing a layout, the header, the footer or a
+  content file: on `next build` and `next start`, `/privacy` loads about
+  215 KB compressed of JavaScript up to its load event (340 KB before this
+  rule; 2026-11-03); Next then prefetches the linked pages' chunks, 80 to
+  130 KB more, which is expected. A jump means a client import leaked in.
+  Measure speed on a production build, never `next dev`.
+- **The home page hydrates in pieces** (KAN-540, `hydrateNear` in
+  `near.tsx`, used by `deferred-sections.tsx`). Each section below the
+  hero (the bridge, the tour, hiring systems, the statement, the
+  applications section) is in the server's HTML from the start, with its
+  text, links, anchors and height, but its script loads and React
+  hydrates it only once it comes within a screen of view. Hydrated at
+  once, the page was one long task: at a 4x CPU slowdown it froze for
+  1.6 s and the city came at 4.4 s. In pieces the longest task is about
+  0.25 s and the city is ready at about 2.5 s (production before this
+  branch: 0.5 s and 2.3 s). So:
+  - A deferred section takes no props, and its parent never renders it
+    again before it hydrates: React would drop the server's HTML and draw
+    it afresh.
+  - The `import()` lives in a client module: a server component's
+    `import()` of a client component is not split, so the code still
+    came with the page.
+  - On the server the gate opens at once: waiting there for a scroll
+    that never comes hung `next build` ("took more than 60 seconds").
+  - After a change, load `/#hiring-systems`, `/#applications` and
+    `/#faq` fresh: each must land on its section.
+  - Measure on a production build (`npm run build`, then `npm run
+    start`) with the CPU slowed 4x: `next dev` ships unminified code and
+    hides or invents the cost.
 - **The legal pages, `/privacy` and `/terms`**, are in `app/(landing)/`
   on the shared `legal-page.tsx` shell (one readable column of text; the group's layout draws the header and footer
   around it, so the shell draws neither) and linked from the footer's Legal
@@ -1157,7 +1352,11 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   application the student picks. An entry opens its own card, one layout for
   every kind, beside it and inside the window (`calendar/event-card.tsx`),
   and the application's timeline only from the card's View Application
-  (`docs/screens.md`, Calendar). **A kind's
+  (`docs/screens.md`, Calendar). Below `@3xl/main` it narrows (KAN-578):
+  Week shows three days, a Month day opens a sheet of its entries with a
+  key under the grid, and the toolbar is two rows; `useWide` in
+  `calendar-view.tsx` reads that breakpoint off a probe element, so it
+  lives in the class alone. **A kind's
   look is one map**: `KIND_STAGE` for its colour and `KIND_ICON` for its
   glyph, in `(seeker)/stage-colors.ts`, read by the Calendar, Up Next, the
   timeline and Interviews & Dates alike; a new kind joins both. **The
@@ -1169,11 +1368,22 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   default view, and `?view=board` opens it. `applications/board.tsx` stays;
   `docs/screens.md`, Applications, says how to bring it back.
 - **The seeker shell is flat, and its panel is a rail that is always
-  open** (2026-10-27, `docs/design.md`, The two shells): one white surface,
-  the 88px rail, the bar, the page and Scout's panel ruled apart by
-  hairlines, with no lavender frame, gaps, rounded corners or shadows. Each
-  rail tile is an icon over its name (an item's `short` where the name does
-  not fit), and below md the rail is a sheet of full-name rows. On hover
+  open** (2026-10-27, `docs/design.md`, The two shells): the 88px rail, the
+  bar, the page and Scout's panel ruled apart by hairlines, with no lavender
+  frame, gaps, rounded corners or shadows. **The rail and the bar are white
+  and the page is `--color-app` grey** (2026-11-02, after Simplify and
+  Jobright), or white cards blended into a white page. So a control on the
+  page takes `bg-panel`, never `bg-app` or `bg-well` (it vanishes), and a
+  sticky bar on the page takes `bg-app`, or it shows as a white strip. Each
+  rail tile is an icon over its name, and below md the rail is a sheet of
+  rows with the same names. **Each section has one name in the panel**
+  (Tracker, Resumes, Profile), short enough for a tile: a `short` for the
+  tile beside a longer name in the sheet ("Applications Tracker") read as
+  two sets of names for one app (2026-11-05). **The same names are used
+  everywhere a student reads them**: the bar's title, page titles, Back
+  links, breadcrumbs and any line that sends them there ("on your Profile",
+  "on Resumes"). Never "Applications Tracker", "Resumes & Experiences" or
+  "My Profile" again. On hover
   and press only the fills move; the icon stays still (KAN-426), since a
   2px icon nudge on top of the gliding fill read as the row jumping. The panel
   never moves the page, so there is no pin, no peek and no `--panel-gain`
@@ -1181,7 +1391,7 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   (1440px) inside `SEEKER_GUTTER`, so all start at Home's left edge; the
   Applications Tracker alone has no cap. At `max-w-app` (1024px) they sat
   centred between wide empty margins beside the rail. Prose keeps its own
-  measure (About the Role's 68ch).
+  measure (About the Role's 46ch, set on the text's own 14px, KAN-569).
   The user found the floating panels wasted room, and the 256px panel that
   opened over the page on hover a flaw. A height worked out from the
   shell's chrome (the job rail's `100svh-4rem`) changes with it. A sidebar
@@ -1204,7 +1414,12 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   for now (`(seeker)/@modal/(.)settings`). A soft navigation to its address
   opens the modal there; a hard load reaches the route's own layout, which
   for Settings draws the same modal over Home, so Settings is a
-  modal on every way in (`docs/screens.md`, Settings). The slot's
+  modal on every way in (`docs/screens.md`, Settings). **Nothing opens
+  over the modal** (KAN-563): a row's form is a step in the section's
+  place (`settings/settings-step.tsx`, `useSettingsStep`), and the
+  unsaved-changes question a bar across its foot; a new Settings form
+  opens the same way, never as a `Dialog` (`docs/design.md`, "Never a
+  dialog over a dialog"). The slot's
   `default.tsx` and `[...catchAll]/page.tsx` both render nothing: without
   the catch-all, a link out of the modal to another seeker page would leave
   the modal open over it, since a slot keeps what it last matched. The
@@ -1230,12 +1445,72 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   sooner than 300 ms after the shell's first frame, so a fast page can land
   up to about 300 ms later on a hard load; only slow pages gain. The real
   signed-in spread is unmeasured.
+- **The seeker pages stand on a near-white ground** (`bg-app` on `<main>`,
+  #fcfcfc, 2026-11-03, as Simplify's is). The ground was white until
+  2026-11-02, and white cards blended into it; then grey (#f5f5f5), and the
+  user found every white card and light edge muted on it. **A card's outer
+  edge is `border-control`, as a button's is** (2026-11-03): `Card` draws
+  it, and a hand-drawn page-level surface (a calendar frame, a table box)
+  uses it too. Rules inside a card and boxes nested in one stay
+  `border-subtle` (#e8e8e8): darkening that token darkened them as well,
+  and every card read as a heavy box. The top bar and sidebar stay white. The company
+  shell took the same ground, the same 1440px column and gutter
+  (`company/frame.ts`) and the title in its bar (`company/bar-title.tsx`) in
+  KAN-582 (`docs/design.md`, The two shells); its docked, pinned panel
+  still differs. A sticky bar on the ground is `bg-app`, not `bg-panel`,
+  or a white band shows when it sticks. **Anything on the ground, or at a
+  card's edge, is `bg-panel`** (2026-11-03).
+  A field on the ground is white with a `border-control` edge, as
+  `TextField` and `SearchField` are, and a panel at a card's edge (the match
+  rail) is white with an #e8e8e8 rule. A grey fill goes only inside a white surface, away from its
+  edge, and is `bg-well` (#f5f5f5, the old ground) or `bg-ink/5`, never
+  `bg-app` or `bg-canvas`: those are the near-white ground, and an uploaded-
+  file row or a calendar day outside the month in `bg-app` lost its fill
+  when the ground went near white. The search bar's 5% wash and the match
+  rail's `bg-well` were each one shade off the old grey ground, and both
+  blended into the Jobs page. A see-through ink wash stays for a track inside
+  a control (the Segmented Control's, under its white thumb). A control takes
+  a `border-control` edge (KAN-556): a fill alone was a 1.1:1 edge on the
+  old grey, and a rule is decoration only (`docs/design.md`, Components).
+  Outlined buttons and chips take it too (2026-11-03): a filter row in
+  `border-subtle` under the dark-edged search pill read as a mismatch, so
+  a hand-drawn button uses `border-control`, never `border-subtle`. A
+  selected or in-use edge is solid `border-brand` over `bg-brand-tint`, never
+  `brand/50` or `brand-pale`, and a hover edge is `ink-meta`, never purple
+  (`docs/design.md`, Components): a filter in use in light purple beside the
+  open job's solid brand edge read as inconsistent. Rules meet in a T, never a
+  "+": a column's edge and a row's rule never both run through the point
+  where they meet (`docs/design.md`, Components); the rail's logo header, the
+  company bar's corner and the split view's list heading each crossed one
+  until 2026-11-03. The seeker top bar's rule and the rail's edge are
+  `border-control` too (2026-11-03); the company shell keeps its lavender
+  `rail-border`. A "·" between facts is round: the "Round Dot" face in
+  `globals.css` draws U+00B7 from Georgia, since Jakarta's is square; keep
+  typing "·" and never draw a dot in markup (`docs/design.md`, Components).
+  Skeletons are `bg-ink/6`, so they show on white and on the ground.
+- **The sidebar's current fill never slides** (`components/app-sidebar.tsx`,
+  2026-11-02): it lands on the row at once, because the slide read as
+  confusing. Only the hover fill glides.
 - **A slow seeker page gets a `loading.tsx` drawn in its own frame**
   (KAN-368). Every seeker route is dynamic, and Next prefetches a dynamic
   route only down to a loading boundary, so a click changed nothing on screen
   until the page's reads were done. Give a page one only if it is slow:
   React holds a shown fallback for 300 ms, so a fast page gets slower. A
   skeleton stands at the height of what replaces it, so nothing below jumps.
+  **A skeleton shows no heading or line of text the page replaces**: a real
+  About the Role among the bars stood out as the one finished thing on the
+  page. Draw the title as `SectionHeadingSkeleton` (`ui/section-heading.tsx`)
+  and name the section with `aria-label`. What stays real is what works or
+  stays the same while it waits: the top bar's title, Back, tabs, filters, the
+  Tailor steps, and a sentence that says what a long wait is doing.
+  **A page with child routes keeps its page and `loading.tsx` in a route
+  group** (`resumes/(list)`, `auto-apply/(queue)`, the company's
+  `jobs/(list)` and `jobs/[jobId]/(detail)`; KAN-561): a `loading.tsx` wraps
+  every route under its folder, and the prefetch stops at the first one, so
+  Up Next's skeleton showed on the way to Application Info. The company side
+  follows the same rules, with its own `error.tsx` and `not-found.tsx`. A
+  client-side read draws a skeleton line in its place too (Transcript, the
+  resume pickers' `ResumeListsSkeleton`), never a "Loading…" line.
   A page with two long reads streams each in its own `<Suspense>` over a
   skeleton of its shape, and starts every read before its first `await` (the
   Home: only the account is awaited). **Settings' modal has no
@@ -1290,8 +1565,12 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   KAN-267: `openSentResume`, nothing downloaded). A button inside a
   clickable row or card must not open the application on a near miss: the
   list's cell prevents its clicks and the card's strip sits over the
-  stretched link, and a dialog opened from one stops its own clicks, since
-  React passes them up through the portal. A row or card opens the application's own page,
+  stretched link, and a click from a menu or dialog the row opened is
+  never the row's, since React passes it up through the portal:
+  `ClickableRow` leaves a click from outside the row alone, and one on a
+  link, button or menu item (`lib/row-click.ts`, KAN-566: Up Next's ⋯
+  items each opened the job posting too). A card's dialog still stops its
+  own clicks. A row or card opens the application's own page,
   `/applications/[jobId]` (KAN-256), not a side panel. **Interviewing, Offer
   and Rejected, and dated events, are stored** (KAN-413,
   `../docs/email_tracker.md`): the application's page has the stage menu
@@ -1299,7 +1578,11 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   the dialog in `applications/create-event.tsx`, which the Calendar's toolbar opens too,
   over `applications/actions.ts`), and the tracker's read joins the events
   from `GET .../events` (`applications/tracked.ts`); a failed read of
-  either shows an error, never stand-in cards. **A stage past applied is
+  either shows an error, never stand-in cards. **Each tracker write offers
+  Undo or asks first** (KAN-577): a stage pick and an event's Delete say so
+  in a toast whose Undo writes the reverse (`applications/[jobId]/undo.ts`,
+  tested), and a saved job's stage pick asks in a dialog, since the API
+  never moves a job back to Saved and so has no Undo for it. **A stage past applied is
   still applied**: every "did they apply?" check is `hasApplied` in
   `(seeker)/applied.ts`, never `stage === "applied"` (the job cards' Applied
   button, Save's toast, Auto Apply's button, Top Matches' rows). The
@@ -1358,7 +1641,16 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   worded, the same three on every row (Change Resume, I Already Applied,
   Remove From Queue), never as bare icon buttons beside each other.
   Remove works on every row (`remove` in `up-next.tsx`: closes its tab,
-  dequeues a queued job, skips a started one whose tab is closed). **Several rows at once
+  dequeues a queued job, skips a started one whose tab is closed). **The
+  ⋯ column stays at the table's right edge at every width** (KAN-567),
+  with an edge shadow while columns are hidden past it (`useClipped`),
+  and below `@3xl/main` Match and Date Added fold into the Role cell's
+  second line, and Role, then unfrozen, takes their width: the 960px
+  table scrolls sideways, and until then at 1024px and below the scroll
+  hid the only Remove with no cue. A role title wraps, never truncates:
+  a `title` tooltip is not there for touch or keyboard. A folded column
+  closes to no width rather than leaving the DOM, since the group
+  heading's `colSpan` counts every column. **Several rows at once
   go through Up Next's select boxes**: while any row is picked, the
   heading's right end shows the count, Remove and Auto Apply in place of
   Add Jobs, and Select All unpicks them, as the Inbox's does; keep the
@@ -1376,6 +1668,12 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   come from any AI, and never send it to the extension; the open tab fills
   it on its own poll. A failed check is the warning amber under its box,
   never the danger red (the student fixes it; nothing broke).
+  **Its one way in is Up Next's Write N Questions** (KAN-566): a row's
+  questions chip goes to the tab, and for a while no link reached the
+  page, so a student without Claude could not answer. Keep a link there.
+  never the danger red (the student fixes it; nothing broke). Each box's
+  save is `secondary` until the box has text (KAN-568): a card holds
+  several questions, and a brand Save under each put five on one screen.
   A question whose answer waits on an Essay fact (KAN-369: a fact the
   student's Claude asked for rather than invent) shows the question above
   its box (`answers/fact-box.tsx`), saved with `PUT .../essay-facts` into
@@ -1394,7 +1692,18 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   the review names the job the same way under the resume's name; the tailored resume's page has the slim
   `TailorReviewBar` instead (Back to Choose Keywords, `TailorBack`, the
   step, and Finish; the job in an sr-only h1), so the resume starts near the top, under its own name
-  renamed in place (`ResumeTitle`).
+  renamed in place (`ResumeTitle`). **Finish opens Your Resume Is Ready**
+  (`tailor/ready-to-apply.tsx`, KAN-217): the Tracker status line, then
+  Apply Yourself as two numbered steps, Download PDF and Open <Company>'s
+  Application (the employer's form in a new tab, then "Did You Apply?",
+  `DidYouApply` from `jobs/apply-button.tsx`, on the tailored resume),
+  **whose primary button is always the next step** and takes focus
+  (`useResumeDownload().pick` resolves true once the file is saved), and
+  Auto Apply in a block of its own where the form can be filled. It sets
+  `data-backdrop="strong"` on its `DialogContent` for the darker backdrop
+  (`globals.css`). Closing it goes to the page that
+  opened Tailor's route (`useBack`). Finish linked to the job posting's page
+  until then, which showed nothing new and left the student with no file.
   `TailorScreen` holds the step in state, so Back keeps the pick, the
   match and the picked keywords; `?step=keywords&source=<picker key>`
   opens it at Choose Keywords (the review's Back), and a run then
@@ -1404,6 +1713,50 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   claim skills the truth rule then lets a rewording name. A wait is never a
   step: the run is a loader over Choose Keywords (`TailorRunning`), since a
   Tailor step that only waited read as padding to the user.
+- **A saved or applied job is off the Jobs page; the tracker holds it**
+  (KAN-217). `GET /jobs` leaves out every tracked stage (saved, applied and
+  after; `JobFilters.tracked_by`), and a Tailor run saves its job. In the
+  browser one rule says which jobs a list shows, `jobs/feed-stages.ts`
+  (tested): every list (the feed, /search, its fallback snapshot, the rail
+  beside a job) lays the seeker's stage changes made after its render
+  (`rememberStage` in `jobs/shown-list.ts`, kept for the tab with their
+  time) over the stages it was drawn with (`drawnAt` from the page). So a
+  Save takes the card off at once, its toast's Undo puts it back, a Back to
+  a page Next kept shows it gone, and an unsave on the tracker brings it back
+  on the next render. **Every button that changes a stage calls
+  `rememberStage`**: Save and its Undo, Did You Apply?'s Yes, Auto Apply and
+  its dequeue. One that skips it leaves the job on the rail and its other
+  buttons stale. Save says where the job went: "Saved to your Tracker."
+  with View and Undo, two buttons side by side (the toast's
+  `actions`). **A toast is the inverted surface** (`bg-inverse` and
+  `text-on-inverse`, its buttons and cross the `inverse` variants) and stays
+  8 seconds when it has an action, 5 without (`docs/design.md`, toasts). Home's Top Matches leaves saved jobs out on
+  its next read, but a row saved there stays until then.
+- **A seeker page's title is in the top bar, and it has no description**
+  (2026-11-02, `(seeker)/bar-title.tsx`). The bar reads the title from the
+  address, so it shows before the page streams in; a new section joins `TITLES`
+  there. It is the page's h1 on a section's own page, and a plain line on a page
+  under it (a job, a resume, an application), which has its own h1. Home's title
+  is the greeting, which the layout reads with the account. **One h1 per view**
+  (KAN-560): a job drawn beside the list on /jobs (the split view) titles itself
+  h2 (`JobDetailHeader`'s `titleAs`), and a 404 under a section is the h1
+  (`EmptyState`'s `titleAs`). **A modal never changes the bar title**: with
+  Settings open the bar keeps the page behind's title and h1, and the dialog
+  names itself; the bar said "Settings" over Jobs, and Jobs' h1 was gone. **Job search is on
+  is the greeting, which the layout reads with the account; below sm it is
+  "Hi, Alex" with the full line as its `title` (KAN-570), since the full line
+  cut the name off in a phone's bar. **The bell shows at every width in both
+  shells** (KAN-570): the phone bar dropped its logo mark (the sheet's header
+  has it) to make room. **Job search is on
+  the Jobs page and /search only** (`search/job-search.tsx`): in the bar it
+  showed on every page, and it took the phone's magnifier and sheet with it.
+  Each page's own heading and line under the bar went, about 60px a page: the
+  line under Written Answers too, so that page no longer says how answers
+  reach the tab. Auto Apply keeps its queue line, which is a count, not a
+  description. **The company bar does the same** (KAN-582,
+  `company/bar-title.tsx`, its own `TITLES`): a new company section joins
+  that list, and a company page draws no heading of its own unless it is a
+  page under a section.
 - **/search keeps the filter row, and shows what its words filter by**
   (KAN-308). A new search from the top bar sends only ?q, so it starts
   with no filters; the row stays on /search to narrow the results. The
@@ -1460,20 +1813,43 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   resume opened from Experiences to Resumes. Not the job page
   (`BackToJobs` skips the rail's job-to-job clicks to the list), a 404's
   or placeholder's way out (no page to go back to), or a step form's
-  Back (the step before).
+  Back (the step before): Tailor's review passes its step before to the
+  phone arrow (`phoneBack`, `useTailorBack`; KAN-574).
 - **A job posting's page has a rail of jobs beside it** (KAN-297), drawn by
   `(seeker)/jobs/layout.tsx` so it survives job-to-job navigation. It reads
   the list `FeedList` last showed (`jobs/shown-list.ts`); a new list screen
   whose cards open job pages writes it the same way, or the rail shows the
-  last /jobs or /search list (`docs/screens.md`, Job posting page). Every
+  last /jobs or /search list (`docs/screens.md`, Job posting page). Its rows are
+  `CompactJobCard`, which a new compact list reuses. Every
   reader that pages a list of roles goes through `nextPage`
   (`jobs/list-pages.ts`), which picks the action for the list's order and
   counts the offset; the feed and the rail each had a copy until the
   KAN-297 review. A list kept for the session builds on `sessionStore`
   (`jobs/session-store.ts`), as the feed's Load More pages and the rail's
   list do, and ages by `LIST_FRESH_FOR`. The rail checks its list's age on
-  every job opened, not once: checked on mount only, it sat on its skeleton
-  for good once the list passed half an hour, since it stays mounted.
+  every job opened and whenever it goes stale, not once: checked on mount
+  only, it sat on its skeleton for good once the list passed half an hour,
+  since it stays mounted. On /jobs it fetches nothing, so a stale list stays
+  shown there. **The rail's Load More keeps its pages in `feed-pages`**, which
+  `RememberShownList` adds to the first page: written alone, the first page
+  cut the list short on Back. It scrolls to the open job only when the job
+  changes or the list lands, never on Load More.
+- **The Jobs page's Split view is the job page's frame** (KAN-519,
+  `docs/screens.md`, Jobs page): the layout draws the header and rail, /jobs
+  draws only the first job, and a click opens that job's page, so Best Match
+  is never scored again per click. Never draw the open job with a query on
+  /jobs. The choice is a cookie (`jobs/view.ts`), since `?view=` belongs to old
+  links. A height set with `flex-1` on the same element does nothing: the frame
+  needs `flex-none` at its fixed height, or the rail grows with its list and
+  never scrolls. It is one panel in the page's gutters, after Simplify's,
+  rounded at the top and open at the foot of the window, with the job's card flat inside it and no rule under the filters.
+  In the panel each job in the list is a card of its own in `border-control`,
+  the open one in brand (`SPLIT_ROW` in `jobs/jobs-rail.tsx`, 2026-11-03).
+  The panel's edge, the list's edge and the rule under the job's action bar
+  are all `border-control`; rules inside the job's own content stay light.
+  The rail beside a job opened from Cards has no panel: it stands off the sidebar
+  by the page gutter less its rows' padding, since flush it read as one block
+  with the sidebar.
 - **The feed's loading state is its last first page** (KAN-287,
   `jobs/feed-fallback.tsx`): `FeedList` keeps the first page it drew as a
   snapshot (`jobs/feed-pages.ts`), and the Suspense fallback draws it while
@@ -1498,7 +1874,10 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   it answers to shadcn's variant names so pasted shadcn code composes.
   `shadcn/button.tsx` re-exports it and an ESLint rule keeps app code on the
   canonical path (likewise `badge` and `card`). A control's styling belongs in
-  its component, not at the call site.
+  its component, not at the call site. **A button's label never wraps**
+  (`whitespace-nowrap` in its base, KAN-572): a row too narrow for its
+  buttons wraps the row (onboarding's footer), never a label, which made a
+  48px button 68px tall.
 - **Icons are Phosphor's, from `@phosphor-icons/react/ssr`** (KAN-350),
   through the wrappers in `components/icons.tsx` or a route's own
   `icons.tsx`. Lucide is gone (it read as every AI app's default) and the
@@ -1509,15 +1888,46 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   at `size-4`, not Phosphor's 1px: one rule in `globals.css` thickens them
   (KAN-365), and `custom-icons.tsx`'s `STROKE` matches it. A glyph
   Phosphor lacks goes in `components/custom-icons.tsx` with all its
-  weights (`docs/design.md`, Brand and icons).
+  weights (`docs/design.md`, Brand and icons). **The bundler takes
+  `icons.tsx` whole**, all six weights of every glyph in it (65 glyphs,
+  about 150 KB, 36 KB compressed, on 2026-11-03), however few a file
+  imports, since its wrappers are one module. So a client component the
+  root layout mounts, or one a marketing page draws, never imports from
+  it: it draws Phosphor's glyph itself (`ui/toast.tsx`'s close button,
+  Scout's animation's), or the sparkle from `sparkle-icon.tsx`. The
+  toast's one `CloseIcon` loaded it on every page, and the Resumes and
+  Auto Apply animations' sparkle on their feature pages.
+- **An icon's colour says its job** (`docs/design.md`, Components): black to
+  click, purple when on, grey for information. Never set a clickable icon to
+  `text-ink-meta`.
+- **Contrast is measured on white and on `well`** (KAN-555,
+  `docs/design.md`, Components): a word 4.5:1, a live glyph or chart mark
+  3:1. `ink-faint` and `ink-subtle` never colour a word or a live arrow (a
+  resting sort chevron, a dropdown's arrow are `ink-meta`), and
+  `--color-positive` never sits under a word or a white glyph: the green
+  button and done discs fill with `positive-ink`. A new grey or green is
+  checked against `--color-well` (#f5f5f5, the old ground and the darkest
+  surface words sit on) too, where `ink-faint` is 2.85:1.
+- **A form's buttons sit by its kind** (`docs/design.md`, Components): a
+  page or Settings form left, Save first; a dialog or a card edited in place
+  right, Save last; a wizard Back on the left and the forward button on the
+  right (KAN-565). A disabled filled button is grey (`ui/button.tsx`,
+  DISABLED_FILL), never a faded brand fill, and a lesser action beside a
+  button is `variant="section"`, never brand text.
 - **Anything clicked or picked is medium (500)**: buttons, chips,
   segmented controls, filter options, and shadcn's menu, select and
   combobox rows, which `globals.css` sets by `data-slot` since they set no
   weight of their own (KAN-365). Regular text is 450, not 400
   (`--font-weight-normal`): the face's 400 read thin in small grey text. The four weights and their jobs are in
   `docs/design.md`, Type weights, and on `/design-kit/type`.
-- **One mark for Scout and AI, `SparkleIcon`** (`components/icons.tsx`,
-  KAN-257): every Scout or AI control, and Scout's mark in the chat and
+- **Reading text is 12px or more** (KAN-554, `docs/design.md`, Type sizes):
+  a sentence, hint, error, status or group name is `text-note` or larger;
+  `text-meta` (11px) is for dates, counts, file facts and captions. The lint
+  fails `text-meta` on a `<p>` and on an element with an `id` or
+  `role="alert"`/`"status"`, so meta on its own line is a `div` or `span`.
+- **One mark for Scout and AI, `SparkleIcon`**
+  (`components/sparkle-icon.tsx`, which `icons.tsx` re-exports; KAN-257):
+  every Scout or AI control, and Scout's mark in the chat and
   the panel header, draws it. An ESLint rule refuses Phosphor's sparkle
   imported anywhere else; a hand-drawn sparkle beside Lucide's had given
   the assistant two marks (`docs/design.md`, Brand and icons). Tailor My
@@ -1528,7 +1938,10 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   nothing about the fit, so the score now shares hues with the stages. The
   ramp's pink lives on as the marketing pages' `--color-updates`: a landing
   scene takes that, never a `--color-match-*` token, which turned amber
-  there when the bands changed.
+  there when the bands changed. **Weak is red** (`--color-match-weak` is
+  `--color-danger`): KAN-569 drew it in neutral ink while the cut-offs are
+  placeholders, and the user brought the bands back on 2026-11-03, since a
+  black ring read as a fault. Keep all four bands coloured.
 - **A button is a rounded rectangle; a pill is a chip** (`ui/chip.tsx`, KAN-251).
   Pick a button's size by where it sits (`docs/design.md`, Components). A
   `className` on a Button or Chip may place it or colour a state, never change
@@ -1537,6 +1950,37 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   string class. It cannot read a class built in `cn()`, a template string or a
   variable, so keep overrides out of those too. A new box is a new size in the
   component.
+- **A target is 24px or more, and 44px under `pointer: coarse`, set in the
+  part** (KAN-557, `docs/design.md`, Components): the `hit-area` utility in
+  `globals.css` on Button, IconButton, Chip, SectionLink and
+  SegmentedControl, rows that touch growing to 44px on touch, and the
+  vendored checkbox, switch and menu rows by `data-slot`. A call site never pads or widens a target by hand. The part
+  writes `relative` beside `hit-area`, so a call site's `absolute` still wins
+  through `cn()`. Never put `hit-area` on an element with a control inside
+  it: its `::after` paints over the inner control and takes its presses
+  (RemovableChip's pill, whose cross is the control).
+- **A field, a radio or an answer tile comes from `ui/`** (KAN-559,
+  `docs/design.md`, Components): `TextField` (`size="lg"`, `labelIcon`) or
+  its bare `TextInput` under a heading, `TextAreaField` (`grow`) or `TextArea`,
+  `ui/radio-row.tsx`, `ui/choice-tile.tsx`, `DateField`, `MonthField`. A
+  screen never writes its own `<input>`, `<textarea>` or `FIELD_CONTROL`
+  string; the few that must are named there, and a new one joins that list.
+- **Nothing bounces at a scroll's end** (2026-11-02, `globals.css`): the
+  document and each shell's `<main>` take `overscroll-y-none`, Y only so the
+  trackpad's swipe back works, and a scroll box inside a page takes
+  `overscroll-none`, never `overscroll-contain`, which still bounces inside
+  itself. The resume editor's `data-no-bounce` was the first of these; the
+  rule now holds for every page.
+- **There is one scrollbar, in `globals.css`**: a 4px thumb on no track, shown
+  while the pointer is over what it scrolls. macOS's own bar drew a grey rail
+  over the job list's rows. Never set `scrollbar-width` or `scrollbar-color` on
+  an element, but for `none`: Chrome then drops these rules there.
+- **Every white block on a seeker page is `ui/card.tsx`** (KAN-558): Home's
+  tiles are `tone="tile"`, a whole-card link is `href`, a pill in a card is
+  `<Badge variant="tag" pill>`, and the title is `SectionHeading` (16px at
+  600, company pages included). Three hand-built card kinds drifted apart in
+  corner, edge, shadow, title and gap before; never build one from raw
+  classes (`docs/design.md`, The two shells).
 - **Build class strings with `cn()` from `@/lib/cn`.** Plain interpolation
   leaves both conflicting utilities in the attribute and the stylesheet's
   emit order picks the winner. `cn()` cannot merge across groups (`border` and
@@ -1545,7 +1989,15 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
 - **Tailwind v4 is configured in `src/app/globals.css` via `@theme static`**;
   there is no `tailwind.config.js`. Write the token names (`text-body`), never
   stock sizes like `text-sm`. A new token or shared component gets its row in
-  `/design-kit` (titles in `design-kit/data.ts`) in the same change.
+  `/design-kit` (titles in `design-kit/data.ts`) in the same change, and a
+  control its States row (`docs/design.md`, Components). **A States row forces
+  hover and focus from the live stylesheet** (`design-kit/states.tsx`,
+  KAN-564): `<StateCell state="hover">` wears what the component's own
+  `hover:` and `focus-visible:` rules draw, copied once by `ForcedStates` in
+  the kit's layout. Never type a variant's hover or focus classes into the
+  kit: Tailwind builds only the classes it finds in the source, so a class cut
+  from `hover:bg-brand-hover` at run time has no rule, and a typed copy
+  drifts.
 - **Never key a Tailwind `group-*` variant on the shell wrapper, or on any
   large ancestor whose attribute changes often** (KAN-368). Tailwind v4
   compiles it to `.cls:is(:where(.group)[attr] *)`, and Chrome then restyles
@@ -1564,7 +2016,9 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   measures each logo on load: a square mark
   fills the tile edge to edge, a wide wordmark sits on white with padding.
   Framed with padding, square marks on their own colour (Figma, Cloudflare)
-  looked shrunk. The image is hidden until measured, and next/image only
+  looked shrunk. The image is hidden until measured, with the initials under
+  it until then (KAN-569: a slow or refused image left an empty white
+  box), and next/image only
   reports the load once the browser has decoded it, which a hidden browser
   tab (the Browser pane when it is not shown) can hold back, so check it
   with the page visible.
@@ -1593,14 +2047,26 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   Scout's chat while the page is mounted, so the bar's Scout button opens
   the page's assistant. The Experience Bank puts intake there, and the
   resume editor its assistant (KAN-411), which is why the editor's
-  toolbar has no Ask Scout. Open it only
+  toolbar has no Ask Scout. The editor passes `float`, so below xl the
+  panel floats over the page instead of taking room (KAN-576): docked at
+  1024 it left the resume a 416px column. Open it only
   on a click (the panel's rule), never on page load; a link a student
   clicked to get here may open it once, then drop its query param.
   **The bar's Scout button is archived** (`SCOUT_LAUNCHER_LIVE` in
-  `(seeker)/layout.tsx`, 2026-11-01): Ask Scout and Fill With Scout still open
-  the panel, and closing it leaves focus on the page, since no launcher takes
-  it back. The editor's assistant has no other way in on a laptop, so it is out
-  of reach until the flag is on or the toolbar gets a button.
+  `(seeker)/layout.tsx`, 2026-11-01): Fill With Scout still opens the panel,
+  and closing it leaves focus on the page, since no launcher takes it back.
+  The editor's assistant has no other way in on a laptop, so it is out of reach
+  until the flag is on or the toolbar gets a button. **Ask Scout is greyed
+  out** (`ASK_SCOUT_LIVE` in `components/scout/scout-buttons.tsx`, 2026-11-02,
+  it does not work): every job's button and the phone editor's two buttons
+  stay in place, disabled, the panel's hint is hidden, and the flag brings
+  them back. A job's button, and Not Interested, which stores nothing yet,
+  are `soon` on `IconButton` (KAN-569): faded and inert, but still hovered
+  and focused, so the tooltip says "Coming Soon". A disabled button shows no
+  tooltip, so nothing said why; a control that is not built takes `soon`. The phone editor has no other way into its assistant. **The
+  Calendar's sidebar row is greyed out too** (`disabled` on a nav item,
+  `seeker-sidebar.tsx`): /calendar still answers, and Home's Up Next links to it. The landing page still describes
+  it.
 - **The company table (`app/company/table.tsx`) and the Applications list
   (`(seeker)/applications/list.tsx`, KAN-282) are TanStack Table v9**, and
   every shadcn data-table example in circulation is v8. Read the guides in
@@ -1618,9 +2084,11 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   own height before, and Add Jobs grew to 90% of the window. The grouped
   resume list is the one exception: five cards under a group heading in
   every resume picker (`ResumeScroll`, `components/resume-list.tsx`),
-  since 320px showed three and a half, and on the Resumes page it scrolls
-  inside itself down to the foot of the page (`fill`, KAN-434), so the
-  search and buttons above it stay in view.
+  since 320px showed three and a half, and on a page (the Resumes page,
+  KAN-434, and Tailor's Pick a Resume, KAN-576) it scrolls inside itself
+  down to the foot of the page (`fill`), so the search and buttons above
+  it stay in view: on Tailor, the dialog's five cards left 230px empty and
+  cut the last card in half. Five cards are for a dialog.
 - **A filter whose rows the page already holds moves the URL in place**
   (`useShallowPush`, `docs/motion.md`): Live Activity's Status and sort
   (KAN-285). A tick passes `{ replace: true }`, so ticks are not steps of
@@ -1697,8 +2165,12 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   change's plain fields (shown, position, the toggles) go into the
   choices at once (`mergeChoices`) and are merged again over each answer
   until their own lands, so a second quick move computes from the first.
-  A move of two neighbours shows at once as their strips of the page
-  trading places (`swapOf`, `swapsOn`, `Strip` in `pdf-pages.tsx`): a
+  Any reorder within one entry or one section shows at once as strips of
+  the page trading places (`swapsOf`, `swapsOn`, `Strip` in
+  `pdf-pages.tsx`): `swapsOf` splits it into neighbour swaps, each against
+  the order the ones before it leave (tested in `swaps.test.ts`). It took
+  only a swap of two neighbours until KAN-584, so a Tailor reorder's
+  revert, which moves several bullets, waited for the compile. A
   swap is kept by item, not by position, so a PDF that lands before its
   own still shows it, and one the page already shows draws nothing.
   A phone's "Saved, N ms" times the render.
@@ -1718,7 +2190,56 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   outlive the database it describes (another tab's edit, a reload).
   Cmd+Z and Shift+Cmd+Z (Ctrl+Y) act off a field; inside one the field's
   own text undo runs. An open line is saved first, so Undo takes back
-  what was just typed. **A rename in the title is a step too**
+  what was just typed. **Fit to One Page is one step like any edit**:
+  Undo shows what it hid, Redo hides it again. **It plans from the page on
+  screen** (KAN-584, `fit` in the editor, `../docs/live_page.md`): the copy
+  and the PDF's measure (`measureOf`) go to `/api/resume-fit`, a route
+  handler for `planFit` (`POST .../fit/plan`, no compile), and each cycle's
+  cuts go through `apply` as a hide, so they close up on the page at once
+  (`gapsOn`, `Gap` in `pdf-pages.tsx`) while the render and the save go
+  behind. While the new PDF is over one page it asks again; a later cycle
+  joins the first's step (`apply`'s `into`), so one Undo takes it all back.
+  **Only the final PDF paints** (`apply`'s `hold`): a cycle's PDF still over
+  one page is kept for the next plan but not drawn, and the page keeps its
+  cuts closed up, since painting it showed a second render when a
+  prediction ran a line short. A fit that ends on a held PDF (nothing left
+  to cut, a failed plan) paints it then. **Its buttons stay dim from the click to the
+  last cycle** (`fittingNow`): `saving` alone is false between two cycles,
+  and the button lit up for a moment between each. The button reads
+  "Fitting…" with a spinner (the phone's "Fit" keeps its word) and the
+  status "Fitting to One Page…". **Undo, Redo and opening a line wait for
+  it too** (`fitting` in `travel` and `select`, `canUndo`): a later cycle
+  joins the first cycle's step, so an Undo between two cycles put that
+  step on the Redo stack, left the later hides with no Undo, and planned
+  the next cycle from a page with the first cuts shown again. No modal:
+  the page stays in view, where the cuts close up as they come, the
+  progress a modal would cover.
+  An API with no measure fits on the server (`fitOnServer`, `hideAgain`).
+  Every hide closes up at once the same way, not only Fit's, skills too: a
+  hidden skill is a cut along its line (`skillCut`, `Gap`'s `x0`/`x1`), so
+  every Tailor revert (a wording, an order, an added skill) shows before
+  its compile. It has no
+  Undo Fit button of its own (gone 2026-11-01, a second way to do what
+  Undo does); the phone's bar shows the same Undo and Redo. **Cut From
+  Resume** lists what every fit in the tab cut, entries, bullets and
+  skills (`cutRows`, `cutSkills`; `cutLeft` says whether its button
+  shows), read from each fit's `undo` body (`addCuts` in `model.ts`,
+  tested in `cuts.test.ts`), kept in
+  sessionStorage per resume (`fit-cuts.ts`), so a reload in the same tab
+  keeps it, and puts each item back as an ordinary pick. Unlike Undo's
+  steps it may outlive the page: it is read against the resume's choices
+  each time, so an item already back only shows ticked
+  (`docs/screens.md`, Cut From Resume). It is on Tailor's page too, in the
+  column beside the page (`Side`), since Fit is. **A revert never waits for a
+  compile** (KAN-524): `apply` drops a change's card and marks at the click,
+  draws a reworded line's old words over the page (`wordsBack`) and puts the
+  card back if the render refuses, and Suggestions' Undo buttons stay on while
+  `saving`, or each Undo locked the rest for a compile, which takes seconds
+  on the deployed API (`docs/live_page.md`). **A page setting never queues a
+  compile a newer one replaced** (`applyPage`, `pageJobs`), or a few clicks on
+  a size stacked a compile each; a skipped step undoes through a render, and
+  so does any step while a page's render is queued (`travel`), or that render
+  landed after the instant Undo and printed the wrong settings. **A rename in the title is a step too**
   (KAN-443, `TitleHistoryContext` in `resume-title.tsx`, provided by the
   editor round its title row): it shows at once, saves behind it, and a
   failed save puts the name before it back and drops the step. Its step
@@ -1815,6 +2336,33 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   panel dropped, so a resume set that way prints as it did. The bar mutes every
   button's words (`SLIM_BAR`, `DOCS_BAR`), so a real action there (Add Bullet,
   `FitButton`) carries `data-bar-action`, or a filled button reads grey on purple.
+  **An open bullet or entry moves from the bar** (`MoveButtons`, Move Up
+  and Move Down beside bold and italic, or an entry's size): a bullet within
+  its entry, an entry within its section, through `move` and `apply`, so it
+  trades places with its neighbour on the page at once (`swapsOf`; an entry
+  takes its bullets with it, and only when both sit on one page) while the
+  save and the render go behind it, and the line stays open on it. The
+  Sections panel reorders at once too, since it reads the same choices. It
+  sends the line's typed text first (`flush`), so the move's render prints
+  it. A section moves only in the Sections panel.
+  **One bar, one height** (KAN-576): every button on it is 36px, text
+  buttons `sm` and icon buttons `icon-lg` (the kit's `icon-sm` is 28px);
+  `xs` and `icon-sm` there stood 26 and 28px beside 36px ones. An upload's
+  page draws the same box (`SLIM_BAR`, `[resumeId]/slim-bar.ts`).
+  **One row, never two** (`[resumeId]/bar-fold.tsx`): the idle bar is a
+  container (`@container/bar`), so it folds by its own width, which the
+  side panel and Tailor's columns change, never by the window's. Words go
+  first, least needed first (Format Options, Sections, the save status, Add
+  Experiences, Fit to One Page, Download), each button keeping its glyph,
+  its `aria-label` and a tooltip (`FoldButton`); then zoom, the panels and
+  Add Experiences leave the row for More (⋯) at its end, which lists only
+  what the bar hides (each piece in a `data-fold` box, read on open). Undo,
+  Redo, Fit and Download never leave. The steps are measured widths in
+  `FOLD`: a control added to the row, or a longer word, means measuring
+  them again (sweep the bar's width by script and look for a button past
+  its edge). The phone editor's row folds its words the same way
+  (`PHONE_FOLD`). The bar wrapped to a ragged second row at about 800px
+  until then. **Still open:** the bar with a line open still wraps.
 - **A bullet's one wording button is Original** (`LineActions`), shown
   only while the bullet shows another wording (Tailor's, or one typed on
   this resume): it puts the bank's text back, and Undo takes that back.
@@ -1839,7 +2387,9 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   renamed in place) and the slim toolbar (`SlimBar`). Only the review
   passes `suggestions` (the panel, and with it the margin dots and tints,
   the view switch in the title row, no Experiences picker, and Scout's
-  panel left to the job chat), `original` and `phoneBar`. A change for the review goes behind
+  panel left to the job chat), `original`, `phoneBar` and `phoneBack`
+  (the phone layer covers the step's row, so its header carries the job,
+  the step and Finish, KAN-574). A change for the review goes behind
   one of these props, and a change to the bar or the title row changes
   both pages, so the two never drift into two editors again: until
   KAN-411 the editor's own page kept a full toolbar of its own, and a
@@ -1899,9 +2449,11 @@ are in `docs/auth.md`.
   one left out still works, with one proxy call more. Every session-reading
   path and every path with a proxy redirect (`/company*`,
   `/onboarding/company`, `/dashboard`) must stay matched, and so must
-  `/go-home`, which reads the session. **Still open:** time
-  spent only on marketing pages no longer extends the 7-day idle cookie; the
-  first app request does. It is a convenience, not security: the
+  `/go-home`, which reads the session, and `/api/session`, which the
+  marketing header asks after each load (KAN-581): through it the proxy
+  refreshes the session, so time spent only on marketing pages extends the
+  7-day idle cookie again, and clears a dead one, so the header then reads
+  signed out. It is a convenience, not security: the
   API is reachable without Next and checks every token. Its session step
   no-ops when the Supabase env vars are unset, so a clone with no env file
   boots; the business-side redirect above runs first, either way.
@@ -1913,7 +2465,8 @@ are in `docs/auth.md`.
   page's Log In always opened the form, and Google's account chooser
   (`prompt: "select_account"` in `oauth-actions.ts`) made it look like a
   fresh sign-in every visit. `/signup/choose-account-type` is not redirected:
-  a new OAuth identity is signed in there before it has an account.
+  a new OAuth identity is signed in there before it has an account (the
+  callback skips it while the business side is hidden, above).
 - **Never export a token-returning helper from a `"use server"` file.** Every
   export there is a browser-callable endpoint. Token helpers (`session.ts`)
   and Server-Component-only reads (`job-queries.ts`) live in `server-only`
@@ -1990,7 +2543,29 @@ are in `docs/auth.md`.
   person in that tab. My Profile loads through one server action,
   `getProfilePage` (`lib/profile-page-actions.ts`; KAN-368): its photo,
   profile and answer bank ran in a row on a first visit, and a Save waited
-  behind them. A read added to My Profile joins that action.
+  behind them. A read added to My Profile joins that action. It reads the
+  photo and the profile only since KAN-550; the answer bank went with
+  Application Info, which reads it on the server.
+- **My Profile is what an employer sees; Application Info is what the
+  autofiller reads** (KAN-550, `docs/screens.md`, My Profile and Auto
+  Apply). My Profile holds the identity card (with the location and the
+  school), Contact & Links (with Location), Job Preferences, Top Skills
+  and three link cards (Resumes, Experiences, Application Info). The page
+  is a server page (`profile/page.tsx`) that streams the parts it reads
+  on the server (`profile-facts.tsx`: the school row and the two cards)
+  into the client screen (`profile-screen.tsx`) in their own
+  `<Suspense>`; a server read added to My Profile goes there, not into
+  `getProfilePage`, which the client screen calls. The work
+  authorization and self-identification answers, Application Answers, the
+  Transcript and Writing Samples live in Application Info
+  (`/auto-apply/info`, `(seeker)/auto-apply/info/`), one white card each,
+  under the feature that uses them: on My Profile they made a long form
+  the student scrolled past to find their own name. A new fact that only
+  forms ask goes in Application Info, not on My Profile. **The
+  self-identification card is closed while reading** (`concealed`): it
+  says how many are answered, and Show Answers opens it, since race and
+  disability in plain view showed on any shared screen. Both pages share
+  `profile/field-styles.ts` (`SECTION_CARD`) and `profile/section-action.tsx`.
 - **Resume facts are edited in the experience bank only** (KAN-211). An
   upload writes its reading into the bank itself (ADR 0003); no screen holds
   a second copy of an upload's facts to edit. Two editors of the same facts
@@ -2009,10 +2584,12 @@ are in `docs/auth.md`.
   `(seeker)/resumes/built-resumes.tsx`): uploaded, generated and tailored,
   newest first, each as its card (`components/resume-row.tsx`'s box, star
   and icons: star, Rename, Download, Delete; Delete asks in a popover
-  under the trash, `DeleteResumeConfirm`, KAN-347), in one card that scrolls
+  under the trash, `DeleteResumeConfirm`, KAN-347; below `@xl` of the
+  row, a phone's, Rename, Download and Delete sit in a `⋯` menu,
+  `RowMoreMenu`, and the name keeps half the row, KAN-575), in one card that scrolls
   inside itself and runs down to the foot of the page (`ResumeScroll`'s
   `fill` in `components/resume-list.tsx`, KAN-434), never shorter than
-  five cards under a heading (`FIVE_ROWS`, 351px). Capped at five cards,
+  five cards under a heading (`FIVE_ROWS`, 352px). Capped at five cards,
   it left half a laptop screen empty under it. The cap is measured from
   the start of the page, not the window: a cap that grew as the list's top
   rose would grow the page with it as it scrolled. **It is laid
@@ -2165,18 +2742,40 @@ are in `docs/auth.md`.
 - **Onboarding never asks the self-identification** (KAN-387): its Profile
   step leaves out `SELF_ID_KEYS` (gender, Hispanic or Latino, race, veteran,
   disability). The extension asks them on the first form that does and saves
-  them through the same PATCH; My Profile still edits all nine. A new
+  them through the same PATCH; Application Info's Voluntary
+  Self-Identification card edits all of them (KAN-550). A new
   self-identification question goes into `SELF_ID_KEYS` too, and into the
   extension's copy of the options (`autofiller_extension/src/background/self-id.js`).
-- **Writing samples are edited in My Profile only** (`(seeker)/profile/writing-samples.tsx`,
-  `lib/writing-samples-actions.ts`, KAN-387): the extension's ask after a
-  first written batch links to `/profile#writing-samples`, which opens Add.
-  Keep that anchor. The samples go to the student's own Claude only:
-  never send them to a WorkIt AI route.
-- **The transcript is edited in My Profile only** (`(seeker)/profile/transcript.tsx`,
+- **Onboarding's Add Claude page is optional and before Practice** (KAN-507,
+  `onboarding/applicant/claude-step.tsx`): the install link from
+  `claudeConnectorLink()`, read in `page.tsx` and passed down, and
+  `getClaudeConnected` asked every 3 seconds while the page shows, so the
+  line turns done without a reload. Its main button is Skip for Now,
+  which goes on to the practice batch, until Claude is added; then Next
+  (KAN-572). The wizard's pages are `WIZARD_PAGES` in `steps.ts`, the rail's marks
+  `ONBOARDING_STEPS`; `railStep` maps one to the other (Availability under
+  Profile, Add Claude under Practice), so a new page needs no rail mark.
+  The extension's add-Claude moment (KAN-387) already skips a student whose
+  connector is added: keep that check there, not a flag set here.
+- **Writing samples are edited in Application Info only**
+  (`(seeker)/auto-apply/info/writing-samples.tsx`,
+  `lib/writing-samples-actions.ts`, KAN-387, KAN-550): the extension's ask
+  after a first written batch links to `/auto-apply/info#writing-samples`,
+  which opens Add. Keep that anchor. Versions before KAN-550 link to
+  `/profile#writing-samples`; My Profile forwards that hash with a full
+  load (`window.location.replace`), since a hash never reaches the server
+  and Writing Samples reads it only as it mounts. Keep the forward while
+  those versions are installed. The samples go to the student's own
+  Claude only: never send them to a WorkIt AI route. Remove's Undo adds
+  the text again as a new sample (KAN-562).
+- **The transcript is edited in Application Info only** (`(seeker)/auto-apply/info/transcript.tsx`,
   `lib/transcript-actions.ts`, KAN-369): one file, uploaded, replaced or
   removed there, with the resume's file checks (`resumeFileError`). The
-  autofiller attaches it to a form's transcript upload.
+  autofiller attaches it to a form's transcript upload. **Remove's DELETE
+  waits for its toast to close** (the toast's `onClose`, KAN-562): the page
+  can't upload a deleted file again, so Undo is the DELETE never sent. An
+  upload in that time sends the DELETE first, or it would remove the new
+  file; leaving the page sends it at once.
 - **The uninstall survey is `/uninstalled`** (KAN-471): the page Chrome
   opens when a student removes the extension (`?v=` the version removed).
   Public, outside both shells, and it asks no sign-in: the answer goes to
@@ -2260,6 +2859,13 @@ query, the percent; `node --test`); its read is `getFillHealth` in
 - **Design**: before changing a shell, a page's layout or widths, a colour
   (stage or match), a segmented control or a `ui/` component, read
   `docs/design.md`.
+- **Design principles**: every new or changed app screen is checked against
+  `docs/design.md`'s Design principles (legibility and contrast, hierarchy,
+  component roles and states, tokens, layout, accessibility, dialogs,
+  copy). A break found and not fixed goes in its Still open list. Its
+  Settled choices (16px card gap, the 68ch `--measure-prose` and 48rem
+  `--measure-form`, the wizard footer, no Experiences exception to the
+  icon rule) change only with the user.
 - **Motion**: before adding or changing an animation, transition, hover or
   press state, `<ViewTransition>` or shallow routing, read `docs/motion.md`.
 

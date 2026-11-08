@@ -40,7 +40,7 @@ the extension loads depends on it.
 The form is filled by the **Fill engine**, the TypeScript engine Apply
 (Lisul's autopilot) fills with too: one copy of every job system's filler
 and of the answer rules, so a fix lands in both. It lives in the private
-repo `WorkIt-CSE-416/fill-engine` and sits here as the submodule
+repo `workitjobs/fill-engine` and sits here as the submodule
 `fill-engine/`, **pinned to a tag**. A person moves the pin (`git -C
 autofiller_extension/fill-engine checkout vX.Y.Z`, commit the gitlink), so
 a change to the engine reaches students only when someone here chooses it.
@@ -361,7 +361,7 @@ here:
   autofill-extension.ts`), using Chrome's `externally_connectable` to ask
   batch apply to open (and fill) the queued applications, which jobs its
   tabs show, and to switch to one of them, and onboarding's practice batch
-  and install check (`ping`, KAN-378), and Settings' link to the Workday
+  and install check (`ping`, KAN-378), and Application Info's link to the Workday
   Sign-Up page (`workday/signup-open`, which only opens it: no login
   crosses) — nothing more. The job cards'
   "Autofill ready" badge, `ping`'s first caller, was removed (KAN-278).
@@ -647,7 +647,7 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   saved for the tenant), `workdayLogin` answers `needsSignup` and no password,
   and nothing is typed or pressed. The student sets it on the options page
   (`src/options/`, opened from the panel's Settings and the webapp's
-  Settings > Connected Apps, `workday/signup-open`, which only opens it) or on
+  Application Info, `workday/signup-open`, which only opens it) or on
   the consent card (below), which asks for it inline before any Create
   Account: email prefilled from the profile (`profile/get`), password typed
   by the student, Show, and Workday's rules (12+ characters, upper, lower,
@@ -677,6 +677,33 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   `test/batch-sessions.extension.spec.ts` (an older tenant's login). Tests
   that reach a Workday sign-in save `WORKDAY_SIGNUP` first
   (`saveWorkdaySignup`, test/loaded-extension.ts).
+- **Apply's Employer accounts (KAN-592).** Apply (`apply-agent/`) makes a
+  Workday account per company with a generated password kept only in macOS
+  Keychain. With Use My Apply Accounts on (options page: the optional
+  `nativeMessaging` permission, so students never see a new install
+  warning), the worker asks Apply's accounts host (`com.workit.apply_accounts`,
+  installed by `uv run apply chrome-passwords`; `background/apply-accounts.js`)
+  on each Workday sign-in, before `workdayLogin`: a tenant it knows (`want:
+  "known"`, company and login, never a password) gets `apply: true`. Then
+  `workday.js` switches Create Account to Sign In, types only the email, never
+  types the student's one sign-up password there, and the panel offers Sign
+  In with Your Apply Account (`overlay.offerApplySignIn`, trusted clicks
+  only). Only that press sends `workday/apply-login`; the worker takes the
+  tenant from `sender.url`, never from the message, and answers that tab
+  alone. The content script types the password and calls
+  `navigator.credentials.store(new PasswordCredential(...))`, so Chrome asks
+  to save it in its own password manager (and Google Password Manager by
+  sync): it works from the isolated world, as the tenant's origin
+  (checked in Chromium 2026-11-03: chrome://password-manager-internals logs
+  "CM API save a credential" and the Save password? bubble shows). Chrome
+  saves a new password only on the student's Save press: no API or policy
+  saves it silently. Nothing presses Sign In: Save first, then the student
+  presses it. **The Apply password is never kept here**: not in
+  `chrome.storage`, a log, a report or an API call. The host answers only
+  this extension's ID, one tenant, and only one in Apply's Employer
+  accounts list. Test: `test/apply-accounts.extension.spec.ts`, with a fake
+  host (`test/fake-apply-host.mjs`) in the profile's `NativeMessagingHosts`
+  (`loadExtension`'s `grantPermissions`).
 - **Workday sign-in (KAN-373).** On Workday's Create Account or Sign In
   form (`[data-automation-id=signInFormo]`; Workday's step bar calls it a
   step, which `workdayStep()` ignores), `workday.js` asks
@@ -1336,13 +1363,25 @@ already on the form, and a queued job would open again in the next batch.
 - **The same proof as a batch tab's submit** (submit-proof.js): the
   background's `markAnySubmitted` marks a batch tab's application
   (`markSubmitted`) or a tracked tab's job (`markTracked`), and nothing for
-  any other tab, so the job system's answer to a submit in a tab nobody
-  tracks marks nothing. Greenhouse's answer proves it alone; elsewhere the
+  any other tab. Greenhouse's answer proves it alone; elsewhere the
   page's hint is needed too, as in a batch. **Every fill asks to watch**
-  (`batch/watch`); the background watches a batch tab or a tracked one at
-  once and keeps any other tab's key (`unwatched`) until Track on WorkIt
-  starts its watch, so a press after the fill is caught. `batch/submitted`
-  answers `untracked` for a tab nobody tracks, and the page says nothing.
+  (`batch/watch`), and the background watches it at once.
+- **A filled tab is tracked too** (KAN-589): a fill on a tab that is not
+  a batch's keeps it as `filled` (`noteFilled`: the form's link, no job,
+  nothing written at WorkIt), so the student's proven submit there puts
+  the job on their Applications Tracker as applied, listed or not.
+  `markTracked` finds its job first (`jobOfFilled`): the listed job by
+  link, else `POST /jobs/added-by-link` with `track_only` and the company
+  and title the Fill engine reads (an added job, ADR 0008, as Apply's
+  `record_applied`), then `POST /jobs/{id}/applied`, unless the stage is
+  already applied or later. Before, a tab nobody tracked marked nothing,
+  and Track on WorkIt shows only for a listed job, so a submit on a job
+  WorkIt doesn't list (Simbe Robotics' Lever form, 2026-11-03) never
+  reached the tracker. A filled tab still offers Track on WorkIt for a
+  listed job (`trackState` reads only a tab with a job as tracked). A tab
+  the extension never filled is never marked: `batch/submitted` answers
+  `untracked`, and the page says nothing. A page that names no company or
+  title can't be added: the mark fails with a warning in the worker's log.
 - **A tracked tab is one job**: kept in chrome.storage.session
   (`tracked_tabs`) with the job's identity (the engine's jobOf, as the job
   card matches a page to a posting); a tab that moves to another job's page
@@ -1356,8 +1395,10 @@ already on the form, and a queued job would open again in the next batch.
   on the website's Applications page).
 
 Tests: `test/track.extension.spec.ts` (Ashby's Cohere form: Track, then the
-student's submit marks it applied; an untracked form's submit marks
-nothing; a job WorkIt doesn't list offers nothing).
+student's submit marks it applied; a filled form's submit marks it applied
+untracked; Lever's Rhombus form, a job WorkIt doesn't list: the submit adds
+it by link and marks it applied; a form never filled marks nothing; a job
+WorkIt doesn't list offers no Track).
 
 ## The practice batch (KAN-378): onboarding's batch on WorkIt's own forms
 
@@ -1390,24 +1431,40 @@ fill and groups as a real one, and `practice/status` says where each is.
   `host_permissions`) and `submitPractice` marks the job submitted and
   takes its tab out of the batch and its group. Real submit detection is
   KAN-374's.
+- **A practice form's written question stays the student's** (KAN-507). A
+  practice job has no application at WorkIt, so no Claude can write it:
+  `batch/questions` on a practice tab (`inPractice`) answers
+  `{ practice: true, claude }` from the connector check instead of asking
+  the API, and the row says either that their Claude writes such answers
+  on a real application or to go back to onboarding's Add Claude page,
+  which comes right before Practice.
 - **`ping` also answers `pinned`** (`chrome.action.getUserSettings().isOnToolbar`,
   null where Chrome can't say), for onboarding's install step.
 - **Tests** (`test/practice.extension.spec.ts`): the loaded extension fills
   both practice forms, served from the webapp's own module, into Ready and
   Needs you; the student's Submit on each reaches `/thanks` with no data,
-  and nothing reaches any host but WorkIt's site and API.
+  and nothing reaches any host but WorkIt's site and API. Lumen's row says
+  how to add Claude, or, with the connector added, that Claude writes such
+  answers on real applications.
 
-## Install, update and uninstall (KAN-471)
+## Install, update and uninstall (KAN-471, KAN-495)
 
 `install.js` handles `chrome.runtime.onInstalled`; `stored-data.js` holds
 what storage looks like across versions.
 
-- **Install opens onboarding's extension step**: a tab on
-  `webappOrigin()`'s `/onboarding/applicant?step=extension`. The webapp
-  opens a finished student's onboarding on that step, then the practice
-  batch; a signed-out student signs in first and comes back to it; one
-  who never finished onboarding starts at its first step. No page of its
-  own here.
+- **Install opens the extension setup page**: a tab on `webappOrigin()`'s
+  `/extension-setup` (KAN-495), a standalone page outside both the
+  `(seeker)` and `(landing)` groups — no sign-in required, since a
+  just-installed student may not have one yet. It explains how to use
+  the extension. The popup's "Set Up WorkIt" button opens the same page
+  on demand. **That page's own "I Already Have One" button is what keeps
+  a finished student's route to onboarding's Practice step alive**
+  (`frontend/CLAUDE.md`'s Architecture section, `EXTENSION_STEP_PATH`):
+  this `install.js` no longer opens `/onboarding/applicant?step=extension`
+  directly the way it did before KAN-495, so if `/extension-setup` ever
+  sends a signed-in visitor to plain `/login` instead of that path, a
+  student who already finished onboarding lands on `/home` with no way
+  back to Practice (found in review, KAN-495).
 - **Storage has a schema version** (`workit_storage_version`). Every
   install and update runs `migrateStorage`: each migration after the
   stored version, in order, once. **A change to what a stored key holds
@@ -1438,7 +1495,7 @@ asked on the form that first needs it, in that tab's panel (`overlay.js`'s
 `moments.js`'s `claimMoment` keeps which were shown in `chrome.storage.local`
 (`workit_moments`, by applicant id), one claim at a time, so five tabs
 finishing together show it once. A student who passes it by answers it in
-My Profile instead.
+the webapp's Application Info (`/auto-apply/info`, KAN-550) instead.
 
 - **The self-identification, on the first form that asks it.** Onboarding
   never asks gender, Hispanic or Latino, race, veteran or disability
@@ -1472,7 +1529,9 @@ My Profile instead.
   batch); once its last one shows an answer it says `batch/written`, and
   whether Claude wrote any. When no batch tab still waits and Claude wrote
   for this batch, the tab that finished last asks for samples (Add Samples
-  opens the webapp's `/profile#writing-samples`; Skip closes it), once, and
+  opens the webapp's `/auto-apply/info#writing-samples`, Application Info's
+  Writing Samples, since KAN-550; `/profile#writing-samples`, which versions
+  before it open, forwards there; Skip closes it), once, and
   never for a student who has some (`GET .../writing-samples`). A batch the
   student wrote all by hand doesn't ask: the samples are only for their
   Claude's style card.
@@ -1703,8 +1762,8 @@ read (yes/no as true/false, "declined" as "decline", the rest in
 `frontend/src/lib/autofill-answers.ts`'s own words). The engine picks the
 form's option that says the same thing.
 
-The same bank holds the **Application answers** (KAN-369, My Profile's
-section of that name): `engineProfile`'s `applicationFacts` gives them as
+The same bank holds the **Application answers** (KAN-369, Application
+Info's section of that name): `engineProfile`'s `applicationFacts` gives them as
 `logistics.*` (on-site, 40 h, start and end dates, terms, relocation, ranked
 `location_preferences` one place an area (with its city alone), `referrals` from `referred_at`),
 `identity.home_address` (line 1 and zip over the location's city and state),
@@ -1819,7 +1878,7 @@ real file input is directly targetable underneath both.
 ## Attaching the student's transcript (KAN-369)
 
 Some forms ask for an unofficial transcript (Verkada requires one). The
-student keeps one on My Profile (`backend/app/routers/documents.py`).
+student keeps one in Application Info (`backend/app/routers/documents.py`).
 `resolveTranscriptFile` fetches it with the resume, at profile-fetch time:
 `GET /applicants/{id}/documents`, then `GET .../documents/transcript/bytes`
 (from this API's own origin, as the resume's `.../bytes` and for the same
@@ -1868,9 +1927,16 @@ essay-answer route (KAN-164) is gone.
   is tracked (its submit marks the job applied, as Track on WorkIt's). The
   tab then runs the batch tab's `awaitClaude`: its rows wait for the
   student's Claude with the Written Answers link, and the `batch/*`
-  messages accept the tab (`background.js`'s `applicationJob`). A job
-  WorkIt doesn't list, or one already applied or skipped, can't have one:
-  its rows say why and are the student's.
+  messages accept the tab (`background.js`'s `applicationJob`). **A job
+  WorkIt doesn't list is added from the page** (KAN-515, `track.js`'s
+  `addFromPage`): its company and title as the Fill engine reads them from
+  the job system's API (`jobNamesOf`, with `plan-reads.js`'s `fetchText`,
+  since Ashby's is a POST), sent with the form's link to `POST
+  /jobs/added-by-link`, which keeps the job (on no Jobs feed: it is the
+  student's alone) and its application at needs_you. A page whose names
+  can't be read, a form WorkIt refuses (a job system turned off, past the
+  day's cap of added jobs), or an application already applied or skipped
+  can't have one: its rows say why and are the student's.
 - **AI traps and bans stay the student's.** A form or posting that bans
   AI-written answers, or a posting that speaks to AI agents, makes the Plan
   hand those questions off instead: they never reach the student's Claude,
@@ -2027,7 +2093,7 @@ as from the Auto Apply page); with an empty queue, **Find Jobs** (the
 Jobs page). A queue that can't be read shows nothing rather than "empty".
 Then Open WorkIt, as a quiet link. **No Workday Sign-Up** (KAN-424): on
 every page the popup's link read as "sign in to Workday"; it lives in the
-panel's Settings and the website's Settings > Connected Apps. The three answer
+panel's Settings and the website's Application Info. The three answer
 only the popup's own page (`fromPopup`: the sender's URL is the
 extension's popup.html; a content script's is its job page), so a page's
 script can't open a batch or switch tabs. Tests:
@@ -2514,7 +2580,7 @@ its messages. The gear shows it in place of the tabs; Back returns.
 
 - **Claude**: "Your Claude is connected." with **Disconnect** (`DELETE
   /applicants/{id}/connector`, which revokes the sign-in at once, as the
-  webapp's Settings > Connected Apps does), or "Your Claude isn't
+  webapp's Settings > Integrations does), or "Your Claude isn't
   connected." with **Add to Claude** (a new tab on the webapp's
   `/connect/claude/add`, which goes on to Claude's Add Custom Connector
   dialog). Signed out: "Sign in to WorkIt to connect your Claude." The

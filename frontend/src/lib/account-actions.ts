@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { apiFetch, extractErrorMessage } from "@/lib/auth";
 import type { OAuthProvider } from "@/lib/oauth-actions";
 import { PASSWORD_MIN_LENGTH } from "@/lib/password-rules";
+import { startGoogleFlow } from "@/lib/google-oauth-start";
 import { requestOrigin } from "@/lib/request-origin";
 import { getAccessToken, getSignInProviders } from "@/lib/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -16,7 +17,13 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
  * which goes through the API so the account's files and rows go too.
  */
 
-export type PasswordState = { error: string | null; changed: boolean };
+/** `field` names the input an error is about, so the form shows it there
+ *  and moves the focus to it; an error with none is about the whole form. */
+export type PasswordState = {
+  error: string | null;
+  field?: "currentPassword" | "newPassword" | "confirmPassword";
+  changed: boolean;
+};
 export type EmailState = { error: string | null; sentTo: string | null };
 
 /** Where Supabase sends the browser back after a link or a confirm email:
@@ -46,10 +53,14 @@ export async function changePassword(
 ): Promise<PasswordState> {
   const next = text(formData, "newPassword");
   if (next.length < PASSWORD_MIN_LENGTH) {
-    return { error: `Use at least ${PASSWORD_MIN_LENGTH} characters.`, changed: false };
+    return {
+      error: `Use at least ${PASSWORD_MIN_LENGTH} characters.`,
+      field: "newPassword",
+      changed: false,
+    };
   }
   if (next !== text(formData, "confirmPassword")) {
-    return { error: "The new passwords don't match.", changed: false };
+    return { error: "The new passwords don't match.", field: "confirmPassword", changed: false };
   }
 
   const supabase = await createSupabaseServerClient();
@@ -66,6 +77,7 @@ export async function changePassword(
       const wrong = signIn.error.code === "invalid_credentials";
       return {
         error: wrong ? "Your current password is wrong." : signIn.error.message,
+        field: wrong ? "currentPassword" : undefined,
         changed: false,
       };
     }
@@ -74,7 +86,11 @@ export async function changePassword(
   const { error } = await supabase.auth.updateUser({ password: next });
   if (error) {
     const same = error.code === "same_password";
-    return { error: same ? "Choose a password you don't use now." : error.message, changed: false };
+    return {
+      error: same ? "Choose a password you don't use now." : error.message,
+      field: same ? "newPassword" : undefined,
+      changed: false,
+    };
   }
   return { error: null, changed: true };
 }
@@ -117,6 +133,13 @@ export async function changeEmail(_prev: EmailState, formData: FormData): Promis
  * without it Supabase refuses, and this says so.
  */
 export async function connectProvider(provider: OAuthProvider): Promise<{ error: string }> {
+  // Google links through WorkIt's own callback, as it signs in
+  // (lib/google-oauth.ts).
+  if (provider === "google") {
+    const googleUrl = await startGoogleFlow("link");
+    if (googleUrl) redirect(googleUrl);
+  }
+
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase.auth.linkIdentity({
     provider,

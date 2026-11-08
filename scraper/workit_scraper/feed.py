@@ -14,6 +14,7 @@ backend from knowing they exist.
 from __future__ import annotations
 
 import json
+from collections import Counter
 from pathlib import Path
 
 from workit_scraper.logos import company_domain
@@ -26,7 +27,24 @@ from workit_scraper.store import Store
 WORK_STYLE = {"Remote": "remote", "Hybrid": "hybrid", "On site": "onsite"}
 
 
-def row(role: Role, logos: dict[str, str | None]) -> dict[str, object]:
+Sites = dict[str, str | None]
+
+
+def domain(
+    key: str, logos: Sites, websites: Sites | None = None, addresses: Sites | None = None
+) -> str | None:
+    """A board's `company_domain` from what the store holds about it."""
+    return company_domain(
+        key, logos.get(key), (websites or {}).get(key), (addresses or {}).get(key)
+    )
+
+
+def row(
+    role: Role,
+    logos: Sites,
+    websites: Sites | None = None,
+    addresses: Sites | None = None,
+) -> dict[str, object]:
     logo = logos.get(role.board_key)
     return {
         # pick() keys roles on their apply URL, so it is unique per feed.
@@ -43,7 +61,7 @@ def row(role: Role, logos: dict[str, str | None]) -> dict[str, object]:
         "logo_url": logo,
         # The employer's own website, which the Jobs page draws the logo from
         # (KAN-442); `logo_url` stays as the page's fallback.
-        "company_domain": company_domain(role.board_key, logo),
+        "company_domain": domain(role.board_key, logos, websites, addresses),
         "description": role.description,
         "job_type": "internship" if Tag.INTERN in role.tags else role.facts.job_type,
         **salary(role),
@@ -72,9 +90,33 @@ def salary(role: Role) -> dict[str, object]:
     }
 
 
-def write(roles: list[Role], logos: dict[str, str | None], path: Path) -> None:
+def without_domain(
+    roles: list[Role], logos: Sites, websites: Sites | None = None, addresses: Sites | None = None
+) -> list[dict[str, object]]:
+    """The company job boards whose roles go out with no `company_domain`, most
+    roles first: their cards show an old logo or initials until a person adds the
+    board to `checked_websites.csv` (docs/logos.md, Checked websites). `tried`
+    says the scraper had a domain from the board's address whose home page did not
+    prove it, so the person starts from there."""
+    missing = Counter(
+        role.board_key for role in roles if not domain(role.board_key, logos, websites, addresses)
+    )
+    company = {role.board_key: role.company for role in roles}
+    return [
+        {"board": key, "company": company[key], "roles": count, "tried": key in (addresses or {})}
+        for key, count in sorted(missing.items(), key=lambda item: (-item[1], item[0]))
+    ]
+
+
+def write(
+    roles: list[Role],
+    logos: Sites,
+    path: Path,
+    websites: Sites | None = None,
+    addresses: Sites | None = None,
+) -> None:
     """Newest first, in `pick()`'s order: the API serves a prefix of this list."""
-    rows = [row(role, logos) for role in roles]
+    rows = [row(role, logos, websites, addresses) for role in roles]
     path.write_text(json.dumps(rows, indent=1) + "\n", encoding="utf-8")
 
 

@@ -15,6 +15,8 @@ import {
 import { JOB_POSTINGS } from "@/components/job-detail/data";
 import { JobDetailHeader } from "@/components/job-detail/job-detail-header";
 import { JobPostingCard, NOT_LISTED } from "@/components/job-posting-card";
+import { MatchBadge } from "@/components/match-badge";
+import { TailoredChip } from "@/components/tailored-chip";
 import { SaveButton } from "@/components/save-button";
 import { Skyline, SKYLINE_SKY } from "@/components/skyline";
 import { StatTile } from "@/components/stat-tile";
@@ -85,10 +87,10 @@ export default function DisplayPage() {
       </Group>
 
       <Group
-        title="Dashboards"
-        note="Both Dashboards open on plain tiles and one violet hero, so the numbers and the next step are the first places to look."
+        title="Overview"
+        note="The company Overview opens on plain tiles and one violet hero, so the numbers and the next step are the first places to look. The seeker's Home draws its own tiles."
       >
-        <Row name="<StatTile plain>" role="Both Dashboards' headline row">
+        <Row name="<StatTile plain>" role="The company Overview's headline row">
           <div className="grid w-full max-w-md grid-cols-2 gap-6">
             <StatTile
               plain
@@ -110,7 +112,7 @@ export default function DisplayPage() {
             />
           </div>
         </Row>
-        <Row name="<HeroArcs>" role="The corner arcs on both Dashboards' violet hero">
+        <Row name="<HeroArcs>" role="The corner arcs on the company Overview's violet hero">
           <div className="from-brand to-brand-active text-on-brand rounded-shell relative h-28 w-full max-w-sm overflow-hidden bg-linear-to-br p-5">
             <HeroArcs />
             <p className="text-caption relative text-white/85 uppercase">Next Up</p>
@@ -118,7 +120,7 @@ export default function DisplayPage() {
         </Row>
         <Row
           name="<Skyline>"
-          role="The city behind the auth screens' card; SkylineBackdrop fixes it there under this sky"
+          role="The city behind AuthCard, the auth screens' one card; SkylineBackdrop fixes it there under this sky"
         >
           <div
             className="rounded-shell border-border-subtle relative h-32 w-full overflow-hidden border"
@@ -195,6 +197,7 @@ export default function DisplayPage() {
             <div className="w-full">
               <JobDetailHeader
                 posting={SAMPLE_POSTING}
+                titleAs="h3"
                 tile={
                   <Avatar
                     name={SAMPLE_POSTING.companyName}
@@ -225,11 +228,11 @@ export default function DisplayPage() {
 
       <Group
         title="Toasts"
-        note="A short message in the window's bottom right corner. It rises in, stays 5 seconds (paused while the pointer or focus is on it), and drops away; its cross closes it at once."
+        note="A short message on the inverted surface (dark on the light app) in the window's bottom right corner. It rises in, stays 5 seconds, 8 with an action (paused while the pointer or focus is on it), and drops away; its cross closes it at once."
       >
         <Row
           name="useToast().show()"
-          role="components/ui/toast.tsx: a message, and an optional action such as Undo"
+          role="components/ui/toast.tsx: a message, and an optional action such as Undo, or two side by side (actions)"
         >
           <ToastSpecimen />
         </Row>
@@ -274,7 +277,25 @@ export default function DisplayPage() {
           <Fact Icon={CalendarIcon}>Posted 3 days ago</Fact>
           <Fact Icon={AwardIcon}>92% match</Fact>
         </Row>
-        <Row name="<IconButton>" role="Bare glyph, bordered, and brand disc">
+        <Row
+          name="<MatchBadge>"
+          role="A match score as a pill in a table row, coloured by matchColor(): each band"
+        >
+          <MatchBadge score={94} />
+          <MatchBadge score={84} />
+          <MatchBadge score={70} />
+          <MatchBadge score={42} />
+        </Row>
+        <Row
+          name="<TailoredChip>"
+          role="The student has a resume tailored to this job: a feed card, a tracker row (KAN-217)"
+        >
+          <TailoredChip />
+        </Row>
+        <Row
+          name="<IconButton>"
+          role="Bare glyph, bordered, brand disc, and soon (not built yet: faded, says so in its tooltip)"
+        >
           <IconButton label="Notifications">
             <BellIcon className="size-4" />
           </IconButton>
@@ -283,6 +304,9 @@ export default function DisplayPage() {
           </IconButton>
           <IconButton label="Edit avatar" variant="brand">
             <GearIcon className="size-3.5" />
+          </IconButton>
+          <IconButton label="Save job" variant="outline" className="size-9" soon>
+            <BookmarkIcon className="size-4" />
           </IconButton>
         </Row>
         <Row name="<TextLink>" role="Brand link inside running text">
@@ -305,7 +329,10 @@ export default function DisplayPage() {
             </SectionHeading>
           </div>
         </Row>
-        <Row name="<Card>" role="Five paddings, three status accents, optional selection">
+        <Row
+          name="<Card>"
+          role="Five paddings, three status accents, selection, Home's tile tone, a link form"
+        >
           <div className="flex flex-wrap items-start gap-3">
             <Card padding="sm" className="w-40">
               <p className="text-note text-ink-meta">Default</p>
@@ -318,6 +345,12 @@ export default function DisplayPage() {
             </Card>
             <Card padding="sm" selected className="w-40">
               <p className="text-note text-ink-meta">selected</p>
+            </Card>
+            <Card padding="sm" tone="tile" className="w-40">
+              <p className="text-note text-ink-meta">tone=&quot;tile&quot;</p>
+            </Card>
+            <Card padding="sm" href="/design-kit" className="w-40">
+              <p className="text-note text-ink-meta">href</p>
             </Card>
           </div>
         </Row>

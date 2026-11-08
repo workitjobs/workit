@@ -1,6 +1,6 @@
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { Card } from "@/components/ui/card";
-import { SectionHeading } from "@/components/ui/section-heading";
+import { SectionHeadingSkeleton } from "@/components/ui/section-heading";
 import { cn } from "@/lib/cn";
 
 import { BackLink } from "../../back-link";
@@ -32,7 +32,7 @@ export default function ApplicationLoading() {
       <JobActionBar
         back={
           <BackLink
-            parent={{ href: "/applications", name: "Applications Tracker" }}
+            parent={{ href: "/applications", name: "Tracker" }}
             named
             className="group/back"
           />
@@ -57,17 +57,17 @@ export default function ApplicationLoading() {
                 <Skeleton className="h-16" />
               </div>
             </div>
-            <div className="bg-well rounded-card flex shrink-0 flex-col items-center gap-2 p-4 @xl:w-52">
-              <Skeleton className="bg-panel size-16 rounded-full" />
-              <Skeleton className="bg-panel h-3 w-24" />
+            <div className="bg-panel border-border-subtle rounded-card flex shrink-0 flex-col items-center gap-2 border p-4 @xl:w-52">
+              <Skeleton className="size-16 rounded-full" />
+              <Skeleton className="h-3 w-24" />
             </div>
           </div>
         </Card>
 
-        <section className="mt-5">
-          <SectionHeading>What You Sent</SectionHeading>
+        <div className="mt-5">
+          <SectionHeadingSkeleton />
           <Skeleton aria-hidden="true" className="mt-3 h-12 w-full" />
-        </section>
+        </div>
       </div>
     </div>
   );

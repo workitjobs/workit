@@ -75,9 +75,20 @@ class Settings(BaseSettings):
     turnstile_secret_key: str | None = None
 
     gemini_api_key: str | None = None
-    embedding_provider: Literal["gemini", "ollama"] = "ollama"
+    # Only the team computer makes vectors (KAN-726,
+    # docs/scraper_gh_action/plan.md, Decision 3): its bank job and its
+    # scheduled import set "ollama". Everywhere else, the deployed API, job
+    # alerts and laptops, the default "none" embeds nothing and calls
+    # nothing, so no other machine can write another model's vectors into
+    # the shared columns.
+    embedding_provider: Literal["gemini", "ollama", "none"] = "none"
     ollama_embedding_url: str = "http://localhost:11434"
-    ollama_embedding_model: str = Field(default="nomic-embed-text:v1.5", min_length=1)
+    ollama_embedding_model: str = Field(default="qwen3-embedding:4b", min_length=1)
+    # Put before a bank's text, never a posting's: Qwen3 embeds the asking
+    # side (the bank) better with a one-line task. Empty sends none.
+    ollama_embedding_query_prefix: str = (
+        "Instruct: Given a candidate's experience and skills, retrieve job postings that fit them\nQuery:"
+    )
     embedding_timeout_seconds: float = Field(default=120, gt=0)
 
     # AI usage limits (app/services/usage.py). A use counts only when the
@@ -131,6 +142,8 @@ class Settings(BaseSettings):
     job_system_request_daily_cap: int = 50
     # Fill events (KAN-476), one per fill: five batch tabs filling all day stay far below it.
     fill_event_daily_cap: int = 2000
+    # Jobs a student added from a form WorkIt doesn't list (KAN-515): one per form they ask their Claude to write for.
+    added_job_daily_cap: int = 50
 
     # The oldest extension version the API still serves (KAN-466): a request whose
     # X-WorkIt-Extension header names an older one gets 426, and the panel asks the

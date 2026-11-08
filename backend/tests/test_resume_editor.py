@@ -191,7 +191,7 @@ async def test_render_says_how_many_lines_run_past_one_page(student):
     assert body["lines_over"] > 0
 
 
-async def test_fit_to_one_page_trims_every_entry_before_gutting_one_and_undo_brings_it_all_back(student):
+async def test_fit_to_one_page_trims_bullets_section_by_section_and_undo_brings_it_all_back(student):
     _tectonic_or_skip()
     client, me = student
     await _fill_bank(client, me)
@@ -204,23 +204,28 @@ async def test_fit_to_one_page_trims_every_entry_before_gutting_one_and_undo_bri
     body = res.json()
     assert body["render"]["page_count"] == 1
     hidden = body["hidden"]
-    # Coursework goes first, then each entry's last bullets; every entry
-    # keeps its first bullets, and more of them the more useful it is.
-    assert body["undo"]["entries"][0]["show_coursework"] is True
+    # With no job posting, each entry loses its last bullets first, and a
+    # section goes down to two bullets an entry before the next loses any
+    # (docs/cut_to_one_page.md): Leadership, then Projects, then the bottom
+    # job, then the top one.
     kept = {}
     for title, ids in made.items():
         gone = [b for b in ids if b in hidden]
         assert gone == ids[len(ids) - len(gone):]
         kept[title] = len(ids) - len(gone)
-    assert kept["Newer Job"] >= kept["Older Job"] >= kept["Big Project"] >= kept["Club Lead"] >= 1
-    assert kept["Newer Job"] >= 3
+    order = ["Club Lead", "Big Project", "Older Job", "Newer Job"]
+    assert kept["Club Lead"] < 9
+    for i, title in enumerate(order):
+        if kept[title] < 9:
+            assert all(kept[before] <= 2 for before in order[:i]), kept
+    # Coursework no longer goes first
+    assert "Relevant Coursework: Data Structures, Algorithms" in await _lines(client, me, resume_id)
     shown = {c["bullet_id"]: c["shown"] for c in (await client.get(f"{me}/built-resumes/{resume_id}/choices")).json()["bullets"]}
     assert all(shown[b] is False for b in hidden)
 
     # Undo is the editor's PATCH with the response's `undo` body
     await client.patch(f"{me}/built-resumes/{resume_id}/choices", json=body["undo"])
     assert (await client.get(f"{me}/built-resumes/{resume_id}/render")).json()["page_count"] == 2
-    assert "Relevant Coursework: Data Structures, Algorithms" in await _lines(client, me, resume_id)
 
 
 async def test_fit_on_a_one_page_resume_hides_nothing(student):
@@ -538,6 +543,44 @@ async def test_a_save_never_compiles(student, monkeypatch):
     assert _entry(await _bank(client, me), "Software Intern")["location"] == "Boston, MA"
     res = await _render_line(client, me, resume_id, intern, "location", "Boston, MA")
     assert res.status_code == 503
+
+
+async def test_the_editors_fit_plans_from_its_own_pdf_and_renders_the_cuts_as_an_edit(student):
+    # KAN-584: the plan compiles nothing; the editor renders each cycle's
+    # `hide` as an edit, saves it, and asks again while the page is over one
+    _tectonic_or_skip()
+    client, me = student
+    await _fill_bank(client, me)
+    await _long_bank(client, me)
+    resume_id = await _generate(client, me)
+    # Every cycle plans from the copy and PDF the fit began with; each render
+    # goes from the copy as the edits before it left it
+    start = source = await _copy(client, me, resume_id)
+    first = (await client.get(f"{me}/built-resumes/{resume_id}/render")).json()
+    assert first["page_count"] == 2 and first["shrinks"] and first["area"]
+    now, taken, hidden = None, 0, 0
+    while True:
+        res = await client.post(f"{me}/built-resumes/{resume_id}/fit/plan",
+                                json={"source": start, "first": first, "now": now, "taken": taken})
+        assert res.status_code == 200, res.text
+        plan = res.json()
+        # A change carries only what it sets: a null variant_id would switch
+        # a bullet to the bank's wording
+        assert all(set(c) == {"bullet_id", "shown"} for c in plan["hide"]["bullets"])
+        if not any(plan["hide"].values()):
+            break
+        taken = plan["taken"]
+        hidden += sum(len(v) for v in plan["hide"].values())
+        rendered = await _render_changes(client, me, resume_id, plan["hide"], source)
+        assert rendered.status_code == 200, rendered.text
+        res = await client.patch(f"{me}/built-resumes/{resume_id}/choices", json=plan["hide"])
+        assert res.status_code == 200, res.text
+        source = {**source, "choices": rendered.json()["choices"]}
+        now = rendered.json()["render"]
+        if now["page_count"] == 1:
+            break
+    assert hidden and now["page_count"] == 1
+    assert (await client.get(f"{me}/built-resumes/{resume_id}/render")).json()["page_count"] == 1
 
 
 # The editor's copy (`source`, KAN-391): the PDF compiles from it, no read first

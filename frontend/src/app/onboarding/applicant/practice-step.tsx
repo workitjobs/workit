@@ -68,7 +68,7 @@ export function PracticeStep({ states }: { states: Record<string, PracticeState>
       <div className="flex flex-col items-start gap-4">
         <span
           aria-hidden
-          className="bg-positive text-panel flex size-12 items-center justify-center rounded-full"
+          className="bg-positive-ink text-panel flex size-12 items-center justify-center rounded-full"
         >
           <CheckIcon className="size-6" />
         </span>
@@ -103,7 +103,7 @@ export function PracticeStep({ states }: { states: Record<string, PracticeState>
           return (
             <li
               key={job.id}
-              className="border-border bg-panel rounded-card flex items-center gap-4 border p-4"
+              className="border-border-control bg-panel rounded-card flex items-center gap-4 border p-4"
             >
               <div className="min-w-0 flex-1">
                 <p className="text-subtitle text-ink truncate">{job.title}</p>

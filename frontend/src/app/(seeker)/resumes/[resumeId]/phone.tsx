@@ -3,18 +3,29 @@
 import {
   ArrowLeftIcon,
   ArrowUUpLeftIcon,
+  ArrowUUpRightIcon,
   CaretLeftIcon,
   CaretRightIcon,
   HandPointingIcon,
   MagnifyingGlassMinusIcon,
   MagnifyingGlassPlusIcon,
+  ScissorsIcon,
   SlidersHorizontalIcon,
   XIcon,
 } from "@phosphor-icons/react/ssr";
 import Link from "next/link";
-import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type MouseEvent,
+  type ReactNode,
+} from "react";
+import { createPortal } from "react-dom";
 
 import { SparkleIcon } from "@/components/icons";
+import { ASK_SCOUT_LIVE } from "@/components/scout/scout-buttons";
 import { Button } from "@/components/ui/button";
 import type { Bank } from "@/lib/bank-actions";
 import type {
@@ -30,10 +41,12 @@ import { DownloadMenu, DownloadNotes, type ResumeDownload } from "../download-me
 import { useBack } from "../../back-link";
 import { EDITOR_PARENT } from "./back";
 import { FitNotice } from "./fit-notice";
-import { lineName, shortPageLabel, type Line } from "./model";
+import { cutLeft as anyCutLeft, lineName, shortPageLabel, type FitCuts, type Line } from "./model";
+import type { HistoryTools } from "./editor";
 import { FormatOptions } from "./page-format";
+import { FoldButton, PHONE_FOLD } from "./bar-fold";
 import { boxKey, kindLabel } from "./pdf-pages";
-import { ExperiencesPicker } from "./experiences-picker";
+import { CutPicker, ExperiencesPicker } from "./experiences-picker";
 
 /**
  * The phone editor (KAN-219, the KAN-201 prototype's variant A). The page
@@ -47,6 +60,12 @@ import { ExperiencesPicker } from "./experiences-picker";
  * sheet stays above the keyboard. The desktop editor owns the state and the
  * saves; this file only lays them out. "Ask Scout", in the bottom bar and
  * in a line's sheet, opens the assistant (KAN-221) in its own sheet.
+ *
+ * The layer renders in a portal to `<body>` (KAN-574): the seeker shell's
+ * `@container/main` is a containing block, so `fixed` inside it was fixed
+ * to the page area, not the window. The layer sat 64px low under the
+ * shell's bar, and its bottom bar (Add Experiences, Cut From Resume,
+ * Suggestions) ended past the screen's foot.
  */
 
 /** Below this width the editor takes the phone layout. */
@@ -107,11 +126,12 @@ export function PhoneEditor({
   box,
   text,
   saving,
+  fitting,
   elapsed,
   error,
-  fitUndo,
   download,
   bar,
+  back: backTo,
   page,
   onPage,
   suggestions,
@@ -122,7 +142,8 @@ export function PhoneEditor({
   onFlush,
   onApply,
   onFit,
-  onUndoFit,
+  history,
+  cuts,
 }: {
   /** Null until the first render lands (./editor.tsx streams it in). */
   rendered: RenderedPdf | null;
@@ -140,17 +161,21 @@ export function PhoneEditor({
   /** The selected line's typed text, or null when it is not typed in place. */
   text: string | null;
   saving: boolean;
+  /** A Fit to One Page is under way, as on the desktop bar. */
+  fitting: boolean;
   elapsed: number | null;
   error: string | null;
-  fitUndo: ChoicesUpdate | null;
   /** The page's settings, in the Format sheet (./page-format.tsx). */
   page: PageSettings;
   onPage: (next: PageSettings) => void;
   /** The resume's downloads, the same as the desktop sticky bar's. */
   download: ResumeDownload;
-  /** The page's own row under the buttons (Tailor's note when it has no
-   *  suggestions to show). */
+  /** The page's own row under the buttons: on Tailor's review the job,
+   *  the step and Finish, which the layer covers on the page. */
   bar?: ReactNode;
+  /** Where the arrow goes, when not to the page that opened the editor
+   *  (`useBack`): Tailor's review goes to the step before. */
+  back?: { href: string; label: string; onClick?: (event: MouseEvent) => void };
   /** Tailor's Suggestions panel, in a sheet opened from the bottom bar. */
   suggestions?: {
     count: number;
@@ -167,13 +192,19 @@ export function PhoneEditor({
   onFlush: () => void;
   onApply: (changes: ChoicesUpdate) => void;
   onFit: () => void;
-  onUndoFit: () => void;
+  /** Undo and Redo, the desktop bar's: a Fit to One Page is one step. */
+  history: HistoryTools;
+  /** What Fit to One Page cut, for Cut From Resume. */
+  cuts: FitCuts;
 }) {
-  const back = useBack(EDITOR_PARENT);
+  const opener = useBack(EDITOR_PARENT);
+  const back = backTo ?? opener;
   const snapshot = useSyncExternalStore(subscribeViewport, viewportSnapshot, () => "0|0");
   const [height, top] = snapshot.split("|").map(Number);
   const [zoom, setZoom] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [cutOpen, setCutOpen] = useState(false);
+  const cutLeft = anyCutLeft(bank, choices, cuts);
   const [formatOpen, setFormatOpen] = useState(false);
   const [asking, setAsking] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
@@ -189,7 +220,9 @@ export function PhoneEditor({
       ?.scrollIntoView({ block: "center", inline: "center", behavior: "smooth" });
   }, [selected, zoom]);
 
-  return (
+  // Mounted only after hydration (`usePhone` is false on the server), so
+  // `document` is there.
+  return createPortal(
     <div
       className="bg-app fixed inset-x-0 top-0 z-40 flex flex-col overflow-hidden"
       style={{ height: height || "100dvh", transform: `translateY(${top}px)` }}
@@ -216,6 +249,7 @@ export function PhoneEditor({
                 fitLabel="Fit"
                 onFit={onFit}
                 disabled={saving}
+                fitting={fitting}
               />
             </span>
           ) : (
@@ -227,41 +261,73 @@ export function PhoneEditor({
             )
           )}
           <span className="text-note text-ink-meta ml-auto" aria-live="polite">
-            {saving ? "Saving…" : elapsed != null ? `Saved, ${elapsed} ms` : ""}
+            {fitting
+              ? "Fitting…"
+              : saving
+                ? "Saving…"
+                : elapsed != null
+                  ? `Saved, ${elapsed} ms`
+                  : ""}
           </span>
         </div>
-        <div className={cn("flex flex-wrap items-center gap-2", TAP)}>
-          {fitUndo && (
-            <Button variant="secondary" size="sm" onClick={onUndoFit} disabled={saving}>
-              <ArrowUUpLeftIcon aria-hidden /> Undo
-            </Button>
-          )}
-          <div className="ml-auto flex gap-2">
-            <Button
-              variant="secondary"
-              size="sm"
+        {/* One row at every width: the words fold (`PHONE_FOLD`) */}
+        <div className={cn("@container/bar flex flex-nowrap items-center gap-2", TAP)}>
+          <Button
+            variant="secondary"
+            size="sm"
+            aria-label="Undo"
+            disabled={!history.canUndo}
+            onClick={history.onUndo}
+          >
+            <ArrowUUpLeftIcon aria-hidden />
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            aria-label="Redo"
+            disabled={!history.canRedo}
+            onClick={history.onRedo}
+          >
+            <ArrowUUpRightIcon aria-hidden />
+          </Button>
+          <div className="ml-auto flex min-w-0 gap-2">
+            <FoldButton
+              label="Format"
+              icon={<SlidersHorizontalIcon aria-hidden />}
+              fold={PHONE_FOLD.formatWord}
               disabled={!rendered}
-              onClick={() => setFormatOpen(true)}
-            >
-              <SlidersHorizontalIcon aria-hidden /> Format
-            </Button>
-            <DownloadMenu download={download} />
-            <Button
-              variant="secondary"
-              size="sm"
-              aria-pressed={zoom}
-              onClick={() => setZoom(!zoom)}
-            >
-              {zoom ? (
-                <MagnifyingGlassMinusIcon aria-hidden />
-              ) : (
-                <MagnifyingGlassPlusIcon aria-hidden />
-              )}
-              {zoom ? "Fit Width" : "Zoom"}
-            </Button>
+              render={
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={!rendered}
+                  onClick={() => setFormatOpen(true)}
+                />
+              }
+            />
+            <DownloadMenu download={download} fold={PHONE_FOLD.downloadWord} />
+            <FoldButton
+              label={zoom ? "Fit Width" : "Zoom"}
+              icon={
+                zoom ? (
+                  <MagnifyingGlassMinusIcon aria-hidden />
+                ) : (
+                  <MagnifyingGlassPlusIcon aria-hidden />
+                )
+              }
+              fold={PHONE_FOLD.zoomWord}
+              render={
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  aria-pressed={zoom}
+                  onClick={() => setZoom(!zoom)}
+                />
+              }
+            />
           </div>
         </div>
-        {bar}
+        {bar && <div className={cn(TAP, "[&_a]:min-h-11")}>{bar}</div>}
         {error && (
           <p role="alert" className="text-note text-danger">
             {error}
@@ -273,7 +339,7 @@ export function PhoneEditor({
       <div
         ref={scroller}
         className={cn(
-          "min-h-0 flex-1 overflow-auto p-4",
+          "min-h-0 flex-1 overflow-auto overscroll-none p-4",
           selected || suggestions?.open ? "pb-[70vh]" : suggestions ? "pb-36" : "pb-24",
         )}
       >
@@ -309,8 +375,18 @@ export function PhoneEditor({
             >
               Add Experiences
             </Button>
+            {cutLeft && (
+              <Button
+                variant="secondary"
+                className="text-warning hover:text-warning flex-1"
+                disabled={!rendered}
+                onClick={() => setCutOpen(true)}
+              >
+                <ScissorsIcon aria-hidden /> Cut From Resume
+              </Button>
+            )}
             {/* The primary action, filled as on the desktop bar. */}
-            <Button disabled={!rendered} onClick={() => setAsking(true)}>
+            <Button disabled={!ASK_SCOUT_LIVE || !rendered} onClick={() => setAsking(true)}>
               <SparkleIcon /> Ask Scout
             </Button>
           </div>
@@ -375,7 +451,7 @@ export function PhoneEditor({
             ))}
           <div className={cn("flex flex-wrap items-center gap-2", TAP)}>
             {actions}
-            <Button size="sm" onClick={() => setAsking(true)}>
+            <Button size="sm" disabled={!ASK_SCOUT_LIVE} onClick={() => setAsking(true)}>
               <SparkleIcon /> Ask Scout About This Line
             </Button>
           </div>
@@ -396,6 +472,17 @@ export function PhoneEditor({
         </Sheet>
       )}
 
+      {cutOpen && (
+        <>
+          <div className="absolute inset-0 z-30 bg-black/25" onClick={() => setCutOpen(false)} />
+          <Sheet onClose={() => setCutOpen(false)} title="Cut From Resume">
+            <div className={TAP}>
+              <CutPicker bank={bank} choices={choices} cuts={cuts} onApply={onApply} />
+            </div>
+          </Sheet>
+        </>
+      )}
+
       {formatOpen && (
         <Sheet onClose={() => setFormatOpen(false)} title="Format Options">
           <div className={cn("flex flex-col gap-2", TAP)}>
@@ -414,7 +501,8 @@ export function PhoneEditor({
           </Sheet>
         </>
       )}
-    </div>
+    </div>,
+    document.body,
   );
 }
 

@@ -1,10 +1,10 @@
 import { CloudSlashIcon } from "@phosphor-icons/react/ssr";
 import type { Metadata } from "next";
-import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { ArrowRightIcon, BookmarkIcon, SearchIcon } from "@/components/icons";
 import { ButtonLink, buttonClasses } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/cn";
 
@@ -12,20 +12,20 @@ import { SEEKER_GUTTER } from "../gutter";
 import { INBOX_LIVE } from "../inbox/live";
 import { getTracker, getUpdatesOnce } from "./data";
 import { ClearFiltersLink, FilterBar } from "./filter-bar";
-import { ApplicationsGrid } from "./grid";
+import { ApplicationsCards } from "./cards";
 import { ApplicationsList } from "./list";
 import { applicationHref, filterApplications, parseQuery } from "./query";
 import { ViewPanes } from "./view-panes";
-import { ViewSwitcher } from "./view-switcher";
 
 export const metadata: Metadata = {
-  title: "Applications Tracker",
+  title: "Tracker",
   description: "Track and manage your career progress.",
 };
 
 /**
- * /applications — every application the seeker is tracking, as a list (the
- * default) or a grid (./data.ts): their saved and applied jobs, live
+ * /applications — every application the seeker is tracking, as a table (the
+ * default) or a list of wide cards (./cards.tsx; its URL value is still
+ * `grid`, so old links keep working): their saved and applied jobs, live
  * (KAN-261). Interviewing and Offer stay empty until the API stores those
  * stages. The board is archived (KAN-256).
  *
@@ -70,27 +70,15 @@ export default async function ApplicationsPage({ searchParams }: PageProps<"/app
     // other seeker page stops at max-w-dashboard. The list is a table that
     // scrolls sideways, so more room only shows more columns.
     <div className={cn("flex-1 py-6", SEEKER_GUTTER)}>
-      {/* The switcher is two glyphs, so it fits beside the title at every
-          width: the subtitle wraps rather than pushing it onto a line of its
-          own. items-start, as on Home, so the switcher sits level
-          with the title rather than the subtitle. */}
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <h1 className="text-heading text-ink">Applications Tracker</h1>
-          <p className="text-body text-ink-meta mt-1">Track and manage your career progress.</p>
-        </div>
-
-        <ViewSwitcher />
-      </div>
-
       {/* EMAILS THAT NEED A LOOK (KAN-413): one line, only while some
           wait. The emails themselves live on their own page, /inbox: a
           table of them stacked on this list read as a second copy of it.
           Off while the Inbox is archived (KAN-428, ../inbox/live.ts). */}
       {waiting > 0 && (
-        <Link
+        <Card
           href="/inbox"
-          className="border-border-subtle bg-panel rounded-card text-meta text-ink hover:bg-hover focus-visible:ring-brand-ring mt-5 flex items-center gap-2 border px-4 py-2.5 transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none"
+          padding="none"
+          className="text-note text-ink mb-4 flex items-center gap-2 px-4 py-2.5"
         >
           <span aria-hidden="true" className="bg-brand size-2 rounded-full" />
           {waiting === 1 ? "1 email needs a look" : `${waiting} emails need a look`}
@@ -98,7 +86,7 @@ export default async function ApplicationsPage({ searchParams }: PageProps<"/app
             Open Inbox
             <ArrowRightIcon className="size-4" />
           </span>
-        </Link>
+        </Card>
       )}
 
       <FilterBar
@@ -121,7 +109,7 @@ export default async function ApplicationsPage({ searchParams }: PageProps<"/app
           shown.length === 0
             ? null
             : {
-                grid: <ApplicationsGrid applications={shown} />,
+                grid: <ApplicationsCards applications={shown} />,
                 list: <ApplicationsList applications={shown} />,
               }
         }

@@ -39,7 +39,10 @@ import {
 } from "../../../resumes/[resumeId]/tailor-review";
 import { OriginalResume } from "./resume-preview";
 import type { JobListing } from "../../listings";
+import { useTailorBack } from "./tailor-back";
+import { TailorFinish, type ApplyState } from "./ready-to-apply";
 import { TailorJobLine } from "./tailor-header";
+import { TAILOR_STEPS } from "./tailor-steps";
 
 /**
  * Tailor's review step (docs/tailor_resume.md, "Suggestions"), laid out as
@@ -75,12 +78,15 @@ const POPUP_LIVE = false;
 export function TailorReview({
   name,
   job,
+  apply,
   ...editor
 }: Omit<ComponentProps<typeof Editor>, "heading"> & {
   /** The tailored resume's name, the page's title. */
   name: string;
   /** The job it is tailored for, named under the title (`TailorJobLine`). */
   job: JobListing;
+  /** For Finish's Your Resume Is Ready (./ready-to-apply.tsx). */
+  apply: ApplyState;
 }) {
   const [record] = useTailorReview(editor.resumeId);
   // Storage is read after mount; until then the page shows no line about it.
@@ -93,6 +99,25 @@ export function TailorReview({
     <p className="text-note text-ink-meta mt-3">
       Tailor&apos;s suggestions show only in the tab that ran Tailor.
     </p>
+  );
+  const back = useTailorBack(job.id, editor.resumeId);
+  const step = TAILOR_STEPS.findIndex((s) => s.value === "review");
+  // The phone editor covers the step's row (`TailorReviewBar`), so its
+  // header carries the job, the step and Finish, and its arrow goes to the
+  // step before (KAN-574).
+  const phoneBar = (
+    <>
+      <div className="flex items-center gap-2">
+        <div className="min-w-0 flex-1">
+          <TailorJobLine job={job} />
+          <p aria-current="step" className="text-note text-ink-meta truncate">
+            {TAILOR_STEPS[step].label} · Step {step + 1} of {TAILOR_STEPS.length}
+          </p>
+        </div>
+        <TailorFinish job={job} resumeId={editor.resumeId} apply={apply} />
+      </div>
+      {noRecord}
+    </>
   );
 
   return (
@@ -107,9 +132,10 @@ export function TailorReview({
           </div>
         }
         original={record?.source && <OriginalResume source={record.source} />}
-        phoneBar={noRecord}
-        suggestions={(api) => <SuggestionsPanel {...api} />}
-        suggestionPopup={POPUP_LIVE ? (api) => <SuggestionPopup {...api} /> : undefined}
+        phoneBar={phoneBar}
+        phoneBack={back}
+        suggestions={SuggestionsPanel}
+        suggestionPopup={POPUP_LIVE ? SuggestionPopup : undefined}
       />
     </>
   );
@@ -182,7 +208,6 @@ function SuggestionsPanel({
   pageOrder,
   bank,
   choices,
-  saving,
   undo,
   undoAll,
   close,
@@ -261,7 +286,6 @@ function SuggestionsPanel({
               label="Undo All"
               variant="outline"
               className="size-9 shrink-0"
-              disabled={saving}
               onClick={undoAll}
             >
               <ArrowUUpLeftIcon aria-hidden className="size-4" />
@@ -333,7 +357,6 @@ function SuggestionsPanel({
                           choices={choices}
                           lit={focused === change.key}
                           current={active === change.key}
-                          saving={saving}
                           onFocus={focus}
                           onShow={() => show(change.key)}
                           onUndo={() => undo(change.edit)}
@@ -463,7 +486,6 @@ function Suggestion({
   choices,
   lit,
   current,
-  saving,
   onFocus,
   onShow,
   onUndo,
@@ -475,7 +497,6 @@ function Suggestion({
   lit: boolean;
   /** Last shown on the page, from here or from its line or dot there. */
   current: boolean;
-  saving: boolean;
   onFocus: (key: string | null) => void;
   onShow: () => void;
   onUndo: () => void;
@@ -516,7 +537,6 @@ function Suggestion({
             label={`Undo: ${title(change)}`}
             tooltip="Undo"
             className="size-7"
-            disabled={saving}
             onClick={onUndo}
           >
             <ArrowUUpLeftIcon aria-hidden className="size-4.5" />
@@ -533,7 +553,7 @@ function Suggestion({
 /** A changed line's card beside the line: what changed, and Undo, as Docs
  *  answers a suggestion beside its text. It says the same as the panel's
  *  row, so a student can settle one change with the panel closed. */
-function SuggestionPopup({ edit, bank, choices, saving, undo, close }: SuggestionPopupApi) {
+function SuggestionPopup({ edit, bank, choices, undo, close }: SuggestionPopupApi) {
   const change = changesOf([edit], bank)[0];
   return (
     <div className="flex flex-col gap-2 p-3">
@@ -546,7 +566,6 @@ function SuggestionPopup({ edit, bank, choices, saving, undo, close }: Suggestio
           label={`Undo: ${title(change)}`}
           tooltip="Undo"
           className="size-6 shrink-0"
-          disabled={saving}
           onClick={undo}
         >
           <ArrowUUpLeftIcon aria-hidden className="size-4.5" />

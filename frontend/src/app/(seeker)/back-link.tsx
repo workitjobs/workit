@@ -18,7 +18,8 @@ const PAGES: [RegExp, string][] = [
   [/^\/jobs\/[^/]+\/tailor$/, "Tailor"],
   [/^\/search$/, "Search"],
   [/^\/auto-apply$/, "Auto Apply"],
-  [/^\/applications$/, "Applications Tracker"],
+  [/^\/auto-apply\/info$/, "Application Info"],
+  [/^\/applications$/, "Tracker"],
   [/^\/applications\/[^/]+$/, "Application"],
   [/^\/inbox$/, "Inbox"],
   [/^\/calendar$/, "Calendar"],
@@ -26,7 +27,7 @@ const PAGES: [RegExp, string][] = [
   [/^\/resumes\/uploaded\/[^/]+$/, "Uploaded Resume"],
   [/^\/resumes\/[^/]+$/, "Resume Editor"],
   [/^\/experiences$/, "Experiences"],
-  [/^\/profile$/, "My Profile"],
+  [/^\/profile$/, "Profile"],
   [/^\/settings$/, "Settings"],
   [/^\/help$/, "Help"],
 ];

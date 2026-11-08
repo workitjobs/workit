@@ -9,6 +9,9 @@ import {
   DropdownMenuContent,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/shadcn/dropdown-menu";
 import { Button } from "@/components/ui/button";
@@ -62,7 +65,7 @@ export function Zoom({ zoom, onZoom }: { zoom: number; onZoom: (zoom: number) =>
     <div className="flex shrink-0 items-center gap-0.5">
       <Button
         variant="ghost"
-        size="icon-sm"
+        size="icon-lg"
         aria-label="Zoom out"
         title="Zoom out"
         disabled={at <= 0}
@@ -90,7 +93,7 @@ export function Zoom({ zoom, onZoom }: { zoom: number; onZoom: (zoom: number) =>
       </DropdownMenu>
       <Button
         variant="ghost"
-        size="icon-sm"
+        size="icon-lg"
         aria-label="Zoom in"
         title="Zoom in"
         disabled={at >= ZOOMS.length - 1}
@@ -100,5 +103,28 @@ export function Zoom({ zoom, onZoom }: { zoom: number; onZoom: (zoom: number) =>
       </Button>
       <span aria-hidden className="bg-border-subtle mx-1 h-5 w-px" />
     </div>
+  );
+}
+
+/** The zoom in the slim bar's More menu, once `Zoom` has left a narrow
+ *  bar (./bar-fold.tsx): its steps in a submenu, as Docs' own overflow
+ *  keeps them. */
+export function ZoomSubmenu({ zoom, onZoom }: { zoom: number; onZoom: (zoom: number) => void }) {
+  return (
+    <DropdownMenuSub>
+      <DropdownMenuSubTrigger>
+        <MagnifyingGlassPlusIcon aria-hidden /> Zoom
+        <span className="text-ink-meta">{zoom}%</span>
+      </DropdownMenuSubTrigger>
+      <DropdownMenuSubContent data-keeps-selection className="w-auto min-w-24">
+        <DropdownMenuRadioGroup value={String(zoom)} onValueChange={(to) => onZoom(Number(to))}>
+          {ZOOMS.map((step) => (
+            <DropdownMenuRadioItem key={step} value={String(step)}>
+              {step}%
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
+      </DropdownMenuSubContent>
+    </DropdownMenuSub>
   );
 }

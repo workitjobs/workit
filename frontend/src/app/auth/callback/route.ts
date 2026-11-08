@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { apiFetch, homePath, type OAuthStatus } from "@/lib/auth";
+import { bounceToLogin, finishOAuthSignIn } from "@/lib/oauth-finish";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 /**
@@ -11,17 +11,6 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
  * itself and never goes through `POST /auth/signup` (backend/CLAUDE.md's
  * Auth section).
  */
-// Logged server-side and echoed as ?reason= on the bounce-back to /login —
-// error=oauth alone gave no way to tell a PKCE/redirect-URL misconfiguration
-// in Supabase apart from the API being unreachable apart from reading this
-// route's own source. Never put the Supabase/API error's own message in the
-// query string — it can carry provider-specific detail that doesn't belong
-// in a URL the browser's address bar and history keep.
-function bounceToLogin(origin: string, reason: string, detail?: unknown): NextResponse {
-  console.error(`[auth/callback] ${reason}`, detail ?? "");
-  return NextResponse.redirect(`${origin}/login?error=oauth&reason=${reason}`);
-}
-
 /**
  * `?next=` sends a signed-in account back to Settings instead of its home:
  * linking Google or LinkedIn and confirming a new sign-in email both come
@@ -66,31 +55,5 @@ export async function GET(request: NextRequest) {
     return bounceToLogin(origin, "exchange_failed", error?.message ?? error?.code);
   }
 
-  const response = await apiFetch(
-    "/auth/oauth/status",
-    { method: "GET" },
-    data.session.access_token,
-  );
-  const oauthStatus: OAuthStatus | null = response.ok ? await response.json() : null;
-
-  if (!oauthStatus) {
-    // The session exchange worked; the API call after it didn't — check
-    // that the backend is running and reachable at API_URL, and that its
-    // SUPABASE_URL/SUPABASE_SERVICE_KEY are set (backend/CLAUDE.md's Auth
-    // section).
-    const body = await response.text().catch(() => "");
-    return bounceToLogin(origin, "status_failed", `${response.status} ${body}`.trim());
-  }
-
-  if (oauthStatus.needs_account_type) {
-    return NextResponse.redirect(`${origin}/signup/choose-account-type`);
-  }
-
-  if (next && oauthStatus.account) return NextResponse.redirect(`${origin}${next}`);
-
-  // A returning sign-in. A first sign-in went to choose-account-type above,
-  // which starts an applicant on onboarding. With no account the API said
-  // nothing useful, so Home's own sign-in check takes it from there.
-  const destination = oauthStatus.account ? homePath(oauthStatus.account) : "/home";
-  return NextResponse.redirect(`${origin}${destination}`);
+  return finishOAuthSignIn(supabase, origin, data.session.access_token, next);
 }

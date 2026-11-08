@@ -101,10 +101,10 @@ export function SignupForm({ formId }: { formId: string }) {
             if (next) setCompanyPath(next as CompanyPath);
           }}
           aria-label="Create or Join a Company"
-          /* One column below `sm`, like every paired row in the form below:
-           * at phone width a half-width tile wrapped each label onto two
-           * lines and pushed Join's Soon pill out past its edge. */
-          className="mt-2.5 grid w-full grid-cols-1 gap-2.5 sm:grid-cols-2"
+          /* One column at every width: in the 360px card (AuthCard) a
+           * half-width tile wrapped each label onto two lines and pushed
+           * Join's Soon pill out past its edge. */
+          className="mt-2.5 grid w-full grid-cols-1 gap-2.5"
         >
           {COMPANY_PATHS.map(({ value, label, hint, icon: Icon }) => (
             <ToggleGroupItem
@@ -118,14 +118,14 @@ export function SignupForm({ formId }: { formId: string }) {
                * its Soon pill, so the pill reads the same as the one on the
                * divider below; disabled:opacity-100 cancels the vendored
                * toggle's whole-tile disabled:opacity-50. */
-              className="rounded-control border-border-subtle text-ink-muted hover:bg-hover hover:text-ink aria-pressed:border-brand/50 aria-pressed:bg-brand-tint aria-pressed:text-brand-ink flex h-auto flex-col items-start gap-0.5 border px-3.5 py-2.5 text-left whitespace-normal disabled:opacity-100"
+              className="rounded-control border-border-control text-ink-muted hover:bg-hover hover:text-ink aria-pressed:border-brand aria-pressed:bg-brand-tint aria-pressed:text-brand-ink flex h-auto flex-col items-start gap-0.5 border px-3.5 py-2.5 text-left whitespace-normal disabled:opacity-100"
             >
               <span className="text-label flex items-center gap-2">
                 <Icon aria-hidden className="size-4 group-disabled/toggle:opacity-50" />
                 <span className="group-disabled/toggle:opacity-50">{label}</span>
                 {value === "join" && <SoonBadge />}
               </span>
-              <span className="text-meta text-ink-meta font-normal group-disabled/toggle:opacity-50">
+              <span className="text-note text-ink-meta font-normal group-disabled/toggle:opacity-50">
                 {hint}
               </span>
             </ToggleGroupItem>
@@ -231,7 +231,7 @@ export function SignupForm({ formId }: { formId: string }) {
                 onChange={(event) => setPassword(event.target.value)}
                 aria-describedby="password-hint"
               />
-              <p id="password-hint" className="text-meta text-ink-meta">
+              <p id="password-hint" className="text-note text-ink-meta">
                 At least {PASSWORD_MIN_LENGTH} characters
               </p>
             </div>

@@ -1,11 +1,10 @@
 import { CheckIcon } from "@phosphor-icons/react/ssr";
 import type { Metadata } from "next";
-import Link from "next/link";
 import type { CSSProperties } from "react";
 
 import { cn } from "@/lib/cn";
 
-import { GlassButton } from "../buttons";
+import { GlassButton, OnFillButton } from "../buttons";
 import { FaqList } from "../faq-list";
 import { FocusIn } from "../focus-in";
 import { CONTAINER, PANEL, PANEL_INSET, SectionHeading } from "../layout-parts";
@@ -116,11 +115,9 @@ export default function PricingPage() {
                 Sign up and upload a resume, and WorkIt starts ranking jobs by how well you fit. No
                 card needed.
               </p>
-              <GlassButton
-                href="/signup"
-                label="Get started for free"
-                className="mt-8 h-12 px-6 text-base"
-              />
+              <GlassButton href="/signup" size="lg" className="mt-8">
+                Get started for free
+              </GlassButton>
             </div>
           </FocusIn>
         </div>
@@ -151,7 +148,7 @@ function PlanBoard() {
         style={{ "--d": "0.22s" } as CSSProperties}
       />
       <div
-        className="price-panel bg-canvas ring-border absolute inset-0 -z-10 hidden rounded-[2rem] ring-1 ring-inset xl:col-[7/8] xl:block"
+        className="price-panel bg-well ring-border absolute inset-0 -z-10 hidden rounded-[2rem] ring-1 ring-inset xl:col-[7/8] xl:block"
         style={{ "--d": "0.3s" } as CSSProperties}
       />
       <div className="price-strip bg-landing-brand-100/80 absolute inset-x-1 inset-y-5 -z-10 hidden rounded-[1.5rem] xl:col-[3/4] xl:block" />
@@ -227,7 +224,7 @@ function PlanBoard() {
 const COLUMNS: { id: PlanId; className: string }[] = [
   { id: "plus", className: "xl:col-[3]" },
   { id: "pro", className: "xl:col-[4]" },
-  { id: "free", className: "bg-canvas ring-border xl:col-[7]" },
+  { id: "free", className: "bg-well ring-border xl:col-[7]" },
 ];
 
 /** What a plan gives for one feature. Plus's limits are solid violet pills on
@@ -368,7 +365,7 @@ function PlanHeader({
           "text-white shadow-[0_24px_48px_-20px_rgb(58_30_124/0.7)] ring-1 ring-white/25 ring-inset",
         plan.id === "pro" && "text-ink ring-landing-brand-950/10 bg-white/80 shadow-sm ring-1",
         free &&
-          "text-ink bg-canvas ring-border ring-1 xl:-mt-8 xl:rounded-t-[2rem] xl:rounded-b-none xl:bg-transparent xl:px-5 xl:pt-13 xl:pb-13 xl:ring-0",
+          "text-ink bg-well ring-border ring-1 xl:-mt-8 xl:rounded-t-[2rem] xl:rounded-b-none xl:bg-transparent xl:px-5 xl:pt-13 xl:pb-13 xl:ring-0",
         className,
       )}
       style={
@@ -427,21 +424,20 @@ function PlanHeader({
 
       <div className="mt-auto pt-5">
         {free ? (
-          <Link
-            href="/signup"
-            className="text-ink hover:bg-surface ring-ink/15 inline-flex h-11 w-full items-center justify-center rounded-full bg-white text-sm font-semibold shadow-sm ring-1 transition-colors ring-inset"
-          >
+          <OnFillButton href="/signup" className="ring-ink/15 w-full ring-1 ring-inset">
             {label}
-          </Link>
+          </OnFillButton>
         ) : featured ? (
-          <Link
+          <OnFillButton
             href="/signup"
-            className="text-landing-brand-900 hover:bg-landing-brand-50 inline-flex h-11 w-full items-center justify-center rounded-full bg-white text-sm font-semibold shadow-[0_10px_24px_-10px_rgb(34_17_75/0.7)] transition-colors focus-visible:outline-white!"
+            className="text-landing-brand-900 hover:bg-landing-brand-50 w-full shadow-[0_10px_24px_-10px_rgb(34_17_75/0.7)] focus-visible:outline-white!"
           >
             {label}
-          </Link>
+          </OnFillButton>
         ) : (
-          <GlassButton href="/signup" label={label} className="h-11 w-full rounded-full" />
+          <GlassButton href="/signup" className="w-full">
+            {label}
+          </GlassButton>
         )}
       </div>
     </div>

@@ -168,6 +168,9 @@ export function YourApplication({
                 </>
               )}
               {app.resume ? <>Sent {app.resume}</> : "No resume sent through WorkIt"}
+              {/* The hiring system its posting is on, which the Tracker's
+                  table showed as Source until 2026-11-05. */}
+              {app.source && <> · Posted on {app.source}</>}
             </p>
 
             {/* Before it goes in, the student's own day to apply by
@@ -208,9 +211,10 @@ export function YourApplication({
               score={app.match}
               highlights={app.highlights ?? []}
               standalone
-              // A rounded white box on the tinted card, like the counts, its
-              // ring and reasons centred in the stretched height.
-              className="bg-panel @xl:justify-center"
+              // A rounded white box on the tinted card, like the counts (the
+              // rail's own fill), its ring and reasons centred in the
+              // stretched height.
+              className="@xl:justify-center"
             />
           )}
         </div>
@@ -257,7 +261,7 @@ export function YourApplication({
  *  empty. */
 function EmptySlot({ icon, children }: { icon: ReactNode; children: ReactNode }) {
   return (
-    <div className="border-border-strong bg-well rounded-card mt-2 flex flex-col items-center gap-2 border border-dashed px-4 py-7">
+    <div className="border-border-control bg-well rounded-card mt-2 flex flex-col items-center gap-2 border border-dashed px-4 py-7">
       {icon}
       <p className="text-body text-ink-meta text-center">{children}</p>
     </div>

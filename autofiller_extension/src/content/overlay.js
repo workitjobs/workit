@@ -377,7 +377,7 @@ window.WIA = window.WIA || {};
   function askSelfId({ questions, onSave }) {
     const card = momentCard("self-id", `
       <h2>Equal-Opportunity Questions</h2>
-      <p>This form asks voluntary self-identification questions. Answer them once and WorkIt fills them on every form from now on. You can change them in My Profile.</p>
+      <p>This form asks voluntary self-identification questions. Answer them once and WorkIt fills them on every form from now on. You can change them later in WorkIt's Application Info.</p>
       ${questions.map((q) => `
         <label>${escape(q.label)}
           <select name="${escape(q.key)}" title="${escape(q.question)}">
@@ -431,7 +431,7 @@ window.WIA = window.WIA || {};
 
   /**
    * The writing samples ask (KAN-387), once the first batch's written answers
-   * landed: Add Samples opens `url` (My Profile's Writing Samples) in a new
+   * landed: Add Samples opens `url` (Application Info's Writing Samples) in a new
    * tab; Skip closes it. Either way it is not asked again.
    * @param {{ url: string }} options
    */
@@ -473,6 +473,28 @@ window.WIA = window.WIA || {};
    * this page.
    * @param {{ email: string, needsSignup: boolean, onAllow: () => void }} options
    */
+  /**
+   * On a Workday tenant Apply made an account at (KAN-592): one button that fills Apply's password
+   * from the Mac's Keychain (through Apply's host) and offers it to Chrome's password manager. Only
+   * the student's own press, never the page's.
+   */
+  function offerApplySignIn({ company, email, onPress }) {
+    const card = momentCard("apply-sign-in", `
+      <h2>Sign In with Your Apply Account</h2>
+      <p>Apply made your account at ${escape(company ?? "this company")} (${escape(email ?? "")}). WorkIt fills its password from your Mac's Keychain, and Chrome asks to save it, so Chrome fills it from then on.</p>
+      <div class="actions">
+        <button type="button" data-primary data-apply-sign-in>Sign In with Your Apply Account</button>
+        <button type="button" data-secondary data-dismiss>Not Now</button>
+      </div>
+    `);
+    if (!card) return;
+    card.querySelector("[data-dismiss]").addEventListener("click", window.WIA.ui.trusted(() => card.remove()));
+    card.querySelector("[data-apply-sign-in]").addEventListener("click", window.WIA.ui.trusted(async () => {
+      card.remove();
+      await onPress();
+    }));
+  }
+
   function askWorkdayAccounts({ email, needsSignup, onAllow }) {
     const fields = needsSignup ? `
       <label>Workday Email
@@ -665,5 +687,5 @@ window.WIA = window.WIA || {};
   /** Draws the rows again, for a row card whose own state changed (row-card.js). */
   const refresh = () => render(window.WIA.status.summary());
 
-  window.WIA.overlay = { live, mount, unmount, open, state, promptForEssays, offerNext, setCurrent, refresh, addPart, askSelfId, offerClaude, askSamples, askWorkdayAccounts, momentCard, startClaude, CLAUDE_TRIGGER };
+  window.WIA.overlay = { live, mount, unmount, open, state, promptForEssays, offerNext, setCurrent, refresh, addPart, askSelfId, offerClaude, askSamples, askWorkdayAccounts, offerApplySignIn, momentCard, startClaude, CLAUDE_TRIGGER };
 })();

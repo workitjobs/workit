@@ -11,7 +11,7 @@ import httpx
 import pytest
 from sqlalchemy import text
 
-from app.deps import get_current_account
+from app.deps import get_current_account, get_signed_in_applicant_id
 from app.main import app
 from app.schemas.auth import AccountType, AuthenticatedAccount
 
@@ -91,13 +91,35 @@ async def test_save_keeps_the_job_undated_and_a_second_save_changes_nothing(stud
     assert (stage, applied_at) == ("saved", None)
 
 
-async def test_a_saved_job_stays_on_the_feed(student, database):
-    client, _ = student
-    job = await _seed_posting(database)
-    await client.post(f"/jobs/{job}/saved")
+async def test_a_saved_job_leaves_the_feed_and_unsave_brings_it_back(student, database):
+    # A saved job lives on the Tracker (KAN-217). The feed reads
+    # its viewer through its own dependency (backend/CLAUDE.md, Tests).
+    client, me = student
+    app.dependency_overrides[get_signed_in_applicant_id] = lambda: me
+    try:
+        job, other = await _seed_posting(database), await _seed_posting(database)
+        await client.post(f"/jobs/{job}/saved")
 
-    res = await client.get("/jobs")
-    assert job in [listing["id"] for listing in res.json()]
+        listed = [listing["id"] for listing in (await client.get("/jobs")).json()]
+        assert job not in listed and other in listed
+
+        await client.delete(f"/jobs/{job}/saved")
+        assert job in [listing["id"] for listing in (await client.get("/jobs")).json()]
+    finally:
+        app.dependency_overrides.pop(get_signed_in_applicant_id, None)
+
+
+async def test_a_queued_job_stays_on_the_feed(student, database):
+    # Auto apply's stages stay: the job is still the student's to see there.
+    client, me = student
+    app.dependency_overrides[get_signed_in_applicant_id] = lambda: me
+    try:
+        job = await _seed_posting(database)
+        await client.post(f"/applicants/{me}/applications", json={"job_id": job})
+
+        assert job in [listing["id"] for listing in (await client.get("/jobs")).json()]
+    finally:
+        app.dependency_overrides.pop(get_signed_in_applicant_id, None)
 
 
 async def test_saving_a_closed_job_is_404(student, database):
@@ -251,3 +273,81 @@ async def test_a_bare_link_two_listed_jobs_share_names_neither(student, database
     assert (await client.post("/jobs/saved-by-link", json={"url": f"{base}?gh_jid=3&utm_source=li"})).status_code == 404
     # Its own link still finds each.
     assert (await client.post("/jobs/listed-by-link", json={"url": f"{base}?gh_jid=2"})).status_code == 200
+
+
+@pytest.mark.parametrize("page", [
+    "http://careers.example.com/jobs/{id}",
+    "https://www.careers.example.com/jobs/{id}/",
+    "HTTPS://Careers.Example.com/Jobs/{ID}?utm_source=li#apply",
+])
+async def test_a_link_finds_the_listed_job_whatever_its_scheme_www_or_case(student, database, page):
+    # KAN-542: the link a student kept differs from the feed's in its scheme, www. or case.
+    client, _ = student
+    posting = uuid.uuid4().hex
+    async with database() as session:
+        job = await session.scalar(
+            text(
+                "INSERT INTO job_postings (id, title, status, company_name, apply_url, experience_level)"
+                " VALUES (gen_random_uuid(), 'Intern', 'published', 'Acme', :url, 'student') RETURNING id"
+            ),
+            {"url": f"https://careers.example.com/jobs/{posting}?source=feed"},
+        )
+        await session.commit()
+
+    url = page.format(id=posting, ID=posting.upper())
+    res = await client.post("/jobs/listed-by-link", json={"url": url})
+    assert res.status_code == 200
+    assert res.json()["job_id"] == str(job)
+
+
+FIGMA = "https://boards.greenhouse.io/figma/jobs/6143238004?gh_jid=6143238004"
+
+
+@pytest.mark.parametrize("page", [
+    # Where WorkIt's link redirects: Greenhouse's other host.
+    "https://job-boards.greenhouse.io/figma/jobs/6143238004?gh_jid=6143238004",
+    "https://job-boards.greenhouse.io/figma/jobs/6143238004",
+    "https://job-boards.greenhouse.io/figma/jobs/6143238004/",
+    # The embedded form a company's own page shows.
+    "https://boards.greenhouse.io/embed/job_app?for=figma&token=6143238004",
+    "https://job-boards.greenhouse.io/embed/job_app?for=figma&token=6143238004",
+    # A company careers page that names the posting by ?gh_jid=.
+    "https://www.figma.com/careers/job/?gh_jid=6143238004",
+])
+async def test_any_greenhouse_link_to_the_same_job_finds_the_listed_job(student, database, page):
+    # Figma's intern form (KAN-526): WorkIt keeps boards.greenhouse.io, the student's tab is job-boards.
+    client, _ = student
+    async with database() as session:
+        job = await session.scalar(
+            text(
+                "INSERT INTO job_postings (id, title, status, company_name, apply_url, experience_level)"
+                " VALUES (gen_random_uuid(), 'Software Engineer Intern', 'published', 'Figma', :url, 'student')"
+                " RETURNING id"
+            ),
+            {"url": FIGMA},
+        )
+        await session.commit()
+
+    res = await client.post("/jobs/listed-by-link", json={"url": page})
+    assert res.status_code == 200
+    assert res.json()["job_id"] == str(job)
+
+
+async def test_another_greenhouse_job_on_the_same_board_is_not_the_listed_job(student, database):
+    client, _ = student
+    async with database() as session:
+        await session.execute(
+            text(
+                "INSERT INTO job_postings (id, title, status, company_name, apply_url, experience_level)"
+                " VALUES (gen_random_uuid(), 'Software Engineer Intern', 'published', 'Figma', :url, 'student')"
+            ),
+            {"url": FIGMA},
+        )
+        await session.commit()
+
+    for page in (
+        "https://job-boards.greenhouse.io/figma/jobs/6143238005",
+        "https://boards.greenhouse.io/embed/job_app?for=figma&token=614323800",
+        "https://www.figma.com/careers/job/?gh_jid=61432380041",
+    ):
+        assert (await client.post("/jobs/listed-by-link", json={"url": page})).status_code == 404

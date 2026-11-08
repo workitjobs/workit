@@ -1,10 +1,10 @@
 # CLAUDE.md
 
 Repo-wide rules, always loaded. Each code folder below (`frontend/`,
-`backend/`, `scout/`, `scraper/`, `autofiller_extension/`, `.github/`) has its
-own `CLAUDE.md` that loads on top of this one when you touch a file in it;
-read it before writing code there. A rule lives at the deepest level that
-fully contains it, with a pointer above rather than a copy.
+`backend/`, `scout/`, `scraper/`, `autofiller_extension/`, `apply-agent/`,
+`.github/`) has its own `CLAUDE.md` that loads on top of this one when you
+touch a file in it; read it before writing code there. A rule lives at the
+deepest level that fully contains it, with a pointer above rather than a copy.
 
 ## Replies
 
@@ -36,12 +36,20 @@ none.
 - `autofiller_extension/` — the ATS autofiller (KAN-164): a Manifest V3
   Chrome extension, no build step, no dependency manifest. It fills through
   the Fill engine, the git submodule `autofiller_extension/fill-engine`
-  pinned to a tag (`git submodule update --init` once per checkout). Batch
+  pinned to a commit on its `main` (`git submodule update --init` once per
+  checkout). Batch
   apply (KAN-369) fills up to five tabs at once and gave it routes of its
   own in `backend/app/routers/auto_apply.py` (a tab's state, its written
   questions and answers, the answer bank, finish), plus the connector its
   essays come from (`backend/app/connector/`); `autofiller_extension/CLAUDE.md`
   lists every endpoint it calls.
+- `apply-agent/` — Apply (KAN-534): a Python command-line agent (uv,
+  Playwright) that fills job applications in its own Chrome workers, writes
+  answers with Claude and never submits in a rehearsal. A developer tool,
+  not a student feature. It loads the Fill engine from the extension's
+  submodule, keeps personal data only in `APPLY_HOME`, never in the repo,
+  and has its own glossary and ADRs (`GLOSSARY-MAP.md`). Read
+  `apply-agent/CLAUDE.md` before any change there.
 - `.github/` — CI and the scheduled scrape-and-import (KAN-160).
 - `docs/` — team prose that spans the repo (below).
 
@@ -112,7 +120,11 @@ every merge to `main`, with no Cloudflare login on anyone's machine. The
 Cloudflare account is owned by the team Gmail, never one person's login;
 teammates are members with Developer Platform Admin on the account and
 Administrator on the `workitjobs.ai` zone only. Migrations stay a manual,
-local step, never part of a deploy. Supabase (Authentication → URL
+local step, never part of a deploy. **One part does not deploy on merge:
+the bank job** (KAN-726) runs on the team computer from its own checkout,
+so a change to the code it runs needs a pull and a restart there: tell the
+user to remind the team, with the steps in `backend/CLAUDE.md`
+(Deployment, "The bank job does not deploy on merge"). Supabase (Authentication → URL
 Configuration) must list each deployed origin's `/auth/callback`, or OAuth
 sign-in bounces. Settings: a `NEXT_PUBLIC_*` value is a GitHub repository
 variable that `deploy.yml` passes to the app's build, and an API value is in
@@ -142,8 +154,8 @@ The team works on macOS and Windows.
 
 ## Documentation
 
-**Every code change updates the nearest `CLAUDE.md` in the same change**: a
-new command, a changed convention or invariant, a decision made or reversed, a
+**Every code change updates the nearest `CLAUDE.md`, or the doc it points to
+for that area, in the same change**: a new command, a changed convention or invariant, a decision made or reversed, a
 "still open" item closed. Record the rule a folder follows, never a list of its
 files: a directory listing already shows them, and per-file lists conflict on
 every parallel PR. A change that leaves
@@ -155,8 +167,8 @@ with the failure it prevents.
   invariants, rationale, what must not change and why, what is still open.
 - `README.md` — deliberately short. Explanatory prose goes in a `CLAUDE.md`
   or the docs folders below, and stays out of any README once trimmed.
-- `frontend/docs/`, `scraper/docs/` — each half's prose too long for its
-  `CLAUDE.md`, reached through a pointer in it.
+- `frontend/docs/`, `scraper/docs/`, `apply-agent/docs/` — each part's prose
+  too long for its `CLAUDE.md`, reached through a pointer in it.
 - `docs/job_posting.md`, `resume.md`, `avatar.md`, `auth.md` — design
   rationale: the schema notes and the auth flow. Alembic stays the source of
   truth for what the schema is.
@@ -181,6 +193,15 @@ with the failure it prevents.
   proposals and no Done, and the editor marks each change and reverts it.
   Holds the skill placement rule. Read it before changing Tailor or its
   screen.
+- `docs/cut_to_one_page.md` — Fit to One Page, built (KAN-320): it cuts
+  one item at a time, each checked by a prediction from one render and
+  confirmed by a render at the end, with one database read and one write;
+  bullets to two per entry, then to one, then whole entries (Leadership
+  to Experience, which keeps one), with Skills, Awards, Certifications
+  and Education on schedules opened by the share of entries cut, until
+  the page fits; by the posting's rank on a
+  resume with a job posting and by position on one without. Read it
+  before changing Fit to One Page.
 - `docs/live_page.md` — the editor's live page (KAN-391), step 1 partly
   built: each edit renders from the editor's copy with no database read
   while its save writes beside it, and the page below a typed line
@@ -207,6 +228,17 @@ with the failure it prevents.
   applications by hand. Read it before changing
   application stages, the tracker's dated events or anything that reads a
   student's email.
+- `docs/whats-new-2026-11-05.md` — what a teammate must do after the rename to
+  `workitjobs`, and the new Apply settings and commands.
+- `docs/scraper_gh_action/plan.md` — KAN-726, built: the scheduled
+  scrape runs on a team computer as a self-hosted runner (PR runs stay on
+  GitHub's), with keywords from a local Qwen and every vector, jobs and
+  banks, from a local Qwen3 embedding model that only that computer runs
+  (its bank job listens for bank changes); everywhere else the embedding
+  provider is `none`. A bank change marks its vector stale instead of
+  clearing it. Holds the computer's setup and the cutover order. Read it
+  before changing the scrape workflow, the embedding provider or how a
+  bank is embedded.
 - `docs/search.md` — how the Jobs page's search reads a query.
 - `docs/architecture.md` — how the halves fit together, for a reader new to
   the repo.
@@ -226,15 +258,21 @@ with the failure it prevents.
 
 - Work happens on Jira-style branches (`KAN-13-testing`) off `main`, one
   ticket per worktree. `npm run worktree -- KAN-13-testing` creates
-  `../WorkIt-CSE416-KAN-13` from a fresh `origin/main` and copies the env files
-  and the sample resumes (`frontend/CLAUDE.md`) from the primary checkout
-  (`frontend/scripts/new-worktree.mjs`). A worktree missing them gets them
-  with `npm run worktree -- --env-only`.
+  `../workit-KAN-13` (the primary checkout's folder name plus the key) from a
+  fresh `origin/main` and copies the env files, the sample resumes
+  (`frontend/CLAUDE.md`) and Tectonic with its warm cache
+  (`backend/vendor/tectonic`, so resume PDFs work at once) from the primary
+  checkout (`frontend/scripts/new-worktree.mjs`). A worktree missing them
+  gets them with `npm run worktree -- --env-only`.
 - Superset workspaces run `.superset/setup.sh` on creation: that same
   `--env-only` copy, then `npm ci` in `frontend/` and `uv sync` in `backend/`,
+  then `git submodule update --init` and, once the branch has Apply,
+  `uv sync` in `apply-agent/` (`npm run worktree` does these two as well),
   then `backend/scripts/fetch_tectonic.py` where the branch has it: without
   that once-per-checkout step every resume showed "This Resume Isn't Loading
-  Right Now". It only warns on failure (a Mac needs `brew install tectonic`).
+  Right Now". It downloads Tectonic's own pinned build on Windows, macOS
+  and Linux alike (2026-11-05; Windows had no way before, and a Mac needed
+  `brew install tectonic`), and only warns on failure.
   It warns when the copied `.env` has no `SCOUT_API_KEY`: the API would then
   run Scout on a local Ollama instead of Groq without saying so. The key lives
   only in the primary checkout's `.env`, never in a committed script.
@@ -264,6 +302,13 @@ with the failure it prevents.
   code keeps its older names (`board`, `provider`); leave them as they are.
 - Pre-PR review and bug hunts use the `pr-review` skill
   (`.claude/skills/pr-review/`).
+- **A PR that touches the submit or drive guards gets an adversarial review
+  before it merges** (KAN-666). The guards are `apply-agent/src/apply/submit_guard.py`,
+  `plain/guards.py`, `send_click.py`, and any code that sets a guard flag or
+  presses through one. A second reviewer tries to make the change send an
+  application, and the PR merges only once each way they find is fixed. A
+  new click path, or a new way a page can trick the guard, joins
+  `apply-agent/tests/test_submit_guard_hostile.py` in the same PR.
 
 ## Agent skills
 
@@ -277,5 +322,6 @@ with the failure it prevents.
   `docs/agents/issue-tracker.md`.
 - **Triage labels:** the five default roles, as Jira labels under their own
   names. `docs/agents/triage-labels.md`.
-- **Domain docs:** single-context, one `GLOSSARY.md` and `docs/adr/` at the
-  root, created with the first settled term or decision. `docs/agents/domain.md`.
+- **Domain docs:** multi-context. `GLOSSARY-MAP.md` at the root names two
+  contexts: WorkIt (`GLOSSARY.md`, `docs/adr/`) and Apply
+  (`apply-agent/GLOSSARY.md`, `apply-agent/docs/adr/`). `docs/agents/domain.md`.

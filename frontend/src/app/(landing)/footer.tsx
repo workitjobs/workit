@@ -2,10 +2,24 @@ import Link from "next/link";
 
 import { Logo } from "@/components/logo";
 
-import { site } from "./data";
+import { stages } from "./board-data";
+import { site, streams } from "./data";
+import { followedJob, matchingFeature } from "./feature-data";
 import { featurePages } from "./features/catalog";
 import { FooterWordmark } from "./footer-wordmark";
+import { MotionToggle } from "./motion-toggle";
 import { resourcePages } from "./resources/catalog";
+
+/** The wordmark's job titles: the board's, Matching's and the
+ *  hiring-systems stream's. Read here, on the server, so the data files
+ *  stay out of every marketing page's bundle. */
+const TITLES = [
+  ...new Set([
+    ...stages.flatMap((stage) => stage.jobs.map((job) => job.title)),
+    ...matchingFeature.jobs.map((job) => job.title),
+    ...Object.values(streams).flatMap((list) => list.map((posting) => posting.title)),
+  ]),
+];
 
 /** The header's two menus, then the footer's own columns. */
 const COLUMNS = [
@@ -58,7 +72,7 @@ export function Footer() {
                       href={link.href}
                       // The ::after takes the tap to the middle of the gaps either
                       // side, 32px in all: the 20px line alone was hard to hit.
-                      className="relative text-sm text-white/80 transition-colors after:absolute after:-inset-x-1 after:-inset-y-1.5 after:content-[''] hover:text-white"
+                      className="relative inline-block text-sm text-white/80 transition-colors after:absolute after:-inset-x-1 after:-inset-y-1.5 after:content-[''] hover:text-white"
                     >
                       {link.label}
                       {"soon" in link && link.soon === true && (
@@ -79,11 +93,14 @@ export function Footer() {
             <p>
               &copy; {year} {site.name}. All rights reserved.
             </p>
+            {/* The page's loops stop here (WCAG 2.2.2, KAN-580). Its ::after
+                takes the tap to 44px without changing the row. */}
+            <MotionToggle className="relative self-start text-white/80 transition-colors after:absolute after:-inset-x-2 after:-inset-y-3 after:content-[''] hover:text-white sm:self-auto" />
           </div>
         </div>
 
         <div className="px-4 pt-4 pb-6 sm:px-8 lg:px-10 lg:pb-10">
-          <FooterWordmark />
+          <FooterWordmark titles={TITLES} followed={followedJob.title} />
         </div>
       </div>
     </footer>
