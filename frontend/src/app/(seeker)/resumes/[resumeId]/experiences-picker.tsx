@@ -1,6 +1,12 @@
 "use client";
 
-import { CheckIcon, FileTextIcon, FunnelIcon, PlusIcon } from "@phosphor-icons/react/ssr";
+import {
+  CheckIcon,
+  EyeSlashIcon,
+  FileTextIcon,
+  FunnelIcon,
+  PlusIcon,
+} from "@phosphor-icons/react/ssr";
 import { useState, type ReactNode } from "react";
 
 import { FieldFacet } from "@/components/field-facet";
@@ -26,6 +32,7 @@ import {
   pickerEntries,
   pickerSkills,
   pickSkill,
+  pickSkills,
   restoreCutEntry,
   type CutEntry,
   type CutSkill,
@@ -202,7 +209,11 @@ export function ExperiencesPicker({
           open={isOpen("skills")}
           onPress={() => press("skills")}
         >
-          <SkillGroups skills={skills} onApply={onApply} />
+          <SkillGroups
+            skills={skills}
+            printing={allSkills.filter((row) => row.on)}
+            onApply={onApply}
+          />
         </PickerGroup>
       )}
     </div>
@@ -322,12 +333,17 @@ function PickerRow({
 }
 
 /** The skills by their group, as a resume prints them: a chip on the brand
- *  tint is on the resume, and an outline with a plus is not. */
+ *  tint is on the resume, and an outline with a plus is not. Under them, the
+ *  section at once: `printing` is every skill on the resume, narrowed or not,
+ *  so Remove leaves no heading, and with none left the button adds the ones
+ *  listed, since a section cut by mistake would take a click per skill. */
 function SkillGroups({
   skills,
+  printing,
   onApply,
 }: {
   skills: PickedSkill[];
+  printing: PickedSkill[];
   onApply: (changes: ChoicesUpdate) => void;
 }) {
   const groups = new Map<string, PickedSkill[]>();
@@ -368,6 +384,25 @@ function SkillGroups({
           </ul>
         </div>
       ))}
+      {printing.length > 0 ? (
+        <Button
+          variant="secondary"
+          size="sm"
+          className="self-start"
+          onClick={() => onApply(pickSkills(printing, false))}
+        >
+          <EyeSlashIcon aria-hidden /> Remove Skills Section
+        </Button>
+      ) : (
+        <Button
+          variant="secondary"
+          size="sm"
+          className="self-start"
+          onClick={() => onApply(pickSkills(skills, true))}
+        >
+          <PlusIcon aria-hidden /> Add All Skills
+        </Button>
+      )}
     </div>
   );
 }

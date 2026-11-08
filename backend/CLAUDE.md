@@ -18,8 +18,27 @@ package: a library with no database or HTTP of its own, handed everything by
 **The second exception is `../scraper/`**, installed as `workit-scraper`
 (KAN-605): `app/scraper/worker.py` calls provider readers through
 `asyncio.to_thread` and publishes directly through `import_feed`. The
-scraper stays stdlib-only; the backend uses it as a library. Two tables
-(`scraper_schedules`, `scraper_tasks`) track board catalogs and task leasing.
+scraper stays stdlib-only; the backend uses it as a library. Three tables
+(`scraper_schedules`, `scraper_tasks`, `job_sources`) track board catalogs,
+task leasing and which boards list which jobs. Each board publishes
+independently right after it is scraped (`_checkpoint_board`): import_feed,
+update sources, advance reads and mark done in one commit per board, so fast
+boards checkpoint without waiting for slow ones and only one board's payload
+is in memory at a time. A failed checkpoint logs and continues: one board's
+failure never stops the rest or skips closure detection. Source tracking
+(`update_sources`) records every URL the board listed, not just the
+shortlisted ones that were published: the shortlist decides what to publish,
+the full listing decides what the board says exists. A board returning more
+than `MAX_BOARD_LISTINGS` (5,000) listings is treated as failed. After all
+boards, one statement runs `detect_and_close` globally: a single CTE
+identifies stale jobs, counts them against the surge guard and closes in one
+snapshot, so no concurrent transaction can change the row set between the
+check and the close. `job_sources` drives closure detection (KAN-619): a job
+stale on every enabled board (two complete reads without it,
+`last_seen_at < prior_read_at`) and supported by no other enabled board is
+closed with reason `gone_from_board`; a surge guard (the feed import's
+`_MASS_CLOSE_SHARE` and `_MASS_CLOSE_FLOOR`, imported, not copied) refuses
+mass closures. Tests: `tests/test_closures.py`.
 
 **Not PostgREST, deliberately.** Queries go to Postgres directly over asyncpg,
 because the job search needs ltree containment and trigram ranking, which
@@ -52,6 +71,7 @@ uv run python -m app.scripts.import_apply_profile <applicant_id> [<apply_dir>]  
 uv run python -m app.scripts.label_resume_headings  label data/resume_heading_candidates.txt's resume headings once with Groq into app/utils/learned_headings.json (--dry-run lists them; review the diff; app/utils/CLAUDE.md, Learned headings)
 uv run python -m app.scripts.purge_old_data  delete rows past app/services/retention.py's periods, KAN-482 (--dry-run counts, deletes nothing; daily in CI)
 uv run python -m app.scripts.scrape_worker   one scraper worker cycle: sync catalog, claim boards, scrape, checkpoint (--dry-run shows what it would do)
+uv run python -m app.scripts.embed_banks     the bank job, KAN-726: listen and embed stale banks until stopped (--once sweeps once); the team computer only, with EMBEDDING_PROVIDER=ollama (app/services/matching/CLAUDE.md); it runs from its own checkout there, so a merge reaches it only after "After a merge to main" in docs/scraper_gh_action/plan.md
 python3 scripts/fetch_tectonic.py              Tectonic + warm cache into vendor/ (resume PDFs; once per checkout)
 ```
 
@@ -131,12 +151,20 @@ module docstring has the steps.
   `job_role_tags`, resolved from its title (KAN-155).
 - A `--dry-run` writes and rolls back, leaving dead rows until autovacuum, so
   table sizes read right after one are inflated.
-- **After it commits, it extracts keywords** (KAN-392) for published scraped
-  jobs with none (`_extract_keywords`, through `keywords.read` and Scout's
-  `SCOUT_*` chain): new jobs, and changed ones, whose keywords the upsert
-  cleared. At most `--keywords-limit` model calls a run (default
-  `KEYWORDS_PER_RUN`, 100; 0 skips), so the backlog spreads over runs and
-  quotas; `--keywords-only` runs the pass alone. Each job commits on its
+- **After it commits, it embeds and extracts keywords** (KAN-392) **for
+  this run's jobs only** (KAN-726): the ones the upsert inserted or changed
+  (`Report.touched`, from its `RETURNING`), never the backlog. Keywords go
+  through `_extract_keywords`, `keywords.read` and Scout's `SCOUT_*` chain,
+  at most `--keywords-limit` model calls a run (default
+  `KEYWORDS_PER_RUN`, 100; 0 skips). Every other job missing a vector or
+  keywords is the backfills', `--embeddings-only` and `--keywords-only`,
+  which read every listed job and are run by a person. A closed job gets
+  neither, and a close clears its vector: no scoring query reads a closed
+  job, and a reopened one is its run's again
+  (`../docs/scraper_gh_action/plan.md`, The backfills). Both passes order by
+  `id`, a random UUID, so the old "any job with none" pass left a new job
+  behind tens of thousands of old ones, and its vector pass took most of
+  the run's timeout. Each job commits on its
   own and no transaction stays open across a model call. It reads past the
   last id tried, never "still NULL": a job whose reply fails its schema
   stays NULL, and a NULL query read it again forever. It stops at the first
@@ -729,10 +757,10 @@ Find files with a directory listing; these are the rules for where code goes.
   the bank's embedding alone. Tests: `tests/test_tailor.py`, "Resume-local
   skills".
 - **The experience bank is written only through `services/bank.py`.** It
-  holds the ownership scoping, the duplicate check and the clearing of the
-  bank embedding on every entry, bullet or skill change; a route or script
-  that writes `bank_*` rows itself leaves the recommender on a stale
-  embedding. Schema rationale: `../docs/resume.md`, "The experience bank".
+  holds the ownership scoping, the duplicate check and the marking of the
+  bank embedding as stale, with its notify to the bank job, on every entry,
+  bullet or skill change (KAN-726); a route or script that writes `bank_*`
+  rows itself leaves the recommender on an old embedding for good. Schema rationale: `../docs/resume.md`, "The experience bank".
   Clear All (KAN-352) is `delete_entries` / `delete_skills`: all or none,
   a 404 when any id is not the applicant's, and the same cascades as one
   delete (bullets, built resumes' choice rows), in one statement.
@@ -1595,13 +1623,40 @@ go then. A change needs to work on Cloudflare only.
   not the container's: the digest runs on EC2 (`../.github/CLAUDE.md`, Job
   alerts). **Never
   `DIRECT_URL`**: migrations run by hand, locally, and the deployed API has no
-  business holding that connection. Embeddings use Ollama with
-  `nomic-embed-text:v1.5` by default; see `app/services/matching/CLAUDE.md`.
-  **Still open:** the deployed API has no Ollama, so until the API's secrets
-  (`CF_API_SECRETS_JSON`, `../.github/CLAUDE.md`) set
-  `EMBEDDING_PROVIDER=gemini` and `GEMINI_API_KEY`, recommendations score
-  without the semantic part. The Worker forwards both names when set,
-  and sets neither itself: `gemini` without a key would fail matching.
+  business holding that connection. **The deployed API makes no
+  embeddings** (KAN-726): its provider is the default `none`, and it reads
+  the vectors the team computer stores (`app/services/matching/CLAUDE.md`).
+  `CF_API_SECRETS_JSON` must not set `EMBEDDING_PROVIDER`: the Worker
+  forwards it when set, and `gemini` there would write Gemini vectors beside
+  the Qwen3 ones.
+- **The bank job does not deploy on merge** (KAN-726). It runs all the
+  time on the team computer (`ASGAMINGPC`) as the Task Scheduler task
+  `WorkIt bank job`, as SYSTEM, from its own checkout `C:\workit-bank-job`
+  on `main`: two `python.exe` processes, the venv's launcher and
+  `app.scripts.embed_banks` itself. It loads its code once, at start, so a
+  merge reaches it only after a person pulls and restarts it there. **When
+  a change touches anything the job runs, tell the user, in the PR
+  description and in the reply, to have the team pull and restart it.**
+  That is `app/scripts/embed_banks.py` and what it imports
+  (`services/bank.py`, `services/identity.py`, `services/matching/`,
+  `models/bank.py`, `config.py`, `db.py`), `pyproject.toml` or `uv.lock`,
+  and a migration on `experience_banks`. The steps, on that computer:
+
+  ```powershell
+  cd C:\workit-bank-job; git pull; cd backend
+  $env:UV_PYTHON_INSTALL_DIR = 'C:\workit-bank-job\.python'; uv sync --managed-python
+  ```
+
+  then, in an admin PowerShell,
+  `Stop-ScheduledTask 'WorkIt bank job'; Start-ScheduledTask 'WorkIt bank job'`,
+  and `Get-Content C:\workit-bank-job\bank-job.log -Tail 20` must show
+  "Listening on bank_dirty" and a "Sweep (start)" line. Until then the old
+  code keeps running against the new schema and API. A change that needs a
+  migration first follows that migration's order; a change to the
+  embedding model or its prefix clears both vector columns first
+  (`docs/scraper_gh_action/plan.md`, Decision 3 and "After a merge to
+  main"). The runner's scrape needs none of this: each run checks out the
+  commit it runs.
 - **`GET /jobs` reads `job_postings`**, filled by the import on a schedule
   (`../.github/CLAUDE.md`). A deploy changes no jobs, and an empty table is an
   empty feed, not an error.

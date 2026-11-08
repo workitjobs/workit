@@ -20,7 +20,7 @@ the 1,096-job feed came back mostly equal-opportunity boilerplate ("race",
 
 | Component | How | Status |
 |---|---|---|
-| Semantic similarity | Nomic embeddings (Gemini in production) of the posting and of the experience bank, compared in Postgres (`1 - (job.embedding <=> bank.embedding)`) | Built — `scoring.py`, queried in `queries/jobs/recommendations.py` |
+| Semantic similarity | Qwen3 embeddings (`qwen3-embedding:4b`, made on the team computer, KAN-726) of the posting and of the experience bank, compared in Postgres (`1 - (job.embedding <=> bank.embedding)`) | Built — `scoring.py`, queried in `queries/jobs/recommendations.py` |
 | Skill overlap | Each distinct bank skill searched for in the posting on its own (`fts @@ plainto_tsquery(skill)`); the fraction found, never compared with other results | Built — `scoring.py`, queried in `queries/jobs/recommendations.py` |
 | Title fit | Word overlap between the job title and the bank's Experience titles and first field of study, stop words removed | Built — `scoring.py` `title_fit()` |
 | Eligibility | Years of experience check; an additive part (1.0 / 0.5 / 0.0), never a gate | Built — `scoring.py` `eligibility()` |
@@ -36,10 +36,16 @@ Nothing in this folder may assume what a software job is. Two consequences:
 
 ## Embeddings — `embeddings.py`
 
-- **One model, everywhere.** Laptops, the deployed API and the scheduled import
-  all write into the same database, and vectors from two models can't be
-  compared. Use Ollama's `nomic-embed-text:v1.5` at
-  `dto.EMBEDDING_DIMENSIONS` (768) for every job and bank vector.
+- **One model, on one machine** (KAN-726,
+  `../../../../docs/scraper_gh_action/plan.md`). Vectors from two models
+  can't be compared, so every job and bank vector is Ollama's
+  `qwen3-embedding:4b`, cut to `dto.EMBEDDING_DIMENSIONS` (768), made only on
+  the team computer: its scheduled import embeds jobs and its bank job
+  (`app/scripts/embed_banks.py`) embeds banks. Every other machine (the
+  deployed API, the job alerts, laptops) keeps the default provider `none`
+  and only reads vectors. Before this, laptops wrote Nomic vectors and the
+  job alerts Gemini ones into the same columns; migration `e8c3f1a7b925`
+  cleared them all.
 - **Changing either one changes the database too.**
   - A new size needs a migration changing both columns' type (`ALTER COLUMN
     embedding TYPE extensions.vector(N) USING NULL`).
@@ -48,17 +54,27 @@ Nothing in this folder may assume what a software job is. Two consequences:
   - A wrong size fails loudly: Postgres refuses the vector. A new model next to
     old vectors fails **silently**: the scores are wrong and nothing errors.
   - After either, the import re-embeds every job, and the migration also
-    sets every `experience_banks.embedding` to NULL, so each bank is
-    re-embedded on its next recommendations request.
-- **Two providers, picked by `EMBEDDING_PROVIDER`, each called through
-  httpx.** `ollama` (the default) calls Ollama's native `/api/embed`, at
-  `http://localhost:11434` unless `OLLAMA_EMBEDDING_URL` says otherwise;
-  install the model with `ollama pull nomic-embed-text:v1.5`. `gemini` calls
+    sets every `experience_banks.embedding` to NULL, so the bank job
+    re-embeds each bank (`e8c3f1a7b925` is the pattern).
+  - **A longer vector is cut, not refused** (`_shortened`): Qwen3's 4B
+    answers 2,560 values, and its Matryoshka training makes the first 768
+    stand alone; they are scaled back to length 1. A model without that
+    training would need a migration to its own width instead.
+- **Providers, picked by `EMBEDDING_PROVIDER`, each called through
+  httpx.** `none` (the default) embeds nothing and sends nothing: `embed()`
+  returns `None` at once, as for a provider that is down. `ollama` calls
+  Ollama's native `/api/embed`, at `http://localhost:11434` unless
+  `OLLAMA_EMBEDDING_URL` says otherwise, with `OLLAMA_EMBEDDING_MODEL`
+  (`qwen3-embedding:4b`; `ollama pull qwen3-embedding:4b`). `gemini` calls
   Gemini's native REST API (`batchEmbedContents`): the OpenAI-compatible
   endpoint documents neither the vector size nor batching. This keeps
   `workit_scout/llm.py` the only module that imports `openai`. Gemini's key
   travels in the `x-goog-api-key` header, so it never shows up in a logged
   URL. Every writer to one database must use the same provider and model.
+- **A bank is embedded as a query** (`embed(..., query=True)`): Ollama gets
+  `OLLAMA_EMBEDDING_QUERY_PREFIX`, a one-line task, before each bank text,
+  since Qwen3 embeds the asking side better with one. A posting never gets
+  it. Both bank paths pass it; a new one must too.
 - **`embed()` takes at most `BATCH_SIZE` (100) texts and never raises on a
   provider failure.** No key, a refusal (429 is Gemini's free-tier quota), an
   unreachable provider or a malformed response all return `None`. The caller
@@ -90,8 +106,9 @@ Nothing in this folder may assume what a software job is. Two consequences:
   own is read from that line. **The headings are part of the feed's
   contract**: renamed in the scraper alone, every posting quietly embeds its
   whole description again.
-- **Texts are cut to 6,000 characters**, since the model reads about 2,048
-  tokens.
+- **Texts are cut to 6,000 characters**, a limit kept from Nomic, which
+  read about 2,048 tokens. Qwen3 reads far more; raising the cut changes
+  every vector, so it waits for a reason.
 
 ## When things are embedded
 
@@ -103,18 +120,31 @@ Nothing in this folder may assume what a software job is. Two consequences:
   changed job's embedding is cleared in the upsert's `set_` dict, so it gets
   a fresh vector. Each batch of 100 is committed independently; if the
   provider goes down mid-run, the next scheduled run picks up the rest.
-- **Banks: on demand.** `GET /jobs/recommended/{applicant_id}` embeds the
-  bank when `experience_banks.embedding` is NULL, and stores it with
-  `embedded_at`. That call has a 10-second timeout
-  (`REQUEST_EMBED_SECONDS` in `queries/jobs/recommendations.py`, not the
-  import's 120), so a provider that is down or absent costs seconds and the
-  request scores without the semantic part rather than hanging the function. Every entry, bullet or skill change sets it back to NULL
-  (`services/bank.py`), so the bank routes never call Gemini themselves, and
-  applicants who never open recommendations never cost a call.
-- **A stale vector is never stored.** The write is conditional on the bank
-  row's `updated_at` being the one read: a change that landed while Gemini
-  answered already cleared the embedding, and the next request remakes it.
-  **Storing the vector keeps `updated_at` as it was** (KAN-425):
+- **Banks: by the bank job, soon after each change** (KAN-726,
+  `app/scripts/embed_banks.py`). Every entry, bullet or skill change keeps
+  the vector and marks it stale (`services/bank.py`'s `clear_embedding`:
+  only `updated_at` moves), and its commit sends `pg_notify` on
+  `bank_dirty`. The job on the team computer listens, waits a minute for
+  more, then embeds every stale bank, ones with no vector first; it also
+  sweeps on start, on reconnect and every 6 hours. Only one job works at a
+  time (a Postgres advisory lock on its listening connection); another
+  waits on standby. Recommendations score on
+  the stale vector meanwhile: clearing it, as before, scored the student
+  with no semantic part at all until the next embed.
+- **A stale bank is one whose `updated_at` moved past `embedded_at`**
+  (`bank_vectors.STALE`), or one with no vector. `embedded_at` is the bank
+  version the vector was made from (its `updated_at` when read), not the
+  time of the write: a change whose transaction began before the write and
+  committed after it would carry an earlier time and look embedded.
+- **A recommendations request embeds only a bank with no vector**, and only
+  where its process has a provider; the deployed API's is `none`, so it
+  embeds nothing and reads what the job stored. Its call has a 10-second
+  timeout (`REQUEST_EMBED_SECONDS`), so a provider that is down costs
+  seconds, not the request.
+- **A vector is stored only for the version read** (`bank_vectors.store`):
+  the write is conditional on `updated_at` still being the value read, so a
+  change that landed while the model ran leaves the bank stale, and its
+  notify brings it back. **Storing keeps `updated_at` as it was** (KAN-425):
   `updated_at` is the bank's last change, and Home's kept matches are
   keyed on it, so a bump there made the first return after every bank
   change score again (`tests/test_recommended.py` caught it).
@@ -191,9 +221,11 @@ code that maps them is deployed.
 
 ## Configuration
 
-Ollama is expected at `OLLAMA_EMBEDDING_URL` with `nomic-embed-text:v1.5`
-installed. If Ollama is unavailable, embedding returns no vector and the import
-or recommendation request can retry later.
+Only the team computer sets `EMBEDDING_PROVIDER=ollama`, with Ollama at
+`OLLAMA_EMBEDDING_URL` and `qwen3-embedding:4b` pulled. If Ollama is
+unavailable, embedding returns no vector, and the import and the bank job try
+again on their next run. Tests: `tests/test_embeddings.py`,
+`tests/test_embed_banks.py`, the notify in `tests/test_bank.py`.
 
 ## Scoring — `scoring.py`
 

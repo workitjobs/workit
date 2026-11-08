@@ -397,6 +397,14 @@ export function pickSkill(row: PickedSkill, on: boolean): ChoicesUpdate {
   };
 }
 
+/** The whole skills section in one PATCH (KAN-435): off takes each skill that
+ *  prints, so the section prints no heading, and on adds each one not printing. */
+export function pickSkills(rows: PickedSkill[], on: boolean): ChoicesUpdate {
+  return {
+    skills: rows.filter((row) => row.on !== on).flatMap((row) => pickSkill(row, on).skills ?? []),
+  };
+}
+
 /** What Fit to One Page cut from this resume, read from each fit's `undo`
  *  body: whole entries, bullets and skills (docs/cut_to_one_page.md), and
  *  Education's coursework lines, which fits before KAN-320 cut. */
