@@ -140,3 +140,19 @@ def test_it_refuses_to_run_with_no_provider(monkeypatch, capsys):
     monkeypatch.setattr(embed_banks, "get_settings", lambda: Settings(_env_file=None, embedding_provider="none"))
     assert embed_banks.main(["--once"]) == 1
     assert "EMBEDDING_PROVIDER is none" in capsys.readouterr().err
+
+
+async def test_only_one_bank_job_holds_the_lock(database):
+    import asyncpg
+
+    first = await asyncpg.connect(embed_banks._listen_dsn())
+    second = await asyncpg.connect(embed_banks._listen_dsn())
+    try:
+        assert await embed_banks.take_lock(first)
+        assert not await embed_banks.take_lock(second)
+        await first.close()  # the computer goes away
+        assert await embed_banks.take_lock(second)
+    finally:
+        for conn in (first, second):
+            if not conn.is_closed():
+                await conn.close()

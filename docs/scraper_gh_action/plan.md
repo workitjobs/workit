@@ -269,8 +269,12 @@ machine does comes from its environment and from which processes it starts.
 | Laptops | the API, tests | unset, so `none` |
 
 The bank job runs only where someone starts it, and it refuses to start
-with `none`. A laptop that set `ollama` and ran it would write the same
-model's vectors, so nothing breaks, but there is no reason to.
+with `none`. Sharing `DATABASE_URL` and `DIRECT_URL` sends no one else a
+notification: Postgres delivers a `NOTIFY` only to a connection that ran
+`LISTEN` on its channel, and only the bank job does. A second bank job
+started anywhere waits on standby: each holds a Postgres advisory lock on
+its listening connection (`embed_banks.LOCK_KEY`), so only one works, and
+the standby takes over when the first one's connection is gone.
 
 ## Setting up the computer
 

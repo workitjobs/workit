@@ -22,6 +22,11 @@ How it runs:
   had a vector first (new students), then the oldest change first.
 - It also sweeps on start, on every reconnect and every `BACKUP_S`, which
   catches the notifies sent while it was off or disconnected.
+- Only one bank job works at a time: each holds a Postgres advisory lock
+  (`LOCK_KEY`) on its listening connection, and a second one started anywhere
+  waits on standby, trying every `STANDBY_S`, until the first one's
+  connection is gone. The lock ends with its connection, so a computer that
+  dies never holds it.
 - It checks its connection every `PING_S` and reconnects when it is gone: a
   campus network or the pooler can drop an idle connection without a word.
 """
@@ -52,6 +57,15 @@ DEBOUNCE_S = 60.0
 BACKUP_S = 6 * 60 * 60.0
 PING_S = 5 * 60.0
 RETRY_MAX_S = 5 * 60.0
+STANDBY_S = 60.0
+# Any fixed number, the same in every copy of this job: pg_try_advisory_lock
+# names a lock by a bigint.
+LOCK_KEY = 726_0001
+
+
+async def take_lock(conn: asyncpg.Connection) -> bool:
+    """True when this connection now holds the one bank job's lock."""
+    return bool(await conn.fetchval("SELECT pg_try_advisory_lock($1)", LOCK_KEY))
 
 
 async def stale_banks(session: AsyncSession) -> list[tuple[uuid.UUID, datetime]]:
@@ -168,6 +182,10 @@ async def run() -> None:
             continue
         retry = 5.0
         try:
+            if not await take_lock(conn):
+                logger.info("Another bank job holds the lock; standing by")
+                await asyncio.sleep(STANDBY_S)
+                continue
             await conn.add_listener(BANK_CHANNEL, lambda *_args: woken.set())
             logger.info("Listening on %s", BANK_CHANNEL)
             # Catch up on what changed while not listening.

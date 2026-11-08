@@ -9,7 +9,7 @@ from the job alerts. The columns stay vector(768).
 
 Apply it after the deploy that makes `none` the default provider, so no
 other machine writes old-model vectors again, and before starting the bank
-job on the team computer (docs/scraper_gh_action/plan.md, Build order).
+job on the team computer (docs/scraper_gh_action/plan.md, The cutover).
 Applied before that deploy, the old API or the job alerts could write
 Gemini vectors back in between.
 
@@ -17,7 +17,7 @@ Its downgrade does nothing: the cleared vectors cannot be brought back, and
 the bank job and the import remake them.
 
 Revision ID: e8c3f1a7b925
-Revises: b6d2e8f4a1c7
+Revises: b2c3d4e5f6a7
 Create Date: 2026-11-08 18:00:00.000000
 
 """
@@ -28,7 +28,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = 'e8c3f1a7b925'
-down_revision: Union[str, Sequence[str], None] = 'b6d2e8f4a1c7'
+down_revision: Union[str, Sequence[str], None] = 'b2c3d4e5f6a7'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

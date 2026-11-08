@@ -126,7 +126,9 @@ Nothing in this folder may assume what a software job is. Two consequences:
   only `updated_at` moves), and its commit sends `pg_notify` on
   `bank_dirty`. The job on the team computer listens, waits a minute for
   more, then embeds every stale bank, ones with no vector first; it also
-  sweeps on start, on reconnect and every 6 hours. Recommendations score on
+  sweeps on start, on reconnect and every 6 hours. Only one job works at a
+  time (a Postgres advisory lock on its listening connection); another
+  waits on standby. Recommendations score on
   the stale vector meanwhile: clearing it, as before, scored the student
   with no semantic part at all until the next embed.
 - **A stale bank is one whose `updated_at` moved past `embedded_at`**
