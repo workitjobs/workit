@@ -226,6 +226,15 @@ with the failure it prevents.
   student's email.
 - `docs/whats-new-2026-11-05.md` — what a teammate must do after the rename to
   `workitjobs`, and the new Apply settings and commands.
+- `docs/scraper_gh_action/plan.md` — KAN-726, built: the scheduled
+  scrape runs on a team computer as a self-hosted runner (PR runs stay on
+  GitHub's), with keywords from a local Qwen and every vector, jobs and
+  banks, from a local Qwen3 embedding model that only that computer runs
+  (its bank job listens for bank changes); everywhere else the embedding
+  provider is `none`. A bank change marks its vector stale instead of
+  clearing it. Holds the computer's setup and the cutover order. Read it
+  before changing the scrape workflow, the embedding provider or how a
+  bank is embedded.
 - `docs/search.md` — how the Jobs page's search reads a query.
 - `docs/architecture.md` — how the halves fit together, for a reader new to
   the repo.

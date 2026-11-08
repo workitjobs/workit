@@ -40,6 +40,9 @@ build/
 __pycache__/
 *.py[cod]
 .venv/
+# Written into scraper/ and scout/ when the backend builds them as path
+# dependencies (uv sync); build output, never source.
+*.egg-info/
 
 # misc
 .DS_Store
