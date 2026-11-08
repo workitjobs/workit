@@ -137,6 +137,6 @@ async def test_store_keeps_updated_at_and_stamps_the_version(database):
 def test_it_refuses_to_run_with_no_provider(monkeypatch, capsys):
     from app.config import Settings
 
-    monkeypatch.setattr(embed_banks, "get_settings", lambda: Settings(_env_file=None))
+    monkeypatch.setattr(embed_banks, "get_settings", lambda: Settings(_env_file=None, embedding_provider="none"))
     assert embed_banks.main(["--once"]) == 1
     assert "EMBEDDING_PROVIDER is none" in capsys.readouterr().err

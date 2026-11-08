@@ -326,6 +326,8 @@ def test_only_a_query_gets_the_prefix(ollama, monkeypatch):
     assert [json.loads(r.content)["input"] for r in requests] == [["Task:\na bank"], ["a posting"]]
 
 
-def test_the_default_provider_embeds_nothing():
+def test_the_default_provider_embeds_nothing(monkeypatch):
     # Only the team computer opts in; every other machine must write nothing.
+    # That computer may export the setting, so the test removes it.
+    monkeypatch.delenv("EMBEDDING_PROVIDER", raising=False)
     assert Settings(_env_file=None).embedding_provider == "none"
