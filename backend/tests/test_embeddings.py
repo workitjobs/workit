@@ -103,6 +103,16 @@ def test_no_key_skips_http(provider, monkeypatch):
     assert requests == []
 
 
+def test_provider_none_skips_http(provider, monkeypatch):
+    requests = provider()
+    monkeypatch.setattr(
+        embeddings, "get_settings",
+        lambda: Settings(_env_file=None, gemini_api_key="must-not-send", embedding_provider="none"),
+    )
+    assert asyncio.run(embeddings.embed(["job"])) is None
+    assert requests == []
+
+
 def test_empty_batch_is_empty_without_http_or_settings(provider, monkeypatch):
     requests = provider()
     monkeypatch.setattr(embeddings, "get_settings", lambda: pytest.fail("settings accessed"))

@@ -75,7 +75,9 @@ class Settings(BaseSettings):
     turnstile_secret_key: str | None = None
 
     gemini_api_key: str | None = None
-    embedding_provider: Literal["gemini", "ollama"] = "ollama"
+    # "none" embeds nothing and calls nothing (KAN-726): for a writer that
+    # must not put vectors from another model into the shared columns.
+    embedding_provider: Literal["gemini", "ollama", "none"] = "ollama"
     ollama_embedding_url: str = "http://localhost:11434"
     ollama_embedding_model: str = Field(default="nomic-embed-text:v1.5", min_length=1)
     embedding_timeout_seconds: float = Field(default=120, gt=0)

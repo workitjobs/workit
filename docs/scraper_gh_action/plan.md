@@ -1,7 +1,11 @@
 # Moving the scheduled scrape to our own computer
 
-KAN-726. A plan agreed on 2026-11-08; nothing in it is built yet. It moves the
-scheduled scrape and import (`.github/workflows/scrape.yml`, KAN-160) off
+KAN-726. A plan agreed on 2026-11-08. Built: Decisions 1 and 2 in
+`scrape.yml`, and `EMBEDDING_PROVIDER=none` so the import writes no vectors
+meanwhile. The computer's setup is by hand (Setting up the computer, below).
+Not built: Decisions 3 and 4 and the shorter PR run.
+
+It moves the scheduled scrape and import (`.github/workflows/scrape.yml`, KAN-160) off
 GitHub's hosted runners onto a team computer, and moves keyword extraction
 and embeddings from hosted APIs to local models on that computer.
 
@@ -82,6 +86,20 @@ since whichever path reads a posting first caches its keywords.
 
 Compare the local model's keywords with the current output on a sample of
 postings before switching.
+
+**The backfill needs no new script.** `import_jobs --keywords-only` extracts
+keywords for every published scraped job with none, each job committing on
+its own; a reply that fails its schema is tried again next run, and a model
+that stops answering ends the run with what it wrote. Run it on the computer
+from a checkout with no root `.env`, passing `DATABASE_URL` and
+`SCOUT_ENDPOINTS_SMALL` (the local Ollama) in the shell, so no hosted chain
+is configured and a failed local call never falls back to Groq's quota (an
+empty `SCOUT_ENDPOINTS` is refused as a list, and `[]` falls back to the
+single `SCOUT_*` fields a `.env` may set), with a `--keywords-limit` above
+the job count (there is no "all"; the default is
+100). Time `--keywords-limit 20` first: a 9B model likely takes seconds per
+job, so thousands take hours. Keywords that hosted models already wrote
+stay.
 
 ## Decision 3: embeddings on a local model, made only on the computer
 
@@ -223,6 +241,38 @@ vector sets `embedded_at` and keeps `updated_at` as it was (KAN-425). So:
 Changes with it: the `Experience_Bank` docstring
 (`backend/app/models/bank.py`) and the "Banks: on demand" rule in
 `backend/app/services/matching/CLAUDE.md`.
+
+## Setting up the computer
+
+A person does this once, on the computer, with admin rights on the repo.
+
+1. **Install** Git (on Windows, Git for Windows: the job runs bash, and it
+   must be on the runner's PATH) and Ollama, then `ollama pull qwen3.5:9b`.
+   `curl http://localhost:11434/v1/models` lists it when Ollama is up.
+2. **Ollama starts on boot.** The Linux installer makes a systemd service.
+   On Windows the app starts at sign-in only, so add `ollama serve` as a
+   Task Scheduler task at startup, or keep a user signed in. Turn sleep off.
+3. **Check the network** (The university network, above): from the
+   computer, connect to the `DATABASE_URL` host on port 6543, for example
+   `python -c "import socket; socket.create_connection(('<pooler host>', 6543), 5)"`.
+4. **Add the runner**: the repo's Settings, Actions, Runners, New
+   self-hosted runner, pick the OS, and run the commands that page shows.
+   When `config` asks for additional labels, enter `workit-scraper`: the
+   workflow picks the runner by it.
+5. **Run it as a service**, so it survives a reboot: on Linux
+   `sudo ./svc.sh install` then `sudo ./svc.sh start` in the runner's
+   folder; on Windows answer yes to running it as a service during
+   `config`.
+6. **Fork PRs need approval**: Settings, Actions, General, "Require
+   approval for all external contributors". The workflow already sends PR
+   runs to GitHub's runner; this is a second guard.
+7. **Try it**: `gh workflow run scrape.yml --ref <branch> -f dry_run=true`
+   runs the branch's workflow on the computer and writes nothing (a dry run
+   calls no model). Then a run without `dry_run`, whose log should end with
+   a keyword count above 0 and `embedded 0`.
+
+While the runner is offline, scheduled runs wait in the queue and nothing
+is scraped; GitHub cancels a job that waits 24 hours.
 
 ## Not now: a shorter PR run
 

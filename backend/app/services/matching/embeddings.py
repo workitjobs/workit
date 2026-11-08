@@ -115,6 +115,8 @@ async def embed(
         return []
     settings = get_settings()
     provider = settings.embedding_provider
+    if provider == "none":
+        return None
     headers = {}
     if provider == "gemini":
         if not settings.gemini_api_key:

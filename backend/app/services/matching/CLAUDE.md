@@ -59,6 +59,11 @@ Nothing in this folder may assume what a software job is. Two consequences:
   `workit_scout/llm.py` the only module that imports `openai`. Gemini's key
   travels in the `x-goog-api-key` header, so it never shows up in a logged
   URL. Every writer to one database must use the same provider and model.
+  **`none` embeds nothing and sends nothing** (KAN-726): `embed()` returns
+  `None` at once, as for a provider that is down. The scheduled import on
+  the team computer sets it, since that computer runs Ollama and the default
+  `ollama` would write Nomic vectors there until the move to one local model
+  (`../../../../docs/scraper_gh_action/plan.md`, Decision 3) is done.
 - **`embed()` takes at most `BATCH_SIZE` (100) texts and never raises on a
   provider failure.** No key, a refusal (429 is Gemini's free-tier quota), an
   unreachable provider or a malformed response all return `None`. The caller
