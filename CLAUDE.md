@@ -240,6 +240,12 @@ with the failure it prevents.
   before changing the scrape workflow, the embedding provider or how a
   bank is embedded.
 - `docs/search.md` — how the Jobs page's search reads a query.
+- `docs/search_storage.md` — KAN-735's plan, not built: the database is
+  over Supabase's free plan, a table rewrite (`VACUUM FULL`) does not fit
+  on its disk, and the stored search column `job_postings.fts` (217 MB)
+  can lose its unread positions and weights (option A) or go (option B).
+  Read it before changing `fts`, its index, or anything that grows
+  `job_postings`.
 - `docs/architecture.md` — how the halves fit together, for a reader new to
   the repo.
 - `docs/job-pipeline.md` — the job pipeline end to end, in plain terms. A

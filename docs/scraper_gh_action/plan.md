@@ -475,7 +475,7 @@ its own jobs only, the ones it inserted or changed, so a new job is ready
 after one run. Every older job missing either one is the backlog, and only
 these backfills read it. Without them, jobs from before the cutover never
 get a vector or keywords. Hold the vector backfill until the storage plan
-below is decided; new jobs get vectors meanwhile.
+(`../search_storage.md`) is decided; new jobs get vectors meanwhile.
 
 **Then keywords on the local model** (Decision 2). Set the small chain in
 the same window, time 20 jobs and compare them with keywords a hosted
@@ -502,51 +502,13 @@ same result.
 
 ## Storage on Supabase's free plan
 
-The free plan allows 500 MB; the database was 639 MB on 2026-11-08,
-measured read-only before the backfills. Nearly all of it is
-`job_postings` (600 MB on disk, 58,818 scraped rows, 47,649 listed):
-
-| Part | Size |
-| --- | --- |
-| `fts`, the stored search column (generated) | 217 MB |
-| `description` | 150 MB |
-| Other columns | about 15 MB |
-| Free space left by updated rows (600 on disk, 381 live, minus indexes) | about 135 MB |
-| Indexes (the `fts` GIN index is 60 MB) | 84 MB |
-
-What the backfills add:
-
-- **Keywords:** about 650 bytes a job, so about 30 MB for every listed
-  job. Small.
-- **Vectors:** `vector(768)` is about 3 KB a job, so about 145 MB for the
-  listed jobs and 180 MB for all scraped ones. Postgres puts them in the
-  free space first, so the file grows by less, but it still grows.
-
-A plan to stay on the free plan, largest saving first. None is built:
-
-1. **Reclaim the free space**: `VACUUM FULL job_postings`, or `pg_repack`
-   (on Supabase) to avoid a long lock, run by a person after the
-   backfills. About 135 MB, at once. Ordinary autovacuum reuses that space
-   but never returns it.
-2. **Make `fts` smaller**: index only the start of a long description
-   (`left(description, N)` in the generated column), or drop the stored
-   column for an expression index with the same weights. Up to 217 MB, but
-   it changes how search ranks (`docs/search.md`): test it there first.
-3. **Embed listed jobs only**, and clear a job's vector when it closes:
-   the 11,183 closed jobs would hold about 33 MB of vectors no student
-   sees. **Built** (2026-11-08): `_embed_jobs` reads published jobs only,
-   and `_close_missing` clears the vector; a job that comes back counts as
-   changed, so its run embeds it again. Every scoring query reads `LISTED`
-   jobs only, so nothing reads a closed job's vector. Keywords stay on a
-   closed job: they are small, and a tailored resume's match against its
-   own closed posting reads them.
-4. **`halfvec(768)`**: half precision halves every vector (about 70 MB
-   for the listed jobs) with almost no change in scores. A migration on
-   both vector columns and their casts.
-5. **Retention for closed jobs**: delete closed jobs no application
-   names after some days, through the retention purge
-   (`services/retention.py`). About 70 MB today, and it stops the table
-   growing with every closed posting.
+The database is over the free plan's 500 MB, and the backfills add to it.
+The measurements, why a `VACUUM FULL` cannot run, how the WAL grows, and
+the plan to stay on the free plan are in `../search_storage.md` (KAN-735).
+Listed jobs only for vectors is built here, in KAN-726: every scoring
+query reads `LISTED` jobs only, so a closed job gets no vector and a close
+clears its vector. Keywords stay on a closed job: they are small, and a
+tailored resume's match against its own closed posting reads them.
 
 ## Not now: a shorter PR run
 

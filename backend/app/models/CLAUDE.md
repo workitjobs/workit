@@ -1000,7 +1000,11 @@ searching company-posted jobs by employer needs a join or a copied name.
   expression can't be altered in place everywhere). Postgres computes it and
   keeps it current, and `Computed` keeps it out of every INSERT and UPDATE, so
   nothing in Python writes it. `@@` ignores weights, so matching's skill
-  overlap reads it unchanged.
+  overlap reads it unchanged. **Nothing ranks with it today**: search and
+  the skill overlap only use `@@`, and Tailor's `ts_rank` builds its words
+  from bullets, so the positions and weights are unread. At 217 MB it is
+  the largest part of a database over Supabase's free plan; KAN-735's plan
+  to shrink it is `../../../docs/search_storage.md`.
 - **All three are `deferred`**, so the company-jobs and resume routes' ORM loads
   never pull 768 numbers, or a few KB of search terms, per row.
 - **Their migration is `4485d7a7a712`**, which revises `b81d4e2f6c09` (visa
