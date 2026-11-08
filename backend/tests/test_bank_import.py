@@ -1276,9 +1276,9 @@ async def test_a_year_alone_from_the_model_is_january_and_keeps_the_award():
     assert award.award_date.isoformat() == "2024-01-01"
 
 
-async def test_a_section_the_model_left_empty_keeps_the_parsers_entries():
-    # Gemini left out both papers under "Publications": the prompt named no
-    # section for them. The parser keeps them as projects.
+async def test_entries_the_model_left_out_come_from_the_parser():
+    # Gemini left out both papers under "Publications"; here it also leaves
+    # out two of the three jobs and every bullet of the one it keeps.
     from workit_scout.identity import Identity
 
     from app.services.bank_import import read_resume
@@ -1289,14 +1289,39 @@ async def test_a_section_the_model_left_empty_keeps_the_parsers_entries():
         {"section": "experience", "title": "Undergraduate Researcher", "organization": "Computational Systems Lab",
          "start_month": "2025-01", "end_kind": "present"},
     ]}
-    llm = ScriptedLLM(_reading(reply))
-    reading = await read_resume(_fixture_text("research_and_publications.txt"), llm, Identity())
+    reading = await read_resume(_fixture_text("research_and_publications.txt"), ScriptedLLM(_reading(reply)), Identity())
     assert reading.read_by == "model"
+    jobs = [e for e in reading.entries if e.section.value == "experience"]
+    # The model's job first, once; the two it left out after it.
+    assert [e.title for e in jobs] == ["Undergraduate Researcher", "Data Science Intern", "Research Assistant"]
+    assert jobs[0].bullets == [
+        "Wrote a cache simulator in C++ that runs 4x faster than the lab's old one",
+        "Ran 300 experiments on the university cluster",
+    ]
     papers = [e.title for e in reading.entries if e.section.value == "projects"]
     assert [p[:30] for p in papers] == ["Lee, R., Ortiz, M. (2025). Fas", "Ortiz, M., Lee, R. (2024). A B"]
-    # The parser's jobs the model already holds stay out; the one it left out
-    # is in a section the model filled, so it is not added back either.
-    assert [e.title for e in reading.entries if e.section.value == "experience"] == ["Undergraduate Researcher"]
+    # The parser's skills too: the model's reply named none.
+    assert {"Python", "C++", "SQL"} <= {name for name, _ in reading.skills}
+
+
+async def test_the_parser_fills_only_the_fields_the_model_left_empty():
+    from workit_scout.identity import Identity
+
+    from app.services.bank_import import read_resume
+
+    reply = {"entries": [
+        # A paper with no year: the parser's reading gives it one.
+        {"section": "projects", "title": "Lee, R., Ortiz, M. (2025). Faster Cache Simulation with Sampled Traces. "
+                                         "Proceedings of the Workshop on Systems Research."},
+        # A start the parser reads otherwise (Jan 2025) stays the model's.
+        {"section": "experience", "title": "Undergraduate Researcher", "organization": "Computational Systems Lab",
+         "start_month": "2025-02", "end_kind": "present"},
+    ]}
+    reading = await read_resume(_fixture_text("research_and_publications.txt"), ScriptedLLM(_reading(reply)), Identity())
+    paper = next(e for e in reading.entries if e.title.startswith("Lee, R."))
+    job = next(e for e in reading.entries if e.title == "Undergraduate Researcher")
+    assert paper.end_month.isoformat() == "2025-01-01"
+    assert (job.start_month.isoformat(), job.location) == ("2025-02-01", "Hillcrest, NY")
 
 
 async def test_a_parser_entry_the_model_filed_elsewhere_is_not_added_twice():
@@ -1304,14 +1329,50 @@ async def test_a_parser_entry_the_model_filed_elsewhere_is_not_added_twice():
 
     from app.services.bank_import import read_resume
 
-    # The parser reads these awards; the model files the same honor as a club role.
-    text = "Leadership\nSociety of Women Engineers  Sep 2025 - Present\nVice President\nAwards\nDean's List  Dec 2025\n"
+    # The parser files the role under Experience; the model, under Leadership.
+    text = "Experience\nCampus Residences  Aug 2024 - Present\nResident Assistant\n- Led floor meetings for 40 residents\n"
     reply = {"entries": [
-        {"section": "leadership", "title": "Vice President", "organization": "Society of Women Engineers",
-         "start_month": "2025-09", "end_kind": "present", "bullets": ["Dean's List"]},
+        {"section": "leadership", "title": "Resident Assistant", "organization": "Campus Residences",
+         "start_month": "2024-08", "end_kind": "present", "bullets": ["Led floor meetings for 40 residents"]},
     ]}
     reading = await read_resume(text, ScriptedLLM(_reading(reply)), Identity())
-    assert [e.title for e in reading.entries] == ["Vice President"]
+    assert [(e.section.value, e.title, len(e.bullets)) for e in reading.entries] == [
+        ("leadership", "Resident Assistant", 1),
+    ]
+
+
+async def test_two_jobs_with_one_title_at_two_companies_are_two_entries():
+    from workit_scout.identity import Identity
+
+    from app.services.bank_import import read_resume
+
+    text = (
+        "Experience\nTarget  Jun 2023 - Aug 2023\nSales Associate\n- Ran a register\n"
+        "Walmart  Jun 2022 - Aug 2022\nSales Associate\n- Stocked shelves\n"
+    )
+    reply = {"entries": [
+        {"section": "experience", "title": "Sales Associate", "organization": "Target",
+         "start_month": "2023-06", "end_month": "2023-08", "end_kind": "month"},
+    ]}
+    reading = await read_resume(text, ScriptedLLM(_reading(reply)), Identity())
+    assert [(e.title, e.organization) for e in reading.entries] == [("Sales Associate", "Target"), ("Sales Associate", "Walmart")]
+
+
+async def test_a_line_of_tools_the_parser_saved_as_a_bullet_is_not_added():
+    from workit_scout.identity import Identity
+
+    from app.services.bank_import import read_resume
+
+    text = (
+        "Projects\nBudget Buddy  Jan 2026 - Mar 2026\nReact, Firebase, Tailwind CSS\n"
+        "- Built a shared expense tracker used by 40 students\n"
+    )
+    reply = {"entries": [
+        {"section": "projects", "title": "Budget Buddy", "start_month": "2026-01", "end_month": "2026-03",
+         "end_kind": "month", "bullets": ["Built a shared expense tracker used by 40 students"]},
+    ]}
+    reading = await read_resume(text, ScriptedLLM(_reading(reply)), Identity())
+    assert reading.entries[0].bullets == ["Built a shared expense tracker used by 40 students"]
 
 
 async def test_tools_the_model_copied_into_a_title_become_skills():
@@ -1382,3 +1443,38 @@ async def test_a_citation_ending_in_its_link_keeps_its_title_and_takes_the_parse
     paper = next(e for e in reading.entries if e.section.value == "projects")
     assert paper.title == "Ortiz, M., Lee, R. (2024). A Benchmark for Small-Object Detection. arXiv preprint"
     assert paper.link == "https://arxiv.org/abs/2409.01234"
+
+
+async def test_a_line_the_parser_misread_as_a_bullet_is_not_added():
+    # The model reads "Stony Brook University" as the project's organization;
+    # the parser saved it as the project's bullet.
+    from workit_scout.identity import Identity
+
+    from app.services.bank_import import read_resume
+
+    text = (
+        "Projects\nAcademic Advising Bot  Mar 2026 - Present\nStony Brook University\n"
+        "- Answered 500 advising questions a week\n"
+    )
+    reply = {"entries": [
+        {"section": "projects", "title": "Academic Advising Bot", "organization": "Stony Brook University",
+         "start_month": "2026-03", "end_kind": "present", "bullets": ["Answered 500 advising questions a week"]},
+    ]}
+    reading = await read_resume(text, ScriptedLLM(_reading(reply)), Identity())
+    assert reading.entries[0].bullets == ["Answered 500 advising questions a week"]
+
+
+async def test_an_awards_giver_in_both_title_and_organization_leaves_the_title():
+    from workit_scout.identity import Identity
+
+    from app.services.bank_import import read_resume
+
+    reply = {"entries": [
+        {"section": "awards", "title": "First Place, Regional Design Competition – ASME", "organization": "ASME",
+         "award_date": "2025-04"},
+    ]}
+    reading = await read_resume(
+        _fixture_text("leadership_and_awards_single_column.txt"), ScriptedLLM(_reading(reply)), Identity()
+    )
+    award = next(e for e in reading.entries if e.section.value == "awards")
+    assert (award.title, award.organization) == ("First Place, Regional Design Competition", "ASME")

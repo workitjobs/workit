@@ -11,7 +11,8 @@ file. The heuristic parser reads every upload too, at no cost, and its
 reading is saved whenever the model's is not: when the student has no AI
 reading left today, when the model is down, out of quota or slower than 45
 seconds, when its reply fails the schema, and when the resume's text backs
-none of its entries. An upload never fails because of the AI.
+none of its entries. When the model's reading is saved, the parser's fills
+what it left out (below). An upload never fails because of the AI.
 
 The rules:
 
@@ -31,11 +32,19 @@ The rules:
   "B.S."), so the check rarely takes a real field.
 - **Links come from the parser.** The model sees every URL as `[link]`, so
   a model project takes the link of the parser's project with its title.
-- **So does a section the model left empty** (2026-11-08): the model left
-  out a resume's publications, which the parser keeps as projects. A parser
-  entry already in the model's reading under another section stays out.
-  The model's year-only dates, tools in titles and award givers are read as
-  the parser reads them (`backend/app/utils/CLAUDE.md`).
+- **The two readings are combined, not one chosen** (amended 2026-11-08).
+  Reading the parser's fixtures, the model left out a resume's
+  publications, a year-only date and an award, all of which the parser
+  kept. So the model's reading is the base, and each parser entry it lacks
+  is added; a parser entry for the same thing fills only the fields the
+  model left empty, and adds the bullets the model left out. The model's
+  value wins wherever both have one, and the parser never fills a title or
+  an organization, since its mistakes are there on the layouts the model
+  is for. The model's year-only dates, tools in titles and award givers are
+  read as the parser reads them (`backend/app/utils/CLAUDE.md`).
+- **The student looks the reading over once.** The preview says to check
+  that every detail is there and to make any edits; no field is marked for
+  checking, so a disagreement between the two readers says nothing.
 - **So do the words the seam took out.** The seam removes every part of the
   student's name, even where it is a common word ("user" for the test
   account's Test User), and the model echoes "[name]". A bullet holding a

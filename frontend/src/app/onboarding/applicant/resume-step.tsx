@@ -223,7 +223,14 @@ function Reading({
   );
 
   return (
-    <Field Icon={FileIcon} label={name} tag={false}>
+    // One note for the whole reading, never a mark on each field: the student
+    // looks it over once, not field by field.
+    <Field
+      Icon={FileIcon}
+      label={name}
+      tag={false}
+      hint="Check that every detail from your resume is here, and make any edits you want before you save."
+    >
       {/* Named main, as the Experiences page's column is, so the row and
           the editor lay out as they do there. */}
       <div className="@container/main flex flex-col gap-4">

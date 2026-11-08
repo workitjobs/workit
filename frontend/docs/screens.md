@@ -3461,7 +3461,12 @@ while the student picks a file, and "Now, check what WorkIt found, then save
 it." once the reading is on screen ("Already Uploaded" keeps the first, with
 nothing to save). The second fades in and takes focus like a new step's.
 **The reading is drawn as the Experiences page draws a bank** (KAN-732):
-under the file's name (no "Optional", no intro line), a card per section
+under the file's name (no "Optional") and one note for the whole reading,
+"Check that every detail from your resume is here, and make any edits you
+want before you save." **No field or entry is marked for checking**: the
+student looks the reading over once, not field by field (the user's call,
+2026-11-08), so where the AI and the parser disagree the reading keeps the
+AI's value and says nothing (`backend/app/utils/CLAUDE.md`). Then a card per section
 with the bank's heading and `EntryRow`s, every entry open with its details
 and bullets and no chevron, unlike the bank's closed rows, so the whole
 reading is in view. Each entry's pencil opens the shared `EntryEditor`

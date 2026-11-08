@@ -26,7 +26,7 @@ from workit_scout.identity import PLACEHOLDERS, Identity, placeholders_in
 from workit_scout.llm import LLM
 
 from app.models.dto import Experience, ParsedResume, bank_section, entry_end_kind
-from app.schemas.bank import DraftEntry, ModelReading
+from app.schemas.bank import SECTION_FIELDS, DraftEntry, ModelReading
 from app.services import skill_catalog
 from app.utils.resume_parser import parse_resume, section_of, split_tools
 
@@ -321,9 +321,10 @@ class Reading:
 
 async def read_resume(raw_text: str | None, llm: LLM | None = None, identity: Identity | None = None) -> Reading:
     """An upload's reading: the model's, checked against the text, with the
-    tools taken out of its titles, an award's giver in its organization, the
-    parser's entries in any section it left empty and the parser's project
-    links; else the parser's. The parser's when no
+    tools taken out of its titles, an award's giver in its organization and
+    the parser's project links, combined with what the parser read that the
+    model left out (`with_parsers_reading`) and the parser's skills; else the
+    parser's. The parser's when no
     model is given (no AI reading left today) or there is no text, and when
     the model fails, answers in the wrong shape, runs past
     MODEL_WAIT_SECONDS or keeps no entry the text backs. Never raises: an
@@ -347,9 +348,11 @@ async def read_resume(raw_text: str | None, llm: LLM | None = None, identity: Id
     if not drafts:
         return parsed
     drafts, tools = with_tools_split(drafts)
-    drafts = with_missed_sections(with_award_givers(drafts), entries)
-    found = model_skills(reading, text) + [(tool, None) for tool in tools]
-    return Reading(with_links(drafts, entries), skill_pairs(found), "model")
+    drafts = with_parsers_reading(with_links(with_award_givers(drafts), entries), entries)
+    # The model's skills first, so its groups win; then the parser's, which
+    # the catalog already passed, so a skill the model left out is kept.
+    found = model_skills(reading, text) + [(tool, None) for tool in tools] + skills
+    return Reading(drafts, skill_pairs(found), "model")
 
 
 def with_tools_split(drafts: list[DraftEntry]) -> tuple[list[DraftEntry], list[str]]:
@@ -387,26 +390,116 @@ def with_award_givers(drafts: list[DraftEntry]) -> list[DraftEntry]:
     giver goes to the organization, as the parser reads "Award – Issuer".
     The model copied "Dean's List – Riverside State University" whole."""
     for draft in drafts:
-        if draft.section is bank_section.awards and not draft.organization and (m := _GIVER_RE.match(draft.title)):
-            draft.title, draft.organization = m["award"].strip(), m["giver"].strip()
+        if draft.section is not bank_section.awards or not (m := _GIVER_RE.match(draft.title)):
+            continue
+        giver = m["giver"].strip()
+        # The model may fill the organization and keep it in the title too.
+        if not draft.organization or _title_key(draft.organization) == _title_key(giver):
+            draft.title, draft.organization = m["award"].strip(), draft.organization or giver
     return drafts
 
 
-def with_missed_sections(drafts: list[DraftEntry], parsed: list[DraftEntry]) -> list[DraftEntry]:
-    """The model's entries, and the parser's in each section the model left
-    empty: the model left out both papers under "Publications" (2026-11-08),
-    which the parser keeps as projects. A parser entry whose title's words
-    (three in four) are already in one of the model's entries is the same
-    thing filed elsewhere, and stays out."""
-    have = {d.section for d in drafts}
-    seen = [set(_words(" ".join([d.title, d.organization or "", *d.bullets]))) for d in drafts]
-    missed = []
+def with_parsers_reading(drafts: list[DraftEntry], parsed: list[DraftEntry]) -> list[DraftEntry]:
+    """Both readings as one: the model's entries, and what the parser read
+    that they lack. Each parser entry is matched to the model's entry for the
+    same thing (`_twin`, in any section: the two file a Resident Assistant
+    differently). With no twin it is added whole: the model left out both
+    papers under "Publications" (2026-11-08). With one, it fills the twin's
+    empty fields (`_fill_blanks`) and adds the bullets no model entry holds.
+    The model's value always wins where both have one: it read the layout,
+    and the parser fails on the layouts the model is for."""
+    out = list(drafts)
+    # What the model's reading already says: its bullets, and each entry's
+    # name, since the parser saves a line it misreads ("Stony Brook
+    # University" under a project) as a bullet.
+    held = [_bullet_words(b) for d in drafts for b in d.bullets] + [_name_words(d) for d in drafts]
     for entry in parsed:
-        own = set(_words(entry.title)) - _COMMON
-        if entry.section in have or (own and any(len(own & words) * 4 >= len(own) * 3 for words in seen)):
+        twin = _twin(entry, drafts)
+        if twin is None:
+            out.append(entry)
+            held += [_bullet_words(b) for b in entry.bullets]
             continue
-        missed.append(entry)
-    return drafts + missed
+        _fill_blanks(twin, entry)
+        for bullet in entry.bullets:
+            words = _bullet_words(bullet)
+            if not words or _TOOLS_LINE_RE.fullmatch(bullet) or len(twin.bullets) >= 30:
+                continue
+            if any(len(words & theirs) * 4 >= len(words) * 3 for theirs in held):
+                continue
+            twin.bullets.append(bullet)
+            held.append(words)
+    return out
+
+
+# A line that only lists tools ("Figma, Next.js, TypeScript, Tailwind CSS"):
+# the parser saves it as a project's bullet, and the model rightly does not.
+_TOOLS_LINE_RE = re.compile(r"[^,.;:]{1,30}(?:,\s*[^,.;:]{1,30}){2,}")
+
+
+def _bullet_words(text: str) -> set[str]:
+    return set(_words(text)) - _COMMON
+
+
+def _name_words(entry: DraftEntry) -> set[str]:
+    return set(_words(f"{entry.title} {entry.organization or ''}")) - _COMMON
+
+
+def _twin(entry: DraftEntry, drafts: list[DraftEntry]) -> DraftEntry | None:
+    """The model's entry for the same thing as the parser's `entry`: at least
+    two words of its title and organization shared, and three in four of the
+    shorter one's. The shorter, since the parser's title can hold the whole
+    line on a layout it misreads ("Robotics Club - Software Lead" is the
+    model's "Robotics Club"). "Cashier, Target" and "Cashier, Walmart" share
+    one word, and are two jobs. The most words shared wins, then the same
+    section."""
+    own = _name_words(entry)
+    best: tuple[int, bool] = (0, False)
+    twin = None
+    for draft in drafts:
+        theirs = _name_words(draft)
+        shared = len(own & theirs)
+        if shared < 2 or shared * 4 < min(len(own), len(theirs)) * 3:
+            continue
+        score = (shared, draft.section is entry.section)
+        if score > best:
+            best, twin = score, draft
+    return twin
+
+
+_BLANKS = ("location", "link", "degree", "field_of_study", "issuer", "honors")
+_SECTION_ONLY = {f for fields in SECTION_FIELDS.values() for f in fields}
+
+
+def _fill_blanks(twin: DraftEntry, entry: DraftEntry) -> None:
+    """The twin's empty fields from the parser's entry, never one the model
+    filled: the dates when the model gave none (a paper's year), a start the
+    model left out of the same span, the award date, the location, link,
+    degree, field, GPA and courses. A fill that breaks the entry's rules (an
+    end before the start) is skipped. Never the title or organization: on a
+    layout the parser misreads, those are where its mistakes are."""
+    fill: dict = {f: getattr(entry, f) for f in _BLANKS if not getattr(twin, f) and getattr(entry, f)}
+    if twin.gpa is None and entry.gpa is not None:
+        fill.update(gpa=entry.gpa, gpa_scale=entry.gpa_scale)
+    if not twin.coursework and entry.coursework:
+        fill["coursework"] = entry.coursework
+    if twin.award_date is None and entry.award_date is not None:
+        fill["award_date"] = entry.award_date
+    if twin.start_month is None and twin.end_month is None and twin.end_kind is None:
+        if entry.start_month or entry.end_month or entry.end_kind:
+            fill.update(start_month=entry.start_month, end_month=entry.end_month, end_kind=entry.end_kind)
+    elif twin.start_month is None and entry.start_month and twin.end_month == entry.end_month:
+        fill["start_month"] = entry.start_month
+    # A twin in another section takes only the fields its section holds.
+    foreign = _SECTION_ONLY - set(SECTION_FIELDS.get(twin.section, ()))
+    fill = {f: v for f, v in fill.items() if f not in foreign}
+    if not fill:
+        return
+    try:
+        filled = DraftEntry.model_validate({**twin.model_dump(), **fill})
+    except ValidationError:
+        return
+    for field in fill:
+        setattr(twin, field, getattr(filled, field))
 
 
 def with_own_wording(reading: ModelReading, parsed: list[DraftEntry]) -> ModelReading:

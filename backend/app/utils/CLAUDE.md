@@ -318,11 +318,31 @@ Rules:
     `"2022"`, which is no `YYYY-MM`, so the entry lost its dates; an award
     dated "2024" lost itself, since `_valid`'s undated retry left
     `award_date` in place. Both now read as this parser reads them.
-  - **A section the model left empty takes this parser's entries**
-    (`with_missed_sections`): it left both papers under "Publications" out.
-    A parser entry whose title's words (three in four) are in one of the
-    model's entries is the same thing filed elsewhere, and stays out. The
-    prompt names where a paper goes too.
+  - **The two readings are combined, entry by entry**
+    (`with_parsers_reading`). Both run on every upload, and the model's
+    reading is the base: it reads layouts this parser has no rule for.
+    Each of this parser's entries is matched to the model's entry for the
+    same thing (`_twin`: two words or more of title and organization
+    shared, three in four of the shorter one's, in any section, since the
+    two file a Resident Assistant differently; "Sales Associate, Target"
+    and "Sales Associate, Walmart" share one word and stay two jobs).
+    - **No twin: the entry is added whole.** The model left out both papers
+      under "Publications"; the prompt names where a paper goes too.
+    - **A twin: the parser fills only its empty fields** (`_fill_blanks`):
+      the dates when the model gave none (a paper's year), a start the model
+      left out of the same span, the award date, location, link, degree,
+      field, GPA and courses, and each bullet no model entry holds (three in
+      four of its words), except a line that only lists tools and one that
+      repeats an entry's name (this parser saved a project's "Stony Brook
+      University" line as its bullet; the model read it as the
+      organization). **The
+      model's value wins wherever both have one**, and the title and
+      organization are never filled: on a layout this parser misreads, they
+      are where its mistakes are, so it must not judge the model there.
+    - **Skills are both readings'**: the model's first, so its groups win.
+    - **Nothing marks a field for the student to check.** The preview says
+      once to look the reading over (`frontend/docs/screens.md`, the resume
+      step); a disagreement keeps the model's value silently.
   - **A title ending in `[link]` keeps the rest**: a citation that ends in
     its URL came back as "... arXiv preprint, [link]", and the placeholder
     emptied the whole title, so the paper was dropped. The tail is cut, and
