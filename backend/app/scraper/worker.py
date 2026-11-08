@@ -357,6 +357,9 @@ _STALE_QUERY = text("""\
 _UPDATE_POSTING = text("""\
     UPDATE job_postings SET
         description = :description,
+        embedding = CASE WHEN description IS DISTINCT FROM :description THEN NULL ELSE embedding END,
+        keywords = CASE WHEN description IS DISTINCT FROM :description THEN NULL ELSE keywords END,
+        keywords_hash = CASE WHEN description IS DISTINCT FROM :description THEN NULL ELSE keywords_hash END,
         job_type = :job_type,
         experience_level = :experience_level,
         work_style = COALESCE(:work_style, work_style),

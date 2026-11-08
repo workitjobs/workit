@@ -197,3 +197,50 @@ async def test_inline_upsert_stamps_newer_versions_and_preserves_other_stamps(da
             )
             == 3
         )
+
+
+@pytest.mark.parametrize(
+    "old_description", [None, "Old description", "Fresh description"]
+)
+async def test_description_refresh_invalidates_only_changed_caches(
+    database, old_description
+):
+    async with get_engine().connect() as conn:
+        board = await _seed_schedule(conn)
+        await _seed_posting(conn, URL_A)
+        await update_sources(conn, board, [(URL_A, "a")])
+        vector = "[" + ",".join(["1"] * 768) + "]"
+        await conn.execute(
+            text("""
+                UPDATE job_postings
+                SET description = :description,
+                    embedding = CAST(:vector AS extensions.vector),
+                    keywords = '[{"keyword": "Python", "kind": "skill"}]'::jsonb,
+                    keywords_hash = 'cached-hash'
+                WHERE apply_url = :url
+            """),
+            {"description": old_description, "vector": vector, "url": URL_A},
+        )
+        row = SimpleNamespace(apply_url=URL_A, schedule_id=board)
+        job = replace(
+            Job("greenhouse", "acme", "Acme", "a", "Intern", URL_A),
+            page=Page(providers.PAGE_VERSION, "Fresh description", Facts()),
+        )
+
+        await worker._commit_description_batch(conn, [(row, job, None)])
+
+        cached = (
+            await conn.execute(
+                text("""
+                SELECT embedding::text AS embedding, keywords, keywords_hash
+                FROM job_postings WHERE apply_url = :url
+            """),
+                {"url": URL_A},
+            )
+        ).one()
+        if old_description == "Fresh description":
+            assert cached.embedding == vector
+            assert cached.keywords == [{"keyword": "Python", "kind": "skill"}]
+            assert cached.keywords_hash == "cached-hash"
+        else:
+            assert tuple(cached) == (None, None, None)
