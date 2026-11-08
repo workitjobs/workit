@@ -19,8 +19,9 @@ tens of thousands made each run's pass take most of its timeout and left
 a new job waiting behind old ones in random (UUID) order.
 
 The backlog is the two backfills, run by a person:
---embeddings-only fills every scraped job's missing vector, --keywords-only
-every published scraped job's missing keywords, with no feed. They never
+--embeddings-only fills every published scraped job's missing vector,
+--keywords-only every published scraped job's missing keywords, with no
+feed. Closed jobs get neither: no student sees them. They never
 import or close postings; omit --embed-limit to embed every missing
 vector; completed batches survive failures.
 
@@ -49,8 +50,9 @@ holds unique. One run, in one transaction:
    after two complete reads of its board in a row without it
    (scraper/CLAUDE.md, "Nothing closes"), so absence is evidence. Each close
    records why in closed_reason, from closings.json beside the feed (or
-   --closings): the scraper's reason, else "unknown". A job that comes back
-   is published again, with no reason.
+   --closings): the scraper's reason, else "unknown". A close also clears
+   the job's vector, which nothing reads once it is closed. A job that comes
+   back is published again, with no reason.
 
 The report lists the titles that resolved to no role, most jobs first: that
 list is how the aliases grow (docs/search.md).
@@ -526,6 +528,10 @@ async def _close_missing(
             closes_at=func.least(func.coalesce(_jobs.c.closes_at, now), now),
             closed_reason=reason,
             updated_at=now,
+            # Every scoring query reads listed jobs only (LISTED), so a closed
+            # job's vector is space for nothing; a reopened job counts as
+            # changed, and its run embeds it again.
+            embedding=None,
         ).returning(_jobs.c.closed_reason)
     )
     reasons = Counter(result.scalars().all())
@@ -612,7 +618,15 @@ async def _embed_jobs(
             batch = (await conn.execute(
                 _only(
                     select(_jobs.c.id, _jobs.c.title, _jobs.c.description)
-                    .where(_jobs.c.company_id.is_(None), _jobs.c.added_by_student.is_(False), _jobs.c.embedding.is_(None)),
+                    .where(
+                        _jobs.c.company_id.is_(None),
+                        # Listed jobs only: no student is matched to a closed
+                        # one, and on Supabase's free plan its 3 KB vector is
+                        # space for nothing (plan.md, Storage).
+                        _jobs.c.status == dto.job_post_status.published,
+                        _jobs.c.added_by_student.is_(False),
+                        _jobs.c.embedding.is_(None),
+                    ),
                     ids,
                 )
                 .order_by(_jobs.c.id)

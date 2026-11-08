@@ -158,7 +158,9 @@ module docstring has the steps.
   at most `--keywords-limit` model calls a run (default
   `KEYWORDS_PER_RUN`, 100; 0 skips). Every other job missing a vector or
   keywords is the backfills', `--embeddings-only` and `--keywords-only`,
-  which read every job and are run by a person
+  which read every listed job and are run by a person. A closed job gets
+  neither, and a close clears its vector: no scoring query reads a closed
+  job, and a reopened one is its run's again
   (`../docs/scraper_gh_action/plan.md`, The backfills). Both passes order by
   `id`, a random UUID, so the old "any job with none" pass left a new job
   behind tens of thousands of old ones, and its vector pass took most of

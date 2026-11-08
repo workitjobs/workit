@@ -72,6 +72,8 @@ def test_embeds_all_batches_with_bounded_reads_and_bulk_updates(monkeypatch):
         assert 2 in query.params.values()
         assert "company_id IS NULL" in sql
         assert "embedding IS NULL" in sql
+        # Listed jobs only (KAN-726): nothing scores a closed one.
+        assert "job_postings.status = " in sql
     for query, expected_vectors in zip(conn.writes, vectors, strict=True):
         sql = str(query)
         assert "FROM (VALUES" in sql and "RETURNING job_postings.id" in sql

@@ -534,7 +534,12 @@ A plan to stay on the free plan, largest saving first. None is built:
    it changes how search ranks (`docs/search.md`): test it there first.
 3. **Embed listed jobs only**, and clear a job's vector when it closes:
    the 11,183 closed jobs would hold about 33 MB of vectors no student
-   sees. A one-line `WHERE` in `_embed_jobs`.
+   sees. **Built** (2026-11-08): `_embed_jobs` reads published jobs only,
+   and `_close_missing` clears the vector; a job that comes back counts as
+   changed, so its run embeds it again. Every scoring query reads `LISTED`
+   jobs only, so nothing reads a closed job's vector. Keywords stay on a
+   closed job: they are small, and a tailored resume's match against its
+   own closed posting reads them.
 4. **`halfvec(768)`**: half precision halves every vector (about 70 MB
    for the listed jobs) with almost no change in scores. A migration on
    both vector columns and their casts.
