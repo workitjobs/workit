@@ -287,6 +287,13 @@ A person does this once, on the computer, with admin rights on the repo.
 2. **Ollama starts on boot.** The Linux installer makes a systemd service.
    On Windows the app starts at sign-in only, so add `ollama serve` as a
    Task Scheduler task at startup, or keep a user signed in. Turn sleep off.
+   On Windows, run the task as SYSTEM with the machine variable
+   `OLLAMA_MODELS` set to the folder the models were pulled into
+   (`%USERPROFILE%\.ollama\models`), and delete the Ollama app's shortcut
+   from the Startup folder, or the app starts a second server on the same
+   port at sign-in. A task under a Microsoft account fails with "The user
+   name or password is incorrect" even with the right password; SYSTEM
+   needs none.
 3. **Check the network** (The university network, above): from the
    computer, connect to the `DATABASE_URL` host on port 6543, for example
    `python -c "import socket; socket.create_connection(('<pooler host>', 6543), 5)"`.
@@ -297,18 +304,59 @@ A person does this once, on the computer, with admin rights on the repo.
 5. **Run it as a service**, so it survives a reboot: on Linux
    `sudo ./svc.sh install` then `sudo ./svc.sh start` in the runner's
    folder; on Windows answer yes to running it as a service during
-   `config`.
+   `config`. **On Windows, also allow scripts machine-wide** in an admin
+   PowerShell: `Set-ExecutionPolicy RemoteSigned -Scope LocalMachine`.
+   The service runs as Network Service, which gets the machine's policy,
+   and Windows' default blocks every script: the first dry run
+   (2026-11-08) failed at `setup-python`, whose installer is
+   `setup.ps1`. **Then install Python once as admin**: past the policy,
+   that installer still failed ("Error happened during Python
+   installation"), since it installs for all users and Network Service is
+   no admin. Download `setup-python`'s own package for the version a run
+   asks for (its log names the zip, from `actions/python-versions`), unzip
+   it, and in an admin PowerShell in that folder run
+   `$env:RUNNER_TOOL_CACHE = 'C:\actions-runner\_work\_tool'; .\setup.ps1`.
+   Every run then finds Python in the tool cache and skips the installer.
+   A version bump in `scrape.yml` needs this again. Not chosen: running the
+   service as Local System, which gives every run full control of the
+   computer. **Then put Git's bash on the runner's PATH**: Git for Windows
+   adds only `Git\cmd` to the machine PATH, and the scrape step failed with
+   "bash: command not found". In an admin PowerShell, set the runner's
+   PATH in its `.env` file and restart the service:
+   `Set-Content C:\actions-runner\.env ('PATH=C:\Program Files\Git\bin;' + [Environment]::GetEnvironmentVariable('Path','Machine')) -Encoding ASCII`,
+   then `Restart-Service actions.runner.*`. The runner loads `.env` when it
+   starts; a `.path` file did nothing for the service on Windows. Its PATH
+   replaces the machine PATH, so a later change to the machine PATH needs
+   this again. The same file holds `PYTHONUTF8=1`, which `scrape.yml` also
+   sets: the first full dry run imported fine, then failed printing a place
+   name in Windows' default encoding.
 6. **Fork PRs need approval**: Settings, Actions, General, "Require
    approval for all external contributors". The workflow already sends PR
    runs to GitHub's runner; this is a second guard.
 7. **Try it**: `gh workflow run scrape.yml --ref <branch> -f dry_run=true`
    runs the branch's workflow on the computer and writes nothing (a dry run
    calls no model). The real run waits for the cutover, below.
-8. **A checkout for the bank job**: clone the repo, run `uv sync` in
-   `backend/`, and give it a root `.env` with `DATABASE_URL`, `DIRECT_URL`
-   (the session pooler, port 5432, where it listens) and
+8. **A checkout for the bank job**: clone the repo on `main`, run
+   `uv sync` in `backend/`, and give it a root `.env` with `DATABASE_URL`,
+   `DIRECT_URL` (the session pooler, port 5432, where it listens) and
    `EMBEDDING_PROVIDER=ollama`. The session pooler is IPv4, so a campus
-   network reaches it; check port 5432 as in step 3.
+   network reaches it; check port 5432 as in step 3. **Its own clone, never
+   a developer's checkout or a worktree of one**: the task runs whatever
+   that folder has checked out, a worktree cannot hold `main` while the
+   main checkout does, and this `.env` is the only one that sets
+   `ollama`, so a developer's API stays at `none`. On the team computer
+   it is `C:\workit-bank-job`. Nobody edits code there. **On Windows, keep
+   its Python inside the checkout**, since the task runs as SYSTEM:
+
+   ```powershell
+   cd C:\workit-bank-job\backend
+   $env:UV_PYTHON_INSTALL_DIR = 'C:\workit-bank-job\.python'; uv sync --managed-python
+   ```
+
+   A plain `uv sync` points `.venv` at a Python under the user's own
+   `AppData`, and run as SYSTEM the job stopped at once with "No Python at
+   ..." (2026-11-08). Add `.python/` and `bank-job.log` to the checkout's
+   `.git/info/exclude`.
 9. **Make the bank job a service**, not started until the cutover. On Linux,
    a systemd unit:
 
@@ -327,9 +375,49 @@ A person does this once, on the computer, with admin rights on the repo.
    WantedBy=multi-user.target
    ```
 
-   On Windows, a Task Scheduler task at startup that runs
-   `uv run python -m app.scripts.embed_banks` in `backend\`, restarting on
-   failure. Its log says "Listening on bank_dirty", then one line a sweep.
+   On Windows, a Task Scheduler task at startup, as SYSTEM, in an admin
+   PowerShell. It runs the checkout's own Python, not `uv run`, so uv
+   keeps no second cache in SYSTEM's folder; it starts 2 minutes after
+   boot, so Ollama is up for its first sweep; and Task Scheduler keeps no
+   output, so it writes a log:
+
+   ```powershell
+   $a = New-ScheduledTaskAction -Execute 'cmd.exe' -WorkingDirectory 'C:\workit-bank-job\backend' -Argument '/c C:\workit-bank-job\backend\.venv\Scripts\python.exe -u -m app.scripts.embed_banks >> C:\workit-bank-job\bank-job.log 2>&1'
+   $t = New-ScheduledTaskTrigger -AtStartup; $t.Delay = 'PT2M'
+   $s = New-ScheduledTaskSettingsSet -ExecutionTimeLimit 0 -RestartCount 999 -RestartInterval (New-TimeSpan -Minutes 1) -StartWhenAvailable
+   $p = New-ScheduledTaskPrincipal -UserId SYSTEM -LogonType ServiceAccount -RunLevel Highest
+   Register-ScheduledTask -TaskName 'WorkIt bank job' -Action $a -Trigger $t -Settings $s -Principal $p
+   ```
+
+   Its log says "Listening on bank_dirty", then one line a sweep. The
+   task's restart setting covers only a task that fails to launch, not a
+   job that exits: a job that stops (ended in Task Manager, a fatal error)
+   stays stopped until `Start-ScheduledTask 'WorkIt bank job'` or the next
+   boot. The job itself never exits on a lost connection; it reconnects.
+
+### After a merge to main
+
+The runner needs nothing: each run checks out the commit it runs. The bank
+job runs from its own checkout, so a merge that changes `backend/` or
+`scout/` reaches it only when a person, on the computer, runs:
+
+```powershell
+cd C:\workit-bank-job; git pull; cd backend
+$env:UV_PYTHON_INSTALL_DIR = 'C:\workit-bank-job\.python'; uv sync --managed-python
+```
+
+**Never a plain `uv sync` there.** Without `UV_PYTHON_INSTALL_DIR` uv
+picks the user's own Python and rebuilds `.venv`: on 2026-11-08 it emptied
+`site-packages`, stopped at `Scripts` (the running job held it open), and
+left a job that would fail on its next start. To repair, stop the task,
+delete `backend\.venv`, and run the two lines above. Then, in an admin
+PowerShell,
+`Stop-ScheduledTask 'WorkIt bank job'; Start-ScheduledTask 'WorkIt bank job'`,
+and checks the log (`Get-Content C:\workit-bank-job\bank-job.log -Tail 20`)
+for "Listening on bank_dirty". Until then the old code keeps embedding. A
+merge that needs a migration first follows that migration's order, as the
+API does (`backend/CLAUDE.md`, Deployment). A change to the embedding model
+or its prefix is a model change: clear both columns first (Decision 3).
 
 While the runner is offline, scheduled runs wait in the queue and nothing
 is scraped; GitHub cancels a job that waits 24 hours. While the bank job is
@@ -353,9 +441,107 @@ every other machine stop embedding:
    job vectors the computer wrote in between are cleared too, and made again
    in step 5.
 4. **Start the bank job.** Its first sweep embeds every bank.
-5. **Backfill the jobs** on the computer:
-   `EMBEDDING_PROVIDER=ollama uv run python -m app.scripts.import_jobs --embeddings-only`
-   in the bank job's checkout. Then the keyword backfill (Decision 2).
+5. **Backfill the jobs** on the computer (The backfills, below): the jobs
+   from before the cutover, which scheduled runs never read.
+
+Done on 2026-11-08: steps 2 to 4 (15 of 16 banks embedded; the 16th has no
+entries or skills). Step 5 is next.
+
+## The backfills
+
+Once, after the cutover, by a person on the computer, in a normal
+PowerShell. They write to the shared database, so Claude never runs them.
+Each job commits on its own, so a stopped run loses nothing: run the same
+command again and it goes on with the jobs still missing.
+
+```powershell
+cd C:\workit-bank-job\backend
+```
+
+The bank job's checkout is the right place: its `.env` sets
+`EMBEDDING_PROVIDER=ollama` and no hosted Scout chain, so a failed local
+call never spends Groq's quota. Call its Python directly; it needs no
+`uv sync` (above).
+
+**Job vectors first.** Time a small batch, then the rest:
+
+```powershell
+.\.venv\Scripts\python.exe -m app.scripts.import_jobs --embeddings-only --embed-limit 200
+.\.venv\Scripts\python.exe -m app.scripts.import_jobs --embeddings-only
+```
+
+**Who does which jobs.** A scheduled import embeds and reads keywords for
+its own jobs only, the ones it inserted or changed, so a new job is ready
+after one run. Every older job missing either one is the backlog, and only
+these backfills read it. Without them, jobs from before the cutover never
+get a vector or keywords. Hold the vector backfill until the storage plan
+below is decided; new jobs get vectors meanwhile.
+
+**Then keywords on the local model** (Decision 2). Set the small chain in
+the same window, time 20 jobs and compare them with keywords a hosted
+model wrote, then run the rest with a limit above the job count (there is
+no "all"):
+
+```powershell
+$env:SCOUT_ENDPOINTS_SMALL = '[{"base_url": "http://localhost:11434/v1", "model": "qwen3.5:9b", "reasoning_effort": "none"}]'
+.\.venv\Scripts\python.exe -m app.scripts.import_jobs --keywords-only --keywords-limit 20
+.\.venv\Scripts\python.exe -m app.scripts.import_jobs --keywords-only --keywords-limit 50000
+```
+
+One call took about 7 seconds in a test, so the 46,819 listed jobs with
+none (2026-11-08) can take days; leave the window open, or rerun it.
+
+**Side by side with the scrape.** The scrape itself is network-bound and
+pays no GPU. The import's two model passes, the bank job and the
+backfills share the one GPU: both models fit in its 10 GB together, so
+nothing reloads, but each call is slower while another runs, and the
+total time is about the same as running them one after another. A
+backfill rarely meets a scheduled import on the same job, since the import
+reads only its own; when it does, the model runs twice and both write the
+same result.
+
+## Storage on Supabase's free plan
+
+The free plan allows 500 MB; the database was 639 MB on 2026-11-08,
+measured read-only before the backfills. Nearly all of it is
+`job_postings` (600 MB on disk, 58,818 scraped rows, 47,649 listed):
+
+| Part | Size |
+| --- | --- |
+| `fts`, the stored search column (generated) | 217 MB |
+| `description` | 150 MB |
+| Other columns | about 15 MB |
+| Free space left by updated rows (600 on disk, 381 live, minus indexes) | about 135 MB |
+| Indexes (the `fts` GIN index is 60 MB) | 84 MB |
+
+What the backfills add:
+
+- **Keywords:** about 650 bytes a job, so about 30 MB for every listed
+  job. Small.
+- **Vectors:** `vector(768)` is about 3 KB a job, so about 145 MB for the
+  listed jobs and 180 MB for all scraped ones. Postgres puts them in the
+  free space first, so the file grows by less, but it still grows.
+
+A plan to stay on the free plan, largest saving first. None is built:
+
+1. **Reclaim the free space**: `VACUUM FULL job_postings`, or `pg_repack`
+   (on Supabase) to avoid a long lock, run by a person after the
+   backfills. About 135 MB, at once. Ordinary autovacuum reuses that space
+   but never returns it.
+2. **Make `fts` smaller**: index only the start of a long description
+   (`left(description, N)` in the generated column), or drop the stored
+   column for an expression index with the same weights. Up to 217 MB, but
+   it changes how search ranks (`docs/search.md`): test it there first.
+3. **Embed listed jobs only**, and clear a job's vector when it closes:
+   the 11,183 closed jobs would hold about 33 MB of vectors no student
+   sees. A one-line `WHERE` in `_embed_jobs`.
+4. **`halfvec(768)`**: half precision halves every vector (about 70 MB
+   for the listed jobs) with almost no change in scores. A migration on
+   both vector columns and their casts.
+5. **Retention for closed jobs**: delete closed jobs no application
+   names after some days, through the retention purge
+   (`services/retention.py`). About 70 MB today, and it stops the table
+   growing with every closed posting.
 
 ## Not now: a shorter PR run
 

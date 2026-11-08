@@ -81,6 +81,22 @@ def test_embeds_all_batches_with_bounded_reads_and_bulk_updates(monkeypatch):
     assert not conn.active
 
 
+def test_a_scheduled_pass_reads_only_the_ids_it_is_given(monkeypatch):
+    # KAN-726: a scheduled run embeds its own jobs; the backfill (no ids) all.
+    monkeypatch.setattr(import_jobs, "embed", AsyncMock(return_value=[[0.1] * 768]))
+    ids = [UUID(int=1), UUID(int=2)]
+    conn = Connection([[row(1)], []])
+
+    assert asyncio.run(import_jobs._embed_jobs(conn, ids=ids)) == 1
+    for query in conn.reads:
+        assert "= ANY (" in str(query)
+        assert ids in query.params.values()
+
+    backfill = Connection([[]])
+    asyncio.run(import_jobs._embed_jobs(backfill))
+    assert "ANY" not in str(backfill.reads[0])
+
+
 @pytest.mark.parametrize("first_success", [False, True])
 def test_provider_failure_preserves_committed_batches(monkeypatch, first_success):
     batches = [[row(1)], [row(2)]] if first_success else [[row(1)]]
@@ -274,12 +290,12 @@ def _dropped():
     return DBAPIError("SELECT 1", {}, asyncpg.ConnectionDoesNotExistError("closed"), connection_invalidated=True)
 
 
-def _run_feed(monkeypatch, tmp_path, import_feed):
+def _run_feed(monkeypatch, tmp_path, import_feed, embed_jobs=None):
     log = []
     monkeypatch.setattr(import_jobs, "get_engine", lambda: _retry_engine(log))
     monkeypatch.setattr(import_jobs, "import_feed", import_feed)
     monkeypatch.setattr(import_jobs, "RETRY_WAIT_S", 0)
-    monkeypatch.setattr(import_jobs, "_embed_jobs", AsyncMock(return_value=0))
+    monkeypatch.setattr(import_jobs, "_embed_jobs", embed_jobs or AsyncMock(return_value=0))
     keywords = AsyncMock(return_value=0)
     monkeypatch.setattr(import_jobs, "_extract_keywords", keywords)
     monkeypatch.setattr(import_jobs, "get_small_llm", Mock())
@@ -289,8 +305,29 @@ def _run_feed(monkeypatch, tmp_path, import_feed):
     return log, keywords, run
 
 
+def _touched(*numbers):
+    return import_jobs.Report(touched=[UUID(int=n) for n in numbers])
+
+
+def test_a_run_passes_only_its_own_jobs_to_both_passes(monkeypatch, tmp_path):
+    embed_jobs = AsyncMock(return_value=2)
+    _, keywords, run = _run_feed(monkeypatch, tmp_path, AsyncMock(return_value=_touched(1, 2)), embed_jobs)
+    asyncio.run(run)
+    ids = [UUID(int=1), UUID(int=2)]
+    assert embed_jobs.await_args.kwargs["ids"] == ids
+    assert keywords.await_args.kwargs["ids"] == ids
+
+
+def test_a_run_that_touched_nothing_calls_no_model(monkeypatch, tmp_path):
+    embed_jobs = AsyncMock(return_value=0)
+    _, keywords, run = _run_feed(monkeypatch, tmp_path, AsyncMock(return_value=import_jobs.Report()), embed_jobs)
+    asyncio.run(run)
+    embed_jobs.assert_not_awaited()
+    keywords.assert_not_awaited()
+
+
 def test_a_dropped_connection_retries_the_import_but_not_the_keywords(monkeypatch, tmp_path):
-    import_feed = AsyncMock(side_effect=[_dropped(), import_jobs.Report()])
+    import_feed = AsyncMock(side_effect=[_dropped(), _touched(1)])
     log, keywords, run = _run_feed(monkeypatch, tmp_path, import_feed)
     asyncio.run(run)
     assert import_feed.await_count == 2

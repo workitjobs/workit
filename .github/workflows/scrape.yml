@@ -49,6 +49,12 @@ jobs:
     defaults:
       run:
         shell: bash
+    # Python's output in UTF-8 on Windows, whose default (cp1252) cannot
+    # print every place name: the first full dry run on the team computer
+    # (2026-11-08) imported fine, then failed printing its report. A real
+    # run would have written everything and still shown as failed.
+    env:
+      PYTHONUTF8: "1"
     # A cancelled run saves no store, so the next one repeats its work: every
     # scheduled run from 2026-10-28 to 10-29 hit 30 minutes reading posting pages
     # and none imported. The scraper now stops starting page reads 20 minutes in

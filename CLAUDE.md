@@ -120,7 +120,11 @@ every merge to `main`, with no Cloudflare login on anyone's machine. The
 Cloudflare account is owned by the team Gmail, never one person's login;
 teammates are members with Developer Platform Admin on the account and
 Administrator on the `workitjobs.ai` zone only. Migrations stay a manual,
-local step, never part of a deploy. Supabase (Authentication → URL
+local step, never part of a deploy. **One part does not deploy on merge:
+the bank job** (KAN-726) runs on the team computer from its own checkout,
+so a change to the code it runs needs a pull and a restart there: tell the
+user to remind the team, with the steps in `backend/CLAUDE.md`
+(Deployment, "The bank job does not deploy on merge"). Supabase (Authentication → URL
 Configuration) must list each deployed origin's `/auth/callback`, or OAuth
 sign-in bounces. Settings: a `NEXT_PUBLIC_*` value is a GitHub repository
 variable that `deploy.yml` passes to the app's build, and an API value is in
