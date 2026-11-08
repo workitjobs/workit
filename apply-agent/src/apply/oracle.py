@@ -21,7 +21,7 @@ import time
 from playwright.sync_api import Page
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
-from apply.accounts import Accounts
+from apply.accounts import HANDS_OFF, Accounts
 from apply.model import Handoff
 
 # Gmail search for Oracle's code mail: Oracle's own senders (JPMorgan's came from
@@ -58,9 +58,13 @@ def sign_in(page: Page, accounts: Accounts, last_name: str, agree_to_terms: bool
     """From the open posting to its application form. `agree_to_terms` is
     Lisul's policy on privacy and terms boxes (tick_consent_when_true)."""
     email = page.locator("input[type=email]").first
+    if FORM_SECTION.search(page.url):  # a form section has no email box or Apply button to wait for (KAN-680)
+        return
     _until(page, lambda: email.is_visible() or _apply_button(page).is_visible())
     if _signed_in(page, email):  # Lisul signed in himself on a pause, and pressed Resume (KAN-636)
         return
+    if getattr(accounts, "hands_off", False):  # a reopened form: Lisul signs in himself, and Apply goes on once he is in (KAN-720)
+        raise Handoff(HANDS_OFF)
     if not email.is_visible():
         _apply_button(page).click()
     email.wait_for(timeout=TIMEOUT * 1000)

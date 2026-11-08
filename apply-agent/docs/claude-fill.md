@@ -33,6 +33,24 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
   the drive and rehearsal guards and nothing else, waits for the dialog to
   go, and the fill goes on to the real form. The flag is
   `__applyProfileClick` (in `worker-extension/ops/guard.js`'s `FLAGS` too).
+- A form's Apply button sends, but for a posting's Apply that only opens the application (KAN-725,
+  `opens`): TAL.net's posting posts a form of its anti-forgery token alone to `.../opp/<id>/apply/<lang>`.
+  Only on a job system proven to open the form there and send nothing: TAL.net alone for now
+  (`claude_fill.OPENS_ONLY`, and the guard's own `START_HOSTS`, kept the same; a host joins both only
+  once its posting is proven so). Claude fill vouches for the page only at its first drive, on the Posting's own URL
+  (`DriveGuard.let_start_click`, the flag `__applyStartClick`, in `worker-extension/ops/guard.js`'s
+  `FLAGS` too), in the top frame alone. Then that button goes through once, while its words name no
+  send, its form holds a hidden token and buttons and nothing else, bound for its own site and no final
+  URL, no field on the page holds an answer, and the page shows no draft, review or saved-profile apply
+  (`DRAFT` in its text, `HEADED` in its title or headings). A key, input or change (in a frame of the
+  site too), a click on anything but that Apply or a cookie banner's button, or the page changing its
+  URL by script takes the word back. Once it went through, only that form's own submission goes, once, still
+  a token alone: the guard sends its own copy of it (the hidden fields and the button's name), so no
+  handler of the page's can add to it, and nothing else is posted to the site (its other subdomains
+  too) from that page. A reopened form's and every
+  later page's Apply stay blocked: the word is gone with the Posting's document. Elsewhere a posting's Apply may apply at once
+  from a profile the site holds, in any words, so it stays blocked there. Without this, Claude's first click on TAL.net's posting was a
+  Handoff with no field filled.
 - A POST to a final application URL stays blocked under plain code's Next and profile clicks (KAN-639,
   `postsFinal`). A path ending in `/apply` is final by its name alone, so there a Next goes on only when
   the page says steps remain ("Step 2 of 5", or a list past its `aria-current=step` item) and the form has
@@ -43,14 +61,28 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
   (`tests/test_submit_guard.py -k every_real_step`). On a plain Worker the declarativeNetRequest rule on
   `/apply` still blocks such a step (it can't read the page), so that Next hands off and nothing is sent.
 - Before each Next, plain code checks what the step shows (`cant_be_right`, KAN-652): an address part
-  holding a whole address, or a school's start year after this one. A bare "Start date" beside school
+  holding a whole address, or a school's start year after this one. It reads every visible box of the
+  step (`_on_step`, `STEP_VALUES`), not only the ones Apply filled, so a value an earlier run saved
+  is checked too; a label that shows twice (a home and a campus address) is numbered, "#7: City/Town".
+  Address line 1 holding a whole address is wrong too when the step asks a part of it (City, State
+  or Zip, KAN-684). A bare "Start date" beside school
   fields may be the internship's, so it stops the fill only in a section headed clearly as education
   (`_sections`, `clearly_education`) or at a year past `PLAUSIBLE_YEARS` (KAN-659).
+- A question Claude finds on a step (`unlisted`, then MoreQuestions) belongs to that step
+  (`_found_at`). Once the fill has gone past it, its answer is never sent to a later step: TAL.net's
+  Save and Continue goes on with a required box blank, and Lisul's answer came steps later
+  (KAN-687). It is `left_behind` instead. The Worker holds the form for it ("Not filled: ... its
+  answer came after the form saved its step without it"). A rehearsal lists it as left blank and,
+  once held, fills it on its own step through the window's in-place fill (`docs/held-forms.md`,
+  KAN-686). A question the read pass listed has no step of its own and is carried on as before.
 - Dropdowns that list their choices only once opened are read and picked
   by plain code (`_with_options`, `_pick_in_comboboxes`). Each one's name is
   read off the very element Playwright clicks (`_comboboxes`), never from a
   page script's own list: the two counted visibility apart on Microsoft's
   profile step, and each question opened its neighbour (KAN-646).
+- A text box whose placeholder is a date format ("YYYY-MM") gets that format after its label,
+  "(YYYY-MM)", as the planner reads a format (`_with_formats`, KAN-714): Amazon's graduation month box
+  says its format only there, and refused "May 2028".
 - On a plain Worker (KAN-612; a PortPage, no CDP), `claude_cli.drive` gives
   `claude -p` Apply's own MCP server under the same name, `playwright`
   (`apply.plain.mcp`, a stdio relay, and `apply.plain.tools`, which runs

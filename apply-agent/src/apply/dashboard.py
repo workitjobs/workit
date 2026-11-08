@@ -175,7 +175,8 @@ SENT = WORDS["submitted"][0]
 IDLE = "Waiting for the next job"
 # Parts of a rehearsal's ready-to-submit reason that Lisul must look at; the
 # rest (Calibration run, Target company...) only say a run would hold it.
-TO_CHECK = ("Not filled", "Pre-submit check failed", "Pre-submit review", "Verify: ")
+TO_CHECK = ("Not filled", "Pre-submit check failed", "Pre-submit review", "Verify: ", "Yours to tick")
+TICK_YOURS = "Tick or sign what is yours before it's sent"  # an attestation Apply left for Lisul, his alone
 # Each part of a Hold's reason in plain words.
 HOLD_WORDS = [
     (re.compile(r"^Target company: (.+)$"), r"\1 is on your check-first list"),
@@ -264,7 +265,9 @@ def verdict(caption: dict) -> dict[str, str]:
                  + (", then press Submit yourself if you want it sent" if status == "ready to submit"
                     else "; once every one is dismissed, approve it to send it")}
     elif checks:
-        needs = {"kind": "check", "do": "Fix an answer before it's sent", "why": plain("; ".join(checks)),
+        # Only attestations to tick (KAN-676): Lisul ticks or signs each himself; nothing of Apply's is wrong.
+        do = TICK_YOURS if all(part.startswith("Yours to tick") for part in checks) else "Fix an answer before it's sent"
+        needs = {"kind": "check", "do": do, "why": plain("; ".join(checks)),
                  "then": "Nothing has been sent. Fix it on the page, then press Submit yourself if you want it sent"
                  if status == "ready to submit" else "Apply checks every answer again before it sends"}
     elif status == "ready to submit":
@@ -357,6 +360,9 @@ def summary(tiles: list[dict], items: list[dict] | None = None) -> str:
 
 
 class Frames(Protocol):
+    """A Worker's frames, input and file requests. A plain Worker's source (apply.plain.tile.PortFrames) also takes
+    `tab=` on frame, wait, input, chooser and forget_chooser: that one form's tab of the Worker, never another (KAN-717)."""
+
     def frame(self, worker: int) -> bytes | None:
         """Worker `worker`'s page, as a JPEG, the latest taken; None before any."""
         ...
@@ -561,6 +567,7 @@ class Dashboard:
         # Tile k shows Worker _shown[k]: one tile per Worker at first, and one more for each link sent into a
         # Worker already running (`apply rehearse --into`, KAN-645), which shows that Worker's window.
         self._shown = list(range(workers))
+        self._tile_tabs: dict[int, int] = {}  # tile -> the tab its form is on in its plain Worker (showing)
         self._into: Callable[[str, int], dict] | None = None  # takes a new link into a Worker (taking)
         quiet = quiet or (lambda k: False)
         self._quiet = lambda k: quiet(self.worker_of(k))
@@ -611,10 +618,35 @@ class Dashboard:
         """The Worker whose window tile `tile` shows."""
         return self._shown[tile] if 0 <= tile < len(self._shown) else tile
 
+    def showing(self, tile: int, tab: int | None) -> None:
+        """Tile `tile`'s form is on tab `tab` of its plain Worker (None: no tab of its own, or a CDP page): the
+        tile shows that tab's frames and sends its input there, never another form's in the same Worker (KAN-717)."""
+        with self._lock:
+            if tab is None:
+                self._tile_tabs.pop(tile, None)
+            else:
+                self._tile_tabs[tile] = tab
+
+    def tab_of(self, tile: int) -> int | None:
+        """The tab of its plain Worker that tile `tile`'s form is on, once `showing` said."""
+        return self._tile_tabs.get(tile)
+
+    def blind(self, tile: int) -> bool:
+        """Whether tile `tile` shares its Worker with another tile (`--into`) and doesn't know its form's tab yet (its
+        page still opening): it shows nothing and takes no input, since the Worker's shown tab may be another form's."""
+        with self._lock:
+            worker = self.worker_of(tile)
+            return tile not in self._tile_tabs and sum(shown == worker for shown in self._shown) > 1
+
     def taking(self, into: Callable[[str, int], dict]) -> None:
         """`into(url, worker)` starts a new link in Worker `worker`'s running browser, with a tile of its own
         (add_tile), and says which: `apply rehearse --into` sends it through POST /rehearse."""
         self._into = into
+
+    def aim(self, workers: list[int]) -> None:
+        """Tile k shows Worker `workers[k]`: a reopened form's, whose profile holds its sign-in (KAN-720)."""
+        with self._lock:
+            self._shown[:len(workers)] = list(workers)
 
     def add_tile(self, worker: int) -> int:
         """One more tile, showing Worker `worker`'s window. Returns its number; the window reloads to show it."""
@@ -1242,6 +1274,11 @@ class _Handler(BaseHTTPRequestHandler):
         if parts.path.startswith("/reveal/"):
             return self._reveal(parts.path)
         if parts.path.startswith("/input/"):
+            # A press here counts as Lisul's own, so only the window itself may send one. The custom header also makes
+            # a page's request preflight, which this server never answers.
+            token, origin = self.headers.get("X-Apply-Token") or "", self.headers.get("Origin")
+            if not hmac.compare_digest(token.encode(), self.dashboard.token.encode()) or origin != self.dashboard.url:
+                return self._send(403, "text/plain", b"forbidden")
             worker = int(parts.path.removeprefix("/input/"))
             body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
             event = self.dashboard.to_page_event(worker, body)
@@ -1717,24 +1754,48 @@ class _Handler(BaseHTTPRequestHandler):
 
 
 class _Shown:
-    """The window's frame source by tile: tile k is Worker worker_of(k)'s frames and input."""
+    """The window's frame source by tile: tile k is Worker worker_of(k)'s frames and input, and, once the
+    tile's form has a tab of its own in that Worker (tab_of, a plain Worker's), that tab's only (KAN-717).
+    A tile that shares its Worker and has no tab yet (Dashboard.blind) gets nothing and sends nothing."""
 
     def __init__(self, frames: Frames, dashboard: Dashboard):
         self._frames, self._dashboard = frames, dashboard
 
+    def _at(self, tile: int) -> tuple[int, dict]:
+        tab = self._dashboard.tab_of(tile)
+        return self._dashboard.worker_of(tile), ({} if tab is None else {"tab": tab})
+
     def frame(self, tile: int) -> bytes | None:
-        return self._frames.frame(self._dashboard.worker_of(tile))
+        if self._dashboard.blind(tile):
+            return None
+        worker, tab = self._at(tile)
+        return self._frames.frame(worker, **tab)
 
     def wait(self, tile: int, after: int, timeout: float) -> tuple[bytes | None, int]:
-        return self._frames.wait(self._dashboard.worker_of(tile), after, timeout)
+        if self._dashboard.blind(tile):
+            time.sleep(timeout)
+            return None, after
+        worker, tab = self._at(tile)
+        return self._frames.wait(worker, after, timeout, **tab)
 
     def input(self, tile: int, event: dict) -> dict | None:
-        return self._frames.input(self._dashboard.worker_of(tile), event)
+        if self._dashboard.blind(tile):
+            return None
+        worker, tab = self._at(tile)
+        return self._frames.input(worker, event, **tab)
 
     def chooser(self, tile: int) -> str | None:
-        return self._frames.chooser(self._dashboard.worker_of(tile))
+        if self._dashboard.blind(tile):
+            return None
+        worker, tab = self._at(tile)
+        return self._frames.chooser(worker, **tab)
 
-    def __getattr__(self, name: str):  # field_error, notice, forget_chooser: by tile too, where the source has them
+    def forget_chooser(self, tile: int) -> None:
+        if (forget := getattr(self._frames, "forget_chooser", None)) and not self._dashboard.blind(tile):
+            worker, tab = self._at(tile)
+            forget(worker, **tab)
+
+    def __getattr__(self, name: str):  # field_error, notice: by tile too, where the source has them
         found = getattr(self._frames, name)
         return (lambda tile, *rest: found(self._dashboard.worker_of(tile), *rest)) if callable(found) else found
 

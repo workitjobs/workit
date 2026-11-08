@@ -2328,8 +2328,11 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   stays open behind it. `FONTS` is the
   list of families, whose `css` puts the open line in the system font the
   PDF's matches letter for letter: with Tinos a line sat 2px off the print over
-  714px. A new page setting joins the panel only if a student needs it to fit
-  one page, to choose a font or to pick a colour. The API keeps the settings the
+  714px. A new page setting joins the panel only if a student expects it from a resume
+  builder, and keeps one control per decision: Spacing and Margins stay one
+  choice each. Degree First moves the school to the degree's row, so
+  `degreeLeads` swaps that line's type too (`textRoleOf`, `typeOf`) and must
+  agree with the API's `degree_leads`. The API keeps the settings the
   panel dropped, so a resume set that way prints as it did. The bar mutes every
   button's words (`SLIM_BAR`, `DOCS_BAR`), so a real action there (Add Bullet,
   `FitButton`) carries `data-bar-action`, or a filled button reads grey on purple.
@@ -2517,9 +2520,16 @@ are in `docs/auth.md`.
   removed: Settings adds a middle name, and a mistyped password is reset
   through Forgot Password (`/login/reset-password`). A fact a later step needs
   (location, links, work authorization) is asked in onboarding, never here.
-- **A key the API's Pydantic schema doesn't declare is dropped silently**, not
-  rejected. A field added to a request body here does nothing until
-  `backend/app/schemas/` declares it too.
+- **A key the API's Pydantic schema doesn't declare is dropped silently,
+  unless the schema forbids extra keys** (`extra="forbid"`, as the entry
+  PATCH's `EntryUpdate` does; grep `backend/app/schemas/` for the rest):
+  there one stray key fails the whole request with a 422. So a request body
+  names the fields it sends, never spreads an object the API sent: the
+  Experiences editor copied a bank entry whole, and every edit, its new
+  bullets included, sent `resume_ids` and `copy_group` and saved nothing
+  (KAN-505, `fieldsOf` in `(seeker)/experiences/sections.ts`). A field added
+  to a request body here does nothing until `backend/app/schemas/` declares
+  it too.
 - **The service-role key never appears in this folder**: one `NEXT_PUBLIC_`
   prefix puts it in every browser. Env lives in `.env.local` (template
   `.env.example`); the anon key is meant to be public.
