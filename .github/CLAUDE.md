@@ -196,7 +196,19 @@ stay on `ubuntu-latest`, since the repo is public and a PR run executes the
 PR's code. With no such runner online, a scheduled run waits in the queue
 and none runs. The job runs bash on both (a Windows runner needs Git for
 Windows' bash on its PATH) and calls `python`, not `python3`, which Windows
-lacks. The setup (the runner and the bank job), why every import embedded 0
+lacks. A Windows runner also needs the machine's PowerShell policy at
+`RemoteSigned`: Windows' default blocks `setup-python`'s installer script,
+which failed the first dry run there (2026-11-08). It also needs Python
+3.12 put in its tool cache once by an admin, because the installer cannot
+install as Network Service; a change to `python-version` in `scrape.yml`
+needs that step again (the plan, step 5). And Git's `bin` folder must be
+first in the `PATH=` line of the runner's own `C:\actions-runner\.env`
+(a `.path` file did nothing for the service): the machine PATH holds
+only `Git\cmd`, and the scrape step failed with "bash: command not found".
+The job sets `PYTHONUTF8=1`: Windows' default output encoding (cp1252)
+failed the import's report on a place name, after the import had worked.
+The setup (the runner
+and the bank job), why every import embedded 0
 before, and a shorter PR run not yet taken up are in
 `../docs/scraper_gh_action/plan.md`.
 
