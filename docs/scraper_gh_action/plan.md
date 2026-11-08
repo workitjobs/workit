@@ -90,14 +90,26 @@ postings before switching.
 **The backfill needs no new script.** `import_jobs --keywords-only` extracts
 keywords for every published scraped job with none, each job committing on
 its own; a reply that fails its schema is tried again next run, and a model
-that stops answering ends the run with what it wrote. Run it on the computer
-from a checkout with no root `.env`, passing `DATABASE_URL` and
-`SCOUT_ENDPOINTS_SMALL` (the local Ollama) in the shell, so no hosted chain
-is configured and a failed local call never falls back to Groq's quota (an
-empty `SCOUT_ENDPOINTS` is refused as a list, and `[]` falls back to the
-single `SCOUT_*` fields a `.env` may set), with a `--keywords-limit` above
-the job count (there is no "all"; the default is
-100). Time `--keywords-limit 20` first: a 9B model likely takes seconds per
+that stops answering ends the run with what it wrote.
+
+Run it on the computer from a checkout with the root `.env`, which gives it
+`DATABASE_URL` (the shared database: the run writes real rows). The model is
+not in the code but in `SCOUT_ENDPOINTS_SMALL`, and the local value lives in
+`scrape.yml`, which a run typed by hand never reads; the `.env` names the
+hosted chain. So override both chains in the shell, which beats the `.env`:
+the small chain and the default chain after it both point at the local
+model (an endpoint in both is tried once), so a failed local call never
+falls back to Groq's quota.
+
+```
+cd backend
+LOCAL='[{"base_url":"http://localhost:11434/v1","model":"qwen3.5:9b","reasoning_effort":"none"}]'
+SCOUT_ENDPOINTS_SMALL="$LOCAL" SCOUT_ENDPOINTS="$LOCAL" \
+  uv run python -m app.scripts.import_jobs --keywords-only --keywords-limit 20
+```
+
+Then run it again with `--keywords-limit 100000`: there is no "all", and the
+default is 100. The run of 20 times it: a 9B model likely takes seconds per
 job, so thousands take hours. Keywords that hosted models already wrote
 stay.
 
