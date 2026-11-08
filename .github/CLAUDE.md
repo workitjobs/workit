@@ -190,6 +190,12 @@ so the real gap between runs was a median 5.5 hours, at most 8.7. The fix being
 weighed is a Cloudflare Cron Trigger that starts this workflow through GitHub's
 API at exact times (`scraper/docs/coverage.md`, "Later").
 
+**Planned (KAN-726): scheduled and manual runs move to a self-hosted
+runner** on a team computer with local models; PR runs stay on
+`ubuntu-latest`, since the repo is public. Not built yet. The plan, why
+every import embeds 0 today, and a shorter PR run not yet taken up are in
+`../docs/scraper_gh_action/plan.md`.
+
 - **Secret:** `DATABASE_URL` (the API's pooler URL, from the root `.env`), in the
   repo's Actions secrets. Without it the run fails at the import step and says so.
 - **Secrets:** `SCOUT_ENDPOINTS_SMALL` and `SCOUT_ENDPOINTS`, for the
