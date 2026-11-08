@@ -134,6 +134,19 @@ other hiring systems finish inside it (about 3 minutes without Workday).
 | 6. Merge duplicates | Job postings that share one apply link become one, with all their locations. So does a Workday job posted on two or three of a company's careers sites (the same requisition number at the same company, as on Autodesk's `ext` and `uni`): one card, linking the careers site made for students. Job postings that only share a title stay apart, since each is its own application. |
 | 7. Write files | `jobs.json` (the scraper's memory between runs) and `feed.json` (what the import loads). |
 
+**The worker (`backend/app/scraper/worker.py`) runs the same scraper as a
+library in two phases** (KAN-733). Phase 1 reads each board's listing and
+filters by title only — no description pages are fetched during the board
+read. Providers that return descriptions inline (Lever, Ashby, Recruitee)
+stamp them during phase 1. Phase 2, after all boards finish, fetches
+description pages for postings that need them: up to 500 per cycle,
+ordered by board and first-seen time, in 8 threads. A description is enrichment only: it
+updates the posting's page-derived fields (description, salary, job type,
+work style, experience level, start term, sponsorship) but never filters a
+posting out. Version tracking on `job_sources.description_version` means only
+new or stale descriptions are fetched, and a failure is retried only on the
+next `PAGE_VERSION` bump.
+
 **A company's logo is read once per company job board**, from the board's own
 page: the image the company uploaded there, or else the icon of the company's
 website when the board names it (`scraper/docs/logos.md`). A board found with no
