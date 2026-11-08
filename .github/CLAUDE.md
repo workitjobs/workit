@@ -190,18 +190,33 @@ so the real gap between runs was a median 5.5 hours, at most 8.7. The fix being
 weighed is a Cloudflare Cron Trigger that starts this workflow through GitHub's
 API at exact times (`scraper/docs/coverage.md`, "Later").
 
+**Scheduled and manual runs go to a self-hosted runner** (KAN-726) on a
+team computer with Ollama, picked by its `workit-scraper` label; PR runs
+stay on `ubuntu-latest`, since the repo is public and a PR run executes the
+PR's code. With no such runner online, a scheduled run waits in the queue
+and none runs. The job runs bash on both (a Windows runner needs Git for
+Windows' bash on its PATH) and calls `python`, not `python3`, which Windows
+lacks. The setup (the runner and the bank job), why every import embedded 0
+before, and a shorter PR run not yet taken up are in
+`../docs/scraper_gh_action/plan.md`.
+
 - **Secret:** `DATABASE_URL` (the API's pooler URL, from the root `.env`), in the
   repo's Actions secrets. Without it the run fails at the import step and says so.
-- **Secrets:** `SCOUT_ENDPOINTS_SMALL` and `SCOUT_ENDPOINTS`, for the
-  import's keyword pass (`backend/CLAUDE.md`, The feed import): the small
-  chain (KAN-356), then the default chain after it, each a JSON array on one
-  line, copied from the root `.env`. The four single `SCOUT_*` variables are
-  not passed: a chain says the same in one secret. These are the import's
-  own: the deployed API reads its chains from `CF_API_SECRETS_JSON`, so the
-  import can run on another account's quota than the students' features.
-  Without either the run warns and extracts no keywords; the import itself
-  still runs. The step unsets each one that is empty, because GitHub passes
-  a missing secret as `""`, which Scout's settings refuse as a list.
+- **The keyword pass's model** (`backend/CLAUDE.md`, The feed import):
+  `SCOUT_ENDPOINTS_SMALL` is a plain value in the workflow, the computer's
+  own Ollama (`qwen3.5:9b` at `localhost:11434`), since it holds no key; the
+  `SCOUT_ENDPOINTS` secret, the hosted default chain copied from the root
+  `.env` as one JSON line, is its fallback. The four single `SCOUT_*`
+  variables are not passed. These are the import's own: the deployed API
+  reads its chains from `CF_API_SECRETS_JSON`. The step unsets an empty
+  one, because GitHub passes a missing secret as `""`, which Scout's
+  settings refuse as a list. The `SCOUT_ENDPOINTS_SMALL` and
+  `GEMINI_API_KEY` secrets are no longer read here; `GEMINI_API_KEY` stays
+  for the job alerts.
+- **`EMBEDDING_PROVIDER: ollama`**: the import embeds jobs on the
+  computer's Ollama with the code's default model, `qwen3-embedding:4b`, the
+  one model every vector comes from (the computer's bank job embeds the
+  banks). Every other workflow leaves the default, `none`.
 - **The company list** (`scraper/boards.csv`) is grown by `build_boards.py`
   before every scrape, from the curated GitHub lists, so a company they name
   today is read on the next run without a commit. It only ever adds; the rules
@@ -253,12 +268,11 @@ bell-notification path — `send_email` catches the missing-credentials
 error, logs it, and returns `False`, the same best-effort outcome as a
 bounced send.
 
-- **Secrets:** `DATABASE_URL` and `GEMINI_API_KEY` only (both already set
-  for the scrape workflow — reused here, not duplicated).
-  `EMBEDDING_PROVIDER=gemini` is a plain env value here, not a secret, so
-  the digest scores with the semantic part the deployed API itself
-  doesn't have on by default (`backend/CLAUDE.md`'s "Still open" note on
-  that).
+- **Secret:** `DATABASE_URL` only. **It makes no embeddings** (KAN-726):
+  the default provider `none` reads the bank vectors the team computer
+  stores. It set `EMBEDDING_PROVIDER=gemini` until then, which wrote
+  Gemini bank vectors beside the others; **the EC2 crontab's environment
+  must drop it too**, since that crontab lives outside this repo.
 - **One run at a time**, same reasoning as the scrape's concurrency group:
   two overlapping runs would double-send the same applicant. This guards
   against two *workflow* runs overlapping; it says nothing about the EC2

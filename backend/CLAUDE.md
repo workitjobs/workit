@@ -94,6 +94,7 @@ uv run python -m app.scripts.import_apply_profile <applicant_id> [<apply_dir>]  
 uv run python -m app.scripts.label_resume_headings  label data/resume_heading_candidates.txt's resume headings once with Groq into app/utils/learned_headings.json (--dry-run lists them; review the diff; app/utils/CLAUDE.md, Learned headings)
 uv run python -m app.scripts.purge_old_data  delete rows past app/services/retention.py's periods, KAN-482 (--dry-run counts, deletes nothing; daily in CI)
 uv run python -m app.scripts.scrape_worker   one scraper worker cycle: sync catalog, claim boards, scrape, checkpoint (--dry-run shows what it would do)
+uv run python -m app.scripts.embed_banks     the bank job, KAN-726: listen and embed stale banks until stopped (--once sweeps once); the team computer only, with EMBEDDING_PROVIDER=ollama (app/services/matching/CLAUDE.md)
 python3 scripts/fetch_tectonic.py              Tectonic + warm cache into vendor/ (resume PDFs; once per checkout)
 ```
 
@@ -771,10 +772,10 @@ Find files with a directory listing; these are the rules for where code goes.
   the bank's embedding alone. Tests: `tests/test_tailor.py`, "Resume-local
   skills".
 - **The experience bank is written only through `services/bank.py`.** It
-  holds the ownership scoping, the duplicate check and the clearing of the
-  bank embedding on every entry, bullet or skill change; a route or script
-  that writes `bank_*` rows itself leaves the recommender on a stale
-  embedding. Schema rationale: `../docs/resume.md`, "The experience bank".
+  holds the ownership scoping, the duplicate check and the marking of the
+  bank embedding as stale, with its notify to the bank job, on every entry,
+  bullet or skill change (KAN-726); a route or script that writes `bank_*`
+  rows itself leaves the recommender on an old embedding for good. Schema rationale: `../docs/resume.md`, "The experience bank".
   Clear All (KAN-352) is `delete_entries` / `delete_skills`: all or none,
   a 404 when any id is not the applicant's, and the same cascades as one
   delete (bullets, built resumes' choice rows), in one statement.
@@ -1637,13 +1638,12 @@ go then. A change needs to work on Cloudflare only.
   not the container's: the digest runs on EC2 (`../.github/CLAUDE.md`, Job
   alerts). **Never
   `DIRECT_URL`**: migrations run by hand, locally, and the deployed API has no
-  business holding that connection. Embeddings use Ollama with
-  `nomic-embed-text:v1.5` by default; see `app/services/matching/CLAUDE.md`.
-  **Still open:** the deployed API has no Ollama, so until the API's secrets
-  (`CF_API_SECRETS_JSON`, `../.github/CLAUDE.md`) set
-  `EMBEDDING_PROVIDER=gemini` and `GEMINI_API_KEY`, recommendations score
-  without the semantic part. The Worker forwards both names when set,
-  and sets neither itself: `gemini` without a key would fail matching.
+  business holding that connection. **The deployed API makes no
+  embeddings** (KAN-726): its provider is the default `none`, and it reads
+  the vectors the team computer stores (`app/services/matching/CLAUDE.md`).
+  `CF_API_SECRETS_JSON` must not set `EMBEDDING_PROVIDER`: the Worker
+  forwards it when set, and `gemini` there would write Gemini vectors beside
+  the Qwen3 ones.
 - **`GET /jobs` reads `job_postings`**, filled by the import on a schedule
   (`../.github/CLAUDE.md`). A deploy changes no jobs, and an empty table is an
   empty feed, not an error.
