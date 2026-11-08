@@ -178,6 +178,13 @@ module docstring has the steps.
   counts or refuses. They were removed on 2026-10-18 as upkeep with no
   catch: a wording change broke them and proved nothing. The tests that no
   identity data reaches the model stay (`../scout/CLAUDE.md`, Tests).
+- **A change to how an upload is read needs the database tests run.** The
+  upload and Import Again tests in `tests/test_bank_import.py` use the
+  `database` fixture, so they skip without the local container. Combining
+  the AI and parser readings changed what three of them save, and only CI
+  caught it (2026-11-08). Run them with the container up, or check the
+  reading itself with `read_resume` and `ScriptedLLM`, which needs no
+  database.
 - **A new resume that parses wrong becomes a fixture first.** Add its text to
   `tests/fixtures/` with its expected output in `tests/test_resume_parser.py`
   before touching `app/utils/resume_parser.py`. The heuristics interact: a fix

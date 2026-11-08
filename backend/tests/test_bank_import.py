@@ -812,8 +812,9 @@ MODEL_READING = {
         # Not on the resume at all: its title goes, and the entry with it.
         {"section": "experience", "title": "Research Intern", "organization": "NASA Ames",
          "bullets": ["Simulated airflow over wings"]},
-        # An end before the start: kept, without its dates. No link: the
-        # model sees every URL as [link], so the parser's is taken.
+        # An end before the start: kept, with the parser's dates in place of
+        # its own. No link: the model sees every URL as [link], so the
+        # parser's is taken.
         {"section": "projects", "title": "Wind Tunnel", "start_month": "2025-08", "end_month": "2025-05",
          "end_kind": "month", "bullets": ["Built a small wind tunnel"]},
         # No title: not an entry, dropped.
@@ -875,7 +876,7 @@ async def test_an_upload_is_read_by_the_model_and_checked_against_its_text(stude
     res = await upload(client, applicant_id, MODEL_TEXT)
     assert res.status_code == 200
     assert res.json()["bank"] == {
-        "found": 4, "entries_added": 3, "skills_added": 1, "entries_replaced": 0, "skills_replaced": 0,
+        "found": 5, "entries_added": 3, "skills_added": 2, "entries_replaced": 0, "skills_replaced": 0,
         "read_by": "model", "uses_left": 0,
     }
 
@@ -885,10 +886,13 @@ async def test_an_upload_is_read_by_the_model_and_checked_against_its_text(stude
     assert (lab["start_month"], lab["end_kind"], [b["text"] for b in lab["bullets"]]) == (
         "2025-01", "present", ["Prepared tensile test samples", "Logged results in Excel"],
     )
-    assert (tunnel["title"], tunnel["start_month"], tunnel["end_month"]) == ("Wind Tunnel", None, None)
+    # The model's dates did not fit together and were dropped; the parser's fill them.
+    assert (tunnel["title"], tunnel["start_month"], tunnel["end_month"]) == ("Wind Tunnel", "2025-05", "2025-08")
     assert tunnel["link"] == "https://github.com/example/wind-tunnel"
-    assert (school["degree"], school["field_of_study"], school["gpa"]) == ("B.S.", None, 3.5)
-    assert [(s["name"], s["group"]) for s in saved["skills"]] == [("Excel", "Tools")]
+    # The model's field was a placeholder and was emptied; the parser's fills it.
+    assert (school["degree"], school["field_of_study"], school["gpa"]) == ("B.S.", "Mechanical Engineering", 3.5)
+    # MATLAB is on the resume; the model left it out, and the parser's reading keeps it.
+    assert [(s["name"], s["group"]) for s in saved["skills"]] == [("Excel", "Tools"), ("MATLAB", "Tools")]
 
 
 async def test_the_model_gets_no_identity_data_and_no_contact_block(student, upload, use_model, database):
@@ -961,7 +965,7 @@ async def test_a_confirm_saves_the_previews_reading_without_reading_again(studen
     assert len(fake.prompts) == 1
     saved = (await client.get(bank)).json()
     assert [e["title"] for e in saved["entries"]] == ["Riverside State University", "Lab Assistant", "Wind Tunnel"]
-    assert [s["name"] for s in saved["skills"]] == ["Excel"]
+    assert [s["name"] for s in saved["skills"]] == ["Excel", "MATLAB"]
 
 
 async def test_a_confirmed_reading_that_is_not_one_is_refused_before_anything_is_kept(student, upload):
@@ -990,7 +994,8 @@ async def test_import_again_reads_with_the_model_first(student, database, use_mo
     res = await client.post(f"{bank}/import", json={"resume_id": str(resume_id)})
     assert res.status_code == 200
     body = res.json()
-    assert (body["read_by"], body["uses_left"], _counts(body)) == ("model", 0, (3, 1))
+    # Both skills: the model's Excel, and the parser's MATLAB, which the model left out.
+    assert (body["read_by"], body["uses_left"], _counts(body)) == ("model", 0, (3, 2))
     # The next reading today is the parser's, and still succeeds.
     body = (await client.post(f"{bank}/import", json={"resume_id": str(resume_id)})).json()
     assert (body["read_by"], body["uses_left"], _counts(body)) == ("parser", 0, (3, 2))
