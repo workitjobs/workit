@@ -158,6 +158,21 @@ EXPECTED = {
         ],
         "skill_count": 5,
     },
+    # Apply's sample resume: "Company - Title - Dates" on one line, dates as
+    # "Jun-Aug 2026", and the school's line in dash fields. Before, the
+    # title held the company and dates, the second job took the first one's
+    # company, and the school had no graduation date.
+    "dash_separated_one_line.txt": {
+        "education": [
+            ("Illinois State University", "B.S", None, 3.7, "2028-05-01"),
+        ],
+        "experience": [
+            ("Example Logistics", "Software Engineering Intern", None, "2026-06-01", "2026-08-01", 2),
+            ("Illinois State University Library", "Student Developer", None, "2025-09-01", None, 1),
+        ],
+        "projects": ["Robotics Club - Software Lead"],
+        "skill_count": 10,
+    },
 }
 
 
@@ -453,3 +468,28 @@ def test_lines_before_the_first_marker_are_kept():
         "Built a REST API in FastAPI.",
         "Wrote 120 unit tests.",
     ]
+
+
+def test_a_range_in_one_year_names_the_year_once():
+    parsed = parse_resume("EXPERIENCE\nAcme Corp\nSoftware Engineering Intern  Jun-Aug 2026\n- Built a tool\n")
+    job = parsed.experience[0]
+    assert (_iso(job.start_date), _iso(job.end_date)) == ("2026-06-01", "2026-08-01")
+
+
+def test_a_word_starting_with_a_month_is_no_range():
+    # "Marketing" starts with "Mar": only whole month names make a range
+    parsed = parse_resume("EXPERIENCE\nAcme Corp\nProduct Marketing - May 2026\n- Ran a launch\n")
+    assert _iso(parsed.experience[0].start_date) is None
+
+
+def test_a_dash_with_a_role_on_both_sides_stays_one_title():
+    parsed = parse_resume("EXPERIENCE\nSoftware Engineer - Backend Lead  Jan 2024 - Present\n- Built a tool\n")
+    assert parsed.experience[0].title == "Software Engineer - Backend Lead"
+
+
+def test_a_school_name_with_a_dash_keeps_both_parts():
+    parsed = parse_resume(
+        "EDUCATION\nUniversity of Wisconsin - Madison - B.S. in Computer Science - May 2027\n"
+    )
+    school = parsed.education[0]
+    assert (school.institution, _iso(school.end_date)) == ("University of Wisconsin - Madison", "2027-05-01")

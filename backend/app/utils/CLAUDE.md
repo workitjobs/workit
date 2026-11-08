@@ -117,7 +117,14 @@ Resumes put company, title, dates, and location in different orders.
 | Date line is bare (only dates + location) | Title / Company / Dates above |
 | Pipe in the header line | `Title \| Company` or `Company \| Title` (ROLE_KEYWORDS decides) |
 | ROLE_KEYWORDS on the line after the date | Company+Date / Title+Location / bullets |
+| The entry's first line is `Company - Title - Dates` (` - `, ` – ` or ` — `), the role keyword on one side only | Company, Title, Dates on one line / bullets |
 | None of the above | Company / Title+Date / bullets (default) |
+
+The one-line dash layout (`_split_dash_title_company`) needs the role keyword
+on exactly one side, so "Software Engineer - Backend Lead" stays one title.
+Before it, the title held the company too, and a second such entry took the
+first one's company as "a second role at the previous company"
+(`dash_separated_one_line.txt`, Apply's sample resume, 2026-11-08).
 
 `ROLE_KEYWORDS` is the set of common job title words (Engineer, Manager, Intern,
 etc.) used to tell title from company when both are plain text.
@@ -184,6 +191,11 @@ Three patterns, checked in priority order:
 Day is always 1 (resumes don't specify days). "Present", "Current", "Now" store
 as `None` (null end date).
 
+A range in one year names it once: "Jun-Aug 2026" becomes "Jun 2026 - Aug
+2026" in `_clean_text`, before any pattern runs. Before, only "Aug 2026" was
+read, as the end. Only whole month names count (`_MONTH_NAME`), since `MONTH`
+would read "Marketing - May 2026" as a range.
+
 ### Education fields
 
 - The degree keeps its full name ("Bachelor of Science", not "Bachelor").
@@ -193,6 +205,12 @@ as `None` (null end date).
 - A plain line after a coursework or bullet line that ends in a comma, or that
   starts lowercase, is that line wrapped by the PDF and joins it. Before
   this, the second line of a two-line coursework list was dropped.
+- **A school's line in dash fields** ("School - B.S. Computer Science - May
+  2028 - GPA 3.7", three fields or more, no "|"): the school is every field
+  before the first one holding a degree, date or GPA, so "University of
+  Wisconsin - Madison" keeps "Madison"; the date is read from its own field,
+  since `BARE_DATE_RE` wants it at a line's end. Before, the whole line was
+  the school and it had no date.
 
 ### Projects and skills
 
@@ -293,6 +311,32 @@ Rules:
   parser's reading it matches (three in four of its other words): a line
   of the resume, never a value put back for the placeholder. One with no
   match is dropped (`model_drafts`), never saved with "[name]".
+- **What the model loses, the parser's reading puts back** (found 2026-11-08,
+  reading this folder's fixtures with Gemini 3.5 Flash-Lite; the replies are
+  tests in `tests/test_bank_import.py`):
+  - **A year alone is January of it.** For "2022 - current" the model sends
+    `"2022"`, which is no `YYYY-MM`, so the entry lost its dates; an award
+    dated "2024" lost itself, since `_valid`'s undated retry left
+    `award_date` in place. Both now read as this parser reads them.
+  - **A section the model left empty takes this parser's entries**
+    (`with_missed_sections`): it left both papers under "Publications" out.
+    A parser entry whose title's words (three in four) are in one of the
+    model's entries is the same thing filed elsewhere, and stays out. The
+    prompt names where a paper goes too.
+  - **A title ending in `[link]` keeps the rest**: a citation that ends in
+    its URL came back as "... arXiv preprint, [link]", and the placeholder
+    emptied the whole title, so the paper was dropped. The tail is cut, and
+    `with_links` gives the project this parser's link.
+  - **Tools come out of titles** (`with_tools_split`): the truth rule has
+    the model copy "Budget Buddy (React, Firebase)" whole, so the tools
+    become skills as this parser splits them (`split_tools`, a comma list
+    in parentheses). "(Pulp)" holds no list and stays.
+  - **An award's giver is its organization** (`with_award_givers`): "Dean's
+    List – Riverside State University" splits as this parser's
+    "Award – Issuer" does.
+  - **The model reads NFKC text**, so a PDF's "ﬁ" ligature ("Chick-ﬁl-A")
+    is not copied into a field; this parser's `ftfy` clean-up fixes it on
+    its side.
 - Either reading goes straight into the experience bank through
   `services/bank.py`'s `import_upload`; nothing keeps the reading itself
   (`resumes.parsed_json` was dropped in KAN-240). The upload response's

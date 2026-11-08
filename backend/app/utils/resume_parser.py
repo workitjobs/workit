@@ -1,3 +1,4 @@
+import itertools
 import json
 import re
 from datetime import date
@@ -37,6 +38,13 @@ EXPECTED_RE = re.compile(
 )
 # Bare "Month Year" ending a line or a "|" field — no range, no "Expected"
 BARE_DATE_RE = re.compile(rf'({MONTH})\s+{YEAR}\s*(?=\||$)', re.IGNORECASE | re.MULTILINE)
+# "Jun-Aug 2026": two months, one year. Whole month names only, so
+# "Marketing - May 2026" is no range.
+_MONTH_NAME = (r'(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|June?|July?|Aug(?:ust)?|'
+               r'Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\.?')
+_SAME_YEAR_RANGE_RE = re.compile(rf'\b({_MONTH_NAME})\s*[–\-—]\s*({_MONTH_NAME})\s+(\d{{4}})\b', re.IGNORECASE)
+# " - " between fields: "Company - Title - Dates" on one line
+DASH_FIELDS_RE = re.compile(r'\s+[–—-]\s+')
 
 # Section headings, from career-center guides (KAN-348). One term is one
 # section's name; a heading is terms joined by "&" or "and", and may end in
@@ -213,6 +221,9 @@ def _clean_text(text: str) -> str:
     text = re.sub(r'[▪●◦·]', '•', text)
     # U+223C TILDE OPERATOR, which resume fonts often lack: "∼120ms"
     text = text.replace('∼', '~')
+    # "Jun-Aug 2026" is "Jun 2026 - Aug 2026": a range in one year names it
+    # once, and only "Aug 2026" was read, as the end
+    text = _SAME_YEAR_RANGE_RE.sub(r'\1 \3 - \2 \3', text)
     text = re.sub(r'\n{3,}', '\n\n', text)
     return text.strip()
 
@@ -354,6 +365,21 @@ def _split_title_company(text: str) -> tuple[str, str] | None:
     return parts[0], parts[1]
 
 
+def _split_dash_title_company(text: str) -> tuple[str, str] | None:
+    """'Company - Title' or 'Title - Company' left of an entry's dates. Only
+    when the role keyword is on one side alone: "Software Engineer -
+    Backend" names no company, and stays one title."""
+    parts = DASH_FIELDS_RE.split(text.strip())
+    if len(parts) != 2 or not all(parts):
+        return None
+    roles = [bool(ROLE_KEYWORDS.search(p)) for p in parts]
+    if roles == [True, False]:
+        return parts[0], parts[1]
+    if roles == [False, True]:
+        return parts[1], parts[0]
+    return None
+
+
 def _is_bare_date_line(line: str) -> bool:
     """Only dates, plus maybe a location — the entry's title and company sit
     on the lines above it rather than beside the date."""
@@ -464,9 +490,20 @@ def _parse_education(text: str) -> list[Education]:
         inst_field = next((f for f in fields
                            if INSTITUTION_RE.search(f) and not DEGREE_RE.search(f)), first.split("|")[0])
         inst = _strip_dates(EXPECTED_RE.sub("", inst_field)) or inst_field.strip()
+        # "School - B.S. Computer Science - May 2028 - GPA 3.7" on one line:
+        # the school is the dash fields before the degree, so "University of
+        # Wisconsin - Madison - B.S." keeps "Madison"
+        dash_fields = DASH_FIELDS_RE.split(first)
+        if "|" not in first and len(dash_fields) > 2 and DEGREE_RE.search(inst):
+            school = list(itertools.takewhile(
+                lambda f: not (DEGREE_RE.search(f) or _has_date(f) or GPA_RE.search(f)), dash_fields))
+            inst = " - ".join(school).strip() or inst
 
         # Dates
         _, end = _parse_date_range(all_text)
+        if end is None:
+            # "... - May 2028 - GPA 3.7": a dash field, not a line's end
+            end = next((e for f in dash_fields if (e := _parse_date_range(f.strip())[1])), None)
 
         # GPA
         gpa_m = GPA_RE.search(all_text)
@@ -563,6 +600,13 @@ def _parse_experience(text: str) -> list[Experience]:
         elif _split_title_company(date_rest):
             # Layout: Title | Company  Location | Dates / bullets
             title, company = _split_title_company(date_rest)
+            location = date_location
+            bullet_start = date_idx + 1
+        elif date_idx == 0 and (pair := _split_dash_title_company(date_rest)):
+            # Layout: Company - Title - Dates on one line / bullets. Before,
+            # the whole "Company - Title" was the title, and a second such
+            # entry took the first one's company.
+            title, company = pair
             location = date_location
             bullet_start = date_idx + 1
         elif title_below:

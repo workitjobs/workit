@@ -1246,3 +1246,139 @@ async def test_a_skill_removed_in_the_preview_is_not_saved_or_read_in_later(stud
 
     await client.post(f"{bank}/import", json={"resume_id": resume_id})
     assert _skill_names((await client.get(bank)).json()) == ["MATLAB"]
+
+
+# --- What Gemini 3.5 Flash-Lite answered for the parser's fixtures (2026-11-08),
+# each a way the model's reading lost what the parser keeps. ---
+
+def _fixture_text(name: str) -> str:
+    from pathlib import Path
+
+    return (Path(__file__).parent / "fixtures" / name).read_text(encoding="utf-8")
+
+
+async def test_a_year_alone_from_the_model_is_january_and_keeps_the_award():
+    # "2022 - current" came back as "2022", which is no "YYYY-MM": the job
+    # lost its dates, and "Merit Scholarship  2024" lost itself.
+    from workit_scout.identity import Identity
+
+    from app.services.bank_import import read_resume
+
+    reply = {"entries": [
+        {"section": "experience", "title": "Cashier", "organization": "Panda Express",
+         "start_month": "2022", "end_kind": "present"},
+        {"section": "awards", "title": "Merit Scholarship", "award_date": "2024"},
+    ]}
+    text = _fixture_text("two_column_no_bullet_glyphs.txt") + "\nAwards\nMerit Scholarship  2024\n"
+    reading = await read_resume(text, ScriptedLLM(_reading(reply)), Identity())
+    job, award = [e for e in reading.entries if e.title in ("Cashier", "Merit Scholarship")]
+    assert (job.start_month.isoformat(), job.end_kind.value) == ("2022-01-01", "present")
+    assert award.award_date.isoformat() == "2024-01-01"
+
+
+async def test_a_section_the_model_left_empty_keeps_the_parsers_entries():
+    # Gemini left out both papers under "Publications": the prompt named no
+    # section for them. The parser keeps them as projects.
+    from workit_scout.identity import Identity
+
+    from app.services.bank_import import read_resume
+
+    reply = {"entries": [
+        {"section": "education", "title": "Hillcrest State University", "degree": "B.S.",
+         "end_month": "2027-05", "end_kind": "expected"},
+        {"section": "experience", "title": "Undergraduate Researcher", "organization": "Computational Systems Lab",
+         "start_month": "2025-01", "end_kind": "present"},
+    ]}
+    llm = ScriptedLLM(_reading(reply))
+    reading = await read_resume(_fixture_text("research_and_publications.txt"), llm, Identity())
+    assert reading.read_by == "model"
+    papers = [e.title for e in reading.entries if e.section.value == "projects"]
+    assert [p[:30] for p in papers] == ["Lee, R., Ortiz, M. (2025). Fas", "Ortiz, M., Lee, R. (2024). A B"]
+    # The parser's jobs the model already holds stay out; the one it left out
+    # is in a section the model filled, so it is not added back either.
+    assert [e.title for e in reading.entries if e.section.value == "experience"] == ["Undergraduate Researcher"]
+
+
+async def test_a_parser_entry_the_model_filed_elsewhere_is_not_added_twice():
+    from workit_scout.identity import Identity
+
+    from app.services.bank_import import read_resume
+
+    # The parser reads these awards; the model files the same honor as a club role.
+    text = "Leadership\nSociety of Women Engineers  Sep 2025 - Present\nVice President\nAwards\nDean's List  Dec 2025\n"
+    reply = {"entries": [
+        {"section": "leadership", "title": "Vice President", "organization": "Society of Women Engineers",
+         "start_month": "2025-09", "end_kind": "present", "bullets": ["Dean's List"]},
+    ]}
+    reading = await read_resume(text, ScriptedLLM(_reading(reply)), Identity())
+    assert [e.title for e in reading.entries] == ["Vice President"]
+
+
+async def test_tools_the_model_copied_into_a_title_become_skills():
+    from workit_scout.identity import Identity
+
+    from app.services.bank_import import read_resume
+
+    reply = {"entries": [
+        {"section": "projects", "title": "Budget Buddy (React, Firebase)", "start_month": "2026-01",
+         "end_month": "2026-03", "end_kind": "month"},
+    ]}
+    reading = await read_resume(_fixture_text("pipe_layout_leadership_honors.txt"), ScriptedLLM(_reading(reply)), Identity())
+    assert [e.title for e in reading.entries if e.section.value == "projects"] == ["Budget Buddy"]
+    assert {"React", "Firebase"} <= {name for name, _ in reading.skills}
+
+
+def test_a_title_keeps_parentheses_that_hold_no_list():
+    from app.services.bank_import import title_and_tools
+
+    assert title_and_tools("thinkwell (Pulp)") == ("thinkwell (Pulp)", [])
+    assert title_and_tools("Robot | C++, Python") == ("Robot", ["C++", "Python"])
+
+
+async def test_an_awards_giver_glued_to_its_title_is_its_organization():
+    from workit_scout.identity import Identity
+
+    from app.services.bank_import import read_resume
+
+    reply = {"entries": [
+        {"section": "awards", "title": "Dean's List – Riverside State University", "award_date": "2025-12"},
+        {"section": "awards", "title": "First Place, Regional Design Competition – ASME", "award_date": "2025-04"},
+    ]}
+    reading = await read_resume(
+        _fixture_text("leadership_and_awards_single_column.txt"), ScriptedLLM(_reading(reply)), Identity()
+    )
+    awards = [(e.title, e.organization) for e in reading.entries if e.section.value == "awards"]
+    assert awards[:2] == [
+        ("Dean's List", "Riverside State University"),
+        ("First Place, Regional Design Competition", "ASME"),
+    ]
+
+
+async def test_the_model_reads_the_text_without_pdf_ligatures():
+    from workit_scout.identity import Identity
+
+    from app.services.bank_import import read_resume
+
+    llm = ScriptedLLM(_reading({"entries": []}))
+    await read_resume(_fixture_text("two_column_no_bullet_glyphs.txt"), llm, Identity())
+    sent = llm.prompts[0][-1]["content"]
+    assert "Chick-fil-A" in sent and "ﬁ" not in sent
+
+
+async def test_a_citation_ending_in_its_link_keeps_its_title_and_takes_the_parsers_link():
+    # The model sees the arXiv URL as [link] and copies it into the title;
+    # the placeholder used to empty the title, and the paper was dropped.
+    from workit_scout.identity import Identity
+
+    from app.services.bank_import import read_resume
+
+    reply = {"entries": [
+        {"section": "education", "title": "Hillcrest State University", "degree": "B.S.",
+         "end_month": "2027-05", "end_kind": "expected"},
+        {"section": "projects", "title": "Ortiz, M., Lee, R. (2024). A Benchmark for Small-Object Detection. "
+                                         "arXiv preprint, [link]"},
+    ]}
+    reading = await read_resume(_fixture_text("research_and_publications.txt"), ScriptedLLM(_reading(reply)), Identity())
+    paper = next(e for e in reading.entries if e.section.value == "projects")
+    assert paper.title == "Ortiz, M., Lee, R. (2024). A Benchmark for Small-Object Detection. arXiv preprint"
+    assert paper.link == "https://arxiv.org/abs/2409.01234"

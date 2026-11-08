@@ -28,11 +28,13 @@ from workit_scout.llm import LLM
 from app.models.dto import Experience, ParsedResume, bank_section, entry_end_kind
 from app.schemas.bank import DraftEntry, ModelReading
 from app.services import skill_catalog
-from app.utils.resume_parser import parse_resume, section_of
+from app.utils.resume_parser import parse_resume, section_of, split_tools
 
 _SHORT, _LONG, _NAME = 200, 500, 60
 _COURSEWORK_RE = re.compile(r"^(?:Relevant\s+)?(?:Coursework|Courses)\s*:?\s*", re.IGNORECASE)
 _GPA_LINE_RE = re.compile(r"^GPA\b", re.IGNORECASE)
+_YEAR_ALONE_RE = re.compile(r"\d{4}")
+_LINK_TAIL_RE = re.compile(r"[\s,;:|–—-]*\[link\]\s*$")
 # Not a skill: a name still holding a "|" (a title's tail glued on), a
 # qualification ("Computer Science degree", "Bachelor's in ...", "GPA 3.8",
 # "3+ years of Java", a citizenship or clearance), or a generic phrase that
@@ -142,8 +144,9 @@ def _valid(raw: dict) -> DraftEntry | None:
         return DraftEntry.model_validate(raw)
     except ValidationError:
         # Dates that do not fit together (an end before the start) are the
-        # likely cause; the student can add them back in the editor.
-        undated = {**raw, "start_month": None, "end_month": None, "end_kind": None}
+        # likely cause; the student can add them back in the editor. An
+        # award's date goes too: kept, a bad one dropped the whole award.
+        undated = {**raw, "start_month": None, "end_month": None, "end_kind": None, "award_date": None}
         try:
             return DraftEntry.model_validate(undated)
         except ValidationError:
@@ -211,9 +214,11 @@ stays "B.S.", "NYC" stays "NYC".
 
 Entries, in the resume's order:
 - section is one of "education", "experience", "projects", "leadership" \
-(clubs, activities, volunteering), "awards", "certifications".
+(clubs, activities, volunteering), "awards", "certifications". \
+A publication or paper is "projects", with its whole citation as the title.
 - title: the role, school, project, award or certification name. \
-organization: the company or group. Education: the school is the title.
+organization: the company or group, and for an award the group that gives \
+it. Education: the school is the title.
 - Months are "YYYY-MM". end_kind is "month" (ended), "present" (still going, \
 no end_month) or "expected" (an expected end, such as graduation).
 - bullets: the resume's bullet lines for that entry, one per item, unchanged.
@@ -254,7 +259,12 @@ def model_drafts(reading: ModelReading, text: str | None = None) -> list[DraftEn
     words = set(_words(text)) if text else None
     drafts: list[DraftEntry] = []
     for entry in reading.entries:
-        raw = {k: None if _withheld(v) else v for k, v in entry.model_dump().items()}
+        raw = entry.model_dump()
+        # A citation that ends in its URL ("... arXiv preprint, [link]") lost
+        # its whole title to the placeholder, so the paper was dropped. The
+        # link is the parser's (`with_links`); the title keeps the rest.
+        raw["title"] = _LINK_TAIL_RE.sub("", raw["title"] or "")
+        raw = {k: None if _withheld(v) else v for k, v in raw.items()}
         for field in ("title", "organization", "location", "degree", "field_of_study", "issuer"):
             raw[field] = _clip(raw[field])
         raw["honors"] = _clip(raw["honors"], _LONG)
@@ -262,6 +272,12 @@ def model_drafts(reading: ModelReading, text: str | None = None) -> list[DraftEn
         # A bullet still holding a placeholder (`with_own_wording` found the
         # parser no match for it) would save "[name]" for good.
         raw["bullets"] = [b for b in (_clip(x, _LONG) for x in raw["bullets"]) if b and not _withheld(b)][:30]
+        # "2022 - current": the model sends the year alone, which is no
+        # "YYYY-MM", so the entry lost its dates (an award lost itself).
+        # A year alone is January of it, as the parser reads it.
+        for field in ("start_month", "end_month", "award_date"):
+            if isinstance(raw[field], str) and _YEAR_ALONE_RE.fullmatch(raw[field].strip()):
+                raw[field] = f"{raw[field].strip()}-01"
         if words is not None:
             raw = _backed_fields(raw, words)
         if draft := _valid(raw):
@@ -304,8 +320,10 @@ class Reading:
 
 
 async def read_resume(raw_text: str | None, llm: LLM | None = None, identity: Identity | None = None) -> Reading:
-    """An upload's reading: the model's, checked against the text and with
-    the parser's project links, else the parser's. The parser's when no
+    """An upload's reading: the model's, checked against the text, with the
+    tools taken out of its titles, an award's giver in its organization, the
+    parser's entries in any section it left empty and the parser's project
+    links; else the parser's. The parser's when no
     model is given (no AI reading left today) or there is no text, and when
     the model fails, answers in the wrong shape, runs past
     MODEL_WAIT_SECONDS or keeps no entry the text backs. Never raises: an
@@ -314,18 +332,81 @@ async def read_resume(raw_text: str | None, llm: LLM | None = None, identity: Id
     parsed = Reading(entries, skills)
     if llm is None or identity is None or not raw_text:
         return parsed
+    # "Chick-ﬁl-A": the PDF's ligatures and other compatibility characters,
+    # which the parser's clean-up fixes, would be copied by the model as is.
+    text = unicodedata.normalize("NFKC", raw_text)
     try:
         async with asyncio.timeout(MODEL_WAIT_SECONDS):
-            reading = await read_with_model(_from_first_heading(raw_text), llm, identity=identity)
+            reading = await read_with_model(_from_first_heading(text), llm, identity=identity)
     except Exception as exc:
         # ScoutUnavailable (down, out of quota, the wrong shape), the wait
         # running out, or anything else: the parser's reading still stands.
         logger.warning("The model could not read a resume, so the parser's reading is saved: %r", exc)
         return parsed
-    drafts = model_drafts(with_own_wording(reading, entries), raw_text)
+    drafts = model_drafts(with_own_wording(reading, entries), text)
     if not drafts:
         return parsed
-    return Reading(with_links(drafts, entries), skill_pairs(model_skills(reading, raw_text)), "model")
+    drafts, tools = with_tools_split(drafts)
+    drafts = with_missed_sections(with_award_givers(drafts), entries)
+    found = model_skills(reading, text) + [(tool, None) for tool in tools]
+    return Reading(with_links(drafts, entries), skill_pairs(found), "model")
+
+
+def with_tools_split(drafts: list[DraftEntry]) -> tuple[list[DraftEntry], list[str]]:
+    """Each role and project title less the tools the model copied into it,
+    which become skills, as the parser splits them: "Budget Buddy (React,
+    Firebase)" and "Robot | C++, Python" keep only the name. The truth rule
+    has the model copy a title whole, so without this the tools stayed in it
+    (KAN-369's glued titles, back)."""
+    tools: list[str] = []
+    for draft in drafts:
+        if draft.section not in (bank_section.experience, bank_section.leadership, bank_section.projects):
+            continue
+        name, found = title_and_tools(draft.title)
+        if found and name:
+            draft.title, tools = name, tools + found
+    return drafts, tools
+
+
+def title_and_tools(title: str) -> tuple[str, list[str]]:
+    """A title's tools: a list after its last "|" (`split_tools`), or a
+    comma list in parentheses at its end. "(Pulp)" holds no list and stays."""
+    name, tools = split_tools(title)
+    paren = re.search(r"\s*\((.*?)\)\s*$", name)
+    if paren and "," in paren.group(1):
+        tools = tools or [t.strip() for t in paren.group(1).split(",") if t.strip()]
+        name = name[:paren.start()].strip()
+    return name, tools
+
+
+_GIVER_RE = re.compile(r"^(?P<award>.+?)\s+[–—|-]\s+(?P<giver>[^–—|]+)$")
+
+
+def with_award_givers(drafts: list[DraftEntry]) -> list[DraftEntry]:
+    """An award with no organization whose title ends in " – Giver": the
+    giver goes to the organization, as the parser reads "Award – Issuer".
+    The model copied "Dean's List – Riverside State University" whole."""
+    for draft in drafts:
+        if draft.section is bank_section.awards and not draft.organization and (m := _GIVER_RE.match(draft.title)):
+            draft.title, draft.organization = m["award"].strip(), m["giver"].strip()
+    return drafts
+
+
+def with_missed_sections(drafts: list[DraftEntry], parsed: list[DraftEntry]) -> list[DraftEntry]:
+    """The model's entries, and the parser's in each section the model left
+    empty: the model left out both papers under "Publications" (2026-11-08),
+    which the parser keeps as projects. A parser entry whose title's words
+    (three in four) are already in one of the model's entries is the same
+    thing filed elsewhere, and stays out."""
+    have = {d.section for d in drafts}
+    seen = [set(_words(" ".join([d.title, d.organization or "", *d.bullets]))) for d in drafts]
+    missed = []
+    for entry in parsed:
+        own = set(_words(entry.title)) - _COMMON
+        if entry.section in have or (own and any(len(own & words) * 4 >= len(own) * 3 for words in seen)):
+            continue
+        missed.append(entry)
+    return drafts + missed
 
 
 def with_own_wording(reading: ModelReading, parsed: list[DraftEntry]) -> ModelReading:

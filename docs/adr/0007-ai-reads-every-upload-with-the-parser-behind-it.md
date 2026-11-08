@@ -31,6 +31,11 @@ The rules:
   "B.S."), so the check rarely takes a real field.
 - **Links come from the parser.** The model sees every URL as `[link]`, so
   a model project takes the link of the parser's project with its title.
+- **So does a section the model left empty** (2026-11-08): the model left
+  out a resume's publications, which the parser keeps as projects. A parser
+  entry already in the model's reading under another section stays out.
+  The model's year-only dates, tools in titles and award givers are read as
+  the parser reads them (`backend/app/utils/CLAUDE.md`).
 - **So do the words the seam took out.** The seam removes every part of the
   student's name, even where it is a common word ("user" for the test
   account's Test User), and the model echoes "[name]". A bullet holding a

@@ -844,8 +844,10 @@ Find files with a directory listing; these are the rules for where code goes.
   while the student has a `PARSING` use left today (cap 1, 10% of the
   pool), `bank_import.read_resume` asks the model, checks every field it
   wrote against the resume's text (`_backed`), and takes project links,
-  and the words of any bullet the seam put a placeholder in
-  (`with_own_wording`), from the parser's reading; it saves the parser's reading when no use is
+  the words of any bullet the seam put a placeholder in
+  (`with_own_wording`) and every section the model left empty
+  (`with_missed_sections`) from the parser's reading; the merge rules are
+  in `app/utils/CLAUDE.md`, "The model reads first". It saves the parser's reading when no use is
   left, the model fails or runs past `MODEL_WAIT_SECONDS` (45), its reply
   fails the schema, or the text backs none of its entries. Only a model
   reading counts a use, committed with the bank writes (the preview
