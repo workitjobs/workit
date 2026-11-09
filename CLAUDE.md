@@ -45,8 +45,9 @@ none.
   lists every endpoint it calls.
 - `apply-agent/` — Apply (KAN-534): a Python command-line agent (uv,
   Playwright) that fills job applications in its own Chrome workers, writes
-  answers with Claude and never submits in a rehearsal. A developer tool,
-  not a student feature. It loads the Fill engine from the extension's
+  answers with Claude and never submits in a rehearsal. A developer tool
+  today; KAN-723 plans a downloadable student app (`docs/desktop_application_auto_apply.md`).
+  It loads the Fill engine from the extension's
   submodule, keeps personal data only in `APPLY_HOME`, never in the repo,
   and has its own glossary and ADRs (`GLOSSARY-MAP.md`). Read
   `apply-agent/CLAUDE.md` before any change there.
@@ -226,6 +227,12 @@ with the failure it prevents.
   student's email.
 - `docs/whats-new-2026-11-05.md` — what a teammate must do after the rename to
   `workitjobs`, and the new Apply settings and commands.
+- `docs/desktop_application_auto_apply.md` — KAN-723's plan, not built: Apply as a
+  downloadable desktop app beside the extension. Two paths (the extension
+  with the connector; the desktop app with its own Chrome Workers), WorkIt
+  as the source of the student's data, the AI access a product may use (Claude, ChatGPT, local models), who can see the shipped code,
+  per-OS work, and how Apply works today from the ground up. Read it before
+  changing Apply toward a download, or where its data comes from.
 - `docs/search.md` — how the Jobs page's search reads a query.
 - `docs/architecture.md` — how the halves fit together, for a reader new to
   the repo.

@@ -35,12 +35,14 @@ never submits.** Apply runs on macOS only. Before you change code here, read
    ```
 
 3. Check the setup: `uv run apply doctor`. Each line says ok, warn or fail,
-   with a fix. On a new Mac, two lines fail: "Applicant profile" (step 4
-   fixes it) and "Worker profiles" (step 6 fixes it; after step 4 doctor
-   lists each Worker profile, `worker-1` and on). With `worker_mode: plain`
-   in `policies.yaml`, doctor checks "Plain seed" instead: `uv run apply
-   plain seed` fixes it. Fix every other fail first. The warn lines are for
-   optional features.
+   with a fix. On a new Mac, three lines fail: "Applicant profile" (step 4
+   fixes it), "Worker profiles" (step 6 fixes it; after step 4 doctor
+   lists each Worker profile, `worker-1` and on) and "Plain seed" (`uv run
+   apply plain seed` fixes it: the default `worker_mode: protected` fills
+   Lever, SmartRecruiters and Workable in plain Workers). With
+   `worker_mode: plain` in `policies.yaml`, doctor checks only "Plain seed";
+   with `cdp`, only "Worker profiles". Fix every other fail first. The warn
+   lines are for optional features.
 
 ## First rehearsal: Test Person
 

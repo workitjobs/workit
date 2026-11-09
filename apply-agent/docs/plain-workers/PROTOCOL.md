@@ -430,7 +430,7 @@ Worker forward except Lisul's own Show (`PlainWorkers.show`): no `chrome.windows
 true})`, no AppleScript focus, no full-screen. Tests use one Worker, shared by the module, and stop it
 when they end.
 
-`policies.yaml: worker_mode: cdp|plain|protected` (default `cdp`) picks the Worker for each form (S8,
+`policies.yaml: worker_mode: cdp|plain|protected` (default `protected` since 2026-11-06, KAN-723) picks the Worker for each form (S8,
 `apply.plain.site`): `plain` puts every form on a plain Worker (`PlainSite`), `protected` only those on
 `plain_worker_hosts` (Lever, SmartRecruiters, Workable) and in `APPLY_HOME/plain-hosts.json` (written
 by `captcha.blocked`), the rest on CDP Workers (`RoutedSite`).

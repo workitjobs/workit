@@ -162,9 +162,11 @@ worker_headless: false
 # Playwright over the DevTools protocol, as today), plain (a plain Chrome with no
 # CDP and no automation flags, driven through the private worker extension), or
 # protected (plain only for plain_worker_hosts and the hosts in plain-hosts.json in
-# the data folder; cdp for the rest). cdp until
-# plain Workers reach parity and run side by side for a week.
-worker_mode: cdp
+# the data folder; cdp for the rest). protected since 2026-11-06 (KAN-723, the
+# team's decision, before the week of plain and CDP side by side): plain Workers
+# fill only the hosts that block CDP Workers. It needs the plain seed once
+# (`apply plain seed`); `apply doctor` checks it.
+worker_mode: protected
 
 # The hosts (and their subdomains) that worker_mode: protected fills in plain
 # Workers.

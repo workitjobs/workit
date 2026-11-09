@@ -137,8 +137,10 @@ def cover_letters_printed_as_their_text(monkeypatch):
 
 
 # Lisul's switches in the real policies.yaml (live runs, phone pushes, headed Workers) are his to
-# flip; tests run with them at their defaults, so flipping one never breaks a test.
-SWITCHES = ("live_runs", "phone_push", "worker_headless")
+# flip; tests run with them at their defaults, so flipping one never breaks a test. worker_mode too:
+# a test that needs a plain Worker sets it itself, so policies.default.yaml's protected (KAN-723)
+# starts no plain Worker in a test that didn't ask for one.
+SWITCHES = ("live_runs", "phone_push", "worker_headless", "worker_mode")
 
 
 @pytest.fixture(autouse=True)

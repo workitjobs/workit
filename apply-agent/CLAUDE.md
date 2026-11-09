@@ -9,8 +9,15 @@ It reads a job posting, fills the application form in Chrome through the
 Fill engine, writes the answers and essays with Claude, and shows the Apply
 window (Start, Needs you, Answers, Accounts). A rehearsal fills the form and never
 submits. It runs on the person's own Mac, with their own Chrome and their
-own Claude Code login. It is a developer and power-user tool, not a student
+own Claude Code login. Today it is a developer and power-user tool, not a student
 feature: students apply through the extension and the connector (KAN-369).
+KAN-723 plans to make it a downloadable desktop app for students, beside the
+extension, with WorkIt as the source of the student's data. Read
+`../docs/desktop_application_auto_apply.md` before a change toward that.
+
+Workers default to `worker_mode: protected` (2026-11-06, KAN-723): plain
+Workers fill the hosts that block CDP Workers, and CDP Workers fill the rest
+(`docs/plain-workers/guide.md`).
 
 Apply has its own domain language. Read `GLOSSARY.md` and `docs/adr/` here,
 not the root ones, for its terms (root `GLOSSARY-MAP.md`). Write each
