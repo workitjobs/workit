@@ -3190,8 +3190,10 @@ student who opened a resume from Experiences landed on another view.
   nine, each drawn in itself with the look it stands for), **Text Sizes** (a row
   per kind of text, Section Headings among them, which have no line to click,
   each with a field to type the points in between - and +; the toolbar's size is
-  the same control), **Layout** (Spacing, Margins) and **Style** (Accent Color,
-  Section Lines), then Reset Formatting once anything is set. A typed size
+  the same control), **Layout** (Spacing, Margins, Header Alignment, Text
+  Alignment), **Style** (Accent Color, Bullet Icon, Section Lines) and
+  **Content** (Date Format, a menu that shows how each reads, and Education
+  Order, School First or Degree First), then Reset Formatting once anything is set. A typed size
   applies on Enter or on leaving the field, goes to the nearest half point inside
   its limits (Your Name 14 to 36, Section Headings 9 to 18, Job & School Titles 8
   to 16, Body Text 8 to 14), and Escape or what is not a number puts it back. On
@@ -3206,12 +3208,13 @@ student who opened a resume from Experiences landed on another view.
   font and a size per kind of text, which the user found missing. Spacing is one
   choice (Compact, Regular, Relaxed) over line, section and entry spacing, and
   Margins one over top and side. Text alignment, the bullet's shape and the
-  header's alignment stay out: a resume reads best with Jake's. The API still
-  takes all of them, so a resume already set that way prints as it did, shows no
-  choice picked, and Reset Formatting clears it. A spacing is a segmented switch,
+  header's alignment left on 2026-11-01 and came back a day later with Date
+  Format and Education Order, once Jobright's panel showed they were missed. The
+  API still takes each spacing and margin on its own, so a resume already set
+  that way prints as it did, shows no choice picked, and Reset Formatting clears
+  it. A spacing is a segmented switch,
   not Jobright's slider: each change compiles the PDF, so a slider would queue a
-  compile for every step it crossed. Still to come: custom sections, education
-  order, skills layout and templates.
+  compile for every step it crossed. Still to come: custom sections, skills layout and templates.
 - **Add Bullet** (KAN-435, on the toolbar with a bullet or an entry's line
   open): an empty line under the open bullet, or at the foot of the open
   entry's, in place at once, its dot beside it and the page under it moved down
@@ -3235,7 +3238,11 @@ student who opened a resume from Experiences landed on another view.
   `scout-store`), and a Scout / Experiences switch only took up the panel's
   top. The panel closed goes back to Scout. **It opens as one line for each
   group**, its mark, name and "2 of 3 added", and a press opens the group's rows:
-  every entry at once was too much to read. **Two controls narrow it**: a
+  every entry at once was too much to read. **Skills end with Remove Skills
+  Section** (KAN-435), which takes every skill off in one step, even while the
+  list is narrowed, so no heading prints; Undo takes it back. With none left it
+  reads Add All Skills, for the skills listed, so a section cut by mistake does
+  not cost a click per skill. **Two controls narrow it**: a
   resume button that opens the shared resume dialog (`ChooseResume`, as the
   page's Showing card does), never a dropdown, and Filters at the row's right
   (`FieldFacet`), groups only. A narrowed list opens its groups, since it is
@@ -3269,7 +3276,12 @@ student who opened a resume from Experiences landed on another view.
   and comes back as the copy Fit cut. An entry Fit only trimmed is its name
   as a label and a tick on each cut bullet or coursework line, with none of
   the entry's other details: it is still on the page, and drawn whole it
-  read as an entry that was cut. A tick goes through the same save as any pick, so Undo takes it
+  read as an entry that was cut. **A skill shows its name once** (KAN-504,
+  `skillCopies`, as the picker shows it): two uploads can each hold
+  "Python", a resume that showed both printed it twice, and Fit cut both,
+  which listed it twice. A tick puts back the first copy Fit cut, and only
+  it, so the page prints the name once; an untick takes off every copy
+  that prints. A tick goes through the same save as any pick, so Undo takes it
   back. A row stays once it is back, ticked, so a wrong tick can be undone
   here too. The list is every fit in the tab, read from each fit's `undo`
   body (`addCuts`), kept in sessionStorage per resume (`fit-cuts.ts`): a

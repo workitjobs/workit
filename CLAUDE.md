@@ -121,7 +121,11 @@ every merge to `main`, with no Cloudflare login on anyone's machine. The
 Cloudflare account is owned by the team Gmail, never one person's login;
 teammates are members with Developer Platform Admin on the account and
 Administrator on the `workitjobs.ai` zone only. Migrations stay a manual,
-local step, never part of a deploy. Supabase (Authentication → URL
+local step, never part of a deploy. **One part does not deploy on merge:
+the bank job** (KAN-726) runs on the team computer from its own checkout,
+so a change to the code it runs needs a pull and a restart there: tell the
+user to remind the team, with the steps in `backend/CLAUDE.md`
+(Deployment, "The bank job does not deploy on merge"). Supabase (Authentication → URL
 Configuration) must list each deployed origin's `/auth/callback`, or OAuth
 sign-in bounces. Settings: a `NEXT_PUBLIC_*` value is a GitHub repository
 variable that `deploy.yml` passes to the app's build, and an API value is in
@@ -233,6 +237,15 @@ with the failure it prevents.
   as the source of the student's data, the AI access a product may use (Claude, ChatGPT, local models), who can see the shipped code,
   per-OS work, and how Apply works today from the ground up. Read it before
   changing Apply toward a download, or where its data comes from.
+- `docs/scraper_gh_action/plan.md` — KAN-726, built: the scheduled
+  scrape runs on a team computer as a self-hosted runner (PR runs stay on
+  GitHub's), with keywords from a local Qwen and every vector, jobs and
+  banks, from a local Qwen3 embedding model that only that computer runs
+  (its bank job listens for bank changes); everywhere else the embedding
+  provider is `none`. A bank change marks its vector stale instead of
+  clearing it. Holds the computer's setup and the cutover order. Read it
+  before changing the scrape workflow, the embedding provider or how a
+  bank is embedded.
 - `docs/search.md` — how the Jobs page's search reads a query.
 - `docs/architecture.md` — how the halves fit together, for a reader new to
   the repo.
