@@ -67,7 +67,7 @@ what its `src/` builds. It runs only on a PR touching `autofiller_extension/`
 (the engine pointer included) or `ci.yml`: the `changes` job
 (`dorny/paths-filter`) decides, and a skipped job counts as passed. The whole
 suite is about 40 minutes on the runner's one worker, so PRs get the smoke
-set (a 15-minute job, KAN-736) and `workflows/extension-nightly.yml` runs
+set (an 8-minute limit, KAN-736) and `workflows/extension-nightly.yml` runs
 every spec, the `speed.extension.spec.ts` timing harness too, every night at
 07:41 UTC (and by hand: `gh workflow run extension-nightly.yml`). Both need
 `FILL_ENGINE_TOKEN`, as `extension-store-build` does, and are skipped

@@ -107,7 +107,7 @@ jobs:
     # accounts.google.com on its own and scrolls and focuses differently, so
     # a few specs fail there only. Free on a public repo.
     runs-on: macos-latest
-    timeout-minutes: 15
+    timeout-minutes: 8
     defaults:
       run:
         working-directory: autofiller_extension/test
@@ -129,7 +129,7 @@ jobs:
             exit 1
           }
       - name: Smoke specs
-        timeout-minutes: 12
+        timeout-minutes: 6
         run: npx playwright test $(grep -v '^#' ci-smoke.txt)
       - uses: actions/upload-artifact@v4
         if: failure()
