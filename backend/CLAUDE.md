@@ -1766,7 +1766,13 @@ go then. A change needs to work on Cloudflare only.
   answers 500, and `GET /bank` too (it reads `bank_custom_sections`). It
   only adds an enum value (`ADD VALUE`, in its own autocommit block), a
   table and a nullable column with a CHECK every row meets, so applying it
-  early is safe. It sits on `b6d2e8f4a1c7`.
+  early is safe. It sits on `e8c3f1a7b925` (KAN-726's vector clear), so
+  `upgrade head` applies that one too where it is not yet applied. **Pull
+  and restart the bank job right after the deploy** (Deployment, "The bank
+  job does not deploy on merge"): its old code reads every entry through
+  `load_bank`, and its `bank_section` has no `custom`, so once a student
+  adds a custom entry, every sweep that reaches that bank fails and stale
+  banks wait until the restart.
 - **Apply `a3c6e9f1b274` (`built_resumes.page_settings`, KAN-435) as soon as
   it merges.** It only adds a JSONB column whose default `{}` is Jake's own
   page, and no code maps it yet, so it is safe for every deploy. The Format
