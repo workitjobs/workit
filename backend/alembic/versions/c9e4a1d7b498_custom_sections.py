@@ -17,7 +17,7 @@ Postgres refuses a new enum value in the transaction that added it, and the
 CHECK below names it.
 
 Revision ID: c9e4a1d7b498
-Revises: b6d2e8f4a1c7
+Revises: e8c3f1a7b925
 Create Date: 2026-11-05 12:00:00.000000
 
 """
@@ -30,7 +30,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "c9e4a1d7b498"
-down_revision: str | Sequence[str] | None = "b6d2e8f4a1c7"
+down_revision: str | Sequence[str] | None = "e8c3f1a7b925"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
