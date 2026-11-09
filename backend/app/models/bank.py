@@ -29,8 +29,10 @@ from app.models.dto import EMBEDDING_DIMENSIONS, bank_section, entry_end_kind
 class Experience_Bank(BaseModel):
     '''
     One row per applicant, made by the first change to their bank. Holds the
-    bank embedding; a null embedding means "remake it on the next
-    recommendations request", so every bank change sets it back to null.
+    bank embedding and `embedded_at`, the bank version (`updated_at`) it was
+    made from. Every bank change moves `updated_at` and keeps the vector, so
+    a vector is stale while the two differ; the bank job replaces it
+    (KAN-726, services/matching/bank_vectors.py).
     '''
     __tablename__ = "experience_banks"
 

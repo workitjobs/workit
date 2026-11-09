@@ -176,6 +176,10 @@ ACCENTS = {
 }
 BULLETS = ("dot", "dash")
 HEADER_ALIGNMENTS = ("left", "center", "right")
+# "Aug. 2018", "August 2018", "2018", "08/2018" (`fields.month`)
+DATE_FORMATS = ("short", "long", "year", "numeric")
+# Which of an Education entry's two rows goes on top
+EDUCATION_FIRST = ("school", "degree")
 # Every section, as the page prints them unless the student drags them; the
 # bank's sections (resume_view.SECTIONS), then the skills
 SECTION_ORDER = ("education", "experience", "projects", "leadership", "awards", "certifications", "skills")
@@ -211,6 +215,8 @@ def printed_order(order: Sequence[str], sections: Iterable[ViewSection]) -> list
     leads = [s.section for s in unnamed if any(word in s.label.casefold() for word in _LEADS)]  # type: ignore[union-attr]
     rest = [s.section for s in unnamed if s.section not in leads]
     return [*leads, *order, *rest]
+
+
 # \\small's \\baselineskip in each of article's sizes, in TeX points: a
 # bullet's lines
 _SMALL_LEADING = {10: 11.0, 11: WRAPPED_LINE, 12: 13.6}
@@ -248,6 +254,8 @@ class PageSettings:
     heading_size: float | None = None
     title_size: float | None = None
     body_size: float | None = None
+    date_format: str = "short"
+    education_first: str = "school"
 
     def __post_init__(self) -> None:
         # Stored as a JSON list, and frozen here
@@ -259,7 +267,8 @@ class PageSettings:
             (self.top_margin, MARGINS), (self.alignment, ALIGNMENTS), (self.section_spacing, SECTION_SPACINGS),
             (self.entry_spacing, ENTRY_SPACINGS), (self.accent, ACCENTS), (self.bullet, BULLETS),
             (self.show_divider, (True, False)), (self.header_alignment, HEADER_ALIGNMENTS),
-            (self.font_family, ("latin_modern", *FONT_FAMILIES)),
+            (self.font_family, ("latin_modern", *FONT_FAMILIES)), (self.date_format, DATE_FORMATS),
+            (self.education_first, EDUCATION_FIRST),
         )
         sizes = (
             (self.name_size, NAME_SIZES), (self.heading_size, HEADING_SIZES),

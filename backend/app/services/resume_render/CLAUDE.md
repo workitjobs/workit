@@ -42,6 +42,14 @@ resume; KAN-207 renders the bank and retired the proof endpoint.
   scripts/fetch_tectonic.py` again**, or that page answers 503 offline. The
   schema's `Literal` and `Field` limits repeat these, and a test holds them
   equal.
+- **Date format and Education order are page settings that change what
+  prints** (KAN-435): `date_format` from `DATE_FORMATS` and `education_first`
+  from `EDUCATION_FIRST`. Both act in `fields.py`, so the PDF and the Word file
+  say the same thing, and each defaults to Jake's own. Degree first swaps the
+  two rows' text and their box kinds (`degree_leads`, `heading_fields`), so
+  each box keeps its field; an entry with no degree line keeps the school on
+  top, or the top row would print empty. Dates are never typed in the editor,
+  so no format needs reading back.
 - **`PageSettings` is how a resume's page is set** (KAN-435): font size,
   line spacing, side and top margins, alignment, section and entry spacing,
   accent color, bullet, the rule under section titles, header alignment and

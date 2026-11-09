@@ -14,7 +14,7 @@ from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Inches, Pt
 
-from app.services.resume_render import SECTION_ORDER, HeaderIdentity, printed_order
+from app.services.resume_render import DEFAULT_PAGE, HeaderIdentity, PageSettings, printed_order
 from app.services.resume_render.fields import (
     SECTION_LABELS,
     SKILLS_LABEL,
@@ -74,8 +74,8 @@ def _section_heading(doc, label: str) -> None:
     _rule_below(p)
 
 
-def _entry(doc, entry: ViewEntry) -> None:
-    h = heading(entry)
+def _entry(doc, entry: ViewEntry, page: PageSettings) -> None:
+    h = heading(entry, page.date_format, page.education_first)
     if entry.section in TWO_ROW:
         _row(doc, h.title, h.right, bold=True)
         if h.subtitle or h.subright:
@@ -88,9 +88,7 @@ def _entry(doc, entry: ViewEntry) -> None:
     doc.paragraphs[-1].paragraph_format.space_after = Pt(4)
 
 
-def render_docx(
-    view: ResumeView, identity: HeaderIdentity, order: tuple[str, ...] = SECTION_ORDER
-) -> bytes:
+def render_docx(view: ResumeView, identity: HeaderIdentity, page: PageSettings = DEFAULT_PAGE) -> bytes:
     doc = Document()
     section = doc.sections[0]
     section.page_width, section.page_height = PAGE_WIDTH, PAGE_HEIGHT
@@ -112,7 +110,7 @@ def render_docx(
         _paragraph(doc, space_after=4, align=WD_ALIGN_PARAGRAPH.CENTER).add_run(" | ".join(contact))
 
     by_name = {section.section: section for section in view.sections}
-    for name in printed_order(order, view.sections):
+    for name in printed_order(page.section_order, view.sections):
         if name == "skills" and view.skills:
             _section_heading(doc, SKILLS_LABEL)
             for label, skills in skill_lines(view.skills):
@@ -132,7 +130,7 @@ def render_docx(
                 continue
             _section_heading(doc, section.label or SECTION_LABELS[name])
             for entry in section.entries:
-                _entry(doc, entry)
+                _entry(doc, entry, page)
 
     out = io.BytesIO()
     doc.save(out)

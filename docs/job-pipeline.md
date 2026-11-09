@@ -122,6 +122,16 @@ hours, at 17 minutes past** (off the hour, since GitHub delays runs scheduled
 on it). A run takes about 15 minutes: 12 of them are Workday's share, and the
 other hiring systems finish inside it (about 3 minutes without Workday).
 
+Scheduled and manual runs run on a team computer, not on GitHub's servers
+(KAN-726, `docs/scraper_gh_action/plan.md`). GitHub keeps the schedule and
+the logs; the computer does the work, and reads each job posting's keywords
+with a model of its own. A pull request's test run stays on GitHub's
+servers. The computer also embeds each new job posting, and every
+experience bank, with one model of its own, the only machine that does.
+A run reads keywords and embeds only the job postings it added or changed;
+older ones missing either are filled by one-time backfills a person runs
+on the computer.
+
 ### What one run does
 
 | Step | What happens |

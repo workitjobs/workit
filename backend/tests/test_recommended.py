@@ -1,8 +1,9 @@
 """
 Seam-1 tests for GET /jobs/recommended (KAN-212): the recommender reads the
-experience bank, never an uploaded resume. The bank embedding is made on the
-first request after a change and kept until the next change; what is sent to
-Gemini is checked at `embed`, which the route calls, so no network is needed.
+experience bank, never an uploaded resume. A bank with no vector is embedded
+on its first request; a changed one keeps its stale vector for the bank job
+(KAN-726). What is sent is checked at `embed`, which the route calls, so no
+network is needed.
 """
 
 import uuid
@@ -39,7 +40,8 @@ def gemini(monkeypatch):
     """Stands in for Gemini: records each text sent and answers one vector."""
     sent: list[str] = []
 
-    async def embed(texts, *, timeout=None):
+    async def embed(texts, *, timeout=None, query=False):
+        assert query, "a bank is always embedded as a query (KAN-726)"
         sent.extend(texts)
         return [VECTOR for _ in texts]
 
@@ -77,7 +79,9 @@ def _recommended(client, applicant_id):
     return client.get(f"/jobs/recommended/{applicant_id}")
 
 
-async def test_the_bank_is_embedded_once_and_remade_after_a_change(student, gemini):
+async def test_a_new_bank_is_embedded_once_and_a_change_waits_for_the_bank_job(student, gemini):
+    # KAN-726: a request embeds only a bank that never had a vector; after a
+    # change it keeps scoring on the stale one, which the bank job replaces.
     client, me, _ = student
     await _add(client, me, "skills", {"name": "Python"})
 
@@ -87,8 +91,7 @@ async def test_the_bank_is_embedded_once_and_remade_after_a_change(student, gemi
 
     await _add(client, me, "skills", {"name": "ROS"})
     assert (await _recommended(client, me)).status_code == 200
-    assert len(gemini) == 2
-    assert "ROS" in gemini[1]
+    assert len(gemini) == 1
 
 
 async def test_the_embedding_input_follows_the_spec(student, gemini, database):

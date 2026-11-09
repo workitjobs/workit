@@ -120,19 +120,34 @@ function without<T extends object, K extends keyof T>(source: T, ...keys: K[]): 
   ) as Omit<T, K>;
 }
 
-/** A saved entry as the editor's draft: its fields and bullets only. The
- *  holdings (`resume_ids`, `copy_group`) stay out, or an edit's PATCH,
- *  which refuses any other key, answered 422 (2026-11-05). */
+/**
+ * An entry's own fields, picked by name as `emptyDraft` lists them, never
+ * "everything but the id": a bank entry also carries what only the page
+ * reads (`resume_ids`, `copy_group`), and the entry PATCH refuses any key it
+ * does not declare. Copied whole, every edit in the Experiences view and
+ * every Scout visit to a saved entry answered 422 "Extra inputs are not
+ * permitted" and saved nothing, its new bullets included (KAN-505). A custom
+ * section's entry keeps `custom_section_id` (KAN-498).
+ */
+function fieldsOf<S extends EntrySection>(source: EntryFields<S>): EntryFields<S> {
+  const names = Object.keys(emptyDraft(source.section)).filter((key) => key !== "bullets");
+  return Object.fromEntries(
+    names.map((key) => [key, source[key as keyof EntryFields<S>]]),
+  ) as EntryFields<S>;
+}
+
 export function draftOf<S extends EntrySection>(entry: BankEntry<S>): EntryDraft<S> {
   return {
-    ...without(entry, "id", "bullets", "resume_ids", "copy_group"),
+    ...fieldsOf(entry),
     bullets: entry.bullets.map((b) => ({ id: b.id, text: b.text })),
   };
 }
 
-/** An edit's PATCH body: every field but the section, which is fixed. */
+/** An edit's PATCH body: every field but the section and its custom
+ *  section, which are fixed. By name, so a draft kept in the browser from
+ *  before KAN-505 still saves. */
 export function changesOf(draft: EntryDraft): Omit<EntryFields, "section" | "custom_section_id"> {
-  return without(draft, "section", "custom_section_id", "bullets");
+  return without(fieldsOf(draft), "section", "custom_section_id");
 }
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
