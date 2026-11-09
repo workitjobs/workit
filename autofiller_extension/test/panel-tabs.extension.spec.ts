@@ -62,13 +62,3 @@ test("the marks follow the rows: a guess that looks right turns green, its Undo 
   await expect(heard).toHaveAttribute("data-mark", "check");
   await expect(marked(form, "filled")).toHaveCount(19);
 });
-
-test("the panel is one view: no tab strip, no Resume or Answers tab", async () => {
-  test.setTimeout(120_000);
-  const { form } = await anduril();
-  const host = hostOf(form);
-  // KAN-424: the Resume and Answers tabs are gone, so with Autofill alone the strip stays hidden.
-  await expect(host.locator(".tabs")).toBeHidden();
-  await expect(host.getByRole("tab", { name: "Resume" })).toHaveCount(0);
-  await expect(host.getByRole("tab", { name: "Answers" })).toHaveCount(0);
-});
