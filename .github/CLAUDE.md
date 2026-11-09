@@ -83,18 +83,29 @@ was a guess, never measured. The first real run reached 329 of 388 tests
 at the 30-minute mark and was cancelled; now 45. Raise it again if a
 future run gets close, rather than guessing a second time.
 
-**Every checkout of the private `fill-engine` submodule needs
-`fetch-depth: 0`, not just `submodules: true`** (found 2026-11-08):
-without it, `actions/checkout@v4` shallow-fetches the submodule too, and
-when the pinned commit isn't on the default branch's shallow history (true
-as soon as `main` moves past it, which it usually has), it silently
-checks out the submodule's current branch tip instead of the pinned
-commit — no error, no warning, just a CI run quietly testing (and, in
-`publish-extension.yml`, *shipping*) a different engine version than the
-one actually reviewed and pinned in the tree. Confirmed live: a run
-pinning `fill-engine@0.3.26` built and tested `0.3.30` instead. All six
-`submodules: true` checkouts across `ci.yml`, `extension-nightly.yml`,
-`live-canary.yml` and `publish-extension.yml` now set `fetch-depth: 0`.
+**`actions/checkout@v4`'s own submodule handling can silently land `fill-engine`
+on the wrong commit, and `fetch-depth: 0` alone does not fix it** (found
+2026-11-08, revised 2026-11-09): without `fetch-depth: 0`, the submodule
+fetch is shallow too, and when the pinned commit isn't on the default
+branch's shallow history (true as soon as `main` moves past it, which it
+usually has) it silently checks out the submodule's current branch tip
+instead — no error, no warning. A run pinning `fill-engine@0.3.26` built
+and tested `0.3.30` instead. Adding `fetch-depth: 0` to the checkout
+**did not stop this from recurring** on a later run, for a reason not yet
+root-caused (a plain local `git clone` + `git submodule update --init`
+reaches the pinned commit fine, so it isn't simply "the commit is
+unreachable" — something in `actions/checkout`'s own submodule step
+behaves differently). Rather than keep chasing that action's internals,
+every job now forces it explicitly right after the checkout: read the
+gitlink `git ls-tree HEAD` actually records, then `git -C
+autofiller_extension/fill-engine fetch --depth 1 origin <that SHA> &&
+checkout --detach <that SHA>`. This is the "Pin fill-engine to the commit
+this branch actually records" step in `ci.yml` (`extension-store-build`,
+`extension`, `apply`), `extension-nightly.yml`, `live-canary.yml` and
+`publish-extension.yml` — six places, one pattern. If `actions/checkout`
+ever fixes this upstream, these steps are redundant but harmless; don't
+remove them without confirming a real run's build log prints the version
+`git ls-tree HEAD` actually names, not just that the step exists.
 A plain local `git submodule update --init` was never affected (no
 `--depth` flag, so it always resolves the real pinned commit) — this was
 CI-only, and the most serious place it bit was `publish-extension.yml`,

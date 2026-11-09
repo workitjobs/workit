@@ -46,6 +46,17 @@ jobs:
           submodules: true
           fetch-depth: 0
           token: ${{ secrets.FILL_ENGINE_TOKEN }}
+      # actions/checkout's own submodule handling has been seen landing on
+      # fill-engine's current branch tip instead of the commit actually
+      # recorded here, even with fetch-depth: 0 (KAN-447, 2026-11-09: a
+      # run pinning fill-engine@0.3.26 built and tested 0.3.30). Force it.
+      - name: Pin fill-engine to the commit this branch actually records
+        if: needs.engine.outputs.set == 'true'
+        run: |
+          PINNED=$(git ls-tree HEAD autofiller_extension/fill-engine | awk '{print $3}')
+          git -C autofiller_extension/fill-engine fetch --depth 1 origin "$PINNED"
+          git -C autofiller_extension/fill-engine checkout --detach "$PINNED"
+          echo "fill-engine pinned at: $(git -C autofiller_extension/fill-engine rev-parse HEAD)"
       - uses: actions/checkout@v4
         if: needs.engine.outputs.set != 'true'
       - uses: actions/setup-node@v4
@@ -121,6 +132,13 @@ jobs:
           submodules: true
           fetch-depth: 0
           token: ${{ secrets.FILL_ENGINE_TOKEN }}
+      # See the same step's comment in extension-store-build, above.
+      - name: Pin fill-engine to the commit this branch actually records
+        run: |
+          PINNED=$(git ls-tree HEAD autofiller_extension/fill-engine | awk '{print $3}')
+          git -C autofiller_extension/fill-engine fetch --depth 1 origin "$PINNED"
+          git -C autofiller_extension/fill-engine checkout --detach "$PINNED"
+          echo "fill-engine pinned at: $(git -C autofiller_extension/fill-engine rev-parse HEAD)"
       - uses: ./.github/actions/extension-setup
       # The extension loads the engine's committed dist/; it must be what the
       # pinned src/ builds to.
@@ -159,6 +177,13 @@ jobs:
           submodules: true
           fetch-depth: 0
           token: ${{ secrets.FILL_ENGINE_TOKEN }}
+      # See the same step's comment in extension-store-build, above.
+      - name: Pin fill-engine to the commit this branch actually records
+        run: |
+          PINNED=$(git ls-tree HEAD autofiller_extension/fill-engine | awk '{print $3}')
+          git -C autofiller_extension/fill-engine fetch --depth 1 origin "$PINNED"
+          git -C autofiller_extension/fill-engine checkout --detach "$PINNED"
+          echo "fill-engine pinned at: $(git -C autofiller_extension/fill-engine rev-parse HEAD)"
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
