@@ -1,0 +1,25 @@
+# The specs ci.yml's extension job runs on a PR: one or two per part of the
+# extension, under 10 minutes on the macOS runner. The whole suite runs every
+# night (extension-nightly.yml).
+# Not here yet: job-systems.spec.ts and tokens.spec.ts, which fail on main.
+apply-profile.spec.ts
+engine-reading.spec.ts
+greenhouse.spec.ts
+manifest.spec.ts
+smartrecruiters.spec.ts
+stored-data.spec.ts
+write-early.spec.ts
+ashby.extension.spec.ts
+batch-sessions.extension.spec.ts
+connector.extension.spec.ts
+handed-off.extension.spec.ts
+icims.extension.spec.ts
+install.extension.spec.ts
+panel-tabs.extension.spec.ts
+popup-home.extension.spec.ts
+sign-out.extension.spec.ts
+submit-warning.extension.spec.ts
+submit.extension.spec.ts
+workable.extension.spec.ts
+workday-error.extension.spec.ts
+workday-lists.extension.spec.ts
