@@ -14,7 +14,12 @@ from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Inches, Pt
 
-from app.services.resume_render import DEFAULT_PAGE, HeaderIdentity, PageSettings, printed_order
+from app.services.resume_render import (
+    DEFAULT_PAGE,
+    HeaderIdentity,
+    PageSettings,
+    printed_order,
+)
 from app.services.resume_render.fields import (
     SECTION_LABELS,
     SKILLS_LABEL,
