@@ -28,13 +28,14 @@ from workit_scout.llm import LLM
 from app.models.dto import Experience, ParsedResume, bank_section, entry_end_kind
 from app.schemas.bank import SECTION_FIELDS, DraftEntry, ModelReading
 from app.services import skill_catalog
-from app.utils.resume_parser import parse_resume, section_of, split_tools
+from app.utils.resume_parser import is_tools_line, parse_resume, section_of, split_tools
 
 _SHORT, _LONG, _NAME = 200, 500, 60
 _COURSEWORK_RE = re.compile(r"^(?:Relevant\s+)?(?:Coursework|Courses)\s*:?\s*", re.IGNORECASE)
 _GPA_LINE_RE = re.compile(r"^GPA\b", re.IGNORECASE)
 _YEAR_ALONE_RE = re.compile(r"\d{4}")
 _LINK_TAIL_RE = re.compile(r"[\s,;:|–—-]*\[link\]\s*$")
+_MINOR_JOIN_RE = re.compile(r"\s*[|;,–—-]?\s*\bminors?\s*(?:in\b|:)\s*", re.IGNORECASE)
 # Not a skill: a name still holding a "|" (a title's tail glued on), a
 # qualification ("Computer Science degree", "Bachelor's in ...", "GPA 3.8",
 # "3+ years of Java", a citizenship or clearance), or a generic phrase that
@@ -223,6 +224,8 @@ it. Education: the school is the title.
 no end_month) or "expected" (an expected end, such as graduation).
 - bullets: the resume's bullet lines for that entry, one per item, unchanged.
 - Education only: degree, field_of_study, gpa, gpa_scale, coursework, honors. \
+field_of_study is the major, with any minor after it as the resume writes it \
+("Computer Science, minor in Writing & Rhetoric"). \
 Certifications only: issuer. Awards only: award_date, in place of start and \
 end. Leave other sections' fields empty.
 - skills: each skill the resume lists, with its group ("Languages", "Tools") \
@@ -267,6 +270,14 @@ def model_drafts(reading: ModelReading, text: str | None = None) -> list[DraftEn
         raw = {k: None if _withheld(v) else v for k, v in raw.items()}
         for field in ("title", "organization", "location", "degree", "field_of_study", "issuer"):
             raw[field] = _clip(raw[field])
+        # The school as its own organization ("Stony Brook University" twice):
+        # the parser leaves out an organization that repeats the title.
+        if raw["organization"] and raw["title"] and _title_key(raw["organization"]) == _title_key(raw["title"]):
+            raw["organization"] = None
+        # "Computer Science | Minor in Writing & Rhetoric", copied as written,
+        # reads as the parser writes it: "Computer Science, minor in ...".
+        if raw["field_of_study"]:
+            raw["field_of_study"] = _MINOR_JOIN_RE.sub(", minor in ", raw["field_of_study"])
         raw["honors"] = _clip(raw["honors"], _LONG)
         raw["coursework"] = [c for c in (_clip(x) for x in raw["coursework"] if not _withheld(x)) if c][:40]
         # A bullet still holding a placeholder (`with_own_wording` found the
@@ -422,18 +433,15 @@ def with_parsers_reading(drafts: list[DraftEntry], parsed: list[DraftEntry]) -> 
         _fill_blanks(twin, entry)
         for bullet in entry.bullets:
             words = _bullet_words(bullet)
-            if not words or _TOOLS_LINE_RE.fullmatch(bullet) or len(twin.bullets) >= 30:
+            # A line of tools ("Next.js, TypeScript, FastAPI") is no bullet: the
+            # model rightly leaves it out, and it reaches the skills instead.
+            if not words or is_tools_line(bullet) or len(twin.bullets) >= 30:
                 continue
             if any(len(words & theirs) * 4 >= len(words) * 3 for theirs in held):
                 continue
             twin.bullets.append(bullet)
             held.append(words)
     return out
-
-
-# A line that only lists tools ("Figma, Next.js, TypeScript, Tailwind CSS"):
-# the parser saves it as a project's bullet, and the model rightly does not.
-_TOOLS_LINE_RE = re.compile(r"[^,.;:]{1,30}(?:,\s*[^,.;:]{1,30}){2,}")
 
 
 def _bullet_words(text: str) -> set[str]:

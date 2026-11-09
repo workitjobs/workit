@@ -45,6 +45,8 @@ _MONTH_NAME = (r'(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|June?|J
 _SAME_YEAR_RANGE_RE = re.compile(rf'\b({_MONTH_NAME})\s*[–\-—]\s*({_MONTH_NAME})\s+(\d{{4}})\b', re.IGNORECASE)
 # " - " between fields: "Company - Title - Dates" on one line
 DASH_FIELDS_RE = re.compile(r'\s+[–—-]\s+')
+# "Minor in Writing & Rhetoric", "Minor: Mathematics", ending at a field's end
+MINOR_RE = re.compile(r'\bMinors?\s*(?:in\b|:)\s*(.+?)(?=\s{2,}|\s*\||\s*;|\s+[–—-]\s|\s*\bGPA\b|\n|$)', re.IGNORECASE)
 
 # Section headings, from career-center guides (KAN-348). One term is one
 # section's name; a heading is terms joined by "&" or "and", and may end in
@@ -365,6 +367,25 @@ def _split_title_company(text: str) -> tuple[str, str] | None:
     return parts[0], parts[1]
 
 
+_TOOLS_LABEL_RE = re.compile(r'^(?:tech(?:nologies|nology)?(?:\s+stack)?|stack|tools|built\s+with)\s*:\s*', re.IGNORECASE)
+
+
+def tool_items(text: str) -> list[str]:
+    """A tools line's tools: its comma list, less a "Tech Stack:" label, never
+    split inside parentheses ("Supabase (PostgreSQL), Gemini API")."""
+    rest = _TOOLS_LABEL_RE.sub("", text.strip())
+    return [t.strip() for t in re.split(r',(?![^()]*\))', rest) if t.strip()]
+
+
+def is_tools_line(text: str) -> bool:
+    """A line that only lists tools: three or more short comma items ("Next.js,
+    TypeScript, Tailwind CSS"), none over four words, and no full stop at the
+    end. A bullet's sentence fails on its longer clauses."""
+    items = tool_items(text)
+    return (len(items) >= 3 and not text.rstrip().endswith(".")
+            and all(len(t) <= 40 and len(t.split()) <= 4 for t in items))
+
+
 def _split_dash_title_company(text: str) -> tuple[str, str] | None:
     """'Company - Title' or 'Title - Company' left of an entry's dates. Only
     when the role keyword is on one side alone: "Software Engineer -
@@ -528,6 +549,12 @@ def _parse_education(text: str) -> list[Education]:
             if m and m.group(1).strip():
                 # "Computer Science  GPA: 3.81/4.00": the field ends at a PDF gap or the GPA
                 field = re.split(r'\s{2,}|\s*\bGPA\b', m.group(1).strip(), flags=re.IGNORECASE)[0].strip() or None
+        # "B.S. in Computer Science | Minor in Writing & Rhetoric": the minor goes
+        # after the major, since an entry has no field of its own for it, and it
+        # was dropped
+        minor = MINOR_RE.search(all_text)
+        if field and minor and "minor" not in field.lower():
+            field = f"{field}, minor in {minor.group(1).strip()}"
 
         # Description: coursework + other non-header lines
         desc_parts: list[str] = []
@@ -719,7 +746,14 @@ def _parse_projects(text: str) -> list[Project]:
                 break
 
         # a line that is only the link is the url above, not a bullet
-        desc = _bullets([ln for ln in lines[1:] if not URL_RE.fullmatch(ln.strip())])
+        body = [ln for ln in lines[1:] if not URL_RE.fullmatch(ln.strip())]
+        # "Next.js, TypeScript, FastAPI" on its own line under the name is the
+        # project's tools, as after a "|": before the first bullet, it was saved
+        # as one, and its tools never reached the skills
+        while body and not BULLET_RE.match(body[0].strip()) and is_tools_line(body[0]):
+            technologies = technologies or tool_items(body[0])
+            body = body[1:]
+        desc = _bullets(body)
 
         results.append(Project(
             project_name=name, url=url, technologies=technologies,

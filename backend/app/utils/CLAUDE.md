@@ -201,6 +201,10 @@ would read "Marketing - May 2026" as a range.
 - The degree keeps its full name ("Bachelor of Science", not "Bachelor").
 - The field of study ends at a PDF gap or "GPA": "Bachelor of Science,
   Computer Science  GPA: 3.81/4.00" gives "Computer Science".
+- **A minor follows the major in the field of study** ("Minor in Writing &
+  Rhetoric" or "Minor: Chemistry", `MINOR_RE`): "Computer Science, minor in
+  Writing & Rhetoric". An entry has no field of its own for a minor, so it
+  was dropped. The AI prompt asks for the same form.
 - `GPA_RE` reads the scale too: "3.81/4.00" fills `Education.gpa_scale`.
 - A plain line after a coursework or bullet line that ends in a comma, or that
   starts lowercase, is that line wrapped by the PDF and joins it. Before
@@ -226,7 +230,19 @@ would read "Marketing - May 2026" as a range.
   stays in the name ("WorkIt | Full Stack Recruiting Platform"); with a
   subtitle and a list ("Robot | Club| C++, Go") the name keeps both phrases
   and only the list is tools (`split_tools`). Before, the first bar split,
-  and "Club| C++" became a skill.
+  and "Club| C++" became a skill. **Tools on their own line** under the name,
+  before the first bullet ("Next.js, TypeScript, Supabase (PostgreSQL)", or
+  after a "Tech Stack:" label), are the project's tools the same way
+  (`is_tools_line`: three short comma items or more, no full stop; commas in
+  parentheses do not split). Before (a real resume, 2026-11-09), that line
+  was saved as the project's first bullet, and tools named only there never
+  reached the skills.
+- **Bank entries have no tools field**, so a project's stack lives only as
+  the bank's skills, not on the project. Jake's Resume prints a stack after
+  the project's "|"; WorkIt's template fills that slot with the
+  organization and link (`resume_render/fields.py`). Keeping a stack per
+  project, and printing it there, would take a migration (a tools column on
+  bank entries and built resumes), the editor and the renderer: not built.
 - **A role's tools** work the same way: "Software Engineer Intern| C++, Go"
   keeps only the role as the title, and the list goes to
   `Experience.technologies` (jobs and leadership), then to ungrouped skills.
@@ -293,7 +309,9 @@ Rules:
   takes the entry's dates; a GPA not on it (3.8 may be "3.80") goes with its
   scale; an entry whose title goes is dropped. The prompt asks for names
   copied as written ("B.S." stays "B.S."): an expanded degree fails the
-  check and is dropped, not saved wrong.
+  check and is dropped, not saved wrong. An organization that only repeats
+  the title is left out, as this parser leaves it out: the model sometimes
+  sent the school as its own organization (a real resume, 2026-11-09).
 - **It never sees links or the contact block.** URLs reach the model as
   `[link]`, so the model schema has no `link` field and a field holding a
   placeholder is emptied; `with_links` gives a model project the link of

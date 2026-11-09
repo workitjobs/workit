@@ -24,7 +24,8 @@ EXPECTED = {
     # Google Docs export: pipes in the school line, a second role with no company line
     "google_docs_single_column.txt": {
         "education": [
-            ("Stony Brook University", "B.S", "Computer Science", None, "2026-12-01"),
+            # the minor follows the major: an entry has no field of its own for it
+            ("Stony Brook University", "B.S", "Computer Science, minor in Writing & Rhetoric", None, "2026-12-01"),
         ],
         "experience": [
             ("Pulp Internet Corporation (Seed-Stage AI Startup)", "Product Designer & Engineer",
@@ -493,3 +494,30 @@ def test_a_school_name_with_a_dash_keeps_both_parts():
     )
     school = parsed.education[0]
     assert (school.institution, _iso(school.end_date)) == ("University of Wisconsin - Madison", "2027-05-01")
+
+
+def test_a_projects_tools_on_their_own_line_are_its_technologies():
+    parsed = parse_resume(
+        "PROJECTS\nThe Papyr | AI News App  March 2026 - Present\n"
+        "Next.js, TypeScript, Supabase (PostgreSQL), Gemini API\n"
+        "• Designed a daily briefing that ends on a finish line\n"
+        "Robot Arm  Jan 2025 - May 2025\nTech Stack: C++, ROS, OpenCV\n"
+        "• Built a pick-and-place arm\n"
+    )
+    assert [(p.technologies, _bullet_count(p.description)) for p in parsed.projects] == [
+        (["Next.js", "TypeScript", "Supabase (PostgreSQL)", "Gemini API"], 1),
+        (["C++", "ROS", "OpenCV"], 1),
+    ]
+
+
+def test_a_bullet_with_commas_is_not_a_tools_line():
+    from app.utils.resume_parser import is_tools_line
+
+    assert not is_tools_line("Ran interviews, turning user pain points into prioritized roadmaps, plans and specs")
+    assert not is_tools_line("Python, SQL")  # two items: too few to tell
+    assert is_tools_line("Figma, Next.js, TypeScript, Tailwind CSS")
+
+
+def test_a_minor_follows_the_major():
+    parsed = parse_resume("EDUCATION\nHillcrest State University  May 2027\nB.S. in Biology, Minor: Chemistry\n")
+    assert parsed.education[0].field_of_study == "Biology, minor in Chemistry"

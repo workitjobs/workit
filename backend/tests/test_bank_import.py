@@ -1363,21 +1363,42 @@ async def test_two_jobs_with_one_title_at_two_companies_are_two_entries():
     assert [(e.title, e.organization) for e in reading.entries] == [("Sales Associate", "Target"), ("Sales Associate", "Walmart")]
 
 
-async def test_a_line_of_tools_the_parser_saved_as_a_bullet_is_not_added():
+async def test_a_projects_line_of_tools_is_skills_and_never_a_bullet():
+    # A real resume (2026-11-09) put each project's stack on its own line:
+    # the model left it out, and the combining step added it back as a bullet,
+    # since a name with a dot ("Next.js") slipped past the old tools check.
     from workit_scout.identity import Identity
 
     from app.services.bank_import import read_resume
 
     text = (
-        "Projects\nBudget Buddy  Jan 2026 - Mar 2026\nReact, Firebase, Tailwind CSS\n"
+        "Projects\nBudget Buddy | Expense Tracker  Jan 2026 - Mar 2026\nNext.js, FastAPI, Supabase (PostgreSQL), RSS\n"
         "- Built a shared expense tracker used by 40 students\n"
+        "Skills\nLanguages: Python\n"
     )
     reply = {"entries": [
-        {"section": "projects", "title": "Budget Buddy", "start_month": "2026-01", "end_month": "2026-03",
-         "end_kind": "month", "bullets": ["Built a shared expense tracker used by 40 students"]},
-    ]}
+        {"section": "projects", "title": "Budget Buddy | Expense Tracker", "start_month": "2026-01",
+         "end_month": "2026-03", "end_kind": "month", "bullets": ["Built a shared expense tracker used by 40 students"]},
+    ], "skills": [{"name": "Python", "group": "Languages"}]}
     reading = await read_resume(text, ScriptedLLM(_reading(reply)), Identity())
     assert reading.entries[0].bullets == ["Built a shared expense tracker used by 40 students"]
+    # The stack reaches the skills from the parser's reading, ungrouped, in
+    # the resume's spelling.
+    assert [name for name, _ in reading.skills] == ["Python", "Next.js", "FastAPI", "Supabase (PostgreSQL)", "RSS"]
+
+
+async def test_an_organization_that_repeats_the_title_is_left_out():
+    from workit_scout.identity import Identity
+
+    from app.services.bank_import import read_resume
+
+    text = "Education\nRiverside State University  Expected May 2027\nB.S. in Computer Science\n"
+    reply = {"entries": [
+        {"section": "education", "title": "Riverside State University", "organization": "Riverside State University",
+         "degree": "B.S.", "end_month": "2027-05", "end_kind": "expected"},
+    ]}
+    reading = await read_resume(text, ScriptedLLM(_reading(reply)), Identity())
+    assert (reading.entries[0].title, reading.entries[0].organization) == ("Riverside State University", None)
 
 
 async def test_tools_the_model_copied_into_a_title_become_skills():
@@ -1483,3 +1504,16 @@ async def test_an_awards_giver_in_both_title_and_organization_leaves_the_title()
     )
     award = next(e for e in reading.entries if e.section.value == "awards")
     assert (award.title, award.organization) == ("First Place, Regional Design Competition", "ASME")
+
+
+def test_a_minor_the_model_copied_as_written_reads_as_the_parser_writes_it():
+    from app.schemas.bank import ModelReading
+    from app.services.bank_import import model_drafts
+
+    text = "Education\nRiverside State University\nB.S. in Biology  |  Minor in Writing & Rhetoric\n"
+    for field in ("Biology | Minor in Writing & Rhetoric", "Biology, minor in Writing & Rhetoric",
+                  "Biology; Minor: Writing & Rhetoric"):
+        reading = ModelReading.model_validate({"entries": [
+            {"section": "education", "title": "Riverside State University", "field_of_study": field},
+        ]})
+        assert model_drafts(reading, text)[0].field_of_study == "Biology, minor in Writing & Rhetoric"
