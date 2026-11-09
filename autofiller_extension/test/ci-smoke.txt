@@ -1,7 +1,8 @@
 # The specs ci.yml's extension job runs on a PR: what would really hurt, about
 # 3 minutes on the macOS runner. Install and the toolbar popup, the panel, the
 # fill on Greenhouse, Ashby, SmartRecruiters and Workday, sign-out and the
-# session's refresh. The whole suite runs every night (extension-nightly.yml).
+# session's refresh, detecting a real submit and its warning. The whole suite
+# runs every night (extension-nightly.yml).
 # Not here yet: job-systems.spec.ts and tokens.spec.ts, which fail on main.
 apply-profile.spec.ts
 engine-reading.spec.ts
@@ -16,4 +17,7 @@ panel-tabs.extension.spec.ts
 popup-home.extension.spec.ts
 session-refresh.extension.spec.ts
 sign-out.extension.spec.ts
+submit-detect.extension.spec.ts
+submit-warning.extension.spec.ts
+submit.extension.spec.ts
 workday-lists.extension.spec.ts
