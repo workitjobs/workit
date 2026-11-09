@@ -44,6 +44,7 @@ jobs:
         if: needs.engine.outputs.set == 'true'
         with:
           submodules: true
+          fetch-depth: 0
           token: ${{ secrets.FILL_ENGINE_TOKEN }}
       - uses: actions/checkout@v4
         if: needs.engine.outputs.set != 'true'
@@ -118,6 +119,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: true
+          fetch-depth: 0
           token: ${{ secrets.FILL_ENGINE_TOKEN }}
       - uses: ./.github/actions/extension-setup
       # The extension loads the engine's committed dist/; it must be what the
@@ -155,6 +157,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: true
+          fetch-depth: 0
           token: ${{ secrets.FILL_ENGINE_TOKEN }}
       - uses: actions/setup-python@v5
         with:

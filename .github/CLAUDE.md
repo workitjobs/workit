@@ -82,6 +82,25 @@ skipped (no `FILL_ENGINE_TOKEN` yet), so the original 30-minute figure
 was a guess, never measured. The first real run reached 329 of 388 tests
 at the 30-minute mark and was cancelled; now 45. Raise it again if a
 future run gets close, rather than guessing a second time.
+
+**Every checkout of the private `fill-engine` submodule needs
+`fetch-depth: 0`, not just `submodules: true`** (found 2026-11-08):
+without it, `actions/checkout@v4` shallow-fetches the submodule too, and
+when the pinned commit isn't on the default branch's shallow history (true
+as soon as `main` moves past it, which it usually has), it silently
+checks out the submodule's current branch tip instead of the pinned
+commit — no error, no warning, just a CI run quietly testing (and, in
+`publish-extension.yml`, *shipping*) a different engine version than the
+one actually reviewed and pinned in the tree. Confirmed live: a run
+pinning `fill-engine@0.3.26` built and tested `0.3.30` instead. All six
+`submodules: true` checkouts across `ci.yml`, `extension-nightly.yml`,
+`live-canary.yml` and `publish-extension.yml` now set `fetch-depth: 0`.
+A plain local `git submodule update --init` was never affected (no
+`--depth` flag, so it always resolves the real pinned commit) — this was
+CI-only, and the most serious place it bit was `publish-extension.yml`,
+which could have shipped students an unreviewed engine build with no
+record of having done so.
+
 The fill-engine repo has its own CI (its `.github/workflows/ci.yml`):
 typecheck, the same stale-`dist/` check, and its tests, on every PR.
 
