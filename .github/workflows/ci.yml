@@ -130,7 +130,7 @@ jobs:
           }
       - name: Smoke specs
         timeout-minutes: 6
-        run: npx playwright test $(grep -v '^#' ci-smoke.txt)
+        run: npx playwright test --grep-invert @nightly $(grep -v '^#' ci-smoke.txt)
       - uses: actions/upload-artifact@v4
         if: failure()
         with:

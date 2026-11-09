@@ -49,7 +49,7 @@ test("the checklist marks the guess to check and the two empty questions red; th
   expect(forms.submissions).toEqual([]);
 });
 
-test("the marks follow the rows: a guess that looks right turns green, its Undo still in sight", async () => {
+test("the marks follow the rows: a guess that looks right turns green, its Undo still in sight", { tag: "@nightly" }, async () => {
   test.setTimeout(120_000);
   const { form } = await anduril();
   const heard = hostOf(form).locator(`[data-key="${HEARD}"]`);

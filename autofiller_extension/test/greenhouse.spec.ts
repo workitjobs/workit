@@ -41,7 +41,7 @@ test("fills a saved Greenhouse form from a WorkIt profile and submits nothing", 
   expect(arc.submissions).toEqual([]);
 });
 
-test("each filled field says where its answer came from, and a guess is marked for checking", async ({ context }) => {
+test("each filled field says where its answer came from, and a guess is marked for checking", { tag: "@nightly" }, async ({ context }) => {
   const pure = new FakeJobServer("greenhouse-purestorage");
   const page = await pure.open(context);
   const job = readFileSync(join(FORMS, "greenhouse-purestorage", "questions.json"), "utf8");
