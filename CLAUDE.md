@@ -233,9 +233,11 @@ with the failure it prevents.
   `workitjobs`, and the new Apply settings and commands.
 - `docs/desktop_application_auto_apply.md` — KAN-723's plan, not built: Apply as a
   downloadable desktop app beside the extension. Two paths (the extension
-  with the connector; the desktop app with its own Chrome Workers), WorkIt
-  as the source of the student's data, the AI access a product may use (Claude, ChatGPT, local models), who can see the shipped code,
-  per-OS work, and how Apply works today from the ground up. Read it before
+  with the connector, one form at a time; the desktop app, which runs in
+  the background with its own Chrome Workers and no connector), WorkIt as
+  the source of the student's data, and its two tasks: a model the app may
+  call with no student in the loop (a local one, for now) and code that
+  can't be stolen; per-OS work, and how Apply works today from the ground up. Read it before
   changing Apply toward a download, or where its data comes from.
 - `docs/scraper_gh_action/plan.md` — KAN-726, built: the scheduled
   scrape runs on a team computer as a self-hosted runner (PR runs stay on

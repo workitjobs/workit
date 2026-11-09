@@ -12,7 +12,9 @@ submits. It runs on the person's own Mac, with their own Chrome and their
 own Claude Code login. Today it is a developer and power-user tool, not a student
 feature: students apply through the extension and the connector (KAN-369).
 KAN-723 plans to make it a downloadable desktop app for students, beside the
-extension, with WorkIt as the source of the student's data. Read
+extension, with WorkIt as the source of the student's data, a model it may
+call with no student in the loop (not `claude -p` on a login, not the
+connector) and code that can't be stolen. Read
 `../docs/desktop_application_auto_apply.md` before a change toward that.
 
 Workers default to `worker_mode: protected` (2026-11-06, KAN-723): plain
