@@ -2776,8 +2776,11 @@ are in `docs/auth.md`.
   All 17 Projects"; its heading holds a + (Add Project) and a pencil
   (Edit Projects), which opens, as Show All does, the section's whole list
   (`SectionDialog`, `section-dialog.tsx`) with a + and a ⋯ (Clear All under
-  one resume; a custom section's Rename and Delete Section). An entry's
-  pencil, on the card or in the list, opens its form ("Edit Project",
+  one resume; a custom section's Rename and Delete Section). The card's
+  rows have no pencil (the user's call, 2026-11-09: the heading's pencil
+  is the card's one way to edit, and a pencil on every row beside it read
+  as two ways to do one thing); an entry's pencil, in the list, opens its
+  form ("Edit Project",
   `EntryDialog`, `entry-dialog.tsx`): every field the inline editor had
   (`EntryEditor`'s `framed`), a body that scrolls and a foot that stays,
   Delete left, Cancel and Save right. Opened from the list, the form is a

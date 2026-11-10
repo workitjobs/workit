@@ -112,9 +112,9 @@ import { SkillGroups } from "./skill-groups";
  * first `SHOWN` entries and "Show All 17 Projects"; its pencil and Show All
  * open the section's whole list (`SectionDialog`), with a + and the ⋯ the
  * card's heading had (Clear All; a custom section's Rename and Delete
- * Section). An entry's pencil, on the card or in the list, opens its form
- * (`EntryDialog`, or a step of the list), and a card's + opens the same form
- * empty. Experience and Projects held 14 to 17 entries each on the shared
+ * Section). An entry's pencil, in the list, opens its form as a step of
+ * it; a card's rows have none (`EntriesCard`). A card's + opens the same
+ * form on its own (`EntryDialog`), empty. Experience and Projects held 14 to 17 entries each on the shared
  * test account, so the page ran very long, and every edit opened inline in
  * it, with the other pencils hidden while it was open.
  *
@@ -160,8 +160,8 @@ export function BankScreen({
   const [pick, setPick] = useState<Pick>(() => openingPick(initial.resumes, resumeParam));
   const [open, setOpen] = useState<Open>(null);
   // Where the focus goes as a dialog closes: the control that opened it, or
-  // the next one named that is still on the page (a deleted entry's pencil
-  // is gone; an emptied section's card is too).
+  // the next one named that is still on the page (an emptied section's
+  // card is gone; a first entry's quiet-line word is too).
   const returnTo = useRef<() => HTMLElement | null>(() => null);
   // The search box's words (KAN-440). It narrows what the page shows and
   // opens what it finds, since a word may be in a bullet.
@@ -846,13 +846,7 @@ export function BankScreen({
           rows={rowsOf(current, openCard.entries, bank.resumes)}
           count={rowsOf(current, openCard.entries, bank.resumes).length}
           renderRow={(row, pencil) => (
-            <EntryView
-              row={row}
-              resumes={bank.resumes}
-              pencilId={pencil.id}
-              onEdit={pencil.onEdit}
-              onShowResume={showResume}
-            />
+            <EntryView row={row} resumes={bank.resumes} pencil={pencil} onShowResume={showResume} />
           )}
           pane={(target) => paneFor(open.card, target)}
           actions={actionsFor(open.card)}
@@ -889,6 +883,11 @@ function withDeleted(setup: PaneSetup, onDeleted: () => void) {
  * pencil does. The heading's + adds. A search shows every row it finds,
  * open, and so does the card Scout is on, so a found or visited entry is
  * never behind Show All.
+ *
+ * Its rows have no pencil: the heading's pencil is the card's one way to
+ * edit, and each entry's pencil is in the list it opens, as LinkedIn's
+ * profile has it (the user's call, 2026-11-09). A pencil on every row
+ * beside the heading's read as two ways to do one thing.
  */
 function EntriesCard({
   card,
@@ -965,11 +964,8 @@ function EntriesCard({
       {rows.length === 0 && <p className="text-body text-ink-meta mt-2">{empty}</p>}
 
       <ul role="list" className="divide-border-subtle mt-2 flex flex-col divide-y">
-        {shown.map((row, at) => {
+        {shown.map((row) => {
           const { entry } = row;
-          // Where the focus goes once this entry is deleted: the next
-          // entry's pencil, or the one before, else the card's +.
-          const near = shown[at + 1] ?? shown[at - 1];
           return (
             <ScoutMarked
               key={entry.id}
@@ -979,17 +975,7 @@ function EntriesCard({
               <EntryView
                 row={row}
                 resumes={resumes}
-                pencilId={pencilId(entry.id)}
                 open={searching || scout?.entryId === entry.id}
-                onEdit={() =>
-                  openFrom(
-                    { kind: "entry", target: entry, card },
-                    pencilId(entry.id),
-                    ...(near ? [pencilId(near.entry.id)] : []),
-                    `bank-${card}-add`,
-                    `bank-empty-${card}`,
-                  )
-                }
                 onShowResume={onShowResume}
               />
             </ScoutMarked>
@@ -1152,10 +1138,6 @@ function ScoutMarked({
   );
 }
 
-/** The id of an entry's pencil on the page, where its form gives the focus
- *  back; a deleted entry's form gives it to the pencil beside. */
-const pencilId = (entryId: string) => `entry-${entryId}-edit`;
-
 /** Focus on a control once the page has drawn again. A control that takes
  *  another's place (the pencil and Done) or closes (Keep It, Cancel) took
  *  the focus with it, to the page's top, and lost a keyboard user's place. */
@@ -1291,26 +1273,26 @@ function CardActions({
 }
 
 /** An entry as the bank shows it (`EntryRow`), on a card and in a section's
- *  list, with its pencil in view (KAN-732), one press from its form
- *  (KAN-740), where Delete is too, with the other resumes a save changes.
- *  What the entry lacks stays in view while it is closed (`MissingFacts`):
- *  it stops a Generate. So does a copy with other bullets: All Experiences
- *  shows one copy, so the note is the way to the others. */
+ *  list. In the list it has its pencil, one press from its form (KAN-740),
+ *  where Delete is too, with the other resumes a save changes; on a card it
+ *  has none, since the card's heading pencil opens the list. What the entry
+ *  lacks stays in view while it is closed (`MissingFacts`): it stops a
+ *  Generate. So does a copy with other bullets: All Experiences shows one
+ *  copy, so the note is the way to the others. */
 function EntryView({
   row,
   resumes,
-  pencilId,
+  pencil,
   open = false,
-  onEdit,
   onShowResume,
 }: {
   row: BankRow<BankEntry>;
   resumes: BankResume[];
-  /** Its own on the page and in the list, which share the document. */
-  pencilId: string;
+  /** The list's pencil: its id (apart from anything on the page, which
+   *  stays in the document under the dialog) and what it opens. */
+  pencil?: { id: string; onEdit: () => void };
   /** Scout is working on it, or a search found it: a bullet may be why. */
   open?: boolean;
-  onEdit: () => void;
   onShowResume: (id: Pick, entryId: string) => void;
 }) {
   const { entry } = row;
@@ -1320,14 +1302,16 @@ function EntryView({
       entry={entry}
       open={open}
       actions={
-        <IconButton
-          id={pencilId}
-          label={`Edit ${entry.title}`}
-          tooltip="Edit this entry"
-          onClick={onEdit}
-        >
-          <PencilSimpleIcon aria-hidden className="size-4" />
-        </IconButton>
+        pencil && (
+          <IconButton
+            id={pencil.id}
+            label={`Edit ${entry.title}`}
+            tooltip="Edit this entry"
+            onClick={pencil.onEdit}
+          >
+            <PencilSimpleIcon aria-hidden className="size-4" />
+          </IconButton>
+        )
       }
       note={
         <>

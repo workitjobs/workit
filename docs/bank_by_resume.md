@@ -195,8 +195,8 @@ created_at, and `edited_at` for the resume list's date, KAN-361).
   yet. [Import Again]") shows for an upload that owns nothing. Import
   Again writes that upload's own entries.
 - **Delete** deletes that one row, from the foot of the entry's form
-  (KAN-363, a dialog since KAN-740), which the entry's pencil opens, on its
-  card or in its section's list. Its question, across the form's foot,
+  (KAN-363, a dialog since KAN-740), which the entry's pencil opens in its
+  section's list (the card's heading pencil opens the list). Its question, across the form's foot,
   still counts the built resumes that show it. An edit there changes the one
   copy too, so under All Experiences an edited entry with a copy on another
   resume comes back from the form as two rows.

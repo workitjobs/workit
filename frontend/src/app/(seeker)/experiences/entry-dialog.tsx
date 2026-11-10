@@ -38,8 +38,9 @@ import type { EntryDraft } from "./sections";
  *
  * The entry form (`EntryPane`) holds every field the inline editor had
  * (`EntryEditor`, `framed`), with Delete on the foot's left and Cancel and
- * Save on its right. It opens on its own from an entry's pencil or a card's
- * +, and as a step of the section's list when opened from there, with a
+ * Save on its right. It opens on its own from a card's + (or a Lines
+ * section's pencil), and as a step of the section's list from an entry's
+ * pencil or the list's +, with a
  * Back arrow beside its title: never a dialog over a dialog
  * (`docs/design.md`, Dialogs). For the same reason its questions, Delete's
  * and Discard Your Changes?, take the foot's place as a bar
@@ -434,7 +435,8 @@ export function EntryPane({
 }
 
 /**
- * The entry form on its own: an entry's pencil or a card's + on the page.
+ * The entry form on its own: a card's +, a quiet-line word, or a Lines
+ * section's pencil, on the page.
  * Escape, the × and a press outside leave through the form's guard
  * (`EntryPaneHandle`), so typing is never dropped without a question.
  */

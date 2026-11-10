@@ -51,8 +51,8 @@ export type PaneSetup = Pick<
  *  no longer holds the entry to look beside. */
 type Step = { kind: "list" } | { kind: "entry"; entry: BankEntry | null; near: string | null };
 
-/** The id of an entry's pencil in the list: apart from the page's, which
- *  stays in the document behind the dialog. */
+/** The id of an entry's pencil in the list: apart from anything on the
+ *  page, which stays in the document behind the dialog. */
 const listPencil = (entryId: string) => `section-list-${entryId}-edit`;
 const ADD_ID = "section-list-add";
 const MORE_ID = "section-list-more";

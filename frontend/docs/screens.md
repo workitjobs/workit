@@ -2389,8 +2389,11 @@ in Docs (suggested answers in the chat, not a banner).
   a dialog 768px wide on a laptop, the whole screen on a phone, titled with
   the section's mark, name and count ("17 projects"), with a + and a ⋯
   (Clear All, and a custom section's Rename and Delete Section) beside its
-  close. Every entry there is a row as on the card, with its pencil. An
-  entry's pencil, on the card or in the list, opens its form, titled by
+  close. Every entry there is a row as on the card, with its pencil; the
+  card's rows have none, since the heading's pencil is the card's one way
+  to edit and a pencil on every row beside it read as two ways to do one
+  thing (the user's call, 2026-11-09). An entry's pencil opens its form,
+  titled by
   what the section holds ("Edit School", "Edit Job", "Edit Project",
   "Edit Role", "Edit Award", "Edit Certification", "Edit Entry" with the
   section's name under it; `NOUNS` in `sections.ts`): every field, a body
@@ -2419,14 +2422,14 @@ in Docs (suggested answers in the chat, not a banner).
   resume's pick the items belong to uploads (ADR 0005), so the confirm
   names the uploads that lose them too (`uploadsOwning`). It never deletes
   what the pick hides: a button on a card acts on what the card shows.
-- **An entry's row holds its dates and its pencil, always in view**
-  (KAN-732). Delete sits at the foot of the form the pencil opens
-  (`entry-editor.tsx`'s `onDelete`). A trash beside the pencil, under a
-  heading with Clear All and Add, put four controls in one corner, and a
-  student could not tell which acted on the section and which on the
-  entry (KAN-363). Save and Cancel give the focus back to the pencil, and
-  Delete to the pencil of the entry beside, else the card's +, else the
-  quiet line's word once the card is gone. A word on the quiet line opens
+- **An entry's row in the list holds its dates and its pencil** (KAN-732,
+  KAN-740); on the card it holds its dates alone. Delete sits at the foot
+  of the form the pencil opens (`entry-editor.tsx`'s `onDelete`). A trash
+  beside the pencil, under a heading with Clear All and Add, put four
+  controls in one corner, and a student could not tell which acted on the
+  section and which on the entry (KAN-363). Save and Cancel give the focus
+  back to the pencil, and Delete to the pencil of the entry beside, else
+  the list's +. A word on the quiet line opens
   its section's form ("Add Award"), and the card comes back with the
   saved entry. The form is modal, so one editor at a time (KAN-732) holds
   by itself.
