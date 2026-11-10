@@ -17,7 +17,7 @@ import { ResumeScroll } from "@/components/resume-list";
  * says, and the menu hid the actions a student uses.
  *
  * Since 2026-11-10 the cards sit on the page's ground, as the Tracker's do,
- * each a white card with its dates in columns (`ResumeCard`), and the list
+ * each a white card with its date in a column (`ResumeCard`), and the list
  * is no card of its own: grey strips in a white card read skinny and
  * cramped to the user. The scroll's own inset (`ResumeScroll`'s px-3, the
  * room a card's shadow needs) is taken back with -mx-3, so the cards line

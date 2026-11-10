@@ -2898,10 +2898,11 @@ Applications Tracker is: the search (names and postings) on its own row,
 then the **Type** filter (Uploaded, Generated, Tailored; the Applications
 list's dropdown, `FieldFacet`) and the **Sort** dropdown with Upload
 Resume and Generate Resume at the right, then the list (below). Sort
-(KAN-366) is one pick of four: Last Edited, newest first and the
-default; Recently Created, the newest made first whatever was edited
-since (2026-11-10); Oldest First; Name (A to Z). For the edit orders an
-upload dates from its upload, a built resume from its last edit. It is drawn as the Type filter is, but
+(KAN-366) is one pick of four: Date Modified, newest first and the
+default ("Last Edited" until 2026-11-10, renamed with the cards' column);
+Recently Created, the newest made first whatever was edited since; Oldest
+First; Name (A to Z). For the modified orders an upload dates from its
+upload, a built resume from its last edit. It is drawn as the Type filter is, but
 never takes the filter's brand tint, since an order is always in force;
 it is a dropdown because the header already holds the Resumes or Experiences
 pills, the shared `SortMenu`, which the Jobs page's filter row uses too.
@@ -2911,11 +2912,23 @@ Tracker's cards** (2026-11-10, `ResumeCard` in
 saying what the resume is, the name, and a line with an icon saying it in
 words ("Uploaded
 PDF", "Made from your experiences", "For <posting> at <company>", with
-Posting Closed beside the name), then **Created** (date and time, on the
-student's clock, the year only when it is not this one) and **Last
-Edited** (the day, or "Not edited") in labeled columns, then its star,
-Rename, Download and Delete, the same four icons on every card. The
-columns have fixed widths, so every card's dates line up. **The tile**
+Posting Closed beside the name), then **Date Modified**, then its
+actions. **Date Modified** (2026-11-10, after Google Drive's) is the latest
+of two events, labeled with which: "Modified" over the last edit's date and
+time, or "Created" over when it was made or uploaded, for a resume never
+edited, on the student's clock, the year only when it is not this one. It
+was two columns, Created and Last Edited, which the user condensed into
+one. **The actions wait for the pointer, as Google Drive's rows do**
+(`CardActionIcons`): at rest a card shows only ⋮ (More actions) and, on the
+primary resume, its filled star, a status; on hover, or with the keyboard's
+focus in the card, Make Primary, Rename, Download and Delete fade in left of
+⋮, in room kept for them, so nothing moves. ⋮ holds every action, worded:
+Open, Rename, Download PDF, Make Primary (on a resume that is not the
+primary), then Delete in red, which asks first (`RowMoreMenu` with
+`always`). A touch screen has no hover, so it shows ⋮ and the primary's
+star only. Four icons on every card at all times read busy to the user.
+The date and the actions sit in fixed columns, so every card's date lines
+up. **The tile**
 (2026-11-10): an upload's file type ("PDF", "DOCX") on a neutral tile; a
 generated resume's small page in the brand tint, the drawing Generate's
 dialog uses; a tailored resume's company logo, the job card's own
@@ -2925,16 +2938,16 @@ mark before, though a built resume is no file (it prints from the bank
 each time it opens) and an upload can be a Word file. The rows before were
 52px grey strips in one white card with the date against the icons, which
 the user found skinny and cramped, and whose Created column moved with
-each row's icons. Below `@2xl` of the card (672px) the columns hide and
-the dates join the line under the name ("Created Oct 23, 3:27 PM · Last
-edited Nov 5"). The server prints the UTC day alone and the browser adds
-the time after hydration (`LocalDateTime`). The pickers' rows keep their
-one-line strip (`ResumeRow` without `page`). On a phone the Sort button
-cuts "Recently Created" to "Recently Cre…". With no resume at
+each row's icons. Below `@2xl` of the card (672px) the column hides and
+the date joins the line under the name ("Created Oct 23, 3:27 PM",
+"Modified Nov 5, 2:10 PM"). The server prints the UTC day alone and the
+browser adds the time after hydration (`LocalDateTime`). The pickers' rows
+keep their one-line strip (`ResumeRow` without `page`). On a phone the Sort
+button cuts "Recently Created" to "Recently Cre…". With no resume at
 all the list's place holds "No Resumes Yet"; filters that hide every
 card show "No Matching Resumes" with Clear Filters (`EmptyState`, as the
 Applications page's). The type and the order are the URL's (`?type=uploaded,tailored`,
-`?sort=created`, `oldest` or `name`; Last Edited has none), moved in place and
+`?sort=created`, `oldest` or `name`; Date Modified has none), moved in place and
 replacing the entry, so a reload or a shared link keeps them and a tick
 is not a step of Back; Clear Filters keeps the order; the search's words are the
 page's own. A Generate clears a Type filter that would hide its new

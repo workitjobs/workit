@@ -1,23 +1,18 @@
 "use client";
 
-import { FileArrowDownIcon, StarIcon } from "@phosphor-icons/react/ssr";
+import { ArrowSquareOutIcon, FileArrowDownIcon, StarIcon } from "@phosphor-icons/react/ssr";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useRef, useState, type FormEvent, type ReactNode } from "react";
 
 import { LocalDate, LocalDateTime } from "@/app/(seeker)/local-time";
 import { DeleteResumeConfirm } from "@/app/(seeker)/resumes/delete-confirm";
-import {
-  CalendarIcon,
-  EllipsisIcon,
-  PdfIcon,
-  PencilIcon,
-  TrashIcon,
-  UploadIcon,
-} from "@/components/icons";
+import { EllipsisIcon, PdfIcon, PencilIcon, TrashIcon, UploadIcon } from "@/components/icons";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/shadcn/dropdown-menu";
 import { CompanyLogo } from "@/components/company-logo";
@@ -58,41 +53,120 @@ export const ROW_MARK = "hidden size-5 shrink-0 @sm:block";
  *  icons and a badge squeezed one card's name to 0px. */
 export const ROW_NAME = "min-w-1/2 flex-1";
 
-/** The Resumes page's card grid (2026-11-10, after the Tracker's cards):
- *  the name and what the resume is, Created and Last Edited in fixed
- *  columns, and the icons in a column four icons wide (star, Rename,
- *  Download, Delete on every card), so every card's columns line up. A
- *  built resume's fifth icon, Preview, moved its dates against an upload's
- *  until it went. Below `@2xl` of the card (672px) the dates join the line
- *  under the name. */
+/** The Resumes page's card grid (2026-11-10, after the Tracker's cards and
+ *  Google Drive's rows): the name and what the resume is, Date Modified in
+ *  a fixed column, and the actions in a column five icons wide (the four
+ *  that show on hover and ⋮), so every card's date lines up and nothing
+ *  moves when the icons appear. Below `@2xl` of the card (672px) the date
+ *  joins the line under the name. */
 const CARD_GRID =
-  "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 p-3 @2xl:grid-cols-[minmax(0,1fr)_10rem_8rem_minmax(8rem,auto)] @2xl:gap-6 @2xl:px-4";
+  "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 p-3 @2xl:grid-cols-[minmax(0,1fr)_11rem_10rem] @2xl:gap-6 @2xl:px-4";
 
-/** One labeled value of a card, from `@2xl` of the card. */
-function CardColumn({ label, children }: { label: string; children: ReactNode }) {
+/** What a card's actions do, as its row hands them over. */
+export type CardActions = {
+  primary: boolean;
+  onMakePrimary: () => void;
+  onRename: () => void;
+  download: { label: string; busy?: boolean; onPick: () => void };
+  onDelete: () => Promise<void>;
+};
+
+/** The icons that wait for the pointer (Google Drive's rows): hidden until
+ *  the card is hovered or holds the keyboard's focus, in place, so the row
+ *  never shifts; on a touch screen, which has no hover, never, and ⋮ holds
+ *  them. */
+const ON_HOVER =
+  "opacity-0 transition-opacity duration-150 group-focus-within:opacity-100 group-hover:opacity-100 pointer-coarse:hidden";
+
+/**
+ * A card's actions (2026-11-10, after Google Drive): at rest only ⋮ (More
+ * actions) and, on the primary resume, its filled star, which is a status;
+ * on hover or focus, Make Primary, Rename, Download and Delete appear left
+ * of ⋮. ⋮ holds every action, worded (`RowMoreMenu` with `always`), so a
+ * touch screen and a phone reach them all. Four icons on every card at all
+ * times read busy to the user. Delete asks first, from either place.
+ */
+function CardActionIcons({
+  name,
+  href,
+  actions,
+}: {
+  name: string;
+  href: string;
+  actions: CardActions;
+}) {
+  const { primary, onMakePrimary, onRename, download, onDelete } = actions;
   return (
-    <div className="hidden min-w-0 @2xl:block">
-      <div className="text-meta text-ink-meta">{label}</div>
-      <div className="text-note text-ink mt-0.5 flex items-center gap-1.5 whitespace-nowrap">
-        {children}
+    <div className="relative z-10 flex items-center justify-end">
+      {primary ? (
+        <PrimaryStar name={name} primary />
+      ) : (
+        <span className={ON_HOVER}>
+          <PrimaryStar name={name} primary={false} onMakePrimary={onMakePrimary} />
+        </span>
+      )}
+      <div className={cn("flex items-center", ON_HOVER)}>
+        <IconButton
+          label={`Rename ${name}`}
+          tooltip="Rename"
+          className={ROW_ACTION}
+          onClick={onRename}
+        >
+          <PencilIcon className="size-4" />
+        </IconButton>
+        <IconButton
+          label={`Download ${name}`}
+          tooltip={download.label}
+          className={ROW_ACTION}
+          disabled={download.busy}
+          onClick={download.onPick}
+        >
+          <FileArrowDownIcon aria-hidden className="size-4" />
+        </IconButton>
+        <DeleteResumeConfirm
+          onDelete={onDelete}
+          trigger={
+            <IconButton
+              label={`Delete ${name}`}
+              tooltip="Delete"
+              className={cn(ROW_ACTION, "hover:text-danger")}
+            >
+              <TrashIcon className="size-4" />
+            </IconButton>
+          }
+        />
       </div>
+      <RowMoreMenu
+        always
+        name={name}
+        open={href}
+        onRename={onRename}
+        download={download}
+        onMakePrimary={primary ? undefined : onMakePrimary}
+        onDelete={onDelete}
+      />
     </div>
   );
 }
 
 /**
  * One resume on the Resumes page, as a wide card after the Tracker's
- * (`applications/cards.tsx`, the user's call of 2026-11-10): a file tile,
- * the name, and a line with an icon saying what the resume is (`about`),
- * then Created (date and time) and Last Edited in labeled columns, then the
- * icons. The rows it replaced were 52px grey strips with the date pushed
- * against the icons, which the user found skinny and cramped, and whose
- * Created column moved with each row's icons.
+ * (`applications/cards.tsx`, the user's call of 2026-11-10): a tile saying
+ * what the resume is, the name, and a line with an icon saying it in words
+ * (`about`), then **Date Modified**, then the actions (`CardActionIcons`).
+ * The rows it replaced were 52px grey strips with the date pushed against
+ * the icons, which the user found skinny and cramped.
+ *
+ * Date Modified is the latest of the two events, labeled with which it is:
+ * "Modified" over the last edit's date and time, or "Created" over when it
+ * was made or uploaded, for a resume never edited. It was two columns,
+ * Created and Last Edited, which the user had condensed into one, as
+ * Google Drive's Date modified.
  *
  * The whole card opens the resume (`href`): the name's link stretches over
- * it, and the icons and any link in `about` sit above it. `edited` is null
- * for a resume never edited (an upload, or a built resume as made). The
- * pickers' rows keep their one-line strip (`ResumeRow` without `page`).
+ * it, and the actions and any link in `about` sit above it. `edited` is
+ * null for a resume never edited (an upload, or a built resume as made).
+ * The pickers' rows keep their one-line strip (`ResumeRow` without `page`).
  *
  * **Rename edits the name on the card** (`rename`, `RenamingCard`).
  */
@@ -116,11 +190,13 @@ export function ResumeCard({
   badge?: ReactNode;
   created: string | null;
   edited: string | null;
-  actions: ReactNode;
+  actions: CardActions;
   /** Set while the student renames it: the card holds the name's field. */
   rename?: Rename;
 }) {
   if (rename) return <RenamingCard name={name} tile={tile} rename={rename} />;
+  const modified = edited ?? created;
+  const label = edited ? "Modified" : "Created";
   return (
     <Card
       padding="none"
@@ -143,41 +219,21 @@ export function ResumeCard({
             <div className="text-note text-ink-meta mt-1 flex min-w-0 items-center gap-1.5">
               {about}
             </div>
-            {/* Narrower, the columns' dates read here. */}
-            {created && (
+            {/* Narrower, the column's date reads here. */}
+            {modified && (
               <div className="text-note text-ink-meta mt-0.5 truncate @2xl:hidden">
-                Created <LocalDateTime at={created} />
-                {edited && (
-                  <>
-                    {" · Last edited "}
-                    <LocalDate at={edited} />
-                  </>
-                )}
+                {label} <LocalDateTime at={modified} />
               </div>
             )}
           </div>
         </div>
-        <CardColumn label="Created">
-          {created ? (
-            <>
-              <CalendarIcon className="text-ink-meta size-3.5 shrink-0" />
-              <LocalDateTime at={created} />
-            </>
-          ) : (
-            "—"
-          )}
-        </CardColumn>
-        <CardColumn label="Last Edited">
-          {edited ? (
-            <>
-              <PencilIcon className="text-ink-meta size-3.5 shrink-0" />
-              <LocalDate at={edited} />
-            </>
-          ) : (
-            <span className="text-ink-meta">Not edited</span>
-          )}
-        </CardColumn>
-        <div className={cn(ROW_ACTIONS, "justify-end")}>{actions}</div>
+        <div className="hidden min-w-0 @2xl:block">
+          <div className="text-meta text-ink-meta">{label}</div>
+          <div className="text-note text-ink mt-0.5 whitespace-nowrap">
+            {modified ? <LocalDateTime at={modified} /> : "—"}
+          </div>
+        </div>
+        <CardActionIcons name={name} href={href} actions={actions} />
       </div>
     </Card>
   );
@@ -375,18 +431,30 @@ export function PrimaryStar({
  * for its name, and its trash ended past the card's edge. The star and
  * Preview stay out of it. Delete is last and red, and still asks first:
  * once the menu has closed, the confirm hangs from this menu's button.
+ *
+ * The Resumes page's cards show it at every width (`always`, 2026-11-10,
+ * after Google Drive's rows) with every action a card has: Open (`open`,
+ * the card's own page), Rename, Download, Make Primary (`onMakePrimary`,
+ * on a resume that is not the primary), then Delete.
  */
 export function RowMoreMenu({
   name,
+  always = false,
+  open,
   onRename,
   download,
+  onMakePrimary,
   onDelete,
 }: {
   name: string;
+  always?: boolean;
+  open?: string;
   onRename?: () => void;
   download?: { label: string; busy?: boolean; onPick: () => void };
+  onMakePrimary?: () => void;
   onDelete?: () => Promise<void>;
 }) {
+  const router = useRouter();
   const button = useRef<HTMLButtonElement>(null);
   const [confirming, setConfirming] = useState(false);
   // Delete opens the confirm only once the menu has closed, so the menu's
@@ -394,7 +462,7 @@ export function RowMoreMenu({
   const deleting = useRef(false);
 
   return (
-    <div className="@xl:hidden">
+    <div className={always ? undefined : "@xl:hidden"}>
       <DropdownMenu
         onOpenChangeComplete={(open) => {
           if (open || !deleting.current) return;
@@ -414,7 +482,13 @@ export function RowMoreMenu({
             </IconButton>
           }
         />
-        <DropdownMenuContent align="end" className="w-44">
+        <DropdownMenuContent align="end" className="w-48">
+          {open && (
+            <DropdownMenuItem onClick={() => router.push(open)}>
+              <ArrowSquareOutIcon aria-hidden className="text-ink size-4" />
+              Open
+            </DropdownMenuItem>
+          )}
           {onRename && (
             <DropdownMenuItem onClick={onRename}>
               <PencilIcon className="text-ink size-4" />
@@ -427,6 +501,13 @@ export function RowMoreMenu({
               {download.label}
             </DropdownMenuItem>
           )}
+          {onMakePrimary && (
+            <DropdownMenuItem onClick={onMakePrimary}>
+              <StarIcon aria-hidden className="text-ink size-4" />
+              Make Primary
+            </DropdownMenuItem>
+          )}
+          {onDelete && always && <DropdownMenuSeparator />}
           {onDelete && (
             <DropdownMenuItem
               variant="destructive"
@@ -556,7 +637,7 @@ export function ResumeRow({
     </>
   );
 
-  if (page) {
+  if (page && onMakePrimary && onRename && onDownload && onDelete) {
     return (
       <ResumeCard
         name={name}
@@ -570,7 +651,13 @@ export function ResumeRow({
         }
         created={resume.created_at}
         edited={null}
-        actions={actions}
+        actions={{
+          primary: resume.is_default,
+          onMakePrimary,
+          onRename,
+          download: { label: downloadLabel, onPick: onDownload },
+          onDelete,
+        }}
         rename={rename}
       />
     );

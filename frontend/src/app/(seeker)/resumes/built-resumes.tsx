@@ -44,14 +44,15 @@ function parseTypes(raw: string | null): ResumeType[] {
   return TYPES.map((t) => t.value).filter((v) => picked.includes(v)) as ResumeType[];
 }
 
-/** The list's orders, in `?sort=`: Last Edited (newest first, the
- *  default, with no `?sort=`), Recently Created (`created`, newest made
- *  first, 2026-11-10), Oldest First, and Name (A to Z). For the edit orders
- *  an upload dates from its upload, a built resume from its last edit. */
+/** The list's orders, in `?sort=`: Date Modified (newest first, the
+ *  default, with no `?sort=`; "Last Edited" until 2026-11-10, renamed with
+ *  the cards' column), Recently Created (`created`, newest made first),
+ *  Oldest First, and Name (A to Z). For the modified orders an upload dates
+ *  from its upload, a built resume from its last edit. */
 type Sort = "edited" | "created" | "oldest" | "name";
 
 const SORTS: { value: Sort; label: string }[] = [
-  { value: "edited", label: "Last Edited" },
+  { value: "edited", label: "Date Modified" },
   // The newest made first, whatever was edited since (2026-11-10)
   { value: "created", label: "Recently Created" },
   { value: "oldest", label: "Oldest First" },

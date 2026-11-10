@@ -1,22 +1,12 @@
 "use client";
 
-import { FileArrowDownIcon } from "@phosphor-icons/react/ssr";
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
 
-import { BriefcaseIcon, FileIcon, PencilIcon, TrashIcon } from "@/components/icons";
-import {
-  BuiltPageTile,
-  PostingLogoTile,
-  PrimaryStar,
-  ResumeCard,
-  ROW_ACTION,
-  ROW_WIDE,
-  RowMoreMenu,
-} from "@/components/resume-row";
+import { BriefcaseIcon, FileIcon } from "@/components/icons";
+import { BuiltPageTile, PostingLogoTile, ResumeCard } from "@/components/resume-row";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { IconButton } from "@/components/ui/icon-button";
 import { TextField } from "@/components/ui/text-field";
 import {
   deleteBuiltResume,
@@ -24,10 +14,8 @@ import {
   setDefaultBuiltResume,
   type BuiltResume,
 } from "@/lib/built-resume-actions";
-import { cn } from "@/lib/cn";
 
 import { rememberReturnTo } from "../jobs/[jobId]/page-actions";
-import { DeleteResumeConfirm } from "./delete-confirm";
 import { DownloadNotes, useResumeDownload } from "./download-menu";
 
 /**
@@ -132,56 +120,17 @@ export function BuiltResumeRow({
         badge={resume.posting_closed && <Badge tone="inert">Posting Closed</Badge>}
         created={resume.created_at}
         edited={edited ? resume.edited_at : null}
-        actions={
-          <>
-            <PrimaryStar
-              name={resume.name}
-              primary={resume.is_default}
-              onMakePrimary={makePrimary}
-            />
-            <div className={ROW_WIDE}>
-              <IconButton
-                label={`Rename ${resume.name}`}
-                tooltip="Rename"
-                className={ROW_ACTION}
-                onClick={() => setRenaming(true)}
-              >
-                <PencilIcon className="size-4" />
-              </IconButton>
-              <IconButton
-                label={`Download ${resume.name} as a PDF`}
-                tooltip={downloadLabel}
-                className={ROW_ACTION}
-                disabled={download.busy !== null}
-                onClick={() => download.pick("pdf")}
-              >
-                <FileArrowDownIcon aria-hidden className="size-4" />
-              </IconButton>
-              <DeleteResumeConfirm
-                onDelete={remove}
-                trigger={
-                  <IconButton
-                    label={`Delete ${resume.name}`}
-                    tooltip="Delete"
-                    className={cn(ROW_ACTION, "hover:text-danger")}
-                  >
-                    <TrashIcon className="size-4" />
-                  </IconButton>
-                }
-              />
-            </div>
-            <RowMoreMenu
-              name={resume.name}
-              onRename={() => setRenaming(true)}
-              download={{
-                label: downloadLabel,
-                busy: download.busy !== null,
-                onPick: () => download.pick("pdf"),
-              }}
-              onDelete={remove}
-            />
-          </>
-        }
+        actions={{
+          primary: resume.is_default,
+          onMakePrimary: makePrimary,
+          onRename: () => setRenaming(true),
+          download: {
+            label: downloadLabel,
+            busy: download.busy !== null,
+            onPick: () => download.pick("pdf"),
+          },
+          onDelete: remove,
+        }}
       />
       <div className="mt-2 empty:hidden">
         <DownloadNotes download={download} />
