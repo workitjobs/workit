@@ -512,6 +512,41 @@ async def test_the_import_pass_keeps_to_its_limit(database):
     assert len(fake.prompts) == 2
 
 
+async def test_a_scheduled_run_reads_only_its_own_jobs_and_leaves_the_backlog(database):
+    # KAN-726: two jobs from an earlier run, still without keywords, are the
+    # backlog; the next feed adds one job, the only one the run touches.
+    await _import_many(2)
+    urls = [f"https://boards.example.com/acme/{i}" for i in range(3)]
+    async with get_engine().begin() as conn:
+        report = await import_feed(conn, [_listing(DESCRIPTION, url) for url in urls])
+    assert len(report.touched) == 1
+    new = str(report.touched[0])
+
+    fake = ScriptedLLM(reading(KEYWORDS))
+    async with get_engine().connect() as conn:
+        assert await _extract_keywords(conn, fake, limit=10, ids=report.touched) == 1
+    assert len(fake.prompts) == 1
+    assert await _stored(new) == KEYWORDS
+
+    # The backfill (no ids) reads the two left behind.
+    assert await _prefill(ScriptedLLM(reading(KEYWORDS))) == 2
+
+
+async def test_an_unchanged_feed_touches_no_job(database):
+    await _import_many(2)
+    urls = [f"https://boards.example.com/acme/{i}" for i in range(2)]
+    async with get_engine().begin() as conn:
+        report = await import_feed(conn, [_listing(DESCRIPTION, url) for url in urls])
+    assert report.touched == []
+
+
+async def test_a_changed_description_is_touched_again(database):
+    posting = await _import(DESCRIPTION)
+    async with get_engine().begin() as conn:
+        report = await import_feed(conn, [_listing(DESCRIPTION + " Rust too.")])
+    assert [str(i) for i in report.touched] == [posting]
+
+
 async def _import_many(n: int) -> list[str]:
     """n published scraped jobs, in one feed: a later import would close
     the jobs it lacks."""
@@ -596,3 +631,30 @@ async def test_a_company_job_saves_when_no_model_answers(recruiter, use_model):
 
     assert res.status_code == 201, res.text
     assert await _stored(res.json()["id"]) is None
+
+
+def test_in_experiences_names_only_missing_keywords_the_bank_shows():
+    # KAN-587: a bullet names prototyping work, a skill names Figma; Go is
+    # nowhere. Whole words only, as `match` reads them: "Go" is not in "Google".
+    from app.schemas.keywords import Keyword
+    from app.services.resume_view import (
+        ResumeView,
+        ViewBullet,
+        ViewEntry,
+        ViewSection,
+        ViewSkill,
+    )
+
+    bullet = ViewBullet(id=uuid.uuid4(), text="Built a Prototype for Google Maps")
+    entry = ViewEntry(id=uuid.uuid4(), section="experience", title="Design Intern", bullets=(bullet,))
+    everything = ResumeView(
+        sections=(ViewSection("experience", (entry,)),),
+        skills=(ViewSkill(uuid.uuid4(), "Figma"),),
+    )
+    missing = [
+        Keyword(keyword="Prototype", kind="required"),
+        Keyword(keyword="Go", kind="required"),
+        Keyword(keyword="Figma", kind="preferred"),
+    ]
+
+    assert keywords.in_experiences(everything, missing) == ["Prototype", "Figma"]

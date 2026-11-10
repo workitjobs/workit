@@ -8,16 +8,22 @@ job_role_tags.
     uv run python -m app.scripts.import_jobs --embeddings-only --embed-limit 100
     uv run python -m app.scripts.import_jobs --keywords-only --keywords-limit 50
 
---embeddings-only skips the feed entirely and fills missing scraped-job
-vectors using DATABASE_URL. It never imports or closes postings. Omit
---embed-limit to process all missing vectors; completed batches survive failures.
+After a committed import (never a dry run), the run embeds and extracts
+Tailor's keywords (services/keywords.py) for this run's jobs only: the ones
+step 3 inserted or changed (a change clears the vector, and a new
+description the keywords). One keyword is one model call, through Scout's
+SCOUT_* chain, at most --keywords-limit a run (default KEYWORDS_PER_RUN;
+0 skips it). Jobs from before, and any of this run's past the limit, are
+the backlog, which a scheduled run never reads (KAN-726): a backlog of
+tens of thousands made each run's pass take most of its timeout and left
+a new job waiting behind old ones in random (UUID) order.
 
-After a committed import (never a dry run), the run also extracts Tailor's
-keywords (services/keywords.py) for published scraped jobs that have none:
-new ones, and changed ones, whose keywords step 3 cleared. One model call a
-job, through Scout's SCOUT_* chain, at most --keywords-limit a run (default
-KEYWORDS_PER_RUN; 0 skips it), so later runs work through a backlog.
---keywords-only does just that, with no feed.
+The backlog is the two backfills, run by a person:
+--embeddings-only fills every published scraped job's missing vector,
+--keywords-only every published scraped job's missing keywords, with no
+feed. Closed jobs get neither: no student sees them. They never
+import or close postings; omit --embed-limit to embed every missing
+vector; completed batches survive failures.
 
 The default feed is the one GET /jobs reads: scraper/feed.json when a local
 scraper run has written one, else data/feed.json (app/config.py).
@@ -44,8 +50,9 @@ holds unique. One run, in one transaction:
    after two complete reads of its board in a row without it
    (scraper/CLAUDE.md, "Nothing closes"), so absence is evidence. Each close
    records why in closed_reason, from closings.json beside the feed (or
-   --closings): the scraper's reason, else "unknown". A job that comes back
-   is published again, with no reason.
+   --closings): the scraper's reason, else "unknown". A close also clears
+   the job's vector, which nothing reads once it is closed. A job that comes
+   back is published again, with no reason.
 
 The report lists the titles that resolved to no role, most jobs first: that
 list is how the aliases grow (docs/search.md).
@@ -63,11 +70,13 @@ import datetime
 import json
 import logging
 import sys
+import uuid
 from collections import Counter
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import asyncpg
 from pydantic import TypeAdapter, ValidationError
 from sqlalchemy import (
     Text,
@@ -88,6 +97,7 @@ from sqlalchemy import (
     values,
 )
 from sqlalchemy.dialects.postgresql import ARRAY, insert
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncConnection
 from workit_scout.llm import LLM, InvalidReply, ScoutUnavailable
 
@@ -99,6 +109,7 @@ from app.models.jobs import Job_Location, Job_Post
 from app.models.locations import Country, State
 from app.queries.applications import bare_link, greenhouse_job
 from app.schemas.jobs import JobListing
+from app.scraper.constants import MASS_CLOSE_FLOOR, MASS_CLOSE_SHARE
 from app.services import keywords
 from app.services.location_resolver import LocationResolver, Place, Resolution
 from app.services.matching.embeddings import BATCH_SIZE, embed, job_text
@@ -122,15 +133,15 @@ _FEED_COLUMNS = (
 )
 # asyncpg allows 32,767 parameters a statement; a row here binds 21.
 _CHUNK = 1000
-# Closing more than this share of the published scraped jobs in one run is
-# refused without --allow-mass-close.
-_MASS_CLOSE_SHARE = 0.5
-# ...unless there are this few, as on a first import or a test database.
-_MASS_CLOSE_FLOOR = 20
-# Keyword extractions a run makes by default: one model call each, so a
-# first run's backlog of thousands spreads over many runs instead of
-# spending the day's quota, or the job's 30 minutes, in one.
+# Keyword extractions a run makes by default, among its own new and changed
+# jobs: one model call each, so a run that changes thousands of jobs leaves
+# the rest to --keywords-only instead of spending the job's timeout on them.
 KEYWORDS_PER_RUN = 100
+# The import's transaction is tried this many times when the database
+# connection drops (`_disconnected`), this long apart: the scheduled run's
+# pooler drops one now and then, and a good scrape shouldn't fail on it.
+IMPORT_ATTEMPTS = 3
+RETRY_WAIT_S = 10
 # Why a scraped job closed (job_postings.closed_reason, bd730e8ab454's CHECK),
 # as the scraper's closings.json names them (scraper/workit_scraper/feed.py's
 # REASONS). A reason it gives that is not here is filed as UNKNOWN, as is a
@@ -180,6 +191,9 @@ class Report:
     strange_reasons: set[str] = field(default_factory=set)
     embedded: int = 0
     keywords: int = 0
+    # The jobs step 3 inserted or changed: the only ones a scheduled run
+    # embeds and reads keywords for; the rest are the backfills'.
+    touched: list[uuid.UUID] = field(default_factory=list)
     locations_changed: int = 0
     roles_changed: int = 0
     duplicates: int = 0
@@ -338,8 +352,9 @@ async def _upsert(conn: AsyncConnection, rows: list[dict], report: Report) -> No
             },
             # Never touch a company's job, and leave an unchanged one alone.
             where=and_(_jobs.c.company_id.is_(None), changed),
-        ).returning(literal_column("xmax = 0").label("inserted"))
+        ).returning(_jobs.c.id, literal_column("xmax = 0").label("inserted"))
         for row in await conn.execute(stmt):
+            report.touched.append(row.id)
             if row.inserted:
                 report.inserted += 1
             else:
@@ -485,8 +500,8 @@ async def _close_missing(
     to_close = await conn.scalar(select(func.count()).where(missing))
     if (
         not allow_mass_close
-        and published > _MASS_CLOSE_FLOOR
-        and to_close > _MASS_CLOSE_SHARE * published
+        and published > MASS_CLOSE_FLOOR
+        and to_close > MASS_CLOSE_SHARE * published
     ):
         raise ImportRefused(
             f"This feed would close {to_close} of {published} published scraped jobs. "
@@ -513,6 +528,10 @@ async def _close_missing(
             closes_at=func.least(func.coalesce(_jobs.c.closes_at, now), now),
             closed_reason=reason,
             updated_at=now,
+            # Every scoring query reads listed jobs only (LISTED), so a closed
+            # job's vector is space for nothing; a reopened job counts as
+            # changed, and its run embeds it again.
+            embedding=None,
         ).returning(_jobs.c.closed_reason)
     )
     reasons = Counter(result.scalars().all())
@@ -522,11 +541,15 @@ async def _close_missing(
 
 async def import_feed(
     conn: AsyncConnection, listings: list[JobListing], *, allow_mass_close: bool = False,
-    closings: dict[str, str] | None = None,
+    closings: dict[str, str] | None = None, close_missing: bool = True,
 ) -> Report:
     '''
     the whole import, on a connection whose transaction the caller owns.
     `closings` is closings.json (`read_closings`); None closes as UNKNOWN.
+    close_missing=False skips step 6, for listings that are only part of
+    the scraped inventory (the scraper worker's boards, KAN-605): a job
+    absent from them is evidence of nothing, so nothing closes and the
+    mass-close guard has nothing to refuse
     '''
     if not listings:
         raise ImportRefused("The feed is empty; nothing was written.")
@@ -561,15 +584,29 @@ async def import_feed(
     ids = await _scraped_ids(conn, list(prepared.places))
     await _sync_locations(conn, prepared.places, ids, report)
     await _sync_roles(conn, prepared.role_tags, ids, report)
-    await _close_missing(
-        conn, list(prepared.places), report, allow_mass_close=allow_mass_close, closings=closings
-    )
+    if close_missing:
+        await _close_missing(
+            conn, list(prepared.places), report, allow_mass_close=allow_mass_close, closings=closings
+        )
     return report
 
 
-async def _embed_jobs(conn: AsyncConnection, *, limit: int | None = None) -> int:
+def _only(query, ids: list[uuid.UUID] | None):
     '''
-    embed scraped jobs with missing vectors, optionally capped.
+    `query` narrowed to `ids` (one array parameter, whatever its length), or
+    as it is for None: a backfill reads every job
+    '''
+    if ids is None:
+        return query
+    return query.where(_jobs.c.id == any_(literal(ids, type_=ARRAY(Uuid))))
+
+
+async def _embed_jobs(
+    conn: AsyncConnection, *, limit: int | None = None, ids: list[uuid.UUID] | None = None,
+) -> int:
+    '''
+    embed scraped jobs with missing vectors, optionally capped, and only
+    among `ids` when given (a scheduled run's own jobs).
     Requires a connection with no active transaction. Each bounded batch owns
     its transaction so a provider failure keeps previously committed batches.
     '''
@@ -579,8 +616,19 @@ async def _embed_jobs(conn: AsyncConnection, *, limit: int | None = None) -> int
         batch_size = BATCH_SIZE if limit is None else min(BATCH_SIZE, limit - attempted)
         async with conn.begin():
             batch = (await conn.execute(
-                select(_jobs.c.id, _jobs.c.title, _jobs.c.description)
-                .where(_jobs.c.company_id.is_(None), _jobs.c.added_by_student.is_(False), _jobs.c.embedding.is_(None))
+                _only(
+                    select(_jobs.c.id, _jobs.c.title, _jobs.c.description)
+                    .where(
+                        _jobs.c.company_id.is_(None),
+                        # Listed jobs only: no student is matched to a closed
+                        # one, and on Supabase's free plan its 3 KB vector is
+                        # space for nothing (plan.md, Storage).
+                        _jobs.c.status == dto.job_post_status.published,
+                        _jobs.c.added_by_student.is_(False),
+                        _jobs.c.embedding.is_(None),
+                    ),
+                    ids,
+                )
                 .order_by(_jobs.c.id)
                 .limit(batch_size)
             )).all()
@@ -614,10 +662,13 @@ async def _embed_jobs(conn: AsyncConnection, *, limit: int | None = None) -> int
     return count
 
 
-async def _extract_keywords(conn: AsyncConnection, llm: LLM, *, limit: int) -> int:
+async def _extract_keywords(
+    conn: AsyncConnection, llm: LLM, *, limit: int, ids: list[uuid.UUID] | None = None,
+) -> int:
     '''
     extract and store keywords for published scraped jobs with none, at most
-    `limit` model calls. Requires a connection with no active transaction:
+    `limit` model calls, and only among `ids` when given (a scheduled run's
+    own jobs). Requires a connection with no active transaction:
     no transaction stays open across a model call, and each job's keywords
     commit on their own, so a failure keeps the ones already written.
     '''
@@ -627,12 +678,15 @@ async def _extract_keywords(conn: AsyncConnection, llm: LLM, *, limit: int) -> i
     while attempted < limit:
         async with conn.begin():
             query = (
-                select(_jobs.c.id, _jobs.c.title, _jobs.c.description)
-                .where(
-                    _jobs.c.company_id.is_(None),
-                    _jobs.c.status == dto.job_post_status.published,
-                    _jobs.c.added_by_student.is_(False),
-                    _jobs.c.keywords.is_(None),
+                _only(
+                    select(_jobs.c.id, _jobs.c.title, _jobs.c.description)
+                    .where(
+                        _jobs.c.company_id.is_(None),
+                        _jobs.c.status == dto.job_post_status.published,
+                        _jobs.c.added_by_student.is_(False),
+                        _jobs.c.keywords.is_(None),
+                    ),
+                    ids,
                 )
                 .order_by(_jobs.c.id)
                 .limit(min(BATCH_SIZE, limit - attempted))
@@ -701,6 +755,54 @@ def _print_report(report: Report, *, dry_run: bool) -> None:
         print(f"    {title!r}" + (f"  ({jobs} jobs)" if jobs > 1 else ""))
 
 
+def _disconnected(exc: BaseException) -> bool:
+    '''
+    whether the import failed because the database connection went away
+    (the pooler dropping it, or no connection at all), the one failure worth
+    trying again: anything else, ImportRefused or a bad row, fails the same
+    way every time
+    '''
+    if isinstance(exc, DBAPIError):
+        return exc.connection_invalidated or isinstance(exc.orig, ConnectionError)
+    return isinstance(exc, OSError | asyncpg.PostgresConnectionError | asyncpg.ConnectionDoesNotExistError)
+
+
+async def _import_once(
+    engine, listings: list[JobListing], *, dry_run: bool, allow_mass_close: bool,
+    closings: dict[str, str] | None,
+) -> Report:
+    '''
+    steps 1-6 in one transaction, committed, or rolled back on a dry run, and
+    retried only when the connection dropped (`_disconnected`): the transaction
+    rolled back with it, so trying again repeats nothing
+    '''
+    for attempt in range(1, IMPORT_ATTEMPTS + 1):
+        try:
+            async with engine.connect() as conn:
+                trans = await conn.begin()
+                try:
+                    report = await import_feed(
+                        conn, listings, allow_mass_close=allow_mass_close, closings=closings
+                    )
+                except BaseException:
+                    await trans.rollback()
+                    raise
+                if dry_run:
+                    await trans.rollback()
+                else:
+                    await trans.commit()
+                return report
+        except Exception as exc:
+            if attempt == IMPORT_ATTEMPTS or not _disconnected(exc):
+                raise
+            logger.warning(
+                "The database connection dropped (%s); trying the import again (%d/%d) in %ds",
+                exc, attempt + 1, IMPORT_ATTEMPTS, RETRY_WAIT_S,
+            )
+            await asyncio.sleep(RETRY_WAIT_S)
+    raise AssertionError("unreachable")
+
+
 async def _run(
     path: Path, *, dry_run: bool, allow_mass_close: bool, embed_limit: int | None = None,
     keywords_limit: int = KEYWORDS_PER_RUN, closings_path: Path | None = None,
@@ -709,29 +811,27 @@ async def _run(
     closings = read_closings(closings_path or path.with_name("closings.json"))
     engine = get_engine()
     try:
-        async with engine.connect() as conn:
-            trans = await conn.begin()
-            try:
-                report = await import_feed(
-                    conn, listings, allow_mass_close=allow_mass_close, closings=closings
-                )
-            except BaseException:
-                await trans.rollback()
-                raise
-            if dry_run:
-                await trans.rollback()
-            else:
-                await trans.commit()
-                try:
-                    report.embedded = await _embed_jobs(conn, limit=embed_limit)
-                except Exception:
-                    logger.warning("Embedding failed after import committed", exc_info=True)
-                if keywords_limit:
-                    try:
-                        report.keywords = await _extract_keywords(conn, get_small_llm(), limit=keywords_limit)
-                    except Exception:
-                        logger.warning("Keyword extraction failed after import committed", exc_info=True)
+        report = await _import_once(
+            engine, listings, dry_run=dry_run, allow_mass_close=allow_mass_close, closings=closings
+        )
+        if dry_run or not report.touched:
             return report
+        # After the commit, and never retried: each keyword is a paid model
+        # call through Scout, and each pass commits its own batches. Only
+        # this run's jobs: the backlog is the backfills' (module docstring).
+        async with engine.connect() as conn:
+            try:
+                report.embedded = await _embed_jobs(conn, limit=embed_limit, ids=report.touched)
+            except Exception:
+                logger.warning("Embedding failed after import committed", exc_info=True)
+            if keywords_limit:
+                try:
+                    report.keywords = await _extract_keywords(
+                        conn, get_small_llm(), limit=keywords_limit, ids=report.touched
+                    )
+                except Exception:
+                    logger.warning("Keyword extraction failed after import committed", exc_info=True)
+        return report
     finally:
         await engine.dispose()
 

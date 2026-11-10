@@ -25,8 +25,11 @@ import re
 import shutil
 import subprocess
 import tempfile
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
+
+from app.services.resume_view import ViewSection
 
 HERE = Path(__file__).resolve().parent
 TEMPLATE = HERE / "jakes.tex"
@@ -173,9 +176,47 @@ ACCENTS = {
 }
 BULLETS = ("dot", "dash")
 HEADER_ALIGNMENTS = ("left", "center", "right")
+# "Aug. 2018", "August 2018", "2018", "08/2018" (`fields.month`)
+DATE_FORMATS = ("short", "long", "year", "numeric")
+# Which of an Education entry's two rows goes on top
+EDUCATION_FIRST = ("school", "degree")
 # Every section, as the page prints them unless the student drags them; the
 # bank's sections (resume_view.SECTIONS), then the skills
 SECTION_ORDER = ("education", "experience", "projects", "leadership", "awards", "certifications", "skills")
+# A section the student named (KAN-498) joins the order as its
+# `resume_view.custom_key`, "custom:<name>". The key only orders the blocks;
+# it never reaches the LaTeX. At most this many, each at most this long.
+CUSTOM_PREFIX = "custom:"
+MAX_CUSTOM_ORDER = 30
+MAX_CUSTOM_KEY = 80
+# A custom section the order does not name prints first when its name says
+# it sums the student up, else last
+_LEADS = ("summary", "objective", "profile", "about me")
+
+
+def valid_order(order: Sequence[str]) -> bool:
+    """Every fixed section once, then any custom keys, each once."""
+    custom = [k for k in order if k.startswith(CUSTOM_PREFIX)]
+    fixed = [k for k in order if not k.startswith(CUSTOM_PREFIX)]
+    return (
+        sorted(fixed) == sorted(SECTION_ORDER)
+        and len(set(custom)) == len(custom) <= MAX_CUSTOM_ORDER
+        and all(len(CUSTOM_PREFIX) < len(k) <= MAX_CUSTOM_KEY for k in custom)
+    )
+
+
+def printed_order(order: Sequence[str], sections: Iterable[ViewSection]) -> list[str]:
+    """Every block's key in the order the page prints it (KAN-498): the
+    page's `section_order`, with each custom section it does not name yet
+    first when its name reads as a summary ("Summary", "Career Objective"),
+    else last, in the view's order. The PDF, the LaTeX and the Word file all
+    print by it, and the editor's Sections panel shows the same order."""
+    unnamed = [s for s in sections if s.label is not None and s.section not in order]
+    leads = [s.section for s in unnamed if any(word in s.label.casefold() for word in _LEADS)]  # type: ignore[union-attr]
+    rest = [s.section for s in unnamed if s.section not in leads]
+    return [*leads, *order, *rest]
+
+
 # \\small's \\baselineskip in each of article's sizes, in TeX points: a
 # bullet's lines
 _SMALL_LEADING = {10: 11.0, 11: WRAPPED_LINE, 12: 13.6}
@@ -213,18 +254,21 @@ class PageSettings:
     heading_size: float | None = None
     title_size: float | None = None
     body_size: float | None = None
+    date_format: str = "short"
+    education_first: str = "school"
 
     def __post_init__(self) -> None:
         # Stored as a JSON list, and frozen here
         object.__setattr__(self, "section_order", tuple(self.section_order))
-        if sorted(self.section_order) != sorted(SECTION_ORDER):
+        if not valid_order(self.section_order):
             raise ValueError(f"unknown page settings {self!r}")
         allowed = (
             (self.font_size, FONT_SIZES), (self.line_spacing, LINE_SPACINGS), (self.side_margin, MARGINS),
             (self.top_margin, MARGINS), (self.alignment, ALIGNMENTS), (self.section_spacing, SECTION_SPACINGS),
             (self.entry_spacing, ENTRY_SPACINGS), (self.accent, ACCENTS), (self.bullet, BULLETS),
             (self.show_divider, (True, False)), (self.header_alignment, HEADER_ALIGNMENTS),
-            (self.font_family, ("latin_modern", *FONT_FAMILIES)),
+            (self.font_family, ("latin_modern", *FONT_FAMILIES)), (self.date_format, DATE_FORMATS),
+            (self.education_first, EDUCATION_FIRST),
         )
         sizes = (
             (self.name_size, NAME_SIZES), (self.heading_size, HEADING_SIZES),
@@ -656,14 +700,30 @@ def _boxes(positions: str) -> tuple[Box, ...]:
     return tuple(boxes)
 
 
+#: On Windows a program cannot open a network connection without
+#: SYSTEMROOT, and warming the cache downloads packages: without it
+#: Tectonic's first compile failed "couldn't get it from the internet"
+#: (2026-11-05). They name system folders, never a secret.
+_WINDOWS_ENV = ("SYSTEMROOT", "WINDIR", "TEMP", "TMP")
+
+
 def _env(cache: Path, work: str) -> dict[str, str]:
     # Never the API's own environment: the compile must not see the database
     # URL or the service-role key
-    return {"PATH": os.environ.get("PATH", ""), "HOME": work, "TECTONIC_CACHE_DIR": str(cache)}
+    env = {"PATH": os.environ.get("PATH", ""), "HOME": work, "TECTONIC_CACHE_DIR": str(cache)}
+    if os.name == "nt":
+        env.update({name: os.environ[name] for name in _WINDOWS_ENV if name in os.environ})
+    return env
+
+
+def binary_name() -> str:
+    """The vendored binary's file name: `tectonic.exe` on Windows, where the
+    release ships it so (scripts/fetch_tectonic.py), else `tectonic`."""
+    return "tectonic.exe" if os.name == "nt" else "tectonic"
 
 
 def _binary() -> Path:
-    vendored = VENDOR / "tectonic"
+    vendored = VENDOR / binary_name()
     if vendored.exists():
         if os.access(vendored, os.X_OK):
             return vendored

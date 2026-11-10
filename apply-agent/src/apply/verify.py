@@ -33,8 +33,8 @@ from apply.records import SECRET
 # The kinds of flag. Each holds a live run (goes to Needs you), except a guess and a blank the engine's plan meant
 # and says why (notes). Any other blank optional field holds too: a blank optional is a bug (Lisul, 2026-11-02),
 # except an optional catch-all box ("Additional information") Apply had nothing new for: a note (Lisul, 2026-11-04).
-BLANK, READBACK, FILE, CHOICE, DATE, PAY, PRONOUN, NAME, COMPANY, REVIEW, GUESSED = (
-    "blank", "readback", "file", "choice", "date", "pay", "pronoun", "name", "company", "review", "guessed")
+BLANK, READBACK, FILE, CHOICE, DATE, PAY, PRONOUN, NAME, COMPANY, REVIEW, GUESSED, HISTORY_KIND = (
+    "blank", "readback", "file", "choice", "date", "pay", "pronoun", "name", "company", "review", "guessed", "history")
 # Starts each flag's part of a held row's reason.
 PREFIX = "Verify: "
 # The flags Lisul dismissed, by Application ID: each Application's Record keeps them, past a reload or a new run.
@@ -65,6 +65,12 @@ START = re.compile(r"start date|earliest (?:date|start)|available to start|avail
 # Start date"), one a form caps at this month, or one about schooling or a job held (Infleqtion's Workable, live 2026-11-04).
 HISTORY = re.compile(r"^[^/]*\s\d+ / |\bup to this month\b|\b(?:education|employment|work (?:experience|history))\b",
                      re.IGNORECASE)
+# A field of a work-history section's entry ("Work Experience 2 / Employer"), or one under a work section's heading,
+# that names the employer (KAN-728): every job on file should show in one. Its "type" is the kind of job, not it.
+WORK_ENTRY = re.compile(r"^work (?:experience|history)\b[^/]*\s\d+ / ", re.IGNORECASE)
+WORK_SECTION = re.compile(r"\b(?:employment|work (?:experience|history))\b", re.IGNORECASE)
+EMPLOYER_FIELD = re.compile(r"\b(?:company|employer|organi[sz]ation)\b(?!.*\btype\b)", re.IGNORECASE)
+ENTRIES = re.compile(r"^work (?:experience|history)\b.*\(entries\)$", re.IGNORECASE)
 PAY_QUESTION = re.compile(r"salary|compensation|desired (?:pay|rate)|hourly rate|pay expectation|expected pay", re.IGNORECASE)
 YEAR = re.compile(r"\b(20\d\d)\b")
 MONEY = re.compile(r"\$?\s*(\d{1,3}(?:,\d{3})+|\d+(?:\.\d+)?)\s*(k\b)?", re.IGNORECASE)
@@ -77,6 +83,15 @@ DATES = [
     (re.compile(r"\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.? (\d{1,2}, )?(20\d\d)\b", re.IGNORECASE),
      lambda m: (int(m[3]), MONTHS[m[1].lower()], int(m[2].rstrip(", ")) if m[2] else 28)),
 ]
+# A legal or eligibility answer: work authorization, sponsorship, citizenship, U.S. Person and export control, age,
+# criminal history. A review problem with one that contradicts the profile holds Submit itself on a held page, not
+# only a note (Saronic's U.S. Person question was sent "No" for a U.S. citizen, 2026-11-04).
+LEGAL = re.compile(
+    r"authori[sz](?:ed|ation) to work|work authori[sz]|eligib\w* to work|right to work|sponsor|\bvisa\b|citizen"
+    r"|\bu\.?s\.? persons?\b|\bitar\b|\bear\b|export[- ]control|green card|permanent resident|refugee|asylee"
+    r"|\b(?:18|eighteen|21|legal working age) (?:years|or older)\b|years of age|\bage of\b|how old"
+    r"|criminal|felon|convict|misdemeanor|background check",
+    re.IGNORECASE)
 RESUME_FIELD = re.compile(r"r[eé]sum[eé]|\bcv\b", re.IGNORECASE)
 COVER_FIELD = re.compile(r"cover letter", re.IGNORECASE)
 TRANSCRIPT_FIELD = re.compile(r"transcript", re.IGNORECASE)
@@ -110,6 +125,12 @@ class Verification:
         return tuple(f for f in self.flags if f.holds)
 
     @property
+    def holds_submit(self) -> tuple[Flag, ...]:
+        """The Pre-submit review's problems with a legal or eligibility answer (LEGAL) that Lisul hasn't
+        dismissed: they hold Submit on a held page until he fixes the answer or dismisses them."""
+        return tuple(f for f in self.needs if legal(f))
+
+    @property
     def verified(self) -> bool:
         return not self.needs
 
@@ -132,6 +153,11 @@ class Verification:
     def shown(self) -> list[dict]:
         """The flags as the Apply window lists them: {field, why, kind, holds}."""
         return [asdict(f) for f in self.flags]
+
+
+def legal(flag: Flag) -> bool:
+    """Whether a flag is the Pre-submit review's, about a legal or eligibility answer."""
+    return flag.kind == REVIEW and bool(LEGAL.search(f"{flag.field} {flag.why}"))
 
 
 def verifying(verification: "Verification | None") -> dict:
@@ -171,6 +197,7 @@ def check(
         + _choices(questions, readback)
         + _dates(questions, readback, profile, today)
         + _pay(questions, readback, profile, posting_text)
+        + _work_history(questions, readback, profile)
         + [f for name, text in essays.items() for f in _essay(labels.get(name, name), text, profile, posting,
                                                               f"{allowed}\n{posting_text}")]
         + [Flag(*_split(p), REVIEW) for p in review]
@@ -336,6 +363,30 @@ def _dates(questions, readback, profile, today: date) -> list[Flag]:
         if START.search(q.label) and not HISTORY.search(q.label) and (when := _date_in(shown)) and when < today:
             flags.append(Flag(one_line(q.label), f"shows {shown!r}, a date already past", DATE))
     return flags
+
+
+def _work_history(questions, readback, profile) -> list[Flag]:
+    """Each job on file that no employer field of the form's work section shows (TAL.net's Employment got one of three,
+    KAN-728). A section that takes fewer entries than the jobs on file ("Work Experience (entries)" options) leaves
+    some out by need: then the choice is a note for Lisul to check; any other missing job holds."""
+    fields = [q for q in questions if q.kind != "textarea" and EMPLOYER_FIELD.search(q.label.split(" / ")[-1])
+              and (WORK_ENTRY.search(q.label) or WORK_SECTION.search(q.section))]
+    jobs = [str(j.get("employer") or "").strip() for j in profile.get("experience_facts.employment_history") or []
+            if isinstance(j, dict)]
+    if not fields or not (jobs := [j for j in jobs if j]):
+        return []
+    shown = " | ".join(_norm(" ".join(v) if isinstance(v := readback.get(q.name), list) else v or "") for q in fields)
+    missing = [j for j in jobs if _norm(re.sub(r"\s*\(.*?\)", "", j)) not in shown]
+    if not missing:
+        return []
+    counts = [int(o) for q in questions if ENTRIES.search(q.label.strip()) for o in q.options if str(o).strip().isdigit()]
+    cap = max(counts) if counts else None
+    if cap is not None and len(jobs) > cap and len(jobs) - len(missing) >= cap:
+        put = [j for j in jobs if j not in missing]
+        return [Flag("Work history", f"the section takes {cap} entries: Apply put {', '.join(put) or 'none'} and left out "
+                     f"{', '.join(missing)}. Check the choice", HISTORY_KIND, holds=False)]
+    return [Flag("Work history", f"{j}, a job on your profile, is not on the form's work section", HISTORY_KIND)
+            for j in missing]
 
 
 def _amounts(text: str) -> list[float]:

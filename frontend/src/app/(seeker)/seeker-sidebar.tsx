@@ -35,7 +35,10 @@ import { INBOX_LIVE } from "./inbox/live";
  * be a second, contradictory way to reach it.
  *
  * Auto Apply sits between Jobs and Applications, in the order the work goes:
- * find the jobs, apply to them, track what was sent.
+ * find the jobs, apply to them, track what was sent. It carries the queue's
+ * count (./queue-badge.tsx, 2026-11-09), the queue's one status outside its
+ * page; the Inbox's count was taken out as out of place, but a queue's is a
+ * count of work waiting on the seeker's own pipeline.
  *
  * Applications' glyph is ListChecks, what the page is for (tracking what was
  * sent), not how it is laid out. It was SquareKanban, the board's shape, and
@@ -50,11 +53,11 @@ import { INBOX_LIVE } from "./inbox/live";
  * the Interviewing stage's glyph (../stage-colors.ts), and a nav row wearing
  * it would read as a stage.
  *
- * My Profile is a row rather than something behind the account in the bar:
+ * Profile is a row rather than something behind the account in the bar:
  * a profile is somewhere a job seeker goes back to all through a hunt, not
  * somewhere they visit once, and a click of depth is the wrong price for
- * that. "My" is what separates it from an employer's profile, which the
- * company shell also has to name.
+ * that. It was "My Profile" until 2026-11-05; in the seeker's own shell no
+ * employer's profile is ever named, so "My" told nothing apart.
  *
  * Resumes & Experiences sits right after the Applications Tracker, beside
  * the work it feeds: every application goes out with a resume. It sat just
@@ -65,10 +68,18 @@ import { INBOX_LIVE } from "./inbox/live";
  * KAN-249 merged them behind one switcher. Its glyph is FileText, the one
  * on Generate Resume.
  *
- * On the rail a name sits under its icon in a 72px tile, so three names
- * take a `short` there: Tracker, Resumes and Profile. Each page's heading
- * and the phone's sheet keep the full name.
+ * One set of names (2026-11-05): Tracker, Resumes and Profile on the rail
+ * and on the phone's sheet alike. They were the rail's short names, beside
+ * "Applications Tracker", "Resumes & Experiences" and "My Profile" on the
+ * sheet, and the user found two names for one section confusing. The
+ * bar's title, page titles, Back links and breadcrumbs use the same names.
  */
+/** Whether the Calendar row shows (2026-11-09). Off while the Calendar does
+ *  not work: a greyed-out row on every page was a promise the app could not
+ *  keep. Its page stays at /calendar, unlinked from the rail. Set it to true
+ *  to bring the row back, live. */
+const CALENDAR_LIVE = false;
+
 const GROUPS: SidebarNavGroup[] = [
   {
     // No caption: with one group there is nothing to tell it apart from.
@@ -76,28 +87,18 @@ const GROUPS: SidebarNavGroup[] = [
       { href: "/home", label: "Home", Icon: HouseIcon },
       { href: "/jobs", label: "Jobs", Icon: BriefcaseIcon },
       { href: "/auto-apply", label: "Auto Apply", Icon: LightningRoundedIcon },
-      {
-        href: "/applications",
-        label: "Applications Tracker",
-        short: "Tracker",
-        Icon: ListChecksIcon,
-      },
-      {
-        href: "/resumes",
-        also: ["/experiences"],
-        label: "Resumes & Experiences",
-        short: "Resumes",
-        Icon: FileTextIcon,
-      },
+      { href: "/applications", label: "Tracker", Icon: ListChecksIcon },
+      { href: "/resumes", also: ["/experiences"], label: "Resumes", Icon: FileTextIcon },
       // KAN-413: replies to applications, after the tools that send them.
       // No count badge: one was built and taken out as out of place.
       // Archived with the Inbox until WorkIt has a source of emails
       // (KAN-428, ./inbox/live.ts).
       ...(INBOX_LIVE ? [{ href: "/inbox", label: "Inbox", Icon: TrayIcon }] : []),
       // Back since KAN-413: interviews, assessments and offers are stored.
-      // Greyed out (2026-11-02) while it does not work.
-      { href: "/calendar", label: "Calendar", Icon: CalendarDotsIcon, disabled: true },
-      { href: "/profile", label: "My Profile", short: "Profile", Icon: UserCircleIcon },
+      // Greyed out (2026-11-02) while it does not work, then taken off the
+      // rail (2026-11-09, CALENDAR_LIVE) until it does.
+      ...(CALENDAR_LIVE ? [{ href: "/calendar", label: "Calendar", Icon: CalendarDotsIcon }] : []),
+      { href: "/profile", label: "Profile", Icon: UserCircleIcon },
     ],
   },
 ];
@@ -105,10 +106,24 @@ const GROUPS: SidebarNavGroup[] = [
 /** `card` is the profile strength card, rendered on the server by the layout
  *  (it reads the API) and passed through, since this panel is a client
  *  component. */
-export function SeekerSidebar({ card }: { card?: ReactNode }) {
+export function SeekerSidebar({
+  card,
+  queueBadge,
+}: {
+  card?: ReactNode;
+  /** The Auto Apply row's count (./queue-badge.tsx), streamed in by the
+   *  layout, which reads the queue. */
+  queueBadge?: ReactNode;
+}) {
+  const groups = GROUPS.map((group) => ({
+    ...group,
+    items: group.items.map((item) =>
+      "href" in item && item.href === "/auto-apply" ? { ...item, badge: queueBadge } : item,
+    ),
+  }));
   return (
     <AppSidebar
-      groups={GROUPS}
+      groups={groups}
       footerCard={card}
       label="Job Search Sections"
       variant="rail"

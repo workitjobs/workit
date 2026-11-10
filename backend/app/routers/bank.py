@@ -6,7 +6,7 @@ duplicate check, bullet order) live in `app/services/bank.py`.
 Months are "YYYY-MM". An entry's `end_kind` is "month", "present" or
 "expected"; present has no `end_month`, the others need one. Section fields
 (Education: degree, field_of_study, gpa, gpa_scale, coursework, honors;
-Projects: link; Certifications: issuer; Awards: award_date) must be empty on
+Projects: link, tools; Certifications: issuer; Awards: award_date) must be empty on
 entries of other sections, or the request answers 422.
 
 GET    /applicants/{id}/bank                     -> BankResponse
@@ -35,21 +35,29 @@ DELETE /applicants/{id}/bank/skills/{skill_id}   -> 204
 POST   /applicants/{id}/bank/skills/delete       DeleteMany -> 204, as entries/delete
        A deleted skill is remembered as removed (KAN-369): no reading or
        Tailor adds it again until the student adds it here by hand.
+POST   /applicants/{id}/bank/sections            CustomSectionCreate -> 201 CustomSectionResponse
+       A section the student names (KAN-498): `layout` "entries" or
+       "lines". ?resume_id= as for entries (an upload owns it; under a built
+       resume it is the student's own). 409 at MAX_CUSTOM_SECTIONS for the
+       owner, or when it has the name already, ignoring case. 422 for a
+       fixed section's name. Its entries are POST /entries with section
+       "custom" and its `custom_section_id`.
+PATCH  /applicants/{id}/bank/sections/{section_id} CustomSectionUpdate -> CustomSectionResponse (409 as above)
+DELETE /applicants/{id}/bank/sections/{section_id} -> 204 (its entries too)
 POST   /applicants/{id}/bank/import              ImportRequest -> ImportResponse
-       Import Again: reads one uploaded resume (resume_id, else the default
-       resume, else the newest) with the heuristic parser and writes it into
-       the bank with `import_upload`, as upload does: the reading replaces
-       the entries and skills the upload owns (ADR 0005). Answers what it
-       wrote (`entries_added`, `skills_added`). A resume the parser cannot
-       read leaves the upload with nothing; no uploaded resume (or another
-       student's) answers 404.
-       Model parsing (KAN-222): `read_with_ai: true` ("Read It With AI")
-       reads the resume with the model instead. Only the student asks for
-       it; the API never falls back to the model by itself. A reading counts
-       one parsing use (cap 1, 10% of the pool) only when it succeeds, with
-       the bank writes; the response says `read_by` ("parser" or "model")
-       and `uses_left`. It answers 429 at the limit and 503 when the model
-       is down or answers in the wrong shape, and then writes nothing.
+       Import Again: reads one uploaded resume's stored text (resume_id,
+       else the default resume, else the newest) as every upload is read
+       (`services/resume_reading.py`: the model first while the student has
+       an AI reading left today, the heuristic parser behind it; KAN-732,
+       ADR 0007) and writes it into the bank with `import_upload`, as upload
+       does: the reading replaces the entries and skills the upload owns
+       (ADR 0005). Answers what it wrote (`entries_added`, `skills_added`),
+       who read it (`read_by`, "model" or "parser") and `uses_left`. A model
+       reading counts one parsing use (cap 1, 10% of the pool), committed
+       with the bank writes; a failed or refused model reading falls back to
+       the parser and counts none. A resume nothing can read leaves the
+       upload with nothing; no uploaded resume (or another student's)
+       answers 404.
 
 GET /bank also sends `resumes` (every uploaded, base and tailored resume,
 with `kind`, `name`, a tailored one's `posting`, the starred one's
@@ -70,7 +78,7 @@ from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
-from workit_scout.llm import LLM, ScoutUnavailable
+from workit_scout.llm import LLM
 
 from app.db import get_session
 from app.deps import get_current_account, owned_applicant
@@ -82,6 +90,9 @@ from app.schemas.bank import (
     BulletCreate,
     BulletResponse,
     BulletUpdate,
+    CustomSectionCreate,
+    CustomSectionResponse,
+    CustomSectionUpdate,
     DeleteMany,
     DuplicateEntry,
     EntryCreate,
@@ -95,18 +106,9 @@ from app.schemas.bank import (
 )
 from app.services import bank as service
 from app.services import built_resumes
-from app.services.ai_messages import AIMessages
 from app.services.bank import bank_response, entry_response
-from app.services.bank_import import (
-    model_drafts,
-    model_skills,
-    read,
-    read_with_model,
-    skill_pairs,
-)
-from app.services.identity import load_identity
-from app.services.models import get_large_llm
-from app.services.usage import Feature, count_use, uses_left
+from app.services.models import get_llm
+from app.services.resume_reading import read_upload
 
 router = APIRouter(prefix="/applicants/{applicant_id}/bank", tags=["bank"])
 logger = logging.getLogger(__name__)
@@ -124,6 +126,9 @@ async def _writing(session: AsyncSession) -> AsyncIterator[None]:
     except service.DuplicateSkillError:
         await session.rollback()
         raise HTTPException(409, "That skill is already in your experience bank")
+    except service.SectionError as exc:
+        await session.rollback()
+        raise HTTPException(409, str(exc))
     except ValidationError as exc:
         await session.rollback()
         raise RequestValidationError(exc.errors(include_url=False, include_context=False))
@@ -333,6 +338,45 @@ async def delete_skills(
     return Response(status_code=204)
 
 
+@router.post("/sections", status_code=201, response_model=CustomSectionResponse)
+async def create_section(
+    body: CustomSectionCreate,
+    resume_id: uuid.UUID | None = None,
+    applicant_id: uuid.UUID = Depends(owned_applicant),
+    session: AsyncSession = Depends(get_session),
+) -> CustomSectionResponse:
+    async with _writing(session):
+        # Under a built resume the section is the student's own: a built
+        # resume shows entries, never sections (KAN-498)
+        owner, _ = await _target(session, applicant_id, resume_id)
+        section = await service.create_section(session, applicant_id, body.name, body.layout, resume_id=owner)
+    return service.section_response(section, [owner] if owner else [])
+
+
+@router.patch("/sections/{section_id}", response_model=CustomSectionResponse)
+async def rename_section(
+    section_id: uuid.UUID,
+    body: CustomSectionUpdate,
+    applicant_id: uuid.UUID = Depends(owned_applicant),
+    session: AsyncSession = Depends(get_session),
+) -> CustomSectionResponse:
+    async with _writing(session):
+        section = await service.rename_section(session, applicant_id, section_id, body.name)
+        response = service.section_response(section, [section.resume_id] if section.resume_id else [])
+    return response
+
+
+@router.delete("/sections/{section_id}", status_code=204)
+async def delete_section(
+    section_id: uuid.UUID,
+    applicant_id: uuid.UUID = Depends(owned_applicant),
+    session: AsyncSession = Depends(get_session),
+) -> Response:
+    async with _writing(session):
+        await service.delete_section(session, applicant_id, section_id)
+    return Response(status_code=204)
+
+
 async def _resume_to_import(session: AsyncSession, applicant_id: uuid.UUID, resume_id: uuid.UUID | None) -> Resume:
     from app.queries.bank import resume_to_import
     resume = await resume_to_import(session, applicant_id, resume_id)
@@ -341,54 +385,29 @@ async def _resume_to_import(session: AsyncSession, applicant_id: uuid.UUID, resu
     return resume
 
 
-AI = AIMessages(
-    spent="You've used today's AI reading. It resets at midnight UTC.",
-    offline="WorkIt can't read it with AI right now. Try again in a minute.",
-    lost="WorkIt couldn't make sense of that reading. Try again.",
-    # What the parser read is already in the bank.
-    busy="WorkIt has hit today's AI limit. Try again tomorrow.",
-)
-
-
 @router.post("/import", response_model=ImportResponse)
 async def import_resume(
     body: ImportRequest,
     applicant_id: uuid.UUID = Depends(owned_applicant),
     account: AuthenticatedAccount = Depends(get_current_account),
-    llm: LLM = Depends(get_large_llm),
+    llm: LLM = Depends(get_llm),
     session: AsyncSession = Depends(get_session),
 ) -> ImportResponse:
     resume = await _resume_to_import(session, applicant_id, body.resume_id)
-    left = await uses_left(session, applicant_id, Feature.PARSING)
-    read_by = "parser"
-    if not body.read_with_ai:
-        # The stored text, read again, so a resume uploaded before a parser
-        # fix gets the fix.
-        entries, skills = read(resume.raw_text)
-    elif not resume.raw_text:
-        entries, skills = [], []
-    elif left <= 0:
-        raise HTTPException(429, AI.spent)
-    else:
-        identity = await load_identity(session, account)
-        try:
-            reading = await read_with_model(resume.raw_text, llm, identity=identity)
-        except ScoutUnavailable as exc:
-            raise HTTPException(503, AI.failure(exc)) from exc
-        # Counted with the bank writes below, so a failed save counts nothing.
-        await count_use(session, applicant_id, Feature.PARSING)
-        left -= 1
-        entries, skills, read_by = model_drafts(reading), skill_pairs(model_skills(reading)), "model"
-
+    # The stored text, read again, so a resume uploaded before a parser fix
+    # gets the fix. The AI use, if any, commits with the bank writes below.
+    # The parser's custom sections (KAN-498) come through the combined
+    # reading: the AI reads only the fixed sections, so they have no twin there.
+    reading, left = await read_upload(session, applicant_id, account, resume.raw_text, llm)
     async with _writing(session):
-        imported = await service.import_upload(session, applicant_id, resume.id, entries, skills)
+        imported = await service.import_upload(session, applicant_id, resume.id, reading.entries, reading.skills)
     return ImportResponse(
         resume_id=resume.id,
         filename=resume.original_filename,
-        found=len(entries) + len(skills),
+        found=len(reading.entries) + len(reading.skills),
         entries_added=imported.entries_added,
         skills_added=imported.skills_added,
-        read_by=read_by,
+        read_by=reading.read_by,
         uses_left=left,
     )
 

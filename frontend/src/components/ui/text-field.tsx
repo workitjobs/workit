@@ -26,9 +26,11 @@ import { cn } from "@/lib/cn";
  * pads differently from a textarea, and an input with a leading glyph pads
  * differently again.
  *
- * White, with a --color-border-control outline (3:1 or better on white and on
- * the login card), because a grey field on a grey card was outlined by a
- * 1.12:1 hairline alone. Placeholders are --color-ink-meta, the same grey the
+ * White, with a --color-border-control outline (#929292, 3:1 or better on
+ * white and on the ground, WCAG 1.4.11), a step darker than the cards' and
+ * buttons' --color-border-surface: a field has no words inside its edge to
+ * say what it is, so its edge must hold 3:1. A grey field on a grey card was
+ * outlined by a 1.12:1 hairline alone, so a field stays white. Placeholders are --color-ink-meta, the same grey the
  * top bar's SearchField and an empty SelectField print. Type is 16px below
  * `sm` so iOS Safari does not zoom the page on focus; the line height stays
  * 20px, so the box is the same height at every width. `aria-invalid` turns the

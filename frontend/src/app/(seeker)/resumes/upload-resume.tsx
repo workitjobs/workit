@@ -38,8 +38,10 @@ const MAX_RESUMES = MAX_UPLOADS;
  *
  * The picked file uploads at once, with the dropzone's checks
  * (`resumeFileError`); the API reads it into the experience bank (ADR
- * 0003), and the note says what went in. The model never reads an upload:
- * Read It With AI sat beside the note until KAN-353.
+ * 0003), with AI first and the parser behind it (KAN-732, ADR 0007), so the
+ * card says "Reading your resume…" for the few seconds that takes, and the
+ * note says what went in and whether AI read it. Read It With AI, a button
+ * beside the note, went with KAN-353.
  * A file whose text the student already uploaded keeps nothing and opens
  * the duplicate pop-up (`onDuplicate`, ./duplicate-resume-dialog.tsx,
  * KAN-267), the one Generate opens. A newer version of a file is a delete
@@ -115,7 +117,7 @@ export function useResumeUpload({
         onClick={() => inputRef.current?.click()}
       >
         <UploadIcon className="size-4" />
-        {uploading ? "Uploading…" : <ShortLabel verb="Upload" />}
+        {uploading ? "Reading…" : <ShortLabel verb="Upload" />}
       </Button>
       <input ref={inputRef} type="file" accept={RESUME_ACCEPT} onChange={handleSelect} hidden />
     </>
@@ -145,7 +147,7 @@ export function useResumeUpload({
       <PdfIcon className={ROW_MARK} />
       <div className="min-w-0 flex-1">
         <p className="text-label text-ink truncate">{uploading}</p>
-        <p className="text-note text-ink-meta">Uploading…</p>
+        <p className="text-note text-ink-meta">Reading your resume…</p>
       </div>
     </li>
   );

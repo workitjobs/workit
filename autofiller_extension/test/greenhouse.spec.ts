@@ -41,7 +41,7 @@ test("fills a saved Greenhouse form from a WorkIt profile and submits nothing", 
   expect(arc.submissions).toEqual([]);
 });
 
-test("each filled field says where its answer came from, and a guess is marked for checking", async ({ context }) => {
+test("each filled field says where its answer came from, and a guess is marked for checking", { tag: "@nightly" }, async ({ context }) => {
   const pure = new FakeJobServer("greenhouse-purestorage");
   const page = await pure.open(context);
   const job = readFileSync(join(FORMS, "greenhouse-purestorage", "questions.json"), "utf8");
@@ -302,6 +302,15 @@ test("a one-line or choice draft goes to the student's Claude", () => {
     { name: "unread", label: unread.label, required: true, max_length: null },
   ]);
   expect(rows.yours).toEqual([{ name: "sample", label: "Work sample", required: false }]);
+});
+
+test("a follow-up the engine holds for its question's answer goes to the student's Claude with it", () => {
+  // KAN-620: Saronic's "If yes, ..." waits on "Are you related to any current Saronic employees?" (Plan.waiting).
+  const related = { name: "related", label: "Are you related to any current Saronic employees?", kind: "select", required: true, options: ["Yes", "No"] };
+  const ifYes = { name: "if_yes", label: "If yes, please provide the employee's name and your relationship", kind: "textarea", required: false, options: [] };
+  const rows = planRows({ plan: { essays: [], drafts: [related], missing: [], handoffs: [], waiting: { if_yes: "related" } }, questions: [related, ifYes] });
+  expect(rows.written.map((q) => q.name)).toEqual(["related", "if_yes"]);
+  expect(rows.written[1].required).toBe(false);
 });
 
 test("on a job system the engine doesn't cover, the overlay says so, not as an optional field", async ({ page }) => {

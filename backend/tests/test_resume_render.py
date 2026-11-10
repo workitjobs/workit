@@ -28,7 +28,9 @@ from app.services import resume_render
 from app.services.resume_render import (
     ALIGNMENTS,
     BODY_SIZES,
+    DATE_FORMATS,
     DEFAULT_PAGE,
+    EDUCATION_FIRST,
     FONT_FAMILIES,
     FONT_SIZES,
     HEADING_SIZES,
@@ -45,6 +47,12 @@ from app.services.resume_render import (
     escape,
     jakes_document,
     render,
+)
+from app.services.resume_render.fields import (
+    dates,
+    degree_leads,
+    heading,
+    heading_fields,
 )
 from app.services.resume_render.jakes import body as jakes_body
 from app.services.resume_render.sample import IDENTITY, VIEW
@@ -203,7 +211,19 @@ def _long_view() -> ResumeView:
                                          location="Georgetown, TX", bullets=bullets))
 
 
-@pytest.mark.parametrize("view", [VIEW, _long_view()], ids=["one page", "two pages"])
+def _tools_view() -> ResumeView:
+    '''Jake's sample with a project that keeps its stack as tools (KAN-738),
+    as an upload now reads "workitjobs.ai | AI Job Search Platform" over a
+    line of tools.'''
+    project = ViewEntry(uuid.uuid4(), "projects", "workitjobs.ai", organization="AI Job Search Platform",
+                        tools=("Next.js", "TypeScript", "Tailwind CSS", "FastAPI", "PostgreSQL"),
+                        bullets=(ViewBullet(uuid.uuid4(), "Lead design and front-end on a 5-person team"),))
+    sections = tuple(replace(s, entries=(project, *s.entries)) if s.section == "projects" else s
+                     for s in VIEW.sections)
+    return replace(VIEW, sections=sections)
+
+
+@pytest.mark.parametrize("view", [VIEW, _long_view(), _tools_view()], ids=["one page", "two pages", "tools"])
 def test_position_markers_leave_the_page_unchanged(view) -> None:
     # The preview must be the file that downloads (ADR 0002): the markers
     # that place the editor's click targets may not move one glyph
@@ -280,6 +300,33 @@ def test_render_gives_a_box_for_each_line_the_editor_can_select() -> None:
     assert _inside(bbox, boxes[(str(first.id), "bullet")])
 
 
+def test_a_projects_tools_print_on_their_own_line_under_its_heading() -> None:
+    # KAN-738: the heading's first line stays as it was (name, organization,
+    # dates), and the tools take a line of their own, as the student's own
+    # resume prints them; the editor gets a "tools" box for that line
+    _tectonic_or_skip()
+    view = _tools_view()
+    rendered = render(view, IDENTITY, "jakes")
+    project = view.sections[2].entries[0]
+    boxes = {(b.item_id, b.kind): b for b in rendered.boxes}
+
+    assert rendered.missing_characters == ()
+    assert {kind for item, kind in boxes if item == str(project.id)} == {"title", "organization", "tools"}
+    tools = boxes[(str(project.id), "tools")]
+    assert tools.text == "Next.js, TypeScript, Tailwind CSS, FastAPI, PostgreSQL"
+    title, bullet = boxes[(str(project.id), "title")], boxes[(str(project.bullets[0].id), "bullet")]
+    assert title.y1 <= tools.y0 and tools.y1 <= bullet.y0
+    assert abs(tools.x0 - title.x0) < 1  # under the name, not indented
+
+    lines = _text_lines(rendered.pdf)
+    assert any(t.startswith("workitjobs.ai | AI Job Search Platform") for t, _, _ in lines)
+    _, bbox = _line(lines, "Next.js, TypeScript")
+    assert _inside(bbox, tools)
+    # A project with no tools keeps one line, as before
+    gitlytics = view.sections[2].entries[1]
+    assert (str(gitlytics.id), "tools") not in boxes
+
+
 def test_the_header_gives_a_box_for_each_profile_field() -> None:
     _tectonic_or_skip()
     rendered = render(VIEW, IDENTITY, "jakes")
@@ -349,8 +396,9 @@ def read_only_vendor(tmp_path, monkeypatch):
     (vendor / "cache" / "fonts").mkdir(parents=True)
     for i in range(50):
         (vendor / "cache" / "fonts" / f"{i}.otf").write_bytes(os.urandom(4096))
-    (vendor / "tectonic").write_bytes(b"#!/bin/sh\n")
-    (vendor / "tectonic").chmod(0o644)
+    binary = vendor / resume_render.binary_name()  # tectonic.exe on Windows
+    binary.write_bytes(b"#!/bin/sh\n")
+    binary.chmod(0o644)
     tmp = tmp_path / "tmp"
     tmp.mkdir()
     monkeypatch.setattr(resume_render, "VENDOR", vendor)
@@ -411,6 +459,20 @@ def test_the_word_file_says_us_citizen_when_checked() -> None:
         "U.S. Citizen | 123-456-7890 | jake@su.edu | linkedin.com/in/jake | github.com/jake")
 
 
+def test_the_word_file_prints_a_projects_tools_under_its_heading() -> None:
+    from docx import Document
+
+    from app.services.resume_render.word import render_docx
+
+    texts = [p.text for p in Document(io.BytesIO(render_docx(_tools_view(), IDENTITY))).paragraphs]
+    heading = next(i for i, t in enumerate(texts) if t.startswith("workitjobs.ai | AI Job Search Platform"))
+    assert texts[heading + 1] == "Next.js, TypeScript, Tailwind CSS, FastAPI, PostgreSQL"
+    assert texts[heading + 2] == "Lead design and front-end on a 5-person team"
+    # A project with no tools goes straight to its bullets
+    gitlytics = next(i for i, t in enumerate(texts) if t.startswith("Gitlytics"))
+    assert texts[gitlytics + 1].startswith("Developed a full-stack web application")
+
+
 def test_an_unchecked_header_hashes_as_before_the_check_box() -> None:
     from app.services.sent_resumes import _identity
 
@@ -467,6 +529,7 @@ def test_page_settings_go_after_jakes_preamble_and_only_when_they_differ() -> No
 @pytest.mark.parametrize("settings", [
     {"font_family": "Comic Sans"}, {"name_size": 99}, {"heading_size": 99}, {"title_size": 99}, {"body_size": 99},
     {"body_size": 10.25}, {"body_size": 7.5}, {"body_size": float("nan")}, {"body_size": "10"},
+    {"date_format": "roman"}, {"education_first": "gpa"},
     {"font_size": 13}, {"line_spacing": 2.0}, {"side_margin": 0.1}, {"top_margin": 2.0}, {"alignment": r"\\input{/etc/passwd}"},
 ])
 def test_a_page_setting_off_the_lists_never_reaches_the_latex(settings) -> None:
@@ -480,6 +543,8 @@ def test_a_page_setting_off_the_lists_never_reaches_the_latex(settings) -> None:
     PageSettings(name_size=NAME_SIZES[0], heading_size=HEADING_SIZES[0], title_size=TITLE_SIZES[0], body_size=BODY_SIZES[0]),
     PageSettings(name_size=NAME_SIZES[-1], heading_size=HEADING_SIZES[-1], title_size=TITLE_SIZES[-1], body_size=BODY_SIZES[-1]),
     PageSettings(name_size=31.5, heading_size=15.5, title_size=13.5, body_size=8.5),
+    *(PageSettings(date_format=date_format) for date_format in DATE_FORMATS),
+    PageSettings(education_first="degree"),
     *(PageSettings(line_spacing=spacing) for spacing in LINE_SPACINGS),
     *(PageSettings(side_margin=margin, top_margin=margin) for margin in MARGINS),
     *(PageSettings(alignment=alignment) for alignment in ALIGNMENTS),
@@ -651,8 +716,10 @@ def test_every_kind_of_text_changes_the_page_it_prints() -> None:
 
 
 def test_the_api_takes_exactly_what_the_page_can_print() -> None:
-    family = ApiPageSettings.model_fields["font_family"].annotation
-    assert set(get_args(family)) == {"latin_modern", *FONT_FAMILIES}
+    fields = ApiPageSettings.model_fields
+    assert set(get_args(fields["font_family"].annotation)) == {"latin_modern", *FONT_FAMILIES}
+    assert set(get_args(fields["date_format"].annotation)) == set(DATE_FORMATS)
+    assert set(get_args(fields["education_first"].annotation)) == set(EDUCATION_FIRST)
     scales = {"name_size": NAME_SIZES, "heading_size": HEADING_SIZES, "title_size": TITLE_SIZES, "body_size": BODY_SIZES}
     for field, (low, high) in scales.items():
         for size in (low, low + 0.5, high):
@@ -662,3 +729,72 @@ def test_the_api_takes_exactly_what_the_page_can_print() -> None:
             for settings in (ApiPageSettings, PageSettings):
                 with pytest.raises(ValueError):
                     settings(**{field: size})
+
+
+def test_a_compile_gets_windows_own_folders_and_no_secret(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("SYSTEMROOT", "C:/Windows")
+    monkeypatch.setenv("DATABASE_URL", "postgresql://secret")
+    monkeypatch.setattr(resume_render.os, "name", "nt")
+    env = resume_render._env(tmp_path, "work")
+    assert env["SYSTEMROOT"] == "C:/Windows"
+    assert "DATABASE_URL" not in env
+    # Off Windows the compile gets no Windows folder, even when one is set
+    monkeypatch.setattr(resume_render.os, "name", "posix")
+    assert "SYSTEMROOT" not in resume_render._env(tmp_path, "work")
+
+
+def _education():
+    return next(s for s in VIEW.sections if s.section == "education").entries[0]
+
+
+@pytest.mark.parametrize("date_format, expected", [
+    ("short", "Aug. 2018 – May 2021"), ("long", "August 2018 – May 2021"),
+    ("year", "2018 – 2021"), ("numeric", "08/2018 – 05/2021"),
+])
+def test_a_date_format_reads_as_it_says(date_format, expected) -> None:
+    assert dates(_education(), date_format) == expected
+
+
+def test_year_only_prints_one_year_once() -> None:
+    entry = replace(_education(), end_month=_education().start_month)
+    assert dates(entry, "year") == "2018"
+    assert dates(entry, "short") == "Aug. 2018 – Aug. 2018"
+
+
+def test_degree_first_swaps_educations_rows_and_their_click_targets() -> None:
+    school = _education()
+    first = heading(school, "short", "degree")
+    assert (first.title, first.subtitle) == (heading(school).subtitle, school.title)
+    assert heading_fields("education", degree_leads(school, "degree"))["subtitle"] == "title"
+
+    nothing = replace(school, degree=None, field_of_study=None, organization=None)
+    assert heading(nothing, "short", "degree").title == school.title
+    assert not degree_leads(nothing, "degree")
+
+
+def test_degree_first_leaves_every_other_section_alone() -> None:
+    job = next(s for s in VIEW.sections if s.section == "experience").entries[0]
+    assert heading(job, "short", "degree") == heading(job)
+
+
+def test_a_box_keeps_its_field_when_degree_first_moves_it() -> None:
+    _tectonic_or_skip()
+    page = PageSettings(education_first="degree")
+    boxes = render(VIEW, IDENTITY, "jakes", page).boxes
+    school = _education()
+    title = next(b for b in boxes if b.item_id == str(school.id) and b.kind == "title")
+    degree = next(b for b in boxes if b.item_id == str(school.id) and b.kind == "degree")
+    assert title.text == school.title
+    assert degree.y0 < title.y0
+
+
+def test_the_word_file_follows_the_date_format_and_the_education_order() -> None:
+    from docx import Document
+
+    from app.services.resume_render.word import render_docx
+
+    page = PageSettings(date_format="year", education_first="degree")
+    rows = [p.text for p in Document(io.BytesIO(render_docx(VIEW, IDENTITY, page))).paragraphs]
+    school = next(i for i, row in enumerate(rows) if row.startswith(_education().title))
+    assert heading(_education()).subtitle in rows[school - 1]
+    assert rows[school].endswith("2018 – 2021")

@@ -80,6 +80,25 @@ async def test_a_job_that_comes_back_has_no_reason(database):
     assert (await _rows())[GONE] == ("published", None)
 
 
+async def test_a_close_clears_the_vector_and_a_return_is_embedded_again(database):
+    # KAN-726: nothing scores a closed job, and on the free plan its vector
+    # is space for nothing. A job that comes back is this run's to embed.
+    await _import([STAYS, GONE])
+    async with get_engine().begin() as conn:
+        await conn.execute(text(
+            "UPDATE job_postings SET embedding = array_fill(0.1::real, ARRAY[768])::extensions.vector"
+        ))
+    await _import([STAYS], {GONE: "gone_from_board"})
+    async with get_engine().connect() as conn:
+        result = await conn.execute(text("SELECT apply_url, embedding IS NOT NULL FROM job_postings"))
+        assert dict(result.all()) == {STAYS: True, GONE: False}
+
+    report = await _import([STAYS, GONE])
+    async with get_engine().connect() as conn:
+        gone = await conn.scalar(text("SELECT id FROM job_postings WHERE apply_url = :u"), {"u": GONE})
+    assert report.touched == [gone]
+
+
 async def test_a_closed_job_keeps_the_reason_it_closed_with(database):
     # The next run's file may say something else; only a close writes it.
     await _import([STAYS, GONE])
@@ -104,3 +123,12 @@ def test_read_closings(tmp_path):
     assert read_closings(path) is None
     path.write_text("{not json", encoding="utf-8")
     assert read_closings(path) is None
+
+
+async def test_a_partial_feed_closes_nothing(database):
+    # The scraper worker's listings are only the boards it read (KAN-605).
+    await _import([STAYS, GONE])
+    async with get_engine().begin() as conn:
+        report = await import_feed(conn, [_listing(STAYS)], close_missing=False)
+    assert await _rows() == {STAYS: ("published", None), GONE: ("published", None)}
+    assert report.closed == 0

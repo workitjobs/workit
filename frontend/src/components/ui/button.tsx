@@ -138,7 +138,7 @@ export const buttonVariants = cva(
          *  --color-surface itself, Google and LinkedIn sank into the card
          *  (KAN-259). On a white page the two are all but the same. */
         secondary:
-          "border-border-control bg-panel text-ink hover:bg-hover focus-visible:ring-brand-ring rounded-control border focus-visible:ring-[3px]",
+          "border-border-surface bg-panel text-ink hover:bg-hover focus-visible:ring-brand-ring rounded-control border focus-visible:ring-[3px]",
         /** Brand outline — an action inside an already-recessed area. */
         outline:
           "border-brand text-brand hover:bg-brand/5 focus-visible:ring-brand-ring rounded-control border focus-visible:ring-[3px]",
@@ -169,6 +169,12 @@ export const buttonVariants = cva(
          *  weight whether it acts here or goes somewhere. WorkIt-only. */
         section:
           "text-ink-muted hover:text-ink focus-visible:ring-brand-ring rounded-xs border-transparent focus-visible:ring-2",
+        /** Bordered, light on the inverted surface: a toast's actions
+         *  (ui/toast.tsx, KAN-217). The edge is on-inverse at 50%, about 5:1 on
+         *  inverse; the hover a 12% wash of it. Never on a light page,
+         *  where it is white on white. */
+        inverse:
+          "border-on-inverse/50 text-on-inverse hover:bg-on-inverse/12 focus-visible:ring-on-inverse rounded-control border bg-transparent focus-visible:ring-2",
         /** UNMEASURED: no mockup draws a destructive action. --destructive
          *  aliases --color-danger, the Rejected chip's red (see globals.css),
          *  so the app has one red. Shaped and ringed like the other fills. */
@@ -208,6 +214,15 @@ export const buttonVariants = cva(
         icon: "size-8",
         "icon-lg": "size-9",
       },
+      /** One part of a split button (2026-11-09, the Jobs page's combined
+       *  Apply, ../../app/(seeker)/jobs/apply-split-button.tsx): `start`
+       *  squares its right corners, `end`, the arrow, its left ones and
+       *  sheds its left edge, so the two read as one control with a seam. */
+      segment: {
+        none: "",
+        start: "rounded-r-none",
+        end: "rounded-l-none border-l-0 px-2",
+      },
     },
     compoundVariants: [
       {
@@ -219,7 +234,7 @@ export const buttonVariants = cva(
         class: "rounded-control",
       },
     ],
-    defaultVariants: { variant: "default", size: "default" },
+    defaultVariants: { variant: "default", size: "default", segment: "none" },
   },
 );
 
@@ -240,6 +255,7 @@ const DEFAULT_SIZE: Record<ButtonVariant, ButtonSize> = {
   positive: "sm",
   decline: "sm",
   outline: "sm",
+  inverse: "sm",
   ghost: "inline",
   section: "section",
   link: "inline",
@@ -248,6 +264,7 @@ const DEFAULT_SIZE: Record<ButtonVariant, ButtonSize> = {
 type StyleProps = {
   variant?: ButtonVariant;
   size?: ButtonSize;
+  segment?: "none" | "start" | "end";
   className?: string;
 };
 
@@ -255,17 +272,22 @@ type StyleProps = {
  * Exported for the rare element that must be styled as a button without being
  * one — a file input's label, say. Prefer <Button> or <ButtonLink>.
  */
-export function buttonClasses({ variant = "default", size, className }: StyleProps = {}) {
-  return cn(buttonVariants({ variant, size: size ?? DEFAULT_SIZE[variant] }), className);
+export function buttonClasses({
+  variant = "default",
+  size,
+  segment = "none",
+  className,
+}: StyleProps = {}) {
+  return cn(buttonVariants({ variant, size: size ?? DEFAULT_SIZE[variant], segment }), className);
 }
 
 type ButtonProps = StyleProps & Omit<ButtonPrimitive.Props, "className">;
 
-export function Button({ variant, size, className, ...props }: ButtonProps) {
+export function Button({ variant, size, segment, className, ...props }: ButtonProps) {
   return (
     <ButtonPrimitive
       data-slot="button"
-      className={buttonClasses({ variant, size, className })}
+      className={buttonClasses({ variant, size, segment, className })}
       {...props}
     />
   );
@@ -274,6 +296,6 @@ export function Button({ variant, size, className, ...props }: ButtonProps) {
 type ButtonLinkProps = StyleProps & Omit<ComponentProps<typeof Link>, "className">;
 
 /** A link that looks like a button. Navigation, so it stays an anchor. */
-export function ButtonLink({ variant, size, className, ...props }: ButtonLinkProps) {
-  return <Link className={buttonClasses({ variant, size, className })} {...props} />;
+export function ButtonLink({ variant, size, segment, className, ...props }: ButtonLinkProps) {
+  return <Link className={buttonClasses({ variant, size, segment, className })} {...props} />;
 }

@@ -72,6 +72,8 @@ def test_embeds_all_batches_with_bounded_reads_and_bulk_updates(monkeypatch):
         assert 2 in query.params.values()
         assert "company_id IS NULL" in sql
         assert "embedding IS NULL" in sql
+        # Listed jobs only (KAN-726): nothing scores a closed one.
+        assert "job_postings.status = " in sql
     for query, expected_vectors in zip(conn.writes, vectors, strict=True):
         sql = str(query)
         assert "FROM (VALUES" in sql and "RETURNING job_postings.id" in sql
@@ -79,6 +81,22 @@ def test_embeds_all_batches_with_bounded_reads_and_bulk_updates(monkeypatch):
         assert [v for v in query.params.values() if isinstance(v, list)] == expected_vectors
     assert embed.await_args_list[0].args == (["Job 1\n\nBuild things", "Job 2\n\nBuild things"],)
     assert not conn.active
+
+
+def test_a_scheduled_pass_reads_only_the_ids_it_is_given(monkeypatch):
+    # KAN-726: a scheduled run embeds its own jobs; the backfill (no ids) all.
+    monkeypatch.setattr(import_jobs, "embed", AsyncMock(return_value=[[0.1] * 768]))
+    ids = [UUID(int=1), UUID(int=2)]
+    conn = Connection([[row(1)], []])
+
+    assert asyncio.run(import_jobs._embed_jobs(conn, ids=ids)) == 1
+    for query in conn.reads:
+        assert "= ANY (" in str(query)
+        assert ids in query.params.values()
+
+    backfill = Connection([[]])
+    asyncio.run(import_jobs._embed_jobs(backfill))
+    assert "ANY" not in str(backfill.reads[0])
 
 
 @pytest.mark.parametrize("first_success", [False, True])
@@ -241,3 +259,97 @@ def test_embeddings_only_disposes_engine(monkeypatch, fail):
         assert asyncio.run(import_jobs._run_embeddings_only(limit=2)) == 2
     embed_jobs.assert_awaited_once_with(conn, limit=2)
     engine.dispose.assert_awaited_once()
+
+
+class _Trans:
+    def __init__(self, log):
+        self.log = log
+
+    async def commit(self):
+        self.log.append("commit")
+
+    async def rollback(self):
+        self.log.append("rollback")
+
+
+def _retry_engine(log):
+    class Conn:
+        async def begin(self):
+            return _Trans(log)
+
+    @asynccontextmanager
+    async def connect():
+        log.append("connect")
+        yield Conn()
+
+    return SimpleNamespace(connect=connect, dispose=AsyncMock())
+
+
+def _dropped():
+    import asyncpg
+    from sqlalchemy.exc import DBAPIError
+
+    return DBAPIError("SELECT 1", {}, asyncpg.ConnectionDoesNotExistError("closed"), connection_invalidated=True)
+
+
+def _run_feed(monkeypatch, tmp_path, import_feed, embed_jobs=None):
+    log = []
+    monkeypatch.setattr(import_jobs, "get_engine", lambda: _retry_engine(log))
+    monkeypatch.setattr(import_jobs, "import_feed", import_feed)
+    monkeypatch.setattr(import_jobs, "RETRY_WAIT_S", 0)
+    monkeypatch.setattr(import_jobs, "_embed_jobs", embed_jobs or AsyncMock(return_value=0))
+    keywords = AsyncMock(return_value=0)
+    monkeypatch.setattr(import_jobs, "_extract_keywords", keywords)
+    monkeypatch.setattr(import_jobs, "get_small_llm", Mock())
+    feed = tmp_path / "feed.json"
+    feed.write_text("[]", encoding="utf-8")
+    run = import_jobs._run(feed, dry_run=False, allow_mass_close=False)
+    return log, keywords, run
+
+
+def _touched(*numbers):
+    return import_jobs.Report(touched=[UUID(int=n) for n in numbers])
+
+
+def test_a_run_passes_only_its_own_jobs_to_both_passes(monkeypatch, tmp_path):
+    embed_jobs = AsyncMock(return_value=2)
+    _, keywords, run = _run_feed(monkeypatch, tmp_path, AsyncMock(return_value=_touched(1, 2)), embed_jobs)
+    asyncio.run(run)
+    ids = [UUID(int=1), UUID(int=2)]
+    assert embed_jobs.await_args.kwargs["ids"] == ids
+    assert keywords.await_args.kwargs["ids"] == ids
+
+
+def test_a_run_that_touched_nothing_calls_no_model(monkeypatch, tmp_path):
+    embed_jobs = AsyncMock(return_value=0)
+    _, keywords, run = _run_feed(monkeypatch, tmp_path, AsyncMock(return_value=import_jobs.Report()), embed_jobs)
+    asyncio.run(run)
+    embed_jobs.assert_not_awaited()
+    keywords.assert_not_awaited()
+
+
+def test_a_dropped_connection_retries_the_import_but_not_the_keywords(monkeypatch, tmp_path):
+    import_feed = AsyncMock(side_effect=[_dropped(), _touched(1)])
+    log, keywords, run = _run_feed(monkeypatch, tmp_path, import_feed)
+    asyncio.run(run)
+    assert import_feed.await_count == 2
+    assert log == ["connect", "rollback", "connect", "commit", "connect"]
+    keywords.assert_awaited_once()
+
+
+def test_a_refused_import_is_not_retried(monkeypatch, tmp_path):
+    import_feed = AsyncMock(side_effect=import_jobs.ImportRefused("mass close"))
+    _, keywords, run = _run_feed(monkeypatch, tmp_path, import_feed)
+    with pytest.raises(import_jobs.ImportRefused):
+        asyncio.run(run)
+    assert import_feed.await_count == 1
+    keywords.assert_not_awaited()
+
+
+def test_a_connection_that_keeps_dropping_fails_after_the_last_try(monkeypatch, tmp_path):
+    import_feed = AsyncMock(side_effect=[_dropped() for _ in range(import_jobs.IMPORT_ATTEMPTS)])
+    _, keywords, run = _run_feed(monkeypatch, tmp_path, import_feed)
+    with pytest.raises(import_jobs.DBAPIError):
+        asyncio.run(run)
+    assert import_feed.await_count == import_jobs.IMPORT_ATTEMPTS
+    keywords.assert_not_awaited()

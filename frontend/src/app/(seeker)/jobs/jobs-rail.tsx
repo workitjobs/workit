@@ -34,6 +34,7 @@ import { JobFilters } from "./filters";
 import { JobsTopRow } from "./jobs-top-row";
 import { nextPage } from "./list-pages";
 import type { JobFacets, JobLocationOption } from "./listings";
+import { leavesFeed, onFeed } from "./feed-stages";
 import { isFresh, readShownList, rememberList, subscribe, type ShownList } from "./shown-list";
 
 /** A job posting's own page, /jobs/<id>; not its Tailor page under it. */
@@ -46,14 +47,18 @@ type FilterOptions = {
 };
 
 /**
- * The jobs layout's frame (./layout.tsx, KAN-297): on a job posting's page,
- * the rail of jobs on the left and the page beside it, as Cooper's job board
- * does; on Tailor, the page alone. The rail lives in the layout, above the
- * job's own segment, so it stays mounted, scrolled where it was, as the seeker
- * opens one job after another from it. Beside it the job takes all the room
- * left, and About the Role keeps its own measure.
+ * The jobs layout's frame (./layout.tsx): the split view's, and nothing else.
+ * The rail lives in the layout, above the job's own segment, so it stays
+ * mounted, scrolled where it was, as the seeker opens one job after another
+ * from it.
  *
- * THE SPLIT VIEW IS THIS FRAME TOO (`filterOptions`, KAN-519), on /jobs and on
+ * ONLY THE SPLIT VIEW HAS A RAIL (2026-11-09). A job opened from the Cards
+ * view (or /search, or Home) is its page alone, with Back: from KAN-297 it
+ * drew the rail of jobs on its left too, after Cooper's job board, and the
+ * user saw the Cards view open into what looked like the split view, the two
+ * views mixed. Choosing Split is how a seeker asks for a list beside a job.
+ *
+ * THE SPLIT VIEW IS THIS FRAME (`filterOptions`, KAN-519), on /jobs and on
  * a job's page: the Jobs page's header over the rail and the job, each pane
  * scrolling on its own under it, held to the height under the shell's 64px bar.
  * /jobs draws only the list's first job (./page.tsx) and a click opens that
@@ -86,7 +91,8 @@ export function JobsRailFrame({
     pane.current?.scrollTo(0, 0);
   }, [pathname]);
 
-  if (!jobId && !split) return children;
+  // Not the split view: the page alone, a job's page included.
+  if (!split) return children;
 
   // What the header shows: the address on /jobs, the list's own beside a job.
   const shown = queryParams(onList ? params.toString() : (list?.query ?? ""));
@@ -100,6 +106,11 @@ export function JobsRailFrame({
         className={cn(
           "flex flex-1 flex-col",
           split && "@4xl/main:h-[calc(100svh-4rem)] @4xl/main:flex-none @4xl/main:overflow-hidden",
+          // At most the list's widest (34rem) beside the job's pane (48rem),
+          // in the page's 2rem gutters, centred as the Cards view's column is:
+          // past that the pane only grew a strip of empty space beside the
+          // job's column (2026-11-09).
+          split && "@4xl/main:mx-auto @4xl/main:w-full @4xl/main:max-w-[86rem]",
         )}
       >
         {split && filterOptions && (
@@ -129,7 +140,7 @@ export function JobsRailFrame({
           className={cn(
             "flex min-h-0 flex-1 flex-col @4xl/main:flex-row",
             split &&
-              "@4xl/main:bg-panel @4xl/main:border-border-control @4xl/main:rounded-t-card @4xl/main:mx-6 @4xl/main:overflow-hidden @4xl/main:border @4xl/main:border-b-0 lg:@4xl/main:mx-8",
+              "@4xl/main:bg-panel @4xl/main:border-border-surface @4xl/main:rounded-t-card @4xl/main:mx-6 @4xl/main:overflow-hidden @4xl/main:border @4xl/main:border-b-0 lg:@4xl/main:mx-8",
           )}
         >
           <JobsRail
@@ -142,8 +153,13 @@ export function JobsRailFrame({
           <div
             ref={pane}
             data-job-scroller={split || undefined}
+            // `relative` so an absolute child is placed in the pane and
+            // scrolls with it. Without it a screen-reader-only label in the
+            // description, "(opens in a new tab)", was placed against
+            // <main>, past the frame's overflow-hidden, and the whole page
+            // scrolled into blank space below the split view (2026-11-09).
             className={cn(
-              "flex min-w-0 flex-1 flex-col",
+              "relative flex min-w-0 flex-1 flex-col",
               split && "@4xl/main:min-h-0 @4xl/main:overflow-y-auto @4xl/main:overscroll-none",
             )}
           >
@@ -172,9 +188,9 @@ export function JobsRailFrame({
  * cards do: the rail fetches nothing there, so hiding it left the skeleton.
  *
  * FROM @4xl/main ONLY, but for the split view on /jobs, where it is the list at
- * every width. 20rem to 26rem wide (KAN-519): the compact card needs about
- * 20rem for two lines of title, and past 26rem it only adds air. It took all the
- * room past the job's 60rem until then, up to 40rem, for the six-fact cards.
+ * every width. 20rem to 34rem wide: whatever the panel has left once the job's
+ * 48rem pane fits (2026-11-09; 20rem to 26rem of the main column from KAN-519,
+ * which left the pane a strip of empty space beside the job's 736px column).
  *
  * Its own scroll. Beside a job's page it is sticky, held to the page panel's
  * height while the page scrolls beside it; 4rem is the shell's 64px bar above
@@ -206,6 +222,9 @@ function JobsRail({
       ? list
       : null;
   const openId = currentId ?? showable?.jobs[0]?.id;
+  // A job saved or applied to leaves the list as it leaves the feed
+  // (KAN-217, ./feed-stages), but the job open beside it stays marked.
+  const jobs = showable ? onFeed(showable.jobs, showable.stages, openId) : [];
 
   // No list, or a stale one: ask for its first page again (the newest
   // roles when there is none). Checked on every job opened and whenever the
@@ -257,7 +276,10 @@ function JobsRail({
 
   function loadMore(from: ShownList) {
     start(async () => {
-      const page = await nextPage(from);
+      // As the feed's Load More (./feed-list): every job that left since it
+      // was handed over moved the rest up one, and a repeat is dropped by id.
+      const gone = from.jobs.filter((job) => leavesFeed(from.stages?.[job.id])).length;
+      const page = await nextPage({ ...from, offset: Math.max(0, from.offset - gone) });
       if (page.error != null) {
         setError("Couldn't load more roles. Try again in a moment.");
         return;
@@ -268,7 +290,7 @@ function JobsRail({
         query: from.query,
         source: from.source,
         jobs,
-        offset: page.offset,
+        offset: page.offset + gone,
         more: page.more,
         stages: from.stages,
       });
@@ -276,7 +298,7 @@ function JobsRail({
         path: new URLSearchParams(from.query).has("q") ? "/search" : "/jobs",
         query: from.query,
         jobs,
-        offset: page.offset,
+        offset: page.offset + gone,
         more: page.more,
       });
     });
@@ -286,10 +308,14 @@ function JobsRail({
     <aside
       aria-label="Jobs"
       className={cn(
-        "shrink-0 flex-col @4xl/main:w-[clamp(20rem,30cqw,26rem)] @4xl/main:border-r",
-        // In the split view's panel, the list's edge is the panel's dark edge,
+        // As wide as the panel allows once the job's 768px pane (its 736px
+        // column and 16px gutters) has its room: 320px to 544px (2026-11-09).
+        // At 30cqw up to 26rem the pane kept a strip of empty space beside
+        // the job's column, and the cards were narrower than they needed be.
+        "shrink-0 flex-col @4xl/main:w-[clamp(20rem,calc(100%_-_48rem),34rem)] @4xl/main:border-r",
+        // In the split view's panel, the list's edge is the panel's surface edge,
         // as the job's action-bar rule it meets is (2026-11-03).
-        split ? "border-border-control" : "border-border-subtle",
+        split ? "border-border-surface" : "border-border-subtle",
         // Beside a job with no panel, off the sidebar by SEEKER_GUTTER less the
         // rows' own 16px, so the logos start on the page's line.
         split
@@ -326,7 +352,7 @@ function JobsRail({
         )}
         {showable && (
           <div className="text-meta text-ink-meta mt-0.5">
-            {showable.jobs.length} {showable.jobs.length === 1 ? "role" : "roles"}
+            {jobs.length} {jobs.length === 1 ? "role" : "roles"}
             {showable.more ? " loaded" : ""}
           </div>
         )}
@@ -349,10 +375,10 @@ function JobsRail({
                 list is a white card as /search's is (./feed-list.tsx, KAN-558);
                 its edge lines up with the title above it. From @4xl/main the
                 card steps aside (`contents`), and in the split view each row
-                is its own card in the panel, edged in `border-control` as the
+                is its own card in the panel, edged in `border-surface` as the
                 Cards view's are, 8px apart; the open one is edged in brand
                 (2026-11-03). Rows split by a hairline alone read as unboxed
-                beside the dark-edged cards and buttons. */}
+                beside the edged cards. */}
             <Card padding="none" className="mx-4 overflow-hidden @4xl/main:contents">
               <ul
                 className={cn(
@@ -363,7 +389,7 @@ function JobsRail({
                   ],
                 )}
               >
-                {showable.jobs.map((job) => (
+                {jobs.map((job) => (
                   <li
                     key={job.id}
                     data-open={job.id === openId || undefined}
@@ -412,7 +438,7 @@ const SPLIT_LIST =
 
 /** One row in it: a card edged as the Cards view's are, the open job in brand. */
 const SPLIT_ROW =
-  "@4xl/main:bg-panel @4xl/main:rounded-card @4xl/main:border-border-control @4xl/main:data-open:border-brand @4xl/main:overflow-hidden @4xl/main:border";
+  "@4xl/main:bg-panel @4xl/main:rounded-card @4xl/main:border-border-surface @4xl/main:data-open:border-brand @4xl/main:overflow-hidden @4xl/main:border";
 
 /** What the list was: Best Match, a search's results, or the newest roles. */
 function listTitle({ source, query }: ShownList): string {

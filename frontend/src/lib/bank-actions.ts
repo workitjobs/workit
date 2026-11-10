@@ -13,13 +13,31 @@ import { applicantCall, encodeId, OFFLINE, type Result } from "@/lib/applicant-c
 
 export type Section =
   "education" | "experience" | "projects" | "leadership" | "awards" | "certifications";
+/** An entry's section: a fixed one, or "custom", a section the student
+ *  named (KAN-498), which `custom_section_id` names. */
+export type EntrySection = Section | "custom";
+/** How a custom section prints: "entries" as a project does (title |
+ *  organization, dates, bullets), "lines" as plain lines with no heading. */
+export type SectionLayout = "entries" | "lines";
+/** A section the student named (KAN-498). `resume_ids`: the upload that
+ *  owns it, then the built resumes that show one of its entries. */
+export type CustomSection = {
+  id: string;
+  name: string;
+  layout: SectionLayout;
+  resume_ids: string[];
+};
 
 export type EndKind = "month" | "present" | "expected";
 
 /** Every field of an entry except its id and bullets. The section fields
- *  (degree … award_date) stay null outside their own section. */
-export type EntryFields = {
-  section: Section;
+ *  (degree … award_date) stay null, or empty, outside their own section.
+ *  `tools` is a project's stack (KAN-738), in the order the student gave:
+ *  only the sections `holdsTools` names may fill it, or the API answers 422. */
+export type EntryFields<S extends EntrySection = EntrySection> = {
+  section: S;
+  /** The custom section it is in; null on a fixed section's entry. */
+  custom_section_id: string | null;
   title: string;
   organization: string | null;
   location: string | null;
@@ -33,6 +51,7 @@ export type EntryFields = {
   coursework: string[];
   honors: string | null;
   link: string | null;
+  tools: string[];
   issuer: string | null;
   award_date: string | null;
 };
@@ -40,7 +59,7 @@ export type EntryFields = {
 export type Bullet = { id: string; position: number; text: string };
 /** `resume_ids`: the resumes that hold it (KAN-343), in `Bank.resumes`
  *  order: uploads whose import found it, built resumes that show it. */
-export type BankEntry = EntryFields & {
+export type BankEntry<S extends EntrySection = EntrySection> = EntryFields<S> & {
   id: string;
   bullets: Bullet[];
   resume_ids: string[];
@@ -68,8 +87,14 @@ export type BankResume = {
   edited_at: string;
 };
 /** Entries in section order, ongoing first and then newest. `resumes`:
- *  uploads, then base, then tailored resumes, each newest first. */
-export type Bank = { entries: BankEntry[]; skills: Skill[]; resumes: BankResume[] };
+ *  uploads, then base, then tailored resumes, each newest first.
+ *  `sections`: the ones the student named, oldest first (KAN-498). */
+export type Bank = {
+  entries: BankEntry[];
+  skills: Skill[];
+  resumes: BankResume[];
+  sections: CustomSection[];
+};
 
 const id = encodeId;
 
@@ -120,7 +145,7 @@ export async function createEntry(
 /** Changes only the fields given; null clears one. The section is fixed. */
 export async function updateEntry(
   entryId: string,
-  changes: Partial<Omit<EntryFields, "section">>,
+  changes: Partial<Omit<EntryFields, "section" | "custom_section_id">>,
 ): Promise<Result<BankEntry>> {
   return call<BankEntry>(`/entries/${id(entryId)}`, {
     method: "PATCH",
@@ -189,6 +214,36 @@ export async function deleteSkill(skillId: string): Promise<Result<null>> {
   return call<null>(`/skills/${id(skillId)}`, { method: "DELETE" });
 }
 
+/** Adds a section the student names (KAN-498), into `resumeId` as
+ *  `createEntry` does (under a built resume it is the student's own).
+ *  `error` says when the owner has five, or one of that name. */
+export async function createSection(
+  name: string,
+  layout: SectionLayout,
+  resumeId?: string,
+): Promise<Result<CustomSection>> {
+  const query = resumeId ? `?resume_id=${id(resumeId)}` : "";
+  return call<CustomSection>(`/sections${query}`, {
+    method: "POST",
+    body: JSON.stringify({ name, layout }),
+  });
+}
+
+export async function renameSection(
+  sectionId: string,
+  name: string,
+): Promise<Result<CustomSection>> {
+  return call<CustomSection>(`/sections/${id(sectionId)}`, {
+    method: "PATCH",
+    body: JSON.stringify({ name }),
+  });
+}
+
+/** Deletes the section with every entry in it. */
+export async function deleteSection(sectionId: string): Promise<Result<null>> {
+  return call<null>(`/sections/${id(sectionId)}`, { method: "DELETE" });
+}
+
 /** Clear All for the Skills card, as `deleteEntries`. */
 export async function deleteSkills(skillIds: string[]): Promise<Result<null>> {
   return call<null>("/skills/delete", { method: "POST", body: JSON.stringify({ ids: skillIds }) });
@@ -205,7 +260,8 @@ export type ImportResult = {
    *  parse preview replaces any (KAN-372, ADR 0006). */
   entries_replaced: number;
   skills_replaced: number;
-  /** Who read the resume: the heuristic parser, or the model (KAN-222). */
+  /** Who read the resume: the model, or the heuristic parser behind it
+   *  (KAN-732). */
   read_by: "parser" | "model";
   /** AI readings the student has left today. */
   uses_left: number;
@@ -213,17 +269,15 @@ export type ImportResult = {
 export type ImportResponse = ImportResult & { resume_id: string; filename: string | null };
 
 /** Import Again: reads an uploaded resume (`resumeId`, else the default one,
- *  else the newest) into the bank, replacing the entries and skills it owns. With no uploaded resume, `error` says so. `readWithAi` reads
- *  it with the model ("Read It With AI"), only ever on the student's click;
- *  `error` says when the AI limit is spent or the model is down. */
+ *  else the newest) into the bank, replacing the entries and skills it owns,
+ *  as every upload is read: with AI first while the student has a reading
+ *  left today, the parser behind it (KAN-732). With no uploaded resume,
+ *  `error` says so. */
 export async function importResume(
-  options: { resumeId?: string; readWithAi?: boolean } = {},
+  options: { resumeId?: string } = {},
 ): Promise<Result<ImportResponse>> {
   return call<ImportResponse>("/import", {
     method: "POST",
-    body: JSON.stringify({
-      ...(options.resumeId ? { resume_id: options.resumeId } : {}),
-      ...(options.readWithAi ? { read_with_ai: true } : {}),
-    }),
+    body: JSON.stringify(options.resumeId ? { resume_id: options.resumeId } : {}),
   });
 }

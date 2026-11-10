@@ -260,9 +260,22 @@ design rationale is in `../../../docs/resume.md`, "The experience bank";
 the rules every write follows are in `../services/bank.py`. Invariants a
 change here must keep:
 
-- **`bank_section` has six values, not seven.** Skills is a section to the
-  student but its own table. Adding a section is an `ALTER TYPE ... ADD
-  VALUE` and a coordinated deploy (above).
+- **`bank_section` has the six fixed sections and `custom`**, not
+  Skills: Skills is a section to the student but its own table. Adding a
+  fixed section is an `ALTER TYPE ... ADD VALUE` and a coordinated deploy
+  (above); a section the student names never is, since it is a row.
+- **A section the student names is a `bank_custom_sections` row** (KAN-498,
+  `c9e4a1d7b498`, `../../../docs/custom_sections.md`): its `name`, its
+  `layout` (`entries` or `lines`, a CHECK, not an enum, so a third layout
+  needs no coordinated deploy) and its owner `resume_id`, which cascades as
+  an entry's does. A custom entry is `section = 'custom'` with
+  `custom_section_id` set, and only then
+  (`bank_entries_custom_section_check`); deleting the section deletes its
+  entries. One name per owner, ignoring case
+  (`bank_custom_sections_owner_name_key`, `NULLS NOT DISTINCT`); at most
+  `schemas/bank.py`'s `MAX_CUSTOM_SECTIONS` per owner, checked in
+  `services/bank.py`, not the database. The section is fixed once an entry
+  exists, as `section` is: `EntryUpdate` forbids the key.
 - **`experience_banks` has one row per applicant, made by the first bank
   change** (an upsert in `clear_embedding`), not at signup. A missing row
   reads as "no embedding yet". Its `embedding` is the only applicant vector
@@ -277,6 +290,11 @@ change here must keep:
   JSONB blob, so later queries (graduation date, Tailor's text search) read
   them directly. `schemas/bank.py`'s `SECTION_FIELDS` says which section
   owns which; the database only checks the end (`bank_entries_end_check`).
+  The two lists, `coursework` (Education) and `tools` (Projects, KAN-738,
+  `f4c7a2d9b318`), are `text[]` defaulting to `'{}'`, empty outside their
+  section: a list's empty value is `[]`, never NULL, and a PATCH that sends
+  null clears it to `[]`. A project's tools are the student's words for its
+  stack, in order, kept beside the skills, never in place of them.
 - **A skill name appears once per applicant, ignoring case**
   (`bank_skills_applicant_name_key` on `lower(name)`), so Tailor's "Have you
   used X?" and import can look a skill up by name.
@@ -1042,10 +1060,14 @@ Its downgrade puts the columns back empty; the old import refills them.
 (KAN-261); auto apply (`app/auto_apply/`) writes it `queued` and moves it on;
 the Applications Tracker's stage menu and its events
 (`routers/tracker.py`, KAN-413) move it to `interviewing`, `offer` or
-`rejected`. GET /jobs leaves out that applicant's applied jobs, every stage
-in `dto.APPLIED_STAGES` (`JobFilters.applied_by`, a `NOT EXISTS`); auto
+`rejected`. GET /jobs leaves out that applicant's tracked jobs, saved and
+every stage in `dto.APPLIED_STAGES` (`JobFilters.tracked_by`, a `NOT EXISTS`
+on `stage NOT IN dto.ON_THE_JOBS_PAGE`; KAN-217: a saved job lives on the
+Tracker, and an unsave brings it back to the feed); auto
 apply's matches leave out every stage, `saved` too (`no_application_by`),
-so a batch never picks a saved job. Rules:
+so a batch never picks a saved job. A Tailor run writes `saved` too
+(`keep_saved`, in its own commit), and the data migration `b6d2e8f4a1c7`
+wrote it once for the jobs tailored before that (KAN-217). Rules:
 
 - **A join table, never an array of applicant ids on `job_postings`.**
   Postgres can't foreign-key an array's elements, so deleted applicants
@@ -1327,6 +1349,32 @@ Real, not forgotten. Do not treat their absence as a decision already made.
   posting writes it, '' for none), written once by the first student's
   Claude and shared by every student applying to that posting; it goes
   with the posting (ON DELETE CASCADE). Migration `d2f4a6c8e013`.
+
+## Scraper tables — `scraper.py`
+
+`Scraper_Schedule`, `Scraper_Task` and `Job_Source` (KAN-605, KAN-619,
+KAN-733). The worker's own tables, documented in `../../CLAUDE.md`'s scraper
+paragraph. Invariants for `Job_Source`:
+
+- **One row per (schedule, apply_url)**, the unique constraint. `external_id`
+  is the posting's id on its hiring system, written by `update_sources` from
+  the provider's `Job.external_id`. Phase 2 needs it to build the description
+  page URL via `providers.job_url(ats, token, external_id)`.
+- **`description_version`** (SmallInteger, nullable): the `PAGE_VERSION` at
+  the last description fetch. NULL means "needs fetch" for postings without
+  inline descriptions; a value equal to `PAGE_VERSION` means current. Phase 2
+  queries `WHERE description_version IS NULL OR description_version <
+  PAGE_VERSION`. A failure stamps the version without `description_fetched_at`,
+  so the posting is retried only on the next `PAGE_VERSION` bump.
+- **`description_fetched_at`** (DateTime with timezone, nullable): when the
+  description was last successfully fetched. NULL for postings that failed or
+  have not been fetched yet.
+- **Inline providers** (Lever, Ashby, Recruitee) stamp `description_version`
+  and `description_fetched_at` during phase 1 via `update_sources`,
+  so phase 2 skips them.
+- **Migration:** `b27f4b974d5c` adds `external_id`, `description_version` and
+  `description_fetched_at` to `job_sources`. Existing rows get NULL, which is
+  correct: NULL `description_version` means "needs fetch".
 
 ## Out of scope
 

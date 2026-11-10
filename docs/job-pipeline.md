@@ -63,8 +63,8 @@ its company job boards, so we keep our own list.
 | | |
 |---|---|
 | **The list** | `scraper/boards.csv`: about 3,830 company job boards (table below) |
-| **Where it comes from** | `build_boards.py` reads the apply links in public GitHub internship lists (SimplifyJobs and vanshb03, Summer 2027) and pulls out each company job board's name, plus a few added by hand |
-| **How often it's refreshed** | At the start of every scheduled run, every 3 hours (KAN-167), so new companies and new job postings arrive together |
+| **Where it comes from** | Daily discovery (`scraper/docs/discovery.md`) reads the apply links in public GitHub internship lists and Hacker News hiring threads, and open-jobs' frozen list of company job boards (ADR 0007), then proposes new ones in a pull request a person reviews. `build_boards.py` is the older importer, run by hand |
+| **How often it's refreshed** | When a person merges the discovery pull request. The 3-hour scrape reads only the `boards.csv` on main |
 | **Slug** | A company job board's name in its address, like `stripe` in `boards.greenhouse.io/stripe` |
 
 How the refresh behaves:
@@ -122,17 +122,40 @@ hours, at 17 minutes past** (off the hour, since GitHub delays runs scheduled
 on it). A run takes about 15 minutes: 12 of them are Workday's share, and the
 other hiring systems finish inside it (about 3 minutes without Workday).
 
+Scheduled and manual runs run on a team computer, not on GitHub's servers
+(KAN-726, `docs/scraper_gh_action/plan.md`). GitHub keeps the schedule and
+the logs; the computer does the work, and reads each job posting's keywords
+with a model of its own. A pull request's test run stays on GitHub's
+servers. The computer also embeds each new job posting, and every
+experience bank, with one model of its own, the only machine that does.
+A run reads keywords and embeds only the job postings it added or changed;
+older ones missing either are filled by one-time backfills a person runs
+on the computer.
+
 ### What one run does
 
 | Step | What happens |
 |---|---|
-| 1. Pick company job boards | One that has ever had a job posting we keep is read every run. The rest ("quiet" ones) are read one run in three, a third of them on each run, so a first job posting at a quiet company can appear about nine hours late. `--full` reads them all. Workday's are read for 12 minutes a run, least recently read first (section 2). A board that went unread three runs in a row (it failed, said it does not exist, or `robots.txt` refused it) rests for 6 hours, then 12, then a day at most, until one read succeeds. |
+| 1. Pick company job boards | One that has ever had a job posting we keep is read every run, unless its kept postings have not changed: a board whose kept postings hash to the same value as its last read rests for 4 hours after the first unchanged read, doubling each time to a 24-hour cap. A new posting on a long-unchanged board can appear up to about 27 hours late (the 24-hour rest plus the next 3-hour run), and a closed one can stay up to about 30 hours (the rest plus two reads 3 hours apart). `--full` overrides fingerprint rest. The rest ("quiet" ones, those that have never had a kept posting) are read one run in three, a third of them on each run, so a first job posting at a quiet company can appear about nine hours late; they never rest on a fingerprint. `--full` reads them all. Workday's are read for 12 minutes a run, least recently read first (section 2). A board that went unread three runs in a row (it failed, said it does not exist, or `robots.txt` refused it) rests for 6 hours, then 12, then a day at most, until one read succeeds. |
 | 2. Read politely | Checks each site's `robots.txt`, waits between requests (Lever asks for one second) and names itself honestly. Each hiring system has its own lane of workers, so slow Lever doesn't hold up Greenhouse. BambooHR, Recruitee and Workday give every company its own subdomain, and each hiring system's subdomains share one pace. A "too many requests" answer (429) pauses every request to that site, from 1 second up to a minute. |
 | 3. Keep the right job postings | Checks each title (section 3.1). A title with no stage word is also kept when its description asks for 0 or 1 years of experience, on the hiring systems whose list sends descriptions (Ashby, Lever, Recruitee, TikTok, Jibe). Only a job posting that can still be kept has its description fully read; the rest are dropped after a quick look at the title and the experience it asks for. About 100,000 job postings are read on the other hiring systems and about 115,000 more on Workday each run. About 3,500 of the first are kept; Workday's first run kept 664, under the five categories before KAN-172. |
 | 4. Fetch full pages | Greenhouse, Workable, BambooHR and Workday lists leave out the description, pay, work style or exact date, so the scraper reads the full page of each kept job posting there, once. |
 | 5. Read the facts | Pulls pay, job type, work style, start date, years and visa out of each kept job posting (section 3.2). |
 | 6. Merge duplicates | Job postings that share one apply link become one, with all their locations. So does a Workday job posted on two or three of a company's careers sites (the same requisition number at the same company, as on Autodesk's `ext` and `uni`): one card, linking the careers site made for students. Job postings that only share a title stay apart, since each is its own application. |
 | 7. Write files | `jobs.json` (the scraper's memory between runs) and `feed.json` (what the import loads). |
+
+**The worker (`backend/app/scraper/worker.py`) runs the same scraper as a
+library in two phases** (KAN-733). Phase 1 reads each board's listing and
+filters by title only — no description pages are fetched during the board
+read. Providers that return descriptions inline (Lever, Ashby, Recruitee)
+stamp them during phase 1. Phase 2, after all boards finish, fetches
+description pages for postings that need them: up to 500 per cycle,
+ordered by board and first-seen time, in 8 threads. A description is enrichment only: it
+updates the posting's page-derived fields (description, salary, job type,
+work style, experience level, start term, sponsorship) but never filters a
+posting out. Version tracking on `job_sources.description_version` means only
+new or stale descriptions are fetched, and a failure is retried only on the
+next `PAGE_VERSION` bump.
 
 **A company's logo is read once per company job board**, from the board's own
 page: the image the company uploaded there, or else the icon of the company's
@@ -144,7 +167,11 @@ The feed carries each job's `company_domain`: the website its board names, with
 or without an uploaded image, cut to the company's own domain
 (`careers.gevernova.com` becomes `gevernova.com`),
 or one a script checked and a person reviewed (`scraper/checked_websites.csv`,
-which also covers boards that name none). The browser loads Brandfetch's sharp
+which also covers boards that name none). A board with still none is checked
+once by its own address: a careers site such as `careers.garmin.com`, or a
+Workday account name proved on the company's home page. Each run's
+`metrics.json` lists the boards still without a domain, most jobs first, for a
+person to add to the checked list. The browser loads Brandfetch's sharp
 square icon; where Brandfetch has none, the card falls back to the board's own
 image or favicon, and then to the company's initials.
 
@@ -461,7 +488,7 @@ can't be shown as matching a fact it never stated.
 | **Opening it** | A click anywhere on a card |
 | **Header** | The same facts as the card, and the company logo |
 | **About the Role** | The description, with headings and bullet lists recovered from the plain text |
-| **Actions** | One row under the title: Save, a "…" menu (Copy Link, Report), Ask Scout, Auto Apply, Tailor My Resume and Apply Now (the company's own page). Save keeps the job posting in the Saved column on My Applications; a second click takes it out. Report isn't built yet. |
+| **Actions** | One row under the title: Save, a "…" menu (Copy Link, Report), Ask Scout, Auto Apply, Tailor My Resume and Apply Now (the company's own page). Save keeps the job posting on the Tracker as Saved and takes it off the Jobs page (KAN-217); a second click, or the toast's Undo, takes it back out. Report isn't built yet. |
 | **Applied** | Signed-in applicants only. After Apply Now opens the company's page, the dialog asks "Did You Apply?". Yes records the job posting in `job_applications`, and the page reads "You applied on Oct 17, 2026", on the viewer's own calendar. The job posting then leaves their Jobs page, search and matches. There is no undo yet. |
 | **Back to Jobs** | Returns to the list you came from, with its filters |
 
@@ -495,6 +522,7 @@ browser can't restore your place by itself. The app does it instead:
 | Some titles land in the wrong category | It is read from the title alone: a trading firm's "Systems Engineer" is IT work read as engineering | Read the description too, or the company's other job postings |
 | Many job postings lack pay, start date or visa | Companies don't state them | Nothing on our side; filters hide these job postings |
 | A company only arrives once a GitHub list names it | The lists are our only source of company job boards | `build_boards.py --resolve` finds the ones behind short links and companies' careers pages; next, proved guesses from company names (`scraper/docs/coverage.md`). Common Crawl's `robots.txt` disallows every bot |
+| A new posting on a board that has not changed can be up to about 27 hours late; a closed one can stay about 30 hours | A board whose kept postings are unchanged rests up to 24 hours (KAN-502), and the 3-hour run gap adds to it; a close needs two reads | `--full` overrides fingerprint rest; a shorter cap in `FINGERPRINT_LONGEST` trades freshness for more requests |
 | A new job posting at a quiet company can be about nine hours late | Quiet company job boards are read one run in three | `--full` runs, or reading more often |
 
 ---

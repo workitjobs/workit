@@ -35,6 +35,7 @@ import {
   getJobsView,
   getRecommendedPage,
   getSavedFilters,
+  drawnAt,
   getTailoredJobIds,
   isApplicant,
   type FeedPage,
@@ -175,6 +176,7 @@ async function SplitFeed({
         jobs={jobs}
         more={more}
         stages={byJob}
+        drawnAt={drawnAt()}
       />
       {first ? (
         <div className="hidden @4xl/main:contents">
@@ -250,6 +252,7 @@ function Results({
         tailored={tailored}
         canMarkApplied={canMarkApplied}
         source={plain ? "feed" : "recommended"}
+        drawnAt={drawnAt()}
       />
     </>
   );
@@ -263,6 +266,8 @@ export default async function JobsPage({ searchParams }: PageProps<"/jobs">) {
   // awaits the rest with its first page.
   const locations = getJobLocations();
   const facets = getJobFacets();
+  // Dated before the stages are read (./listings, drawnAt).
+  drawnAt();
   const stages = getApplicationStages();
   const tailored = getTailoredJobIds();
   const applicant = isApplicant();
@@ -305,7 +310,12 @@ export default async function JobsPage({ searchParams }: PageProps<"/jobs">) {
   }
 
   return (
-    <div className={cn("max-w-dashboard mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
+    // The Cards view stops at --container-feed (1008px with the gutters), so
+    // a card is the same 944px at every width from there: its 240px match
+    // rail beside a body wide enough for its actions on one row, never the
+    // 1376px it reached in the 1440px dashboard column, where its facts sat
+    // far apart (2026-11-09).
+    <div className={cn("max-w-feed mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
       {canonical && <CanonicalUrl href={canonical} />}
       {/* So a job's page can go back to this list, filters and all. */}
       <RememberFeed />
