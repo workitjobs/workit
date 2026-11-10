@@ -78,7 +78,7 @@ const KIT_STEPS = {
   reading: "Reading your experience bank",
   checking: "Checking your resumes for a copy",
   saving: "Saving your new resume",
-  listing: "Adding it to your resumes",
+  opening: "Opening your resume",
 } as const;
 type KitStep = keyof typeof KIT_STEPS;
 

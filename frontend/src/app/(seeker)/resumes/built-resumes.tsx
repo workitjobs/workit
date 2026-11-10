@@ -1,6 +1,7 @@
 "use client";
 
 import { FileTextIcon, TagIcon } from "@phosphor-icons/react/ssr";
+import { useRouter } from "next/navigation";
 import { startTransition, useEffect, useEffectEvent, useOptimistic, useState } from "react";
 
 import { FieldFacet, type FacetOption } from "@/components/field-facet";
@@ -126,8 +127,9 @@ type Lists = Awaited<ReturnType<typeof readLists>>;
  * (base and tailored) from Uploaded.
  *
  * Generate makes a base resume from the whole bank in Jake's Resume, named
- * "Resume #N" by the API until the student renames it; a Type filter that
- * would hide it is cleared and Generated opens, so it shows at the top
+ * "Resume #N" by the API until the student renames it, and opens it in the
+ * editor for the student to review (KAN-444). A Type filter that would hide
+ * it is cleared and Generated opens first, so a Back finds it at the top
  * of Generated, under the starred resume if that is there. Generate has no limit:
  * only uploads count toward the 5 (KAN-268). A failed Generate or reload
  * shows its error under the filter row. A Generate or an upload that would
@@ -141,6 +143,7 @@ export function BuiltResumes({
   initial: BuiltResume[];
   initialUploaded: ResumeItem[];
 }) {
+  const router = useRouter();
   const [resumes, setResumes] = useState(initial);
   const [uploaded, setUploaded] = useState(initialUploaded);
   // Generate's step while it runs (KAN-444), null otherwise
@@ -246,17 +249,20 @@ export function BuiltResumes({
     }
     // A stream that ends with no last line lost its connection midway.
     if (!made) return failed("Generate stopped before it finished. Try again.");
-    // A route handler cannot clear the router's copies (lib/resumes-stale.ts)
+    // A route handler cannot clear the router's copies (lib/resumes-stale.ts),
+    // so a Back here reads the list again, the new resume in it.
     markResumesStale();
-    setGenerating("listing");
-    await reload();
-    setGenerating(null);
-    // The new resume shows: a Type filter that hides it is cleared, and its
-    // group opens.
+    // A Back also finds it in view: a Type filter that hides it is cleared,
+    // and its group opens.
     const hidden = types.length > 0 && !types.includes("generated");
     if (hidden || collapsed.includes("generated")) {
       move({ types: hidden ? [] : types, collapsed: collapsed.filter((g) => g !== "generated") });
     }
+    // The student reviews it in the editor, as a Tailor run ends: on this
+    // list it was one more row to find and open. The dialog stays until the
+    // editor's page takes over.
+    setGenerating("opening");
+    router.push(`/resumes/${encodeURIComponent(made.id)}`);
   }
 
   function toggle(group: ResumeType) {

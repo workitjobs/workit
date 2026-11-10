@@ -7,13 +7,13 @@ import { cn } from "@/lib/cn";
 
 /** Generate's steps, in order (KAN-444). The first runs until the API's
  *  first line (`checking`), the API names the next two as it starts them
- *  (`GenerateStreamEvent`), and the last is the list read again once the
- *  resume is saved. */
+ *  (`GenerateStreamEvent`), and the last is the editor loading the new
+ *  resume, as a Tailor run ends. */
 const STEP = {
   reading: "Reading your experience bank",
   checking: "Checking your resumes for a copy",
   saving: "Saving your new resume",
-  listing: "Adding it to your resumes",
+  opening: "Opening your resume",
 } as const;
 export type GenerateStep = keyof typeof STEP;
 
@@ -80,9 +80,10 @@ function WritingPage() {
  * Generate on the Resumes page (KAN-444): the shared steps dialog with a
  * page writing itself and Generate's steps as they happen. Until then the
  * button's label read "Generating…" for the whole wait, about 3.6 s from a
- * laptop, and nothing else moved. A duplicate closes it and opens the
- * Duplicate Resume pop-up; any other failure closes it and shows its error
- * over the list.
+ * laptop, and nothing else moved. A saved resume opens in the editor, and
+ * the dialog stays until the editor's page replaces this one. A duplicate
+ * closes it and opens the Duplicate Resume pop-up; any other failure closes
+ * it and shows its error over the list.
  */
 export function GenerateRunning({ step }: { step: GenerateStep | null }) {
   return (

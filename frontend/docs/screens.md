@@ -2912,7 +2912,7 @@ Applications page's). The type and the order are the URL's (`?type=uploaded,tail
 replacing the entry, so a reload or a shared link keeps them and a tick
 is not a step of Back; Clear Filters keeps the order; the search's words are the
 page's own. A Generate clears a Type filter that would hide its new
-resume. It took six shapes in KAN-362: three cards stacked one under
+resume before it opens the editor, so a Back finds it. It took six shapes in KAN-362: three cards stacked one under
 another (Your Uploaded Resumes, Generated Resumes, Tailored Resumes),
 which a student with many resumes scrolled past; one card behind a pill
 switcher, under the header's own; underline tabs with counts; and the
@@ -2962,13 +2962,16 @@ upload's page.
   "Duplicate Resume found: <name>" with an OK button, and nothing else
   happens. "The same" is what prints: a new resume holds the whole bank,
   so it matches only when nothing changed since an earlier Generate.
-  **Generate shows its steps** (KAN-444, `resumes/generate-running.tsx`):
-  a dialog with a small page writing itself lists Reading your experience
-  bank, Checking your resumes for a copy, Saving your new resume and
-  Adding it to your resumes, each ticked as it ends. The middle two are the
-  API's own lines (`POST .../built-resumes/stream` through the route
-  handler `/api/resume-generate`), never a timer; the first runs until the
-  first line, the last while the list reloads. It is the steps dialog
+  **Generate shows its steps, then opens the resume in the editor**
+  (KAN-444, `resumes/generate-running.tsx`): a dialog with a small page
+  writing itself lists Reading your experience bank, Checking your resumes
+  for a copy, Saving your new resume and Opening your resume, each ticked
+  as it ends. The middle two are the API's own lines (`POST
+  .../built-resumes/stream` through the route handler
+  `/api/resume-generate`), never a timer; the first runs until the first
+  line, the last while the editor loads, as a Tailor run ends. The student
+  reviews the new resume there: left on this list, it was one more row to
+  find and open (the user's call, 2026-11-10). It is the steps dialog
   Tailor's run draws (`components/steps-dialog.tsx`), and it cannot be
   closed. A duplicate closes it and opens the pop-up below; any other
   failure closes it and shows the message over the list. Until then the
