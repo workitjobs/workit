@@ -90,6 +90,13 @@ A required one stops a stepped form on its page with one ask
   (`WorkdayFiller.paused`) is his. An untouched box (read "No") or one
   the page pre-ticked stays on his list (`_Planned.keep`) and stops again.
 
+A Minor that the profile gives as none (`education.minors: []`) is the
+form's None or N/A in the engine's plan, or N/A typed, so a minor that an
+old profile on the job site carried over is replaced (Amazon's Education,
+2026-11-10, KAN-754). With no such option it is left blank, and verifying
+holds the form if the field still shows a value (`docs/held-forms.md`).
+A profile with no `minors` key leaves it as before.
+
 An Answer bank entry with `answer: []` and `none: true` answers a
 multi-select with none of its options (Roblox's partner organizations):
 its boxes stay unticked, a blank on purpose in the plan.

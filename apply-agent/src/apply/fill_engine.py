@@ -363,6 +363,12 @@ def left_blank(q: Question, answer: Any) -> bool:
     return call_without_page("leftBlank", q, answer, questions=[q])
 
 
+def left_as_none(reason: str) -> bool:
+    """Whether a Plan's blank reason says the profile has none of it (no minor) and the field offers no None: a value
+    the page still shows there is one an old profile on the site carried over (the engine's leftAsNone, KAN-754)."""
+    return call_without_page("leftAsNone", reason)
+
+
 def company_specific(q: Question, posting: Posting) -> bool:
     """Whether the question asks about this company or this role: its answer holds for no other Posting."""
     return call_without_page("companySpecific", q, posting, questions=[q])

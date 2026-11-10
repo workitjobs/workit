@@ -22,7 +22,14 @@ reads: it does not click, type or submit.
   posting's range (else off `compensation.fallback_hourly`), and in each
   essay a wrong pronoun or name for the applicant and another company's
   name (`verify.COMPANIES` and the policies' companies, less any that the
-  sources or the posting name). Claude makes only the judgment checks, in
+  sources or the posting name). A field that the engine's plan left blank
+  because the profile has none of it (no minor: `education.minors: []`)
+  and that offers no None, but that still shows a value, holds as a
+  leftover (`verify._leftovers`, `fill_engine.left_as_none`): an old
+  profile on the job site carried it over (Amazon's Minor, KAN-754). A
+  None or N/A that the plan picked and the page does not show is the
+  read-back's flag. A field whose fact the profile only lacks is never a
+  leftover. Claude makes only the judgment checks, in
   the Pre-submit review call (`presubmit.SYSTEM`: contradictions, wrong
   answers); its findings join the flags. Its `<profile>` block holds
   the facts as the plan read them, the Tracker's past applications too
