@@ -114,6 +114,24 @@ def test_wordings_and_single_selectors_and_v_flag_patterns_are_never_changed():
         assert marked["answers"][2]["pattern"]["source"].startswith(r"[ \d]+")
 
 
+def test_regex_classes_and_literal_braces_keep_their_spelling():
+    for source in (r"a[]b c", r"a[^] c", "a{b [c d]} e", r"x{2} y{0,3}"):
+        table = {"version": 1, "answers": [{"pattern": {"source": source}, "value": "consent"}]}
+        for _ in range(10):
+            marked = watermark(table, uuid.uuid4())["answers"][0]["pattern"]["source"]
+            plain = marked.replace("[ ]", " ")
+            # Only spaces outside every class change: [c d]'s space never does.
+            assert plain == source or plain.replace("[0-9]", r"\d") == source, marked
+            assert "[c[ ]d]" not in marked
+
+
+def test_wordings_with_full_stops_or_colons_are_not_selector_lists():
+    for wording in ("Mr., Mrs.", "Note: one, Note: two", "Yes, No"):
+        assert not _is_selector_list(wording), wording
+    for selector in (".a, .b", "h3, p", "spl-input, spl-textarea", "a > b, [x=y]", "li:not(.x), :focus"):
+        assert _is_selector_list(selector), selector
+
+
 def test_each_site_gets_one_decoy_naming_the_account():
     account = uuid.uuid4()
     marked = watermark(TABLE, account)
@@ -173,17 +191,21 @@ def test_the_engine_plans_the_same_from_every_sites_marked_table(tmp_path):
 @pytest.mark.skipif(not (ENGINE / "src").is_dir(), reason="needs the engine's source")
 def test_the_engine_uses_every_marked_list_only_as_whole_selectors():
     """
-    Reordering a list or adding a part to it is harmless only where the engine passes the whole string
-    to a selector function, or puts it whole into a larger list. `${SEL.ITEM} input` would turn a list
-    into another selector, and `.split(",")` would read its order. Each use of a list the watermark
-    touches is one of: an argument `(SEL.X)` / `(SEL.X, ...)`, or a template part `${SEL.X}` between
-    the template's ends and commas.
+    Reordering a list or adding a part to it is harmless only where the engine hands the whole string to
+    a selector function, or puts it whole into a larger list. `${SEL.ITEM} input` would turn a list into
+    another selector, and `.split(",")` or `.includes(SEL.X)` would read it as text. Each use of a list
+    the watermark touches is one of: the selector argument of querySelector(All), closest, matches, or
+    the engine's own $$ and deep (each a querySelectorAll); or a template part `${SEL.X}` between the
+    template's ends and commas. Comments are left out.
     """
-    allowed = re.compile(r"""(?:\(\s*|,\s*)SEL\.(\w+)\s*(?=[,)])|(?:`|,\s*)\$\{SEL\.(\w+)\}\s*(?=`|,)""")
+    allowed = re.compile(
+        r"""(?:\b(?:querySelector|querySelectorAll|closest|matches)(?:<[^>]*>)?\(\s*|\$\$(?:<[^>]*>)?\(\s*|\bdeep(?:<[^>]*>)?\([^,()]+,\s*)SEL\.(\w+)\s*\)"""
+        r"""|(?:`|,\s*)\$\{SEL\.(\w+)\}\s*(?=`|,)"""
+    )
     for site in rules_table.sites():
         lists = {n for n, v in (rules_table.bundled()["systems"][site].get("strings") or {}).items() if _is_selector_list(v)}
         for file in (ENGINE / "src").glob("*.ts"):
-            code = file.read_text(encoding="utf-8")
+            code = re.sub(r"//[^\n]*", lambda m: " " * len(m.group()), file.read_text(encoding="utf-8"))
             if f'siteStrings("{site}")' not in code:
                 continue
             uses = {m.start() for m in re.finditer(r"SEL\.(\w+)", code) if m.group(1) in lists}

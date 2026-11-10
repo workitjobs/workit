@@ -43,10 +43,14 @@ _MARK = b"workit-rules-watermark-v1"
 # A regex place that can be spelled two ways: (plain, marked) for each kind.
 _SPELLINGS = {"space": (" ", "[ ]"), "digit": (r"\d", "[0-9]"), "some": (r"\s+", r"\s{1,}"), "any": (r"\s*", r"\s{0,}")}
 
+_QUANTIFIER = re.compile(r"\{\d+(?:,\d*)?\}")
 _DECOY = re.compile(r"^\[data-v-([0-9a-f]{10})\]$")
 _TAGS = frozenset(["a", "button", "div", "form", "h1", "h2", "h3", "h4", "h5", "h6", "iframe", "input", "label", "li", "ol", "option", "p", "section", "select", "span", "table", "td", "textarea", "tr", "ul"])
 # A custom element's tag (SmartRecruiters' spl-input): lower case, with a hyphen.
 _CUSTOM = re.compile(r"^[a-z][a-z0-9]*-[a-z0-9-]+$")
+# What only a selector has: a class or id (.name, #name), an attribute ([...]), a pseudo-class (:name), a child
+# combinator. A wording's full stop or colon ("Mr., Mrs.", "Note: x") is none of them.
+_CSS_TOKEN = re.compile(r"[.#][A-Za-z_-]|\[|:[a-z]|>")
 # One part of a list: a compound selector and its combinators, made only of CSS's characters.
 _PART = re.compile(r"""^[A-Za-z0-9_\-.#\[\]=\"'^$*~|:()>+ ]+$""")
 
@@ -60,6 +64,11 @@ def _bits(account_id: uuid.UUID, slot: str) -> Iterator[int]:
             for k in range(8):
                 yield (byte >> k) & 1
         counter += 1
+
+
+def _pick(bits: Iterator[int], n: int) -> int:
+    """A number below n from 16 of the stream's bits."""
+    return sum(next(bits) << k for k in range(16)) % n
 
 
 def fingerprint(account_id: uuid.UUID) -> str:
@@ -106,16 +115,10 @@ def _regex_places(source: str) -> list[str | tuple[str, bool]]:
             out.append(c)
             in_class = True
             i += 1
-            if source[i:i + 1] == "^":
-                out.append("^")
-                i += 1
-            if source[i:i + 1] == "]":  # a leading ] is part of the class
-                out.append("]")
-                i += 1
-        elif c == "{" and "}" in source[i:]:  # a quantifier, or a literal brace: copied whole
-            end = source.index("}", i) + 1
-            out.append(source[i:end])
-            i = end
+            # In JS a class ends at its first unescaped ], even a leading one ([] and [^] are whole classes).
+        elif quantifier := _QUANTIFIER.match(source, i):  # {2}, {0,60}: copied whole (a lone { is a literal)
+            out.append(quantifier.group())
+            i = quantifier.end()
         elif c == " ":
             out.append(("space", False))
             i += 1
@@ -169,14 +172,17 @@ def _parts(selector: str) -> list[str]:
 def _is_selector(part: str) -> bool:
     if not part or not _PART.match(part):
         return False
-    return any(c in part for c in ".#[:>") or all(word in _TAGS or _CUSTOM.match(word) for word in part.split())
+    return bool(_CSS_TOKEN.search(part)) or all(word in _TAGS or _CUSTOM.match(word) for word in part.split())
 
 
 def _is_selector_list(value: Any) -> bool:
     """Whether a string is a CSS selector list of two or more parts, each one a selector."""
     if not isinstance(value, str):
         return False
-    parts = _parts(value)
+    return _all_selectors(_parts(value))
+
+
+def _all_selectors(parts: list[str]) -> bool:
     return len(parts) >= 2 and all(_is_selector(p) for p in parts)
 
 
@@ -188,7 +194,7 @@ def _order(account_id: uuid.UUID, parts: list[str]) -> list[str]:
     """The account's order of a list's parts: a shuffle of their sorted order by its bits."""
     order, bits = sorted(parts), _bits(account_id, _list_slot(parts))
     for i in range(len(order) - 1, 0, -1):
-        j = sum(next(bits) << k for k in range(16)) % (i + 1)
+        j = _pick(bits, i + 1)
         order[i], order[j] = order[j], order[i]
     return order
 
@@ -227,9 +233,9 @@ def watermark(table: dict[str, Any], account_id: uuid.UUID) -> dict[str, Any]:
             lists.setdefault(site, []).append((strings, name))
     for site, found in lists.items():
         bits = _bits(account_id, f"decoy\0{site}")
-        strings, name = found[sum(next(bits) << k for k in range(16)) % len(found)]
+        strings, name = found[_pick(bits, len(found))]
         parts = _parts(strings[name])
-        parts.insert(sum(next(bits) << k for k in range(16)) % (len(parts) + 1), f"[data-v-{fingerprint(account_id)}]")
+        parts.insert(_pick(bits, len(parts) + 1), f"[data-v-{fingerprint(account_id)}]")
         strings[name] = ", ".join(parts)
     return marked
 
@@ -268,7 +274,7 @@ def score(table: dict[str, Any], account_id: uuid.UUID) -> Trace:
         parts = _parts(strings[name])
         decoy = decoy or any((m := _DECOY.match(p)) and m.group(1) == fingerprint(account_id) for p in parts)
         parts = [p for p in parts if not _DECOY.match(p)]
-        if len(parts) < 2 or not all(_is_selector(p) for p in parts):
+        if not _all_selectors(parts):
             continue
         rank = {p: i for i, p in enumerate(_order(account_id, parts))}
         # Every pair of parts is a mark: in the account's order, or not.

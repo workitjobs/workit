@@ -34,6 +34,8 @@ class Capped(StrEnum):
     RULES_FETCH = "rules_fetch"
 
 
+_OPENED = "You've opened a lot of applications today. Try again tomorrow."
+
 # What the 429 says, which the extension shows as it is.
 REFUSALS = {
     Capped.FILL_REPORT: "You've sent a lot of reports today. Try again tomorrow.",
@@ -41,8 +43,8 @@ REFUSALS = {
     # Never shown: the extension drops a refused fill event.
     Capped.FILL_EVENT: "This account sent its fill numbers for today.",
     Capped.ADDED_JOB: "You've added a lot of jobs today. Write this answer yourself, or try again tomorrow.",
-    Capped.RULES_TOKEN: "You've opened a lot of applications today. Try again tomorrow.",
-    Capped.RULES_FETCH: "You've opened a lot of applications today. Try again tomorrow.",
+    Capped.RULES_TOKEN: _OPENED,
+    Capped.RULES_FETCH: _OPENED,
 }
 
 
