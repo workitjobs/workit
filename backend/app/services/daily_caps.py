@@ -29,6 +29,9 @@ class Capped(StrEnum):
     FILL_EVENT = "fill_event"
     # A job a student added from its form (KAN-515, POST /jobs/added-by-link).
     ADDED_JOB = "added_job"
+    # The Fill engine's Rules table (KAN-756, routers/extension_rules.py): a site token, and a fetch with one.
+    RULES_TOKEN = "rules_token"
+    RULES_FETCH = "rules_fetch"
 
 
 # What the 429 says, which the extension shows as it is.
@@ -38,6 +41,8 @@ REFUSALS = {
     # Never shown: the extension drops a refused fill event.
     Capped.FILL_EVENT: "This account sent its fill numbers for today.",
     Capped.ADDED_JOB: "You've added a lot of jobs today. Write this answer yourself, or try again tomorrow.",
+    Capped.RULES_TOKEN: "You've opened a lot of applications today. Try again tomorrow.",
+    Capped.RULES_FETCH: "You've opened a lot of applications today. Try again tomorrow.",
 }
 
 
