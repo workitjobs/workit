@@ -12,7 +12,7 @@
 //
 // `start()` is what the launcher and the toolbar call in place of
 // panel.fillButton before a fill. Loaded after panel.js wherever it is
-// (manifest, SHELL_FILES, CONTENT_SCRIPT_FILES); the first copy stays.
+// (SHELL_FILES, CONTENT_SCRIPT_FILES); the first copy stays.
 window.WIA = window.WIA || {};
 
 (function () {

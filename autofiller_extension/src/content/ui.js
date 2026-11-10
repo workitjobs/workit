@@ -1,5 +1,5 @@
 // The panel's small shared helpers, loaded before every other panel and fill
-// file (manifest.json, background.js SHELL_FILES, shared/content-scripts.js):
+// file (background.js SHELL_FILES, shared/content-scripts.js):
 //
 // - ask(message): chrome.runtime.sendMessage, rejecting as it does.
 // - send(message): the same, but a failed send answers null.

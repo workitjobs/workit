@@ -13,7 +13,7 @@
 // - Workday Sign-Up: opens the extension's own options page. The password is
 //   never typed here: the panel lives in the employer's page.
 //
-// Loaded after panel.js by the static launcher and by every fill; the first
+// Loaded after panel.js by the launcher's panel/shell and by every fill; the first
 // copy draws, once the shell exists.
 window.WIA = window.WIA || {};
 

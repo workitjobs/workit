@@ -441,6 +441,13 @@ async function handleMessage(message, sender) {
       if (job) warmProfile();
       return { job, jobSystem, batch: sender.tab ? await inBatch(sender.tab.id) : false, site: await panelSite(url), autoOpen: await autoOpen(), hiddenEverywhere: await hiddenEverywhere() };
     }
+    // The launcher's next step on a page panel/where named a job system's (launcher.js, KAN-749): the panel's
+    // files, into that frame only. Other pages never load them.
+    case "panel/shell": {
+      if (sender.tab?.id === undefined || !(await pageSystem(sender.tab.id, sender.frameId ?? 0, sender.url ?? ""))) return { loaded: false };
+      await chrome.scripting.executeScript({ target: { tabId: sender.tab.id, frameIds: [sender.frameId ?? 0] }, files: SHELL_FILES });
+      return { loaded: true };
+    }
     case "panel/site":
       return { site: await panelSite(sender.url ?? "", message.set) };
     // The panel's and the edge tab's Hide everywhere (KAN-480); Options' switch turns it back on.
@@ -467,7 +474,7 @@ async function handleMessage(message, sender) {
     // Allow WorkIt on <host> (popup.js, KAN-369): the popup's permission request was granted.
     case "popup/allow": {
       const allowed = await allowTabSite(message.tabId);
-      if (allowed.onPage) await openShell(message.tabId, false);
+      if (allowed.onPage) await openShell(message.tabId);
       return allowed;
     }
     // The options page's allowed sites, and its Remove.
@@ -690,13 +697,14 @@ async function panelSite(url, change) {
   return sites[site];
 }
 
-// What the panel's shell injects when the toolbar icon or Alt+W finds no panel on a job page yet.
+// The panel's shell: what the launcher has loaded once its page is a job system's (panel/shell), and what the
+// toolbar icon or Alt+W injects when it finds no panel on a job page yet.
 const SHELL_FILES = ["src/shared/tokens.js", "src/content/ui.js", "src/shared/report-parts.js", "src/content/panel.js", "src/content/panel-top.js", "src/content/resume-card.js", "src/content/panel-settings.js", "src/content/report.js", "src/content/panel-states.js"];
 
-/** Opens the panel's shell in the tab's top frame, as the toolbar icon does on a job page with no edge tab yet
- * (`inject`: its files first; an allowed site's were just injected with the launcher). */
-async function openShell(tabId, inject = true) {
-  if (inject) await chrome.scripting.executeScript({ target: { tabId }, files: SHELL_FILES });
+/** Opens the panel's shell in the tab's top frame, as the toolbar icon does on a job page with no edge tab yet:
+ * its files first (a copy already there keeps its shell). */
+async function openShell(tabId) {
+  await chrome.scripting.executeScript({ target: { tabId }, files: SHELL_FILES });
   await chrome.scripting.executeScript({
     target: { tabId },
     func: async () => {

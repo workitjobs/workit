@@ -395,15 +395,25 @@ themselves, on the job system's own page, after reviewing what got
 filled.
 
 **What does run on page load is a small check, and only on the job
-systems' hosts** (KAN-394): manifest.json's second `content_scripts` entry
-(`tokens.js`, `panel.js`, `launcher.js`, top frame, `document_idle`) on the
-same hosts `host_permissions` already lists, so it adds no install
-warning. `launcher.js` waits for the page's load plus a second (a node
-drawn during Greenhouse's start-up makes it redraw the form, see the
-overlay), asks the background `panel/where` (the engine's `jobOf` on the
-page's link, and whether the tab is a batch's), and on a job page outside
-a batch draws only the edge tab. Nothing fills, nothing is read from the
-form, and other pages get nothing drawn. **Any posting there, in
+systems' hosts** (KAN-394, KAN-749): manifest.json's second
+`content_scripts` entry is `launcher.js` alone, on the same hosts
+`host_permissions` already lists, so it adds no install warning. It waits
+for the page's load plus a second (a node drawn during Greenhouse's
+start-up makes it redraw the form, see the overlay), asks the background
+`panel/where` (the engine's `jobOf` on the page's link, and whether the
+tab is a batch's), and on any page that is no job page stops there. **Most
+pages on those hosts are no form** (greenhouse.io's own site, a Workday
+tenant's search, the frames inside them), so none of the panel's files
+load there: no observer, no listener, no timer past that one second, one
+message (`test/idle.extension.spec.ts` counts them in the content scripts'
+isolated world, `loadExtension`'s `probe`, and the extension files Chrome
+parsed; before KAN-749 all ten panel files ran in every frame of every
+such page, three frames: 30 files and two `visibilitychange` listeners,
+now 3 files and none). On a job page outside a batch the launcher asks
+`panel/shell`, which checks the page is a job system's (`pageSystem`) and
+loads `SHELL_FILES` into that frame only, then draws only the edge tab.
+Nothing fills, nothing is read from the form. A new file the panel needs
+before a fill goes in `SHELL_FILES`, never in the manifest's entry. **Any posting there, in
 WorkIt's feed or not**: nothing here asks the API whether it knows the
 job (the job card falls back to the engine's `jobNames`, the answer bank
 to the page's company), so a posting the student found anywhere fills as
@@ -1200,7 +1210,7 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   the iframe's `src` (decision 633). Greenhouse's page starts React only in
   `requestIdleCallback`, which an iframe in a background tab may never run:
   its form stayed dead and the fill waited on it for good (1 run in 2 to 4
-  with four Chromiums at once). The manifest's one static content script,
+  with four Chromiums at once). The manifest's first static content script,
   `embed-idle.js` (MAIN world, `document_start`, the embed frame only),
   gives those callbacks a 500 ms deadline.
 - **Wait for the page, then the form, then fill.** `startFill` waits for
@@ -2040,8 +2050,8 @@ file that fills one sets `hidden = false`. A file loaded before the shell
 exists waits for it with `panel.onBuilt(hook)`. overlay.js keeps its API
 (`mount`, `refresh`, `addPart`, `momentCard`, ...); `mount` now fills the
 Autofill tab instead of making a host, and `unmount` (a fill again)
-empties it and leaves the shell. panel.js is loaded first by the static
-launcher and again by every fill (`CONTENT_SCRIPT_FILES`,
+empties it and leaves the shell. panel.js is loaded first by the launcher's
+panel/shell (on job pages only) and again by every fill (`CONTENT_SCRIPT_FILES`,
 `HUMAN_CHECK_FILES`), in the same isolated world: the first copy makes the
 shell, later ones return at once. It also owns the font (`overlay/font`)
 and `keepAttached` (Greenhouse replacing `<html>`).
@@ -2230,7 +2240,7 @@ stay-on-page notice shows and goes).
 ## The panel's other states (KAN-401): signed out, sent, a site it can't fill, errors
 
 `src/content/panel-states.js` (`window.WIA.panelStates`, loaded after
-report.js everywhere it is: manifest, `CONTENT_SCRIPT_FILES`, background.js
+report.js everywhere it is: `CONTENT_SCRIPT_FILES` and background.js
 `SHELL_FILES`) and `src/background/panel-states.js`:
 
 - **Signed out**: `panelStates.start()` is what the launcher and the
@@ -2318,7 +2328,7 @@ The header (panel.js) is WorkIt's logo (logo.tsx's lockup, the figure
 violet and the word "workit" in ink, as the webapp and the popup's header
 draw it; change the copies together), ⋯ (the menu, above: Report a problem, Settings, a
 batch tab's I submitted this and Skip, Fill Again) and Close. `src/content/panel-top.js` fills two slots, loaded
-after panel.js everywhere panel.js is (manifest, `CONTENT_SCRIPT_FILES`,
+after panel.js everywhere panel.js is (`CONTENT_SCRIPT_FILES`,
 background.js `SHELL_FILES`):
 
 - **Step line** (`batch-line`): on Workday only, "Step 3 of 6 · My
@@ -2574,7 +2584,7 @@ cover letter waiting). `fake-api.ts` records each `redo` and its steer in
 ## The panel's settings (KAN-402): Claude, auto-open, report, Workday
 
 `src/content/panel-settings.js` fills the `settings` slot (loaded after
-panel-top.js everywhere it is: manifest, `CONTENT_SCRIPT_FILES`,
+panel-top.js everywhere it is: `CONTENT_SCRIPT_FILES`,
 background.js `SHELL_FILES`); `src/background/panel-settings.js` answers
 its messages. The gear shows it in place of the tabs; Back returns.
 
@@ -2648,7 +2658,7 @@ the shape, or any of the student's values in it).
 ## The résumé's card (KAN-399; on the Resume/CV row since KAN-424)
 
 `src/content/resume-card.js` (`window.WIA.resumeCard`, loaded after
-panel-top.js wherever it is: manifest, `CONTENT_SCRIPT_FILES`,
+panel-top.js wherever it is: `CONTENT_SCRIPT_FILES`,
 background.js `SHELL_FILES`) draws the card of the opened Resume/CV row
 (overlay.js asks `resumeCard.card(field)` before any other card, on the
 opened row only), from `src/background/resume-tab.js` (`resume/tab`,
