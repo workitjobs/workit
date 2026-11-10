@@ -1,16 +1,14 @@
 "use client";
 
-import { FileTextIcon, WarningIcon } from "@phosphor-icons/react/ssr";
-import { useState, type MouseEvent, type ReactNode } from "react";
+import { WarningIcon } from "@phosphor-icons/react/ssr";
+import { useState, type ReactNode } from "react";
 
 import { ChevronDownIcon } from "@/components/icons";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/shadcn/popover";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import type { EntryFields } from "@/lib/bank-actions";
 import { cn } from "@/lib/cn";
 
-import { degreeLine, entryDetails, formatDates, gapLine, rowGaps } from "./sections";
+import { degreeLine, entryDetails, formatDates, rowGaps } from "./sections";
 
 /** A bullet as a row shows it: the bank's, or this resume's own wording. */
 type RowBullet = { id: string; text: string };
@@ -36,9 +34,12 @@ type RowBullet = { id: string; text: string };
  * like a link, a grey "Other bullets on …" with long names cut short, an
  * amber sentence repeated on nine rows in ten), each added by a different
  * ticket and none reading as a status. The bullet count is gone (the chevron
- * says the row opens; only none matters, and that is a badge); the why of
- * the badges is said once per card (`GapSummary`); other versions are one
- * control at the right (`OtherVersions`).
+ * says the row opens; only none matters, and that is a badge). The badges
+ * say it alone: a line on each card that said why they matter ("10 entries
+ * are missing details a resume needs. Add them before you Generate a
+ * resume.") was taken out as one more long line, and so was a "2 Other
+ * Versions" button for copies with other bullets, which looked out of place
+ * (the user's calls, 2026-11-09).
  *
  * An entry with nothing more to show has no chevron and no press. Bullets
  * stop at a readable measure, since a page 1440px wide ran them past 130
@@ -180,91 +181,5 @@ export function EntryRow({
         </div>
       )}
     </div>
-  );
-}
-
-/**
- * A card's one line about its rows' badges (`gapLine`): how many entries
- * lack something a resume needs, and that it matters before Generate. Said
- * once for the card, under its heading, where every row said it (KAN-740).
- * Shared by the Experiences cards and lists and onboarding's preview.
- */
-export function GapSummary({
-  entries,
-}: {
-  entries: readonly (EntryFields & { bullets: readonly { text: string }[] })[];
-}) {
-  const line = gapLine(entries);
-  if (!line) return null;
-  return (
-    <p className="text-note text-warning mt-1 flex items-start gap-1.5">
-      <WarningIcon aria-hidden weight="bold" className="mt-0.5 size-3.5 shrink-0" />
-      {line}
-    </p>
-  );
-}
-
-/**
- * The resumes whose copy of this entry has other bullets (`otherVersions`),
- * as one small control at the row's right (KAN-740): "2 Other Versions",
- * which opens their names in full. It was a line under the entry, "Other
- * bullets on [file] Resume #3, [file] Andrew Shi Rogue Fitness Product
- * Designer Inter… and 3 more", longer than the title and cut short, with
- * links that looked like plain grey text. With `onShow` each name is a link
- * that shows that resume on Experiences (`?resume=`), as Change Resume
- * would, and a Cmd or Ctrl click opens it in a new tab; without it (the
- * resume editor's panel) the names are a list to read.
- */
-export function OtherVersions({
-  versions,
-  onShow,
-}: {
-  versions: { id: string; name: string }[];
-  onShow?: (id: string) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  if (versions.length === 0) return null;
-  const count = versions.length;
-
-  function show(event: MouseEvent, id: string) {
-    // A new tab is the browser's to handle
-    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-    event.preventDefault();
-    setOpen(false);
-    onShow?.(id);
-  }
-
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger
-        render={
-          <Button variant="secondary" size="xs">
-            {count} Other {count === 1 ? "Version" : "Versions"}
-            <ChevronDownIcon className="size-3.5" />
-          </Button>
-        }
-      />
-      <PopoverContent align="end" className="w-72 gap-2">
-        <p className="text-note text-ink-meta">This entry has other bullets on:</p>
-        <ul role="list" className="flex flex-col gap-1.5">
-          {versions.map((version) => (
-            <li key={version.id} className="text-body text-ink flex items-start gap-1.5">
-              <FileTextIcon aria-hidden className="mt-0.5 size-4 shrink-0" />
-              {onShow ? (
-                <a
-                  href={`?resume=${encodeURIComponent(version.id)}`}
-                  onClick={(event) => show(event, version.id)}
-                  className="hover:text-brand focus-visible:ring-brand-ring min-w-0 rounded-xs break-words underline underline-offset-2 focus-visible:ring-2 focus-visible:outline-none"
-                >
-                  {version.name}
-                </a>
-              ) : (
-                <span className="min-w-0 break-words">{version.name}</span>
-              )}
-            </li>
-          ))}
-        </ul>
-      </PopoverContent>
-    </Popover>
   );
 }

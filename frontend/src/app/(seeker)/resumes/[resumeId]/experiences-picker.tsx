@@ -18,8 +18,8 @@ import type { Bank } from "@/lib/bank-actions";
 import type { Choices, ChoicesUpdate } from "@/lib/built-resume-actions";
 import { cn } from "@/lib/cn";
 
-import { EntryRow, OtherVersions } from "../../experiences/entry-row";
-import { ALL, otherVersions, shows, type Pick } from "../../experiences/holdings";
+import { EntryRow } from "../../experiences/entry-row";
+import { ALL, shows, type Pick } from "../../experiences/holdings";
 import { ChooseResume } from "../../experiences/resume-bar";
 import { SECTION_ICONS, SectionMark, type SectionMarkId } from "../../experiences/section-icons";
 import {
@@ -204,7 +204,7 @@ export function ExperiencesPicker({
                   key={row.entry.id}
                   className="ring-border-subtle bg-panel rounded-xl px-3 py-2.5 ring-1"
                 >
-                  <PickerRow row={row} bank={bank} onApply={onApply} />
+                  <PickerRow row={row} onApply={onApply} />
                 </li>
               ))}
             </ul>
@@ -290,19 +290,17 @@ function PickerGroup({
 }
 
 /** An entry in the bank's own row, with its control before the title and one
- *  on each bullet while it is on. */
+ *  on each bullet while it is on. A copy with other bullets on other resumes
+ *  has no mark here for now, as on Experiences (KAN-740). */
 function PickerRow({
   row,
-  bank,
   onApply,
 }: {
   row: PickedEntry;
-  bank: Bank;
   onApply: (changes: ChoicesUpdate) => void;
 }) {
   const { entry, on } = row;
   const printed = row.bullets.filter((b) => b.on).length;
-  const versions = otherVersions(row, bank.resumes);
   return (
     <EntryRow
       entry={entry}
@@ -333,9 +331,6 @@ function PickerRow({
             )
           : undefined
       }
-      // The bank's control for copies with other bullets (KAN-740): their
-      // names to read, since this panel picks for one resume
-      actions={<OtherVersions versions={versions} />}
     />
   );
 }

@@ -54,13 +54,12 @@ import { RESUMES_SEARCH, ResumesHeader } from "../resumes/header";
 import { ClearAll, clearAllWords } from "./clear-all";
 import { AddSection, RenameSection } from "./custom-sections";
 import { EntryDialog, type SaveOutcome } from "./entry-dialog";
-import { EntryRow, GapSummary, OtherVersions } from "./entry-row";
+import { EntryRow } from "./entry-row";
 import { editSteps } from "./entry-save";
 import {
   ALL,
   holderOf,
   openingPick,
-  otherVersions,
   rowMatches,
   rowsOf,
   shows,
@@ -631,8 +630,6 @@ export function BankScreen({
             searching={searching}
             scout={here}
             empty={picked ? "Nothing from this resume." : "Nothing here yet."}
-            resumes={bank.resumes}
-            onShowResume={showResume}
             openFrom={openFrom}
           />
         );
@@ -661,8 +658,6 @@ export function BankScreen({
               // or deleted, in its list
               listAlways
               empty={picked ? "Nothing from this resume." : "Nothing here yet."}
-              resumes={bank.resumes}
-              onShowResume={showResume}
               openFrom={openFrom}
             />
           );
@@ -844,15 +839,7 @@ export function BankScreen({
           // The whole section under the pick: the list is no search result
           rows={rowsOf(current, openCard.entries, bank.resumes)}
           count={rowsOf(current, openCard.entries, bank.resumes).length}
-          renderRow={(row, pencil) => (
-            <EntryView row={row} resumes={bank.resumes} pencil={pencil} onShowResume={showResume} />
-          )}
-          // Counted by row, as the list shows them: copies are one row
-          notice={
-            <GapSummary
-              entries={rowsOf(current, openCard.entries, bank.resumes).map((row) => row.entry)}
-            />
-          }
+          renderRow={(row, pencil) => <EntryView row={row} pencil={pencil} />}
           pane={(target) => paneFor(open.card, target)}
           actions={actionsFor(open.card)}
           rename={
@@ -904,8 +891,6 @@ function EntriesCard({
   scout,
   listAlways = false,
   empty,
-  resumes,
-  onShowResume,
   openFrom,
 }: {
   card: string;
@@ -920,8 +905,6 @@ function EntriesCard({
    *  its Rename and Delete Section. */
   listAlways?: boolean;
   empty: string;
-  resumes: BankResume[];
-  onShowResume: (id: Pick, entryId: string) => void;
   openFrom: (next: Open, ...ids: string[]) => void;
 }) {
   const scoutAt = scout?.entryId ? rows.findIndex((r) => r.entry.id === scout.entryId) : -1;
@@ -966,10 +949,6 @@ function EntriesCard({
         />
       </div>
 
-      {/* What the rows' badges mean, said once for the whole section, the
-          rows Show All hides included */}
-      <GapSummary entries={rows.map((row) => row.entry)} />
-
       {rows.length === 0 && <p className="text-body text-ink-meta mt-2">{empty}</p>}
 
       <ul role="list" className="divide-border-subtle mt-2 flex flex-col divide-y">
@@ -981,12 +960,7 @@ function EntriesCard({
               id={`entry-${entry.id}`}
               active={scout?.entryId === entry.id}
             >
-              <EntryView
-                row={row}
-                resumes={resumes}
-                open={searching || scout?.entryId === entry.id}
-                onShowResume={onShowResume}
-              />
+              <EntryView row={row} open={searching || scout?.entryId === entry.id} />
             </ScoutMarked>
           );
         })}
@@ -1287,53 +1261,42 @@ function CardActions({
  *  list. In the list it has its pencil, one press from its form (KAN-740),
  *  where Delete is too, with the other resumes a save changes; on a card it
  *  has none, since the card's heading pencil opens the list. What the entry
- *  lacks is a badge on its title (`warn`), in view while it is closed. So is
- *  a copy with other bullets, as "2 Other Versions" at its right
- *  (`OtherVersions`): All Experiences shows one copy, and that is the way to
- *  the others. */
+ *  lacks is a badge on its title (`warn`), in view while it is closed.
+ *
+ *  A copy with other bullets has no mark on its row for now (the user's
+ *  call, 2026-11-09): a line "Other bullets on …" ran longer than the title,
+ *  and the "2 Other Versions" button that replaced it (KAN-740) looked out
+ *  of place. Under All Experiences the row is one copy; the others show by
+ *  picking their resume in the Showing card. `otherVersions` in
+ *  `holdings.ts` still finds them, for whatever marks them next. */
 function EntryView({
   row,
-  resumes,
   pencil,
   open = false,
-  onShowResume,
 }: {
   row: BankRow<BankEntry>;
-  resumes: BankResume[];
   /** The list's pencil: its id (apart from anything on the page, which
    *  stays in the document under the dialog) and what it opens. */
   pencil?: { id: string; onEdit: () => void };
   /** Scout is working on it, or a search found it: a bullet may be why. */
   open?: boolean;
-  onShowResume: (id: Pick, entryId: string) => void;
 }) {
   const { entry } = row;
-  const versions = otherVersions(row, resumes);
   return (
     <EntryRow
       entry={entry}
       open={open}
       warn
       actions={
-        (versions.length > 0 || pencil) && (
-          <>
-            <OtherVersions
-              versions={versions}
-              onShow={(id) =>
-                onShowResume(id, versions.find((v) => v.id === id)?.entryId ?? entry.id)
-              }
-            />
-            {pencil && (
-              <IconButton
-                id={pencil.id}
-                label={`Edit ${entry.title}`}
-                tooltip="Edit this entry"
-                onClick={pencil.onEdit}
-              >
-                <PencilSimpleIcon aria-hidden className="size-4" />
-              </IconButton>
-            )}
-          </>
+        pencil && (
+          <IconButton
+            id={pencil.id}
+            label={`Edit ${entry.title}`}
+            tooltip="Edit this entry"
+            onClick={pencil.onEdit}
+          >
+            <PencilSimpleIcon aria-hidden className="size-4" />
+          </IconButton>
         )
       }
     />

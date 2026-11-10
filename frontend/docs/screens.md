@@ -2267,16 +2267,17 @@ ticket: a purple "3 bullets" that looked like a link, a grey "Other bullets
 on [file] Resume #3, [file] Andrew Shi Rogue Fitness Product Designer
 Inter… and 3 more" longer than the title, and an amber "No start date yet.
 Add it before you Generate a resume." on nine Education rows in ten. Now
-the count is gone (the chevron says the row opens); each gap is an amber
-tag with a warning mark after the title ("No Start Date", "No Company", "No
-Bullets", `rowGaps`); why they matter is one line under the card's heading
-("10 entries are missing details a resume needs. Add them before you
-Generate a resume.", `GapSummary`), counting the whole section, the rows
-Show All hides included, and the same line tops the section's list; and
-copies with other bullets are one small button at the row's right, "2
-Other Versions", which opens their resumes' names in full as links that
-show that resume (`OtherVersions`). The resume editor's panel draws the
-same button, with the names to read.
+the count is gone (the chevron says the row opens), and each gap is an
+amber tag with a warning mark after the title ("No Start Date", "No
+Company", "No Bullets", `rowGaps`). The badges say it alone (the user's
+calls, 2026-11-09): a line under each card's heading, "10 entries are
+missing details a resume needs. Add them before you Generate a resume.",
+was one more long line, and a "2 Other Versions" button at the row's
+right, which listed the resumes whose copy has other bullets, looked out of
+place. Both are gone, and so is the editor panel's "Other bullets on …".
+**Still open:** a copy with other bullets has no mark on any row; under
+All Experiences it shows by picking its resume. `otherVersions`
+(`holdings.ts`) still finds them for whatever marks them next.
 
 **Intake lives in Scout's panel** (2026-10-13), where Scout does: the bar's
 Scout button or Fill With Scout opens it. **Both are off** (the launcher
@@ -2469,10 +2470,9 @@ in Docs (suggested answers in the chat, not a banner).
   project, role or award has no dates warning: no application form asks for
   them (Greenhouse, Lever, Ashby, Workday; settled 2026-10-14). A job,
   project or role with no bullets is flagged too (KAN-740), since a resume
-  prints it as a bare heading. It still saves; the card's line says to add
-  them before Generate. Each is a badge after the title (`rowGaps`), and
-  onboarding's resume preview shows the same badges and line (KAN-732,
-  KAN-740).
+  prints it as a bare heading. It still saves. Each is a badge after the
+  title (`rowGaps`), and onboarding's resume preview shows the same badges
+  (KAN-732, KAN-740).
 - **Deleting an entry confirms with how many built resumes show it**
   (story 18): the form's Delete reads `GET .../entries/{id}/resumes` first,
   then asks across the form's foot, in place of its buttons, naming the

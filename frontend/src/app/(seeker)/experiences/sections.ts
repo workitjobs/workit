@@ -342,14 +342,3 @@ export function rowGaps(entry: WithBullets): string[] {
   }
   return gaps;
 }
-
-/**
- * A card's one line about its rows' gaps, said once for the card where every
- * row said it: how many need more, and why it matters. The badges on the rows
- * say what each lacks. Null when no row lacks anything.
- */
-export function gapLine(entries: readonly WithBullets[]): string | null {
-  const count = entries.filter((entry) => rowGaps(entry).length > 0).length;
-  if (count === 0) return null;
-  return `${count} ${count === 1 ? "entry is" : "entries are"} missing details a resume needs. Add them before you Generate a resume.`;
-}

@@ -4,7 +4,7 @@ import { PencilSimpleIcon } from "@phosphor-icons/react/ssr";
 import { useRef, useState, type ReactNode } from "react";
 
 import { EntryDialog } from "@/app/(seeker)/experiences/entry-dialog";
-import { EntryRow, GapSummary } from "@/app/(seeker)/experiences/entry-row";
+import { EntryRow } from "@/app/(seeker)/experiences/entry-row";
 import { SectionMark } from "@/app/(seeker)/experiences/section-icons";
 import { NOUNS, SECTIONS } from "@/app/(seeker)/experiences/sections";
 import { SkillGroups } from "@/app/(seeker)/experiences/skill-groups";
@@ -248,7 +248,6 @@ function Reading({
           return (
             <Card as="section" key={section.id} aria-label={section.label}>
               {heading(section.id, section.label)}
-              <GapSummary entries={found.map((index) => rowOfPreview(entries[index]))} />
               <ul role="list" className="divide-border-subtle mt-2 flex flex-col divide-y">
                 {found.map((index) => {
                   const entry = entries[index];

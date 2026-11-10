@@ -3,7 +3,7 @@ import { test } from "node:test";
 
 import type { BankEntry } from "@/lib/bank-actions";
 
-import { changesOf, draftOf, emptyDraft, gapLine, isFixed, rowGaps } from "./sections.ts";
+import { changesOf, draftOf, emptyDraft, isFixed, rowGaps } from "./sections.ts";
 
 // The fields the entry PATCH declares (backend/app/schemas/bank.py,
 // EntryUpdate). It forbids any other key: one more and the whole edit is a
@@ -117,15 +117,4 @@ test("a row's gaps are badge labels: dates, organization and bullets", () => {
   // An empty bullet box is no bullet
   const project = { ...emptyDraft("projects"), title: "Robot", bullets: [{ text: " " }] };
   assert.deepEqual(rowGaps(project), ["Bullets"]);
-});
-
-test("a card says its gaps once, counting the rows that have any", () => {
-  const done = { ...emptyDraft("awards"), title: "Dean's List", bullets: [] };
-  const gapped = { ...emptyDraft("projects"), title: "Robot", bullets: [] };
-  assert.equal(gapLine([done]), null);
-  assert.equal(
-    gapLine([gapped, done]),
-    "1 entry is missing details a resume needs. Add them before you Generate a resume.",
-  );
-  assert.match(gapLine([gapped, gapped]) ?? "", /^2 entries are missing/);
 });
