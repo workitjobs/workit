@@ -14,18 +14,19 @@ import { ChevronDownIcon, CloseIcon } from "@/components/icons";
 import { Checkbox } from "@/components/shadcn/checkbox";
 import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
-import type { Bank, Section } from "@/lib/bank-actions";
+import type { Bank } from "@/lib/bank-actions";
 import type { Choices, ChoicesUpdate } from "@/lib/built-resume-actions";
 import { cn } from "@/lib/cn";
 
 import { EntryRow } from "../../experiences/entry-row";
-import { ALL, otherVersions, shows, type Pick } from "../../experiences/holdings";
+import { ALL, shows, type Pick } from "../../experiences/holdings";
 import { ChooseResume } from "../../experiences/resume-bar";
-import { SECTION_ICONS, SectionMark } from "../../experiences/section-icons";
-import { SECTIONS, sectionOf } from "../../experiences/sections";
+import { SECTION_ICONS, SectionMark, type SectionMarkId } from "../../experiences/section-icons";
 import {
   cutRows,
   cutSkills,
+  groupOf,
+  groupsOf,
   isBack,
   pickBullet,
   pickEntry,
@@ -37,9 +38,15 @@ import {
   type CutEntry,
   type CutSkill,
   type FitCuts,
+  type Group,
   type PickedEntry,
   type PickedSkill,
 } from "./model";
+
+/** A group's mark: its fixed section's, or the one every custom section
+ *  wears (KAN-498). */
+const markOf = (group: Group): SectionMarkId =>
+  group.custom ? "custom" : (group.id as SectionMarkId);
 
 /** The checkbox's own edge all but vanishes on white, and an empty box says
  *  as much as a ticked one here. */
@@ -94,8 +101,11 @@ export function ExperiencesPicker({
   const allEntries = pickerEntries(bank, choices);
   const allSkills = pickerSkills(bank, choices);
   const picked = (id: string) => groups.length === 0 || groups.includes(id);
+  // Fixed sections, then the sections the student named (KAN-498)
+  const bankGroups = groupsOf(bank);
   const entries = allEntries.filter(
-    (row) => picked(row.entry.section) && [row.entry, ...row.copies].some((e) => shows(resume, e)),
+    (row) =>
+      picked(groupOf(bank, row.entry)) && [row.entry, ...row.copies].some((e) => shows(resume, e)),
   );
   const skills = allSkills.filter(
     (row) => picked("skills") && [row.skill, ...row.copies].some((s) => shows(resume, s)),
@@ -106,12 +116,14 @@ export function ExperiencesPicker({
     setPressed((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
 
   const groupOptions = [
-    ...SECTIONS.filter((s) => allEntries.some((row) => row.entry.section === s.id)).map((s) => ({
-      value: s.id as string,
-      label: s.label,
-      Icon: SECTION_ICONS[s.id],
-      iconClassName: "text-brand",
-    })),
+    ...bankGroups
+      .filter((g) => allEntries.some((row) => groupOf(bank, row.entry) === g.id))
+      .map((g) => ({
+        value: g.id,
+        label: g.label,
+        Icon: SECTION_ICONS[markOf(g)],
+        iconClassName: "text-brand",
+      })),
     ...(allSkills.length > 0
       ? [
           {
@@ -173,18 +185,18 @@ export function ExperiencesPicker({
         <p className="text-body text-ink-meta">Nothing here matches your filters.</p>
       )}
 
-      {SECTIONS.map((section) => {
-        const rows = entries.filter((row) => row.entry.section === section.id);
+      {bankGroups.map((group) => {
+        const rows = entries.filter((row) => groupOf(bank, row.entry) === group.id);
         if (rows.length === 0) return null;
         return (
           <PickerGroup
-            key={section.id}
-            id={section.id}
-            label={sectionOf(section.id).label}
+            key={group.id}
+            mark={markOf(group)}
+            label={group.label}
             on={rows.filter((row) => row.on).length}
             total={rows.length}
-            open={isOpen(section.id)}
-            onPress={() => press(section.id)}
+            open={isOpen(group.id)}
+            onPress={() => press(group.id)}
           >
             <ul className="flex flex-col gap-2">
               {rows.map((row) => (
@@ -192,7 +204,7 @@ export function ExperiencesPicker({
                   key={row.entry.id}
                   className="ring-border-subtle bg-panel rounded-xl px-3 py-2.5 ring-1"
                 >
-                  <PickerRow row={row} bank={bank} onApply={onApply} />
+                  <PickerRow row={row} onApply={onApply} />
                 </li>
               ))}
             </ul>
@@ -202,7 +214,7 @@ export function ExperiencesPicker({
 
       {skills.length > 0 && (
         <PickerGroup
-          id="skills"
+          mark="skills"
           label="Skills"
           on={skills.filter((row) => row.on).length}
           total={skills.length}
@@ -223,7 +235,7 @@ export function ExperiencesPicker({
 /** A group as one line, its mark, name and how much of it is on the resume
  *  ("1 of 2 added"), that opens on its rows. */
 function PickerGroup({
-  id,
+  mark,
   label,
   on,
   total,
@@ -232,7 +244,7 @@ function PickerGroup({
   children,
   cut = false,
 }: {
-  id: Section | "skills";
+  mark: SectionMarkId;
   label: string;
   on: number;
   total: number;
@@ -251,7 +263,7 @@ function PickerGroup({
           onClick={onPress}
           className="hover:bg-well focus-visible:ring-brand-ring rounded-control flex w-full items-center gap-2 px-1.5 py-1.5 text-left outline-none focus-visible:ring-2"
         >
-          <SectionMark id={id} className={cn("size-7", cut && "bg-warning-tint text-warning")} />
+          <SectionMark id={mark} className={cn("size-7", cut && "bg-warning-tint text-warning")} />
           <span
             className={cn(
               "text-label min-w-0 flex-1 truncate font-semibold",
@@ -278,19 +290,17 @@ function PickerGroup({
 }
 
 /** An entry in the bank's own row, with its control before the title and one
- *  on each bullet while it is on. */
+ *  on each bullet while it is on. A copy with other bullets on other resumes
+ *  has no mark here for now, as on Experiences (KAN-740). */
 function PickerRow({
   row,
-  bank,
   onApply,
 }: {
   row: PickedEntry;
-  bank: Bank;
   onApply: (changes: ChoicesUpdate) => void;
 }) {
   const { entry, on } = row;
   const printed = row.bullets.filter((b) => b.on).length;
-  const versions = otherVersions(row, bank.resumes);
   return (
     <EntryRow
       entry={entry}
@@ -320,13 +330,6 @@ function PickerRow({
               />
             )
           : undefined
-      }
-      note={
-        versions.length > 0 && (
-          <p className="text-note text-ink-meta mt-1 pl-6">
-            Other bullets on {versions.map((v) => v.name).join(", ")}
-          </p>
-        )
       }
     />
   );
@@ -440,14 +443,14 @@ export function CutPicker({
       <p className="text-note text-ink-meta px-1.5">
         Fit to One Page hid these to fit the page. Tick one to put it back.
       </p>
-      {SECTIONS.map((section) => {
-        const group = rows.filter((row) => row.entry.section === section.id);
+      {groupsOf(bank).map((section) => {
+        const group = rows.filter((row) => groupOf(bank, row.entry) === section.id);
         if (group.length === 0) return null;
         return (
           <PickerGroup
             key={section.id}
-            id={section.id}
-            label={sectionOf(section.id).label}
+            mark={markOf(section)}
+            label={section.label}
             on={group.filter(isBack).length}
             total={group.length}
             open={!closed.includes(section.id)}
@@ -469,7 +472,7 @@ export function CutPicker({
       })}
       {skills.length > 0 && (
         <PickerGroup
-          id="skills"
+          mark="skills"
           label="Skills"
           on={skills.filter((s) => s.on).length}
           total={skills.length}

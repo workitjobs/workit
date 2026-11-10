@@ -3,7 +3,43 @@ import { test } from "node:test";
 
 import type { BankEntry } from "@/lib/bank-actions";
 
-import { changesOf, draftOf } from "./sections.ts";
+import {
+  changesOf,
+  draftOf,
+  emptyDraft,
+  holdsTools,
+  isFixed,
+  rowGaps,
+  splitList,
+  TOOL_COMMA,
+  toolsLine,
+} from "./sections.ts";
+
+test("only a project holds tools", () => {
+  assert.equal(holdsTools("projects"), true);
+  assert.equal(holdsTools("experience"), false);
+  assert.equal(holdsTools("education"), false);
+});
+
+test("a typed list splits at commas, trimmed, with no empty items", () => {
+  assert.deepEqual(splitList(" Algorithms,, Operating Systems ,"), [
+    "Algorithms",
+    "Operating Systems",
+  ]);
+});
+
+test("tools keep a comma inside parentheses, as the API splits a typed tools line", () => {
+  assert.deepEqual(splitList("Next.js, Supabase (PostgreSQL, pgvector), FastAPI", TOOL_COMMA), [
+    "Next.js",
+    "Supabase (PostgreSQL, pgvector)",
+    "FastAPI",
+  ]);
+});
+
+test("the tools line is the list as the resume prints it, or nothing", () => {
+  assert.equal(toolsLine({ tools: ["Next.js", "TypeScript"] }), "Next.js, TypeScript");
+  assert.equal(toolsLine({ tools: [] }), null);
+});
 
 // The fields the entry PATCH declares (backend/app/schemas/bank.py,
 // EntryUpdate). It forbids any other key: one more and the whole edit is a
@@ -22,6 +58,7 @@ const PATCH_FIELDS = [
   "coursework",
   "honors",
   "link",
+  "tools",
   "issuer",
   "award_date",
 ];
@@ -31,6 +68,7 @@ const PATCH_FIELDS = [
 const saved: BankEntry = {
   id: "e1",
   section: "experience",
+  custom_section_id: null,
   title: "Software Engineer Intern",
   organization: "Initech",
   location: "Austin, TX",
@@ -44,6 +82,7 @@ const saved: BankEntry = {
   coursework: [],
   honors: null,
   link: null,
+  tools: [],
   issuer: null,
   award_date: null,
   bullets: [{ id: "b1", position: 0, text: "Built the billing service" }],
@@ -69,4 +108,51 @@ test("a draft keeps the entry's fields and bullets, and nothing the page reads",
   assert.equal(draft.start_month, "2025-06");
   assert.deepEqual(draft.bullets, [{ id: "b1", text: "Built the billing service" }]);
   for (const key of ["id", "resume_ids", "copy_group"]) assert.equal(key in draft, false, key);
+});
+
+const savedCustom = {
+  ...emptyDraft("custom", "sec-1"),
+  id: "e1",
+  title: "Tutor",
+  bullets: [{ id: "b1", position: 0, text: "Taught math" }],
+  resume_ids: ["r1"],
+  copy_group: "custom|tutor||None|None",
+} as BankEntry<"custom">;
+
+test("a custom entry's PATCH leaves out its section and custom section", () => {
+  // The API refuses any other key (EntryUpdate), so the holdings stay out,
+  // and the section and its custom section are fixed once saved
+  const changes = changesOf(draftOf(savedCustom));
+  for (const key of ["id", "bullets", "resume_ids", "copy_group", "section", "custom_section_id"]) {
+    assert.ok(!(key in changes), key);
+  }
+  assert.equal(changes.title, "Tutor");
+  // The draft itself keeps its section, so its Save names the right one
+  assert.equal(draftOf(savedCustom).custom_section_id, "sec-1");
+});
+
+test("a new custom entry names its section; a fixed one names none", () => {
+  assert.equal(emptyDraft("custom", "sec-1").custom_section_id, "sec-1");
+  assert.equal(emptyDraft("projects").custom_section_id, null);
+  assert.equal(isFixed(savedCustom), false);
+  assert.equal(isFixed({ ...savedCustom, section: "projects" } as BankEntry), true);
+});
+
+test("a row's gaps are badge labels: dates, organization and bullets", () => {
+  const job = { ...emptyDraft("experience"), title: "Intern", bullets: [] };
+  assert.deepEqual(rowGaps(job), ["Dates", "Company", "Bullets"]);
+  // An expected end with no start is the start alone
+  const school = {
+    ...emptyDraft("education"),
+    title: "SBU",
+    end_kind: "expected" as const,
+    end_month: "2027-05",
+    bullets: [],
+  };
+  assert.deepEqual(rowGaps(school), ["Start Date"]);
+  // An award wants neither dates nor bullets
+  assert.deepEqual(rowGaps({ ...emptyDraft("awards"), title: "Dean's List", bullets: [] }), []);
+  // An empty bullet box is no bullet
+  const project = { ...emptyDraft("projects"), title: "Robot", bullets: [{ text: " " }] };
+  assert.deepEqual(rowGaps(project), ["Bullets"]);
 });

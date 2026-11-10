@@ -33,6 +33,7 @@ import {
 } from "react";
 
 import { CloseIcon, EllipsisIcon, FileIcon, PlusIcon } from "@/components/icons";
+import { ASK_SCOUT_LIVE } from "@/components/scout/scout-buttons";
 import { setScoutOpen, useScout } from "@/components/scout/scout-store";
 import { ScoutTakeover } from "@/components/scout/scout-takeover";
 import {
@@ -229,6 +230,8 @@ function typeOf(kind: string, section: string | null, page: PageSettings, degree
   // Degree First prints the school on the degree's row, in its italic
   if (kind === "title") return { size, bold: !degreeFirst, italic: degreeFirst };
   if (kind === "organization") return { size, bold: false, italic: true };
+  // A project's tools line (KAN-738) is \textit{\small ...}, the body's size
+  if (kind === "tools") return { size, bold: false, italic: true };
   // Education's location is the heading's right slot, upright
   if (kind === "location") return { size, bold: false, italic: section !== "education" };
   return { size, bold: false, italic: false };
@@ -268,7 +271,9 @@ type Adding = {
   id: string | null;
 };
 
-/** Lines that wrap: typed in a field as wide as the text column. */
+/** Lines that wrap: typed in a field as wide as the text column. A
+ *  project's tools line does not: it is a heading's row, a tabular's `l`
+ *  column, which never wraps, as an organization's does not. */
 const WRAPS = new Set(["bullet", "coursework", "honors"]);
 
 const DEFAULT_WRAPPED_LINE = 12;
@@ -751,6 +756,7 @@ export function Editor({
       ? {
           entries: bank.entries,
           skills: bank.skills,
+          sections: bank.sections,
           choices,
           ...printed,
           page_settings: pageNow.current,
@@ -1350,6 +1356,7 @@ export function Editor({
           const source = {
             entries: saved.bank.entries,
             skills: saved.bank.skills,
+            sections: saved.bank.sections,
             choices: saved.choices,
             ...saved.printed,
             page_settings: pdf.page_settings,
@@ -2380,8 +2387,12 @@ export function Editor({
           the toolbar's Experiences opens it, and the top bar's Scout goes
           back to the assistant, which stays mounted under it, for its chat.
           It floats over the page below xl (`float`, KAN-576): docked at
-          1024, it left the resume a 416px column with about 4px text */}
-      {rendered && !suggestions && (
+          1024, it left the resume a 416px column with about 4px text.
+          While ASK_SCOUT_LIVE is off the assistant is off too, as on the
+          phone: the panel takes over only for the toolbar's own views, so a
+          panel left open on another page shows nothing here instead of the
+          assistant */}
+      {rendered && !suggestions && (ASK_SCOUT_LIVE || panelView !== "scout") && (
         <ScoutTakeover
           float
           mark={
@@ -2417,7 +2428,7 @@ export function Editor({
         >
           <div data-keeps-selection className="flex min-h-0 flex-1 flex-col">
             <div className={cn("flex min-h-0 flex-1 flex-col", panelView !== "scout" && "hidden")}>
-              {assistant("flex-1")}
+              {ASK_SCOUT_LIVE && assistant("flex-1")}
             </div>
             {panelView === "experiences" && (
               <div className="min-h-0 flex-1 overflow-y-auto overscroll-none px-4 pt-2 pb-4">

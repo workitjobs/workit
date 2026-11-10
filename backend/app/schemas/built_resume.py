@@ -12,7 +12,7 @@ from pydantic import (
     model_validator,
 )
 
-from app.schemas.bank import EntryResponse, SkillResponse
+from app.schemas.bank import CustomSectionResponse, EntryResponse, SkillResponse
 from app.schemas.profile import ApplicantProfileResponse
 
 Name = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=80)]
@@ -55,7 +55,8 @@ class RenderBox(BaseModel):
     """Where one line sits on the PDF, for the editor's click target
     (KAN-209). `item_id` is the bank id of the bullet, skill or entry the line
     shows; `kind` is "bullet", "skill" or the entry field (title,
-    organization, location, dates, degree, gpa, coursework, honors). The
+    organization, location, dates, degree, gpa, coursework, honors, and a
+    project's tools line, `tools`, KAN-738). The
     header's lines have `item_id` "header" and the profile column as `kind`
     (full_name, phone_number, email, linkedin_url, ...). A
     rectangle in PDF points from the page's top left, y growing down;
@@ -106,7 +107,9 @@ class PageSettings(BaseModel):
     bullet: Literal["dot", "dash"] = "dot"
     show_divider: bool = True
     header_alignment: Literal["left", "center", "right"] = "center"
-    section_order: list[str] = list(SECTION_ORDER)
+    # Every fixed section once, then the custom sections the student moved
+    # (KAN-498), each as resume_view.custom_key ("custom:<name>")
+    section_order: list[str] = Field(list(SECTION_ORDER), max_length=40)
     font_family: Literal[
         "latin_modern", "tinos", "caladea", "eb_garamond", "charter", "arimo", "carlito", "open_sans", "lato",
     ] = "latin_modern"
@@ -120,7 +123,9 @@ class PageSettings(BaseModel):
 
     @model_validator(mode="after")
     def _every_section_once(self) -> "PageSettings":
-        if sorted(self.section_order) != sorted(SECTION_ORDER):
+        from app.services.resume_render import valid_order
+
+        if not valid_order(self.section_order):
             raise ValueError("Send every section once")
         return self
 
@@ -293,6 +298,9 @@ class ResumeCopy(BaseModel):
 
     entries: list[EntryResponse] = Field(max_length=500)
     skills: list[SkillResponse] = Field(max_length=1000)
+    # The sections the student named (KAN-498), as GET /bank sent them: a
+    # custom entry prints under its section's name and layout
+    sections: list[CustomSectionResponse] = Field([], max_length=200)
     choices: ChoicesResponse
     identity: IdentityCopy
     # From the last render, so a render of the copy reads no resume row

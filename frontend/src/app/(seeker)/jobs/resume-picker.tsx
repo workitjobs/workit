@@ -458,7 +458,7 @@ function useUploadButton(upload: PickerUpload | undefined, onSent: () => void) {
         onClick={() => inputRef.current?.click()}
         className="@xl:ml-auto"
       >
-        <UploadIcon className="size-4" /> {uploading ? "Uploading…" : "Upload Resume"}
+        <UploadIcon className="size-4" /> {uploading ? "Reading Resume…" : "Upload Resume"}
       </Button>
       <input ref={inputRef} type="file" accept={RESUME_ACCEPT} onChange={pickFile} hidden />
     </>
@@ -498,7 +498,7 @@ function useUploadButton(upload: PickerUpload | undefined, onSent: () => void) {
               onClick={() => void send(waiting, replacing)}
               disabled={uploading || replacing == null}
             >
-              {uploading ? "Replacing…" : "Replace It"}
+              {uploading ? "Reading Resume…" : "Replace It"}
             </Button>
           </div>
         </>
