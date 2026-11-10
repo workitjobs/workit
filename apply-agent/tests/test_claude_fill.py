@@ -293,17 +293,82 @@ def test_a_form_claude_cannot_fill_alone_is_a_handoff_with_its_reason(tmp_path):
     assert server.submissions == []
 
 
+class ShowsAChallenge(BambooDriver):
+    """Plays Haiku stopping at a captcha's challenge that shows on the page (DataDome's slider, never solved)."""
+
+    def __call__(self, page, schema: dict, prompt: str, files: list) -> dict:
+        if not page.locator("iframe[src*='captcha-delivery.com']").count():
+            page.evaluate(DATADOME, None)
+        return super().__call__(page, schema, prompt, files)
+
+
 @pytest.mark.parametrize("why", ["A reCAPTCHA picture challenge covers the form.",
                                  "Cloudflare asks to verify you are human before the form loads."])
 def test_a_captcha_claude_fill_stops_at_is_a_bot_signal(tmp_path, why):
     profile = profile_with(tmp_path)
-    claude = FakeClaude(driver=BambooDriver(blocked=why))
+    claude = FakeClaude(driver=ShowsAChallenge(blocked=why))
 
     with FakeBambooServer(LUNAR_FORM) as server:
         [row] = run(server, profile, requests=[LUNAR_URL], claude=claude)
 
     assert row.status == "handoff"
     assert row.bot_signals == "headless: captcha"
+
+
+# An invisible hCaptcha's closed challenge, as JPMorgan's Oracle form kept it (2026-11-10, KAN-760): in the page,
+# parked off it, hidden and see-through, its words still in the snapshot. Haiku read it as an open challenge.
+CLOSED_HCAPTCHA = """() => {
+  const box = document.createElement('div');
+  box.style.cssText = 'visibility: hidden; position: absolute; width: 100%; top: -10000px; left: 0; right: 0; opacity: 0';
+  box.innerHTML = '<div style="position: absolute; top: 40px; left: 40px"><iframe title="Main content of the hCaptcha '
+    + 'challenge" src="https://newassets.hcaptcha.com/captcha/v1/static/hcaptcha.html#frame=challenge&id=0a1b2c" '
+    + 'style="width: 400px; height: 580px; border: 0"></iframe></div>';
+  document.body.appendChild(box);
+}"""
+OPEN_HCAPTCHA = 'an hCaptcha challenge ("Please try again", Verify) appears to be open over the application page'
+
+
+class ReadsAClosedCaptcha(BambooDriver):
+    """Plays Haiku on a form with an invisible hCaptcha: its first `times` reads stop for the captcha's closed
+    challenge, as if it were open; then it reads as before."""
+
+    def __init__(self, times: int):
+        super().__init__()
+        self._times, self.prompts = times, []
+
+    def __call__(self, page, schema: dict, prompt: str, files: list) -> dict:
+        if "questions" in schema["properties"]:
+            self.prompts.append(prompt)
+            if len(self.prompts) <= self._times:
+                if len(self.prompts) == 1:
+                    page.evaluate(CLOSED_HCAPTCHA)
+                return {"blocked": True, "why": OPEN_HCAPTCHA, "page": "application form", "questions": []}
+        return super().__call__(page, schema, prompt, files)
+
+
+def test_claude_fills_word_for_an_invisible_captcha_never_pauses_the_fill(tmp_path):
+    driver, phone = ReadsAClosedCaptcha(times=1), RecordingNotifier()
+
+    with FakeBambooServer(LUNAR_FORM) as server:
+        [row] = run(server, captcha_profile(tmp_path, 1), lunar_match(), claude=FakeClaude(driver=driver), phone=phone)
+
+    assert row.status == "submitted" and len(server.submissions) == 1
+    assert len(driver.prompts) == 2 and claude_fill.NO_CAPTCHA in driver.prompts[1]  # told once, and it went on
+    assert "Apply: do the captcha" not in [title for title, _ in phone.sent]
+    assert "captcha" not in row.bot_signals
+
+
+def test_a_captcha_only_claude_sees_twice_is_a_handoff_never_a_captcha_wait(tmp_path):
+    driver, phone = ReadsAClosedCaptcha(times=2), RecordingNotifier()
+
+    with FakeBambooServer(LUNAR_FORM) as server:
+        [row] = run(server, captcha_profile(tmp_path, 1), lunar_match(), claude=FakeClaude(driver=driver), phone=phone)
+
+    assert row.status == "handoff"
+    assert row.reason.startswith("Claude fill stopped twice for a captcha")
+    assert "Apply: do the captcha" not in [title for title, _ in phone.sent]
+    assert "captcha" not in row.bot_signals
+    assert server.submissions == []
 
 
 # Claude's why at a bot block (KAN-590): Tesla's "Access Denied" (2026-11-03), DataDome's block (LinkedIn's

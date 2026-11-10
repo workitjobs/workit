@@ -77,7 +77,11 @@ to solve. The student finishes the form in their everyday Chrome.
 
 **Lisul does the captcha, and Apply goes on.** A captcha that stops a fill
 is a `model.Captcha` (a Handoff with its page). Claude fill raises it when
-Claude stops at one (`SAYS_CAPTCHA`).
+Claude stops at one (`SAYS_CAPTCHA`) and Apply's own check sees it
+(`shows`, or `unsolved` for its box). When the check sees none, Claude is
+told so (`claude_fill.NO_CAPTCHA`) and drives once more; a second stop for
+a captcha that no one sees is a plain Handoff (`UNSEEN_CAPTCHA`), never a
+captcha wait and no `captcha` Bot signal.
 
 - `apply_to(on_captcha=...)` gets it first, in a run and in a rehearsal,
   while Apply reads the questions and while it fills. `captcha.Waiter` is
