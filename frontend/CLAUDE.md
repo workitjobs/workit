@@ -1224,7 +1224,14 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   hint, `workit-signed-in=1` (`sessionCookieWrites` in
   `lib/supabase/cookies.ts`, set with the session's idle age, cleared on
   sign-out), and an inline script in the root layout's `<head>` reads it.
-  A new place that writes session cookies goes through
+  **`<html>` carries `suppressHydrationWarning`**: the script adds
+  `data-signed-in` before React hydrates, and the server's HTML never has
+  it, so without the flag every page in `next dev` showed React's
+  hydration-mismatch error and a "1 Issue" badge (2026-11-10). The flag
+  covers `<html>`'s own attributes only, not its children. A new script
+  that writes before hydration puts its flag on the element it writes,
+  and never fixes the mismatch by reading a cookie on the server (the
+  root layout rule, below). A new place that writes session cookies goes through
   `sessionCookieWrites`, or the hint drifts. Then `SessionProbe` asks
   `GET /api/session` (whether an `sb-*-auth-token` cookie exists, never
   its value), corrects the mark, and the route writes the hint to match,
