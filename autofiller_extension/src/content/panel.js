@@ -213,6 +213,7 @@ window.WIA.onWorkday = () => window.WIA.jobSystem === "workday";
           <button type="button" data-back>Back</button>
         </div>
         <div class="card" data-slot="report" hidden></div>
+        <div class="card" data-slot="check" hidden></div>
       </div>
       <div class="bottom"><div data-slot="primary"></div></div>
     `;
@@ -344,7 +345,7 @@ window.WIA.onWorkday = () => window.WIA.jobSystem === "workday";
     );
   }
 
-  // Who wants to know when a view (settings, report) shows or goes (onView).
+  // Who wants to know when a view (settings, report, check) shows or goes (onView).
   const viewHooks = [];
   /** Runs `hook(name, shown)` whenever showView shows or hides a view. */
   const onView = (hook) => viewHooks.push(hook);
@@ -585,9 +586,9 @@ window.WIA.onWorkday = () => window.WIA.jobSystem === "workday";
     showView("settings", shown);
   }
 
-  /** A view in place of the tab's body ("settings", "report"), or the tab again (shown false). The tab strip stays. */
+  /** A view in place of the tab's body ("settings", "report", "check"), or the tab again (shown false). The tab strip stays. */
   function showView(name, shown) {
-    for (const view of ["settings", "report"]) root.querySelector(`[data-slot="${view}"]`).hidden = !(shown && view === name);
+    for (const view of ["settings", "report", "check"]) root.querySelector(`[data-slot="${view}"]`).hidden = !(shown && view === name);
     root.querySelector("[data-tabs]").hidden = shown;
     for (const hook of viewHooks) hook(name, shown);
   }
