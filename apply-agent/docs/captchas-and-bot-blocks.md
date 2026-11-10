@@ -12,6 +12,18 @@ challenge there, as data, not in a Filler.
   frames, DataDome's slider (SmartRecruiters' "Verification Required"),
   Arkose Labs, and Rippling's Turnstile box. `captcha.shows(page)` reads
   them. Do not list a checkbox that stays on the page after it passes.
+- **A captcha is open only when a person can see it (KAN-760).** `shows`
+  and `unsolved` count an element only when Apply's own code sees it
+  shown (`VISIBLE`, `SHOWN_JS`), in each frame: displayed, 10px or more
+  each way, neither it nor a parent hidden, see-through (opacity 0) or
+  `aria-hidden`, and not parked off the page. An invisible captcha keeps
+  its closed challenge's frame in the page like that (hCaptcha and
+  reCAPTCHA park it at `top: -10000px`), and its words ("Please try
+  again", "Verify") still read in Claude's snapshot: JPMorgan's Oracle
+  form paused on them, with no challenge to do, and the wait could not
+  end (2026-11-10). Claude's word alone never makes a captcha wait. On a
+  plain Worker both checks run as the extension's own code
+  (`apply/plain/fixed.py`), so a page's CSP can't turn them off.
 - `SAYS_CAPTCHA` reads Claude fill's why when Claude stops at a captcha.
 - `HOSTS` and `PATHS` name the hosts of the challenges' frames. The submit
   guard and the drive guard do nothing in such a frame, so Lisul can do
@@ -21,6 +33,11 @@ challenge there, as data, not in a Filler.
   is no captcha: `captcha.shows` is False there.
 - Apply never evades bot detection and never touches a captcha. It hands
   captchas and blocks to the student.
+- A sign-in, account or code page that carries a captcha, an invisible
+  one too (`CARRIED`), is still Lisul's to press (KAN-703,
+  `src/apply/account_pages.py`): its button runs the captcha, which may
+  then open a challenge. That rule reads the page's code, not Claude's
+  snapshot, and KAN-760 leaves it as it is.
 
 **Bot blocks go to the student's own Chrome (KAN-590).** A Bot block
 (`GLOSSARY.md`) is a page that refuses the Worker's Chrome, with nothing
@@ -68,9 +85,10 @@ Claude stops at one (`SAYS_CAPTCHA`).
   True`, kind `captcha`) with Resume, and the phone gets one push per
   Application, "Do the captcha on <company>" (the ntfy path of `apply
   push-test`, only with `phone_push` on).
-- The wait polls the page each second (`captcha.wait`). It ends when the
-  challenge that showed is gone, or when Lisul presses Resume (`POST
-  /resume`, `Board.resumed`). Then the Filler reads or fills again, on the
+- The wait polls the page each second (`captcha.wait`). It ends when no
+  challenge shows and no box is left to do (`pending`), checked by code, so
+  a wait with nothing on view ends at once; or when Lisul presses Resume
+  (`POST /resume`, `Board.resumed`). Then the Filler reads or fills again, on the
   same page, with the same plan. The page keeps the submit guard on.
 - After `captcha_wait_minutes` (policies, default 15), or when the tab
   closed, it is the usual Handoff: a run's ends, a rehearsal's pauses

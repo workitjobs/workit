@@ -21,7 +21,7 @@ from functools import cache
 @cache
 def functions() -> dict[str, tuple[str, str, str]]:
     # Imported here: these modules import much of Apply, and PortPage imports this one.
-    from apply import ask, email_code, on_page, regenerate, send_click, stuck
+    from apply import ask, captcha, email_code, on_page, regenerate, send_click, stuck
     from apply.plain import page, tools
 
     statements = lambda code: "() => { " + code + "; }"
@@ -34,6 +34,9 @@ def functions() -> dict[str, tuple[str, str, str]]:
         page.VIEWPORT: ("viewportSize", "ISOLATED", page.VIEWPORT),
         tools.IN_CAPTCHA: ("inCaptcha", "ISOLATED", tools.IN_CAPTCHA),
         tools.FOCUS_IN_CAPTCHA: ("focusInCaptcha", "ISOLATED", tools.FOCUS_IN_CAPTCHA),
+        # Whether a captcha's challenge or box shows to a person (KAN-760): read on every captcha wait's poll.
+        captcha.VISIBLE: ("captchaVisible", "ISOLATED", captcha.VISIBLE),
+        captcha.UNSOLVED: ("captchaUnsolved", "ISOLATED", captcha.UNSOLVED),
         # MAIN: the button calls the page's __applyRegenerate binding, and the others call what OFFER set there.
         regenerate.OFFER: ("regenOffer", "MAIN", regenerate.OFFER),
         regenerate.WORKING: ("regenWorking", "MAIN", regenerate.WORKING),
