@@ -1345,6 +1345,32 @@ Real, not forgotten. Do not treat their absence as a decision already made.
   Claude and shared by every student applying to that posting; it goes
   with the posting (ON DELETE CASCADE). Migration `d2f4a6c8e013`.
 
+## Scraper tables — `scraper.py`
+
+`Scraper_Schedule`, `Scraper_Task` and `Job_Source` (KAN-605, KAN-619,
+KAN-733). The worker's own tables, documented in `../../CLAUDE.md`'s scraper
+paragraph. Invariants for `Job_Source`:
+
+- **One row per (schedule, apply_url)**, the unique constraint. `external_id`
+  is the posting's id on its hiring system, written by `update_sources` from
+  the provider's `Job.external_id`. Phase 2 needs it to build the description
+  page URL via `providers.job_url(ats, token, external_id)`.
+- **`description_version`** (SmallInteger, nullable): the `PAGE_VERSION` at
+  the last description fetch. NULL means "needs fetch" for postings without
+  inline descriptions; a value equal to `PAGE_VERSION` means current. Phase 2
+  queries `WHERE description_version IS NULL OR description_version <
+  PAGE_VERSION`. A failure stamps the version without `description_fetched_at`,
+  so the posting is retried only on the next `PAGE_VERSION` bump.
+- **`description_fetched_at`** (DateTime with timezone, nullable): when the
+  description was last successfully fetched. NULL for postings that failed or
+  have not been fetched yet.
+- **Inline providers** (Lever, Ashby, Recruitee) stamp `description_version`
+  and `description_fetched_at` during phase 1 via `update_sources`,
+  so phase 2 skips them.
+- **Migration:** `b27f4b974d5c` adds `external_id`, `description_version` and
+  `description_fetched_at` to `job_sources`. Existing rows get NULL, which is
+  correct: NULL `description_version` means "needs fetch".
+
 ## Out of scope
 
 These belong to later tickets and should not be added here:

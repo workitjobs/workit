@@ -20,21 +20,44 @@ package: a library with no database or HTTP of its own, handed everything by
 `asyncio.to_thread` and publishes directly through `import_feed`. The
 scraper stays stdlib-only; the backend uses it as a library. Three tables
 (`scraper_schedules`, `scraper_tasks`, `job_sources`) track board catalogs,
-task leasing and which boards list which jobs. Each board publishes
-independently right after it is scraped (`_checkpoint_board`): import_feed,
-update sources, advance reads and mark done in one commit per board, so fast
-boards checkpoint without waiting for slow ones and only one board's payload
-is in memory at a time. A failed checkpoint logs and continues: one board's
-failure never stops the rest or skips closure detection. Source tracking
-(`update_sources`) records every URL the board listed, not just the
-shortlisted ones that were published: the shortlist decides what to publish,
-the full listing decides what the board says exists. A board returning more
-than `MAX_BOARD_LISTINGS` (5,000) listings is treated as failed. After all
-boards, one statement runs `detect_and_close` globally: a single CTE
-identifies stale jobs, counts them against the surge guard and closes in one
-snapshot, so no concurrent transaction can change the row set between the
-check and the close. `job_sources` drives closure detection (KAN-619): a job
-stale on every enabled board (two complete reads without it,
+task leasing and which boards list which jobs.
+
+**The cycle runs in two phases** (KAN-733). Phase 1 reads each board's
+listing, filters by `classify(title)` alone (no page fetches) and publishes
+through `import_feed`. Providers that return descriptions inline (Lever,
+Ashby, Recruitee) stamp `description_version` on their `job_sources` rows
+during phase 1 (`update_sources`). Phase 2, after all boards,
+fetches description pages only for postings whose `description_version` is
+NULL or below `PAGE_VERSION`: at most `MAX_DESCRIPTIONS_PER_CYCLE` (500) per
+cycle, ordered by `schedule_id` then `first_seen_at`, in 8 threads
+(`DESCRIPTION_WORKERS`) with a shared `Robots` instance. Each success
+updates the posting's page-derived fields (description, salary, job_type,
+work_style, experience_level, start_term, sponsorship) on `job_postings` and
+stamps the source; a failure stamps `description_version` without
+`description_fetched_at`, so the posting is retried only on the next
+`PAGE_VERSION` bump. Results commit in batches of 50
+(`DESCRIPTION_BATCH_SIZE`). Enrichment failures roll back the active batch
+and still allow closure detection. Preserve listing work style when rebuilding
+provider jobs, and retain stored currency/period when absent from a page: both
+salary columns are non-null, so clearing either aborts the entire batch.
+Description is pure enrichment: it never filters
+a posting out.
+
+Each board publishes independently right after it is scraped
+(`_checkpoint_board`): import_feed, update sources, advance reads and mark
+done in one commit per board, so fast boards checkpoint without waiting for
+slow ones and only one board's payload is in memory at a time. A failed
+checkpoint logs and continues: one board's failure never stops the rest or
+skips closure detection. Source tracking (`update_sources`) records every URL
+the board listed (with its `external_id`), not just the shortlisted ones
+that were published: the shortlist decides what to publish, the full listing
+decides what the board says exists. A board returning more than
+`MAX_BOARD_LISTINGS` (5,000) listings is treated as failed. After phase 2,
+one statement runs `detect_and_close` globally: a single CTE identifies
+stale jobs, counts them against the surge guard and closes in one snapshot,
+so no concurrent transaction can change the row set between the check and
+the close. `job_sources` drives closure detection (KAN-619): a job stale on
+every enabled board (two complete reads without it,
 `last_seen_at < prior_read_at`) and supported by no other enabled board is
 closed with reason `gone_from_board`; a surge guard (the feed import's
 `_MASS_CLOSE_SHARE` and `_MASS_CLOSE_FLOOR`, imported, not copied) refuses
