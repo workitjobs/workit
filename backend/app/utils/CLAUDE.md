@@ -225,8 +225,9 @@ would read "Marketing - May 2026" as a range.
   this, three projects merged into one.
 - **A project's tools** follow the last "|" as a comma list ("Robot | C++,
   Python") or sit in parentheses with a comma; they go to
-  `Project.technologies`, and import adds those missing from the skills
-  section as ungrouped skills. One phrase after the bar is a subtitle and
+  `Project.technologies`, which import saves as the project's own `tools`
+  (KAN-738, below) and also adds, where the skills section left them out,
+  as ungrouped skills. One phrase after the bar is a subtitle and
   stays in the name ("WorkIt | Full Stack Recruiting Platform"); with a
   subtitle and a list ("Robot | Club| C++, Go") the name keeps both phrases
   and only the list is tools (`split_tools`). Before, the first bar split,
@@ -237,12 +238,18 @@ would read "Marketing - May 2026" as a range.
   parentheses do not split). Before (a real resume, 2026-11-09), that line
   was saved as the project's first bullet, and tools named only there never
   reached the skills.
-- **Bank entries have no tools field**, so a project's stack lives only as
-  the bank's skills, not on the project. Jake's Resume prints a stack after
-  the project's "|"; WorkIt's template fills that slot with the
-  organization and link (`resume_render/fields.py`). Keeping a stack per
-  project, and printing it there, would take a migration (a tools column on
-  bank entries and built resumes), the editor and the renderer: not built.
+- **A project keeps its tools** (KAN-738, `bank_entries.tools`, migration
+  `f4c7a2d9b318`): the stack in the resume's spelling and order, each
+  clipped to 60 characters and kept once, at most 30
+  (`bank_import._tools`). They are not checked against the skills catalog:
+  the line prints what the student wrote, while the skills keep only
+  catalog names as before. Only a project holds them
+  (`schemas/bank.py`'s `SECTION_FIELDS`); a role's tools are skills only.
+  A built resume prints them on a line of their own under the project's
+  heading (`resume_render/CLAUDE.md`), so the heading's first line keeps
+  its organization and link. An upload read before KAN-738 keeps its
+  stack only as skills until it is read again (Import Updated Resume or
+  Import Again).
 - **A role's tools** work the same way: "Software Engineer Intern| C++, Go"
   keeps only the role as the title, and the list goes to
   `Experience.technologies` (jobs and leadership), then to ungrouped skills.
@@ -369,6 +376,18 @@ Rules:
     the model copy "Budget Buddy (React, Firebase)" whole, so the tools
     become skills as this parser splits them (`split_tools`, a comma list
     in parentheses). "(Pulp)" holds no list and stays.
+  - **A project's tools** (KAN-738): the prompt asks for them as the
+    project's `tools`, and each must be on the resume (`_backed`), as any
+    field. A project also takes the tools split out of its title when the
+    model gave it none, and its leading bullets that only list tools
+    (`is_tools_line`): the model copied the stack line as a bullet. The
+    parser's tools fill a twin's empty list (`_fill_blanks`). Tools the
+    model gives an entry that is not a project are cleared before the entry
+    schema, which would refuse the whole role for them, and become skills
+    when the resume backs them (`role_tools`). Every project's tools also
+    reach the skills. A known gap from KAN-732: a project whose title is
+    one word ("Robot") has no twin (`_twin` needs two shared words), so
+    the parser's copy is added beside the model's.
   - **An award's giver is its organization** (`with_award_givers`): "Dean's
     List – Riverside State University" splits as this parser's
     "Award – Issuer" does.

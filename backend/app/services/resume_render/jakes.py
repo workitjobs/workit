@@ -104,7 +104,20 @@ def _entry(entry: ViewEntry, marks: bool, printed: Printed) -> list[str]:
         line = rf"\resumeSubheading{{{slot('title')}}}{{{slot('right')}}}{{{slot('subtitle')}}}{{{slot('subright')}}}"
     else:
         left = rf"\textbf{{{slot('title')}}}" + (rf" $|$ \emph{{{slot('tag')}}}" if h.tag else "")
-        line = rf"\resumeProjectHeading{{{left}}}{{{slot('right')}}}"
+        if h.subtitle:
+            # A project's tools on a line of their own (KAN-738): Jake's
+            # \resumeProjectHeading with a second row in the italic of
+            # \resumeSubheading's. Written out here, since jakes.tex stays
+            # byte for byte and has no two-row project heading.
+            line = "\n".join((
+                r"\item",
+                r"\begin{tabular*}{0.97\textwidth}[t]{l@{\extracolsep{\fill}}r}",
+                rf"\small{left} & {slot('right')} \\",
+                rf"\textit{{\small {slot('subtitle')}}} & \\",
+                r"\end{tabular*}\vspace{-7pt}",
+            ))
+        else:
+            line = rf"\resumeProjectHeading{{{left}}}{{{slot('right')}}}"
     items = [(entry.id, kind, escape(text), text) for kind, text in details(entry)]
     # A marked bullet's box carries its markers: the editor opens the line on
     # them, and saves it only when they change

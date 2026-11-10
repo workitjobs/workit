@@ -38,7 +38,9 @@ class IntakeDraft(EntryCreate):
     gpa: float | None = Field(None, gt=0, le=100)
     gpa_scale: float | None = Field(None, gt=0, le=100)
 
-    @field_validator("coursework", "bullets", mode="before")
+    # Named as EntryFields' validator, so it replaces that one: it must
+    # cover every list EntryFields' covers (coursework, tools)
+    @field_validator("coursework", "tools", "bullets", mode="before")
     @classmethod
     def _null_is_empty(cls, value: object) -> object:
         # A live model sends null for a list it has nothing for, most often

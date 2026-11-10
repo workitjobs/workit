@@ -476,3 +476,36 @@ async def test_clear_all_removes_the_skills_sent(student, database):
     assert (await client.post(f"{bank}/skills/delete", json={"ids": [ids[0], ids[1], ids[1]]})).status_code == 204
     assert [s["name"] for s in (await client.get(bank)).json()["skills"]] == ["Rust"]
     assert await _vector_state(database, applicant_id) == (True, True)
+
+
+# --- a project's tools (KAN-738) -------------------------------------------------
+
+
+async def test_a_projects_tools_are_saved_edited_and_cleared(student):
+    client, bank = student
+    res = await client.post(f"{bank}/entries", json={
+        "section": "projects", "title": "Maze Robot", "tools": [" C++ ", "Python", "ROS"]})
+    assert res.status_code == 201
+    entry = res.json()
+    assert entry["tools"] == ["C++", "Python", "ROS"]  # in order, trimmed
+
+    res = await client.patch(f"{bank}/entries/{entry['id']}", json={"tools": ["Python", "C++"]})
+    assert res.json()["tools"] == ["Python", "C++"]
+    # null clears a list, as it clears any field
+    res = await client.patch(f"{bank}/entries/{entry['id']}", json={"tools": None})
+    assert (res.status_code, res.json()["tools"]) == (200, [])
+    assert (await client.get(bank)).json()["entries"][0]["tools"] == []
+
+
+async def test_only_a_project_holds_tools(student):
+    client, bank = student
+    res = await client.post(f"{bank}/entries", json={"section": "experience", "title": "Intern", "tools": ["Go"]})
+    assert res.status_code == 422
+    job = (await client.post(f"{bank}/entries", json={"section": "experience", "title": "Intern"})).json()
+    assert job["tools"] == []
+    res = await client.patch(f"{bank}/entries/{job['id']}", json={"tools": ["Go"]})
+    assert res.status_code == 422
+    # A tool is a name: 60 characters at most, 30 tools at most
+    project = {"section": "projects", "title": "Robot"}
+    assert (await client.post(f"{bank}/entries", json={**project, "tools": ["x" * 61]})).status_code == 422
+    assert (await client.post(f"{bank}/entries", json={**project, "tools": ["Go"] * 31})).status_code == 422

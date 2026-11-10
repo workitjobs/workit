@@ -68,7 +68,9 @@ def gpa(entry: ViewEntry) -> str | None:
 @dataclass(frozen=True)
 class Heading:
     '''An entry's heading. Two-row sections use all four slots; one-row
-    sections show `title` and `tag` on the left and `right` at the right.'''
+    sections show `title` and `tag` on the left and `right` at the right,
+    and a project with tools shows them as `subtitle`, a line of their own
+    under it (KAN-738).'''
 
     title: str
     right: str = ""
@@ -89,7 +91,12 @@ def heading(entry: ViewEntry) -> Heading:
         tag = entry.issuer or entry.organization or ""
     else:  # projects, awards
         tag = " | ".join(x for x in (entry.organization, entry.link) if x)
-    return Heading(entry.title, when, tag=tag)
+    return Heading(entry.title, when, tag=tag, subtitle=tools(entry))
+
+
+def tools(entry: ViewEntry) -> str:
+    '''A project's tools line, "Next.js, TypeScript", or "".'''
+    return ", ".join(entry.tools)
 
 
 def heading_fields(section: str) -> dict[str, str]:
@@ -100,7 +107,7 @@ def heading_fields(section: str) -> dict[str, str]:
         return {"title": "title", "right": "location", "subtitle": "degree", "subright": "dates"}
     if section in TWO_ROW:
         return {"title": "title", "right": "dates", "subtitle": "organization", "subright": "location"}
-    return {"title": "title", "tag": "organization", "right": "dates"}
+    return {"title": "title", "tag": "organization", "right": "dates", "subtitle": "tools"}
 
 
 def details(entry: ViewEntry) -> list[tuple[str, str]]:

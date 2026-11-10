@@ -164,7 +164,7 @@ def _shown_text(view: ResumeView) -> str:
     for section in view.sections:
         for e in section.entries:
             parts += [e.title, e.organization, e.location, e.degree, e.field_of_study,
-                      e.honors, e.issuer, *e.coursework, *(b.text for b in e.bullets)]
+                      e.honors, e.issuer, *e.coursework, *e.tools, *(b.text for b in e.bullets)]
     parts += [s.name for s in view.skills]
     return "\n".join(p for p in parts if p)
 

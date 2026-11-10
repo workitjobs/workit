@@ -26,7 +26,8 @@ applicant_profiles
   location, start month, and an end that is a month, Present or expected.
   The few fields one section needs are columns on the same row and stay null
   elsewhere: Education's degree, field of study, GPA and scale, coursework
-  and honors; Projects' link; Certifications' issuer; Awards' one date.
+  and honors; Projects' link and tools (the project's stack, KAN-738);
+  Certifications' issuer; Awards' one date.
   `backend/app/schemas/bank.py` decides which section owns which field.
 - **Months are dates on the first of the month**, sent as `YYYY-MM`: a
   resume shows a month, never a day.
@@ -51,7 +52,8 @@ applicant_profiles
   at most one per bullet and built resume, updated in place as the student
   types, and deleted when they type the original back. The bank's bullet
   never changes there; an entry's title, organization, location, GPA,
-  coursework and honors typed in the editor do change the bank, so those
+  coursework, honors and a project's tools typed in the editor do change
+  the bank, so those
   facts match on every resume. The header's name, phone and links typed
   there change the profile, for the same reason.
   Rules: `backend/app/services/built_resumes.py`'s `update_choices`.

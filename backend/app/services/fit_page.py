@@ -93,13 +93,15 @@ class Scores:
 
 def skill_levels(view: ResumeView, posting: str) -> dict[uuid.UUID, int]:
     '''Each shown skill's level: 2 when the posting's text names it, 1 when
-    only the resume's own bullets do, 0 when neither. A whole-word check
+    only the resume's own bullets or projects' tools lines (KAN-738) do, 0
+    when neither. A whole-word check
     over every spelling the skills catalog knows (`keywords._shows`), never
     text search, which reads "C++" and "C#" as "c".'''
     from app.services.keywords import _shows
     from app.services.skill_catalog import spellings
 
-    bullets = "\n".join(b.text for s in view.sections for e in s.entries for b in e.bullets)
+    entries = [e for s in view.sections for e in s.entries]
+    bullets = "\n".join([*(b.text for e in entries for b in e.bullets), *(t for e in entries for t in e.tools)])
 
     def named(text: str, skill: ViewSkill) -> bool:
         return any(_shows(text, name) for name in spellings(skill.name))

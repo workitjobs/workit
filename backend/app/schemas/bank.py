@@ -53,7 +53,7 @@ Grade = Annotated[Decimal, Field(gt=0, le=100, max_digits=5, decimal_places=2)]
 # The fields only one section holds. Any other section must leave them empty.
 SECTION_FIELDS: dict[bank_section, tuple[str, ...]] = {
     bank_section.education: ("degree", "field_of_study", "gpa", "gpa_scale", "coursework", "honors"),
-    bank_section.projects: ("link",),
+    bank_section.projects: ("link", "tools"),
     bank_section.certifications: ("issuer",),
     bank_section.awards: ("award_date",),
 }
@@ -77,8 +77,15 @@ class EntryFields(BaseModel):
     coursework: list[Text] = Field(default_factory=list, max_length=40)
     honors: LongText | None = None
     link: LongText | None = None
+    tools: list[Name] = Field(default_factory=list, max_length=30)
     issuer: Text | None = None
     award_date: Month | None = None
+
+    @field_validator("coursework", "tools", mode="before")
+    @classmethod
+    def _null_is_empty(cls, value: object) -> object:
+        # PATCH clears a field with null; a list's empty value is []
+        return [] if value is None else value
 
     @model_validator(mode="after")
     def _fits_together(self) -> "EntryFields":
@@ -126,6 +133,7 @@ class EntryUpdate(BaseModel):
     coursework: list[Text] | None = Field(None, max_length=40)
     honors: LongText | None = None
     link: LongText | None = None
+    tools: list[Name] | None = Field(None, max_length=30)
     issuer: Text | None = None
     award_date: Month | None = None
 
@@ -319,11 +327,12 @@ class ModelEntry(BaseModel):
     gpa_scale: float | None = None
     coursework: list[str] = Field(default_factory=list)
     honors: str | None = None
+    tools: list[str] = Field(default_factory=list)
     issuer: str | None = None
     award_date: str | None = Field(None, description="YYYY-MM")
     bullets: list[str] = Field(default_factory=list)
 
-    @field_validator("coursework", "bullets", mode="before")
+    @field_validator("coursework", "tools", "bullets", mode="before")
     @classmethod
     def _null_is_empty(cls, value: object) -> object:
         # Groq's gpt-oss sends coursework: null on a job; that is no courses,

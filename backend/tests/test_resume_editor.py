@@ -949,3 +949,40 @@ async def test_fit_to_one_page_reads_the_saved_page_settings(student):
     await client.put(f"{me}/built-resumes/{resume_id}/page-settings", json=SETTINGS)
     body = (await client.post(f"{me}/built-resumes/{resume_id}/fit")).json()
     assert body["render"]["page_settings"] == SETTINGS
+
+
+# A project's tools line (KAN-738)
+
+async def test_a_typed_tools_line_saves_the_projects_tools_and_prints_them(student):
+    client, me = student
+    await _fill_bank(client, me)
+    resume_id = await _generate(client, me)
+    workit = _entry(await _bank(client, me), "WorkIt")["id"]
+
+    res = await _type(client, me, resume_id, workit, "tools", "FastAPI, Next.js, Supabase (PostgreSQL, pgvector)")
+    assert res.status_code == 200, res.text
+    # The bank's own field, so every resume that shows the project prints it
+    assert _entry(await _bank(client, me), "WorkIt")["tools"] == ["FastAPI", "Next.js", "Supabase (PostgreSQL, pgvector)"]
+    lines = await _lines(client, me, resume_id)
+    assert lines[lines.index(next(t for t in lines if t.startswith("WorkIt"))) + 1] == (
+        "FastAPI, Next.js, Supabase (PostgreSQL, pgvector)")
+
+    # Typed empty, the line goes
+    assert (await _type(client, me, resume_id, workit, "tools", "")).status_code == 200
+    assert _entry(await _bank(client, me), "WorkIt")["tools"] == []
+
+
+async def test_a_tools_line_renders_from_the_copy_with_its_box(student):
+    _tectonic_or_skip()
+    client, me = student
+    await _fill_bank(client, me)
+    resume_id = await _generate(client, me)
+    workit = _entry(await _bank(client, me), "WorkIt")["id"]
+
+    res = await _render_line(client, me, resume_id, workit, "tools", "FastAPI, Next.js")
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert _box(body["render"], "tools", workit)["text"] == "FastAPI, Next.js"
+    assert body["entry"]["tools"] == ["FastAPI", "Next.js"]
+    # Rendered, never saved
+    assert _entry(await _bank(client, me), "WorkIt")["tools"] == []

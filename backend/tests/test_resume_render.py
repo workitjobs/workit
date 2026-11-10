@@ -203,7 +203,19 @@ def _long_view() -> ResumeView:
                                          location="Georgetown, TX", bullets=bullets))
 
 
-@pytest.mark.parametrize("view", [VIEW, _long_view()], ids=["one page", "two pages"])
+def _tools_view() -> ResumeView:
+    '''Jake's sample with a project that keeps its stack as tools (KAN-738),
+    as an upload now reads "workitjobs.ai | AI Job Search Platform" over a
+    line of tools.'''
+    project = ViewEntry(uuid.uuid4(), "projects", "workitjobs.ai", organization="AI Job Search Platform",
+                        tools=("Next.js", "TypeScript", "Tailwind CSS", "FastAPI", "PostgreSQL"),
+                        bullets=(ViewBullet(uuid.uuid4(), "Lead design and front-end on a 5-person team"),))
+    sections = tuple(replace(s, entries=(project, *s.entries)) if s.section == "projects" else s
+                     for s in VIEW.sections)
+    return replace(VIEW, sections=sections)
+
+
+@pytest.mark.parametrize("view", [VIEW, _long_view(), _tools_view()], ids=["one page", "two pages", "tools"])
 def test_position_markers_leave_the_page_unchanged(view) -> None:
     # The preview must be the file that downloads (ADR 0002): the markers
     # that place the editor's click targets may not move one glyph
@@ -278,6 +290,33 @@ def test_render_gives_a_box_for_each_line_the_editor_can_select() -> None:
     first = job.bullets[0]
     _, bbox = _line(lines, first.text[:30])
     assert _inside(bbox, boxes[(str(first.id), "bullet")])
+
+
+def test_a_projects_tools_print_on_their_own_line_under_its_heading() -> None:
+    # KAN-738: the heading's first line stays as it was (name, organization,
+    # dates), and the tools take a line of their own, as the student's own
+    # resume prints them; the editor gets a "tools" box for that line
+    _tectonic_or_skip()
+    view = _tools_view()
+    rendered = render(view, IDENTITY, "jakes")
+    project = view.sections[2].entries[0]
+    boxes = {(b.item_id, b.kind): b for b in rendered.boxes}
+
+    assert rendered.missing_characters == ()
+    assert {kind for item, kind in boxes if item == str(project.id)} == {"title", "organization", "tools"}
+    tools = boxes[(str(project.id), "tools")]
+    assert tools.text == "Next.js, TypeScript, Tailwind CSS, FastAPI, PostgreSQL"
+    title, bullet = boxes[(str(project.id), "title")], boxes[(str(project.bullets[0].id), "bullet")]
+    assert title.y1 <= tools.y0 and tools.y1 <= bullet.y0
+    assert abs(tools.x0 - title.x0) < 1  # under the name, not indented
+
+    lines = _text_lines(rendered.pdf)
+    assert any(t.startswith("workitjobs.ai | AI Job Search Platform") for t, _, _ in lines)
+    _, bbox = _line(lines, "Next.js, TypeScript")
+    assert _inside(bbox, tools)
+    # A project with no tools keeps one line, as before
+    gitlytics = view.sections[2].entries[1]
+    assert (str(gitlytics.id), "tools") not in boxes
 
 
 def test_the_header_gives_a_box_for_each_profile_field() -> None:
@@ -410,6 +449,20 @@ def test_the_word_file_says_us_citizen_when_checked() -> None:
     doc = Document(io.BytesIO(render_docx(VIEW, replace(IDENTITY, us_citizen=True))))
     assert doc.paragraphs[1].text == (
         "U.S. Citizen | 123-456-7890 | jake@su.edu | linkedin.com/in/jake | github.com/jake")
+
+
+def test_the_word_file_prints_a_projects_tools_under_its_heading() -> None:
+    from docx import Document
+
+    from app.services.resume_render.word import render_docx
+
+    texts = [p.text for p in Document(io.BytesIO(render_docx(_tools_view(), IDENTITY))).paragraphs]
+    heading = next(i for i, t in enumerate(texts) if t.startswith("workitjobs.ai | AI Job Search Platform"))
+    assert texts[heading + 1] == "Next.js, TypeScript, Tailwind CSS, FastAPI, PostgreSQL"
+    assert texts[heading + 2] == "Lead design and front-end on a 5-person team"
+    # A project with no tools goes straight to its bullets
+    gitlytics = next(i for i, t in enumerate(texts) if t.startswith("Gitlytics"))
+    assert texts[gitlytics + 1].startswith("Developed a full-stack web application")
 
 
 def test_an_unchecked_header_hashes_as_before_the_check_box() -> None:

@@ -277,6 +277,11 @@ change here must keep:
   JSONB blob, so later queries (graduation date, Tailor's text search) read
   them directly. `schemas/bank.py`'s `SECTION_FIELDS` says which section
   owns which; the database only checks the end (`bank_entries_end_check`).
+  The two lists, `coursework` (Education) and `tools` (Projects, KAN-738,
+  `f4c7a2d9b318`), are `text[]` defaulting to `'{}'`, empty outside their
+  section: a list's empty value is `[]`, never NULL, and a PATCH that sends
+  null clears it to `[]`. A project's tools are the student's words for its
+  stack, in order, kept beside the skills, never in place of them.
 - **A skill name appears once per applicant, ignoring case**
   (`bank_skills_applicant_name_key` on `lower(name)`), so Tailor's "Have you
   used X?" and import can look a skill up by name.

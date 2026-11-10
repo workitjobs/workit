@@ -55,7 +55,8 @@ class RenderBox(BaseModel):
     """Where one line sits on the PDF, for the editor's click target
     (KAN-209). `item_id` is the bank id of the bullet, skill or entry the line
     shows; `kind` is "bullet", "skill" or the entry field (title,
-    organization, location, dates, degree, gpa, coursework, honors). The
+    organization, location, dates, degree, gpa, coursework, honors, and a
+    project's tools line, `tools`, KAN-738). The
     header's lines have `item_id` "header" and the profile column as `kind`
     (full_name, phone_number, email, linkedin_url, ...). A
     rectangle in PDF points from the page's top left, y growing down;
