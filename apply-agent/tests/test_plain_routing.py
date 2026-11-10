@@ -109,7 +109,7 @@ class _Frames:
     def __init__(self, name):
         self.name = name
 
-    def frame(self, worker):
+    def frame(self, worker, tab=None):
         return f"{self.name} frame {worker}"
 
     def field_error(self, worker):
