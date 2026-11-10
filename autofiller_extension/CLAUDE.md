@@ -2004,6 +2004,7 @@ slot by name, `panel.slot(name)`, and adds its styles with
 | `tab:<id>` | a tab's body; `panel.addTab({ id, label })` adds one, the strip shows from two | `tab:autofill`, the only one (KAN-424): overlay.js's summary, essay banner, moment cards, parts and rows |
 | `settings` | the settings view, shown by the ⋯ menu's Settings in place of the tab's body (`panel.showSettings`; `panel.onView(hook)` hears it open) | panel-settings.js: Claude connection, Open the panel by itself, Report a problem, Workday Sign-Up, Back |
 | `report` | Report a problem, shown in place of the tab's body; open it with `window.WIA.reportCard.open({ trigger, field })` | report.js: the preview, Which field is wrong?, the note, Exactly what WorkIt sends, Send report, Back |
+| `check` | Check before Submit, shown in place of the tab's body; `window.WIA.presubmit.open()` | presubmit.js: every answer on the page, flagged first, Back |
 
 **The frame (KAN-369 Q4-Q6).** Top to bottom: the header (WorkIt, ⋯,
 Close: Close is the old Collapse, `data-collapse`); the batch line, job
@@ -2015,7 +2016,8 @@ covers only the tab's body: the strip stays, and pressing a tab leaves the
 view. **The ⋯ menu** (`panel.menuItem(id, { label, onPress, order } |
 null)`, role menu, shut by Escape, a press elsewhere in the panel or an
 item) holds, by `order`: I submitted this (10) and Skip (20) in a batch
-tab (overlay.mount), Fill Again (30) after a fill (primary.js), Report a
+tab (overlay.mount), Fill Again (30) and Check before Submit (35) after a
+fill (primary.js, presubmit.js), Report a
 problem (40), Settings (50), Hide on this site (60) and Hide everywhere
 (70), the shell's own. Each item carries
 `data-<id>` (`[data-skip]`, `[data-submitted]`, `[data-again]`); an item
@@ -2139,7 +2141,8 @@ walk). One purple button at the panel's bottom (KAN-369 Q5):
   read like "next job". Next Thing itself is Alt+N's (below). What the
   button answers shows under it (`[data-said]`).
 - **Review and submit** once nothing is red (amber guesses may be left:
-  Alt+N still walks them): scrolls to the employer's Submit
+  Alt+N still walks them): opens **Check before Submit** (below), and
+  there the button reads **Go to Submit**, which scrolls to the employer's Submit
   (the submit warning's rule: a visible control whose words start with
   "Submit", never WorkIt's host), rings it (marks.js) and focuses it. It
   never presses it. A Submit under the open panel (Anduril's sits at the
@@ -2182,8 +2185,46 @@ fill controls since KAN-394.
 
 Tests: `test/panel-primary.extension.spec.ts` ("Answer 1 of N" against
 the red box, staying on the first red field; Alt+N; Review and submit
-rings Submit and sends nothing; Fill Again's Cancel; Fill this step on
+opens Check before Submit, and Go to Submit rings Submit and sends nothing; Fill Again's Cancel; Fill this step on
 Workday; the embedded form).
+
+### Check before Submit (KAN-747): every answer, flagged first
+
+`src/content/presubmit.js` (`window.WIA.presubmit`, loaded before
+primary.js, which mounts it) is the extension's copy of Apply's Pre-submit
+check (`apply-agent/docs/held-forms.md`, "Verifying a filled form"), with
+the student as the checker: no model call, no read-back of its own. It is
+a view (the `check` slot, `panel.showView("check", ...)`) in place of the
+Autofill tab's body, opened by Review and submit and by the ⋯ menu's
+Check before Submit at any time after a fill (while something is red, the
+button still reads Answer 1 of N).
+
+- **What it lists**: every field the fill filled (status `filled`), and
+  every one lib-status.js flags. Notes, optional fields left empty and
+  questions the form isn't asking now are not answers and stay out.
+- **Order** (`flagOf`'s tier, `data-flagged` on the row; page order inside
+  a tier, `groups.inPageOrder`): 0 needs you (the one rule: the review's
+  flag, a failed field, "The page shows something other than WorkIt's
+  answer", a required field still empty), 1 WorkIt's guess (source
+  `guessed`, the engine's "not sure"), 2 Claude's words (source `claude`,
+  or an answer just in, `toCheck`), 3 waiting on the student's Claude;
+  then, under "Filled", the rest.
+- **Each row** shows why it is flagged, the answer as the engine read it
+  back (one line, 120 characters; a password or SSN field's reads
+  "(hidden)") and its source pill. A press (or Enter) goes to the field
+  through `window.WIA.showField`, as a checklist row does; a field the
+  page doesn't show says so for 4 s.
+- It redraws on every status change while it shows, so an answer that
+  lands or an edit moves its row. Back, a tab's press or another view
+  leaves it (`presubmit.viewed`, which also redraws the button).
+- **It never presses Submit.** Go to Submit only rings the employer's
+  button (primary.js `ringControl`); the submit warning still holds a
+  batch tab's Submit while something is open.
+
+Tests: `test/presubmit.extension.spec.ts` (Anduril: every filled, guessed
+and red row listed, flagged first, a row's press focusing its field, Back;
+Review and submit, then Go to Submit ringing Submit with nothing sent;
+Lumen's batch answer waiting, then Claude's words, redrawn in place).
 
 ### Live progress (KAN-398): Scanning, Autofilling · N%, Cancel and Skip
 
