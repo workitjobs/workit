@@ -69,11 +69,15 @@ under any other heading the parser found.
   with the section mark every custom section wears. Add a Section sits at
   the end of the quiet line under the cards; its card takes a name (with
   Summary, Volunteering, Languages, Interests and Publications offered) and
-  the layout, then opens the new section to fill. A section's heading holds
-  + and a ⋯ menu with Rename Section, Delete Section (with its entries,
-  asked in a modal) and, for Entries under one resume, Clear All, as the
-  fixed cards do since KAN-732 took away the section edit mode; each
-  entry's pencil is always in view.
+  the layout, then opens the new section's form to fill. An Entries
+  section's card is a fixed card's (KAN-740): its first three entries, a +
+  that opens the entry form and a pencil that opens the section's whole
+  list, whose ⋯ holds Rename Section, Delete Section (with its entries) and,
+  under one resume, Clear All, each asked across the list's foot. Its
+  pencil shows while it is empty too, since the list is where it is
+  renamed or deleted. A Lines section has no list: its card's pencil (a +
+  while it has no lines) opens its lines in the form, and its ⋯ keeps
+  Rename Section and Delete Section, asked in a modal.
   Under All Experiences, two sections of one name each add their owner's
   name.
 - **Resume editor**: the Experiences picker and Cut From Resume group

@@ -45,6 +45,22 @@ export const CUSTOM_FIELDS = {
   organization: "Organization",
 };
 
+/**
+ * What one entry of a section is called, and many: the entry form's title
+ * ("Edit Project", "Add School") and a card's "Show All 17 Projects". Each
+ * is the thing the title field names (a school, a job title's job, a club
+ * role), so no section reads "Edit Education" or "Show All 4 Educations".
+ */
+export const NOUNS: Record<EntrySection, readonly [string, string]> = {
+  education: ["School", "Schools"],
+  experience: ["Job", "Jobs"],
+  projects: ["Project", "Projects"],
+  leadership: ["Role", "Roles"],
+  awards: ["Award", "Awards"],
+  certifications: ["Certification", "Certifications"],
+  custom: ["Entry", "Entries"],
+};
+
 export function sectionOf(id: EntrySection) {
   return id === "custom" ? CUSTOM_FIELDS : SECTIONS.find((s) => s.id === id)!;
 }
@@ -301,4 +317,28 @@ export function neededFacts(entry: EntryFields & { bullets: readonly { text: str
     needed.push("Bullets");
   }
   return needed;
+}
+
+type WithBullets = EntryFields & { bullets: readonly { text: string }[] };
+
+/**
+ * What a bank row flags (KAN-740), each as a badge after its title ("No
+ * Start Date"): the facts a resume would miss (`missingFacts`), and the
+ * bullets of a job, project or role, which a resume prints as a bare heading
+ * without them. Title Case, as a badge is. They were a sentence on every row
+ * ("No start date yet. Add it before you Generate a resume.") that read as
+ * one more line of the entry, and the bullet count beside it said nothing
+ * of an entry with none.
+ */
+export function rowGaps(entry: WithBullets): string[] {
+  const gaps: string[] = [];
+  const dates = missingDates(entry);
+  if (dates) gaps.push(DATES_LABEL[dates]);
+  if (NEEDS_ORGANIZATION.has(entry.section) && !entry.organization?.trim()) {
+    gaps.push(sectionOf(entry.section).organization);
+  }
+  if (NEEDS_BULLETS.has(entry.section) && !entry.bullets.some((b) => b.text.trim())) {
+    gaps.push("Bullets");
+  }
+  return gaps;
 }

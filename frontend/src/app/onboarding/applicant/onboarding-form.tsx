@@ -263,7 +263,7 @@ export function OnboardingForm({
     answers.workStyles.length === 0 && "a workplace",
   ].filter((m) => m !== false);
   // Save Resume waits while an entry is open in the editor: saving then would
-  // drop what the student typed into it, since only Done keeps it.
+  // drop what the student typed into it, since only Save keeps it.
   const canNext =
     step === ROLE
       ? missing.length === 0
@@ -494,7 +494,7 @@ export function OnboardingForm({
         ? `Pick ${andList(missing)} to continue.`
         : step === RESUME
           ? editingEntry !== null
-            ? "Press Save Entry or Cancel on the entry you are editing to save your resume."
+            ? "Press Save or Cancel in the entry you are editing to save your resume."
             : "Choose a resume file to read it, or skip this step."
           : step === EXTENSION
             ? "Add the WorkIt extension to continue, or skip setup."

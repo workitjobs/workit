@@ -324,7 +324,10 @@ open choices (Settled choices, near the end).
   over a dialog", below). Only a one-line confirm may open over a dialog.
 - **A dialog keeps a 16px margin at every width**, and its scrolling part
   keeps `scrollbar-gutter: stable`, so its width never jumps when a
-  scrollbar shows.
+  scrollbar shows. One exception: the experience bank's section list and
+  entry form fill a phone's screen below sm (`BankDialog`, KAN-740), since
+  a form of up to thirteen fields in a box 16px in from each edge showed a
+  few fields at a time.
 - **A dialog's backdrop dims and blurs 4px; a panel from the right only
   dims** ("A panel from the right floats", below). A dialog that leads the
   student through steps over a busy page (Tailor's Your Resume Is Ready)
@@ -1129,6 +1132,13 @@ carries the margin (a call site's `sm:max-w-*` had replaced the vendored
 one, and the Settings modal stood flush with both edges at 768), and a
 `data-slot="dialog-scroller"` box takes `scrollbar-gutter: stable` (the
 Settings cards were 608px wide on one section and 600px on the next).
+The experience bank's dialogs (`experiences/entry-dialog.tsx`, KAN-740) are
+the one exception to the margin: below sm they fill the screen, as a page
+would, by setting a width of their own (which merges the vendored `w-full`,
+and with it the margin rule, away), and keep the 16px from sm up. Their
+steps and questions follow the rules above: the entry form opened from a
+section's list is a step with Back, and Delete, Clear All, Delete Section
+and Discard Your Changes? are bars across the foot (`ConfirmBar`).
 
 **A field's error sits under its field and takes the focus** (KAN-563):
 the error names itself to the field through `aria-describedby`, an input
