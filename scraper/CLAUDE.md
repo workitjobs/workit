@@ -763,6 +763,22 @@ down that list into `checked_websites.csv`; never into the database, which the
 next import overwrites. On 2026-11-04 the check proved 133 of 404 boards (1,941
 of the 7,089 jobs with no domain).
 
+**Wikidata proposes rows for that list, in a PR a person reviews**
+(`domain_pr.py`, `workit_scraper/wikidata.py`, the daily
+`.github/workflows/company-domains.yml`). It looks each company up by name and
+proposes the official website only when Wikidata's name for the item is the
+company's, the item names one website, is not dissolved and is not a kind of
+thing that never hires (a racehorse, a band, a town), no other item of that
+name names another, and a one-word name's domain is its own name. A
+name is not a key, so a row never skips review: a 200-board trial matched 7
+wrong things before those last two rules.
+`company-domains.json` records every board looked up, so a row a reviewer
+removes is never proposed again. It is the one part of this package that does
+not go through `polite.Robots`: Wikidata's robots.txt disallows `/w/` to
+crawlers, while Wikimedia's API etiquette welcomes a named script that asks
+one thing at a time and honours `maxlag`. It never runs inside the scrape.
+Read `docs/logos.md`, "Wikidata proposals", before changing a rule.
+
 ## The page
 
 One self-contained HTML table (`# · Position Title · Date · Apply · Work Model
