@@ -95,101 +95,94 @@ export function BuiltResumeRow({
 
   return (
     <li>
-      {renaming ? (
-        <RenameForm
-          id={resume.id}
-          name={resume.name}
-          saving={saving}
-          onSave={rename}
-          onCancel={() => setRenaming(false)}
-        />
-      ) : (
-        <ResumeCard
-          name={resume.name}
-          href={`/resumes/${encodeURIComponent(resume.id)}`}
-          tile={
-            resume.job_posting_id ? (
-              <PostingLogoTile
-                company={resume.posting_company ?? resume.posting_title ?? resume.name}
-                logoUrl={resume.posting_logo_url}
-                domain={resume.posting_company_domain}
-              />
-            ) : (
-              <BuiltPageTile />
-            )
-          }
-          about={
-            resume.job_posting_id && resume.posting_title ? (
-              <>
-                <BriefcaseIcon className="size-3.5 shrink-0" />
-                <span className="truncate">
-                  For <PostingLink resume={resume} />
-                </span>
-              </>
-            ) : (
-              <>
-                <FileIcon className="size-3.5 shrink-0" />
-                <span className="truncate">Made from your experiences</span>
-              </>
-            )
-          }
-          // The resume still opens and downloads; only Tailor needs a live
-          // posting.
-          badge={resume.posting_closed && <Badge tone="inert">Posting Closed</Badge>}
-          created={resume.created_at}
-          edited={edited ? resume.edited_at : null}
-          actions={
+      <ResumeCard
+        rename={
+          renaming ? { saving, onSave: rename, onCancel: () => setRenaming(false) } : undefined
+        }
+        name={resume.name}
+        href={`/resumes/${encodeURIComponent(resume.id)}`}
+        tile={
+          resume.job_posting_id ? (
+            <PostingLogoTile
+              company={resume.posting_company ?? resume.posting_title ?? resume.name}
+              logoUrl={resume.posting_logo_url}
+              domain={resume.posting_company_domain}
+            />
+          ) : (
+            <BuiltPageTile />
+          )
+        }
+        about={
+          resume.job_posting_id && resume.posting_title ? (
             <>
-              <PrimaryStar
-                name={resume.name}
-                primary={resume.is_default}
-                onMakePrimary={makePrimary}
-              />
-              <div className={ROW_WIDE}>
-                <IconButton
-                  label={`Rename ${resume.name}`}
-                  tooltip="Rename"
-                  className={ROW_ACTION}
-                  onClick={() => setRenaming(true)}
-                >
-                  <PencilIcon className="size-4" />
-                </IconButton>
-                <IconButton
-                  label={`Download ${resume.name} as a PDF`}
-                  tooltip={downloadLabel}
-                  className={ROW_ACTION}
-                  disabled={download.busy !== null}
-                  onClick={() => download.pick("pdf")}
-                >
-                  <FileArrowDownIcon aria-hidden className="size-4" />
-                </IconButton>
-                <DeleteResumeConfirm
-                  onDelete={remove}
-                  trigger={
-                    <IconButton
-                      label={`Delete ${resume.name}`}
-                      tooltip="Delete"
-                      className={cn(ROW_ACTION, "hover:text-danger")}
-                    >
-                      <TrashIcon className="size-4" />
-                    </IconButton>
-                  }
-                />
-              </div>
-              <RowMoreMenu
-                name={resume.name}
-                onRename={() => setRenaming(true)}
-                download={{
-                  label: downloadLabel,
-                  busy: download.busy !== null,
-                  onPick: () => download.pick("pdf"),
-                }}
-                onDelete={remove}
-              />
+              <BriefcaseIcon className="size-3.5 shrink-0" />
+              <span className="truncate">
+                For <PostingLink resume={resume} />
+              </span>
             </>
-          }
-        />
-      )}
+          ) : (
+            <>
+              <FileIcon className="size-3.5 shrink-0" />
+              <span className="truncate">Made from your experiences</span>
+            </>
+          )
+        }
+        // The resume still opens and downloads; only Tailor needs a live
+        // posting.
+        badge={resume.posting_closed && <Badge tone="inert">Posting Closed</Badge>}
+        created={resume.created_at}
+        edited={edited ? resume.edited_at : null}
+        actions={
+          <>
+            <PrimaryStar
+              name={resume.name}
+              primary={resume.is_default}
+              onMakePrimary={makePrimary}
+            />
+            <div className={ROW_WIDE}>
+              <IconButton
+                label={`Rename ${resume.name}`}
+                tooltip="Rename"
+                className={ROW_ACTION}
+                onClick={() => setRenaming(true)}
+              >
+                <PencilIcon className="size-4" />
+              </IconButton>
+              <IconButton
+                label={`Download ${resume.name} as a PDF`}
+                tooltip={downloadLabel}
+                className={ROW_ACTION}
+                disabled={download.busy !== null}
+                onClick={() => download.pick("pdf")}
+              >
+                <FileArrowDownIcon aria-hidden className="size-4" />
+              </IconButton>
+              <DeleteResumeConfirm
+                onDelete={remove}
+                trigger={
+                  <IconButton
+                    label={`Delete ${resume.name}`}
+                    tooltip="Delete"
+                    className={cn(ROW_ACTION, "hover:text-danger")}
+                  >
+                    <TrashIcon className="size-4" />
+                  </IconButton>
+                }
+              />
+            </div>
+            <RowMoreMenu
+              name={resume.name}
+              onRename={() => setRenaming(true)}
+              download={{
+                label: downloadLabel,
+                busy: download.busy !== null,
+                onPick: () => download.pick("pdf"),
+              }}
+              onDelete={remove}
+            />
+          </>
+        }
+      />
       <div className="mt-2 empty:hidden">
         <DownloadNotes download={download} />
       </div>
@@ -224,10 +217,11 @@ function PostingLink({ resume }: { resume: BuiltResume }) {
 }
 
 /**
- * The resume's name, open for typing (KAN-258): Rename turns the card into
- * this form, a built resume's or an upload's (KAN-268), as Edit opens a bank entry in place, with the bank's form
- * buttons at a field's height. A name left as it was closes the form with
- * no call; Escape or Cancel keeps the name.
+ * The resume's name, open for typing (KAN-258), on an upload's own page
+ * (`uploaded/[id]/viewer.tsx`): a labeled field with Cancel and Save. The
+ * Resumes page's cards rename in place instead (`RenamingCard`,
+ * 2026-11-10). A name left as it was closes the form with no call; Escape
+ * or Cancel keeps the name.
  */
 export function RenameForm({
   id,
@@ -272,7 +266,7 @@ export function RenameForm({
           Cancel
         </Button>
         <Button type="submit" disabled={saving || !trimmed}>
-          {saving ? "Saving…" : "Save Name"}
+          {saving ? "Saving…" : "Save"}
         </Button>
       </div>
     </form>

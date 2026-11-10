@@ -3144,10 +3144,14 @@ upload's page.
   bank changes every resume and does not count. The days are the student's
   own (`LocalDate` in `(seeker)/local-time.tsx`); the UTC day showed a
   resume sent on an evening as sent the next day.
-- **Rename** opens the name in place, in a field with Cancel and Save Name
-  at the field's height, as the bank's Skills form is drawn; Escape cancels
-  and an unchanged name saves nothing. A sent resume keeps the name it went
-  out under.
+- **Rename** edits the name on its card (2026-11-10, `RenamingCard` in
+  `components/resume-row.tsx`): the name becomes its field, selected, with
+  Cancel and Save where the icons were, and the card keeps its height and
+  takes the brand edge; Enter saves, Escape cancels, and an unchanged name
+  saves nothing. It was a labeled field across the list with "Save Name",
+  whose focus ring the list's scroll cut off. An upload's own page keeps
+  that form (`RenameForm`), now with Save. A sent resume keeps the name it
+  went out under.
 - **Delete asks first**, on every resume, in a popover hung from the
   trash that opened it (KAN-347, `DeleteResumeConfirm` in
   `delete-confirm.tsx`): the question, then Delete Resume and Keep It, the

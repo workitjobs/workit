@@ -20,8 +20,6 @@ import {
   type ResumeItem,
 } from "@/lib/resume-actions";
 
-import { RenameForm } from "./built-resume-row";
-
 // The API's limit, on uploads alone (lib/resume-limits.ts), so the count
 // here matches the API's 409.
 const MAX_RESUMES = MAX_UPLOADS;
@@ -184,7 +182,6 @@ export function UploadedRow({
   const [renaming, setRenaming] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const name = resume.original_filename ?? "Resume";
 
   // The form stays open until the list has the new name, so the old one
   // never flashes back.
@@ -220,25 +217,18 @@ export function UploadedRow({
 
   return (
     <li>
-      {renaming ? (
-        <RenameForm
-          id={resume.id}
-          name={name}
-          saving={saving}
-          onSave={rename}
-          onCancel={() => setRenaming(false)}
-        />
-      ) : (
-        <ResumeRow
-          resume={resume}
-          href={`/resumes/uploaded/${encodeURIComponent(resume.id)}`}
-          page
-          onMakePrimary={makePrimary}
-          onRename={() => setRenaming(true)}
-          onDownload={download}
-          onDelete={remove}
-        />
-      )}
+      <ResumeRow
+        resume={resume}
+        href={`/resumes/uploaded/${encodeURIComponent(resume.id)}`}
+        page
+        rename={
+          renaming ? { saving, onSave: rename, onCancel: () => setRenaming(false) } : undefined
+        }
+        onMakePrimary={makePrimary}
+        onRename={() => setRenaming(true)}
+        onDownload={download}
+        onDelete={remove}
+      />
       {error && (
         <p role="alert" className="text-note text-danger mt-2">
           {error}

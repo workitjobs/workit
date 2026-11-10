@@ -2,7 +2,7 @@
 
 import { FileArrowDownIcon, StarIcon } from "@phosphor-icons/react/ssr";
 import Link from "next/link";
-import { useRef, useState, type ReactNode } from "react";
+import { useRef, useState, type FormEvent, type ReactNode } from "react";
 
 import { LocalDate, LocalDateTime } from "@/app/(seeker)/local-time";
 import { DeleteResumeConfirm } from "@/app/(seeker)/resumes/delete-confirm";
@@ -21,8 +21,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/shadcn/dropdown-menu";
 import { CompanyLogo } from "@/components/company-logo";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { IconButton } from "@/components/ui/icon-button";
+import { TextInput } from "@/components/ui/text-field";
 import { cn } from "@/lib/cn";
 import { jobLogo } from "@/lib/job-logo";
 import type { ResumeItem } from "@/lib/resume-actions";
@@ -91,6 +93,8 @@ function CardColumn({ label, children }: { label: string; children: ReactNode })
  * it, and the icons and any link in `about` sit above it. `edited` is null
  * for a resume never edited (an upload, or a built resume as made). The
  * pickers' rows keep their one-line strip (`ResumeRow` without `page`).
+ *
+ * **Rename edits the name on the card** (`rename`, `RenamingCard`).
  */
 export function ResumeCard({
   name,
@@ -101,6 +105,7 @@ export function ResumeCard({
   created,
   edited,
   actions,
+  rename,
 }: {
   name: string;
   href: string;
@@ -112,7 +117,10 @@ export function ResumeCard({
   created: string | null;
   edited: string | null;
   actions: ReactNode;
+  /** Set while the student renames it: the card holds the name's field. */
+  rename?: Rename;
 }) {
+  if (rename) return <RenamingCard name={name} tile={tile} rename={rename} />;
   return (
     <Card
       padding="none"
@@ -171,6 +179,70 @@ export function ResumeCard({
         </CardColumn>
         <div className={cn(ROW_ACTIONS, "justify-end")}>{actions}</div>
       </div>
+    </Card>
+  );
+}
+
+/** A card's rename, as its row hands it: the save in flight, the save of a
+ *  new name, and Cancel. */
+export type Rename = {
+  saving: boolean;
+  onSave: (name: string) => void;
+  onCancel: () => void;
+};
+
+/**
+ * A card being renamed (2026-11-10): the name becomes its field, in place,
+ * with Cancel and Save where the icons were; Enter saves and Escape cancels.
+ * The field takes the dates' room while it is open, and the card keeps its
+ * height (the field is the tile's 40px), so the list does not move. It was
+ * a form in the card's place, a labeled field across the list with "Save
+ * Name", whose focus ring the list's scroll cut off, which the user found
+ * horrible. A name left as it was closes it with no call. The card opens
+ * nothing while it is open.
+ */
+function RenamingCard({ name, tile, rename }: { name: string; tile: ReactNode; rename: Rename }) {
+  const [draft, setDraft] = useState(name);
+  const trimmed = draft.trim();
+
+  function submit(event: FormEvent) {
+    event.preventDefault();
+    if (trimmed === name) return rename.onCancel();
+    rename.onSave(trimmed);
+  }
+
+  return (
+    <Card padding="none" selected className="@container relative mt-3">
+      <form
+        onSubmit={submit}
+        className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 p-3 @2xl:gap-6 @2xl:px-4"
+      >
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="hidden shrink-0 @sm:block">{tile}</span>
+          <div className="min-w-0 flex-1">
+            <TextInput
+              aria-label="Resume name"
+              autoFocus
+              required
+              maxLength={80}
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              onFocus={(event) => event.currentTarget.select()}
+              onKeyDown={(event) => {
+                if (event.key === "Escape") rename.onCancel();
+              }}
+            />
+          </div>
+        </div>
+        <div className="flex items-center justify-end gap-2">
+          <Button type="button" variant="secondary" size="sm" onClick={rename.onCancel}>
+            Cancel
+          </Button>
+          <Button type="submit" size="sm" disabled={rename.saving || !trimmed}>
+            {rename.saving ? "Saving…" : "Save"}
+          </Button>
+        </div>
+      </form>
     </Card>
   );
 }
@@ -411,6 +483,8 @@ type ResumeRowProps = {
   href: string;
   /** Draw it as the Resumes page's card (`ResumeCard`), not a picker's strip. */
   page?: boolean;
+  /** The page card's rename, while it is open. */
+  rename?: Rename;
   onMakePrimary?: () => void;
   onRename?: () => void;
   onDownload?: () => void;
@@ -422,6 +496,7 @@ export function ResumeRow({
   resume,
   href,
   page = false,
+  rename,
   onMakePrimary,
   onRename,
   onDownload,
@@ -496,6 +571,7 @@ export function ResumeRow({
         created={resume.created_at}
         edited={null}
         actions={actions}
+        rename={rename}
       />
     );
   }
