@@ -176,8 +176,8 @@ with the failure it prevents.
   the sent resume it went out with (`job_applications.sent_resume_id`); a
   sent resume is an uploaded resume's file (frozen as parsed JSON once the
   upload is replaced or deleted) or a gzipped snapshot of a built resume,
-  rendered again on view; downloads keep nothing; uploads and Generate
-  refuse duplicates. Read it before changing sent resumes, applications,
+  rendered again on view; downloads keep nothing; uploads refuse
+  duplicates, and Generate asks before it makes one (KAN-444). Read it before changing sent resumes, applications,
   resume upload or delete, Generate or the editor's Download.
 - `docs/bank_by_resume.md` — KAN-343's design, built, as revised by ADR
   0005: each upload owns its own entries and skills (no merge, no

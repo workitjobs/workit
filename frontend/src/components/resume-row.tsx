@@ -4,7 +4,7 @@ import { FileArrowDownIcon, StarIcon } from "@phosphor-icons/react/ssr";
 import Link from "next/link";
 import { useRef, useState } from "react";
 
-import { LocalDate } from "@/app/(seeker)/local-time";
+import { LocalDate, LocalDateTime } from "@/app/(seeker)/local-time";
 import { DeleteResumeConfirm } from "@/app/(seeker)/resumes/delete-confirm";
 import { EllipsisIcon, PdfIcon, PencilIcon, TrashIcon } from "@/components/icons";
 import {
@@ -45,6 +45,44 @@ export const ROW_MARK = "hidden size-5 shrink-0 @sm:block";
 /** The name and its line: never under half the row (KAN-575). At 375 the
  *  icons and a badge squeezed one card's name to 0px. */
 export const ROW_NAME = "min-w-1/2 flex-1";
+
+/** The Created column's box, from `@2xl` of the row (672px): one width on
+ *  every row, so the times line up down the list. Narrower, the row's line
+ *  under the name says it instead (`CreatedLine`). */
+const ROW_CREATED = "hidden w-36 shrink-0 text-right @2xl:block";
+
+/**
+ * When the resume was made or uploaded, date and time (the Resumes page,
+ * 2026-11-10): a column left of the icons, "Created" over "Nov 10, 3:42
+ * PM". The student wanted to tell resumes made the same day apart. Only the
+ * Resumes page draws it; the pickers' rows keep their one line.
+ */
+export function CreatedColumn({ at }: { at: string }) {
+  return (
+    <div className={ROW_CREATED}>
+      <div className="text-meta text-ink-meta">Created</div>
+      <div className="text-note text-ink-muted">
+        <LocalDateTime at={at} />
+      </div>
+    </div>
+  );
+}
+
+/** A row's own day for `at` where the Created column shows (it has the
+ *  time), and the day with the time where the column is hidden. For a line
+ *  whose day is the created one ("Uploaded", "Made"). */
+export function CreatedLine({ at }: { at: string }) {
+  return (
+    <>
+      <span className="@2xl:hidden">
+        <LocalDateTime at={at} />
+      </span>
+      <span className="hidden @2xl:inline">
+        <LocalDate at={at} />
+      </span>
+    </>
+  );
+}
 
 /**
  * The primary resume's star. On the primary it is filled; on the others it
@@ -195,6 +233,8 @@ type ResumeRowProps = {
   resume: ResumeItem;
   /** The upload's page, which the whole card opens. */
   href: string;
+  /** Show the Created column (the Resumes page only). */
+  created?: boolean;
   onMakePrimary?: () => void;
   onRename?: () => void;
   onDownload?: () => void;
@@ -205,6 +245,7 @@ type ResumeRowProps = {
 export function ResumeRow({
   resume,
   href,
+  created = false,
   onMakePrimary,
   onRename,
   onDownload,
@@ -236,11 +277,16 @@ export function ResumeRow({
           {resume.created_at && (
             <>
               {" "}
-              <LocalDate at={resume.created_at} />
+              {created ? (
+                <CreatedLine at={resume.created_at} />
+              ) : (
+                <LocalDate at={resume.created_at} />
+              )}
             </>
           )}
         </p>
       </div>
+      {created && resume.created_at && <CreatedColumn at={resume.created_at} />}
       <div className={ROW_ACTIONS}>
         <PrimaryStar name={name} primary={resume.is_default} onMakePrimary={onMakePrimary} />
         <div className={ROW_WIDE}>

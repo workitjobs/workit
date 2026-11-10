@@ -321,8 +321,12 @@ and onboarding goes on, since the file is already there. The Apply picker
 
 ### 2. Generate
 
-A duplicate is refused. The student sees a pop-up, "Duplicate Resume found:
-<name>", and nothing else happens.
+A duplicate is flagged, and the student decides (KAN-444, 2026-11-10; it
+was refused outright until then). The Resumes page's modal says "You
+Already Have This Resume. <name> has the same content. Confirm to make a
+copy anyway." with Cancel and Confirm. Confirm sends Generate again with
+`allow_duplicate`, which skips the check below, and opens the copy in the
+editor.
 
 `POST /applicants/{id}/built-resumes` (the router, not
 `service.generate`):
@@ -564,7 +568,7 @@ once this ships.
 |---|---|
 | `POST /applicants/{id}/resumes` | Text hash check: 409 "Duplicate Resume found: <name>" with `resume_id`; stores `text_hash` |
 | `PUT /applicants/{id}/resumes/{rid}` | Same check against the other resumes |
-| `POST /applicants/{id}/built-resumes` | Live hash check: 409 "Duplicate Resume found: <name>" with `built_resume_id`; writes nothing |
+| `POST /applicants/{id}/built-resumes` | Live hash check: 409 "Duplicate Resume found: <name>" with `built_resume_id` and `name`; writes nothing. `allow_duplicate` skips it (KAN-444) |
 | `POST /applicants/{id}/sent-resumes` | `job_posting_id` required, `format` gone. Built: a snapshot, no Storage. Answers the file as `data` (built) or `url` (uploaded) |
 | `GET /applicants/{id}/sent-resumes/{sid}/file` | `{url, file_name}` (with `?download=false` to view) or `{data, content_type, file_name, rebuilt}` |
 | `GET /applicants/{id}/sent-resumes` | Each sent resume adds `rebuilt` (true for an upload's snapshot) |
@@ -598,7 +602,8 @@ Each step is one PR with its migration, code, tests and docs.
    and View Resume reading it. Not built: Upload in the Apply picker, and
    the job posting page's "You sent" as a link.
 5. **Generate duplicates.** The live hash check on Generate, and its
-   "Duplicate Resume found: <name>" pop-up on the Resumes page.
+   pop-up on the Resumes page, which since KAN-444 asks "You Already Have
+   This Resume" with Cancel and Confirm (`allow_duplicate`).
 6. **Freeze replaced uploads.** Built with step 3: `view_from_reading`,
    `freeze_upload` in PUT (before the new file is uploaded, so a failed
    freeze stores nothing) and DELETE, `rebuilt` and `original_text` in the

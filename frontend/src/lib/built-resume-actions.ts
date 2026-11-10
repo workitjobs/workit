@@ -42,13 +42,21 @@ export type BuiltResume = {
  *  `POST .../built-resumes/stream`, KAN-444): `checking` before the
  *  duplicate check, `saving` before the writes, then `done` with the new
  *  resume or `error` with the JSON route's status and message (409 and the
- *  resume it matches on a duplicate). Mirrors `GenerateStep`,
+ *  resume it matches on a duplicate). The body's `allow_duplicate` skips
+ *  the check (the student confirmed a copy), and with it `checking`. Mirrors `GenerateStep`,
  *  `GenerateDone` and `GenerateFailed` in backend/app/schemas/built_resume.py;
  *  change both or neither. */
 export type GenerateStreamEvent =
   | { type: "phase"; phase: "checking" | "saving" }
   | { type: "done"; resume: BuiltResume }
-  | { type: "error"; status: number; message: string; built_resume_id?: string | null };
+  | {
+      type: "error";
+      status: number;
+      message: string;
+      /** On a duplicate (409): the resume it matches, and its name. */
+      built_resume_id?: string | null;
+      name?: string | null;
+    };
 
 /**
  * Where one line sits on the PDF (schemas `RenderBox`): the bank id of the

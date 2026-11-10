@@ -21,9 +21,12 @@ Name = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max
 class BuiltResumeCreate(BaseModel):
     """POST body for Generate. With no name the resume is "Resume #N"
     (`services/built_resumes.next_name`, KAN-258); every one made with no
-    name was "Base Resume" before."""
+    name was "Base Resume" before. `allow_duplicate`: the student confirmed
+    a copy of a resume they have, so Generate skips the duplicate check
+    (KAN-444: the Resumes page asks "You Already Have This Resume" first)."""
 
     name: Name | None = None
+    allow_duplicate: bool = False
 
 
 class BuiltResumeRename(BaseModel):
@@ -76,6 +79,8 @@ class GenerateFailed(BaseModel):
     status: int
     message: str
     built_resume_id: UUID | None = None
+    # The matching resume's name, on a duplicate
+    name: str | None = None
 
 
 class RenderBox(BaseModel):

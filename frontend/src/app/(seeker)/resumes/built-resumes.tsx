@@ -28,7 +28,7 @@ import { listResumes, type ResumeItem } from "@/lib/resume-actions";
 import { markResumesStale, takeResumesStale } from "@/lib/resumes-stale";
 
 import { BuiltResumeRow } from "./built-resume-row";
-import { DuplicateResumeDialog } from "./duplicate-resume-dialog";
+import { DuplicateResumeDialog, type Duplicate } from "./duplicate-resume-dialog";
 import { GenerateRunning, type GenerateStep } from "./generate-running";
 import { RESUMES_SEARCH, ResumesHeader } from "./header";
 import { ResumeList } from "./resume-list";
@@ -45,18 +45,21 @@ function parseTypes(raw: string | null): ResumeType[] {
 }
 
 /** The list's orders, in `?sort=`: Last Edited (newest first, the
- *  default, with no `?sort=`), Oldest First, and Name (A to Z). An upload
- *  dates from its upload, a built resume from its last edit. */
-type Sort = "edited" | "oldest" | "name";
+ *  default, with no `?sort=`), Recently Created (`created`, newest made
+ *  first, 2026-11-10), Oldest First, and Name (A to Z). For the edit orders
+ *  an upload dates from its upload, a built resume from its last edit. */
+type Sort = "edited" | "created" | "oldest" | "name";
 
 const SORTS: { value: Sort; label: string }[] = [
   { value: "edited", label: "Last Edited" },
+  // The newest made first, whatever was edited since (2026-11-10)
+  { value: "created", label: "Recently Created" },
   { value: "oldest", label: "Oldest First" },
   { value: "name", label: "Name (A to Z)" },
 ];
 
 function parseSort(raw: string | null): Sort {
-  return raw === "oldest" || raw === "name" ? raw : "edited";
+  return raw === "created" || raw === "oldest" || raw === "name" ? raw : "edited";
 }
 
 /** One resume of either kind, as the list orders and filters it. */
@@ -66,6 +69,8 @@ type Row =
       type: "uploaded";
       name: string;
       at: string;
+      /** When it was uploaded or made: the Created column's instant. */
+      created: string;
       text: string;
       primary: boolean;
       upload: ResumeItem;
@@ -75,6 +80,7 @@ type Row =
       type: "generated" | "tailored";
       name: string;
       at: string;
+      created: string;
       text: string;
       primary: boolean;
       built: BuiltResume;
@@ -149,8 +155,8 @@ export function BuiltResumes({
   // Generate's step while it runs (KAN-444), null otherwise
   const [generating, setGenerating] = useState<GenerateStep | null>(null);
   const [error, setError] = useState<string | null>(null);
-  // The API's "Duplicate Resume found: <name>", while its pop-up is open.
-  const [duplicate, setDuplicate] = useState<string | null>(null);
+  // The resume a Generate or an upload would copy, while its modal is open.
+  const [duplicate, setDuplicate] = useState<Duplicate | null>(null);
   const [query, setQuery] = useState("");
   const params = useShallowParams();
   const push = useShallowPush();
@@ -213,11 +219,16 @@ export function BuiltResumes({
     });
   }
 
-  const upload = useResumeUpload({ uploaded, reload, onDuplicate: setDuplicate });
+  const upload = useResumeUpload({
+    uploaded,
+    reload,
+    onDuplicate: (name) => setDuplicate({ kind: "upload", name }),
+  });
 
   // Streamed through /api/resume-generate, so the dialog shows each step
-  // as the API starts it (KAN-444).
-  async function generate() {
+  // as the API starts it (KAN-444). `allowDuplicate`: the student confirmed
+  // a copy of a resume they have, so the API skips that check.
+  async function generate(allowDuplicate = false) {
     setGenerating("reading");
     setError(null);
     const failed = (message: string) => {
@@ -229,7 +240,7 @@ export function BuiltResumes({
       const res = await fetch("/api/resume-generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: "{}",
+        body: JSON.stringify(allowDuplicate ? { allow_duplicate: true } : {}),
       });
       if (!res.ok || !res.body) {
         const body: unknown = await res.json().catch(() => null);
@@ -241,7 +252,7 @@ export function BuiltResumes({
         else if (event.type === "error") {
           if (event.status !== 409) return failed(event.message);
           setGenerating(null);
-          return setDuplicate(event.message);
+          return setDuplicate({ kind: "generate", name: event.name ?? "One of your resumes" });
         } else made = event.resume;
       }
     } catch {
@@ -279,6 +290,7 @@ export function BuiltResumes({
       type: "uploaded" as const,
       name: r.original_filename ?? "Resume",
       at: r.created_at ?? "",
+      created: r.created_at ?? "",
       text: r.original_filename ?? "Resume",
       primary: r.is_default,
       upload: r,
@@ -288,6 +300,7 @@ export function BuiltResumes({
       type: r.job_posting_id ? ("tailored" as const) : ("generated" as const),
       name: r.name,
       at: r.edited_at,
+      created: r.created_at,
       text: `${r.name} ${r.posting_title ?? ""} ${r.posting_company ?? ""}`,
       primary: r.is_default,
       built: r,
@@ -303,7 +316,9 @@ export function BuiltResumes({
         Number(b.primary) - Number(a.primary) ||
         (sort === "name"
           ? a.name.localeCompare(b.name, undefined, { sensitivity: "base", numeric: true })
-          : (Date.parse(b.at || "0") - Date.parse(a.at || "0")) * (sort === "oldest" ? -1 : 1)),
+          : sort === "created"
+            ? Date.parse(b.created || "0") - Date.parse(a.created || "0")
+            : (Date.parse(b.at || "0") - Date.parse(a.at || "0")) * (sort === "oldest" ? -1 : 1)),
     );
 
   const filtered = types.length > 0 || words.length > 0;
@@ -343,7 +358,7 @@ export function BuiltResumes({
             <SortMenu value={sort} options={SORTS} onChange={(next) => move({ sort: next })} />
             <div className="col-span-2 grid grid-cols-2 gap-2 @2xl:ml-auto @2xl:flex">
               {upload.button}
-              <Button size="sm" onClick={generate} disabled={generating !== null}>
+              <Button size="sm" onClick={() => void generate()} disabled={generating !== null}>
                 <FileTextIcon aria-hidden className="size-4" />
                 {generating ? "Generating…" : <ShortLabel verb="Generate" />}
               </Button>
@@ -425,7 +440,14 @@ export function BuiltResumes({
           })}
         </ResumeList>
       )}
-      <DuplicateResumeDialog message={duplicate} onClose={() => setDuplicate(null)} />
+      <DuplicateResumeDialog
+        duplicate={duplicate}
+        onConfirm={() => {
+          setDuplicate(null);
+          void generate(true);
+        }}
+        onClose={() => setDuplicate(null)}
+      />
       <GenerateRunning step={generating} />
     </>
   );

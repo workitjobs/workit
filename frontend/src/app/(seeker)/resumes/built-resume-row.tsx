@@ -6,6 +6,8 @@ import { useState, type FormEvent } from "react";
 
 import { PdfIcon, PencilIcon, TrashIcon } from "@/components/icons";
 import {
+  CreatedColumn,
+  CreatedLine,
   PrimaryStar,
   RESUME_ROW,
   ROW_ACTION,
@@ -29,7 +31,7 @@ import { cn } from "@/lib/cn";
 
 import { rememberReturnTo } from "../jobs/[jobId]/page-actions";
 import { ResumePreviewDialog } from "../jobs/[jobId]/tailor/resume-preview";
-import { LocalDate } from "../local-time";
+import { LocalDate, LocalDateTime } from "../local-time";
 import { DeleteResumeConfirm } from "./delete-confirm";
 import { DownloadNotes, useResumeDownload } from "./download-menu";
 
@@ -127,11 +129,23 @@ export function BuiltResumeRow({
                 badge follows it, or wraps under it where both do not fit
                 (KAN-575): beside the icons it took the name's room. The
                 resume still opens and downloads; only Tailor needs a live
-                posting. */}
+                posting. Where the Created column is hidden, the line takes
+                its date and time (2026-11-10). */}
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
               <p className="text-note text-ink-meta min-w-0 truncate">
-                {edited ? "Last edited" : "Made"}{" "}
-                <LocalDate at={edited ? resume.edited_at : resume.created_at} />
+                {edited ? (
+                  <>
+                    Last edited <LocalDate at={resume.edited_at} />
+                    <span className="@2xl:hidden">
+                      {" · Created "}
+                      <LocalDateTime at={resume.created_at} />
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    Made <CreatedLine at={resume.created_at} />
+                  </>
+                )}
                 {resume.job_posting_id && resume.posting_title && (
                   <>
                     {" · For "}
@@ -142,6 +156,7 @@ export function BuiltResumeRow({
               {resume.posting_closed && <Badge tone="inert">Posting Closed</Badge>}
             </div>
           </div>
+          <CreatedColumn at={resume.created_at} />
           <div className={ROW_ACTIONS}>
             <PrimaryStar
               name={resume.name}

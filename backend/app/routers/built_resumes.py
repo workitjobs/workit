@@ -8,15 +8,18 @@ POST   /applicants/{id}/built-resumes              BuiltResumeCreate -> 201 Buil
        no name it is "Resume #N", one past the highest number in use. No
        limit: only uploads count toward the 5 (KAN-268). 409
        {"detail": {"message": "Duplicate Resume found: <name>",
-       "built_resume_id"}} when the new resume would print the same as one
-       the student has (KAN-267); nothing is written.
+       "built_resume_id", "name"}} when the new resume would print the same
+       as one the student has (KAN-267); nothing is written. With
+       `allow_duplicate` (the student confirmed a copy, KAN-444) it skips
+       that check.
 POST   /applicants/{id}/built-resumes/stream       BuiltResumeCreate -> NDJSON
        The same Generate, streamed so the Resumes page can show its steps
        (KAN-444): `{"type": "phase", "phase": "checking"}` before the
        duplicate check, `"saving"` before the writes, then `{"type": "done",
        "resume"}` once committed, or `{"type": "error", "status", "message",
-       "built_resume_id"?}` with what the JSON route would answer (409 and
-       the resume on a duplicate). Lines mirror `GenerateStreamEvent` in
+       "built_resume_id"?, "name"?}` with what the JSON route would answer
+       (409 and the resume on a duplicate). With `allow_duplicate` there is
+       no `checking` line. Lines mirror `GenerateStreamEvent` in
        frontend/src/lib/built-resume-actions.ts.
 GET    /applicants/{id}/built-resumes              -> [BuiltResumeResponse], newest first
        `posting_closed` is true for a tailored resume whose posting the Jobs
@@ -239,9 +242,9 @@ async def generate(
     session: AsyncSession = Depends(get_session),
 ) -> BuiltResumeResponse:
     try:
-        resume = await service.generate(session, applicant_id, body.name, refuse_duplicate=True)
+        resume = await service.generate(session, applicant_id, body.name, refuse_duplicate=not body.allow_duplicate)
     except service.DuplicateResume as exc:
-        raise HTTPException(409, {"message": str(exc), "built_resume_id": str(exc.resume.id)})
+        raise HTTPException(409, {"message": str(exc), "built_resume_id": str(exc.resume.id), "name": exc.resume.name})
     default_id = await service.default_built_id(session, applicant_id)
     await _commit(session, "Failed to save the resume")
     return _response(resume, default_id)
@@ -254,15 +257,15 @@ async def generate_streamed(
 ) -> StreamingResponse:
     # Its own session: the request's may be closed once streaming starts.
     session = get_sessionmaker()()
-    return StreamingResponse(_ndjson(_generated(session, applicant_id, body.name)), media_type="application/x-ndjson")
+    return StreamingResponse(_ndjson(_generated(session, applicant_id, body)), media_type="application/x-ndjson")
 
 
 async def _generated(
-    session: AsyncSession, applicant_id: uuid.UUID, name: str | None
+    session: AsyncSession, applicant_id: uuid.UUID, body: BuiltResumeCreate
 ) -> AsyncIterator[GenerateStep | GenerateDone | GenerateFailed]:
     """Generate's lines: each step as it starts, then `done` once the
     resume is committed, or `error` with what the JSON route answers."""
-    steps = service.generate_steps(session, applicant_id, name, refuse_duplicate=True)
+    steps = service.generate_steps(session, applicant_id, body.name, refuse_duplicate=not body.allow_duplicate)
     try:
         async for step in steps:
             if isinstance(step, Built_Resume):
@@ -272,7 +275,7 @@ async def _generated(
             else:
                 yield GenerateStep(phase=step)
     except service.DuplicateResume as exc:
-        yield GenerateFailed(status=409, message=str(exc), built_resume_id=exc.resume.id)
+        yield GenerateFailed(status=409, message=str(exc), built_resume_id=exc.resume.id, name=exc.resume.name)
     except HTTPException as exc:
         yield GenerateFailed(status=exc.status_code, message=str(exc.detail))
     finally:

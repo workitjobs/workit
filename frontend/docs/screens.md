@@ -2897,18 +2897,30 @@ Applications Tracker is: the search (names and postings) on its own row,
 then the **Type** filter (Uploaded, Generated, Tailored; the Applications
 list's dropdown, `FieldFacet`) and the **Sort** dropdown with Upload
 Resume and Generate Resume at the right, then the list (below). Sort
-(KAN-366) is one pick of three: Last Edited, newest first and the
-default; Oldest First; Name (A to Z). An upload dates from its upload, a
-built resume from its last edit. It is drawn as the Type filter is, but
+(KAN-366) is one pick of four: Last Edited, newest first and the
+default; Recently Created, the newest made first whatever was edited
+since (2026-11-10); Oldest First; Name (A to Z). For the edit orders an
+upload dates from its upload, a built resume from its last edit. It is drawn as the Type filter is, but
 never takes the filter's brand tint, since an order is always in force;
 it is a dropdown because the header already holds the Resumes or Experiences
 pills, the shared `SortMenu`, which the Jobs page's filter row uses too. Each resume is its card, with its own
 line saying what it is ("Uploaded Oct 21", "Last edited Oct 21 · For
-<posting>") and its star, Rename, Download and Delete. With no resume at
+<posting>") and its star, Rename, Download and Delete. **A Created column
+sits left of the icons** (2026-11-10, `CreatedColumn` in
+`components/resume-row.tsx`): "Created" over the date and time it was
+uploaded or made, "Nov 10, 3:42 PM", on the student's clock, the year only
+when it is not this one, in one width on every row so the times line up.
+The student wanted to tell resumes made the same day apart. Below `@2xl`
+of the row (672px) the column hides and the line takes the time instead
+("Uploaded Oct 23, 3:27 PM", "Made Nov 10, 5:56 PM", "Last edited Nov 5 ·
+Created Oct 29, 3:09 PM"). The server prints the UTC day alone and the
+browser adds the time after hydration (`LocalDateTime`). Only the Resumes
+page draws it; the pickers' rows keep their one line. On a phone the Sort
+button cuts "Recently Created" to "Recently Cre…". With no resume at
 all the list's place holds "No Resumes Yet"; filters that hide every
 card show "No Matching Resumes" with Clear Filters (`EmptyState`, as the
 Applications page's). The type and the order are the URL's (`?type=uploaded,tailored`,
-`?sort=oldest` or `name`; Last Edited has none), moved in place and
+`?sort=created`, `oldest` or `name`; Last Edited has none), moved in place and
 replacing the entry, so a reload or a shared link keeps them and a tick
 is not a step of Back; Clear Filters keeps the order; the search's words are the
 page's own. A Generate clears a Type filter that would hide its new
@@ -2958,10 +2970,15 @@ upload's page.
   carry; every one was "Base Resume" until KAN-258, so the list read as one
   name repeated. Generate has no limit (KAN-268); a failed one shows its
   message as Generated Resumes' error. **A Generate that would make a
-  resume the student already has makes nothing** (KAN-267): a pop-up says
-  "Duplicate Resume found: <name>" with an OK button, and nothing else
-  happens. "The same" is what prints: a new resume holds the whole bank,
-  so it matches only when nothing changed since an earlier Generate.
+  resume the student already has asks first** (KAN-267, KAN-444): a modal
+  says "You Already Have This Resume. Resume #3 has the same content.
+  Confirm to make a copy anyway." with Cancel and Confirm
+  (`resumes/duplicate-resume-dialog.tsx`). Cancel makes nothing; Confirm
+  runs Generate again with `allow_duplicate` and opens the copy. It said
+  only "Duplicate Resume found: <name>" with OK until 2026-11-10, which
+  flagged the copy but neither explained it nor let the student go on.
+  "The same" is what prints: a new resume holds the whole bank, so it
+  matches only when nothing changed since an earlier Generate.
   **Generate shows its steps, then opens the resume in the editor**
   (KAN-444, `resumes/generate-running.tsx`): a dialog with a small page
   writing itself lists Reading your experience bank, Checking your resumes
@@ -2981,8 +2998,11 @@ upload's page.
   (`uploadResume`); the API reads it itself, and the client never sends
   parsed content. **A file whose text the student already uploaded is
   refused** (KAN-267): nothing is kept, whenever and however the file was
-  exported again, and Generate's pop-up opens, "Duplicate Resume found:
-  <name>" with OK (`resumes/duplicate-resume-dialog.tsx`).
+  exported again, and the same modal opens: "You Already Have This
+  Resume. Your upload <name> has the same text." with OK
+  (`resumes/duplicate-resume-dialog.tsx`). An upload is never confirmed:
+  the database keeps one upload per text, and a copy would take one of
+  the 5 slots.
   Intake and onboarding uploads show the message as their error line. **The upload fills the experience bank** (ADR 0003): a
   note under the filter row says what went in ("Added 6 entries and 2 skills
   from resume.pdf", or "WorkIt couldn't find any entries in …") and links

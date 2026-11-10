@@ -1130,7 +1130,11 @@ Find files with a directory listing; these are the rules for where code goes.
   (`generate(..., refuse_duplicate=True)`, the route only; Tailor's own
   Generate never refuses) compares the new resume's view with every built
   resume's view built from today's bank (`same_resume`), before writing:
-  a resume's content changes with every edit, so no hash is stored. A
+  a resume's content changes with every edit, so no hash is stored. The
+  409 names the match (`name`), and **a student who confirms the copy
+  gets it**: the Resumes page asks "You Already Have This Resume" and
+  sends `allow_duplicate`, which skips the check (KAN-444). Uploads stay
+  refused: `resumes_text_hash_key` keeps one upload per text. A
   test that needs two resumes from one bank adds a skill between them
   (`tests/test_built_resumes.py`'s `_another`).
 - **The resume limit is 5 uploads** (`services/built_resumes.py`'s

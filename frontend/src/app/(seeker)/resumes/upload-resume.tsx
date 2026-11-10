@@ -60,7 +60,8 @@ export function useResumeUpload({
 }: {
   uploaded: ResumeItem[];
   reload: () => Promise<void>;
-  onDuplicate: (message: string | null) => void;
+  /** A file whose text an upload already has: that upload's name. */
+  onDuplicate: (name: string) => void;
 }) {
   // The name of the file in flight, or null.
   const [uploading, setUploading] = useState<string | null>(null);
@@ -81,8 +82,8 @@ export function useResumeUpload({
     const fd = new FormData();
     fd.append("file", file);
     try {
-      const { resume, error, duplicateOf } = await uploadResume(fd);
-      if (duplicateOf) return onDuplicate(error);
+      const { resume, error, duplicateOf, duplicateName } = await uploadResume(fd);
+      if (duplicateOf) return onDuplicate(duplicateName ?? "Uploaded resume");
       if (error) return setUploadError(error);
       if (resume?.bank) {
         setImported({ ...resume.bank, resume_id: resume.id, filename: resume.original_filename });
@@ -235,6 +236,7 @@ export function UploadedRow({
         <ResumeRow
           resume={resume}
           href={`/resumes/uploaded/${encodeURIComponent(resume.id)}`}
+          created
           onMakePrimary={makePrimary}
           onRename={() => setRenaming(true)}
           onDownload={download}

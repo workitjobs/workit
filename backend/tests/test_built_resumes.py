@@ -306,7 +306,8 @@ async def test_generate_refuses_a_resume_the_student_already_has(student):
 
     res = await client.post(f"{me}/built-resumes", json={})
     assert res.status_code == 409
-    assert res.json()["detail"] == {"message": "Duplicate Resume found: General SWE", "built_resume_id": first}
+    assert res.json()["detail"] == {
+        "message": "Duplicate Resume found: General SWE", "built_resume_id": first, "name": "General SWE"}
     assert [r["id"] for r in (await client.get(f"{me}/built-resumes")).json()] == [first]
 
     # The first resume edited, a new one is not the same...
@@ -353,9 +354,25 @@ async def test_a_streamed_generate_names_the_duplicate_and_writes_nothing(studen
     lines = _lines(await client.post(f"{me}/built-resumes/stream", json={}))
     assert lines == [
         {"type": "phase", "phase": "checking"},
-        {"type": "error", "status": 409, "message": "Duplicate Resume found: General SWE", "built_resume_id": first},
+        {"type": "error", "status": 409, "message": "Duplicate Resume found: General SWE", "built_resume_id": first,
+         "name": "General SWE"},
     ]
     assert [r["id"] for r in (await client.get(f"{me}/built-resumes")).json()] == [first]
+
+
+async def test_a_confirmed_copy_is_made_without_the_check(student):
+    """KAN-444: the Resumes page asks "You Already Have This Resume", and
+    the student's Confirm makes the copy, streamed or not."""
+    client, me = student
+    await _fill_bank(client, me)
+    first = await _generate(client, me, "General SWE")
+
+    lines = _lines(await client.post(f"{me}/built-resumes/stream", json={"allow_duplicate": True}))
+    assert [line.get("phase", line["type"]) for line in lines] == ["saving", "done"]
+    res = await client.post(f"{me}/built-resumes", json={"allow_duplicate": True})
+    assert res.status_code == 201
+    listed = [r["id"] for r in (await client.get(f"{me}/built-resumes")).json()]
+    assert len(listed) == 3 and first in listed
 
 
 async def test_generate_tells_a_tailored_resume_with_its_own_skill_from_a_new_base_resume(student, database):
