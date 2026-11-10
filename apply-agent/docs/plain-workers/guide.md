@@ -106,7 +106,7 @@ them. `apply.plain.tile.PortFrames` is their frame source for the same
 - **Frames: without the permission.** The worker extension captures the shown
   tab with `captureVisibleTab`, at most every 500 ms (Chrome's quota is about
   two a second per browser, and only the debugger API gets past it; a plain
-  Worker's debugger sends only text and choice clicks, "Trusted text and choices" below), JPEG quality 88, at the tab's CSS size, sent only when the picture
+  Worker's debugger sends only text and choice clicks, "Trusted text and choices" above), JPEG quality 88, at the tab's CSS size, sent only when the picture
   changed: about 2 fps. The tile shows one line (`PortFrames.notice`, the
   caption's `capture`): "Live tile off: turn on <app> in System Settings >
   Privacy & Security > Screen & System Audio Recording, then quit and reopen
