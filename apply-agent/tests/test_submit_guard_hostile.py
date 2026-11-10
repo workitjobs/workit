@@ -122,6 +122,20 @@ PAGES = {
         <label>School <input id=school name=school></label><button id=b>Next</button></form>{SEND_ALL}
         <script>document.getElementById('school').addEventListener('keydown', () => document.getElementById('b').focus());
         document.getElementById('b').addEventListener('click', () => sendAll());</script>"""},
+    # KAN-716: trusted clicks are for choices. A radio inside the Submit button, and a radio whose press moves the Submit
+    # under the pointer: neither may press it.
+    "a radio inside the Submit": {START: f"""<title>Apply</title><form id=f method=post action="{FINAL}">
+        <input name=first value=Test><button id=b><input type=radio name=agree value=yes aria-label="Agree"> Next</button>
+        </form>{SEND_ALL}<script>document.getElementById('b').addEventListener('click', () => sendAll());</script>"""},
+    "a radio that moves the Submit under the pointer": {START: f"""<title>Apply</title><form id=f method=post action="{FINAL}">
+        <input name=first value=Test><label><input type=radio id=r name=sponsor value=no> No</label>
+        <label><input type=checkbox id=c name=ok> Okay</label><button id=b>Next</button></form>{SEND_ALL}
+        <script>const b = document.getElementById('b');
+        for (const id of ['r', 'c']) for (const kind of ['pointermove', 'pointerdown']) document.getElementById(id).addEventListener(kind, (e) => {{
+          const box = e.target.getBoundingClientRect();
+          Object.assign(b.style, {{position: 'fixed', left: box.left - 30 + 'px', top: box.top - 30 + 'px', width: '90px', height: '70px', zIndex: 9}});
+        }}, true);
+        b.addEventListener('click', () => sendAll());</script>"""},
 }
 BUTTON = {"a review page's Apply with its answers hidden": "Apply", "a profile pop-up that is the application": "Submit", "a profile pop-up that turns into the application": "Submit",
           "a one-page form in a modal": "Continue", "an application that makes an account": "Continue",
@@ -218,7 +232,21 @@ def tile_typing(page, drive, name):
     tile({"type": "key", "key": "Enter"})  # Enter on a focused Submit presses nothing
 
 
-TYPING = {"Apply's typing": apply_typing, "the tile's typing": tile_typing}
+def choice_clicks(page, drive, name):
+    """Apply's click and check of every radio and checkbox: a trusted click (KAN-716)."""
+    choices = page.locator("input[type=radio], input[type=checkbox]")
+    for i in range(choices.count()):
+        try:
+            choices.nth(i).check(timeout=2000)
+        except Exception:
+            pass  # refused, or the page moved it: nothing pressed
+        try:
+            choices.nth(i).click(timeout=2000)
+        except Exception:
+            pass
+
+
+TYPING = {"Apply's typing": apply_typing, "the tile's typing": tile_typing, "Apply's choice clicks": choice_clicks}
 
 PATHS = {"plain code's Next": plain_next, "the profile click": profile_click, "the account click": account_click,
          "Ask Claude's press": ask_press, "Ask Claude's press of a listed step": ask_press_listed}

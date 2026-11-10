@@ -110,6 +110,20 @@
     return target.dispatchEvent(event);
   }
 
+  // A choice a trusted click may make (KAN-716): a radio, a checkbox or an option, never a button,
+  // a link or anything in one. amazon.jobs dropped the radios a synthetic click had set. Only in
+  // the top frame (the debugger's points are the tab's viewport), only a plain single click.
+  const CHOICE = "input[type=radio], input[type=checkbox], [role=radio], [role=checkbox], [role=option], [role=menuitemradio], [role=menuitemcheckbox], [role=switch]";
+  const PRESSES = "button, a[href], input[type=submit], input[type=image], input[type=reset], input[type=button], summary, [role=button], [role=link]";
+  function trustedChoice(element, target, clickCount, modifiers, force) {
+    if (!canTrust || force || clickCount !== 1 || modifiers?.length || window !== window.top) return null;
+    const control = pw.retarget(element, "follow-label");
+    const choice = [element, control].find((e) => e?.matches?.(CHOICE));
+    if (!choice) return null;
+    for (const n of [target, element, control]) if (n?.closest?.(PRESSES)) return null; // a choice inside a button is a button
+    return [element, control, ...(control?.labels ?? [])].filter(Boolean);
+  }
+
   function click(selector, { force = false, clickCount = 1, position, modifiers } = {}) {
     const element = one(selector);
     actionable(element, { force });
@@ -117,6 +131,13 @@
     const target = hitTarget(element, at, force);
     const keys = { ctrlKey: !!modifiers?.includes("Control"), shiftKey: !!modifiers?.includes("Shift"),
                    altKey: !!modifiers?.includes("Alt"), metaKey: !!modifiers?.includes("Meta") };
+    const allowed = trustedChoice(element, target, clickCount, modifiers, force);
+    if (allowed) return request(allowed, { __applyClick: { x: at.x, y: at.y } }, () => syntheticClick(target, at, keys, clickCount), "click");
+    syntheticClick(target, at, keys, clickCount);
+    return null;
+  }
+
+  function syntheticClick(target, at, keys, clickCount) {
     mouse(target, "pointerover", at, keys);
     mouse(target, "mouseover", at, keys);
     mouse(target, "pointermove", at, keys);
@@ -134,7 +155,6 @@
       mouse(target, "click", at, { ...keys, detail: n });
     }
     if (clickCount === 2) mouse(target, "dblclick", at, { ...keys, detail: 2 });
-    return null;
   }
 
   function hover(selector, { force = false } = {}) {
@@ -172,14 +192,18 @@
   const pending = new Map(); // token -> {element, arrived, refused, said, stop, fallback}
   const chosen = new Map(); // token -> the field a `type` call types its characters into
   let tokens = 0;
-  function request(element, fields, fallback) {
+  // `element`: the field (text), or for a click the choice with its control and labels: the only
+  // elements a trusted event may reach until `landed`.
+  const CLICKS = ["pointerdown", "mousedown", "pointerup", "mouseup", "click", "auxclick", "dblclick"];
+  function request(element, fields, fallback, kind = "text") {
     const token = `${Date.now().toString(36)}-${++tokens}-${Math.random().toString(36).slice(2)}`;
-    const entry = { element, arrived: false, refused: false, said: false, fallback };
+    const allowed = Array.isArray(element) ? element : [element];
+    const entry = { element: allowed[0], arrived: false, refused: false, said: false, fallback, kind };
+    const reaches = (target) => allowed.some((e) => within(target, e));
     const hear = (event) => {
       if (!event.isTrusted) return;
-      const target = event.composedPath()[0];
-      if (target === element || (element.isContentEditable && element.contains(target))) {
-        entry.arrived = true;
+      if (reaches(event.composedPath()[0])) {
+        if (event.type === (kind === "click" ? "click" : "beforeinput")) entry.arrived = true;
         return;
       }
       entry.refused = true;
@@ -187,10 +211,11 @@
       event.stopImmediatePropagation();
     };
     const said = () => (entry.said = true); // a guard's block (apply.plain.guards' PORT_SAID)
-    addEventListener("beforeinput", hear, true);
+    const types = kind === "click" ? CLICKS : ["beforeinput"];
+    for (const type of types) addEventListener(type, hear, true);
     document.addEventListener("__apply_said", said, true);
     entry.stop = () => {
-      removeEventListener("beforeinput", hear, true);
+      for (const type of types) removeEventListener(type, hear, true);
       document.removeEventListener("__apply_said", said, true);
     };
     pending.set(token, entry);
@@ -210,7 +235,8 @@
     if (entry.arrived) return { trusted: true };
     if (entry.refused || entry.said) return { refused: true };
     if (tried) return { trusted: false };
-    if (deepActive() === entry.element && entry.element.isConnected) entry.fallback();
+    if (!entry.element.isConnected || (entry.kind === "text" && deepActive() !== entry.element)) return { trusted: false };
+    entry.fallback();
     return { trusted: false, fallback: true };
   }
 
@@ -380,8 +406,13 @@
   function check(selector, checked, { force = false } = {}) {
     const element = one(selector);
     if (is(element, "checked") === checked) return null;
-    click(selector, { force });
-    if (is(element, "checked") !== checked) throw fail("Error", "Clicking the checkbox did not change its state");
+    const trusted = click(selector, { force });
+    if (trusted) return { ...trusted, after: ["checked", [selector, checked]] }; // checked once the trusted click is in
+    return verifyChecked(selector, checked);
+  }
+
+  function verifyChecked(selector, checked) {
+    if (is(one(selector), "checked") !== checked) throw fail("Error", "Clicking the checkbox did not change its state");
     return null;
   }
 
@@ -471,6 +502,7 @@
     },
     landed,
     keyup,
+    checked: verifyChecked,
     check,
     select,
     focus: (selector) => (focusOn(selector), null),

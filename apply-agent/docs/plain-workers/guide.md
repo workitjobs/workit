@@ -33,7 +33,7 @@ On a plain Worker's page (a PortPage, `apply-agent/docs/plain-workers/PROTOCOL.m
   requestSubmit, a native POST) sends nothing once guarded, and the rules alone stop it too.
   A tile press shows the blocked note, and a lifted page's Submit goes through and is heard.
 
-## Plain Workers: trusted text (KAN-716)
+## Plain Workers: trusted text and choices (KAN-716)
 
 amazon.jobs's text boxes showed every answer a plain Worker typed and took none: Claude fill's
 fill, Ask, the tile's text and keys. "This field is required" stayed, the auto-save failed, and a
@@ -47,7 +47,15 @@ permission):
   field: no key, so no Enter, no click, no submit), `Input.dispatchKeyEvent` for Backspace and
   Delete only (no text), and `Emulation.setFocusEmulationEnabled {enabled: true}` (the tab acts
   as focused while attached, as Playwright's CDP pages do, so the box hears its focus and blur).
-  `typing.send` refuses any other command or parameter.
+  `typing.send` refuses any other command or parameter. And one more, for choices (below):
+  `Input.dispatchMouseEvent`, a plain left click (move, press, release) with no modifiers.
+- **Choices: radios, checkboxes, options.** Live (2026-11-10), a reload of amazon.jobs showed blank
+  two radios an earlier synthetic click had set. So `dom` `click` and `check` of a radio, a
+  checkbox or an option (`CHOICE` in `page/dom.js`) is a trusted click at its centre, in the top
+  frame only. Never a button, a link or a choice inside one (`PRESSES`): those stay synthetic, and
+  the guards judge them as before. Until the click is in, a trusted press or click that reaches any
+  element but the choice, its control and its labels is cancelled, so a page that moves its Submit
+  under the pointer gets nothing pressed. Lisul's tile clicks stay synthetic.
 - **Only the field the call chose.** `page/dom.js` asks for trusted text only for a text field
   (a textarea, a text-like input, editable content) that has the focus. While the text goes in,
   a trusted `beforeinput` aimed at any other element is cancelled. A key whose keydown moves the
@@ -63,7 +71,7 @@ permission):
   refusal now act on a plain Worker as on a CDP one.
 - **Where it applies.** Every `dom` text call (Claude fill and Ask through Apply's MCP server,
   Fillers through PortPage) and the tile's `text` and `key` events: Lisul's typing on the tile
-  reaches Amazon's sign-in and its questions. Clicks stay synthetic. The Fill engine's own
+  reaches Amazon's sign-in and its questions. Other clicks stay synthetic. The Fill engine's own
   `type()` (MAIN world, in its job-system adapters) is unchanged; amazon.jobs has no adapter.
 - **Rolling it out.** The new manifest asks for `debugger`, and Workers need the new switch. A
   running Worker keeps its old code and switches: Apply replaces a profiles folder's extension
@@ -72,9 +80,11 @@ permission):
   seed, run `uv run apply plain seed` once then; its real hello checks the copy loads.
 - Tests: `tests/test_plain_typing.py` (Chrome for Testing): a box that takes only a keyboard's
   text, the old path's failure on it (the control, in Playwright's Chromium), fill, type,
-  insert_text, the tile's text and keys, Backspace and Delete, a cross-origin frame, Enter, and a
-  page that moves the focus mid-key. `tests/test_submit_guard_hostile.py -k typing` runs both
-  typing paths on every hostile page. `tests/test_plain_trusted_rules.py` (in CI) checks the
+  insert_text, the tile's text and keys, Backspace and Delete, a cross-origin frame, Enter, a
+  page that moves the focus mid-key, a radio that takes only a trusted click, a Submit moved under
+  the pointer, and a reload that shows only what the fake job system saved. `tests/test_submit_guard_hostile.py -k typing` runs both
+  typing paths and Apply's choice clicks on every hostile page (a radio inside the Submit, one that
+  moves the Submit under the pointer). `tests/test_plain_trusted_rules.py` (in CI) checks the
   source: one file uses the debugger, and `send` names only these commands.
 
 ## Plain Workers' tiles and Fix from the window (KAN-609)
@@ -96,7 +106,7 @@ them. `apply.plain.tile.PortFrames` is their frame source for the same
 - **Frames: without the permission.** The worker extension captures the shown
   tab with `captureVisibleTab`, at most every 500 ms (Chrome's quota is about
   two a second per browser, and only the debugger API gets past it; a plain
-  Worker's debugger sends text only, "Trusted text" below), JPEG quality 88, at the tab's CSS size, sent only when the picture
+  Worker's debugger sends only text and choice clicks, "Trusted text and choices" below), JPEG quality 88, at the tab's CSS size, sent only when the picture
   changed: about 2 fps. The tile shows one line (`PortFrames.notice`, the
   caption's `capture`): "Live tile off: turn on <app> in System Settings >
   Privacy & Security > Screen & System Audio Recording, then quit and reopen

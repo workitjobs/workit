@@ -1,4 +1,5 @@
-// Trusted text for plain Workers (KAN-716): the text Apply and Lisul's tile type, as a keyboard's.
+// Trusted text and choices for plain Workers (KAN-716): the text Apply and Lisul's tile type, as a
+// keyboard's, and the radios and checkboxes Apply clicks, as a mouse's.
 //
 // Every other input a plain Worker makes is a synthetic DOM event or an editing command, and
 // neither fires what a keyboard fires: execCommand("insertText") gives an `input` but no
@@ -13,6 +14,11 @@
 //   nothing.
 // - Input.dispatchKeyEvent for Backspace and Delete only, with no text: they delete in a field and
 //   do nothing anywhere else.
+// - Input.dispatchMouseEvent: one plain left click (move, press, release) at a point in the top
+//   frame, only for a choice page/dom.js named: a radio, a checkbox or an option, never a button
+//   or a link, or anything inside one. amazon.jobs dropped radios a synthetic click had set. Until
+//   it is in, page/dom.js cancels any trusted press or click that reaches another element, so a
+//   page that moves a Submit under the point gets no click.
 // - Emulation.setFocusEmulationEnabled {enabled: true}: the tab acts as focused while it is
 //   attached, as Playwright's CDP pages do, so the field hears its focus and blur.
 // page/dom.js picks the field (the one Apply's call chose, focused), and refuses any trusted
@@ -30,7 +36,7 @@ const KEYS = {
   Backspace: { code: "Backspace", windowsVirtualKeyCode: 8, commands: ["deleteBackward"] },
   Delete: { code: "Delete", windowsVirtualKeyCode: 46, commands: ["deleteForward"] },
 };
-export const TRUSTED_KEYS = Object.keys(KEYS);
+const MOUSE = new Set(["mouseMoved", "mousePressed", "mouseReleased"]);
 const attached = new Map(); // tab -> {ready, timer}
 
 chrome.debugger?.onDetach?.addListener(({ tabId }) => attached.delete(tabId));
@@ -44,6 +50,9 @@ export function send(tab, method, params) {
     method === "Input.insertText" ? typeof params?.text === "string" && Object.keys(params).length === 1
     : method === "Input.dispatchKeyEvent" ? KEYS[params?.key] && !("text" in params) && !("unmodifiedText" in params) &&
       /^(rawKeyDown|keyUp)$/.test(params.type) && JSON.stringify(params.commands ?? []) === JSON.stringify(params.type === "keyUp" ? [] : KEYS[params.key].commands)
+    : method === "Input.dispatchMouseEvent" ? MOUSE.has(params?.type) && Number.isFinite(params.x) && Number.isFinite(params.y) &&
+      params.button === (params.type === "mouseMoved" ? "none" : "left") && (params.clickCount ?? 0) <= 1 && !params.modifiers &&
+      Object.keys(params).every((k) => ["type", "x", "y", "button", "clickCount", "buttons"].includes(k))
     : method === "Emulation.setFocusEmulationEnabled" ? params?.enabled === true && Object.keys(params).length === 1
     : false;
   if (!ok) return Promise.reject(named("Refused", `the worker extension sends no debugger command ${method} ${JSON.stringify(params)}`));
@@ -75,6 +84,16 @@ async function insertText(tab, text) {
   await send(tab, "Input.insertText", { text });
 }
 
+// One left click at (x, y), CSS pixels of the tab's viewport: only for the top frame's choice that
+// page/dom.js named (a radio, a checkbox, an option), which cancels it if it lands anywhere else.
+async function click(params, { x, y }) {
+  if ((params.frame ?? 0) !== 0) throw named("Refused", "a trusted click is for the top frame only");
+  await attach(params.tab);
+  await send(params.tab, "Input.dispatchMouseEvent", { type: "mouseMoved", x, y, button: "none" });
+  await send(params.tab, "Input.dispatchMouseEvent", { type: "mousePressed", x, y, button: "left", clickCount: 1, buttons: 1 });
+  await send(params.tab, "Input.dispatchMouseEvent", { type: "mouseReleased", x, y, button: "left", clickCount: 1, buttons: 0 });
+}
+
 async function key(tab, name) {
   await attach(tab);
   const { commands, ...rest } = KEYS[name];
@@ -82,7 +101,7 @@ async function key(tab, name) {
   await send(tab, "Input.dispatchKeyEvent", { type: "keyUp", key: name, ...rest, commands: [] });
 }
 
-const asks = (value) => value && typeof value === "object" && ("__applyType" in value || "__applyKey" in value || "__applyKeys" in value);
+const asks = (value) => value && typeof value === "object" && ("__applyType" in value || "__applyKey" in value || "__applyKeys" in value || "__applyClick" in value);
 
 // A dom answer, with the trusted text it asks for typed: page/dom.js answers {__applyType: text,
 // token, after?} (text to insert at its chosen field), {__applyKey: name, token} (Backspace or
@@ -107,7 +126,8 @@ export async function finish(params, answer, call) {
   }
   let tried = false;
   try {
-    if ("__applyKey" in value) await key(params.tab, value.__applyKey);
+    if ("__applyClick" in value) await click(params, value.__applyClick);
+    else if ("__applyKey" in value) await key(params.tab, value.__applyKey);
     else await insertText(params.tab, value.__applyType);
     tried = true;
   } catch (error) {

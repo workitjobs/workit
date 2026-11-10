@@ -7,7 +7,8 @@ Hard rule: never evade bot detection and never touch a captcha; hand those to
 the user. A plain Worker is a Chrome with no CDP, no automation flags and no
 headless mode. No CDP client connects to it. Its extension's own `chrome.debugger`
 sends only trusted text, Backspace and Delete into the field Apply or Lisul's tile
-chose (KAN-716, `worker-extension/ops/typing.js`, guide "Trusted text").
+chose, and Apply's left click on a radio, checkbox or option in the top frame (KAN-716,
+`worker-extension/ops/typing.js`, guide "Trusted text and choices").
 
 ## Pieces
 
@@ -391,7 +392,9 @@ text (KAN-716): `fill`, `type`/`press_sequentially`, `keyboard.type`/`insert_tex
 and Backspace/Delete in a text field go in trusted through the extension's `chrome.debugger`
 (`Input.insertText`; `Input.dispatchKeyEvent` for Backspace and Delete only), with `dom` answering
 the service worker a request (`{__applyType, token}`, `{__applyKey, token}`, `{__applyKeys, chosen}`)
-and `landed` after it; the op's answer to Apply stays `{"ok": null}`. Without the debugger they are
+and `landed` after it; the op's answer to Apply stays `{"ok": null}`. A `click` or `check` of a
+radio, checkbox or option in the top frame is a trusted left click the same way (`{__applyClick}`,
+`Input.dispatchMouseEvent`); every other click is synthetic. Without the debugger they are
 as before: `fill` focuses, selects all and uses `execCommand("insertText")`, falling back to the
 native value setter plus `input`/`change`; a focus move (a click, Tab, `focus`, `blur`, `fill`) that the page didn't hear, as in a window without focus, dispatches `blur` and `focusout` on what it left (KAN-709); `press` emulates the default of Enter, Tab,
 Backspace, Delete, Space and (S3) the caret keys ArrowLeft/ArrowRight/Home/End (Shift extends); `click` dispatches pointer and mouse events

@@ -7,7 +7,7 @@ beyond the profile are first-run, default-browser, crash-bubble, window placemen
 Lisul's apps keeps painting, and `--restore-last-session` (KAN-718), so a quit keeps the job
 sites' session cookies: their sign-ins. `--silent-debugger-extension-api` (KAN-716) hides the bar Chrome
 shows while the worker extension types trusted text through chrome.debugger: no CDP client connects to the
-Worker, and the extension's debugger sends only text and Backspace/Delete. Workers sit on-screen, never minimized.
+Worker, and the extension's debugger sends only text, Backspace/Delete and a click on a radio, checkbox or option. Workers sit on-screen, never minimized.
 
 Two Chromes (policies.yaml `plain_chrome`):
 - "chrome": branded Google Chrome. It ignores `--load-extension`, so the worker extension is

@@ -14,6 +14,7 @@ its value only from an `input` that a trusted `beforeinput` came before, as a ke
 - The trusted path types only into the field the call chose, and Enter never sends a form.
 """
 
+import json
 from pathlib import Path
 
 import pytest
@@ -31,9 +32,23 @@ AMAZON_LIKE = """<!doctype html><title>Job-specific questions</title>
 <label for=why>Describe your experience</label><textarea id=why></textarea><span id=why-error>This field is required</span>
 <label for=school>Which university are you currently attending?</label><input id=school><span id=school-error>This field is required</span>
 <label for=other>Something else</label><input id=other>
+<fieldset><legend>Will you need sponsorship?</legend><label><input type=radio name=sponsor value=Yes> Yes</label>
+<label><input type=radio name=sponsor value=No> No</label></fieldset>
 <button id=go>Continue</button></form>
 <script>
 window.taken = {}; window.events = []; window.sent = 0;
+addEventListener('pointerup', (e) => { if (e.isTrusted) window.upOn = e.composedPath()[0].id || e.composedPath()[0].tagName; }, true);
+// Auto-save: what the form took goes to the server, and a reload shows only what the server holds.
+const save = () => fetch('/acme/jobs/123/save', {method: 'PUT', body: JSON.stringify(taken)});
+for (const [id, value] of Object.entries(window.saved || {})) {
+  if (id === 'sponsor') document.querySelector(`input[name=sponsor][value=${value}]`).checked = true;
+  else document.getElementById(id).value = value;
+}
+// Its radios take only a trusted click, as amazon.jobs's kept no radio a synthetic click set.
+for (const radio of document.querySelectorAll('input[type=radio]')) radio.addEventListener('click', (e) => {
+  events.push('sponsor:click:' + e.isTrusted);
+  if (e.isTrusted) { taken.sponsor = radio.value; save(); }
+});
 for (const box of document.querySelectorAll('textarea, input')) {
   let announced = false;
   box.addEventListener('beforeinput', (e) => { if (e.isTrusted) announced = true; });
@@ -42,6 +57,7 @@ for (const box of document.querySelectorAll('textarea, input')) {
     if (!announced) return;
     announced = false;
     taken[box.id] = box.value;
+    save();
     const error = document.getElementById(box.id + '-error');
     if (error) error.hidden = box.value !== '';
   });
@@ -61,13 +77,14 @@ def test_the_old_untrusted_path_shows_the_text_and_the_box_takes_none(tmp_path):
         for script in (injected, (PAGE_DIR / "dom.js").read_text()):
             page.add_script_tag(content=script)
         run = lambda method, *args: page.evaluate("([m, a]) => __applyDom.run(m, a)", [method, list(args)])
+        assert run("check", "input[value=No]", True) == {"ok": None}
         assert run("fill", "#why", "C++ firmware") == {"ok": None}
         assert run("type", "#school", "Stony") == {"ok": None}
         run("insert", " Brook")
-        shown = page.evaluate("() => [why.value, school.value]")
+        shown = page.evaluate("() => [why.value, school.value, document.querySelector('input[value=No]').checked]")
         taken = page.evaluate("() => taken")
         browser.close()
-    assert shown == ["C++ firmware", "Stony Brook"]
+    assert shown == ["C++ firmware", "Stony Brook", True]
     assert taken == {}
 
 
@@ -109,13 +126,19 @@ def _plain_or_skip():
 
 
 class Site:
+    """The fake job system: it keeps what the form auto-saves, and a page it sends shows only that."""
+
     def __init__(self, html: str):
-        self.html, self.posts = html, []
+        self.html, self.posts, self.saved = html, [], {}
 
     def handle(self, route) -> None:
-        if route.request.method not in ("GET", "HEAD", "OPTIONS") and route.request.url.startswith(HOST):
-            self.posts.append(route.request.url)
-        route.fulfill(body=self.html, content_type="text/html")
+        request = route.request
+        if request.url.endswith("/save"):
+            self.saved = request.post_data_json or {}
+            return route.fulfill(body="{}", content_type="application/json")
+        if request.method not in ("GET", "HEAD", "OPTIONS") and request.url.startswith(HOST):
+            self.posts.append(request.url)
+        route.fulfill(body=f"<script>window.saved = {json.dumps(self.saved)}</script>" + self.html, content_type="text/html")
 
 
 @pytest.fixture
@@ -202,3 +225,37 @@ def test_the_tiles_text_reaches_such_a_box_in_a_cross_origin_frame(amazon):
 
     assert inner.input_value("#school") == "SBU"
     assert inner.evaluate("() => taken") == {"school": "SBU"}
+
+
+def test_a_radio_clicked_and_text_typed_survive_a_reload(amazon):
+    # Live on amazon.jobs (2026-11-10): the page said "Progress auto-saved", and a reload showed the box empty and
+    # the radios an earlier Ask set blank. Here only what the server holds comes back after a reload.
+    page, site = amazon
+    page.get_by_role("radio", name="No").check()
+    page.locator("#why").fill("C++ firmware")
+    page.locator("#school").press_sequentially("SBU")
+    page.wait_for_timeout(300)  # the last auto-save
+    page.reload()
+
+    assert site.saved == {"sponsor": "No", "why": "C++ firmware", "school": "SBU"}
+    assert page.evaluate("() => [why.value, school.value, document.querySelector('input[value=No]').checked]") == [
+        "C++ firmware", "SBU", True]
+
+
+@pytest.mark.parametrize("when", ["pointermove", "pointerdown"])
+def test_a_trusted_click_reaches_only_the_choice_it_was_for(amazon, when):
+    # A page that puts its Continue under the pointer as it comes or as the press goes down: nothing is pressed.
+    page, site = amazon
+    page.evaluate("""(when) => document.querySelector('input[value=Yes]').addEventListener(when, () => {
+      const box = document.querySelector('input[value=Yes]').getBoundingClientRect();
+      Object.assign(go.style, {position: 'fixed', left: box.left - 20 + 'px', top: box.top - 20 + 'px', width: '80px', height: '60px', zIndex: 9});
+    }, true)""", when)
+    try:
+        page.get_by_role("radio", name="Yes").check()
+    except Exception:
+        pass  # its click was cancelled: the radio never changed
+    page.wait_for_timeout(300)
+
+    assert page.evaluate("() => [window.pressed || 0, window.sent]") == [0, 0]
+    assert page.evaluate("() => window.upOn") == "go"  # the press did land on Continue, and went no further
+    assert site.posts == []
