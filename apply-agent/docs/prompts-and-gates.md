@@ -53,7 +53,8 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
 - The truth check (`apply/truth.py`, KAN-748) reads each written essay
   for claims that nothing Lisul gave holds (`essays.own_facts`: the
   profile, the Story bank, the Stock and core answers, and the Answer
-  bank's answers that are his or that he reviewed). It finds numbers,
+  bank's answers in his own words, `source: lisul`: WorkIt's own-answer
+  rule, so a reviewed draft of Claude's is no fact of his). It finds numbers,
   names (a single capitalized word inside a sentence and an acronym too),
   a month or season outside his dates, and outcomes such as "adopted" or
   "went into use". The posting, the Company material and the question

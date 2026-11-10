@@ -681,11 +681,11 @@ def sources(profile: ApplicantProfile, company: str = "", facts: bool = False, t
 def own_facts(profile: ApplicantProfile, types: Iterable[str] = ()) -> str:
     """What Lisul gave, for the truth check (apply.truth): his Applicant profile
     facts, the Story bank, his Stock answers and core answers of `types`, his
-    links and town (`sources` with `facts`), and the Answer bank's answers
-    he gave or reviewed. Claude's unreviewed drafts are no fact of his."""
+    links and town (`sources` with `facts`), and the Answer bank's answers in
+    his own words (`source: lisul`, the rule WorkIt's sync keeps too). A
+    draft of Claude's is no fact of his, even once reviewed."""
     bank = profile.folder / answers.FILE
-    mine = [entry for entry in answers.AnswerBank(bank).entries() if entry.source == answers.LISUL or entry.reviewed] \
-        if bank.exists() else []
+    mine = [entry for entry in answers.AnswerBank(bank).entries() if entry.source == answers.LISUL] if bank.exists() else []
     return "\n".join([sources(profile, facts=True, types=types),
                       *(f"{e.question}: {'; '.join(e.answer) if isinstance(e.answer, list) else e.answer}" for e in mine)])
 

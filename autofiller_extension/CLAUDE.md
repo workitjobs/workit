@@ -10,7 +10,8 @@ the "Custom ATS Autofiller Build Plan" doc, built directly on
 ## Where this folder sits
 
 A third kind of project in this repo, alongside `frontend/` and `backend/`:
-no server, no build step, no dependency manifest. It's loaded into Chrome
+no server, no build step, no dependency manifest (only the Store package's
+build, `store/build.mjs`, minifies a copy). It's loaded into Chrome
 as an unpacked extension and talks to the **existing** WorkIt backend over
 HTTP. Nearly everything it fills is read-only against data that already
 had an endpoint: `applicant_profiles`, the **experience bank** (`GET
@@ -32,8 +33,9 @@ connector, or theirs (KAN-470, "Written questions" below).
 Chrome actually loads — plain ES2020+ JavaScript, JSDoc `@typedef`s in
 `src/shared/types.js` standing in for compile-time types. The Fill engine
 comes the same way: a git submodule whose committed bundle is loaded as it
-is (below). Only `test/` has a `package.json`, for its test runner; nothing
-the extension loads depends on it.
+is (below). Only `test/` (its test runner) and `store/` (esbuild, for the
+Store package only) have a `package.json`; nothing the extension loads
+depends on either.
 
 ## The Fill engine (KAN-329, KAN-340): what fills the form
 
@@ -2810,13 +2812,22 @@ so it stays. The **Store** gets `node store/build.mjs [outDir]` instead
   `TEST_HOOKS` false, the Vercel site gone (KAN-296).
 - only what Chrome loads: `manifest.json`, `icons`, `fonts`, `src`,
   `fill-engine/dist`.
+- every `.js` file minified by esbuild (KAN-744), with no source map and
+  `BANNER`, the copyright notice, as its first line. The engine ships only
+  as its minified `dist/engine.js` (about 284 KB, from 465 KB). esbuild runs
+  with no `format` and no `target`: a classic script keeps its top-level
+  names and a module its imports and exports, and no syntax is lowered, so
+  no helper is added that an `executeScript` `func` would lack. The build
+  needs `npm ci --prefix store` once.
 
 The build fails if any packaged file still names localhost, vercel.app or
 "Prototype" (as a word). A new dev-only line in `config.js` must be one
 `storeConfig` rewrites, or the build fails. `test/store-build.spec.ts` reads
-the zip back; `test/store-build.extension.spec.ts` loads the built package
+the zip back (minified, the banner, no source map, one engine file);
+`test/store-build.extension.spec.ts` loads the built package
 with a fake server answering `localhost:8000/health` and checks it calls only
-`api.workitjobs.ai`, answers the site's ping and opens Start batch's tabs.
+`api.workitjobs.ai`, answers the site's ping, opens Start batch's tabs and
+fills one.
 KAN-447's publish workflow uploads this zip; the Store version is
 `store/store.json`'s, so a release bumps it there.
 

@@ -9,6 +9,7 @@ its transaction, as every layer-2 step does.
 """
 
 import dataclasses
+import datetime
 import re
 import uuid
 from collections.abc import Collection, Iterable, Sequence
@@ -587,17 +588,19 @@ async def answer_bank(
     else:
         sources, employers, _ = await _check_material(db, applicant_id, None, company)
     same = (company or "").strip().casefold()
-    own = await _own_facts(db, applicant_id, job_id)
+    facts = await _own_facts(db, applicant_id, job_id)
     bank: dict[str, SavedAnswer] = {}
     seen: set[str] = set()
     written = await fetch_saved_answers(db, applicant_id, exclude=job_id)
-    # Their own words on applications first, then their own words brought
-    # from Apply (`fill_answers`), then their Claude's: on applications, then brought.
+    # Their own words first, the newest edit first (KAN-746): saved on an
+    # application or synced from Apply (`fill_answers`), so an older Apply
+    # answer never beats one they edited on WorkIt, and a newer one does. One
+    # with no time (an import's) goes after those with one, an application's
+    # first. Then their Claude's: on applications, then brought.
     brought = await fetch_brought_answers(db, applicant_id)
-    saved_answers = [
-        *(s for s in written if s.own), *(s for s in brought if s.own),
-        *(s for s in written if not s.own), *(s for s in brought if not s.own),
-    ]
+    own = sorted([*(s for s in written if s.own), *(s for s in brought if s.own)],
+                 key=lambda s: s.at or _NEVER, reverse=True)  # a stable sort: ties keep that order
+    saved_answers = [*own, *(s for s in written if not s.own), *(s for s in brought if not s.own)]
     # A draft brought from Apply with no company (no first_seen) that names
     # one is about that company: offered only on its forms.
     unplaced = [s for s in brought if not s.own and not s.choice and s.company is None]
@@ -616,12 +619,16 @@ async def answer_bank(
             continue
         if not saved.own and not saved.choice and (checks.problems(saved.answer, checks.Context(
             sources=(*sources, saved.question), employers=employers, question=saved.question,
-        )) or truth.unsupported(said, own, (*sources, saved.question))):
+        )) or truth.unsupported(said, facts, (*sources, saved.question))):
             continue
         if (wording := _wording(saved.question)) not in seen:
             seen.add(wording)
             bank[saved.question] = SavedAnswer(answer=saved.answer, own=saved.own)
     return bank
+
+
+# Before any answer's time: an own answer with none sorts after those with one.
+_NEVER = datetime.datetime.min.replace(tzinfo=datetime.UTC)
 
 
 async def _known_companies(db: AsyncSession, applicant_id: uuid.UUID) -> set[str]:
