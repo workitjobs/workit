@@ -36,6 +36,7 @@ from apply.adapters import Claude, JobSite, UsageLimitHit
 from apply.answer_bank import LISUL, AnswerBank
 from apply.applicant import as_applicant
 from apply.fill_engine import (
+    attested_line,
     company_specific,
     context_free,
     left_blank,
@@ -536,6 +537,7 @@ class _Planned:
         self.accepted: dict[str, tuple[str, ...]] = {}  # other wordings Lisul accepts for an answer, by Question name
         self.blanks: dict[str, str] = {}  # fields the engine's plan leaves blank on purpose, by name: why
         self.attestations: dict[str, str] = {}  # attestations and signatures, by name: their wording, Lisul's to tick
+        self.attested: dict[str, str] = {}  # attestations the plan answered from the profile's facts, by name: that fact
         self.filed: dict[str, str | None] = {}  # each bare date's Answer bank wording, by name (fill_engine.Plan.filed)
         self.sections: dict[str, str] = {}  # each bare date's section, by name (fill_engine.Plan.sections)
         self.fixes: dict[str, object] = {}  # the Pre-submit review's fixes, by name: no plan writes over them
@@ -570,8 +572,11 @@ class _Planned:
 
     @property
     def to_tick(self) -> list[str]:
-        """The Check before Submit lines for the attestations Lisul has not ticked on a paused step: "Yours to tick: ..."."""
-        return [to_tick(wording) for name, wording in self.attestations.items() if name not in self.lisuls]
+        """The Check before Submit lines for the attestations Lisul has not ticked on a paused step ("Yours to tick: ..."),
+        then each the plan answered from his facts under attest_from_sources ("Attested from sources: ...")."""
+        return [to_tick(wording) for name, wording in self.attestations.items() if name not in self.lisuls] + [
+            attested_line(q.label, self.attested[q.name]) for q in self.questions  # KAN-761: listed for his check
+            if q.name in self.attested and q.name in self._answers and q.name not in self.lisuls]
 
     def keep(self, values: dict, paused: dict | None = None) -> None:
         """Keep what Lisul put on a paused form before Resume (the Filler's
@@ -646,6 +651,7 @@ class _Planned:
         self.accepted = planned.accepted
         self.blanks = planned.blanks
         self.attestations = planned.attestations
+        self.attested = planned.attested
         self.filed, self.sections = planned.filed, planned.sections
         for q in self.questions:  # Lisul's answer to a bare date on this form, as he gave it
             if q.name in planned.filed and (given := self._answered.get(q.label.strip())) is not None:
@@ -801,7 +807,7 @@ class _Planned:
         for q in self.questions:
             answer = fixes.get(one_line(q.label))
             if (answer is None or q.name not in guessed | legal or q.kind in ("file", "multi_select") or q.name in self.lisuls
-                    or q.name in self.attestations
+                    or q.name in self.attestations or q.name in self.attested
                     or q.name in essays_asked or SECRET.search(q.label) or SECRET.search(q.name)
                     or (q.options and answer not in q.options) or shows(readback.get(q.name, ""), answer)):
                 continue

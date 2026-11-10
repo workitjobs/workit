@@ -240,7 +240,7 @@ On the last step, name exactly the button that would send the application in `su
 {RULES}"""
 # Lisul's page gates (policies: page_gates, KAN-637): he checks these on each step before the form goes on.
 GATES = """
-Never tick an attestation, certification or agreement box ("I certify", "I acknowledge", "I agree", consent to terms, to a background check or to data processing), and never type an e-signature, a typed-name signature or a date of signature, even when <fields> gives an answer for it: leave each as it is for the person, and list it in `for_lisul`.
+Never tick an attestation, certification or agreement box ("I certify", "I acknowledge", "I agree", consent to terms, to a background check or to data processing), and never type an e-signature, a typed-name signature or a date of signature, even when <fields> gives an answer for it: leave each as it is for the person, and list it in `for_lisul`. The one exception is a field whose entry in <fields> has "attested": true: Apply's own rule found the person's facts settle it, so pick or tick its answer exactly as given, and list it in `for_lisul` as "<label>: attested from sources".
 Before you finish, read every field on this step back and check it against <fields>: fix any that shows something else, once.
 In `for_lisul`, list every field on this step that the person must check before the form goes on, one entry each, as "<label>: <what it shows now>" (or "<label>: left for you"): attestation, certification, signature or date-of-signature fields; terms, or consent to a background check or to data processing; self-identification (gender, race or ethnicity, veteran, disability); work authorization, citizenship, U.S. person, export control or sponsorship; non-compete or prior-employer agreements; relatives at the company, prior employment with it, conflicts of interest; criminal history; and any answer you aren't sure is right. An option that only spells out the answer's abbreviation (a state's "NY" as "New York", a country's "US" as "United States") is a sure match, not one to list. Empty when the step has none."""
 FILL_SCHEMA = {
@@ -443,7 +443,10 @@ class ClaudeFill:
         kinds = {q.name: q.kind for q in questions}
         # Attestations and signatures (KAN-676): Lisul's own to tick or sign. Claude leaves each as it is and reads it
         # back, so a required one left unticked on this step stops the form here, before its Next.
-        attests = {name for name in fill_engine.attestations(questions) if name not in answers}
+        found = fill_engine.attestations(questions)
+        attests = {name for name in found if name not in answers}
+        # One the plan answered (attest_from_sources, KAN-761), or that Lisul ticked himself: its answer, as given.
+        settled = {name for name in found if name in answers}
         required = {q.name for q in questions if q.required}
         self._asked = (labels, answers)
         if self._waited_for_box and not captcha.shows(page):  # Lisul did the captcha on the filled form
@@ -467,7 +470,7 @@ class ClaudeFill:
                     and value != ""  # nothing to type: a blank answer only invites a mix-up with its neighbour
                     and not self._passed(name)}  # its step went by without it: it is filled there once held
             fields = [{"field": name, "question": labels[name], "answer": value.name if isinstance(value, Path) else value}
-                      for name, value in todo.items()]
+                      | ({"attested": True} if name in settled else {}) for name, value in todo.items()]
             files = [value for value in todo.values() if isinstance(value, Path)]
             prompt = f"<fields>\n{json.dumps(fields, indent=0)}\n</fields>"
             if attests:

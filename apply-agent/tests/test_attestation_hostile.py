@@ -263,3 +263,52 @@ def test_a_value_lisul_did_not_put_there_leaves_the_attestation_on_the_list(read
     planned = _planned(Question("a", CERTIFY, "select", True, ("Yes", "No")))
     planned.keep({"a": read})
     assert planned.to_tick == [f"Yours to tick: {CERTIFY}"], f"gone from the list, answers now {planned.answers}"
+
+
+# --- KAN-761: attest_from_sources. Only the engine's rules answer an attestation, from the profile's facts; each one so
+# answered goes on the Check before Submit list and holds a live run. With the policy off, nothing changes.
+
+NO_SPONSOR = "I understand that this role is not eligible for any type of employment-based immigration sponsorship"
+JPMORGAN = (Question("q1", NO_SPONSOR, "select", True, ("I Confirm",)),
+            Question("q2", "I understand that JPMorgan Chase & Co. will not provide any assistance or sign any documentation in "
+                     "support of any other form of immigration sponsorship or benefit including OPT/CPT", "select", True, ("Yes", "No")),
+            Question("q3", "I understand my performance during the internship may result in a permanent full time offer, and I "
+                     "attest that I will not require employment-based immigration sponsorship post-graduation", "select", True,
+                     ("I Affirm",)))
+
+
+def test_by_default_the_plan_attests_nothing_and_never_answers_an_acknowledgement_no():
+    planned = fill_engine.plan(JPMORGAN, POSTING, DEFAULTS)
+    assert planned.answers == {} and planned.attested == {}
+    assert set(planned.attestations) == {"q1", "q2", "q3"}
+
+
+def test_under_the_policy_the_plan_attests_what_the_facts_settle(tmp_path):
+    profile = ApplicantProfile.load(profile_with(tmp_path, policies={"attest_from_sources": ["sponsorship"]}))
+    planned = fill_engine.plan(JPMORGAN, POSTING, profile)
+    assert planned.answers == {"q1": "I Confirm", "q2": "Yes", "q3": "I Affirm"}
+    assert set(planned.attested) == {"q1", "q2", "q3"} and planned.attestations == {}
+
+
+def test_under_the_policy_a_profile_that_needs_sponsorship_attests_nothing(tmp_path):
+    path = profile_with(tmp_path, policies={"attest_from_sources": ["sponsorship"]},
+                        **{"work_authorization.requires_sponsorship_now_or_future": True})
+    planned = fill_engine.plan(JPMORGAN, POSTING, ApplicantProfile.load(path))
+    assert planned.answers == {} and set(planned.attestations) == {"q1", "q2", "q3"}
+
+
+def test_an_attested_box_is_ticked_listed_and_holds_the_live_run(tmp_path):
+    steps = (_radios(SPONSORSHIP, "sponsorship") + _radios(NO_SPONSOR, "ack"), _radios(AUTHORIZED, "authorized"))
+    driver = Driver(NO_SPONSOR)
+    row, server = _send(tmp_path, driver, steps, attest_from_sources=["sponsorship"])
+    assert driver.ticked  # from <fields>: the plan's answer, marked attested
+    assert server.submissions == [], "an attested answer must hold a live run for Lisul's check"
+    assert "Attested from sources: you need no visa sponsorship" in row.reason, row.reason
+
+
+def test_without_the_policy_the_same_box_is_left_and_nothing_is_sent(tmp_path):
+    steps = (_radios(SPONSORSHIP, "sponsorship") + _radios(NO_SPONSOR, "ack"), _radios(AUTHORIZED, "authorized"))
+    driver = Driver(NO_SPONSOR)
+    row, server = _send(tmp_path, driver, steps)
+    assert not driver.ticked and server.submissions == []
+    assert "Attested from sources" not in row.reason

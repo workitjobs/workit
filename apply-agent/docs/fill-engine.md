@@ -65,6 +65,25 @@ agree to the privacy policy") still follows `tick_consent_when_true`, and
 a background-check consent `willing_to_undergo_checks`, unless it attests
 that the application is true.
 
+Under the `attest_from_sources` policy (a list of rule names, none by
+default: `policies.default.yaml` says each), the engine's plan answers an
+attestation whose every claim the profile's facts settle (KAN-761). Its
+rules are the engine's (`src/attest.ts`): `sponsorship`,
+`work_authorization`, `age_18`, and `truthful_information` only when
+listed by name. It picks the form's one affirmative option ("I Confirm",
+"Yes", "I Affirm"), and never signs, types a name, consents, opts in or
+answers a clause that no listed rule settles. Each such answer is in
+`Plan.attested`, with its fact, and not in `Plan.attestations`. Apply puts
+it on the Check before Submit list as "Attested from sources: <fact>
+(<label>)" (`_Planned.to_tick`, `fill_engine.attested_line`), which holds a
+live run, and the window asks Lisul to check what Apply attested
+(`dashboard.ATTESTED_CHECK`). Claude fill gets it in <fields> marked
+`"attested": true`, so page gates let Claude pick it; Claude never ticks
+one on its own. A review fix never replaces it. An "I understand" or "I
+confirm" of a statement about sponsorship or work status is an attestation
+too: before, the sponsorship rule answered JPMorgan's "I understand that
+JPMorgan ... will not provide any assistance ... OPT/CPT" No (2026-11-10).
+
 A required one stops a stepped form on its page with one ask
 (`fill_engine.tick_ask`), and Apply fails closed there:
 
