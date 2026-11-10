@@ -60,14 +60,15 @@ checkout (Node, `autofiller_extension/test`'s `npm ci`, Playwright's
 Chromium) in the composite action `actions/extension-setup`; the checkout
 stays in each job, since a local action can't check out its own repo.
 
-The `extension` job (KAN-464) runs the extension's Playwright suite headless
-(`autofiller_extension/test`, both projects) on the engine the submodule
-pins, and first fails if that engine commit's committed `dist/` differs from
+The `extension` job (KAN-464) runs the smoke specs listed in
+`autofiller_extension/test/ci-smoke.txt` headless (both projects) on the
+engine the submodule pins, and first fails if that engine commit's committed `dist/` differs from
 what its `src/` builds. It runs only on a PR touching `autofiller_extension/`
 (the engine pointer included) or `ci.yml`: the `changes` job
-(`dorny/paths-filter`) decides, and a skipped job counts as passed. It leaves
-out `speed.extension.spec.ts`, the timing harness (about 7 minutes alone),
-which `workflows/extension-nightly.yml` runs with the rest every night at
+(`dorny/paths-filter`) decides, and a skipped job counts as passed. The whole
+suite is about 40 minutes on the runner's one worker, so PRs get the smoke
+set (an 8-minute limit, KAN-736) and `workflows/extension-nightly.yml` runs
+every spec, the `speed.extension.spec.ts` timing harness too, every night at
 07:41 UTC (and by hand: `gh workflow run extension-nightly.yml`). Both need
 `FILL_ENGINE_TOKEN`, as `extension-store-build` does, and are skipped
 without it. Both run on `macos-latest` (free on a public repo): on Linux, Chromium
