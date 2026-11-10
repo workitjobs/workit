@@ -28,6 +28,7 @@ from apply import (
     asking,
     cover_letter,
     description,
+    fill_engine,
     probe,
     sameness,
     stock,
@@ -252,7 +253,7 @@ def answer(claude: Claude, posting: Posting, essays: list[Question], drafts: lis
                             "required": list(short)}
     schema = {"type": "object", "properties": wanted, "required": list(wanted)}
     prompt = "\n".join(filter(None, [
-        sources(profile, company, facts=bool(drafts), types=types.values()),
+        sources(profile, company, facts=bool(drafts), types=types.values(), posting=posting),
         description.block(posting, posting_text),
         keys and f"<style_card>\n{writing.style_card()}\n</style_card>",
         keys and shown and f"<form_answers>\n{json.dumps(shown, indent=1)}\n</form_answers>",
@@ -649,16 +650,17 @@ def giveaways(text: str) -> tuple[str, ...]:
     return tuple(dict.fromkeys(m.group() for m in GIVEAWAY.finditer(text)))
 
 
-def sources(profile: ApplicantProfile, company: str = "", facts: bool = False, types: Iterable[str] = ()) -> str:
+def sources(profile: ApplicantProfile, company: str = "", facts: bool = False, types: Iterable[str] = (),
+            posting: Posting | None = None) -> str:
     """What essays may draw on: the Story bank and Lisul's Stock answers, their
     approved core answer (apply.stock) of each Question type in `types`, the
     Application's Company material when it has some, the town they live
     in (<home>), and their links (<links>: apply.asking.links). With
     `facts`, their Applicant profile facts too, for drafted answers to
-    one-off questions."""
+    one-off questions: with `posting`, as the plan reads them (profile_facts)."""
     own = {key: value for key, value in (profile.get("stock_answers") or {}).items() if value}
     return (
-        (profile_block(profile) if facts else "")
+        (profile_block(profile, posting) if facts else "")
         + (f"<home>\n{place}\n</home>\n" if (place := home(profile)) else "")
         + f"<story_bank>\n{data_folder.STORY_BANK.read_text()}</story_bank>\n"
         + (f"<links>\n{chr(10).join(held)}\n</links>\n" if (held := asking.links(profile)) else "")
@@ -668,9 +670,9 @@ def sources(profile: ApplicantProfile, company: str = "", facts: bool = False, t
     )
 
 
-def profile_block(profile: ApplicantProfile) -> str:
-    """Their Applicant profile facts as a <profile> block."""
-    return f"<profile>\n{json.dumps(profile_facts(profile), indent=1, default=str)}\n</profile>\n"
+def profile_block(profile: ApplicantProfile, posting: Posting | None = None) -> str:
+    """Their Applicant profile facts as a <profile> block (profile_facts)."""
+    return f"<profile>\n{json.dumps(profile_facts(profile, posting), indent=1, default=str)}\n</profile>\n"
 
 
 def home(profile: ApplicantProfile) -> str:
@@ -685,10 +687,13 @@ def home(profile: ApplicantProfile) -> str:
 NOT_FACTS = {"files", "stock_answers"}
 
 
-def profile_facts(profile: ApplicantProfile) -> dict:
+def profile_facts(profile: ApplicantProfile, posting: Posting | None = None) -> dict:
     """Lisul's Applicant profile as data for Claude: every fact they gave, but
-    no file path (the profile refuses to hold secrets at all)."""
-    return {key: value for key, value in profile.facts().items() if key not in NOT_FACTS}
+    no file path (the profile refuses to hold secrets at all). With `posting`,
+    the Tracker's past applications and interviews join the screeners as the
+    plan joins them (fill_engine.with_past_applications)."""
+    facts = {key: value for key, value in profile.facts().items() if key not in NOT_FACTS}
+    return fill_engine.with_past_applications(facts, posting) if posting is not None else facts
 
 
 NAMED = "Named: "  # starts the line under an essay's heading that gives its Named fact
