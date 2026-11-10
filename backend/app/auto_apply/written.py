@@ -16,7 +16,7 @@ from typing import Literal
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auto_apply import briefs, checks, plans
+from app.auto_apply import briefs, checks, plans, truth
 from app.auto_apply.queries import (
     drop_own_written,
     drop_written,
@@ -28,6 +28,7 @@ from app.auto_apply.queries import (
     fetch_next_to_write,
     fetch_plans,
     fetch_posting_text,
+    fetch_profile_facts,
     fetch_saved_answers,
     fetch_sent_plans,
     fetch_stage,
@@ -200,7 +201,10 @@ async def save_answers(
     answers and kept with it: a missing list or plan, a listed claim still
     in the answer, or a plan that fails a check is refused. A plan's
     company fact is the answer's named fact when it names none. A paste
-    needs none. Raises NotFound / WrongStage for an application that isn't
+    needs none. Every answer in words, Claude's or a paste, then gets the
+    truth check (truth.py, KAN-748): one with claims none of the student's
+    sources hold is saved as it is and flagged for them in the tab, never
+    refused or changed (review.flag_claims). Raises NotFound / WrongStage for an application that isn't
     open, Refused otherwise.
     """
     await open_application(db, applicant_id, job_id)
@@ -250,8 +254,25 @@ async def save_answers(
     await save_written(db, applicant_id, job_id, kept, facts, {
         name: {"plan": plan.stored(), "unsupported": (unsupported or {})[name]} for name, plan in planned.items()
     })
+    if said := {name: text for name, text in kept.items() if is_text(questions[name].kind)}:
+        # Here, not at the top: review.py imports Refused from this module.
+        from app.auto_apply import review
+        own = await _own_facts(db, applicant_id, job_id)
+        await review.flag_claims(db, applicant_id, job_id, {
+            name: (text, truth.unsupported(text, own, (*sources, questions[name].label))) for name, text in said.items()
+        })
     await db.commit()
     return sum(1 for name, q in questions.items() if q.answer is None and name not in answers)
+
+
+async def _own_facts(db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID) -> list[str]:
+    """What the student gave, for the truth check: their experience bank,
+    their profile, and their own words in the answer bank (on other
+    applications, and brought from Apply)."""
+    own = [*(s for s in await fetch_saved_answers(db, applicant_id, exclude=job_id) if s.own),
+           *(s for s in await fetch_brought_answers(db, applicant_id) if s.own)]
+    return [*bank_sources(await load_bank(db, applicant_id)), *await fetch_profile_facts(db, applicant_id),
+            *("; ".join(s.answer) if isinstance(s.answer, list) else s.answer for s in own)]
 
 
 def _plan_problems(
@@ -496,19 +517,27 @@ def picked(question: WrittenAnswer, answer: str) -> tuple[str, list[str]]:
 
 
 def bank_sources(bank: Bank) -> list[str]:
-    """Every fact of the student's bank as text, for the number check: each
-    entry's fields, its months' years and its bullets, and the skills."""
+    """Every fact of the student's bank as text, for the number check and the
+    truth check: each entry's fields, its dates ("June 2025 – August 2025",
+    "June 2025 – Present") and its bullets, and the skills."""
     texts: list[str] = []
     for entry in bank.entries:
         row = entry.row
         texts += [str(v) for v in (
             row.title, row.organization, row.location, row.degree, row.field_of_study, row.gpa, row.gpa_scale,
-            row.honors, row.issuer, *(row.coursework or ()), *(row.tools or ()),
-            *(d.year for d in (row.start_month, row.end_month, row.award_date) if d),
+            row.honors, row.issuer, *(row.coursework or ()), *(row.tools or ()), _dates(row.start_month, row.end_month),
+            f"{row.award_date:%B %Y}" if row.award_date else None,
         ) if v is not None]
         texts += [b.text for b in entry.bullets]
     texts += [s.name for s in bank.skills]
     return texts
+
+
+def _dates(start, end) -> str | None:
+    """An entry's dates as a resume writes them: "June 2025 – August 2025", "June 2025 – Present"."""
+    if start is None:
+        return f"{end:%B %Y}" if end else None
+    return f"{start:%B %Y} – {f'{end:%B %Y}' if end else 'Present'}"
 
 
 def places(bank: Bank) -> list[str]:
