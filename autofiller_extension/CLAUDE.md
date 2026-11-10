@@ -2905,7 +2905,9 @@ so it stays. The **Store** gets `node store/build.mjs [outDir]` instead
   of them skips a null one, so nothing probes or calls localhost),
   `TEST_HOOKS` false, the Vercel site gone (KAN-296).
 - only what Chrome loads: `manifest.json`, `icons`, `fonts`, `src`,
-  `fill-engine/dist`.
+  `fill-engine/dist/engine.js`. Not the rest of the engine's `dist/`: its
+  `rules-table.json` (fill-engine KAN-756) is for other hosts, and the
+  Store spec fails on any engine file but `engine.js`.
 - every `.js` file minified by esbuild (KAN-744), with no source map and
   `BANNER`, the copyright notice, as its first line. The engine ships only
   as its minified `dist/engine.js` (about 284 KB, from 465 KB). esbuild runs

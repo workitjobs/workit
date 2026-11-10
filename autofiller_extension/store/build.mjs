@@ -24,7 +24,7 @@ import { fileURLToPath } from "node:url";
 
 const EXTENSION = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 /** What Chrome loads: never test/, store/, the docs, or the engine's source. */
-const PARTS = ["manifest.json", "icons", "fonts", "src", "fill-engine/dist"];
+const PARTS = ["manifest.json", "icons", "fonts", "src", "fill-engine/dist/engine.js"];
 const DEV_ONLY = /localhost|vercel\.app/;
 /** What no packaged file may contain. "Prototype" as a word: the engine's Object.getPrototypeOf is fine. */
 export const FORBIDDEN = /localhost|vercel\.app|\bPrototype\b/;
