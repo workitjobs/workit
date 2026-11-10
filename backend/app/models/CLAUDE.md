@@ -893,7 +893,7 @@ so WorkIt fills forms as completely as Apply does.
   column. Each synced entry carries `edited_at`, when Apply changed it. **A
   newer edit wins** (`apply_answers.merge`): a change or delete older than
   the stored entry's is left out and named in the answer's `kept`, and a
-  time more than five minutes ahead of the server counts as now. The sync
+  time ahead of the server's clock counts as now. The sync
   never writes `written_answers`: an answer the student edited on WorkIt
   stays theirs, and serving's newest-first order keeps an older Apply
   answer under it. The import still replaces the column whole; it is a

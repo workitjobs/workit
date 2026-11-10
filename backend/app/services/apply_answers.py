@@ -15,9 +15,9 @@ PATCH .../fill-answers), so an answer means the same whichever way it came.
 - **A newer edit wins** (`merge`). Each synced entry carries `edited_at`, when
   Apply last changed it. A change or a delete older than the stored entry's is
   kept out; an entry with no time (from the import, or an Apply entry changed
-  before the sync was on) is older than any with one. A time more than
-  `SKEW` ahead of the server's clock counts as now, so a fast clock on the
-  student's Mac can't pin an answer above every later edit.
+  before the sync was on) is older than any with one. A time ahead of the
+  server's clock counts as now, so a fast clock on the student's Mac can't
+  put an Apply answer above a later edit on WorkIt's site.
 """
 
 import datetime
@@ -26,7 +26,6 @@ from dataclasses import dataclass, field
 from typing import Any
 
 LISUL = "lisul"
-SKEW = datetime.timedelta(minutes=5)
 
 
 def is_own(source: Any, reviewed: Any) -> bool:
@@ -92,8 +91,8 @@ def merge(
     out = Merged(answers=dict(stored))
     for question, value, at in changes:
         question = question.strip()
-        at = min(at, now) if at is not None and at > now + SKEW else at
-        same = [k for k in out.answers if wording(k) == wording(question)]
+        at = now if at is not None and at > now else at
+        same = [k for k in out.answers if wording(k).casefold() == wording(question).casefold()]
         newest = max((t for k in same if (t := _time((out.answers[k] or {}).get("edited_at")))), default=None)
         if newest is not None and (at is None or at < newest):
             out.kept.append(question)

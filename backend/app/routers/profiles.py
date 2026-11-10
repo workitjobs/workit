@@ -11,8 +11,9 @@ are required, as at signup, and the joined name fits full_name's 50.
 GET .../fill-profile is the Fill engine's own profile and policies for the
 student (`fill_profile`, `fill_policies`; models/CLAUDE.md, "The Fill
 engine's profile"), which the extension lays its own fields over. Only the
-owner reads it: it holds their self-identification. Nothing writes it but
-scripts/import_apply_profile.py.
+owner reads it: it holds their self-identification. Only
+scripts/import_apply_profile.py writes the profile and policies; the answers
+are also written by the PATCH below.
 
 PATCH .../fill-answers {"answers": [...], "deleted": [...]} is Apply's sync of
 its Answer bank (KAN-746, apply-agent docs/workit.md): each entry as Apply

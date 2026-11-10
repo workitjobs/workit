@@ -104,7 +104,7 @@ async def test_an_answer_edited_on_workit_is_never_beaten_by_an_older_apply_answ
     assert bank[LANGUAGE] == {"answer": "Rust, typed on WorkIt.", "own": True}
 
     # A later edit in Apply is the newer one, and wins.
-    await _sync(applicant, [_entry(LANGUAGE, "Python, edited in Apply after.", NOW + datetime.timedelta(minutes=1))])
+    await _sync(applicant, [_entry(LANGUAGE, "Python, edited in Apply after.", datetime.datetime.now(datetime.UTC))])
     bank = (await _get(applicant, f"/applications/{second}/answer-bank")).json()
     assert bank[LANGUAGE] == {"answer": "Python, edited in Apply after.", "own": True}
 
@@ -134,7 +134,7 @@ async def test_a_sync_past_its_caps_is_refused(running, applicant, database):  #
     assert (too_many.status_code, too_long.status_code) == (422, 422)
 
 
-def test_a_clock_far_ahead_counts_as_now():
+def test_a_clock_ahead_of_the_server_counts_as_now():
     stored = {LANGUAGE: {"answer": "Go.", "own": True, "edited_at": NOW.isoformat()}}
 
     merged = apply_answers.merge(stored, [(LANGUAGE, {"answer": "Zig.", "own": True}, NOW + 365 * DAY)], NOW)
