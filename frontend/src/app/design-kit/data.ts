@@ -236,11 +236,15 @@ export const COLOR_GROUPS: ColorGroup[] = [
   {
     title: "Borders",
     tokens: [
-      { token: "--color-border", role: "Card outline, decoration only" },
+      { token: "--color-border", role: "A hairline, decoration only" },
+      {
+        token: "--color-border-surface",
+        role: "A card's outer edge and the shell's rules, 1.4:1 on panel",
+      },
       { token: "--color-border-subtle", role: "Secondary buttons, rules" },
       {
         token: "--color-border-control",
-        role: "The edge of any control or state: 3.37:1 on panel, 3.09:1 on the app ground",
+        role: "The edge of a field or a state: 3.11:1 on panel, 3.03:1 on the app ground",
       },
       {
         token: "--color-border-strong",

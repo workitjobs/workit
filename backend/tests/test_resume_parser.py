@@ -24,7 +24,8 @@ EXPECTED = {
     # Google Docs export: pipes in the school line, a second role with no company line
     "google_docs_single_column.txt": {
         "education": [
-            ("Stony Brook University", "B.S", "Computer Science", None, "2026-12-01"),
+            # the minor follows the major: an entry has no field of its own for it
+            ("Stony Brook University", "B.S", "Computer Science, minor in Writing & Rhetoric", None, "2026-12-01"),
         ],
         "experience": [
             ("Pulp Internet Corporation (Seed-Stage AI Startup)", "Product Designer & Engineer",
@@ -85,6 +86,24 @@ EXPECTED = {
         ],
         "projects": ["WorkIt | Full Stack Recruiting Platform", "Stony Brook Academic Advising Bot"],
         "skill_count": 18,
+    },
+    # KAN-263: "Leadership Activities", two heading words with no "&", was no
+    # heading, so its clubs joined the project above. Made-up text in the
+    # layout of the resume the ticket names: Organization + Dates, then
+    # Role + Location, then bullets.
+    "leadership_activities_heading.txt": {
+        "education": [
+            ("Lakeview State University", "Bachelor of Science", "Computer Science", None, "2027-05-01"),
+        ],
+        "experience": [
+            ("Northwind Data", "Software Engineering Intern", "Albany, NY", "2025-06-01", "2025-08-01", 2),
+        ],
+        "leadership": [
+            ("Lakeview State University Residence Life", "Resident Assistant", "Albany, NY", "2024-08-01", None, 2),
+            ("Lakeview Robotics Club", "Outreach Lead", "Albany, NY", "2023-09-01", "2024-05-01", 1),
+        ],
+        "projects": ["Course Planner Bot"],
+        "skill_count": 5,
     },
     # Leadership & Activities in the Company+Dates / Title+Location layout;
     # Awards one per line as "Award – Issuer  Date", one with a year only
@@ -157,6 +176,21 @@ EXPECTED = {
             "Ortiz, M., Lee, R. (2024). A Benchmark for Small-Object Detection. arXiv preprint",
         ],
         "skill_count": 5,
+    },
+    # Apply's sample resume: "Company - Title - Dates" on one line, dates as
+    # "Jun-Aug 2026", and the school's line in dash fields. Before, the
+    # title held the company and dates, the second job took the first one's
+    # company, and the school had no graduation date.
+    "dash_separated_one_line.txt": {
+        "education": [
+            ("Illinois State University", "B.S", None, 3.7, "2028-05-01"),
+        ],
+        "experience": [
+            ("Example Logistics", "Software Engineering Intern", None, "2026-06-01", "2026-08-01", 2),
+            ("Illinois State University Library", "Student Developer", None, "2025-09-01", None, 1),
+        ],
+        "projects": ["Robotics Club - Software Lead"],
+        "skill_count": 10,
     },
 }
 
@@ -258,6 +292,14 @@ HEADINGS = [
     ("Student Organizations", "leadership"),
     ("Athletics", "leadership"),
     ("Leadership and Community Involvement", "leadership"),
+    # KAN-263: leadership words side by side, with no "&" or "and"
+    ("Leadership Activities", "leadership"),
+    ("LEADERSHIP ACTIVITIES", "leadership"),
+    ("Leadership Roles", "leadership"),
+    ("Leadership Positions", "leadership"),
+    ("Leadership & Involvement", "leadership"),
+    ("Campus Leadership", "leadership"),
+    ("Student Leadership", "leadership"),
     # Education
     ("Education and Training", "education"),
     ("Educational Background", "education"),
@@ -453,3 +495,55 @@ def test_lines_before_the_first_marker_are_kept():
         "Built a REST API in FastAPI.",
         "Wrote 120 unit tests.",
     ]
+
+
+def test_a_range_in_one_year_names_the_year_once():
+    parsed = parse_resume("EXPERIENCE\nAcme Corp\nSoftware Engineering Intern  Jun-Aug 2026\n- Built a tool\n")
+    job = parsed.experience[0]
+    assert (_iso(job.start_date), _iso(job.end_date)) == ("2026-06-01", "2026-08-01")
+
+
+def test_a_word_starting_with_a_month_is_no_range():
+    # "Marketing" starts with "Mar": only whole month names make a range
+    parsed = parse_resume("EXPERIENCE\nAcme Corp\nProduct Marketing - May 2026\n- Ran a launch\n")
+    assert _iso(parsed.experience[0].start_date) is None
+
+
+def test_a_dash_with_a_role_on_both_sides_stays_one_title():
+    parsed = parse_resume("EXPERIENCE\nSoftware Engineer - Backend Lead  Jan 2024 - Present\n- Built a tool\n")
+    assert parsed.experience[0].title == "Software Engineer - Backend Lead"
+
+
+def test_a_school_name_with_a_dash_keeps_both_parts():
+    parsed = parse_resume(
+        "EDUCATION\nUniversity of Wisconsin - Madison - B.S. in Computer Science - May 2027\n"
+    )
+    school = parsed.education[0]
+    assert (school.institution, _iso(school.end_date)) == ("University of Wisconsin - Madison", "2027-05-01")
+
+
+def test_a_projects_tools_on_their_own_line_are_its_technologies():
+    parsed = parse_resume(
+        "PROJECTS\nThe Papyr | AI News App  March 2026 - Present\n"
+        "Next.js, TypeScript, Supabase (PostgreSQL), Gemini API\n"
+        "• Designed a daily briefing that ends on a finish line\n"
+        "Robot Arm  Jan 2025 - May 2025\nTech Stack: C++, ROS, OpenCV\n"
+        "• Built a pick-and-place arm\n"
+    )
+    assert [(p.technologies, _bullet_count(p.description)) for p in parsed.projects] == [
+        (["Next.js", "TypeScript", "Supabase (PostgreSQL)", "Gemini API"], 1),
+        (["C++", "ROS", "OpenCV"], 1),
+    ]
+
+
+def test_a_bullet_with_commas_is_not_a_tools_line():
+    from app.utils.resume_parser import is_tools_line
+
+    assert not is_tools_line("Ran interviews, turning user pain points into prioritized roadmaps, plans and specs")
+    assert not is_tools_line("Python, SQL")  # two items: too few to tell
+    assert is_tools_line("Figma, Next.js, TypeScript, Tailwind CSS")
+
+
+def test_a_minor_follows_the_major():
+    parsed = parse_resume("EDUCATION\nHillcrest State University  May 2027\nB.S. in Biology, Minor: Chemistry\n")
+    assert parsed.education[0].field_of_study == "Biology, minor in Chemistry"

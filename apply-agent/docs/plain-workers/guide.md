@@ -67,9 +67,46 @@ them. `apply.plain.tile.PortFrames` is their frame source for the same
   helper that never aimed, as when ScreenCaptureKit waits on a macOS prompt),
   or with none for 20 s after a `tile.shown` (`STALLED`), stops being filmed:
   `tile.start` again with `native: false`, and the extension's frames show.
-  Apply prints one line saying why. Clicks map by the frame's own size
+  Apply prints one line saying why.
+- **Filmed again (KAN-751).** A fallback is not for the rest of the run. A
+  page's title and the title macOS lists for its window can disagree for a
+  while: amazon.jobs' sign-in redirects showed "Log in or create account |
+  Amazon.jobs" in the tab and "Amazon IdPrism" in the window for more than 3 s,
+  so the helper refused the window (KAN-717) and the tile stayed at 2 fps. Now
+  Apply tries filming again `RETRY` (5 s) after a fallback: `tile.start` with
+  `native: true`, the extension's `tile.shown` aims a new helper, and a verified
+  frame keeps the tile filmed ("filmed again"). A try that fails falls back the
+  same way and doubles the wait, up to `RETRY_MOST` (60 s); a filmed frame
+  resets it. The tile keeps its last frame while a try waits, so it never
+  blanks, and each try checks the window as strictly as the first. Only the
+  first fallback prints. Tests: `tests/test_plain_tile_refilm.py`. Clicks map by the frame's own size
   (`page/tile.js` scales by `width` x `height`), so a 2x filmed frame and a 1x
   extension frame both land on the element under the pointer.
+- **Only its own window and tab (KAN-717).** A tile shows its own Worker's
+  window only. A Connection whose Chrome (the host's parent) isn't the one that
+  has Worker k's profile open (`chrome_pid`), or whose Chrome PID can't be told,
+  shows nothing on tile k and takes none of its input; it is looked at again each
+  turn. The helper films a window of that PID only while macOS lists exactly one
+  of its windows with the shown tab's title (`tile.shown`'s `title`;
+  `window_capture.title_matches`). A page sets its own title, so the rule is
+  strict: Chrome's " - Google Chrome" suffix only at the end, and a title cut
+  with a middle "…" must keep 8 characters of each end. With no such window, or
+  two, it says `mismatch`, sends nothing, and the tile takes the extension's
+  frames. Each tile also shows its own form's tab: `--into` tiles share one
+  Worker, so `Dashboard.showing(tile, tab)` makes `PortFrames` give that tile only
+  the frames that showed its tab, and send its clicks, keys and files there.
+  `PlainSite.open` tells the tab as soon as it exists, before its first load
+  (`site.telling`, from the rehearsal's `_Kept.open`). Until then, a tile that
+  shares its Worker shows nothing and takes no input (`Dashboard.blind`). A file
+  request is kept by the tab that asked, so a file picked on one tile never
+  reaches another form. A form's own pop-ups and the tabs its page opens (their
+  `tab.created` opener, or `popup.blocked`) show on its tile too: it shows and
+  presses whichever of them showed last, and goes back when one closes. A tile
+  whose tab isn't the window's active one keeps its last frame of that tab.
+  Filmed frames within `SETTLE` (0.25 s) of a tab switch go to neither tab.
+  Tests: `tests/test_plain_tile_identity.py` (two fake Workers) and
+  `tests/test_review_kan717_hostile.py` (forged presses, loading tiles, files,
+  titles, unknown PIDs, pop-ups).
 - **Out-of-date extensions (KAN-643).** The hello's `features` says what the
   loaded extension's code can do (`bridge.FEATURES`, 2). An older one with
   `extension.reload`, in a profile with Developer mode on, is reloaded in place
@@ -97,7 +134,13 @@ them. `apply.plain.tile.PortFrames` is their frame source for the same
   (`launcher.start_in_background`) with `--no-startup-window`, then the
   extension opens the window unfocused (`windows.create`), 1280 x 900 (readable at 100%),
   shrunk to the main screen's visible area, at its top-left corner. Only his Show brings one forward. Tests share one Worker and
-  stop it when they end.
+  stop it when they end. A Chrome that comes forward on its own (a launch, a
+  new tab, a pop-up) goes back behind his app (`focus.FocusKeeper`). One he
+  switches to stays in front and is his: a click on its window, a click in the
+  Dock or Mission Control, or Cmd-Tab. A click counts by whose window was
+  under the pointer, not only by the time of the click: macOS makes the
+  clicked app the front app a moment after the mouse-down, and a Worker he
+  clicked went straight back behind (KAN-752).
 - **Wired into runs (S8, KAN-614).** `cli._dashboard` builds `PortFrames` when
   `worker_mode: plain`, and `EitherFrames` (each Worker's current kind) when `protected`.
 - **Live check.** `uv run apply plain tile lever-immuta` fills a saved form
@@ -215,12 +258,10 @@ What changes on a plain Worker:
   times out (`PortTimeoutError`) goes to the Rescue, as a FillError does
   (`WorkdayFiller._put_or_rescue`). Without a Rescue, it becomes a FillError naming the field, which a
   rehearsal skips.
-- **The production seed.** `uv run apply plain seed` opens branded Chrome on `APPLY_PROFILES/plain-seed`
-  and prints Lisul's steps: Developer mode, Remove an old card, Load unpacked with the profiles
-  folder's own copy of the extension (`APPLY_PROFILES/worker-extension`, next section), Details,
-  Allow User Scripts, then quit (`launcher.seed_steps`). `plain_chrome: chrome` (the
-  default) then copies that seed to each Worker. `plain_chrome: testing` (Chrome for Testing) needs no
-  seed, but Allow User Scripts can't be turned on there.
+- **The production seed.** `uv run apply plain seed` is a guided setup of `APPLY_PROFILES/plain-seed`
+  (`apply.plain.seed_setup`, KAN-677). `plain_chrome: chrome` (the default) then copies that seed to each
+  Worker. `plain_chrome: testing` (Chrome for Testing) needs no seed, but Allow User Scripts can't be turned
+  on there. See "The seed's guided setup" below.
 - **`apply doctor`** checks the Workers `worker_mode` runs: the CDP Worker profiles for `cdp`, the
   "Plain seed" line for `plain` (the seed exists, Load unpacked registered the worker extension in it,
   and Developer mode is on), and both for `protected`. With `plain_chrome: testing` the seed line is ok.
@@ -286,5 +327,38 @@ differs from its Apply's crashed the page guard. So:
   `launch` stops it with `launcher.OutOfDate` (a SetupError: the rehearsal's line says how to fix
   it), never a crash. Its refusal for another engine names the folder to update.
 - Rolling it out: no running Worker is touched. When no plain Worker runs, `uv run apply plain
-  seed` once, and Load unpacked the copy it names. New Worker profiles copy that seed; an
+  seed` once: it shows the copy to load and checks it. New Worker profiles copy that seed; an
   existing idle `plain-<k>` profile keeps its old registration until it is deleted.
+
+## The seed's guided setup: `apply plain seed` (KAN-677)
+
+Branded Chrome takes the worker extension only by the user's own clicks. `apply.plain.seed_setup.Wizard`
+helps with each click and confirms it. It refuses to start while a plain Worker of the folder runs.
+
+- **What Apply does.** It opens branded Chrome on the seed at `chrome://extensions`. At Load unpacked it
+  puts the copy's path on the clipboard (`pbcopy`) and shows the copy in Finder (`open -R`), so the user
+  can drag it onto the page or paste it in the picker. At Allow User Scripts it opens
+  `chrome://extensions/?id=<EXTENSION_ID>`, where the switch is.
+- **What Apply never does.** It never clicks a `chrome://` page, never changes a Chrome setting and never
+  writes the seed's preference files. Those clicks are the user's. It only launches Chrome with normal
+  switches and reads files.
+- **How it sees each step.** It reads `Default/Secure Preferences` (then `Preferences`) once a second
+  (`read_state`): `extensions.ui.developer_mode`, `extensions.settings.<id>.path`, its `disable_reasons`
+  and `user_scripts_enabled`. Chrome writes a click to disk about 10 s after it (measured on Chrome for
+  Testing 157). `first_problem` gives the first step not saved, with one message for each problem: no
+  extension, wrong folder (names both folders: Remove that card), card turned off, user scripts off.
+  A step that is saved and then goes back says "did not stick". A step still unsaved after 45 s gets a
+  nudge, and the path goes on the clipboard again.
+- **Quit.** When all steps show, Apply quits the seed's Chrome itself, with SIGTERM to the PID that holds
+  the seed's SingletonLock (checked with `ps`: its command line names the seed). A SIGTERM saves pending
+  changes; a SIGKILL loses them (measured on both Chromes), so Apply never kills it. If Chrome is still up
+  after 15 s (a dialog or the folder picker open), Apply says so and waits. Ctrl-C quits it the same way.
+  After the quit, Apply reads the files again. A step that a clean exit didn't save is named and shown again.
+- **Done only after a real hello.** Apply starts one Worker from the seed on a new `plain-<k>` profile (so an
+  old Worker profile can't answer for the seed) and needs its hello with `userScripts: true`. Then that
+  profile goes. No hello, a refused hello or user scripts off is not done: Apply opens the Details page
+  and asks the user to press Return to try again.
+- **Old Worker profiles** keep their own registration. The wizard lists them; delete them to copy the seed again.
+- Tests: `tests/test_plain_seed_setup.py` (in CI), with fixture preference files and a fake Chrome and Worker.
+  A live run with Chrome for Testing on a scratch `APPLY_PROFILES` needs a stand-in for the user's clicks,
+  since the wizard makes none. Branded Chrome needs a person for the three clicks and the folder picker.

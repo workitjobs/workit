@@ -92,7 +92,7 @@ export function LiveActivity({ items }: { items: ActivityItem[] }) {
         {query.statuses.length > 0 && (
           <IconButton
             label="Clear filters"
-            variant="outline"
+            variant="soft"
             className="animate-fade size-9 shrink-0"
             onClick={clearFilters}
           >

@@ -209,17 +209,27 @@ function slotsOf(job: JobFactData): Slot[] {
  *  of body the empty slot steps out of the grid (`contents`, its stand-in
  *  hidden; the sr-only text is absolutely placed, so it takes no cell) and
  *  the facts after it close up. */
-function FactSlot({ name, Icon, value }: { name: FactName; Icon: Slot[1]; value: FactValue }) {
+function FactSlot({
+  name,
+  Icon,
+  value,
+  size,
+}: {
+  name: FactName;
+  Icon: Slot[1];
+  value: FactValue;
+  size: "sm" | "md";
+}) {
   if (typeof value === "string") {
     return (
-      <Fact Icon={Icon} title={value}>
+      <Fact Icon={Icon} title={value} size={size}>
         {value}
       </Fact>
     );
   }
   return (
     <span className="@max-md:contents">
-      <Fact Icon={Icon} className="invisible @max-md:hidden">
+      <Fact Icon={Icon} size={size} className="invisible @max-md:hidden">
         {" "}
       </Fact>
       {isNotListed(value) && <span className="sr-only">{FACT_NAME[name]} not listed</span>}
@@ -231,11 +241,26 @@ function FactSlot({ name, Icon, value }: { name: FactName; Icon: Slot[1]; value:
  *  `@container` is 448px wide. Shared with the job posting page's rail of
  *  jobs ((seeker)/jobs/jobs-rail.tsx), so a rail card and a feed card print
  *  a role's facts the same way. */
-export function JobFactGrid({ job, className }: { job: JobFactData; className?: string }) {
+export function JobFactGrid({
+  job,
+  size = "sm",
+  className,
+}: {
+  job: JobFactData;
+  /** "md" on the large card, "sm" (the default) on a compact one. */
+  size?: "sm" | "md";
+  className?: string;
+}) {
   return (
-    <div className={cn("grid grid-cols-2 gap-x-4 gap-y-1.5 @md:grid-cols-3", className)}>
+    <div
+      className={cn(
+        "grid grid-cols-2 gap-x-4 @md:grid-cols-3",
+        size === "md" ? "gap-y-2" : "gap-y-1.5",
+        className,
+      )}
+    >
       {slotsOf(job).map(([name, Icon, value]) => (
-        <FactSlot key={name} name={name} Icon={Icon} value={value} />
+        <FactSlot key={name} name={name} Icon={Icon} value={value} size={size} />
       ))}
     </div>
   );
@@ -299,7 +324,11 @@ export function JobPostingCard({
       <div className="flex flex-col @xl:flex-row">
         {/* THE BODY IS ITS OWN CONTAINER, so the grid and the tile break on
             the room the body actually has beside the rail, not the card's. */}
-        <div className="@container min-w-0 flex-1 p-4">
+        {/* A column, so the action row sits on the card's foot (mt-auto)
+            whatever the rail beside it is: when the rail stood taller, the
+            spare room fell under the buttons and they floated mid-card
+            (2026-11-09). */}
+        <div className="@container flex min-w-0 flex-1 flex-col p-4">
           <div className="flex items-start gap-3">
             <CompanyLogo
               name={job.company}
@@ -358,10 +387,14 @@ export function JobPostingCard({
             {headerAction}
           </div>
 
-          <JobFactGrid job={job} className="border-border-subtle mt-3 border-t pt-3" />
+          <JobFactGrid
+            job={job}
+            size="md"
+            className={cn("border-border-subtle mt-3 border-t pt-3", actions && "mb-3")}
+          />
 
           {actions && (
-            <div className="border-border-subtle relative z-2 mt-3 flex flex-wrap items-center justify-end gap-2 border-t pt-3">
+            <div className="border-border-subtle relative z-2 mt-auto flex flex-wrap items-center justify-end gap-2 border-t pt-3">
               {actions}
             </div>
           )}

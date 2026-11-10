@@ -236,6 +236,63 @@ class Plan:
     # A follow-up ("If yes, ...") whose question is still to be answered (a draft, a Missing fact), by name: that
     # question's name. Neither asked nor written yet: the worker decides it once that answer is in (not_called_for).
     waiting: dict[str, str] = field(default_factory=dict)
+    # Each attestation, certification or signature question, by name: its exact wording (KAN-676). Never answered,
+    # by the plan, the Answer bank, Claude fill or the essay writer: Lisul ticks or signs it ("Yours to tick").
+    attestations: dict[str, str] = field(default_factory=dict)
+
+
+TO_TICK = "Yours to tick"  # starts each line of the Check before Submit list that names an attestation
+
+
+def to_tick(wording: str) -> str:
+    """The Check before Submit line for an attestation left for Lisul, with its exact wording on one line."""
+    # A reason's parts are split on "; ": one inside the wording is written ", " so the line stays whole.
+    return f"{TO_TICK}: {' '.join(wording.split()).replace('; ', ', ')}"
+
+
+def tick_ask(wordings: list[str]) -> str:
+    """The one-line ask when a required attestation stops the form on its page: Lisul ticks or signs it, then Resume."""
+    named = " and ".join(f"'{' '.join(w.split())}'" for w in wordings)
+    return f"Tick {named} yourself on this page, then press Resume: Apply never attests or signs for you."
+
+
+# What a box or a pick shows when it is ticked or picked (KAN-676). Anything else, a placeholder ("Select..."), a
+# symbol, a refusal ("No.", "Not accepted"), the box's own label or a word nobody listed, reads as not ticked.
+TICKS = frozenset({"yes", "true", "on", "checked", "ticked", "selected", "agreed", "accepted", "agree", "accept", "i agree",
+                   "i accept", "i certify", "certified", "i acknowledge", "acknowledged", "i confirm", "confirmed", "i attest",
+                   "i certify and agree", "i agree and certify", "x", "☑", "☒", "✓", "✔", "[x]"})
+REFUSES = re.compile(r"^(no|not|non|un|decline|disagree|reject|refuse|i do not|i don'?t|i decline|i disagree|prefer not|n/?a\b|none\b)"
+                     r"|^(select|choose|please|pick)\b|^-+|^\W*$", re.IGNORECASE)
+
+
+def _plain(value: object) -> str:
+    return re.sub(r"\s+", " ", str(value or "")).strip().strip(".!").strip().casefold()
+
+
+def ticked(shown: object, question: Question | None = None) -> bool:
+    """Whether a field read back shows a real tick or pick: an allowlist (TICKS), or one of `question`'s own options that
+    is no refusal or placeholder, or for a text attestation (a typed-name signature) text other than its label. Anything
+    else reads as not ticked: Apply fails closed."""
+    values = [v for v in (shown if isinstance(shown, (list, tuple)) else [shown]) if _plain(v)]
+    label = _plain(question.label) if question is not None else ""
+    options = {_plain(o) for o in question.options} if question is not None else set()
+    for value in map(_plain, values):
+        if value == label or REFUSES.search(value):
+            continue
+        if value in TICKS or value in options:
+            return True
+        if question is not None and question.kind in ("text", "textarea") and not question.options and re.search(r"[a-z].*[a-z]", value):
+            return True
+    return False
+
+
+def attestations(questions: QuestionSet) -> set[str]:
+    """The names of `questions` that ask Lisul to attest, certify or sign: the engine's own pattern (asksAttestation), read
+    from each label, help text and options, in the form's order (a bare "Date" beside a signature is its date)."""
+    listed = list(questions)
+    found = call_without_page("asksAttestation", [{"name": q.name, "label": q.label, "options": list(q.options),
+                                                 "description": q.description, "kind": q.kind} for q in listed]) if listed else []
+    return {q.name for q, attests in zip(listed, found) if attests}
 
 
 def plan(questions: QuestionSet, posting: Posting, profile: ApplicantProfile, bank: AnswerBank | None = None,
@@ -274,7 +331,7 @@ def plan(questions: QuestionSet, posting: Posting, profile: ApplicantProfile, ba
         high_stakes=result["high_stakes"], handoffs=result["handoffs"], drafts=result["drafts"], banked=result["banked"],
         accepted=accepted, blanks=dict(result.get("blanks") or {}),
         sections=dict(result.get("sections") or {}), filed=dict(result.get("filed") or {}),
-        waiting=dict(result.get("waiting") or {}),
+        waiting=dict(result.get("waiting") or {}), attestations=dict(result.get("attestations") or {}),
     )
 
 
@@ -306,6 +363,12 @@ def left_blank(q: Question, answer: Any) -> bool:
     return call_without_page("leftBlank", q, answer, questions=[q])
 
 
+def left_as_none(reason: str) -> bool:
+    """Whether a Plan's blank reason says the profile has none of it (no minor) and the field offers no None: a value
+    the page still shows there is one an old profile on the site carried over (the engine's leftAsNone, KAN-754)."""
+    return call_without_page("leftAsNone", reason)
+
+
 def company_specific(q: Question, posting: Posting) -> bool:
     """Whether the question asks about this company or this role: its answer holds for no other Posting."""
     return call_without_page("companySpecific", q, posting, questions=[q])
@@ -334,16 +397,26 @@ def _facts(profile: ApplicantProfile, posting: Posting | None = None) -> dict:
     if isinstance(facts.get("files"), dict):
         facts["files"] = {key: str(profile.get(f"files.{key}")) if isinstance(value, str) else value
                           for key, value in facts["files"].items()}
-    if posting is not None:
-        applied, interviewed = tracker.past_applications(posting.url)
-        screeners = dict(facts.get("screeners") or {})
-        own = screeners.get("previously_applied_to")
-        if isinstance(own, list) and applied:  # None: unknown, which a list from Apply alone would turn into No
-            screeners["previously_applied_to"] = own + [c for c in applied if c not in own]
-        if interviewed:
-            known = screeners.get("previously_interviewed_at") or []
-            screeners["previously_interviewed_at"] = list(known) + [c for c in interviewed if c not in known]
-        facts["screeners"] = screeners
+    return with_past_applications(facts, posting) if posting is not None else facts
+
+
+def with_past_applications(facts: dict, posting: Posting) -> dict:
+    """`facts` (a profile's, as a dict) with the companies the Tracker shows Lisul applied to, but for `posting`,
+    joined into screeners.previously_applied_to where the profile keeps that list, and those he interviewed at
+    into screeners.previously_interviewed_at. The plan and the Pre-submit review both read these, so the review
+    never calls a Yes the plan gave from the Tracker wrong (amazon.jobs, live 2026-11-10, KAN-753)."""
+    applied, interviewed = tracker.past_applications(posting.url)
+    if not applied and not interviewed:
+        return facts
+    facts = dict(facts)
+    screeners = dict(facts.get("screeners") or {})
+    own = screeners.get("previously_applied_to")
+    if isinstance(own, list) and applied:  # None: unknown, which a list from Apply alone would turn into No
+        screeners["previously_applied_to"] = own + [c for c in applied if c not in own]
+    if interviewed:
+        known = screeners.get("previously_interviewed_at") or []
+        screeners["previously_interviewed_at"] = list(known) + [c for c in interviewed if c not in known]
+    facts["screeners"] = screeners
     return facts
 
 

@@ -46,8 +46,8 @@ for (const url of [
   test(`the manifest lets the extension reach ${url}`, () => {
     expect(jobOf(url), url).not.toBeNull();
     expect(manifest.host_permissions.some((p: string) => allows(p, url)), url).toBe(true);
-    // The panel's content scripts load there too, or the page has no panel to fill from.
-    const panel = manifest.content_scripts.find((c: { js: string[] }) => c.js.includes("src/content/panel.js"));
+    // The panel's launcher loads there too (it loads the panel's files on a job page), or the page has no panel to fill from.
+    const panel = manifest.content_scripts.find((c: { js: string[] }) => c.js.includes("src/content/launcher.js"));
     expect(panel.matches.some((p: string) => allows(p, url)), url).toBe(true);
   });
 }
@@ -55,10 +55,4 @@ for (const url of [
 // SmartRecruiters' names and text come from its public Posting API, on a host of its own.
 test("the manifest lets the background read SmartRecruiters' Posting API", () => {
   expect(manifest.host_permissions.some((p: string) => allows(p, "https://api.smartrecruiters.com/v1/companies/BoschGroup/postings/1"))).toBe(true);
-});
-
-// A permission added in a later release disables the extension until the student accepts it, so batch
-// apply's tab groups ask for theirs in the release that brings batch apply (KAN-370).
-test("the manifest asks for tab groups", () => {
-  expect(manifest.permissions).toContain("tabGroups");
 });

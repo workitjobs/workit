@@ -26,7 +26,7 @@ test("installing opens the extension setup page on WorkIt", async () => {
   expect(await loaded.worker.evaluate((key) => chrome.storage.local.get(key), STORAGE_VERSION_KEY)).toEqual({ [STORAGE_VERSION_KEY]: STORAGE_VERSION });
 });
 
-test("an update migrates the unversioned storage, and opens no setup tab", async () => {
+test("an update migrates the unversioned storage, and opens no setup tab", { tag: "@nightly" }, async () => {
   // A kept profile, started again with a newer version: an update to Chrome (onInstalled's reason "update").
   const profile = mkdtempSync(join(tmpdir(), "workit-update-"));
   try {
@@ -60,7 +60,7 @@ test("an update migrates the unversioned storage, and opens no setup tab", async
   }
 });
 
-test("removing the extension opens WorkIt's survey page, with the version it removed", async () => {
+test("removing the extension opens WorkIt's survey page, with the version it removed", { tag: "@nightly" }, async () => {
   loaded = await loadExtension([webapp]);
   const version = await loaded.worker.evaluate(() => chrome.runtime.getManifest().version);
   // The uninstall URL is set once the install's handler has run.

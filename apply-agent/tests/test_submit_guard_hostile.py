@@ -108,8 +108,13 @@ PAGES = {
         </ul></nav><form id=f method=post action="{FINAL}"><input name=first value=Test></form>{SEND_ALL}
         <script>document.getElementById('b').addEventListener('click', (e) => {{ e.preventDefault(); sendAll();
           document.getElementById('f').submit(); }});</script>"""},
+    # A review page's Apply (KAN-725 lets a posting's Apply that only opens the form through): its answers ride
+    # in hidden fields beside a token, in a fresh tab with no field shown.
+    "a review page's Apply with its answers hidden": {START: f"""<title>Review</title><form method=post action="{FINAL}">
+        <input type=hidden name=__vxXSRF_Token value=t><input type=hidden name=first value=Test>
+        <input type=submit id=b value=Apply></form>"""},
 }
-BUTTON = {"a profile pop-up that is the application": "Submit", "a profile pop-up that turns into the application": "Submit",
+BUTTON = {"a review page's Apply with its answers hidden": "Apply", "a profile pop-up that is the application": "Submit", "a profile pop-up that turns into the application": "Submit",
           "a one-page form in a modal": "Continue", "an application that makes an account": "Continue",
           "a button whose words change after the check": "Continue"}
 
@@ -308,6 +313,15 @@ LISTED_SENDS = {
                                           ".addEventListener('click', () => { const i = document.createElement('input'); i.name = 'submit';"
                                           " i.value = '1'; document.getElementById('f').append(i); document.getElementById('f').submit(); });"
                                           "</script>", "Inclusion"),
+    # TAL.net names its tracker links by a heading and the step (KAN-729): a Submit named so is still no step.
+    "a Submit named as a headed step": (f"{_FORM}<nav><ul><li><button name=submit value=1 aria-label='Section Header: Declaration'>"
+                                        "Declaration</button></li><li><a href='#'>Help</a></li></ul></nav></form>", "Declaration"),
+    "a headed step whose own name sends": ("<nav><ul><li><a href='#' id=b aria-label='Section Header: Inclusion and submit "
+                                           f"application'>Inclusion</a></li><li><a href='#'>Help</a></li></ul></nav>{_FORM}</form>"
+                                           "<script>document.getElementById('b').addEventListener('click', () => { const i = "
+                                           "document.createElement('input'); i.name = 'submit'; i.value = '1'; "
+                                           "document.getElementById('f').append(i); document.getElementById('f').submit(); });"
+                                           "</script>", "Inclusion"),
 }
 
 

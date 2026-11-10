@@ -23,15 +23,18 @@ from dataclasses import dataclass, replace
 from datetime import date
 from pathlib import Path
 
+from apply import answer_bank as answers
 from apply import (
     answering,
     asking,
     cover_letter,
     description,
+    fill_engine,
     probe,
     sameness,
     stock,
     story_map,
+    truth,
     writing,
 )
 from apply import home as data_folder  # essays.home() is the applicant's town
@@ -163,12 +166,13 @@ class Plan:
 class Essay:
     question: Question
     text: str
-    unsupported: tuple[str, ...] = ()  # numbers it states that no source backs
+    unsupported: tuple[str, ...] = ()  # numbers it states that no source backs (apply.truth)
     needs_lisul: bool = False  # Claude says the question asks for more than the sources hold
     giveaways: tuple[str, ...] = ()  # words that give away how it was written (GIVEAWAY)
     named: str = ""  # its Named fact: the Company brief line it ties to Lisul, as the brief writes it
     plan: "Plan | None" = None  # its Essay plan, as checked
     failed: tuple[str, ...] = ()  # the code gates it fails (apply.gates)
+    claims: tuple[str, ...] = ()  # the names, dates and outcomes it states that no source backs (apply.truth)
 
 
 @dataclass(frozen=True)
@@ -252,7 +256,7 @@ def answer(claude: Claude, posting: Posting, essays: list[Question], drafts: lis
                             "required": list(short)}
     schema = {"type": "object", "properties": wanted, "required": list(wanted)}
     prompt = "\n".join(filter(None, [
-        sources(profile, company, facts=bool(drafts), types=types.values()),
+        sources(profile, company, facts=bool(drafts), types=types.values(), posting=posting),
         description.block(posting, posting_text),
         keys and f"<style_card>\n{writing.style_card()}\n</style_card>",
         keys and shown and f"<form_answers>\n{json.dumps(shown, indent=1)}\n</form_answers>",
@@ -287,10 +291,17 @@ def answer(claude: Claude, posting: Posting, essays: list[Question], drafts: lis
         texts |= writing.repair(claude, {key: texts[key] for key in over}, material, over, letter_keys & set(over),
                                 {key: questions[key] for key in over}, {key: lengths[key] for key in over if key in lengths})
         failed = _gate(checked, texts)
-    result = [Essay(q, texts[key], unsupported_numbers(texts[key], prompt, q.label),
+    own = own_facts(profile, types.values())
+    # The posting, the Company material and the question may give a number or a name; a cover letter's
+    # template gives its salutation ("Recruiting Team").
+    given = (company, description.block(posting, posting_text), cover_letter.TEMPLATE)
+    found = {key: truth.unsupported(texts[key], own, (*given, q.label, q.description)) for key, q in keys.items()}
+    result = [Essay(q, texts[key], tuple(c.text for c in found[key] if c.kind == "number"),
                     (written.get(key) or {}).get("needs_lisul") is True, giveaways(texts[key]),
                     _named(written.get(key) or {}, plans[key], texts[key], company), plans[key],
-                    tuple(failed[key]) if texts[key] else ()) if key in keys else Essay(q, "", plan=plans[key])
+                    tuple(failed[key]) if texts[key] else (),
+                    tuple(c.said() for c in found[key] if c.kind != "number"))
+              if key in keys else Essay(q, "", plan=plans[key])
               for key, q in {**keys, **waiting}.items()]
     result.sort(key=lambda e: essays.index(e.question))
     if again := {e.question: e.giveaways for e in result if e.giveaways and redraft is None}:
@@ -649,16 +660,17 @@ def giveaways(text: str) -> tuple[str, ...]:
     return tuple(dict.fromkeys(m.group() for m in GIVEAWAY.finditer(text)))
 
 
-def sources(profile: ApplicantProfile, company: str = "", facts: bool = False, types: Iterable[str] = ()) -> str:
+def sources(profile: ApplicantProfile, company: str = "", facts: bool = False, types: Iterable[str] = (),
+            posting: Posting | None = None) -> str:
     """What essays may draw on: the Story bank and Lisul's Stock answers, their
     approved core answer (apply.stock) of each Question type in `types`, the
     Application's Company material when it has some, the town they live
     in (<home>), and their links (<links>: apply.asking.links). With
     `facts`, their Applicant profile facts too, for drafted answers to
-    one-off questions."""
+    one-off questions: with `posting`, as the plan reads them (profile_facts)."""
     own = {key: value for key, value in (profile.get("stock_answers") or {}).items() if value}
     return (
-        (profile_block(profile) if facts else "")
+        (profile_block(profile, posting) if facts else "")
         + (f"<home>\n{place}\n</home>\n" if (place := home(profile)) else "")
         + f"<story_bank>\n{data_folder.STORY_BANK.read_text()}</story_bank>\n"
         + (f"<links>\n{chr(10).join(held)}\n</links>\n" if (held := asking.links(profile)) else "")
@@ -668,9 +680,21 @@ def sources(profile: ApplicantProfile, company: str = "", facts: bool = False, t
     )
 
 
-def profile_block(profile: ApplicantProfile) -> str:
-    """Their Applicant profile facts as a <profile> block."""
-    return f"<profile>\n{json.dumps(profile_facts(profile), indent=1, default=str)}\n</profile>\n"
+def own_facts(profile: ApplicantProfile, types: Iterable[str] = ()) -> str:
+    """What Lisul gave, for the truth check (apply.truth): his Applicant profile
+    facts, the Story bank, his Stock answers and core answers of `types`, his
+    links and town (`sources` with `facts`), and the Answer bank's answers in
+    his own words (`source: lisul`, the rule WorkIt's sync keeps too). A
+    draft of Claude's is no fact of his, even once reviewed."""
+    bank = profile.folder / answers.FILE
+    mine = [entry for entry in answers.AnswerBank(bank).entries() if entry.source == answers.LISUL] if bank.exists() else []
+    return "\n".join([sources(profile, facts=True, types=types),
+                      *(f"{e.question}: {'; '.join(e.answer) if isinstance(e.answer, list) else e.answer}" for e in mine)])
+
+
+def profile_block(profile: ApplicantProfile, posting: Posting | None = None) -> str:
+    """Their Applicant profile facts as a <profile> block (profile_facts)."""
+    return f"<profile>\n{json.dumps(profile_facts(profile, posting), indent=1, default=str)}\n</profile>\n"
 
 
 def home(profile: ApplicantProfile) -> str:
@@ -685,10 +709,13 @@ def home(profile: ApplicantProfile) -> str:
 NOT_FACTS = {"files", "stock_answers"}
 
 
-def profile_facts(profile: ApplicantProfile) -> dict:
+def profile_facts(profile: ApplicantProfile, posting: Posting | None = None) -> dict:
     """Lisul's Applicant profile as data for Claude: every fact they gave, but
-    no file path (the profile refuses to hold secrets at all)."""
-    return {key: value for key, value in profile.facts().items() if key not in NOT_FACTS}
+    no file path (the profile refuses to hold secrets at all). With `posting`,
+    the Tracker's past applications and interviews join the screeners as the
+    plan joins them (fill_engine.with_past_applications)."""
+    facts = {key: value for key, value in profile.facts().items() if key not in NOT_FACTS}
+    return fill_engine.with_past_applications(facts, posting) if posting is not None else facts
 
 
 NAMED = "Named: "  # starts the line under an essay's heading that gives its Named fact

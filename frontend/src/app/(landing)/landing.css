@@ -148,6 +148,25 @@ html:has(.landing) {
 }
 
 /*
+ * The header's session swap (session-swap.tsx, KAN-743): Log in and Get
+ * started, or "Open WorkIt" while <html> carries data-signed-in, which
+ * app/layout.tsx's inline script sets before the first paint. Each pair's
+ * wrapper is display: contents, so the buttons lay out as the header's
+ * own children.
+ */
+@layer components {
+  .session-signed-out,
+  :root[data-signed-in] .session-signed-in {
+    display: contents;
+  }
+
+  .session-signed-in,
+  :root[data-signed-in] .session-signed-out {
+    display: none;
+  }
+}
+
+/*
  * Glass button (buttons.tsx): the two light brand violets with a glassy top
  * highlight, its fill a pseudo-element behind the label. Its shape and size
  * are buttons.tsx's, shared by every marketing button (KAN-581). In the

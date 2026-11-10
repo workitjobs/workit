@@ -18,21 +18,40 @@ import { cn } from "@/lib/cn";
  * for, the glyph only says which fact it is. Both were ink-meta until
  * 2026-10-09, and the job card's facts read as faint beside its title. `title` puts the
  * whole value on the clipped text's hover, for a value that may not fit.
+ *
+ * `size="md"` is the Jobs page card's (2026-11-09): 14px values beside 16px
+ * glyphs in ink-muted. At 12px with 14px grey glyphs the six facts read as
+ * fine print under the title, though they are what a student scans the card
+ * for; the compact cards and the lists keep the small size.
  */
 export function Fact({
   Icon,
   title,
+  size = "sm",
   className,
   children,
 }: {
   Icon: ComponentType<{ className?: string }>;
   title?: string;
+  size?: "sm" | "md";
   className?: string;
   children: ReactNode;
 }) {
   return (
-    <span className={cn("text-note text-ink flex min-w-0 items-center gap-1.5", className)}>
-      <Icon aria-hidden className="text-ink-meta size-3.5 shrink-0" />
+    <span
+      className={cn(
+        "text-ink flex min-w-0 items-center",
+        size === "md" ? "text-body gap-2" : "text-note gap-1.5",
+        className,
+      )}
+    >
+      <Icon
+        aria-hidden
+        className={cn(
+          "shrink-0",
+          size === "md" ? "text-ink-muted size-4" : "text-ink-meta size-3.5",
+        )}
+      />
       <span title={title} className="truncate">
         {children}
       </span>

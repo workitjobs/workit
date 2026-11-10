@@ -122,6 +122,16 @@ hours, at 17 minutes past** (off the hour, since GitHub delays runs scheduled
 on it). A run takes about 15 minutes: 12 of them are Workday's share, and the
 other hiring systems finish inside it (about 3 minutes without Workday).
 
+Scheduled and manual runs run on a team computer, not on GitHub's servers
+(KAN-726, `docs/scraper_gh_action/plan.md`). GitHub keeps the schedule and
+the logs; the computer does the work, and reads each job posting's keywords
+with a model of its own. A pull request's test run stays on GitHub's
+servers. The computer also embeds each new job posting, and every
+experience bank, with one model of its own, the only machine that does.
+A run reads keywords and embeds only the job postings it added or changed;
+older ones missing either are filled by one-time backfills a person runs
+on the computer.
+
 ### What one run does
 
 | Step | What happens |
@@ -133,6 +143,19 @@ other hiring systems finish inside it (about 3 minutes without Workday).
 | 5. Read the facts | Pulls pay, job type, work style, start date, years and visa out of each kept job posting (section 3.2). |
 | 6. Merge duplicates | Job postings that share one apply link become one, with all their locations. So does a Workday job posted on two or three of a company's careers sites (the same requisition number at the same company, as on Autodesk's `ext` and `uni`): one card, linking the careers site made for students. Job postings that only share a title stay apart, since each is its own application. |
 | 7. Write files | `jobs.json` (the scraper's memory between runs) and `feed.json` (what the import loads). |
+
+**The worker (`backend/app/scraper/worker.py`) runs the same scraper as a
+library in two phases** (KAN-733). Phase 1 reads each board's listing and
+filters by title only — no description pages are fetched during the board
+read. Providers that return descriptions inline (Lever, Ashby, Recruitee)
+stamp them during phase 1. Phase 2, after all boards finish, fetches
+description pages for postings that need them: up to 500 per cycle,
+ordered by board and first-seen time, in 8 threads. A description is enrichment only: it
+updates the posting's page-derived fields (description, salary, job type,
+work style, experience level, start term, sponsorship) but never filters a
+posting out. Version tracking on `job_sources.description_version` means only
+new or stale descriptions are fetched, and a failure is retried only on the
+next `PAGE_VERSION` bump.
 
 **A company's logo is read once per company job board**, from the board's own
 page: the image the company uploaded there, or else the icon of the company's
@@ -148,7 +171,8 @@ which also covers boards that name none). A board with still none is checked
 once by its own address: a careers site such as `careers.garmin.com`, or a
 Workday account name proved on the company's home page. Each run's
 `metrics.json` lists the boards still without a domain, most jobs first, for a
-person to add to the checked list. The browser loads Brandfetch's sharp
+person to add to the checked list; a daily job proposes rows for it from
+Wikidata's official websites, in a pull request a person reviews. The browser loads Brandfetch's sharp
 square icon; where Brandfetch has none, the card falls back to the board's own
 image or favicon, and then to the company's initials.
 
