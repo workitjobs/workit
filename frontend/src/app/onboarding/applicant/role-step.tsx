@@ -245,6 +245,7 @@ export function Field({
   label,
   hint,
   required = false,
+  tag = true,
   dense = false,
   children,
 }: {
@@ -253,6 +254,10 @@ export function Field({
   /** A 14px note under the label: the question as forms word it. */
   hint?: string;
   required?: boolean;
+  /** Whether the heading says "Optional" (or * when required). A heading over
+   *  a result, not a question, says neither: on the resume preview "Optional"
+   *  read as if the reading were optional (KAN-732). */
+  tag?: boolean;
   /** Settings' size (RoleStep's `dense`): a 14px heading, 16px apart. */
   dense?: boolean;
   children: ReactNode;
@@ -276,7 +281,7 @@ export function Field({
       >
         <Icon className={cn("text-ink-meta shrink-0", dense ? "size-4" : "size-5")} />
         {label}
-        {required ? (
+        {!tag ? null : required ? (
           <span className="text-danger" aria-label="required">
             *
           </span>

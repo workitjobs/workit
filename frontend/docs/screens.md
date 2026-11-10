@@ -67,8 +67,10 @@ API would refuse, so a stale link narrows by what was valid instead of erroring.
 An empty experience bank gets a card above the /jobs feed, "Add Your
 Experiences" or, with an upload, "Import Your Resume"
 (`jobs/bank-prompt.tsx`, stories 22 and 102): with an uploaded resume,
-"Import Your Resume" opens `/experiences?import=1`, which runs Import Again at
-once (one click; it writes into the bank, ADR 0003). An upload imports
+"Import Your Resume" runs Import Again at once (one click; it writes into
+the bank, ADR 0003): in place, then Experiences opens on that resume, while
+Fill With Scout is off (`jobs/import-resume-button.tsx`, KAN-732), else by
+opening `/experiences?import=1`, intake's import. An upload imports
 itself, so the card shows only for an upload the parser read nothing in or
 one from before KAN-240. With none, Upload a Resume (to `/resumes`) and Add What You Did. It streams in its own Suspense
 boundary and shows nothing when the bank has entries or fails to load. The
@@ -2167,7 +2169,8 @@ beside the Resumes view though `/experiences` imports it too, since the two rout
 are one page's views, not two consumers), laid out as the Jobs page's and the
 Applications Tracker's top row is: the view's search on the left and the
 segmented switcher between the two views at the right, after Experiences'
-primary action, Fill With Scout; on a phone the search takes its own line.
+primary action, Fill With Scout, while it is offered (off since KAN-732,
+`FILL_WITH_SCOUT_LIVE`); on a phone the search takes its own line.
 The title is in the top bar. A shared "Resumes & Experiences" title on both views
 said less about where the student was. The views stay two routes, so every link to either still
 lands (the Jobs page's `/experiences?import=1` included), and the switcher is plain
@@ -2184,7 +2187,8 @@ see for the experience bank; the glossary term stays.
 kept, once (`GLOSSARY.md`), and the only place they are edited: the
 Resumes view keeps the uploads, and its upload note links here.
 
-**Layout, top to bottom**: the shared header (above) with Fill With Scout,
+**Layout, top to bottom**: the shared header (above) with Fill With Scout
+while it is offered,
 the Showing card (All Experiences, where the page opens, with Filter by
 Resume; or the picked resume, drawn as the Resumes page draws one, with
 Show All and Change Resume in it, and a click on it opens the resume), the
@@ -2231,9 +2235,12 @@ the picked resume, then opens the new section to fill. An Entries section
 lists rows as any section does; a Lines section shows its lines as plain
 text, and its + opens them in the entry editor with only the lines
 (`EntryEditor`'s `lines`: no title, place, dates or dots, "Add Line", no
-Delete Entry). A section's pencil holds Rename (its heading becomes a name
-field), Delete Section (it confirms; the entries go with it, off every
-resume) and, on Entries, Clear All. A section shows under the pick that
+Delete Entry). A section's heading holds + and a ⋯ menu, as the fixed
+cards' do (KAN-732, which took away the section edit mode): Rename Section
+(its heading becomes a name field), Delete Section (asked in the modal
+Delete Entry uses; the entries go with it, off every resume) and, on
+Entries under one resume, Clear All. Each entry's pencil is always in
+view, and the heading's controls hide while an entry is open. A section shows under the pick that
 owns it or shows one of its entries, and the student's own while it is
 empty; under All Experiences two of one name (two uploads' Summary) each add
 their owner's name. The API's error says when an owner has five or the name
@@ -2251,7 +2258,11 @@ while closed, since it stops a Generate, and the row Scout is working on
 stays open. Every entry fully open made a bank of six entries a long page.
 
 **Intake lives in Scout's panel** (2026-10-13), where Scout does: the bar's
-Scout button or Fill With Scout opens it. On this page the panel shows
+Scout button or Fill With Scout opens it. **Both are off** (the launcher
+since 2026-11-01; Fill With Scout since KAN-732, `FILL_WITH_SCOUT_LIVE` in
+`components/scout/live.ts`), so intake has no way in and the page takes no
+panel: a panel the editor left open showed intake here with no button to
+explain it. The flag brings it all back. On this page the panel shows
 intake in place of Scout's job chat (`components/scout/scout-takeover.tsx`)
 and widens to 448px (460px of room with its gap). Three bands, top to
 bottom: the stage card (the step chips), the chat (with the draft in it,
@@ -2342,8 +2353,8 @@ question is the next step. Edit opens the
 full form over the panel, with Back to Chat (Escape goes back too). The
 import card opens in the chat's place. A save
 reads the bank again, so the page behind updates at once. An empty bank
-gets no card of its own (removed in KAN-249): the title's Fill With Scout
-and each card's + already say where to start, and the card only
+gets no card of its own (removed in KAN-249): each card's + already says
+where to start (with the title's Fill With Scout, while it is offered), and the card only
 repeated them. Any other page gets Scout's own
 chat back. Intake used to lead the page, with the card in a column beside
 the chat; onboarding still shows it that way.
@@ -2367,30 +2378,36 @@ in Docs (suggested answers in the chat, not a banner).
   never sorts. After every change it reads the whole bank again, so the
   order shown is always the API's; a skill's × only drops that skill,
   which changes no order.
-- **A card's heading is a + and a pencil** (KAN-363), as LinkedIn's
-  profile draws them: the + adds an entry (a skill on Skills), on every
-  card; the pencil, shown while the card lists something, opens that
-  card's edit mode, one card at a time. In edit mode each entry shows its
-  pencil (each skill its pencil and ×), and the heading's pencil gives way
-  to Clear All and Done. Outside it a card is its content alone. Each
-  heading held Clear All and Add as words, and every entry a pencil and a
-  trash, so a card read as a row of controls before what it holds.
-- **Clear All empties a card** (KAN-352): in the card's edit mode, on each
-  section card and on Skills. It deletes
+- **A card's heading is a + and a ⋯** (KAN-732): the + adds an entry (a
+  skill on Skills), on every card; the ⋯ holds Clear All, and shows only
+  where Clear All applies. Skills alone add a pencil, shown while the card
+  lists something, that opens their edit mode: each skill shows its pencil
+  and ×, and the pencil gives way to Done. Every card had that mode until
+  KAN-732 (KAN-363, as LinkedIn's profile draws it), and entries showed
+  their pencils only in it, which put a press before every edit. Before
+  KAN-363 each heading held Clear All and Add as words, and every entry a
+  pencil and a trash, so a card read as a row of controls before what it
+  holds.
+- **Clear All empties a card** (KAN-352): in the card's ⋯, on each
+  section card and on Skills, while one resume is picked. It deletes
   what the card shows in one call (`POST .../experiences/entries/delete` or
-  `.../skills/delete`, all or none), after a confirm (`bank/clear-all.tsx`)
-  that names the count and the built resumes that show them
+  `.../skills/delete`, all or none), after a modal (`experiences/clear-all.tsx`,
+  `DeleteDialog`, KAN-732) that names the count and the built resumes that show them
   (`builtShowing` in `holdings.ts`, from the bank's `resume_ids`). It
   deletes from the whole bank, as Delete Entry does: under a built
   resume's pick the items belong to uploads (ADR 0005), so the confirm
   names the uploads that lose them too (`uploadsOwning`). It never deletes
   what the pick hides: a button on a card acts on what the card shows.
-- **An entry's row holds its dates, and its pencil in edit mode**
-  (KAN-363). Delete Entry sits at the foot of the editor the pencil opens
+- **An entry's row holds its dates and its pencil, always in view**
+  (KAN-732). Delete Entry sits at the foot of the editor the pencil opens
   (`entry-editor.tsx`'s `onDelete`). A trash beside the pencil, under a
   heading with Clear All and Add, put four controls in one corner, and a
   student could not tell which acted on the section and which on the
-  entry.
+  entry (KAN-363). Save Entry and Cancel give the focus back to the
+  pencil, and Delete Entry to the pencil of the entry beside. **One editor
+  at a time** (KAN-732): while an entry is in the editor, the other
+  pencils, the cards' + and ⋯ and the empty-group line hide, since any of
+  them moved the editor and dropped what was typed in it.
 - **An entry's dates sit under its title below `@xl/main`**, beside the
   pencil above it. Beside them on a phone, the dates never
   shrank and left the title a column a few letters wide ("Universi / ty").
@@ -2401,10 +2418,12 @@ in Docs (suggested answers in the chat, not a banner).
   (or "present"), and for Experience and Leadership no organization. A
   project, role or award has no dates warning: no application form asks for
   them (Greenhouse, Lever, Ashby, Workday; settled 2026-10-14). It still saves; the warning says to add them before
-  Generate.
+  Generate. It lines up with the title, past the chevron, and onboarding's
+  resume preview shows the same one (`MissingFacts`, KAN-732).
 - **Deleting an entry confirms with how many built resumes show it**
   (story 18): the editor's Delete Entry reads `GET .../entries/{id}/resumes` first,
-  then asks. A resume that hides the entry is not counted.
+  then asks in a modal that names the entry (`DeleteDialog`, KAN-732), with
+  Keep It, the safe answer, focused. A resume that hides the entry is not counted.
 - **Bullets show their original wording only** (KAN-218). Wording typed on
   a resume in the editor is that resume's local variant and never shows
   here (`docs/resume.md`).
@@ -3404,7 +3423,11 @@ room appears at once and the page settles into its new width, while the panel
 slides in from the window's edge (`docs/motion.md` has why). Escape or its X
 closes it and hands focus back to the bar's launcher, which shows pressed while
 the panel is open. The launcher is archived (`SCOUT_LAUNCHER_LIVE`, 2026-11-01),
-so Ask Scout and Fill With Scout are the ways in for now. `chat.tsx` holds the message bubble, typing dots and
+Ask Scout is greyed out (`ASK_SCOUT_LIVE`) and Fill With Scout is off
+(`FILL_WITH_SCOUT_LIVE`, KAN-732), so Scout has no way in for now. While Ask
+Scout is off the panel shows only for a page that holds it, so neither
+Scout's chat nor the editor assistant shows; the resume editor still takes
+the panel for its toolbar's views. `chat.tsx` holds the message bubble, typing dots and
 composer (with the mic, `use-speech-input`) and Scout's mark, shared with
 intake on the bank page and the editor assistant; the panel's header wears
 the same mark (KAN-257), where a brand-tint circle with a hand-drawn
@@ -3467,11 +3490,35 @@ named by the button's `aria-describedby`. In the button row an error was a
 forward button grows to fill the row, and takes its own row when the three
 buttons do not fit.
 
-**The question and Scout stand apart (KAN-259).** The question sits under the
-logo; Scout sits at the left half's foot, from lg only, and types a tip the
-question does not give ("Both are optional..."). They were one block, the
-bubble 28px over the question and asking it again in other words, so it was
-not clear who was asking.
+**The question stands alone; Scout is gone (KAN-259, KAN-732).** The question
+sits under the logo as the page's heading and speaks as the page, never as
+"I". Scout sat at the left half's foot from lg (an avatar, "Your WorkIt job
+assistant" and a bubble that typed a tip on every step) until KAN-732: it
+acted on nothing while Scout's chat is off, every tip repeated the step, and
+the Claude step's "WorkIt never runs a model" went false once AI read every
+upload. Before that (KAN-259) the bubble sat 28px over the question and asked
+it again in other words, so it was not clear who was asking. **The resume
+step asks two questions**: "Next, upload your resume for WorkIt to read."
+while the student picks a file, and "Now, check what WorkIt found, then save
+it." once the reading is on screen ("Already Uploaded" keeps the first, with
+nothing to save). The second fades in and takes focus like a new step's.
+**The reading is drawn as the Experiences page draws a bank** (KAN-732):
+under the file's name (no "Optional") and one note for the whole reading,
+"Check that every detail from your resume is here, and make any edits you
+want before you save." **No field or entry is marked for checking**: the
+student looks the reading over once, not field by field (the user's call,
+2026-11-08), so where the AI and the parser disagree the reading keeps the
+AI's value and says nothing (`backend/app/utils/CLAUDE.md`). Then a card per section
+with the bank's heading and `EntryRow`s, every entry open with its details
+and bullets and no chevron, unlike the bank's closed rows, so the whole
+reading is in view. Each entry's pencil opens the shared `EntryEditor`
+(Save Entry, Cancel, and Delete Entry, which asks in the bank's modal and
+says the entry is not saved and the file does not change); the other
+pencils hide while one entry is open, as on Experiences. An entry
+that lacks a date or an organization warns as on Experiences. Skills are
+the bank's purple chips in their groups, and their pencil shows each ×,
+with Done to end it. Save Resume waits while an entry is open, and the
+footer says why.
 
 **The way out is quiet (KAN-259).** "Signed in as … Not you? Sign Out"
 (`onboarding/applicant/signed-in-as.tsx`) closes the wizard, under the
@@ -3481,7 +3528,7 @@ unfinished applicant back here, so the screen needs an exit; as a Sign Out
 button at the top right of the form it was the column's first thing and read
 as part of the step.
 
-**The left half moves, from lg.** Between the question and Scout a showcase
+**The left half moves, from lg.** Under the question a showcase
 (`onboarding/applicant/showcase.tsx`) cycles three scenes on one clock: a
 mock screen (a matched job, a resume, the applications board) with the
 notification that screen would send tucked over its corner. A scene glides
@@ -3490,9 +3537,8 @@ next arrives (`--animate-arrive` and `--animate-leave`), so the change is a
 crossfade. Two clocks, one per part, drifted out of step. The scenes are
 scaled as a whole to fill the room the panel leaves (up to 1.8x), so a tall
 window gets a big picture; under 0.85x the stage hides and its room stays
-empty, with the question still at the top. Scout types its tip in a chat
-bubble on every step. It is all decoration over made-up data, so it is
-aria-hidden, and it holds still under reduced motion.
+empty, with the question still at the top. It is all decoration over
+made-up data, so it is aria-hidden, and it holds still under reduced motion.
 
 **Profile asks what every application asks (KAN-283).** Authorization to
 Work and Visa Sponsorship (yes or no), then Location and Links (KAN-372:

@@ -31,7 +31,7 @@ from app.schemas.bank import (
 from app.schemas.built_resume import PageSettings as ApiPageSettings
 from app.schemas.intake import IntakeTurnRequest
 from app.services import resume_render
-from app.services.bank_import import other_drafts, read
+from app.services.bank_import import read
 from app.services.fit_page import plan
 from app.services.resume_render import PageSettings, printed_order, valid_order
 from app.services.resume_render.jakes import body as jakes_body
@@ -303,11 +303,28 @@ def test_import_drafts_a_lines_section_for_each_other_heading():
         ("Summary", "Summary", [SUMMARY_LINE]),
         ("Interests", "Interests", ["Rock climbing", "Chess, photography"]),
     ]
-    # The model's reading keeps the same sections
-    assert [d.section_name for d in other_drafts(OTHERS)] == ["Summary", "Interests"]
     # An upload's snapshot prints them as Lines sections
     view = view_from_reading(entries, [])
     assert [(s.label, s.layout) for s in view.sections if s.label] == [("Summary", "lines"), ("Interests", "lines")]
+
+
+@pytest.mark.anyio
+async def test_an_ai_reading_keeps_the_parsers_custom_sections():
+    # The AI reads only the fixed sections (KAN-732), so a custom section
+    # has no twin in its reading, and the combined reading adds the parser's.
+    from workit_scout.identity import Identity
+    from workit_scout.testing import ScriptedLLM
+
+    from app.services.bank_import import read_resume
+
+    reply = {"entries": [{"section": "education", "title": "Riverside State University", "degree": "B.S.",
+                          "end_month": "2099-05", "end_kind": "expected"}]}
+    reading = await read_resume(OTHERS, ScriptedLLM([json.dumps(reply)]), Identity())
+    assert reading.read_by == "model"
+    assert [(d.section_name, d.bullets) for d in reading.entries if d.section == "custom"] == [
+        ("Summary", [SUMMARY_LINE]),
+        ("Interests", ["Rock climbing", "Chess, photography"]),
+    ]
 
 
 # --- the schemas ----------------------------------------------------------------

@@ -2,8 +2,11 @@
 Seam-1 tests for import (KAN-211, ADR 0003, ADR 0005) on real Postgres: an
 upload, Import Updated Resume and Import Again read a resume and write it into
 the experience bank as that upload's own entries and skills, replacing what
-it owned and never merging into another resume's. The model reads a resume only when the student
-asks. backend/CLAUDE.md's Tests section has the setup.
+it owned and never merging into another resume's. Every reading asks the
+model first while the student has an AI reading left, the parser behind it
+(KAN-732, ADR 0007); conftest's `_model_down` makes the model unreachable in
+every test that installs none, so those read with the parser.
+backend/CLAUDE.md's Tests section has the setup.
 """
 
 import json
@@ -153,10 +156,11 @@ def upload(monkeypatch):
     monkeypatch.setattr("app.routers.resumes.get_supabase", lambda: bucket)
 
     async def send(client, applicant_id, raw_text, *, replacing=None, filename="resume.pdf", preview=False,
-                   replace_matching=False, removed_skills=()):
+                   replace_matching=False, removed_skills=(), reading=None):
         """With `replacing`, Import Updated Resume on that resume's row; with
         `preview`, the parse preview, which saves nothing; with
-        `replace_matching`, the upload that confirms a preview (KAN-372)."""
+        `replace_matching`, the upload that confirms a preview (KAN-372),
+        and with `reading` the preview's reading it saves (KAN-732)."""
         async def extract(contents, ext):
             return raw_text
 
@@ -167,8 +171,10 @@ def upload(monkeypatch):
         if preview:
             return await client.post(f"/applicants/{applicant_id}/resumes/preview", files=files)
         params = {"replace": "matching"} if replace_matching else None
-        data = {"removed_skills": list(removed_skills)} if removed_skills else None
-        return await client.post(f"/applicants/{applicant_id}/resumes", files=files, params=params, data=data)
+        data = {"removed_skills": list(removed_skills)} if removed_skills else {}
+        if reading is not None:
+            data["reading"] = reading
+        return await client.post(f"/applicants/{applicant_id}/resumes", files=files, params=params, data=data or None)
 
     send.bucket = bucket
     return send
@@ -764,9 +770,31 @@ async def test_another_students_preview_is_refused(student, upload, database):
     assert (await upload(client, other, RESUME_TEXT, preview=True)).status_code == 403
 
 
-# --- reading with the model (KAN-222) ----------------------------------------------
+# --- reading with the model (KAN-222, KAN-732, ADR 0007) ------------------------------
 #
 # ScriptedLLM stands in for the model (seam 2); its script is the model's JSON.
+# Every reading asks it first while a use is left; the parser reads behind it.
+
+# Starts with a contact block, which the model is never sent.
+MODEL_TEXT = """\
+Samantha J. Seeker
+12 Elm Street, Riverside, CA | sam.seeker@example.com | (631) 555-0142
+Experience
+Riverside Materials Lab  Jan 2025 - Present
+Lab Assistant  Riverside, CA
+•Prepared tensile test samples
+•Logged results in Excel
+Projects
+Wind Tunnel  May 2025 - Aug 2025
+https://github.com/example/wind-tunnel
+•Built a small wind tunnel
+Education
+Riverside State University  Expected May 2099
+B.S. in Mechanical Engineering
+•GPA: 3.50
+Skills
+•Tools: Excel, MATLAB
+"""
 
 MODEL_READING = {
     "entries": [
@@ -778,16 +806,25 @@ MODEL_READING = {
             "start_month": "2025-01",
             "end_month": None,
             "end_kind": "present",
-            "bullets": ["Prepared tensile test samples", "Logged results in Excel"],
+            # Not the resume's: its number is nowhere in the text.
+            "bullets": ["Prepared tensile test samples", "Logged results in Excel", "Cut testing costs by 35%"],
         },
-        # An end before the start: kept, without its dates.
-        {"section": "projects", "title": "Wind Tunnel", "start_month": "2025-05", "end_month": "2024-01", "end_kind": "month"},
+        # Not on the resume at all: its title goes, and the entry with it.
+        {"section": "experience", "title": "Research Intern", "organization": "NASA Ames",
+         "bullets": ["Simulated airflow over wings"]},
+        # An end before the start: kept, with the parser's dates in place of
+        # its own. No link: the model sees every URL as [link], so the
+        # parser's is taken.
+        {"section": "projects", "title": "Wind Tunnel", "start_month": "2025-08", "end_month": "2025-05",
+         "end_kind": "month", "bullets": ["Built a small wind tunnel"]},
         # No title: not an entry, dropped.
         {"section": "awards", "title": ""},
         # A field the model saw only as a placeholder is never filled with it.
-        {"section": "education", "title": "Riverside State University", "degree": "B.S.", "field_of_study": "[link]", "gpa": 3.5},
+        {"section": "education", "title": "Riverside State University", "degree": "B.S.", "field_of_study": "[link]",
+         "gpa": 3.5},
     ],
-    "skills": [{"name": "Excel", "group": "Tools"}, {"name": "excel", "group": None}],
+    # "excel" is Excel again; Python is not on the resume.
+    "skills": [{"name": "Excel", "group": "Tools"}, {"name": "excel", "group": None}, {"name": "Python", "group": None}],
 }
 
 # Text the heuristic parser finds no section in.
@@ -827,16 +864,21 @@ def _reading(data: dict = MODEL_READING) -> list[str]:
     return [json.dumps(data)]
 
 
-async def test_read_with_ai_writes_the_models_entries_checked_against_the_entry_schema(student, database, use_model):
+def _confirming(preview: dict) -> str:
+    """The `reading` a confirm sends: the preview's entries, skills and reader."""
+    return json.dumps({"entries": preview["entries"], "skills": preview["skills"], "read_by": preview["read_by"]})
+
+
+async def test_an_upload_is_read_by_the_model_and_checked_against_its_text(student, upload, use_model):
     client, applicant_id, bank = student
-    resume_id = await _seed_resume(database, applicant_id, RESUME_TEXT)
     use_model(_reading())
 
-    res = await client.post(f"{bank}/import", json={"resume_id": str(resume_id), "read_with_ai": True})
+    res = await upload(client, applicant_id, MODEL_TEXT)
     assert res.status_code == 200
-    body = res.json()
-    assert (body["read_by"], body["uses_left"]) == ("model", 0)
-    assert _counts(body) == (3, 1)
+    assert res.json()["bank"] == {
+        "found": 5, "entries_added": 3, "skills_added": 2, "entries_replaced": 0, "skills_replaced": 0,
+        "read_by": "model", "uses_left": 0,
+    }
 
     saved = (await client.get(bank)).json()
     school, lab, tunnel = saved["entries"]
@@ -844,80 +886,229 @@ async def test_read_with_ai_writes_the_models_entries_checked_against_the_entry_
     assert (lab["start_month"], lab["end_kind"], [b["text"] for b in lab["bullets"]]) == (
         "2025-01", "present", ["Prepared tensile test samples", "Logged results in Excel"],
     )
-    assert (tunnel["title"], tunnel["start_month"], tunnel["end_month"]) == ("Wind Tunnel", None, None)
-    assert (school["degree"], school["field_of_study"], school["gpa"]) == ("B.S.", None, 3.5)
-    assert [(s["name"], s["group"]) for s in saved["skills"]] == [("Excel", "Tools")]
+    # The model's dates did not fit together and were dropped; the parser's fill them.
+    assert (tunnel["title"], tunnel["start_month"], tunnel["end_month"]) == ("Wind Tunnel", "2025-05", "2025-08")
+    assert tunnel["link"] == "https://github.com/example/wind-tunnel"
+    # The model's field was a placeholder and was emptied; the parser's fills it.
+    assert (school["degree"], school["field_of_study"], school["gpa"]) == ("B.S.", "Mechanical Engineering", 3.5)
+    # MATLAB is on the resume; the model left it out, and the parser's reading keeps it.
+    assert [(s["name"], s["group"]) for s in saved["skills"]] == [("Excel", "Tools"), ("MATLAB", "Tools")]
 
 
-async def test_the_prompt_sent_holds_no_identity_data(student, database, use_model):
-    client, applicant_id, bank = student
+async def test_the_model_gets_no_identity_data_and_no_contact_block(student, upload, use_model, database):
+    client, applicant_id, _ = student
     async with database() as session:
         await session.execute(
             text("UPDATE applicant_profiles SET phone_number = '631-555-0142', linkedin_url = 'https://linkedin.com/in/samseeker' WHERE id = :id"),
             {"id": applicant_id},
         )
         await session.commit()
-    await _seed_resume(database, applicant_id, UNREADABLE_TEXT)
     fake = use_model(_reading())
 
-    await client.post(f"{bank}/import", json={"read_with_ai": True})
+    await upload(client, applicant_id, MODEL_TEXT)
     sent = json.dumps(fake.prompts)
-    for secret in ("Sam", "Seeker", "sam.seeker@example.com", "555-0142", "linkedin.com/in/samseeker"):
+    # The header goes whole, with a name the profile spells otherwise.
+    for secret in ("Samantha", "Seeker", "Elm Street", "sam.seeker@example.com", "555-0142", "github.com/example"):
         assert secret not in sent
     assert "Riverside Materials Lab" in sent
 
 
-async def test_an_invalid_model_reply_writes_nothing_and_counts_no_use(student, database, use_model):
+@pytest.mark.parametrize("script", [lambda: ["not json"], rate_limited], ids=["wrong shape", "out of quota"])
+async def test_a_model_that_fails_leaves_the_parsers_reading_and_counts_nothing(student, upload, use_model, script):
     client, applicant_id, bank = student
-    await _seed_resume(database, applicant_id, RESUME_TEXT)
+    use_model(script())
 
-    use_model(["not json"])
-    res = await client.post(f"{bank}/import", json={"read_with_ai": True})
-    assert res.status_code == 503
-    assert "detail" in res.json()
-    saved = (await client.get(bank)).json()
-    assert (saved["entries"], saved["skills"]) == ([], [])
-
-    use_model(_reading())
-    res = await client.post(f"{bank}/import", json={"read_with_ai": True})
-    assert (res.status_code, res.json()["uses_left"]) == (200, 0)
+    res = await upload(client, applicant_id, MODEL_TEXT)
+    assert res.status_code == 200
+    body = res.json()["bank"]
+    assert (body["read_by"], body["uses_left"], body["found"]) == ("parser", 1, 5)
+    titles = [e["title"] for e in (await client.get(bank)).json()["entries"]]
+    assert titles == ["Riverside State University", "Lab Assistant", "Wind Tunnel"]
 
 
-async def test_a_model_that_is_down_does_not_count_a_use(student, database, use_model):
-    client, applicant_id, bank = student
-    await _seed_resume(database, applicant_id, RESUME_TEXT)
-
-    use_model(rate_limited())
-    assert (await client.post(f"{bank}/import", json={"read_with_ai": True})).status_code == 503
-    assert (await client.post(f"{bank}/import", json={})).json()["uses_left"] == 1
-
-
-async def test_read_with_ai_stops_at_the_parsing_cap(student, database, use_model, parsing_caps):
-    client, applicant_id, bank = student
-    await _seed_resume(database, applicant_id, UNREADABLE_TEXT)
+async def test_at_the_parsing_cap_the_parser_reads_without_asking_the_model(student, upload, use_model, parsing_caps):
+    client, applicant_id, _ = student
     parsing_caps(cap=1)
     fake = use_model(_reading())
 
-    assert (await client.post(f"{bank}/import", json={"read_with_ai": True})).status_code == 200
-    assert (await client.post(f"{bank}/import", json={"read_with_ai": True})).status_code == 429
-    body = (await client.post(f"{bank}/import", json={})).json()
+    assert (await upload(client, applicant_id, MODEL_TEXT)).json()["bank"]["read_by"] == "model"
+    body = (await upload(client, applicant_id, OTHER_TEXT, filename="resume-b.pdf")).json()["bank"]
     assert (body["read_by"], body["uses_left"]) == ("parser", 0)
     assert len(fake.prompts) == 1
 
 
-async def test_parsing_stops_when_its_share_of_the_pool_is_spent(student, database, use_model, parsing_caps):
-    client, applicant_id, bank = student
+async def test_parsing_stops_when_its_share_of_the_pool_is_spent(student, upload, use_model, parsing_caps, database):
+    client, applicant_id, _ = student
     parsing_caps(pool=10)  # parsing's 10% share: one use across all students
-    await _seed_resume(database, applicant_id, UNREADABLE_TEXT)
     use_model(_reading())
-    assert (await client.post(f"{bank}/import", json={"read_with_ai": True})).status_code == 200
+    assert (await upload(client, applicant_id, MODEL_TEXT)).json()["bank"]["read_by"] == "model"
 
     async with database() as session:
         other = await _seed_applicant(session)
-    await _seed_resume(database, other, UNREADABLE_TEXT)
     _sign_in(other)
-    res = await client.post(f"/applicants/{other}/bank/import", json={"read_with_ai": True})
-    assert res.status_code == 429
+    body = (await upload(client, other, MODEL_TEXT)).json()["bank"]
+    assert (body["read_by"], body["uses_left"]) == ("parser", 0)
+
+
+async def test_a_confirm_saves_the_previews_reading_without_reading_again(student, upload, use_model):
+    client, applicant_id, bank = student
+    fake = use_model(_reading())
+
+    preview = (await upload(client, applicant_id, MODEL_TEXT, preview=True)).json()
+    assert preview["read_by"] == "model"
+    assert [e["title"] for e in preview["entries"]] == ["Lab Assistant", "Wind Tunnel", "Riverside State University"]
+
+    res = await upload(client, applicant_id, MODEL_TEXT, replace_matching=True, reading=_confirming(preview))
+    assert res.status_code == 200
+    # The preview spent the day's one reading; the confirm asked no model.
+    assert (res.json()["bank"]["read_by"], res.json()["bank"]["uses_left"]) == ("model", 0)
+    assert len(fake.prompts) == 1
+    saved = (await client.get(bank)).json()
+    assert [e["title"] for e in saved["entries"]] == ["Riverside State University", "Lab Assistant", "Wind Tunnel"]
+    assert [s["name"] for s in saved["skills"]] == ["Excel", "MATLAB"]
+
+
+async def test_a_confirmed_reading_that_is_not_one_is_refused_before_anything_is_kept(student, upload):
+    client, applicant_id, _ = student
+    res = await upload(client, applicant_id, MODEL_TEXT, replace_matching=True, reading='{"entries": [{"title": ""}]}')
+    assert res.status_code == 422
+    assert upload.bucket.files == {}
+    assert (await client.get(f"/applicants/{applicant_id}/resumes")).json() == []
+
+
+async def test_an_updated_resume_is_read_by_the_model_too(student, upload, use_model):
+    client, applicant_id, _ = student
+    first = (await upload(client, applicant_id, RESUME_TEXT)).json()
+    assert first["bank"]["read_by"] == "parser"
+
+    use_model(_reading())
+    res = await upload(client, applicant_id, MODEL_TEXT, replacing=first["id"])
+    assert (res.json()["bank"]["read_by"], res.json()["bank"]["entries_added"]) == ("model", 3)
+
+
+async def test_import_again_reads_with_the_model_first(student, database, use_model):
+    client, applicant_id, bank = student
+    resume_id = await _seed_resume(database, applicant_id, MODEL_TEXT)
+    use_model(_reading())
+
+    res = await client.post(f"{bank}/import", json={"resume_id": str(resume_id)})
+    assert res.status_code == 200
+    body = res.json()
+    # Both skills: the model's Excel, and the parser's MATLAB, which the model left out.
+    assert (body["read_by"], body["uses_left"], _counts(body)) == ("model", 0, (3, 2))
+    # The next reading today is the parser's, and still succeeds.
+    body = (await client.post(f"{bank}/import", json={"resume_id": str(resume_id)})).json()
+    assert (body["read_by"], body["uses_left"], _counts(body)) == ("parser", 0, (3, 2))
+
+
+def test_a_model_field_the_resume_lacks_is_removed():
+    # Pure, no database: what `_backed` lets through and what it takes out.
+    from app.schemas.bank import ModelReading
+    from app.services.bank_import import model_drafts
+
+    text = (
+        "Experience\nHarbor Robotics  Jun 2026 - Aug 2026\nMechanical Engineering Intern\n"
+        "•Designed a sheet-metal bracket that cut assem bly time by 20%\n"
+        "Education\nRiverside State University  B.S.  GPA: 3.80\n"
+    )
+    reading = ModelReading.model_validate({"entries": [
+        {"section": "experience", "title": "Mechanical Engineering Intern", "organization": "Harbor Robotics",
+         "start_month": "2026-06", "end_month": "2026-08", "end_kind": "month",
+         "bullets": [
+             # The PDF broke "assembly" in two: three words in four still pass.
+             "Designed a sheet-metal bracket that cut assembly time by 20%",
+             # A number the resume lacks fails, however many words match.
+             "Designed a sheet-metal bracket that cut assembly time by 40%",
+         ]},
+        # A short field needs every word: the resume says "B.S.", not this.
+        {"section": "education", "title": "Riverside State University", "degree": "Bachelor of Science",
+         "gpa": 3.8, "gpa_scale": 4.0, "start_month": "2019-09", "end_month": "2099-05", "end_kind": "expected"},
+    ]})
+    job, school = model_drafts(reading, text)
+    assert job.bullets == ["Designed a sheet-metal bracket that cut assembly time by 20%"]
+    assert (job.start_month.isoformat(), job.end_month.isoformat()) == ("2026-06-01", "2026-08-01")
+    # 3.8 is the resume's "3.80"; a year it lacks (2019) takes every date.
+    assert (school.degree, school.gpa, school.gpa_scale) == (None, 3.8, 4.0)
+    assert (school.start_month, school.end_month, school.end_kind) == (None, None, None)
+
+
+def test_the_model_is_sent_the_text_from_the_first_heading_near_the_top():
+    from app.services.bank_import import _from_first_heading
+
+    assert _from_first_heading("Sam\n12 Elm St\nEducation\nRiverside") == "Education\nRiverside"
+    # A first heading far down could follow entries the parser cannot name: all goes.
+    deep = "\n".join(["line"] * 12 + ["Education", "Riverside"])
+    assert _from_first_heading(deep) == deep
+
+
+def test_a_model_project_takes_the_parsers_link_by_its_title():
+    from app.schemas.bank import DraftEntry
+    from app.services.bank_import import with_links
+
+    parsed = [
+        DraftEntry(section="projects", title="Line Robot | Robotics Club", link="https://example.com/robot"),
+        DraftEntry(section="projects", title="Budget Buddy", link="https://example.com/budget"),
+    ]
+    drafts = [
+        DraftEntry(section="projects", title="Line Robot"),
+        DraftEntry(section="projects", title="budget buddy"),
+        DraftEntry(section="projects", title="Line"),  # "Line" is not the first word of a title alone
+        DraftEntry(section="experience", title="Budget Buddy"),
+    ]
+    assert [d.link for d in with_links(drafts, parsed)] == [
+        "https://example.com/robot", "https://example.com/budget", None, None,
+    ]
+
+
+async def test_a_model_slower_than_the_wait_leaves_the_parsers_reading(monkeypatch):
+    import asyncio
+
+    from workit_scout.identity import Identity
+
+    from app.services import bank_import
+
+    async def slow(raw_text, llm, *, identity):
+        await asyncio.sleep(5)
+
+    monkeypatch.setattr(bank_import, "read_with_model", slow)
+    monkeypatch.setattr(bank_import, "MODEL_WAIT_SECONDS", 0.01)
+    reading = await bank_import.read_resume(RESUME_TEXT, ScriptedLLM(["{}"]), Identity(name="Sam Seeker"))
+    assert reading.read_by == "parser"
+    assert len(reading.entries) == 6
+
+
+async def test_a_model_reading_the_text_backs_none_of_leaves_the_parsers():
+    from workit_scout.identity import Identity
+
+    from app.services.bank_import import read_resume
+
+    invented = {"entries": [{"section": "experience", "title": "Astronaut", "organization": "NASA"}]}
+    reading = await read_resume(RESUME_TEXT, ScriptedLLM(_reading(invented)), Identity(name="Sam Seeker"))
+    assert (reading.read_by, len(reading.entries)) == ("parser", 6)
+
+
+async def test_a_bullet_the_seam_put_a_placeholder_in_takes_the_parsers_words():
+    # Found reading the shared test account, named Test User: the seam took
+    # "user" out of "user stories" as a part of the name, and the model gave
+    # "[name] stories" back.
+    from workit_scout.identity import Identity
+
+    from app.services.bank_import import read_resume
+
+    text = (
+        "Experience\nPulp  Jan 2025 - Aug 2025\nProduct Intern  Remote\n"
+        "•Translated research findings into PRDs and user stories for 20 contributors\n"
+    )
+    reply = {"entries": [{"section": "experience", "title": "Product Intern", "organization": "Pulp", "bullets": [
+        "Translated research findings into PRDs and [name] stories for 20 contributors",
+        # No line of the resume says this: it goes, never saved with "[name]".
+        "Presented to [name] weekly",
+    ]}]}
+    fake = ScriptedLLM(_reading(reply))
+    reading = await read_resume(text, fake, Identity(name="Test User"))
+    assert "[name] stories" in json.dumps(fake.prompts)
+    assert reading.read_by == "model"
+    assert reading.entries[0].bullets == ["Translated research findings into PRDs and user stories for 20 contributors"]
 
 
 def test_the_reading_keeps_the_gpa_scale_and_project_tools():
@@ -1060,3 +1251,269 @@ async def test_a_skill_removed_in_the_preview_is_not_saved_or_read_in_later(stud
 
     await client.post(f"{bank}/import", json={"resume_id": resume_id})
     assert _skill_names((await client.get(bank)).json()) == ["MATLAB"]
+
+
+# --- What Gemini 3.5 Flash-Lite answered for the parser's fixtures (2026-11-08),
+# each a way the model's reading lost what the parser keeps. ---
+
+def _fixture_text(name: str) -> str:
+    from pathlib import Path
+
+    return (Path(__file__).parent / "fixtures" / name).read_text(encoding="utf-8")
+
+
+async def test_a_year_alone_from_the_model_is_january_and_keeps_the_award():
+    # "2022 - current" came back as "2022", which is no "YYYY-MM": the job
+    # lost its dates, and "Merit Scholarship  2024" lost itself.
+    from workit_scout.identity import Identity
+
+    from app.services.bank_import import read_resume
+
+    reply = {"entries": [
+        {"section": "experience", "title": "Cashier", "organization": "Panda Express",
+         "start_month": "2022", "end_kind": "present"},
+        {"section": "awards", "title": "Merit Scholarship", "award_date": "2024"},
+    ]}
+    text = _fixture_text("two_column_no_bullet_glyphs.txt") + "\nAwards\nMerit Scholarship  2024\n"
+    reading = await read_resume(text, ScriptedLLM(_reading(reply)), Identity())
+    job, award = [e for e in reading.entries if e.title in ("Cashier", "Merit Scholarship")]
+    assert (job.start_month.isoformat(), job.end_kind.value) == ("2022-01-01", "present")
+    assert award.award_date.isoformat() == "2024-01-01"
+
+
+async def test_entries_the_model_left_out_come_from_the_parser():
+    # Gemini left out both papers under "Publications"; here it also leaves
+    # out two of the three jobs and every bullet of the one it keeps.
+    from workit_scout.identity import Identity
+
+    from app.services.bank_import import read_resume
+
+    reply = {"entries": [
+        {"section": "education", "title": "Hillcrest State University", "degree": "B.S.",
+         "end_month": "2027-05", "end_kind": "expected"},
+        {"section": "experience", "title": "Undergraduate Researcher", "organization": "Computational Systems Lab",
+         "start_month": "2025-01", "end_kind": "present"},
+    ]}
+    reading = await read_resume(_fixture_text("research_and_publications.txt"), ScriptedLLM(_reading(reply)), Identity())
+    assert reading.read_by == "model"
+    jobs = [e for e in reading.entries if e.section.value == "experience"]
+    # The model's job first, once; the two it left out after it.
+    assert [e.title for e in jobs] == ["Undergraduate Researcher", "Data Science Intern", "Research Assistant"]
+    assert jobs[0].bullets == [
+        "Wrote a cache simulator in C++ that runs 4x faster than the lab's old one",
+        "Ran 300 experiments on the university cluster",
+    ]
+    papers = [e.title for e in reading.entries if e.section.value == "projects"]
+    assert [p[:30] for p in papers] == ["Lee, R., Ortiz, M. (2025). Fas", "Ortiz, M., Lee, R. (2024). A B"]
+    # The parser's skills too: the model's reply named none.
+    assert {"Python", "C++", "SQL"} <= {name for name, _ in reading.skills}
+
+
+async def test_the_parser_fills_only_the_fields_the_model_left_empty():
+    from workit_scout.identity import Identity
+
+    from app.services.bank_import import read_resume
+
+    reply = {"entries": [
+        # A paper with no year: the parser's reading gives it one.
+        {"section": "projects", "title": "Lee, R., Ortiz, M. (2025). Faster Cache Simulation with Sampled Traces. "
+                                         "Proceedings of the Workshop on Systems Research."},
+        # A start the parser reads otherwise (Jan 2025) stays the model's.
+        {"section": "experience", "title": "Undergraduate Researcher", "organization": "Computational Systems Lab",
+         "start_month": "2025-02", "end_kind": "present"},
+    ]}
+    reading = await read_resume(_fixture_text("research_and_publications.txt"), ScriptedLLM(_reading(reply)), Identity())
+    paper = next(e for e in reading.entries if e.title.startswith("Lee, R."))
+    job = next(e for e in reading.entries if e.title == "Undergraduate Researcher")
+    assert paper.end_month.isoformat() == "2025-01-01"
+    assert (job.start_month.isoformat(), job.location) == ("2025-02-01", "Hillcrest, NY")
+
+
+async def test_a_parser_entry_the_model_filed_elsewhere_is_not_added_twice():
+    from workit_scout.identity import Identity
+
+    from app.services.bank_import import read_resume
+
+    # The parser files the role under Experience; the model, under Leadership.
+    text = "Experience\nCampus Residences  Aug 2024 - Present\nResident Assistant\n- Led floor meetings for 40 residents\n"
+    reply = {"entries": [
+        {"section": "leadership", "title": "Resident Assistant", "organization": "Campus Residences",
+         "start_month": "2024-08", "end_kind": "present", "bullets": ["Led floor meetings for 40 residents"]},
+    ]}
+    reading = await read_resume(text, ScriptedLLM(_reading(reply)), Identity())
+    assert [(e.section.value, e.title, len(e.bullets)) for e in reading.entries] == [
+        ("leadership", "Resident Assistant", 1),
+    ]
+
+
+async def test_two_jobs_with_one_title_at_two_companies_are_two_entries():
+    from workit_scout.identity import Identity
+
+    from app.services.bank_import import read_resume
+
+    text = (
+        "Experience\nTarget  Jun 2023 - Aug 2023\nSales Associate\n- Ran a register\n"
+        "Walmart  Jun 2022 - Aug 2022\nSales Associate\n- Stocked shelves\n"
+    )
+    reply = {"entries": [
+        {"section": "experience", "title": "Sales Associate", "organization": "Target",
+         "start_month": "2023-06", "end_month": "2023-08", "end_kind": "month"},
+    ]}
+    reading = await read_resume(text, ScriptedLLM(_reading(reply)), Identity())
+    assert [(e.title, e.organization) for e in reading.entries] == [("Sales Associate", "Target"), ("Sales Associate", "Walmart")]
+
+
+async def test_a_projects_line_of_tools_is_skills_and_never_a_bullet():
+    # A real resume (2026-11-09) put each project's stack on its own line:
+    # the model left it out, and the combining step added it back as a bullet,
+    # since a name with a dot ("Next.js") slipped past the old tools check.
+    from workit_scout.identity import Identity
+
+    from app.services.bank_import import read_resume
+
+    text = (
+        "Projects\nBudget Buddy | Expense Tracker  Jan 2026 - Mar 2026\nNext.js, FastAPI, Supabase (PostgreSQL), RSS\n"
+        "- Built a shared expense tracker used by 40 students\n"
+        "Skills\nLanguages: Python\n"
+    )
+    reply = {"entries": [
+        {"section": "projects", "title": "Budget Buddy | Expense Tracker", "start_month": "2026-01",
+         "end_month": "2026-03", "end_kind": "month", "bullets": ["Built a shared expense tracker used by 40 students"]},
+    ], "skills": [{"name": "Python", "group": "Languages"}]}
+    reading = await read_resume(text, ScriptedLLM(_reading(reply)), Identity())
+    assert reading.entries[0].bullets == ["Built a shared expense tracker used by 40 students"]
+    # The stack reaches the skills from the parser's reading, ungrouped, in
+    # the resume's spelling.
+    assert [name for name, _ in reading.skills] == ["Python", "Next.js", "FastAPI", "Supabase (PostgreSQL)", "RSS"]
+
+
+async def test_an_organization_that_repeats_the_title_is_left_out():
+    from workit_scout.identity import Identity
+
+    from app.services.bank_import import read_resume
+
+    text = "Education\nRiverside State University  Expected May 2027\nB.S. in Computer Science\n"
+    reply = {"entries": [
+        {"section": "education", "title": "Riverside State University", "organization": "Riverside State University",
+         "degree": "B.S.", "end_month": "2027-05", "end_kind": "expected"},
+    ]}
+    reading = await read_resume(text, ScriptedLLM(_reading(reply)), Identity())
+    assert (reading.entries[0].title, reading.entries[0].organization) == ("Riverside State University", None)
+
+
+async def test_tools_the_model_copied_into_a_title_become_skills():
+    from workit_scout.identity import Identity
+
+    from app.services.bank_import import read_resume
+
+    reply = {"entries": [
+        {"section": "projects", "title": "Budget Buddy (React, Firebase)", "start_month": "2026-01",
+         "end_month": "2026-03", "end_kind": "month"},
+    ]}
+    reading = await read_resume(_fixture_text("pipe_layout_leadership_honors.txt"), ScriptedLLM(_reading(reply)), Identity())
+    assert [e.title for e in reading.entries if e.section.value == "projects"] == ["Budget Buddy"]
+    assert {"React", "Firebase"} <= {name for name, _ in reading.skills}
+
+
+def test_a_title_keeps_parentheses_that_hold_no_list():
+    from app.services.bank_import import title_and_tools
+
+    assert title_and_tools("thinkwell (Pulp)") == ("thinkwell (Pulp)", [])
+    assert title_and_tools("Robot | C++, Python") == ("Robot", ["C++", "Python"])
+
+
+async def test_an_awards_giver_glued_to_its_title_is_its_organization():
+    from workit_scout.identity import Identity
+
+    from app.services.bank_import import read_resume
+
+    reply = {"entries": [
+        {"section": "awards", "title": "Dean's List – Riverside State University", "award_date": "2025-12"},
+        {"section": "awards", "title": "First Place, Regional Design Competition – ASME", "award_date": "2025-04"},
+    ]}
+    reading = await read_resume(
+        _fixture_text("leadership_and_awards_single_column.txt"), ScriptedLLM(_reading(reply)), Identity()
+    )
+    awards = [(e.title, e.organization) for e in reading.entries if e.section.value == "awards"]
+    assert awards[:2] == [
+        ("Dean's List", "Riverside State University"),
+        ("First Place, Regional Design Competition", "ASME"),
+    ]
+
+
+async def test_the_model_reads_the_text_without_pdf_ligatures():
+    from workit_scout.identity import Identity
+
+    from app.services.bank_import import read_resume
+
+    llm = ScriptedLLM(_reading({"entries": []}))
+    await read_resume(_fixture_text("two_column_no_bullet_glyphs.txt"), llm, Identity())
+    sent = llm.prompts[0][-1]["content"]
+    assert "Chick-fil-A" in sent and "ﬁ" not in sent
+
+
+async def test_a_citation_ending_in_its_link_keeps_its_title_and_takes_the_parsers_link():
+    # The model sees the arXiv URL as [link] and copies it into the title;
+    # the placeholder used to empty the title, and the paper was dropped.
+    from workit_scout.identity import Identity
+
+    from app.services.bank_import import read_resume
+
+    reply = {"entries": [
+        {"section": "education", "title": "Hillcrest State University", "degree": "B.S.",
+         "end_month": "2027-05", "end_kind": "expected"},
+        {"section": "projects", "title": "Ortiz, M., Lee, R. (2024). A Benchmark for Small-Object Detection. "
+                                         "arXiv preprint, [link]"},
+    ]}
+    reading = await read_resume(_fixture_text("research_and_publications.txt"), ScriptedLLM(_reading(reply)), Identity())
+    paper = next(e for e in reading.entries if e.section.value == "projects")
+    assert paper.title == "Ortiz, M., Lee, R. (2024). A Benchmark for Small-Object Detection. arXiv preprint"
+    assert paper.link == "https://arxiv.org/abs/2409.01234"
+
+
+async def test_a_line_the_parser_misread_as_a_bullet_is_not_added():
+    # The model reads "Stony Brook University" as the project's organization;
+    # the parser saved it as the project's bullet.
+    from workit_scout.identity import Identity
+
+    from app.services.bank_import import read_resume
+
+    text = (
+        "Projects\nAcademic Advising Bot  Mar 2026 - Present\nStony Brook University\n"
+        "- Answered 500 advising questions a week\n"
+    )
+    reply = {"entries": [
+        {"section": "projects", "title": "Academic Advising Bot", "organization": "Stony Brook University",
+         "start_month": "2026-03", "end_kind": "present", "bullets": ["Answered 500 advising questions a week"]},
+    ]}
+    reading = await read_resume(text, ScriptedLLM(_reading(reply)), Identity())
+    assert reading.entries[0].bullets == ["Answered 500 advising questions a week"]
+
+
+async def test_an_awards_giver_in_both_title_and_organization_leaves_the_title():
+    from workit_scout.identity import Identity
+
+    from app.services.bank_import import read_resume
+
+    reply = {"entries": [
+        {"section": "awards", "title": "First Place, Regional Design Competition – ASME", "organization": "ASME",
+         "award_date": "2025-04"},
+    ]}
+    reading = await read_resume(
+        _fixture_text("leadership_and_awards_single_column.txt"), ScriptedLLM(_reading(reply)), Identity()
+    )
+    award = next(e for e in reading.entries if e.section.value == "awards")
+    assert (award.title, award.organization) == ("First Place, Regional Design Competition", "ASME")
+
+
+def test_a_minor_the_model_copied_as_written_reads_as_the_parser_writes_it():
+    from app.schemas.bank import ModelReading
+    from app.services.bank_import import model_drafts
+
+    text = "Education\nRiverside State University\nB.S. in Biology  |  Minor in Writing & Rhetoric\n"
+    for field in ("Biology | Minor in Writing & Rhetoric", "Biology, minor in Writing & Rhetoric",
+                  "Biology; Minor: Writing & Rhetoric"):
+        reading = ModelReading.model_validate({"entries": [
+            {"section": "education", "title": "Riverside State University", "field_of_study": field},
+        ]})
+        assert model_drafts(reading, text)[0].field_of_study == "Biology, minor in Writing & Rhetoric"

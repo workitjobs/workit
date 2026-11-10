@@ -93,13 +93,15 @@ review, so the bank stayed empty. The parser's own copy,
 `resumes.parsed_json`, was dropped with it: two stores of the same facts
 drift apart.
 
-**Model parsing** (KAN-222): Import Again with `read_with_ai` reads the
-resume with the model and replaces the upload's entries the same way.
-Nothing falls back to it. The model gets the text with identity data
-removed, and each entry it returns is checked against the entry schema. It
-costs one AI reading a day (the parsing cap), counted only when it works.
-"Read It With AI" ran it from the upload note and intake's import card
-until KAN-353 took the button off both; no screen calls it now.
+**Model parsing** (KAN-222, KAN-732, ADR 0007): every reading of an
+upload asks the model first and keeps the parser's reading when the model
+cannot give one: upload, the parse preview, Import Updated Resume and
+Import Again. The model gets the text from the first section heading on,
+with identity data removed; each entry it returns is checked against the
+entry schema, and each field against the resume's words. It costs one AI
+reading a day (the parsing cap), counted only when the model's reading is
+saved; past it, the parser reads. "Read It With AI" asked for it by hand
+until KAN-353 took the button off; KAN-732 made it the default.
 
 ## Built resumes (KAN-207)
 

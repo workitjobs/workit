@@ -69,8 +69,11 @@ under any other heading the parser found.
   with the section mark every custom section wears. Add a Section sits at
   the end of the quiet line under the cards; its card takes a name (with
   Summary, Volunteering, Languages, Interests and Publications offered) and
-  the layout, then opens the new section to fill. A section's pencil holds
-  Rename, Delete Section (with its entries) and, for Entries, Clear All.
+  the layout, then opens the new section to fill. A section's heading holds
+  + and a ⋯ menu with Rename Section, Delete Section (with its entries,
+  asked in a modal) and, for Entries under one resume, Clear All, as the
+  fixed cards do since KAN-732 took away the section edit mode; each
+  entry's pencil is always in view.
   Under All Experiences, two sections of one name each add their owner's
   name.
 - **Resume editor**: the Experiences picker and Cut From Resume group
@@ -83,9 +86,10 @@ under any other heading the parser found.
 
 - Scout's facts (`workit_scout.facts`) and the autofiller read the six
   fixed sections only, so a custom section's text never reaches Scout.
-- Read It With AI reads the six fixed sections; its import keeps the
-  parser's custom sections (`bank_import.other_drafts`), so the model never
-  reads them.
+- The AI reading (KAN-732) reads the six fixed sections only; the
+  combined reading keeps the parser's custom sections, since the AI's
+  reading holds no entry for them (`bank_import.with_parsers_reading`), so
+  the model never reads them.
 - An entry's layout cannot change: a student who picked the wrong one
   deletes the section and adds it again.
 - Intake (Fill With Scout) asks about the fixed sections only.

@@ -69,7 +69,13 @@ import type { ScoutMessage } from "./stream";
  * a 416px column with about 4px text. From xl it docks as any other.
  */
 export function ScoutPanel() {
-  const { open, messages, reply, error, takeover } = useScout();
+  const { open: wanted, messages, reply, error, takeover } = useScout();
+  // While Ask Scout is off, Scout's own chat never shows: the panel opens
+  // only for a page that holds it. Without this, a panel opened by
+  // Experiences' Fill With Scout stayed open on the next page as the chat.
+  // Decided at render, not by closing the store: a page's takeover registers
+  // in an effect, so for one commit an opening panel has none yet.
+  const open = wanted && (ASK_SCOUT_LIVE || takeover !== null);
   const width = takeover ? "md:w-112" : "md:w-96";
   const floats = Boolean(takeover?.float);
   const answering = reply !== null;

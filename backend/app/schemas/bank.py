@@ -295,12 +295,10 @@ class DuplicateEntry(BaseModel):
 
 class ImportRequest(BaseModel):
     """POST body for Import Again. Without a resume id, import reads the
-    default resume, else the newest upload. `read_with_ai` reads the resume
-    with the model in place of the heuristic parser; only the student asks
-    for it (ADR 0003)."""
+    default resume, else the newest upload, as every upload is read: the
+    model first, the parser behind it (KAN-732, ADR 0007)."""
 
     resume_id: UUID | None = None
-    read_with_ai: bool = False
 
 
 class DraftEntry(EntryCreate):
@@ -334,9 +332,10 @@ class ImportResult(BaseModel):
     # a parse preview replaces any (KAN-372, ADR 0006).
     entries_replaced: int = 0
     skills_replaced: int = 0
-    # Who read the resume: the heuristic parser, or the model (KAN-222).
+    # Who read the resume: the model, or the heuristic parser behind it
+    # (KAN-732, ADR 0007).
     read_by: Literal["parser", "model"] = "parser"
-    # Model readings the student has left today, for "Read It With AI".
+    # AI readings the student has left today; at 0 the parser reads.
     uses_left: int
 
 
@@ -360,12 +359,13 @@ class PreviewDuplicate(BaseModel):
 
 
 class ResumePreview(BaseModel):
-    """POST .../resumes/preview (KAN-372, ADR 0006): what the parser reads
-    in a file, before anything is saved."""
+    """POST .../resumes/preview (KAN-372, ADR 0006): what a reading finds in
+    a file, before anything is saved."""
 
     entries: list[PreviewEntry]
     skills: list[PreviewSkill]
     duplicate_of: PreviewDuplicate | None = None
+    read_by: Literal["parser", "model"] = "parser"
 
 
 class ImportResponse(ImportResult):
@@ -419,3 +419,15 @@ class ModelReading(BaseModel):
     @classmethod
     def _null_is_empty(cls, value: object) -> object:
         return [] if value is None else value
+
+
+class ConfirmedReading(BaseModel):
+    """A parse preview's reading, sent back as the `reading` form field of
+    the upload that confirms it (KAN-732), so the confirm saves what the
+    student saw without reading the file again: one AI reading per resume.
+    Each entry passes the entry schema and each skill the catalog, as an
+    Add does; a preview entry's `replaces` is ignored."""
+
+    entries: list[DraftEntry] = Field(default_factory=list, max_length=200)
+    skills: list[ModelSkill] = Field(default_factory=list, max_length=500)
+    read_by: Literal["parser", "model"] = "parser"
