@@ -60,8 +60,8 @@ export function useResumeUpload({
 }: {
   uploaded: ResumeItem[];
   reload: () => Promise<void>;
-  /** A file whose text an upload already has: that upload's name. */
-  onDuplicate: (name: string) => void;
+  /** A file whose text an upload already has: that upload's id and name. */
+  onDuplicate: (id: string, name: string) => void;
 }) {
   // The name of the file in flight, or null.
   const [uploading, setUploading] = useState<string | null>(null);
@@ -83,7 +83,7 @@ export function useResumeUpload({
     fd.append("file", file);
     try {
       const { resume, error, duplicateOf, duplicateName } = await uploadResume(fd);
-      if (duplicateOf) return onDuplicate(duplicateName ?? "Uploaded resume");
+      if (duplicateOf) return onDuplicate(duplicateOf, duplicateName ?? "Uploaded resume");
       if (error) return setUploadError(error);
       if (resume?.bank) {
         setImported({ ...resume.bank, resume_id: resume.id, filename: resume.original_filename });

@@ -185,6 +185,34 @@ export function OriginalResume({ source }: { source: TailorSource }) {
   return <PreviewPages source={source} label="Original Resume" enabled />;
 }
 
+/**
+ * A resume's first page, small and read-only, for the Resumes page's
+ * duplicate modal (KAN-444): "Resume #6 has the same content" was abstract,
+ * and the page shows which resume it is before the student confirms a copy.
+ * The frame is one Letter page tall, so only page 1 shows, and it costs one
+ * render (about half a second) the first time a resume is shown.
+ */
+export function ResumeFirstPage({
+  source,
+  label,
+  version,
+}: {
+  source: TailorSource;
+  label: string;
+  version?: string;
+}) {
+  return (
+    <div
+      aria-label={`First page of ${label}`}
+      role="figure"
+      className="border-border-subtle mx-auto w-56 overflow-hidden rounded-xs border shadow-sm"
+      style={{ aspectRatio: "8.5 / 11" }}
+    >
+      <PreviewPages source={source} label={label} enabled version={version} />
+    </div>
+  );
+}
+
 /** A DOCX upload: pdf.js cannot draw one, so its file downloads instead. */
 function DocxNote({ id, label }: { id: string; label: string }) {
   const [error, setError] = useState<string | null>(null);

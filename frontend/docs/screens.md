@@ -2974,9 +2974,14 @@ upload's page.
   says "You Already Have This Resume. Resume #3 has the same content.
   Confirm to make a copy anyway." with Cancel and Confirm
   (`resumes/duplicate-resume-dialog.tsx`). Cancel makes nothing; Confirm
-  runs Generate again with `allow_duplicate` and opens the copy. It said
-  only "Duplicate Resume found: <name>" with OK until 2026-11-10, which
-  flagged the copy but neither explained it nor let the student go on.
+  runs Generate again with `allow_duplicate` and opens the copy. Under the
+  sentence it shows the resume it matches: a card with its name and when it
+  was created and last edited, and its first page (`ResumeFirstPage`, one
+  render from `/api/resume-preview`), so the student sees which one it is.
+  It opens before Generate's dialog, never over it: while the API compares,
+  the button says "Checking…". It said only "Duplicate Resume found:
+  <name>" with OK until 2026-11-10, which flagged the copy but neither
+  explained it nor let the student go on.
   "The same" is what prints: a new resume holds the whole bank, so it
   matches only when nothing changed since an earlier Generate.
   **Generate shows its steps, then opens the resume in the editor**
@@ -2986,12 +2991,14 @@ upload's page.
   as it ends. The middle two are the API's own lines (`POST
   .../built-resumes/stream` through the route handler
   `/api/resume-generate`), never a timer; the first runs until the first
-  line, the last while the editor loads, as a Tailor run ends. The student
+  line, the last while the editor loads, as a Tailor run ends. The dialog
+  opens only once the API says `saving` (its duplicate check passed), with
+  the first two steps ticked, or at once after a Confirm: a copy is asked
+  about first. The student
   reviews the new resume there: left on this list, it was one more row to
   find and open (the user's call, 2026-11-10). It is the steps dialog
   Tailor's run draws (`components/steps-dialog.tsx`), and it cannot be
-  closed. A duplicate closes it and opens the pop-up below; any other
-  failure closes it and shows the message over the list. Until then the
+  closed. Any failure closes it and shows the message over the list. Until then the
   button's label read "Generating…" for the whole wait, about 3.6 s from a
   laptop, and nothing else moved.
 - **Uploads** in Your Uploaded Resumes: picking a file uploads it at once
@@ -2999,7 +3006,8 @@ upload's page.
   parsed content. **A file whose text the student already uploaded is
   refused** (KAN-267): nothing is kept, whenever and however the file was
   exported again, and the same modal opens: "You Already Have This
-  Resume. Your upload <name> has the same text." with OK
+  Resume. Your upload <name> has the same text." with the upload's card,
+  its first page and OK
   (`resumes/duplicate-resume-dialog.tsx`). An upload is never confirmed:
   the database keeps one upload per text, and a copy would take one of
   the 5 slots.

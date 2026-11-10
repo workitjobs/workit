@@ -154,6 +154,11 @@ export function BuiltResumes({
   const [uploaded, setUploaded] = useState(initialUploaded);
   // Generate's step while it runs (KAN-444), null otherwise
   const [generating, setGenerating] = useState<GenerateStep | null>(null);
+  // Whether Generate's dialog shows: only once the duplicate check has
+  // passed or been confirmed, so a copy is asked about before any
+  // "Generating Your Resume" (the user's call, 2026-11-10). Until then the
+  // button says "Checking…".
+  const [showSteps, setShowSteps] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // The resume a Generate or an upload would copy, while its modal is open.
   const [duplicate, setDuplicate] = useState<Duplicate | null>(null);
@@ -222,17 +227,22 @@ export function BuiltResumes({
   const upload = useResumeUpload({
     uploaded,
     reload,
-    onDuplicate: (name) => setDuplicate({ kind: "upload", name }),
+    onDuplicate: (id, name) =>
+      setDuplicate({ kind: "upload", name, resume: uploaded.find((r) => r.id === id) }),
   });
 
   // Streamed through /api/resume-generate, so the dialog shows each step
-  // as the API starts it (KAN-444). `allowDuplicate`: the student confirmed
-  // a copy of a resume they have, so the API skips that check.
+  // as the API starts it (KAN-444). The dialog opens once the API says
+  // `saving`, its check passed; a copy opens the duplicate modal instead.
+  // `allowDuplicate`: the student confirmed a copy, so the API skips the
+  // check and the dialog opens at once.
   async function generate(allowDuplicate = false) {
     setGenerating("reading");
+    setShowSteps(allowDuplicate);
     setError(null);
     const failed = (message: string) => {
       setGenerating(null);
+      setShowSteps(false);
       setError(message);
     };
     let made: BuiltResume | null = null;
@@ -248,11 +258,18 @@ export function BuiltResumes({
         return failed(typeof detail === "string" ? detail : "Generate failed. Try again.");
       }
       for await (const event of readEvents<GenerateStreamEvent>(res.body)) {
-        if (event.type === "phase") setGenerating(event.phase);
-        else if (event.type === "error") {
+        if (event.type === "phase") {
+          setGenerating(event.phase);
+          if (event.phase === "saving") setShowSteps(true);
+        } else if (event.type === "error") {
           if (event.status !== 409) return failed(event.message);
           setGenerating(null);
-          return setDuplicate({ kind: "generate", name: event.name ?? "One of your resumes" });
+          setShowSteps(false);
+          return setDuplicate({
+            kind: "generate",
+            name: event.name ?? "One of your resumes",
+            resume: resumes.find((r) => r.id === event.built_resume_id),
+          });
         } else made = event.resume;
       }
     } catch {
@@ -360,7 +377,13 @@ export function BuiltResumes({
               {upload.button}
               <Button size="sm" onClick={() => void generate()} disabled={generating !== null}>
                 <FileTextIcon aria-hidden className="size-4" />
-                {generating ? "Generating…" : <ShortLabel verb="Generate" />}
+                {generating === null ? (
+                  <ShortLabel verb="Generate" />
+                ) : showSteps ? (
+                  "Generating…"
+                ) : (
+                  "Checking…"
+                )}
               </Button>
             </div>
           </div>
@@ -448,7 +471,7 @@ export function BuiltResumes({
         }}
         onClose={() => setDuplicate(null)}
       />
-      <GenerateRunning step={generating} />
+      <GenerateRunning step={showSteps ? generating : null} />
     </>
   );
 }

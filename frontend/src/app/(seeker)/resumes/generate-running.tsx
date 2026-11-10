@@ -8,7 +8,9 @@ import { cn } from "@/lib/cn";
 /** Generate's steps, in order (KAN-444). The first runs until the API's
  *  first line (`checking`), the API names the next two as it starts them
  *  (`GenerateStreamEvent`), and the last is the editor loading the new
- *  resume, as a Tailor run ends. */
+ *  resume, as a Tailor run ends. The dialog opens at `saving`, the first
+ *  two ticked, since a copy is asked about before it: the button says
+ *  "Checking…" until then. After a Confirm it opens at `reading`. */
 const STEP = {
   reading: "Reading your experience bank",
   checking: "Checking your resumes for a copy",
@@ -81,9 +83,8 @@ function WritingPage() {
  * page writing itself and Generate's steps as they happen. Until then the
  * button's label read "Generating…" for the whole wait, about 3.6 s from a
  * laptop, and nothing else moved. A saved resume opens in the editor, and
- * the dialog stays until the editor's page replaces this one. A duplicate
- * closes it and opens the Duplicate Resume pop-up; any other failure closes
- * it and shows its error over the list.
+ * the dialog stays until the editor's page replaces this one. A failure
+ * closes it and shows its error over the list.
  */
 export function GenerateRunning({ step }: { step: GenerateStep | null }) {
   return (
