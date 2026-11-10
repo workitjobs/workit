@@ -33,6 +33,30 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
   the drive and rehearsal guards and nothing else, waits for the dialog to
   go, and the fill goes on to the real form. A button that holds a frame
   is never pressed (`DriveGuard.may_press`, KAN-710).
+- A form's Apply button sends, but for a posting's Apply that only opens the application (KAN-725,
+  `opens`): TAL.net's posting posts a form of its anti-forgery token alone to `.../opp/<id>/apply/<lang>`.
+  Only on a job system proven to open the form there and send nothing: TAL.net alone for now
+  (`claude_fill.OPENS_ONLY`, and the guard's own `START_HOSTS`, kept the same; a host joins both only
+  once its posting is proven so). Claude fill vouches for the page only at its first drive, on the
+  Posting's own URL (`DriveGuard.let_start_click`), in the top frame alone. The vouch is the guards' own
+  state (`start`, set by `submit_guard.control` in both guards, cleared by `arm()`), never a `window`
+  flag: a page that sets `__applyStartClick`, or sends a control event without the run's token, changes
+  nothing (KAN-710). Then Apply's own press of that button (a trusted click, or a plain Worker's marked
+  one; never a page script's click) goes through once, while its words name no send, its form holds a
+  hidden token and buttons and nothing else, bound for its own origin and no final URL, no field on the
+  page holds an answer, and the page shows no draft, review or saved-profile apply (`DRAFT` in its text,
+  `HEADED` in its title or headings). A key, input or change, a click on anything but that Apply or a
+  cookie banner's button, or the page changing its URL by script (the `navigate` event) takes the word
+  back. A frame takes back the top page's word by an event of its guard's (`__<key>Unvouch`), which any
+  page may send, since it can only take the word away. Once the Apply went through, only that form's own
+  submission goes, once, still a token alone: the guard sends its own copy of it (the hidden fields and the
+  button's name), and each guard lets that one post leave (`startPost`, at its `navigate` event) only with
+  those entries, to that form's target. Nothing else is posted to the site (its other subdomains too) from
+  that page. A reopened form's and every later page's Apply stay blocked: the word is gone with the
+  Posting's document. Elsewhere a posting's Apply may apply at once from a profile the site holds, in any
+  words, so it stays blocked there. Without this, Claude's first click on TAL.net's posting was a Handoff
+  with no field filled. Still open: an answer typed in another site's frame on the Posting's page can't
+  take the word back, since that frame can't reach the top page's guard.
 - A POST to a final application URL stays blocked under plain code's Next and profile clicks (KAN-639,
   `postsFinal`). A path ending in `/apply` is final by its name alone, so there a Next goes on only when
   the page says steps remain ("Step 2 of 5", or a list past its `aria-current=step` item) where a person
@@ -50,7 +74,7 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
   is clicked (in a shadow root, or by a script's `click()` on a link in no document, too) and refuses any
   script that sets one.
 - The guards' state (KAN-710) is in each guard's closure, never on `window`: lifted, held, paused (an
-  emailed code), the account, profile and upload allowances, Ask's, the captcha frame's. Apply sets it only
+  emailed code), the account, profile and upload allowances, Ask's, the captcha frame's, the Posting's Apply's vouch (KAN-725). Apply sets it only
   with `submit_guard.control`: an event named with a per-run token (`TOKENS`), sent from a CDP isolated world
   (`Page.createIsolatedWorld`), the worker extension's isolated world (`guard.control`), or an init script
   (`_init`) before any page code. The rehearsal guard tells Apply of Lisul's own presses (his Submit, Fill

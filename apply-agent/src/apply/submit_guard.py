@@ -10,7 +10,9 @@ a page Claude drives. In each frame, before the page's own code, it blocks:
 - a click on a button whose words send: submit, send, finish or complete
   anywhere in them ("Review and Submit", "Continue & Submit", "Complete
   application"), or apply on a form's button ("Apply"; a job page's Apply
-  link that opens the form is no form's). Workday's Review Submit has no
+  link that opens the form is no form's, nor is a posting's Apply button
+  whose form holds only a hidden token, once, on the Posting's own page
+  before anything is answered on it: TAL.net's opens the form). Workday's Review Submit has no
   known endpoint, so this is its guard; every Filler's submit is such a
   click;
 - a POST form's native submission (`form.submit()`, or a submit event's
@@ -71,7 +73,7 @@ the rehearsal's guard blocked too, so a click Claude makes there that would
 send the form is the same Handoff, and still sends nothing.
 
 What a page can't reach (KAN-710, PR 477's review): the guards' state (lifted, held, the account, profile and
-upload allowances, Ask's) lives in each guard's closure, set only by control(): an event named with this run's
+upload allowances, Ask's, the Posting's Apply's vouch) lives in each guard's closure, set only by control(): an event named with this run's
 token, sent from an isolated world or an init script, which no page sees. The guard tells Apply of Lisul's presses
 in its own voice (a console line, or the worker extension's event, with the token). It reads with built-ins taken
 before any page code, and a listener of its that throws blocks. Each form post is judged again as it leaves, with
@@ -165,6 +167,7 @@ _TEMPLATE = r"""
   const tag = (el) => isEl(el) ? tagGet(el) : '';
   const closest = fn(EP, 'closest'), matches = fn(EP, 'matches'), qs = fn(EP, 'querySelector'), qsa = fn(EP, 'querySelectorAll');
   const attr = fn(EP, 'getAttribute'), hasAttr = fn(EP, 'hasAttribute'), removeAttr = fn(EP, 'removeAttribute');
+  const setAttr = fn(EP, 'setAttribute'), appendTo = fn(NP, 'appendChild'), make = fn(DP, 'createElement');
   const nextEl = get(EP, 'nextElementSibling'), contains = fn(NP, 'contains'), textOf = get(NP, 'textContent');
   const parentEl = get(NP, 'parentElement');
   const docQs = fn(DP, 'querySelector'), docQsa = fn(DP, 'querySelectorAll'), byId = fn(DP, 'getElementById');
@@ -224,7 +227,10 @@ _TEMPLATE = r"""
   // from an isolated world (a CDP isolated world, or the worker extension's), or by an init script before any page
   // code. The guard hears it first, at the window, and stops it there.
   const S = {lifted: false, held: false, paused: false, note: null, account: null, profile: false, upload: false,
-             asking: false, askTick: false, driving: false, touchUntil: 0, applied: null, appliedDismissed: false};
+             asking: false, askTick: false, driving: false, touchUntil: 0, applied: null, appliedDismissed: false,
+             start: false};
+  // The Posting's Apply that went through (KAN-725, below): the button, and whether its one post has left.
+  let starting = null, startGone = false;
   const MARK = '__@KEY@Guard@TOKEN@';
   if (apply(ownP, W, [MARK])) return;
   defineProp(W, MARK, {value: true});
@@ -253,7 +259,7 @@ _TEMPLATE = r"""
       const at = targetGet(event);
       S.account = cmd.account === true ? true : cmd.account === 'element' && isEl(at) ? at : null;
     }
-    const FLAGS = ['profile', 'upload', 'asking', 'askTick', 'driving', 'appliedDismissed'];
+    const FLAGS = ['profile', 'upload', 'asking', 'askTick', 'driving', 'appliedDismissed', 'start'];
     for (let i = 0; i < FLAGS.length; i++) if (has(cmd, FLAGS[i])) S[FLAGS[i]] = cmd[FLAGS[i]] === true;
     if (has(cmd, 'applied')) S.applied = typeof cmd.applied === 'string' ? cmd.applied : null;
     for (let i = 0; i < onControl.length; i++) { try { onControl[i](cmd); } catch (e) {} }
@@ -397,6 +403,9 @@ _TEMPLATE = r"""
     if (lifted()) return false;
     if (test(READS, text(method) || 'GET')) return false;
     const href = resolve(text(url), base()) || text(url);
+    // The Posting's Apply went through: nothing else is posted to its own site from the page (KAN-725), its
+    // other hosts included (an API on another subdomain).
+    if (starting !== null) { try { if (site(hostGet(new URL_(href))) === site(location.hostname)) return true; } catch (e) { return true; } }
     if (any(NOT_FINAL, (r) => test(r, href))) return false;
     return any(FINAL_URLS, (r) => test(r, href)) || any(FINAL_BODIES, (r) => test(r, body));
   };
@@ -421,6 +430,134 @@ _TEMPLATE = r"""
     return test(SENDS, words) || (test(APPLY, words) && !!formOf(el));
   };
 
+  // --- a posting's Apply that only opens the application (KAN-725), in the guard's closure like the rest
+  // TAL.net's posting puts its Apply (a submit input) in a POST form of its anti-forgery token alone, bound for
+  // .../opp/<id>/apply/<lang>, which answers with the application's first page (candidate/eform/...). Plain code
+  // vouches for the page by the control (DriveGuard.let_start_click: S.start) only at Claude fill's first drive, on
+  // the Posting's own URL. No page script can set it: a page's window.__applyStartClick is nothing to the guard.
+  // Only on a job system whose posting's Apply is known to open the form alone (TAL.net's, live): elsewhere a
+  // posting's Apply may apply at once from a profile the site holds, in any words.
+  const START_HOSTS = [/(^|\.)tal\.net$/i];
+  const hostGet = get(URL_.prototype, 'hostname');
+  const site = (h) => {  // a host's site, near enough (more blocked, never less)
+    const i = lastIndexOf(h, '.'), j = i > 0 ? lastIndexOf(h, '.', i - 1) : -1;
+    return slice(h, j + 1);
+  };
+  const startClick = () => S.start && any(START_HOSTS, (r) => test(r, location.hostname));
+  // Anything done on the page takes the word back: a key, an input or change, a click on anything but that Apply or
+  // a cookie banner's button, or the page changing its URL by script (a one-page app turning into the form). In a
+  // frame it takes back the top page's too, by an event any page may send: it can only take the word away.
+  const UNVOUCH = '__@KEY@Unvouch';
+  on(UNVOUCH, (event) => { stopNow(event); S.start = false; });
+  const unvouch = () => {
+    S.start = false;
+    try { const top = apply(topGet, W, []); if (top !== W) dispatch(top, new Custom(UNVOUCH)); } catch (e) {}
+  };
+  const COOKIES = /\b(accept|reject|decline|allow|deny|cookies?|consent|close|dismiss|got it|ok(ay)?)\b/i;
+  const cookieButton = (el) => {
+    if (!el || !test(COOKIES, wordsOf(el))) return false;
+    for (let at = parentEl(el), i = 0; at && i < 5; at = parentEl(at), i++) {
+      const said = innerText(at);
+      if (said.length > 3000) return false;
+      if (test(/\bcookies?\b/i, said)) return true;
+    }
+    return false;
+  };
+  // Only Apply's own press of it: a trusted click, or a plain Worker's marked one; a page's own click is no word.
+  const opensBy = (el, event) => user(event) && opens(el);
+  for (const kind of ['keydown', 'input', 'change', 'click']) on(kind, (event) => {
+    try {  // what the guard can't read takes the word back, and blocks nothing
+      if (kind === 'click') {
+        const control = up(struck(event), 'button, input, a, [role=button]');
+        if (control && (cookieButton(control) || opensBy(control, event))) return;
+      }
+    } catch (e) {}
+    unvouch();
+  });
+  // A URL changed by script: the Navigation API hears pushState and replaceState whoever's copy calls them.
+  if (W.navigation) listen(W.navigation, 'navigate', () => { S.start = false; });
+  for (const kind of ['popstate', 'hashchange']) on(kind, () => { S.start = false; });
+  const TOKEN = /token|csrf|xsrf|nonce|authenticity|viewstate|eventvalidation/i;  // a form's anti-forgery token
+  // A page that shows an application of the applicant's already (a draft the site kept, its review), or one that
+  // applies with a profile the site holds: its Apply may send.
+  const DRAFT = /\b(review (and|&) (submit|apply)|review (your|my) (application|answers)|application (summary|preview)|your answers|(continue|resume|finish) (your|my) application|(saved|your|my) draft|draft application|declaration|signed in as|(apply|applying) with (your|my|a|the|saved) (saved )?(profile|resume|cv|details)|quick apply|one[- ]click apply|easy apply)\b/i;
+  // A heading that names an application, its review, summary or draft: no posting's (TAL.net's names the job).
+  const HEADED = /\b(review|summary|draft|confirm\w*|(your|my) application|application (form|details))\b/i;
+  const tickedGet = get(HTMLInputElement.prototype, 'checked'), indexGet = get(HTMLSelectElement.prototype, 'selectedIndex');
+  const areaGet = get(HTMLTextAreaElement.prototype, 'value'), titleGet = get(DP, 'title');
+  // A field holding an answer, as an application's would: shown, and typed in, ticked, chosen or given a file.
+  const filled = (n) => {
+    const type = lower(typeOf(n)), t = tag(n);
+    if (test(/^(hidden|submit|button|reset|image)$/, type) || !seen(n)) return false;
+    if (t === 'SELECT') return indexGet(n) > 0;
+    if (t === 'TEXTAREA') return trim(text(areaGet(n))) !== '';
+    if (type === 'checkbox' || type === 'radio') return tickedGet(n);
+    if (type === 'file') return chosen(n);
+    return trim(valueOf(n)) !== '';
+  };
+  // The form, as it is now: a hidden token and buttons only, bound for the page's own origin and no final URL.
+  const tokenOnly = (form, by) => {
+    if (!every(fields(form), (n) => (typeOf(n) === 'hidden' && test(TOKEN, text(attr(n, 'name')))) || tag(n) === 'FIELDSET'
+      || test(/^(submit|button|reset)$/, typeOf(n)))) return false;
+    const href = postTarget(form, by);
+    return originOf(href) === pageOrigin() && !any(FINAL_URLS, (r) => test(r, href));
+  };
+  // Only on the Posting's own page under plain code's word, in the top frame, and once: its words say apply and
+  // nothing that sends, its form is a token alone, nothing on the page holds an answer, and the page shows no draft,
+  // review or saved-profile apply.
+  const opens = (el) => {
+    const form = formOf(el), words = wordsOf(el);
+    if (!startClick() || apply(topGet, W, []) !== W || !form || inShadow(form) || test(SENDS, words) || !test(APPLY, words)) return false;
+    const body = bodyOf(D);
+    if (!tokenOnly(form, el) || test(DRAFT, body ? innerText(body) : '')) return false;
+    let heads = text(titleGet(D));
+    const hs = all(D, 'h1, h2, h3, h4, [role=heading], legend');
+    for (let i = 0; i < hs.length; i++) heads += ' ' + innerText(hs[i]);
+    if (test(HEADED, heads)) return false;
+    return !any(all(D, 'input, select, textarea'), filled)
+      && !any(all(D, '[contenteditable]:not([contenteditable=false])'), (n) => !!trim(innerText(n)));
+  };
+  // What the Apply's one post may carry: its form's hidden fields and the button's own name, nothing else.
+  const startEntries = (form, by) => {
+    const out = [], own = fields(form);
+    for (let i = 0; i < own.length; i++) {
+      const name = text(attr(own[i], 'name'));
+      if (typeOf(own[i]) === 'hidden' && name) push(out, [name, valueOf(own[i])]);
+    }
+    const name = text(attr(by, 'name'));
+    if (name) push(out, [name, valueOf(by)]);
+    return out;
+  };
+  // A post that is that one, as it leaves (each guard judges it, whichever made it): to the form's own target, with
+  // those entries alone, while the form is a token still.
+  const startPost = (href, sent) => {
+    if (starting === null || startGone) return false;
+    const form = formOf(starting);
+    if (!form || inShadow(form) || !tokenOnly(form, starting) || href !== postTarget(form, starting)) return false;
+    const kept = startEntries(form, starting), want = [];
+    for (let i = 0; i < kept.length; i++) push(want, kept[i][0] + '=' + kept[i][1]);
+    return sent.length === want.length && every(sent, (e) => any(want, (w) => w === e)) && every(want, (w) => any(sent, (e) => e === w));
+  };
+  // Sent as Apply's own copy of the form, its token and the button's name alone, so no handler of the page's (its
+  // submit or formdata event) can add to it after this check.
+  const sendStart = (form, by) => {
+    const copy = make(D, 'form');
+    setAttr(copy, 'method', 'post');
+    setAttr(copy, 'action', postTarget(form, by));
+    setAttr(copy, 'hidden', '');  // an attribute, not a style: a page's CSP may refuse style attributes (TAL.net's does)
+    const kept = startEntries(form, by);
+    for (let i = 0; i < kept.length; i++) {
+      const input = make(D, 'input');
+      setAttr(input, 'type', 'hidden');
+      setAttr(input, 'name', kept[i][0]);
+      setAttr(input, 'value', kept[i][1]);
+      appendTo(copy, input);
+    }
+    appendTo(bodyOf(D) || D.documentElement, copy);
+    reading = true;  // no page handler of its formdata event runs
+    try { apply(submit, copy, []); } finally { reading = false; }
+  };
+
   // Clicks on a submit button, before any of the page's handlers.
   on('click', judged((event) => {
     const target = up(targetGet(event), 'button, input[type=submit], input[type=button], [role=button], a');
@@ -431,6 +568,11 @@ _TEMPLATE = r"""
       // click, or a plain Worker's press from the tile.
       if (sends(target) && user(event)) tell('__applyLisulPressed', slice(trim(wordsOf(target)), 0, 80),
         accountForm(target) || codeForm(target));
+      return;
+    }
+    if (opensBy(target, event)) {  // the Posting's Apply, once (KAN-725)
+      unvouch();
+      starting = target;
       return;
     }
     if (!sends(target)) return;
@@ -625,6 +767,13 @@ _TEMPLATE = r"""
     if (lifted()) return;
     const form = targetGet(event), by = submitterGet(event);
     if (!isForm(form)) return;
+    // Only the Posting's Apply's own form, once, and only as it is now (no field or target added since): the guard
+    // sends its copy, and no handler of the page's hears this submission (KAN-725).
+    if (starting !== null && by === starting && !startGone && form === formOf(by) && !inShadow(form) && tokenOnly(form, by)) {
+      prevent(event);
+      stopNow(event);
+      return sendStart(form, by);
+    }
     posting = {form, by, press: fromPress(form, by)};
     if (readyOf(D) === 'loading' && relayLike(form, by)) {  // a relay's post as the page loads: judged once it has
       prevent(event);
@@ -678,7 +827,8 @@ _TEMPLATE = r"""
       // or one bound for the final URL (a Continue whose handler calls the application form's submit()).
       const step = !inShadow(this) && fromPress(this, null) && !postsFinal(this, null) && (password(this) || !hadSends(this));
       go = lifted() || step || !posts(this, null)
-        || (!inShadow(this) && (relay(this, null) || frameLoad(this, null) || uploadPost(this, null)));
+        || (!inShadow(this) && (relay(this, null) || frameLoad(this, null) || uploadPost(this, null)))
+        || (!inShadow(this) && posts(this, null) && startPost(postTarget(this, null), ownEntries(this, null)));  // KAN-725's copy
     } catch (e) {}  // a form the guard can't read is not posted
     if (!go && readyOf(D) === 'loading' && relayLike(this, null)) {  // judged once the rest of the page is there
       const form = this;
@@ -745,6 +895,7 @@ _TEMPLATE = r"""
     const data = navData(event);
     if (data === null || lifted()) return;  // only a form's post is judged here
     const href = destURL(navTo(event)), from = navFrom ? navFrom(event) : null;
+    if (startPost(href, entriesOf(data))) { startGone = true; return; }  // the Posting's Apply's one post (KAN-725)
     let go;
     if (isEl(from) && ownerDoc(from) === D) {
       // A script's form.submit() in a link's click names the link: the form is the one the guard last let post.
