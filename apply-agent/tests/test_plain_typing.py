@@ -78,13 +78,13 @@ def test_the_old_untrusted_path_shows_the_text_and_the_box_takes_none(tmp_path):
             page.add_script_tag(content=script)
         run = lambda method, *args: page.evaluate("([m, a]) => __applyDom.run(m, a)", [method, list(args)])
         assert run("check", "input[value=No]", True) == {"ok": None}
-        assert run("fill", "#why", "C++ firmware") == {"ok": None}
-        assert run("type", "#school", "Stony") == {"ok": None}
-        run("insert", " Brook")
+        assert run("fill", "#why", "C++ projects") == {"ok": None}
+        assert run("type", "#school", "Acme") == {"ok": None}
+        run("insert", " College")
         shown = page.evaluate("() => [why.value, school.value, document.querySelector('input[value=No]').checked]")
         taken = page.evaluate("() => taken")
         browser.close()
-    assert shown == ["C++ firmware", "Stony Brook", True]
+    assert shown == ["C++ projects", "Acme College", True]
     assert taken == {}
 
 
@@ -161,13 +161,13 @@ def tile(page, event: dict):
 
 def test_fill_type_and_insert_text_reach_a_box_that_takes_only_a_keyboards_text(amazon):
     page, _ = amazon
-    page.locator("#why").fill("C++: wrote our robot's firmware.")
-    page.locator("#school").press_sequentially("Stony")
-    page.keyboard.insert_text(" Brook")
-    page.locator("#why").fill("C++ firmware")  # a second fill replaces it, as Playwright's does
+    page.locator("#why").fill("C++: a course project.")
+    page.locator("#school").press_sequentially("Acme")
+    page.keyboard.insert_text(" College")
+    page.locator("#why").fill("C++ projects")  # a second fill replaces it, as Playwright's does
 
-    assert taken(page) == {"why": "C++ firmware", "school": "Stony Brook"}
-    assert page.evaluate("() => [why.value, school.value]") == ["C++ firmware", "Stony Brook"]
+    assert taken(page) == {"why": "C++ projects", "school": "Acme College"}
+    assert page.evaluate("() => [why.value, school.value]") == ["C++ projects", "Acme College"]
     assert page.evaluate("() => [document.getElementById('why-error').hidden, document.getElementById('school-error').hidden]") == [True, True]
     assert page.evaluate("() => events.filter(e => e.endsWith(':false'))") == []  # every input trusted
 
@@ -175,18 +175,18 @@ def test_fill_type_and_insert_text_reach_a_box_that_takes_only_a_keyboards_text(
 def test_the_tiles_text_and_keys_reach_it_as_his_keyboards_do(amazon):
     page, _ = amazon
     page.locator("#school").focus()
-    for event in ({"type": "text", "text": "S"}, {"type": "text", "text": "tony Brookx"}, {"type": "key", "key": "Backspace"},
+    for event in ({"type": "text", "text": "A"}, {"type": "text", "text": "cme Collegex"}, {"type": "key", "key": "Backspace"},
                   {"type": "key", "key": "ArrowLeft"}, {"type": "text", "text": "!"}, {"type": "key", "key": "Delete"}):
         tile(page, event)
 
-    assert page.input_value("#school") == "Stony Broo!"
-    assert taken(page) == {"school": "Stony Broo!"}
+    assert page.input_value("#school") == "Acme Colleg!"
+    assert taken(page) == {"school": "Acme Colleg!"}
 
 
 def test_enter_never_sends_the_form_from_a_field_or_its_submit_button(amazon):
     # On amazon.jobs a synthetic Enter in a box clicked the form's submit button and went on to Review.
     page, site = amazon
-    page.locator("#school").fill("Stony Brook")
+    page.locator("#school").fill("Acme College")
     page.locator("#school").press("Enter")
     page.keyboard.press("Enter")
     tile(page, {"type": "key", "key": "Enter"})
@@ -220,11 +220,11 @@ def test_the_tiles_text_reaches_such_a_box_in_a_cross_origin_frame(amazon):
     inner = next(f for f in page.frames if "example.org" in f.url)
     frame, box = page.locator("iframe").bounding_box(), inner.locator("#school").bounding_box()
     page.mouse.click(frame["x"] + box["x"] + 5, frame["y"] + box["y"] + 5)  # as the tile's press does
-    tile(page, {"type": "text", "text": "S"})
-    tile(page, {"type": "text", "text": "BU"})
+    tile(page, {"type": "text", "text": "A"})
+    tile(page, {"type": "text", "text": "CU"})
 
-    assert inner.input_value("#school") == "SBU"
-    assert inner.evaluate("() => taken") == {"school": "SBU"}
+    assert inner.input_value("#school") == "ACU"
+    assert inner.evaluate("() => taken") == {"school": "ACU"}
 
 
 def test_a_radio_clicked_and_text_typed_survive_a_reload(amazon):
@@ -232,14 +232,14 @@ def test_a_radio_clicked_and_text_typed_survive_a_reload(amazon):
     # the radios an earlier Ask set blank. Here only what the server holds comes back after a reload.
     page, site = amazon
     page.get_by_role("radio", name="No").check()
-    page.locator("#why").fill("C++ firmware")
-    page.locator("#school").press_sequentially("SBU")
+    page.locator("#why").fill("C++ projects")
+    page.locator("#school").press_sequentially("ACU")
     page.wait_for_timeout(300)  # the last auto-save
     page.reload()
 
-    assert site.saved == {"sponsor": "No", "why": "C++ firmware", "school": "SBU"}
+    assert site.saved == {"sponsor": "No", "why": "C++ projects", "school": "ACU"}
     assert page.evaluate("() => [why.value, school.value, document.querySelector('input[value=No]').checked]") == [
-        "C++ firmware", "SBU", True]
+        "C++ projects", "ACU", True]
 
 
 @pytest.mark.parametrize("when", ["pointermove", "pointerdown"])
