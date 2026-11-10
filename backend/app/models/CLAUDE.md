@@ -1329,6 +1329,10 @@ Real, not forgotten. Do not treat their absence as a decision already made.
   since KAN-424 the batch tab's Rewrite on any answer their Claude wrote
   (`review.redo`), whose reason is the student's steer ("The student asked
   for another version: Make it shorter."). No column changed for it.
+  Its `truth` map (`{name: {answer, reason, quote}}`, KAN-748) is the
+  truth check's flag on each answer saved with claims the student's facts
+  don't hold (`review.flag_claims`); like a review flag, it counts only
+  while its answer is the row's, and `save_review` carries it over.
 - **`connector_clients`, `connector_requests` and `connector_tokens` belong
   to `app/connector/oauth.py`**, the one writer. Tokens and codes are kept
   as sha256 only; a row's `grant_id` ties an access token to its refresh
