@@ -288,13 +288,25 @@ class WorkdayFiller:
         if not changed:
             return
         wanted = changed[0].name.split(" / ", 1)[0]  # a Question's name starts with its step
+        if self._back_to(page, wanted):
+            # Back draws each step from what the page kept of it, not from Workday's server. Filled again on that
+            # page, NVIDIA's My Experience answered Save and Continue with Workday's error page (live, KAN-758). Once
+            # reloaded, the page loads the step from Workday, as a fill on the draft's first visit does.
+            page.reload()
+            self._back_to(page, wanted)
+
+    def _back_to(self, page: Page, wanted: str) -> bool:
+        """Press Back until the page shows `wanted` (or has no Back): whether it pressed it."""
+        pressed = False
         for _ in range(MAX_BACK):
             step = self._shown(page)["step"]
             back = page.locator(BACK_BUTTON).first
             if step == wanted or not back.count() or not back.is_visible():
-                return
+                break
             back.click()
+            pressed = True
             _until(page, lambda: _on_step(page) and _step(page) != step)
+        return pressed
 
     def resume_blocked(self, page: Page) -> str:
         """Why Resume can't go on from the page now, or "": only from an
