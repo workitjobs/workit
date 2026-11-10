@@ -2765,7 +2765,8 @@ with no proposals to accept and no Done (2026-10-25).
   `onPreview` on `ResumeLists`), which opens the resume in a dialog
   (`ResumePreviewDialog`, `resume-preview.tsx`) without moving the pick.
   The other resume dialogs pass no `onPreview` and show no eye; the
-  Resumes page's built resume rows open the same dialog (KAN-358). A preview
+  Resumes page's built resume cards opened the same dialog (KAN-358) until
+  2026-11-10. A preview
   sat in a column beside the list until 2026-10-26; the list needed the
   width, and a dialog gives the page room to read. The dialog takes a
   name and a `TailorSource`, so the review step opens it too, for View
@@ -2912,9 +2913,8 @@ PDF", "Made from your experiences", "For <posting> at <company>", with
 Posting Closed beside the name), then **Created** (date and time, on the
 student's clock, the year only when it is not this one) and **Last
 Edited** (the day, or "Not edited") in labeled columns, then its star,
-Preview, Rename, Download and Delete. The columns have fixed widths and the
-icons a column at least five icons wide, so every card's dates line up,
-an upload's (four icons) and a built resume's alike. The rows before were
+Rename, Download and Delete, the same four icons on every card. The
+columns have fixed widths, so every card's dates line up. The rows before were
 52px grey strips in one white card with the date against the icons, which
 the user found skinny and cramped, and whose Created column moved with
 each row's icons. Below `@2xl` of the card (672px) the columns hide and
@@ -3097,11 +3097,11 @@ upload's page.
   (KAN-258, `resumes/built-resume-row.tsx`), from `components/resume-row.tsx`'s box (`RESUME_ROW`), star
   (`PrimaryStar`) and icon buttons (`ROW_ACTION`), so the two lists cannot
   drift apart: the PDF mark, the name, one line with one day, then the
-  star, **Preview**, Rename, **Download PDF** and Delete. Preview (an eye,
-  KAN-358) opens the resume read-only in Tailor's Preview dialog
-  (`ResumePreviewDialog`, rendered as it is now), so a student can look at
-  it without the editor. An upload's row has no eye: its card opens its
-  own read-only page. **The whole card opens the resume editor**: the
+  star, Rename, **Download PDF** and Delete, the same four icons as an
+  upload's card. Preview (an eye, KAN-358) opened the resume read-only in
+  Tailor's Preview dialog until 2026-11-10; it came off, the user's call,
+  so every card has the same four icons and its dates line up. The card
+  itself opens the resume. **The whole card opens the resume editor**: the
   name's link stretches over it and the icons sit above that link, and it
   lifts under the pointer as every whole-target card does (`docs/motion.md`).
   It held Open, PDF and Word buttons until KAN-258, when downloading moved

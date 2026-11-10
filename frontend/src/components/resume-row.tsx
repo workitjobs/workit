@@ -56,12 +56,13 @@ export const ROW_NAME = "min-w-1/2 flex-1";
 
 /** The Resumes page's card grid (2026-11-10, after the Tracker's cards):
  *  the name and what the resume is, Created and Last Edited in fixed
- *  columns, and the icons in a column at least five icons wide, so every
- *  card's columns line up whatever icons it has. An upload has no Preview,
- *  and an `auto` icon column moved its dates against a built resume's.
- *  Below `@2xl` of the card (672px) the dates join the line under the name. */
+ *  columns, and the icons in a column four icons wide (star, Rename,
+ *  Download, Delete on every card), so every card's columns line up. A
+ *  built resume's fifth icon, Preview, moved its dates against an upload's
+ *  until it went. Below `@2xl` of the card (672px) the dates join the line
+ *  under the name. */
 const CARD_GRID =
-  "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 p-3 @2xl:grid-cols-[minmax(0,1fr)_10rem_8rem_minmax(10rem,auto)] @2xl:gap-6 @2xl:px-4";
+  "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 p-3 @2xl:grid-cols-[minmax(0,1fr)_10rem_8rem_minmax(8rem,auto)] @2xl:gap-6 @2xl:px-4";
 
 /** One labeled value of a card, from `@2xl` of the card. */
 function CardColumn({ label, children }: { label: string; children: ReactNode }) {

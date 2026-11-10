@@ -34,8 +34,8 @@ import { loadPdfjs, PageSkeleton, PdfPages } from "../../../resumes/[resumeId]/p
  * Each answer is kept by its source for the page's life (`answered`), so a
  * resume shows only its own answer, however late an older one arrives, and
  * a resume opened again shows at once. A caller that knows when the
- * resume last changed passes it as `version` (the Resumes page's eye,
- * KAN-358), so an answer from before an edit is not shown after it. A failed one says so in a line, with
+ * resume last changed passes it as `version` (the Resumes page's duplicate
+ * modal, KAN-444), so an answer from before an edit is not shown after it. A failed one says so in a line, with
  * Try Again. Step 1 held the preview as a column beside the list until the
  * list needed the width; a dialog also gives the page room to be read.
  */
