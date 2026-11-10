@@ -231,7 +231,9 @@ _TEMPLATE = r"""
              start: false};
   // The Posting's Apply that went through (KAN-725, below): the button, and whether its one post has left.
   let starting = null, startGone = false;
-  const MARK = '__@KEY@Guard@TOKEN@';
+  // Its install mark, so a second copy in the same document stands down: visible to the page, so named with a random
+  // value of its own that says nothing of the control's, the touch's or the tell's (PR 477's second review).
+  const MARK = '__@KEY@Guard@MARK@';
   if (apply(ownP, W, [MARK])) return;
   defineProp(W, MARK, {value: true});
   const onControl = [];  // what else hears a control: the note, below
@@ -1140,15 +1142,21 @@ def _script(key: str, name: str, extra: str = "", in_captcha: str = "", held: st
                                "@PROFILE_DIALOG@": PROFILE_DIALOG, "@CAPTCHA_HOSTS@": json.dumps(captcha.HOSTS),
                                "@CAPTCHA_PATHS@": json.dumps(captcha.PATHS), "@CONTROL@": control_type(key),
                                "@TELL_TYPE@": TELL_TYPE, "@TELL_PREFIX@": TELL_PREFIX, "@TOUCH@": touch_type(key),
-                               "@KEY@": key, "@NAME@": name, "@BOX@": box, "@TOKEN@": TOKENS[key]}.items():
+                               "@KEY@": key, "@NAME@": name, "@BOX@": box, "@MARK@": MARKS[key]}.items():
         script = script.replace(placeholder, value)
     return script
 
 
-# This run's tokens, one for each guard: they name its control event, so only Apply's own scripts can set its state.
-# The drive guard's has its own: its copy evaluated into a page already open goes through that page's own eval.
-TOKENS = {"applyRehearsal": secrets.token_hex(16), "applyDrive": secrets.token_hex(16)}
+# This run's secrets, each a random value of its own, so one a page learns gives it no other (PR 477's second review:
+# the install mark, which a page can read, once carried the control's token). TOKENS name each guard's control
+# event, so only Apply's own scripts can set its state; TOUCHES name the worker extension's touch; TELL names the
+# rehearsal guard's tell. MARKS name each guard's install mark on window, which any page can read: they name nothing
+# else. The drive guard's token is its own: its copy put into a page already open is a block-only one (LATE).
 REHEARSAL, DRIVE = "applyRehearsal", "applyDrive"
+TOKENS = {REHEARSAL: secrets.token_hex(16), DRIVE: secrets.token_hex(16)}
+TOUCHES = {REHEARSAL: secrets.token_hex(16), DRIVE: secrets.token_hex(16)}
+MARKS = {REHEARSAL: secrets.token_hex(16), DRIVE: secrets.token_hex(16)}
+TELL = secrets.token_hex(16)
 BOTH = (REHEARSAL, DRIVE)
 
 
@@ -1159,13 +1167,13 @@ def control_type(key: str) -> str:
 
 def touch_type(key: str) -> str:
     """The event a plain Worker's extension sends before each press it makes (PORT_TOUCH)."""
-    return f"__apply_touch{TOKENS[key]}"
+    return f"__apply_touch{TOUCHES[key]}"
 
 
 # What the rehearsal's guard tells Apply: on a CDP Worker a console line with this prefix, on a plain Worker an event
 # of this name, which the worker extension's relay hears (both carry the token). The guard alone says them.
-TELL_PREFIX = f"__apply:{TOKENS[REHEARSAL]}:"
-TELL_TYPE = f"__apply_tell{TOKENS[REHEARSAL]}"
+TELL_PREFIX = f"__apply:{TELL}:"
+TELL_TYPE = f"__apply_tell{TELL}"
 TELL_CDP = "\n    apply(debugFn, con, ['@TELL_PREFIX@' + said]);"
 TELL_PORT = "\n    dispatch(D, new Custom('@TELL_TYPE@', {detail: said}));"
 TELLS = ("__applyLisulPressed", "__applyFillAgain", "__applyDismissHold", "__applyDismissApplied")

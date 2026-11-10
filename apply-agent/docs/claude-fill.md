@@ -79,7 +79,10 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
   (`Page.createIsolatedWorld`), the worker extension's isolated world (`guard.control`), or an init script
   (`_init`) before any page code. The rehearsal guard tells Apply of Lisul's own presses (his Submit, Fill
   again, Dismiss) by a console line with the token (`TELL_PREFIX`), or on a plain Worker an event the relay
-  hears (`TELL_TYPE`): no page can call those, as it could call a binding. The guard takes every built-in it
+  hears (`TELL_TYPE`): no page can call those, as it could call a binding. Each secret is a random value of its
+  own (`TOKENS` for the controls, `TOUCHES`, `TELL`), and the install mark each guard leaves on `window`
+  (`MARKS`), which any page can read, names none of them: PR 477's second review found the mark carried the
+  control's token, so a page could lift both guards. The guard takes every built-in it
   reads with before any page code, and a guard listener that throws blocks what it judged.
 - Each form post is judged again as it leaves (KAN-710): at its `navigate` event, with the URL and entries
   it really carries. Entries its own fields don't make (a `formdata` handler's), a final URL, or a form that

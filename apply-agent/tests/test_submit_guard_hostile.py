@@ -286,6 +286,13 @@ PAGES = {
           {{detail: JSON.stringify({{start: true, lift: {{}}}})}}));</script><form method=post action="{FINAL}">
         <input type=hidden name=__vxXSRF_Token value=t><input type=hidden name=first value=Test>
         <input type=submit id=b value=Apply></form>"""},
+    # PR 477's second review: the install mark on window once carried the control's token. The page reads every
+    # guard's mark and sends its control event by that name, lifting it, then its Next posts the application.
+    "a page that lifts the guards by their install mark": {START: """<title>Apply</title><script>
+        for (const n of Object.getOwnPropertyNames(window)) {
+          const m = /^__(applyRehearsal|applyDrive)Guard([0-9a-f]{32})$/.exec(n);
+          if (m) dispatchEvent(new CustomEvent('__' + m[1] + 'Control' + m[2], {detail: JSON.stringify({lift: {}, account: true})}));
+        }</script>""" + f"""<form method=post action="{FINAL}"><input name=first value=Test><button id=b>Next</button></form>"""},
 }
 BUTTON = {"a review page's Apply with its answers hidden": "Apply", "a page that vouches for its own Apply": "Apply", "a Submit in another language beside a Submit": "Envoyer ma candidature", "a Submit in a shadow root": "Submit application",
           "a profile pop-up that is the application": "Submit", "a profile pop-up that turns into the application": "Submit",
