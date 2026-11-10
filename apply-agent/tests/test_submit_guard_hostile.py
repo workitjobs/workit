@@ -278,8 +278,16 @@ PAGES = {
     "a review page's Apply with its answers hidden": {START: f"""<title>Review</title><form method=post action="{FINAL}">
         <input type=hidden name=__vxXSRF_Token value=t><input type=hidden name=first value=Test>
         <input type=submit id=b value=Apply></form>"""},
+    # A page that vouches for its own Apply (KAN-725's pass, ported to the guards' control by KAN-710): the flag main
+    # read, held true, and the control events sent by their names without the run's token. Nothing hears them.
+    "a page that vouches for its own Apply": {START: f"""<title>Jobs</title><script>
+        Object.defineProperty(window, '__applyStartClick', {{get: () => true, set() {{}}}});
+        for (const k of ['__applyDriveControl', '__applyRehearsalControl']) dispatchEvent(new CustomEvent(k,
+          {{detail: JSON.stringify({{start: true, lift: {{}}}})}}));</script><form method=post action="{FINAL}">
+        <input type=hidden name=__vxXSRF_Token value=t><input type=hidden name=first value=Test>
+        <input type=submit id=b value=Apply></form>"""},
 }
-BUTTON = {"a review page's Apply with its answers hidden": "Apply", "a Submit in another language beside a Submit": "Envoyer ma candidature", "a Submit in a shadow root": "Submit application",
+BUTTON = {"a review page's Apply with its answers hidden": "Apply", "a page that vouches for its own Apply": "Apply", "a Submit in another language beside a Submit": "Envoyer ma candidature", "a Submit in a shadow root": "Submit application",
           "a profile pop-up that is the application": "Submit", "a profile pop-up that turns into the application": "Submit",
           "a one-page form in a modal": "Continue", "an application that makes an account": "Continue",
           "a button whose words change after the check": "Continue"}
