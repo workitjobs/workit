@@ -31,7 +31,16 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: true
+          fetch-depth: 0
           token: ${{ secrets.FILL_ENGINE_TOKEN }}
+      # ci.yml's extension-store-build job has this same step's comment.
+      - name: Pin fill-engine to the commit this branch actually records
+        working-directory: .
+        run: |
+          PINNED=$(git ls-tree HEAD autofiller_extension/fill-engine | awk '{print $3}')
+          git -C autofiller_extension/fill-engine fetch --depth 1 origin "$PINNED"
+          git -C autofiller_extension/fill-engine checkout --detach "$PINNED"
+          echo "fill-engine pinned at: $(git -C autofiller_extension/fill-engine rev-parse HEAD)"
       - uses: ./.github/actions/extension-setup
       - run: npx playwright test
       - uses: actions/upload-artifact@v4

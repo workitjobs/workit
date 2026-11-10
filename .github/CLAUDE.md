@@ -76,6 +76,63 @@ asks `accounts.google.com` on its own (which `practice.extension.spec.ts`'s
 request list catches) and a field a panel row scrolls to doesn't come into
 view (`panel-reopen`, `workday-show`), found in the Playwright image
 2026-10-31. On CI each spec gets two retries; a broken one fails all three.
+
+**`timeout-minutes` on this job was never validated against a real run
+until 2026-11-03** (KAN-447): every PR before that one shows the job as
+skipped (no `FILL_ENGINE_TOKEN` yet), so the original 30-minute figure
+was a guess, never measured. The first real run reached 329 of 388 tests
+at the 30-minute mark and was cancelled; raised to 45, which is what
+showed the full suite needs about 40 minutes on one worker — the measurement
+KAN-736 then acted on by moving PRs to the smoke set above, at an 8-minute
+limit. Raise that 8 if the smoke set itself ever gets close, rather than
+guessing a second time.
+
+**`actions/checkout@v4`'s own submodule handling can silently land `fill-engine`
+on the wrong commit, and `fetch-depth: 0` alone does not fix it** (found
+2026-11-08, revised 2026-11-09): without `fetch-depth: 0`, the submodule
+fetch is shallow too, and when the pinned commit isn't on the default
+branch's shallow history (true as soon as `main` moves past it, which it
+usually has) it silently checks out the submodule's current branch tip
+instead — no error, no warning. A run pinning `fill-engine@0.3.26` built
+and tested `0.3.30` instead. Adding `fetch-depth: 0` to the checkout
+**did not stop this from recurring** on a later run, for a reason not yet
+root-caused (a plain local `git clone` + `git submodule update --init`
+reaches the pinned commit fine, so it isn't simply "the commit is
+unreachable" — something in `actions/checkout`'s own submodule step
+behaves differently). Rather than keep chasing that action's internals,
+every job now forces it explicitly right after the checkout: read the
+gitlink `git ls-tree HEAD` actually records, then `git -C
+autofiller_extension/fill-engine fetch --depth 1 origin <that SHA> &&
+checkout --detach <that SHA>`. This is the "Pin fill-engine to the commit
+this branch actually records" step in `ci.yml` (`extension-store-build`,
+`extension`, `apply`), `extension-nightly.yml`, `live-canary.yml` and
+`publish-extension.yml` — six places, one pattern. If `actions/checkout`
+ever fixes this upstream, these steps are redundant but harmless; don't
+remove them without confirming a real run's build log prints the version
+`git ls-tree HEAD` actually names, not just that the step exists.
+A plain local `git submodule update --init` was never affected (no
+`--depth` flag, so it always resolves the real pinned commit) — this was
+CI-only, and the most serious place it bit was `publish-extension.yml`,
+which could have shipped students an unreviewed engine build with no
+record of having done so.
+
+**The pin step's paths are repo-root-relative; a job's `defaults.run.working-directory`
+breaks it silently** (found 2026-11-09, fixed 2026-11-10): `extension-store-build`,
+`extension` (both files) and `apply` each set a job-wide working directory
+(`autofiller_extension`, `autofiller_extension/test`, `apply-agent`), and the
+pin step's `git ls-tree HEAD autofiller_extension/fill-engine` and `git -C
+autofiller_extension/fill-engine ...` resolve those paths against *that*
+directory, not the repo root — so in `autofiller_extension/test` it looked
+for `autofiller_extension/test/autofiller_extension/fill-engine`, found
+nothing, and failed every run with "fatal: cannot change to
+'autofiller_extension/fill-engine': No such file or directory" right after a
+successful submodule checkout. Fixed by adding `working-directory: .` on the
+pin step itself in every job that sets a non-root default (five of the six:
+all but `publish-extension.yml`, which sets no job-wide default and was
+never affected). A step's own `working-directory:` is always resolved from
+`$GITHUB_WORKSPACE`, never nested inside the job's default, so this is safe
+to copy into a sixth place if one is ever added.
+
 The fill-engine repo has its own CI (its `.github/workflows/ci.yml`):
 typecheck, the same stale-`dist/` check, and its tests, on every PR.
 
