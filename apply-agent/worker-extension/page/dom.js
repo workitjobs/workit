@@ -5,6 +5,9 @@
 // internal:label, nth, has-text and the rest. Actions are synthetic DOM events, as any autofill
 // extension makes (isTrusted: false). Each method answers {ok: value}, {retry: reason} while its
 // element is missing or not actionable (Apply polls until its timeout), or {err: {name, message}}.
+// Text is the exception (KAN-716): with `trusted`, a method that would put text in a field answers
+// a request instead ({__applyType}, {__applyKey}, {__applyKeys}), and the service worker types it
+// trusted (ops/typing.js), then calls `landed`.
 
 (() => {
   if (globalThis.__applyDom) return;
@@ -145,6 +148,72 @@
 
   const valueOf = (element) => ("value" in element && !element.isContentEditable ? element.value : element.innerText);
 
+  // --- trusted text (KAN-716)
+  //
+  // A page can tell a keyboard's text from a script's: execCommand("insertText") fires `input` but
+  // no `beforeinput` or `textInput`, and synthetic events are untrusted. amazon.jobs's text boxes
+  // showed such text and never took it. So with `trusted` (the service worker has the debugger),
+  // text for a field goes in by CDP's Input.insertText, which fires all three, trusted. Only into
+  // the field the call chose, while it has the focus: `request` marks it, and until `landed` a
+  // trusted `beforeinput` aimed anywhere else is cancelled, so a page that moves the focus mid-way
+  // gets nothing typed there. Insertion is never a key: it can't press Enter, click or submit.
+  let canTrust = false; // set by run() for the call it runs
+  const TEXT_TYPES = /^(text|search|email|tel|url|password|number)$/;
+  function deepActive() {
+    let active = document.activeElement;
+    while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
+    return active;
+  }
+  const isTextField = (element) => Boolean(element) && !element.disabled && !element.readOnly &&
+    (element instanceof HTMLTextAreaElement || (element instanceof HTMLInputElement && TEXT_TYPES.test(element.type)) || element.isContentEditable);
+  // The field to type `text` into trusted: `element` when it is a field and has the focus; else null.
+  const trustedField = (element) => (canTrust && isTextField(element) && deepActive() === element ? element : null);
+
+  const pending = new Map(); // token -> {element, arrived, refused, said, stop, fallback}
+  const chosen = new Map(); // token -> the field a `type` call types its characters into
+  let tokens = 0;
+  function request(element, fields, fallback) {
+    const token = `${Date.now().toString(36)}-${++tokens}-${Math.random().toString(36).slice(2)}`;
+    const entry = { element, arrived: false, refused: false, said: false, fallback };
+    const hear = (event) => {
+      if (!event.isTrusted) return;
+      const target = event.composedPath()[0];
+      if (target === element || (element.isContentEditable && element.contains(target))) {
+        entry.arrived = true;
+        return;
+      }
+      entry.refused = true;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    };
+    const said = () => (entry.said = true); // a guard's block (apply.plain.guards' PORT_SAID)
+    addEventListener("beforeinput", hear, true);
+    document.addEventListener("__apply_said", said, true);
+    entry.stop = () => {
+      removeEventListener("beforeinput", hear, true);
+      document.removeEventListener("__apply_said", said, true);
+    };
+    pending.set(token, entry);
+    return { ...fields, token };
+  }
+
+  // After the service worker's try: `tried` is whether its debugger command ran. Text that
+  // arrived, or that a guard or this frame refused, is done. Only text the debugger never sent
+  // (no debugger here, or it failed) goes in untrusted, as before, and only into the chosen field
+  // while it still has the focus. Text sent that never arrived (a guard that blocked it, a page
+  // that took it itself) is not typed again.
+  function landed(token, tried) {
+    const entry = pending.get(token);
+    if (!entry) return { lost: true };
+    pending.delete(token);
+    entry.stop();
+    if (entry.arrived) return { trusted: true };
+    if (entry.refused || entry.said) return { refused: true };
+    if (tried) return { trusted: false };
+    if (deepActive() === entry.element && entry.element.isConnected) entry.fallback();
+    return { trusted: false, fallback: true };
+  }
+
   function setValue(element, value) {
     if (element.isContentEditable) {
       element.textContent = value;
@@ -172,7 +241,13 @@
     if (answer === "error:notconnected") throw new Retry("element is not attached to the DOM");
     if (answer === "needsinput") {
       const target = pw.retarget(element, "follow-label");
-      if (!insert(target, value) || valueOf(target) !== value) setValue(target, value);
+      const typing = () => {
+        if (!insert(target, value) || valueOf(target) !== value) setValue(target, value);
+      };
+      // Playwright's fill selected the field's text: the trusted insertion replaces it (KAN-716).
+      if (value !== "" && trustedField(deepActive()) && (target === deepActive() || target.contains(deepActive())))
+        return request(deepActive(), { __applyType: value }, typing);
+      typing();
     }
     return null;
   }
@@ -230,6 +305,19 @@
     const modifiers = new Set(parts);
     const [k, code, keyCode] = keyOf(name);
     const target = document.activeElement || document.body;
+    // Backspace and Delete in a field: the trusted keys themselves (ops/typing.js), else as below.
+    const field = trustedField(deepActive());
+    if (field && (k === "Backspace" || k === "Delete") && !parts.length) {
+      const before = canTrust;
+      return request(field, { __applyKey: k }, () => {
+        canTrust = false; // the untrusted keys, as before
+        try {
+          press(key);
+        } finally {
+          canTrust = before;
+        }
+      });
+    }
     const init = { key: k, code, keyCode, which: keyCode, bubbles: true, cancelable: true, composed: true,
                    ctrlKey: modifiers.has("Control"), shiftKey: modifiers.has("Shift"), altKey: modifiers.has("Alt"),
                    metaKey: modifiers.has("Meta") || modifiers.has("ControlOrMeta") };
@@ -238,6 +326,10 @@
     if (go) {
       if (k.length === 1 && plain) {
         target.dispatchEvent(new KeyboardEvent("keypress", { ...init, charCode: k.charCodeAt(0) }));
+        // A character for the field that had the focus before its keydown, and has it still: its
+        // keyup after the trusted insertion (`after`), as a keyboard's.
+        // If its keydown moved the focus, the character goes nowhere: not into a box no call chose.
+        if (field) return deepActive() === field ? request(field, { __applyType: k, after: ["keyup", [key]] }, () => insert(field, k)) : keyup(key);
         if (target.matches?.("input[type=checkbox], input[type=radio], button") && k === " ") target.click();
         else insert(target, k);
       } else if ((init.ctrlKey || init.metaKey) && name.toLowerCase() === "a") {
@@ -263,7 +355,19 @@
         document.execCommand("forwardDelete");
       }
     }
-    (document.activeElement || document.body).dispatchEvent(new KeyboardEvent("keyup", init));
+    keyup(key);
+    return null;
+  }
+
+  function keyup(key) {
+    const parts = key.split("+");
+    const name = parts.pop() || "+";
+    const modifiers = new Set(parts);
+    const [k, code, keyCode] = keyOf(name);
+    (document.activeElement || document.body).dispatchEvent(new KeyboardEvent("keyup", {
+      key: k, code, keyCode, which: keyCode, bubbles: true, cancelable: true, composed: true,
+      ctrlKey: modifiers.has("Control"), shiftKey: modifiers.has("Shift"), altKey: modifiers.has("Alt"),
+      metaKey: modifiers.has("Meta") || modifiers.has("ControlOrMeta") }));
     return null;
   }
 
@@ -334,15 +438,39 @@
     fill,
     type(selector, text) {
       focusOn(selector);
+      if (canTrust) {
+        // Each character a `keyInto` call, typed trusted, while this field has the focus.
+        const element = deepActive();
+        const token = `${Date.now().toString(36)}-${++tokens}`;
+        chosen.set(token, element);
+        return { __applyKeys: text, chosen: token };
+      }
       for (const character of text) press(character);
       return null;
+    },
+    // One character of `type` into the field it chose, only while that field has the focus; with no
+    // key, the typing is over. {stop: true} when the focus has gone elsewhere: the rest goes nowhere.
+    keyInto(token, key) {
+      const element = chosen.get(token);
+      if (key === null || !element || deepActive() !== element) {
+        chosen.delete(token);
+        return key === null ? null : { stop: true };
+      }
+      return press(key);
     },
     press(selector, key) {
       focusOn(selector);
       return press(key);
     },
     keys: (key) => press(key), // on whatever has focus (page.keyboard)
-    insert: (text) => (insert(document.activeElement || document.body, text), null),
+    insert(text) {
+      const field = text !== "" && trustedField(deepActive());
+      if (field) return request(field, { __applyType: text }, () => insert(field, text));
+      insert(document.activeElement || document.body, text);
+      return null;
+    },
+    landed,
+    keyup,
     check,
     select,
     focus: (selector) => (focusOn(selector), null),
@@ -369,22 +497,25 @@
     aria: (selector, options = {}) => pw.ariaSnapshot(one(selector), { mode: "expect", ...options }),
   };
 
-  const TOUCHES = new Set(["click", "type", "press", "keys", "check"]);
+  const TOUCHES = new Set(["click", "type", "press", "keys", "keyInto", "check"]);
 
   globalThis.__applyDom = {
     leaving, // for page/tile.js's presses
-    run(method, args) {
+    run(method, args, { trusted = false } = {}) {
       const fn = METHODS[method];
       if (!fn) return { err: { name: "BadOp", message: `no dom method ${method}` } };
       // A press of Apply's counts as a touch for the page's guard (apply.plain.guards), as a
       // trusted click of Playwright's does: the guard then shows what it blocked.
       if (TOUCHES.has(method)) window.dispatchEvent(new CustomEvent("__apply_touch", { detail: "apply" }));
+      canTrust = trusted === true;
       try {
         const value = fn(...args);
         return { ok: value === undefined ? null : value };
       } catch (error) {
         if (error instanceof Retry) return { retry: error.reason };
         return { err: { name: error?.name && error.name !== "Error" ? error.name : "Error", message: String(error?.message ?? error) } };
+      } finally {
+        canTrust = false;
       }
     },
   };

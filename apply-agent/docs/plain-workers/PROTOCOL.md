@@ -5,7 +5,9 @@ is the source; change it in the PR that changes the protocol.
 
 Hard rule: never evade bot detection and never touch a captcha; hand those to
 the user. A plain Worker is a Chrome with no CDP, no automation flags and no
-headless mode.
+headless mode. No CDP client connects to it. Its extension's own `chrome.debugger`
+sends only trusted text, Backspace and Delete into the field Apply or Lisul's tile
+chose (KAN-716, `worker-extension/ops/typing.js`, guide "Trusted text").
 
 ## Pieces
 
@@ -175,7 +177,7 @@ In `worker-extension/ops/tile.js` and `page/tile.js`; Apply's side is `apply.pla
 |---|---|---|
 | `tile.start` | `interval?` ms (500), `quality?` (88), `maxWidth?` (1280), `maxHeight?` (900), `native?` (false) | `null`; from now on the Worker sends `tile.frame` events of its shown tab (the active tab of the window last switched to), at most one per `interval`, only when the picture changed. With `native`, Apply films the window itself, and the Worker sends only `tile.shown` events, each time the shown window or tab changes. Calling it again restarts it with the new settings. |
 | `tile.stop` | | `null` |
-| `tile.input` | `tab?` (default: the shown tab), `event`, `width?`, `height?` | replays one tile event (below) as synthetic DOM events; `null`, `{"menu": {options: [{label, disabled}], selected}}` (a press on a `<select>`), `{"chooser": "selectSingle"\|"selectMultiple", tab, frame}` (a click asked for a file), or `{"text"}` (a copy) |
+| `tile.input` | `tab?` (default: the shown tab), `event`, `width?`, `height?` | replays one tile event (below) as synthetic DOM events, its `text` and `key` events' text trusted as `dom`'s (KAN-716); `null`, `{"menu": {options: [{label, disabled}], selected}}` (a press on a `<select>`), `{"chooser": "selectSingle"\|"selectMultiple", tab, frame}` (a click asked for a file), or `{"text"}` (a copy) |
 | `chooser.watch` | `tab` | `null`; clears any file request and hooks every frame of the tab (below) |
 | `chooser.get` | `tab` | `{"mode", "frame"}` of the file input a page asked for since the last watch or set, or `null` |
 | `chooser.set` | `tab`, `frame?`, `files` (`[{name, mimeType, base64}]`; `[]` cancels) | `true` if the input was there; sets `input.files` through DataTransfer in the MAIN world, fires `input` and `change` (`cancel` for none) |
@@ -384,8 +386,13 @@ and defaults (timeouts in ms, default 30000). Covered in S2:
 
 Auto-wait: actions poll their `dom` op every 100 ms while it answers `{"retry": ...}` or
 `NotFound`, until the timeout, then raise `PortTimeoutError` with Playwright's wording
-("Locator.click: Timeout 30000ms exceeded."). Events are synthetic (`isTrusted: false`):
-`fill` focuses, selects all and uses `execCommand("insertText")`, falling back to the
+("Locator.click: Timeout 30000ms exceeded."). Events are synthetic (`isTrusted: false`), except
+text (KAN-716): `fill`, `type`/`press_sequentially`, `keyboard.type`/`insert_text`, a character key
+and Backspace/Delete in a text field go in trusted through the extension's `chrome.debugger`
+(`Input.insertText`; `Input.dispatchKeyEvent` for Backspace and Delete only), with `dom` answering
+the service worker a request (`{__applyType, token}`, `{__applyKey, token}`, `{__applyKeys, chosen}`)
+and `landed` after it; the op's answer to Apply stays `{"ok": null}`. Without the debugger they are
+as before: `fill` focuses, selects all and uses `execCommand("insertText")`, falling back to the
 native value setter plus `input`/`change`; a focus move (a click, Tab, `focus`, `blur`, `fill`) that the page didn't hear, as in a window without focus, dispatches `blur` and `focusout` on what it left (KAN-709); `press` emulates the default of Enter, Tab,
 Backspace, Delete, Space and (S3) the caret keys ArrowLeft/ArrowRight/Home/End (Shift extends); `click` dispatches pointer and mouse events
 at the element's centre on the hit target, then `click`. **Enter never sends a form** (KAN-716): in a field it makes no

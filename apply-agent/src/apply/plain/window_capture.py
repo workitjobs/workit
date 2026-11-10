@@ -1,7 +1,7 @@
 """A plain Worker's own Chrome window, live, through macOS ScreenCaptureKit (KAN-635).
 
 captureVisibleTab gives the tile about 2 frames a second (Chrome's quota per browser), and only
-the debugger API, which a plain Worker never uses, gets past it. So Apply films the Worker's
+the debugger API gets past it, and a plain Worker's debugger sends text only (KAN-716). So Apply films the Worker's
 window itself, by its window ID: `window_capture.swift`, built once with swiftc into
 ~/Library/Caches/apply/, streams that window of the Worker's Chrome (found by its PID, and only
 while macOS lists it with the shown tab's title: KAN-717) cropped to the tab's viewport, at the

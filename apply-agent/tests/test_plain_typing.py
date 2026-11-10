@@ -1,0 +1,204 @@
+"""A plain Worker's text reaches a box that takes only a keyboard's text (KAN-716).
+
+amazon.jobs's Job-specific questions showed every answer a plain Worker typed (Claude fill's fill,
+Ask, the tile's text and keys) and took none: "This field is required" stayed, its auto-save
+failed, and a reload emptied the box. Every such input was a synthetic event or an editing
+command, and neither fires what a keyboard does: execCommand("insertText") gives `input` but no
+`beforeinput` or `textInput`, and a synthetic event is untrusted. AMAZON_LIKE is a box that takes
+its value only from an `input` that a trusted `beforeinput` came before, as a keyboard's text has.
+
+- The control (Playwright's Chromium, page/dom.js without `trusted`): the old path shows the text,
+  and the box takes none of it, as on amazon.jobs.
+- On a plain Worker (Chrome for Testing, the worker extension's chrome.debugger): fill, type,
+  keyboard.insert_text, the tile's text and keys, and Backspace all reach it, trusted.
+- The trusted path types only into the field the call chose, and Enter never sends a form.
+"""
+
+from pathlib import Path
+
+import pytest
+from playwright.sync_api import sync_playwright
+
+from apply.plain import extension
+
+PAGE_DIR = Path(extension.__file__).resolve().parents[3] / "worker-extension" / "page"
+HOST = "https://jobs.example.com"
+
+# Two boxes as amazon.jobs's behave: what each holds is set only by text that a trusted beforeinput
+# announced; its error shows until it holds a value. `taken` is what the form would auto-save.
+AMAZON_LIKE = """<!doctype html><title>Job-specific questions</title>
+<form id=form method=post action="/acme/jobs/123/apply">
+<label for=why>Describe your experience</label><textarea id=why></textarea><span id=why-error>This field is required</span>
+<label for=school>Which university are you currently attending?</label><input id=school><span id=school-error>This field is required</span>
+<label for=other>Something else</label><input id=other>
+<button id=go>Continue</button></form>
+<script>
+window.taken = {}; window.events = []; window.sent = 0;
+for (const box of document.querySelectorAll('textarea, input')) {
+  let announced = false;
+  box.addEventListener('beforeinput', (e) => { if (e.isTrusted) announced = true; });
+  box.addEventListener('input', (e) => {
+    events.push(box.id + ':' + e.type + ':' + e.isTrusted);
+    if (!announced) return;
+    announced = false;
+    taken[box.id] = box.value;
+    const error = document.getElementById(box.id + '-error');
+    if (error) error.hidden = box.value !== '';
+  });
+}
+form.addEventListener('submit', (e) => { e.preventDefault(); window.sent++; });
+go.addEventListener('click', () => { window.pressed = (window.pressed || 0) + 1; });
+</script>"""
+
+
+def test_the_old_untrusted_path_shows_the_text_and_the_box_takes_none(tmp_path):
+    """The control, in Playwright's Chromium: page/dom.js's fill, keys and insert without `trusted`."""
+    injected = extension.generated()["injected.js"].decode()
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.set_content(AMAZON_LIKE)
+        for script in (injected, (PAGE_DIR / "dom.js").read_text()):
+            page.add_script_tag(content=script)
+        run = lambda method, *args: page.evaluate("([m, a]) => __applyDom.run(m, a)", [method, list(args)])
+        assert run("fill", "#why", "C++ firmware") == {"ok": None}
+        assert run("type", "#school", "Stony") == {"ok": None}
+        run("insert", " Brook")
+        shown = page.evaluate("() => [why.value, school.value]")
+        taken = page.evaluate("() => taken")
+        browser.close()
+    assert shown == ["C++ firmware", "Stony Brook"]
+    assert taken == {}
+
+
+def test_with_trusted_a_text_call_asks_the_service_worker_to_type_it(tmp_path):
+    """page/dom.js's side of the seam, in Playwright's Chromium: a request for the chosen field, not text."""
+    injected = extension.generated()["injected.js"].decode()
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.set_content(AMAZON_LIKE)
+        for script in (injected, (PAGE_DIR / "dom.js").read_text()):
+            page.add_script_tag(content=script)
+        run = lambda method, *args: page.evaluate("([m, a]) => __applyDom.run(m, a, {trusted: true})", [method, list(args)])
+        fill = run("fill", "#why", "C++")["ok"]
+        nothing_typed = page.evaluate("() => why.value")
+        no_debugger = run("landed", fill["token"], False)["ok"]  # the debugger never sent it: typed as before
+        typed = run("type", "#school", "SB")["ok"]
+        key = run("keys", "S")["ok"]
+        landed = run("landed", key["token"], True)["ok"]  # sent, never arrived (a guard took it): not typed again
+        enter = run("keys", "Enter")["ok"]
+        backspace = run("keys", "Backspace")["ok"]
+        button = run("keys", "a") if page.evaluate("() => { go.focus(); return true }") else None
+        browser.close()
+    assert fill["__applyType"] == "C++" and fill["token"] and nothing_typed == ""
+    assert no_debugger == {"trusted": False, "fallback": True}
+    assert typed["__applyKeys"] == "SB" and typed["chosen"]
+    assert key["__applyType"] == "S" and key["after"] == ["keyup", ["S"]]
+    assert landed == {"trusted": False}
+    assert enter is None and backspace["__applyKey"] == "Backspace"
+    assert button == {"ok": None}  # a key on a button: no text for anyone to type
+
+
+# --- on a plain Worker
+
+def _plain_or_skip():
+    from plain_fakes import have_chrome_for_testing
+    if not have_chrome_for_testing():
+        pytest.skip("needs Chrome for Testing (uv run playwright install chromium)")
+
+
+class Site:
+    def __init__(self, html: str):
+        self.html, self.posts = html, []
+
+    def handle(self, route) -> None:
+        if route.request.method not in ("GET", "HEAD", "OPTIONS") and route.request.url.startswith(HOST):
+            self.posts.append(route.request.url)
+        route.fulfill(body=self.html, content_type="text/html")
+
+
+@pytest.fixture
+def amazon():
+    _plain_or_skip()
+    from plain_fakes import fake_page
+
+    site = Site(AMAZON_LIKE)
+    with fake_page(site.handle, url=HOST + "/questions") as page:
+        yield page, site
+
+
+def taken(page) -> dict:
+    return page.evaluate("() => taken")
+
+
+def tile(page, event: dict):
+    return page.worker.call("tile.input", tab=page.tab, event=event, by="lisul")
+
+
+def test_fill_type_and_insert_text_reach_a_box_that_takes_only_a_keyboards_text(amazon):
+    page, _ = amazon
+    page.locator("#why").fill("C++: wrote our robot's firmware.")
+    page.locator("#school").press_sequentially("Stony")
+    page.keyboard.insert_text(" Brook")
+    page.locator("#why").fill("C++ firmware")  # a second fill replaces it, as Playwright's does
+
+    assert taken(page) == {"why": "C++ firmware", "school": "Stony Brook"}
+    assert page.evaluate("() => [why.value, school.value]") == ["C++ firmware", "Stony Brook"]
+    assert page.evaluate("() => [document.getElementById('why-error').hidden, document.getElementById('school-error').hidden]") == [True, True]
+    assert page.evaluate("() => events.filter(e => e.endsWith(':false'))") == []  # every input trusted
+
+
+def test_the_tiles_text_and_keys_reach_it_as_his_keyboards_do(amazon):
+    page, _ = amazon
+    page.locator("#school").focus()
+    for event in ({"type": "text", "text": "S"}, {"type": "text", "text": "tony Brookx"}, {"type": "key", "key": "Backspace"},
+                  {"type": "key", "key": "ArrowLeft"}, {"type": "text", "text": "!"}, {"type": "key", "key": "Delete"}):
+        tile(page, event)
+
+    assert page.input_value("#school") == "Stony Broo!"
+    assert taken(page) == {"school": "Stony Broo!"}
+
+
+def test_enter_never_sends_the_form_from_a_field_or_its_submit_button(amazon):
+    # On amazon.jobs a synthetic Enter in a box clicked the form's submit button and went on to Review.
+    page, site = amazon
+    page.locator("#school").fill("Stony Brook")
+    page.locator("#school").press("Enter")
+    page.keyboard.press("Enter")
+    tile(page, {"type": "key", "key": "Enter"})
+    page.locator("#go").focus()
+    page.keyboard.press("Enter")
+    tile(page, {"type": "key", "key": "Enter"})
+    page.wait_for_timeout(500)
+
+    assert page.evaluate("() => [window.sent, window.pressed || 0]") == [0, 0]
+    assert site.posts == []
+    assert page.url.endswith("/questions")
+
+
+def test_trusted_text_goes_only_into_the_field_the_call_chose(amazon):
+    # A page that moves the focus as a key goes down: the key's text never lands in the other box.
+    page, _ = amazon
+    page.evaluate("() => school.addEventListener('keydown', () => other.focus())")
+    page.locator("#school").press_sequentially("ab")
+    page.evaluate("() => other.addEventListener('focus', () => go.focus())")
+    page.locator("#other").press("x")
+
+    assert page.evaluate("() => [school.value, other.value]") == ["", ""]
+    assert taken(page) == {}
+
+
+def test_the_tiles_text_reaches_such_a_box_in_a_cross_origin_frame(amazon):
+    # Another site's frame runs in its own process: the trusted text still reaches its focused box.
+    page, _ = amazon
+    page.evaluate("() => new Promise(done => { const f = document.createElement('iframe'); f.onload = done;"
+                  " f.src = 'https://apply.example.org/inner'; document.body.append(f); })")
+    inner = next(f for f in page.frames if "example.org" in f.url)
+    frame, box = page.locator("iframe").bounding_box(), inner.locator("#school").bounding_box()
+    page.mouse.click(frame["x"] + box["x"] + 5, frame["y"] + box["y"] + 5)  # as the tile's press does
+    tile(page, {"type": "text", "text": "S"})
+    tile(page, {"type": "text", "text": "BU"})
+
+    assert inner.input_value("#school") == "SBU"
+    assert inner.evaluate("() => taken") == {"school": "SBU"}
