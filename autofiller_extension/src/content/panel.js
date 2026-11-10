@@ -344,7 +344,7 @@ window.WIA.onWorkday = () => window.WIA.jobSystem === "workday";
     );
   }
 
-  // Who wants to know when a view (settings, report) shows or goes (onView).
+  // Who wants to know when a view (settings, report, check) shows or goes (onView).
   const viewHooks = [];
   /** Runs `hook(name, shown)` whenever showView shows or hides a view. */
   const onView = (hook) => viewHooks.push(hook);

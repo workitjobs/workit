@@ -144,6 +144,6 @@ test("an answer the student's Claude wrote is flagged in the list, with its word
   // Their Claude's answer lands while the list shows: the row is redrawn as Claude's words to read.
   api.saveAnswer("job-0", name, ANSWER);
   await expect(row).toHaveAttribute("data-flagged", "2", { timeout: 30_000 });
-  await expect(row.locator(".check-why")).toHaveText(/Your Claude wrote this|A new answer/);
+  await expect(row.locator(".check-why")).toHaveText("Your Claude wrote this. Read it before you submit.");
   await expect(row.locator(".check-answer")).toHaveText(ANSWER);
 });

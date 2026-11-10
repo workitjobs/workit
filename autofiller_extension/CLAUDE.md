@@ -2206,14 +2206,16 @@ button still reads Answer 1 of N).
   a tier, `groups.inPageOrder`): 0 needs you (the one rule: the review's
   flag, a failed field, "The page shows something other than WorkIt's
   answer", a required field still empty), 1 WorkIt's guess (source
-  `guessed`, the engine's "not sure"), 2 Claude's words (source `claude`,
-  or an answer just in, `toCheck`), 3 waiting on the student's Claude;
+  `guessed`, the engine's "not sure"), 2 words to read (source `claude`,
+  a pasted answer, a saved answer filled into a written question, or an
+  answer just in, `toCheck`), 3 waiting on the student's Claude;
   then, under "Filled", the rest.
 - **Each row** shows why it is flagged, the answer as the engine read it
   back (one line, 120 characters; a password or SSN field's reads
   "(hidden)") and its source pill. A press (or Enter) goes to the field
   through `window.WIA.showField`, as a checklist row does; a field the
-  page doesn't show says so for 4 s.
+  page doesn't show says so for 4 s (on Workday, a field of another step
+  names its step).
 - It redraws on every status change while it shows, so an answer that
   lands or an edit moves its row. Back, a tab's press or another view
   leaves it (`presubmit.viewed`, which also redraws the button).

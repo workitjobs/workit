@@ -111,11 +111,8 @@ window.WIA = window.WIA || {};
       if (button) return ringControl(button);
       return say("WorkIt can't find Save and Continue on this step.", true);
     }
-    if (action === "review") {
-      if (window.WIA.presubmit?.open()) return say(null);
-      action = "submit";
-    }
-    if (action === "submit") {
+    if (action === "review" && window.WIA.presubmit.open()) return say(null);
+    if (action === "submit" || action === "review") {
       const control = submitButton();
       if (!control) return say("WorkIt can't find this page's Submit button. Look for it on the page.", true);
       say("Check your answers, then press Submit yourself.");
@@ -139,14 +136,15 @@ window.WIA = window.WIA || {};
     render();
   }
 
+  /** With nothing red, off a Workday middle step: Review and submit opens Check before Submit first, and once it shows the button goes to Submit. */
+  const lastAction = () => (window.WIA.presubmit && !window.WIA.presubmit.isOpen() ? "review" : "submit");
+
   function render() {
     if (!parts) return;
     const filling = window.WIA.phase === "filling";
     const red = filling ? [] : redKeys();
     for (const key of red) seenRed.add(key);
-    // Review and submit opens Check before Submit first; once it shows, the button goes to Submit.
-    const checking = Boolean(window.WIA.presubmit?.isOpen());
-    action = filling ? "filling" : red.length ? "answer" : midWorkday() ? "continue" : checking || !window.WIA.presubmit ? "submit" : "review";
+    action = filling ? "filling" : red.length ? "answer" : midWorkday() ? "continue" : lastAction();
     const { button } = parts;
     button.disabled = filling;
     button.textContent =

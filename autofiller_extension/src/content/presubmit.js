@@ -19,7 +19,6 @@ window.WIA = window.WIA || {};
   // Injected again (Fill Again): the last fill's view goes.
   window.WIA.presubmit?.unmount?.();
 
-  const SOURCE_LABEL = { profile: "Profile", student: "You", saved: "Saved Answer", guessed: "Guessed", claude: "Claude", pasted: "Pasted" };
   // An answer never shown in the panel: the field holds a secret.
   const SECRET = /password|passcode|social security|\bssn\b/i;
   const PREVIEW = 120;
@@ -60,6 +59,10 @@ window.WIA = window.WIA || {};
     }
     if (r.status === "filled" && r.source === "guessed") return { tier: 1, mark: "check", why: "WorkIt guessed this. Check it is true for you." };
     if (r.status === "filled" && r.source === "claude") return { tier: 2, mark: "check", why: "Your Claude wrote this. Read it before you submit." };
+    // A written answer that isn't the student's typing on this page: pasted in, or a saved answer filled in words.
+    const written = window.WIA.writtenRow?.has(r.key);
+    if (r.status === "filled" && r.source === "pasted") return { tier: 2, mark: "check", why: "Pasted in. Read it before you submit." };
+    if (r.status === "filled" && r.source === "saved" && written) return { tier: 2, mark: "check", why: "A saved answer. Check it fits this job." };
     if (status.toCheck(r)) return { tier: 2, mark: "check", why: "A new answer. Read it before you submit." };
     if (status.waitingOnClaude(r)) return { tier: 3, mark: "waiting", why: "Waiting for your Claude to write it." };
     return null;
@@ -104,8 +107,9 @@ window.WIA = window.WIA || {};
     if (flag) text.append(el("div", "check-why", flag.why));
     const answer = answerText(r);
     if (answer) text.append(el("div", "check-answer", answer));
-    if (r.status === "filled" && SOURCE_LABEL[r.source]) {
-      const source = el("span", "source", SOURCE_LABEL[r.source]);
+    const sourceLabel = window.WIA.overlay?.SOURCE_LABEL?.[r.source];
+    if (r.status === "filled" && sourceLabel) {
+      const source = el("span", "source", sourceLabel);
       source.dataset.source = r.source;
       text.append(source);
     }
@@ -118,8 +122,13 @@ window.WIA = window.WIA || {};
     if (event.type === "keydown" && event.key !== "Enter") return;
     const node = event.target.closest(".row[data-key]");
     if (!node) return;
-    if (window.WIA.showField?.(node.dataset.key)) return;
-    const said = window.WIA.ui.el("div", "reason note", "WorkIt can't find this field on the page.");
+    const key = node.dataset.key;
+    if (window.WIA.showField?.(key)) return;
+    // On Workday, a field of another step names its step, as a checklist row does (overlay.js jump).
+    const step = key.split(" / ")[0];
+    const steps = window.WIA.steps;
+    const elsewhere = steps && key.includes(" / ") && step !== steps.step?.();
+    const said = window.WIA.ui.el("div", "reason note", elsewhere ? `This is on ${steps.name}'s ${step} step.` : "WorkIt can't find this field on the page.");
     node.querySelector(".text").append(said);
     setTimeout(() => said.remove(), 4000);
   }
@@ -142,7 +151,10 @@ window.WIA = window.WIA || {};
     const back = window.WIA.ui.button("Back", () => close());
     back.className = "check-back";
     parts.push(back);
+    // A redraw keeps the row a keyboard user is on focused.
+    const focusedKey = window.WIA.panel.root.activeElement?.closest?.('[data-slot="check"] .row[data-key]')?.dataset.key;
     view.replaceChildren(...parts);
+    if (focusedKey) view.querySelector(`.row[data-key="${CSS.escape(focusedKey)}"]`)?.focus({ preventScroll: true });
   }
 
   /** Shows the view in place of the Autofill tab's body. */
@@ -197,5 +209,5 @@ window.WIA = window.WIA || {};
     window.WIA.panel?.slot("check")?.replaceChildren();
   }
 
-  window.WIA.presubmit = { mount, unmount, open, close, isOpen, items, go, viewed };
+  window.WIA.presubmit = { mount, unmount, open, isOpen, go, viewed };
 })();
