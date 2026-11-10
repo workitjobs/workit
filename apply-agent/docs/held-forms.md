@@ -24,7 +24,9 @@ reads: it does not click, type or submit.
   name (`verify.COMPANIES` and the policies' companies, less any that the
   sources or the posting name). Claude makes only the judgment checks, in
   the Pre-submit review call (`presubmit.SYSTEM`: contradictions, wrong
-  answers); its findings join the flags.
+  answers); its findings join the flags. Its `<profile>` block holds
+  the facts as the plan read them, the Tracker's past applications too
+  (`docs/fill-engine.md`, KAN-753).
 - A review finding can name the right answer when the sources give it
   (`presubmit.Found.fixes`: an internship start in a school's From).
   Apply fills that answer in place of the wrong one (`_Planned.fix`). It

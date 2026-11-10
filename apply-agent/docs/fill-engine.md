@@ -105,6 +105,12 @@ previously interviewed at <company>?" is No when no record shows an
 interview there. If he applied there but no interview is recorded, he
 answers it himself.
 
+The Pre-submit review and Claude's drafts read the same facts
+(`fill_engine.with_past_applications`, used by `essays.profile_facts`
+when given the Posting). Before, the review's `<profile>` block had the
+profile alone. It called the plan's "Yes, previously applied to Amazon",
+taken from the Tracker, wrong (amazon.jobs, 2026-11-10, KAN-753).
+
 A bare date (From, To, Start date, End date: a label that does not say
 what the date is for) is answered for its section (KAN-595). The engine
 finds the section from the field's panel, its help text, the heading or
