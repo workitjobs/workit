@@ -570,7 +570,8 @@ async def answer_bank(
     known (KAN-380). No answer naming a company of the student's other
     applications is offered. One of their Claude's must also pass the rest
     of checks.py (the posting's numbers among them; not the copy check,
-    which its save ran, so a sample the student pasted is offered); the
+    which its save ran, so a sample the student pasted is offered) and hold
+    no claim the truth check finds, since no tab would flag it there; the
     student's own words skip the checks meant for Claude's text (they are
     their words, as the paste skips the copy check). The form's own length
     limit is the Fill engine's to check, on the page, for every answer. The
@@ -586,6 +587,7 @@ async def answer_bank(
     else:
         sources, employers, _ = await _check_material(db, applicant_id, None, company)
     same = (company or "").strip().casefold()
+    own = await _own_facts(db, applicant_id, job_id)
     bank: dict[str, SavedAnswer] = {}
     seen: set[str] = set()
     written = await fetch_saved_answers(db, applicant_id, exclude=job_id)
@@ -612,9 +614,9 @@ async def answer_bank(
         # Every answer keeps the other-employer rule; only their Claude's take the checks meant for its text.
         if not saved.choice and any(checks.names(said, name) for name in employers):
             continue
-        if not saved.own and not saved.choice and checks.problems(saved.answer, checks.Context(
+        if not saved.own and not saved.choice and (checks.problems(saved.answer, checks.Context(
             sources=(*sources, saved.question), employers=employers, question=saved.question,
-        )):
+        )) or truth.unsupported(said, own, (*sources, saved.question))):
             continue
         if (wording := _wording(saved.question)) not in seen:
             seen.add(wording)

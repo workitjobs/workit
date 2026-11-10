@@ -54,3 +54,7 @@ def test_an_outcome_counts_only_when_the_student_gave_it_not_the_posting():
 
 def test_everyday_capitals_and_sentence_openers_are_no_claim():
     assert _found("Building tools in Python is what I like. In English and in AI, I read a lot on Monday.") == []
+
+
+def test_everyday_uses_of_outcome_words_are_no_claim():
+    assert _found("I won't forget that summer, and I never cut corners.") == []

@@ -119,7 +119,7 @@ COMMON = {*MONTHS, *SEASONS, "monday", "tuesday", "wednesday", "thursday", "frid
           "english", "spanish", "french", "chinese", "mandarin", "hindi", "internet", "ok", "okay", "mr", "ms", "dr"}
 # Acronyms everyone uses, which name no tool or employer.
 EVERYDAY = {"AI", "ML", "API", "APIs", "UI", "UX", "CS", "US", "USA", "GPA", "PhD", "BS", "BA", "MS", "ID", "IT", "HR",
-            "QA", "PM", "SWE", "CEO", "CTO", "OK", "TA", "STEM", "FAQ", "PR", "PRs", "ETA"}
+            "QA", "PM", "SWE", "CEO", "CTO", "OK", "TA", "STEM", "FAQ", "PR", "PRs", "ETA", "U.S", "U.S.A", "U.K"}
 
 
 def names(sentence: str) -> list[str]:
@@ -217,10 +217,10 @@ OUTCOMES = [(re.compile(said, re.IGNORECASE), re.compile(backed, re.IGNORECASE))
     (r"\bdeploy(?:ed|ing|ment|s)?\b", r"\bdeploy"),
     (r"\badopted\b", r"\badopt"),
     (r"\b(?:shipped|launched|rolled\s+out|released)\b", r"\b(?:ship|launch|roll(?:ed)?\s+out|releas|deploy)"),
-    (r"\b(?:cut|reduced|lowered|decreased|halved|shrank|sped\s+up)\b",
+    (r"\b(?:cut(?!\s+corners)|reduced|lowered|decreased|halved|shrank|sped\s+up)\b",
      r"\b(?:cut|reduc|lower|decreas|halv|shr[ai]nk|sped|speed|faster)"),
     (r"\b(?:increased|improved|boosted|doubled|tripled)\b", r"\b(?:increas|improv|boost|doubl|tripl|gr[eo]w)"),
-    (r"\b(?:won|awarded|first\s+place|second\s+place|third\s+place|finalist|runner[- ]up)\b",
+    (r"\b(?:won(?!['’]t)|awarded|first\s+place|second\s+place|third\s+place|finalist|runner[- ]up)\b",
      r"\b(?:won|win|award|place|finalist|prize|runner[- ]up|honou?r)"),
     (r"\b(?:praised|recogni[sz]ed\s+(?:by|for)|promoted|commended)\b", r"\b(?:prais|recogni[sz]|promot|commend)"),
     (r"\b(?:published|merged)\b", r"\b(?:publish|merg)"),

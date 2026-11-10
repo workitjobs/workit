@@ -176,12 +176,15 @@ async def _flagged(db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID,
     question or it has no answer."""
     await open_application(db, applicant_id, job_id)
     review, rows = await fetch_review(db, applicant_id, job_id)
-    claims = (review or {}).get("truth", {}).get(name) or {}
-    reason, quote = (review or {}).get("flags", {}).get(name), (review or {}).get("quotes", {}).get(name)
-    if not reason:
-        reason, quote = claims.get("reason"), claims.get("quote")
+    review = review or {}
+    claims = review.get("truth", {}).get(name) or {}
     for answer, own in rows:
-        if answer.name == name and answer.answer is not None and reason:
+        if answer.name != name or answer.answer is None:
+            continue
+        reason, quote = review.get("flags", {}).get(name), review.get("quotes", {}).get(name)
+        if not reason and claims.get("answer") == answer.answer:  # a truth flag holds only on the text it read
+            reason, quote = claims.get("reason"), claims.get("quote")
+        if reason:
             return review, answer.model_copy(update={"flag": reason, "flag_quote": quote}), own
     raise Refused("That answer isn't flagged.")
 
