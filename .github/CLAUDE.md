@@ -514,3 +514,27 @@ not a re-run.
 - **Still open:** no notification when a submitted version clears (or
   fails) Google's review — that's checked by hand in the Dashboard for
   now.
+
+## Company websites from Wikidata (`workflows/company-domains.yml`)
+
+Runs `scraper/domain_pr.py --publish` daily at 07:29 UTC on `ubuntu-latest`.
+It downloads the newest scheduled scrape's `metrics.json` artifact (hence
+`actions: read`), looks up on Wikidata up to 150 of the companies whose jobs
+have no `company_domain`, and adds the websites that pass its rules to
+`scraper/checked_websites.csv` on one rolling PR from a
+`codex/company-domains-after-<n>` branch, with `scraper/company-domains.json`
+recording every board looked up. It never pushes to main and never merges.
+A person checks each row's note (the Wikidata item and its description) and
+removes the wrong ones before merging; the rules and why are in
+`scraper/docs/logos.md`, "Wikidata proposals".
+
+- **Like discovery, it needs "Allow GitHub Actions to create and approve pull
+  requests"**, and its PR, opened with `github.token`, starts no CI until a
+  person pushes to the branch.
+- **A PR closed without merging pauses it**: its ledger never reached main, so
+  every board in it would be proposed again. Reopen it, remove the rows you
+  reject and merge it, ledger included.
+- **It needs a scheduled scrape from the last week**, whose artifact it reads;
+  with none it fails and says so.
+- **It stops silently after 60 days without a commit** to `main`, like every
+  schedule here (`gh workflow enable company-domains.yml`).
