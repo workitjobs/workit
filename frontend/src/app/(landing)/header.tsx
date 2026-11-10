@@ -27,8 +27,8 @@ const WORKS_WITH = hiringSystems.slice(0, 3);
  * the window's edges like the panels below it (FloatingHeader sets the
  * state). The links: Features ▾ (the feature pages, features/catalog.ts),
  * Resources ▾ (resources/catalog.ts), Pricing, then Log in and Get started,
- * or one "Open WorkIt" once FloatingHeader's SessionProbe finds a session
- * (KAN-581).
+ * or one "Open WorkIt" for a signed-in visitor (KAN-581), from the first
+ * paint (session-swap.tsx, KAN-743).
  *
  * The site's Applicant / Company switcher is left out while the business side
  * is hidden (KAN-239, frontend/CLAUDE.md).

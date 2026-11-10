@@ -165,13 +165,13 @@ export function FilterBar({
         {facet("source", "Source", "hidden min-w-36 @min-[65.5rem]:flex")}
 
         {/* Every pick and the search off in one press, shown only while
-            there is one: an outlined cross, its name in the tooltip, as on
+            there is one: a round cross on a soft grey (2026-11-09), its name in the tooltip, as on
             the Jobs page. The press hands focus to All Filters, since the
             cross leaves with the last pick. */}
         {filtered && (
           <IconButton
             label="Clear filters"
-            variant="outline"
+            variant="soft"
             className="animate-fade ml-auto size-9 shrink-0"
             onClick={() => {
               allButton.current?.focus();

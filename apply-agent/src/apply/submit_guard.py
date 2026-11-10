@@ -1502,9 +1502,15 @@ class DriveGuard:
         a form holding a chosen file, by no button that sends, never to a final URL, until let off again."""
         control(self._page, {"upload": let})
 
+    def let_start_click(self) -> None:
+        """The open page is the Posting's own, as Claude fill's first drive begins (KAN-725): its Apply button,
+        in a form of a hidden token alone (TAL.net's), may open the application once, until anything is
+        answered on it. Gone with the page's document, and at the next arm()."""
+        control(self._page, {"start": True})
+
     def arm(self) -> None:
-        control(self._page, {"lift": None, "account": False, "profile": False, "upload": False}, (DRIVE,))
-        control(self._page, {"account": False, "profile": False, "upload": False}, (REHEARSAL,))
+        control(self._page, {"lift": None, "account": False, "profile": False, "upload": False, "start": False}, (DRIVE,))
+        control(self._page, {"account": False, "profile": False, "upload": False, "start": False}, (REHEARSAL,))
         self._set_driving(True)
 
     def asking(self, on: bool, may_tick: bool = False) -> None:

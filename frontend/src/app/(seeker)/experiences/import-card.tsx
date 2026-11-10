@@ -16,8 +16,9 @@ import { importSummary } from "@/lib/import-summary";
  * Nothing waits for review: entries are in the bank already, and the student
  * fixes them there. Each write reads the bank again through `onSaved`.
  *
- * The card reads with the parser only. Read It With AI (KAN-222) sat beside
- * Continue until KAN-353.
+ * The API reads with AI first and the parser behind it (KAN-732, ADR 0007),
+ * so there is no button to ask for AI: Read It With AI (KAN-222) sat beside
+ * Continue until KAN-353. The summary line says when AI read it.
  *
  * It opens inside intake's chat: Continue hands the space back, and the walk
  * goes on to ask about what the resume did not say.

@@ -66,7 +66,7 @@ def test_a_board_read_goes_through_read_board_and_the_shortlist(monkeypatch):
         return BoardRead(ReadStatus.OK, jobs=jobs)
 
     monkeypatch.setattr(worker, "read_board", read_board)
-    result, kept, *_ = worker.read_board_shortlist(Board("ashby", "acme", "Acme"))
+    result, kept, *_ = worker.read_board_listing(Board("ashby", "acme", "Acme"))
     assert calls == [Board("ashby", "acme", "Acme")]
     assert result.jobs == jobs
     assert [job.title for job in kept] == ["Software Engineering Intern"]
@@ -79,7 +79,7 @@ def test_a_board_robots_txt_forbids_yields_nothing(monkeypatch):
     monkeypatch.setattr(
         worker, "read_board", lambda board, robots: BoardRead(ReadStatus.SKIPPED, reason="robots.txt")
     )
-    result, kept, *_ = worker.read_board_shortlist(Board("ashby", "acme", "Acme"))
+    result, kept, *_ = worker.read_board_listing(Board("ashby", "acme", "Acme"))
     assert result.status is ReadStatus.SKIPPED
     assert kept == []
 
@@ -87,11 +87,15 @@ def test_a_board_robots_txt_forbids_yields_nothing(monkeypatch):
 def _read_one_intern(monkeypatch, boards_csv):
     from workit_scraper.board_read import BoardRead, ReadStatus
 
+    async def skip_descriptions(conn, summary):
+        pass
+
+    monkeypatch.setattr(worker, "_fetch_descriptions", skip_descriptions)
     job = _job("Software Engineering Intern", 1)
     monkeypatch.setattr(worker, "sync_catalog", lambda conn: schedules.sync_catalog(conn, boards_csv))
     monkeypatch.setattr(
-        worker, "read_board_shortlist",
-        lambda board: (BoardRead(ReadStatus.OK, jobs=[job]), [job], 1.0, 0.5),
+        worker, "read_board_listing",
+        lambda board: (BoardRead(ReadStatus.OK, jobs=[job]), [job], 1.0),
     )
     return job
 
@@ -125,8 +129,8 @@ async def test_a_failed_publish_leaves_the_board_unread(database, boards_csv, mo
 
     monkeypatch.setattr(import_jobs, "import_feed", refuse)
     async with get_engine().connect() as conn:
-        with pytest.raises(import_jobs.ImportRefused):
-            await worker.run_cycle(conn)
+        summary = await worker.run_cycle(conn)
+    assert summary["boards_failed"] == 1
     task, read_at, jobs = await _checkpoint()
     assert task.status == "failed"
     assert task.error.startswith("publish failed")

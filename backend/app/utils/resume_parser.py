@@ -1,3 +1,4 @@
+import itertools
 import json
 import re
 from datetime import date
@@ -10,6 +11,7 @@ from app.models.dto import (
     Certification,
     Education,
     Experience,
+    OtherSection,
     ParsedResume,
     Project,
     Skill,
@@ -37,6 +39,15 @@ EXPECTED_RE = re.compile(
 )
 # Bare "Month Year" ending a line or a "|" field — no range, no "Expected"
 BARE_DATE_RE = re.compile(rf'({MONTH})\s+{YEAR}\s*(?=\||$)', re.IGNORECASE | re.MULTILINE)
+# "Jun-Aug 2026": two months, one year. Whole month names only, so
+# "Marketing - May 2026" is no range.
+_MONTH_NAME = (r'(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|June?|July?|Aug(?:ust)?|'
+               r'Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\.?')
+_SAME_YEAR_RANGE_RE = re.compile(rf'\b({_MONTH_NAME})\s*[–\-—]\s*({_MONTH_NAME})\s+(\d{{4}})\b', re.IGNORECASE)
+# " - " between fields: "Company - Title - Dates" on one line
+DASH_FIELDS_RE = re.compile(r'\s+[–—-]\s+')
+# "Minor in Writing & Rhetoric", "Minor: Mathematics", ending at a field's end
+MINOR_RE = re.compile(r'\bMinors?\s*(?:in\b|:)\s*(.+?)(?=\s{2,}|\s*\||\s*;|\s+[–—-]\s|\s*\bGPA\b|\n|$)', re.IGNORECASE)
 
 # Section headings, from career-center guides (KAN-348). One term is one
 # section's name; a heading is terms joined by "&" or "and", and may end in
@@ -56,8 +67,11 @@ _TERM = (
     r'Internships?|Employment(?:\s+History)?|Work\s+History|Professional\s+Background|Research|'
     # papers, which import keeps as projects
     r'(?:Research\s+)?Publications?|Papers|(?:Conference\s+)?Presentations|Patents|'
-    # clubs, activities and volunteering
-    r'Leadership|Extracurricular\s+Activities|Extracurriculars|'
+    # clubs, activities and volunteering; "Leadership Activities" has no "&"
+    # between its words, and was no heading until KAN-263
+    r'(?:(?:Campus|Student|Community)\s+)?Leadership'
+    r'(?:\s+(?:Activities|Roles?|Positions?|Involvement))?|'
+    r'Extracurricular\s+Activities|Extracurriculars|'
     r'(?:Campus|Community|Athletic)\s+Involvement|Involvement|Activities|'
     r'Volunteer(?:ing|\s+Work)?|Community\s+(?:Service|Engagement)|'
     r'(?:Professional\s+)?(?:Affiliations|Memberships)|(?:Student\s+)?Organizations|Athletics|'
@@ -129,7 +143,8 @@ def parse_resume(raw_text: str) -> ParsedResume | None:
     individually with specific parsers
     """
     text = _clean_text(raw_text)
-    sections = _split_sections(text)
+    headings: dict[str, str] = {}
+    sections = _split_sections(text, headings)
     if not sections:
         return None
     return ParsedResume(
@@ -143,7 +158,56 @@ def parse_resume(raw_text: str) -> ParsedResume | None:
         # club roles read like jobs: organization, role, dates, bullets
         leadership=_parse_experience(sections.get("leadership", "")),
         awards=_parse_awards(sections.get("awards", "")),
+        others=[
+            OtherSection(heading=_display_heading(headings[name]), lines=lines)
+            for name, body in sections.items()
+            if name not in _READ and not name.startswith(_NOT_KEPT) and (lines := _plain_lines(body))
+        ],
     )
+
+
+# The sections parse_resume reads into the bank's own sections; any other
+# heading is kept as it stands (KAN-498), but "References" ("available upon
+# request"), which says nothing about the student
+_READ = {"education", "experience", "skills", "projects", "publications", "certifications", "leadership", "awards"}
+_NOT_KEPT = "reference"
+# Words a heading keeps in lower case once it is put in title case
+_SMALL_WORDS = {"of", "and", "&", "in", "the", "for", "to", "a", "an", "on"}
+
+
+def _display_heading(heading: str) -> str:
+    """A heading as a section's name: "INTERESTS" and "interests" read as
+    "Interests", "SUMMARY OF QUALIFICATIONS" as "Summary of Qualifications";
+    one in mixed case keeps the resume's own."""
+    if heading != heading.upper() and heading != heading.lower():
+        return heading
+    words = heading.lower().split()
+    return " ".join(w if i and w in _SMALL_WORDS else w[:1].upper() + w[1:] for i, w in enumerate(words))
+
+
+# A line at least this long filled the column, so the next one continues it
+_FULL_LINE = 70
+
+
+def _plain_lines(text: str) -> list[str]:
+    """A section with no shape of its own as lines (KAN-498). With bullet
+    markers, as `_bullets` reads them. Without, each line is its own unless
+    it continues the one above: it starts in lower case, or the line above
+    ends in a comma or filled the column, as a wrapped summary does. So a
+    paragraph reads as one line and a list of interests as several."""
+    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    if any(BULLET_RE.match(ln) for ln in lines):
+        return (_bullets(lines) or "").splitlines()
+    parts: list[str] = []
+    above = ""
+    for line in lines:
+        wrapped = len(above) >= _FULL_LINE and not above.endswith((".", "!", "?"))
+        if parts and (line[0].islower() or above.endswith(",") or wrapped):
+            parts[-1] += " " + line
+        else:
+            parts.append(line)
+        above = line
+    return [re.sub(r"\s{2,}", " ", p) for p in parts]
 
 def count_sections(text: str) -> int:
     """How many section headers sit on lines of their own — the extractor
@@ -213,17 +277,24 @@ def _clean_text(text: str) -> str:
     text = re.sub(r'[▪●◦·]', '•', text)
     # U+223C TILDE OPERATOR, which resume fonts often lack: "∼120ms"
     text = text.replace('∼', '~')
+    # "Jun-Aug 2026" is "Jun 2026 - Aug 2026": a range in one year names it
+    # once, and only "Aug 2026" was read, as the end
+    text = _SAME_YEAR_RANGE_RE.sub(r'\1 \3 - \2 \3', text)
     text = re.sub(r'\n{3,}', '\n\n', text)
     return text.strip()
 
 
 # Split sections so each category is parsed individually by its own parser
-def _split_sections(text: str) -> dict[str, str]:
+def _split_sections(text: str, headings: dict[str, str] | None = None) -> dict[str, str]:
+    """Each section's text by its name. `headings`, when given, gets each
+    name's heading as the resume first wrote it, format off."""
     sections: dict[str, list[str]] = {}             # store text based on sections
     lines: list[str] | None = None                  # text before the first header goes
     for line in text.splitlines():
         name = section_of(line)
         if name:
+            if headings is not None:
+                headings.setdefault(name, heading_form(line))
             # two headers can name one section (Experience, Research Experience):
             # keep both, or the second replaces the first
             lines = sections.setdefault(name, [])
@@ -354,6 +425,40 @@ def _split_title_company(text: str) -> tuple[str, str] | None:
     return parts[0], parts[1]
 
 
+_TOOLS_LABEL_RE = re.compile(r'^(?:tech(?:nologies|nology)?(?:\s+stack)?|stack|tools|built\s+with)\s*:\s*', re.IGNORECASE)
+
+
+def tool_items(text: str) -> list[str]:
+    """A tools line's tools: its comma list, less a "Tech Stack:" label, never
+    split inside parentheses ("Supabase (PostgreSQL), Gemini API")."""
+    rest = _TOOLS_LABEL_RE.sub("", text.strip())
+    return [t.strip() for t in re.split(r',(?![^()]*\))', rest) if t.strip()]
+
+
+def is_tools_line(text: str) -> bool:
+    """A line that only lists tools: three or more short comma items ("Next.js,
+    TypeScript, Tailwind CSS"), none over four words, and no full stop at the
+    end. A bullet's sentence fails on its longer clauses."""
+    items = tool_items(text)
+    return (len(items) >= 3 and not text.rstrip().endswith(".")
+            and all(len(t) <= 40 and len(t.split()) <= 4 for t in items))
+
+
+def _split_dash_title_company(text: str) -> tuple[str, str] | None:
+    """'Company - Title' or 'Title - Company' left of an entry's dates. Only
+    when the role keyword is on one side alone: "Software Engineer -
+    Backend" names no company, and stays one title."""
+    parts = DASH_FIELDS_RE.split(text.strip())
+    if len(parts) != 2 or not all(parts):
+        return None
+    roles = [bool(ROLE_KEYWORDS.search(p)) for p in parts]
+    if roles == [True, False]:
+        return parts[0], parts[1]
+    if roles == [False, True]:
+        return parts[1], parts[0]
+    return None
+
+
 def _is_bare_date_line(line: str) -> bool:
     """Only dates, plus maybe a location — the entry's title and company sit
     on the lines above it rather than beside the date."""
@@ -464,9 +569,20 @@ def _parse_education(text: str) -> list[Education]:
         inst_field = next((f for f in fields
                            if INSTITUTION_RE.search(f) and not DEGREE_RE.search(f)), first.split("|")[0])
         inst = _strip_dates(EXPECTED_RE.sub("", inst_field)) or inst_field.strip()
+        # "School - B.S. Computer Science - May 2028 - GPA 3.7" on one line:
+        # the school is the dash fields before the degree, so "University of
+        # Wisconsin - Madison - B.S." keeps "Madison"
+        dash_fields = DASH_FIELDS_RE.split(first)
+        if "|" not in first and len(dash_fields) > 2 and DEGREE_RE.search(inst):
+            school = list(itertools.takewhile(
+                lambda f: not (DEGREE_RE.search(f) or _has_date(f) or GPA_RE.search(f)), dash_fields))
+            inst = " - ".join(school).strip() or inst
 
         # Dates
         _, end = _parse_date_range(all_text)
+        if end is None:
+            # "... - May 2028 - GPA 3.7": a dash field, not a line's end
+            end = next((e for f in dash_fields if (e := _parse_date_range(f.strip())[1])), None)
 
         # GPA
         gpa_m = GPA_RE.search(all_text)
@@ -491,6 +607,12 @@ def _parse_education(text: str) -> list[Education]:
             if m and m.group(1).strip():
                 # "Computer Science  GPA: 3.81/4.00": the field ends at a PDF gap or the GPA
                 field = re.split(r'\s{2,}|\s*\bGPA\b', m.group(1).strip(), flags=re.IGNORECASE)[0].strip() or None
+        # "B.S. in Computer Science | Minor in Writing & Rhetoric": the minor goes
+        # after the major, since an entry has no field of its own for it, and it
+        # was dropped
+        minor = MINOR_RE.search(all_text)
+        if field and minor and "minor" not in field.lower():
+            field = f"{field}, minor in {minor.group(1).strip()}"
 
         # Description: coursework + other non-header lines
         desc_parts: list[str] = []
@@ -563,6 +685,13 @@ def _parse_experience(text: str) -> list[Experience]:
         elif _split_title_company(date_rest):
             # Layout: Title | Company  Location | Dates / bullets
             title, company = _split_title_company(date_rest)
+            location = date_location
+            bullet_start = date_idx + 1
+        elif date_idx == 0 and (pair := _split_dash_title_company(date_rest)):
+            # Layout: Company - Title - Dates on one line / bullets. Before,
+            # the whole "Company - Title" was the title, and a second such
+            # entry took the first one's company.
+            title, company = pair
             location = date_location
             bullet_start = date_idx + 1
         elif title_below:
@@ -675,7 +804,14 @@ def _parse_projects(text: str) -> list[Project]:
                 break
 
         # a line that is only the link is the url above, not a bullet
-        desc = _bullets([ln for ln in lines[1:] if not URL_RE.fullmatch(ln.strip())])
+        body = [ln for ln in lines[1:] if not URL_RE.fullmatch(ln.strip())]
+        # "Next.js, TypeScript, FastAPI" on its own line under the name is the
+        # project's tools, as after a "|": before the first bullet, it was saved
+        # as one, and its tools never reached the skills
+        while body and not BULLET_RE.match(body[0].strip()) and is_tools_line(body[0]):
+            technologies = technologies or tool_items(body[0])
+            body = body[1:]
+        desc = _bullets(body)
 
         results.append(Project(
             project_name=name, url=url, technologies=technologies,

@@ -88,7 +88,8 @@ no end_month) or "expected" (an expected end, such as graduation).
 Write them as soon as the student says what they did or what came of it, the \
 first answer included, rather than asking for a bullet.
 - Education only: degree, field_of_study, gpa, gpa_scale, coursework, honors. \
-Projects only: link. Certifications only: issuer. Awards only: award_date, in \
+Projects only: link, and tools (the tools the student names for the project, \
+each as said, such as "React, FastAPI"). Certifications only: issuer. Awards only: award_date, in \
 place of start and end. Leave other sections' fields empty.
 - Text like [name], [email], [phone] or [link] stands for something removed \
 for privacy. Never put it in the draft.

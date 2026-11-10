@@ -19,8 +19,9 @@ import type { EventKind } from "./tracker";
 
 /**
  * One colour per stage of a search, for every screen that shows one (the
- * Applications board, grid, list and detail panel, Home's number tiles
- * and Up Next, and the Calendar) so a colour means the same stage wherever it appears:
+ * Applications board, grid, list and detail panel, Home's Up Next, and
+ * the Calendar; Home's number tiles keep the same hues in their own
+ * matched --color-kpi-* shades, globals.css) so a colour means the same stage wherever it appears:
  *
  *   saved         grey    not applied yet
  *   applied       violet  the brand: in, and waiting

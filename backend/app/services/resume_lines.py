@@ -15,7 +15,9 @@ of these rules. Pure: the route saves the change and renders.
   words, which print them bold or italic (KAN-435, `resume_view.runs`), and
   where a field is stored as
   data that application forms read: the GPA is a number (an optional
-  scale after "/"), coursework a list split at commas, and a link a URL
+  scale after "/"), coursework and a project's tools (KAN-738) a list split
+  at commas (never inside parentheses: "Supabase (PostgreSQL, pgvector)" is
+  one tool), and a link a URL
   ("https://" is added when missing). The GPA, coursework and honors lines
   print with a label ("GPA: "); typing the label back, or a damaged one
   ("Relevant Coursewok:"), is dropped rather than saved into the value.
@@ -28,7 +30,7 @@ from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 
 BULLET = "bullet"
-ENTRY_KINDS = ("title", "organization", "location", "honors", "coursework", "gpa")
+ENTRY_KINDS = ("title", "organization", "location", "honors", "coursework", "gpa", "tools")
 LINK_KINDS = ("linkedin_url", "github_url", "portfolio_url", "other_url")
 HEADER_KINDS = ("full_name", "phone_number", *LINK_KINDS)
 # The label each detail line prints before its value (fields.details)
@@ -41,6 +43,8 @@ REQUIRED = {
 
 _GPA = re.compile(r"(\d+(?:\.\d+)?)\s*(?:/\s*(\d+(?:\.\d+)?))?")
 _SCHEME = re.compile(r"^https?://", re.IGNORECASE)
+# A comma outside parentheses, as the parser splits a tools line
+_LIST_COMMA = re.compile(r",(?![^()]*\))")
 
 
 class LineError(ValueError):
@@ -88,6 +92,8 @@ def parse(kind: str, text: str) -> Line:
         return Line("entry", _gpa(text))
     if kind == "coursework":
         return Line("entry", {"coursework": [c.strip() for c in text.split(",") if c.strip()]})
+    if kind == "tools":
+        return Line("entry", {"tools": [t.strip() for t in _LIST_COMMA.split(text) if t.strip()]})
     if kind in ENTRY_KINDS:
         return Line("entry", {kind: text or None})
     if kind in LINK_KINDS:

@@ -2,6 +2,7 @@ import { CloudSlashIcon } from "@phosphor-icons/react/ssr";
 import type { Metadata } from "next";
 import { connection } from "next/server";
 
+import { FILL_WITH_SCOUT_LIVE } from "@/components/scout/live";
 import { OpenScoutButton } from "@/components/scout/scout-buttons";
 import { buttonClasses } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -25,14 +26,17 @@ export const metadata: Metadata = {
  * that fails the page says so and offers a retry, never fixture rows. The
  * page is the bank itself: the sections and Skills. Intake, with Import
  * inside its chat, lives in Scout's panel (bank-screen.tsx), opened by Fill
- * With Scout, the view's primary action beside the switcher. It was
- * /bank until KAN-440, which next.config.ts redirects here.
+ * With Scout, the view's primary action beside the switcher, while
+ * `FILL_WITH_SCOUT_LIVE` is on; it is off (KAN-732), so the view has no
+ * primary action. It was /bank until KAN-440, which next.config.ts
+ * redirects here.
  */
 export default async function BankPage({ searchParams }: PageProps<"/experiences">) {
   await connection();
-  // The Jobs page's "Import Your Resume" (?import=1) starts the import here.
+  // The Jobs page's "Import Your Resume" (?import=1) starts intake's import
+  // here, while Fill With Scout is offered; it imports in place otherwise.
   const params = await searchParams;
-  const autoImport = params.import === "1";
+  const autoImport = FILL_WITH_SCOUT_LIVE && params.import === "1";
   // The Showing card's pick (KAN-343, KAN-361): a resume id or "none".
   const resumeParam = typeof params.resume === "string" ? params.resume : undefined;
   const { data, error } = await getBank();
@@ -44,7 +48,7 @@ export default async function BankPage({ searchParams }: PageProps<"/experiences
           initial={data}
           autoImport={autoImport}
           resumeParam={resumeParam}
-          action={<OpenScoutButton>Fill With Scout</OpenScoutButton>}
+          action={FILL_WITH_SCOUT_LIVE && <OpenScoutButton>Fill With Scout</OpenScoutButton>}
         />
       ) : (
         <>

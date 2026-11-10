@@ -437,12 +437,14 @@ def check_wording(
 
 def known(view: ResumeView, picked: Sequence[str], matched: Sequence[Keyword]) -> list[str]:
     """What the truth rule takes as already said by the student, beside each
-    bullet's own wording: the skills the resume shows, the missing keywords
-    they picked (picking one says they have it), and the posting's keywords
-    the resume already shows anywhere (`keywords.match`: "algorithms" in
-    coursework). A missing keyword they did not pick is in none of these, so
-    a wording that names it is dropped: "backend" on a designer's bullet."""
-    return [s.name for s in view.skills] + list(picked) + [k.keyword for k in matched]
+    bullet's own wording: the skills the resume shows, its projects' tools
+    lines (KAN-738), the missing keywords they picked (picking one says they
+    have it), and the posting's keywords the resume already shows anywhere
+    (`keywords.match`: "algorithms" in coursework). A missing keyword they
+    did not pick is in none of these, so a wording that names it is dropped:
+    "backend" on a designer's bullet."""
+    tools = [t for s in view.sections for e in s.entries for t in e.tools]
+    return [s.name for s in view.skills] + tools + list(picked) + [k.keyword for k in matched]
 
 
 def propose(

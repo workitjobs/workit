@@ -80,6 +80,7 @@ const KIND_LABELS: Record<string, string> = {
   gpa: "GPA",
   coursework: "Coursework",
   honors: "Honors",
+  tools: "Tools",
   full_name: "Name",
   phone_number: "Phone",
   email: "Email",

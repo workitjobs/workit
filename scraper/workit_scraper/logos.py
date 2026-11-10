@@ -6,8 +6,9 @@ the company's website's favicon, when the board tells us the website: Ashby and
 Workable name it, a Workday careers site links its home page, a Lever board's footer
 links it, a Greenhouse board's logo link or a Greenhouse or Lever board's job
 descriptions link it, a board may redirect to it, or a person checked it by hand
-(`CHECKED_WEBSITES`). We never guess a website from a company name: "Workshop" is not
-workshop.com. Each board is read once, ever: a board already in
+(`CHECKED_WEBSITES`). The scrape never guesses a website from a company name:
+"Workshop" is not workshop.com. A name's website from Wikidata is only proposed, in a
+PR a person reviews (`wikidata`, `domain_pr.py`). Each board is read once, ever: a board already in
 `Store.logos` is never read again, because logos almost never change. Delete the
 `logos` key from jobs.json to read them all again; a board read with no logo is read
 again once whenever `VERSION` goes up.
