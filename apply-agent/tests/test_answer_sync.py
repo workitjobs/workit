@@ -118,13 +118,30 @@ def test_with_no_login_a_change_waits_and_the_bank_still_saves(tmp_path):
 
 
 def test_a_refused_batch_is_dropped_and_said(fake, tmp_path):
-    fake.route("PATCH", PATH, lambda seen, fake: Reply(422, {"detail": "At most 2000 saved answers."}))
+    fake.route("PATCH", PATH, lambda seen, fake: Reply(422, {"detail": [{"input": "A secret answer."}]}))
     sync = AnswerSync(logged_in(fake, tmp_path), tmp_path / "q.json")
 
-    sent = sync.changed({"q": {"question": "Q?", "answer": "A.", "source": "lisul", "reviewed": True}}, [])
+    sent = sync.changed({"q": {"question": "Q?", "answer": "A secret answer.", "source": "lisul", "reviewed": True}}, [])
 
-    assert sent.problems and "refused" in sent.problems[0]
+    assert sent.problems == ["WorkIt refused 1 answers (HTTP 422)"]  # never the detail, which can quote the answer
     assert sync.waiting() == 0
+
+
+def test_an_entry_past_workit_s_caps_stays_here_and_never_sinks_the_batch(fake, tmp_path):
+    sync = AnswerSync(logged_in(fake, tmp_path), tmp_path / "q.json")
+    countries = [f"Country {n}" for n in range(250)]
+
+    sent = sync.changed({
+        "country?": {"question": "Country?", "answer": "Country 7", "options": countries, "source": "lisul",
+                     "reviewed": True},
+        "essay?": {"question": "Essay?", "answer": "x" * 20001, "source": "lisul", "reviewed": True},
+        "odd?": {"question": "Odd?", "answer": "Yes.", "source": "lisul", "reviewed": "false"},
+    }, [])
+
+    country, odd = synced(fake)
+    assert (country["question"], len(country["options"])) == ("Country?", 200)  # cut: WorkIt reads only that it has some
+    assert odd["reviewed"] is False  # not true or false: never the student's own
+    assert (sent.too_long, sent.problems) == (1, [])
 
 
 BANK = """\

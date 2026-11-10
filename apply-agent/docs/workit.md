@@ -241,7 +241,18 @@ import run again.
 - **WorkIt down, no login, or the cap.** The change waits in
   `APPLY_HOME/workit-answers-queue.json`, the newest per question, and goes
   with the next change or `apply sync-answers`. A refusal (a 4xx) drops
-  that batch and says so on stderr.
+  that batch and says so on stderr, with the status only: a refusal's
+  detail can quote the answer.
+- **WorkIt's caps are checked here first** (`payload`), so one entry
+  never sinks a batch: an option list is cut to 200 (WorkIt reads only that
+  there are options), and a question over 1000 characters or an answer over
+  20000 stays on this Mac, counted in the report.
+- **WorkIt's clock decides.** A time ahead of WorkIt's clock counts as
+  WorkIt's now, so a fast Mac never puts an Apply answer above a later
+  edit on the site.
+- **Edits made while the sync was off carry no time**, so catch-up never
+  replaces an entry WorkIt has a time for. Edit the answer again in Apply
+  to send it as the newer one.
 - **`apply sync-answers`** sends the whole bank one time, for catch-up: after
   turning the sync on, or after hand edits to `answer-bank.yaml`. It prints
   counts and the questions WorkIt kept, never an answer, and exits 1 while

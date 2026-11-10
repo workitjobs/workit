@@ -44,7 +44,9 @@ from apply.workit import (
 )
 
 QUEUE = HOME / "workit-answers-queue.json"
-BATCH = 200  # WorkIt takes at most this many of each in one call
+# WorkIt's caps (backend schemas/profile.py, ApplyAnswer): per call, and per entry.
+BATCH = 200
+QUESTION, ANSWER, OPTIONS, PICKS = 1000, 20000, 200, 100
 
 
 def enabled(policies: dict) -> bool:
@@ -52,17 +54,26 @@ def enabled(policies: dict) -> bool:
     return (policies.get("workit_sync") or {}).get("answers") is True
 
 
-def payload(filed: str, entry: dict) -> dict:
-    """An entry as WorkIt's `PATCH .../fill-answers` takes it."""
+def payload(filed: str, entry: dict) -> dict | None:
+    """An entry as WorkIt's `PATCH .../fill-answers` takes it, or None for one past WorkIt's caps (a question
+    or answer too long), which stays on this Mac. A long option list is cut: WorkIt reads only that there are
+    options. A `reviewed` that is not true or false goes as false, never as the student's own."""
     answer = entry.get("answer")
     seen = entry.get("first_seen") if isinstance(entry.get("first_seen"), dict) else {}
+    question = str(entry.get("question") or filed).strip()
+    answer = [str(a) for a in answer] if isinstance(answer, list) else "" if answer is None else str(answer)
+    too_long = len(answer) > PICKS or any(len(a) > QUESTION for a in answer) if isinstance(answer, list) \
+        else len(answer) > ANSWER
+    if not question or len(question) > QUESTION or too_long:
+        return None
+    reviewed = entry.get("reviewed")
     return {
-        "question": str(entry.get("question") or filed).strip(),
-        "answer": [str(a) for a in answer] if isinstance(answer, list) else "" if answer is None else str(answer),
-        "options": [str(o) for o in entry.get("options") or ()],
-        "source": str(entry.get("source") or answer_bank.CLAUDE),
-        "reviewed": entry.get("reviewed") if isinstance(entry.get("reviewed"), bool) else None,
-        "company": str(seen.get("company") or "") or None,
+        "question": question,
+        "answer": answer,
+        "options": [str(o)[:QUESTION] for o in entry.get("options") or ()][:OPTIONS],
+        "source": str(entry.get("source") or answer_bank.CLAUDE)[:20],
+        "reviewed": reviewed if isinstance(reviewed, bool) else None if reviewed is None else False,
+        "company": str(seen.get("company") or "")[:200] or None,
         "edited_at": _iso(entry.get("edited_at")),
     }
 
@@ -73,6 +84,7 @@ class Sent:
     deleted: int = 0
     kept: list[str] = field(default_factory=list)  # WorkIt's entry was newer
     waiting: int = 0  # still in the queue: WorkIt could not be reached
+    too_long: int = 0  # past WorkIt's caps: kept on this Mac only
     problems: list[str] = field(default_factory=list)
 
 
@@ -86,12 +98,17 @@ class AnswerSync:
     def changed(self, changed: dict[str, dict], deleted: list[str]) -> Sent:
         """answer_bank's on_change: queue the changed entries and deletes, then send all that waits."""
         now = datetime.now(UTC).replace(microsecond=0).isoformat()
-        return self.send({k: ("answer", payload(k, e)) for k, e in changed.items()}
-                         | {k: ("deleted", {"question": k, "edited_at": now}) for k in deleted})
+        return self._send_entries(changed, {k: ("deleted", {"question": k, "edited_at": now}) for k in deleted})
 
     def push_all(self, bank: AnswerBank) -> Sent:
         """`apply sync-answers`: every entry in the bank, for catch-up."""
-        return self.send({k: ("answer", payload(k, e)) for k, e in bank.raw().items()})
+        return self._send_entries(bank.raw(), {})
+
+    def _send_entries(self, entries: dict[str, dict], more: dict[str, tuple[str, dict]]) -> Sent:
+        made = {k: payload(k, e) for k, e in entries.items()}
+        sent = self.send({k: ("answer", p) for k, p in made.items() if p is not None} | more)
+        sent.too_long = sum(p is None for p in made.values())
+        return sent
 
     def send(self, more: dict[str, tuple[str, dict]] | None = None) -> Sent:
         """Queue `more` (each in place of a waiting change to the same question), then send all that waits,
@@ -106,10 +123,11 @@ class AnswerSync:
                     said = self.client.sync_answers([b for kind, b in batch.values() if kind == "answer"],
                                                     [b for kind, b in batch.values() if kind == "deleted"])
                 except (NotLoggedIn, LoginExpired, Unreachable, CapReached) as error:
-                    sent.problems.append(f"waits to go to WorkIt ({type(error).__name__}: {error})")
+                    sent.problems.append(f"waits to go to WorkIt ({type(error).__name__})")
                     break
                 except WorkItError as error:  # refused for good: sending it again would fail again
-                    sent.problems.append(f"WorkIt refused {len(batch)} answers ({error})")
+                    # The status only: a refusal's detail can quote the answer it refused.
+                    sent.problems.append(f"WorkIt refused {len(batch)} answers (HTTP {error.status})")
                     said = {}
                 sent.saved += int(said.get("saved") or 0)
                 sent.deleted += int(said.get("deleted") or 0)
@@ -163,6 +181,9 @@ def report(sent: Sent) -> str:
     lines = [f"Sent to WorkIt: {sent.saved} saved, {sent.deleted} deleted."]
     if sent.kept:
         lines.append(f"Kept WorkIt's newer answer to {len(sent.kept)}: " + "; ".join(sent.kept))
+    if sent.too_long:
+        lines.append(f"{sent.too_long} too long for WorkIt (over {QUESTION} characters a question or {ANSWER} an "
+                     "answer): they stay on this Mac.")
     if sent.waiting:
         lines.append(f"{sent.waiting} wait in {QUEUE.name} for the next sync.")
     return "\n".join(lines + sent.problems)
