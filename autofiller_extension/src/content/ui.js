@@ -1,9 +1,11 @@
 // The panel's small shared helpers, loaded before every other panel and fill
-// file (manifest.json, background.js SHELL_FILES, shared/content-scripts.js):
+// file (shared/content-scripts.js: SHELL_FILES, CONTENT_SCRIPT_FILES):
 //
 // - ask(message): chrome.runtime.sendMessage, rejecting as it does.
 // - send(message): the same, but a failed send answers null.
 // - el(tag, className, text) and button(label, onPress): the panel's nodes.
+// - copy(text): the text to the student's clipboard (a page that blocks the
+//   clipboard API gets the older copy command).
 // - trusted(onPress): a click listener that acts on the student's own clicks
 //   only (event.isTrusted). The panel lives in the employer's page, whose
 //   scripts can dispatch clicks; every click listener in the panel takes its
@@ -36,5 +38,17 @@ window.WIA = window.WIA || {};
     return node;
   };
 
-  window.WIA.ui = { ask, send, el, button, trusted };
+  const copy = async (text) => {
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      const box = Object.assign(document.createElement("textarea"), { value: text });
+      document.body.append(box);
+      box.select();
+      document.execCommand("copy");
+      box.remove();
+    }
+  };
+
+  window.WIA.ui = { ask, send, el, button, trusted, copy };
 })();
