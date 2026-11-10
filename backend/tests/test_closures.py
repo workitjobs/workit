@@ -190,7 +190,7 @@ async def test_update_sources_inserts_new_rows(database):
     """update_sources creates job_sources rows for a board's listing."""
     async with get_engine().begin() as conn:
         board = await _seed_schedule(conn)
-        await update_sources(conn, board, [URL_A, URL_B])
+        await update_sources(conn, board, [(URL_A, "1"), (URL_B, "2")])
 
         count = (await conn.execute(text(
             "SELECT count(*) FROM job_sources WHERE schedule_id = :sid"
@@ -202,7 +202,7 @@ async def test_update_sources_upsert_uses_greatest(database):
     """A repeat call never pushes last_seen_at backward (GREATEST)."""
     async with get_engine().begin() as conn:
         board = await _seed_schedule(conn)
-        await update_sources(conn, board, [URL_A])
+        await update_sources(conn, board, [(URL_A, "1")])
 
         # Move last_seen_at into the future.
         await conn.execute(text("""
@@ -215,7 +215,7 @@ async def test_update_sources_upsert_uses_greatest(database):
         ), {"sid": board, "url": URL_A})).scalar()
 
         # A second upsert should not push it backward.
-        await update_sources(conn, board, [URL_A])
+        await update_sources(conn, board, [(URL_A, "1")])
 
         after = (await conn.execute(text(
             "SELECT last_seen_at FROM job_sources WHERE schedule_id = :sid AND apply_url = :url"
