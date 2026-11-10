@@ -38,6 +38,7 @@ if TYPE_CHECKING:
     from apply.tracker import AnswerRow
 
 CLAUDE, LISUL = "claude", "lisul"  # who gave an answer
+FILE = "answer-bank.yaml"  # the bank's file, beside the Applicant profile
 # What the WorkIt sync carries of an entry: a change to one of these is a change to send.
 SYNCED = ("question", "answer", "options", "source", "reviewed", "first_seen", "none")
 # on_change(changed, deleted): the changed entries (as filed, with their key) and the keys taken out.
