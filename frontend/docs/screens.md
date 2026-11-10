@@ -2403,8 +2403,9 @@ in Docs (suggested answers in the chat, not a banner).
   what the section holds ("Edit School", "Edit Job", "Edit Project",
   "Edit Role", "Edit Award", "Edit Certification", "Edit Entry" with the
   section's name under it; `NOUNS` in `sections.ts`): every field, a body
-  that scrolls, and a foot that stays put, Delete on the left and Cancel and
-  Save on the right. From the list the form is a step of the same dialog,
+  that scrolls, and a foot that stays put, Delete Entry on the left (one
+  name on every section's form, as LinkedIn's) and Cancel and Save on the
+  right. From the list the form is a step of the same dialog,
   with a Back arrow; Back, Cancel, Escape and a save return to the list
   with the focus on that entry's pencil. With typing in it, Escape, the ×
   and a press outside ask "Discard Your Changes?" across the foot (Keep

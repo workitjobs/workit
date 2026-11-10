@@ -170,7 +170,6 @@ export function SectionDialog({
           key={entry?.id ?? "new"}
           ref={paneRef}
           title={`${entry ? "Edit" : "Add"} ${noun[0]}`}
-          noun={noun[0]}
           {...setup}
           remove={
             setup.remove && {

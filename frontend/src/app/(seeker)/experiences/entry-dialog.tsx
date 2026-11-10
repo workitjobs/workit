@@ -305,7 +305,6 @@ export function EntryPane({
   initial,
   lines = false,
   note,
-  noun,
   save,
   onSaved,
   onCancel,
@@ -320,8 +319,6 @@ export function EntryPane({
   lines?: boolean;
   /** Over the foot: the other built resumes a save changes too. */
   note?: ReactNode;
-  /** "Project", for Delete Project. */
-  noun: string;
   save: (draft: EntryDraft, asNew: boolean) => Promise<SaveOutcome> | SaveOutcome;
   onSaved: () => void;
   onCancel: () => void;
@@ -382,7 +379,10 @@ export function EntryPane({
     setDeleteError(failed);
   }
 
-  const deleteLabel = `Delete ${noun}`;
+  // "Delete Entry" on every section's form, as LinkedIn's "Delete
+  // experience" names the kind of thing, not the one being edited: "Delete
+  // School" read as deleting the school
+  const deleteLabel = "Delete Entry";
   const foot =
     asking?.kind === "discard" ? (
       <ConfirmBar

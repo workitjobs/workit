@@ -94,7 +94,7 @@ export function EntryEditor<S extends EntrySection = EntrySection>({
    *  pencil, under a section heading that already held Clear All and Add,
    *  so four controls in one corner did not say which acted on what. */
   onDelete?: () => void;
-  /** Delete's words: "Delete Project" in the entry form. */
+  /** Delete's words: "Delete Entry", the default, on every form. */
   deleteLabel?: string;
   /** Save's words, "Save" in the entry form; Save Entry, or Save Lines for
    *  a Lines section, inline. */

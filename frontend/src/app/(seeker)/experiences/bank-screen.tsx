@@ -825,7 +825,6 @@ export function BankScreen({
               ? `${open.target ? "Edit" : "Add"} ${openCard.name}`
               : `${open.target ? "Edit" : "Add"} ${openCard.noun[0]}`
           }
-          noun={openCard.noun[0]}
           returnTo={returnTo}
           onClose={() => setOpen(null)}
           {...withDeleted(paneFor(open.card, open.target), () => setOpen(null))}
@@ -1120,8 +1119,10 @@ function ScoutMarked({
       aria-current={active ? "true" : undefined}
       className={cn(
         // isolate: the band paints over the tint and under the text.
-        "relative isolate -mx-3 scroll-my-24 overflow-hidden rounded-xl px-3 py-3 transition-colors duration-200",
-        active && "bg-brand-tint/70",
+        "relative isolate -mx-3 scroll-my-24 overflow-hidden px-3 py-3 transition-colors duration-200",
+        // Rounded only while marked: rounded always, the divider under each
+        // row curved up at its ends and boxed the row in
+        active && "bg-brand-tint/70 rounded-xl",
       )}
     >
       {active && (

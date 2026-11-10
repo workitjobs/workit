@@ -349,7 +349,6 @@ function Reading({
           // Its own form per entry: a second one keeps nothing of the first
           key={editing}
           title={`Edit ${NOUNS[open.section][0]}`}
-          noun={NOUNS[open.section][0]}
           initial={draftOfPreview(open)}
           returnTo={returnTo}
           onClose={() => onEditEntry(null)}
