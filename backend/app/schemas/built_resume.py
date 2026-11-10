@@ -52,6 +52,10 @@ class BuiltResumeResponse(BaseModel):
     # it (KAN-268). Null on a base resume.
     posting_title: str | None = None
     posting_company: str | None = None
+    # Its company's logo and website, for the Resumes page card's logo tile
+    # (2026-11-10), as a job card draws a company (`jobLogo`)
+    posting_logo_url: str | None = None
+    posting_company_domain: str | None = None
 
 
 class GenerateStep(BaseModel):

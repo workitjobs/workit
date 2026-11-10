@@ -36,6 +36,10 @@ export type BuiltResume = {
    *  (KAN-268); null on a base resume. */
   posting_title: string | null;
   posting_company: string | null;
+  /** Its company's logo and website, for the card's logo tile (`jobLogo`);
+   *  null on a base resume or a posting with none. */
+  posting_logo_url: string | null;
+  posting_company_domain: string | null;
 };
 
 /** One line of a streamed Generate (`/api/resume-generate`, the API's

@@ -2907,14 +2907,22 @@ it is a dropdown because the header already holds the Resumes or Experiences
 pills, the shared `SortMenu`, which the Jobs page's filter row uses too.
 **Each resume is a wide white card on the page's ground, after the
 Tracker's cards** (2026-11-10, `ResumeCard` in
-`components/resume-row.tsx`; the list is no card of its own): a file tile,
-the name, and a line with an icon saying what the resume is ("Uploaded
+`components/resume-row.tsx`; the list is no card of its own): a tile
+saying what the resume is, the name, and a line with an icon saying it in
+words ("Uploaded
 PDF", "Made from your experiences", "For <posting> at <company>", with
 Posting Closed beside the name), then **Created** (date and time, on the
 student's clock, the year only when it is not this one) and **Last
 Edited** (the day, or "Not edited") in labeled columns, then its star,
 Rename, Download and Delete, the same four icons on every card. The
-columns have fixed widths, so every card's dates line up. The rows before were
+columns have fixed widths, so every card's dates line up. **The tile**
+(2026-11-10): an upload's file type ("PDF", "DOCX") on a neutral tile; a
+generated resume's small page in the brand tint, the drawing Generate's
+dialog uses; a tailored resume's company logo, the job card's own
+(`jobLogo`, from the API's `posting_logo_url` and
+`posting_company_domain`), initials without one. Every card wore a PDF
+mark before, though a built resume is no file (it prints from the bank
+each time it opens) and an upload can be a Word file. The rows before were
 52px grey strips in one white card with the date against the icons, which
 the user found skinny and cramped, and whose Created column moved with
 each row's icons. Below `@2xl` of the card (672px) the columns hide and

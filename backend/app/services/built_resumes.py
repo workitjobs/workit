@@ -318,16 +318,26 @@ class TailoredPosting:
     title: str
     company: str | None
     closed: bool
+    # The company's logo and website, for the card's logo tile, as a job
+    # card draws it (2026-11-10)
+    logo_url: str | None = None
+    company_domain: str | None = None
 
 
 async def tailored_postings(session: AsyncSession, applicant_id: uuid.UUID) -> dict[uuid.UUID, TailoredPosting]:
     """Each of the applicant's tailored resumes' postings, by resume id."""
     rows = await session.execute(
-        select(Built_Resume.id, Job_Post.title, Job_Post.company_name, LISTED.label("listed"))
+        select(
+            Built_Resume.id, Job_Post.title, Job_Post.company_name, LISTED.label("listed"),
+            Job_Post.company_logo_url, Job_Post.company_domain,
+        )
         .join(Job_Post, Job_Post.id == Built_Resume.job_posting_id)
         .where(Built_Resume.applicant_id == applicant_id)
     )
-    return {r.id: TailoredPosting(r.title, r.company_name, not r.listed) for r in rows}
+    return {
+        r.id: TailoredPosting(r.title, r.company_name, not r.listed, r.company_logo_url, r.company_domain)
+        for r in rows
+    }
 
 
 async def tailored_for(session: AsyncSession, applicant_id: uuid.UUID, posting_id: uuid.UUID) -> Built_Resume | None:

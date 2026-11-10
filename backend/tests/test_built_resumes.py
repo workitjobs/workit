@@ -485,6 +485,11 @@ async def test_a_tailored_resume_names_its_posting_and_says_when_it_has_closed(s
                 " (gen_random_uuid(), 'Intern', 'published', 'Acme', 'https://example.com/apply') RETURNING id"
             )
         )
+        await session.execute(
+            text("UPDATE job_postings SET company_logo_url = 'https://example.com/acme.png',"
+                 " company_domain = 'acme.com' WHERE id = :p"),
+            {"p": posting},
+        )
         tailored = await session.scalar(
             text(
                 "INSERT INTO built_resumes (applicant_id, name, template, job_posting_id)"
@@ -500,6 +505,11 @@ async def test_a_tailored_resume_names_its_posting_and_says_when_it_has_closed(s
 
     # The card names the posting and links to it (KAN-268).
     assert await postings() == {base: (None, None, False), str(tailored): ("Intern", "Acme", False)}
+    # ...and shows its company's logo (2026-11-10)
+    rows = {r["id"]: r for r in (await client.get(f"{me}/built-resumes")).json()}
+    assert (rows[str(tailored)]["posting_logo_url"], rows[str(tailored)]["posting_company_domain"]) == (
+        "https://example.com/acme.png", "acme.com")
+    assert rows[base]["posting_logo_url"] is None
     async with database() as session:
         await session.execute(text("UPDATE job_postings SET status = 'closed' WHERE id = :p"), {"p": posting})
         await session.commit()

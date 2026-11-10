@@ -6,6 +6,8 @@ import { useState, type FormEvent } from "react";
 
 import { BriefcaseIcon, FileIcon, PencilIcon, TrashIcon } from "@/components/icons";
 import {
+  BuiltPageTile,
+  PostingLogoTile,
   PrimaryStar,
   ResumeCard,
   ROW_ACTION,
@@ -105,6 +107,17 @@ export function BuiltResumeRow({
         <ResumeCard
           name={resume.name}
           href={`/resumes/${encodeURIComponent(resume.id)}`}
+          tile={
+            resume.job_posting_id ? (
+              <PostingLogoTile
+                company={resume.posting_company ?? resume.posting_title ?? resume.name}
+                logoUrl={resume.posting_logo_url}
+                domain={resume.posting_company_domain}
+              />
+            ) : (
+              <BuiltPageTile />
+            )
+          }
           about={
             resume.job_posting_id && resume.posting_title ? (
               <>

@@ -9,10 +9,10 @@ import { DeleteResumeConfirm } from "@/app/(seeker)/resumes/delete-confirm";
 import {
   CalendarIcon,
   EllipsisIcon,
-  FileIcon,
   PdfIcon,
   PencilIcon,
   TrashIcon,
+  UploadIcon,
 } from "@/components/icons";
 import {
   DropdownMenu,
@@ -20,9 +20,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/shadcn/dropdown-menu";
+import { CompanyLogo } from "@/components/company-logo";
 import { Card } from "@/components/ui/card";
 import { IconButton } from "@/components/ui/icon-button";
 import { cn } from "@/lib/cn";
+import { jobLogo } from "@/lib/job-logo";
 import type { ResumeItem } from "@/lib/resume-actions";
 
 /** One resume row. The in-flight upload (the Resumes view's
@@ -93,6 +95,7 @@ function CardColumn({ label, children }: { label: string; children: ReactNode })
 export function ResumeCard({
   name,
   href,
+  tile,
   about,
   badge,
   created,
@@ -101,6 +104,9 @@ export function ResumeCard({
 }: {
   name: string;
   href: string;
+  /** What the resume is, at a glance: `FileTypeTile`, `BuiltPageTile` or
+   *  `PostingLogoTile`. */
+  tile: ReactNode;
   about: ReactNode;
   badge?: ReactNode;
   created: string | null;
@@ -114,9 +120,7 @@ export function ResumeCard({
     >
       <div className={CARD_GRID}>
         <div className="flex min-w-0 items-center gap-3">
-          <span className="bg-well rounded-control hidden size-10 shrink-0 items-center justify-center @sm:flex">
-            <PdfIcon className="size-5" />
-          </span>
+          <span className="hidden shrink-0 @sm:block">{tile}</span>
           <div className="min-w-0">
             <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
               <Link
@@ -171,6 +175,71 @@ export function ResumeCard({
   );
 }
 
+/** A tile's box: the Tracker's company tile at `md` (`ApplicationTile`). */
+const TILE = "rounded-control flex size-10 items-center justify-center";
+
+/** An upload's file type, from its name or Storage path: "PDF", "DOCX" or
+ *  "DOC". */
+export function fileType(file: string): string {
+  const ext = file.toLowerCase().split(".").pop() ?? "";
+  return ext === "pdf" || ext === "docx" || ext === "doc" ? ext.toUpperCase() : "FILE";
+}
+
+/**
+ * The tiles that say what a resume is (2026-11-10). Every card showed a PDF
+ * mark until then, though a generated or tailored resume is no file at all
+ * (it prints from the bank each time it opens) and an upload can be a Word
+ * file. The Tracker's cards lead with the company's logo; these do the same
+ * where a resume has a company.
+ *
+ * - `FileTypeTile`: an upload, as its file type on a neutral tile.
+ * - `BuiltPageTile`: a resume WorkIt built from the student's experiences,
+ *   as a small page in the brand tint, the drawing Generate's dialog uses.
+ * - `PostingLogoTile`: a tailored resume, as its company's logo, the job
+ *   card's own (`jobLogo`: Brandfetch by the website, then the job board's
+ *   logo, then initials).
+ */
+export function FileTypeTile({ file }: { file: string }) {
+  return (
+    <span aria-hidden className={cn(TILE, "bg-well border-border-subtle border")}>
+      <span className="text-meta text-ink-muted font-semibold tracking-wide">{fileType(file)}</span>
+    </span>
+  );
+}
+
+export function BuiltPageTile() {
+  return (
+    <span aria-hidden className={cn(TILE, "bg-brand-tint items-end overflow-hidden")}>
+      <span className="bg-panel flex h-8 w-6 flex-col gap-[3px] rounded-t-[2px] px-1 pt-1.5 shadow-sm">
+        <span className="bg-ink/60 mx-auto block h-[2px] w-3/5 rounded-full" />
+        <span className="bg-ink/30 block h-[1.5px] w-2/5 rounded-full" />
+        <span className="bg-ink/15 block h-[1.5px] w-full rounded-full" />
+        <span className="bg-ink/15 block h-[1.5px] w-4/5 rounded-full" />
+        <span className="bg-ink/30 block h-[1.5px] w-2/5 rounded-full" />
+        <span className="bg-ink/15 block h-[1.5px] w-11/12 rounded-full" />
+      </span>
+    </span>
+  );
+}
+
+export function PostingLogoTile({
+  company,
+  logoUrl,
+  domain,
+}: {
+  company: string;
+  logoUrl: string | null;
+  domain: string | null;
+}) {
+  return (
+    <CompanyLogo
+      name={company}
+      src={jobLogo({ logo_url: logoUrl, company_domain: domain })}
+      className="text-meta rounded-control size-10"
+    />
+  );
+}
+
 /** A file in flight on the Resumes page, as the card it becomes, at its
  *  height, so nothing jumps when the real card arrives. */
 export function PendingResumeCard({ name, note }: { name: string; note: string }) {
@@ -178,8 +247,8 @@ export function PendingResumeCard({ name, note }: { name: string; note: string }
     <Card padding="none" className="@container mt-3">
       <div className={CARD_GRID}>
         <div className="flex min-w-0 items-center gap-3">
-          <span className="bg-well rounded-control hidden size-10 shrink-0 items-center justify-center @sm:flex">
-            <PdfIcon className="size-5" />
+          <span className="hidden shrink-0 @sm:block">
+            <FileTypeTile file={name} />
           </span>
           <div className="min-w-0">
             <div className="text-subtitle text-ink truncate leading-5">{name}</div>
@@ -417,9 +486,10 @@ export function ResumeRow({
       <ResumeCard
         name={name}
         href={href}
+        tile={<FileTypeTile file={resume.storage_path} />}
         about={
           <>
-            <FileIcon className="size-3.5 shrink-0" />
+            <UploadIcon className="size-3.5 shrink-0" />
             <span className="truncate">{pdf ? "Uploaded PDF" : "Uploaded Word file"}</span>
           </>
         }

@@ -25,7 +25,9 @@ GET    /applicants/{id}/built-resumes              -> [BuiltResumeResponse], new
        `posting_closed` is true for a tailored resume whose posting the Jobs
        page no longer lists (story 90's "Posting closed"). `posting_title`
        and `posting_company` name a tailored resume's posting, for its
-       card's link back to it (KAN-268); null on a base resume. `edited_at` is
+       card's link back to it (KAN-268), and `posting_logo_url` and
+       `posting_company_domain` give its card the company's logo; null on a
+       base resume. `edited_at` is
        the last change to the resume itself (its choices or its name); it
        equals `created_at` until the first one.
 PATCH  /applicants/{id}/built-resumes/{rid}        BuiltResumeRename -> BuiltResumeResponse
@@ -209,6 +211,8 @@ def _response(
         posting_closed=posting.closed if posting else False,
         posting_title=posting.title if posting else None,
         posting_company=posting.company if posting else None,
+        posting_logo_url=posting.logo_url if posting else None,
+        posting_company_domain=posting.company_domain if posting else None,
     )
 
 
