@@ -35,7 +35,7 @@ def filled(tmp_path):
     (tmp_path / "resume.pdf").write_bytes(b"%PDF-1.4")
     return {
         "identity": {"legal_first_name": "Test", "legal_last_name": "Person", "email": "test.person@example.com",
-                     "phone": "+15550100199", "current_location": {"city": "Columbus", "state": "OH", "country": "USA"}},
+                     "phone": "+15550100199", "phone_type": "mobile", "current_location": {"city": "Columbus", "state": "OH", "country": "USA"}},
         "files": {"resume_pdf": "resume.pdf"},
         "links": {"linkedin_url": "https://www.linkedin.com/in/test-person"},
         "education": {"school": "Ohio State University", "degree": "Bachelor's Degree", "expected_graduation": "2028-05"},
@@ -459,6 +459,14 @@ def test_blank_required_facts_fail_naming_each(tmp_path):
     assert found.level == doctor.FAIL
     assert "identity.phone" in found.detail and "education.school" in found.detail
     assert "identity.email" not in found.detail
+
+
+def test_a_blank_optional_fact_warns_naming_it(tmp_path):
+    facts = filled(tmp_path)
+    del facts["identity"]["phone_type"]
+    found = check(machine(tmp_path, profile=profile(tmp_path, facts)), "Applicant profile")
+    assert found.level == doctor.WARN
+    assert "identity.phone_type" in found.detail and "mobile, landline or work" in found.fix
 
 
 def test_a_no_is_a_fact_not_a_blank(tmp_path):
