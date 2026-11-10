@@ -122,7 +122,13 @@ them. `apply.plain.tile.PortFrames` is their frame source for the same
   (`launcher.start_in_background`) with `--no-startup-window`, then the
   extension opens the window unfocused (`windows.create`), 1280 x 900 (readable at 100%),
   shrunk to the main screen's visible area, at its top-left corner. Only his Show brings one forward. Tests share one Worker and
-  stop it when they end.
+  stop it when they end. A Chrome that comes forward on its own (a launch, a
+  new tab, a pop-up) goes back behind his app (`focus.FocusKeeper`). One he
+  switches to stays in front and is his: a click on its window, a click in the
+  Dock or Mission Control, or Cmd-Tab. A click counts by whose window was
+  under the pointer, not only by the time of the click: macOS makes the
+  clicked app the front app a moment after the mouse-down, and a Worker he
+  clicked went straight back behind (KAN-752).
 - **Wired into runs (S8, KAN-614).** `cli._dashboard` builds `PortFrames` when
   `worker_mode: plain`, and `EitherFrames` (each Worker's current kind) when `protected`.
 - **Live check.** `uv run apply plain tile lever-immuta` fills a saved form
