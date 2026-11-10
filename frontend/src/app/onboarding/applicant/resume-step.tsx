@@ -4,7 +4,7 @@ import { PencilSimpleIcon } from "@phosphor-icons/react/ssr";
 import { useRef, useState, type ReactNode } from "react";
 
 import { EntryDialog } from "@/app/(seeker)/experiences/entry-dialog";
-import { EntryRow, MissingFacts } from "@/app/(seeker)/experiences/entry-row";
+import { EntryRow, GapSummary } from "@/app/(seeker)/experiences/entry-row";
 import { SectionMark } from "@/app/(seeker)/experiences/section-icons";
 import { NOUNS, SECTIONS } from "@/app/(seeker)/experiences/sections";
 import { SkillGroups } from "@/app/(seeker)/experiences/skill-groups";
@@ -248,6 +248,7 @@ function Reading({
           return (
             <Card as="section" key={section.id} aria-label={section.label}>
               {heading(section.id, section.label)}
+              <GapSummary entries={found.map((index) => rowOfPreview(entries[index]))} />
               <ul role="list" className="divide-border-subtle mt-2 flex flex-col divide-y">
                 {found.map((index) => {
                   const entry = entries[index];
@@ -256,6 +257,7 @@ function Reading({
                       <EntryRow
                         entry={rowOfPreview(entry)}
                         open
+                        warn
                         actions={
                           <IconButton
                             id={editId(index)}
@@ -266,19 +268,14 @@ function Reading({
                             <PencilSimpleIcon aria-hidden className="size-4" />
                           </IconButton>
                         }
-                        note={
-                          <>
-                            {entry.replaces.length > 0 && (
-                              // Inert, not a status colour: replacing is no stage and
-                              // owes nothing (frontend/docs/design.md, colour meanings).
-                              <div className="mt-1.5">
-                                <Badge variant="tag" tone="inert">
-                                  Replaces Earlier Copy
-                                </Badge>
-                              </div>
-                            )}
-                            <MissingFacts entry={entry} />
-                          </>
+                        badges={
+                          // Inert, not a status colour: replacing is no stage and
+                          // owes nothing (frontend/docs/design.md, colour meanings).
+                          entry.replaces.length > 0 && (
+                            <Badge variant="tag" tone="inert">
+                              Replaces Earlier Copy
+                            </Badge>
+                          )
                         }
                       />
                     </li>

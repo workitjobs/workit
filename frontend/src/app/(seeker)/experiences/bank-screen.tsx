@@ -54,7 +54,7 @@ import { RESUMES_SEARCH, ResumesHeader } from "../resumes/header";
 import { ClearAll, clearAllWords } from "./clear-all";
 import { AddSection, RenameSection } from "./custom-sections";
 import { EntryDialog, type SaveOutcome } from "./entry-dialog";
-import { EntryRow, MissingFacts } from "./entry-row";
+import { EntryRow, GapSummary, OtherVersions } from "./entry-row";
 import { editSteps } from "./entry-save";
 import {
   ALL,
@@ -847,6 +847,12 @@ export function BankScreen({
           renderRow={(row, pencil) => (
             <EntryView row={row} resumes={bank.resumes} pencil={pencil} onShowResume={showResume} />
           )}
+          // Counted by row, as the list shows them: copies are one row
+          notice={
+            <GapSummary
+              entries={rowsOf(current, openCard.entries, bank.resumes).map((row) => row.entry)}
+            />
+          }
           pane={(target) => paneFor(open.card, target)}
           actions={actionsFor(open.card)}
           rename={
@@ -959,6 +965,10 @@ function EntriesCard({
           onList={rows.length > 0 || listAlways ? () => list(`bank-${card}-edit`) : undefined}
         />
       </div>
+
+      {/* What the rows' badges mean, said once for the whole section, the
+          rows Show All hides included */}
+      <GapSummary entries={rows.map((row) => row.entry)} />
 
       {rows.length === 0 && <p className="text-body text-ink-meta mt-2">{empty}</p>}
 
@@ -1277,9 +1287,10 @@ function CardActions({
  *  list. In the list it has its pencil, one press from its form (KAN-740),
  *  where Delete is too, with the other resumes a save changes; on a card it
  *  has none, since the card's heading pencil opens the list. What the entry
- *  lacks stays in view while it is closed (`MissingFacts`): it stops a
- *  Generate. So does a copy with other bullets: All Experiences shows one
- *  copy, so the note is the way to the others. */
+ *  lacks is a badge on its title (`warn`), in view while it is closed. So is
+ *  a copy with other bullets, as "2 Other Versions" at its right
+ *  (`OtherVersions`): All Experiences shows one copy, and that is the way to
+ *  the others. */
 function EntryView({
   row,
   resumes,
@@ -1302,33 +1313,28 @@ function EntryView({
     <EntryRow
       entry={entry}
       open={open}
+      warn
       actions={
-        pencil && (
-          <IconButton
-            id={pencil.id}
-            label={`Edit ${entry.title}`}
-            tooltip="Edit this entry"
-            onClick={pencil.onEdit}
-          >
-            <PencilSimpleIcon aria-hidden className="size-4" />
-          </IconButton>
+        (versions.length > 0 || pencil) && (
+          <>
+            <OtherVersions
+              versions={versions}
+              onShow={(id) =>
+                onShowResume(id, versions.find((v) => v.id === id)?.entryId ?? entry.id)
+              }
+            />
+            {pencil && (
+              <IconButton
+                id={pencil.id}
+                label={`Edit ${entry.title}`}
+                tooltip="Edit this entry"
+                onClick={pencil.onEdit}
+              >
+                <PencilSimpleIcon aria-hidden className="size-4" />
+              </IconButton>
+            )}
+          </>
         )
-      }
-      note={
-        <>
-          {versions.length > 0 && (
-            <p className="text-note text-ink-meta mt-1">
-              Other bullets on{" "}
-              <ResumeLinks
-                resumes={versions}
-                onShow={(id) =>
-                  onShowResume(id, versions.find((v) => v.id === id)?.entryId ?? entry.id)
-                }
-              />
-            </p>
-          )}
-          <MissingFacts entry={entry} />
-        </>
       }
     />
   );

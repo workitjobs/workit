@@ -318,3 +318,38 @@ export function neededFacts(entry: EntryFields & { bullets: readonly { text: str
   }
   return needed;
 }
+
+type WithBullets = EntryFields & { bullets: readonly { text: string }[] };
+
+/**
+ * What a bank row flags (KAN-740), each as a badge after its title ("No
+ * Start Date"): the facts a resume would miss (`missingFacts`), and the
+ * bullets of a job, project or role, which a resume prints as a bare heading
+ * without them. Title Case, as a badge is. They were a sentence on every row
+ * ("No start date yet. Add it before you Generate a resume.") that read as
+ * one more line of the entry, and the bullet count beside it said nothing
+ * of an entry with none.
+ */
+export function rowGaps(entry: WithBullets): string[] {
+  const gaps: string[] = [];
+  const dates = missingDates(entry);
+  if (dates) gaps.push(DATES_LABEL[dates]);
+  if (NEEDS_ORGANIZATION.has(entry.section) && !entry.organization?.trim()) {
+    gaps.push(sectionOf(entry.section).organization);
+  }
+  if (NEEDS_BULLETS.has(entry.section) && !entry.bullets.some((b) => b.text.trim())) {
+    gaps.push("Bullets");
+  }
+  return gaps;
+}
+
+/**
+ * A card's one line about its rows' gaps, said once for the card where every
+ * row said it: how many need more, and why it matters. The badges on the rows
+ * say what each lacks. Null when no row lacks anything.
+ */
+export function gapLine(entries: readonly WithBullets[]): string | null {
+  const count = entries.filter((entry) => rowGaps(entry).length > 0).length;
+  if (count === 0) return null;
+  return `${count} ${count === 1 ? "entry is" : "entries are"} missing details a resume needs. Add them before you Generate a resume.`;
+}

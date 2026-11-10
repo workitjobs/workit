@@ -18,7 +18,7 @@ import type { Bank } from "@/lib/bank-actions";
 import type { Choices, ChoicesUpdate } from "@/lib/built-resume-actions";
 import { cn } from "@/lib/cn";
 
-import { EntryRow } from "../../experiences/entry-row";
+import { EntryRow, OtherVersions } from "../../experiences/entry-row";
 import { ALL, otherVersions, shows, type Pick } from "../../experiences/holdings";
 import { ChooseResume } from "../../experiences/resume-bar";
 import { SECTION_ICONS, SectionMark, type SectionMarkId } from "../../experiences/section-icons";
@@ -333,13 +333,9 @@ function PickerRow({
             )
           : undefined
       }
-      note={
-        versions.length > 0 && (
-          <p className="text-note text-ink-meta mt-1 pl-6">
-            Other bullets on {versions.map((v) => v.name).join(", ")}
-          </p>
-        )
-      }
+      // The bank's control for copies with other bullets (KAN-740): their
+      // names to read, since this panel picks for one resume
+      actions={<OtherVersions versions={versions} />}
     />
   );
 }

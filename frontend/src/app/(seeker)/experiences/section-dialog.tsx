@@ -76,6 +76,7 @@ export function SectionDialog({
   count,
   rows,
   renderRow,
+  notice,
   pane,
   actions = [],
   rename,
@@ -91,6 +92,8 @@ export function SectionDialog({
   /** What the head's line counts: the rows, or a Lines section's lines. */
   count: number;
   rows: BankRow<BankEntry>[];
+  /** A line over the rows: what their badges mean (`GapSummary`). */
+  notice?: ReactNode;
   /** An entry as the page draws it, with the pencil it is given. */
   renderRow: (row: BankRow<BankEntry>, pencil: { id: string; onEdit: () => void }) => ReactNode;
   /** The form's setup for an entry, or for a new one (`null`). */
@@ -257,6 +260,7 @@ export function SectionDialog({
         data-slot="dialog-scroller"
         className="@container/main min-h-0 flex-1 overflow-y-auto overscroll-none px-4 sm:px-6"
       >
+        {notice && <div className="pt-2">{notice}</div>}
         {rows.length === 0 ? (
           <p className="text-body text-ink-meta py-4">Nothing here yet.</p>
         ) : (

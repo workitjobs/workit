@@ -2644,7 +2644,8 @@ are in `docs/auth.md`.
   opens the bank's entry form (`EntryDialog`, `experiences/entry-dialog.tsx`,
   KAN-740: Save, Cancel, and Delete, which asks across the form's foot, to
   leave the entry out), the bank's
-  warning for what an entry lacks (`MissingFacts`, beside `EntryRow`), and
+  warning badges for what an entry lacks and the card's line about them
+  (`warn` and `GapSummary`, KAN-740), and
   the bank's skills (`SkillGroups`, `skill-groups.tsx`: purple chips, one
   row per group), whose × shows only in Skills' edit mode. **Every entry is
   open, with no chevron** (`EntryRow`'s `open`), and **every card shows all

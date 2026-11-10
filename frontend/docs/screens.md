@@ -2211,7 +2211,8 @@ included, so old links and `?import=1` land. The API's route stays `/bank`.
 **Each experience group wears one icon** (`section-icons.tsx`, KAN-440) in
 the section nav, on its card and in the resume editor's panel, on a brand
 tint beside its heading. The bank is the one page where brand colour marks
-structure: skill chips, bullet counts, chevrons and bullet marks. Skill group
+structure: skill chips, chevrons and bullet marks (a closed row's purple
+bullet count was dropped in KAN-740: purple read as a link). Skill group
 names stay neutral: in brand they blended with the chips under them. Text takes `brand-ink`, icons `brand`; the entry's
 title and bullets stay ink, so the words still lead. It read all white and
 grey before.
@@ -2254,11 +2255,28 @@ since the whole dialog scrolling put Cancel and Show past a short window.
 
 **Every entry is one row, `EntryRow`** (`bank/entry-row.tsx`, KAN-440),
 here and in the resume editor's panel, so the two never drift apart. It
-opens closed: title, place, dates, a school's degree and a bullet count. A
-press opens the other details and the bullets, which stop at 75 characters a
-line (a 1440px page ran them past 130). What an entry lacks stays in view
-while closed, since it stops a Generate, and the row Scout is working on
-stays open. Every entry fully open made a bank of six entries a long page.
+opens closed, two lines: the title with its badges and the dates, then the
+place or a school's degree. A press opens the other details and the
+bullets, which stop at 75 characters a line (a 1440px page ran them past
+130). The row Scout is working on stays open. Every entry fully open made a
+bank of six entries a long page.
+
+**What a row flags is a badge on its title line** (KAN-740). It had grown
+three loose lines of small text in three colours, each from a different
+ticket: a purple "3 bullets" that looked like a link, a grey "Other bullets
+on [file] Resume #3, [file] Andrew Shi Rogue Fitness Product Designer
+Inter… and 3 more" longer than the title, and an amber "No start date yet.
+Add it before you Generate a resume." on nine Education rows in ten. Now
+the count is gone (the chevron says the row opens); each gap is an amber
+tag with a warning mark after the title ("No Start Date", "No Company", "No
+Bullets", `rowGaps`); why they matter is one line under the card's heading
+("10 entries are missing details a resume needs. Add them before you
+Generate a resume.", `GapSummary`), counting the whole section, the rows
+Show All hides included, and the same line tops the section's list; and
+copies with other bullets are one small button at the row's right, "2
+Other Versions", which opens their resumes' names in full as links that
+show that resume (`OtherVersions`). The resume editor's panel draws the
+same button, with the names to read.
 
 **Intake lives in Scout's panel** (2026-10-13), where Scout does: the bar's
 Scout button or Fill With Scout opens it. **Both are off** (the launcher
@@ -2449,9 +2467,12 @@ in Docs (suggested answers in the chat, not a banner).
   `missingFacts`, story 17): for Education and Experience no start and end
   (or "present"), and for Experience and Leadership no organization. A
   project, role or award has no dates warning: no application form asks for
-  them (Greenhouse, Lever, Ashby, Workday; settled 2026-10-14). It still saves; the warning says to add them before
-  Generate. It lines up with the title, past the chevron, and onboarding's
-  resume preview shows the same one (`MissingFacts`, KAN-732).
+  them (Greenhouse, Lever, Ashby, Workday; settled 2026-10-14). A job,
+  project or role with no bullets is flagged too (KAN-740), since a resume
+  prints it as a bare heading. It still saves; the card's line says to add
+  them before Generate. Each is a badge after the title (`rowGaps`), and
+  onboarding's resume preview shows the same badges and line (KAN-732,
+  KAN-740).
 - **Deleting an entry confirms with how many built resumes show it**
   (story 18): the form's Delete reads `GET .../entries/{id}/resumes` first,
   then asks across the form's foot, in place of its buttons, naming the

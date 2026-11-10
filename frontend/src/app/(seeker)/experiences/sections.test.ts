@@ -3,7 +3,7 @@ import { test } from "node:test";
 
 import type { BankEntry } from "@/lib/bank-actions";
 
-import { changesOf, draftOf, emptyDraft, isFixed } from "./sections.ts";
+import { changesOf, draftOf, emptyDraft, gapLine, isFixed, rowGaps } from "./sections.ts";
 
 // The fields the entry PATCH declares (backend/app/schemas/bank.py,
 // EntryUpdate). It forbids any other key: one more and the whole edit is a
@@ -98,4 +98,34 @@ test("a new custom entry names its section; a fixed one names none", () => {
   assert.equal(emptyDraft("projects").custom_section_id, null);
   assert.equal(isFixed(savedCustom), false);
   assert.equal(isFixed({ ...savedCustom, section: "projects" } as BankEntry), true);
+});
+
+test("a row's gaps are badge labels: dates, organization and bullets", () => {
+  const job = { ...emptyDraft("experience"), title: "Intern", bullets: [] };
+  assert.deepEqual(rowGaps(job), ["Dates", "Company", "Bullets"]);
+  // An expected end with no start is the start alone
+  const school = {
+    ...emptyDraft("education"),
+    title: "SBU",
+    end_kind: "expected" as const,
+    end_month: "2027-05",
+    bullets: [],
+  };
+  assert.deepEqual(rowGaps(school), ["Start Date"]);
+  // An award wants neither dates nor bullets
+  assert.deepEqual(rowGaps({ ...emptyDraft("awards"), title: "Dean's List", bullets: [] }), []);
+  // An empty bullet box is no bullet
+  const project = { ...emptyDraft("projects"), title: "Robot", bullets: [{ text: " " }] };
+  assert.deepEqual(rowGaps(project), ["Bullets"]);
+});
+
+test("a card says its gaps once, counting the rows that have any", () => {
+  const done = { ...emptyDraft("awards"), title: "Dean's List", bullets: [] };
+  const gapped = { ...emptyDraft("projects"), title: "Robot", bullets: [] };
+  assert.equal(gapLine([done]), null);
+  assert.equal(
+    gapLine([gapped, done]),
+    "1 entry is missing details a resume needs. Add them before you Generate a resume.",
+  );
+  assert.match(gapLine([gapped, gapped]) ?? "", /^2 entries are missing/);
 });
