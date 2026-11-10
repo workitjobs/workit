@@ -1,8 +1,8 @@
 """
 Apply's Answer bank entries as WorkIt keeps them (`applicant_profiles.fill_answers`,
 models/CLAUDE.md, "The Fill engine's profile"): one rule for the one-time
-import (scripts/import_apply_profile.py) and for any later way in, so an answer
-means the same whichever way it came.
+import (scripts/import_apply_profile.py) and for Apply's sync (KAN-746,
+PATCH .../fill-answers), so an answer means the same whichever way it came.
 
 - **Only the student's own words are `own`.** As in Apply (answer_bank.py,
   `LISUL`), an entry is theirs only with `source: lisul`. A Claude draft
@@ -12,13 +12,21 @@ means the same whichever way it came.
   unreviewed answer is not the student's word yet.
 - **A choice** (an entry with options, or a list answer: the options ticked)
   is `choice`, and skips the writing checks.
+- **A newer edit wins** (`merge`). Each synced entry carries `edited_at`, when
+  Apply last changed it. A change or a delete older than the stored entry's is
+  kept out; an entry with no time (from the import, or an Apply entry changed
+  before the sync was on) is older than any with one. A time more than
+  `SKEW` ahead of the server's clock counts as now, so a fast clock on the
+  student's Mac can't pin an answer above every later edit.
 """
 
 import datetime
 from collections.abc import Iterable
+from dataclasses import dataclass, field
 from typing import Any
 
 LISUL = "lisul"
+SKEW = datetime.timedelta(minutes=5)
 
 
 def is_own(source: Any, reviewed: Any) -> bool:
@@ -58,6 +66,53 @@ def from_bank(entries: dict) -> dict:
         if value is not None:
             kept[str(entry.get("question") or filed).strip()] = value
     return kept
+
+
+def wording(question: str) -> str:
+    """A question's wording as the Fill engine's Answer bank matches it (fit.ts,
+    `norm`): case, spacing, curly quotes and a required field's asterisk don't count."""
+    text = question.lower().replace("’", "'").replace("“", '"').replace("”", '"')
+    return " ".join(text.split()).strip(" *")
+
+
+@dataclass
+class Merged:
+    answers: dict
+    saved: int = 0
+    deleted: int = 0
+    kept: list[str] = field(default_factory=list)  # questions whose stored entry is newer
+
+
+def merge(
+    stored: dict, changes: Iterable[tuple[str, dict | None, datetime.datetime | None]], now: datetime.datetime,
+) -> Merged:
+    """`stored` with each change laid on it: (question, value or None to delete,
+    when Apply made it). A change replaces every stored key of the same wording,
+    unless one of those is newer, which stays."""
+    out = Merged(answers=dict(stored))
+    for question, value, at in changes:
+        question = question.strip()
+        at = min(at, now) if at is not None and at > now + SKEW else at
+        same = [k for k in out.answers if wording(k) == wording(question)]
+        newest = max((t for k in same if (t := _time((out.answers[k] or {}).get("edited_at")))), default=None)
+        if newest is not None and (at is None or at < newest):
+            out.kept.append(question)
+            continue
+        for k in same:
+            del out.answers[k]
+        if value is None:
+            out.deleted += bool(same)
+            continue
+        if at is not None:
+            value = value | {"edited_at": at.astimezone(datetime.UTC).isoformat()}
+        out.answers[question] = value
+        out.saved += 1
+    return out
+
+
+def edited_at(stored: dict) -> datetime.datetime | None:
+    """When Apply last changed a stored entry, or None when it carries no time."""
+    return _time(stored.get("edited_at"))
 
 
 def _time(value: Any) -> datetime.datetime | None:

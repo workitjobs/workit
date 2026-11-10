@@ -871,11 +871,15 @@ so WorkIt fills forms as completely as Apply does.
   WorkIt's own fields (name, contact email, phone, links, location, the
   education entry) from the same identity, and they agree.
 - **Only Apply's `source: lisul` entries are the student's own** (`own:
-  true`), as Apply itself treats them (`apply/answer_bank.py`, `LISUL`). A
+  true`), as Apply itself treats them (`apply/answer_bank.py`, `LISUL`), and
+  never one marked `reviewed: false`. A
   Claude draft (`source: claude`) comes as their Claude's even when
-  `reviewed`: Apply still calls it a draft. The answer bank
-  (`pipeline.answer_bank`) offers the student's own words on applications,
-  then their brought own words, then their Claude's on applications, then
+  `reviewed`: Apply still calls it a draft. One rule for the import and
+  the sync: `services/apply_answers.py`. The answer bank
+  (`pipeline.answer_bank`) offers the student's own words first, the
+  newest first across those saved on applications (`answered_at`) and those
+  brought (`edited_at`; one with no time after those with one), then their
+  Claude's on applications, then
   the brought drafts, under the same company rule: one about a company only
   on that company's forms. A draft passes the same checks as their Claude's
   saved answers and never fills a form that bans AI text (the engine skips
@@ -883,6 +887,17 @@ so WorkIt fills forms as completely as Apply does.
   list answer: the options ticked) skips the writing checks. Not
   `written_answers`: those rows belong to an application, and a brought
   answer has none.
+- **Apply keeps `fill_answers` in step** (KAN-746), once its student opts
+  in: `PATCH .../fill-answers` (routers/profiles.py) merges each entry Apply
+  saves, changes or deletes, key by key under a row lock, never the whole
+  column. Each synced entry carries `edited_at`, when Apply changed it. **A
+  newer edit wins** (`apply_answers.merge`): a change or delete older than
+  the stored entry's is left out and named in the answer's `kept`, and a
+  time more than five minutes ahead of the server counts as now. The sync
+  never writes `written_answers`: an answer the student edited on WorkIt
+  stays theirs, and serving's newest-first order keeps an older Apply
+  answer under it. The import still replaces the column whole; it is a
+  local, one-time tool.
 - **No `files` in `fill_profile`.** The files the profile names come over
   as WorkIt's own rows instead, only with `LOCAL_FILES_DIR` set: the resume
   (`files.resume_pdf`) as a `resumes` row, and the unofficial transcript

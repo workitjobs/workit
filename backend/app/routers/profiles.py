@@ -13,6 +13,18 @@ student (`fill_profile`, `fill_policies`; models/CLAUDE.md, "The Fill
 engine's profile"), which the extension lays its own fields over. Only the
 owner reads it: it holds their self-identification. Nothing writes it but
 scripts/import_apply_profile.py.
+
+PATCH .../fill-answers {"answers": [...], "deleted": [...]} is Apply's sync of
+its Answer bank (KAN-746, apply-agent docs/workit.md): each entry as Apply
+keeps it (question, answer, options, source, reviewed, company, edited_at),
+at most 200 of each, merged into `fill_answers` key by key, so the
+extension's answer bank (GET .../answer-bank) has it with no import. WorkIt
+decides `own` (services/apply_answers.py: `source: lisul`, never one marked
+`reviewed: false`). A newer edit wins: a change older than the stored
+entry's `edited_at` is left out and named in `kept`; the student's own
+words they saved on WorkIt win over an older Apply answer when served
+(written.answer_bank). An empty answer deletes. Answers {saved, deleted,
+kept}. 404 with no profile, 422 past 2000 saved answers.
 """
 
 import uuid
@@ -23,10 +35,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db import get_session
 from app.deps import assert_applicant_owns, get_current_account
 from app.models.profiles import Applicant_Profile
+from app.queries.fill_answers import TooMany, merge_from_apply
 from app.schemas.auth import AuthenticatedAccount
 from app.schemas.profile import (
     ApplicantProfileResponse,
     ApplicantProfileUpdate,
+    FillAnswersChange,
+    FillAnswersMerged,
     FillProfile,
 )
 from app.services.names import join_name, name_columns, split_name
@@ -63,6 +78,24 @@ async def get_fill_profile(
     if profile is None:
         raise HTTPException(404, "Profile not found")
     return FillProfile(profile=profile.fill_profile or {}, policies=profile.fill_policies or {})
+
+
+@router.patch("/applicants/{applicant_id}/fill-answers", response_model=FillAnswersMerged)
+async def sync_fill_answers(
+    applicant_id: uuid.UUID,
+    body: FillAnswersChange,
+    account: AuthenticatedAccount = Depends(get_current_account),
+    session: AsyncSession = Depends(get_session),
+) -> FillAnswersMerged:
+    assert_applicant_owns(account, applicant_id)
+    try:
+        merged = await merge_from_apply(session, applicant_id, body)
+    except TooMany as exc:
+        raise HTTPException(422, str(exc)) from exc
+    if merged is None:
+        raise HTTPException(404, "Profile not found")
+    await session.commit()
+    return FillAnswersMerged(saved=merged.saved, deleted=merged.deleted, kept=merged.kept)
 
 # partial update
 @router.patch(
