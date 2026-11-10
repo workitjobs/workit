@@ -46,7 +46,12 @@ const SIGNED_IN_SCRIPT = `if(/(?:^|; )${SIGNED_IN_HINT}=1(?:;|$)/.test(document.
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${jakartaSans.variable} ${geistMono.variable} h-full antialiased`}>
+    // suppressHydrationWarning: SIGNED_IN_SCRIPT sets data-signed-in before hydration.
+    <html
+      lang="en"
+      className={`${jakartaSans.variable} ${geistMono.variable} h-full antialiased`}
+      suppressHydrationWarning
+    >
       <head>
         {/* Before the first paint, so the marketing header shows "Open
             WorkIt" at once for a signed-in visitor (KAN-743): it reads the

@@ -3,7 +3,8 @@
 // this step on a Workday step outside a batch); "Answer 1 of 3" while
 // anything on the page is red, which goes to the page's first red field and
 // stays there until it is answered (KAN-424); Alt+N runs Next Thing, the
-// walk. Review and submit once nothing is red, which scrolls to the
+// walk. Review and submit once nothing is red, which opens Check before
+// Submit (presubmit.extension.spec.ts); there Go to Submit scrolls to the
 // employer's Submit and rings it, never pressing it. The red box's title
 // counts what the button does. Fill Again, in the ⋯ menu, asks once.
 import { expect, test, type Frame, type Page } from "@playwright/test";
@@ -86,7 +87,7 @@ test("Alt+N runs Next Thing, and Chrome binds it", async () => {
   expect(forms.submissions).toEqual([]);
 });
 
-test("with nothing red, Review and submit scrolls to the employer's Submit and rings it, and sends nothing", async () => {
+test("with nothing red, Review and submit opens Check before Submit, and Go to Submit scrolls to the employer's Submit and rings it, sending nothing", async () => {
   test.setTimeout(150_000);
   const forms = new SavedForms([ANDURIL]);
   await start([forms.handler]);
@@ -106,6 +107,9 @@ test("with nothing red, Review and submit scrolls to the employer's Submit and r
   await expect(mainButton(page)).toHaveText("Review and submit");
   await expect(needsBox(page)).toHaveCount(0);
 
+  await mainButton(page).click();
+  await expect(hostOf(page).locator('[data-slot="check"]')).toBeVisible();
+  await expect(mainButton(page)).toHaveText("Go to Submit");
   // From where the last answer left the page.
   await mainButton(page).click();
   const submit = page.getByRole("button", { name: /^Submit/ });

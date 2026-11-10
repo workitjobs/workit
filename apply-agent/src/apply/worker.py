@@ -404,9 +404,10 @@ def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fi
                     # Every answer is checked against his profile: a fact a rule answered from it (Sinhala,
                     # spoken: "Other" on Point72's list) is no fact "no source" holds.
                     drafted = bool(planned.drafted or planned.unbanked or planned.banked)
+                    # His facts as the plan read them: a past application the Tracker holds is no wrong Yes (KAN-753).
                     sources = essays.sources(profile, planned.known(), facts=True,
-                                              types=[e.plan.type for e in planned.written if e.plan]) \
-                        if planned.written or drafted else essays.profile_block(profile)
+                                              types=[e.plan.type for e in planned.written if e.plan], posting=posting) \
+                        if planned.written or drafted else essays.profile_block(profile, posting)
                     found = review(as_applicant(claude, profile), posting, questions, readback, sources, planned.text,
                                    planned.own())  # its reasons say the applicant's own pronouns
                     if not fixed and attempt < 2 and planned.fix(found.fixes, readback):
