@@ -10,7 +10,8 @@ the "Custom ATS Autofiller Build Plan" doc, built directly on
 ## Where this folder sits
 
 A third kind of project in this repo, alongside `frontend/` and `backend/`:
-no server, no build step, no dependency manifest. It's loaded into Chrome
+no server, no build step, no dependency manifest (only the Store package's
+build, `store/build.mjs`, minifies a copy). It's loaded into Chrome
 as an unpacked extension and talks to the **existing** WorkIt backend over
 HTTP. Nearly everything it fills is read-only against data that already
 had an endpoint: `applicant_profiles`, the **experience bank** (`GET

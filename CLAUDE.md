@@ -34,7 +34,8 @@ none.
   touches the database; runs with `python3 -m workit_scraper`, tests under
   `uvx pytest`.
 - `autofiller_extension/` — the ATS autofiller (KAN-164): a Manifest V3
-  Chrome extension, no build step, no dependency manifest. It fills through
+  Chrome extension, no build step, no dependency manifest (the Store
+  package's build minifies a copy). It fills through
   the Fill engine, the git submodule `autofiller_extension/fill-engine`
   pinned to a commit on its `main` (`git submodule update --init` once per
   checkout). Batch

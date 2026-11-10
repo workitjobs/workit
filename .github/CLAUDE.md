@@ -42,13 +42,14 @@ template text test fails, never skips, when Tectonic is missing
 (`backend/app/services/resume_render/CLAUDE.md`).
 
 The `extension-store-build` job (KAN-463) builds the Chrome Web Store package
-(`autofiller_extension/store/build.mjs`, after `npm ci` in `store/` for
-esbuild, which minifies every packaged script: KAN-744), which fails if a
-packaged file names localhost, vercel.app or "Prototype", and runs `store-build.spec.ts` and
+(`autofiller_extension/store/build.mjs`), which fails if a packaged file names
+localhost, vercel.app or "Prototype", and runs `store-build.spec.ts` and
 `extension-id.spec.ts`. The package needs the private fill-engine submodule,
 which the default token can't read, so the build steps run only once a
 `FILL_ENGINE_TOKEN` secret (read access to workitjobs/fill-engine) is set;
 without it they show as skipped and the job checks the extension ID only.
+The build first runs `npm ci` in `store/` for esbuild, which minifies every
+packaged script (KAN-744).
 
 **Without `FILL_ENGINE_TOKEN`, the engine's tests are skipped, never green.**
 `ci.yml`, `extension-nightly.yml` and `live-canary.yml` each first call
