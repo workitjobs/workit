@@ -201,8 +201,8 @@ writes that one answer again.
 - **What stays off the form.** An answer over the form's cap
   (`gates.over_cap`), or with a name or number no source holds
   (`regenerate.INVENTED`), is not put on the form. The old answer stays and
-  the note says why. Other gate and verifier flags (`verify.essay`) go on
-  the note beside the field.
+  the note says why. Other gate and verifier flags (`verify.essay`), and
+  the truth check's claims (`Essay.claims`), go on the note beside the field.
 - **After.** Plain code sets the field with the page's own input events and
   reads it back (`regenerate.done`). The field is editable again. The
   Record is saved again: `answers.json`, `essays.md` and a history line
