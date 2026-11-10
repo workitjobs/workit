@@ -124,7 +124,14 @@ Resumes put company, title, dates, and location in different orders.
 | Date line is bare (only dates + location) | Title / Company / Dates above |
 | Pipe in the header line | `Title \| Company` or `Company \| Title` (ROLE_KEYWORDS decides) |
 | ROLE_KEYWORDS on the line after the date | Company+Date / Title+Location / bullets |
+| The entry's first line is `Company - Title - Dates` (` - `, ` – ` or ` — `), the role keyword on one side only | Company, Title, Dates on one line / bullets |
 | None of the above | Company / Title+Date / bullets (default) |
+
+The one-line dash layout (`_split_dash_title_company`) needs the role keyword
+on exactly one side, so "Software Engineer - Backend Lead" stays one title.
+Before it, the title held the company too, and a second such entry took the
+first one's company as "a second role at the previous company"
+(`dash_separated_one_line.txt`, Apply's sample resume, 2026-11-08).
 
 `ROLE_KEYWORDS` is the set of common job title words (Engineer, Manager, Intern,
 etc.) used to tell title from company when both are plain text.
@@ -191,15 +198,30 @@ Three patterns, checked in priority order:
 Day is always 1 (resumes don't specify days). "Present", "Current", "Now" store
 as `None` (null end date).
 
+A range in one year names it once: "Jun-Aug 2026" becomes "Jun 2026 - Aug
+2026" in `_clean_text`, before any pattern runs. Before, only "Aug 2026" was
+read, as the end. Only whole month names count (`_MONTH_NAME`), since `MONTH`
+would read "Marketing - May 2026" as a range.
+
 ### Education fields
 
 - The degree keeps its full name ("Bachelor of Science", not "Bachelor").
 - The field of study ends at a PDF gap or "GPA": "Bachelor of Science,
   Computer Science  GPA: 3.81/4.00" gives "Computer Science".
+- **A minor follows the major in the field of study** ("Minor in Writing &
+  Rhetoric" or "Minor: Chemistry", `MINOR_RE`): "Computer Science, minor in
+  Writing & Rhetoric". An entry has no field of its own for a minor, so it
+  was dropped. The AI prompt asks for the same form.
 - `GPA_RE` reads the scale too: "3.81/4.00" fills `Education.gpa_scale`.
 - A plain line after a coursework or bullet line that ends in a comma, or that
   starts lowercase, is that line wrapped by the PDF and joins it. Before
   this, the second line of a two-line coursework list was dropped.
+- **A school's line in dash fields** ("School - B.S. Computer Science - May
+  2028 - GPA 3.7", three fields or more, no "|"): the school is every field
+  before the first one holding a degree, date or GPA, so "University of
+  Wisconsin - Madison" keeps "Madison"; the date is read from its own field,
+  since `BARE_DATE_RE` wants it at a line's end. Before, the whole line was
+  the school and it had no date.
 
 ### Projects and skills
 
@@ -215,7 +237,19 @@ as `None` (null end date).
   stays in the name ("WorkIt | Full Stack Recruiting Platform"); with a
   subtitle and a list ("Robot | Club| C++, Go") the name keeps both phrases
   and only the list is tools (`split_tools`). Before, the first bar split,
-  and "Club| C++" became a skill.
+  and "Club| C++" became a skill. **Tools on their own line** under the name,
+  before the first bullet ("Next.js, TypeScript, Supabase (PostgreSQL)", or
+  after a "Tech Stack:" label), are the project's tools the same way
+  (`is_tools_line`: three short comma items or more, no full stop; commas in
+  parentheses do not split). Before (a real resume, 2026-11-09), that line
+  was saved as the project's first bullet, and tools named only there never
+  reached the skills.
+- **Bank entries have no tools field**, so a project's stack lives only as
+  the bank's skills, not on the project. Jake's Resume prints a stack after
+  the project's "|"; WorkIt's template fills that slot with the
+  organization and link (`resume_render/fields.py`). Keeping a stack per
+  project, and printing it there, would take a migration (a tools column on
+  bank entries and built resumes), the editor and the renderer: not built.
 - **A role's tools** work the same way: "Software Engineer Intern| C++, Go"
   keeps only the role as the title, and the list goes to
   `Experience.technologies` (jobs and leadership), then to ungrouped skills.
@@ -251,31 +285,107 @@ as `None` (null end date).
 - Single-column assumption. Multi-column PDFs may interleave columns.
 - No OCR. Scanned-image PDFs produce no text, so nothing to parse.
 
-### The model upgrade path (KAN-222)
+### The model reads first (KAN-222, KAN-732)
 
-The model is the parser's upgrade path, and it is built: import's model
-parsing (`app/services/bank_import.py`, `read_with_model`) sends the stored
+Every upload is read by the model first, and this parser runs behind it on
+every upload (ADR 0007; it reversed ADR 0003's "only when the student
+asks"). `app/services/bank_import.py`'s `read_resume` sends the stored
 `raw_text` and the `ModelReading` schema through `LLM.complete_json`, the
-provider seam that removes identity data from every message first. It runs
-only when the student asks ("Read It With AI", Import Again's
-`read_with_ai: true`), never as a fallback (ADR 0003). Rules:
+provider seam that removes identity data from every message first;
+`services/resume_reading.py` decides whether a use is left and counts it.
+Rules:
 
-- **This parser stays first and stays free.** Every upload and every plain
-  Import Again runs it alone; the model costs a parsing use (cap 1 a day,
-  10% of the pool), so it waits for the student's click. A resume that parses wrong still becomes a fixture
-  here before the parser changes; the model is not a reason to stop fixing it.
+- **This parser always runs, and stays free.** Its reading is saved when the
+  student has no AI reading left today (cap 1, 10% of the pool), the model
+  fails, is slower than `MODEL_WAIT_SECONDS`, answers in the wrong shape, or
+  keeps no entry the text backs. A resume that parses wrong still becomes a
+  fixture here before the parser changes: the model is not a reason to stop
+  fixing it, since the parser reads whenever the model does not.
 - **The model's reading is checked, never trusted.** `ModelReading` is loose so
   one odd field does not throw away the whole reply (a `null` list, which
   Groq's gpt-oss sends for a job's coursework, is an empty one); each entry then passes
   the entry schema on its own (`model_drafts`), which clips text, drops an
   entry with no title and drops dates that do not fit together. A reply that
   is not JSON or misses the shape raises `InvalidReply` and counts no use.
-- **It never sees links.** URLs reach the model as `[link]`, so the model
-  schema has no `link` field and a field holding a placeholder is emptied.
-  Project links come only from this parser.
+- **Every field must be on the resume** (`_backed`, KAN-732). A title,
+  organization, location, degree, field, honor, bullet, course or skill the
+  model wrote stays only when the resume's words back it: every number in
+  it is on the resume, every word of a field of three words or fewer
+  (common words aside), and three in four of a longer one, which lets a
+  word the PDF broke in two through. A date whose year is not on the resume
+  takes the entry's dates; a GPA not on it (3.8 may be "3.80") goes with its
+  scale; an entry whose title goes is dropped. The prompt asks for names
+  copied as written ("B.S." stays "B.S."): an expanded degree fails the
+  check and is dropped, not saved wrong. An organization that only repeats
+  the title is left out, as this parser leaves it out: the model sometimes
+  sent the school as its own organization (a real resume, 2026-11-09).
+- **It never sees links or the contact block.** URLs reach the model as
+  `[link]`, so the model schema has no `link` field and a field holding a
+  placeholder is emptied; `with_links` gives a model project the link of
+  this parser's project with its title (word for word, or two words or more
+  as the start of the other's). When the first heading this parser knows
+  (`section_of`) is in the first 12 lines, the model gets the text from it
+  on (`_from_first_heading`), so a name the resume spells unlike the
+  profile never reaches it; this parser drops that block too.
+- **A bullet the seam put a placeholder in takes this parser's words**
+  (`with_own_wording`). The seam removes every part of the name, in any
+  case, even where it is a common word, so the shared test account (Test
+  User) got "[name] flow" and "[name] stories" back from the model for
+  "user flow" and "user stories" (found 2026-11-06); a Page or a Drew would
+  lose "landing page" or "drew". Such a bullet becomes the bullet of this
+  parser's reading it matches (three in four of its other words): a line
+  of the resume, never a value put back for the placeholder. One with no
+  match is dropped (`model_drafts`), never saved with "[name]".
+- **What the model loses, the parser's reading puts back** (found 2026-11-08,
+  reading this folder's fixtures with Gemini 3.5 Flash-Lite; the replies are
+  tests in `tests/test_bank_import.py`):
+  - **A year alone is January of it.** For "2022 - current" the model sends
+    `"2022"`, which is no `YYYY-MM`, so the entry lost its dates; an award
+    dated "2024" lost itself, since `_valid`'s undated retry left
+    `award_date` in place. Both now read as this parser reads them.
+  - **The two readings are combined, entry by entry**
+    (`with_parsers_reading`). Both run on every upload, and the model's
+    reading is the base: it reads layouts this parser has no rule for.
+    Each of this parser's entries is matched to the model's entry for the
+    same thing (`_twin`: two words or more of title and organization
+    shared, three in four of the shorter one's, in any section, since the
+    two file a Resident Assistant differently; "Sales Associate, Target"
+    and "Sales Associate, Walmart" share one word and stay two jobs).
+    - **No twin: the entry is added whole.** The model left out both papers
+      under "Publications"; the prompt names where a paper goes too.
+    - **A twin: the parser fills only its empty fields** (`_fill_blanks`):
+      the dates when the model gave none (a paper's year), a start the model
+      left out of the same span, the award date, location, link, degree,
+      field, GPA and courses, and each bullet no model entry holds (three in
+      four of its words), except a line that only lists tools and one that
+      repeats an entry's name (this parser saved a project's "Stony Brook
+      University" line as its bullet; the model read it as the
+      organization). **The
+      model's value wins wherever both have one**, and the title and
+      organization are never filled: on a layout this parser misreads, they
+      are where its mistakes are, so it must not judge the model there.
+    - **Skills are both readings'**: the model's first, so its groups win.
+    - **Nothing marks a field for the student to check.** The preview says
+      once to look the reading over (`frontend/docs/screens.md`, the resume
+      step); a disagreement keeps the model's value silently.
+  - **A title ending in `[link]` keeps the rest**: a citation that ends in
+    its URL came back as "... arXiv preprint, [link]", and the placeholder
+    emptied the whole title, so the paper was dropped. The tail is cut, and
+    `with_links` gives the project this parser's link.
+  - **Tools come out of titles** (`with_tools_split`): the truth rule has
+    the model copy "Budget Buddy (React, Firebase)" whole, so the tools
+    become skills as this parser splits them (`split_tools`, a comma list
+    in parentheses). "(Pulp)" holds no list and stays.
+  - **An award's giver is its organization** (`with_award_givers`): "Dean's
+    List – Riverside State University" splits as this parser's
+    "Award – Issuer" does.
+  - **The model reads NFKC text**, so a PDF's "ﬁ" ligature ("Chick-ﬁl-A")
+    is not copied into a field; this parser's `ftfy` clean-up fixes it on
+    its side.
 - Either reading goes straight into the experience bank through
   `services/bank.py`'s `import_upload`; nothing keeps the reading itself
-  (`resumes.parsed_json` was dropped in KAN-240).
+  (`resumes.parsed_json` was dropped in KAN-240). The upload response's
+  `read_by` says which one it was.
 
 ## Text extraction (lives in `app/services/text_extraction.py`, not here)
 
@@ -291,6 +401,19 @@ of the router so the router stays the HTTP layer. Two extractors:
 
 Both return `str | None`. Errors are logged and return `None` -- extraction
 failure does not block the upload.
+
+**A PDF edited in a PDF editor reads out of order in plain mode.** The editor
+writes each changed line as a new object at the end of the page's content
+stream, so plain mode puts those lines after the last section. On the test
+account's Brian_Cao_Resume.pdf (uploaded 2026-10-26, read by the parser) the
+edited name "BRIAN CAO", a filled-in Tools line and a rewritten bullet came
+after Projects; the parser made "BRIAN CAO" a project with the other two as
+its bullet, while the Tools line and the first bullet stood empty where they
+belong. Signs in `raw_text`: an empty label or "•" line, and lines with
+non-breaking spaces (`\xa0`) at the end. Layout mode orders text by
+position, so it may put them back (not checked). Not fixed in the parser:
+AI reads every upload first (ADR 0007), and a fix here needs that resume as
+a fixture first.
 
 ## Tests
 

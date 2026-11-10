@@ -80,7 +80,7 @@ never changes another's, and an import runs no duplicate check.
 |---|---|---|
 | **Upload** | `POST /applicants/{id}/resumes` | Inserts every entry and skill the reading found, owned by the new row. Flush the `Resume` row first (the entries point at it). |
 | **Import Updated Resume** (the resume picker's replace at the limit; off the Resumes page's rows since KAN-362) | `PUT /applicants/{id}/resumes/{resume_id}` | **Replaces** the upload's entries and skills: delete what it owns, insert the new reading. No warning. |
-| **Import Again** (with or without `read_with_ai`; no screen sends it since KAN-353) | `POST /applicants/{id}/bank/import` | **Replaces**, as Import Updated Resume does. |
+| **Import Again** (read like an upload: AI first, the parser behind it, KAN-732) | `POST /applicants/{id}/bank/import` | **Replaces**, as Import Updated Resume does. |
 | **Delete an upload** | `DELETE /applicants/{id}/resumes/{resume_id}` | Deletes its entries and skills (cascade). The confirm is unchanged. |
 | **Add an entry or skill** | the bank's create routes | Under an upload pick: owned by that upload. Under a built resume pick: unowned, and shown on that built resume (a shown choice row at the end of its section), so it stays in view. |
 | **Intake, Tailor's "Have you used X?"** | their own routes | Unowned, as today. |
@@ -190,9 +190,10 @@ created_at, and `edited_at` for the resume list's date, KAN-361).
   yet. [Import Again]") shows for an upload that owns nothing. Import
   Again writes that upload's own entries.
 - **Delete Entry** deletes that one row, from the foot of the entry's
-  editor (KAN-363), which the entry's pencil opens in its card's edit
-  mode. Its confirm still counts the built resumes that show it.
-- **Clear All** (KAN-352), in a card's edit mode, deletes every row a card shows, as Delete Entry
+  editor (KAN-363), which the entry's pencil opens; the pencil is in view
+  while no other entry is open (KAN-732). Its confirm, a modal since
+  KAN-732, still counts the built resumes that show it.
+- **Clear All** (KAN-352), in a card's ⋯ menu (KAN-732), deletes every row a card shows, as Delete Entry
   does each one. Under a built resume's pick those rows belong to uploads,
   so the confirm names the uploads that lose them too.
 - **Scout's walk** (intake marking an entry) switches to a resume that
@@ -211,8 +212,9 @@ created_at, and `edited_at` for the resume list's date, KAN-361).
 
 Stays: Generate, Tailor's ranking, Scout, the recommender, intake and the
 autofiller read the whole bank as today (`copy_key` stays in Generate and
-intake); upload reads with the parser only; the model reads only on
-`read_with_ai`, which no screen sends since KAN-353; one
+intake); every reading asks the model first, the parser behind it
+(KAN-732, ADR 0007, which replaced "the parser only, unless the student
+asks"); one
 transaction for the row and the bank writes; the 5-upload limit. The import
 summary (`lib/import-summary.ts`) loses "filled in", since nothing merges.
 

@@ -205,7 +205,8 @@ export type ImportResult = {
    *  parse preview replaces any (KAN-372, ADR 0006). */
   entries_replaced: number;
   skills_replaced: number;
-  /** Who read the resume: the heuristic parser, or the model (KAN-222). */
+  /** Who read the resume: the model, or the heuristic parser behind it
+   *  (KAN-732). */
   read_by: "parser" | "model";
   /** AI readings the student has left today. */
   uses_left: number;
@@ -213,17 +214,15 @@ export type ImportResult = {
 export type ImportResponse = ImportResult & { resume_id: string; filename: string | null };
 
 /** Import Again: reads an uploaded resume (`resumeId`, else the default one,
- *  else the newest) into the bank, replacing the entries and skills it owns. With no uploaded resume, `error` says so. `readWithAi` reads
- *  it with the model ("Read It With AI"), only ever on the student's click;
- *  `error` says when the AI limit is spent or the model is down. */
+ *  else the newest) into the bank, replacing the entries and skills it owns,
+ *  as every upload is read: with AI first while the student has a reading
+ *  left today, the parser behind it (KAN-732). With no uploaded resume,
+ *  `error` says so. */
 export async function importResume(
-  options: { resumeId?: string; readWithAi?: boolean } = {},
+  options: { resumeId?: string } = {},
 ): Promise<Result<ImportResponse>> {
   return call<ImportResponse>("/import", {
     method: "POST",
-    body: JSON.stringify({
-      ...(options.resumeId ? { resume_id: options.resumeId } : {}),
-      ...(options.readWithAi ? { read_with_ai: true } : {}),
-    }),
+    body: JSON.stringify(options.resumeId ? { resume_id: options.resumeId } : {}),
   });
 }

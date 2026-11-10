@@ -1,3 +1,4 @@
+import { FILL_WITH_SCOUT_LIVE } from "@/components/scout/live";
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { Card } from "@/components/ui/card";
 import { SectionHeadingSkeleton } from "@/components/ui/section-heading";
@@ -8,9 +9,9 @@ import { RESUMES_SEARCH, ResumesHeader } from "../resumes/header";
 
 /**
  * Experiences while the bank loads (KAN-561): the page's frame (./page.tsx),
- * the Resumes or Experiences switch live, then the search, Fill With Scout,
- * the Showing card, the section links and the first sections
- * (./bank-screen.tsx) as bars.
+ * the Resumes or Experiences switch live, then the search, Fill With Scout
+ * while it is offered (`FILL_WITH_SCOUT_LIVE`), the Showing card, the section
+ * links and the first sections (./bank-screen.tsx) as bars.
  */
 export default function ExperiencesLoading() {
   return (
@@ -21,7 +22,7 @@ export default function ExperiencesLoading() {
           search={
             <Skeleton aria-hidden="true" className={cn(RESUMES_SEARCH, "h-10 rounded-full")} />
           }
-          action={<Skeleton aria-hidden="true" className="h-9 w-36" />}
+          action={FILL_WITH_SCOUT_LIVE && <Skeleton aria-hidden="true" className="h-9 w-36" />}
         />
         <div role="status" className="flex flex-col gap-4">
           <span className="sr-only">Loading your experiences</span>

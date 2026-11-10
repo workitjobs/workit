@@ -96,7 +96,7 @@ export function ResumeUpload({ file, onFileChange, onRemove, busy = false }: Res
         <UploadIcon className="text-ink-meta size-6" />
         <p className="text-note text-ink mt-2.5 font-medium">
           {busy ? (
-            "Uploading…"
+            "Reading your resume…"
           ) : (
             <>
               <span className="pointer-coarse:hidden">Drag and drop your resume here</span>

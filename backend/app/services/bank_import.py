@@ -3,6 +3,8 @@ Import (KAN-211, ADR 0003): turn the heuristic parser's reading of an
 uploaded resume into entries and skills for the bank. Model parsing (KAN-222)
 does the same from the model's reading. No database, no HTTP: the caller
 writes the result with `services/bank.py`'s `import_upload` (ADR 0005).
+Every upload is read by the model first, the parser behind it
+(`read_resume`, KAN-732, ADR 0007).
 
 Drafts keep the resume's words. The only changes are the ones a draft must
 pass to be a valid entry: text clipped to the field's length, at most 30
@@ -11,22 +13,29 @@ and a run of spaces, which PDF extraction leaves after a bold phrase, becomes
 one.
 """
 
+import asyncio
 import datetime
 import logging
 import re
+import unicodedata
+from dataclasses import dataclass
+from typing import Literal
 
 from pydantic import ValidationError
-from workit_scout.identity import Identity, placeholders_in
+from workit_scout.identity import PLACEHOLDERS, Identity, placeholders_in
 from workit_scout.llm import LLM
 
 from app.models.dto import Experience, ParsedResume, bank_section, entry_end_kind
-from app.schemas.bank import DraftEntry, ModelReading
+from app.schemas.bank import SECTION_FIELDS, DraftEntry, ModelReading
 from app.services import skill_catalog
-from app.utils.resume_parser import parse_resume
+from app.utils.resume_parser import is_tools_line, parse_resume, section_of, split_tools
 
 _SHORT, _LONG, _NAME = 200, 500, 60
 _COURSEWORK_RE = re.compile(r"^(?:Relevant\s+)?(?:Coursework|Courses)\s*:?\s*", re.IGNORECASE)
 _GPA_LINE_RE = re.compile(r"^GPA\b", re.IGNORECASE)
+_YEAR_ALONE_RE = re.compile(r"\d{4}")
+_LINK_TAIL_RE = re.compile(r"[\s,;:|–—-]*\[link\]\s*$")
+_MINOR_JOIN_RE = re.compile(r"\s*[|;,–—-]?\s*\bminors?\s*(?:in\b|:)\s*", re.IGNORECASE)
 # Not a skill: a name still holding a "|" (a title's tail glued on), a
 # qualification ("Computer Science degree", "Bachelor's in ...", "GPA 3.8",
 # "3+ years of Java", a citizenship or clearance), or a generic phrase that
@@ -136,8 +145,9 @@ def _valid(raw: dict) -> DraftEntry | None:
         return DraftEntry.model_validate(raw)
     except ValidationError:
         # Dates that do not fit together (an end before the start) are the
-        # likely cause; the student can add them back in the editor.
-        undated = {**raw, "start_month": None, "end_month": None, "end_kind": None}
+        # likely cause; the student can add them back in the editor. An
+        # award's date goes too: kept, a bad one dropped the whole award.
+        undated = {**raw, "start_month": None, "end_month": None, "end_kind": None, "award_date": None}
         try:
             return DraftEntry.model_validate(undated)
         except ValidationError:
@@ -200,17 +210,22 @@ only: {"entries": [...], "skills": [{"name": ..., "group": ...}]}.
 The truth rule: copy only what the resume says, in its own words. Never \
 invent, reword or improve a title, organization, date, number, tool or \
 result. Leave a field null (or "" for the title) when the resume does not \
-say it.
+say it. Copy names, places, degrees and skills exactly as written: "B.S." \
+stays "B.S.", "NYC" stays "NYC".
 
 Entries, in the resume's order:
 - section is one of "education", "experience", "projects", "leadership" \
-(clubs, activities, volunteering), "awards", "certifications".
+(clubs, activities, volunteering), "awards", "certifications". \
+A publication or paper is "projects", with its whole citation as the title.
 - title: the role, school, project, award or certification name. \
-organization: the company or group. Education: the school is the title.
+organization: the company or group, and for an award the group that gives \
+it. Education: the school is the title.
 - Months are "YYYY-MM". end_kind is "month" (ended), "present" (still going, \
 no end_month) or "expected" (an expected end, such as graduation).
 - bullets: the resume's bullet lines for that entry, one per item, unchanged.
 - Education only: degree, field_of_study, gpa, gpa_scale, coursework, honors. \
+field_of_study is the major, with any minor after it as the resume writes it \
+("Computer Science, minor in Writing & Rhetoric"). \
 Certifications only: issuer. Awards only: award_date, in place of start and \
 end. Leave other sections' fields empty.
 - skills: each skill the resume lists, with its group ("Languages", "Tools") \
@@ -238,22 +253,355 @@ async def read_with_model(raw_text: str, llm: LLM, *, identity: Identity) -> Mod
     return await llm.complete_json(prompt, ModelReading, identity=identity)
 
 
-def model_drafts(reading: ModelReading) -> list[DraftEntry]:
+def model_drafts(reading: ModelReading, text: str | None = None) -> list[DraftEntry]:
     """The model's entries as drafts, each checked against the entry schema:
     a field holding a placeholder is emptied, text is clipped, an entry with
-    no title is dropped, and dates that do not fit together are dropped."""
+    no title is dropped, and dates that do not fit together are dropped.
+    Given the resume's `text`, a field the text does not back goes too
+    (`_backed_fields`), and an entry whose title goes with it."""
+    words = set(_words(text)) if text else None
     drafts: list[DraftEntry] = []
     for entry in reading.entries:
-        raw = {k: None if _withheld(v) else v for k, v in entry.model_dump().items()}
+        raw = entry.model_dump()
+        # A citation that ends in its URL ("... arXiv preprint, [link]") lost
+        # its whole title to the placeholder, so the paper was dropped. The
+        # link is the parser's (`with_links`); the title keeps the rest.
+        raw["title"] = _LINK_TAIL_RE.sub("", raw["title"] or "")
+        raw = {k: None if _withheld(v) else v for k, v in raw.items()}
         for field in ("title", "organization", "location", "degree", "field_of_study", "issuer"):
             raw[field] = _clip(raw[field])
+        # The school as its own organization ("Stony Brook University" twice):
+        # the parser leaves out an organization that repeats the title.
+        if raw["organization"] and raw["title"] and _title_key(raw["organization"]) == _title_key(raw["title"]):
+            raw["organization"] = None
+        # "Computer Science | Minor in Writing & Rhetoric", copied as written,
+        # reads as the parser writes it: "Computer Science, minor in ...".
+        if raw["field_of_study"]:
+            raw["field_of_study"] = _MINOR_JOIN_RE.sub(", minor in ", raw["field_of_study"])
         raw["honors"] = _clip(raw["honors"], _LONG)
         raw["coursework"] = [c for c in (_clip(x) for x in raw["coursework"] if not _withheld(x)) if c][:40]
-        raw["bullets"] = [b for b in (_clip(x, _LONG) for x in raw["bullets"]) if b][:30]
+        # A bullet still holding a placeholder (`with_own_wording` found the
+        # parser no match for it) would save "[name]" for good.
+        raw["bullets"] = [b for b in (_clip(x, _LONG) for x in raw["bullets"]) if b and not _withheld(b)][:30]
+        # "2022 - current": the model sends the year alone, which is no
+        # "YYYY-MM", so the entry lost its dates (an award lost itself).
+        # A year alone is January of it, as the parser reads it.
+        for field in ("start_month", "end_month", "award_date"):
+            if isinstance(raw[field], str) and _YEAR_ALONE_RE.fullmatch(raw[field].strip()):
+                raw[field] = f"{raw[field].strip()}-01"
+        if words is not None:
+            raw = _backed_fields(raw, words)
         if draft := _valid(raw):
             drafts.append(draft)
     return drafts
 
 
-def model_skills(reading: ModelReading) -> list[tuple[str, str | None]]:
-    return [(s.name, s.group) for s in reading.skills if not _withheld(s.name)]
+def model_skills(reading: ModelReading, text: str | None = None) -> list[tuple[str, str | None]]:
+    """The model's skills; given the resume's `text`, only those it backs."""
+    words = set(_words(text)) if text else None
+    return [
+        (s.name, s.group) for s in reading.skills
+        if not _withheld(s.name) and (words is None or _backed(s.name, words))
+    ]
+
+
+# --- Every upload read by the model, the parser behind it (KAN-732, ADR 0007) ---
+
+# A reading the model has not finished by then is not waited for: the
+# parser's is saved, so an upload never hangs on a provider (the client's own
+# timeout is ten minutes).
+MODEL_WAIT_SECONDS = 45
+# The contact block sits above the first section heading. When that heading
+# is this near the top, the model gets the text from it on, so a name the
+# resume spells unlike the profile never reaches it: the seam removes only
+# the profile's own name, and any email, phone or link.
+_TOP_LINES = 12
+# Too common to show that a field is the resume's own words.
+_COMMON = frozenset({"a", "an", "and", "the", "of", "in", "on", "at", "for", "to", "with", "by", "as", "or", "from"})
+_TEXT_FIELDS = ("title", "organization", "location", "degree", "field_of_study", "issuer", "honors")
+
+
+@dataclass
+class Reading:
+    """One reading of an upload: what goes into the bank, and who read it."""
+
+    entries: list[DraftEntry]
+    skills: list[tuple[str, str | None]]
+    read_by: Literal["parser", "model"] = "parser"
+
+
+async def read_resume(raw_text: str | None, llm: LLM | None = None, identity: Identity | None = None) -> Reading:
+    """An upload's reading: the model's, checked against the text, with the
+    tools taken out of its titles, an award's giver in its organization and
+    the parser's project links, combined with what the parser read that the
+    model left out (`with_parsers_reading`) and the parser's skills; else the
+    parser's. The parser's when no
+    model is given (no AI reading left today) or there is no text, and when
+    the model fails, answers in the wrong shape, runs past
+    MODEL_WAIT_SECONDS or keeps no entry the text backs. Never raises: an
+    upload never fails because of its reading."""
+    entries, skills = read(raw_text)
+    parsed = Reading(entries, skills)
+    if llm is None or identity is None or not raw_text:
+        return parsed
+    # "Chick-ﬁl-A": the PDF's ligatures and other compatibility characters,
+    # which the parser's clean-up fixes, would be copied by the model as is.
+    text = unicodedata.normalize("NFKC", raw_text)
+    try:
+        async with asyncio.timeout(MODEL_WAIT_SECONDS):
+            reading = await read_with_model(_from_first_heading(text), llm, identity=identity)
+    except Exception as exc:
+        # ScoutUnavailable (down, out of quota, the wrong shape), the wait
+        # running out, or anything else: the parser's reading still stands.
+        logger.warning("The model could not read a resume, so the parser's reading is saved: %r", exc)
+        return parsed
+    drafts = model_drafts(with_own_wording(reading, entries), text)
+    if not drafts:
+        return parsed
+    drafts, tools = with_tools_split(drafts)
+    drafts = with_parsers_reading(with_links(with_award_givers(drafts), entries), entries)
+    # The model's skills first, so its groups win; then the parser's, which
+    # the catalog already passed, so a skill the model left out is kept.
+    found = model_skills(reading, text) + [(tool, None) for tool in tools] + skills
+    return Reading(drafts, skill_pairs(found), "model")
+
+
+def with_tools_split(drafts: list[DraftEntry]) -> tuple[list[DraftEntry], list[str]]:
+    """Each role and project title less the tools the model copied into it,
+    which become skills, as the parser splits them: "Budget Buddy (React,
+    Firebase)" and "Robot | C++, Python" keep only the name. The truth rule
+    has the model copy a title whole, so without this the tools stayed in it
+    (KAN-369's glued titles, back)."""
+    tools: list[str] = []
+    for draft in drafts:
+        if draft.section not in (bank_section.experience, bank_section.leadership, bank_section.projects):
+            continue
+        name, found = title_and_tools(draft.title)
+        if found and name:
+            draft.title, tools = name, tools + found
+    return drafts, tools
+
+
+def title_and_tools(title: str) -> tuple[str, list[str]]:
+    """A title's tools: a list after its last "|" (`split_tools`), or a
+    comma list in parentheses at its end. "(Pulp)" holds no list and stays."""
+    name, tools = split_tools(title)
+    paren = re.search(r"\s*\((.*?)\)\s*$", name)
+    if paren and "," in paren.group(1):
+        tools = tools or [t.strip() for t in paren.group(1).split(",") if t.strip()]
+        name = name[:paren.start()].strip()
+    return name, tools
+
+
+_GIVER_RE = re.compile(r"^(?P<award>.+?)\s+[–—|-]\s+(?P<giver>[^–—|]+)$")
+
+
+def with_award_givers(drafts: list[DraftEntry]) -> list[DraftEntry]:
+    """An award with no organization whose title ends in " – Giver": the
+    giver goes to the organization, as the parser reads "Award – Issuer".
+    The model copied "Dean's List – Riverside State University" whole."""
+    for draft in drafts:
+        if draft.section is not bank_section.awards or not (m := _GIVER_RE.match(draft.title)):
+            continue
+        giver = m["giver"].strip()
+        # The model may fill the organization and keep it in the title too.
+        if not draft.organization or _title_key(draft.organization) == _title_key(giver):
+            draft.title, draft.organization = m["award"].strip(), draft.organization or giver
+    return drafts
+
+
+def with_parsers_reading(drafts: list[DraftEntry], parsed: list[DraftEntry]) -> list[DraftEntry]:
+    """Both readings as one: the model's entries, and what the parser read
+    that they lack. Each parser entry is matched to the model's entry for the
+    same thing (`_twin`, in any section: the two file a Resident Assistant
+    differently). With no twin it is added whole: the model left out both
+    papers under "Publications" (2026-11-08). With one, it fills the twin's
+    empty fields (`_fill_blanks`) and adds the bullets no model entry holds.
+    The model's value always wins where both have one: it read the layout,
+    and the parser fails on the layouts the model is for."""
+    out = list(drafts)
+    # What the model's reading already says: its bullets, and each entry's
+    # name, since the parser saves a line it misreads ("Stony Brook
+    # University" under a project) as a bullet.
+    held = [_bullet_words(b) for d in drafts for b in d.bullets] + [_name_words(d) for d in drafts]
+    for entry in parsed:
+        twin = _twin(entry, drafts)
+        if twin is None:
+            out.append(entry)
+            held += [_bullet_words(b) for b in entry.bullets]
+            continue
+        _fill_blanks(twin, entry)
+        for bullet in entry.bullets:
+            words = _bullet_words(bullet)
+            # A line of tools ("Next.js, TypeScript, FastAPI") is no bullet: the
+            # model rightly leaves it out, and it reaches the skills instead.
+            if not words or is_tools_line(bullet) or len(twin.bullets) >= 30:
+                continue
+            if any(len(words & theirs) * 4 >= len(words) * 3 for theirs in held):
+                continue
+            twin.bullets.append(bullet)
+            held.append(words)
+    return out
+
+
+def _bullet_words(text: str) -> set[str]:
+    return set(_words(text)) - _COMMON
+
+
+def _name_words(entry: DraftEntry) -> set[str]:
+    return set(_words(f"{entry.title} {entry.organization or ''}")) - _COMMON
+
+
+def _twin(entry: DraftEntry, drafts: list[DraftEntry]) -> DraftEntry | None:
+    """The model's entry for the same thing as the parser's `entry`: at least
+    two words of its title and organization shared, and three in four of the
+    shorter one's. The shorter, since the parser's title can hold the whole
+    line on a layout it misreads ("Robotics Club - Software Lead" is the
+    model's "Robotics Club"). "Cashier, Target" and "Cashier, Walmart" share
+    one word, and are two jobs. The most words shared wins, then the same
+    section."""
+    own = _name_words(entry)
+    best: tuple[int, bool] = (0, False)
+    twin = None
+    for draft in drafts:
+        theirs = _name_words(draft)
+        shared = len(own & theirs)
+        if shared < 2 or shared * 4 < min(len(own), len(theirs)) * 3:
+            continue
+        score = (shared, draft.section is entry.section)
+        if score > best:
+            best, twin = score, draft
+    return twin
+
+
+_BLANKS = ("location", "link", "degree", "field_of_study", "issuer", "honors")
+_SECTION_ONLY = {f for fields in SECTION_FIELDS.values() for f in fields}
+
+
+def _fill_blanks(twin: DraftEntry, entry: DraftEntry) -> None:
+    """The twin's empty fields from the parser's entry, never one the model
+    filled: the dates when the model gave none (a paper's year), a start the
+    model left out of the same span, the award date, the location, link,
+    degree, field, GPA and courses. A fill that breaks the entry's rules (an
+    end before the start) is skipped. Never the title or organization: on a
+    layout the parser misreads, those are where its mistakes are."""
+    fill: dict = {f: getattr(entry, f) for f in _BLANKS if not getattr(twin, f) and getattr(entry, f)}
+    if twin.gpa is None and entry.gpa is not None:
+        fill.update(gpa=entry.gpa, gpa_scale=entry.gpa_scale)
+    if not twin.coursework and entry.coursework:
+        fill["coursework"] = entry.coursework
+    if twin.award_date is None and entry.award_date is not None:
+        fill["award_date"] = entry.award_date
+    if twin.start_month is None and twin.end_month is None and twin.end_kind is None:
+        if entry.start_month or entry.end_month or entry.end_kind:
+            fill.update(start_month=entry.start_month, end_month=entry.end_month, end_kind=entry.end_kind)
+    elif twin.start_month is None and entry.start_month and twin.end_month == entry.end_month:
+        fill["start_month"] = entry.start_month
+    # A twin in another section takes only the fields its section holds.
+    foreign = _SECTION_ONLY - set(SECTION_FIELDS.get(twin.section, ()))
+    fill = {f: v for f, v in fill.items() if f not in foreign}
+    if not fill:
+        return
+    try:
+        filled = DraftEntry.model_validate({**twin.model_dump(), **fill})
+    except ValidationError:
+        return
+    for field in fill:
+        setattr(twin, field, getattr(filled, field))
+
+
+def with_own_wording(reading: ModelReading, parsed: list[DraftEntry]) -> ModelReading:
+    """The model's bullets that hold a placeholder, each in the words of the
+    parser's bullet it matches (three in four of its other words). The seam
+    removes every part of the student's name, in any case, even where it is
+    a common word ("user flow" for a Test User, "landing page" for a Page),
+    so the model echoes "[name]" where the resume has a word. The parser read
+    the resume itself, so its bullet holds the resume's words; this swaps in
+    a line of the resume, never a value for the placeholder. A bullet with
+    no match keeps its placeholder, and `model_drafts` drops it."""
+    own = [(set(_words(b)) - _COMMON, b) for entry in parsed for b in entry.bullets]
+    for entry in reading.entries:
+        entry.bullets = [_own_bullet(b, own) if placeholders_in(b) else b for b in entry.bullets]
+    return reading
+
+
+def _own_bullet(bullet: str, own: list[tuple[set[str], str]]) -> str:
+    stripped = bullet
+    for placeholder in PLACEHOLDERS:
+        stripped = stripped.replace(placeholder, " ")
+    words = set(_words(stripped)) - _COMMON
+    if not words or not own:
+        return bullet
+    found, line = max(((len(words & theirs), line) for theirs, line in own), key=lambda pair: pair[0])
+    return line if found * 4 >= len(words) * 3 else bullet
+
+
+def _from_first_heading(text: str) -> str:
+    lines = text.splitlines()
+    for i, line in enumerate(lines[:_TOP_LINES]):
+        if section_of(line):
+            return "\n".join(lines[i:])
+    return text
+
+
+def _words(text: str) -> list[str]:
+    """Lower-case words and numbers: "3.62" is "3" and "62", "C++" is "c"."""
+    return re.findall(r"[^\W_]+", unicodedata.normalize("NFKC", text).casefold())
+
+
+def _backed(value: str, words: set[str]) -> bool:
+    """Whether the resume's words back a field the model wrote: every number
+    in it is on the resume, and so is every word of a short one (three words
+    or fewer, common words aside) and three in four of a longer one, so a
+    word the PDF broke in two still passes."""
+    own = [w for w in _words(value) if w not in _COMMON]
+    if any(w.isdigit() and w not in words for w in own):
+        return False
+    found = sum(w in words for w in own)
+    return found == len(own) if len(own) <= 3 else found * 4 >= len(own) * 3
+
+
+def _number_backed(value: float, words: set[str]) -> bool:
+    # 3.8 may be "3.8" or "3.80" on the resume
+    return any(_backed(form, words) for form in (f"{value:g}", f"{value:.1f}", f"{value:.2f}"))
+
+
+def _backed_fields(raw: dict, words: set[str]) -> dict:
+    """The model's entry less what the resume's words do not back: a title,
+    organization, location, bullet or course, all of the entry's dates when
+    one names a year the resume lacks, and a GPA it lacks with its scale."""
+    raw = {**raw}
+    for field in _TEXT_FIELDS:
+        if raw[field] and not _backed(raw[field], words):
+            raw[field] = None
+    raw["bullets"] = [b for b in raw["bullets"] if _backed(b, words)]
+    raw["coursework"] = [c for c in raw["coursework"] if _backed(c, words)]
+    if any(raw[f] and raw[f][:4] not in words for f in ("start_month", "end_month", "award_date")):
+        raw.update(start_month=None, end_month=None, end_kind=None, award_date=None)
+    if raw["gpa"] is not None and not _number_backed(raw["gpa"], words):
+        raw.update(gpa=None, gpa_scale=None)
+    return raw
+
+
+def _title_key(title: str) -> str:
+    return " ".join(_words(title))
+
+
+def with_links(drafts: list[DraftEntry], parsed: list[DraftEntry]) -> list[DraftEntry]:
+    """The model's projects with the links the parser read, since the model
+    sees every URL as [link]: a project takes the link of the parser's
+    project with its title, word for word or, two words or more, as the
+    first words of the other's ("Line Robot" and "Line Robot | Robotics
+    Club"; one word alone, "Line", is too little to tell)."""
+    def starts(longer: str, shorter: str) -> bool:
+        return " " in shorter and longer.startswith(f"{shorter} ")
+
+    links = {_title_key(p.title): p.link for p in parsed if p.section is bank_section.projects and p.link}
+    for draft in drafts:
+        if draft.section is not bank_section.projects or draft.link:
+            continue
+        key = _title_key(draft.title)
+        draft.link = links.get(key) or next(
+            (link for k, link in links.items() if starts(k, key) or starts(key, k)), None
+        )
+    return drafts

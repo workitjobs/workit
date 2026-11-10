@@ -770,7 +770,12 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   clicks Submit on each, so no page says WorkIt submits, sends or
   applies. Scout's page is about Fill With Scout, the one way into Scout
   while Ask Scout is greyed out; bring the job questions back to it when
-  `ASK_SCOUT_LIVE` turns on. **A content file imports its animation from
+  `ASK_SCOUT_LIVE` turns on. Fill With Scout is off in the app
+  (`FILL_WITH_SCOUT_LIVE`, KAN-732) until it gets a new place, which is
+  still open; **the site keeps Scout on purpose meanwhile** (settled
+  2026-11-07): its page, the pricing table's Scout row and the Resumes
+  page's FAQ stay. Revisit them when Fill With Scout's new place is
+  settled. **A content file imports its animation from
   `features/animations.tsx`, never the animation itself**: each there is
   a `next/dynamic` wrapper, server-rendered as before, whose chunk only
   the page that shows it loads. A client component a server file imports
@@ -2053,17 +2058,32 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   on a click (the panel's rule), never on page load; a link a student
   clicked to get here may open it once, then drop its query param.
   **The bar's Scout button is archived** (`SCOUT_LAUNCHER_LIVE` in
-  `(seeker)/layout.tsx`, 2026-11-01): Fill With Scout still opens the panel,
-  and closing it leaves focus on the page, since no launcher takes it back.
-  The editor's assistant has no other way in on a laptop, so it is out of reach
-  until the flag is on or the toolbar gets a button. **Ask Scout is greyed
-  out** (`ASK_SCOUT_LIVE` in `components/scout/scout-buttons.tsx`, 2026-11-02,
-  it does not work): every job's button and the phone editor's two buttons
-  stay in place, disabled, the panel's hint is hidden, and the flag brings
-  them back. A job's button, and Not Interested, which stores nothing yet,
-  are `soon` on `IconButton` (KAN-569): faded and inert, but still hovered
-  and focused, so the tooltip says "Coming Soon". A disabled button shows no
-  tooltip, so nothing said why; a control that is not built takes `soon`. The phone editor has no other way into its assistant. **The
+  `(seeker)/layout.tsx`, 2026-11-01). **Fill With Scout is off too**
+  (`FILL_WITH_SCOUT_LIVE` in `components/scout/live.ts`, KAN-732) until it
+  gets a new place, which is still open; the landing site keeps describing
+  Scout meanwhile, on purpose. Off,
+  Experiences shows no Fill With Scout and takes no panel, and the Jobs
+  page's Import Your Resume imports in place (`jobs/import-resume-button.tsx`).
+  The flag lives in its own module, not beside `ASK_SCOUT_LIVE`, because
+  server components read it: a value a server component imports from a
+  "use client" file arrives as a client reference, which is never false.
+  **Ask Scout is greyed out** (`ASK_SCOUT_LIVE` in
+  `components/scout/scout-buttons.tsx`, 2026-11-02, it does not work): every
+  job's button and the phone editor's two buttons stay in place, disabled,
+  the panel's hint is hidden, and the flag brings them back. A job's
+  button, and Not Interested, which stores nothing yet, are `soon` on
+  `IconButton` (KAN-569): faded and inert, but still hovered and focused,
+  so the tooltip says "Coming Soon". A disabled button shows no tooltip, so
+  nothing said why; a control that is not built takes `soon`. **While it
+  is off, Scout's chat and the editor's assistant cannot be reached at
+  all** (2026-11-06): the panel shows only while a page holds it
+  (`scout-panel.tsx` reads `open` as open and taken over), and the editor
+  takes the panel only for its toolbar's views (Experiences, Cut, Format,
+  Sections), never the assistant's. Hiding the buttons alone was not
+  enough: the panel's open state outlives the page, so Fill With Scout on
+  Experiences, then the Jobs page, showed Scout's chat, and then the editor
+  showed its assistant, both working; the editor's toolbar views can still
+  leave the panel open. **The
   Calendar's sidebar row is greyed out too** (`disabled` on a nav item,
   `seeker-sidebar.tsx`): /calendar still answers, and Home's Up Next links to it. The landing page still describes
   it.
@@ -2590,12 +2610,42 @@ are in `docs/auth.md`.
   or a replace (the resume picker's, at the limit), or Import Again's
   response. A newer version of an upload is a delete and an upload: the
   Resumes view's row offered Import Updated Resume until KAN-362, and never
-  a re-read of the stored file, which only ever read the same text. **No
-  screen offers an AI reading of a resume** (KAN-353): upload, Import Again
-  and intake's Import Your Resume read with the parser only. Read It With
-  AI (KAN-222) sat beside the upload note and in the import card until
-  then; the API's `read_with_ai` and `importResume`'s `readWithAi` stay,
-  with no caller.
+  a re-read of the stored file, which only ever read the same text. **The
+  API reads every upload with AI first, the parser behind it** (KAN-732,
+  ADR 0007), so no screen offers an AI reading: Read It With AI (KAN-222)
+  sat beside the upload note and in the import card until KAN-353, and
+  `read_with_ai` and `readWithAi` are gone. A reading takes a few seconds,
+  so every upload screen says so while it waits: "Reading your resume…" on
+  the dropzone (`components/resume-upload.tsx`) and the Resumes view's
+  pending card, "Reading Resume…" or "Reading…" on a button (intake, the
+  resume picker, the Resumes view, onboarding's Read Resume). The summary
+  line adds "read with AI" when `read_by` is "model". **Onboarding's Save
+  Resume sends the preview back** (`uploadResume`'s `reading`, the API's
+  `reading` form field): the save keeps what the student checked and asks
+  AI for nothing more, since the day's one AI reading went to the preview.
+  **The preview looks and works as Experiences does** (KAN-732): a card per
+  section with the bank's heading (`SectionMark`, the name) and rows
+  (`EntryRow`, `(seeker)/experiences/entry-row.tsx`, which takes an entry's
+  fields and bullets, saved or not), each entry's pencil in view, which
+  opens the shared `EntryEditor` as it stands (Save Entry, Cancel, and
+  Delete Entry, which asks in the bank's modal, to leave the entry out), the bank's
+  warning for what an entry lacks (`MissingFacts`, beside `EntryRow`), and
+  the bank's skills (`SkillGroups`, `skill-groups.tsx`: purple chips, one
+  row per group), whose × shows only in Skills' edit mode. **Every entry is
+  open, with no chevron** (`EntryRow`'s `open`), unlike Experiences: the
+  student checks all of a reading here, so none of it waits behind a press.
+  The other pencils hide while an entry is in the editor, as on
+  Experiences. No intro line:
+  the headline says what to do. Edits change only the reading in the
+  browser (`onboarding/applicant/preview-entry.ts` turns preview entries
+  into the row's and editor's shapes), and Save Resume waits while an entry
+  is open in the editor, since saving then dropped the typing. Never give
+  the preview a row, editor, chips or controls of its own: its own row hid
+  the location, degree, GPA, coursework, issuer and link the student was
+  asked to check, its own grey chips dropped the groups, and a pencil and a
+  × on every row brought back the controls side by side that KAN-363 took
+  off the bank's rows. Add Entry stays on Experiences, to keep onboarding
+  short.
 - **The Resumes view is one list of every resume** (KAN-362, KAN-404,
   `(seeker)/resumes/built-resumes.tsx`): uploaded, generated and tailored,
   newest first, each as its card (`components/resume-row.tsx`'s box, star
@@ -2705,13 +2755,31 @@ are in `docs/auth.md`.
   left 96 entries and 242 skills of 8 students that every reader used but
   no student could see, edit or delete, so it came back (2026-10-24).
   Clear All (KAN-352) deletes what a card shows, from the whole bank, as
-  Delete Entry does (`docs/screens.md`, Resumes & Experiences). **Every
-  card's heading is LinkedIn's** (KAN-363, `SectionActions` in
-  `bank-screen.tsx`): a + that adds, on all seven cards, and a pencil
-  (hidden while the card is empty) that opens the card's edit mode, one
-  card at a time. Only in edit mode do entries show their pencil, skills
-  their pencil and ×, and the heading Clear All and Done. Delete Entry is
-  at the foot of the editor an entry's pencil opens.
+  Delete Entry does (`docs/screens.md`, Resumes & Experiences). **An
+  entry's pencil is always in view** (KAN-732, `EntryView` in
+  `bank-screen.tsx`): one press opens its editor, with Delete Entry at the
+  editor's foot. **A card's heading holds a + and a ⋯** (`CardActions`):
+  the + adds, on all seven cards; the ⋯ holds Clear All and shows only
+  where Clear All applies (one resume picked, no search, something to
+  clear). Skills alone keep an edit mode: their heading's pencil (hidden
+  while the card is empty) shows each skill's pencil and × and turns to
+  Done, since a pencil and × on every chip, always, made the list hard to
+  read. Every card had that mode until KAN-732 (KAN-363, after LinkedIn's
+  profile), and only in it did entries show their pencil: a press before
+  every edit, and in a card of one entry a press that only showed the
+  next. Never put Clear All back in the heading as a word: there it sat
+  one slip from Add. **One editor at a time** (KAN-732): while an entry is
+  in the editor, the other pencils, the cards' + and ⋯ and the empty-group
+  line hide, here and in onboarding's preview; any of them moved the editor
+  and dropped what was typed in it. **Delete Entry and Clear All ask in a
+  modal** (`DeleteDialog` in `resumes/delete-confirm.tsx`, drawn as
+  `company/jobs/close-job-dialog.tsx`): the question names what goes. As a
+  line under the editor it opened out of view on a long entry and took no
+  focus, so a screen reader never heard it; the answer bank still asks on
+  a line (`DeleteConfirm`). A control that takes another's place or closes (the
+  pencil and Done, Keep It, Cancel, Save Entry, Delete Entry) hands the
+  focus on by id (`focusSoon`), or it fell to the page's top and a
+  keyboard user lost their place.
 - **A skill's × and a resume's Delete Resume are optimistic** (KAN-388):
   the item leaves the screen at once and the delete runs behind it. The
   screen that holds the list owns the delete, through `useOptimistic` in
