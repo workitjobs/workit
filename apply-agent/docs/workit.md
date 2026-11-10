@@ -207,6 +207,52 @@ sends a `workit.Write` through a `workit.WaitingWrites`.
 in Chromium: a submit by Lisul is Applied with the Sent resume, and no
 submit sends nothing. `-k saves_the_record_again` checks his submit's Record.
 
+## The Answer bank's sync to WorkIt (KAN-746)
+
+`src/apply/answer_sync.py`. Before, the backend's import
+(`backend/app/scripts/import_apply_profile.py`) copied the Answer bank into
+WorkIt one time, and a later answer reached the extension only with the
+import run again.
+
+- **Opt-in, off by default.** `policies.yaml`: `workit_sync: {answers:
+  true}`, with `apply login`. Off, the bank writes no `edited_at` and sends
+  nothing. A user with no WorkIt account leaves it off.
+- **Each change goes.** `cli._answer_bank` builds every live Answer bank
+  through `answer_sync.bank`, which gives it an `on_change`. A write that
+  changes an entry's question, answer, options, source, reviewed, first
+  seen or none stamps the entry `edited_at` (UTC) in the file and sends it
+  after the file is saved; a delete sends a delete. A counted use sends
+  nothing. A sync that fails never fails the bank's write.
+- **The route.** `WorkIt.sync_answers`: `PATCH
+  /applicants/{id}/fill-answers` with `{"answers": [...], "deleted":
+  [...]}`, at most 200 of each a call. Apply sends each entry as filed;
+  WorkIt maps it with the import's rules (`backend/app/services/apply_answers.py`).
+- **Never Claude's draft as the student's own.** WorkIt marks an entry own
+  only with `source: lisul`, and never one marked `reviewed: false`. Apply
+  sends `source` and `reviewed` as the bank has them and never an `own`, so
+  a draft Claude wrote goes as Claude's, as the import brings it.
+- **Conflicts: a newer edit wins.** WorkIt keeps its stored entry when its
+  `edited_at` is newer than the change's, and names the question in
+  `kept`. An entry with no `edited_at` (changed before the sync was on)
+  never replaces one WorkIt has a time for. The sync never writes the
+  answers the student saved on WorkIt's own pages (`written_answers`), and
+  WorkIt serves the student's own words newest first, so an older Apply
+  answer never beats one the student edited on the site, and a newer one does.
+- **WorkIt down, no login, or the cap.** The change waits in
+  `APPLY_HOME/workit-answers-queue.json`, the newest per question, and goes
+  with the next change or `apply sync-answers`. A refusal (a 4xx) drops
+  that batch and says so on stderr.
+- **`apply sync-answers`** sends the whole bank one time, for catch-up: after
+  turning the sync on, or after hand edits to `answer-bank.yaml`. It prints
+  counts and the questions WorkIt kept, never an answer, and exits 1 while
+  any change still waits. It works with the sync off too, and then says how
+  to turn it on.
+
+**Tests.** `tests/test_answer_sync.py` (in CI) runs the bank and the command
+against `tests/fake_workit.py`, with fixture banks only. The backend's
+`backend/tests/test_fill_answers_sync.py` runs the route and the conflict
+rule on Postgres.
+
 ## Already applied: no form is opened again (KAN-621)
 
 On 2026-11-04 a rehearsal filled Astranis, which Lisul had applied to. The
