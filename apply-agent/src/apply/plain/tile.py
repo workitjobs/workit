@@ -9,7 +9,10 @@ Without it, each Worker's extension streams its shown tab as `tile.frame` events
 how to turn the permission on (`notice`). A filmed tile never stays blank (KAN-643): with no
 filmed frame within FIRST_FRAME s of `tile.start` (an extension too old to send `tile.shown`, a
 helper never aimed), or none for STALLED s after the extension said its picture moved, Apply
-stops filming it and the extension's frames show. A tile whose extension is older than Apply
+stops filming it and the extension's frames show. Then it tries filming again after RETRY s, doubling up to
+RETRY_MOST (KAN-751): a page's title and the one macOS lists for its window may disagree for a while (a sign-in's
+redirects), and one such stretch must not keep the tile at 2 frames a second for the whole run. A try that fails
+falls back again; the tile keeps its last frame meanwhile. A tile whose extension is older than Apply
 says so (bridge.OUT_OF_DATE). A tile's clicks, keys, wheel, pastes, <select> picks and files go back as `tile.input`, replayed
 in the page as synthetic DOM events. No CDP anywhere.
 
@@ -40,6 +43,8 @@ FIRST_FRAME = 3.0  # s a filmed tile may wait for its first frame before the ext
 STALLED = 20.0  # s a filmed tile may go without a frame after a `tile.shown`
 SETTLE = 0.25  # s around a switch of the filmed window's tab whose frames go to neither tab's tile (KAN-717)
 KEPT = 1.0  # s of each tab's filmed frames kept, so a switch can take back the ones that showed the next tab
+RETRY = 5.0  # s after a filmed tile fell back to the extension's frames before Apply tries filming it again (KAN-751)
+RETRY_MOST = 60.0  # s: each failed try doubles the wait, up to this
 
 
 class PortFrames:
@@ -64,6 +69,7 @@ class PortFrames:
         self._streams: dict[int, window_capture.WindowStream] = {}  # worker -> its window, filmed
         self._notes: dict[int, str] = {}  # worker -> the tile's line about its capture
         self._filmed: dict[int, dict[str, float]] = {}  # worker -> when filming began, its last frame, last tile.shown
+        self._retry: dict[int, tuple[float, float]] = {}  # worker, fallen back -> (when to film again, the wait after)
         self._settings = settings  # tile.start's: interval ms, quality, maxWidth, maxHeight
         self._frames: dict[int, tuple[bytes, int]] = {}  # worker -> (latest frame, its number)
         self._tabs: dict[int, int] = {}  # worker -> the tab its latest frame shows
@@ -317,13 +323,11 @@ class PortFrames:
                 and not self._foreign_to(worker, connection):
             self._watched.pop(worker)  # its Chrome can be told now, and it is this Worker's: set it up below
         if connection is self._watched.get(worker):
-            if connection is not None and (stream := self._streams.get(worker)) and (why := self._blank(worker, stream)):
-                self._unfilm(worker)  # the extension's frames from now on
-                if why != "the helper ended":
-                    print(f"Plain Worker {worker + 1}'s tile: {why}; showing the extension's frames.", file=sys.stderr)
-                connection.call("tile.start", timeout=5, **{**self._settings, "native": False})
+            if connection is not None and worker not in self._foreign:
+                self._refilm(worker, connection)
             return
         self._unfilm(worker)
+        self._retry.pop(worker, None)
         self._notes.pop(worker, None)
         self._watched.pop(worker, None)
         self._choosers = {key: asked for key, asked in self._choosers.items() if key[0] != worker}
@@ -351,6 +355,30 @@ class PortFrames:
             self._notes[worker] = OUT_OF_DATE  # bridge logged it; the tile still shows the frames it can
         connection.call("tile.start", timeout=5, **{**self._settings, "native": native})
         self._watched[worker] = connection
+
+    def _refilm(self, worker: int, connection: Connection) -> None:
+        """A filmed tile that shows nothing takes the extension's frames; one that fell back is filmed again when its
+        wait is over (KAN-751). The tile keeps its last frame while a try waits for its first: never blank (KAN-643)."""
+        stream, now = self._streams.get(worker), time.monotonic()
+        if stream is not None:
+            if why := self._blank(worker, stream):
+                self._unfilm(worker)  # the extension's frames, till the next try
+                wait = self._retry.get(worker, (0.0, RETRY))[1]
+                if worker not in self._retry and why != "the helper ended":
+                    print(f"Plain Worker {worker + 1}'s tile: {why}; showing the extension's frames, "
+                          f"filming again in {wait:.0f} s.", file=sys.stderr)
+                self._retry[worker] = (now + wait, min(wait * 2, RETRY_MOST))
+                connection.call("tile.start", timeout=5, **{**self._settings, "native": False})
+            elif worker in self._retry and self._filmed.get(worker, {}).get("frame"):
+                self._retry.pop(worker)
+                print(f"Plain Worker {worker + 1}'s tile: filmed again.", file=sys.stderr)
+            return
+        if worker in self._retry and now >= self._retry[worker][0]:
+            if self._film(worker, connection):
+                connection.call("tile.start", timeout=5, **{**self._settings, "native": True})
+            else:  # can't be filmed now (its Chrome can't be told): the extension's frames, and a later try
+                wait = self._retry[worker][1]
+                self._retry[worker] = (now + wait, min(wait * 2, RETRY_MOST))
 
     def _foreign_to(self, worker: int, connection: Connection) -> bool:
         """Whether `connection` may not be Worker `worker`'s: its Chrome (the host's parent) isn't the one with the

@@ -46,8 +46,8 @@ for (const url of [
   test(`the manifest lets the extension reach ${url}`, () => {
     expect(jobOf(url), url).not.toBeNull();
     expect(manifest.host_permissions.some((p: string) => allows(p, url)), url).toBe(true);
-    // The panel's content scripts load there too, or the page has no panel to fill from.
-    const panel = manifest.content_scripts.find((c: { js: string[] }) => c.js.includes("src/content/panel.js"));
+    // The panel's launcher loads there too (it loads the panel's files on a job page), or the page has no panel to fill from.
+    const panel = manifest.content_scripts.find((c: { js: string[] }) => c.js.includes("src/content/launcher.js"));
     expect(panel.matches.some((p: string) => allows(p, url)), url).toBe(true);
   });
 }
