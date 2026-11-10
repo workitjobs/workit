@@ -1217,11 +1217,23 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   `.glass-btn` in landing.css is only the glass fill and edge.
 - **A signed-in visitor's header says "Open WorkIt"** (KAN-581), to
   `/go-home`, in place of Log in and Get started, in the bar and the phone
-  menu. The pages stay prerendered: the header is drawn signed out, and
-  `session-swap.tsx` (a client island) asks `GET /api/session` once it
-  mounts, which answers whether an `sb-*-auth-token` cookie exists, never
-  its value. The page cannot look itself, since the cookies are httpOnly.
-  A signed-in visitor sees Log in for the moment the answer takes.
+  menu. The pages stay prerendered, so the header draws both pairs and
+  landing.css shows one by `<html data-signed-in>` (`session-swap.tsx`).
+  **The mark is set before the first paint** (KAN-743): the session
+  cookies are httpOnly, so every write of them also writes a readable
+  hint, `workit-signed-in=1` (`sessionCookieWrites` in
+  `lib/supabase/cookies.ts`, set with the session's idle age, cleared on
+  sign-out), and an inline script in the root layout's `<head>` reads it.
+  A new place that writes session cookies goes through
+  `sessionCookieWrites`, or the hint drifts. Then `SessionProbe` asks
+  `GET /api/session` (whether an `sb-*-auth-token` cookie exists, never
+  its value), corrects the mark, and the route writes the hint to match,
+  which heals a session from before the hint. Until KAN-743 the header
+  waited for that answer, and a signed-in visitor saw Log in first. The
+  script runs on a full load only: after a sign-out inside the app, a
+  client navigation to a marketing page shows "Open WorkIt" until the
+  probe answers. The hint is a guess for the header alone; nothing
+  decides access by it.
 - **Type on the marketing pages.** Plus Jakarta Sans is 1.26em tall
   (ascent 1.038, descent 0.222), taller than any display line, so a
   wrapped heading's lines overlap by a few pixels. The selection
@@ -1540,7 +1552,9 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   never-cached photo downloads.
 - **Nothing in the root layout or the root `not-found` may read cookies,
   headers or the session** (no `getCurrentAccount`, `getSessionUser`,
-  `cookies()`, `headers()`; KAN-368). Next renders the root not-found into
+  `cookies()`, `headers()`; KAN-368; the signed-in hint's inline script
+  reads `document.cookie` in the browser, which the server never sees,
+  KAN-743). Next renders the root not-found into
   every page's tree, so one session read there made all 63 routes dynamic on
   2026-10-24. Check a build's route table with `NEXT_PUBLIC_SUPABASE_*` set
   (the deploy's `cf:build` log, or `npm run build` with `.env.local`): `/`
