@@ -68,16 +68,12 @@ const REASON: Record<string, LeaveReason> = {
  */
 export function BankDialog({
   label,
-  tall = false,
   onLeave,
   returnTo,
   children,
 }: {
   /** The dialog's name for a screen reader, when its title says less. */
   label?: string;
-  /** A fixed height on a laptop, for the section's list, so its steps do
-   *  not make the dialog jump; a form alone is as tall as its fields. */
-  tall?: boolean;
   onLeave: (reason: LeaveReason) => void;
   /** The element focus goes back to on closing. */
   returnTo: RefObject<() => HTMLElement | null>;
@@ -116,7 +112,11 @@ export function BankDialog({
           // a phone too.
           "max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] sm:max-w-3xl",
           "max-sm:h-dvh max-sm:max-h-none max-sm:w-full max-sm:max-w-none max-sm:rounded-none max-sm:ring-0",
-          tall && "sm:h-[min(52rem,calc(100dvh-4rem))]",
+          // As tall as what it holds, up to the window: a fixed height left
+          // a list of two schools over a screen of white. Hung 64px from the
+          // window's top, not centred, so its head stays put as a step
+          // (the list, a form) changes its height.
+          "sm:top-16 sm:max-h-[calc(100dvh-6rem)] sm:translate-y-0",
         )}
       >
         {children}

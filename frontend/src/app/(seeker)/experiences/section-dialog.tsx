@@ -165,7 +165,7 @@ export function SectionDialog({
     const { entry, near } = step;
     const setup = pane(entry);
     return (
-      <BankDialog tall returnTo={returnTo} onLeave={leave}>
+      <BankDialog returnTo={returnTo} onLeave={leave}>
         <EntryPane
           key={entry?.id ?? "new"}
           ref={paneRef}
@@ -187,7 +187,7 @@ export function SectionDialog({
   }
 
   return (
-    <BankDialog tall returnTo={returnTo} onLeave={leave}>
+    <BankDialog returnTo={returnTo} onLeave={leave}>
       {renaming && rename ? (
         <div className="border-border-subtle shrink-0 border-b py-3 pr-3 pl-4 sm:pl-6">
           {rename(() => setRenaming(false))}

@@ -2386,7 +2386,10 @@ in Docs (suggested answers in the chat, not a banner).
   under the rows; a search shows every entry it finds, open, with no Show
   All. The heading holds a + (Add Project, the form empty) and a pencil
   (Edit Projects), which opens the section's whole list as Show All does:
-  a dialog 768px wide on a laptop, the whole screen on a phone, titled with
+  a dialog 768px wide on a laptop, as tall as its entries up to the window
+  and hung 64px from its top, so its head stays put as a step changes its
+  height (a fixed height left two schools over a screen of white), and the
+  whole screen on a phone, titled with
   the section's mark, name and count ("17 projects"), with a + and a ⋯
   (Clear All, and a custom section's Rename and Delete Section) beside its
   close. Every entry there is a row as on the card, with its pencil; the
