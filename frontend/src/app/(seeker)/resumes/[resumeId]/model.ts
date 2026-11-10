@@ -42,8 +42,17 @@ export const LINK_FIELDS = ["linkedin_url", "github_url", "portfolio_url", "othe
 
 /** The entry fields typed in place; they change the bank (user story 61).
  *  The API reads what is typed (`PUT .../lines`, KAN-391): a GPA must be a
- *  number, a label typed back is dropped. */
-const TYPED_ENTRY = new Set(["title", "organization", "location", "honors", "coursework", "gpa"]);
+ *  number, a label typed back is dropped, and coursework and a project's
+ *  tools (KAN-738) are split at commas into their lists. */
+const TYPED_ENTRY = new Set([
+  "title",
+  "organization",
+  "location",
+  "honors",
+  "coursework",
+  "gpa",
+  "tools",
+]);
 
 /** The header fields typed in place; they change the profile. The email is
  *  the profile's contact email, else the sign-in address, so it is set on

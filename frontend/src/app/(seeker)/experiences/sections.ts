@@ -34,6 +34,37 @@ export function sectionOf(id: Section) {
   return SECTIONS.find((s) => s.id === id)!;
 }
 
+/** The sections whose entries list the tools they used (KAN-738): a
+ *  project's stack, which a resume prints in italic on its own line under
+ *  the heading. The API's `SECTION_FIELDS` keeps the same list and refuses
+ *  tools on any other section, so the two change together. */
+const TOOL_SECTIONS = new Set<Section>(["projects"]);
+
+export function holdsTools(section: Section): boolean {
+  return TOOL_SECTIONS.has(section);
+}
+
+/** A comma outside parentheses, where the API splits a tools line typed on
+ *  a resume: "Supabase (PostgreSQL, pgvector)" stays one tool. */
+export const TOOL_COMMA = /,(?![^()]*\))/;
+
+/** A list typed as text, as the bank keeps it: split at each `separator`
+ *  (a comma, unless given), each item trimmed, empty ones dropped. */
+export function splitList(text: string, separator: RegExp | string = ","): string[] {
+  return text
+    .split(separator)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+/** "Next.js, TypeScript, FastAPI": a project's tools as the resume prints
+ *  them, or null when it lists none. Every row reads it, so it reads a
+ *  missing list as none: deploy.yml ships the web and the API side by side,
+ *  and a web live before the API that sends `tools` broke every row. */
+export function toolsLine(entry: Pick<EntryFields, "tools">): string | null {
+  return entry.tools?.length ? entry.tools.join(", ") : null;
+}
+
 /** What the editor edits: an entry's fields, plus its bullets, which carry
  *  an id once saved. A draft from intake or import has no ids at all. */
 export type EntryDraft = EntryFields & { bullets: { id?: string; text: string }[] };
@@ -67,6 +98,7 @@ export function emptyDraft(section: Section): EntryDraft {
     coursework: [],
     honors: null,
     link: null,
+    tools: [],
     issuer: null,
     award_date: null,
     bullets: [],

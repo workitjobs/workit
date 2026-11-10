@@ -17,7 +17,9 @@ export type Section =
 export type EndKind = "month" | "present" | "expected";
 
 /** Every field of an entry except its id and bullets. The section fields
- *  (degree … award_date) stay null outside their own section. */
+ *  (degree … award_date) stay null, or empty, outside their own section.
+ *  `tools` is a project's stack (KAN-738), in the order the student gave:
+ *  only the sections `holdsTools` names may fill it, or the API answers 422. */
 export type EntryFields = {
   section: Section;
   title: string;
@@ -33,6 +35,7 @@ export type EntryFields = {
   coursework: string[];
   honors: string | null;
   link: string | null;
+  tools: string[];
   issuer: string | null;
   award_date: string | null;
 };

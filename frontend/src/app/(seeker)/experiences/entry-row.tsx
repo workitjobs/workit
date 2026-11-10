@@ -6,7 +6,7 @@ import { ChevronDownIcon } from "@/components/icons";
 import type { EntryFields } from "@/lib/bank-actions";
 import { cn } from "@/lib/cn";
 
-import { degreeLine, entryDetails, formatDates, missingFacts } from "./sections";
+import { degreeLine, entryDetails, formatDates, missingFacts, toolsLine } from "./sections";
 
 /** A bullet as a row shows it: the bank's, or this resume's own wording. */
 type RowBullet = { id: string; text: string };
@@ -18,10 +18,11 @@ type RowBullet = { id: string; text: string };
  * left out the location, a school's degree and GPA, coursework, an issuer and
  * a link, the facts the student was asked to check. It takes an entry's
  * fields and its bullets, saved or not: a preview entry has no ids. Closed, it
- * is the entry's title, place, dates, a school's degree and how many bullets
- * it holds; a press on it opens the other details and the bullets. It opens
- * closed: every entry fully open made a bank of six entries a long page, and
- * the student reads a bank by its titles.
+ * is the entry's title, place, dates, a school's degree, a project's tools
+ * (in italic on their own line, as the resume prints them, KAN-738) and how
+ * many bullets it holds; a press on it opens the other details and the
+ * bullets. It opens closed: every entry fully open made a bank of six entries
+ * a long page, and the student reads a bank by its titles.
  *
  * An entry with nothing more to show has no chevron and no press. Bullets
  * stop at a readable measure, since a page 1440px wide ran them past 130
@@ -63,6 +64,7 @@ export function EntryRow({
   const dates = formatDates(entry);
   const place = [entry.organization, entry.location].filter(Boolean).join(" · ");
   const degree = degreeLine(entry);
+  const tools = toolsLine(entry);
   const more = entryDetails(entry).filter((line) => line !== degree);
   const opens = !open && (more.length > 0 || bullets.length > 0);
   const shown = open || opened;
@@ -83,6 +85,7 @@ export function EntryRow({
         {dates && <span className="text-note text-ink-meta block @xl/main:hidden">{dates}</span>}
         {place && <span className="text-note text-ink-muted block break-words">{place}</span>}
         {degree && <span className="text-note text-ink-meta block break-words">{degree}</span>}
+        {tools && <span className="text-note text-ink-meta block break-words italic">{tools}</span>}
         {!shown && bullets.length > 0 && (
           <span className="text-note text-brand-ink block">
             {summary ?? `${bullets.length} ${bullets.length === 1 ? "bullet" : "bullets"}`}

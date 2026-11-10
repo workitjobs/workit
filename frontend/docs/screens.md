@@ -2216,10 +2216,11 @@ names stay neutral: in brand they blended with the chips under them. Text takes 
 title and bullets stay ink, so the words still lead. It read all white and
 grey before.
 
-**One search box** under the card finds an entry by any word in it, bullets
-included, or a skill by its name or group; every word must match. It opens
-what it finds, since a word may be in a bullet, and turns Clear All off, which
-would still take the rows a search hides. **A group with nothing in it is one
+**One search box** under the card finds an entry by any word in it, a
+project's tools and the bullets included, or a skill by its name or group;
+every word must match. It opens what it finds, since a word may be in a
+bullet, and turns Clear All off, which would still take the rows a search
+hides. **A group with nothing in it is one
 quiet line** under the page, each word adding to its group, and leaves the
 section nav: three "Nothing here yet" cards pushed Skills off the screen.
 
@@ -2228,7 +2229,9 @@ since the whole dialog scrolling put Cancel and Show past a short window.
 
 **Every entry is one row, `EntryRow`** (`bank/entry-row.tsx`, KAN-440),
 here and in the resume editor's panel, so the two never drift apart. It
-opens closed: title, place, dates, a school's degree and a bullet count. A
+opens closed: title, place, dates, a school's degree, a project's tools and
+a bullet count. The tools are one italic line under the place, as the
+resume prints them under the project's heading (KAN-738). A
 press opens the other details and the bullets, which stop at 75 characters a
 line (a 1440px page ran them past 130). What an entry lacks stays in view
 while closed, since it stops a Generate, and the row Scout is working on
@@ -2294,8 +2297,8 @@ is why Skip sits with the draft it skips.
 what the entry is with, in the darker body grey (a school's degree and
 GPA, a job's or club's organization, a certification's issuer); when and
 where, in the meta grey; then a school's college, coursework and honors,
-or a project's link without its `https://`; then two bullets of two lines
-each. Every line under the title had been the same small grey, so a
+or a project's tools and its link without its `https://`; then two
+bullets of two lines each. Every line under the title had been the same small grey, so a
 school's degree read like its coursework, and the dates floated right on
 the organization's line, alone at the edge of an empty row for an
 import's school, which has none. **Under the title, the status says what
@@ -2448,6 +2451,14 @@ in Docs (suggested answers in the chat, not a banner).
   `TextAreaField` that grows with its text (`grow`) and turns a line break
   into a comma (a one-line field cut the list off), and a GPA has no spin
   arrows.
+  **A project lists its tools** (KAN-738): Tools, under the dates, is a
+  comma list as Coursework is, saved as the entry's `tools` in the order
+  typed. A comma inside parentheses stays in its tool ("Supabase
+  (PostgreSQL, pgvector)"), as the API splits a tools line typed on a
+  resume. Which sections hold tools is `sections.ts`'s `holdsTools`, the
+  same list as the API's `SECTION_FIELDS`: the field shows only there, and
+  the API refuses tools on any other section (422). Each tool is at most 60
+  characters and an entry holds at most 30; the API checks both.
   **Bullets read as the list they make** (KAN-249): each is a box with its
   bullet mark drawn in, and under them a dashed box of the same size, Add
   Bullet Point, whose + sits under the marks. The box it makes takes the
@@ -3065,9 +3076,13 @@ student who opened a resume from Experiences landed on another view.
   renders again. Every save bumps one request counter and a response older
   than the latest is dropped, so a slow render never paints over a newer
   edit. A bullet's text becomes this resume's local variant; an entry's
-  title, organization, location, GPA, coursework and honors change the
-  bank (user story 61), and the header's name, phone and links change the
-  profile. `model.ts`'s codecs say how each field reads and saves; a
+  title, organization, location, GPA, coursework and honors and a
+  project's tools line (KAN-738, box kind `tools`, typed as a comma list
+  that the API splits) change the bank (user story 61), and the header's
+  name, phone and links change the profile. A tools line has no Show/Hide:
+  emptied, it clears the project's tools, so it leaves every resume that
+  shows the project. It never wraps (a heading's row), so it types in a
+  one-line field. `model.ts`'s codecs say how each field reads and saves; a
   detail line shows its printed label ("GPA: 3.81/4.00"), so the field
   covers the whole line. Dates and the degree line are built from several
   fields, so they are not typed here: the bar links to Experiences.
@@ -3473,7 +3488,9 @@ reading is in view. Each entry's pencil opens the shared `EntryEditor`
 (Save Entry, Cancel, and Delete Entry, which asks in the bank's modal and
 says the entry is not saved and the file does not change); the other
 pencils hide while one entry is open, as on Experiences. An entry
-that lacks a date or an organization warns as on Experiences. Skills are
+that lacks a date or an organization warns as on Experiences. A project's
+tools show and edit as on Experiences and go back in the confirm's
+`reading` (KAN-738). Skills are
 the bank's purple chips in their groups, and their pencil shows each ×,
 with Done to end it. Save Resume waits while an entry is open, and the
 footer says why.

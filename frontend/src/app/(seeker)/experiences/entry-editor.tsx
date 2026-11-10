@@ -12,7 +12,7 @@ import { FIELD_CONTROL, FIELD_LABEL, TextField } from "@/components/ui/text-fiel
 import type { BankEntry, EndKind } from "@/lib/bank-actions";
 import { cn } from "@/lib/cn";
 
-import { savable, sectionOf, type EntryDraft } from "./sections";
+import { holdsTools, savable, sectionOf, splitList, TOOL_COMMA, type EntryDraft } from "./sections";
 
 /**
  * The one entry editor (spec: one screen for forms, intake and import). It
@@ -20,8 +20,8 @@ import { savable, sectionOf, type EntryDraft } from "./sections";
  * whether that is a new entry or an edit, so intake and import can reuse it
  * with drafts that were never saved. Each section shows its own fields:
  * Education its degree, field of study, GPA and scale, coursework and honors;
- * Projects a link; Certifications an issuer; Awards one date in place of the
- * start and end.
+ * Projects its tools (KAN-738, `holdsTools`) and a link; Certifications an
+ * issuer; Awards one date in place of the start and end.
  *
  * Only the title is required, so a student can save an entry with a section
  * and a title and add the rest later. The API checks everything again.
@@ -34,10 +34,11 @@ import { savable, sectionOf, type EntryDraft } from "./sections";
  * location follow. In Scout's panel the form was one column of up to
  * thirteen boxes, with the college and location ahead of the dates intake
  * was asking about. A month is picked from WorkIt's own grid
- * (components/month-field.tsx), coursework wraps in a box that grows, and a
- * GPA has no spin arrows. The form stops at `max-w-3xl` (768px), its buttons
- * with it (KAN-576): on the bank page at 1440 a School or Coursework box ran
- * 1242px, and a school name filled 15% of it.
+ * (components/month-field.tsx), coursework and tools are comma lists in a
+ * box that grows, and a GPA has no spin arrows. The form stops at
+ * `max-w-3xl` (768px), its buttons with it (KAN-576): on the bank page at
+ * 1440 a School or Coursework box ran 1242px, and a school name filled 15%
+ * of it.
  */
 
 const END_OPTIONS = [
@@ -246,6 +247,7 @@ export function EntryEditor({
               <ListField
                 id={field("coursework")}
                 label="Coursework"
+                placeholder="Data Structures, Operating Systems"
                 value={draft.coursework}
                 onChange={(coursework) => set({ coursework })}
               />
@@ -261,6 +263,18 @@ export function EntryEditor({
               />
             </div>
           </>
+        )}
+        {holdsTools(draft.section) && (
+          <div className="col-span-2">
+            <ListField
+              id={field("tools")}
+              label="Tools"
+              placeholder="Next.js, TypeScript, FastAPI"
+              separator={TOOL_COMMA}
+              value={draft.tools}
+              onChange={(tools) => set({ tools })}
+            />
+          </div>
         )}
         {draft.section === "projects" && (
           <div className="col-span-2">
@@ -416,18 +430,24 @@ export function EntryEditor({
   );
 }
 
-/** Course names, typed separated by commas, kept as a list. A box that
- *  grows with its text, as a bullet's does, so a long list wraps in view;
- *  a one-line field cut it off after two or three courses. A typed or
- *  pasted line break becomes a comma, since the list has no lines. */
+/** A list typed separated by commas: course names, or a project's tools,
+ *  whose `separator` keeps a comma inside parentheses, as the API reads a
+ *  tools line typed on a resume. A box that grows with its text, as a
+ *  bullet's does, so a long list wraps in view; a one-line field cut it off
+ *  after two or three courses. A typed or pasted line break becomes a
+ *  comma, since the list has no lines. */
 function ListField({
   id,
   label,
+  placeholder,
+  separator,
   value,
   onChange,
 }: {
   id: string;
   label: string;
+  placeholder: string;
+  separator?: RegExp;
   value: string[];
   onChange: (value: string[]) => void;
 }) {
@@ -438,17 +458,12 @@ function ListField({
       label={label}
       rows={1}
       grow
-      placeholder="Data Structures, Operating Systems"
+      placeholder={placeholder}
       value={typed}
       onChange={(e) => {
         const next = e.target.value.replace(/\s*\n\s*/g, ", ");
         setTyped(next);
-        onChange(
-          next
-            .split(",")
-            .map((s) => s.trim())
-            .filter(Boolean),
-        );
+        onChange(splitList(next, separator));
       }}
     />
   );

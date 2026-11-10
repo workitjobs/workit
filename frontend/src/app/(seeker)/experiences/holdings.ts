@@ -120,11 +120,12 @@ type Searched = {
   field_of_study: string | null;
   honors: string | null;
   coursework: string[];
+  tools: string[];
   bullets: { text: string }[];
 };
 
 /** Whether a row answers a search: the words a student would look for in an
- *  entry or any of its copies, bullets included. */
+ *  entry or any of its copies, a project's tools and the bullets included. */
 export function rowMatches<T extends Searched>(row: BankRow<T>, query: string): boolean {
   const found = searcher(query);
   return found(
@@ -136,6 +137,8 @@ export function rowMatches<T extends Searched>(row: BankRow<T>, query: string): 
       e.field_of_study,
       e.honors,
       ...e.coursework,
+      // Missing from an API older than the web (toolsLine, sections.ts)
+      ...(e.tools ?? []),
       ...e.bullets.map((b) => b.text),
     ]),
   );
