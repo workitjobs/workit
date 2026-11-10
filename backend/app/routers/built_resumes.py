@@ -10,6 +10,14 @@ POST   /applicants/{id}/built-resumes              BuiltResumeCreate -> 201 Buil
        {"detail": {"message": "Duplicate Resume found: <name>",
        "built_resume_id"}} when the new resume would print the same as one
        the student has (KAN-267); nothing is written.
+POST   /applicants/{id}/built-resumes/stream       BuiltResumeCreate -> NDJSON
+       The same Generate, streamed so the Resumes page can show its steps
+       (KAN-444): `{"type": "phase", "phase": "checking"}` before the
+       duplicate check, `"saving"` before the writes, then `{"type": "done",
+       "resume"}` once committed, or `{"type": "error", "status", "message",
+       "built_resume_id"?}` with what the JSON route would answer (409 and
+       the resume on a duplicate). Lines mirror `GenerateStreamEvent` in
+       frontend/src/lib/built-resume-actions.ts.
 GET    /applicants/{id}/built-resumes              -> [BuiltResumeResponse], newest first
        `posting_closed` is true for a tailored resume whose posting the Jobs
        page no longer lists (story 90's "Posting closed"). `posting_title`
@@ -111,9 +119,11 @@ import base64
 import dataclasses
 import logging
 import uuid
+from collections.abc import AsyncIterator
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from fastapi.exceptions import RequestValidationError
+from fastapi.responses import StreamingResponse
 from pydantic import ValidationError
 from sqlalchemy import update
 from sqlalchemy.exc import SQLAlchemyError
@@ -121,7 +131,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import undefer
 from workit_scout.llm import LLM, ScoutUnavailable
 
-from app.db import get_session
+from app.db import get_session, get_sessionmaker
 from app.deps import owned_applicant, token_applicant
 from app.models.built_resume import Built_Resume
 from app.models.jobs import Job_Post
@@ -138,6 +148,9 @@ from app.schemas.built_resume import (
     FitPlan,
     FitPlanned,
     FitResponse,
+    GenerateDone,
+    GenerateFailed,
+    GenerateStep,
     LineSave,
     LineSaved,
     PageSettings,
@@ -232,6 +245,45 @@ async def generate(
     default_id = await service.default_built_id(session, applicant_id)
     await _commit(session, "Failed to save the resume")
     return _response(resume, default_id)
+
+
+@router.post("/stream")
+async def generate_streamed(
+    body: BuiltResumeCreate,
+    applicant_id: uuid.UUID = Depends(owned_applicant),
+) -> StreamingResponse:
+    # Its own session: the request's may be closed once streaming starts.
+    session = get_sessionmaker()()
+    return StreamingResponse(_ndjson(_generated(session, applicant_id, body.name)), media_type="application/x-ndjson")
+
+
+async def _generated(
+    session: AsyncSession, applicant_id: uuid.UUID, name: str | None
+) -> AsyncIterator[GenerateStep | GenerateDone | GenerateFailed]:
+    """Generate's lines: each step as it starts, then `done` once the
+    resume is committed, or `error` with what the JSON route answers."""
+    steps = service.generate_steps(session, applicant_id, name, refuse_duplicate=True)
+    try:
+        async for step in steps:
+            if isinstance(step, Built_Resume):
+                default_id = await service.default_built_id(session, applicant_id)
+                await _commit(session, "Failed to save the resume")
+                yield GenerateDone(resume=_response(step, default_id))
+            else:
+                yield GenerateStep(phase=step)
+    except service.DuplicateResume as exc:
+        yield GenerateFailed(status=409, message=str(exc), built_resume_id=exc.resume.id)
+    except HTTPException as exc:
+        yield GenerateFailed(status=exc.status_code, message=str(exc.detail))
+    finally:
+        # A reader who leaves midway stops Generate before its session goes.
+        await steps.aclose()
+        await session.close()
+
+
+async def _ndjson(events: AsyncIterator[GenerateStep | GenerateDone | GenerateFailed]) -> AsyncIterator[bytes]:
+    async for event in events:
+        yield event.model_dump_json().encode() + b"\n"
 
 
 @router.get("", response_model=list[BuiltResumeResponse])

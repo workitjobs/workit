@@ -2962,6 +2962,18 @@ upload's page.
   "Duplicate Resume found: <name>" with an OK button, and nothing else
   happens. "The same" is what prints: a new resume holds the whole bank,
   so it matches only when nothing changed since an earlier Generate.
+  **Generate shows its steps** (KAN-444, `resumes/generate-running.tsx`):
+  a dialog with a small page writing itself lists Reading your experience
+  bank, Checking your resumes for a copy, Saving your new resume and
+  Adding it to your resumes, each ticked as it ends. The middle two are the
+  API's own lines (`POST .../built-resumes/stream` through the route
+  handler `/api/resume-generate`), never a timer; the first runs until the
+  first line, the last while the list reloads. It is the steps dialog
+  Tailor's run draws (`components/steps-dialog.tsx`), and it cannot be
+  closed. A duplicate closes it and opens the pop-up below; any other
+  failure closes it and shows the message over the list. Until then the
+  button's label read "Generating…" for the whole wait, about 3.6 s from a
+  laptop, and nothing else moved.
 - **Uploads** in Your Uploaded Resumes: picking a file uploads it at once
   (`uploadResume`); the API reads it itself, and the client never sends
   parsed content. **A file whose text the student already uploaded is

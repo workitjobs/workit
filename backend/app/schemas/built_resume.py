@@ -51,6 +51,33 @@ class BuiltResumeResponse(BaseModel):
     posting_company: str | None = None
 
 
+class GenerateStep(BaseModel):
+    """A streamed Generate's progress line (KAN-444): `checking` before the
+    duplicate check, `saving` before the writes."""
+
+    type: Literal["phase"] = "phase"
+    phase: Literal["checking", "saving"]
+
+
+class GenerateDone(BaseModel):
+    """A streamed Generate's last line when it saved: what `POST
+    .../built-resumes` answers."""
+
+    type: Literal["done"] = "done"
+    resume: BuiltResumeResponse
+
+
+class GenerateFailed(BaseModel):
+    """A streamed Generate's last line when it failed: the status and
+    message the JSON route would have answered, and on a duplicate (409)
+    the resume it would print the same as."""
+
+    type: Literal["error"] = "error"
+    status: int
+    message: str
+    built_resume_id: UUID | None = None
+
+
 class RenderBox(BaseModel):
     """Where one line sits on the PDF, for the editor's click target
     (KAN-209). `item_id` is the bank id of the bullet, skill or entry the line

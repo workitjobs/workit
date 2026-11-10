@@ -1843,7 +1843,7 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   (`revalidate.js`: "TODO: only revalidate if the path matches"), so:
   the editor's per-edit saves (`saveLine`, `updateChoices`) and Fit never
   call it, or every edit would compile the PDF again and hold the save
-  queue behind it; they, and the Tailor run (a route handler, whose
+  queue behind it; they, the Tailor run and Generate (route handlers, whose
   revalidation never reaches the browser), call `markResumesStale`
   (`lib/resumes-stale.ts`), and the Resumes list reads itself again on
   mount when it is set. A screen whose write already revalidates calls no

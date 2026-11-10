@@ -17,12 +17,18 @@ import { SortMenu } from "@/components/sort-menu";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SearchField } from "@/components/ui/search-field";
-import { generateResume, listBuiltResumes, type BuiltResume } from "@/lib/built-resume-actions";
+import { readEvents } from "@/components/scout/stream";
+import {
+  listBuiltResumes,
+  type BuiltResume,
+  type GenerateStreamEvent,
+} from "@/lib/built-resume-actions";
 import { listResumes, type ResumeItem } from "@/lib/resume-actions";
-import { takeResumesStale } from "@/lib/resumes-stale";
+import { markResumesStale, takeResumesStale } from "@/lib/resumes-stale";
 
 import { BuiltResumeRow } from "./built-resume-row";
 import { DuplicateResumeDialog } from "./duplicate-resume-dialog";
+import { GenerateRunning, type GenerateStep } from "./generate-running";
 import { RESUMES_SEARCH, ResumesHeader } from "./header";
 import { ResumeList } from "./resume-list";
 import { ShortLabel, UploadedRow, useResumeUpload } from "./upload-resume";
@@ -137,7 +143,8 @@ export function BuiltResumes({
 }) {
   const [resumes, setResumes] = useState(initial);
   const [uploaded, setUploaded] = useState(initialUploaded);
-  const [generating, setGenerating] = useState(false);
+  // Generate's step while it runs (KAN-444), null otherwise
+  const [generating, setGenerating] = useState<GenerateStep | null>(null);
   const [error, setError] = useState<string | null>(null);
   // The API's "Duplicate Resume found: <name>", while its pop-up is open.
   const [duplicate, setDuplicate] = useState<string | null>(null);
@@ -205,14 +212,45 @@ export function BuiltResumes({
 
   const upload = useResumeUpload({ uploaded, reload, onDuplicate: setDuplicate });
 
+  // Streamed through /api/resume-generate, so the dialog shows each step
+  // as the API starts it (KAN-444).
   async function generate() {
-    setGenerating(true);
+    setGenerating("reading");
     setError(null);
-    const { error, status } = await generateResume();
-    setGenerating(false);
-    if (status === 409) return setDuplicate(error);
-    if (error) return setError(error);
+    const failed = (message: string) => {
+      setGenerating(null);
+      setError(message);
+    };
+    let made: BuiltResume | null = null;
+    try {
+      const res = await fetch("/api/resume-generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+      });
+      if (!res.ok || !res.body) {
+        const body: unknown = await res.json().catch(() => null);
+        const detail = (body as { detail?: unknown } | null)?.detail;
+        return failed(typeof detail === "string" ? detail : "Generate failed. Try again.");
+      }
+      for await (const event of readEvents<GenerateStreamEvent>(res.body)) {
+        if (event.type === "phase") setGenerating(event.phase);
+        else if (event.type === "error") {
+          if (event.status !== 409) return failed(event.message);
+          setGenerating(null);
+          return setDuplicate(event.message);
+        } else made = event.resume;
+      }
+    } catch {
+      return failed("WorkIt couldn't reach its server. Try again in a minute.");
+    }
+    // A stream that ends with no last line lost its connection midway.
+    if (!made) return failed("Generate stopped before it finished. Try again.");
+    // A route handler cannot clear the router's copies (lib/resumes-stale.ts)
+    markResumesStale();
+    setGenerating("listing");
     await reload();
+    setGenerating(null);
     // The new resume shows: a Type filter that hides it is cleared, and its
     // group opens.
     const hidden = types.length > 0 && !types.includes("generated");
@@ -299,7 +337,7 @@ export function BuiltResumes({
             <SortMenu value={sort} options={SORTS} onChange={(next) => move({ sort: next })} />
             <div className="col-span-2 grid grid-cols-2 gap-2 @2xl:ml-auto @2xl:flex">
               {upload.button}
-              <Button size="sm" onClick={generate} disabled={generating}>
+              <Button size="sm" onClick={generate} disabled={generating !== null}>
                 <FileTextIcon aria-hidden className="size-4" />
                 {generating ? "Generating…" : <ShortLabel verb="Generate" />}
               </Button>
@@ -382,6 +420,7 @@ export function BuiltResumes({
         </ResumeList>
       )}
       <DuplicateResumeDialog message={duplicate} onClose={() => setDuplicate(null)} />
+      <GenerateRunning step={generating} />
     </>
   );
 }
