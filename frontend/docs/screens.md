@@ -241,20 +241,33 @@ screen. Below `@4xl/main` the switch draws a list: the rail is the page, its row
 one white card as /search's compact list is (KAN-558; they sat on the grey
 ground with only a hairline until then), and a job opens alone with Back.
 
-**A compact card puts its title and company beside its buttons and match, and runs
-where it is, its pay, type and age under them on the card's whole width**, each
-on one line, cut short with a tooltip (2026-11-02): beside the buttons every line
-wrapped, and the card stood about 50px taller. The age is short ("20d ago",
-`formatPostedShort`), in the large card's green status badge, so the pay fits
-beside it. The company and the pay are ink,
-the rest grey.
+**A compact card is a list item with one text edge** (2026-11-09,
+`jobs/compact-job-card.tsx`): the logo has its column alone, and every line
+of text starts beside it: the title (two lines at most), the company, one
+grey line of place, work style and job type, then a footer of the pay, with
+the age ("7d ago") in plain grey in the row's right corner, where the user
+found it easiest to find. Save sits alone in the top right of the text. The
+score is a small tile down the card's right side (`MatchScoreTile`,
+`jobs/match-rail.tsx`), the large card's tile in small: a 48px ring over its
+tier on `bg-well`, no reasons, which the open job shows beside the list.
+Several places read as a count ("3 locations"), the whole list in the
+tooltip, so a long list never pushes the work style and type off the line.
+Each line is one line, cut short with a tooltip; the pay gives way before
+the age does. It replaced a layout whose place and type ran under the logo
+(a second left edge), whose buttons and match stacked at no line's height,
+whose job type took a row alone, and whose age was a green pill that
+outshouted the match.
 
 **The job list has no scrollbar** (`[scrollbar-width:none]` in `jobs-rail.tsx`): a
 scrollbar always takes room, and that 8px left the open job's tint short of the
 column's edge. The wheel and trackpad still scroll it.
 
-**The split view from `@4xl/main` is one panel, rounded at the top, that runs off
-the foot of the window** in the page's gutters, with no bottom edge (after
+**The split view is at most 86rem wide, centred** (2026-11-09), the list
+taking what the job's 768px pane leaves, 320px to 544px
+(`clamp(20rem, 100% - 48rem, 34rem)` in `jobs-rail.tsx`), so the pane is
+never wider than the job's 736px column and its gutters: the list grew
+instead of the pane gaining a strip of empty space. **From `@4xl/main` it is
+one panel, rounded at the top, that runs off the foot of the window** in the page's gutters, with no bottom edge (after
 Simplify's, 2026-11-02): the list and the job share its edge, a rule runs
 under the job's action bar and stops at the list's edge, the list's heading
 beside it at the same 60px with no rule of its own (a rule under both ran as one
@@ -270,8 +283,7 @@ from the panel's edge, the open one edged in brand over its tint. Rows split by
 a hairline alone read as unboxed beside the dark-edged cards and buttons. The
 panel's own edge is `border-control` too, and so are the two lines that divide
 it, the list's edge and the rule under the job's action bar: in `border-subtle`
-inside the dark-edged panel they read as a different kind of line. The rail beside a job opened from
-Cards keeps its hairline rows.
+inside the dark-edged panel they read as a different kind of line. 
 
 /search has the same choice, as Cards or List: a list of compact cards
 (`compact` on `FeedList`), and a job opens beside the rail with Back. The split
@@ -294,7 +306,9 @@ filters lifted into them and was cut off. The id is
 the row's UUID, and `getJobListing` reads `GET /jobs/{id}`, whose 404 (closed, a company's own, no such job) is the page's not-found.
 The page is capped at `max-w-dashboard`, as every seeker page is
 (2026-10-27); 1024px had left its facts and checklist cramped (KAN-279).
-**A rail of jobs sits on its left** (KAN-297, after Cooper's job board): the
+**In the split view, a rail of jobs sits on its left** (KAN-297, after
+Cooper's job board; since 2026-11-09 only there: a job opened from the
+Cards view, /search or Home is its page alone, with Back). The rail holds the
 roles the seeker last saw on /jobs or /search, in that list's order, the open
 one marked. Each is a compact card (`jobs/compact-job-card.tsx`, KAN-519, after
 Handshake's and then Simplify's lists): a 44px logo, a title of up to three lines,
@@ -329,8 +343,11 @@ It is the mock's `JobDetailHeader` with the card's own facts
 "About the Role": `[jobId]/description.tsx` reads the plain-text description's
 own shape (Title Case lines as subheadings, the short lines under one as a
 list), and a description the scraper cut at 8,000 characters (it ends " …")
-says so and links to the whole posting. It stops at 46ch of its own 14px text,
-64 to 71 characters a line (KAN-569; `docs/design.md`, The two shells). Its paragraphs and list items are
+says so and links to the whole posting. It fills the job's one column at
+16px, about 90 characters a line (2026-11-09; `max-w-job`, 736px of
+content, the same edge as the header and Key Requirements). It stopped at
+46ch of 14px text from KAN-569 while the blocks above it ran the page's
+whole width, and read as cut short. Its paragraphs and list items are
 ink, the headings' colour, not body copy's lighter ink-muted: a posting is
 long reading, and the grey was hard to read (2026-10-17). Each of KAN-229's
 fixed section headings (Overview, Responsibilities, Requirements, Preferred
@@ -439,7 +456,10 @@ after Save until KAN-519, when the team removed it. Below md the bar scrolls awa
 The header card below holds who is hiring, the title and facts; its logo never
 shrinks. Its facts use the card's `JobFacts`: two rows of three fixed slots,
 two columns under 448px, with unstated facts leaving their slots empty.
-Ask Scout, an icon beside Save (KAN-519), asks about the role. Save (KAN-261) keeps the job posting on the
+Ask Scout, an icon beside Save (KAN-519), asks about the role; it is not
+drawn while `ASK_SCOUT_LIVE` is off (2026-11-09; it stood faded as "Coming
+Soon" until then), and Not Interested is not drawn while
+`NOT_INTERESTED_LIVE` is off, for the same reason. Save (KAN-261) keeps the job posting on the
 Tracker as Saved and takes it off the Jobs page (KAN-217), on the card and the page alike (`jobs/save-job-button.tsx`,
 over the drawing-only `components/save-button.tsx`): the bookmark fills at
 once and empties again, with a toast, if the API refuses, and a second

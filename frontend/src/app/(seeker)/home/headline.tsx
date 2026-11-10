@@ -17,7 +17,6 @@ import { cn } from "@/lib/cn";
 import { formatCount } from "@/lib/format-count";
 import { Card } from "@/components/ui/card";
 
-import { STAGE_COLOR } from "../stage-colors";
 import type { HomeStat, StatKey } from "./data";
 import { RANGES, type RangeKey } from "./range";
 import { useRange } from "./range-switch";
@@ -33,26 +32,25 @@ const STAT_ICONS: Record<StatKey, ComponentType<{ className?: string }>> = {
 
 /**
  * Each tile's colours (KAN-423), as the user picked them: Strong Matches
- * green, Saved grey, Applied violet, Interviewing yellow. `tint` is the
- * tile's ground, the pale tint each colour already has; `disc` the solid
- * disc behind its white glyph. Saved, Applied and Interviewing take their
- * stage's tint from ../stage-colors.ts, the Applications board's panels.
- * Strong Matches' disc is --color-positive-ink (5.35:1 under white; the
- * brighter --color-positive holds 2.8:1, under the 3:1 a glyph needs), and
- * Interviewing's is --color-warning-deep (4.92:1), more yellow than the
- * stage's own orange-leaning amber. On every tint the ink-meta note holds
- * 4.7:1 or better and the green or red change 4.5:1 or better. Magenta (the
- * match ramp), a burnt amber, solid fills and plain white tiles were tried
- * first and turned down.
+ * green, Saved grey, Applied violet, Interviewing yellow. Since 2026-11-09
+ * the tile is white and the colour is only a small tinted chip at its top
+ * right, with the glyph in that chip's own colour (the --color-kpi-* set in
+ * globals.css, one lightness and strength for all four). The tiles were
+ * tinted with the stage tints of ../stage-colors.ts and wore a white glyph
+ * in a solid disc; the user found the four shades wrong (Saved the darkest
+ * and dullest, green and amber each with a disc of another hue), and chose
+ * white tiles with chips over a matched set of tinted tiles. Each glyph is
+ * 3.97:1 or better on its chip. Magenta (the match ramp), a burnt amber and
+ * solid fills were tried first and turned down.
  */
 /** The tiles' order, for the skeleton: getHeadline's order in ./data.ts. */
 const STAT_ORDER: StatKey[] = ["strongMatches", "saved", "applied", "interviewing"];
 
-const STAT_TONE: Record<StatKey, { tint: string; disc: string }> = {
-  strongMatches: { tint: "bg-positive-tint", disc: "bg-positive-ink" },
-  saved: { tint: STAGE_COLOR.saved.tint, disc: STAGE_COLOR.saved.fill },
-  applied: { tint: STAGE_COLOR.applied.tint, disc: STAGE_COLOR.applied.fill },
-  interviewing: { tint: STAGE_COLOR.interviewing.tint, disc: "bg-warning-deep" },
+const STAT_TONE: Record<StatKey, string> = {
+  strongMatches: "bg-kpi-match-chip text-kpi-match",
+  saved: "bg-kpi-saved-chip text-kpi-saved",
+  applied: "bg-kpi-applied-chip text-kpi-applied",
+  interviewing: "bg-kpi-interviewing-chip text-kpi-interviewing",
 };
 
 /**
@@ -62,10 +60,9 @@ const STAT_TONE: Record<StatKey, { tint: string; disc: string }> = {
  * value at once (AnimatedNumber) rather than after the server has drawn the
  * page again.
  *
- * Every tile is tinted with the pale shade of its own colour, and wears its
- * white glyph in a solid disc of that colour at the top right (KAN-423,
- * STAT_TONE), so the four stand apart at a glance without four loud
- * blocks. Strong Matches was the one filled tile, in violet, until then:
+ * Every tile is white and wears its glyph in a small chip tinted with its
+ * own colour at the top right (STAT_TONE), so the four stand apart at a
+ * glance without four loud blocks. Strong Matches was the one filled tile, in violet, until then:
  * violet is Applied's stage colour, so the filled tile and the Applied
  * badges said two things in one colour.
  *
@@ -103,7 +100,6 @@ export function Headline({ stats }: { stats: Record<RangeKey, HomeStat[]> }) {
             as="div"
             className={cn(
               "group/stat @container/stat flex flex-col",
-              STAT_TONE[stat.key].tint,
               // Lifts 2px onto --shadow-lift under the pointer and settles
               // on the press, as a whole-target card does (docs/motion.md).
               "ease-glide hover:shadow-lift transition-[translate,scale,box-shadow] duration-200 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.99] active:duration-150",
@@ -132,13 +128,13 @@ export function Headline({ stats }: { stats: Record<RangeKey, HomeStat[]> }) {
                   // Only where the tile has room beside its label: in the
                   // narrowest four-column layout a long label wrapped and
                   // dropped its figure below the other three.
-                  "relative hidden size-9 shrink-0 items-center justify-center overflow-hidden rounded-full text-white @[10.5rem]/stat:flex",
-                  STAT_TONE[stat.key].disc,
+                  "rounded-control relative hidden size-9 shrink-0 items-center justify-center overflow-hidden @[10.5rem]/stat:flex",
+                  STAT_TONE[stat.key],
                 )}
               >
                 {/* Under the pointer the glyph slides out to the right and
                     an arrow slides in after it: the tile says where it
-                    goes. Clipped by the ring. */}
+                    goes. Clipped by the chip. */}
                 <Icon
                   aria-hidden
                   className="ease-glide size-4 transition-[translate,opacity] duration-200 group-hover/stat:translate-x-5 group-hover/stat:opacity-0 motion-reduce:transition-none"
@@ -217,8 +213,8 @@ export function Headline({ stats }: { stats: Record<RangeKey, HomeStat[]> }) {
  * the real one's boxes, row for row, so the grid holds its height and
  * nothing under it moves when the figures land. The label row's 36px, the
  * figure's 12px of padding over its 40px line (--text-figure) and the
- * note's 20px line each hold a bar in place of the words, on the tile's own
- * tint, so the row reads as itself while it waits. A fragment, as Headline is: each tile is a cell of the page's
+ * note's 20px line each hold a bar in place of the words, on the white
+ * tile, so the row reads as itself while it waits. A fragment, as Headline is: each tile is a cell of the page's
  * grid.
  *
  * A streamed tile mounts with its figure, and AnimatedNumber prints a first
@@ -234,16 +230,16 @@ export function HeadlineSkeleton() {
           key={key}
           as="div"
           aria-hidden="true"
-          className={cn("flex flex-col", STAT_TONE[key].tint)}
+          className="flex flex-col"
         >
           <div className="flex min-h-9 items-center">
-            <Skeleton className="bg-panel h-4 w-24" />
+            <Skeleton className="h-4 w-24" />
           </div>
           <div className="mt-auto pt-3">
-            <Skeleton className="bg-panel h-10 w-16" />
+            <Skeleton className="h-10 w-16" />
           </div>
           <div className="mt-2 flex h-5 items-center">
-            <Skeleton className="bg-panel h-3 w-28" />
+            <Skeleton className="h-3 w-28" />
           </div>
         </Card>
       ))}

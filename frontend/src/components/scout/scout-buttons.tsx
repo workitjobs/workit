@@ -9,14 +9,16 @@ import { cn } from "@/lib/cn";
 
 import { askScoutAbout, SCOUT_LAUNCHER_ID, setScoutOpen, useScout } from "./scout-store";
 
-/** Whether Ask Scout works. Off (2026-11-02) while it does not: every Ask Scout
- *  button stays in its place, greyed out and not clickable, and the panel's
- *  hint to use it is hidden. A job's button is `soon` (KAN-569), so its
- *  tooltip says "Coming Soon"; disabled, it showed no tooltip and nothing said
- *  why. Set it to true to bring them back at once. */
+/** Whether Ask Scout works. Off (2026-11-02) while it does not: the panel's
+ *  hint to use it is hidden, and a job's Ask Scout button (a card's, a job
+ *  page's) is not drawn at all (2026-11-09). It stood faded in its place,
+ *  `soon` with a "Coming Soon" tooltip (KAN-569), and the user wanted it gone:
+ *  a dead button in every card's action row is one more thing to look past.
+ *  The resume editor's Ask Scout buttons stay, greyed out. Set it to true to
+ *  bring them all back at once. */
 export const ASK_SCOUT_LIVE = false;
 
-/** A job's "Ask Scout": opens the panel and asks about that role. An outlined
+/** A job's "Ask Scout": opens the panel and asks about that role. A round, soft-grey
  *  icon beside Save (KAN-519), 36px as Save is, or `quiet`, a bare glyph as on
  *  the job's own card. Its tooltip says what the click will do, since the mark
  *  alone does not say what Scout will be asked. */
@@ -29,13 +31,13 @@ export function AskScoutButton({
   company: string;
   quiet?: boolean;
 }) {
+  if (!ASK_SCOUT_LIVE) return null;
   return (
     <IconButton
       label={`Ask Scout about ${job.title}`}
       tooltip="Ask Scout whether this role fits you"
-      variant={quiet ? "quiet" : "outline"}
+      variant={quiet ? "quiet" : "soft"}
       className={quiet ? undefined : "size-9 shrink-0"}
-      soon={!ASK_SCOUT_LIVE}
       onClick={() => askScoutAbout(job)}
     >
       <SparkleIcon className="size-4" />

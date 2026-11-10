@@ -310,7 +310,12 @@ export default async function JobsPage({ searchParams }: PageProps<"/jobs">) {
   }
 
   return (
-    <div className={cn("max-w-dashboard mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
+    // The Cards view stops at --container-feed (1008px with the gutters), so
+    // a card is the same 944px at every width from there: its 240px match
+    // rail beside a body wide enough for its actions on one row, never the
+    // 1376px it reached in the 1440px dashboard column, where its facts sat
+    // far apart (2026-11-09).
+    <div className={cn("max-w-feed mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
       {canonical && <CanonicalUrl href={canonical} />}
       {/* So a job's page can go back to this list, filters and all. */}
       <RememberFeed />

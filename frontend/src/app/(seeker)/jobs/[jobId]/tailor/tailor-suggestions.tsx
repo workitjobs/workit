@@ -284,7 +284,7 @@ function SuggestionsPanel({
           {changes.length > 0 && (
             <IconButton
               label="Undo All"
-              variant="outline"
+              variant="quiet"
               className="size-9 shrink-0"
               onClick={undoAll}
             >

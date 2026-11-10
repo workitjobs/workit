@@ -1395,8 +1395,15 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   on the seeker side. **Every seeker page stops at `max-w-dashboard`**
   (1440px) inside `SEEKER_GUTTER`, so all start at Home's left edge; the
   Applications Tracker alone has no cap. At `max-w-app` (1024px) they sat
-  centred between wide empty margins beside the rail. Prose keeps its own
-  measure (About the Role's 46ch, set on the text's own 14px, KAN-569).
+  centred between wide empty margins beside the rail. **A job's page is the
+  exception: one centred 800px column** (`max-w-job`, `JOB_PAGE_WIDTH` in
+  `jobs/[jobId]/job-view.tsx`, 2026-11-09), shared with the application's
+  own page, so the action bar, the header, Key Requirements and About the
+  Role all end on one edge (736px of content, the action bar's one row).
+  In the split view's pane the bar takes the pane and the content under it
+  stops at the same 736px (`JOB_COLUMN`). About the Role is 16px there,
+  about 90 characters a line; at 46ch of 14px (KAN-569) it ended halfway
+  across the full-width blocks above it and read as cut short.
   The user found the floating panels wasted room, and the 256px panel that
   opened over the page on hover a flaw. A height worked out from the
   shell's chrome (the job rail's `100svh-4rem`) changes with it. A sidebar
@@ -1454,9 +1461,12 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   #fcfcfc, 2026-11-03, as Simplify's is). The ground was white until
   2026-11-02, and white cards blended into it; then grey (#f5f5f5), and the
   user found every white card and light edge muted on it. **A card's outer
-  edge is `border-control`, as a button's is** (2026-11-03): `Card` draws
-  it, and a hand-drawn page-level surface (a calendar frame, a table box)
-  uses it too. Rules inside a card and boxes nested in one stay
+  edge is `border-surface` (#d9d9d9), lighter than a button's**
+  (2026-11-09): `Card` draws it, and a hand-drawn page-level surface (a
+  calendar frame, a table box, an auth card) and the shell's top bar and
+  rail use it too. From 2026-11-03 they took the dark `border-control`,
+  and the user found every box ringed in near black too strong and
+  confusing; the darker `border-control` is for a field or a state. Rules inside a card and boxes nested in one stay
   `border-subtle` (#e8e8e8): darkening that token darkened them as well,
   and every card read as a heavy box. The top bar and sidebar stay white. The company
   shell took the same ground, the same 1440px column and gutter
@@ -1465,8 +1475,8 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   still differs. A sticky bar on the ground is `bg-app`, not `bg-panel`,
   or a white band shows when it sticks. **Anything on the ground, or at a
   card's edge, is `bg-panel`** (2026-11-03).
-  A field on the ground is white with a `border-control` edge, as
-  `TextField` and `SearchField` are, and a panel at a card's edge (the match
+  A field on the ground is white with a `border-control` edge (#929292,
+  3:1), as `TextField` and `SearchField` are, and a panel at a card's edge (the match
   rail) is white with an #e8e8e8 rule. A grey fill goes only inside a white surface, away from its
   edge, and is `bg-well` (#f5f5f5, the old ground) or `bg-ink/5`, never
   `bg-app` or `bg-canvas`: those are the near-white ground, and an uploaded-
@@ -1474,12 +1484,15 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   when the ground went near white. The search bar's 5% wash and the match
   rail's `bg-well` were each one shade off the old grey ground, and both
   blended into the Jobs page. A see-through ink wash stays for a track inside
-  a control (the Segmented Control's, under its white thumb). A control takes
-  a `border-control` edge (KAN-556): a fill alone was a 1.1:1 edge on the
-  old grey, and a rule is decoration only (`docs/design.md`, Components).
-  Outlined buttons and chips take it too (2026-11-03): a filter row in
-  `border-subtle` under the dark-edged search pill read as a mismatch, so
-  a hand-drawn button uses `border-control`, never `border-subtle`. A
+  a control (the Segmented Control's, under its white thumb). A control has
+  an edge, never a fill alone (KAN-556: a fill was a 1.1:1 edge on the old
+  grey). Since 2026-11-09 buttons, chips and the segmented track take
+  `border-surface`, as the cards do: the user found the dark edge on every
+  control too strong, and their words say what they are. Fields, an empty
+  checkbox or radio, the timeline's step ahead and the upload dropzone keep
+  `border-control`, now #929292, the lightest neutral that holds 3:1
+  (`docs/design.md`, Components). A hand-drawn button uses
+  `border-surface`, never `border-subtle`. A
   selected or in-use edge is solid `border-brand` over `bg-brand-tint`, never
   `brand/50` or `brand-pale`, and a hover edge is `ink-meta`, never purple
   (`docs/design.md`, Components): a filter in use in light purple beside the
@@ -1488,7 +1501,7 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   where they meet (`docs/design.md`, Components); the rail's logo header, the
   company bar's corner and the split view's list heading each crossed one
   until 2026-11-03. The seeker top bar's rule and the rail's edge are
-  `border-control` too (2026-11-03); the company shell keeps its lavender
+  `border-surface`, as the cards are (2026-11-09); the company shell keeps its lavender
   `rail-border`. A "·" between facts is round: the "Round Dot" face in
   `globals.css` draws U+00B7 from Georgia, since Jakarta's is square; keep
   typing "·" and never draw a dot in markup (`docs/design.md`, Components).
@@ -1613,9 +1626,12 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   of the list (`docs/screens.md`, Inbox). One pill per email kind
   (`applications/email-kinds.tsx`). No sidebar badge: one was removed; Settings > Integrations is the
   design only until the Google sign-in is built (`docs/screens.md`). Home's four numbers are all live and all links
-  (KAN-342), each tinted with its own colour and its white glyph in a
-  solid disc of it (KAN-423): Strong Matches green, Saved grey, Applied
-  violet, Interviewing yellow (`--color-warning-deep`); a filled
+  (KAN-342), each a white tile with its glyph in a small chip of its own
+  colour (KAN-423): Strong Matches green, Saved grey, Applied violet,
+  Interviewing yellow, from the matched `--color-kpi-*` set (2026-11-09:
+  the tiles were tinted with the stage tints, which read as four families
+  with no shared shade; white tiles with chips were chosen over a matched
+  set of tinted tiles, `globals.css`); a filled
   Activity day opens a table of that day's applications. Its
   Strong Matches reads the Best Match scores
   (`getMatches`, one read with Top Matches), and Top Matches under them lists the twelve
@@ -1848,13 +1864,76 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   needs `flex-none` at its fixed height, or the rail grows with its list and
   never scrolls. It is one panel in the page's gutters, after Simplify's,
   rounded at the top and open at the foot of the window, with the job's card flat inside it and no rule under the filters.
-  In the panel each job in the list is a card of its own in `border-control`,
+  In the panel each job in the list is a card of its own in `border-surface`,
   the open one in brand (`SPLIT_ROW` in `jobs/jobs-rail.tsx`, 2026-11-03).
   The panel's edge, the list's edge and the rule under the job's action bar
-  are all `border-control`; rules inside the job's own content stay light.
-  The rail beside a job opened from Cards has no panel: it stands off the sidebar
-  by the page gutter less its rows' padding, since flush it read as one block
-  with the sidebar.
+  are all `border-surface` (2026-11-09); rules inside the job's own content stay light.
+  **The split view is at most 86rem, centred, and its list takes what the
+  job's 768px pane leaves** (320px to 544px, 2026-11-09), so the pane holds
+  the job's 736px column and no empty strip; each list card shows its score
+  as a small tile (`MatchScoreTile`), as the large card does, without the
+  reasons. **The split view's job pane is `relative`** (2026-11-09): a screen-reader
+  label in the description, absolutely placed, was placed against `<main>`,
+  past the frame's `overflow-hidden`, and the whole page scrolled into
+  blank space under the split view. Anything absolutely placed in a frame
+  that clips must have a positioned ancestor inside that frame.
+  **Only the split view has a rail** (2026-11-09, `JobsRailFrame`): a job
+  opened from the Cards view, /search or Home is its page alone, with Back.
+  From KAN-297 it drew the rail of jobs on its left too, and the user saw
+  Cards open into what looked like the split view, the two views mixed.
+- **The Cards view is 1008px wide at most** (`max-w-feed`, 2026-11-09): a
+  944px card at every window from there, its match rail 240px (sized to
+  its short labels; 288px left the tile mostly empty) beside a 704px body
+  whose actions and note fit one row. In the 1440px dashboard column a
+  card reached 1376px and its facts sat about 1,000px apart. **A card's
+  height is its body's, never its rail's**: each reason is a short label
+  from the API (`text`, its sentence in `detail`, the tooltip; matching's
+  CLAUDE.md), cut at two lines in case, and the body is a column whose
+  action row sits on its foot (`mt-auto`,
+  `components/job-posting-card.tsx`). **The card follows four rules**, taken
+  from Jobright's card without its look (2026-11-09): one main fact per
+  area (the score is an 88px ring over its tier on an inset `bg-well` tile,
+  not a 64px ring behind a rule; the ring, the tier in 14px ink and the
+  13px reasons sit centred as one block down and across the tile, the
+  reasons' rows left-aligned inside it, with no rule); labels, not sentences; one strong action
+  (Apply Now), two labelled ones (Auto Apply, Tailor) and quiet verdicts
+  (Save in IconButton's round `soft`; Not Interested and Ask Scout are not
+  drawn while `NOT_INTERESTED_LIVE` and `ASK_SCOUT_LIVE` are off, since a
+  dead button in every card's row is one more thing to look past). **A job Auto Apply can fill wears an "Auto Apply" chip** in the badge
+  row beside the post date (`components/auto-apply-chip.tsx`, brand tint,
+  the button's lightning), on exactly the cards that show the Auto Apply
+  button: the chip to scan by, the button to act. It names a fact, never a
+  stage, since the card is not drawn again after a click. It replaced a
+  grey "Auto Apply ready" at the action row's left end, which read as stray
+  text; the user asked whether the chip could replace the button, and the
+  button stayed, since a chip that acts reads as a label. **An icon button has a circle only on the grey page ground**
+  (2026-11-09, the user's rule): there it is IconButton's `soft`, round
+  with a secondary Button's white fill and `border-surface` edge (the Jobs
+  page's and the Tracker's Clear Filters and All Filters). On a white card,
+  header or panel it is a bare glyph, `quiet` (a card's Save and "⋯",
+  Tailor's Undo All): a white circle on white only repeated the surface.
+  **A card's quick verdicts sit at its top right** (Save, then "⋯", with
+  Ask Scout and Not Interested there while their flags are on), apart from
+  the action row's steps toward applying (Tailor, Apply). **One Apply on a
+  job Auto Apply can fill** (`jobs/apply-split-button.tsx`, after
+  Simplify's): a split button whose main part is always Auto Apply, the
+  user's choice, and whose arrow opens Auto Apply and Apply Manually, each
+  with a line on what it does; it shares AutoApplyButton's hook
+  (`useAutoApply`) and Apply Now's "Did You Apply?" (`ApplyDialog`), and
+  `Button`'s `segment` draws its two parts. Any other job keeps Apply Now.
+  **"⋯" holds Already Applied? and Share** (`jobs/job-more-menu.tsx`);
+  Report This Job Posting waits on a table to keep reports in, and Hide
+  This Job on Not Interested being stored. Not taken: a dark
+  tile, capitals, a green action. The six facts are `size="md"` on this
+  card (`JobFactGrid`, `ui/fact.tsx`): 14px ink values beside 16px
+  ink-muted glyphs, since at 12px with grey glyphs they read as fine print
+  under the title; compact cards keep the small size. At 208px the rail's reasons ran to
+  four lines, the rail stood taller than the body, and the spare room fell
+  under the buttons. A right column of the Auto Apply queue beside the
+  cards was tried the same day and taken out: it took no width from a card
+  on a wide window and squeezed one to two button rows on a 1280px one,
+  and the split view had no room for it. The queue's status is the count on
+  the sidebar's Auto Apply row instead (`(seeker)/queue-badge.tsx`).
 - **The feed's loading state is its last first page** (KAN-287,
   `jobs/feed-fallback.tsx`): `FeedList` keeps the first page it drew as a
   snapshot (`jobs/feed-pages.ts`), and the Suspense fallback draws it while
@@ -2084,8 +2163,9 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   Experiences, then the Jobs page, showed Scout's chat, and then the editor
   showed its assistant, both working; the editor's toolbar views can still
   leave the panel open. **The
-  Calendar's sidebar row is greyed out too** (`disabled` on a nav item,
-  `seeker-sidebar.tsx`): /calendar still answers, and Home's Up Next links to it. The landing page still describes
+  Calendar has no sidebar row** (`CALENDAR_LIVE` in `seeker-sidebar.tsx`,
+  2026-11-09; greyed out with `disabled` from 2026-11-02): /calendar still
+  answers, and Home's Up Next links to it. Set the flag to bring the row back. The landing page still describes
   it.
 - **The company table (`app/company/table.tsx`) and the Applications list
   (`(seeker)/applications/list.tsx`, KAN-282) are TanStack Table v9**, and

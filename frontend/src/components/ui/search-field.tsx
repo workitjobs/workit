@@ -12,7 +12,8 @@ import { cn } from "@/lib/cn";
  * it disappears the moment anyone types.
  *
  * A WHITE PILL WITH A CONTROL EDGE. It is a wide rounded-full field filled
- * --color-panel, as <TextField> is, and outlined in --color-border-control,
+ * --color-panel, as <TextField> is, and outlined in --color-border-control
+ * (#929292, 3:1, 2026-11-09), a step darker than the cards and buttons,
  * so it stands off the seeker pages' grey ground and still shows by its edge
  * inside a white card or dialog. It was filled a 5% see-through ink so it
  * would "read on white and on grey alike"; on the grey ground that was one

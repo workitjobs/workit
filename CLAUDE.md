@@ -239,6 +239,15 @@ with the failure it prevents.
   clearing it. Holds the computer's setup and the cutover order. Read it
   before changing the scrape workflow, the embedding provider or how a
   bank is embedded.
+- `docs/auto_apply_in_jobs.md` — a plan, superseded the same day
+  (2026-11-09) by a 1024px Cards column and a queue count on the sidebar's
+  Auto Apply row, which stays; kept for its reasons. It proposed: the
+  Auto Apply queue becomes a tab of the Jobs page (`/jobs/queue`, with a
+  redirect from `/auto-apply`), the Jobs page gets a 960px column and a
+  right column, and the sidebar loses its Auto Apply row. Application
+  Info and Written Answers keep their addresses and never go back to
+  Profile (KAN-550). Read it before changing the seeker sidebar, the
+  Jobs page's layout or any `/auto-apply` address.
 - `docs/search.md` — how the Jobs page's search reads a query.
 - `docs/architecture.md` — how the halves fit together, for a reader new to
   the repo.

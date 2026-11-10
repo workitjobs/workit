@@ -198,6 +198,9 @@ class Highlight(BaseModel):
     """One reason a job matches (or doesn't), for the match rail."""
 
     text: str
+    #: The whole sentence behind `text`, its tooltip (2026-11-09). None on
+    #: a highlight read from before it existed.
+    detail: str | None = None
     met: bool
 
 

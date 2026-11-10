@@ -748,7 +748,7 @@ export function JobFilters({
       )}
 
       {/* Every pick off in one press (KAN-252), shown only while there is
-          one: the panel's Clear All, without opening the panel. An outlined
+          one: the panel's Clear All, without opening the panel. A round, soft-grey
           X at All Filters' height, its name in the tooltip: as the words
           "Clear Filters" (93px) it cost the row a facet at every width,
           and on a phone it pushed All Filters onto a second line. It keeps
@@ -759,7 +759,7 @@ export function JobFilters({
       {filtered && (
         <IconButton
           label="Clear filters"
-          variant="outline"
+          variant="soft"
           className="animate-fade ml-auto size-9 shrink-0"
           onClick={() => {
             allFiltersButton.current?.focus();
@@ -775,7 +775,7 @@ export function JobFilters({
       <IconButton
         ref={allFiltersButton}
         label={on ? `All Filters, ${on} on` : "All Filters"}
-        variant="outline"
+        variant="soft"
         onClick={() => setAllFiltersOpen(true)}
         className={cn("relative size-9 shrink-0", !filtered && "ml-auto")}
       >

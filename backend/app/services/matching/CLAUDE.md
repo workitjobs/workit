@@ -244,10 +244,17 @@ strong semantic fit (positive), then years mismatch and start term mismatch
 (negative). Positives sort before negatives, and a negative is never cut by
 the cap of 3.
 
+**Each highlight is a short label and its sentence** (2026-11-09): `text`
+is a few words that fit one line of a card's match rail ("Uses 3 of your
+skills", "Fits your major", "Asks for 5+ years"), and `detail` is the whole
+sentence ("Posting mentions your skills: Python, SQL, Go"), the label's
+tooltip. The rail showed the sentences until then, which wrapped to four
+lines and were cut short once it limited each reason to two.
+
 **A job none of those rules speak for gets caveats** (KAN-256), so a weak
 score never shows with no reasons, on the Jobs page card or the application
-page: "None of your skills appear in this posting" when the bank has skills
-and the posting mentions none, and "Title isn't close to your past roles"
+page: "No skills in common" when the bank has skills and the posting
+mentions none, and "Unlike your past roles"
 when the title fit is 0.3 or less and the bank has titles or a field of
 study to compare (`has_titles`; without them a low fit is a blank, not a
 finding). Neither names a skill the job wants: that is the "missing skill"
