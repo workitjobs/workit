@@ -142,6 +142,12 @@ challenge) and Gallagher's home page is empty to one, so each was checked in a
 browser and by the logo Brandfetch draws for it, and its row's note says so.
 A site that refuses scripts is no reason to leave a row out: Brandfetch's own
 logo for the domain is a second check that the domain is the company's.
+On 2026-11-09 three more went in this way, each a kind the address check
+cannot pass: SPA's board is on Jibe's own `jibeapply.com` (no address), CMS
+Energy's careers site is its subsidiary's (`consumersenergy.com`, whose name
+is not CMS's), and Simon Property Group's `simon.com` is a one-word Workday
+guess. All three home pages refuse scripts; `simon.com` refuses a browser
+too, so its own `investors.simon.com` was the page checked.
 
 ## The board's own address, checked by the scraper
 
@@ -189,3 +195,54 @@ checks the website as above, and adds a row to `checked_websites.csv`; never a
 change in the database, which the next import overwrites from the feed.
 Oracle, Greenhouse and iCIMS boards have no address to try, so they reach a
 logo only that way.
+
+## Wikidata proposals
+
+**Rows for `boards_without_domain` are proposed from Wikidata, in one PR a
+person reviews** (`domain_pr.py`, `workit_scraper/wikidata.py`, the daily
+`.github/workflows/company-domains.yml`). A board's own page and address give
+no domain for most Workday, Oracle and iCIMS boards: 755 boards (6,001 jobs)
+on 2026-11-09. Wikidata keeps a company's official website (P856) under its
+name, and its data is CC0, so an answer may be stored.
+
+**Why not Brandfetch's own name search:** its terms want it embedded in a
+user-facing autocomplete, called from the user's browser, with nothing stored
+(checked 2026-11-10). A batch job that saves domains breaks both.
+
+**A name is not a key**, so an answer counts only when it passes every rule
+(`wikidata.pick`):
+
+- The item's English label or an alias is the company's name, compared
+  without case, punctuation, a parenthesis or trailing legal words ("CMS
+  Energy Corporation" is "CMS Energy"; "CMS", a law firm, is not).
+- It names an official website on one registered domain, not a hiring
+  vendor's, and is not dissolved (P576).
+- It is not a kind of thing that never hires (`NOT_EMPLOYERS`, matched on its
+  own "instance of"): a racehorse, a band, a town, a TV channel.
+- No other item of that name names another domain: two answers give none.
+- A one-word name's domain is its own name, or its name and a company word
+  (`own_domain`: `paccar.com`, `safran-group.com`, `thecloroxcompany.com`).
+
+**The trial behind the rules** (2026-11-10, the 200 boards with the most jobs
+and no domain): the first rules found a domain for 108 (2,450 of 4,461 jobs),
+and 7 were another thing of the same name, all but one a one-word name:
+Secretariat (a racehorse), Arc (a French commune), Black Box (a band),
+Freeform (a TV channel), Kroll (a German publisher), Chubb (`chubbfs.com`, a
+fire-systems maker) and Teledyne (`teledyne-e2v.com`, one of its parts).
+`NOT_EMPLOYERS` and `own_domain` drop those 7 and keep the other 101. They were
+written from that same trial, so the review stays: a wrong row is another
+company's logo on real cards.
+
+**Each row's note names the item and its description** ("Thoroughbred
+racehorse", "American bank holding company"), which tells a reviewer at a
+glance whether it is the employer. Remove a wrong row before merging.
+`company-domains.json` records every board looked up, answer or not, so a
+removed row is never proposed again; a board with no answer is asked again
+after `RETRY_DAYS` (60). Up to `LIMIT` (150) boards a run, most jobs first.
+
+**It is the one part of the scraper that bypasses `polite.Robots`.**
+Wikidata's robots.txt disallows `/w/` (and the query service's `/sparql`) to
+crawlers, because its dynamic pages are costly to index; Wikimedia's API
+etiquette welcomes a script that names itself (our User-Agent), asks one thing
+at a time (`PACE_S`) and backs off (`maxlag=5`, `Retry-After` capped at a
+minute). It never runs inside the scrape, and it reads only the API.
