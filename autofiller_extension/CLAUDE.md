@@ -413,9 +413,9 @@ parsed; before KAN-749 all ten panel files ran in every frame of every
 such page, three frames: 30 files and two `visibilitychange` listeners,
 now 3 files and none). On a job page outside a batch the launcher asks
 `panel/shell`, which checks the page is a job system's (`pageSystem`) and
-loads `SHELL_FILES` into that frame only, then draws only the edge tab.
-Nothing fills, nothing is read from the form. A new file the panel needs
-before a fill goes in `SHELL_FILES`, never in the manifest's entry. **Any posting there, in
+loads `SHELL_FILES` (`src/shared/content-scripts.js`) into that frame
+only, then draws only the edge tab. Nothing fills, nothing is read from the
+form. **Any posting there, in
 WorkIt's feed or not**: nothing here asks the API whether it knows the
 job (the job card falls back to the engine's `jobNames`, the answer bank
 to the page's company), so a posting the student found anywhere fills as
@@ -435,7 +435,9 @@ toolbar popup on a posting-like page of another host offers **Allow
 WorkIt on <host>**, whose click calls `chrome.permissions.request` for
 that one origin (it needs the click; Simplify and Jobright ask the same
 way). Once granted, `popup/allow` keeps the origin (chrome.storage.local
-`allowed_sites`), registers the launcher's files for it
+`allowed_sites`), registers the launcher's files for it (a registration
+an older version kept, with all the panel's files, is updated to the
+launcher alone at the worker's start, KAN-749)
 (`registerContentScripts`, id `site-<host>`, kept across restarts), runs
 them in the tab at once, and answers what it found: the engine's own
 reading of the page (`pageJobUrl`: `jobOf` of the link, or a job system
@@ -2243,8 +2245,7 @@ stay-on-page notice shows and goes).
 ## The panel's other states (KAN-401): signed out, sent, a site it can't fill, errors
 
 `src/content/panel-states.js` (`window.WIA.panelStates`, loaded after
-report.js everywhere it is: `CONTENT_SCRIPT_FILES` and background.js
-`SHELL_FILES`) and `src/background/panel-states.js`:
+report.js everywhere it is: `CONTENT_SCRIPT_FILES` and `SHELL_FILES`) and `src/background/panel-states.js`:
 
 - **Signed out**: `panelStates.start()` is what the launcher and the
   toolbar call in place of `panel.fillButton` before a fill. Signed out
@@ -2278,14 +2279,16 @@ report.js everywhere it is: `CONTENT_SCRIPT_FILES` and background.js
   is the engine's: a new job system takes its level from whether the engine
   steps it, never from a list here; only the names students see
   (`SYSTEM_NAMES`) are the extension's. `panelStates.start()` draws it once
-  signed in; the fill's list (overlay.js `draw`) hides it. **Not supported
+  signed in; the fill's list (overlay.js `draw`) hides it, for good on
+  that page (a badge still on its way stays hidden). **Not supported
   lists the student's answers** in the Autofill tab (`[data-answers]`,
   `panel/answers`: `answerList`, from the same `engineProfile` the fill
   plans with), by the Fields to Autofill groups (Contact info, Location,
   Education, Experience, Work authorization), each a label, the value and
   **Copy** (aria-label "Copy Email"; pressed, "Copied", until another Copy
-  takes it), through `navigator.clipboard` with letter-preview.js's
-  fallback. Only answers the student has; no file and no
+  takes it), through ui.js's `copy` (letter-preview.js's Copy uses it too).
+  Only answers the student has, none of a category they switched off in
+  Options (`autofill_off`), the location as they typed it; no file and no
   self-identification answer (a form asks those in its own words, and the
   student answers them there). Tests: `test/coverage.spec.ts` (the levels,
   the list), `test/coverage.extension.spec.ts` (each badge, Show My
@@ -2362,7 +2365,7 @@ violet and the word "workit" in ink, as the webapp and the popup's header
 draw it; change the copies together), ⋯ (the menu, above: Report a problem, Settings, a
 batch tab's I submitted this and Skip, Fill Again) and Close. `src/content/panel-top.js` fills two slots, loaded
 after panel.js everywhere panel.js is (`CONTENT_SCRIPT_FILES`,
-background.js `SHELL_FILES`):
+`SHELL_FILES`):
 
 - **Step line** (`batch-line`): on Workday only, "Step 3 of 6 · My
   Experience", read off Workday's step bar (`progressBarActiveStep`) and
@@ -2618,7 +2621,7 @@ cover letter waiting). `fake-api.ts` records each `redo` and its steer in
 
 `src/content/panel-settings.js` fills the `settings` slot (loaded after
 panel-top.js everywhere it is: `CONTENT_SCRIPT_FILES`,
-background.js `SHELL_FILES`); `src/background/panel-settings.js` answers
+`SHELL_FILES`); `src/background/panel-settings.js` answers
 its messages. The gear shows it in place of the tabs; Back returns.
 
 - **Claude**: "Your Claude is connected." with **Disconnect** (`DELETE
@@ -2692,7 +2695,7 @@ the shape, or any of the student's values in it).
 
 `src/content/resume-card.js` (`window.WIA.resumeCard`, loaded after
 panel-top.js wherever it is: `CONTENT_SCRIPT_FILES`,
-background.js `SHELL_FILES`) draws the card of the opened Resume/CV row
+`SHELL_FILES`) draws the card of the opened Resume/CV row
 (overlay.js asks `resumeCard.card(field)` before any other card, on the
 opened row only), from `src/background/resume-tab.js` (`resume/tab`,
 `resume/file`, `resume/choose`, `resume/upload`). The row is the file field
@@ -2822,7 +2825,11 @@ overlay uses the system font.
   that makes this work lives in exactly one place —
   `src/shared/content-scripts.js` (`ENGINE_FILES` in the MAIN world, then
   `CONTENT_SCRIPT_FILES`), which the panel and batch apply both use through
-  `injectFill` — and a new content file is added there by hand.
+  `injectFill` — and a new content file is added there by hand. A file the
+  panel needs before a fill goes in its `SHELL_FILES` (the shell the
+  launcher's `panel/shell` and the toolbar load, KAN-749), which
+  `CONTENT_SCRIPT_FILES` starts with; never in the manifest's entry, which
+  is `launcher.js` alone.
 - **`src/background/engine.js` uses no `chrome.*` API at import time**, so
   the test imports it as it is. Keep `chrome.*` calls in `background.js`.
 - **`src/background/` and `src/popup/` do use ES modules** (`"type":

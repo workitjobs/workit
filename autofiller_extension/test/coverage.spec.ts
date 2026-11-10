@@ -35,3 +35,10 @@ test("the answers to copy are what the fill would type, without files or self-id
   expect(JSON.stringify(rows)).not.toContain("resume.pdf");
   expect(new Set(rows.map((row) => row.group))).toEqual(new Set(["Contact info", "Location", "Education", "Work authorization"]));
 });
+
+test("a category the student switched off in Options is left out of the answers to copy", () => {
+  const rows = answerList({ ...STUDENT, location: "Stony Brook, NY" }, ["contact", "work_authorization"]);
+  expect(rows.map((row) => row.group)).not.toContain("Contact info");
+  expect(rows.map((row) => row.group)).not.toContain("Work authorization");
+  expect(rows.find((row) => row.label === "School")?.value).toBe("Example State University");
+});

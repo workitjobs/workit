@@ -16,7 +16,9 @@ window.WIA = window.WIA || {};
   "use strict";
 
   if (window.WIA.coverage) return;
-  const { send, el, button } = window.WIA.ui;
+  const { send, el, button, copy } = window.WIA.ui;
+  // Once a fill's list took the panel (hide), a badge still on its way stays hidden.
+  let taken = false;
 
   const STYLES = `
     [data-slot="coverage"] { padding: 10px 12px; display: flex; flex-direction: column; gap: 4px; }
@@ -53,32 +55,19 @@ window.WIA = window.WIA || {};
     panel().addCss(STYLES);
   }
 
-  /** Copies `text` to the student's clipboard (letter-preview.js's way, with its fallback). */
-  async function copy(text) {
-    try {
-      await navigator.clipboard.writeText(text);
-    } catch {
-      const box = Object.assign(document.createElement("textarea"), { value: text });
-      document.body.append(box);
-      box.select();
-      document.execCommand("copy");
-      box.remove();
-    }
-  }
-
   /** The badge for this page, and on a site WorkIt can't fill, the answers to copy. */
   async function show() {
     style();
     const place = panel()?.slot("coverage");
     if (!place) return;
     const answer = await send({ type: "panel/coverage" });
-    if (!answer?.ok) return;
+    if (!answer?.ok || taken) return;
     const badge = el("span", "coverage-badge", answer.badge);
     badge.dataset.level = answer.level;
     place.replaceChildren(badge, el("div", "coverage-said", answer.said));
     place.dataset.level = answer.level;
     place.hidden = false;
-    if (answer.level === "none") await showAnswers();
+    if (answer.level === "none" && !window.WIA.overlay?.state?.()) await showAnswers();
   }
 
   /** The student's answers in the Autofill tab, by group, each with Copy (Copied once pressed). */
@@ -126,6 +115,7 @@ window.WIA = window.WIA || {};
 
   /** A fill took the panel (overlay.js): the badge goes. */
   function hide() {
+    taken = true;
     const place = panel()?.slot("coverage");
     if (place) place.hidden = true;
   }

@@ -28,7 +28,7 @@ import { sendFill, setFillNumbers } from "./fill-events.js";
 import { SELF_ID, checkedSelfId, unansweredSelfId } from "./self-id.js";
 import { forgetSubmits, submitHinted, watchSubmitRequests } from "./submit-proof.js";
 import { watchEmbeddedForms } from "./embedded-forms.js";
-import { injectFill } from "../shared/content-scripts.js";
+import { SHELL_FILES, injectFill } from "../shared/content-scripts.js";
 import { forgetShownWorkableDraft } from "./tab-load.js";
 import { allowForMe, forgetLogin, markCreated, markRefused, markSignedIn, removeLogin, sentSince, watchWorkdaySends, workdayLogin } from "./workday-logins.js";
 import { writeEarly } from "./write-early.js";
@@ -462,7 +462,7 @@ async function handleMessage(message, sender) {
     }
     // The student's answers to copy, on a page WorkIt can't fill (coverage.js answerList).
     case "panel/answers":
-      return { answers: answerList(await getAutofillProfile()) };
+      return { answers: answerList(await getAutofillProfile(), await autofillOff()) };
     // The off switch (remote-config.js, KAN-467): the job system's name when WorkIt turned it off, which the
     // panel shows in place of its button and the fill in place of filling (a batch tab then needs the student).
     case "fill/available":
@@ -539,12 +539,12 @@ async function handleMessage(message, sender) {
     // The toolbar popup off job pages: the batch's status, and (KAN-424) what the student is doing, with its next step.
     case "popup/batch":
       return batchStatus();
-    // Only the popup's own page may switch tabs or open a batch (a content script's sender is the job page,
-    // never the extension's popup.html), so a page's script can't press these.
-    // Show My Answers in the popup on a site WorkIt can't fill (KAN-749): the panel opens there with the answers to copy.
+    // Only the popup's own page may switch tabs, open a batch or open the panel's answers (a content script's
+    // sender is the job page, never the extension's popup.html), so a page's script can't press these.
+    // Show My Answers on a site WorkIt can't fill (KAN-749): the panel opens there with the answers to copy.
     case "popup/answers":
       if (!fromPopup(sender)) return { error: "not_popup" };
-      await openAnswers(message.tabId);
+      await openShell(message.tabId, { answers: true });
       return {};
     case "popup/home":
       return fromPopup(sender) ? popupHome() : { error: "not_popup" };
@@ -712,34 +712,22 @@ async function panelSite(url, change) {
   return sites[site];
 }
 
-// The panel's shell: what the launcher has loaded once its page is a job system's (panel/shell), and what the
-// toolbar icon or Alt+W injects when it finds no panel on a job page yet.
-const SHELL_FILES = ["src/shared/tokens.js", "src/content/ui.js", "src/shared/report-parts.js", "src/content/panel.js", "src/content/panel-top.js", "src/content/resume-card.js", "src/content/panel-settings.js", "src/content/report.js", "src/content/coverage.js", "src/content/panel-states.js"];
-
-/** Opens the panel's shell in the tab's top frame, as the toolbar icon does on a job page with no edge tab yet:
- * its files first (a copy already there keeps its shell). */
-async function openShell(tabId) {
+/**
+ * Opens the panel's shell in the tab's top frame, its files first (a copy
+ * already there keeps its shell): as the toolbar icon does on a job page with
+ * no edge tab yet, or with `answers` on a site WorkIt can't fill (Show My
+ * Answers: the coverage badge and the answers to copy, no fill button).
+ */
+async function openShell(tabId, { answers = false } = {}) {
   await chrome.scripting.executeScript({ target: { tabId }, files: SHELL_FILES });
   await chrome.scripting.executeScript({
     target: { tabId },
-    func: async () => {
+    args: [answers],
+    func: async (answers) => {
       const panel = window.WIA.panel;
       await panel.ensure();
-      if (!window.WIA.overlay?.state?.()) await window.WIA.panelStates.start();
-      panel.open();
-    },
-  });
-}
-
-/** The panel's shell in the tab's top frame, open on the answers to copy (a site WorkIt can't fill: no fill button). */
-async function openAnswers(tabId) {
-  await chrome.scripting.executeScript({ target: { tabId }, files: SHELL_FILES });
-  await chrome.scripting.executeScript({
-    target: { tabId },
-    func: async () => {
-      const panel = window.WIA.panel;
-      await panel.ensure();
-      await window.WIA.coverage.show();
+      if (answers) await window.WIA.coverage.show();
+      else if (!window.WIA.overlay?.state?.()) await window.WIA.panelStates.start();
       panel.open();
     },
   });

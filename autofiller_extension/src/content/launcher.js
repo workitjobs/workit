@@ -6,7 +6,7 @@
 // page is a job page WorkIt covers (panel/where, the Fill engine's jobOf),
 // and stops, with no panel file loaded, no observer and no listener. On a job
 // page outside a batch the background loads the panel's files into this frame
-// (panel/shell, background.js SHELL_FILES) and the launcher draws only the
+// (panel/shell, shared/content-scripts.js SHELL_FILES) and the launcher draws only the
 // edge tab, with Autofill This Page in the panel behind it. A batch tab's
 // panel is the fill's own (overlay.js), so this leaves it alone.
 window.WIA = window.WIA || {};
@@ -18,6 +18,7 @@ window.WIA = window.WIA || {};
   // iCIMS's frame inside its own top page: the panel is the top page's (icims.js).
   if (window.top !== window && /(^|\.)icims\.com$/.test(location.hostname) && (() => { try { return parent.location.hostname === location.hostname; } catch { return false; } })()) return;
   window.WIA.launched = true;
+  // ui.js's send, which isn't loaded here: the launcher runs alone until the page is a job page.
   const send = (message) => Promise.resolve(chrome.runtime.sendMessage(message)).catch(() => null);
   // After the page's own start-up: a node Greenhouse's React didn't render, drawn while it starts, makes it
   // draw the form again (overlay.js, "the panel goes on the page once the fill is done").

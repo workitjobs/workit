@@ -12,6 +12,7 @@
 //
 // No chrome.* API at import time, so the page tests import this file as it is.
 import { engineProfile, stepped } from "./engine.js";
+import { CATEGORIES } from "../shared/autofill-categories.js";
 
 /** The job systems' names as students see them, by the engine's site id. */
 export const SYSTEM_NAMES = {
@@ -48,40 +49,48 @@ const text = (value) => (value === null || value === undefined || value === "" ?
 
 /**
  * The student's answers to copy on a site WorkIt can't fill: what the fill
- * would type, from the same engine profile (engineProfile), in the panel's
- * groups (autofill-categories.js's labels). Only answers the student has;
- * no file, and no self-identification, which a form asks in its own words.
+ * would type, from the same engine profile (engineProfile), in the Fields to
+ * Autofill categories (autofill-categories.js), less those the student
+ * switched off (`off`, their ids). Only answers the student has; no file,
+ * and no self-identification, which a form asks in its own words. The
+ * location is the profile's as the student typed it ("Stony Brook, NY"),
+ * which is what a form's text box takes; the engine's copy is split into parts.
  * @param {import("../shared/types.js").AutofillProfile} profile
+ * @param {string[]} [off]
  * @returns {{ group: string, label: string, value: string }[]}
  */
-export function answerList(profile) {
+export function answerList(profile, off = []) {
   const facts = engineProfile(profile);
   const { identity = {}, links = {}, education = {}, experience_facts: experience = {}, work_authorization: work = {} } = facts;
   const [job] = experience.employment_history ?? [];
   const gpa = education.gpa_cumulative ? `${education.gpa_cumulative}${education.gpa_scale ? ` / ${education.gpa_scale}` : ""}` : null;
   const rows = [
-    ["Contact info", "First name", identity.legal_first_name],
-    ["Contact info", "Middle name", identity.legal_middle_name],
-    ["Contact info", "Last name", identity.legal_last_name],
-    ["Contact info", "Email", identity.email],
-    ["Contact info", "Phone", identity.phone],
-    ["Contact info", "LinkedIn", links.linkedin_url],
-    ["Contact info", "GitHub", links.github_url],
-    ["Contact info", "Website", links.portfolio_url],
-    ["Location", "Location", profile.location],
-    ["Education", "School", education.school],
-    ["Education", "Degree", education.degree_type],
-    ["Education", "Major", (education.majors ?? []).join(", ")],
-    ["Education", "GPA", gpa],
-    ["Education", "Start date", month(education.start_date)],
-    ["Education", "Graduation date", month(education.expected_graduation)],
-    ["Experience", "Company", job?.employer],
-    ["Experience", "Job title", job?.title],
-    ["Experience", "Skills", (experience.skills ?? []).join(", ")],
-    ["Work authorization", "Authorized to work in the US", yesNo(work.authorized_to_work_us)],
-    ["Work authorization", "Needs visa sponsorship", yesNo(work.requires_sponsorship_now_or_future)],
-    ["Work authorization", "Citizenship", work.citizenship],
-    ["Work authorization", "Security clearance", work.security_clearance],
+    ["contact", "First name", identity.legal_first_name],
+    ["contact", "Middle name", identity.legal_middle_name],
+    ["contact", "Last name", identity.legal_last_name],
+    ["contact", "Email", identity.email],
+    ["contact", "Phone", identity.phone],
+    ["contact", "LinkedIn", links.linkedin_url],
+    ["contact", "GitHub", links.github_url],
+    ["contact", "Website", links.portfolio_url],
+    ["location", "Location", profile.location],
+    ["education", "School", education.school],
+    ["education", "Degree", education.degree_type],
+    ["education", "Major", (education.majors ?? []).join(", ")],
+    ["education", "GPA", gpa],
+    ["education", "Start date", month(education.start_date)],
+    ["education", "Graduation date", month(education.expected_graduation)],
+    ["experience", "Company", job?.employer],
+    ["experience", "Job title", job?.title],
+    ["experience", "Skills", (experience.skills ?? []).join(", ")],
+    ["work_authorization", "Authorized to work in the US", yesNo(work.authorized_to_work_us)],
+    ["work_authorization", "Needs visa sponsorship", yesNo(work.requires_sponsorship_now_or_future)],
+    ["work_authorization", "Citizenship", work.citizenship],
+    ["work_authorization", "Security clearance", work.security_clearance],
   ];
-  return rows.map(([group, label, value]) => ({ group, label, value: text(value) })).filter((row) => row.value);
+  const group = (id) => CATEGORIES.find((c) => c.id === id).label;
+  return rows
+    .filter(([id]) => !off.includes(id))
+    .map(([id, label, value]) => ({ group: group(id), label, value: text(value) }))
+    .filter((row) => row.value);
 }
