@@ -204,6 +204,7 @@ jobs:
             tests/test_accounts.py \
             tests/test_accounts_tab.py \
             tests/test_answer_bank.py \
+            tests/test_answer_sync.py \
             tests/test_answering.py \
             tests/test_applicant_name.py \
             tests/test_ask.py \

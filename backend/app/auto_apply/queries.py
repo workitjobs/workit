@@ -9,6 +9,7 @@ stands (dto.application_stage), `created_at` orders them. pick_resume reads
 the resume rows, never writes them.
 """
 
+import datetime
 import uuid
 from collections.abc import Collection, Sequence
 from dataclasses import dataclass
@@ -55,6 +56,7 @@ from app.schemas.applications import (
     WrittenQuestion,
 )
 from app.schemas.sent_resume import SentResumeResponse
+from app.services import apply_answers
 from app.services.postings import ADDED, typed_text
 
 
@@ -770,6 +772,8 @@ class SavedAnswer:
     own: bool = False
     # an option (or options) picked, not words: WorkIt's writing checks don't apply
     choice: bool = False
+    # when it was saved (an application's) or last changed in Apply (a brought one); None when unknown
+    at: datetime.datetime | None = None
 
 
 async def fetch_saved_answers(
@@ -779,7 +783,8 @@ async def fetch_saved_answers(
     the student's own first (KAN-379), then newest first, but those of the
     job `exclude`."""
     query = (
-        select(Written_Answer.label, Written_Answer.answer, Written_Answer.own, Written_Answer.kind, Job_Post.company_name)
+        select(Written_Answer.label, Written_Answer.answer, Written_Answer.own, Written_Answer.kind, Job_Post.company_name,
+               Written_Answer.answered_at)
         .join(Job_Post, Job_Post.id == Written_Answer.job_id)
         .where(Written_Answer.applicant_id == applicant_id, Written_Answer.answer.is_not(None))
         .order_by(Written_Answer.own.desc(), Written_Answer.answered_at.desc(), Written_Answer.job_id, Written_Answer.name)
@@ -787,7 +792,8 @@ async def fetch_saved_answers(
     if exclude is not None:
         query = query.where(Written_Answer.job_id != exclude)
     return [
-        SavedAnswer(question=r.label, answer=r.answer, company=r.company_name, own=r.own, choice=not is_text(r.kind))
+        SavedAnswer(question=r.label, answer=r.answer, company=r.company_name, own=r.own, choice=not is_text(r.kind),
+                    at=r.answered_at)
         for r in await db.execute(query)
     ]
 
@@ -795,11 +801,13 @@ async def fetch_saved_answers(
 async def fetch_brought_answers(db: AsyncSession, applicant_id: uuid.UUID) -> list[SavedAnswer]:
     """The answers the student brought from Apply (`fill_answers`, in the
     order they were filed): their own words (`own`) or their Claude's drafts,
-    and `choice` for options picked. An entry with no answer is left out."""
+    and `choice` for options picked, `at` when Apply last changed it (its
+    sync's `edited_at`). An entry with no answer is left out."""
     answers = await db.scalar(select(Applicant_Profile.fill_answers).where(Applicant_Profile.id == applicant_id))
     return [
         SavedAnswer(question=question, answer=entry["answer"], company=entry.get("company"), own=bool(entry.get("own", True)),
-                    choice=bool(entry.get("choice")) or isinstance(entry["answer"], list))
+                    choice=bool(entry.get("choice")) or isinstance(entry["answer"], list),
+                    at=apply_answers.edited_at(entry))
         for question, entry in (answers or {}).items()
         if isinstance(entry, dict) and entry.get("answer") not in (None, "", [])
     ]

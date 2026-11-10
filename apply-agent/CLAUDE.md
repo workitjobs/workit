@@ -62,7 +62,7 @@ Read the file that matches your change. Update it in the same PR: it counts as
 this folder's `CLAUDE.md` for its area.
 
 - `docs/fill-engine.md`: Apply's plan rules, `fill_engine.py`, `APPLY_FILL_ENGINE`, or what the plan answers from the Tracker, the Answer bank or a bare date.
-- `docs/workit.md`: a WorkIt call, `apply login`, `import-sheet`, `clean-tracker`, a Tracker write, the already-applied check, the resume check, or the tailored resume.
+- `docs/workit.md`: a WorkIt call, `apply login`, `import-sheet`, `clean-tracker`, `sync-answers` (the Answer bank sync), a Tracker write, the already-applied check, the resume check, or the tailored resume.
 - `docs/held-forms.md`: verifying, a flag, Resume, Regenerate, Ask Claude, Fill again (`apply fill-again`), page gates, or how a question reaches Needs you.
 - `docs/prompts-and-gates.md`: a prompt, a length, cap or names gate, or the catch-all box rule.
 - `docs/claude-fill.md`: Claude fill, its Next and profile clicks, its dropdowns, or a Filler's `form_url`.
@@ -84,7 +84,8 @@ person's data is in one folder, `APPLY_HOME` (default `~/.config/apply/`):
 - a `policies.yaml` that overrides `policies.default.yaml` key by key.
 - the WorkIt login (`workit-login.json`), after `apply login`.
 - Apply's Tracker (`tracker.json`) and the writes that wait for WorkIt
-  (`workit-queue.json`).
+  (`workit-queue.json`, and the Answer bank's changes in
+  `workit-answers-queue.json`, KAN-746).
 - the tailored resumes that Apply gave to forms (`tailored/`, KAN-547).
 
 Apply also writes its output there: rehearsal records, Repairs, Traces and

@@ -1,6 +1,7 @@
 """Request/response shapes for the applicant profile (GET + PATCH)."""
 
-from typing import Any
+from datetime import datetime
+from typing import Annotated, Any
 from urllib.parse import urlsplit
 from uuid import UUID
 
@@ -9,6 +10,7 @@ from pydantic import (
     ConfigDict,
     EmailStr,
     Field,
+    StringConstraints,
     field_validator,
     model_validator,
 )
@@ -55,6 +57,50 @@ class FillProfile(BaseModel):
 
     profile: dict[str, Any]
     policies: dict[str, Any]
+
+
+# Size caps on what Apply's sync sends (routers/CLAUDE.md: client JSON stored as-is is capped).
+Question = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=1000)]
+Option = Annotated[str, StringConstraints(max_length=1000)]
+
+
+class ApplyAnswer(BaseModel):
+    """One Answer bank entry as Apply keeps it (apply-agent answer_bank.py),
+    sent when Apply saves or changes it (KAN-746). WorkIt decides `own` from
+    `source` and `reviewed` (services/apply_answers.py), never the caller.
+    An empty answer (or none of a multi-select's options) deletes the entry."""
+
+    question: Question
+    answer: Annotated[str, StringConstraints(max_length=20000)] | Annotated[list[Option], Field(max_length=100)]
+    options: Annotated[list[Option], Field(max_length=200)] = []
+    source: Annotated[str, StringConstraints(max_length=20)] = "claude"
+    reviewed: bool | None = None
+    company: Annotated[str, StringConstraints(max_length=200)] | None = None
+    # when Apply last changed it; none for an entry changed before the sync was on
+    edited_at: datetime | None = None
+
+
+class ApplyAnswerDeleted(BaseModel):
+    """An entry Apply took out of its bank, and when."""
+
+    question: Question
+    edited_at: datetime | None = None
+
+
+class FillAnswersChange(BaseModel):
+    """PATCH .../fill-answers: entries to save and entries to delete, at most 200 each."""
+
+    answers: Annotated[list[ApplyAnswer], Field(max_length=200)] = []
+    deleted: Annotated[list[ApplyAnswerDeleted], Field(max_length=200)] = []
+
+
+class FillAnswersMerged(BaseModel):
+    """What the merge did: `kept` names each change left out because WorkIt's
+    entry is newer (services/apply_answers.py, `merge`)."""
+
+    saved: int
+    deleted: int
+    kept: list[str]
 
 
 LINK_FIELDS = ("linkedin_url", "portfolio_url", "github_url", "other_url")
