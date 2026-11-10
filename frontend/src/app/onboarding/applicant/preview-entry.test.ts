@@ -22,6 +22,8 @@ const CLUB: PreviewEntry = {
   link: null,
   issuer: null,
   award_date: null,
+  custom_section_id: null,
+  section_name: null,
   bullets: ["Managed a $4,000 annual budget for 30 members"],
   replaces: ["older-club-row"],
 };

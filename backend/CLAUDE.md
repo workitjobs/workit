@@ -827,6 +827,23 @@ Find files with a directory listing; these are the rules for where code goes.
   A resume's header prints them from `built_resumes.load_header_identity`
   (`resume_render.HeaderIdentity`): display, never model input, so the
   two names stay apart.
+- **Custom sections** (KAN-498, `../docs/custom_sections.md`) are
+  `routers/bank.py`'s `/sections` routes over `services/bank.py`
+  (`create_section`, `rename_section`, `delete_section`), owned as entries
+  are, and their entries are ordinary `POST .../entries` with section
+  `custom` and `custom_section_id`. A section answers `SectionError` (409)
+  at five for its owner or a name it holds. `GET /bank` sends `sections`
+  with each one's `resume_ids` (the owning upload, then the built resumes
+  that show one of its entries). The view groups them by name
+  (`resume_view.custom_key`), the page prints them by
+  `resume_render.printed_order`, Fit cuts them first, and import makes a
+  Lines section for each heading the parser keeps (`ParsedResume.others`),
+  for an AI reading too, since the combined reading adds every parser
+  entry the AI's lacks (`bank_import.with_parsers_reading`). An import stamps
+  each section it makes with `clock_timestamp()`: under `now()`, the
+  transaction's start, one import's sections tied and the bank listed them
+  in a random order. Intake refuses `custom` (422). Tests:
+  `tests/test_custom_sections.py`.
 - **An upload fills the bank** (KAN-240, `../docs/adr/0003-upload-fills-the-experience-bank.md`).
   `POST .../resumes` extracts `raw_text`, reads it (`services/resume_reading.py`:
   the model first, the heuristic parser behind it; below) and writes it with
@@ -1807,6 +1824,20 @@ go then. A change needs to work on Cloudflare only.
   The model selects the column with every listing and the import writes it,
   so a database without it fails every `GET /jobs` and every scheduled
   import.
+- **Apply `c9e4a1d7b498` (custom sections, KAN-498) before the deploy
+  that maps it.** The model names `bank_entries.custom_section_id` on every
+  entry insert, so deployed first, every upload, Import Again and Add entry
+  answers 500, and `GET /bank` too (it reads `bank_custom_sections`). It
+  only adds an enum value (`ADD VALUE`, in its own autocommit block), a
+  table and a nullable column with a CHECK every row meets, so applying it
+  early is safe. It sits on `06edf44926a1` (the merge of KAN-733's
+  `b27f4b974d5c` and KAN-726's `e8c3f1a7b925`), so `upgrade head` applies
+  those too where they are not yet applied. **Pull
+  and restart the bank job right after the deploy** (Deployment, "The bank
+  job does not deploy on merge"): its old code reads every entry through
+  `load_bank`, and its `bank_section` has no `custom`, so once a student
+  adds a custom entry, every sweep that reaches that bank fails and stale
+  banks wait until the restart.
 - **Apply `a3c6e9f1b274` (`built_resumes.page_settings`, KAN-435) as soon as
   it merges.** It only adds a JSONB column whose default `{}` is Jake's own
   page, and no code maps it yet, so it is safe for every deploy. The Format

@@ -113,7 +113,7 @@ def heading(entry: ViewEntry, date_format: str = "short", education_first: str =
         return Heading(entry.title, when, entry.organization or "", entry.location or "")
     if entry.section == "certifications":
         tag = entry.issuer or entry.organization or ""
-    else:  # projects, awards
+    else:  # projects, awards, and a custom section's entries (KAN-498)
         tag = " | ".join(x for x in (entry.organization, entry.link) if x)
     return Heading(entry.title, when, tag=tag)
 

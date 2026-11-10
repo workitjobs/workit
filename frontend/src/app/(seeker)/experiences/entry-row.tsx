@@ -1,47 +1,66 @@
 "use client";
 
+import { WarningIcon } from "@phosphor-icons/react/ssr";
 import { useState, type ReactNode } from "react";
 
 import { ChevronDownIcon } from "@/components/icons";
+import { Badge } from "@/components/ui/badge";
 import type { EntryFields } from "@/lib/bank-actions";
 import { cn } from "@/lib/cn";
 
-import { degreeLine, entryDetails, formatDates, missingFacts } from "./sections";
+import { degreeLine, entryDetails, formatDates, rowGaps } from "./sections";
 
 /** A bullet as a row shows it: the bank's, or this resume's own wording. */
 type RowBullet = { id: string; text: string };
 
 /**
- * One entry as every bank surface draws it (KAN-440): the Experiences page,
- * the resume editor's panel and onboarding's resume preview (KAN-732), so
- * they cannot drift apart. The preview's copy of this row had drifted: it
- * left out the location, a school's degree and GPA, coursework, an issuer and
- * a link, the facts the student was asked to check. It takes an entry's
- * fields and its bullets, saved or not: a preview entry has no ids. Closed, it
- * is the entry's title, place, dates, a school's degree and how many bullets
- * it holds; a press on it opens the other details and the bullets. It opens
- * closed: every entry fully open made a bank of six entries a long page, and
- * the student reads a bank by its titles.
+ * One entry as every bank surface draws it (KAN-440): the Experiences page
+ * and its section lists, the resume editor's panel and onboarding's resume
+ * preview (KAN-732), so they cannot drift apart. The preview's copy of this
+ * row had drifted: it left out the location, a school's degree and GPA,
+ * coursework, an issuer and a link, the facts the student was asked to
+ * check. It takes an entry's fields and its bullets, saved or not: a preview
+ * entry has no ids. Closed, it is two lines: the title with its badges and
+ * dates, then the place or a school's degree; a press on it opens the other
+ * details and the bullets. It opens closed: every entry fully open made a
+ * bank of six entries a long page, and the student reads a bank by its
+ * titles.
+ *
+ * WHAT A ROW FLAGS IS A BADGE ON ITS TITLE LINE (KAN-740), never a line of
+ * its own: `warn` adds one amber badge for each fact a resume would miss
+ * ("No Start Date", "No Bullets", `rowGaps`), and `badges` the surface's own
+ * (onboarding's Replaces Earlier Copy). A row had grown up to three loose
+ * lines of small text in three colours (a purple "3 bullets" that looked
+ * like a link, a grey "Other bullets on …" with long names cut short, an
+ * amber sentence repeated on nine rows in ten), each added by a different
+ * ticket and none reading as a status. The bullet count is gone (the chevron
+ * says the row opens; only none matters, and that is a badge). The badges
+ * say it alone: a line on each card that said why they matter ("10 entries
+ * are missing details a resume needs. Add them before you Generate a
+ * resume.") was taken out as one more long line, and so was a "2 Other
+ * Versions" button for copies with other bullets, which looked out of place
+ * (the user's calls, 2026-11-09).
  *
  * An entry with nothing more to show has no chevron and no press. Bullets
  * stop at a readable measure, since a page 1440px wide ran them past 130
  * characters a line.
  *
  * The slots are the surface's own: `lead` and `actions` sit beside the
- * heading, outside the press, so a control in them never opens the row, and
- * `note` shows open or closed, for what must not hide (a missing date),
- * lined up with the title. `bullets` gives the row its own words, `bulletLead` a control before each
- * bullet, `summary` the closed row's count and `muted` a quieter title, for
- * an entry not on the resume. `open` holds the row open, with no chevron:
- * for Scout working on the entry, and for every entry of onboarding's resume
- * preview, where the student checks all of a reading before saving it, so
- * none of it waits behind a press.
+ * heading, outside the press, so a control in them never opens the row.
+ * `bullets` gives the row its own words, `bulletLead` a control before each
+ * bullet, `summary` a line the closed row adds (the editor's "2 of 3
+ * bullets") and `muted` a quieter title, for an entry not on the resume.
+ * `open` holds the row open, with no chevron: for Scout working on the
+ * entry, and for every entry of onboarding's resume preview, where the
+ * student checks all of a reading before saving it, so none of it waits
+ * behind a press.
  */
 export function EntryRow({
   entry,
   lead,
   actions,
-  note,
+  badges,
+  warn = false,
   open = false,
   muted = false,
   summary,
@@ -51,10 +70,14 @@ export function EntryRow({
   entry: EntryFields & { bullets: RowBullet[] };
   lead?: ReactNode;
   actions?: ReactNode;
-  note?: ReactNode;
+  /** The surface's own badges, after the title and any warning. */
+  badges?: ReactNode;
+  /** Flag what a resume would miss, as badges after the title. */
+  warn?: boolean;
   open?: boolean;
   muted?: boolean;
-  /** In place of "3 bullets". */
+  /** A line the closed row adds under the place: the editor's count of
+   *  the bullets this resume prints. */
   summary?: string;
   bullets?: RowBullet[];
   bulletLead?: (bullet: RowBullet) => ReactNode;
@@ -66,28 +89,35 @@ export function EntryRow({
   const more = entryDetails(entry).filter((line) => line !== degree);
   const opens = !open && (more.length > 0 || bullets.length > 0);
   const shown = open || opened;
+  const gaps = warn ? rowGaps({ ...entry, bullets }) : [];
 
   const heading = (
     <>
       <span className="min-w-0 flex-1">
-        <span
-          className={cn(
-            "text-body block font-medium break-words",
-            muted ? "text-ink-muted" : "text-ink",
-          )}
-        >
-          {entry.title}
+        {/* The badges follow the title and wrap under it where it is long */}
+        <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <span
+            className={cn(
+              "text-body min-w-0 font-medium break-words",
+              muted ? "text-ink-muted" : "text-ink",
+            )}
+          >
+            {entry.title}
+          </span>
+          {gaps.map((gap) => (
+            <Badge key={gap} variant="tag" tone="warning">
+              <WarningIcon aria-hidden weight="bold" className="mr-1 size-3.5" />
+              No {gap}
+            </Badge>
+          ))}
+          {badges}
         </span>
         {/* A narrow column puts the dates under the title: beside it, they
             never shrink and left the title a few letters wide on a phone. */}
         {dates && <span className="text-note text-ink-meta block @xl/main:hidden">{dates}</span>}
         {place && <span className="text-note text-ink-muted block break-words">{place}</span>}
         {degree && <span className="text-note text-ink-meta block break-words">{degree}</span>}
-        {!shown && bullets.length > 0 && (
-          <span className="text-note text-brand-ink block">
-            {summary ?? `${bullets.length} ${bullets.length === 1 ? "bullet" : "bullets"}`}
-          </span>
-        )}
+        {!shown && summary && <span className="text-note text-ink-meta block">{summary}</span>}
       </span>
       {dates && (
         <span className="text-note text-ink-meta hidden shrink-0 @xl/main:inline">{dates}</span>
@@ -150,27 +180,6 @@ export function EntryRow({
           )}
         </div>
       )}
-
-      {/* Under the title, as the bullets are: past the chevron, the
-          warning sat under it, apart from the entry it is about. */}
-      {note && <div className={cn(opens && "pl-6")}>{note}</div>}
     </div>
-  );
-}
-
-/**
- * What an entry lacks that a resume needs (`missingFacts`), as a warning in
- * a row's `note`, so it shows open or closed. Shared by the Experiences page
- * and onboarding's resume preview (KAN-732), where the student can add it
- * with the row's pencil before anything is saved; the preview showed none.
- */
-export function MissingFacts({ entry }: { entry: EntryFields }) {
-  const missing = missingFacts(entry);
-  if (missing.length === 0) return null;
-  return (
-    <p className="text-note text-warning mt-1">
-      No {missing.join(" or ")} yet. Add {missing.length > 1 ? "them" : "it"} before you Generate a
-      resume.
-    </p>
   );
 }

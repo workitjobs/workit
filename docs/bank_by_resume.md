@@ -37,6 +37,11 @@ never changes another's, and an import runs no duplicate check.
   intake, by Tailor's "Have you used X?", by Add under a built resume, or
   before this change. The Experiences view shows it under the built
   resumes that show it (below, "Unowned entries").
+- **A custom section is owned as an entry is** (KAN-498,
+  `custom_sections.md`): an import's sections belong to the upload and
+  are replaced with its entries; one added under a resume pick belongs to
+  that upload, or to the student. Its entries carry their own owner, which
+  may differ from the section's.
 - **Built resumes still point at entries** through their choice rows
   (`built_resume_entries`, `built_resume_skills`, KAN-207). A built resume
   holds what it shows, owns nothing and copies nothing (ADR 0001).
@@ -133,9 +138,11 @@ created_at, and `edited_at` for the resume list's date, KAN-361).
     `copy_key`, so the rule stays in the API and the browser only groups by
     it (`holdings.ts`, `rowsOf`). The row is the primary resume's copy, else
     the first. Skills group by name in the browser. Nothing is merged.
-  - **A copy with other bullets is named** under the row ("Other bullets
-    on …"), a link to the resume that shows it, since All Experiences
-    shows one copy. A note on every copy repeated itself on every row of a
+  - **A copy with other bullets has no mark for now** (2026-11-09). A
+    line under the row, "Other bullets on …", named the resumes that show
+    it, and a "2 Other Versions" button replaced it in KAN-740; both read
+    as clutter. All Experiences shows one copy, so the others show by
+    picking their resume. `otherVersions` (`holdings.ts`) still finds them. A note on every copy repeated itself on every row of a
     Generated resume's bank, as the "Also on" pill did before KAN-363.
   - **An edit changes the one copy.** Deleting it leaves the next copy as
     the row. Clear All is off here, since a row stands for copies on several
@@ -189,11 +196,13 @@ created_at, and `edited_at` for the resume list's date, KAN-361).
 - **The old-upload prompt** ("This resume has no entries in your bank
   yet. [Import Again]") shows for an upload that owns nothing. Import
   Again writes that upload's own entries.
-- **Delete Entry** deletes that one row, from the foot of the entry's
-  editor (KAN-363), which the entry's pencil opens; the pencil is in view
-  while no other entry is open (KAN-732). Its confirm, a modal since
-  KAN-732, still counts the built resumes that show it.
-- **Clear All** (KAN-352), in a card's ⋯ menu (KAN-732), deletes every row a card shows, as Delete Entry
+- **Delete** deletes that one row, from the foot of the entry's form
+  (KAN-363, a dialog since KAN-740), which the entry's pencil opens in its
+  section's list (the card's heading pencil opens the list). Its question, across the form's foot,
+  still counts the built resumes that show it. An edit there changes the one
+  copy too, so under All Experiences an edited entry with a copy on another
+  resume comes back from the form as two rows.
+- **Clear All** (KAN-352), in the ⋯ of a section's list (KAN-740; a card's ⋯ from KAN-732), deletes every row the section shows under the pick, as Delete Entry
   does each one. Under a built resume's pick those rows belong to uploads,
   so the confirm names the uploads that lose them too.
 - **Scout's walk** (intake marking an entry) switches to a resume that

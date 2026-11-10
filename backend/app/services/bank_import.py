@@ -135,7 +135,23 @@ def _raw_drafts(parsed: ParsedResume, today: datetime.date) -> list[dict]:
             "title": _clip(cert.cert_name),
             "issuer": _clip(cert.issuer),
         })
+    drafts += _other_drafts(parsed)
     return drafts
+
+
+def _other_drafts(parsed: ParsedResume) -> list[dict]:
+    """Each heading the bank has no section for ("Summary", "Interests") as
+    one draft of its lines, for a Lines section of that name (KAN-498): the
+    title is the section's name too, since an entry needs one, and a Lines
+    section never prints it."""
+    drafts = []
+    for other in parsed.others:
+        name = _clip(other.heading, _NAME)
+        lines = [line for line in (_clip(x, _LONG) for x in other.lines) if line][:30]
+        if name and lines:
+            drafts.append({"section": bank_section.custom, "title": name, "section_name": name, "bullets": lines})
+    return drafts
+
 
 
 def _valid(raw: dict) -> DraftEntry | None:
