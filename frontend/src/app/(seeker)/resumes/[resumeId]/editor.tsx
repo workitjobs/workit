@@ -113,6 +113,7 @@ import {
 } from "./pdf-pages";
 import {
   DEFAULT_PAGE,
+  degreeLeads,
   FONTS,
   FormatOptions,
   ON,
@@ -222,11 +223,12 @@ const latinModern = localFont({
 
 /** Jake's type for each kind of line on this page: its size in points, and
  *  whether it is bold or italic. */
-function typeOf(kind: string, section: string | null, page: PageSettings) {
-  const size = sizeOf(textRoleOf(kind, section), page);
+function typeOf(kind: string, section: string | null, page: PageSettings, degreeFirst: boolean) {
+  const size = sizeOf(textRoleOf(kind, section, degreeFirst), page);
   // \scshape has no bold small capitals in Latin Modern, so the name prints bold
   if (kind === "full_name") return { size, bold: true, italic: false };
-  if (kind === "title") return { size, bold: true, italic: false };
+  // Degree First prints the school on the degree's row, in its italic
+  if (kind === "title") return { size, bold: !degreeFirst, italic: degreeFirst };
   if (kind === "organization") return { size, bold: false, italic: true };
   // A project's tools line (KAN-738) is \textit{\small ...}, the body's size
   if (kind === "tools") return { size, bold: false, italic: true };
@@ -754,6 +756,7 @@ export function Editor({
       ? {
           entries: bank.entries,
           skills: bank.skills,
+          sections: bank.sections,
           choices,
           ...printed,
           page_settings: pageNow.current,
@@ -1353,6 +1356,7 @@ export function Editor({
           const source = {
             entries: saved.bank.entries,
             skills: saved.bank.skills,
+            sections: saved.bank.sections,
             choices: saved.choices,
             ...saved.printed,
             page_settings: pdf.page_settings,
@@ -1727,10 +1731,12 @@ export function Editor({
   function lineLook(target: RenderBox) {
     const of = lineOf(bank, target);
     const settings = rendered?.page_settings ?? DEFAULT_PAGE;
+    const entry = of?.kind === "entry" || of?.kind === "bullet" ? of.entry : null;
     const look = typeOf(
       target.kind,
-      of?.kind === "entry" || of?.kind === "bullet" ? of.entry.section : null,
+      entry?.section ?? null,
       settings,
+      entry ? degreeLeads(entry, settings) : false,
     );
     const wraps = WRAPS.has(target.kind);
     // A wrapping line's field steps as the page's lines do
@@ -2670,7 +2676,11 @@ function Bar({
           box && (
             <>
               <RoleTools
-                role={textRoleOf(box.kind, "entry" in line ? line.entry.section : null)}
+                role={textRoleOf(
+                  box.kind,
+                  "entry" in line ? line.entry.section : null,
+                  "entry" in line && degreeLeads(line.entry, format.page),
+                )}
                 format={format}
               />
               {line.kind === "bullet" && <MarkTools />}

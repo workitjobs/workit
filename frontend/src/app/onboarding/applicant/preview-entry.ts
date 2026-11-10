@@ -45,5 +45,11 @@ function matchKey(entry: Pick<PreviewEntry, "section" | "title" | "organization"
 export function previewOfDraft(draft: EntryDraft, original: PreviewEntry): PreviewEntry {
   const { bullets, ...fields } = draft;
   const entry = { ...fields, bullets: bullets.map((b) => b.text.trim()).filter(Boolean) };
-  return { ...entry, replaces: matchKey(entry) === matchKey(original) ? original.replaces : [] };
+  return {
+    ...entry,
+    // A custom section's name (KAN-498): the editor has no field for it, and
+    // the save needs it to make the section
+    section_name: original.section_name,
+    replaces: matchKey(entry) === matchKey(original) ? original.replaces : [],
+  };
 }

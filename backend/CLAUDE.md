@@ -20,21 +20,44 @@ package: a library with no database or HTTP of its own, handed everything by
 `asyncio.to_thread` and publishes directly through `import_feed`. The
 scraper stays stdlib-only; the backend uses it as a library. Three tables
 (`scraper_schedules`, `scraper_tasks`, `job_sources`) track board catalogs,
-task leasing and which boards list which jobs. Each board publishes
-independently right after it is scraped (`_checkpoint_board`): import_feed,
-update sources, advance reads and mark done in one commit per board, so fast
-boards checkpoint without waiting for slow ones and only one board's payload
-is in memory at a time. A failed checkpoint logs and continues: one board's
-failure never stops the rest or skips closure detection. Source tracking
-(`update_sources`) records every URL the board listed, not just the
-shortlisted ones that were published: the shortlist decides what to publish,
-the full listing decides what the board says exists. A board returning more
-than `MAX_BOARD_LISTINGS` (5,000) listings is treated as failed. After all
-boards, one statement runs `detect_and_close` globally: a single CTE
-identifies stale jobs, counts them against the surge guard and closes in one
-snapshot, so no concurrent transaction can change the row set between the
-check and the close. `job_sources` drives closure detection (KAN-619): a job
-stale on every enabled board (two complete reads without it,
+task leasing and which boards list which jobs.
+
+**The cycle runs in two phases** (KAN-733). Phase 1 reads each board's
+listing, filters by `classify(title)` alone (no page fetches) and publishes
+through `import_feed`. Providers that return descriptions inline (Lever,
+Ashby, Recruitee) stamp `description_version` on their `job_sources` rows
+during phase 1 (`update_sources`). Phase 2, after all boards,
+fetches description pages only for postings whose `description_version` is
+NULL or below `PAGE_VERSION`: at most `MAX_DESCRIPTIONS_PER_CYCLE` (500) per
+cycle, ordered by `schedule_id` then `first_seen_at`, in 8 threads
+(`DESCRIPTION_WORKERS`) with a shared `Robots` instance. Each success
+updates the posting's page-derived fields (description, salary, job_type,
+work_style, experience_level, start_term, sponsorship) on `job_postings` and
+stamps the source; a failure stamps `description_version` without
+`description_fetched_at`, so the posting is retried only on the next
+`PAGE_VERSION` bump. Results commit in batches of 50
+(`DESCRIPTION_BATCH_SIZE`). Enrichment failures roll back the active batch
+and still allow closure detection. Preserve listing work style when rebuilding
+provider jobs, and retain stored currency/period when absent from a page: both
+salary columns are non-null, so clearing either aborts the entire batch.
+Description is pure enrichment: it never filters
+a posting out.
+
+Each board publishes independently right after it is scraped
+(`_checkpoint_board`): import_feed, update sources, advance reads and mark
+done in one commit per board, so fast boards checkpoint without waiting for
+slow ones and only one board's payload is in memory at a time. A failed
+checkpoint logs and continues: one board's failure never stops the rest or
+skips closure detection. Source tracking (`update_sources`) records every URL
+the board listed (with its `external_id`), not just the shortlisted ones
+that were published: the shortlist decides what to publish, the full listing
+decides what the board says exists. A board returning more than
+`MAX_BOARD_LISTINGS` (5,000) listings is treated as failed. After phase 2,
+one statement runs `detect_and_close` globally: a single CTE identifies
+stale jobs, counts them against the surge guard and closes in one snapshot,
+so no concurrent transaction can change the row set between the check and
+the close. `job_sources` drives closure detection (KAN-619): a job stale on
+every enabled board (two complete reads without it,
 `last_seen_at < prior_read_at`) and supported by no other enabled board is
 closed with reason `gone_from_board`; a surge guard (the feed import's
 `_MASS_CLOSE_SHARE` and `_MASS_CLOSE_FLOOR`, imported, not copied) refuses
@@ -804,6 +827,23 @@ Find files with a directory listing; these are the rules for where code goes.
   A resume's header prints them from `built_resumes.load_header_identity`
   (`resume_render.HeaderIdentity`): display, never model input, so the
   two names stay apart.
+- **Custom sections** (KAN-498, `../docs/custom_sections.md`) are
+  `routers/bank.py`'s `/sections` routes over `services/bank.py`
+  (`create_section`, `rename_section`, `delete_section`), owned as entries
+  are, and their entries are ordinary `POST .../entries` with section
+  `custom` and `custom_section_id`. A section answers `SectionError` (409)
+  at five for its owner or a name it holds. `GET /bank` sends `sections`
+  with each one's `resume_ids` (the owning upload, then the built resumes
+  that show one of its entries). The view groups them by name
+  (`resume_view.custom_key`), the page prints them by
+  `resume_render.printed_order`, Fit cuts them first, and import makes a
+  Lines section for each heading the parser keeps (`ParsedResume.others`),
+  for an AI reading too, since the combined reading adds every parser
+  entry the AI's lacks (`bank_import.with_parsers_reading`). An import stamps
+  each section it makes with `clock_timestamp()`: under `now()`, the
+  transaction's start, one import's sections tied and the bank listed them
+  in a random order. Intake refuses `custom` (422). Tests:
+  `tests/test_custom_sections.py`.
 - **An upload fills the bank** (KAN-240, `../docs/adr/0003-upload-fills-the-experience-bank.md`).
   `POST .../resumes` extracts `raw_text`, reads it (`services/resume_reading.py`:
   the model first, the heuristic parser behind it; below) and writes it with
@@ -818,7 +858,15 @@ Find files with a directory listing; these are the rules for where code goes.
   upload owns (`bank_entries.resume_id`, `bank_skills.resume_id`), then
   writes the whole reading as the upload's own, with no `find_duplicate`
   across resumes: the same job on two uploads is two rows, and Generate,
-  Tailor's ranking, Scout and the recommender read both (accepted). A
+  Tailor's ranking, Scout and the recommender read both (accepted).
+  **Generate shows one copy of each** (`built_resumes.base_choices`, pure,
+  tested without a database): a second entry by `copy_key` and a second
+  skill by name (`bank.skill_key`, ignoring case and the spaces around
+  it, KAN-504) get a hidden choice row. With both skills shown the page
+  printed "Python" twice, Fit cut both, and Cut From Resume listed it
+  twice. Resumes generated before it still show both copies; the editor's
+  Experiences picker takes both off with one untick and puts one back
+  (`frontend/CLAUDE.md`). A
   re-read replaces, so the student's edits to that upload's entries and
   their places on built resumes go, with no warning. Deleting an upload
   deletes its rows (cascade). Upload flushes the `Resume` row first (the
@@ -1755,7 +1803,9 @@ go then. A change needs to work on Cloudflare only.
   that maps it.** Every entry INSERT names the column and every bank read
   selects it, so deployed first, uploads, Import Again, Add, the
   Experiences page, Generate and every resume answer 500. It only adds a
-  column with a default, so applying it early is safe. `models/bank.py`
+  column with a default, so applying it early is safe. It sits on
+  `c9e4a1d7b498` (custom sections, KAN-498), so `upgrade head` applies that
+  one first where it is not yet applied. `models/bank.py`
   changed, so the bank job needs a pull and a restart after the merge
   (below); its old code ignores the column, so the order between the two
   is free once the migration is on.
@@ -1784,6 +1834,20 @@ go then. A change needs to work on Cloudflare only.
   The model selects the column with every listing and the import writes it,
   so a database without it fails every `GET /jobs` and every scheduled
   import.
+- **Apply `c9e4a1d7b498` (custom sections, KAN-498) before the deploy
+  that maps it.** The model names `bank_entries.custom_section_id` on every
+  entry insert, so deployed first, every upload, Import Again and Add entry
+  answers 500, and `GET /bank` too (it reads `bank_custom_sections`). It
+  only adds an enum value (`ADD VALUE`, in its own autocommit block), a
+  table and a nullable column with a CHECK every row meets, so applying it
+  early is safe. It sits on `06edf44926a1` (the merge of KAN-733's
+  `b27f4b974d5c` and KAN-726's `e8c3f1a7b925`), so `upgrade head` applies
+  those too where they are not yet applied. **Pull
+  and restart the bank job right after the deploy** (Deployment, "The bank
+  job does not deploy on merge"): its old code reads every entry through
+  `load_bank`, and its `bank_section` has no `custom`, so once a student
+  adds a custom entry, every sweep that reaches that bank fails and stale
+  banks wait until the restart.
 - **Apply `a3c6e9f1b274` (`built_resumes.page_settings`, KAN-435) as soon as
   it merges.** It only adds a JSONB column whose default `{}` is Jake's own
   page, and no code maps it yet, so it is safe for every deploy. The Format

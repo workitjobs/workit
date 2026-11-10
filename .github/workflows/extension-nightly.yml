@@ -1,7 +1,8 @@
 name: Extension nightly
 
-# The extension's whole Playwright suite, the speed harness too, which the
-# `extension` job in ci.yml leaves out of PRs for time (KAN-464).
+# The extension's whole Playwright suite, the speed harness too. The
+# `extension` job in ci.yml runs only test/ci-smoke.txt on PRs, for time
+# (KAN-464, KAN-736).
 on:
   schedule:
     - cron: "41 7 * * *"

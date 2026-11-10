@@ -42,11 +42,22 @@ resume; KAN-207 renders the bank and retired the proof endpoint.
   scripts/fetch_tectonic.py` again**, or that page answers 503 offline. The
   schema's `Literal` and `Field` limits repeat these, and a test holds them
   equal.
+- **Date format and Education order are page settings that change what
+  prints** (KAN-435): `date_format` from `DATE_FORMATS` and `education_first`
+  from `EDUCATION_FIRST`. Both act in `fields.py`, so the PDF and the Word file
+  say the same thing, and each defaults to Jake's own. Degree first swaps the
+  two rows' text and their box kinds (`degree_leads`, `heading_fields`), so
+  each box keeps its field; an entry with no degree line keeps the school on
+  top, or the top row would print empty. Dates are never typed in the editor,
+  so no format needs reading back.
 - **`PageSettings` is how a resume's page is set** (KAN-435): font size,
   line spacing, side and top margins, alignment, section and entry spacing,
   accent color, bullet, the rule under section titles, header alignment and
-  section order (`section_order`, every section once, which `jakes.body` and
-  the Word file both follow),
+  section order (`section_order`, every fixed section once, then any
+  custom section the student moved as its `resume_view.custom_key`, each
+  once: `valid_order`; `jakes.body` and the Word file both print by
+  `printed_order`, which puts a custom section the order does not name
+  first when its name reads as a summary, else last; KAN-498),
   each from a fixed list at the top of `__init__.py`, stored on
   `built_resumes.page_settings`. Section and entry spacing, the accent, the
   bullet and the rule are preamble lines; the accent on the name and the
@@ -199,6 +210,16 @@ resume; KAN-207 renders the bank and retired the proof endpoint.
   toggle on a built resume: emptying the project's tools takes the line
   off every resume that shows it. Fit to One Page never cuts the line; it
   is part of its entry's height.
+- **A custom section prints its own name** (`ViewSection.label`, KAN-498,
+  `../../../../docs/custom_sections.md`), escaped as any applicant text.
+  Its Entries print as a project's (`fields.heading`'s one-row branch).
+  **A Lines section prints its entries' bullets as plain lines**
+  (`jakes._lines`): no heading, no dot, each a `\resumeItem` with
+  `\ignorespaces` in the list the skills sit in (`label={}`), each with its
+  bullet box, and no section when it has no line. The Word file prints them
+  as plain paragraphs under the heading. A fixed section's `label` and
+  `layout` are None, and `sent_resumes.content_hash` leaves them out, so a
+  resume with no custom section hashes as before.
 - **Every `\resumeItem` argument ends in `\ignorespaces`** (KAN-391). Jake's
   macro puts a space after its argument (`{#1 \vspace{-2pt}}`); when a
   bullet's last line was full, TeX broke at that space and printed an

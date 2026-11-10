@@ -1,7 +1,7 @@
 """bank entries: tools, a project's stack (KAN-738)
 
 Revision ID: f4c7a2d9b318
-Revises: e8c3f1a7b925
+Revises: c9e4a1d7b498
 Create Date: 2026-11-09 21:10:00.000000
 
 The tools a project names ("Next.js, TypeScript, FastAPI"), in the resume's
@@ -25,7 +25,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision: str = 'f4c7a2d9b318'
-down_revision: Union[str, Sequence[str], None] = 'e8c3f1a7b925'
+down_revision: Union[str, Sequence[str], None] = 'c9e4a1d7b498'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

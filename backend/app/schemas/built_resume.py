@@ -12,7 +12,7 @@ from pydantic import (
     model_validator,
 )
 
-from app.schemas.bank import EntryResponse, SkillResponse
+from app.schemas.bank import CustomSectionResponse, EntryResponse, SkillResponse
 from app.schemas.profile import ApplicantProfileResponse
 
 Name = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=80)]
@@ -107,7 +107,9 @@ class PageSettings(BaseModel):
     bullet: Literal["dot", "dash"] = "dot"
     show_divider: bool = True
     header_alignment: Literal["left", "center", "right"] = "center"
-    section_order: list[str] = list(SECTION_ORDER)
+    # Every fixed section once, then the custom sections the student moved
+    # (KAN-498), each as resume_view.custom_key ("custom:<name>")
+    section_order: list[str] = Field(list(SECTION_ORDER), max_length=40)
     font_family: Literal[
         "latin_modern", "tinos", "caladea", "eb_garamond", "charter", "arimo", "carlito", "open_sans", "lato",
     ] = "latin_modern"
@@ -116,10 +118,14 @@ class PageSettings(BaseModel):
     heading_size: Annotated[float, Field(ge=9, le=18, multiple_of=0.5)] | None = None
     title_size: Annotated[float, Field(ge=8, le=16, multiple_of=0.5)] | None = None
     body_size: Annotated[float, Field(ge=8, le=14, multiple_of=0.5)] | None = None
+    date_format: Literal["short", "long", "year", "numeric"] = "short"
+    education_first: Literal["school", "degree"] = "school"
 
     @model_validator(mode="after")
     def _every_section_once(self) -> "PageSettings":
-        if sorted(self.section_order) != sorted(SECTION_ORDER):
+        from app.services.resume_render import valid_order
+
+        if not valid_order(self.section_order):
             raise ValueError("Send every section once")
         return self
 
@@ -292,6 +298,9 @@ class ResumeCopy(BaseModel):
 
     entries: list[EntryResponse] = Field(max_length=500)
     skills: list[SkillResponse] = Field(max_length=1000)
+    # The sections the student named (KAN-498), as GET /bank sent them: a
+    # custom entry prints under its section's name and layout
+    sections: list[CustomSectionResponse] = Field([], max_length=200)
     choices: ChoicesResponse
     identity: IdentityCopy
     # From the last render, so a render of the copy reads no resume row

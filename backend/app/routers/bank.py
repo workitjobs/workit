@@ -35,6 +35,15 @@ DELETE /applicants/{id}/bank/skills/{skill_id}   -> 204
 POST   /applicants/{id}/bank/skills/delete       DeleteMany -> 204, as entries/delete
        A deleted skill is remembered as removed (KAN-369): no reading or
        Tailor adds it again until the student adds it here by hand.
+POST   /applicants/{id}/bank/sections            CustomSectionCreate -> 201 CustomSectionResponse
+       A section the student names (KAN-498): `layout` "entries" or
+       "lines". ?resume_id= as for entries (an upload owns it; under a built
+       resume it is the student's own). 409 at MAX_CUSTOM_SECTIONS for the
+       owner, or when it has the name already, ignoring case. 422 for a
+       fixed section's name. Its entries are POST /entries with section
+       "custom" and its `custom_section_id`.
+PATCH  /applicants/{id}/bank/sections/{section_id} CustomSectionUpdate -> CustomSectionResponse (409 as above)
+DELETE /applicants/{id}/bank/sections/{section_id} -> 204 (its entries too)
 POST   /applicants/{id}/bank/import              ImportRequest -> ImportResponse
        Import Again: reads one uploaded resume's stored text (resume_id,
        else the default resume, else the newest) as every upload is read
@@ -81,6 +90,9 @@ from app.schemas.bank import (
     BulletCreate,
     BulletResponse,
     BulletUpdate,
+    CustomSectionCreate,
+    CustomSectionResponse,
+    CustomSectionUpdate,
     DeleteMany,
     DuplicateEntry,
     EntryCreate,
@@ -114,6 +126,9 @@ async def _writing(session: AsyncSession) -> AsyncIterator[None]:
     except service.DuplicateSkillError:
         await session.rollback()
         raise HTTPException(409, "That skill is already in your experience bank")
+    except service.SectionError as exc:
+        await session.rollback()
+        raise HTTPException(409, str(exc))
     except ValidationError as exc:
         await session.rollback()
         raise RequestValidationError(exc.errors(include_url=False, include_context=False))
@@ -323,6 +338,45 @@ async def delete_skills(
     return Response(status_code=204)
 
 
+@router.post("/sections", status_code=201, response_model=CustomSectionResponse)
+async def create_section(
+    body: CustomSectionCreate,
+    resume_id: uuid.UUID | None = None,
+    applicant_id: uuid.UUID = Depends(owned_applicant),
+    session: AsyncSession = Depends(get_session),
+) -> CustomSectionResponse:
+    async with _writing(session):
+        # Under a built resume the section is the student's own: a built
+        # resume shows entries, never sections (KAN-498)
+        owner, _ = await _target(session, applicant_id, resume_id)
+        section = await service.create_section(session, applicant_id, body.name, body.layout, resume_id=owner)
+    return service.section_response(section, [owner] if owner else [])
+
+
+@router.patch("/sections/{section_id}", response_model=CustomSectionResponse)
+async def rename_section(
+    section_id: uuid.UUID,
+    body: CustomSectionUpdate,
+    applicant_id: uuid.UUID = Depends(owned_applicant),
+    session: AsyncSession = Depends(get_session),
+) -> CustomSectionResponse:
+    async with _writing(session):
+        section = await service.rename_section(session, applicant_id, section_id, body.name)
+        response = service.section_response(section, [section.resume_id] if section.resume_id else [])
+    return response
+
+
+@router.delete("/sections/{section_id}", status_code=204)
+async def delete_section(
+    section_id: uuid.UUID,
+    applicant_id: uuid.UUID = Depends(owned_applicant),
+    session: AsyncSession = Depends(get_session),
+) -> Response:
+    async with _writing(session):
+        await service.delete_section(session, applicant_id, section_id)
+    return Response(status_code=204)
+
+
 async def _resume_to_import(session: AsyncSession, applicant_id: uuid.UUID, resume_id: uuid.UUID | None) -> Resume:
     from app.queries.bank import resume_to_import
     resume = await resume_to_import(session, applicant_id, resume_id)
@@ -342,6 +396,8 @@ async def import_resume(
     resume = await _resume_to_import(session, applicant_id, body.resume_id)
     # The stored text, read again, so a resume uploaded before a parser fix
     # gets the fix. The AI use, if any, commits with the bank writes below.
+    # The parser's custom sections (KAN-498) come through the combined
+    # reading: the AI reads only the fixed sections, so they have no twin there.
     reading, left = await read_upload(session, applicant_id, account, resume.raw_text, llm)
     async with _writing(session):
         imported = await service.import_upload(session, applicant_id, resume.id, reading.entries, reading.skills)

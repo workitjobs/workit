@@ -260,9 +260,22 @@ design rationale is in `../../../docs/resume.md`, "The experience bank";
 the rules every write follows are in `../services/bank.py`. Invariants a
 change here must keep:
 
-- **`bank_section` has six values, not seven.** Skills is a section to the
-  student but its own table. Adding a section is an `ALTER TYPE ... ADD
-  VALUE` and a coordinated deploy (above).
+- **`bank_section` has the six fixed sections and `custom`**, not
+  Skills: Skills is a section to the student but its own table. Adding a
+  fixed section is an `ALTER TYPE ... ADD VALUE` and a coordinated deploy
+  (above); a section the student names never is, since it is a row.
+- **A section the student names is a `bank_custom_sections` row** (KAN-498,
+  `c9e4a1d7b498`, `../../../docs/custom_sections.md`): its `name`, its
+  `layout` (`entries` or `lines`, a CHECK, not an enum, so a third layout
+  needs no coordinated deploy) and its owner `resume_id`, which cascades as
+  an entry's does. A custom entry is `section = 'custom'` with
+  `custom_section_id` set, and only then
+  (`bank_entries_custom_section_check`); deleting the section deletes its
+  entries. One name per owner, ignoring case
+  (`bank_custom_sections_owner_name_key`, `NULLS NOT DISTINCT`); at most
+  `schemas/bank.py`'s `MAX_CUSTOM_SECTIONS` per owner, checked in
+  `services/bank.py`, not the database. The section is fixed once an entry
+  exists, as `section` is: `EntryUpdate` forbids the key.
 - **`experience_banks` has one row per applicant, made by the first bank
   change** (an upsert in `clear_embedding`), not at signup. A missing row
   reads as "no embedding yet". Its `embedding` is the only applicant vector
@@ -1336,6 +1349,32 @@ Real, not forgotten. Do not treat their absence as a decision already made.
   posting writes it, '' for none), written once by the first student's
   Claude and shared by every student applying to that posting; it goes
   with the posting (ON DELETE CASCADE). Migration `d2f4a6c8e013`.
+
+## Scraper tables — `scraper.py`
+
+`Scraper_Schedule`, `Scraper_Task` and `Job_Source` (KAN-605, KAN-619,
+KAN-733). The worker's own tables, documented in `../../CLAUDE.md`'s scraper
+paragraph. Invariants for `Job_Source`:
+
+- **One row per (schedule, apply_url)**, the unique constraint. `external_id`
+  is the posting's id on its hiring system, written by `update_sources` from
+  the provider's `Job.external_id`. Phase 2 needs it to build the description
+  page URL via `providers.job_url(ats, token, external_id)`.
+- **`description_version`** (SmallInteger, nullable): the `PAGE_VERSION` at
+  the last description fetch. NULL means "needs fetch" for postings without
+  inline descriptions; a value equal to `PAGE_VERSION` means current. Phase 2
+  queries `WHERE description_version IS NULL OR description_version <
+  PAGE_VERSION`. A failure stamps the version without `description_fetched_at`,
+  so the posting is retried only on the next `PAGE_VERSION` bump.
+- **`description_fetched_at`** (DateTime with timezone, nullable): when the
+  description was last successfully fetched. NULL for postings that failed or
+  have not been fetched yet.
+- **Inline providers** (Lever, Ashby, Recruitee) stamp `description_version`
+  and `description_fetched_at` during phase 1 via `update_sources`,
+  so phase 2 skips them.
+- **Migration:** `b27f4b974d5c` adds `external_id`, `description_version` and
+  `description_fetched_at` to `job_sources`. Existing rows get NULL, which is
+  correct: NULL `description_version` means "needs fetch".
 
 ## Out of scope
 

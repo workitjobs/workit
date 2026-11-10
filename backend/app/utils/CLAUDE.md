@@ -42,6 +42,13 @@ Papers, Presentations and Patents are publications.
 - **A header is a whole line** that `SECTION_RE` matches in full: terms
   joined by "&" or "and", maybe ending in any one word ("Skills &
   Abilities"). A bullet line is never a header.
+- **Two words side by side, with no "&", are one term only when `_TERM`
+  lists them** (KAN-263): "Leadership Activities", "Leadership Roles" and
+  "Campus Leadership" are. "Leadership Activities" was not, so the resume
+  KAN-263 names put its Resident Assistant role inside its last project.
+  A new heading of that shape goes into `_TERM` with a line in `HEADINGS`;
+  `SECTION_RE` does not accept any two terms in a row, which would let
+  ordinary body lines ("Research Tools") read as headings.
 - **Formats come off first**: a colon ("Education:"), a rule or dash
   ("EXPERIENCE ____", "— Experience —"), a symbol or number in front ("■
   Experience", "01 Experience"), spaced letters ("E X P E R I E N C E") and
@@ -53,9 +60,18 @@ Papers, Presentations and Patents are publications.
   projects ("Research Projects"), leadership ("Leadership Experience",
   "Volunteer Work"), awards, certifications, education ("Coursework" holds
   "work"), experience, skills.
-- **Sections import does not save are still headers** (Summary,
-  Qualifications, Interests, Hobbies, References, Additional Information,
-  Other), so their text joins nothing. Each keeps its own name.
+- **A heading the bank has no section for is kept** (KAN-498): Summary,
+  Qualifications, Interests, Hobbies, Additional Information, Other and the
+  learned "other" labels are headers, each under its own name, and
+  `parse_resume` returns their text as `ParsedResume.others` (the heading as
+  the resume first wrote it, in title case when it was all upper or all
+  lower case: `_display_heading`), which import saves as a Lines section of
+  that name (`../../../docs/custom_sections.md`). **References** is the one it
+  drops. The lines (`_plain_lines`): with bullet markers, as `_bullets`
+  reads them; without, a line continues the one above when it starts in
+  lower case, or the line above ends in a comma or filled the column (70
+  characters or more, not ending a sentence), so a wrapped summary is one
+  line and a list of interests stays several.
 - **A coursework header keeps its label** in Education's text, and the line
   after a label ending in ":" continues it, so the school's parser still
   finds "Relevant Coursework: ...".
