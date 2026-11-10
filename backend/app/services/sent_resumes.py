@@ -105,7 +105,7 @@ def _page(page: PageSettings) -> dict:
     return {} if page == DEFAULT_PAGE else {"page": dataclasses.asdict(page)}
 
 
-_ONLY_SET = frozenset({"marked", "label", "layout"})
+_ONLY_SET = frozenset({"marked", "label", "layout", "tools"})
 
 
 def content_hash(
@@ -117,7 +117,8 @@ def content_hash(
     never had it, so a repeat still matches a sent resume kept before."""
     # An empty `marked` stays out, so a resume with no bold or italic still
     # matches a sent resume kept before KAN-435; so do a fixed section's empty
-    # `label` and `layout`, from before KAN-498
+    # `label` and `layout`, from before KAN-498, and empty `tools`, for a
+    # resume with no project stack and one kept before KAN-738
     plain = dataclasses.asdict(
         view, dict_factory=lambda items: {k: v for k, v in items if k not in _ONLY_SET or v})
     payload = {"template": template, "identity": _identity(identity), "view": plain, **_page(page)}

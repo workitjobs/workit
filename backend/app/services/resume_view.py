@@ -143,6 +143,7 @@ class ViewEntry:
     coursework: tuple[str, ...] = ()
     honors: str | None = None
     link: str | None = None
+    tools: tuple[str, ...] = ()  # a project's stack (KAN-738)
     issuer: str | None = None
     award_date: datetime.date | None = None
     bullets: tuple[ViewBullet, ...] = ()
@@ -234,6 +235,7 @@ def build_view(bank: Any, choices: Choices) -> ResumeView:
                 coursework=tuple(row.coursework or ()) if choice.show_coursework else (),
                 honors=row.honors,
                 link=row.link,
+                tools=tuple(row.tools or ()),
                 issuer=row.issuer,
                 award_date=row.award_date,
                 bullets=tuple(_bullet(b, choices.bullets[b.id].text) for b in bullets),
@@ -278,6 +280,8 @@ def view_from_json(data: Mapping[str, Any]) -> ResumeView:
             **{k: datetime.date.fromisoformat(e[k]) if e[k] else None for k in _DATES},
             **{k: Decimal(e[k]) if e[k] is not None else None for k in _DECIMALS},
             "coursework": tuple(e["coursework"]),
+            # A snapshot kept before KAN-738 has no "tools"
+            "tools": tuple(e.get("tools", ())),
             # A snapshot kept before KAN-435 has no "marked"
             "bullets": tuple(ViewBullet(uuid.UUID(b["id"]), b["text"], b.get("marked")) for b in e["bullets"]),
         })
@@ -317,7 +321,7 @@ def view_from_reading(entries: Iterable[Any], skills: Iterable[tuple[str, str | 
             # The draft's GPA is a float; a view's is a Decimal, as the bank's.
             gpa=None if d.gpa is None else Decimal(str(d.gpa)),
             gpa_scale=None if d.gpa_scale is None else Decimal(str(d.gpa_scale)),
-            coursework=tuple(d.coursework), honors=d.honors, link=d.link, issuer=d.issuer,
+            coursework=tuple(d.coursework), honors=d.honors, link=d.link, tools=tuple(d.tools), issuer=d.issuer,
             award_date=d.award_date,
             bullets=tuple(ViewBullet(next(ids), text) for text in d.bullets),
         ))

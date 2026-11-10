@@ -1517,3 +1517,143 @@ def test_a_minor_the_model_copied_as_written_reads_as_the_parser_writes_it():
             {"section": "education", "title": "Riverside State University", "field_of_study": field},
         ]})
         assert model_drafts(reading, text)[0].field_of_study == "Biology, minor in Writing & Rhetoric"
+
+
+# --- a project's tools (KAN-738) -------------------------------------------------
+#
+# A project keeps the stack the resume names for it, in the resume's spelling
+# and order, and the tools still become skills.
+
+TOOLS_TEXT = """\
+Projects
+workitjobs.ai | AI Job Search Platform  Sep 2026 - Present
+Next.js, TypeScript, Tailwind CSS, Framer Motion, FastAPI, PostgreSQL
+•Lead design and front-end on a 5-person team
+Maze Robot (C++, Python, ROS)  Jan 2025 - May 2025
+•Built a maze robot that solves a 16x16 maze
+Experience
+Acme Corp  Jun 2025 - Aug 2025
+Software Engineer Intern
+•Built Go services for billing
+"""
+STACK = ["Next.js", "TypeScript", "Tailwind CSS", "Framer Motion", "FastAPI", "PostgreSQL"]
+
+
+def _project(reading_or_entries, title: str):
+    entries = reading_or_entries["entries"] if isinstance(reading_or_entries, dict) \
+        else getattr(reading_or_entries, "entries", reading_or_entries)
+    return next(e for e in entries if (e["title"] if isinstance(e, dict) else e.title) == title)
+
+
+def test_the_parser_reads_a_projects_tools_onto_the_project():
+    entries, skills = read(TOOLS_TEXT)
+    site, robot = (_project(entries, t) for t in ("workitjobs.ai | AI Job Search Platform", "Maze Robot"))
+    assert site.tools == STACK
+    assert site.bullets == ["Lead design and front-end on a 5-person team"]
+    assert robot.tools == ["C++", "Python", "ROS"]
+    # Still skills too, each once
+    assert {name for name, _ in skills} >= {*STACK, "C++", "Python", "ROS"}
+
+
+async def test_an_upload_saves_each_projects_tools_and_their_skills(student, upload):
+    client, applicant_id, bank = student
+    assert (await upload(client, applicant_id, TOOLS_TEXT)).status_code == 200
+
+    saved = (await client.get(bank)).json()
+    assert _project(saved, "workitjobs.ai | AI Job Search Platform")["tools"] == STACK
+    assert _project(saved, "Maze Robot")["tools"] == ["C++", "Python", "ROS"]
+    assert all(e["tools"] == [] for e in saved["entries"] if e["section"] != "projects")
+    assert {s["name"] for s in saved["skills"]} >= {*STACK, "C++", "Python", "ROS"}
+
+
+async def test_a_previews_tools_are_what_its_confirm_saves(student, upload):
+    client, applicant_id, bank = student
+    preview = (await upload(client, applicant_id, TOOLS_TEXT, preview=True)).json()
+    assert _project(preview, "Maze Robot")["tools"] == ["C++", "Python", "ROS"]
+
+    # The student took ROS out in the preview
+    _project(preview, "Maze Robot")["tools"] = ["C++", "Python"]
+    res = await upload(client, applicant_id, TOOLS_TEXT, replace_matching=True, reading=_confirming(preview))
+    assert res.status_code == 200
+    assert _project((await client.get(bank)).json(), "Maze Robot")["tools"] == ["C++", "Python"]
+
+
+async def test_a_confirmed_reading_with_tools_on_a_job_is_refused(student, upload):
+    client, applicant_id, _ = student
+    preview = (await upload(client, applicant_id, TOOLS_TEXT, preview=True)).json()
+    job = next(e for e in preview["entries"] if e["section"] == "experience")
+    job["tools"] = ["Go"]
+    res = await upload(client, applicant_id, TOOLS_TEXT, replace_matching=True, reading=_confirming(preview))
+    assert res.status_code == 422
+
+
+async def _read_tools(reply: dict):
+    from workit_scout.identity import Identity
+
+    from app.services.bank_import import read_resume
+
+    return await read_resume(TOOLS_TEXT, ScriptedLLM(_reading(reply)), Identity())
+
+
+def _tools_reply(site_tools: list[str], robot_bullets: list[str], job_tools: list[str]) -> dict:
+    return {
+        "entries": [
+            {"section": "projects", "title": "workitjobs.ai | AI Job Search Platform", "start_month": "2026-09",
+             "end_kind": "present", "tools": site_tools,
+             "bullets": ["Lead design and front-end on a 5-person team"]},
+            {"section": "projects", "title": "Maze Robot", "start_month": "2025-01", "end_month": "2025-05",
+             "end_kind": "month", "bullets": robot_bullets},
+            {"section": "experience", "title": "Software Engineer Intern", "organization": "Acme Corp",
+             "start_month": "2025-06", "end_month": "2025-08", "end_kind": "month", "tools": job_tools,
+             "bullets": ["Built Go services for billing"]},
+        ],
+        "skills": [],
+    }
+
+
+async def test_the_models_tools_are_checked_against_the_text():
+    # Kubernetes is nowhere on the resume, so it goes like any field the
+    # text does not back; the rest stay, in the resume's order
+    reply = _tools_reply(["Next.js", "TypeScript", "Kubernetes"], ["Built a maze robot that solves a 16x16 maze"], [])
+    reading = await _read_tools(reply)
+    assert reading.read_by == "model"
+    assert _project(reading, "workitjobs.ai | AI Job Search Platform").tools == ["Next.js", "TypeScript"]
+    assert "Kubernetes" not in {name for name, _ in reading.skills}
+
+
+async def test_a_stack_line_the_model_copied_as_a_bullet_becomes_the_projects_tools():
+    reply = _tools_reply(STACK, ["C++, Python, ROS", "Built a maze robot that solves a 16x16 maze"], [])
+    reading = await _read_tools(reply)
+    robot = _project(reading, "Maze Robot")
+    assert robot.tools == ["C++", "Python", "ROS"]
+    assert robot.bullets == ["Built a maze robot that solves a 16x16 maze"]
+    assert {name for name, _ in reading.skills} >= {*STACK, "C++", "Python", "ROS"}
+
+
+async def test_the_parser_gives_a_project_the_tools_the_model_left_out():
+    reply = _tools_reply([], ["Built a maze robot that solves a 16x16 maze"], [])
+    reading = await _read_tools(reply)
+    assert _project(reading, "workitjobs.ai | AI Job Search Platform").tools == STACK
+    assert _project(reading, "Maze Robot").tools == ["C++", "Python", "ROS"]
+
+
+async def test_tools_the_model_gave_a_job_become_skills_and_keep_the_job():
+    # Only a project holds tools; a job's would fail the entry schema, and
+    # the job with them
+    reply = _tools_reply(STACK, ["Built a maze robot that solves a 16x16 maze"], ["Go", "Rust"])
+    reading = await _read_tools(reply)
+    job = next(e for e in reading.entries if e.section == "experience")
+    assert (job.title, job.tools) == ("Software Engineer Intern", [])
+    names = {name for name, _ in reading.skills}
+    assert "Go" in names and "Rust" not in names  # Rust is not on the resume
+
+
+def test_real_resumes_keep_each_projects_stack_on_the_project():
+    # The stack after a "|" and the stack on its own line under the name
+    # (2026-11-09), both in the resume's spelling and order
+    entries, _ = read(_fixture_text("word_pipe_layout.txt"))
+    assert _project(entries, "WorkIt | Full Stack Recruiting Platform").tools == [
+        "Next.js", "Python", "FastAPI", "Supabase", "SQLAlchemy", "Alembic"]
+    entries, _ = read(_fixture_text("google_docs_single_column.txt"))
+    assert _project(entries, "pulp101.com (Pulp) | Editorial & Discussion Platform").tools == [
+        "Next.js", "TypeScript", "Tailwind CSS", "Framer Motion"]

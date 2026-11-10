@@ -1799,6 +1799,16 @@ go then. A change needs to work on Cloudflare only.
   either way: their applied-job filter names only the stages before applied
   (`dto.BEFORE_APPLIED`, the models' CLAUDE.md). Merge the migration to
   `main` in its own PR first, then apply it, then test the branch.
+- **Apply `f4c7a2d9b318` (`bank_entries.tools`, KAN-738) before the deploy
+  that maps it.** Every entry INSERT names the column and every bank read
+  selects it, so deployed first, uploads, Import Again, Add, the
+  Experiences page, Generate and every resume answer 500. It only adds a
+  column with a default, so applying it early is safe. It sits on
+  `c9e4a1d7b498` (custom sections, KAN-498), so `upgrade head` applies that
+  one first where it is not yet applied. `models/bank.py`
+  changed, so the bank job needs a pull and a restart after the merge
+  (below); its old code ignores the column, so the order between the two
+  is free once the migration is on.
 - **Apply `7b59d19d13a8` (`job_applications.apply_by`) and `0d8dd3b7d8fd`
   (`application_events.ends_at`), KAN-429's two, before the deploy that
   maps them.** The models select each column with every row, so deployed

@@ -28,7 +28,13 @@ from workit_scout.llm import LLM
 from app.models.dto import Experience, ParsedResume, bank_section, entry_end_kind
 from app.schemas.bank import SECTION_FIELDS, DraftEntry, ModelReading
 from app.services import skill_catalog
-from app.utils.resume_parser import is_tools_line, parse_resume, section_of, split_tools
+from app.utils.resume_parser import (
+    is_tools_line,
+    parse_resume,
+    section_of,
+    split_tools,
+    tool_items,
+)
 
 _SHORT, _LONG, _NAME = 200, 500, 60
 _COURSEWORK_RE = re.compile(r"^(?:Relevant\s+)?(?:Coursework|Courses)\s*:?\s*", re.IGNORECASE)
@@ -65,6 +71,20 @@ def _clip(value: str | None, limit: int = _SHORT) -> str | None:
 def _bullets(description: str | None) -> list[str]:
     lines = [_clip(line, _LONG) for line in (description or "").splitlines()]
     return [line for line in lines if line][:30]
+
+
+def _tools(items: list[str]) -> list[str]:
+    """A project's tools as the resume spells them, clipped, each once
+    (ignoring case), at most 30. Not checked against the skills catalog:
+    the stack line prints what the student wrote (KAN-738)."""
+    seen: set[str] = set()
+    out: list[str] = []
+    for item in items:
+        tool = _clip(item, _NAME)
+        if tool and tool.casefold() not in seen:
+            seen.add(tool.casefold())
+            out.append(tool)
+    return out[:30]
 
 
 def _span(start: datetime.date | None, end: datetime.date | None) -> dict:
@@ -118,6 +138,7 @@ def _raw_drafts(parsed: ParsedResume, today: datetime.date) -> list[dict]:
             "section": bank_section.projects,
             "title": _clip(project.project_name),
             "link": _clip(project.url, _LONG),
+            "tools": _tools(project.technologies),
             **_span(project.start_date, project.end_date),
             "bullets": _bullets(project.description),
         })
@@ -242,6 +263,10 @@ no end_month) or "expected" (an expected end, such as graduation).
 - Education only: degree, field_of_study, gpa, gpa_scale, coursework, honors. \
 field_of_study is the major, with any minor after it as the resume writes it \
 ("Computer Science, minor in Writing & Rhetoric"). \
+Projects only: tools, the list of tools the resume names for the project, \
+after its name, in parentheses or on a line of their own under it \
+("Next.js, TypeScript, FastAPI"), each as written. A line that only lists \
+tools is never a bullet, and the tools are never part of the title. \
 Certifications only: issuer. Awards only: award_date, in place of start and \
 end. Leave other sections' fields empty.
 - skills: each skill the resume lists, with its group ("Languages", "Tools") \
@@ -296,6 +321,11 @@ def model_drafts(reading: ModelReading, text: str | None = None) -> list[DraftEn
             raw["field_of_study"] = _MINOR_JOIN_RE.sub(", minor in ", raw["field_of_study"])
         raw["honors"] = _clip(raw["honors"], _LONG)
         raw["coursework"] = [c for c in (_clip(x) for x in raw["coursework"] if not _withheld(x)) if c][:40]
+        # Only a project holds tools (KAN-738): a role's would fail the
+        # entry schema and drop the whole role. They reach the skills
+        # through `role_tools`.
+        raw["tools"] = _tools([t for t in raw["tools"] if not _withheld(t)]) \
+            if raw["section"] is bank_section.projects else []
         # A bullet still holding a placeholder (`with_own_wording` found the
         # parser no match for it) would save "[name]" for good.
         raw["bullets"] = [b for b in (_clip(x, _LONG) for x in raw["bullets"]) if b and not _withheld(b)][:30]
@@ -310,6 +340,17 @@ def model_drafts(reading: ModelReading, text: str | None = None) -> list[DraftEn
         if draft := _valid(raw):
             drafts.append(draft)
     return drafts
+
+
+def role_tools(reading: ModelReading, text: str | None = None) -> list[str]:
+    """The tools the model gave an entry that is not a project, which only a
+    project holds (KAN-738); given the resume's `text`, only those it backs.
+    They become skills, as a role's tools from the parser do."""
+    words = set(_words(text)) if text else None
+    return [
+        tool for entry in reading.entries if entry.section is not bank_section.projects
+        for tool in entry.tools if not _withheld(tool) and (words is None or _backed(tool, words))
+    ]
 
 
 def model_skills(reading: ModelReading, text: str | None = None) -> list[tuple[str, str | None]]:
@@ -376,9 +417,11 @@ async def read_resume(raw_text: str | None, llm: LLM | None = None, identity: Id
         return parsed
     drafts, tools = with_tools_split(drafts)
     drafts = with_parsers_reading(with_links(with_award_givers(drafts), entries), entries)
-    # The model's skills first, so its groups win; then the parser's, which
-    # the catalog already passed, so a skill the model left out is kept.
-    found = model_skills(reading, text) + [(tool, None) for tool in tools] + skills
+    # The model's skills first, so its groups win; then each project's
+    # tools, and the parser's skills, which the catalog already passed, so
+    # a skill the model left out is kept.
+    beside = tools + [tool for draft in drafts for tool in draft.tools] + role_tools(reading, text)
+    found = model_skills(reading, text) + [(tool, None) for tool in beside] + skills
     return Reading(drafts, skill_pairs(found), "model")
 
 
@@ -387,7 +430,10 @@ def with_tools_split(drafts: list[DraftEntry]) -> tuple[list[DraftEntry], list[s
     which become skills, as the parser splits them: "Budget Buddy (React,
     Firebase)" and "Robot | C++, Python" keep only the name. The truth rule
     has the model copy a title whole, so without this the tools stayed in it
-    (KAN-369's glued titles, back)."""
+    (KAN-369's glued titles, back). A project also keeps them as its own
+    tools when the model gave it none (KAN-738), and so does a project
+    whose first bullets only list tools: the model copied the stack line as
+    a bullet, which the parser reads as tools (`is_tools_line`)."""
     tools: list[str] = []
     for draft in drafts:
         if draft.section not in (bank_section.experience, bank_section.leadership, bank_section.projects):
@@ -395,6 +441,11 @@ def with_tools_split(drafts: list[DraftEntry]) -> tuple[list[DraftEntry], list[s
         name, found = title_and_tools(draft.title)
         if found and name:
             draft.title, tools = name, tools + found
+            if draft.section is bank_section.projects and not draft.tools:
+                draft.tools = _tools(found)
+        while draft.section is bank_section.projects and draft.bullets and is_tools_line(draft.bullets[0]):
+            line = draft.bullets.pop(0)
+            draft.tools = draft.tools or _tools(tool_items(line))
     return drafts, tools
 
 
@@ -506,6 +557,8 @@ def _fill_blanks(twin: DraftEntry, entry: DraftEntry) -> None:
         fill.update(gpa=entry.gpa, gpa_scale=entry.gpa_scale)
     if not twin.coursework and entry.coursework:
         fill["coursework"] = entry.coursework
+    if not twin.tools and entry.tools:
+        fill["tools"] = entry.tools
     if twin.award_date is None and entry.award_date is not None:
         fill["award_date"] = entry.award_date
     if twin.start_month is None and twin.end_month is None and twin.end_kind is None:
@@ -592,6 +645,7 @@ def _backed_fields(raw: dict, words: set[str]) -> dict:
             raw[field] = None
     raw["bullets"] = [b for b in raw["bullets"] if _backed(b, words)]
     raw["coursework"] = [c for c in raw["coursework"] if _backed(c, words)]
+    raw["tools"] = [t for t in raw["tools"] if _backed(t, words)]
     if any(raw[f] and raw[f][:4] not in words for f in ("start_month", "end_month", "award_date")):
         raw.update(start_month=None, end_month=None, end_kind=None, award_date=None)
     if raw["gpa"] is not None and not _number_backed(raw["gpa"], words):

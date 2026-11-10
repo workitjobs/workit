@@ -503,7 +503,7 @@ def bank_sources(bank: Bank) -> list[str]:
         row = entry.row
         texts += [str(v) for v in (
             row.title, row.organization, row.location, row.degree, row.field_of_study, row.gpa, row.gpa_scale,
-            row.honors, row.issuer, *(row.coursework or ()),
+            row.honors, row.issuer, *(row.coursework or ()), *(row.tools or ()),
             *(d.year for d in (row.start_month, row.end_month, row.award_date) if d),
         ) if v is not None]
         texts += [b.text for b in entry.bullets]

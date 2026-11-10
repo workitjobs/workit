@@ -3,7 +3,43 @@ import { test } from "node:test";
 
 import type { BankEntry } from "@/lib/bank-actions";
 
-import { changesOf, draftOf, emptyDraft, isFixed, rowGaps } from "./sections.ts";
+import {
+  changesOf,
+  draftOf,
+  emptyDraft,
+  holdsTools,
+  isFixed,
+  rowGaps,
+  splitList,
+  TOOL_COMMA,
+  toolsLine,
+} from "./sections.ts";
+
+test("only a project holds tools", () => {
+  assert.equal(holdsTools("projects"), true);
+  assert.equal(holdsTools("experience"), false);
+  assert.equal(holdsTools("education"), false);
+});
+
+test("a typed list splits at commas, trimmed, with no empty items", () => {
+  assert.deepEqual(splitList(" Algorithms,, Operating Systems ,"), [
+    "Algorithms",
+    "Operating Systems",
+  ]);
+});
+
+test("tools keep a comma inside parentheses, as the API splits a typed tools line", () => {
+  assert.deepEqual(splitList("Next.js, Supabase (PostgreSQL, pgvector), FastAPI", TOOL_COMMA), [
+    "Next.js",
+    "Supabase (PostgreSQL, pgvector)",
+    "FastAPI",
+  ]);
+});
+
+test("the tools line is the list as the resume prints it, or nothing", () => {
+  assert.equal(toolsLine({ tools: ["Next.js", "TypeScript"] }), "Next.js, TypeScript");
+  assert.equal(toolsLine({ tools: [] }), null);
+});
 
 // The fields the entry PATCH declares (backend/app/schemas/bank.py,
 // EntryUpdate). It forbids any other key: one more and the whole edit is a
@@ -22,6 +58,7 @@ const PATCH_FIELDS = [
   "coursework",
   "honors",
   "link",
+  "tools",
   "issuer",
   "award_date",
 ];
@@ -45,6 +82,7 @@ const saved: BankEntry = {
   coursework: [],
   honors: null,
   link: null,
+  tools: [],
   issuer: null,
   award_date: null,
   bullets: [{ id: "b1", position: 0, text: "Built the billing service" }],

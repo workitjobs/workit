@@ -230,6 +230,8 @@ function typeOf(kind: string, section: string | null, page: PageSettings, degree
   // Degree First prints the school on the degree's row, in its italic
   if (kind === "title") return { size, bold: !degreeFirst, italic: degreeFirst };
   if (kind === "organization") return { size, bold: false, italic: true };
+  // A project's tools line (KAN-738) is \textit{\small ...}, the body's size
+  if (kind === "tools") return { size, bold: false, italic: true };
   // Education's location is the heading's right slot, upright
   if (kind === "location") return { size, bold: false, italic: section !== "education" };
   return { size, bold: false, italic: false };
@@ -269,7 +271,9 @@ type Adding = {
   id: string | null;
 };
 
-/** Lines that wrap: typed in a field as wide as the text column. */
+/** Lines that wrap: typed in a field as wide as the text column. A
+ *  project's tools line does not: it is a heading's row, a tabular's `l`
+ *  column, which never wraps, as an organization's does not. */
 const WRAPS = new Set(["bullet", "coursework", "honors"]);
 
 const DEFAULT_WRAPPED_LINE = 12;

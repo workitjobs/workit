@@ -20,6 +20,7 @@ const CLUB: PreviewEntry = {
   coursework: [],
   honors: null,
   link: null,
+  tools: [],
   issuer: null,
   award_date: null,
   custom_section_id: null,
@@ -65,4 +66,19 @@ test("a new title stops naming the replaced rows, and an empty bullet box goes",
   );
   assert.deepEqual(edited.replaces, []);
   assert.deepEqual(edited.bullets, []);
+});
+
+test("a project's tools come through the editor and back into the reading", () => {
+  const project: PreviewEntry = {
+    ...CLUB,
+    section: "projects",
+    title: "workitjobs.ai",
+    organization: null,
+    tools: ["Next.js", "TypeScript"],
+    replaces: [],
+  };
+  const draft = draftOfPreview(project);
+  assert.deepEqual(draft.tools, ["Next.js", "TypeScript"]);
+  const edited = previewOfDraft({ ...draft, tools: [...draft.tools, "FastAPI"] }, project);
+  assert.deepEqual(edited.tools, ["Next.js", "TypeScript", "FastAPI"]);
 });

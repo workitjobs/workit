@@ -109,6 +109,9 @@ class Bank_Entry(BaseModel):
     honors: Mapped[str | None]
     # Projects
     link: Mapped[str | None]
+    # The project's stack as the resume names it ("Next.js, TypeScript"),
+    # printed on its own line under the heading (KAN-738). Also skills.
+    tools: Mapped[list[str]] = mapped_column(ARRAY(Text), server_default=text("'{}'"))
     # Certifications
     issuer: Mapped[str | None]
     # Awards

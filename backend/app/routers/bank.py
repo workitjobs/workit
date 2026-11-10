@@ -6,7 +6,7 @@ duplicate check, bullet order) live in `app/services/bank.py`.
 Months are "YYYY-MM". An entry's `end_kind` is "month", "present" or
 "expected"; present has no `end_month`, the others need one. Section fields
 (Education: degree, field_of_study, gpa, gpa_scale, coursework, honors;
-Projects: link; Certifications: issuer; Awards: award_date) must be empty on
+Projects: link, tools; Certifications: issuer; Awards: award_date) must be empty on
 entries of other sections, or the request answers 422.
 
 GET    /applicants/{id}/bank                     -> BankResponse

@@ -60,7 +60,7 @@ def _row(section, title, *, custom_section_id=None, **fields):
         id=uuid.uuid4(), section=section, custom_section_id=custom_section_id, title=title,
         organization=fields.get("organization"), location=None, start_month=None, end_month=None,
         end_kind=None, degree=None, field_of_study=None, gpa=None, gpa_scale=None, coursework=[], honors=None,
-        link=None, issuer=None, award_date=None,
+        link=None, tools=[], issuer=None, award_date=None,
     )
 
 
@@ -225,9 +225,10 @@ def test_the_word_file_prints_custom_sections_in_the_same_order():
 def test_a_resume_with_no_custom_section_hashes_as_before():
     from app.services.sent_resumes import _identity, content_hash
 
-    # The hash before KAN-498: no label or layout key, no empty `marked`
+    # The hash before KAN-498: no label or layout key, no empty `marked`,
+    # and no empty `tools`, from before KAN-738
     view = dataclasses.asdict(VIEW, dict_factory=lambda items: {
-        k: v for k, v in items if k not in ("label", "layout") and (k != "marked" or v)})
+        k: v for k, v in items if k not in ("label", "layout") and (k not in ("marked", "tools") or v)})
     payload = {"template": "jakes", "identity": _identity(IDENTITY), "view": view}
     before = hashlib.sha256(json.dumps(payload, sort_keys=True, default=str).encode()).hexdigest()
     assert content_hash(VIEW, IDENTITY, "jakes") == before

@@ -25,6 +25,10 @@ A named ability in the experience bank. Skills are one list per student, not tie
 A resume reading or Tailor adds only skills the **skills catalog** lists (`backend/data/skills.txt`): tools, languages, frameworks and hard skills, never soft skills or degrees. A skill the student types is not checked.
 _Avoid_: keyword, tag
 
+**Tools**:
+A project's own list of the tools it was built with ("Next.js, TypeScript, FastAPI"), in the student's words and order. A built resume prints it on a line under the project's heading. Only a project has tools; the same names are also skills (KAN-738).
+_Avoid_: stack, technologies, tech stack
+
 **Bullet**:
 One line of achievement belonging to one entry.
 _Avoid_: description, point

@@ -87,6 +87,9 @@ def _entry(doc, entry: ViewEntry, page: PageSettings) -> None:
             _row(doc, h.subtitle, h.subright, italic=True)
     else:
         _row(doc, h.title, h.right, bold=True, tag=h.tag)
+        if h.subtitle:
+            # A project's tools, on their own line as the PDF prints them
+            _row(doc, h.subtitle, "", italic=True)
     for text in [line for _, line in details(entry)] + [b.text for b in entry.bullets]:
         p = doc.add_paragraph(text, style="List Bullet")
         p.paragraph_format.space_after = Pt(0)
