@@ -109,7 +109,10 @@ them. `apply.plain.tile.PortFrames` is their frame source for the same
   synthetic DOM events (`page/tile.js`). It handles press, release, move,
   wheel, keys, text, copy, and choosing from a `<select>` menu, and it
   reaches into iframes, cross-origin ones too. Keys reuse `page/dom.js`'s
-  `press`, which now moves the caret for Arrow, Home and End.
+  `press`, which now moves the caret for Arrow, Home and End. Enter never
+  sends a form, from a field or a focused submit button (KAN-716): Lisul
+  clicks the button himself. `tests/test_submit_guard_hostile.py -k lifted_page`
+  proves it on a lifted page, where no guard would stop it.
 - **Files.** An untrusted click opens no file picker. The extension marks
   the input a click asked for: an input or its label, or a page script's
   `input.click()` or `showPicker()`. The tile then asks Lisul for the file,

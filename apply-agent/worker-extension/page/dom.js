@@ -244,13 +244,12 @@
         if (target.select) target.select();
         else document.execCommand("selectAll");
       } else if (k === "Enter") {
+        // Enter never sends a form (KAN-716): no implicit submission from a field, and no press of a
+        // submit button that has the focus. On amazon.jobs a synthetic Enter in a box clicked the
+        // form's submit button and jumped to Review; on a lifted last step it would have sent it.
+        // The page still hears the keydown and keyup, and its own handlers act on them as they will.
         if (target.matches?.("textarea") || target.isContentEditable) insert(target, "\n");
-        else if (target.matches?.("button, a[href], input[type=submit], input[type=button], input[type=checkbox], input[type=radio]")) target.click();
-        else if (target.form) {
-          const button = target.form.querySelector("button:not([type]), button[type=submit], input[type=submit]");
-          if (button) button.click();
-          else target.form.requestSubmit();
-        }
+        else if (target.matches?.("a[href], input[type=button], button[type=button], input[type=checkbox], input[type=radio]")) target.click();
       } else if (k === "Tab") {
         const list = tabbables();
         const at = list.indexOf(target);

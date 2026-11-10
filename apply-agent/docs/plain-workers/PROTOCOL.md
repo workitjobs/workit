@@ -388,7 +388,11 @@ Auto-wait: actions poll their `dom` op every 100 ms while it answers `{"retry": 
 `fill` focuses, selects all and uses `execCommand("insertText")`, falling back to the
 native value setter plus `input`/`change`; a focus move (a click, Tab, `focus`, `blur`, `fill`) that the page didn't hear, as in a window without focus, dispatches `blur` and `focusout` on what it left (KAN-709); `press` emulates the default of Enter, Tab,
 Backspace, Delete, Space and (S3) the caret keys ArrowLeft/ArrowRight/Home/End (Shift extends); `click` dispatches pointer and mouse events
-at the element's centre on the hit target, then `click`.
+at the element's centre on the hit target, then `click`. **Enter never sends a form** (KAN-716): in a field it makes no
+implicit submission, and on a focused submit button (`button` with no type or `type=submit`, `input[type=submit]`) it
+presses nothing; the page still hears its keydown and keyup. Enter adds a line in a textarea or editable content, and still
+follows a focused link or presses a `type=button`, checkbox or radio. On amazon.jobs a synthetic Enter in a box pressed the
+form's submit button and went on to Review; on a lifted last step it would have sent the application.
 
 ## How a Filler calls it
 

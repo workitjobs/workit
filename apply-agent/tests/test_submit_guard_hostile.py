@@ -113,6 +113,15 @@ PAGES = {
     "a review page's Apply with its answers hidden": {START: f"""<title>Review</title><form method=post action="{FINAL}">
         <input type=hidden name=__vxXSRF_Token value=t><input type=hidden name=first value=Test>
         <input type=submit id=b value=Apply></form>"""},
+    # KAN-716: a step's box inside the application's form, whose Enter would send it (implicit submission, its button).
+    "a box whose Enter would send the form": {START: f"""<title>Job-specific questions</title><form id=f method=post action="{FINAL}">
+        <label>School <input id=school name=school></label><textarea name=why></textarea>
+        <button id=b>Next</button></form>"""},
+    # KAN-716: as a key goes down in the box, the page moves the focus to its Submit, for the key's text or Space to press it.
+    "a box that hands its keys to the Submit": {START: f"""<title>Apply</title><form id=f method=post action="{FINAL}">
+        <label>School <input id=school name=school></label><button id=b>Next</button></form>{SEND_ALL}
+        <script>document.getElementById('school').addEventListener('keydown', () => document.getElementById('b').focus());
+        document.getElementById('b').addEventListener('click', () => sendAll());</script>"""},
 }
 BUTTON = {"a review page's Apply with its answers hidden": "Apply", "a profile pop-up that is the application": "Submit", "a profile pop-up that turns into the application": "Submit",
           "a one-page form in a modal": "Continue", "an application that makes an account": "Continue",
@@ -177,6 +186,39 @@ def ask_press_listed(page, drive, name):
     """Ask Claude's press of a step in the form's list of steps (KAN-692): the name Claude gives, as ask.ask presses it."""
     press_step(page, drive, name, listed=True)
 
+
+# KAN-716: a plain Worker's two typing paths, each with every key that could send a form: Apply's own (fill, type,
+# keys) and Lisul's from the tile. Their text goes in trusted (worker-extension/ops/typing.js, chrome.debugger).
+FIELDS = "input:not([type=hidden]):not([type=file]):not([type=checkbox]):not([type=radio]):not([type=submit]), textarea"
+
+
+def _boxes(page):
+    boxes = page.locator(FIELDS)
+    return [boxes.nth(i) for i in range(boxes.count()) if boxes.nth(i).is_visible()]
+
+
+def apply_typing(page, drive, name):
+    for box in _boxes(page):
+        box.fill("Test")
+        box.press_sequentially("x ")
+        box.press("Enter")
+        page.keyboard.press("Backspace")
+        page.keyboard.insert_text("y")
+        page.keyboard.press("Enter")
+
+
+def tile_typing(page, drive, name):
+    tile = lambda event: page.worker.call("tile.input", tab=page.tab, event=event, by="lisul")
+    for box in _boxes(page):
+        box.focus()
+        for event in ({"type": "text", "text": "T"}, {"type": "text", "text": "est"}, {"type": "key", "key": "Backspace"},
+                      {"type": "key", "key": "Enter"}, {"type": "text", "text": " "}, {"type": "key", "key": "Enter"}):
+            tile(event)
+    page.get_by_role("button", name=name).first.focus()
+    tile({"type": "key", "key": "Enter"})  # Enter on a focused Submit presses nothing
+
+
+TYPING = {"Apply's typing": apply_typing, "the tile's typing": tile_typing}
 
 PATHS = {"plain code's Next": plain_next, "the profile click": profile_click, "the account click": account_click,
          "Ask Claude's press": ask_press, "Ask Claude's press of a listed step": ask_press_listed}
@@ -472,6 +514,30 @@ def test_no_click_path_sends_a_hostile_page_on_a_plain_worker(page_name, path):
         _then(page, page_name)
         _settle(page)
     assert site.applications() == []
+
+
+@pytest.mark.parametrize("path", list(TYPING))
+@pytest.mark.parametrize("page_name", list(PAGES))
+def test_no_typing_path_sends_a_hostile_page_on_a_plain_worker(page_name, path):
+    with plain(PAGES[page_name]) as (page, drive, site):
+        try:
+            TYPING[path](page, drive, button(page_name))
+        except Handoff:
+            pass
+        _then(page, page_name)
+        _settle(page, 1500)
+    assert site.applications() == []
+
+
+@pytest.mark.parametrize("path", list(TYPING))
+def test_an_enter_in_a_box_sends_nothing_even_on_a_lifted_page(path):
+    """KAN-716: on amazon.jobs a synthetic Enter in a box pressed the form's submit button. Lifted (a held page, a live
+    run's last step), no guard would stop it: the Enter itself must send nothing."""
+    with plain(PAGES["a box whose Enter would send the form"]) as (page, drive, site):
+        lift(page)
+        TYPING[path](page, drive, "Next")
+        _settle(page, 1500)
+    assert [p for p in site.sent if p.startswith("/")] == []  # nothing to the job system (Chrome's own calls aside)
 
 
 def test_a_second_form_sent_in_with_into_is_guarded_beside_a_held_one():
