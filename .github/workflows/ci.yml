@@ -299,7 +299,8 @@ jobs:
         run: |
           uv run pytest -q -rs \
             tests/test_plain_guards.py \
-            tests/test_plain_routing.py
+            tests/test_plain_routing.py \
+            tests/test_plain_typing.py
 
   # The API's Cloudflare Worker (KAN-169): a type error here would otherwise
   # surface only when the deploy on main fails.

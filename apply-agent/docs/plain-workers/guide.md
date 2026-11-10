@@ -95,7 +95,7 @@ permission):
   copy only while none of its Workers runs (below, "The worker extension's copy"). With every
   Worker of the folder stopped, the next Worker starts on the new copy and switch. For a branded
   seed, run `uv run apply plain seed` once then; its real hello checks the copy loads.
-- Tests: `tests/test_plain_typing.py` (Chrome for Testing): a box that takes only a keyboard's
+- Tests: `tests/test_plain_typing.py` (Chrome for Testing; in CI's plain-Worker step): a box that takes only a keyboard's
   text, the old path's failure on it (the control, in Playwright's Chromium), fill, type,
   insert_text, the tile's text and keys, Backspace and Delete, a cross-origin frame, Enter, a
   page that moves the focus mid-key or into another frame, a radio that takes only a trusted click,
