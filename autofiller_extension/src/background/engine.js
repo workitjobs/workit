@@ -36,6 +36,15 @@ export function jobOf(url) {
 }
 
 /**
+ * Whether `site`'s form comes in steps (the engine's Stepper seam: Workday,
+ * Oracle, iCIMS, SuccessFactors), which the student signs in to and moves through.
+ * @param {string} site
+ */
+export function stepped(site) {
+  return engine.stepped(site);
+}
+
+/**
  * The job systems an employer's own domain may host, each with the selector
  * that marks its pages (Workday's career site, SuccessFactors'): the engine's
  * PAGE_MARKS, looked for in the tab, where the engine isn't loaded.

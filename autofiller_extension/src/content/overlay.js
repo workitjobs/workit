@@ -613,6 +613,8 @@ window.WIA = window.WIA || {};
   function draw() {
     const shell = window.WIA.panel;
     root = shell.root;
+    // The fill's rows take the panel: the coverage badge was for before it (coverage.js).
+    window.WIA.coverage?.hide();
     style = shell.addCss(styles().textContent);
     const tab = shell.slot("tab:autofill");
     tab.innerHTML = `

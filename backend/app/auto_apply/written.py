@@ -9,6 +9,7 @@ its transaction, as every layer-2 step does.
 """
 
 import dataclasses
+import datetime
 import re
 import uuid
 from collections.abc import Collection, Iterable, Sequence
@@ -16,7 +17,7 @@ from typing import Literal
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auto_apply import briefs, checks, plans
+from app.auto_apply import briefs, checks, plans, truth
 from app.auto_apply.queries import (
     drop_own_written,
     drop_written,
@@ -28,6 +29,7 @@ from app.auto_apply.queries import (
     fetch_next_to_write,
     fetch_plans,
     fetch_posting_text,
+    fetch_profile_facts,
     fetch_saved_answers,
     fetch_sent_plans,
     fetch_stage,
@@ -200,7 +202,10 @@ async def save_answers(
     answers and kept with it: a missing list or plan, a listed claim still
     in the answer, or a plan that fails a check is refused. A plan's
     company fact is the answer's named fact when it names none. A paste
-    needs none. Raises NotFound / WrongStage for an application that isn't
+    needs none. Every answer in words, Claude's or a paste, then gets the
+    truth check (truth.py, KAN-748): one with claims none of the student's
+    sources hold is saved as it is and flagged for them in the tab, never
+    refused or changed (review.flag_claims). Raises NotFound / WrongStage for an application that isn't
     open, Refused otherwise.
     """
     await open_application(db, applicant_id, job_id)
@@ -250,8 +255,25 @@ async def save_answers(
     await save_written(db, applicant_id, job_id, kept, facts, {
         name: {"plan": plan.stored(), "unsupported": (unsupported or {})[name]} for name, plan in planned.items()
     })
+    if said := {name: text for name, text in kept.items() if is_text(questions[name].kind)}:
+        # Here, not at the top: review.py imports Refused from this module.
+        from app.auto_apply import review
+        own = await _own_facts(db, applicant_id, job_id)
+        await review.flag_claims(db, applicant_id, job_id, {
+            name: (text, truth.unsupported(text, own, (*sources, questions[name].label))) for name, text in said.items()
+        })
     await db.commit()
     return sum(1 for name, q in questions.items() if q.answer is None and name not in answers)
+
+
+async def _own_facts(db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID) -> list[str]:
+    """What the student gave, for the truth check: their experience bank,
+    their profile, and their own words in the answer bank (on other
+    applications, and brought from Apply)."""
+    own = [*(s for s in await fetch_saved_answers(db, applicant_id, exclude=job_id) if s.own),
+           *(s for s in await fetch_brought_answers(db, applicant_id) if s.own)]
+    return [*bank_sources(await load_bank(db, applicant_id)), *await fetch_profile_facts(db, applicant_id),
+            *("; ".join(s.answer) if isinstance(s.answer, list) else s.answer for s in own)]
 
 
 def _plan_problems(
@@ -496,19 +518,27 @@ def picked(question: WrittenAnswer, answer: str) -> tuple[str, list[str]]:
 
 
 def bank_sources(bank: Bank) -> list[str]:
-    """Every fact of the student's bank as text, for the number check: each
-    entry's fields, its months' years and its bullets, and the skills."""
+    """Every fact of the student's bank as text, for the number check and the
+    truth check: each entry's fields, its dates ("June 2025 – August 2025",
+    "June 2025 – Present") and its bullets, and the skills."""
     texts: list[str] = []
     for entry in bank.entries:
         row = entry.row
         texts += [str(v) for v in (
             row.title, row.organization, row.location, row.degree, row.field_of_study, row.gpa, row.gpa_scale,
-            row.honors, row.issuer, *(row.coursework or ()), *(row.tools or ()),
-            *(d.year for d in (row.start_month, row.end_month, row.award_date) if d),
+            row.honors, row.issuer, *(row.coursework or ()), *(row.tools or ()), _dates(row.start_month, row.end_month),
+            f"{row.award_date:%B %Y}" if row.award_date else None,
         ) if v is not None]
         texts += [b.text for b in entry.bullets]
     texts += [s.name for s in bank.skills]
     return texts
+
+
+def _dates(start, end) -> str | None:
+    """An entry's dates as a resume writes them: "June 2025 – August 2025", "June 2025 – Present"."""
+    if start is None:
+        return f"{end:%B %Y}" if end else None
+    return f"{start:%B %Y} – {f'{end:%B %Y}' if end else 'Present'}"
 
 
 def places(bank: Bank) -> list[str]:
@@ -541,7 +571,8 @@ async def answer_bank(
     known (KAN-380). No answer naming a company of the student's other
     applications is offered. One of their Claude's must also pass the rest
     of checks.py (the posting's numbers among them; not the copy check,
-    which its save ran, so a sample the student pasted is offered); the
+    which its save ran, so a sample the student pasted is offered) and hold
+    no claim the truth check finds, since no tab would flag it there; the
     student's own words skip the checks meant for Claude's text (they are
     their words, as the paste skips the copy check). The form's own length
     limit is the Fill engine's to check, on the page, for every answer. The
@@ -557,16 +588,19 @@ async def answer_bank(
     else:
         sources, employers, _ = await _check_material(db, applicant_id, None, company)
     same = (company or "").strip().casefold()
+    facts = await _own_facts(db, applicant_id, job_id)
     bank: dict[str, SavedAnswer] = {}
     seen: set[str] = set()
     written = await fetch_saved_answers(db, applicant_id, exclude=job_id)
-    # Their own words on applications first, then their own words brought
-    # from Apply (`fill_answers`), then their Claude's: on applications, then brought.
+    # Their own words first, the newest edit first (KAN-746): saved on an
+    # application or synced from Apply (`fill_answers`), so an older Apply
+    # answer never beats one they edited on WorkIt, and a newer one does. One
+    # with no time (an import's) goes after those with one, an application's
+    # first. Then their Claude's: on applications, then brought.
     brought = await fetch_brought_answers(db, applicant_id)
-    saved_answers = [
-        *(s for s in written if s.own), *(s for s in brought if s.own),
-        *(s for s in written if not s.own), *(s for s in brought if not s.own),
-    ]
+    own = sorted([*(s for s in written if s.own), *(s for s in brought if s.own)],
+                 key=lambda s: s.at or _NEVER, reverse=True)  # a stable sort: ties keep that order
+    saved_answers = [*own, *(s for s in written if not s.own), *(s for s in brought if not s.own)]
     # A draft brought from Apply with no company (no first_seen) that names
     # one is about that company: offered only on its forms.
     unplaced = [s for s in brought if not s.own and not s.choice and s.company is None]
@@ -583,14 +617,18 @@ async def answer_bank(
         # Every answer keeps the other-employer rule; only their Claude's take the checks meant for its text.
         if not saved.choice and any(checks.names(said, name) for name in employers):
             continue
-        if not saved.own and not saved.choice and checks.problems(saved.answer, checks.Context(
+        if not saved.own and not saved.choice and (checks.problems(saved.answer, checks.Context(
             sources=(*sources, saved.question), employers=employers, question=saved.question,
-        )):
+        )) or truth.unsupported(said, facts, (*sources, saved.question))):
             continue
         if (wording := _wording(saved.question)) not in seen:
             seen.add(wording)
             bank[saved.question] = SavedAnswer(answer=saved.answer, own=saved.own)
     return bank
+
+
+# Before any answer's time: an own answer with none sorts after those with one.
+_NEVER = datetime.datetime.min.replace(tzinfo=datetime.UTC)
 
 
 async def _known_companies(db: AsyncSession, applicant_id: uuid.UUID) -> set[str]:

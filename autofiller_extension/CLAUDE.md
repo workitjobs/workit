@@ -10,7 +10,8 @@ the "Custom ATS Autofiller Build Plan" doc, built directly on
 ## Where this folder sits
 
 A third kind of project in this repo, alongside `frontend/` and `backend/`:
-no server, no build step, no dependency manifest. It's loaded into Chrome
+no server, no build step, no dependency manifest (only the Store package's
+build, `store/build.mjs`, minifies a copy). It's loaded into Chrome
 as an unpacked extension and talks to the **existing** WorkIt backend over
 HTTP. Nearly everything it fills is read-only against data that already
 had an endpoint: `applicant_profiles`, the **experience bank** (`GET
@@ -32,8 +33,9 @@ connector, or theirs (KAN-470, "Written questions" below).
 Chrome actually loads — plain ES2020+ JavaScript, JSDoc `@typedef`s in
 `src/shared/types.js` standing in for compile-time types. The Fill engine
 comes the same way: a git submodule whose committed bundle is loaded as it
-is (below). Only `test/` has a `package.json`, for its test runner; nothing
-the extension loads depends on it.
+is (below). Only `test/` (its test runner) and `store/` (esbuild, for the
+Store package only) have a `package.json`; nothing the extension loads
+depends on either.
 
 ## The Fill engine (KAN-329, KAN-340): what fills the form
 
@@ -395,15 +397,25 @@ themselves, on the job system's own page, after reviewing what got
 filled.
 
 **What does run on page load is a small check, and only on the job
-systems' hosts** (KAN-394): manifest.json's second `content_scripts` entry
-(`tokens.js`, `panel.js`, `launcher.js`, top frame, `document_idle`) on the
-same hosts `host_permissions` already lists, so it adds no install
-warning. `launcher.js` waits for the page's load plus a second (a node
-drawn during Greenhouse's start-up makes it redraw the form, see the
-overlay), asks the background `panel/where` (the engine's `jobOf` on the
-page's link, and whether the tab is a batch's), and on a job page outside
-a batch draws only the edge tab. Nothing fills, nothing is read from the
-form, and other pages get nothing drawn. **Any posting there, in
+systems' hosts** (KAN-394, KAN-749): manifest.json's second
+`content_scripts` entry is `launcher.js` alone, on the same hosts
+`host_permissions` already lists, so it adds no install warning. It waits
+for the page's load plus a second (a node drawn during Greenhouse's
+start-up makes it redraw the form, see the overlay), asks the background
+`panel/where` (the engine's `jobOf` on the page's link, and whether the
+tab is a batch's), and on any page that is no job page stops there. **Most
+pages on those hosts are no form** (greenhouse.io's own site, a Workday
+tenant's search, the frames inside them), so none of the panel's files
+load there: no observer, no listener, no timer past that one second, one
+message (`test/idle.extension.spec.ts` counts them in the content scripts'
+isolated world, `loadExtension`'s `probe`, and the extension files Chrome
+parsed; before KAN-749 all ten panel files ran in every frame of every
+such page, three frames: 30 files and two `visibilitychange` listeners,
+now 3 files and none). On a job page outside a batch the launcher asks
+`panel/shell`, which checks the page is a job system's (`pageSystem`) and
+loads `SHELL_FILES` (`src/shared/content-scripts.js`) into that frame
+only, then draws only the edge tab. Nothing fills, nothing is read from the
+form. **Any posting there, in
 WorkIt's feed or not**: nothing here asks the API whether it knows the
 job (the job card falls back to the engine's `jobNames`, the answer bank
 to the page's company), so a posting the student found anywhere fills as
@@ -423,7 +435,9 @@ toolbar popup on a posting-like page of another host offers **Allow
 WorkIt on <host>**, whose click calls `chrome.permissions.request` for
 that one origin (it needs the click; Simplify and Jobright ask the same
 way). Once granted, `popup/allow` keeps the origin (chrome.storage.local
-`allowed_sites`), registers the launcher's files for it
+`allowed_sites`), registers the launcher's files for it (a registration
+an older version kept, with all the panel's files, is updated to the
+launcher alone at the worker's start, KAN-749)
 (`registerContentScripts`, id `site-<host>`, kept across restarts), runs
 them in the tab at once, and answers what it found: the engine's own
 reading of the page (`pageJobUrl`: `jobOf` of the link, or a job system
@@ -1200,7 +1214,7 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   the iframe's `src` (decision 633). Greenhouse's page starts React only in
   `requestIdleCallback`, which an iframe in a background tab may never run:
   its form stayed dead and the fill waited on it for good (1 run in 2 to 4
-  with four Chromiums at once). The manifest's one static content script,
+  with four Chromiums at once). The manifest's first static content script,
   `embed-idle.js` (MAIN world, `document_start`, the embed frame only),
   gives those callbacks a 500 ms deadline.
 - **Wait for the page, then the form, then fill.** `startFill` waits for
@@ -2000,6 +2014,7 @@ slot by name, `panel.slot(name)`, and adds its styles with
 | `header-actions` | buttons beside ⋯ and Close (kept empty: actions go in the ⋯ menu) | none |
 | `batch-line` | Workday's step line only ("Step 3 of 6 · My Experience") | panel-top.js |
 | `job-card` | the job card (title, company, Match score) | panel-top.js |
+| `coverage` | the coverage badge before a fill (Fully supported, Partly supported, Not supported) and its one line | coverage.js |
 | `primary` | the one big button, fixed at the panel's bottom; `panel.setPrimary({ label, onPress, secondary })` or `panel.fillButton(label)` | Autofill This Page / Fill this step (launcher.js), then primary.js: "Next: N need you", Review and submit, Go to Save and Continue, Fill Again's question |
 | `tab:<id>` | a tab's body; `panel.addTab({ id, label })` adds one, the strip shows from two | `tab:autofill`, the only one (KAN-424): overlay.js's summary, essay banner, moment cards, parts and rows |
 | `settings` | the settings view, shown by the ⋯ menu's Settings in place of the tab's body (`panel.showSettings`; `panel.onView(hook)` hears it open) | panel-settings.js: Claude connection, Open the panel by itself, Report a problem, Workday Sign-Up, Back |
@@ -2042,8 +2057,8 @@ file that fills one sets `hidden = false`. A file loaded before the shell
 exists waits for it with `panel.onBuilt(hook)`. overlay.js keeps its API
 (`mount`, `refresh`, `addPart`, `momentCard`, ...); `mount` now fills the
 Autofill tab instead of making a host, and `unmount` (a fill again)
-empties it and leaves the shell. panel.js is loaded first by the static
-launcher and again by every fill (`CONTENT_SCRIPT_FILES`,
+empties it and leaves the shell. panel.js is loaded first by the launcher's
+panel/shell (on job pages only) and again by every fill (`CONTENT_SCRIPT_FILES`,
 `HUMAN_CHECK_FILES`), in the same isolated world: the first copy makes the
 shell, later ones return at once. It also owns the font (`overlay/font`)
 and `keepAttached` (Greenhouse replacing `<html>`).
@@ -2273,8 +2288,7 @@ stay-on-page notice shows and goes).
 ## The panel's other states (KAN-401): signed out, sent, a site it can't fill, errors
 
 `src/content/panel-states.js` (`window.WIA.panelStates`, loaded after
-report.js everywhere it is: manifest, `CONTENT_SCRIPT_FILES`, background.js
-`SHELL_FILES`) and `src/background/panel-states.js`:
+report.js everywhere it is: `CONTENT_SCRIPT_FILES` and `SHELL_FILES`) and `src/background/panel-states.js`:
 
 - **Signed out**: `panelStates.start()` is what the launcher and the
   toolbar call in place of `panel.fillButton` before a fill. Signed out
@@ -2293,15 +2307,47 @@ report.js everywhere it is: manifest, `CONTENT_SCRIPT_FILES`, background.js
   (`tab.before`): Ready sets the application back to queued, anything else
   to needs_you, with no date (backend pipeline.py), and the tab to that
   state, in its group.
+- **The coverage badge** (KAN-749, `src/content/coverage.js`,
+  `window.WIA.coverage`, and `src/background/coverage.js`): before a fill,
+  the `coverage` slot under the job card shows a pill and one line, from the
+  Fill engine's job system for the page (`panel/coverage`: `jobOf` of
+  `pageJobUrl`). **Fully supported** (positive tint): a job system the
+  engine fills in one form, "WorkIt fills this Greenhouse form." (a practice
+  form: "WorkIt fills this practice form."). **Partly supported** (warning
+  tint): one whose form comes in steps, the engine's `stepped` (Workday,
+  Oracle, iCIMS, SuccessFactors), "WorkIt fills Workday one step at a time.
+  You sign in and check each step yourself." **Not supported** (gray): no job
+  system the engine covers, or one WorkIt turned off ("WorkIt can't fill
+  Workday right now. Copy your answers into the form yourself."). The rule
+  is the engine's: a new job system takes its level from whether the engine
+  steps it, never from a list here; only the names students see
+  (`SYSTEM_NAMES`) are the extension's. `panelStates.start()` draws it once
+  signed in; the fill's list (overlay.js `draw`) hides it, for good on
+  that page (a badge still on its way stays hidden). **Not supported
+  lists the student's answers** in the Autofill tab (`[data-answers]`,
+  `panel/answers`: `answerList`, from the same `engineProfile` the fill
+  plans with), by the Fields to Autofill groups (Contact info, Location,
+  Education, Experience, Work authorization), each a label, the value and
+  **Copy** (aria-label "Copy Email"; pressed, "Copied", until another Copy
+  takes it), through ui.js's `copy` (letter-preview.js's Copy uses it too).
+  Only answers the student has, none of a category they switched off in
+  Options (`autofill_off`), the location as they typed it; no file and no
+  self-identification answer (a form asks those in its own words, and the
+  student answers them there). Tests: `test/coverage.spec.ts` (the levels,
+  the list), `test/coverage.extension.spec.ts` (each badge, Show My
+  Answers, Copy).
 - **A site WorkIt can't fill**: every host the manifest lists is a job
-  system the Fill engine fills, so the panel never shows this (an allowed
-  employer site with nothing to fill gets no panel either); the toolbar
-  popup does, on a web page of any other host (not WorkIt's own) that looks
+  system the Fill engine fills, so the panel never opens there by itself
+  (an allowed employer site with nothing to fill gets no panel either); the
+  toolbar popup does, on a web page of any other host (not WorkIt's own) that looks
   like a job posting (`panel-states.js` `looksLikePosting`: a jobs, careers,
   apply or position part in its path, or a schema.org `JobPosting` block,
   read in the tab), where the icon's press lets it read the tab's link
   (activeTab). On any other page the popup is the usual batch status. It says "WorkIt
-  can't fill this site yet" with **Save to WorkIt** (`popup/save`: `POST
+  can't fill this site yet" with **Show My Answers** (KAN-749,
+  `popup/answers`, from the popup's own page only: the panel's files go into
+  the tab, as the toolbar's press lets them, and the panel opens there on
+  Not supported and the answers to copy, with no fill button), then **Save to WorkIt** (`popup/save`: `POST
   /jobs/saved-by-link`, which saves the feed's job whose apply link the page
   is, ignoring query, fragment and a trailing slash; "WorkIt doesn't list
   this job yet." when there is none) and **Report a problem** (what it sends:
@@ -2361,8 +2407,8 @@ The header (panel.js) is WorkIt's logo (logo.tsx's lockup, the figure
 violet and the word "workit" in ink, as the webapp and the popup's header
 draw it; change the copies together), ⋯ (the menu, above: Report a problem, Settings, a
 batch tab's I submitted this and Skip, Fill Again) and Close. `src/content/panel-top.js` fills two slots, loaded
-after panel.js everywhere panel.js is (manifest, `CONTENT_SCRIPT_FILES`,
-background.js `SHELL_FILES`):
+after panel.js everywhere panel.js is (`CONTENT_SCRIPT_FILES`,
+`SHELL_FILES`):
 
 - **Step line** (`batch-line`): on Workday only, "Step 3 of 6 · My
   Experience", read off Workday's step bar (`progressBarActiveStep`) and
@@ -2617,8 +2663,8 @@ cover letter waiting). `fake-api.ts` records each `redo` and its steer in
 ## The panel's settings (KAN-402): Claude, auto-open, report, Workday
 
 `src/content/panel-settings.js` fills the `settings` slot (loaded after
-panel-top.js everywhere it is: manifest, `CONTENT_SCRIPT_FILES`,
-background.js `SHELL_FILES`); `src/background/panel-settings.js` answers
+panel-top.js everywhere it is: `CONTENT_SCRIPT_FILES`,
+`SHELL_FILES`); `src/background/panel-settings.js` answers
 its messages. The gear shows it in place of the tabs; Back returns.
 
 - **Claude**: "Your Claude is connected." with **Disconnect** (`DELETE
@@ -2691,8 +2737,8 @@ the shape, or any of the student's values in it).
 ## The résumé's card (KAN-399; on the Resume/CV row since KAN-424)
 
 `src/content/resume-card.js` (`window.WIA.resumeCard`, loaded after
-panel-top.js wherever it is: manifest, `CONTENT_SCRIPT_FILES`,
-background.js `SHELL_FILES`) draws the card of the opened Resume/CV row
+panel-top.js wherever it is: `CONTENT_SCRIPT_FILES`,
+`SHELL_FILES`) draws the card of the opened Resume/CV row
 (overlay.js asks `resumeCard.card(field)` before any other card, on the
 opened row only), from `src/background/resume-tab.js` (`resume/tab`,
 `resume/file`, `resume/choose`, `resume/upload`). The row is the file field
@@ -2822,7 +2868,11 @@ overlay uses the system font.
   that makes this work lives in exactly one place —
   `src/shared/content-scripts.js` (`ENGINE_FILES` in the MAIN world, then
   `CONTENT_SCRIPT_FILES`), which the panel and batch apply both use through
-  `injectFill` — and a new content file is added there by hand.
+  `injectFill` — and a new content file is added there by hand. A file the
+  panel needs before a fill goes in its `SHELL_FILES` (the shell the
+  launcher's `panel/shell` and the toolbar load, KAN-749), which
+  `CONTENT_SCRIPT_FILES` starts with; never in the manifest's entry, which
+  is `launcher.js` alone.
 - **`src/background/engine.js` uses no `chrome.*` API at import time**, so
   the test imports it as it is. Keep `chrome.*` calls in `background.js`.
 - **`src/background/` and `src/popup/` do use ES modules** (`"type":
@@ -2853,13 +2903,22 @@ so it stays. The **Store** gets `node store/build.mjs [outDir]` instead
   `TEST_HOOKS` false, the Vercel site gone (KAN-296).
 - only what Chrome loads: `manifest.json`, `icons`, `fonts`, `src`,
   `fill-engine/dist`.
+- every `.js` file minified by esbuild (KAN-744), with no source map and
+  `BANNER`, the copyright notice, as its first line. The engine ships only
+  as its minified `dist/engine.js` (about 284 KB, from 465 KB). esbuild runs
+  with no `format` and no `target`: a classic script keeps its top-level
+  names and a module its imports and exports, and no syntax is lowered, so
+  no helper is added that an `executeScript` `func` would lack. The build
+  needs `npm ci --prefix store` once.
 
 The build fails if any packaged file still names localhost, vercel.app or
 "Prototype" (as a word). A new dev-only line in `config.js` must be one
 `storeConfig` rewrites, or the build fails. `test/store-build.spec.ts` reads
-the zip back; `test/store-build.extension.spec.ts` loads the built package
+the zip back (minified, the banner, no source map, one engine file);
+`test/store-build.extension.spec.ts` loads the built package
 with a fake server answering `localhost:8000/health` and checks it calls only
-`api.workitjobs.ai`, answers the site's ping and opens Start batch's tabs.
+`api.workitjobs.ai`, answers the site's ping, opens Start batch's tabs and
+fills one.
 KAN-447's publish workflow uploads this zip; the Store version is
 `store/store.json`'s, so a release bumps it there.
 

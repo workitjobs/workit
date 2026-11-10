@@ -258,6 +258,11 @@ DRAFTS = """\
   answer: A tram timetable that rewrites itself when a line closes.
   source: lisul
   reviewed: true
+'what is your favourite tool?':
+  question: What is your favourite tool?
+  answer: A label maker.
+  source: lisul
+  reviewed: false
 """
 
 
@@ -276,12 +281,14 @@ async def test_only_the_student_s_answers_come_as_their_own_and_their_claude_s_d
     bank = (await _get(applicant, f"/applications/{job}/answer-bank")).json()
 
     # As in Apply, only source lisul is the student's: a draft they marked
-    # reviewed is still their Claude's, so a form that bans AI text never takes it.
+    # reviewed is still their Claude's, so a form that bans AI text never takes it;
+    # and one marked unreviewed is never theirs, whatever its source says.
     assert bank == {
         "What is your dream project?": {"answer": "A tram timetable that rewrites itself when a line closes.", "own": True},
         "What drew you to logistics?": {"answer": "Watching a warehouse route its trucks.", "own": False},
         "What do you build on weekends?": {"answer": "Small robots that sort marbles by colour.", "own": False},
         "Which shifts can you work?": {"answer": ["Mornings", "Evenings"], "own": False},
+        "What is your favourite tool?": {"answer": "A label maker.", "own": False},
     }
 
 

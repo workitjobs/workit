@@ -1,6 +1,6 @@
 // The Store build (KAN-463, store/build.mjs) loaded into Chromium, as a student installs it: it talks only
 // to WorkIt's deployed site and API, even with something answering on localhost:8000 as the dev API does
-// (a student's own FastAPI app, say), and the deployed site's ping and Start batch still reach it.
+// (a student's own FastAPI app, say), and the deployed site's ping and Start batch still reach it and fill.
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -62,13 +62,16 @@ test("with something answering on localhost:8000, the Store build sends it nothi
   expect(net.asked.filter((url) => url.includes("localhost"))).toEqual([]);
 });
 
-test("the deployed site's Start batch opens the queued job's form in the Store build", async () => {
+test("the deployed site's Start batch opens the queued job's form in the Store build, and the minified engine fills it", async () => {
   test.setTimeout(120_000);
   const forms = new SavedForms([ANDURIL]);
   const api = new FakeApi().queue({ id: "job-0", apply_url: forms.url(ANDURIL) });
   const { id, page } = await loadStoreBuild([localApp, deployed(api), site, forms.handler]);
   expect(await send(page, id, { type: "run/open" })).toMatchObject({ ok: true });
   await expect.poll(() => context.pages().some((p) => p.url() === forms.url(ANDURIL)), { timeout: 30_000 }).toBe(true);
+  // Every packaged script is minified (store/build.mjs): the engine and the content scripts still fill.
+  const form = context.pages().find((p) => p.url() === forms.url(ANDURIL))!;
+  await expect(form.locator("#first_name")).toHaveValue("Test", { timeout: 60_000 });
   expect(forms.submissions).toEqual([]);
   expect(net.asked.filter((url) => url.includes("localhost"))).toEqual([]);
 });

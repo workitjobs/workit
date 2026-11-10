@@ -22,9 +22,18 @@ reads: it does not click, type or submit.
   posting's range (else off `compensation.fallback_hourly`), and in each
   essay a wrong pronoun or name for the applicant and another company's
   name (`verify.COMPANIES` and the policies' companies, less any that the
-  sources or the posting name). Claude makes only the judgment checks, in
+  sources or the posting name). A field that the engine's plan left blank
+  because the profile has none of it (no minor: `education.minors: []`)
+  and that offers no None, but that still shows a value, holds as a
+  leftover (`verify._leftovers`, `fill_engine.left_as_none`): an old
+  profile on the job site carried it over (Amazon's Minor, KAN-754). A
+  None or N/A that the plan picked and the page does not show is the
+  read-back's flag. A field whose fact the profile only lacks is never a
+  leftover. Claude makes only the judgment checks, in
   the Pre-submit review call (`presubmit.SYSTEM`: contradictions, wrong
-  answers); its findings join the flags.
+  answers); its findings join the flags. Its `<profile>` block holds
+  the facts as the plan read them, the Tracker's past applications too
+  (`docs/fill-engine.md`, KAN-753).
 - A review finding can name the right answer when the sources give it
   (`presubmit.Found.fixes`: an internship start in a school's From).
   Apply fills that answer in place of the wrong one (`_Planned.fix`). It
@@ -199,8 +208,8 @@ writes that one answer again.
 - **What stays off the form.** An answer over the form's cap
   (`gates.over_cap`), or with a name or number no source holds
   (`regenerate.INVENTED`), is not put on the form. The old answer stays and
-  the note says why. Other gate and verifier flags (`verify.essay`) go on
-  the note beside the field.
+  the note says why. Other gate and verifier flags (`verify.essay`), and
+  the truth check's claims (`Essay.claims`), go on the note beside the field.
 - **After.** Plain code sets the field with the page's own input events and
   reads it back (`regenerate.done`). The field is editable again. The
   Record is saved again: `answers.json`, `essays.md` and a history line
