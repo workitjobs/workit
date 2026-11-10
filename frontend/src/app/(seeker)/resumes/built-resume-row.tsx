@@ -4,16 +4,11 @@ import { EyeIcon, FileArrowDownIcon } from "@phosphor-icons/react/ssr";
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
 
-import { PdfIcon, PencilIcon, TrashIcon } from "@/components/icons";
+import { BriefcaseIcon, FileIcon, PencilIcon, TrashIcon } from "@/components/icons";
 import {
-  CreatedColumn,
-  CreatedLine,
   PrimaryStar,
-  RESUME_ROW,
+  ResumeCard,
   ROW_ACTION,
-  ROW_ACTIONS,
-  ROW_MARK,
-  ROW_NAME,
   ROW_WIDE,
   RowMoreMenu,
 } from "@/components/resume-row";
@@ -31,13 +26,14 @@ import { cn } from "@/lib/cn";
 
 import { rememberReturnTo } from "../jobs/[jobId]/page-actions";
 import { ResumePreviewDialog } from "../jobs/[jobId]/tailor/resume-preview";
-import { LocalDate, LocalDateTime } from "../local-time";
 import { DeleteResumeConfirm } from "./delete-confirm";
 import { DownloadNotes, useResumeDownload } from "./download-menu";
 
 /**
- * One built resume, drawn as an uploaded one's row is: the file mark, the
- * name and its day, then the star, Preview, Rename, Download PDF and Delete.
+ * One built resume, drawn as an uploaded one's card is (`ResumeCard`,
+ * 2026-11-10): the file tile, the name and what it was made from or for,
+ * Created and Last Edited in columns, then the star, Preview, Rename,
+ * Download PDF and Delete.
  * Preview (KAN-358, an eye) shows the resume read-only in Tailor's preview
  * dialog (`ResumePreviewDialog`), rendered as it is now, so a look at it
  * never opens the editor.
@@ -108,112 +104,88 @@ export function BuiltResumeRow({
           onCancel={() => setRenaming(false)}
         />
       ) : (
-        <div
-          className={cn(
-            "group relative",
-            RESUME_ROW,
-            "hover:border-ink-meta hover:shadow-lift ease-glide transition-[transform,box-shadow,border-color] duration-200 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.99]",
-          )}
-        >
-          <PdfIcon className={ROW_MARK} />
-          <div className={ROW_NAME}>
-            <Link
-              href={`/resumes/${encodeURIComponent(resume.id)}`}
-              className="text-label text-ink after:rounded-control focus-visible:after:ring-brand-ring block truncate after:absolute after:inset-0 focus-visible:outline-none focus-visible:after:ring-2"
-            >
-              {resume.name}
-            </Link>
-            {/* One day: when it was last edited, or made until the first edit.
-                Both together said one day twice for a resume edited the day
-                it was made, and the made day mattered less. Story 90's
-                badge follows it, or wraps under it where both do not fit
-                (KAN-575): beside the icons it took the name's room. The
-                resume still opens and downloads; only Tailor needs a live
-                posting. Where the Created column is hidden, the line takes
-                its date and time (2026-11-10). */}
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-              <p className="text-note text-ink-meta min-w-0 truncate">
-                {edited ? (
-                  <>
-                    Last edited <LocalDate at={resume.edited_at} />
-                    <span className="@2xl:hidden">
-                      {" · Created "}
-                      <LocalDateTime at={resume.created_at} />
-                    </span>
-                  </>
-                ) : (
-                  <>
-                    Made <CreatedLine at={resume.created_at} />
-                  </>
-                )}
-                {resume.job_posting_id && resume.posting_title && (
-                  <>
-                    {" · For "}
-                    <PostingLink resume={resume} />
-                  </>
-                )}
-              </p>
-              {resume.posting_closed && <Badge tone="inert">Posting Closed</Badge>}
-            </div>
-          </div>
-          <CreatedColumn at={resume.created_at} />
-          <div className={ROW_ACTIONS}>
-            <PrimaryStar
-              name={resume.name}
-              primary={resume.is_default}
-              onMakePrimary={makePrimary}
-            />
-            <IconButton
-              label={`Preview ${resume.name}`}
-              tooltip="Preview"
-              className={ROW_ACTION}
-              onClick={() => setPreviewing(true)}
-            >
-              <EyeIcon aria-hidden className="size-4" />
-            </IconButton>
-            <div className={ROW_WIDE}>
-              <IconButton
-                label={`Rename ${resume.name}`}
-                tooltip="Rename"
-                className={ROW_ACTION}
-                onClick={() => setRenaming(true)}
-              >
-                <PencilIcon className="size-4" />
-              </IconButton>
-              <IconButton
-                label={`Download ${resume.name} as a PDF`}
-                tooltip={downloadLabel}
-                className={ROW_ACTION}
-                disabled={download.busy !== null}
-                onClick={() => download.pick("pdf")}
-              >
-                <FileArrowDownIcon aria-hidden className="size-4" />
-              </IconButton>
-              <DeleteResumeConfirm
-                onDelete={remove}
-                trigger={
-                  <IconButton
-                    label={`Delete ${resume.name}`}
-                    tooltip="Delete"
-                    className={cn(ROW_ACTION, "hover:text-danger")}
-                  >
-                    <TrashIcon className="size-4" />
-                  </IconButton>
-                }
+        <ResumeCard
+          name={resume.name}
+          href={`/resumes/${encodeURIComponent(resume.id)}`}
+          about={
+            resume.job_posting_id && resume.posting_title ? (
+              <>
+                <BriefcaseIcon className="size-3.5 shrink-0" />
+                <span className="truncate">
+                  For <PostingLink resume={resume} />
+                </span>
+              </>
+            ) : (
+              <>
+                <FileIcon className="size-3.5 shrink-0" />
+                <span className="truncate">Made from your experiences</span>
+              </>
+            )
+          }
+          // The resume still opens and downloads; only Tailor needs a live
+          // posting.
+          badge={resume.posting_closed && <Badge tone="inert">Posting Closed</Badge>}
+          created={resume.created_at}
+          edited={edited ? resume.edited_at : null}
+          actions={
+            <>
+              <PrimaryStar
+                name={resume.name}
+                primary={resume.is_default}
+                onMakePrimary={makePrimary}
               />
-            </div>
-            <RowMoreMenu
-              name={resume.name}
-              onRename={() => setRenaming(true)}
-              download={{
-                label: downloadLabel,
-                busy: download.busy !== null,
-                onPick: () => download.pick("pdf"),
-              }}
-              onDelete={remove}
-            />
-          </div>
-        </div>
+              <IconButton
+                label={`Preview ${resume.name}`}
+                tooltip="Preview"
+                className={ROW_ACTION}
+                onClick={() => setPreviewing(true)}
+              >
+                <EyeIcon aria-hidden className="size-4" />
+              </IconButton>
+              <div className={ROW_WIDE}>
+                <IconButton
+                  label={`Rename ${resume.name}`}
+                  tooltip="Rename"
+                  className={ROW_ACTION}
+                  onClick={() => setRenaming(true)}
+                >
+                  <PencilIcon className="size-4" />
+                </IconButton>
+                <IconButton
+                  label={`Download ${resume.name} as a PDF`}
+                  tooltip={downloadLabel}
+                  className={ROW_ACTION}
+                  disabled={download.busy !== null}
+                  onClick={() => download.pick("pdf")}
+                >
+                  <FileArrowDownIcon aria-hidden className="size-4" />
+                </IconButton>
+                <DeleteResumeConfirm
+                  onDelete={remove}
+                  trigger={
+                    <IconButton
+                      label={`Delete ${resume.name}`}
+                      tooltip="Delete"
+                      className={cn(ROW_ACTION, "hover:text-danger")}
+                    >
+                      <TrashIcon className="size-4" />
+                    </IconButton>
+                  }
+                />
+              </div>
+              <RowMoreMenu
+                name={resume.name}
+                onRename={() => setRenaming(true)}
+                download={{
+                  label: downloadLabel,
+                  busy: download.busy !== null,
+                  onPick: () => download.pick("pdf"),
+                }}
+                onDelete={remove}
+              />
+            </>
+          }
+        />
       )}
       <ResumePreviewDialog
         open={previewing}

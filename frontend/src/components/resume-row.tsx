@@ -2,17 +2,25 @@
 
 import { FileArrowDownIcon, StarIcon } from "@phosphor-icons/react/ssr";
 import Link from "next/link";
-import { useRef, useState } from "react";
+import { useRef, useState, type ReactNode } from "react";
 
 import { LocalDate, LocalDateTime } from "@/app/(seeker)/local-time";
 import { DeleteResumeConfirm } from "@/app/(seeker)/resumes/delete-confirm";
-import { EllipsisIcon, PdfIcon, PencilIcon, TrashIcon } from "@/components/icons";
+import {
+  CalendarIcon,
+  EllipsisIcon,
+  FileIcon,
+  PdfIcon,
+  PencilIcon,
+  TrashIcon,
+} from "@/components/icons";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/shadcn/dropdown-menu";
+import { Card } from "@/components/ui/card";
 import { IconButton } from "@/components/ui/icon-button";
 import { cn } from "@/lib/cn";
 import type { ResumeItem } from "@/lib/resume-actions";
@@ -46,41 +54,139 @@ export const ROW_MARK = "hidden size-5 shrink-0 @sm:block";
  *  icons and a badge squeezed one card's name to 0px. */
 export const ROW_NAME = "min-w-1/2 flex-1";
 
-/** The Created column's box, from `@2xl` of the row (672px): one width on
- *  every row, so the times line up down the list. Narrower, the row's line
- *  under the name says it instead (`CreatedLine`). */
-const ROW_CREATED = "hidden w-36 shrink-0 text-right @2xl:block";
+/** The Resumes page's card grid (2026-11-10, after the Tracker's cards):
+ *  the name and what the resume is, Created and Last Edited in fixed
+ *  columns, and the icons in a column at least five icons wide, so every
+ *  card's columns line up whatever icons it has. An upload has no Preview,
+ *  and an `auto` icon column moved its dates against a built resume's.
+ *  Below `@2xl` of the card (672px) the dates join the line under the name. */
+const CARD_GRID =
+  "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 p-3 @2xl:grid-cols-[minmax(0,1fr)_10rem_8rem_minmax(10rem,auto)] @2xl:gap-6 @2xl:px-4";
 
-/**
- * When the resume was made or uploaded, date and time (the Resumes page,
- * 2026-11-10): a column left of the icons, "Created" over "Nov 10, 3:42
- * PM". The student wanted to tell resumes made the same day apart. Only the
- * Resumes page draws it; the pickers' rows keep their one line.
- */
-export function CreatedColumn({ at }: { at: string }) {
+/** One labeled value of a card, from `@2xl` of the card. */
+function CardColumn({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className={ROW_CREATED}>
-      <div className="text-meta text-ink-meta">Created</div>
-      <div className="text-note text-ink-muted">
-        <LocalDateTime at={at} />
+    <div className="hidden min-w-0 @2xl:block">
+      <div className="text-meta text-ink-meta">{label}</div>
+      <div className="text-note text-ink mt-0.5 flex items-center gap-1.5 whitespace-nowrap">
+        {children}
       </div>
     </div>
   );
 }
 
-/** A row's own day for `at` where the Created column shows (it has the
- *  time), and the day with the time where the column is hidden. For a line
- *  whose day is the created one ("Uploaded", "Made"). */
-export function CreatedLine({ at }: { at: string }) {
+/**
+ * One resume on the Resumes page, as a wide card after the Tracker's
+ * (`applications/cards.tsx`, the user's call of 2026-11-10): a file tile,
+ * the name, and a line with an icon saying what the resume is (`about`),
+ * then Created (date and time) and Last Edited in labeled columns, then the
+ * icons. The rows it replaced were 52px grey strips with the date pushed
+ * against the icons, which the user found skinny and cramped, and whose
+ * Created column moved with each row's icons.
+ *
+ * The whole card opens the resume (`href`): the name's link stretches over
+ * it, and the icons and any link in `about` sit above it. `edited` is null
+ * for a resume never edited (an upload, or a built resume as made). The
+ * pickers' rows keep their one-line strip (`ResumeRow` without `page`).
+ */
+export function ResumeCard({
+  name,
+  href,
+  about,
+  badge,
+  created,
+  edited,
+  actions,
+}: {
+  name: string;
+  href: string;
+  about: ReactNode;
+  badge?: ReactNode;
+  created: string | null;
+  edited: string | null;
+  actions: ReactNode;
+}) {
   return (
-    <>
-      <span className="@2xl:hidden">
-        <LocalDateTime at={at} />
-      </span>
-      <span className="hidden @2xl:inline">
-        <LocalDate at={at} />
-      </span>
-    </>
+    <Card
+      padding="none"
+      className="group hover:border-ink-meta hover:shadow-lift ease-glide @container relative mt-3 transition-[box-shadow,border-color] duration-200"
+    >
+      <div className={CARD_GRID}>
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="bg-well rounded-control hidden size-10 shrink-0 items-center justify-center @sm:flex">
+            <PdfIcon className="size-5" />
+          </span>
+          <div className="min-w-0">
+            <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+              <Link
+                href={href}
+                title={name}
+                className="text-subtitle text-ink after:rounded-card focus-visible:after:ring-brand-ring min-w-0 truncate leading-5 after:absolute after:inset-0 focus-visible:outline-none focus-visible:after:ring-2"
+              >
+                {name}
+              </Link>
+              {badge}
+            </div>
+            <div className="text-note text-ink-meta mt-1 flex min-w-0 items-center gap-1.5">
+              {about}
+            </div>
+            {/* Narrower, the columns' dates read here. */}
+            {created && (
+              <div className="text-note text-ink-meta mt-0.5 truncate @2xl:hidden">
+                Created <LocalDateTime at={created} />
+                {edited && (
+                  <>
+                    {" · Last edited "}
+                    <LocalDate at={edited} />
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+        <CardColumn label="Created">
+          {created ? (
+            <>
+              <CalendarIcon className="text-ink-meta size-3.5 shrink-0" />
+              <LocalDateTime at={created} />
+            </>
+          ) : (
+            "—"
+          )}
+        </CardColumn>
+        <CardColumn label="Last Edited">
+          {edited ? (
+            <>
+              <PencilIcon className="text-ink-meta size-3.5 shrink-0" />
+              <LocalDate at={edited} />
+            </>
+          ) : (
+            <span className="text-ink-meta">Not edited</span>
+          )}
+        </CardColumn>
+        <div className={cn(ROW_ACTIONS, "justify-end")}>{actions}</div>
+      </div>
+    </Card>
+  );
+}
+
+/** A file in flight on the Resumes page, as the card it becomes, at its
+ *  height, so nothing jumps when the real card arrives. */
+export function PendingResumeCard({ name, note }: { name: string; note: string }) {
+  return (
+    <Card padding="none" className="@container mt-3">
+      <div className={CARD_GRID}>
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="bg-well rounded-control hidden size-10 shrink-0 items-center justify-center @sm:flex">
+            <PdfIcon className="size-5" />
+          </span>
+          <div className="min-w-0">
+            <div className="text-subtitle text-ink truncate leading-5">{name}</div>
+            <div className="text-note text-ink-meta mt-1">{note}</div>
+          </div>
+        </div>
+      </div>
+    </Card>
   );
 }
 
@@ -233,8 +339,8 @@ type ResumeRowProps = {
   resume: ResumeItem;
   /** The upload's page, which the whole card opens. */
   href: string;
-  /** Show the Created column (the Resumes page only). */
-  created?: boolean;
+  /** Draw it as the Resumes page's card (`ResumeCard`), not a picker's strip. */
+  page?: boolean;
   onMakePrimary?: () => void;
   onRename?: () => void;
   onDownload?: () => void;
@@ -245,14 +351,83 @@ type ResumeRowProps = {
 export function ResumeRow({
   resume,
   href,
-  created = false,
+  page = false,
   onMakePrimary,
   onRename,
   onDownload,
   onDelete,
 }: ResumeRowProps) {
   const name = resume.original_filename ?? "Resume";
-  const downloadLabel = resume.storage_path.endsWith(".pdf") ? "Download PDF" : "Download";
+  const pdf = resume.storage_path.endsWith(".pdf");
+  const downloadLabel = pdf ? "Download PDF" : "Download";
+
+  const actions = (
+    <>
+      <PrimaryStar name={name} primary={resume.is_default} onMakePrimary={onMakePrimary} />
+      <div className={ROW_WIDE}>
+        {onRename && (
+          <IconButton
+            label={`Rename ${name}`}
+            tooltip="Rename"
+            className={ROW_ACTION}
+            onClick={onRename}
+          >
+            <PencilIcon className="size-4" />
+          </IconButton>
+        )}
+        {onDownload && (
+          <IconButton
+            label={`Download ${name}`}
+            tooltip={downloadLabel}
+            className={ROW_ACTION}
+            onClick={onDownload}
+          >
+            <FileArrowDownIcon aria-hidden className="size-4" />
+          </IconButton>
+        )}
+        {onDelete && (
+          <DeleteResumeConfirm
+            onDelete={onDelete}
+            trigger={
+              <IconButton
+                label={`Delete ${name}`}
+                tooltip="Delete"
+                className={cn(ROW_ACTION, "hover:text-danger")}
+              >
+                <TrashIcon className="size-4" />
+              </IconButton>
+            }
+          />
+        )}
+      </div>
+      {(onRename || onDownload || onDelete) && (
+        <RowMoreMenu
+          name={name}
+          onRename={onRename}
+          download={onDownload && { label: downloadLabel, onPick: onDownload }}
+          onDelete={onDelete}
+        />
+      )}
+    </>
+  );
+
+  if (page) {
+    return (
+      <ResumeCard
+        name={name}
+        href={href}
+        about={
+          <>
+            <FileIcon className="size-3.5 shrink-0" />
+            <span className="truncate">{pdf ? "Uploaded PDF" : "Uploaded Word file"}</span>
+          </>
+        }
+        created={resume.created_at}
+        edited={null}
+        actions={actions}
+      />
+    );
+  }
 
   return (
     <div
@@ -277,63 +452,12 @@ export function ResumeRow({
           {resume.created_at && (
             <>
               {" "}
-              {created ? (
-                <CreatedLine at={resume.created_at} />
-              ) : (
-                <LocalDate at={resume.created_at} />
-              )}
+              <LocalDate at={resume.created_at} />
             </>
           )}
         </p>
       </div>
-      {created && resume.created_at && <CreatedColumn at={resume.created_at} />}
-      <div className={ROW_ACTIONS}>
-        <PrimaryStar name={name} primary={resume.is_default} onMakePrimary={onMakePrimary} />
-        <div className={ROW_WIDE}>
-          {onRename && (
-            <IconButton
-              label={`Rename ${name}`}
-              tooltip="Rename"
-              className={ROW_ACTION}
-              onClick={onRename}
-            >
-              <PencilIcon className="size-4" />
-            </IconButton>
-          )}
-          {onDownload && (
-            <IconButton
-              label={`Download ${name}`}
-              tooltip={downloadLabel}
-              className={ROW_ACTION}
-              onClick={onDownload}
-            >
-              <FileArrowDownIcon aria-hidden className="size-4" />
-            </IconButton>
-          )}
-          {onDelete && (
-            <DeleteResumeConfirm
-              onDelete={onDelete}
-              trigger={
-                <IconButton
-                  label={`Delete ${name}`}
-                  tooltip="Delete"
-                  className={cn(ROW_ACTION, "hover:text-danger")}
-                >
-                  <TrashIcon className="size-4" />
-                </IconButton>
-              }
-            />
-          )}
-        </div>
-        {(onRename || onDownload || onDelete) && (
-          <RowMoreMenu
-            name={name}
-            onRename={onRename}
-            download={onDownload && { label: downloadLabel, onPick: onDownload }}
-            onDelete={onDelete}
-          />
-        )}
-      </div>
+      <div className={ROW_ACTIONS}>{actions}</div>
     </div>
   );
 }

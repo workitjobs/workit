@@ -434,6 +434,7 @@ export function BuiltResumes({
             if (rows.length === 0 && !pending) return null;
             return (
               <ResumeGroup
+                ground
                 key={value}
                 label={label}
                 count={rows.length}

@@ -1,7 +1,6 @@
 import type { ReactNode } from "react";
 
 import { ResumeScroll } from "@/components/resume-list";
-import { Card } from "@/components/ui/card";
 
 /**
  * The Resumes page's list (KAN-362): every resume's card (an upload's
@@ -16,11 +15,18 @@ import { Card } from "@/components/ui/card";
  * table with Type and Last Edited columns, then with the icons in one menu,
  * came first in KAN-362: the columns said what each card's line already
  * says, and the menu hid the actions a student uses.
+ *
+ * Since 2026-11-10 the cards sit on the page's ground, as the Tracker's do,
+ * each a white card with its dates in columns (`ResumeCard`), and the list
+ * is no card of its own: grey strips in a white card read skinny and
+ * cramped to the user. The scroll's own inset (`ResumeScroll`'s px-3, the
+ * room a card's shadow needs) is taken back with -mx-3, so the cards line
+ * up with the search and the buttons above.
  */
 export function ResumeList({ children }: { children: ReactNode }) {
   return (
-    <Card as="section" aria-label="Your Resumes" padding="none" className="mt-4 overflow-hidden">
+    <section aria-label="Your Resumes" className="-mx-3 mt-1">
       <ResumeScroll fill>{children}</ResumeScroll>
-    </Card>
+    </section>
   );
 }

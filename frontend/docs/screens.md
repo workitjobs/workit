@@ -2903,20 +2903,26 @@ since (2026-11-10); Oldest First; Name (A to Z). For the edit orders an
 upload dates from its upload, a built resume from its last edit. It is drawn as the Type filter is, but
 never takes the filter's brand tint, since an order is always in force;
 it is a dropdown because the header already holds the Resumes or Experiences
-pills, the shared `SortMenu`, which the Jobs page's filter row uses too. Each resume is its card, with its own
-line saying what it is ("Uploaded Oct 21", "Last edited Oct 21 · For
-<posting>") and its star, Rename, Download and Delete. **A Created column
-sits left of the icons** (2026-11-10, `CreatedColumn` in
-`components/resume-row.tsx`): "Created" over the date and time it was
-uploaded or made, "Nov 10, 3:42 PM", on the student's clock, the year only
-when it is not this one, in one width on every row so the times line up.
-The student wanted to tell resumes made the same day apart. Below `@2xl`
-of the row (672px) the column hides and the line takes the time instead
-("Uploaded Oct 23, 3:27 PM", "Made Nov 10, 5:56 PM", "Last edited Nov 5 ·
-Created Oct 29, 3:09 PM"). The server prints the UTC day alone and the
-browser adds the time after hydration (`LocalDateTime`). Only the Resumes
-page draws it; the pickers' rows keep their one line. On a phone the Sort
-button cuts "Recently Created" to "Recently Cre…". With no resume at
+pills, the shared `SortMenu`, which the Jobs page's filter row uses too.
+**Each resume is a wide white card on the page's ground, after the
+Tracker's cards** (2026-11-10, `ResumeCard` in
+`components/resume-row.tsx`; the list is no card of its own): a file tile,
+the name, and a line with an icon saying what the resume is ("Uploaded
+PDF", "Made from your experiences", "For <posting> at <company>", with
+Posting Closed beside the name), then **Created** (date and time, on the
+student's clock, the year only when it is not this one) and **Last
+Edited** (the day, or "Not edited") in labeled columns, then its star,
+Preview, Rename, Download and Delete. The columns have fixed widths and the
+icons a column at least five icons wide, so every card's dates line up,
+an upload's (four icons) and a built resume's alike. The rows before were
+52px grey strips in one white card with the date against the icons, which
+the user found skinny and cramped, and whose Created column moved with
+each row's icons. Below `@2xl` of the card (672px) the columns hide and
+the dates join the line under the name ("Created Oct 23, 3:27 PM · Last
+edited Nov 5"). The server prints the UTC day alone and the browser adds
+the time after hydration (`LocalDateTime`). The pickers' rows keep their
+one-line strip (`ResumeRow` without `page`). On a phone the Sort button
+cuts "Recently Created" to "Recently Cre…". With no resume at
 all the list's place holds "No Resumes Yet"; filters that hide every
 card show "No Matching Resumes" with Clear Filters (`EmptyState`, as the
 Applications page's). The type and the order are the URL's (`?type=uploaded,tailored`,

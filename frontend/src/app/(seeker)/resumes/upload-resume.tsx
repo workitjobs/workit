@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { useRef, useState, type ChangeEvent } from "react";
 
-import { PdfIcon, UploadIcon } from "@/components/icons";
-import { RESUME_ROW, ROW_MARK, ResumeRow } from "@/components/resume-row";
+import { UploadIcon } from "@/components/icons";
+import { PendingResumeCard, ResumeRow } from "@/components/resume-row";
 import { RESUME_ACCEPT, resumeFileError } from "@/components/resume-upload";
 import { Button } from "@/components/ui/button";
 import { type ImportResponse } from "@/lib/bank-actions";
@@ -144,12 +144,8 @@ export function useResumeUpload({
 
   // The file in flight, as the list's first card.
   const pending = uploading !== null && (
-    <li className={RESUME_ROW}>
-      <PdfIcon className={ROW_MARK} />
-      <div className="min-w-0 flex-1">
-        <p className="text-label text-ink truncate">{uploading}</p>
-        <p className="text-note text-ink-meta">Reading your resume…</p>
-      </div>
+    <li>
+      <PendingResumeCard name={uploading} note="Reading your resume…" />
     </li>
   );
 
@@ -236,7 +232,7 @@ export function UploadedRow({
         <ResumeRow
           resume={resume}
           href={`/resumes/uploaded/${encodeURIComponent(resume.id)}`}
-          created
+          page
           onMakePrimary={makePrimary}
           onRename={() => setRenaming(true)}
           onDownload={download}
