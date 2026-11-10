@@ -15,8 +15,9 @@
 //
 // The dev manifest and config stay as they are, for the tests. KAN-447's publish workflow uploads
 // this zip rather than packaging the folder itself. Needs `zip` (macOS and ubuntu-latest have it) and
-// esbuild (`npm ci --prefix autofiller_extension/store`).
+// esbuild (`npm ci --prefix store` from autofiller_extension/).
 import { execFileSync } from "node:child_process";
+import { transform } from "esbuild";
 import { cpSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -32,10 +33,10 @@ export const BANNER = "/*! WorkIt. Copyright (c) 2026 Xiang Liu, Brian Cao, Andr
 
 /** One packaged script, minified, with no source map. No `format`, so esbuild keeps a classic script's
  *  top-level names (the content scripts share them through `window.WIA`) and a module's imports and
- *  exports; no `target`, so it lowers no syntax and adds no helper a `func` script would lack. */
+ *  exports (it renames a module's other names); no `target`, so it lowers no syntax and adds no helper
+ *  an `executeScript` `func` would lack. A bundled `/*!` licence comment moves to the file's end. */
 async function minify(file) {
-  const { transform } = await import("esbuild");
-  const { code } = await transform(readFileSync(file, "utf8"), { minify: true, legalComments: "none", sourcemap: false, banner: BANNER });
+  const { code } = await transform(readFileSync(file, "utf8"), { minify: true, legalComments: "eof", sourcemap: false, banner: BANNER });
   writeFileSync(file, code);
 }
 
