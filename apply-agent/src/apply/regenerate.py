@@ -140,12 +140,14 @@ def regenerate(claude: Claude, form: Form, name: str, context: str, profile: App
         [essay], _ = essays.answer(claude, form.posting, [q], [], profile, material, form.posting_text,
                                    answered=answered, redo=redo)
         text, failed = essay.text, list(essay.failed)
+        # The truth check's claims go on the note for Lisul to read; they never keep the old answer.
+        claimed = [f"claims what no source backs: {'; '.join(essay.claims)}"] if essay.claims else []
         if essay.plan and essay.plan.asks:
             return Redone(q, why="Claude needs more from you: " + "; ".join(essay.plan.asks), kept=kept)
     else:
         _, [draft] = essays.answer(claude, form.posting, [], [q], profile, material, form.posting_text,
                                    answered=answered, redo=redo)
-        text, failed = ("" if draft.needs_lisul else draft.shown), []
+        text, failed, claimed = ("" if draft.needs_lisul else draft.shown), [], []
     if not text:
         return Redone(q, why="Claude couldn't write it from your facts and this context: add the fact it lacks", kept=kept)
     if over := gates.over_cap(text, q):
@@ -153,7 +155,7 @@ def regenerate(claude: Claude, form: Form, name: str, context: str, profile: App
     if invented := [f for f in failed if f.startswith(INVENTED)]:
         return Redone(q, why="the new answer states " + "; ".join(invented) + ", so the old one stays", kept=kept)
     allowed = essays.sources(profile, material, facts=True)
-    checks = tuple(failed) + tuple(f.why for f in verify.essay(one_line(q.label), text, profile, form.posting, allowed))
+    checks = tuple(failed) + tuple(claimed) + tuple(f.why for f in verify.essay(one_line(q.label), text, profile, form.posting, allowed))
     banked = written.kind == DRAFT and _bank(bank, q, text, form.posting.company, today)
     written.text, written.why = text, "; ".join(checks)
     if written.kind == ESSAY:

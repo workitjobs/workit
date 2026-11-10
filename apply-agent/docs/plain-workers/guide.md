@@ -121,7 +121,19 @@ them. `apply.plain.tile.PortFrames` is their frame source for the same
   helper that never aimed, as when ScreenCaptureKit waits on a macOS prompt),
   or with none for 20 s after a `tile.shown` (`STALLED`), stops being filmed:
   `tile.start` again with `native: false`, and the extension's frames show.
-  Apply prints one line saying why. Clicks map by the frame's own size
+  Apply prints one line saying why.
+- **Filmed again (KAN-751).** A fallback is not for the rest of the run. A
+  page's title and the title macOS lists for its window can disagree for a
+  while: amazon.jobs' sign-in redirects showed "Log in or create account |
+  Amazon.jobs" in the tab and "Amazon IdPrism" in the window for more than 3 s,
+  so the helper refused the window (KAN-717) and the tile stayed at 2 fps. Now
+  Apply tries filming again `RETRY` (5 s) after a fallback: `tile.start` with
+  `native: true`, the extension's `tile.shown` aims a new helper, and a verified
+  frame keeps the tile filmed ("filmed again"). A try that fails falls back the
+  same way and doubles the wait, up to `RETRY_MOST` (60 s); a filmed frame
+  resets it. The tile keeps its last frame while a try waits, so it never
+  blanks, and each try checks the window as strictly as the first. Only the
+  first fallback prints. Tests: `tests/test_plain_tile_refilm.py`. Clicks map by the frame's own size
   (`page/tile.js` scales by `width` x `height`), so a 2x filmed frame and a 1x
   extension frame both land on the element under the pointer.
 - **Only its own window and tab (KAN-717).** A tile shows its own Worker's
@@ -179,7 +191,13 @@ them. `apply.plain.tile.PortFrames` is their frame source for the same
   (`launcher.start_in_background`) with `--no-startup-window`, then the
   extension opens the window unfocused (`windows.create`), 1280 x 900 (readable at 100%),
   shrunk to the main screen's visible area, at its top-left corner. Only his Show brings one forward. Tests share one Worker and
-  stop it when they end.
+  stop it when they end. A Chrome that comes forward on its own (a launch, a
+  new tab, a pop-up) goes back behind his app (`focus.FocusKeeper`). One he
+  switches to stays in front and is his: a click on its window, a click in the
+  Dock or Mission Control, or Cmd-Tab. A click counts by whose window was
+  under the pointer, not only by the time of the click: macOS makes the
+  clicked app the front app a moment after the mouse-down, and a Worker he
+  clicked went straight back behind (KAN-752).
 - **Wired into runs (S8, KAN-614).** `cli._dashboard` builds `PortFrames` when
   `worker_mode: plain`, and `EitherFrames` (each Worker's current kind) when `protected`.
 - **Live check.** `uv run apply plain tile lever-immuta` fills a saved form

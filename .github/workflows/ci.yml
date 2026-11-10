@@ -110,6 +110,8 @@ jobs:
             apply:
               - apply-agent/**
               - autofiller_extension/fill-engine
+              # Apply's truth check is a copy of this file; its test compares them
+              - backend/app/auto_apply/truth.py
               - .github/workflows/ci.yml
               - .github/workflows/engine-token.yml
 
@@ -230,6 +232,8 @@ jobs:
             tests/test_graduate_only.py \
             tests/test_into.py \
             tests/test_plain_tile_identity.py \
+            tests/test_plain_tile_refilm.py \
+            tests/test_plain_tile_fallback.py \
             tests/test_review_kan717_hostile.py \
             tests/test_left_behind.py \
             tests/test_preflight.py \
@@ -269,6 +273,7 @@ jobs:
             tests/test_already_applied.py \
             tests/test_tracker_contract.py \
             tests/test_tracker_record.py \
+            tests/test_truth.py \
             tests/test_worker_date.py \
             tests/test_workit_login.py
       # The submit guard's hostile pages (KAN-666): their no-browser and CDP cases, on Playwright's
