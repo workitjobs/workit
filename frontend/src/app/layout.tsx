@@ -4,6 +4,7 @@ import { Geist_Mono, Plus_Jakarta_Sans } from "next/font/google";
 import { TooltipProvider } from "@/components/shadcn/tooltip";
 import { ToastProvider } from "@/components/ui/toast";
 import { SHARE_DEFAULTS, SHARE_IMAGE } from "@/lib/share-card";
+import { SIGNED_IN_HINT } from "@/lib/supabase/cookies";
 
 import { hero } from "./(landing)/data";
 import "./globals.css";
@@ -40,9 +41,21 @@ export const metadata: Metadata = {
   twitter: { card: "summary_large_image", images: [SHARE_IMAGE] },
 };
 
+/** Marks `<html data-signed-in>` when the signed-in hint cookie is set. */
+const SIGNED_IN_SCRIPT = `if(/(?:^|; )${SIGNED_IN_HINT}=1(?:;|$)/.test(document.cookie))document.documentElement.setAttribute("data-signed-in","")`;
+
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={`${jakartaSans.variable} ${geistMono.variable} h-full antialiased`}>
+      <head>
+        {/* Before the first paint, so the marketing header shows "Open
+            WorkIt" at once for a signed-in visitor (KAN-743): it reads the
+            signed-in hint (lib/supabase/cookies.ts), never the session, and
+            the server reads nothing, so every page stays static. Here, not
+            in the (landing) layout, so it runs only on a full load: React
+            never runs a script it renders on a client navigation. */}
+        <script dangerouslySetInnerHTML={{ __html: SIGNED_IN_SCRIPT }} />
+      </head>
       <body className="flex min-h-full flex-col">
         {/* Here rather than in a shell: every icon-only button carries a
             tooltip, and those are in both shells and the design kit. One
