@@ -1,8 +1,9 @@
 # Desktop application for auto apply (KAN-723)
 
-**Status (2026-11-09):** plan, not built. One decision is built: Apply's
-Workers default to `worker_mode: protected`. Everything else here is a
-plan. Apply's own folder is `apply-agent/`; its rules are in
+**Status (2026-11-10):** plan, mostly not built. Built: Apply's Workers
+default to `worker_mode: protected`, and `ask` can run on Groq
+(`ask_model: groq`). Everything else here is a plan; section 10 lists the
+work. Apply's own folder is `apply-agent/`; its rules are in
 `apply-agent/CLAUDE.md`, and its terms are in `apply-agent/GLOSSARY.md`.
 
 This note records a design talk about how Apply works today and how to make
@@ -41,8 +42,9 @@ tasks. Each covers both the desktop app's own code and the Fill engine.
 1. **A model that works with no student in the loop.** Claude on the
    developer's own login (`claude -p`) cannot ship (section 8). The app
    needs a model it may call on its own schedule, at a cost WorkIt can
-   carry: no API keys that the student or WorkIt pays per token, and no
-   connector. Today's working answer is a local model (§3.2, section 8).
+   carry, and no connector. First an API model on Groq (gpt-oss), called
+   through WorkIt so the key never ships; later a local model behind the
+   same adapter (§3.2, section 8).
 2. **Code that cannot be stolen.** The desktop app's Python is compiled
    to machine code; the Fill engine is the hard part, because its in-page
    part must run as JavaScript in the job site's page (§7.4).
@@ -396,6 +398,21 @@ and no headless mode. A private worker extension runs each op (`tabs.goto`,
 `Page` API, so Fillers, the engine and the guards run unchanged. Claude
 fill gets a tool server with the same `mcp__playwright__*` tool names.
 
+**Two paths, one caller.** Only Apply's Python controls Chrome:
+
+| Worker | Path from Python to the page |
+|---|---|
+| CDP | Python → Playwright → Playwright's Node driver (`site-packages/playwright/driver/`) → CDP → the page |
+| Plain | Python → Unix socket → host relay → native messaging → worker extension → the page |
+
+The worker extension does not use Playwright; it takes Playwright's place
+on a Worker with no CDP. A model never touches Chrome. It names an action
+(a tool call, or one choice), and Apply's code carries it out on whichever
+path the Worker has. Claude does so today on plain Workers through
+`apply/plain/tools.py`; an API or local model that replaces Claude uses
+the same path, and Playwright MCP's tool definitions are already in
+`apply/plain/mcp_tools.json`.
+
 ## 6. Worker mode: `protected` is the default (built, 2026-11-06)
 
 `apply-agent/policies.default.yaml` sets `worker_mode: protected`: plain
@@ -579,6 +596,41 @@ thin hand:
   list: click the box, wait for the list, pick the group, then the
   option"), sent to the hand as a list of steps.
 
+**The label cache (proposed).** The planner does four steps for each
+question. Only step 2 is the student's data; the others are WorkIt's
+logic:
+
+| Step | Example | Secret? |
+|---|---|---|
+| 1. Meaning | "How did you hear about us?" → the fact `source` | Yes: the rules |
+| 2. Value | `source` = "LinkedIn" | No: the student's data |
+| 3. Fit | Options [Job Board, LinkedIn, Referral] → "LinkedIn" | Partly: `fit.ts` |
+| 4. Policy | A screener, a trap, an AI ban | Yes: rules, per posting |
+
+The app keeps the server's results of steps 1 and 3, never the rules:
+
+- **Key:** the label in a standard form (lower case, spaces collapsed),
+  the control type, the option list and the engine version.
+- **Value:** the meaning (`source`) and the fit for that option list,
+  with the value it was fitted for.
+
+The first form sends its labels and options in one call and stores the
+results. The next form with the same labels plans them in the app, with
+no trip; only new labels go to WorkIt. The value always comes from the
+student's current data, so an edit on the website needs no cache change;
+a cached fit is used only while the value matches the one it was made
+for. A new engine version clears the cache. Step 4 stays on the server,
+once per job posting. A reader of the cache sees one student's labels and
+their meanings, not the rules that read a new wording; the app can also
+encrypt it with the per-launch key.
+
+**Recipes as steps.** Each hiring system's widget steps (Workday's
+two-level list) must reach the hand, so they can be read while the app
+runs. WorkIt sends a hiring system's recipe only when a form on it opens,
+the app keeps it in memory only, and a recipe is a list of generic steps
+("click the box, wait for a list, pick the item") that the generic hand
+carries out.
+
 The server is the only real black box: the rules never leave it, and
 WorkIt already holds the student's data, so no new data goes out. Costs:
 one call per form for the plan (the steps can come in one reply), no
@@ -587,6 +639,21 @@ extension, which goes through the Chrome Web Store, may be minified but
 not obfuscated. The desktop app's worker extension is private and does not
 go through the Store, so its hand may also be obfuscated, which only slows
 a reader down.
+
+**Other desktop apps ship readable JavaScript too (checked 2026-11-09).**
+Electron apps (a Chrome engine plus Node, with the app in JavaScript) ship
+their code in an `app.asar` archive or an `app` folder. An `.asar` is a
+JSON list of files followed by their bytes, with no compression and no
+encryption; `npx @electron/asar extract app.asar out/` unpacks it. On one
+team Mac, 9 apps had an `app.asar` (Slack, ChatGPT, Teams classic,
+Obsidian, Postman Agent and others) and 6 an `app` folder (VS Code,
+Cursor and others). Slack's archive held 954 files, 518 of them
+JavaScript, minified but readable. Electron's docs say asar hides code
+"from cursory inspection" only
+(https://github.com/electron/electron/blob/v11.4.7/docs/tutorial/application-packaging.md).
+These companies keep their value on their servers; the app is a client.
+Apply follows the same rule: ship only JavaScript that is safe to read
+(the hand, the worker extension), and hide the rest.
 
 **The four ways, one by one (2026-11-09).**
 
@@ -622,7 +689,7 @@ stops a reader with time; the brain on the server does.
 - **Sign and notarize, for install.** Notarizing is Apple's malware scan
   of a signed app, so macOS opens it without a warning. It hides nothing.
   Windows needs a code-signing certificate, so SmartScreen does not warn.
-  The packaging spike (section 10) proves that the compiled app runs.
+  The packaging spike (section 10, #11) proves that the compiled app runs.
 
 ## 8. Claude access
 
@@ -747,6 +814,55 @@ small models, slowly), the model download is several GB, and essays may
 not be good enough. Measure before deciding; a cheap hosted model paid by
 WorkIt stays the fallback if the measured cost per Application is small.
 
+**First step (2026-11-10): an API model on Groq, then a local one.** An
+API model is the fastest way to replace Claude end to end and measure
+quality and cost; a local model can take its place later behind the same
+adapter. **Built for `ask` (2026-11-10):** `ask_model: groq`
+(`apply-agent/docs/ask-model.md`); `research` and `drive` are next
+(section 10). Groq's catalog (https://console.groq.com/docs/models, read
+2026-11-10):
+
+| Model | Status | Price per 1M tokens (in / out) | Use in Apply |
+|---|---|---|---|
+| `openai/gpt-oss-120b` | Production | $0.15 / $0.60 | Essays, one-off answers, company briefs (Groq's built-in browser search), `drive` |
+| `openai/gpt-oss-20b` | Production | $0.075 / $0.30 | Closed fill questions, Rescue's picks, the Pre-submit review |
+| `qwen/qwen3.8-27b` | Preview | $0.80 / $4.00 | Not for production: preview models are for evaluation and can go at short notice |
+| `llama-3.3-70b-versatile`, `llama-3.1-8b-instant` | Contact sales | — | No: reported retired for most plans on 2026-08-16 |
+
+Both gpt-oss models take strict JSON schemas, call tools, and read 131,072
+tokens; WorkIt's Scout already runs on them (`scout/CLAUDE.md`), so the
+team knows their quirks. What Apply's code must handle
+(https://console.groq.com/docs/structured-outputs,
+https://console.groq.com/docs/tool-use):
+
+- **Structured output and tools do not mix** on Groq, and neither does
+  structured output with streaming. A `drive` loop ends with a `finish`
+  tool whose parameters are the answer's schema, checked by Apply, in
+  place of `claude -p --json-schema`.
+- **Strict schemas** need every field `required` and
+  `additionalProperties: false`; an optional field becomes a nullable
+  type. `apply/groq.py`'s `strict` does that pass for `ask`, and drops the
+  nulls from the answer.
+- **No parallel tool calls** on gpt-oss: one action per turn, which suits
+  the guards.
+- **Apply runs the loop.** `claude -p` ran the loop before; Apply now
+  sends each tool call to Playwright (CDP) or `apply/plain/tools.py`
+  (plain), with `apply/plain/mcp_tools.json` as the tool definitions, and
+  keeps the caps on turns and tokens, the send-click hook and the captcha
+  refusal.
+- **Rate limits:** the Developer plan gives 250,000 tokens a minute per
+  model. A Claude fill may use up to 400,000 tokens on one form, so `drive`
+  must send a trimmed snapshot, not the whole page each turn. The free
+  tier is far smaller.
+- **Quality:** compare gpt-oss-120b's essays with Opus's on the same
+  postings with `essays.py`'s paired judging before shipping.
+
+**The key never ships in the app.** Anything in the app can be read
+(§7.4), so a Groq key there is a key for everyone. The app calls the model
+through a WorkIt API route that holds the key and sets each student's
+quota (option C). Check Groq's terms for a paid product and for the
+student's personal data in prompts before launch.
+
 ## 9. WorkIt as the source of the data
 
 Apply already calls WorkIt through one client, `apply-agent/src/apply/workit.py`
@@ -770,51 +886,91 @@ What would move from the data folder to WorkIt:
 The data model is the main work, not the transport. Personal data stays
 out of the repo on both sides.
 
-## 10. Proposed build order
+**A local copy, synced (proposed).** "WorkIt is the source" means the
+student edits on the website and WorkIt keeps the main copy; it does not
+mean a trip per question. Apply already plans from local files today.
 
-1. `protected` as the default. **Done.**
+1. At launch, the app downloads the student's data (profile, answer bank,
+   stories, resumes) into the data folder.
+2. Before each Application, it checks one version number and downloads
+   only what changed.
+3. The planner reads the local copy.
+4. An answer the student approves in the window goes up to WorkIt, queued
+   while WorkIt is offline, as `workit-queue.json` queues tracker writes
+   today.
 
-**Task 1, a model that works (section 8):**
+With the local copy, a local or label-cached planner and the model, a form
+needs WorkIt only for new labels (if the rules stay on the server), the
+model calls (if the model is hosted, section 8), and the tracker writes.
+Rules in the app mean no trips but readable rules; rules on the server
+mean one short trip per new label. That choice is open (section 11).
 
-2. A local backend behind `Adapters.claude` for `ask`, chosen by a policy
-   key, with `claude -p` as the default. Rehearse with each and compare
-   the answers and essays on the same postings.
-3. Measure one Application's model use (the calls and tokens, by call
-   kind) on about 20 rehearsals across hiring systems, with each backend.
-   It decides between a local model and a cheap hosted one.
-4. `research` without web search: Apply fetches the company's pages, the
-   model summarizes.
-5. The generic Filler with a local model (§3.2), tested on saved forms and
-   long-tail rehearsals against Claude fill.
+## 10. The work list
 
-**Task 2, code that cannot be stolen (§7.4):**
+Every piece of work this note plans, in order inside each group. "Owner"
+is KAN-723's owner unless it names teammates. Status as of 2026-11-10.
 
-6. A packaging spike: compile Apply with Nuitka on one Mac and one Windows
-   computer, and make one CDP rehearsal and its window work.
-7. The engine's per-launch key and pinned download; no plain engine file
-   on disk; `userScripts.execute` for every inject.
-8. Obfuscate the hand and the worker extension, and measure the fill time.
-9. The brain and hand split, with the brain on WorkIt's server.
+**Done**
 
-**Then:**
+| # | Work | Where |
+|---|---|---|
+| 1 | `worker_mode: protected` as the default | Section 6 |
+| 2 | `ask` on Groq: `ask_model: groq` in `policies.yaml` sends every answer, essay and check to gpt-oss (`apply/groq.py`), with `claude -p` as the default; doctor checks the key | Section 8; `apply-agent/docs/ask-model.md` |
 
-10. The data contract: every fact Apply reads, the module that reads it,
-    and the WorkIt table or endpoint that will serve it (section 9). The
-    answer bank redesign starts from it.
-11. WorkIt client reads for the profile, answer bank and stories.
-12. Replace the macOS-only modules; plain Workers on Windows and Linux
-    (§7.2).
-13. First-run and setup screens in the Apply window: WorkIt login, Google
-    sign-in for the Worker profile, the seed, the local model's download.
-14. Start a run from the window (paste links, or take WorkIt's queue), not
-    only from the terminal.
-15. Sign, notarize and publish one build per OS, with the auto-updater and
-    the engine download (§7.3).
+**Task 1: a model that works with no student in the loop (section 8)**
+
+| # | Work | Owner | Status |
+|---|---|---|---|
+| 3 | Rehearse the same postings with `ask_model: claude` and `groq`; compare the answers, and the essays with `essays.py`'s paired judging | KAN-723's owner | Started 2026-11-10 on Test Person's data: one-off answers compared (both right; Groq's less tied to the company); gpt-oss passed the plan's quote check in 1 of 6 tries; the free tier (8,000 tokens a minute) refuses the essay-writing call (11,344 tokens), so essays wait on a Developer tier key or shorter prompts (`apply-agent/docs/ask-model.md`) |
+| 4 | Measure one Application's model use (calls and tokens by call kind) on about 20 rehearsals across hiring systems: the cost per Application on Groq | KAN-723's owner | Not started |
+| 5 | `research` on Groq: gpt-oss-120b with Groq's built-in browser search, for company briefs | KAN-723's owner | Not started |
+| 6 | `drive` on Groq: Apply's own tool loop over `apply/plain/mcp_tools.json`, run through Playwright (CDP) or `apply/plain/tools.py` (plain), a `finish` tool for the answer, a trimmed snapshot per turn, the caps, the send-click hook and the captcha refusal | KAN-723's owner | Not started |
+| 7 | The generic Filler with narrow tools (§3.2), tested on saved forms and long-tail rehearsals against Claude fill | KAN-723's owner | Not started |
+| 8 | A WorkIt API route that holds the Groq key and sets each student's quota; the app calls the model only through it. Before any student build | KAN-723's owner | Not started |
+| 9 | Read Groq's terms for a paid product and for students' personal data in prompts | KAN-723's owner | Not started |
+| 10 | Later: a local model behind the same adapter, where the student's computer can run it | KAN-723's owner | Later |
+
+**Task 2: code that cannot be stolen (§7.4)**
+
+| # | Work | Owner | Status |
+|---|---|---|---|
+| 11 | Packaging spike: compile Apply with Nuitka on one Mac and one Windows computer; one CDP rehearsal and its window work | KAN-723's owner | Not started |
+| 12 | The engine's per-launch key from WorkIt over a pinned connection; no plain engine file on disk; the decrypted engine sent to Node on stdin (today `fill_engine.py` passes a file path); `userScripts.execute` for every inject | KAN-723's owner | Not started |
+| 13 | Decide: the rules in the app (no trips, readable) or on WorkIt's server with the label cache | KAN-723's owner | Open |
+| 14 | The brain and hand split: the planner, rules, `fit.ts` and recipes on WorkIt's server; the label cache; recipes sent as steps | KAN-723's owner | Not started |
+| 15 | Obfuscate the hand and the worker extension; measure the fill time before and after | KAN-723's owner | Not started |
+| 16 | Sign and notarize per OS: Developer ID and the hardened runtime on macOS, a code-signing certificate on Windows | KAN-723's owner | Not started |
+| 17 | Terms of use that ban reverse engineering | KAN-723's owner, with a legal check | Not started |
+| 18 | The engine's exposure through the extension | Teammates | Teammates |
+| 19 | Minify the engine | Teammates | Teammates |
+
+**The student's data (section 9)**
+
+| # | Work | Owner | Status |
+|---|---|---|---|
+| 20 | The data contract: every fact Apply reads, the module that reads it, and the WorkIt table or endpoint that will serve it | KAN-723's owner | Not started |
+| 21 | The answer bank redesign, from the data contract | KAN-723's owner | Not started |
+| 22 | WorkIt client reads (`apply/workit.py`) for the profile, the answer bank and the stories | KAN-723's owner | Not started |
+| 23 | The local copy: download at launch, a version check before each Application, approved answers queued up to WorkIt | KAN-723's owner | Not started |
+
+**The desktop app**
+
+| # | Work | Owner | Status |
+|---|---|---|---|
+| 24 | Replace the macOS-only modules; plain Workers on Windows and Linux (§7.2) | KAN-723's owner | Not started |
+| 25 | First-run and setup screens in the Apply window: WorkIt login, Google sign-in for the Worker profile, the seed | KAN-723's owner | Not started |
+| 26 | Start a run from the window (paste links, or take WorkIt's queue), not only from the terminal | KAN-723's owner | Not started |
+| 27 | The auto-updater and the signed engine download (§7.3) | KAN-723's owner | Not started |
+| 28 | Publish one build per OS | KAN-723's owner | Not started |
+| 29 | A legal check of the hiring systems' terms on automated applying | KAN-723's owner, with a legal check | Not started |
 
 ## 11. Open questions
 
-- Which local model, and whether student laptops can run it well enough
-  (section 8); a cheap hosted model paid by WorkIt is the fallback.
+- Whether gpt-oss-120b's essays and `drive` are good enough (section 8),
+  and the cost per Application on Groq; later, which local model, and
+  whether student laptops can run it.
+- Rules in the app (no trips, readable) or on WorkIt's server with the
+  label cache (§7.4, section 9).
 - Whether a built copy of the private Fill engine may ship in a public
   download, and whether to move the planner to WorkIt's server (§7.4).
 - Whether to apply to OpenAI for Sign in with ChatGPT plan usage (§8, E).

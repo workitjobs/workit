@@ -474,9 +474,14 @@ def fact_tags(name: str, company: str) -> tuple[str, ...]:
     return tuple(t.strip() for t in tags[1].split(",") if t.strip()) if tags else ()
 
 
+# Hyphens a model may type for "-": gpt-oss writes the non-breaking one (U+2011) inside words it quotes
+# word for word ("made‑up"), so a true quote failed the plan's check (KAN-723, 2026-11-10).
+HYPHENS = str.maketrans({"\u2010": "-", "\u2011": "-"})
+
+
 def _plain(text: str) -> str:
-    """`text` for matching a story: one line, casefolded, without markdown marks."""
-    return one_line(text.replace("’", "'")).strip("#*->: ").casefold()
+    """`text` for matching a story: one line, casefolded, without markdown marks, with plain hyphens."""
+    return one_line(text.replace("’", "'").translate(HYPHENS)).strip("#*->: ").casefold()
 
 
 def _ask_plan(claude: Claude, posting: Posting, keys: Mapping[str, Question], classified: Mapping[str, str],

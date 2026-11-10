@@ -57,6 +57,7 @@ from apply.claude_cli import ClaudeCLI
 from apply.clock import SystemClock
 from apply.feed import live_feed
 from apply.gmail import live_mailbox
+from apply.groq import live_claude
 from apply.home import HOME
 from apply.keychain import GMAIL, MacKeychain
 from apply.match_queue import match_queue
@@ -540,7 +541,7 @@ def _story_map(args, claude) -> None:
         print("\n".join((story_map.check() if args.check else []) + (story_map.gaps() if args.gaps else [])) or
               ("No stale entries." if args.check else "No follow-ups the bank can't answer."))
         return
-    built = story_map.build(claude or ClaudeCLI())
+    built = story_map.build(claude or live_claude(load_policies()))
     old = yaml.safe_load(story_map.MAP.read_text()) if story_map.MAP.exists() else None
     print("\n".join(story_map.diff((old or {}).get("episodes") or [], built["episodes"])) or "No changes.")
     if built["dropped"]:
@@ -892,7 +893,7 @@ def _applied(adapters: Adapters) -> Callable[[str], str]:
 
 def _applied_live(url: str) -> str:
     """An Own application pasted into the window with no run going, added to the live Tracker."""
-    return own_application.report(url, tracker=live_tracker(), claude=ClaudeCLI(), site=WorkerBrowsers(),
+    return own_application.report(url, tracker=live_tracker(), claude=live_claude(load_policies()), site=WorkerBrowsers(),
                                   clock=SystemClock())
 
 
@@ -988,7 +989,7 @@ def live_adapters(profile: ApplicantProfile, tracker=None, records=None, notifie
         feed=live_feed(),
         tracker=live_tracker() if tracker is None else tracker,
         site=site,
-        claude=claude,
+        claude=live_claude(profile.policies(), claude),  # policies.yaml: ask_model (claude or groq)
         mailbox=live_mailbox(profile.get("identity.email")) if mailbox is None else mailbox,
         usage=claude,
         clock=SystemClock(),

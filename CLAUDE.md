@@ -236,7 +236,7 @@ with the failure it prevents.
   with the connector, one form at a time; the desktop app, which runs in
   the background with its own Chrome Workers and no connector), WorkIt as
   the source of the student's data, and its two tasks: a model the app may
-  call with no student in the loop (a local one, for now) and code that
+  call with no student in the loop (Groq's gpt-oss first, through WorkIt; a local one later) and code that
   can't be stolen; per-OS work, and how Apply works today from the ground up. Read it before
   changing Apply toward a download, or where its data comes from.
 - `docs/scraper_gh_action/plan.md` — KAN-726, built: the scheduled

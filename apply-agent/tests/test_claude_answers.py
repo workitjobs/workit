@@ -2036,3 +2036,10 @@ def test_setting_the_answers_keeps_the_forms_files_and_no_attestation(tmp_path):
 
 def _block_text(prompt: str, tag: str) -> str:
     return re.search(rf"<{tag}>\n(.*?)\n</{tag}>", prompt, re.DOTALL)[1]
+
+
+def test_a_quote_with_a_non_breaking_hyphen_is_word_for_word():
+    # gpt-oss quotes "made-up" as "made‑up" (U+2011): the same words (KAN-723)
+    sources = essays._quotable("Shelf Bot is a made-up robot that counts stock on store shelves overnight.")
+    assert essays._holds(sources, "Shelf Bot is a made‑up robot that counts stock on store shelves overnight.")
+    assert not essays._holds(sources, "Shelf Bot is a made-up robot that counts boxes on store shelves overnight.")

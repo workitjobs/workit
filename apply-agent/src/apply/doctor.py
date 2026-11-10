@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TextIO
 
-from apply import cover_letter, gates, native_host, resume_check
+from apply import cover_letter, gates, groq, native_host, resume_check
 from apply.adapters import Mailbox, Tracker, Usage
 from apply.browsers import (
     CHROME,
@@ -96,10 +96,11 @@ class Machine:
     usage: Usage | None = None  # read only when asked (`--usage`): reading it costs a tiny Haiku call
     native_hosts: Path = native_host.CHROME_HOSTS  # everyday Chrome's NativeMessagingHosts folder
     resume_check: Callable = resume_check.compare  # the resume against policies.yaml's resume_source
+    groq_key: Callable[[], str | None] = lambda: groq.key()  # for ask_model: groq; never printed
 
 
 def diagnose(machine: Machine) -> list[Check]:
-    checks: list[Callable[[Machine], Check | list[Check]]] = [_claude, _chrome, _engine, _chromium, _workers, _facts, _resume_gate, _resume_source, _gmail, _records, _live_runs, _workit, _writes, _tracker, _accounts_host]
+    checks: list[Callable[[Machine], Check | list[Check]]] = [_claude, _ask_model, _chrome, _engine, _chromium, _workers, _facts, _resume_gate, _resume_source, _gmail, _records, _live_runs, _workit, _writes, _tracker, _accounts_host]
     return [found for c in checks for found in _safely(c, machine)]
 
 
@@ -151,6 +152,21 @@ def _claude(machine: Machine) -> Check:
                      "wait for the reset: a run pauses every Worker till then")
     return Check("claude", OK, f"{login}; {usage.five_hour:.0%} of the 5-hour window used, "
                                f"{usage.weekly:.0%} of the week")
+
+
+def _ask_model(machine: Machine) -> list[Check]:
+    """Where `ask` goes (policies.yaml's ask_model): no line for claude, the default; for groq, whether a key
+    is set (apply.groq). The key itself is never printed."""
+    backend = _policy(machine, "ask_model") or "claude"
+    if backend == "claude":
+        return []
+    name = "Ask model"
+    if backend != "groq":
+        return [Check(name, FAIL, f"ask_model: {backend} is neither claude nor groq", "set ask_model to claude or groq in policies.yaml")]
+    if not machine.groq_key():
+        return [Check(name, FAIL, "ask_model: groq, but there is no Groq key", groq.NO_KEY)]
+    return [Check(name, OK, "Groq's gpt-oss models answer and write (ask_model: groq); Claude fill, Rescue and "
+                            "company briefs stay on claude")]
 
 
 def _chrome(machine: Machine) -> Check:
