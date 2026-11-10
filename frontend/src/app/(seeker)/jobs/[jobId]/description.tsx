@@ -290,7 +290,7 @@ export function JobDescription({
     ) : block.kind === "list" ? (
       <ul key={i} role="list" className="flex flex-col gap-1.5 pl-4">
         {block.items.map((item, j) => (
-          <li key={j} className="text-body text-ink flex items-start gap-2">
+          <li key={j} className="text-ink flex items-start gap-2 text-base">
             {/* Ink like the text: in the faintest grey the bullets were
                     hard to see (2026-10-17). */}
             <span aria-hidden="true" className="bg-ink mt-2 size-1.5 shrink-0 rounded-full" />
@@ -299,14 +299,14 @@ export function JobDescription({
         ))}
       </ul>
     ) : block.kind === "listed-pay" ? (
-      <p key={i} className="text-body text-ink">
+      <p key={i} className="text-ink text-base">
         {block.pay}{" "}
         <span className="text-ink-meta">
           (from {company}&apos;s listing, not the posting&apos;s text)
         </span>
       </p>
     ) : block.kind === "missing" ? (
-      <p key={i} className="text-body text-ink-meta">
+      <p key={i} className="text-ink-meta text-base">
         {block.why === "cut" ? (
           <>Not in the part shown here. It may be further down the posting. </>
         ) : (
@@ -317,22 +317,23 @@ export function JobDescription({
         {fullPosting(`Read the full posting on ${company}'s site`)}.
       </p>
     ) : (
-      <p key={i} className="text-body text-ink">
+      <p key={i} className="text-ink text-base">
         {block.text}
       </p>
     );
-  // THE MEASURE IS SET IN THE TEXT'S OWN SIZE (KAN-569): `ch` is read from
-  // this div's font, so it carries `text-body`. At the inherited 16px, 68ch
-  // was 792px and a line ran about 107 characters. Plus Jakarta Sans draws its
-  // "0" (what `ch` measures) at 0.73em, wider than its average letter, so
-  // 46ch prints 64 to 71 characters a line at 14px, and 60ch about 90.
+  // NO MEASURE OF ITS OWN (2026-11-09): the job's content is one column
+  // (JOB_COLUMN, ./job-view.tsx), and the text fills it at 16px, about 90
+  // characters a line. It stopped at 46ch of 14px text from KAN-569 (64 to
+  // 71 characters) while the facts and Key Requirements above it ran the
+  // pane's whole width, so it read as cut short; the user chose one width
+  // for every block. 16px because a line that long needs the larger size.
   return (
-    <div className="text-body mt-3 flex max-w-[46ch] flex-col gap-3">
+    <div className="mt-3 flex flex-col gap-3 text-base">
       {blocks.map(draw)}
       {extras.length > 0 && (
         <details className="group border-border mt-3 rounded-xl border">
           <summary className="hover:bg-hover focus-visible:ring-brand-ring flex cursor-pointer list-none items-center gap-2 rounded-xl px-4 py-3 focus-visible:ring-2 focus-visible:outline-none [&::-webkit-details-marker]:hidden">
-            <span className="text-body text-ink font-semibold">More from the posting</span>
+            <span className="text-ink text-base font-semibold">More from the posting</span>
             <span className="text-note text-ink-meta min-w-0 flex-1 truncate">
               {extraNames.join(", ")}
             </span>
@@ -342,7 +343,7 @@ export function JobDescription({
         </details>
       )}
       {cut && (
-        <p className="text-body text-ink-meta">
+        <p className="text-ink-meta text-base">
           This is the start of the posting.{" "}
           {fullPosting(`Read the full posting on ${company}'s site`)}.
         </p>
@@ -368,6 +369,6 @@ function Heading({ text, sectioned }: { text: string; sectioned: boolean }) {
       </h3>
     );
   }
-  if (sectioned) return <h4 className="text-body text-ink font-semibold">{text}</h4>;
+  if (sectioned) return <h4 className="text-ink text-base font-semibold">{text}</h4>;
   return <h3 className="text-subtitle text-ink mt-3 font-bold">{text}</h3>;
 }

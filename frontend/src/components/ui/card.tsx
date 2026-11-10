@@ -19,10 +19,12 @@ import { cn } from "@/lib/cn";
  * (the search detail header): the mockup draws no shadow there, and a shadow
  * against an identical background would only muddy the edge.
  *
- * THE EDGE IS --color-border-control (2026-11-03), the same edge as a button
- * and a field, so a card and the controls on it read as one set; the user
- * found light-edged cards beside dark-edged buttons a mismatch. Rules inside
- * a card stay --color-border-subtle, or every card reads as a heavy box.
+ * THE EDGE IS --color-border-surface (#d9d9d9, 2026-11-09), a mid grey
+ * between a rule and a control's edge. From 2026-11-03 it was
+ * --color-border-control (#878c97), the edge of a button and a field, and
+ * the user found every card ringed in near black too strong and confusing:
+ * the dark edge belongs to what you click. Rules inside a card stay
+ * --color-border-subtle.
  *
  * ACCENT AND BORDER COLOUR: with an accent the top edge is 3px and the other
  * three are 1px, so the three plain sides get their colour individually. A
@@ -97,12 +99,12 @@ type CardProps = {
 
 function edge(accent: CardAccent | undefined, selected: boolean) {
   if (!accent) {
-    return ["border", selected ? "border-brand" : "border-border-control"];
+    return ["border", selected ? "border-brand" : "border-border-surface"];
   }
 
   return [
     "border-x border-b border-t-[3px]",
-    selected ? "border-x-brand border-b-brand" : "border-x-border-control border-b-border-control",
+    selected ? "border-x-brand border-b-brand" : "border-x-border-surface border-b-border-surface",
     ACCENT[accent],
   ];
 }

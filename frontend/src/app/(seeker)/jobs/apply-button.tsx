@@ -133,24 +133,52 @@ export function ApplyButton({
         <ExternalLinkIcon className="size-4" />
         <span className="sr-only"> (opens in a new tab)</span>
       </a>
-      <Dialog open={open} onOpenChange={setOpen}>
-        {/* Wide on a full-screen window, with the two resume lists side by
-            side, so it fits without a scrollbar: at the dialog's default
-            width (sm:max-w-sm) the lists and the upload stacked into a
-            narrow column taller than the window. It still scrolls inside
-            itself on a short or narrow window. */}
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
-          {open && (
-            <DidYouApply
-              jobId={jobId}
-              title={title}
-              onClose={() => setOpen(false)}
-              onApplied={marked}
-            />
-          )}
-        </DialogContent>
-      </Dialog>
+      <ApplyDialog
+        jobId={jobId}
+        title={title}
+        open={open}
+        onOpenChange={setOpen}
+        onApplied={marked}
+      />
     </>
+  );
+}
+
+/** "Did You Apply?" in its dialog, for any control that opens it: Apply
+ *  Now, the combined Apply button's Apply Manually, and a card's Already
+ *  Applied? (./apply-split-button.tsx, ./job-more-menu.tsx). */
+export function ApplyDialog({
+  jobId,
+  title,
+  open,
+  onOpenChange,
+  onApplied,
+}: {
+  jobId: string;
+  title: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  /** After Yes has saved. */
+  onApplied: () => void;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      {/* Wide on a full-screen window, with the two resume lists side by
+          side, so it fits without a scrollbar: at the dialog's default
+          width (sm:max-w-sm) the lists and the upload stacked into a
+          narrow column taller than the window. It still scrolls inside
+          itself on a short or narrow window. */}
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
+        {open && (
+          <DidYouApply
+            jobId={jobId}
+            title={title}
+            onClose={() => onOpenChange(false)}
+            onApplied={onApplied}
+          />
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -252,7 +280,7 @@ export function DidYouApply({
       </DialogHeader>
       {/* The pick, to attach on the employer's form (KAN-217). */}
       {picked && (
-        <div className="rounded-control border-border-control flex flex-wrap items-center justify-between gap-3 border px-3 py-2">
+        <div className="rounded-control border-border-surface flex flex-wrap items-center justify-between gap-3 border px-3 py-2">
           <p className="text-note text-ink min-w-0">
             Attach <span className="font-medium">{picked.label}</span> on the employer&apos;s form.
           </p>
