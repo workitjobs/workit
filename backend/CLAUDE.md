@@ -1830,8 +1830,9 @@ go then. A change needs to work on Cloudflare only.
   answers 500, and `GET /bank` too (it reads `bank_custom_sections`). It
   only adds an enum value (`ADD VALUE`, in its own autocommit block), a
   table and a nullable column with a CHECK every row meets, so applying it
-  early is safe. It sits on `e8c3f1a7b925` (KAN-726's vector clear), so
-  `upgrade head` applies that one too where it is not yet applied. **Pull
+  early is safe. It sits on `06edf44926a1` (the merge of KAN-733's
+  `b27f4b974d5c` and KAN-726's `e8c3f1a7b925`), so `upgrade head` applies
+  those too where they are not yet applied. **Pull
   and restart the bank job right after the deploy** (Deployment, "The bank
   job does not deploy on merge"): its old code reads every entry through
   `load_bank`, and its `bank_section` has no `custom`, so once a student
