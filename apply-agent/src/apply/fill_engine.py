@@ -363,6 +363,12 @@ def left_blank(q: Question, answer: Any) -> bool:
     return call_without_page("leftBlank", q, answer, questions=[q])
 
 
+def left_as_none(reason: str) -> bool:
+    """Whether a Plan's blank reason says the profile has none of it (no minor) and the field offers no None: a value
+    the page still shows there is one an old profile on the site carried over (the engine's leftAsNone, KAN-754)."""
+    return call_without_page("leftAsNone", reason)
+
+
 def company_specific(q: Question, posting: Posting) -> bool:
     """Whether the question asks about this company or this role: its answer holds for no other Posting."""
     return call_without_page("companySpecific", q, posting, questions=[q])
@@ -391,16 +397,26 @@ def _facts(profile: ApplicantProfile, posting: Posting | None = None) -> dict:
     if isinstance(facts.get("files"), dict):
         facts["files"] = {key: str(profile.get(f"files.{key}")) if isinstance(value, str) else value
                           for key, value in facts["files"].items()}
-    if posting is not None:
-        applied, interviewed = tracker.past_applications(posting.url)
-        screeners = dict(facts.get("screeners") or {})
-        own = screeners.get("previously_applied_to")
-        if isinstance(own, list) and applied:  # None: unknown, which a list from Apply alone would turn into No
-            screeners["previously_applied_to"] = own + [c for c in applied if c not in own]
-        if interviewed:
-            known = screeners.get("previously_interviewed_at") or []
-            screeners["previously_interviewed_at"] = list(known) + [c for c in interviewed if c not in known]
-        facts["screeners"] = screeners
+    return with_past_applications(facts, posting) if posting is not None else facts
+
+
+def with_past_applications(facts: dict, posting: Posting) -> dict:
+    """`facts` (a profile's, as a dict) with the companies the Tracker shows Lisul applied to, but for `posting`,
+    joined into screeners.previously_applied_to where the profile keeps that list, and those he interviewed at
+    into screeners.previously_interviewed_at. The plan and the Pre-submit review both read these, so the review
+    never calls a Yes the plan gave from the Tracker wrong (amazon.jobs, live 2026-11-10, KAN-753)."""
+    applied, interviewed = tracker.past_applications(posting.url)
+    if not applied and not interviewed:
+        return facts
+    facts = dict(facts)
+    screeners = dict(facts.get("screeners") or {})
+    own = screeners.get("previously_applied_to")
+    if isinstance(own, list) and applied:  # None: unknown, which a list from Apply alone would turn into No
+        screeners["previously_applied_to"] = own + [c for c in applied if c not in own]
+    if interviewed:
+        known = screeners.get("previously_interviewed_at") or []
+        screeners["previously_interviewed_at"] = list(known) + [c for c in interviewed if c not in known]
+    facts["screeners"] = screeners
     return facts
 
 

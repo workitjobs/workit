@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 from test_dashboard import window  # noqa: F401 (a fixture)
 
-from apply import verify
+from apply import fill_engine, verify
 from apply.model import Posting, Question
 from apply.profile import ApplicantProfile
 
@@ -84,6 +84,27 @@ def test_a_blank_the_engine_meant_is_a_note(person, tmp_path):
     assert (flag.field, flag.why, flag.holds) == (
         "Personal website", "left blank on purpose: The form asks for the website in another field", False)
     assert result.verified and result.label() == "Verified · 1 note"
+
+
+def test_a_value_carried_over_where_the_profile_has_none_is_flagged(person, tmp_path):
+    # amazon.jobs (live 2026-11-10, KAN-754): Minor kept "Applied Mathematics" from an old candidate profile, though the
+    # profile lists no minor. With no None to pick, the plan leaves it blank, and a value still shown there holds.
+    minor = Question("minor", "Minor", "select", False, ("Applied Mathematics", "Economics"))
+    none = ApplicantProfile({**person.facts(), "education": {"expected_graduation": "2028-05", "minors": []}}, tmp_path)
+    planned = fill_engine.plan([minor], POSTING, none)
+    assert "minor" not in planned.answers and "minor" in planned.blanks
+    questions, answers, readback = filled(person, tmp_path)
+
+    result = verify.check([*questions, minor], answers, readback | {"minor": "Applied Mathematics"}, none, POSTING,
+                          today=TODAY, allowed="Hitachi Rail", blanks=planned.blanks)
+
+    assert [(f.field, f.why, f.kind) for f in result.needs] == [
+        ("Minor", "shows 'Applied Mathematics', but your profile has none: clear it", verify.LEFTOVER)]
+    # Blank, as the plan meant: a note. A blank the profile only lacks the fact for is never a leftover.
+    assert verify.check([*questions, minor], answers, readback, none, POSTING, today=TODAY, allowed="Hitachi Rail",
+                        blanks=planned.blanks).verified
+    assert verify.check([*questions, minor], answers, readback | {"minor": "Economics"}, person, POSTING, today=TODAY,
+                        allowed="Hitachi Rail", blanks={"minor": "Optional, and your profile has no answer to it"}).verified
 
 
 def test_a_blank_optional_self_id_question_is_flagged(person, tmp_path):

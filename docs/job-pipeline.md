@@ -171,7 +171,8 @@ which also covers boards that name none). A board with still none is checked
 once by its own address: a careers site such as `careers.garmin.com`, or a
 Workday account name proved on the company's home page. Each run's
 `metrics.json` lists the boards still without a domain, most jobs first, for a
-person to add to the checked list. The browser loads Brandfetch's sharp
+person to add to the checked list; a daily job proposes rows for it from
+Wikidata's official websites, in a pull request a person reviews. The browser loads Brandfetch's sharp
 square icon; where Brandfetch has none, the card falls back to the board's own
 image or favicon, and then to the company's initials.
 

@@ -48,6 +48,8 @@ localhost, vercel.app or "Prototype", and runs `store-build.spec.ts` and
 which the default token can't read, so the build steps run only once a
 `FILL_ENGINE_TOKEN` secret (read access to workitjobs/fill-engine) is set;
 without it they show as skipped and the job checks the extension ID only.
+The build first runs `npm ci` in `store/` for esbuild, which minifies every
+packaged script (KAN-744).
 
 **Without `FILL_ENGINE_TOKEN`, the engine's tests are skipped, never green.**
 `ci.yml`, `extension-nightly.yml` and `live-canary.yml` each first call
@@ -137,7 +139,7 @@ The fill-engine repo has its own CI (its `.github/workflows/ci.yml`):
 typecheck, the same stale-`dist/` check, and its tests, on every PR.
 
 The `apply` job (KAN-535) lints and tests Apply (`apply-agent/`) on
-Ubuntu: `uv sync --locked`, `uv run ruff check .` and a fixed list of test
+macOS: `uv sync --locked`, `uv run ruff check .` and a fixed list of test
 files. The list holds only the 44 files that need no browser, no network
 and no `claude` CLI: about 770 tests (28 skipped), 10 s of pytest and 14 s
 with `uv sync --locked` and ruff, timed in a Linux container
@@ -145,7 +147,12 @@ with `uv sync --locked` and ruff, timed in a Linux container
 the engine's saved forms, so the job needs the fill-engine submodule: it
 needs `FILL_ENGINE_TOKEN` and is skipped without it. It runs only on a PR
 that touches `apply-agent/`, the engine pointer, `ci.yml` or
-`engine-token.yml` (the `changes` job).
+`engine-token.yml` (the `changes` job). It then installs Chrome for Testing
+(cached by `uv.lock`) and runs `test_submit_guard_hostile.py`,
+`test_plain_focus.py`, `test_plain_guards.py` and
+`test_plain_routing.py`, the last two on a real plain Worker (KAN-667). macOS, because a
+plain Worker starts through `open` and the browser's `.app`; a step fails the
+job if the browser is missing, since these tests skip without it.
 **CI does not run the other 28 test files**, which hold the Filler tests
 (`test_*_filler.py`, `test_claude_fill.py`, `test_run.py`,
 `test_rehearse.py` and more). Most of them need Chromium or the macOS
@@ -514,3 +521,27 @@ not a re-run.
 - **Still open:** no notification when a submitted version clears (or
   fails) Google's review — that's checked by hand in the Dashboard for
   now.
+
+## Company websites from Wikidata (`workflows/company-domains.yml`)
+
+Runs `scraper/domain_pr.py --publish` daily at 07:29 UTC on `ubuntu-latest`.
+It downloads the newest scheduled scrape's `metrics.json` artifact (hence
+`actions: read`), looks up on Wikidata up to 150 of the companies whose jobs
+have no `company_domain`, and adds the websites that pass its rules to
+`scraper/checked_websites.csv` on one rolling PR from a
+`codex/company-domains-after-<n>` branch, with `scraper/company-domains.json`
+recording every board looked up. It never pushes to main and never merges.
+A person checks each row's note (the Wikidata item and its description) and
+removes the wrong ones before merging; the rules and why are in
+`scraper/docs/logos.md`, "Wikidata proposals".
+
+- **Like discovery, it needs "Allow GitHub Actions to create and approve pull
+  requests"**, and its PR, opened with `github.token`, starts no CI until a
+  person pushes to the branch.
+- **A PR closed without merging pauses it**: its ledger never reached main, so
+  every board in it would be proposed again. Reopen it, remove the rows you
+  reject and merge it, ledger included.
+- **It needs a scheduled scrape from the last week**, whose artifact it reads;
+  with none it fails and says so.
+- **It stops silently after 60 days without a commit** to `main`, like every
+  schedule here (`gh workflow enable company-domains.yml`).

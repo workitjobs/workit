@@ -731,7 +731,23 @@ Find files with a directory listing; these are the rules for where code goes.
   out by their Claude (the row stays Needs you); a high-stakes one
   (`checks.high_stakes`) is saved and filled, and `save_answers` names it
   in `read_first` for the student to read before Submit. `save_answers` refuses the whole save with every failing
-  answer's reasons, so nothing failing reaches a tab. **No saved answer is
+  answer's reasons, so nothing failing reaches a tab. **Then the truth
+  check flags, never refuses** (`app/auto_apply/truth.py`, KAN-748; pure,
+  `tests/test_truth_check.py`). It reads each saved answer in words,
+  Claude's or a paste. It finds the claims that none of the student's facts
+  hold: numbers, names of tools and employers, a month or season, and
+  outcomes such as "went into use". The student's facts are their bank,
+  profile and own answers. The posting, brief and question can also give a
+  number or a name. WorkIt saves such an answer as written and flags it in
+  the tab (`review.flag_claims`, kept as `answer_review.truth`). The flag
+  names the claims and marks the first one's sentence. It holds until the
+  answer changes or the student keeps it. The pre-submit review's own flag
+  shows first. `answer_bank` never offers one of their Claude's answers
+  that has such claims on another form. Plain
+  code only: judgment stays with their Claude's claim check and the
+  pre-submit review. **`apply-agent/src/apply/truth.py` is a byte-for-byte
+  copy** that Apply's tests compare: change this one, then copy it there.
+  **No saved answer is
   filled without passing that form's checks**: when a tab sends the form's
   own limit (`ask_questions`; a question read early had none), each saved
   answer of their Claude's is checked again and a failing one dropped

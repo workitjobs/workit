@@ -219,6 +219,14 @@ records_remote: null
 # resume_source: {repo: you/resume, path: final/resume.pdf, branch: main}
 resume_source: null
 
+# Answer bank sync (KAN-746, docs/workit.md): with answers: true and `apply
+# login`, each answer the Answer bank saves, changes or deletes also goes to
+# your WorkIt account, so the WorkIt extension fills it with no import. Claude's
+# drafts go as Claude's, never as your words. Run `apply sync-answers` once to
+# send what the bank already holds. Off: nothing leaves this Mac.
+workit_sync:
+  answers: false
+
 # Repairs (GLOSSARY: Repair): after each run or rehearsal, Claude fixes
 # Apply's own code for what went wrong, in a worktree of its own, and the fix
 # is merged only if it passes the gate (docs/adr/0002). At most max_per_day
