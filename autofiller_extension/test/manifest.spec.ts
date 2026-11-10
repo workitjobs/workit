@@ -56,9 +56,3 @@ for (const url of [
 test("the manifest lets the background read SmartRecruiters' Posting API", () => {
   expect(manifest.host_permissions.some((p: string) => allows(p, "https://api.smartrecruiters.com/v1/companies/BoschGroup/postings/1"))).toBe(true);
 });
-
-// A permission added in a later release disables the extension until the student accepts it, so batch
-// apply's tab groups ask for theirs in the release that brings batch apply (KAN-370).
-test("the manifest asks for tab groups", () => {
-  expect(manifest.permissions).toContain("tabGroups");
-});

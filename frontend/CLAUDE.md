@@ -2229,7 +2229,16 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   keeps it, and puts each item back as an ordinary pick. Unlike Undo's
   steps it may outlive the page: it is read against the resume's choices
   each time, so an item already back only shows ticked
-  (`docs/screens.md`, Cut From Resume). It is on Tailor's page too, in the
+  (`docs/screens.md`, Cut From Resume). **A skill name shows once in both
+  of the editor's lists and on the Experiences page** (KAN-504): every one
+  groups copies through `skillCopies` (`experiences/holdings.ts`, the name
+  ignoring case and the spaces around it, which the API's `bank.skill_key`
+  matches), never a grouping of its own. A tick shows one copy and an
+  untick hides every copy that prints (`pickSkill`), so a name never
+  prints twice through them; Cut From Resume's tick shows the first copy
+  Fit cut. Two uploads each holding "Python" (ADR 0005) put both copies on
+  a generated resume until then, so the page printed it twice, Fit cut
+  both and Cut From Resume listed it twice. It is on Tailor's page too, in the
   column beside the page (`Side`), since Fit is. **A revert never waits for a
   compile** (KAN-524): `apply` drops a change's card and marks at the click,
   draws a reworded line's old words over the page (`wordsBack`) and puts the
@@ -2328,8 +2337,11 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   stays open behind it. `FONTS` is the
   list of families, whose `css` puts the open line in the system font the
   PDF's matches letter for letter: with Tinos a line sat 2px off the print over
-  714px. A new page setting joins the panel only if a student needs it to fit
-  one page, to choose a font or to pick a colour. The API keeps the settings the
+  714px. A new page setting joins the panel only if a student expects it from a resume
+  builder, and keeps one control per decision: Spacing and Margins stay one
+  choice each. Degree First moves the school to the degree's row, so
+  `degreeLeads` swaps that line's type too (`textRoleOf`, `typeOf`) and must
+  agree with the API's `degree_leads`. The API keeps the settings the
   panel dropped, so a resume set that way prints as it did. The bar mutes every
   button's words (`SLIM_BAR`, `DOCS_BAR`), so a real action there (Add Bullet,
   `FitButton`) carries `data-bar-action`, or a filled button reads grey on purple.
@@ -2517,9 +2529,16 @@ are in `docs/auth.md`.
   removed: Settings adds a middle name, and a mistyped password is reset
   through Forgot Password (`/login/reset-password`). A fact a later step needs
   (location, links, work authorization) is asked in onboarding, never here.
-- **A key the API's Pydantic schema doesn't declare is dropped silently**, not
-  rejected. A field added to a request body here does nothing until
-  `backend/app/schemas/` declares it too.
+- **A key the API's Pydantic schema doesn't declare is dropped silently,
+  unless the schema forbids extra keys** (`extra="forbid"`, as the entry
+  PATCH's `EntryUpdate` does; grep `backend/app/schemas/` for the rest):
+  there one stray key fails the whole request with a 422. So a request body
+  names the fields it sends, never spreads an object the API sent: the
+  Experiences editor copied a bank entry whole, and every edit, its new
+  bullets included, sent `resume_ids` and `copy_group` and saved nothing
+  (KAN-505, `fieldsOf` in `(seeker)/experiences/sections.ts`). A field added
+  to a request body here does nothing until `backend/app/schemas/` declares
+  it too.
 - **The service-role key never appears in this folder**: one `NEXT_PUBLIC_`
   prefix puts it in every browser. Env lives in `.env.local` (template
   `.env.example`); the anon key is meant to be public.

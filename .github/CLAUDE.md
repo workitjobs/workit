@@ -60,14 +60,15 @@ checkout (Node, `autofiller_extension/test`'s `npm ci`, Playwright's
 Chromium) in the composite action `actions/extension-setup`; the checkout
 stays in each job, since a local action can't check out its own repo.
 
-The `extension` job (KAN-464) runs the extension's Playwright suite headless
-(`autofiller_extension/test`, both projects) on the engine the submodule
-pins, and first fails if that engine commit's committed `dist/` differs from
+The `extension` job (KAN-464) runs the smoke specs listed in
+`autofiller_extension/test/ci-smoke.txt` headless (both projects) on the
+engine the submodule pins, and first fails if that engine commit's committed `dist/` differs from
 what its `src/` builds. It runs only on a PR touching `autofiller_extension/`
 (the engine pointer included) or `ci.yml`: the `changes` job
-(`dorny/paths-filter`) decides, and a skipped job counts as passed. It leaves
-out `speed.extension.spec.ts`, the timing harness (about 7 minutes alone),
-which `workflows/extension-nightly.yml` runs with the rest every night at
+(`dorny/paths-filter`) decides, and a skipped job counts as passed. The whole
+suite is about 40 minutes on the runner's one worker, so PRs get the smoke
+set (an 8-minute limit, KAN-736) and `workflows/extension-nightly.yml` runs
+every spec, the `speed.extension.spec.ts` timing harness too, every night at
 07:41 UTC (and by hand: `gh workflow run extension-nightly.yml`). Both need
 `FILL_ENGINE_TOKEN`, as `extension-store-build` does, and are skipped
 without it. Both run on `macos-latest` (free on a public repo): on Linux, Chromium
@@ -80,8 +81,11 @@ view (`panel-reopen`, `workday-show`), found in the Playwright image
 until 2026-11-03** (KAN-447): every PR before that one shows the job as
 skipped (no `FILL_ENGINE_TOKEN` yet), so the original 30-minute figure
 was a guess, never measured. The first real run reached 329 of 388 tests
-at the 30-minute mark and was cancelled; now 45. Raise it again if a
-future run gets close, rather than guessing a second time.
+at the 30-minute mark and was cancelled; raised to 45, which is what
+showed the full suite needs about 40 minutes on one worker — the measurement
+KAN-736 then acted on by moving PRs to the smoke set above, at an 8-minute
+limit. Raise that 8 if the smoke set itself ever gets close, rather than
+guessing a second time.
 
 **`actions/checkout@v4`'s own submodule handling can silently land `fill-engine`
 on the wrong commit, and `fetch-depth: 0` alone does not fix it** (found
@@ -227,18 +231,45 @@ so the real gap between runs was a median 5.5 hours, at most 8.7. The fix being
 weighed is a Cloudflare Cron Trigger that starts this workflow through GitHub's
 API at exact times (`scraper/docs/coverage.md`, "Later").
 
+**Scheduled and manual runs go to a self-hosted runner** (KAN-726) on a
+team computer with Ollama, picked by its `workit-scraper` label; PR runs
+stay on `ubuntu-latest`, since the repo is public and a PR run executes the
+PR's code. With no such runner online, a scheduled run waits in the queue
+and none runs. The job runs bash on both (a Windows runner needs Git for
+Windows' bash on its PATH) and calls `python`, not `python3`, which Windows
+lacks. A Windows runner also needs the machine's PowerShell policy at
+`RemoteSigned`: Windows' default blocks `setup-python`'s installer script,
+which failed the first dry run there (2026-11-08). It also needs Python
+3.12 put in its tool cache once by an admin, because the installer cannot
+install as Network Service; a change to `python-version` in `scrape.yml`
+needs that step again (the plan, step 5). And Git's `bin` folder must be
+first in the `PATH=` line of the runner's own `C:\actions-runner\.env`
+(a `.path` file did nothing for the service): the machine PATH holds
+only `Git\cmd`, and the scrape step failed with "bash: command not found".
+The job sets `PYTHONUTF8=1`: Windows' default output encoding (cp1252)
+failed the import's report on a place name, after the import had worked.
+The setup (the runner
+and the bank job), why every import embedded 0
+before, and a shorter PR run not yet taken up are in
+`../docs/scraper_gh_action/plan.md`.
+
 - **Secret:** `DATABASE_URL` (the API's pooler URL, from the root `.env`), in the
   repo's Actions secrets. Without it the run fails at the import step and says so.
-- **Secrets:** `SCOUT_ENDPOINTS_SMALL` and `SCOUT_ENDPOINTS`, for the
-  import's keyword pass (`backend/CLAUDE.md`, The feed import): the small
-  chain (KAN-356), then the default chain after it, each a JSON array on one
-  line, copied from the root `.env`. The four single `SCOUT_*` variables are
-  not passed: a chain says the same in one secret. These are the import's
-  own: the deployed API reads its chains from `CF_API_SECRETS_JSON`, so the
-  import can run on another account's quota than the students' features.
-  Without either the run warns and extracts no keywords; the import itself
-  still runs. The step unsets each one that is empty, because GitHub passes
-  a missing secret as `""`, which Scout's settings refuse as a list.
+- **The keyword pass's model** (`backend/CLAUDE.md`, The feed import):
+  `SCOUT_ENDPOINTS_SMALL` is a plain value in the workflow, the computer's
+  own Ollama (`qwen3.5:9b` at `localhost:11434`), since it holds no key; the
+  `SCOUT_ENDPOINTS` secret, the hosted default chain copied from the root
+  `.env` as one JSON line, is its fallback. The four single `SCOUT_*`
+  variables are not passed. These are the import's own: the deployed API
+  reads its chains from `CF_API_SECRETS_JSON`. The step unsets an empty
+  one, because GitHub passes a missing secret as `""`, which Scout's
+  settings refuse as a list. The `SCOUT_ENDPOINTS_SMALL` and
+  `GEMINI_API_KEY` secrets are no longer read here; `GEMINI_API_KEY` stays
+  for the job alerts.
+- **`EMBEDDING_PROVIDER: ollama`**: the import embeds jobs on the
+  computer's Ollama with the code's default model, `qwen3-embedding:4b`, the
+  one model every vector comes from (the computer's bank job embeds the
+  banks). Every other workflow leaves the default, `none`.
 - **The company list** (`scraper/boards.csv`) is grown by `build_boards.py`
   before every scrape, from the curated GitHub lists, so a company they name
   today is read on the next run without a commit. It only ever adds; the rules
@@ -290,12 +321,11 @@ bell-notification path — `send_email` catches the missing-credentials
 error, logs it, and returns `False`, the same best-effort outcome as a
 bounced send.
 
-- **Secrets:** `DATABASE_URL` and `GEMINI_API_KEY` only (both already set
-  for the scrape workflow — reused here, not duplicated).
-  `EMBEDDING_PROVIDER=gemini` is a plain env value here, not a secret, so
-  the digest scores with the semantic part the deployed API itself
-  doesn't have on by default (`backend/CLAUDE.md`'s "Still open" note on
-  that).
+- **Secret:** `DATABASE_URL` only. **It makes no embeddings** (KAN-726):
+  the default provider `none` reads the bank vectors the team computer
+  stores. It set `EMBEDDING_PROVIDER=gemini` until then, which wrote
+  Gemini bank vectors beside the others; **the EC2 crontab's environment
+  must drop it too**, since that crontab lives outside this repo.
 - **One run at a time**, same reasoning as the scrape's concurrency group:
   two overlapping runs would double-send the same applicant. This guards
   against two *workflow* runs overlapping; it says nothing about the EC2
