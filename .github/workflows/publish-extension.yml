@@ -113,6 +113,9 @@ jobs:
       # reference, never this repo's own test/, CLAUDE.md or README.md —
       # store/build.mjs (KAN-463) is the one place that's packaged, shared
       # with CI's own check of it (.github/CLAUDE.md, "extension-store-build").
+      # esbuild, which minifies what the package ships (KAN-744).
+      - run: npm ci
+        working-directory: autofiller_extension/store
       - name: Build the Store package
         id: build
         working-directory: autofiller_extension

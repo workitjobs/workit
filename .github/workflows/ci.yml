@@ -67,6 +67,10 @@ jobs:
         working-directory: autofiller_extension/test
       - run: npx playwright test extension-id.spec.ts --project=page
         working-directory: autofiller_extension/test
+      # esbuild, which minifies what the package ships (KAN-744).
+      - run: npm ci
+        if: needs.engine.outputs.set == 'true'
+        working-directory: autofiller_extension/store
       - name: Build the Store package
         if: needs.engine.outputs.set == 'true'
         run: node store/build.mjs
