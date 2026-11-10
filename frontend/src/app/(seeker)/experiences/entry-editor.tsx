@@ -67,9 +67,13 @@ export function EntryEditor<S extends EntrySection = EntrySection>({
   onSaveAsNew,
   onChange,
   onDelete,
+  deleteLabel = "Delete Entry",
+  saveLabel,
   note,
   cancelLabel = "Cancel",
   lines = false,
+  framed = false,
+  foot,
 }: {
   initial: EntryDraft<S>;
   onSave: (draft: EntryDraft<S>) => void;
@@ -90,12 +94,25 @@ export function EntryEditor<S extends EntrySection = EntrySection>({
    *  pencil, under a section heading that already held Clear All and Add,
    *  so four controls in one corner did not say which acted on what. */
   onDelete?: () => void;
+  /** Delete's words: "Delete Project" in the entry form. */
+  deleteLabel?: string;
+  /** Save's words, "Save" in the entry form; Save Entry, or Save Lines for
+   *  a Lines section, inline. */
+  saveLabel?: string;
   /** A line over the foot's buttons: the bank's names the other resumes a
    *  save changes too (KAN-363). */
   note?: ReactNode;
   cancelLabel?: string;
   /** A Lines section's lines (KAN-498): only the bullets show. */
   lines?: boolean;
+  /** In the entry form's dialog (`entry-dialog.tsx`): the fields scroll and
+   *  the foot stays put under them, so Save never scrolls out of reach on a
+   *  school's thirteen fields. Inline (onboarding's preview, intake), the
+   *  form is one column of fields and buttons. */
+  framed?: boolean;
+  /** A question in the foot's place while it is asked: Delete's or Discard
+   *  Your Changes? (`ConfirmBar`), never a dialog over the dialog. */
+  foot?: ReactNode;
 }) {
   const [draft, setDraft] = useState(initial);
   const uid = useId();
@@ -195,8 +212,8 @@ export function EntryEditor<S extends EntrySection = EntrySection>({
       </>
     );
 
-  return (
-    <form onSubmit={submit} className="flex max-w-3xl flex-col gap-3">
+  const fields = (
+    <>
       {/* No spin arrows on a GPA: nobody steps through one. */}
       <div
         hidden={lines}
@@ -407,31 +424,60 @@ export function EntryEditor<S extends EntrySection = EntrySection>({
           {error}
         </p>
       )}
+    </>
+  );
 
-      <div className="flex items-center justify-end gap-2">
-        {onDelete && (
-          <Button
-            type="button"
-            variant="section"
-            className="mr-auto"
-            onClick={onDelete}
-            disabled={saving}
-          >
-            <TrashIcon aria-hidden /> Delete Entry
-          </Button>
-        )}
-        <Button type="button" variant="secondary" onClick={onCancel} disabled={saving}>
-          {cancelLabel}
+  const buttons = (
+    <div className="flex items-center justify-end gap-2">
+      {onDelete && (
+        <Button
+          type="button"
+          // Where Delete's question gives the focus back (`ConfirmBar`)
+          data-entry-delete
+          variant="section"
+          className="mr-auto"
+          onClick={onDelete}
+          disabled={saving}
+        >
+          <TrashIcon aria-hidden /> {deleteLabel}
         </Button>
-        {duplicate && onSaveAsNew ? (
-          <Button type="button" disabled={saving} onClick={() => onSaveAsNew(savable(draft))}>
-            {saving ? "Saving…" : "Save as New"}
-          </Button>
-        ) : (
-          <Button type="submit" disabled={saving}>
-            {saving ? "Saving…" : lines ? "Save Lines" : "Save Entry"}
-          </Button>
-        )}
+      )}
+      <Button type="button" variant="secondary" onClick={onCancel} disabled={saving}>
+        {cancelLabel}
+      </Button>
+      {duplicate && onSaveAsNew ? (
+        <Button type="button" disabled={saving} onClick={() => onSaveAsNew(savable(draft))}>
+          {saving ? "Saving…" : "Save as New"}
+        </Button>
+      ) : (
+        <Button type="submit" disabled={saving}>
+          {saving ? "Saving…" : (saveLabel ?? (lines ? "Save Lines" : "Save Entry"))}
+        </Button>
+      )}
+    </div>
+  );
+
+  if (!framed)
+    return (
+      <form onSubmit={submit} className="flex max-w-3xl flex-col gap-3">
+        {fields}
+        {foot ?? buttons}
+      </form>
+    );
+
+  // The dialog's body and foot. The body is the container the row and the
+  // fields lay out against (`@container/main`), since a dialog's portal sits
+  // outside the page's: without it every pair of fields stacked.
+  return (
+    <form onSubmit={submit} className="flex min-h-0 flex-1 flex-col">
+      <div
+        data-slot="dialog-scroller"
+        className="@container/main min-h-0 flex-1 overflow-y-auto overscroll-none px-4 py-4 sm:px-6"
+      >
+        <div className="flex flex-col gap-3">{fields}</div>
+      </div>
+      <div className="border-border-subtle shrink-0 border-t px-4 py-3 sm:px-6">
+        {foot ?? buttons}
       </div>
     </form>
   );

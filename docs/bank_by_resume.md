@@ -194,11 +194,13 @@ created_at, and `edited_at` for the resume list's date, KAN-361).
 - **The old-upload prompt** ("This resume has no entries in your bank
   yet. [Import Again]") shows for an upload that owns nothing. Import
   Again writes that upload's own entries.
-- **Delete Entry** deletes that one row, from the foot of the entry's
-  editor (KAN-363), which the entry's pencil opens; the pencil is in view
-  while no other entry is open (KAN-732). Its confirm, a modal since
-  KAN-732, still counts the built resumes that show it.
-- **Clear All** (KAN-352), in a card's ⋯ menu (KAN-732), deletes every row a card shows, as Delete Entry
+- **Delete** deletes that one row, from the foot of the entry's form
+  (KAN-363, a dialog since KAN-740), which the entry's pencil opens, on its
+  card or in its section's list. Its question, across the form's foot,
+  still counts the built resumes that show it. An edit there changes the one
+  copy too, so under All Experiences an edited entry with a copy on another
+  resume comes back from the form as two rows.
+- **Clear All** (KAN-352), in the ⋯ of a section's list (KAN-740; a card's ⋯ from KAN-732), deletes every row the section shows under the pick, as Delete Entry
   does each one. Under a built resume's pick those rows belong to uploads,
   so the confirm names the uploads that lose them too.
 - **Scout's walk** (intake marking an entry) switches to a resume that

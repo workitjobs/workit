@@ -1,13 +1,12 @@
 "use client";
 
 import { PencilSimpleIcon } from "@phosphor-icons/react/ssr";
-import { useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 
-import { DeleteDialog } from "@/app/(seeker)/resumes/delete-confirm";
-import { EntryEditor } from "@/app/(seeker)/experiences/entry-editor";
+import { EntryDialog } from "@/app/(seeker)/experiences/entry-dialog";
 import { EntryRow, MissingFacts } from "@/app/(seeker)/experiences/entry-row";
 import { SectionMark } from "@/app/(seeker)/experiences/section-icons";
-import { SECTIONS } from "@/app/(seeker)/experiences/sections";
+import { NOUNS, SECTIONS } from "@/app/(seeker)/experiences/sections";
 import { SkillGroups } from "@/app/(seeker)/experiences/skill-groups";
 import { CheckIcon, FileIcon } from "@/components/icons";
 import { ResumeUpload } from "@/components/resume-upload";
@@ -35,20 +34,19 @@ import { Field } from "./role-step";
  *
  * THE READING LOOKS AND WORKS AS EXPERIENCES DOES (KAN-732): a card per
  * section with the page's own heading and rows (`EntryRow`), each entry's
- * pencil in view, which opens the page's editor (`EntryEditor`: Save Entry,
- * and Delete Entry, which asks in the page's modal, to leave the entry
- * out), the page's
- * warning for what an entry lacks (`MissingFacts`), and the page's skills
- * (`SkillGroups`), purple and grouped, whose × shows in their edit mode.
- * Edits change only the reading in the browser: Save Resume writes it as
- * the student left it, each entry checked again as an Add is.
+ * pencil in view, which opens the page's entry form (`EntryDialog`, KAN-740:
+ * "Edit Project", Save, Cancel, and Delete, which asks across the form's
+ * foot, to leave the entry out), the page's warning for what an entry lacks
+ * (`MissingFacts`), and the page's skills (`SkillGroups`), purple and
+ * grouped, whose × shows in their edit mode. Edits change only the reading
+ * in the browser: Save Resume writes it as the student left it, each entry
+ * checked again as an Add is.
  *
- * One difference, on purpose: every entry is open, with no chevron, since
- * the student checks all of a reading here and nothing should wait behind a
- * press. While an entry is in the editor the other pencils hide, as on
- * Experiences: a second pencil that moved the editor would drop the first
- * entry's edits, and Save Resume waits for the editor to close anyway. Add
- * Entry stays on Experiences, to keep onboarding short.
+ * Differences, on purpose: every entry is open, with no chevron, and every
+ * card shows all its entries, with no Show All and no section's list
+ * (KAN-740), since the student checks all of a reading here and nothing
+ * should wait behind a press. Add Entry stays on Experiences, to keep
+ * onboarding short.
  *
  * The step had a row of its own until then, which hid the location, degree,
  * GPA, coursework, issuer and link; then a pencil and a × on every row,
@@ -135,9 +133,9 @@ const editId = (index: number) => `preview-entry-${index}-edit`;
 const SKILLS_EDIT = "preview-skills-edit";
 const SKILLS_DONE = "preview-skills-done";
 
-/** Focus on a control once the list has drawn again: Save Entry, Cancel,
- *  Delete Entry, the pencil and Done each take away the control that had
- *  focus, which then fell to the page's top and lost a keyboard user's place. */
+/** Focus on a control once the list has drawn again: the pencil and Done
+ *  each take away the control that had focus, which then fell to the page's
+ *  top and lost a keyboard user's place. */
 function focusOn(id: string) {
   setTimeout(() => document.getElementById(id)?.focus(), 0);
 }
@@ -145,10 +143,10 @@ function focusOn(id: string) {
 /**
  * What WorkIt read, before anything is saved, drawn as the Experiences page
  * draws a bank (KAN-732): a card per section, each entry with its pencil,
- * which opens the page's editor, whose Delete Entry leaves the entry out
- * once the student says yes. Skills keep the page's edit mode: the heading's
- * pencil shows each skill's ×. Every entry is open, unlike the page's, so
- * the whole reading is in view while the student checks it.
+ * which opens the page's entry form (KAN-740), whose Delete leaves the entry
+ * out once the student says yes. Skills keep the page's edit mode: the
+ * heading's pencil shows each skill's ×. Every entry is open, unlike the
+ * page's, so the whole reading is in view while the student checks it.
  */
 function Reading({
   name,
@@ -171,6 +169,9 @@ function Reading({
 }) {
   // Skills' edit mode, as on Experiences: their × shows only in it.
   const [editingSkills, setEditingSkills] = useState(false);
+  // Where the focus goes as the form closes: the entry's pencil, or, once
+  // it is left out, the pencil of the entry beside it.
+  const returnTo = useRef<() => HTMLElement | null>(() => null);
   const { entries, duplicate_of: duplicate } = preview;
   const skills = preview.skills.filter((s) => !removedSkills.includes(s.name));
 
@@ -204,11 +205,18 @@ function Reading({
 
   /** After a delete, focus goes to the next row's pencil, or the one
    *  before, or Skills'. The rows after the deleted one move up one place. */
-  function focusAfterDelete(index: number) {
+  function afterDelete(index: number) {
     const at = shown.indexOf(index);
     const next = shown[at + 1] ?? shown[at - 1];
-    focusOn(next === undefined ? SKILLS_EDIT : editId(next > index ? next - 1 : next));
+    return next === undefined ? SKILLS_EDIT : editId(next > index ? next - 1 : next);
   }
+
+  function edit(index: number) {
+    returnTo.current = () => document.getElementById(editId(index));
+    onEditEntry(index);
+  }
+
+  const open = editing === null ? undefined : entries[editing];
 
   /** A card's heading: the group's mark and name, and its actions. There is
    *  no plus: Add Entry stays on Experiences, to keep onboarding short. */
@@ -245,54 +253,34 @@ function Reading({
                   const entry = entries[index];
                   return (
                     <li key={index} className="py-3">
-                      {editing === index ? (
-                        <EditReadEntry
-                          entry={entry}
-                          onSave={(next) => {
-                            onSaveEntry(index, next);
-                            focusOn(editId(index));
-                          }}
-                          onCancel={() => {
-                            onEditEntry(null);
-                            focusOn(editId(index));
-                          }}
-                          onDelete={() => {
-                            onLeaveOutEntry(index);
-                            focusAfterDelete(index);
-                          }}
-                        />
-                      ) : (
-                        <EntryRow
-                          entry={rowOfPreview(entry)}
-                          open
-                          actions={
-                            editing === null && (
-                              <IconButton
-                                id={editId(index)}
-                                label={`Edit ${entry.title}`}
-                                tooltip="Edit this entry"
-                                onClick={() => onEditEntry(index)}
-                              >
-                                <PencilSimpleIcon aria-hidden className="size-4" />
-                              </IconButton>
-                            )
-                          }
-                          note={
-                            <>
-                              {entry.replaces.length > 0 && (
-                                // Inert, not a status colour: replacing is no stage and
-                                // owes nothing (frontend/docs/design.md, colour meanings).
-                                <div className="mt-1.5">
-                                  <Badge variant="tag" tone="inert">
-                                    Replaces Earlier Copy
-                                  </Badge>
-                                </div>
-                              )}
-                              <MissingFacts entry={entry} />
-                            </>
-                          }
-                        />
-                      )}
+                      <EntryRow
+                        entry={rowOfPreview(entry)}
+                        open
+                        actions={
+                          <IconButton
+                            id={editId(index)}
+                            label={`Edit ${entry.title}`}
+                            tooltip="Edit this entry"
+                            onClick={() => edit(index)}
+                          >
+                            <PencilSimpleIcon aria-hidden className="size-4" />
+                          </IconButton>
+                        }
+                        note={
+                          <>
+                            {entry.replaces.length > 0 && (
+                              // Inert, not a status colour: replacing is no stage and
+                              // owes nothing (frontend/docs/design.md, colour meanings).
+                              <div className="mt-1.5">
+                                <Badge variant="tag" tone="inert">
+                                  Replaces Earlier Copy
+                                </Badge>
+                              </div>
+                            )}
+                            <MissingFacts entry={entry} />
+                          </>
+                        }
+                      />
                     </li>
                   );
                 })}
@@ -356,48 +344,35 @@ function Reading({
           </Card>
         )}
       </div>
-    </Field>
-  );
-}
-
-/**
- * An entry of the reading open in the page's editor, as Experiences'
- * `EditEntry` is: Delete Entry asks first, in the same modal
- * (`DeleteDialog`), then leaves the entry out of the reading. The question
- * says the entry is not saved and the file stays as it is, since nothing of
- * the reading is saved yet.
- */
-function EditReadEntry({
-  entry,
-  onSave,
-  onCancel,
-  onDelete,
-}: {
-  entry: PreviewEntry;
-  onSave: (entry: PreviewEntry) => void;
-  onCancel: () => void;
-  onDelete: () => void;
-}) {
-  const [confirming, setConfirming] = useState(false);
-  return (
-    <>
-      <EntryEditor
-        initial={draftOfPreview(entry)}
-        onSave={(draft) => onSave(previewOfDraft(draft, entry))}
-        onCancel={onCancel}
-        onDelete={() => setConfirming(true)}
-      />
-      {confirming && (
-        <DeleteDialog
-          title={`Delete ${entry.title || "this entry"}?`}
-          label="Delete Entry"
-          onDelete={onDelete}
-          onKeep={() => setConfirming(false)}
-        >
-          {entry.bullets.length > 0 && "Its bullets are deleted too. "}
-          It is not saved to your Experiences. Your file does not change.
-        </DeleteDialog>
+      {open && editing !== null && (
+        <EntryDialog
+          // Its own form per entry: a second one keeps nothing of the first
+          key={editing}
+          title={`Edit ${NOUNS[open.section][0]}`}
+          noun={NOUNS[open.section][0]}
+          initial={draftOfPreview(open)}
+          returnTo={returnTo}
+          onClose={() => onEditEntry(null)}
+          // Nothing is saved yet: a save changes the reading in the browser
+          save={(draft) => {
+            onSaveEntry(editing, previewOfDraft(draft, open));
+            return { saved: true };
+          }}
+          remove={{
+            question: `Delete ${open.title || "this entry"}?`,
+            detail: async () => ({
+              detail: `${open.bullets.length > 0 ? "Its bullets are deleted too. " : ""}It is not saved to your Experiences. Your file does not change.`,
+            }),
+            run: async () => {
+              const next = afterDelete(editing);
+              returnTo.current = () => document.getElementById(next);
+              onLeaveOutEntry(editing);
+              return null;
+            },
+            onDeleted: () => onEditEntry(null),
+          }}
+        />
       )}
-    </>
+    </Field>
   );
 }

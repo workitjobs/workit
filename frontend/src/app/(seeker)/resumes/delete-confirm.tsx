@@ -57,9 +57,13 @@ export function DeleteConfirm({
 }
 
 /**
- * A delete's question in a modal (KAN-732): Delete Entry on Experiences and
- * in onboarding's resume preview, and Experiences' Clear All. It asked on a
- * line under the editor (`DeleteConfirm`), which a long editor opened out of
+ * A delete's question in a modal (KAN-732): on Experiences, Skills' Clear
+ * All and a Lines section's Delete Section, which sit on the page. Delete
+ * Entry, a section's Clear All and an Entries section's Delete Section ask
+ * across their dialog's foot since KAN-740 (`ConfirmBar` in
+ * `experiences/entry-dialog.tsx`), since a modal over a dialog is a dialog
+ * over a dialog. Delete Entry asked on a line under the inline editor
+ * (`DeleteConfirm`) before KAN-732, which a long editor opened out of
  * view, which took no focus and which a screen reader never heard. Drawn as
  * the app's other questions are (`company/jobs/close-job-dialog.tsx`): the
  * question names what goes, the line under it what goes with it and what

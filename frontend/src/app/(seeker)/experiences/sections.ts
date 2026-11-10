@@ -45,6 +45,22 @@ export const CUSTOM_FIELDS = {
   organization: "Organization",
 };
 
+/**
+ * What one entry of a section is called, and many: the entry form's title
+ * ("Edit Project", "Add School") and a card's "Show All 17 Projects". Each
+ * is the thing the title field names (a school, a job title's job, a club
+ * role), so no section reads "Edit Education" or "Show All 4 Educations".
+ */
+export const NOUNS: Record<EntrySection, readonly [string, string]> = {
+  education: ["School", "Schools"],
+  experience: ["Job", "Jobs"],
+  projects: ["Project", "Projects"],
+  leadership: ["Role", "Roles"],
+  awards: ["Award", "Awards"],
+  certifications: ["Certification", "Certifications"],
+  custom: ["Entry", "Entries"],
+};
+
 export function sectionOf(id: EntrySection) {
   return id === "custom" ? CUSTOM_FIELDS : SECTIONS.find((s) => s.id === id)!;
 }

@@ -2641,19 +2641,20 @@ are in `docs/auth.md`.
   section with the bank's heading (`SectionMark`, the name) and rows
   (`EntryRow`, `(seeker)/experiences/entry-row.tsx`, which takes an entry's
   fields and bullets, saved or not), each entry's pencil in view, which
-  opens the shared `EntryEditor` as it stands (Save Entry, Cancel, and
-  Delete Entry, which asks in the bank's modal, to leave the entry out), the bank's
+  opens the bank's entry form (`EntryDialog`, `experiences/entry-dialog.tsx`,
+  KAN-740: Save, Cancel, and Delete, which asks across the form's foot, to
+  leave the entry out), the bank's
   warning for what an entry lacks (`MissingFacts`, beside `EntryRow`), and
   the bank's skills (`SkillGroups`, `skill-groups.tsx`: purple chips, one
   row per group), whose × shows only in Skills' edit mode. **Every entry is
-  open, with no chevron** (`EntryRow`'s `open`), unlike Experiences: the
-  student checks all of a reading here, so none of it waits behind a press.
-  The other pencils hide while an entry is in the editor, as on
-  Experiences. No intro line:
+  open, with no chevron** (`EntryRow`'s `open`), and **every card shows all
+  its entries**, with no Show All and no section's list, unlike
+  Experiences: the student checks all of a reading here, so none of it
+  waits behind a press. No intro line:
   the headline says what to do. Edits change only the reading in the
   browser (`onboarding/applicant/preview-entry.ts` turns preview entries
   into the row's and editor's shapes), and Save Resume waits while an entry
-  is open in the editor, since saving then dropped the typing. Never give
+  is open in the form, since saving then dropped the typing. Never give
   the preview a row, editor, chips or controls of its own: its own row hid
   the location, degree, GPA, coursework, issuer and link the student was
   asked to check, its own grey chips dropped the groups, and a pencil and a
@@ -2769,31 +2770,43 @@ are in `docs/auth.md`.
   left 96 entries and 242 skills of 8 students that every reader used but
   no student could see, edit or delete, so it came back (2026-10-24).
   Clear All (KAN-352) deletes what a card shows, from the whole bank, as
-  Delete Entry does (`docs/screens.md`, Resumes & Experiences). **An
-  entry's pencil is always in view** (KAN-732, `EntryView` in
-  `bank-screen.tsx`): one press opens its editor, with Delete Entry at the
-  editor's foot. **A card's heading holds a + and a ⋯** (`CardActions`):
-  the + adds, on all seven cards; the ⋯ holds Clear All and shows only
-  where Clear All applies (one resume picked, no search, something to
-  clear). Skills alone keep an edit mode: their heading's pencil (hidden
-  while the card is empty) shows each skill's pencil and × and turns to
-  Done, since a pencil and × on every chip, always, made the list hard to
-  read. Every card had that mode until KAN-732 (KAN-363, after LinkedIn's
-  profile), and only in it did entries show their pencil: a press before
-  every edit, and in a card of one entry a press that only showed the
-  next. Never put Clear All back in the heading as a word: there it sat
-  one slip from Add. **One editor at a time** (KAN-732): while an entry is
-  in the editor, the other pencils, the cards' + and ⋯ and the empty-group
-  line hide, here and in onboarding's preview; any of them moved the editor
-  and dropped what was typed in it. **Delete Entry and Clear All ask in a
-  modal** (`DeleteDialog` in `resumes/delete-confirm.tsx`, drawn as
-  `company/jobs/close-job-dialog.tsx`): the question names what goes. As a
-  line under the editor it opened out of view on a long entry and took no
-  focus, so a screen reader never heard it; the answer bank still asks on
-  a line (`DeleteConfirm`). A control that takes another's place or closes (the
-  pencil and Done, Keep It, Cancel, Save Entry, Delete Entry) hands the
-  focus on by id (`focusSoon`), or it fell to the page's top and a
-  keyboard user lost their place.
+  Delete Entry does (`docs/screens.md`, Resumes & Experiences).
+  **Editing is two levels, after LinkedIn's profile** (KAN-740): a card
+  shows its first three entries (`SHOWN` in `bank-screen.tsx`) and "Show
+  All 17 Projects"; its heading holds a + (Add Project) and a pencil
+  (Edit Projects), which opens, as Show All does, the section's whole list
+  (`SectionDialog`, `section-dialog.tsx`) with a + and a ⋯ (Clear All under
+  one resume; a custom section's Rename and Delete Section). An entry's
+  pencil, on the card or in the list, opens its form ("Edit Project",
+  `EntryDialog`, `entry-dialog.tsx`): every field the inline editor had
+  (`EntryEditor`'s `framed`), a body that scrolls and a foot that stays,
+  Delete left, Cancel and Save right. Opened from the list, the form is a
+  step of the list's dialog with a Back arrow, never a dialog over it, and
+  its questions (Delete's, Clear All's, Delete Section's, "Discard Your
+  Changes?") are a bar across the dialog's foot (`ConfirmBar`), never a
+  modal over it (`docs/design.md`, Dialogs). A search shows every match on
+  its card, and so does Scout's card, so a found entry is never behind Show
+  All. On Experiences, 14 to 17 entries a card ran the page very long, and
+  each edit opened inline in it. Skills keep their card and edit mode:
+  their heading's pencil (hidden while the card is empty) shows each
+  skill's pencil and × and turns to Done, since a pencil and × on every
+  chip, always, made the list hard to read. Every card had that mode until
+  KAN-732 (KAN-363), and only in it did entries show their pencil: a press
+  before every edit. Never put Clear All back in a heading as a word: there
+  it sat one slip from Add. **One editor at a time** (KAN-732) now holds by
+  itself: the form is modal. **Typing is never dropped without a
+  question**: Escape, the × and a press outside ask "Discard Your
+  Changes?" while the form holds typing; Cancel discards at once, and
+  nothing closes while a save runs. **Each focus move in a dialog happens in
+  the render that makes it** (a layout effect: a step's first field, the
+  list's pencil, a bar's Keep It), since Base UI puts a lost focus on the
+  dialog itself in a microtask, and a move one frame late lost to it; only
+  the dialog's close gives the focus back a frame late (`BankDialog`'s
+  `finalFocus`), since the same render can draw what it changed (a new
+  card's +, a deleted row's neighbour). A dialog's ids differ from the
+  page's (`section-list-<id>-edit`), since the page stays in the document
+  under it. Skills' Clear All and a Lines section's Delete Section still
+  ask in a modal (`DeleteDialog`), since they sit on the page.
 - **A skill's × and a resume's Delete Resume are optimistic** (KAN-388):
   the item leaves the screen at once and the delete runs behind it. The
   screen that holds the list owns the delete, through `useOptimistic` in

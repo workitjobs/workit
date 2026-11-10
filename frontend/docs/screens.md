@@ -2235,12 +2235,15 @@ the picked resume, then opens the new section to fill. An Entries section
 lists rows as any section does; a Lines section shows its lines as plain
 text, and its + opens them in the entry editor with only the lines
 (`EntryEditor`'s `lines`: no title, place, dates or dots, "Add Line", no
-Delete Entry). A section's heading holds + and a ⋯ menu, as the fixed
-cards' do (KAN-732, which took away the section edit mode): Rename Section
-(its heading becomes a name field), Delete Section (asked in the modal
-Delete Entry uses; the entries go with it, off every resume) and, on
-Entries under one resume, Clear All. Each entry's pencil is always in
-view, and the heading's controls hide while an entry is open. A section shows under the pick that
+Delete). An Entries section's card works as a fixed card does (KAN-740):
+its first three entries, a + and a pencil that opens its list, whose ⋯
+holds Rename Section (the list's title becomes a name field), Delete
+Section (asked across the list's foot; the entries go with it, off every
+resume) and, under one resume, Clear All; its pencil shows while it is
+empty too, since the list is where it is renamed or deleted. A Lines
+section has no list: its pencil (a + while it has no lines) opens its
+lines in the form, "Edit Summary", and its ⋯ keeps Rename Section (the
+heading becomes a name field) and Delete Section (asked in a modal). A section shows under the pick that
 owns it or shows one of its entries, and the student's own while it is
 empty; under All Experiences two of one name (two uploads' Summary) each add
 their owner's name. The API's error says when an owner has five or the name
@@ -2378,36 +2381,55 @@ in Docs (suggested answers in the chat, not a banner).
   never sorts. After every change it reads the whole bank again, so the
   order shown is always the API's; a skill's × only drops that skill,
   which changes no order.
-- **A card's heading is a + and a ⋯** (KAN-732): the + adds an entry (a
-  skill on Skills), on every card; the ⋯ holds Clear All, and shows only
-  where Clear All applies. Skills alone add a pencil, shown while the card
+- **Editing is two levels, after LinkedIn's profile** (KAN-740). A card
+  shows its first three entries, then "Show All 17 Projects", full width
+  under the rows; a search shows every entry it finds, open, with no Show
+  All. The heading holds a + (Add Project, the form empty) and a pencil
+  (Edit Projects), which opens the section's whole list as Show All does:
+  a dialog 768px wide on a laptop, the whole screen on a phone, titled with
+  the section's mark, name and count ("17 projects"), with a + and a ⋯
+  (Clear All, and a custom section's Rename and Delete Section) beside its
+  close. Every entry there is a row as on the card, with its pencil. An
+  entry's pencil, on the card or in the list, opens its form, titled by
+  what the section holds ("Edit School", "Edit Job", "Edit Project",
+  "Edit Role", "Edit Award", "Edit Certification", "Edit Entry" with the
+  section's name under it; `NOUNS` in `sections.ts`): every field, a body
+  that scrolls, and a foot that stays put, Delete on the left and Cancel and
+  Save on the right. From the list the form is a step of the same dialog,
+  with a Back arrow; Back, Cancel, Escape and a save return to the list
+  with the focus on that entry's pencil. With typing in it, Escape, the ×
+  and a press outside ask "Discard Your Changes?" across the foot (Keep
+  Editing, Discard Changes); Cancel discards at once. The page read 14 to
+  17 rows a card on the shared test account, and every edit opened inline
+  in it with the other controls hidden. Skills keep their card: a + that
+  opens their form, a ⋯ with Clear All, and a pencil, shown while the card
   lists something, that opens their edit mode: each skill shows its pencil
   and ×, and the pencil gives way to Done. Every card had that mode until
-  KAN-732 (KAN-363, as LinkedIn's profile draws it), and entries showed
-  their pencils only in it, which put a press before every edit. Before
-  KAN-363 each heading held Clear All and Add as words, and every entry a
-  pencil and a trash, so a card read as a row of controls before what it
-  holds.
-- **Clear All empties a card** (KAN-352): in the card's ⋯, on each
-  section card and on Skills, while one resume is picked. It deletes
-  what the card shows in one call (`POST .../experiences/entries/delete` or
-  `.../skills/delete`, all or none), after a modal (`experiences/clear-all.tsx`,
-  `DeleteDialog`, KAN-732) that names the count and the built resumes that show them
+  KAN-732 (KAN-363), and entries showed their pencils only in it, which put
+  a press before every edit. Before KAN-363 each heading held Clear All and
+  Add as words, and every entry a pencil and a trash, so a card read as a
+  row of controls before what it holds.
+- **Clear All empties a section** (KAN-352): in the ⋯ of a section's list
+  (KAN-740) and of the Skills card, while one resume is picked. It deletes
+  what the section shows in one call (`POST .../experiences/entries/delete` or
+  `.../skills/delete`, all or none), after a question (`experiences/clear-all.tsx`:
+  across the list's foot, or a modal on Skills) that names the count and the built resumes that show them
   (`builtShowing` in `holdings.ts`, from the bank's `resume_ids`). It
   deletes from the whole bank, as Delete Entry does: under a built
   resume's pick the items belong to uploads (ADR 0005), so the confirm
   names the uploads that lose them too (`uploadsOwning`). It never deletes
   what the pick hides: a button on a card acts on what the card shows.
 - **An entry's row holds its dates and its pencil, always in view**
-  (KAN-732). Delete Entry sits at the foot of the editor the pencil opens
+  (KAN-732). Delete sits at the foot of the form the pencil opens
   (`entry-editor.tsx`'s `onDelete`). A trash beside the pencil, under a
   heading with Clear All and Add, put four controls in one corner, and a
   student could not tell which acted on the section and which on the
-  entry (KAN-363). Save Entry and Cancel give the focus back to the
-  pencil, and Delete Entry to the pencil of the entry beside. **One editor
-  at a time** (KAN-732): while an entry is in the editor, the other
-  pencils, the cards' + and ⋯ and the empty-group line hide, since any of
-  them moved the editor and dropped what was typed in it.
+  entry (KAN-363). Save and Cancel give the focus back to the pencil, and
+  Delete to the pencil of the entry beside, else the card's +, else the
+  quiet line's word once the card is gone. A word on the quiet line opens
+  its section's form ("Add Award"), and the card comes back with the
+  saved entry. The form is modal, so one editor at a time (KAN-732) holds
+  by itself.
 - **An entry's dates sit under its title below `@xl/main`**, beside the
   pencil above it. Beside them on a phone, the dates never
   shrank and left the title a column a few letters wide ("Universi / ty").
@@ -2421,9 +2443,11 @@ in Docs (suggested answers in the chat, not a banner).
   Generate. It lines up with the title, past the chevron, and onboarding's
   resume preview shows the same one (`MissingFacts`, KAN-732).
 - **Deleting an entry confirms with how many built resumes show it**
-  (story 18): the editor's Delete Entry reads `GET .../entries/{id}/resumes` first,
-  then asks in a modal that names the entry (`DeleteDialog`, KAN-732), with
-  Keep It, the safe answer, focused. A resume that hides the entry is not counted.
+  (story 18): the form's Delete reads `GET .../entries/{id}/resumes` first,
+  then asks across the form's foot, in place of its buttons, naming the
+  entry ("Delete Treasurer?"), with Keep It, the safe answer, focused; Keep
+  It or Escape gives the focus back to Delete. A modal over the form would
+  be a dialog over a dialog (`docs/design.md`, Dialogs). A resume that hides the entry is not counted.
 - **Bullets show their original wording only** (KAN-218). Wording typed on
   a resume in the editor is that resume's local variant and never shows
   here (`docs/resume.md`).
@@ -2451,15 +2475,13 @@ in Docs (suggested answers in the chat, not a banner).
   title and organization for each). A month is a `MonthField`
   (`components/month-field.tsx`, KAN-559): a year and its twelve months in
   a popover, never the browser's month picker, which opened Chrome's own
-  chrome and drew an empty month as dashes.
-  title and organization for each). Months use the browser's month picker
-  today (`type="month"`, a `YYYY-MM` text box where there is none), which
-  breaks `design.md`'s rule that no field opens the browser's own picker;
-  a `MonthField` on the `DateField` pattern replaces it (KAN-559).
-  title and organization for each). The form stops at `max-w-3xl` (768px),
-  its buttons with it (KAN-576): on the bank page at 1440 a School or
-  Coursework box ran 1242px. Months use the browser's month picker,
-  which falls back to a `YYYY-MM` text box where there is none.
+  chrome and drew an empty month as dashes. Inline (intake, onboarding
+  before KAN-740) the form stops at `max-w-3xl` (768px), its buttons with
+  it (KAN-576): on the bank page at 1440 a School or Coursework box ran
+  1242px. In the entry form's dialog (`framed`, KAN-740) the dialog is that
+  width, its fields scroll and its foot stays, and its body is the
+  `@container/main` the fields pair up against, since a dialog's portal is
+  outside the page's.
   **Two columns at every width** (KAN-257): a pair of short fields shares
   a row (the start and end, with the end month under End; a degree and its
   field; a GPA and its scale), a long one takes the row, and the
@@ -2491,7 +2513,7 @@ in Docs (suggested answers in the chat, not a banner).
 - **Editing an entry** sends its fields in one PATCH, then its bullets as the
   adds, edits and deletes that turn the saved list into the draft's
   (`entry-save.ts`'s `editSteps`, shared with intake's entry visits).
-- **Delete asks once**, inline, with the count above.
+- **Delete asks once**, across the form's foot, with the count above.
 - **Skills are a plain list** with an optional group, one row per group.
   A name appears once, ignoring case; the API answers 409 otherwise. The
   group names make one column from `@md/main`, so every group's skills start
@@ -3511,10 +3533,11 @@ student looks the reading over once, not field by field (the user's call,
 AI's value and says nothing (`backend/app/utils/CLAUDE.md`). Then a card per section
 with the bank's heading and `EntryRow`s, every entry open with its details
 and bullets and no chevron, unlike the bank's closed rows, so the whole
-reading is in view. Each entry's pencil opens the shared `EntryEditor`
-(Save Entry, Cancel, and Delete Entry, which asks in the bank's modal and
-says the entry is not saved and the file does not change); the other
-pencils hide while one entry is open, as on Experiences. An entry
+reading is in view, and every card shows all its entries, with no Show
+All and no section's list (KAN-740). Each entry's pencil opens the bank's
+entry form, "Edit Project" (`EntryDialog`, KAN-740: Save, Cancel, and
+Delete, which asks across the form's foot and says the entry is not saved
+and the file does not change). An entry
 that lacks a date or an organization warns as on Experiences. Skills are
 the bank's purple chips in their groups, and their pencil shows each ×,
 with Done to end it. Save Resume waits while an entry is open, and the
