@@ -72,11 +72,11 @@ def test_a_tile_that_fell_back_is_filmed_again_once_macos_lists_the_tabs_title(m
     worker = amazon()
     with PortFrames(1, [worker].__getitem__, capture="native", chrome={0: 1000}.get) as frames:
         before = seen(frames, 0, 1.5)  # macOS still says "Amazon IdPrism": the helper refuses the window
-        fell_back = dict(frames.native), worker.started[-1]["native"]
+        fell_back = [started["native"] for started in worker.started][:2]  # a retry may have begun since: not later
         macos(TAB_TITLE)  # the redirects are over
         after = seen(frames, 0, 3)
 
-    assert before == [EXTENSION] and fell_back == ({}, False)
+    assert before == [EXTENSION] and fell_back == [True, False]
     assert after[-1] == FILMED and worker.started[-1]["native"] is True
 
 
