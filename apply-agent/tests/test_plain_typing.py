@@ -21,6 +21,7 @@ import pytest
 from playwright.sync_api import sync_playwright
 
 from apply.plain import extension
+from apply.plain.bridge import PortError
 
 PAGE_DIR = Path(extension.__file__).resolve().parents[3] / "worker-extension" / "page"
 HOST = "https://jobs.example.com"
@@ -103,7 +104,7 @@ def test_with_trusted_a_text_call_asks_the_service_worker_to_type_it(tmp_path):
         no_debugger = run("landed", fill["token"], False)["ok"]  # the debugger never sent it: typed as before
         typed = run("type", "#school", "SB")["ok"]
         key = run("keys", "S")["ok"]
-        landed = run("landed", key["token"], True)["ok"]  # sent, never arrived (a guard took it): not typed again
+        landed = run("landed", key["token"], True)["ok"]  # sent, never arrived (a guard took it): an error, not typed again
         enter = run("keys", "Enter")["ok"]
         backspace = run("keys", "Backspace")["ok"]
         button = run("keys", "a") if page.evaluate("() => { go.focus(); return true }") else None
@@ -112,7 +113,7 @@ def test_with_trusted_a_text_call_asks_the_service_worker_to_type_it(tmp_path):
     assert no_debugger == {"trusted": False, "fallback": True}
     assert typed["__applyKeys"] == "SB" and typed["chosen"]
     assert key["__applyType"] == "S" and key["after"] == ["keyup", ["S"]]
-    assert landed == {"trusted": False}
+    assert landed == {"missed": "the text did not reach the field"}
     assert enter is None and backspace["__applyKey"] == "Backspace"
     assert button == {"ok": None}  # a key on a button: no text for anyone to type
 
@@ -206,7 +207,8 @@ def test_trusted_text_goes_only_into_the_field_the_call_chose(amazon):
     page.evaluate("() => school.addEventListener('keydown', () => other.focus())")
     page.locator("#school").press_sequentially("ab")
     page.evaluate("() => other.addEventListener('focus', () => go.focus())")
-    page.locator("#other").press("x")
+    with pytest.raises(PortError, match="the field lost the focus"):  # checked just before the text goes: nothing sent
+        page.locator("#other").press("x")
 
     assert page.evaluate("() => [school.value, other.value]") == ["", ""]
     assert taken(page) == {}
@@ -242,20 +244,78 @@ def test_a_radio_clicked_and_text_typed_survive_a_reload(amazon):
         "C++ projects", "ACU", True]
 
 
-@pytest.mark.parametrize("when", ["pointermove", "pointerdown"])
+def test_a_trusted_click_makes_no_move_first_for_a_page_to_time_a_change_by(amazon):
+    # The page would put its Continue under the pointer as it comes: a trusted click sends no move before its press.
+    page, site = amazon
+    page.evaluate("""() => document.querySelector('input[value=Yes]').addEventListener('pointermove', () => {
+      const box = document.querySelector('input[value=Yes]').getBoundingClientRect();
+      Object.assign(go.style, {position: 'fixed', left: box.left - 20 + 'px', top: box.top - 20 + 'px', width: '80px', height: '60px', zIndex: 9});
+    }, true)""")
+    page.get_by_role("radio", name="Yes").check()
+
+    assert page.evaluate("() => [window.pressed || 0, window.sent, window.upOn]") == [0, 0, "INPUT"]
+    assert site.saved == {"sponsor": "Yes"} and site.posts == []
+
+
+@pytest.mark.parametrize("when", ["pointerdown"])
 def test_a_trusted_click_reaches_only_the_choice_it_was_for(amazon, when):
-    # A page that puts its Continue under the pointer as it comes or as the press goes down: nothing is pressed.
+    # A page that puts its Continue under the pointer as the press goes down: nothing is pressed, and Apply hears
+    # that its click missed.
     page, site = amazon
     page.evaluate("""(when) => document.querySelector('input[value=Yes]').addEventListener(when, () => {
       const box = document.querySelector('input[value=Yes]').getBoundingClientRect();
       Object.assign(go.style, {position: 'fixed', left: box.left - 20 + 'px', top: box.top - 20 + 'px', width: '80px', height: '60px', zIndex: 9});
     }, true)""", when)
-    try:
+    with pytest.raises(PortError, match="KAN-716 trusted input"):
         page.get_by_role("radio", name="Yes").check()
-    except Exception:
-        pass  # its click was cancelled: the radio never changed
     page.wait_for_timeout(300)
 
     assert page.evaluate("() => [window.pressed || 0, window.sent]") == [0, 0]
     assert page.evaluate("() => window.upOn") == "go"  # the press did land on Continue, and went no further
     assert site.posts == []
+
+
+SMOOTH = """<!doctype html><style>html { scroll-behavior: smooth }</style><div style="height: 3000px"></div>
+<label><input type=radio id=r name=a> Yes</label><div style="height: 3000px"></div>"""
+
+
+def test_a_choice_below_the_fold_of_a_smooth_scrolling_page_is_clicked(amazon):
+    # Bootstrap's reboot sets scroll-behavior: smooth; the point is read once the scroll is done, not mid-way.
+    page, site = amazon
+    site.html = SMOOTH
+    page.reload()
+    page.locator("#r").click()
+
+    assert page.evaluate("() => r.checked") is True
+
+
+def test_text_whose_field_goes_to_another_frame_raises_and_lands_nowhere(amazon):
+    page, _ = amazon
+    page.evaluate("""() => new Promise(done => { const f = document.createElement('iframe'); f.onload = done;
+      f.src = '/inner'; document.body.append(f); })""")
+    inner = next(f for f in page.frames if f.url.endswith("/inner"))
+    page.evaluate("() => school.addEventListener('focus', () => document.querySelector('iframe').contentDocument.getElementById('why').focus())")
+    with pytest.raises(PortError, match="KAN-716 trusted input"):
+        page.locator("#school").fill("Acme")
+
+    assert inner.input_value("#why") == "" and page.input_value("#school") == ""
+
+
+def test_the_drive_guards_checks_on_trusted_input_act_on_a_plain_worker(amazon):
+    # PlainDriveGuard sets the page's flags now that a plain Worker's text is trusted: Ask's typing in a password box is
+    # refused by the page's guard, and an error for Apply; out of Ask, the same box takes it.
+    from apply.plain.guards import PlainDriveGuard
+
+    page, _ = amazon
+    page.evaluate("() => { const pw = document.createElement('input'); pw.type = 'password'; pw.id = 'pw'; document.body.append(pw); }")
+    drive = PlainDriveGuard(page)
+    drive.arm()
+    drive.asking(True)
+    flags = page.evaluate("() => [window.__applyAsking, window.__applyDriving]")
+    with pytest.raises(PortError, match="a guard refused it"):
+        page.locator("#pw").fill("hunter2")
+    refused = page.input_value("#pw")
+    drive.asking(False)
+    page.locator("#pw").fill("hunter2")
+
+    assert flags == [True, True] and refused == "" and page.input_value("#pw") == "hunter2"

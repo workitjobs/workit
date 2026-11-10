@@ -67,10 +67,12 @@
     if (editable && !is(element, "editable")) throw new Retry("element is not editable");
   }
 
-  // The element's centre in the viewport, scrolled into view.
+  // The element's centre in the viewport, scrolled into view at once: a page's `scroll-behavior:
+  // smooth` (Bootstrap's reboot sets it) would still be moving it when the point is read (KAN-716).
   function point(element, position) {
-    if (element.scrollIntoViewIfNeeded) element.scrollIntoViewIfNeeded(true);
-    else element.scrollIntoView({ block: "center", inline: "center" });
+    const seen = element.getBoundingClientRect();
+    if (seen.top < 0 || seen.left < 0 || seen.bottom > innerHeight || seen.right > innerWidth)
+      element.scrollIntoView({ block: "center", inline: "center", behavior: "instant" });
     const box = element.getBoundingClientRect();
     if (!box.width || !box.height) throw new Retry("element has no size");
     return position ? { x: box.left + position.x, y: box.top + position.y } : { x: box.left + box.width / 2, y: box.top + box.height / 2 };
@@ -115,13 +117,35 @@
   // the top frame (the debugger's points are the tab's viewport), only a plain single click.
   const CHOICE = "input[type=radio], input[type=checkbox], [role=radio], [role=checkbox], [role=option], [role=menuitemradio], [role=menuitemcheckbox], [role=switch]";
   const PRESSES = "button, a[href], input[type=submit], input[type=image], input[type=reset], input[type=button], summary, [role=button], [role=link]";
+  // Anything a press could do something else on, between the point and the choice.
+  const ELSE = `${PRESSES}, iframe, frame, object, embed, input, select, textarea, [contenteditable], [tabindex], label`;
   function trustedChoice(element, target, clickCount, modifiers, force) {
     if (!canTrust || force || clickCount !== 1 || modifiers?.length || window !== window.top) return null;
     const control = pw.retarget(element, "follow-label");
     const choice = [element, control].find((e) => e?.matches?.(CHOICE));
     if (!choice) return null;
     for (const n of [target, element, control]) if (n?.closest?.(PRESSES)) return null; // a choice inside a button is a button
-    return [element, control, ...(control?.labels ?? [])].filter(Boolean);
+    return { allowed: [element, control, ...(control?.labels ?? [])].filter(Boolean), control };
+  }
+
+  function deepest(at) {
+    let hit = document.elementFromPoint(at.x, at.y);
+    while (hit?.shadowRoot) {
+      const inner = hit.shadowRoot.elementFromPoint(at.x, at.y);
+      if (!inner || inner === hit) break;
+      hit = inner;
+    }
+    return hit;
+  }
+
+  // Whether `node` is the choice, its control or one of its labels, or plain content inside them:
+  // never a button, a link, a frame or another field that a page put there.
+  function onlyChoice(node, allowed) {
+    for (let n = node?.nodeType === 1 ? node : node?.parentElement; n; n = n.parentNode || n.host) {
+      if (allowed.includes(n)) return true;
+      if (n.nodeType === 1 && n.matches?.(ELSE)) return false;
+    }
+    return false;
   }
 
   function click(selector, { force = false, clickCount = 1, position, modifiers } = {}) {
@@ -131,13 +155,19 @@
     const target = hitTarget(element, at, force);
     const keys = { ctrlKey: !!modifiers?.includes("Control"), shiftKey: !!modifiers?.includes("Shift"),
                    altKey: !!modifiers?.includes("Alt"), metaKey: !!modifiers?.includes("Meta") };
-    const allowed = trustedChoice(element, target, clickCount, modifiers, force);
-    if (allowed) return request(allowed, { __applyClick: { x: at.x, y: at.y } }, () => syntheticClick(target, at, keys, clickCount), "click");
+    const choice = trustedChoice(element, target, clickCount, modifiers, force);
+    if (choice && onlyChoice(deepest(at), choice.allowed)) {
+      const { control } = choice;
+      const before = control?.matches?.("input") ? control.checked : null;
+      return request(choice.allowed, { __applyClick: { x: at.x, y: at.y } }, () => syntheticClick(target, at, keys, clickCount), "click",
+                     { at, control, before });
+    }
     syntheticClick(target, at, keys, clickCount);
     return null;
   }
 
   function syntheticClick(target, at, keys, clickCount) {
+    touch(); // a trusted click's own pointerdown is its touch: it sends none ahead, for a page to time a move by
     mouse(target, "pointerover", at, keys);
     mouse(target, "mouseover", at, keys);
     mouse(target, "pointermove", at, keys);
@@ -194,12 +224,15 @@
   let tokens = 0;
   // `element`: the field (text), or for a click the choice with its control and labels: the only
   // elements a trusted event may reach until `landed`.
-  const CLICKS = ["pointerdown", "mousedown", "pointerup", "mouseup", "click", "auxclick", "dblclick"];
-  function request(element, fields, fallback, kind = "text") {
+  const CLICKS = ["pointerdown", "mousedown", "pointerup", "mouseup", "click", "auxclick", "dblclick", "contextmenu"];
+  // `hear` is one layer, not the backstop: a page's own listener added before it can stop it, so
+  // `aim` checks the point just before the press, and `landed` checks the effect after it. The
+  // submit guard and its network rules still stand behind all three.
+  function request(element, fields, fallback, kind = "text", click = {}) {
     const token = `${Date.now().toString(36)}-${++tokens}-${Math.random().toString(36).slice(2)}`;
     const allowed = Array.isArray(element) ? element : [element];
-    const entry = { element: allowed[0], arrived: false, refused: false, said: false, fallback, kind };
-    const reaches = (target) => allowed.some((e) => within(target, e));
+    const entry = { element: allowed[0], allowed, arrived: false, refused: false, said: false, fallback, kind, ...click };
+    const reaches = (target) => (kind === "click" ? onlyChoice(target, allowed) : allowed.some((e) => within(target, e)));
     const hear = (event) => {
       if (!event.isTrusted) return;
       if (reaches(event.composedPath()[0])) {
@@ -227,17 +260,62 @@
   // (no debugger here, or it failed) goes in untrusted, as before, and only into the chosen field
   // while it still has the focus. Text sent that never arrived (a guard that blocked it, a page
   // that took it itself) is not typed again.
+  // Just before the service worker's command: the request is this frame's own (a token `request`
+  // made), and what it was for still holds: the field has the focus, or the choice alone is under
+  // the point. Else it is dropped, nothing sent: {why}.
+  function aim(token) {
+    const entry = pending.get(token);
+    if (!entry) return { why: "no such request in this frame" };
+    const why = entry.kind === "click"
+      ? (onlyChoice(deepest(entry.at), entry.allowed) ? "" : "something else is under the point now")
+      : (deepActive() === entry.element ? "" : "the field lost the focus");
+    if (why) {
+      pending.delete(token);
+      entry.stop();
+      return { why };
+    }
+    return { aimed: true };
+  }
+
+  // After the service worker's try: `tried` is whether its debugger command ran. Text that
+  // arrived, and a click that reached the choice and changed it, are done. Sent and not arrived
+  // (a guard refused it, the page moved, a click that missed) is {missed}: an error for Apply, never
+  // typed or clicked again. Only what the debugger never sent goes in untrusted, as before.
   function landed(token, tried) {
     const entry = pending.get(token);
-    if (!entry) return { lost: true };
+    if (!entry) return { missed: "no such request in this frame" };
     pending.delete(token);
     entry.stop();
-    if (entry.arrived) return { trusted: true };
-    if (entry.refused || entry.said) return { refused: true };
-    if (tried) return { trusted: false };
+    if (tried) {
+      if (entry.refused) return { missed: "it reached something else, and was cancelled" };
+      if (!entry.arrived && entry.said) return { missed: "a guard refused it" };
+      if (!entry.arrived) return { missed: entry.kind === "click" ? "the click did not reach the choice" : "the text did not reach the field" };
+      const { control, before } = entry;
+      if (entry.kind === "click" && before !== null && control?.isConnected) {
+        const wanted = control.type === "radio" ? true : !before;
+        if (control.checked !== wanted) return { missed: "the click did not change the choice" };
+      }
+      return { trusted: true };
+    }
     if (!entry.element.isConnected || (entry.kind === "text" && deepActive() !== entry.element)) return { trusted: false };
     entry.fallback();
     return { trusted: false, fallback: true };
+  }
+
+  // Line breaks never go in trusted (KAN-716): Input.insertText of a lone "\n" in a one-line box is an
+  // Enter to Blink, and submits its form. A one-line box drops them, as its value does anyway; a
+  // textarea or editable content gets each one untrusted (`lineBreak`) between trusted runs. The
+  // text to ask for, or null for none.
+  const MULTILINE = (field) => field instanceof HTMLTextAreaElement || field.isContentEditable;
+  function trustedText(field, text) {
+    const kept = MULTILINE(field) ? text : text.replace(/[\r\n]+/g, "");
+    return kept.replace(/[\r\n]/g, "") === "" ? null : kept;
+  }
+  function lineBreak(token) {
+    const entry = pending.get(token);
+    if (!entry || entry.kind !== "text" || !MULTILINE(entry.element) || deepActive() !== entry.element) return { why: "the field lost the focus" };
+    insert(entry.element, "\n");
+    return null;
   }
 
   function setValue(element, value) {
@@ -271,8 +349,9 @@
         if (!insert(target, value) || valueOf(target) !== value) setValue(target, value);
       };
       // Playwright's fill selected the field's text: the trusted insertion replaces it (KAN-716).
-      if (value !== "" && trustedField(deepActive()) && (target === deepActive() || target.contains(deepActive())))
-        return request(deepActive(), { __applyType: value }, typing);
+      const field = trustedField(deepActive());
+      const text = field && (target === field || target.contains(field)) ? trustedText(field, value) : null;
+      if (text !== null) return request(field, { __applyType: text }, typing);
       typing();
     }
     return null;
@@ -287,6 +366,7 @@
     " ": [" ", "Space", 32],
   };
   function keyOf(name) {
+    if (name === "\n" || name === "\r") return KEYS.Enter; // as Playwright's keyboard types a line break
     if (KEYS[name]) return KEYS[name];
     if (name.length === 1) {
       const upper = name.toUpperCase();
@@ -496,11 +576,16 @@
     keys: (key) => press(key), // on whatever has focus (page.keyboard)
     insert(text) {
       const field = text !== "" && trustedField(deepActive());
-      if (field) return request(field, { __applyType: text }, () => insert(field, text));
+      const trusted = field ? trustedText(field, text) : null;
+      if (trusted !== null) return request(field, { __applyType: trusted }, () => insert(field, text));
+      if (field && !MULTILINE(field)) text = text.replace(/[\r\n]+/g, ""); // never an Enter by a pasted line break
+      if (text === "") return null;
       insert(document.activeElement || document.body, text);
       return null;
     },
+    aim,
     landed,
+    lineBreak,
     keyup,
     checked: verifyChecked,
     check,
@@ -530,6 +615,9 @@
   };
 
   const TOUCHES = new Set(["click", "type", "press", "keys", "keyInto", "check"]);
+  function touch() {
+    window.dispatchEvent(new CustomEvent("__apply_touch", { detail: "apply" }));
+  }
 
   globalThis.__applyDom = {
     leaving, // for page/tile.js's presses
@@ -538,7 +626,8 @@
       if (!fn) return { err: { name: "BadOp", message: `no dom method ${method}` } };
       // A press of Apply's counts as a touch for the page's guard (apply.plain.guards), as a
       // trusted click of Playwright's does: the guard then shows what it blocked.
-      if (TOUCHES.has(method)) window.dispatchEvent(new CustomEvent("__apply_touch", { detail: "apply" }));
+      // A click's touch goes with its synthetic press (syntheticClick): a trusted one needs none.
+      if (TOUCHES.has(method) && method !== "click" && method !== "check") touch();
       canTrust = trusted === true;
       try {
         const value = fn(...args);

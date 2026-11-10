@@ -43,32 +43,49 @@ but no `beforeinput` and no `textInput`; CDP's `Input.insertText` gives all thre
 text goes in through the worker extension's own `chrome.debugger` (`ops/typing.js`, the `debugger`
 permission):
 
-- **What it sends, and nothing else.** `Input.insertText` (text at the caret of the focused
-  field: no key, so no Enter, no click, no submit), `Input.dispatchKeyEvent` for Backspace and
-  Delete only (no text), and `Emulation.setFocusEmulationEnabled {enabled: true}` (the tab acts
-  as focused while attached, as Playwright's CDP pages do, so the box hears its focus and blur).
-  `typing.send` refuses any other command or parameter. And one more, for choices (below):
-  `Input.dispatchMouseEvent`, a plain left click (move, press, release) with no modifiers.
+- **What it sends, and nothing else.** `typing.send` refuses any other command, and any other
+  parameter, by exact list:
+  - `Input.insertText`: text at the caret of the focused field, never with a line break.
+  - `Input.dispatchKeyEvent` for Backspace and Delete only, with no text and no modifiers.
+  - `Input.dispatchMouseEvent`: one plain left press and release, for a choice (below).
+  - `Emulation.setFocusEmulationEnabled {enabled: true}`: the tab acts as focused while the
+    debugger is attached, as Playwright's CDP pages do, so the box hears its focus and blur.
+- **Never a line break** (the review of #521). `Input.insertText("\n")` into a one-line box is
+  an Enter to Blink, and submits its form. So a one-line box gets text without its line breaks,
+  a lone line break is the Enter key (which never sends a form), and a textarea or editable
+  content gets each line break untrusted between trusted runs (`lineBreak`).
 - **Choices: radios, checkboxes, options.** Live (2026-11-10), a reload of amazon.jobs showed blank
   two radios an earlier synthetic click had set. So `dom` `click` and `check` of a radio, a
   checkbox or an option (`CHOICE` in `page/dom.js`) is a trusted click at its centre, in the top
-  frame only. Never a button, a link or a choice inside one (`PRESSES`): those stay synthetic, and
-  the guards judge them as before. Until the click is in, a trusted press or click that reaches any
-  element but the choice, its control and its labels is cancelled, so a page that moves its Submit
-  under the pointer gets nothing pressed. Lisul's tile clicks stay synthetic.
-- **Only the field the call chose.** `page/dom.js` asks for trusted text only for a text field
-  (a textarea, a text-like input, editable content) that has the focus. While the text goes in,
-  a trusted `beforeinput` aimed at any other element is cancelled. A key whose keydown moves the
-  focus types nothing, and `press_sequentially` stops when its field loses the focus.
-- **No second try.** Text the debugger sent but that never arrived (a guard refused it, or the
-  page took it itself) is not typed again. Only text the debugger couldn't send (no permission,
-  a DevTools window on the tab, an old extension) goes in untrusted, as before.
-- **Attached briefly.** The debugger is on a tab only while text goes in, and off 4 s after the
+  frame only, and only when the choice alone is under the point (`onlyChoice`: no button, link,
+  frame or other field between them). Never a button, a link or a choice inside one (`PRESSES`):
+  those stay synthetic, and the guards judge them as before. The click has no move before its
+  press, and sends no `__apply_touch` ahead of it (its own trusted pointerdown is its touch), so
+  a page has no signal to time a change by. The page is scrolled to it at once, never smoothly.
+  Lisul's tile clicks stay synthetic.
+- **Checked before, fenced during, verified after** (`finish`):
+  - Before: `aim` checks that the request is this frame's own, and still holds: the field has
+    the focus, or the choice alone is under the point. Else nothing is sent: a click is tried
+    again (`{retry}`), and text is an error.
+  - During: every other frame of the tab cancels trusted input (`fence`), so a page that moves
+    the focus or a frame under the point gets nothing there. In the frame itself, a trusted
+    `beforeinput`, press or click aimed at anything else is cancelled (`hear`). `hear` is one
+    layer, not the backstop: a page's own listener added before it can stop it.
+  - After: `landed` checks the effect: the text arrived; the click reached the choice and
+    changed it. A miss is an error for Apply (`KAN-716 trusted input: ...`), never a second
+    try. Only input the debugger couldn't send (no permission, a DevTools window on the tab, an
+    old extension) goes in untrusted, as before.
+  - The submit guard and its network rules stand behind all of it.
+- **Attached briefly.** The debugger is on a tab only while input goes in, and off 4 s after the
   last. Workers start with `--silent-debugger-extension-api`, so Chrome shows no "started
-  debugging this browser" bar. No CDP port opens, and `navigator.webdriver` stays false.
-- **The guards see it as a keyboard.** The text's events are trusted, so the drive guard's Ask
-  checks (no typing in a password or code field, `DriveGuard.asking`) and the captcha frame's
-  refusal now act on a plain Worker as on a CDP one.
+  debugging this browser" bar; that switch covers any extension's debugger in the Worker's
+  Chrome, never Lisul's own Chrome. No CDP port opens, `Runtime` is never on, and
+  `navigator.webdriver` stays false. A page can see `document.hasFocus()` true while attached,
+  and input in CDP's pattern (a press with no path of moves before it).
+- **The guards see it as a keyboard.** `PlainDriveGuard.asking` and its driving state now set
+  `__applyAsking`, `__applyAskTick` and `__applyDriving` on the page (`guard.flags`), so the drive
+  guard's Ask checks (no typing in a password, code or attestation box) and the captcha frame's
+  refusal act on a plain Worker's trusted input as on a CDP one.
 - **Where it applies.** Every `dom` text call (Claude fill and Ask through Apply's MCP server,
   Fillers through PortPage) and the tile's `text` and `key` events: Lisul's typing on the tile
   reaches Amazon's sign-in and its questions. Other clicks stay synthetic. The Fill engine's own
@@ -81,11 +98,13 @@ permission):
 - Tests: `tests/test_plain_typing.py` (Chrome for Testing): a box that takes only a keyboard's
   text, the old path's failure on it (the control, in Playwright's Chromium), fill, type,
   insert_text, the tile's text and keys, Backspace and Delete, a cross-origin frame, Enter, a
-  page that moves the focus mid-key, a radio that takes only a trusted click, a Submit moved under
-  the pointer, and a reload that shows only what the fake job system saved. `tests/test_submit_guard_hostile.py -k typing` runs both
-  typing paths and Apply's choice clicks on every hostile page (a radio inside the Submit, one that
-  moves the Submit under the pointer). `tests/test_plain_trusted_rules.py` (in CI) checks the
-  source: one file uses the debugger, and `send` names only these commands.
+  page that moves the focus mid-key or into another frame, a radio that takes only a trusted click,
+  a Submit moved under the pointer, a smooth-scrolling page, and a reload that shows only what the
+  fake job system saved. `tests/test_submit_guard_hostile.py -k "typing or lifted or misses"` runs
+  both typing paths (line breaks included) and Apply's choice clicks on every hostile page, and,
+  lifted, on pages built to steer a trusted click (`STEERS`: a button put inside the label or an
+  option, a frame moved under the point, a listener that runs first). `tests/test_plain_trusted_rules.py`
+  (in CI) checks the source, and runs `send`'s allowlist in Node.
 
 ## Plain Workers' tiles and Fix from the window (KAN-609)
 
