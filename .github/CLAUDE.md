@@ -116,6 +116,23 @@ CI-only, and the most serious place it bit was `publish-extension.yml`,
 which could have shipped students an unreviewed engine build with no
 record of having done so.
 
+**The pin step's paths are repo-root-relative; a job's `defaults.run.working-directory`
+breaks it silently** (found 2026-11-09, fixed 2026-11-10): `extension-store-build`,
+`extension` (both files) and `apply` each set a job-wide working directory
+(`autofiller_extension`, `autofiller_extension/test`, `apply-agent`), and the
+pin step's `git ls-tree HEAD autofiller_extension/fill-engine` and `git -C
+autofiller_extension/fill-engine ...` resolve those paths against *that*
+directory, not the repo root — so in `autofiller_extension/test` it looked
+for `autofiller_extension/test/autofiller_extension/fill-engine`, found
+nothing, and failed every run with "fatal: cannot change to
+'autofiller_extension/fill-engine': No such file or directory" right after a
+successful submodule checkout. Fixed by adding `working-directory: .` on the
+pin step itself in every job that sets a non-root default (five of the six:
+all but `publish-extension.yml`, which sets no job-wide default and was
+never affected). A step's own `working-directory:` is always resolved from
+`$GITHUB_WORKSPACE`, never nested inside the job's default, so this is safe
+to copy into a sixth place if one is ever added.
+
 The fill-engine repo has its own CI (its `.github/workflows/ci.yml`):
 typecheck, the same stale-`dist/` check, and its tests, on every PR.
 

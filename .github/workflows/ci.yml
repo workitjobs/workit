@@ -52,6 +52,7 @@ jobs:
       # run pinning fill-engine@0.3.26 built and tested 0.3.30). Force it.
       - name: Pin fill-engine to the commit this branch actually records
         if: needs.engine.outputs.set == 'true'
+        working-directory: .
         run: |
           PINNED=$(git ls-tree HEAD autofiller_extension/fill-engine | awk '{print $3}')
           git -C autofiller_extension/fill-engine fetch --depth 1 origin "$PINNED"
@@ -131,6 +132,7 @@ jobs:
           token: ${{ secrets.FILL_ENGINE_TOKEN }}
       # See the same step's comment in extension-store-build, above.
       - name: Pin fill-engine to the commit this branch actually records
+        working-directory: .
         run: |
           PINNED=$(git ls-tree HEAD autofiller_extension/fill-engine | awk '{print $3}')
           git -C autofiller_extension/fill-engine fetch --depth 1 origin "$PINNED"
@@ -178,6 +180,7 @@ jobs:
           token: ${{ secrets.FILL_ENGINE_TOKEN }}
       # See the same step's comment in extension-store-build, above.
       - name: Pin fill-engine to the commit this branch actually records
+        working-directory: .
         run: |
           PINNED=$(git ls-tree HEAD autofiller_extension/fill-engine | awk '{print $3}')
           git -C autofiller_extension/fill-engine fetch --depth 1 origin "$PINNED"
