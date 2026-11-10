@@ -59,6 +59,8 @@ window.WIA = window.WIA || {};
     if (answer?.ok && !answer.signedIn) return showSignedOut();
     signedOut = false;
     frame()?.removeAttribute("data-signed-out");
+    // Fully, partly or not supported, before the fill (coverage.js, KAN-749).
+    void window.WIA.coverage?.show();
     const off = await send({ type: "fill/available" });
     if (off?.ok && off.unavailable) return showUnavailable(off.unavailable);
     panel().fillButton(panel().startLabel());

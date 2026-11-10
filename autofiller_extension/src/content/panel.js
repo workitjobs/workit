@@ -9,7 +9,7 @@
 //
 // This file owns only the frame. What goes in it plugs into its slots
 // (`slot(name)`, autofiller_extension/CLAUDE.md "The panel's shell"):
-// "header-actions", "batch-line", "job-card", "primary", the tabs
+// "header-actions", "batch-line", "job-card", "coverage", "primary", the tabs
 // (`addTab`; "autofill" holds overlay.js's rows and cards) and "settings",
 // and into the header's ⋯ menu (`menuItem`, KAN-369 Q4). The frame, top to
 // bottom: the header (WorkIt, ⋯, Close), the job (batch line, job card) and
@@ -202,6 +202,7 @@ window.WIA.onWorkday = () => window.WIA.jobSystem === "workday";
       <div class="top">
         <div class="card" data-slot="batch-line" hidden></div>
         <div class="card" data-slot="job-card" hidden></div>
+        <div class="card" data-slot="coverage" hidden></div>
         <div class="tabs" role="tablist" hidden><span class="thumb" aria-hidden="true"></span></div>
       </div>
       <div class="scroll">

@@ -2010,6 +2010,7 @@ slot by name, `panel.slot(name)`, and adds its styles with
 | `header-actions` | buttons beside ⋯ and Close (kept empty: actions go in the ⋯ menu) | none |
 | `batch-line` | Workday's step line only ("Step 3 of 6 · My Experience") | panel-top.js |
 | `job-card` | the job card (title, company, Match score) | panel-top.js |
+| `coverage` | the coverage badge before a fill (Fully supported, Partly supported, Not supported) and its one line | coverage.js |
 | `primary` | the one big button, fixed at the panel's bottom; `panel.setPrimary({ label, onPress, secondary })` or `panel.fillButton(label)` | Autofill This Page / Fill this step (launcher.js), then primary.js: "Next: N need you", Review and submit, Go to Save and Continue, Fill Again's question |
 | `tab:<id>` | a tab's body; `panel.addTab({ id, label })` adds one, the strip shows from two | `tab:autofill`, the only one (KAN-424): overlay.js's summary, essay banner, moment cards, parts and rows |
 | `settings` | the settings view, shown by the ⋯ menu's Settings in place of the tab's body (`panel.showSettings`; `panel.onView(hook)` hears it open) | panel-settings.js: Claude connection, Open the panel by itself, Report a problem, Workday Sign-Up, Back |
@@ -2260,15 +2261,45 @@ report.js everywhere it is: `CONTENT_SCRIPT_FILES` and background.js
   (`tab.before`): Ready sets the application back to queued, anything else
   to needs_you, with no date (backend pipeline.py), and the tab to that
   state, in its group.
+- **The coverage badge** (KAN-749, `src/content/coverage.js`,
+  `window.WIA.coverage`, and `src/background/coverage.js`): before a fill,
+  the `coverage` slot under the job card shows a pill and one line, from the
+  Fill engine's job system for the page (`panel/coverage`: `jobOf` of
+  `pageJobUrl`). **Fully supported** (positive tint): a job system the
+  engine fills in one form, "WorkIt fills this Greenhouse form." (a practice
+  form: "WorkIt fills this practice form."). **Partly supported** (warning
+  tint): one whose form comes in steps, the engine's `stepped` (Workday,
+  Oracle, iCIMS, SuccessFactors), "WorkIt fills Workday one step at a time.
+  You sign in and check each step yourself." **Not supported** (gray): no job
+  system the engine covers, or one WorkIt turned off ("WorkIt can't fill
+  Workday right now. Copy your answers into the form yourself."). The rule
+  is the engine's: a new job system takes its level from whether the engine
+  steps it, never from a list here; only the names students see
+  (`SYSTEM_NAMES`) are the extension's. `panelStates.start()` draws it once
+  signed in; the fill's list (overlay.js `draw`) hides it. **Not supported
+  lists the student's answers** in the Autofill tab (`[data-answers]`,
+  `panel/answers`: `answerList`, from the same `engineProfile` the fill
+  plans with), by the Fields to Autofill groups (Contact info, Location,
+  Education, Experience, Work authorization), each a label, the value and
+  **Copy** (aria-label "Copy Email"; pressed, "Copied", until another Copy
+  takes it), through `navigator.clipboard` with letter-preview.js's
+  fallback. Only answers the student has; no file and no
+  self-identification answer (a form asks those in its own words, and the
+  student answers them there). Tests: `test/coverage.spec.ts` (the levels,
+  the list), `test/coverage.extension.spec.ts` (each badge, Show My
+  Answers, Copy).
 - **A site WorkIt can't fill**: every host the manifest lists is a job
-  system the Fill engine fills, so the panel never shows this (an allowed
-  employer site with nothing to fill gets no panel either); the toolbar
-  popup does, on a web page of any other host (not WorkIt's own) that looks
+  system the Fill engine fills, so the panel never opens there by itself
+  (an allowed employer site with nothing to fill gets no panel either); the
+  toolbar popup does, on a web page of any other host (not WorkIt's own) that looks
   like a job posting (`panel-states.js` `looksLikePosting`: a jobs, careers,
   apply or position part in its path, or a schema.org `JobPosting` block,
   read in the tab), where the icon's press lets it read the tab's link
   (activeTab). On any other page the popup is the usual batch status. It says "WorkIt
-  can't fill this site yet" with **Save to WorkIt** (`popup/save`: `POST
+  can't fill this site yet" with **Show My Answers** (KAN-749,
+  `popup/answers`, from the popup's own page only: the panel's files go into
+  the tab, as the toolbar's press lets them, and the panel opens there on
+  Not supported and the answers to copy, with no fill button), then **Save to WorkIt** (`popup/save`: `POST
   /jobs/saved-by-link`, which saves the feed's job whose apply link the page
   is, ignoring query, fragment and a trailing slash; "WorkIt doesn't list
   this job yet." when there is none) and **Report a problem** (what it sends:
