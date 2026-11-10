@@ -67,7 +67,19 @@ them. `apply.plain.tile.PortFrames` is their frame source for the same
   helper that never aimed, as when ScreenCaptureKit waits on a macOS prompt),
   or with none for 20 s after a `tile.shown` (`STALLED`), stops being filmed:
   `tile.start` again with `native: false`, and the extension's frames show.
-  Apply prints one line saying why. Clicks map by the frame's own size
+  Apply prints one line saying why.
+- **Filmed again (KAN-751).** A fallback is not for the rest of the run. A
+  page's title and the title macOS lists for its window can disagree for a
+  while: amazon.jobs' sign-in redirects showed "Log in or create account |
+  Amazon.jobs" in the tab and "Amazon IdPrism" in the window for more than 3 s,
+  so the helper refused the window (KAN-717) and the tile stayed at 2 fps. Now
+  Apply tries filming again `RETRY` (5 s) after a fallback: `tile.start` with
+  `native: true`, the extension's `tile.shown` aims a new helper, and a verified
+  frame keeps the tile filmed ("filmed again"). A try that fails falls back the
+  same way and doubles the wait, up to `RETRY_MOST` (60 s); a filmed frame
+  resets it. The tile keeps its last frame while a try waits, so it never
+  blanks, and each try checks the window as strictly as the first. Only the
+  first fallback prints. Tests: `tests/test_plain_tile_refilm.py`. Clicks map by the frame's own size
   (`page/tile.js` scales by `width` x `height`), so a 2x filmed frame and a 1x
   extension frame both land on the element under the pointer.
 - **Only its own window and tab (KAN-717).** A tile shows its own Worker's
