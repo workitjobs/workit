@@ -61,8 +61,8 @@ const REASON: Record<string, LeaveReason> = {
  * and a press outside only ask (`onLeave`): the caller decides, since a
  * save may be running or a form may hold typing.
  *
- * Focus goes to `first` on opening (a form's first field, a list's first
- * pencil), and on closing to what `returnTo` names then: the control that
+ * Focus goes on opening to a form's first field, or to a list's dialog
+ * itself, and on closing to what `returnTo` names then: the control that
  * opened it, or, once that is gone (a deleted entry's pencil), the one the
  * caller moved it to.
  */
@@ -91,10 +91,15 @@ export function BankDialog({
         ref={popup}
         aria-label={label}
         showCloseButton={false}
+        // A form's first field; a list's dialog itself, which a screen
+        // reader reads by its title, since on its first row's toggle the
+        // row opened ringed in brand as if picked
         initialFocus={() =>
           popup.current?.querySelector<HTMLElement>(
-            "[data-first-focus], [data-slot=dialog-scroller] :is(input, textarea, button)",
-          ) ?? true
+            "[data-slot=dialog-scroller] :is(input, textarea)",
+          ) ??
+          popup.current ??
+          true
         }
         // A frame late: the render that closes it can also draw what it
         // changed (a new card's +, a deleted row's neighbour), which is not
@@ -112,11 +117,13 @@ export function BankDialog({
           // a phone too.
           "max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] sm:max-w-3xl",
           "max-sm:h-dvh max-sm:max-h-none max-sm:w-full max-sm:max-w-none max-sm:rounded-none max-sm:ring-0",
-          // As tall as what it holds, up to the window: a fixed height left
-          // a list of two schools over a screen of white. Hung 64px from the
-          // window's top, not centred, so its head stays put as a step
-          // (the list, a form) changes its height.
-          "sm:top-16 sm:max-h-[calc(100dvh-6rem)] sm:translate-y-0",
+          // As tall as what it holds, between 24rem and the window: a fixed
+          // height (52rem) left two schools over a screen of white, and with
+          // no floor a list of two was a 230px strip that read as a
+          // dropdown. Hung a tenth of the window from its top, not centred,
+          // so its head stays put as a step (the list, a form) changes its
+          // height.
+          "sm:top-[10dvh] sm:max-h-[calc(90dvh-2rem)] sm:min-h-[min(24rem,calc(90dvh-2rem))] sm:translate-y-0",
         )}
       >
         {children}
