@@ -50,6 +50,7 @@ from apply import (
 )
 from apply.accounts_tab import AccountsTab
 from apply.adapters import Adapters
+from apply.answer_bank import FILE as ANSWER_BANK
 from apply.answer_bank import AnswerBank
 from apply.answers_tab import AnswersTab
 from apply.browsers import ProfileInUse, WorkerBrowsers
@@ -76,8 +77,6 @@ from apply.tracker import TRACKER, FileTracker, InMemoryTracker, WorkItTracker
 from apply.worker import SENT, sent_resume
 
 DEFAULT_PROFILE = HOME / "applicant-profile.yaml"
-# The Answer bank's file, beside the Applicant profile.
-ANSWER_BANK = "answer-bank.yaml"
 # Where a rehearsal keeps its Records, one folder per day.
 REHEARSALS = HOME / "rehearsals"
 # Where a run keeps its Records while policies.yaml sets no records_remote.

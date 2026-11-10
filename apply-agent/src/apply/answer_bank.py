@@ -31,6 +31,7 @@ if TYPE_CHECKING:
     from apply.tracker import AnswerRow
 
 CLAUDE, LISUL = "claude", "lisul"  # who gave an answer
+FILE = "answer-bank.yaml"  # the bank's file, beside the Applicant profile
 
 
 def key(question: str) -> str:
