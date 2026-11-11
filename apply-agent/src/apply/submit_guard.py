@@ -231,7 +231,8 @@ _TEMPLATE = r"""
              asking: false, askTick: false, driving: false, touchUntil: 0, touchAt: null, applied: null, appliedDismissed: false,
              start: false};
   // The Posting's Apply that went through (KAN-725, below): the button, and whether its one post has left.
-  let starting = null, startGone = false;
+  // startSent: a post of it was let go (the guard's copy, or a form's submit()); startGone: one has left as a navigation.
+  let starting = null, startSent = false, startGone = false;
   // Its install mark, so a second copy in the same document stands down: visible to the page, so named with a random
   // value of its own that says nothing of the control's, the touch's or the tell's (PR 477's second review).
   const MARK = '__@KEY@Guard@MARK@', LATE = @LATE@;
@@ -554,6 +555,7 @@ _TEMPLATE = r"""
   // Sent as Apply's own copy of the form, its token and the button's name alone, so no handler of the page's (its
   // submit or formdata event) can add to it after this check.
   const sendStart = (form, by) => {
+    startSent = true;  // once: no other copy of it posts after this one (PR 477's second review)
     const copy = make(D, 'form');
     setAttr(copy, 'method', 'post');
     setAttr(copy, 'action', postTarget(form, by));
@@ -782,7 +784,7 @@ _TEMPLATE = r"""
     if (!isForm(form)) return;
     // Only the Posting's Apply's own form, once, and only as it is now (no field or target added since): the guard
     // sends its copy, and no handler of the page's hears this submission (KAN-725).
-    if (starting !== null && by === starting && !startGone && form === formOf(by) && !inShadow(form) && tokenOnly(form, by)) {
+    if (starting !== null && by === starting && !startSent && form === formOf(by) && !inShadow(form) && tokenOnly(form, by)) {
       prevent(event);
       stopNow(event);
       return sendStart(form, by);
@@ -841,7 +843,8 @@ _TEMPLATE = r"""
       const step = !inShadow(this) && fromPress(this, null) && !postsFinal(this, null) && (password(this) || !hadSends(this));
       go = lifted() || step || !posts(this, null)
         || (!inShadow(this) && (relay(this, null) || frameLoad(this, null) || uploadPost(this, null)))
-        || (!inShadow(this) && posts(this, null) && startPost(postTarget(this, null), ownEntries(this, null)));  // KAN-725's copy
+        || (!startSent && !inShadow(this) && posts(this, null) && intoItself(this, null)  // KAN-725's copy, once, into this page
+          && startPost(postTarget(this, null), ownEntries(this, null)) && (startSent = true));
     } catch (e) {}  // a form the guard can't read is not posted
     if (!go && readyOf(D) === 'loading' && relayLike(this, null)) {  // judged once the rest of the page is there
       const form = this;

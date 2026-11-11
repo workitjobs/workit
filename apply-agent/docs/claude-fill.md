@@ -51,7 +51,9 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
   page may send, since it can only take the word away. Once the Apply went through, only that form's own
   submission goes, once, still a token alone: the guard sends its own copy of it (the hidden fields and the
   button's name), and each guard lets that one post leave (`startPost`, at its `navigate` event) only with
-  those entries, to that form's target. Nothing else is posted to the site (its other subdomains too) from
+  those entries, to that form's target, and only one such post is let go at all (`startSent`), never one
+  into a frame (PR 477's second review: the page's own copies, posted into a frame of its own, each went).
+  Nothing else is posted to the site (its other subdomains too) from
   that page. A reopened form's and every later page's Apply stay blocked: the word is gone with the
   Posting's document. Elsewhere a posting's Apply may apply at once from a profile the site holds, in any
   words, so it stays blocked there. Without this, Claude's first click on TAL.net's posting was a Handoff

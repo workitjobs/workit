@@ -202,3 +202,22 @@ def test_a_page_opened_without_on_open_gets_a_drive_guard_that_only_blocks(apply
         blocked = drive.blocked()
         browser.close()
     assert site.applications() == [] and blocked
+
+
+# The page's own click handler on the vouched Apply posts a copy with the same entries into a frame of its own,
+# again and again: each passes startPost, and the one-post mark is set only by a navigate in the top window.
+MANY = """<iframe name=sink></iframe><script>addEventListener('load', () => document.getElementById('go').addEventListener('click', () => {
+  const f = document.getElementById('go').form;
+  for (let i = 0; i < 3; i++) {
+    const c = document.createElement('form'); c.method = 'post'; c.action = f.action; c.target = 'sink';
+    c.innerHTML = '<input type=hidden name=__vxXSRF_Token value=t>'; document.body.append(c);
+    HTMLFormElement.prototype.submit.call(c);
+  }
+}));</script>"""
+
+
+def test_the_vouched_apply_sends_one_post():
+    from test_submit_guard import _press_tal_apply
+    posts, blocked = _press_tal_apply(page=MANY, rehearsal=True)
+    print(posts, blocked)
+    assert len(posts) <= 1
