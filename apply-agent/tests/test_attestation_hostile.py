@@ -285,7 +285,10 @@ def test_by_default_the_plan_attests_nothing_and_never_answers_an_acknowledgemen
 
 def test_under_the_policy_the_plan_attests_what_the_facts_settle(tmp_path):
     profile = ApplicantProfile.load(profile_with(tmp_path, policies={"attest_from_sources": ["sponsorship"]}))
-    planned = fill_engine.plan(JPMORGAN, POSTING, profile)
+    # The Posting's company, as Apply names it, is read as "the company" in the second wording ("... & Co.").
+    jpmorgan = Posting("210773869", "JPMorgan Chase", "Analyst",
+                       "https://jpmc.fa.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1001/job/210773869")
+    planned = fill_engine.plan(JPMORGAN, jpmorgan, profile)
     assert planned.answers == {"q1": "I Confirm", "q2": "Yes", "q3": "I Affirm"}
     assert set(planned.attested) == {"q1", "q2", "q3"} and planned.attestations == {}
 
@@ -312,3 +315,4 @@ def test_without_the_policy_the_same_box_is_left_and_nothing_is_sent(tmp_path):
     row, server = _send(tmp_path, driver, steps)
     assert not driver.ticked and server.submissions == []
     assert "Attested from sources" not in row.reason
+
