@@ -19,6 +19,7 @@ import json
 import re
 import sys
 import threading
+import time
 from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace
@@ -1409,6 +1410,107 @@ def test_no_typing_path_sends_a_hostile_page_on_a_plain_worker(page_name, path):
         _then(page, page_name)
         _settle(page, 1500)
     assert site.applications() == []
+
+
+# KAN-793, the review of #555: what outlives a press. A service worker the page started posts after its tab closed,
+# when the last guarded tab's rules had gone with it (its requests come from no tab, -1). A pop-up the extension opened
+# for a refused window.open (accounts.js, while something listens on the page) had no rules, and a worker its page
+# started posted. Each runs with plain code's Next; the control shows each page sends without the guard.
+SW = "/hostile-sw/sw.js"  # its own scope, so no other test's page is under it
+LATE_SW = {
+    START: f"""<title>Apply</title><form><input name=first value=Test><button id=b type=button>Next</button></form>
+        <script>try {{ navigator.serviceWorker.register('{SW}').catch(() => {{}}); }} catch (e) {{}}
+        // Reached by its registration, which a guarded page still has (KAN-791's guard refuses only a new one).
+        document.getElementById('b').addEventListener('click', () => navigator.serviceWorker.getRegistration('{SW}')
+          .then((r) => (r.active || r.waiting || r.installing).postMessage('go')));
+        </script>""",
+    SW: f"""self.addEventListener('install', () => self.skipWaiting());
+self.addEventListener('message', (e) => e.waitUntil(new Promise((done) => setTimeout(() =>
+  done(fetch('{FINAL}', {{method: 'POST', body: 'first=Test'}}).catch(() => {{}})), 4000))));""",
+}
+POPUP = "/acme/jobs/123/popup"
+POPUP_WORKER = {
+    START: f"""<title>Apply</title><form><input name=first value=Test>
+        <button id=b type=button onclick="window.open('{POPUP}')">Next</button></form>""",
+    POPUP: f"""<title>Sign in</title><p>Sign in</p><script>new Worker(URL.createObjectURL(new Blob([
+        "setTimeout(() => fetch('{HOST}{FINAL}', {{method: 'POST', body: 'a'}}).catch(() => {{}}), 1500)"])));</script>""",
+}
+
+
+def _fresh(page, url: str) -> None:
+    """No guard left in the run's one plain Worker (an earlier test's scripts, or a closed tab's rules on -1, would
+    stop a control), then the page."""
+    plain_guards.reset(page.worker)
+    page.goto(url)
+
+
+def _press(page, drive) -> None:
+    """The Next: plain code's on a guarded page, else a plain click (no drive guard to refuse the page's workers)."""
+    try:
+        plain_next(page, drive, "Next") if drive else page.get_by_role("button", name="Next").click()
+    except Handoff:
+        pass  # the step stays: its Next sends nothing the form shows
+
+
+def _late_sw(guarded: bool) -> list[str]:
+    _plain_or_skip()
+    from plain_fakes import fake_page
+
+    site = Site(LATE_SW)
+    with fake_page(site.handle) as page:
+        _fresh(page, HOST + START)
+        _settle(page, 1500)  # the service worker installed
+        if guarded:
+            guard(page)
+        _press(page, DriveGuard(page) if guarded else None)
+        worker = page.worker
+        page.close()  # the last guarded tab: its worker lives on
+    deadline = time.monotonic() + 8
+    while not site.applications() and time.monotonic() < deadline:
+        time.sleep(0.2)
+    if guarded:  # the set stays on -1 for it
+        assert worker.call("guard.status")["rules"] == len(plain_guards.RULES) + len(plain_guards.WORKER_RULES)
+    return site.applications()
+
+
+def _popup_worker(guarded: bool) -> list[str]:
+    _plain_or_skip()
+    from plain_fakes import fake_page
+
+    site = Site(POPUP_WORKER)
+    with fake_page(site.handle) as page:
+        _fresh(page, HOST + START)
+        if guarded:
+            guard(page)
+        page.on("request", lambda request: None)  # as Workday's _send listens on its account click
+        before = {t["tab"] for t in page.worker.call("tabs.query")}
+        _press(page, DriveGuard(page) if guarded else None)
+        _settle(page, 4000)
+        opened = [t["tab"] for t in page.worker.call("tabs.query") if t["tab"] not in before]
+        assert opened, "no pop-up opened"
+        if guarded:  # the opener's rules on it (the guard script, since KAN-791, refuses its worker too)
+            assert all(page.worker.call("guard.status", tab=t)["rules"] == len(plain_guards.RULES) for t in opened)
+    return site.applications()
+
+
+@ONE_PLAIN_PROCESS
+def test_a_service_worker_sends_without_the_guard_after_its_tab_closed():
+    assert _late_sw(guarded=False) == [FINAL]
+
+
+@ONE_PLAIN_PROCESS
+def test_a_service_worker_sends_nothing_after_the_last_guarded_tab_closed():
+    assert _late_sw(guarded=True) == []
+
+
+@ONE_PLAIN_PROCESS
+def test_a_worker_in_a_pop_up_sends_without_the_guard():
+    assert _popup_worker(guarded=False) == [FINAL]
+
+
+@ONE_PLAIN_PROCESS
+def test_a_worker_in_a_pop_up_the_extension_opened_sends_nothing():
+    assert _popup_worker(guarded=True) == []
 
 
 @pytest.mark.parametrize("path", list(TYPING))

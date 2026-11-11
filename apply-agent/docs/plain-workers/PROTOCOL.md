@@ -228,8 +228,8 @@ A fresh service worker starts with no content scripts, rules or user scripts.
 |---|---|---|
 | `guard.script` | `id`, and `file` + `sha256` (a guard file), or `code` | `{"file"}` / `{"code": true}`; registers the file as a MAIN-world content script at `document_start` in every frame (`matchOriginAsFallback`, not persisted), or the code through `chrome.userScripts` (`UserScriptsOff` when Allow User Scripts is off). Also registers `page/relay.js` |
 | `guard.inject` | `tab`, `file`, `sha256` | `null`; runs a guard file in every frame of the tab now |
-| `guard.route` | `key`, `tab` (null: every tab), `regexes`, `caseSensitive`, `workers?` | `{"rules": n}`; with `workers` (KAN-791), the rules hold on `tabIds` -1 alone (a service or shared worker's requests, never the tab's own); one declarativeNetRequest session rule per regex blocking a non-GET (`excludedRequestMethods: get, head, options`) of every resource type, main_frame included, on `tabIds` = the tab, the tabs it opens later, and -1 (service and shared workers). Each regex must pass `isRegexSupported` (RE2, 2 KB compiled) |
-| `guard.unroute` | `key` | `null` |
+| `guard.route` | `key`, `tab` (null: every tab), `regexes`, `caseSensitive`, `workers?` | `{"rules": n}`; with `workers` (KAN-791), the rules hold on `tabIds` -1 alone (a service or shared worker's requests, never the tab's own), and the route goes when its tab closes; one declarativeNetRequest session rule per regex blocking a non-GET (`excludedRequestMethods: get, head, options`) of every resource type, main_frame included, on `tabIds` = the tab, the tabs it opens later, and -1 (service and shared workers). Routes with the same `regexes`, `caseSensitive` and `workers` share those rules, on all of their tabs (KAN-793); a closed tab leaves every route, and a set whose last tab closed keeps its rules on -1 until `guard.reset` (a page's service worker outlives its tab). Each regex must pass `isRegexSupported` (RE2, 2 KB compiled). When Chrome refuses the update, its rules and the route stay as they were and the op fails |
+| `guard.unroute` | `key` | `null`; fails, with the route kept, when Chrome refuses the update |
 | `guard.bind` | `tab` (null: every tab), `name` | `null`; `window[name](...args)` in MAIN, in every frame now and in each document the tab loads, sends a `binding` event |
 | `guard.tokens` | `touch` (event names), `tell` (an event name), `tells` (binding names) | `null`; this run's guard events (KAN-710, `apply.plain.guards.tokens`). Every frame's relay asks for them as it starts; the bindings in `tells` fire only on the guard's tell, never on `__apply_call` |
 | `guard.control` | `tab`, `events` (`[[type, detail], ...]`), `mark?` | `[result per frame]`; sends each control event from the isolated world, on the window or on the element marked `data-apply-press=<mark>` ("frame" when that element holds a frame). The guards' state is set by these alone (`submit_guard.control`): the lift, account, profile, upload and start allowances, and the drive guard's `asking`, `askTick` and `driving` (`PlainDriveGuard.asking` and its driving state, for the checks on trusted input since KAN-716). There is no `guard.flags` op and no window flag a page could set |
@@ -275,7 +275,8 @@ Events (S7, from a watched tab): `{"event": "request", "tab", "frame", "url", "m
 (a fetch or XHR comes from the page, with `requested` and, for a call that isn't a GET, its `body`, up
 to 256 K characters); `{"event": "requestfailed", ..., "error"}`; `{"event": "popup.blocked", "tab",
 "url", "popup"}`: the page's `window.open(url)` was refused, so the extension opened `url` in tab
-`popup`, with the page as its opener. An event field is never named `type` (`ctx.send` puts
+`popup`, with the page as its opener. The tab opens blank, takes the page's guard rules, then loads
+`url` (KAN-793), and the event comes after; a tab Chrome refuses the rules to is closed with no event. An event field is never named `type` (`ctx.send` puts
 `type: "event"` on each message, and a field of that name would replace it).
 
 A script call (`eval`, `dom`, `fixed.call`, any `inPage`) whose frame commits a new document before it

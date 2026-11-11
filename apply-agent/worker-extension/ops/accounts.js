@@ -10,6 +10,7 @@
 // - frames.of: the frame id of an <iframe> found by a Playwright selector (frame locators).
 
 import { ops as domOps } from "./dom.js";
+import { joinOpener } from "./guard.js";
 import { inPage, named } from "./shared.js";
 
 const watched = new Set(); // tab ids whose requests go up the port
@@ -54,8 +55,14 @@ chrome.runtime.onMessage.addListener((message, sender) => {
   if (said.popup) {
     // Opened as the click would have, had it been the user's: a new tab, the page its opener.
     // Its tab.created comes with no opener, so popup.blocked names the new tab for page.on("popup").
-    chrome.tabs.create({ url: said.popup, openerTabId: tab, windowId: sender.tab.windowId, active: true })
-      .then((opened) => send?.("popup.blocked", { tab, frame: sender.frameId, url: said.popup, popup: opened.id }))
+    // It opens blank and takes its opener's guard rules before its page loads (the review of #555: with
+    // none, a worker its page started could post the application); refused, the tab is closed.
+    chrome.tabs.create({ url: "about:blank", openerTabId: tab, windowId: sender.tab.windowId, active: true })
+      .then(async (opened) => {
+        await joinOpener(opened.id, tab);
+        await chrome.tabs.update(opened.id, { url: said.popup });
+        send?.("popup.blocked", { tab, frame: sender.frameId, url: said.popup, popup: opened.id });
+      })
       .catch(() => {});
     return;
   }
