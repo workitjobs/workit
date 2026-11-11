@@ -1163,6 +1163,20 @@ Find files with a directory listing; these are the rules for where code goes.
   never commits. **A stored file is removed only when `file_in_use` says
   no row needs it**, and a snapshot only when no sent resume does
   (`delete_sent`; its foreign key is RESTRICT).
+- **Generate streams its steps** (KAN-444): `POST .../built-resumes/stream`
+  runs the JSON route's Generate (`built_resumes.generate_steps`, which
+  both read) as NDJSON, `checking` before the duplicate check and `saving`
+  before the writes, then `done` with the resume once committed, or
+  `error` with the JSON route's status and message (409 and the resume it
+  matches). Like Tailor's stream it opens its own session. Generate reads
+  the bank once, every resume's own skills included, and takes those out
+  for the new one, and a new resume's choice rows are not deleted or
+  touched first: 16 statements, from 25, each a round trip to Supabase.
+  **The bank's order breaks every tie by id** (`load_bank`): Generate shows
+  the first copy of a skill two uploads hold, and the duplicate check
+  compares ids, so with ties left to Postgres a second Generate could show
+  the other copy and pass as new (found on the test account, 2026-11-10).
+  Tests: `tests/test_built_resumes.py`.
 - **A duplicate resume is refused** (KAN-267, `../docs/sent_resume.md`),
   409 `{"detail": {"message": "Duplicate Resume found: <name>", ...}}`
   with nothing written. **Upload and Import Updated Resume** compare
@@ -1179,7 +1193,11 @@ Find files with a directory listing; these are the rules for where code goes.
   (`generate(..., refuse_duplicate=True)`, the route only; Tailor's own
   Generate never refuses) compares the new resume's view with every built
   resume's view built from today's bank (`same_resume`), before writing:
-  a resume's content changes with every edit, so no hash is stored. A
+  a resume's content changes with every edit, so no hash is stored. The
+  409 names the match (`name`), and **a student who confirms the copy
+  gets it**: the Resumes page asks "You Already Have This Resume" and
+  sends `allow_duplicate`, which skips the check (KAN-444). Uploads stay
+  refused: `resumes_text_hash_key` keeps one upload per text. A
   test that needs two resumes from one bank adds a skill between them
   (`tests/test_built_resumes.py`'s `_another`).
 - **The resume limit is 5 uploads** (`services/built_resumes.py`'s

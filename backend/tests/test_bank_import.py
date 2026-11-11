@@ -268,7 +268,8 @@ async def test_the_same_resume_twice_is_refused_and_keeps_nothing(student, uploa
 
     res = await upload(client, applicant_id, RESUME_TEXT, filename="Sam 2026 (1).pdf")
     assert res.status_code == 409
-    assert res.json()["detail"] == {"message": "Duplicate Resume found: Sam 2026.pdf", "resume_id": first["id"]}
+    assert res.json()["detail"] == {
+        "message": "Duplicate Resume found: Sam 2026.pdf", "resume_id": first["id"], "name": "Sam 2026.pdf"}
     assert list(upload.bucket.files) == [first["storage_path"]]
     assert [r["id"] for r in (await client.get(f"/applicants/{applicant_id}/resumes")).json()] == [first["id"]]
     assert len((await client.get(bank)).json()["entries"]) == 6
@@ -439,7 +440,8 @@ async def test_an_update_may_keep_its_own_text_but_not_take_another_resumes(stud
     assert (await upload(client, applicant_id, RESUME_TEXT, replacing=first["id"])).status_code == 200
     res = await upload(client, applicant_id, RESUME_TEXT, replacing=second["id"])
     assert res.status_code == 409
-    assert res.json()["detail"] == {"message": "Duplicate Resume found: resume.pdf", "resume_id": first["id"]}
+    assert res.json()["detail"] == {
+        "message": "Duplicate Resume found: resume.pdf", "resume_id": first["id"], "name": "resume.pdf"}
 
 
 async def test_another_students_resume_cannot_be_updated(student, upload, database):
