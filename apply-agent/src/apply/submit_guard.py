@@ -54,6 +54,11 @@ A link's ping (hyperlink auditing, a POST no script sees) never leaves a
 guarded page: the guard takes it off as the link is clicked, and no script
 can set one back while the page is guarded.
 
+A file goes only to the form's own site (KAN-795, apply.upload_origin): in a frame of another site (not the top
+frame's origin, nor a job system's embedded form), a file input opens no picker while the guard is on, by a click on
+it or its label, or a script's click() or showPicker(), so Claude's upload tool has no chooser there; the guard notes
+it, and Claude fill hands the form over.
+
 Everything else goes through: résumé uploads, Ashby's per-answer saves,
 Lever's résumé parse, Workday's Save and Continue, a Next that saves its
 step, and another site's widget posting hidden fields into its own iframe
@@ -118,7 +123,7 @@ from contextlib import contextmanager
 
 from playwright.sync_api import Page, Route
 
-from apply import captcha, send_click
+from apply import captcha, send_click, upload_origin
 from apply.natives import NATIVES
 
 # The final requests the route stops, from the page or a worker: a path segment that names a
@@ -1401,6 +1406,45 @@ _TEMPLATE = r"""
     };
   }
 
+  // Uploads (KAN-795): a file goes only to the form's own site (apply.upload_origin). In a frame that may not take one
+  // (another site's: an ad, a widget, a hostile page's trap), a file input opens no picker while the guard is on, so
+  // Claude's upload tool (Playwright MCP's, or a plain Worker's) has no chooser there. A click on the input or its
+  // label is cancelled at the window before the page hears it, and a script's click() or showPicker() on one is
+  // refused, a detached input's too. Read once, as the document starts: its origin and its ancestors' never change.
+  const ancestorList = [];
+  { const found = location.ancestorOrigins; for (let i = 0; found && found[i] !== undefined; i++) push(ancestorList, found[i]); }
+  const uploadOrigin = location.protocol === 'about:' ? (ancestorList[0] || 'null') : location.origin;
+  const uploadsHere = (@UPLOAD_RULE@)(uploadOrigin, ancestorList, @UPLOAD_HOSTS@);
+  if (!uploadsHere) {
+    const uploadFrom = uploadOrigin === 'null' ? 'another site' : uploadOrigin;
+    const isFile = (el) => tag(el) === 'INPUT' && lower(typeOf(el)) === 'file';
+    const labelControl = getter(HTMLLabelElement, 'control'), composedPath = fn(EvP, 'composedPath');
+    const picker = (el) => {
+      if (isFile(el)) return true;
+      const label = up(el, 'label');
+      const control = label && labelControl ? read([labelControl], label, null) : null;
+      return !!control && isFile(control);
+    };
+    const refusePicker = () => note(@UPLOAD_BLOCKED@ + ' (' + uploadFrom + ')');
+    on('click', judged((event) => {
+      if (lifted()) return;
+      const path = composedPath(event);
+      if (!picker(path.length ? path[0] : targetGet(event))) return;
+      prevent(event);
+      stopNow(event);
+      refusePicker();
+    }));
+    const nativeClick = HP.click, nativePicker = HTMLInputElement.prototype.showPicker;
+    defineProp(HP, 'click', {value: function click() {
+      if (!lifted() && isFile(this)) { refusePicker(); return undefined; }
+      return apply(nativeClick, this, []);
+    }, writable: true, configurable: true});
+    if (typeof nativePicker === 'function') defineProp(HTMLInputElement.prototype, 'showPicker', {value: function showPicker() {
+      if (!lifted() && isFile(this)) { refusePicker(); throw new DOMExc('Blocked by the @NAME@', 'NotAllowedError'); }
+      return apply(nativePicker, this, []);
+    }, writable: true, configurable: true});
+  }
+
   // Workers (KAN-791): a worker runs none of this script, so its fetch, XHR and beacon go unjudged. While the guard is
   // on, the page makes none: a dedicated or shared worker (from any URL, blob: and data: too), a service worker's
   // registration and a worklet's module are refused, by every name the page could reach the browser's own by (its
@@ -1616,7 +1660,9 @@ def _script(key: str, name: str, extra: str = "", in_captcha: str = "", held: st
                                "@CAPTCHA_PATH_HOSTS@": json.dumps(captcha.PATH_HOSTS), "@CONTROL@": control_type(key),
                                "@TELL_TYPE@": TELL_TYPE, "@TELL_PREFIX@": TELL_PREFIX, "@TOUCH@": touch_type(key),
                                "@KEY@": key, "@NAME@": name, "@BOX@": box, "@MARK@": MARKS[key], "@LATE@": _js(late),
-                               "@AT_OPEN@": _js(at_open)}.items():
+                               "@AT_OPEN@": _js(at_open), "@UPLOAD_RULE@": upload_origin.RULE_JS,
+                               "@UPLOAD_HOSTS@": json.dumps(upload_origin.JOB_SYSTEM_HOSTS),
+                               "@UPLOAD_BLOCKED@": json.dumps(upload_origin.BLOCKED)}.items():
         script = script.replace(placeholder, value)
     return script
 

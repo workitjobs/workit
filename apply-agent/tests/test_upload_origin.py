@@ -132,6 +132,13 @@ def test_the_worker_extensions_copies_of_the_rule_are_the_rules_own_words(path):
     assert _same(upload_origin.RULE_JS) in _same((APPLY / path).read_text())
 
 
+def test_the_guard_script_carries_the_rule_and_the_job_systems_hosts():
+    from apply import submit_guard
+
+    for script in (submit_guard.SCRIPT, submit_guard.drive_script()):
+        assert upload_origin.RULE_JS in script and '"greenhouse.io"' in script and upload_origin.BLOCKED in script
+
+
 # --- CDP: Playwright's Chromium
 
 
@@ -191,6 +198,26 @@ def test_cdp_plain_code_gives_no_file_to_an_input_in_another_sites_frame(site, t
         with pytest.raises(Elsewhere):  # the input itself, named outright
             upload_origin.give(evil.locator("#f"), _resume(tmp_path))
         assert evil.evaluate("() => document.getElementById('f').files.length") == 0
+
+
+@needs_chromium
+def test_cdp_the_guard_opens_no_picker_in_another_sites_frame_so_claude_has_no_chooser(site):
+    """Playwright MCP's upload sets the files of the chooser a click opened: under the guard, a click in the other
+    site's frame, on its input or on a button whose script clicks it, opens none."""
+    from playwright.sync_api import TimeoutError as PlaywrightTimeout
+
+    with cdp_page(guarded=True) as (page, armed):
+        page.goto(f"{site.url}/cross")
+        guard = armed()
+        evil = _frame(page, "/evil")
+        for target in ("#f", "#up"):
+            with pytest.raises(PlaywrightTimeout):
+                with page.expect_file_chooser(timeout=1_500):
+                    evil.locator(target).click(force=True)
+        assert any(b.startswith(upload_origin.BLOCKED) and "localhost" in b for b in guard.blocked())
+        # A detached input's click() and a showPicker() are refused too.
+        assert evil.evaluate("""() => { const i = document.createElement('input'); i.type = 'file'; i.click();
+          try { document.getElementById('f').showPicker(); return 'opened'; } catch (e) { return e.name; } }""") == "NotAllowedError"
 
 
 @needs_chromium
@@ -405,3 +432,24 @@ def test_plain_a_same_origin_frame_and_a_job_systems_frame_still_take_the_file(p
         said, error = tools.tool("browser_file_upload", paths=[str(resume)])
         assert not error, said
     assert _port_frame(plain, site.other).evaluate("() => window.got") == "Test_Person_Resume.pdf"
+
+
+@needs_chrome
+def test_plain_the_guard_opens_no_picker_in_another_sites_frame(plain, site, tmp_path):
+    from apply import submit_guard
+    from apply.submit_guard import DriveGuard
+
+    plain.goto("about:blank")
+    submit_guard.on_open(plain)
+    plain.goto(f"{site.url}/cross")
+    guard = DriveGuard(plain)
+    guard.arm()
+    evil = _port_frame(plain, "/evil")
+    with tools_on(plain, tmp_path) as tools:
+        snapshot = tools.tool("browser_snapshot")[0]
+        tools.tool("browser_click", target=_ref(snapshot, 'button "Upload resume"', "/evil"), element="Upload resume")
+        _, error = tools.tool("browser_file_upload", paths=[str(_resume(tmp_path))])
+        assert error
+    assert any(b.startswith(upload_origin.BLOCKED) and "localhost" in b for b in guard.blocked())
+    assert evil.evaluate("() => document.getElementById('f').files.length") == 0
+    guard.lift()
