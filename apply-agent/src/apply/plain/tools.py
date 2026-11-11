@@ -52,6 +52,16 @@ CAPTCHA = ("That is a captcha, and Apply never touches one: a person does it. Do
 IN_CAPTCHA = "(el, captchas) => !!(el.closest && el.closest(captchas))"
 # Whether the focused element, where a key would go, is a captcha's frame or in a widget box.
 FOCUS_IN_CAPTCHA = """(captchas) => { const el = document.activeElement; return !!(el && el.closest && el.closest(captchas)); }"""
+# Whether the element is an option its single-choice list already holds (aria-selected): Eightfold's lists
+# (Microsoft's) are toggles, and a click on the held option empties the field (KAN-767).
+PICKED = """(el) => {
+  const option = el.closest && el.closest('[role=option]');
+  if (!option || option.getAttribute('aria-selected') !== 'true') return false;
+  const list = option.closest('[role=listbox]');
+  return !(list && list.getAttribute('aria-multiselectable') === 'true');
+}"""
+PICKED_ALREADY = ("### Result\nThat option is picked already: the field shows it, so nothing was clicked. On this form a "
+                  "click on the picked option empties the field. Close the list (press Escape) and go on.")
 
 
 def socket_folder() -> Path:
@@ -214,6 +224,13 @@ class Tools:
         if button != "left":
             raise ToolError(f"a {button} click can't be made on this page; use a left click")
         locator = self._locator(target, "click")
+        frame, selector = self._resolve(target)
+        try:
+            picked = frame.eval_on_selector(selector, PICKED)
+        except PortError:
+            picked = False  # gone: the click fails on its own
+        if picked and not doubleClick:
+            return PICKED_ALREADY
         if doubleClick:
             locator.dblclick(timeout=ACTION_TIMEOUT)
         else:

@@ -44,6 +44,8 @@ def functions() -> dict[str, tuple[str, str, str]]:
         ask.UNDO: ("askUndo", "MAIN", ask.UNDO),
         send_click.ELEMENT: ("askElement", "ISOLATED", send_click.ELEMENT),
         send_click.FOCUSED: ("askFocused", "ISOLATED", send_click.FOCUSED),
+        # Whether a click would land on the option its list holds already (KAN-767).
+        tools.PICKED: ("pickedOption", "ISOLATED", tools.PICKED),
     }
 
 
