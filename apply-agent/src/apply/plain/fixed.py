@@ -4,7 +4,7 @@ Worker runs as code its extension ships, not through eval.
 On a plain Worker, `evaluate(code)` needs eval or user scripts: a page whose CSP forbids eval
 refuses it in Chrome for Testing, where Allow User Scripts can't be turned on. So the page
 functions the held page runs on every turn (Needs you's FIELD, Resume's FIELD_ERROR, the emailed
-code's WORDS and guard switches, regenerate's button and its field lock and read-back, Ask Claude's field read and undo) are written into the extension as `vendor/fixed.js` by
+code's WORDS and guard switches, a held page's session look and keep-alive, regenerate's button and its field lock and read-back, Ask Claude's field read and undo) are written into the extension as `vendor/fixed.js` by
 `apply plain prepare`, from the very strings their modules hold. PortPage's `evaluate` and
 `Locator.evaluate` see one of these strings and run its fixed copy (the `fixed.call` op) instead,
 so the modules stay as they are, and one source serves both kinds of Worker.
@@ -21,7 +21,7 @@ from functools import cache
 @cache
 def functions() -> dict[str, tuple[str, str, str]]:
     # Imported here: these modules import much of Apply, and PortPage imports this one.
-    from apply import ask, email_code, on_page, regenerate, send_click, stuck
+    from apply import ask, email_code, keepalive, on_page, regenerate, send_click, stuck
     from apply.plain import page, tools
 
     statements = lambda code: "() => { " + code + "; }"
@@ -44,6 +44,12 @@ def functions() -> dict[str, tuple[str, str, str]]:
         ask.UNDO: ("askUndo", "MAIN", ask.UNDO),
         send_click.ELEMENT: ("askElement", "ISOLATED", send_click.ELEMENT),
         send_click.FOCUSED: ("askFocused", "ISOLATED", send_click.FOCUSED),
+        # A held page's session (KAN-776): read for its dialog or end, the stay press's check, and the keep-alive.
+        # ISOLATED: the page's own code can't change what they see, nor see the ping.
+        keepalive.LOOK: ("sessionLook", "ISOLATED", keepalive.LOOK),
+        keepalive.STAY: ("sessionStay", "ISOLATED", keepalive.STAY),
+        keepalive.ACTIVITY: ("sessionActivity", "ISOLATED", keepalive.ACTIVITY),
+        keepalive.PING: ("sessionPing", "ISOLATED", keepalive.PING),
     }
 
 
