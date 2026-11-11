@@ -1,6 +1,7 @@
 "use client";
 
 import { FileTextIcon, TagIcon } from "@phosphor-icons/react/ssr";
+import { useRouter } from "next/navigation";
 import { startTransition, useEffect, useEffectEvent, useOptimistic, useState } from "react";
 
 import { FieldFacet, type FacetOption } from "@/components/field-facet";
@@ -17,12 +18,18 @@ import { SortMenu } from "@/components/sort-menu";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SearchField } from "@/components/ui/search-field";
-import { generateResume, listBuiltResumes, type BuiltResume } from "@/lib/built-resume-actions";
+import { readEvents } from "@/components/scout/stream";
+import {
+  listBuiltResumes,
+  type BuiltResume,
+  type GenerateStreamEvent,
+} from "@/lib/built-resume-actions";
 import { listResumes, type ResumeItem } from "@/lib/resume-actions";
-import { takeResumesStale } from "@/lib/resumes-stale";
+import { markResumesStale, takeResumesStale } from "@/lib/resumes-stale";
 
 import { BuiltResumeRow } from "./built-resume-row";
-import { DuplicateResumeDialog } from "./duplicate-resume-dialog";
+import { DuplicateResumeDialog, type Duplicate } from "./duplicate-resume-dialog";
+import { GenerateRunning, type GenerateStep } from "./generate-running";
 import { RESUMES_SEARCH, ResumesHeader } from "./header";
 import { ResumeList } from "./resume-list";
 import { ShortLabel, UploadedRow, useResumeUpload } from "./upload-resume";
@@ -37,19 +44,23 @@ function parseTypes(raw: string | null): ResumeType[] {
   return TYPES.map((t) => t.value).filter((v) => picked.includes(v)) as ResumeType[];
 }
 
-/** The list's orders, in `?sort=`: Last Edited (newest first, the
- *  default, with no `?sort=`), Oldest First, and Name (A to Z). An upload
- *  dates from its upload, a built resume from its last edit. */
-type Sort = "edited" | "oldest" | "name";
+/** The list's orders, in `?sort=`: Date Modified (newest first, the
+ *  default, with no `?sort=`; "Last Edited" until 2026-11-10, renamed with
+ *  the cards' column), Recently Created (`created`, newest made first),
+ *  Oldest First, and Name (A to Z). For the modified orders an upload dates
+ *  from its upload, a built resume from its last edit. */
+type Sort = "edited" | "created" | "oldest" | "name";
 
 const SORTS: { value: Sort; label: string }[] = [
-  { value: "edited", label: "Last Edited" },
+  { value: "edited", label: "Date Modified" },
+  // The newest made first, whatever was edited since (2026-11-10)
+  { value: "created", label: "Recently Created" },
   { value: "oldest", label: "Oldest First" },
   { value: "name", label: "Name (A to Z)" },
 ];
 
 function parseSort(raw: string | null): Sort {
-  return raw === "oldest" || raw === "name" ? raw : "edited";
+  return raw === "created" || raw === "oldest" || raw === "name" ? raw : "edited";
 }
 
 /** One resume of either kind, as the list orders and filters it. */
@@ -59,6 +70,8 @@ type Row =
       type: "uploaded";
       name: string;
       at: string;
+      /** When it was uploaded or made: the Created column's instant. */
+      created: string;
       text: string;
       primary: boolean;
       upload: ResumeItem;
@@ -68,6 +81,7 @@ type Row =
       type: "generated" | "tailored";
       name: string;
       at: string;
+      created: string;
       text: string;
       primary: boolean;
       built: BuiltResume;
@@ -120,8 +134,9 @@ type Lists = Awaited<ReturnType<typeof readLists>>;
  * (base and tailored) from Uploaded.
  *
  * Generate makes a base resume from the whole bank in Jake's Resume, named
- * "Resume #N" by the API until the student renames it; a Type filter that
- * would hide it is cleared and Generated opens, so it shows at the top
+ * "Resume #N" by the API until the student renames it, and opens it in the
+ * editor for the student to review (KAN-444). A Type filter that would hide
+ * it is cleared and Generated opens first, so a Back finds it at the top
  * of Generated, under the starred resume if that is there. Generate has no limit:
  * only uploads count toward the 5 (KAN-268). A failed Generate or reload
  * shows its error under the filter row. A Generate or an upload that would
@@ -135,12 +150,19 @@ export function BuiltResumes({
   initial: BuiltResume[];
   initialUploaded: ResumeItem[];
 }) {
+  const router = useRouter();
   const [resumes, setResumes] = useState(initial);
   const [uploaded, setUploaded] = useState(initialUploaded);
-  const [generating, setGenerating] = useState(false);
+  // Generate's step while it runs (KAN-444), null otherwise
+  const [generating, setGenerating] = useState<GenerateStep | null>(null);
+  // Whether Generate's dialog shows: only once the duplicate check has
+  // passed or been confirmed, so a copy is asked about before any
+  // "Generating Your Resume" (the user's call, 2026-11-10). Until then the
+  // button says "Checking…".
+  const [showSteps, setShowSteps] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // The API's "Duplicate Resume found: <name>", while its pop-up is open.
-  const [duplicate, setDuplicate] = useState<string | null>(null);
+  // The resume a Generate or an upload would copy, while its modal is open.
+  const [duplicate, setDuplicate] = useState<Duplicate | null>(null);
   const [query, setQuery] = useState("");
   const params = useShallowParams();
   const push = useShallowPush();
@@ -203,22 +225,73 @@ export function BuiltResumes({
     });
   }
 
-  const upload = useResumeUpload({ uploaded, reload, onDuplicate: setDuplicate });
+  const upload = useResumeUpload({
+    uploaded,
+    reload,
+    onDuplicate: (id, name) =>
+      setDuplicate({ kind: "upload", name, resume: uploaded.find((r) => r.id === id) }),
+  });
 
-  async function generate() {
-    setGenerating(true);
+  // Streamed through /api/resume-generate, so the dialog shows each step
+  // as the API starts it (KAN-444). The dialog opens once the API says
+  // `saving`, its check passed; a copy opens the duplicate modal instead.
+  // `allowDuplicate`: the student confirmed a copy, so the API skips the
+  // check and the dialog opens at once.
+  async function generate(allowDuplicate = false) {
+    setGenerating("reading");
+    setShowSteps(allowDuplicate);
     setError(null);
-    const { error, status } = await generateResume();
-    setGenerating(false);
-    if (status === 409) return setDuplicate(error);
-    if (error) return setError(error);
-    await reload();
-    // The new resume shows: a Type filter that hides it is cleared, and its
-    // group opens.
+    const failed = (message: string) => {
+      setGenerating(null);
+      setShowSteps(false);
+      setError(message);
+    };
+    let made: BuiltResume | null = null;
+    try {
+      const res = await fetch("/api/resume-generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(allowDuplicate ? { allow_duplicate: true } : {}),
+      });
+      if (!res.ok || !res.body) {
+        const body: unknown = await res.json().catch(() => null);
+        const detail = (body as { detail?: unknown } | null)?.detail;
+        return failed(typeof detail === "string" ? detail : "Generate failed. Try again.");
+      }
+      for await (const event of readEvents<GenerateStreamEvent>(res.body)) {
+        if (event.type === "phase") {
+          setGenerating(event.phase);
+          if (event.phase === "saving") setShowSteps(true);
+        } else if (event.type === "error") {
+          if (event.status !== 409) return failed(event.message);
+          setGenerating(null);
+          setShowSteps(false);
+          return setDuplicate({
+            kind: "generate",
+            name: event.name ?? "One of your resumes",
+            resume: resumes.find((r) => r.id === event.built_resume_id),
+          });
+        } else made = event.resume;
+      }
+    } catch {
+      return failed("WorkIt couldn't reach its server. Try again in a minute.");
+    }
+    // A stream that ends with no last line lost its connection midway.
+    if (!made) return failed("Generate stopped before it finished. Try again.");
+    // A route handler cannot clear the router's copies (lib/resumes-stale.ts),
+    // so a Back here reads the list again, the new resume in it.
+    markResumesStale();
+    // A Back also finds it in view: a Type filter that hides it is cleared,
+    // and its group opens.
     const hidden = types.length > 0 && !types.includes("generated");
     if (hidden || collapsed.includes("generated")) {
       move({ types: hidden ? [] : types, collapsed: collapsed.filter((g) => g !== "generated") });
     }
+    // The student reviews it in the editor, as a Tailor run ends: on this
+    // list it was one more row to find and open. The dialog stays until the
+    // editor's page takes over.
+    setGenerating("opening");
+    router.push(`/resumes/${encodeURIComponent(made.id)}`);
   }
 
   function toggle(group: ResumeType) {
@@ -235,6 +308,7 @@ export function BuiltResumes({
       type: "uploaded" as const,
       name: r.original_filename ?? "Resume",
       at: r.created_at ?? "",
+      created: r.created_at ?? "",
       text: r.original_filename ?? "Resume",
       primary: r.is_default,
       upload: r,
@@ -244,6 +318,7 @@ export function BuiltResumes({
       type: r.job_posting_id ? ("tailored" as const) : ("generated" as const),
       name: r.name,
       at: r.edited_at,
+      created: r.created_at,
       text: `${r.name} ${r.posting_title ?? ""} ${r.posting_company ?? ""}`,
       primary: r.is_default,
       built: r,
@@ -259,7 +334,9 @@ export function BuiltResumes({
         Number(b.primary) - Number(a.primary) ||
         (sort === "name"
           ? a.name.localeCompare(b.name, undefined, { sensitivity: "base", numeric: true })
-          : (Date.parse(b.at || "0") - Date.parse(a.at || "0")) * (sort === "oldest" ? -1 : 1)),
+          : sort === "created"
+            ? Date.parse(b.created || "0") - Date.parse(a.created || "0")
+            : (Date.parse(b.at || "0") - Date.parse(a.at || "0")) * (sort === "oldest" ? -1 : 1)),
     );
 
   const filtered = types.length > 0 || words.length > 0;
@@ -299,9 +376,15 @@ export function BuiltResumes({
             <SortMenu value={sort} options={SORTS} onChange={(next) => move({ sort: next })} />
             <div className="col-span-2 grid grid-cols-2 gap-2 @2xl:ml-auto @2xl:flex">
               {upload.button}
-              <Button size="sm" onClick={generate} disabled={generating}>
+              <Button size="sm" onClick={() => void generate()} disabled={generating !== null}>
                 <FileTextIcon aria-hidden className="size-4" />
-                {generating ? "Generating…" : <ShortLabel verb="Generate" />}
+                {generating === null ? (
+                  <ShortLabel verb="Generate" />
+                ) : showSteps ? (
+                  "Generating…"
+                ) : (
+                  "Checking…"
+                )}
               </Button>
             </div>
           </div>
@@ -352,6 +435,7 @@ export function BuiltResumes({
             if (rows.length === 0 && !pending) return null;
             return (
               <ResumeGroup
+                ground
                 key={value}
                 label={label}
                 count={rows.length}
@@ -381,7 +465,15 @@ export function BuiltResumes({
           })}
         </ResumeList>
       )}
-      <DuplicateResumeDialog message={duplicate} onClose={() => setDuplicate(null)} />
+      <DuplicateResumeDialog
+        duplicate={duplicate}
+        onConfirm={() => {
+          setDuplicate(null);
+          void generate(true);
+        }}
+        onClose={() => setDuplicate(null)}
+      />
+      <GenerateRunning step={showSteps ? generating : null} />
     </>
   );
 }
