@@ -292,6 +292,11 @@ const COLUMN_DEFS = helper.columns(
 
 const PINNING = { start: FROZEN, end: [] };
 
+/** The columns whose cells are one control or score each (a match pill,
+ *  View): centred under a centred heading, by the table rule in
+ *  frontend/docs/design.md (2026-11-10). Text columns stay left-aligned. */
+const CENTRED: ColumnId[] = ["match", "resume"];
+
 const TH = "px-4 text-note text-ink-meta font-medium";
 /** A plain fact cell: one line of note text in ink, as easy to read as the
  *  role; it was grey, which read as disabled (KAN-256). */
@@ -419,6 +424,7 @@ export function ApplicationsList({ applications }: { applications: Application[]
                     header.column.id === "role" && PHONE_JOB,
                   )}
                   style={frozenStyle(header.column.id as ColumnId)}
+                  centred={CENTRED.includes(header.column.id as ColumnId)}
                 />
               ))}
               {/* The rest of the card's width, so a resize never stretches
@@ -457,6 +463,7 @@ export function ApplicationsList({ applications }: { applications: Application[]
                       className={cn(
                         TD,
                         "overflow-hidden",
+                        CENTRED.includes(id) && "text-center",
                         id === "role" && "py-3",
                         frozenClasses(id),
                         FROZEN.includes(id) && FROZEN_HOVER,
@@ -510,6 +517,7 @@ function HeadCell({
   order,
   className,
   style,
+  centred = false,
 }: {
   header: Header<typeof FEATURES, Application, unknown>;
   label: string;
@@ -521,6 +529,8 @@ function HeadCell({
   order: ColumnId[];
   className?: string;
   style?: CSSProperties;
+  /** A column of one control or score per row: its heading centred too. */
+  centred?: boolean;
 }) {
   const column = header.column;
   const id = column.id as ColumnId;
@@ -583,6 +593,7 @@ function HeadCell({
         {...dragProps}
         className={cn(
           "flex min-w-0 items-center",
+          centred && "justify-center",
           movable && "cursor-grab active:cursor-grabbing",
           drag?.id === id && "opacity-50",
         )}

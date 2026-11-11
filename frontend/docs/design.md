@@ -1114,9 +1114,19 @@ Auto Apply): the column's heading names a value, so a cell has no glyph of
 its own; a value a row does not have is a faint dash (`text-ink-faint`,
 its word for a screen reader), never "Not listed" in grey; a cell's
 control is a pill or a text button, never a bordered field or button that
-makes the row taller than its text; every column is left-aligned with its
-heading; and a table wider than its card fades at the edge it runs on
-past. The cards keep their glyphs, where nothing else names a fact.
+makes the row taller than its text; and a table wider than its card fades
+at the edge it runs on past. The cards keep their glyphs, where nothing
+else names a fact. **Alignment**: a column of text (a job, a status, a
+place, a date) is left-aligned with its heading; a column whose every cell
+is one control or one score (View, a match pill, ⋯) is centred, heading
+too. Centring every column floated each value far from its job on a wide
+window; left-aligning every one left View and the match pills hanging off
+their headings' left edges.
+
+**No scroll bounces, anywhere** (2026-11-02, widened 2026-11-10): the
+document and the page's scroller stop dead on y, and every scroll box
+inside a page (a table, a dialog's list) on both axes, by the classes that
+make a box scroll (`globals.css`), so a new one needs nothing.
 
 **A page's search is one width** (`PAGE_SEARCH` in
 `components/ui/search-field.tsx`, 2026-11-10): the Jobs page, Documents, the

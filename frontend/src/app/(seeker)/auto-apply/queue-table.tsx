@@ -91,6 +91,11 @@ const TAB_STATUS: Record<BatchTabState, { label: string; ink: string; Icon: type
  *  Role's width to an empty slot. Below @xl/main (a phone) the table is
  *  752px instead (TABLE_WIDTH), so Role keeps 248px: at 456px it ran past
  *  the card and the ⋯ column covered the end of a long title. */
+/** The columns whose cells are one control or score each (View, a match
+ *  pill): centred under a centred heading, by the table rule in
+ *  frontend/docs/design.md. Text columns stay left-aligned. */
+const CENTRED = new Set(["resume", "match"]);
+
 const COLUMNS: { id: string; label: string; width?: string; folds?: boolean }[] = [
   { id: "role", label: "Job" },
   // "Ready to Submit · Review" with its glyph, about 200px.
@@ -221,7 +226,11 @@ export function QueueTable({
                 className={cn(
                   TH,
                   column.width,
-                  column.id === "role" ? ROLE_FROZEN : ALIGN,
+                  column.id === "role"
+                    ? ROLE_FROZEN
+                    : CENTRED.has(column.id)
+                      ? "text-center"
+                      : ALIGN,
                   column.folds && FOLDS,
                   column.id === "menu" && STICKY_END,
                 )}
@@ -259,13 +268,15 @@ export function QueueTable({
             if (members.length === 0) return null;
             const open = !folded.has(id);
             return [
-              // A quiet heading (2026-11-10): the name in ink and its count, on
-              // the table's white. A grey band with a pill in it was as loud
-              // as the rows it heads.
+              // A quiet heading (2026-11-10): the name in ink and its count,
+              // centred on the row's light band (the table's own fill for a
+              // row with a fold). A pill in it was as loud as the rows it
+              // heads, and padding heavier on top sat the words on the band's
+              // floor.
               <TableRow key={id} className="hover:bg-transparent">
                 {/* The heading spans every column, so it is the button that stays at the left while the
                     table scrolls sideways: a sticky cell this wide scrolled away with the rest. */}
-                <TableCell colSpan={COLUMNS.length} className="px-4 pt-4 pb-1.5">
+                <TableCell colSpan={COLUMNS.length} className="px-4 py-2">
                   <div className="flex items-center justify-between gap-3">
                     <button
                       type="button"
@@ -385,7 +396,7 @@ function Row({
         <Status row={row} onAction={onAction} />
       </TableCell>
 
-      <TableCell className={cn(TD, ALIGN, "overflow-hidden py-0")}>
+      <TableCell className={cn(TD, "overflow-hidden py-0 text-center")}>
         {/* View, as the Tracker's Resume column says it, not the resume's
             name: "Resume #6" on every row blended into one grey pill
             (2026-11-10). Change Resume is in the row's ⋯ menu. A button,
@@ -394,23 +405,17 @@ function Row({
         {row.resume && row.resumeKey ? (
           <ViewQueuedResume name={row.resume} resumeKey={row.resumeKey} />
         ) : (
-          <button
-            type="button"
-            onClick={() => onResume(row)}
-            title="Choose a resume"
-            // No resume is an empty slot (dashed, grey, a plus), never a
-            // warning: the job still fills, and amber is kept for what
-            // stopped. It was an amber pill, which read as a pair with the
-            // amber questions link beside it.
-            className="text-note border-border-surface text-ink-meta hover:text-brand hover:border-brand-ring focus-visible:ring-brand-ring inline-flex max-w-full items-center gap-1.5 rounded-full border border-dashed px-2.5 py-1 transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none"
-          >
-            <PlusIcon aria-hidden className="size-3.5 shrink-0" />
-            <span className="truncate">Choose Resume</span>
-          </button>
+          // A text button, as View is: a table row holds no bordered or
+          // dashed controls (frontend/docs/design.md, buttons). It was a
+          // dashed pill, beside View's text in the same column.
+          <Button variant="ghost" size="sm" onClick={() => onResume(row)} title="Choose a resume">
+            <PlusIcon aria-hidden />
+            Choose Resume
+          </Button>
         )}
       </TableCell>
 
-      <TableCell className={cn(TD, ALIGN, FOLDS)}>
+      <TableCell className={cn(TD, "text-center", FOLDS)}>
         <span className={FOLDED}>
           {row.match != null ? (
             <MatchBadge score={row.match} />

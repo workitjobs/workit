@@ -161,7 +161,7 @@ export default async function AutoApplyPage() {
           </EmptyState>
         ) : (
           <>
-            <SetupRow toWrite={queue.reduce((sum, item) => sum + (item.questions ?? 0), 0)} />
+            <SetupRow />
             <UpNext items={queue} saved={savedJobs} />
           </>
         )}

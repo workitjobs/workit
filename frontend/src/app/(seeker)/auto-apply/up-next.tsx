@@ -1,13 +1,13 @@
 "use client";
 
 import { PlusIcon } from "@/components/icons";
-import { XIcon } from "@phosphor-icons/react/ssr";
+import { PencilLineIcon, XIcon } from "@phosphor-icons/react/ssr";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 
 import { EmptyState } from "@/components/ui/empty-state";
 import { LightningRoundedIcon } from "@/components/custom-icons";
-import { Button } from "@/components/ui/button";
+import { Button, ButtonLink } from "@/components/ui/button";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { useToast } from "@/components/ui/toast";
 import {
@@ -177,24 +177,12 @@ export function UpNext({ items, saved }: { items: ActivityItem[]; saved: SavedJo
 
   return (
     <section aria-labelledby="up-next" className="mt-8">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        {/* The queue in a line beside the heading ("1 in progress · 2
-            queued"). It sat alone above the setup strip, under the page
-            title, until 2026-11-10, where it read as a stray line. */}
-        <div className="flex flex-wrap items-baseline gap-x-3">
-          <SectionHeading id="up-next">Up Next</SectionHeading>
-          {items.length > 0 && (
-            <span className="text-body text-ink-meta">
-              <QueueSummary
-                jobs={items.map((item) => ({
-                  id: item.id,
-                  started: item.status === "failed",
-                  closed: item.closed ?? false,
-                }))}
-              />
-            </span>
-          )}
-        </div>
+      {/* The heading and Add Jobs centred on one line. The queue's counts
+          ("3 in progress · 2 closed") sat beside the heading until
+          2026-11-10, off its baseline and saying again what each group's
+          heading counts. */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <SectionHeading id="up-next">Up Next</SectionHeading>
         {checked.length > 0 ? (
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-note text-ink tabular-nums">{checked.length} selected</span>
@@ -227,6 +215,8 @@ export function UpNext({ items, saved }: { items: ActivityItem[]; saved: SavedJo
           </div>
         )}
       </div>
+
+      <QuestionsNotice items={items} />
 
       {rows.length > 0 ? (
         <QueueTable
@@ -261,24 +251,31 @@ export function UpNext({ items, saved }: { items: ActivityItem[]; saved: SavedJo
 }
 
 /**
- * Up Next's line beside its heading: how many jobs are In Progress
- * and how many Queued, by Up Next's own rule (`groupOf`), so it reads the
- * live tabs too. Each part only when it counts something: "0 queued" read
- * as a fault.
+ * Written questions waiting, as a notice over the queue, only while any
+ * job has them (2026-11-10): how many, for how many jobs, and Write
+ * Answers (Written Answers, ../answers). It is work a job asks for, not
+ * setup, so it left the setup row (./setup-strip.tsx) after a day there;
+ * as "Write 5 Questions →" in Up Next's heading before that, it read as a
+ * stray link. Each job's own count stays in its Status cell.
  */
-function QueueSummary({ jobs }: { jobs: { id: string; started: boolean; closed: boolean }[] }) {
-  const tabs = useBrowserTabs();
-  const closedTabs = useClosedTabs();
-  // A closed posting's job is counted on its own, as its group is
-  // (./queue-table.tsx, 2026-11-10): it never goes out.
-  const closed = jobs.filter((job) => job.closed).length;
-  const started = jobs.filter(
-    (job) => !job.closed && (job.started || tabs.has(job.id) || closedTabs.has(job.id)),
-  ).length;
-  const queued = jobs.length - started - closed;
-  return [
-    ...(started ? [`${started} in progress`] : []),
-    ...(queued ? [`${queued} queued`] : []),
-    ...(closed ? [`${closed} closed`] : []),
-  ].join(" · ");
+function QuestionsNotice({ items }: { items: ActivityItem[] }) {
+  const waiting = items.filter((item) => (item.questions ?? 0) > 0 && !item.closed);
+  const total = waiting.reduce((sum, item) => sum + (item.questions ?? 0), 0);
+  if (total === 0) return null;
+  return (
+    <div
+      role="status"
+      className="bg-warning-tint/60 border-warning/25 rounded-card mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 border px-4 py-2.5"
+    >
+      <PencilLineIcon aria-hidden className="text-warning size-4 shrink-0" />
+      <p className="text-body text-ink min-w-0 flex-1">
+        {total} {total === 1 ? "question" : "questions"} to write for {waiting.length}{" "}
+        {waiting.length === 1 ? "job" : "jobs"} before{" "}
+        {waiting.length === 1 ? "it goes" : "they go"} out.
+      </p>
+      <ButtonLink href="/auto-apply/answers" variant="secondary" size="sm">
+        Write Answers
+      </ButtonLink>
+    </div>
+  );
 }

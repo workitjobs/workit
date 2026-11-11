@@ -1027,8 +1027,9 @@ about a fifth of the cells), and "+N more" on a posting in several places,
 which lists them (`PlacesValue`). **Status is a pill** in the stage's
 tint, 28px tall (`StageMenu`'s `compact`), the same menu; it was a 42px
 bordered field on every row, taller than the page's own buttons, and the
-table read as a form. A closed posting's cell is a grey Posting Closed
-pill of the same shape beside its trash. Resume's View is a text button.
+table read as a form. A closed posting's cell is a Posting Closed pill of
+the same shape in solid ink beside its trash (grey read as Saved, red as
+Rejected; no stage is black). Match and Resume are centred columns. Resume's View is a text button.
 The columns are narrower to match (1420px together, from 1672), and **a
 fade at the card's right edge** shows while the table runs on past it
 (`useMoreToRight`): a 1440px window's table ran 400px past its card and
@@ -1530,19 +1531,18 @@ beside Start until KAN-424, three bordered buttons of one weight for a
 page with one action.
 
 - **The setup row** (`auto-apply/setup-strip.tsx`, `SetupRow`, 2026-11-10):
-  one white card at the top of the page, three cells side by side (stacked
-  below `@3xl/main`), each a glyph on a grey tile, its name, where it
+  one white card at the top of the page, two cells side by side (stacked
+  below `@3xl/main`), what every application needs, each a glyph on a grey tile, its name, where it
   stands, and an arrow where it is a link:
   **Chrome Extension** ("Checking…" until the extension answers its
   `ping`, on load and when the tab comes back into focus; "Added" with a
   check; or **Add to Chrome**, which opens the extension's Chrome Web Store
   page, `EXTENSION_INSTALL_URL` in `lib/autofill-extension.ts`:
   `NEXT_PUBLIC_EXTENSION_INSTALL_URL`, else the Store page for the
-  extension's id, which is public), **Application Info** (what the
-  extension fills beyond the resume, `../info`) and **Written Answers**
-  ("5 questions to write" in amber, every row's count summed, queued rows'
-  too, or "None waiting"; `../answers`, the page's one way there for a
-  student without Claude, KAN-566). It replaced three pieces in three
+  extension's id, which is public) and **Application Info** (what the
+  extension fills beyond the resume, `../info`). Written Answers sat here
+  as a third cell for a day and left for the questions notice over Up
+  Next, since it is work a job asks for, not setup. It replaced three pieces in three
   styles around the queue, which the user found out of place: a banner on
   top that showed only while the extension was missing (it said its link
   was coming soon and could not be clicked, though the Store page is
@@ -1589,8 +1589,17 @@ page with one action.
   - **Posting Closed** (2026-11-10): a job whose posting closed, which can
     never go out, with no status (the group says it) and **Remove All** at
     the heading's right (with Undo, as Remove is). It sat in Queued with a
-    red Posting Closed status and read as waiting its turn. Up Next's line
-    counts it apart ("3 in progress · 2 queued · 2 closed").
+    red Posting Closed status and read as waiting its turn.
+  Up Next's heading and Add Jobs share one centred line, with no counts
+  beside the heading (each group's heading counts its own; "3 in progress ·
+  2 closed" sat off the heading's baseline and said it twice). Group
+  headings are centred on their band. **Questions to write show as a
+  notice over the queue** (`QuestionsNotice`), only while any job has
+  them: "5 questions to write for 3 jobs before they go out" and **Write
+  Answers** (a bordered button: it starts the writing). Resume and Match
+  are centred columns (the table rule, `design.md`); a row with no resume
+  has **Choose Resume** as a text button with a plus, as View is (a dashed
+  pill until 2026-11-10).
   The first version had three groups the same day (In Your Tabs, Waiting,
   Unfinished, then In Progress, Queued, Incomplete): a started job whose
   tab closed sat in a group of its own at the bottom, apart from the same

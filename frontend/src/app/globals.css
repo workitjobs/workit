@@ -1001,6 +1001,20 @@ body {
   overscroll-behavior-y: none;
 }
 
+/* And every scroll box inside a page, on both axes (2026-11-10): a table
+ * that scrolls sideways (the Tracker's, Auto Apply's) bounced at its ends,
+ * and a list in a dialog bounced at its foot. Matched by the classes that
+ * make a box scroll, so a new one needs nothing. Not the page's own
+ * scroller (<main>): on x it would take the trackpad's swipe to go back. */
+[data-slot="table-container"],
+[data-slot="scroll-area-viewport"],
+:not(main)[class*="overflow-auto"],
+:not(main)[class*="overflow-x-auto"],
+:not(main)[class*="overflow-y-auto"],
+:not(main)[class*="overflow-scroll"] {
+  overscroll-behavior: none;
+}
+
 /* The canvas — the strip a rubber-band scroll exposes past the top or bottom of
  * the document — is painted by <body>, and <body> is in the root layout, above
  * both shells. So it cannot inherit the page colour a shell sets on itself, and

@@ -62,9 +62,12 @@ export function ClosedSavedControl({
 
   return (
     <div className={cn("flex items-center justify-between gap-2", className)}>
-      {/* The stage pill's shape and size, in grey, so the Status column
-          keeps one shape down the table (2026-11-10). */}
-      <span className="bg-inert-tint text-ink-meta text-label rounded-full px-2.5 py-1 font-medium whitespace-nowrap">
+      {/* The stage pill's shape and size, so the Status column keeps one
+          shape down the table, in solid ink (2026-11-10, the user's call):
+          grey, it read as Saved beside Saved's grey pill, and red would
+          read as Rejected. No stage is black, so a closed posting stands
+          out as the end of the road. */}
+      <span className="bg-ink text-on-inverse text-label rounded-full px-2.5 py-1 font-medium whitespace-nowrap">
         Posting Closed
       </span>
       <IconButton
