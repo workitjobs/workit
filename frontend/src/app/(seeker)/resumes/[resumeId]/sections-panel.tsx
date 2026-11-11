@@ -1,7 +1,14 @@
 "use client";
 
 import { CaretDownIcon, DotsSixVerticalIcon } from "@phosphor-icons/react/ssr";
-import { useState, type DragEvent, type KeyboardEvent, type ReactNode } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type DragEvent,
+  type KeyboardEvent,
+  type ReactNode,
+} from "react";
 
 import { UserIcon } from "@/components/icons";
 import { Tip } from "@/components/ui/tip";
@@ -246,11 +253,14 @@ function SkillsOutline({
   groups,
   opened,
   toggle,
+  reveal,
   onArrange,
 }: {
   groups: PrintedSkillGroup[];
   opened: Set<string>;
   toggle: (id: string) => void;
+  /** Opens a row, leaving it open if it is. */
+  reveal: (id: string) => void;
   onArrange: (groups: PrintedSkillGroup[]) => void;
 }) {
   const [dragged, setDragged] = useState<Spot | null>(null);
@@ -263,6 +273,9 @@ function SkillsOutline({
 
   const move = (from: Spot, to: Spot, refocus?: string) => {
     if (from.group === to.group && from.at === to.at) return;
+    // A skill moved into a closed group would vanish from the outline with
+    // the focus on it: its new group opens
+    reveal(`skills:${groups[to.group].key}`);
     onArrange(moveSkill(groups, from, to));
     // The moved row remounts in its new list: give its handle the focus
     // back, so the arrow keys can keep moving it
@@ -393,6 +406,12 @@ export function SectionsOutline({
   onHeaderOpen?: (open: boolean) => void;
 }) {
   const [opened, setOpened] = useState<Set<string>>(() => new Set());
+  // Opened from the page's header line, the Header row may be scrolled out
+  // of the panel's view: it comes into view as it opens
+  const headerRow = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (headerOpen) headerRow.current?.scrollIntoView({ block: "nearest" });
+  }, [headerOpen]);
   const toggle = (id: string) => {
     const next = new Set(opened);
     if (next.has(id)) next.delete(id);
@@ -446,7 +465,7 @@ export function SectionsOutline({
   return (
     <div className="divide-border-subtle flex flex-col divide-y">
       {header && (
-        <section className="pb-1.5">
+        <section ref={headerRow} className="scroll-mt-2 pb-1.5">
           <div className="flex items-center gap-1">
             <span className="text-ink-meta flex h-7 w-5 shrink-0 items-center justify-center">
               <UserIcon className="size-4" />
@@ -499,6 +518,7 @@ export function SectionsOutline({
                   groups={skills}
                   opened={opened}
                   toggle={toggle}
+                  reveal={(id) => !opened.has(id) && toggle(id)}
                   onArrange={(groups) => onApply(arrangeSkills(bank, choices, groups))}
                 />
               )}
