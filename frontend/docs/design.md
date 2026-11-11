@@ -32,7 +32,7 @@ open choices (Settled choices, near the end).
   | `text-label` | 13px, 500 | Field labels, buttons, links, menu rows. |
   | `text-body` | 14px | Body copy, typed values, table cells, messages. |
   | `text-subtitle` | 16px, 600 | A block's name: a dialog title, a job's title, an empty state's title. |
-  | `text-title` | 20px, 700 | A card's or a section's heading (`SectionHeading`); the top bar title below md. |
+  | `text-title` | 20px, 600 | A section's heading, a job card's title, a job description's section (bold there); the top bar title below md. |
   | `text-heading` | 26px, 700 | A page's name: the top bar title from md, a sub-page's h1. |
 
   `text-display`, `text-figure` and `text-hero` are for numbers and
@@ -425,8 +425,6 @@ lands. These have no ticket of their own yet:
 - My Profile's Contact & Links draws a 20px `brand` glyph and a 700 label
   beside each field; the icon rule makes the glyph `ink-meta` and the
   label 600 (KAN-571).
-- A card's title is 600 (Type weights), but `text-title`, the
-  `SectionHeading` size, carries 700; KAN-558 sets the one card title.
 - `ChoiceTile` still lives in the onboarding route, with off-grid values
   (`rounded-[5px]`, `size-4.5`); it moves to `components/ui/` (KAN-559).
 - The design kit still says what these rules replace, until KAN-564 and
@@ -812,7 +810,11 @@ Four weights, each with one job, shown on `/design-kit/type` (Weights):
 400 to read (body copy, helper text, typed values), 500 for anything a
 student clicks or picks (buttons, chips, segmented controls, menu rows,
 select and filter options, field labels), 600 to name a block (card and
-dialog titles, a job's title, captions), 700 to name a page. A token that
+dialog titles, a job's title, captions, and `text-title`, 700 until
+2026-11-10), 700 to name a page. **A filter or sort trigger is 400**, not
+500 (`facetClasses`, `facetTriggerClasses`; 2026-11-10, as Jobright's
+are): a row of medium filters read heavier than the job cards under it.
+The options in its list stay 500. A token that
 carries a weight already sets it; a size with none of its own (body, note)
 takes the weight of its job. shadcn's menu, select and combobox rows set no
 weight and drew at 400, so the account menu read thinner than the Jobs

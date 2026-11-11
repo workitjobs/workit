@@ -296,7 +296,10 @@ export function JobViewBody({
         </>
       )}
 
-      <Section title="About the Role">
+      {/* Its title is for screen readers (2026-11-10): the Overview tab
+          names it, and the description's own 20px section headings
+          (description.tsx) carry it on screen, as Jobright's do. */}
+      <Section title="About the Role" titleHidden={Boolean(job.description)}>
         {/* The card names one place and how many more; here, all of them. */}
         {places.length > 1 && (
           <p className="text-ink mt-3 text-base">Open in {places.join(" · ")}.</p>

@@ -354,8 +354,12 @@ fixed section headings (Overview, Responsibilities, Requirements, Preferred
 Qualifications, Pay, Details) draws an icon beside it in brand purple
 (`SECTION_ICONS`; Pay reuses the salary fact's coin). All Filters' section
 icons stay grey: there they label controls, here they mark where to read.
-Section titles are 16px bold with a 20px icon, a step under "About the
-Role"; an employer's subheading is 14px semibold. List bullets are ink, like
+Section titles are 20px bold with a 24px icon, as Jobright's (2026-11-10):
+at 16px bold over the 16px body they read as bold body text, which the
+user found too small. "About the Role" above them is for screen readers
+only when there is a description (`Section`'s `titleHidden`): the Overview
+tab names it, and at 16px it would rank under its own sections. An
+employer's subheading is 16px semibold. List bullets are ink, like
 the text. **A sectioned description always shows Overview, Responsibilities,
 Requirements and Pay** (`withCoreSections`, KAN-229 fix 5); Preferred
 Qualifications and Details only when the posting has them. A missing core
@@ -1949,7 +1953,7 @@ Portfolio or Website, Other Link, with **Location** after Phone (KAN-550): the
 home location onboarding asks ("Stony Brook, NY", KAN-372), which no screen
 showed or edited after onboarding until then, though Application Answers'
 Address said its city and state came from here. Each field is drawn like a job posting's
-section heading (16px bold ink beside a 20px brand glyph), its value hanging
+section heading (bold ink beside a brand glyph), its value hanging
 under the heading's text. That glyph only informs, so `design.md`'s icon rule
 makes it `ink-meta`, and the label 600, not bold (KAN-571; `design.md`,
 Still open).

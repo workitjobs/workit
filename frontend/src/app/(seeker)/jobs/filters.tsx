@@ -100,9 +100,10 @@ import type { JobFacets, JobLocationOption } from "./listings";
  *  its popup is closed, the one visible signal that it is in use. The edge is
  *  solid brand, as a selected card's and a pressed chip's are (2026-11-03). */
 function facetTriggerClasses(count: number, open: boolean, className?: string) {
+  // Regular, not a button's medium, as `facetClasses` (field-facet.tsx).
   return cn(
     buttonClasses({ variant: "secondary", size: "sm" }),
-    "h-auto justify-between",
+    "h-auto justify-between font-normal",
     count > 0 && !open && "border-brand bg-brand-tint text-brand hover:bg-brand-tint",
     className,
   );

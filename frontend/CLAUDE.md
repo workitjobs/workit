@@ -2047,7 +2047,10 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
 - **Anything clicked or picked is medium (500)**: buttons, chips,
   segmented controls, filter options, and shadcn's menu, select and
   combobox rows, which `globals.css` sets by `data-slot` since they set no
-  weight of their own (KAN-365). Regular text is 400
+  weight of their own (KAN-365). One exception: a filter or sort trigger
+  (the row over the Jobs page, the Tracker's and the Resumes tab's) is
+  regular, 400, as Jobright's are (2026-11-10). `text-title` is 600; 700
+  names a page only. Regular text is 400
   (`--font-weight-normal`, Inter's own, as Jobright's), and the page keeps
   the Mac's own smoothing: no `antialiased`, which drew every word thinner
   (2026-11-10). The four weights and their jobs are in

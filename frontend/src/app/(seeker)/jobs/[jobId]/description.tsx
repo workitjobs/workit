@@ -355,20 +355,21 @@ export function JobDescription({
 /** A heading in the description: a fixed section's with its icon, an
  *  employer's own inside a sectioned description as a smaller subheading, or
  *  any heading of a description stored before KAN-229, the same size as a
- *  section's with no icon. Sections are 16px bold with a 20px icon, a step
- *  under "About the Role" (20px) above them: at 14px semibold they were too
- *  small to scan by (2026-10-17; Jobright's are 20px with no wrapper title).
- *  Subheadings are 14px semibold. */
+ *  section's with no icon. Sections are 20px bold with a 24px icon, as
+ *  Jobright's are (2026-11-10): at 16px bold over the 16px body they read
+ *  as body text in bold, which the user found too small; "About the Role"
+ *  above them is for screen readers only now (job-view.tsx), as Jobright
+ *  has no wrapper title. Subheadings are 16px semibold, a step under. */
 function Heading({ text, sectioned }: { text: string; sectioned: boolean }) {
   const Icon = Object.hasOwn(SECTION_ICONS, text) ? SECTION_ICONS[text] : null;
   if (Icon) {
     return (
-      <h3 className="text-subtitle text-ink mt-3 flex items-center gap-2 font-bold">
-        <Icon aria-hidden className="text-brand size-5 shrink-0" />
+      <h3 className="text-title text-ink mt-4 flex items-center gap-2 font-bold">
+        <Icon aria-hidden className="text-brand size-6 shrink-0" />
         {text}
       </h3>
     );
   }
-  if (sectioned) return <h4 className="text-ink text-base font-semibold">{text}</h4>;
-  return <h3 className="text-subtitle text-ink mt-3 font-bold">{text}</h3>;
+  if (sectioned) return <h4 className="text-subtitle text-ink">{text}</h4>;
+  return <h3 className="text-title text-ink mt-4 font-bold">{text}</h3>;
 }

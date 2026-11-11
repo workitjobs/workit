@@ -373,7 +373,9 @@ export function JobPostingCard({
                 )}
               </h3>
 
-              <p className="text-note text-ink mt-0.5 font-semibold">
+              {/* 13px regular, as Jobright's (2026-11-10): it was 12px
+                  semibold, a second bold line under the title. */}
+              <p className="text-label text-ink mt-0.5 font-normal">
                 {job.companyHref ? (
                   <Link href={job.companyHref} className={cn(INK_LINK, "relative z-2")}>
                     {job.company}

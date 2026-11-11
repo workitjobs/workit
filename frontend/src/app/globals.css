@@ -106,7 +106,10 @@
 
   --text-title: 1.25rem; /* 20px — "Welcome Back" */
   --text-title--line-height: 1.75rem;
-  --text-title--font-weight: 700;
+  /* 600, the weight that names a block (docs/design.md, Type weights), as
+   * Jobright's job titles are (2026-11-10). It was 700, which only a page's
+   * name takes (--text-heading). */
+  --text-title--font-weight: 600;
   --text-title--letter-spacing: -0.01em;
 
   /* Radii ---------------------------------------------------------------- */

@@ -308,7 +308,11 @@ export const TYPE_SCALE: { token: string; cls: string; role: string }[] = [
   { token: "--text-label", cls: "text-label", role: "Field labels, links, buttons" },
   { token: "--text-body", cls: "text-body", role: "Body copy, inputs" },
   { token: "--text-subtitle", cls: "text-subtitle", role: "Work-history job titles" },
-  { token: "--text-title", cls: "text-title", role: "Card and column headings" },
+  {
+    token: "--text-title",
+    cls: "text-title",
+    role: "Section and column headings, a job card's title; 600",
+  },
   { token: "--text-heading", cls: "text-heading", role: "Page name — Tracker" },
   { token: "--text-display", cls: "text-display", role: "Company Dashboard headline figures" },
   {
@@ -357,17 +361,17 @@ export const WEIGHTS: { token: string; cls: string; role: string }[] = [
   {
     token: "500 · font-medium",
     cls: "font-medium",
-    role: "Anything clicked or picked: buttons, chips, segmented controls, menu rows, select and filter options, field labels (--text-label)",
+    role: "Anything clicked or picked: buttons, chips, segmented controls, menu rows, select and filter options, field labels (--text-label). A filter or sort trigger is 400",
   },
   {
     token: "600 · font-semibold",
     cls: "font-semibold",
-    role: "Names a block: card and dialog titles at --text-subtitle, a job's title, captions",
+    role: "Names a block: card and dialog titles at --text-subtitle, --text-title, a job's title, captions",
   },
   {
     token: "700 · font-bold",
     cls: "font-bold",
-    role: "Names a page: --text-title, --text-heading, --text-display",
+    role: "Names a page: --text-heading, --text-display; a job description's section heading",
   },
 ];
 
