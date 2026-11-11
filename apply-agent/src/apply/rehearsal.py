@@ -668,10 +668,11 @@ def _rehearse(url: str, site: "_Kept", adapters: Adapters, profile: ApplicantPro
     if behind == posting and result is None and (force or not applied):
         if posting.job_system == "other":
             fetched = description.from_link(posting, site)
-        behind = embedded.form_behind(posting, site, fetched)  # a Greenhouse, Lever or Ashby form in the page
+        behind = embedded.form_behind(posting, site, fetched)  # a job system's form in the page
     if behind != posting:
         fetched = None  # the form's own job system's text is read instead
-        posting = replace(resolve(behind.url, site)[0], id=posting.id)  # named by its job system now
+        form = resolve(behind.url, site)[0]  # named by its job system now, where it names the job
+        posting = replace(form, id=posting.id, company=form.company or posting.company, title=form.title or posting.title)
         applied = applied or adapters.applied_before.of(posting, url)
     if applied:
         trace.event("already applied", said=applied.said())
