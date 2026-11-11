@@ -1100,7 +1100,18 @@ between different content on one subject. Material Design and Nielsen
 Norman Group draw the line the same way. Tabs: a job's Overview and
 Company, an application's Your Application and Job Description, and
 Documents' Resumes and Cover Letters, each a link kept in the URL, drawn as
-text with a brand underline on the open one, never the switcher's pill.
+text with a brand underline on the open one, never the switcher's pill. A
+tab is 16px: the open one semibold in brand over a 3px underline, the
+others medium in `ink-meta` (2026-11-10). At 13px in ink with a 2px
+underline they read as small print beside the job bar's 36px buttons.
+
+**A posting in several places shows them all** (`PlacesValue`,
+`components/places-value.tsx`, 2026-11-10): its location fact is the first
+place, then "+N more", which opens every place in a popover on hover, a
+press or a tap, above a card's click layer, on the job cards and a job's
+own page. The hover title only said "Novi, MI +1 more" again. The split
+list's compact card says "N locations", and the open job beside it lists
+them.
 The job and application pages used the switcher until KAN-766, which read
 as a setting of one view rather than a way to another, and Resumes &
 Experiences' switcher led to a different page.

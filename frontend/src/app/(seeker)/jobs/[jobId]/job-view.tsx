@@ -213,9 +213,10 @@ export function JobCardActions({
  *  header's height: the page reads as the card it was opened from. It was
  *  a bordered white box beside the facts alone, which left a hole under
  *  them and drew the rail a second way. No tile without a score (signed
- *  out, an empty bank), as the card then draws none either, and none in
- *  the split view's pane (hidden by `in-data-split`, as the page renders
- *  the same there), whose list card beside it shows it.
+ *  out, an empty bank), as the card then draws none either. The split
+ *  view's pane shows it too (2026-11-10): it was hidden there, since the
+ *  list card beside it has a score, but that small tile has no reasons and
+ *  the open job read as unscored.
  *  `titleAs` is h2 beside the list on /jobs, where the bar's "Jobs" is the h1. */
 export function JobViewHeader({
   job,
@@ -238,9 +239,10 @@ export function JobViewHeader({
           <MatchRail
             score={match.score}
             highlights={match.highlights}
-            // The panel's padding is the tile's margin. Not in the split
-            // view's pane: the list card beside it shows it.
-            className="p-0 in-data-split:@4xl/main:hidden"
+            // The panel's padding is the tile's margin. In the split
+            // view's pane too (2026-11-10): the list card's small tile
+            // has no reasons, and the open job read as unscored.
+            className="p-0"
           />
         )
       }
@@ -291,7 +293,7 @@ export function JobHeaderSkeleton() {
         </div>
       </div>
       {/* The match tile, at its 240px, as MatchRail draws it in the panel. */}
-      <Skeleton className="rounded-card hidden w-60 shrink-0 @xl:block in-data-split:@4xl/main:hidden" />
+      <Skeleton className="rounded-card hidden w-60 shrink-0 @xl:block" />
     </div>
   );
 }

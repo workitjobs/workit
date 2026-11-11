@@ -13,6 +13,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Fact } from "@/components/ui/fact";
+import { PlacesValue } from "@/components/places-value";
 import { cn } from "@/lib/cn";
 import type { LogoSrc } from "@/lib/job-logo";
 
@@ -162,6 +163,9 @@ export type JobPostingCardData = {
    *  "Remote", and repeating it under the pin icon reads as two different
    *  facts agreeing by coincidence rather than as one fact. */
   location: string | null | NotListed;
+  /** Every place the posting lists, where `location` names the first and
+   *  "+N more": the fact then opens them all (`PlacesValue`). */
+  places?: string[];
   /** NOT_LISTED for a scraped role with no job type. An internship's is
    *  "Internship" ((seeker)/jobs/listing-card.tsx); where any other posting
    *  is silent, the scraper fills Full-Time only for a new-grad role, which
@@ -185,7 +189,7 @@ type Slot = readonly [FactName, ComponentType<{ className?: string }>, FactValue
 type FactValue = string | null | NotListed;
 
 /** The six facts a card prints, as JobFactGrid takes them. */
-export type JobFactData = Pick<JobPostingCardData, FactName>;
+export type JobFactData = Pick<JobPostingCardData, FactName | "places">;
 
 /** The six slots in reading order, three to a row from 448px of body. See
  *  "THE FACTS ARE TWO FIXED ROWS" above. */
@@ -215,12 +219,24 @@ function FactSlot({
   Icon,
   value,
   size,
+  places = [],
 }: {
   name: FactName;
   Icon: Slot[1];
   value: FactValue;
   size: "sm" | "md";
+  /** The location's places, when it has more than one. */
+  places?: string[];
 }) {
+  // Several places: the first, then "+N more", which opens them all. The
+  // hover title said "Novi, MI +1 more" again, under the card's click layer.
+  if (name === "location" && places.length > 1) {
+    return (
+      <Fact Icon={Icon} size={size}>
+        <PlacesValue places={places} />
+      </Fact>
+    );
+  }
   if (typeof value === "string") {
     return (
       <Fact Icon={Icon} title={value} size={size}>
@@ -261,7 +277,14 @@ export function JobFactGrid({
       )}
     >
       {slotsOf(job).map(([name, Icon, value]) => (
-        <FactSlot key={name} name={name} Icon={Icon} value={value} size={size} />
+        <FactSlot
+          key={name}
+          name={name}
+          Icon={Icon}
+          value={value}
+          size={size}
+          places={job.places}
+        />
       ))}
     </div>
   );

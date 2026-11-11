@@ -8,6 +8,7 @@ import {
   PinIcon,
   workStyleIcon,
 } from "@/components/icons";
+import { PlacesValue } from "@/components/places-value";
 import { Fact } from "@/components/ui/fact";
 
 import type { JobPosting } from "./data";
@@ -39,7 +40,15 @@ import type { JobPosting } from "./data";
 export function JobFacts({ posting }: { posting: JobPosting }) {
   return (
     <div className="text-body grid grid-cols-2 gap-x-4 gap-y-2.5 @md:grid-cols-3">
-      <JobFact Icon={PinIcon} value={posting.locationCity} />
+      {(posting.places?.length ?? 0) > 1 ? (
+        // The first place, then "+N more", which opens every place: the
+        // hover title only said "Novi, MI +1 more" again (2026-11-10).
+        <Fact Icon={PinIcon} size="md" wrap>
+          <PlacesValue places={posting.places ?? []} wrap />
+        </Fact>
+      ) : (
+        <JobFact Icon={PinIcon} value={posting.locationCity} />
+      )}
       <JobFact Icon={BriefcaseIcon} value={posting.jobType} />
       <JobFact Icon={CoinIcon} value={posting.salary} />
       <JobFact Icon={workStyleIcon(posting.workStyle)} value={posting.workStyle} />

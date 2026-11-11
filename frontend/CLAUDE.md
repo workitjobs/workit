@@ -1443,8 +1443,9 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   thought out. It was one 800px column (`max-w-job`, 2026-11-09) before,
   208px narrower than the card the student had just clicked. In the split
   view's pane the panel is flat, the bar takes the pane, the content under
-  it stops at 736px (`JOB_COLUMN`) and the tile is hidden, since the list
-  card beside it shows the score. Every page outside the Jobs page and a
+  it stops at 736px (`JOB_COLUMN`), and the tile shows there too
+  (2026-11-10; it was hidden, since the list card beside it has a score,
+  but that small tile has no reasons and the open job read as unscored). Every page outside the Jobs page and a
   posting's own page (Home, Tracker, Auto Apply, Documents, Experiences,
   Profile, Tailor) is a workspace of tables, grids or columns and keeps
   `max-w-dashboard`.
