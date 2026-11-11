@@ -1,7 +1,8 @@
 # The specs ci.yml's extension job runs on a PR: what would really hurt, about
 # 3 minutes on the macOS runner. Install and the toolbar popup, the panel, the
 # fill on Greenhouse, Ashby, SmartRecruiters and Workday, sign-out and the
-# session's refresh, the Rules table's fallback to the bundled one, a real submit marking applied and a refused one not, and the
+# session's refresh, the Rules table's fetch and its fallback to the bundled
+# one, a real submit marking applied and a refused one not, and the
 # minified Store package loading and filling (KAN-744). A test
 # tagged @nightly in these specs is left out on PRs; the whole suite runs every
 # night (extension-nightly.yml).

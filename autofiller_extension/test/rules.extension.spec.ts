@@ -117,37 +117,38 @@ test("a 401 for the site token asks for a new token once, and the table it then 
 
 // Every failure the contract lists, at either call: the fill uses the bundled table, and the form fills.
 const json = (status: number, detail: unknown): Reply => ({ status, json: { detail } });
-// On a PR (ci-smoke.txt), the 500s (production before its migration), the retried 401 and the RulesError; nightly, all.
-const SMOKE = /500|401 twice|another version/;
-const FAILURES: { name: string; at: "token" | "table" | "check"; reply?: Reply; calls: number }[] = [
+// `smoke`: run on a PR too (ci-smoke.txt): the 500s (production before its migration), the retried 401 and the
+// RulesError. `version`: the table served is of this version; `system`: the token names this job system.
+type Failure = { name: string; at: "token" | "table" | "check"; reply?: Reply; calls: number; smoke?: true; version?: number; system?: string };
+const FAILURES: Failure[] = [
   { name: "the token's 401 (signed out)", at: "token", reply: json(401, "Not signed in"), calls: 1 },
   { name: "the token's 403", at: "token", reply: json(403, "Not allowed"), calls: 1 },
   { name: "the token's 422 (a site WorkIt doesn't fill)", at: "token", reply: json(422, "WorkIt doesn't fill this site."), calls: 1 },
   { name: "the token's 426", at: "token", reply: { status: 426, json: { detail: { message: "Please update WorkIt.", min_version: "9.9.9" } } }, calls: 1 },
   { name: "the token's 429", at: "token", reply: json(429, "You've opened a lot of applications today. Try again tomorrow."), calls: 1 },
-  { name: "the token's 500 (the migration not run)", at: "token", reply: json(500, "Internal Server Error"), calls: 1 },
+  { name: "the token's 500 (the migration not run)", at: "token", reply: json(500, "Internal Server Error"), calls: 1, smoke: true },
   { name: "the token's 503", at: "token", reply: json(503, "WorkIt can't fill right now. Try again soon."), calls: 1 },
   { name: "no answer to the token", at: "token", reply: { drop: true }, calls: 1 },
-  { name: "the table's 401 twice (a new token refused too)", at: "table", reply: json(401, "This site token is missing or has expired. Ask for a new one."), calls: 4 },
+  { name: "the table's 401 twice (a new token refused too)", at: "table", reply: json(401, "This site token is missing or has expired. Ask for a new one."), calls: 4, smoke: true },
   { name: "the table's 403", at: "table", reply: json(403, "Not allowed"), calls: 2 },
   { name: "the table's 426", at: "table", reply: { status: 426, json: { detail: { message: "Please update WorkIt.", min_version: "9.9.9" } } }, calls: 2 },
   { name: "the table's 429", at: "table", reply: json(429, "You've opened a lot of applications today. Try again tomorrow."), calls: 2 },
-  { name: "the table's 500 (the migration not run)", at: "table", reply: json(500, "Internal Server Error"), calls: 2 },
+  { name: "the table's 500 (the migration not run)", at: "table", reply: json(500, "Internal Server Error"), calls: 2, smoke: true },
   { name: "the table's 503", at: "table", reply: json(503, "WorkIt can't fill right now. Try again soon."), calls: 2 },
   { name: "no answer to the table", at: "table", reply: { drop: true }, calls: 2 },
-  { name: "a table of another version (the engine's RulesError)", at: "check", calls: 2 },
-  { name: "a token for another job system", at: "check", calls: 1 },
+  { name: "a table of another version (the engine's RulesError)", at: "check", calls: 2, smoke: true, version: 99 },
+  { name: "a token for another job system", at: "check", calls: 1, system: "greenhouse" },
 ];
 
 for (const failure of FAILURES) {
-  test(`${failure.name}: the bundled table fills`, { tag: SMOKE.test(failure.name) ? [] : ["@nightly"] }, async () => {
+  test(`${failure.name}: the bundled table fills`, { tag: failure.smoke ? [] : ["@nightly"] }, async () => {
     test.setTimeout(120_000);
     const api = new FakeApi();
     const forms = await start(api);
     if (failure.at === "token") api.rulesTokenReply = failure.reply!;
     if (failure.at === "table") api.rulesFetchReply = failure.reply!;
-    if (failure.name.includes("version")) api.rules = await renamedTable(loaded, 99);
-    if (failure.name.includes("another job system")) api.rulesJobSystem = "greenhouse";
+    if (failure.version !== undefined) api.rules = await renamedTable(loaded, failure.version);
+    if (failure.system) api.rulesJobSystem = failure.system;
     const page = await open(forms, api, failure.calls);
     await autofill(page);
 
