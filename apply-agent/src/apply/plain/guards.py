@@ -17,7 +17,8 @@ tab of a Worker shares one set of these rules (KAN-793), so their count stays at
 
 Fails closed: guard and rearm put the page's own guard on before the rules, so when Chrome refuses
 the rules (the route raises) the page is Apply's and blocked, never Lisul's, and the error goes on
-to the caller, which stops driving it.
+to the caller, which stops driving it. A page guard() can't put rules on goes to about:blank first,
+so no worker it started is left to send.
 
 Untrusted presses: a plain Worker's every click and key is synthetic, so the guard script's copy
 here (`port=True`) also counts as a touch the `__apply_touch` the extension dispatches before
@@ -35,6 +36,7 @@ from apply import submit_guard
 from apply.submit_guard import DriveGuard
 
 FOLDER = "guards"  # under worker-extension/vendor/
+BLANK = "about:blank"  # where a page goes when Chrome refuses its rules
 
 
 def _final_urls() -> list[str]:
@@ -155,9 +157,15 @@ def guard(page, reload: bool = True) -> None:
     page.context.add_init_script(submit_guard.SCRIPT)  # first: the page's own guard holds if Chrome refuses the rules
     try:
         page.route(PATTERN, submit_guard._refuse)
-    finally:
-        if reload:  # on a refusal too: the open document gets the guard script, then the error goes on
-            page.reload(wait_until="domcontentloaded")
+    except Exception:
+        # Refused: the page's own guard is no stop for a worker it started, so the page goes (the review of #555).
+        try:
+            page.goto(BLANK)
+        except Exception:
+            page.close()
+        raise
+    if reload:
+        page.reload(wait_until="domcontentloaded")
 
 
 def lift(page, pressed=None, again=None, warning: str = "", wrong: bool = True, bound: bool = False,

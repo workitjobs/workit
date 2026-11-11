@@ -66,6 +66,12 @@ SCRIPTED = """<!doctype html><title>Scripted</title>
 </script>"""
 
 
+# A page whose worker posts a moment after the page loads: no page script can stop it, only the rules.
+LATE_WORKER = """<!doctype html><title>Late</title><script>
+  new Worker(URL.createObjectURL(new Blob(["setTimeout(() => fetch('" + location.origin + "/acme/job/7/submitApplication', {method: 'POST', body: 'a'}).catch(() => {}), 2000)"])));
+</script>"""
+
+
 # A step whose Next posts natively (TAL.net's), then a step with a Continue bound for a final URL.
 NATIVE_STEP = """<!doctype html><title>One</title><form method="post" action="/step/two"><input name="first"><button>Next</button></form>"""
 NATIVE_LAST = """<!doctype html><title>Two</title><form method="post" action="/acme/j/42/apply"><input name="why"><button>Continue</button></form>"""
@@ -82,6 +88,7 @@ class Site:
                 self.send_header("Content-Type", "text/html; charset=utf-8")
                 self.end_headers()
                 page = (SCRIPTED if self.path.startswith("/scripted") else FORM if self.path.startswith("/form")
+                        else LATE_WORKER if self.path.startswith("/late")
                         else NATIVE_STEP if self.path.startswith("/native") else "<p>other")
                 self.wfile.write(page.encode())
 
@@ -454,6 +461,15 @@ def test_when_chrome_refuses_the_rules_the_page_stays_guarded_never_lifted(page,
             guards.guard(fresh, reload=False)
         assert _all_rules(page.worker) == full  # each failed update left Chrome's rules as they were
         page.worker.call("tabs.close", tab=fresh.tab)
+        # A page already open whose worker would post: refused, guard() takes the page away rather than leave it.
+        late = _new_tab(page.worker)
+        late.goto(f"{site.url}/late")
+        with pytest.raises(Exception, match="(?i)rule"):
+            guard(late)
+        assert late.url == "about:blank"
+        time.sleep(3)
+        assert site.posts == []
+        page.worker.call("tabs.close", tab=late.tab)
     finally:
         guards.reset(page.worker)
     guard(page)  # one set on: a second guarded tab, at the cap, adds no rule
