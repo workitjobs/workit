@@ -19,12 +19,18 @@ pre-submit review). It looks for four kinds of claim:
 - **date**: a month or season with its year ("summer 2025") that no
   source's dates cover. A year no source holds is a number claim only.
 - **outcome**: an effect of the work ("went into use", "deployed", "won",
-  "cut the time") whose kind no source states.
+  "cut the time") that no fact about the same project or role states
+  (KAN-750). The project is the one the sentence names, else the one the
+  nearest sentence before it names: a section's heading ("## Hitachi Rail:
+  Software Intern", a bank entry or a Story bank section) or a name a fact
+  gives. A fact is about the headings it sits under and the names it gives.
+  An outcome in a sentence whose project none of that tells is a claim.
 
 It leans toward passing: a source holds a name in any case, and an outcome
-when it states that kind of effect anywhere. A claim it finds is not proof
-of a lie, only a thing the student did not give: the answer is flagged for
-the student to read before Submit, never refused or rewritten.
+when any fact about that project states that kind of effect. A claim it
+finds is not proof of a lie, only a thing the student did not give: the
+answer is flagged for the student to read before Submit, never refused or
+rewritten.
 
 Stdlib only, on purpose: this file is in two places, byte for byte, so
 WorkIt and Apply run one check: `backend/app/auto_apply/truth.py`, the
@@ -60,22 +66,30 @@ def unsupported(answer: str, own: str | Iterable[str], others: str | Iterable[st
     the rest an answer may name or count from: the posting, the company's
     checked facts, the question. A date or an outcome is the student's, so
     only `own` holds one: every posting says "deploy" and "ship". Either may
-    be one text or several."""
+    be one text or several; an outcome stands only on a fact about its
+    project (_facts: give each project its own "## " heading)."""
     texts = [s for s in ([own] if isinstance(own, str) else own) if s]
     theirs = "\n".join(texts)
     held = "\n".join([theirs, *(s for s in ([others] if isinstance(others, str) else others) if s)])
     plain = _plain(held)
     known = {_normal(n) for n in _numbers(held)}
     spans = [span for text in texts for line in text.splitlines() for span in _spans(line)]
+    facts = _facts(texts) if any(said.search(answer) for said, _ in OUTCOMES) else []
     found: list[Claim] = []
+    about: list[str] = []  # the project the last sentence that named one named
     for sentence in _sentences(answer):
+        named = names(sentence)
         found += [Claim("number", n, sentence) for n in _numbers(sentence) if _normal(n) not in known]
-        found += [Claim("name", name, sentence) for name in names(sentence) if not _held(name, plain)]
+        found += [Claim("name", name, sentence) for name in named if not _held(name, plain)]
         for m in DATED.finditer(sentence):
             if _normal(m.group(2)) in known and _plain(m.group()) not in _plain(theirs) and not _covered(m, spans):
                 found.append(Claim("date", m.group(), sentence))
+        about = _about(named, facts) or about
         for said, backed in OUTCOMES:
-            if (m := said.search(sentence)) and not backed.search(theirs):
+            if (m := said.search(sentence)) and not any(
+                backed.search(line) and any(_same(a, n) for a in about for n in (*heads, *given))
+                for heads, given, line in facts
+            ):
                 found.append(Claim("outcome", m.group(), sentence))
     seen: set[tuple[str, str]] = set()
     return [c for c in found if (c.kind, c.text.casefold()) not in seen and not seen.add((c.kind, c.text.casefold()))]
@@ -122,12 +136,13 @@ EVERYDAY = {"AI", "ML", "API", "APIs", "UI", "UX", "CS", "US", "USA", "GPA", "Ph
             "QA", "PM", "SWE", "CEO", "CTO", "OK", "TA", "STEM", "FAQ", "PR", "PRs", "ETA", "U.S", "U.S.A", "U.K"}
 
 
-def names(sentence: str) -> list[str]:
+def names(sentence: str, heading: bool = False) -> list[str]:
     """The names one sentence gives, each once: runs of capitalized words (a
     possessive's "'s" and the words that open or close them dropped), words
     with a capital inside ("PyTorch", "iOS") and acronyms ("CUDA"). A word
     that opens the sentence (or follows a colon, a quote or a bullet) is
-    part of a name only with a capital inside it: it is capitalized either way."""
+    part of a name only with a capital inside it: it is capitalized either
+    way. In a `heading` every capitalized word is."""
     found: list[str] = []
     run: list[str] = []
 
@@ -150,7 +165,9 @@ def names(sentence: str) -> list[str]:
         opens = i == 0 or re.search(r"[:;\"“(•*]|\s-\s", before) is not None
         if re.search(r"\S", before):
             close()  # punctuation between words ends a name: "Python, Kafka"
-        if _strong(word) or (word[:1].isupper() and not opens and word.casefold() not in COMMON) \
+        if heading and word[:1].isupper() and word.casefold() not in OPENERS | COMMON:
+            run.append(word)  # "Hitachi Rail: Software Intern"
+        elif _strong(word) or (word[:1].isupper() and not opens and word.casefold() not in COMMON) \
                 or (run and word.casefold() in {"of", "&"}):
             run.append(word)
         else:
@@ -173,6 +190,46 @@ def _held(name: str, plain: str) -> bool:
     for j in range(1, len(words) + 1):
         split[j] = any(split[i] and piece(words[i:j]) for i in range(j) if words[i] not in {"of", "&"})
     return split[-1]
+
+
+# Which project a sentence is about (KAN-750).
+
+HEADING = re.compile(r"\s*(#{1,6})\s+(.*)")
+TAG = re.compile(r"\s*</?[\w-]+>\s*")  # "</story_bank>": the end of every section
+
+
+Fact = tuple[list[str], list[str], str]  # a line's headings' names, the names it gives, the line
+
+
+def _facts(texts: Iterable[str]) -> list[Fact]:
+    """Each line of the student's texts with the names it is about: those of
+    the headings it sits under (a section runs to the next heading of its
+    level or above, or to a tag line) and those it gives itself."""
+    facts: list[Fact] = []
+    for text in texts:
+        heads: list[tuple[int, list[str]]] = []
+        for line in text.splitlines():
+            if m := HEADING.fullmatch(line):
+                heads = [h for h in heads if h[0] < len(m.group(1))] + [(len(m.group(1)), names(m.group(2), heading=True))]
+            elif TAG.fullmatch(line):
+                heads = []
+            facts.append(([n for _, given in heads for n in given], [n for s in _sentences(line) for n in names(s)], line))
+    return facts
+
+
+def _about(named: list[str], facts: list[Fact]) -> list[str]:
+    """The names in a sentence that tell its project: those a heading gives
+    (a project or role, not a tool it shares with others), else those a
+    fact gives."""
+    return [n for n in named if any(_same(n, h) for heads, _, _ in facts for h in heads)] \
+        or [n for n in named if any(_same(n, g) for _, given, _ in facts for g in given)]
+
+
+def _same(a: str, b: str) -> bool:
+    """Whether two names name one thing: the shorter is whole words of the
+    longer, in any case ("Hitachi" and "Hitachi Rail")."""
+    short, long = sorted((_plain(a), _plain(b)), key=len)
+    return re.search(rf"(?<![\w]){re.escape(short)}(?![\w])", long) is not None
 
 
 # Dates: a month or season and its year.
