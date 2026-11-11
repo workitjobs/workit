@@ -468,7 +468,8 @@ PAGES |= {
         "/acme/jobs/123/step2": "<title>Two</title><input name=next>"},
 }
 
-# PR 477's third review (KAN-710): an XHR one realm opens and another sends, Ashby's submit in form data,.
+# PR 477's third review (KAN-710): an XHR one realm opens and another sends, Ashby's submit in form data, and a pop-up
+# the page opened before the guards came on.
 ASHBY_GQL = "https://jobs.ashbyhq.com/api/non-user-graphql"
 _NEXT_THEN = """<title>Apply</title><input name=first value=Test><button id=b type=button>Next</button>%s
     <script>%s document.getElementById('b').addEventListener('click', () => { %s });</script>"""
@@ -482,6 +483,12 @@ PAGES |= {
           d.append('operations', JSON.stringify({{operationName: 'ApiSubmitSingleApplicationFormAction', variables: {{}}}})); return d; }};
         try {{ const x = new XMLHttpRequest(); x.open('POST', '{ASHBY_GQL}'); x.send(data()); }} catch (e) {{}}
         try {{ navigator.sendBeacon('{ASHBY_GQL}', data()); }} catch (e) {{}}""")},
+    "a pop-up opened before the guards came on": {
+        START: _NEXT_THEN % ("", "const w = window.open('/acme/jobs/123/side', 'side');", f"""
+        try {{ w.fetch('{FINAL}', {{method: 'POST', body: 'first=Test'}}).catch(() => {{}}); }} catch (e) {{}}
+        try {{ const d = w.document, f = d.createElement('form'); f.method = 'post'; f.action = '{FINAL}';
+          d.body.append(f); w.HTMLFormElement.prototype.submit.call(f); }} catch (e) {{}}"""),
+        "/acme/jobs/123/side": "<title>Side</title><body></body>"},
 }
 # KAN-776: a held page's session dialog, whose stay-signed-in button the keep-alive presses. Each sends the application.
 _SESSION = ("<title>Apply</title><form id=f method=post action='" + FINAL + "'><input name=first value=Test></form>"
@@ -703,6 +710,7 @@ GUARD_HOLES = frozenset({
     "prototype getters that throw", "built-ins the page replaced", "a request whose URL changes on a second read",
     # PR 477's third review.
     "an XHR one realm opens and another sends", "Ashby's submit in form data by XHR and beacon",
+    "a pop-up opened before the guards came on",
 })
 
 

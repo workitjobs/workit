@@ -241,7 +241,9 @@ class PlainDriveGuard(DriveGuard):
         page.context.add_init_script(submit_guard.drive_script(sms_opt_in, marketing_opt_in))
         if not getattr(page, submit_guard.DRIVE_AT_OPEN, False):
             self._late(sms_opt_in, marketing_opt_in, getattr(page, submit_guard.REHEARSAL_AT_OPEN, False))
-        submit_guard.control(page, {"lift": None, "optSms": sms_opt_in, "optMarketing": marketing_opt_in}, (submit_guard.DRIVE,))
+        submit_guard.control(page, {"arm": True, "lift": None, "optSms": sms_opt_in, "optMarketing": marketing_opt_in},
+                             (submit_guard.DRIVE,))
+        submit_guard._arm_every_page(page)
 
     def _late(self, sms_opt_in: bool, marketing_opt_in: bool, held: bool) -> None:
         name = f"drive-{int(sms_opt_in)}{int(marketing_opt_in)}{'' if held else '-late'}.js"

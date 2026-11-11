@@ -201,3 +201,42 @@ AFTER = {
 def test_live_after_arm(name):
     site, _ = live({HOST: {START: AFTER[name]}}, wait=2500)
     assert site.finals() == []
+
+
+# A popup the page opened before Claude fill's DriveGuard: on_open's copy there is lifted, and arm() goes only to
+# the driven page's frames.
+POPUP_EARLY = f"""<title>Apply</title>{FORM}<script>
+  window.w = window.open('{HOST}{STEP2}', 'side');
+  setTimeout(() => window.w.fetch('{FINAL}', {{method: 'POST', body: 'first=Test'}}).catch(() => {{}}), 2000);
+</script>"""
+
+
+def test_popup_opened_before_arm_fetch():
+    site, _ = live({HOST: {START: POPUP_EARLY, STEP2: "<title>Side</title>"}})
+    assert site.finals() == []
+
+
+def test_popup_opened_before_arm_own_script():
+    side = f"<title>Side</title><script>setTimeout(() => fetch('{FINAL}', {{method: 'POST', body: 'x'}}).catch(() => {{}}), 2000);</script>"
+    site, _ = live({HOST: {START: f"<title>Apply</title><script>window.open('{HOST}{STEP2}', 'side');</script>",
+                           STEP2: side}})
+    assert site.finals() == []
+
+
+def test_popup_opened_before_arm_form_post_from_opener():
+    page_ = f"""<title>Apply</title><script>
+      const w = window.open('{HOST}{STEP2}', 'side');
+      setTimeout(() => {{ const d = w.document; const f = d.createElement('form'); f.method = 'post'; f.action = '{FINAL}';
+        f.innerHTML = '<input name=first value=Test>'; d.body.append(f); w.HTMLFormElement.prototype.submit.call(f); }}, 2000);
+    </script>"""
+    site, _ = live({HOST: {START: page_, STEP2: "<title>Side</title><body></body>"}})
+    assert site.finals() == []
+
+
+# A target=_blank form post the page aims into a window it opened before arm, from the armed page: judged by the
+# armed opener's guard.
+def test_form_into_lifted_popup():
+    page_ = f"""<title>Apply</title><script>window.open('{HOST}{STEP2}', 'side');
+      setTimeout(() => {{ const w = window.open('', 'side'); w.eval("fetch('{FINAL}', {{method:'POST', body:'q'}})"); }}, 2000);</script>"""
+    site, _ = live({HOST: {START: page_, STEP2: "<title>Side</title>"}})
+    assert site.finals() == []

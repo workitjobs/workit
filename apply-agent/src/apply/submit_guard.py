@@ -84,8 +84,9 @@ reads that run outside these built-ins (PROFILE_DIALOG, evaluated on its own by 
 Ask's read) go through apply.natives, the same kind of built-ins; the drive guard takes them for Ask as it starts,
 and an evaluation on its own takes them as it runs. Each form post is judged again as it leaves, with
 the URL and entries it really carries; URLs resolve against the document's base; a button that holds a frame is
-never pressed. The drive guard's init script goes on at on_open, before each page's first load, in a live run too;
-a copy put into a page that skipped it, after its
+never pressed. The drive guard's init script goes on at on_open, before each page's first load, in a live run too,
+lifted and deaf to any lift until a DriveGuard arms it, in every page of the context (a pop-up opened before it too:
+PR 477's third review); a copy put into a page that skipped it, after its
 code, takes no lift or allowance (LATE). XHR's and the beacon's form data is read by its entries, and a body to Ashby
 that can't be read at once (a Blob, a document) is not sent. What no guard can tell: a page's plain fetch, or a form's own hidden field, to a URL that names no
 submit is a save to any guard (a CDP Worker routes only URLs that name a submit; a plain Worker's rules block the
@@ -249,9 +250,13 @@ _TEMPLATE = r"""
   // Its install mark, so a second copy in the same document stands down: visible to the page, so named with a random
   // value of its own that says nothing of the control's, the touch's or the tell's (PR 477's second review).
   const MARK = '__@KEY@Guard@MARK@', LATE = @LATE@;
-  // The drive guard on_open puts on a live run's page: lifted, as no guard, until a DriveGuard arms it (by the control,
-  // and its init script on each document after), so a Filler's own submit in a live run goes on as ever.
-  if (@AT_OPEN@) S.lifted = true;
+  // The drive guard on_open puts on each page (a live run's, and a rehearsal's): lifted, as no guard, until a
+  // DriveGuard arms it (`arm`, by the control, and its init script on each document after), so a Filler's own submit
+  // in a live run goes on as ever. Until then (`fresh`) it takes no lift either: a rehearsal's rearm() of a page no
+  // DriveGuard drove leaves it as it was. `arm` reaches every page of the context, so a pop-up the page opened before
+  // the DriveGuard is armed too (KAN-710, PR 477's third review).
+  let fresh = @AT_OPEN@;
+  if (fresh) S.lifted = true;
   if (apply(ownP, W, [MARK])) return;
   defineProp(W, MARK, {value: true});
   const onControl = [];  // what else hears a control: the note, below
@@ -268,7 +273,8 @@ _TEMPLATE = r"""
     // only ever blocks more: it takes no lift and no allowance (PR 477's second review).
     if (LATE && ((has(cmd, 'lift') && cmd.lift !== null) || (has(cmd, 'renote') && cmd.renote !== null)
       || any(['account', 'profile', 'upload', 'start', 'askTick', 'optSms', 'optMarketing'], (k) => has(cmd, k) && !!cmd[k]))) return;
-    if (has(cmd, 'lift')) {
+    if (has(cmd, 'arm') && cmd.arm === true && fresh) { fresh = false; S.lifted = false; }
+    if (has(cmd, 'lift') && !fresh) {
       const n = cmd.lift;
       S.lifted = n !== null && typeof n === 'object';
       S.held = S.lifted && has(n, 'held') && !!n.held;
@@ -1509,7 +1515,7 @@ def guard(page: Page) -> None:
 def _drive_at_open(page) -> None:
     """The drive guard's init script on a live run's page's context, before its first load (on_open), so it runs
     before each document's code (PR 477's second review). It starts lifted, as no guard: a DriveGuard arms it, with
-    Lisul's opt-ins, by the control in the open document and an init script for each one after."""
+    Lisul's opt-ins, by the control in the open documents and an init script for each one after."""
     context = page.context
     if not getattr(context, DRIVE_AT_OPEN, False):
         context.add_init_script(drive_script(at_open=True))
@@ -1755,6 +1761,19 @@ def applied_dismissed(page: Page) -> None:
     control(page, {"appliedDismissed": True}, (REHEARSAL,))
 
 
+def _arm_every_page(page) -> None:
+    """Arm on_open's drive guard (still lifted, as no guard) in the open documents of every other page of `page`'s
+    context: a pop-up the page opened before its DriveGuard (PR 477's third review). A page a DriveGuard or lift()
+    has set already keeps what it has: Lisul's held page stays his."""
+    try:
+        pages = list(page.context.pages)
+    except Exception:
+        return
+    for other in pages:
+        if other is not page:
+            control(other, {"arm": True}, (DRIVE,))
+
+
 def _refuse(route: Route) -> None:
     if route.request.method in ("GET", "HEAD", "OPTIONS"):
         return route.fallback()
@@ -1794,12 +1813,13 @@ class DriveGuard:
         before (the rehearsal's guard blocks every send); else the block-only copy (LATE): one put in after the page's
         code, which may have heard its control event's name or replaced a built-in it reads with, takes no lift or
         allowance, so a send there is left to Lisul."""
-        opts = {"optSms": sms_opt_in, "optMarketing": marketing_opt_in}
+        opts = {"arm": True, "lift": None, "optSms": sms_opt_in, "optMarketing": marketing_opt_in}
         _drive_at_open_context(page)
-        _init(page, {"lift": None, **opts}, (DRIVE,))  # each document from now: armed, on_open's copy too
+        _init(page, opts, (DRIVE,))  # each document from now: armed, on_open's copy too
         if not getattr(page, DRIVE_AT_OPEN, False):
             self._late(sms_opt_in, marketing_opt_in, getattr(page, REHEARSAL_AT_OPEN, False))
-        control(page, {"lift": None, **opts}, (DRIVE,))
+        control(page, opts, (DRIVE,))
+        _arm_every_page(page)
 
     def _late(self, sms_opt_in: bool, marketing_opt_in: bool, held: bool) -> None:
         """The copy for the open document's frames: under the rehearsal's guard, which ran before the page's code and
@@ -1863,7 +1883,7 @@ class DriveGuard:
         control(self._page, {"start": True})
 
     def arm(self) -> None:
-        control(self._page, {"lift": None, "account": False, "profile": False, "upload": False, "start": False}, (DRIVE,))
+        control(self._page, {"arm": True, "lift": None, "account": False, "profile": False, "upload": False, "start": False}, (DRIVE,))
         control(self._page, {"account": False, "profile": False, "upload": False, "start": False}, (REHEARSAL,))
         self._set_driving(True)
 
