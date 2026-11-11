@@ -965,6 +965,21 @@ _TEMPLATE = r"""
     }
     return apply(fetch, this, [request]);
   };
+  // A body as text, where it can be read at once: a string, URLSearchParams, or bytes (an ArrayBuffer or a view of one).
+  // A Blob can't be read at once, so a non-GET with one to Ashby, whose submit is named only in its body, is blocked
+  // (PR 477's second review: XHR's and the beacon's Blob and bytes bodies went unread).
+  const abLen = get(ArrayBuffer.prototype, 'byteLength'), isView = ArrayBuffer.isView;
+  const decoder = new TextDecoder(), decode = fn(TextDecoder.prototype, 'decode');
+  const isBytes = (x) => { try { abLen(x); return true; } catch (e) { return apply(isView, ArrayBuffer, [x]); } };
+  const bodyText = (b) => {
+    if (typeof b === 'string') return b;
+    const p = paramsOf(b);
+    if (p !== null) return p;
+    try { if (isBytes(b)) return decode(decoder, b); } catch (e) {}
+    return null;
+  };
+  const ASHBY = /^https?:\/\/[^\/?#]*ashbyhq\.com\//i;
+  const unread = (method, url, b) => !test(READS, text(method) || 'GET') && isBlob(b) && test(ASHBY, resolve(text(url), base()) || '');
   // What each XHR opened, kept where its page can't change it.
   const opened = new WeakMap(), wmGet = fn(WeakMap.prototype, 'get'), wmSet = fn(WeakMap.prototype, 'set');
   const open = XMLHttpRequest.prototype.open;
@@ -979,7 +994,7 @@ _TEMPLATE = r"""
   XMLHttpRequest.prototype.send = function (body) {
     const sent = wmGet(opened, this) || ['', ''];
     const method = sent[0], url = sent[1];
-    if (isFinal(method, url, typeof body === 'string' ? body : paramsOf(body))) {
+    if (isFinal(method, url, bodyText(body)) || unread(method, url, body)) {
       note(named(method, url));
       throw new DOMExc('Blocked by the @NAME@', 'NetworkError');
     }
@@ -990,7 +1005,7 @@ _TEMPLATE = r"""
   if (beacon) {
     Navigator.prototype.sendBeacon = function (url, data) {
       const u = Str(url);
-      if (isFinal('POST', u, typeof data === 'string' ? data : paramsOf(data))) { note(named('POST', u)); return false; }
+      if (isFinal('POST', u, bodyText(data)) || unread('POST', u, data)) { note(named('POST', u)); return false; }
       return apply(beacon, this, [u, data]);
     };
   }

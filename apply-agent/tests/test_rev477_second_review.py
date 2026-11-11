@@ -229,3 +229,54 @@ def test_a_token_named_field_that_says_send_keeps_the_apply_blocked(name):
     from test_submit_guard import _press_tal_apply
     posts, blocked = _press_tal_apply(fields=f'<input type="hidden" name="{name}" value="1">', rehearsal=True)
     assert posts == [] and blocked
+
+
+# --- other windows
+OTHER = {
+    "fetch from a new popup's window": f"""<title>Apply</title><button id=b>Open</button><script>
+      document.getElementById('b').onclick = () => {{ const w = window.open(''); w.fetch('{FINAL}', {{method: 'POST', body: 'x'}}).catch(() => {{}}); }};</script>""",
+    "form post from a new popup's document": f"""<title>Apply</title><button id=b>Open</button><script>
+      document.getElementById('b').onclick = () => {{ const w = window.open(''); w.document.body.innerHTML =
+        '<form id=f method=post action="{FINAL}"><input name=first value=Test></form>';
+        w.HTMLFormElement.prototype.submit.call(w.document.getElementById('f')); }};</script>""",
+    "XHR from a srcdoc frame made by script": f"""<title>Apply</title><button id=b>Open</button><script>
+      document.getElementById('b').onclick = () => {{ const i = document.createElement('iframe'); i.srcdoc = 'x';
+        document.body.append(i); i.onload = () => {{ const x = new i.contentWindow.XMLHttpRequest(); x.open('POST', '{FINAL}'); x.send('a'); }}; }};</script>""",
+    "data: URL popup posting": f"""<title>Apply</title><button id=b>Open</button><script>
+      document.getElementById('b').onclick = () => {{ const w = window.open('about:blank', 'x');
+        const f = document.createElement('form'); f.method = 'post'; f.action = '{FINAL}'; f.target = 'x';
+        f.innerHTML = '<input name=first value=Test>'; document.body.append(f); f.requestSubmit(); }};</script>""",
+}
+
+
+@pytest.mark.parametrize("name", list(OTHER))
+def test_other_window(name):
+    with cdp({START: OTHER[name]} | ALWAYS) as (page, _, site):
+        try:
+            page.locator("#b").click(timeout=3000)
+        except Exception:
+            pass
+        _settle(page, 1500)
+    assert site.applications() == []
+
+
+# Ashby's submit named only in its body (FINAL_BODIES): fetch reads a Blob body, XHR and sendBeacon don't.
+GQL = "https://jobs.ashbyhq.com/api/non-user-graphql"
+BODY = '{"operationName":"ApiSubmitSingleApplicationFormAction","variables":{}}'
+ASHBY = {
+    "CONTROL fetch with a string body": f"""<script>fetch('{GQL}', {{method: 'POST', body: '{BODY}'}}).catch(() => {{}});</script>""",
+    "CONTROL fetch with a Blob body": f"""<script>fetch('{GQL}', {{method: 'POST', body: new Blob(['{BODY}'])}}).catch(() => {{}});</script>""",
+    "XHR with a Blob body": f"""<script>const x = new XMLHttpRequest(); x.open('POST', '{GQL}'); x.send(new Blob(['{BODY}']));</script>""",
+    "sendBeacon with a Blob body": f"""<script>navigator.sendBeacon('{GQL}', new Blob(['{BODY}'], {{type: 'text/plain'}}));</script>""",
+    "XHR with an ArrayBuffer body": f"""<script>const x = new XMLHttpRequest(); x.open('POST', '{GQL}'); x.send(new TextEncoder().encode('{BODY}'));</script>""",
+}
+
+
+@pytest.mark.parametrize("name", list(ASHBY))
+def test_ashby_body(name):
+    with cdp({START: "<title>Apply</title>" + ASHBY[name]} | ALWAYS) as (page, _, site):
+        site.sent.clear(); site.bodies.clear()  # the fixture's first load was unguarded
+        page.reload()
+        _settle(page, 1500)
+        print("BLOCKED", page.evaluate("JSON.stringify([window.__applyRehearsalBlocked, window.__applyDriveBlocked])"), site.bodies)
+    assert [p for p, b in site.bodies if "ApiSubmit" in b] == []
