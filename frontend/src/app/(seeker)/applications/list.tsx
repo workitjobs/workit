@@ -23,10 +23,11 @@ import {
   useState,
   type ComponentType,
   type CSSProperties,
-  type DragEvent,
   type KeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from "react";
+import { createPortal } from "react-dom";
 
 import { SortIcon, TailorIcon } from "@/components/icons";
 import {
@@ -413,7 +414,7 @@ export function ApplicationsList({ applications }: { applications: Application[]
   const query = useApplicationsQuery();
   const push = useShallowPush();
   const layout = useColumnLayout();
-  const [drag, setDrag] = useState<{ id: ColumnId; over: ColumnId | null } | null>(null);
+  const [drag, setDrag] = useState<Drag>(null);
 
   const table = useTable({
     features: FEATURES,
@@ -580,11 +581,50 @@ export function ApplicationsList({ applications }: { applications: Application[]
             : rows.map(drawRow)}
         </TableBody>
       </Table>
+      <ColumnGhost drag={drag} />
     </Card>
   );
 }
 
-type Drag = { id: ColumnId; over: ColumnId | null } | null;
+/** A heading being dragged: its column, the column it would land beside,
+ *  and where its raised copy is drawn (viewport px, `ColumnGhost`). */
+type Drag = {
+  id: ColumnId;
+  label: string;
+  over: ColumnId | null;
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+} | null;
+
+/** How far the pointer moves sideways before a press on a heading becomes
+ *  a drag: less is a click, which sorts. */
+const DRAG_START = 4;
+/** Near the scroll box's side edge, a drag scrolls the table that way. */
+const DRAG_EDGE = 32;
+const DRAG_SCROLL = 12;
+
+/**
+ * The dragged heading's raised copy, sliding along the heading row
+ * (2026-11-11): at the row's height and between the table's edges, so the
+ * column moves left and right on a track, as Notion's does. The browser's
+ * own drag image followed the pointer anywhere on the page. In a portal,
+ * so no ancestor's transform or clip moves it.
+ */
+function ColumnGhost({ drag }: { drag: Drag }) {
+  if (!drag || typeof document === "undefined") return null;
+  return createPortal(
+    <div
+      aria-hidden
+      className="bg-panel ring-border-subtle shadow-lift rounded-control text-note text-ink-meta pointer-events-none fixed z-50 flex items-center px-4 font-medium ring-1"
+      style={{ left: drag.left, top: drag.top, width: drag.width, height: drag.height }}
+    >
+      <span className="truncate">{drag.label}</span>
+    </div>,
+    document.body,
+  );
+}
 
 /**
  * One column heading: its label (a sort button where the column sorts), a
@@ -592,17 +632,21 @@ type Drag = { id: ColumnId; over: ColumnId | null } | null;
  *
  * THE WHOLE HEADING CELL MOVES ITS COLUMN (2026-11-11, after Notion's
  * tables): a movable heading fills grey under the pointer with a grab
- * cursor, the cue that it drags, and a drag anywhere in it moves the
- * column (the browser's own drag and drop). Until then only the label
- * dragged, with no cue, and Table Settings had Move Left and Move Right
- * arrows per column, which the user found unneeded once the heading says
- * it drags. A keyboard moves a column with Alt+Left and Alt+Right from its
- * heading's sort button or resize handle. A press on the resize handle
- * never starts a move: it starts the resize, and a move does not start
- * while a column resizes (below). While a heading is dragged over another,
- * a brand bar marks the side it will land on. Frozen columns neither drag
- * nor take a drop. A drag needs a mouse; a phone keeps the default order,
- * which Reset Columns goes back to.
+ * cursor, the cue that it drags, and a press anywhere in it that moves
+ * sideways drags the column (`press`). The drag runs on a track: a raised
+ * copy of the heading (`ColumnGhost`) slides left and right along the
+ * heading row, held between the table's edges, whatever the pointer does
+ * up and down; the column lands beside the heading under the pointer's x,
+ * marked by a brand bar, and Escape puts it back. Near the table's side
+ * edge it scrolls that way. It was the browser's own drag and drop until
+ * the same day, whose image followed the pointer anywhere on the page; only
+ * the label dragged before that, with no cue, and Table Settings had Move
+ * Left and Move Right arrows per column. A keyboard moves a column with
+ * Alt+Left and Alt+Right from its heading's sort button or resize handle.
+ * A press on the resize handle never starts a move. Frozen columns neither
+ * drag nor take a drop. A drag takes a mouse: a finger on a heading
+ * scrolls the table, and a phone keeps its order, which Reset Columns
+ * goes back to.
  *
  * THE RESIZE HANDLE is 24px wide across the edge, a target the size the
  * rest of the table's controls are, with a 2px line (KAN-577; it was 8px).
@@ -611,8 +655,9 @@ type Drag = { id: ColumnId; over: ColumnId | null } | null;
  * keyboard (a focusable separator with its width as its value). Its mouse
  * press cancels the browser's own default, and no move starts while a
  * column resizes: a resize moves the headings under a still-pressed
- * pointer, and Chrome then began a drag of the heading that slid under it,
- * which swallowed the mouse-up and left the resize following the pointer.
+ * pointer, and Chrome then began a drag of the heading that slid under it
+ * (with the browser's drag, before 2026-11-11), which swallowed the
+ * mouse-up and left the resize following the pointer.
  */
 function HeadCell({
   header,
@@ -665,21 +710,89 @@ function HeadCell({
     }));
   }
 
-  const dragProps = movable
-    ? {
-        draggable: true,
-        onDragStart: (event: DragEvent) => {
-          if (column.table.getAllLeafColumns().some((other) => other.getIsResizing())) {
-            event.preventDefault();
-            return;
-          }
-          event.dataTransfer.effectAllowed = "move";
-          event.dataTransfer.setData("text/plain", id);
-          onDrag({ id, over: null });
-        },
-        onDragEnd: () => onDrag(null),
+  /** A press on the heading: past DRAG_START sideways it drags the column
+   *  (`Drag`, `ColumnGhost`), a mouse only (a finger scrolls the table),
+   *  never from the resize handle. Release drops it beside the column
+   *  under the pointer; Escape puts it back. */
+  function press(event: ReactPointerEvent<HTMLTableCellElement>) {
+    if (!movable || event.pointerType !== "mouse" || event.button !== 0) return;
+    if ((event.target as HTMLElement).closest('[role="separator"]')) return;
+    const cell = event.currentTarget;
+    const box = cell.closest<HTMLElement>('[data-slot="table-container"]');
+    if (!box) return;
+    const startX = event.clientX;
+    const grab = startX - cell.getBoundingClientRect().left;
+    let moving = false;
+    let landing: ColumnId | null = null;
+
+    function move(e: PointerEvent) {
+      if (!moving) {
+        if (Math.abs(e.clientX - startX) < DRAG_START) return;
+        moving = true;
+        document.body.style.userSelect = "none";
+        document.body.style.cursor = "grabbing";
       }
-    : {};
+      if (e.clientX > box!.getBoundingClientRect().right - DRAG_EDGE)
+        box!.scrollLeft += DRAG_SCROLL;
+      else if (e.clientX < box!.getBoundingClientRect().left + DRAG_EDGE)
+        box!.scrollLeft -= DRAG_SCROLL;
+      const bounds = box!.getBoundingClientRect();
+      const rect = cell.getBoundingClientRect();
+      // The movable heading under the pointer's x; past the frozen one, or
+      // off the headings, the last it was over.
+      const hit = [...cell.parentElement!.querySelectorAll<HTMLElement>("th[data-column]")].find(
+        (th) => {
+          const r = th.getBoundingClientRect();
+          return e.clientX >= r.left && e.clientX < r.right;
+        },
+      );
+      const hitId = hit?.dataset.column as ColumnId | undefined;
+      if (hitId && !FROZEN.includes(hitId)) landing = hitId;
+      onDrag({
+        id,
+        label,
+        over: landing,
+        left: Math.min(Math.max(e.clientX - grab, bounds.left), bounds.right - rect.width),
+        top: rect.top,
+        width: rect.width,
+        height: rect.height,
+      });
+    }
+    function stop() {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", cancel);
+      window.removeEventListener("keydown", escape);
+      document.body.style.userSelect = "";
+      document.body.style.cursor = "";
+      onDrag(null);
+      if (!moving) return;
+      // The release ends a drag, not a sort: its click is swallowed, and
+      // the listener goes after this task, so no later click is.
+      const swallow = (e: MouseEvent) => {
+        e.stopPropagation();
+        e.preventDefault();
+      };
+      window.addEventListener("click", swallow, { capture: true, once: true });
+      setTimeout(() => window.removeEventListener("click", swallow, { capture: true }));
+    }
+    function up() {
+      const target = landing;
+      const moved = moving;
+      stop();
+      if (moved && target && target !== id) onDrop(id, target);
+    }
+    function cancel() {
+      stop();
+    }
+    function escape(e: globalThis.KeyboardEvent) {
+      if (e.key === "Escape") cancel();
+    }
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", cancel);
+    window.addEventListener("keydown", escape);
+  }
 
   return (
     <TableHead
@@ -691,11 +804,12 @@ function HeadCell({
         STICKY_TH,
         className,
         movable &&
-          "hover:bg-hover cursor-grab transition-colors duration-150 active:cursor-grabbing",
+          "hover:bg-hover cursor-grab transition-colors duration-150 select-none active:cursor-grabbing",
         drag?.id === id && "opacity-50",
       )}
       style={{ width, ...style }}
-      {...dragProps}
+      data-column={id}
+      onPointerDown={press}
       onKeyDown={(event) => {
         // Alt+Left and Alt+Right: the keyboard's way to move the column.
         if (!movable || !event.altKey) return;
@@ -709,18 +823,6 @@ function HeadCell({
         if (!target) return;
         event.preventDefault();
         onDrop(id, target);
-      }}
-      onDragOver={(event) => {
-        if (!drag || !movable) return;
-        event.preventDefault();
-        event.dataTransfer.dropEffect = "move";
-        if (drag.over !== id) onDrag({ ...drag, over: id });
-      }}
-      onDrop={(event) => {
-        if (!drag || !movable) return;
-        event.preventDefault();
-        onDrop(drag.id, id);
-        onDrag(null);
       }}
     >
       <div className={cn("flex min-w-0 items-center", centred && "justify-center")}>

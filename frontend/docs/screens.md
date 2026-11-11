@@ -1132,8 +1132,13 @@ filtered.
   with no round trip.
 - **Columns** move as Notion's do (2026-11-11): a movable heading fills
   grey under the pointer with a grab cursor, and a drag anywhere in it
-  moves the column (a brand bar marks the side it lands on); a keyboard
-  moves it with Alt+Left and Alt+Right from its sort button or resize
+  moves the column **along the heading row only**: a raised copy of the
+  heading slides left and right on the row, held between the table's
+  edges, however the pointer moves up and down (the user's call: the
+  browser's own drag image went anywhere on the page). It lands beside the
+  heading under the pointer, marked by a brand bar; Escape cancels it, the
+  table scrolls near its side edge, and a finger scrolls rather than
+  drags. A keyboard moves it with Alt+Left and Alt+Right from its sort button or resize
   handle. Table Settings had Move Left and Move Right arrows per column
   (KAN-577, WCAG 2.5.7's way without a drag) until the user dropped them
   that day, once the heading showed it drags: a pointer that cannot drag

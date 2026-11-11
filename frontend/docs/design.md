@@ -1274,7 +1274,9 @@ screen's own `<input>`, `<textarea>` or `FIELD_CONTROL` string:
   heading row has no border (`STICKY_HEAD`), each heading cell its inset
   rule (`STICKY_TH`), and a frozen heading its rule and its edge together
   (`STICKY_TH_FROZEN`), in `components/fill-page.ts`. A movable column's
-  heading fills grey under the pointer and drags anywhere, as Notion's do.
+  heading fills grey under the pointer and drags from anywhere in it, as
+  Notion's do, on a track: its raised copy moves left and right along the
+  heading row only, never up or down the page.
 - **A grouped table draws the shared heading row** (`GroupHeadingRow`): a
   fold, an optional glyph, the name in ink and its count on the row's
   light band, and the group's own action at its right (Remove All on
