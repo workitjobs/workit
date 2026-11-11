@@ -510,7 +510,11 @@ class ClaudeFill:
                 if todo else []
             fields = [{"field": name, "question": labels[name], "answer": value.name if isinstance(value, Path) else value}
                       for name, value in ((n, todo[n]) for n in order)]
-            files = [value for value in todo.values() if isinstance(value, Path)]
+            # Every file the plan gives the form, not only this round's: a slot an earlier round filled may need its own
+            # file again, and Claude's upload tool sees only the files passed here (KAN-789). Never the résumé plain code
+            # attached: Claude leaves that field, and with no copy it can't put the résumé in another slot.
+            files = list(dict.fromkeys(value for name, value in answers.items()
+                                       if isinstance(value, Path) and name not in self._attached))
             prompt = f"<fields>\n{json.dumps(fields, indent=0)}\n</fields>"
             if self._history and any(SECTION_COUNT.match(label.strip()) for label in labels.values()):
                 prompt = f"<entries>\n{json.dumps(self._history, indent=0, default=str)}\n</entries>\n" + prompt

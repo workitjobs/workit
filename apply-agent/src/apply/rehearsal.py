@@ -87,7 +87,15 @@ from apply.submit_guard import (
 )
 from apply.tracker import Row
 from apply.verify import verifying
-from apply.worker import Result, apply_to, keep_sent, named, page_html, sent_folder
+from apply.worker import (
+    Result,
+    apply_to,
+    keep_sent,
+    named,
+    page_html,
+    sent_files,
+    sent_folder,
+)
 
 # Claude fill's cost, which ends its reason; a rehearsal shows it as tokens.
 CLAUDE_FILL_COST = re.compile(r"(^|; )Claude fill: \d+ sessions, [^;]*tokens$")
@@ -998,11 +1006,19 @@ class _Ask:
     def asked(self) -> list[dict]:
         return getattr(self._adapters.board, "asks", lambda n: [])(self._n)
 
-    def _resume(self) -> list[Path]:
-        """The profile's resume, for Claude to attach when his message asks (KAN-683): none if it isn't there."""
-        resume = self._profile.get("files.resume_pdf")
-        path = Path(str(resume)).expanduser() if resume else None
-        return [path] if path and path.is_file() else []
+    def _files(self, done: "Rehearsed") -> list[Path]:
+        """Every file Apply prepared for this form, for Claude to attach to the slot his message names (KAN-683,
+        KAN-789): the files the form was given, then each kept for it under SENT (an earlier fill's cover letter
+        too), then the profile's resume and transcript. One file a name, the first found: Claude's upload folder
+        holds each by its name. Before, Ask had the resume alone, and couldn't put the form's cover letter back."""
+        given = [Path(str(f["path"])) for f in done.files if f.get("path")]
+        profile = [Path(str(value)).expanduser() for key in ("files.resume_pdf", "files.unofficial_transcript_pdf")
+                   if (value := self._profile.get(key))]
+        by_name: dict[str, Path] = {}
+        for path in [*given, *sent_files(done.posting.id), *profile]:
+            if path.is_file() and path.name not in by_name:
+                by_name[path.name] = path
+        return list(by_name.values())
 
     def __call__(self, page, item: dict) -> None:
         done, adapters, n = self._done(), self._adapters, self._n
@@ -1020,7 +1036,7 @@ class _Ask:
         try:
             reply = ask.ask(adapters.claude, page, message, item.get("thread") or [], self._form(done),
                             ask.sources(self._profile, adapters.answer_bank, self._profile.get("files.resume_pdf")),
-                            ask.system_for(self._profile), guard=self._guard[1], files=self._resume())
+                            ask.system_for(self._profile), guard=self._guard[1], files=self._files(done))
         except Exception as error:  # Claude or the page failing: nothing more was done, and he is told
             reply = ask.Reply(f"Claude couldn't work on the form: {type(error).__name__}: {one_line(str(error))[:300]}",
                               failed=True)

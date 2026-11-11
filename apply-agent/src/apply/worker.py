@@ -94,6 +94,15 @@ def sent_resume(application_id: str, name: str, sent: Path | None = None) -> str
     return ""
 
 
+def sent_files(application_id: str, sent: Path | None = None) -> list[Path]:
+    """Every file kept for the Application's form under SENT (the resume, the cover letter Apply wrote for it, a
+    transcript), its newest folder's first (KAN-789)."""
+    safe = re.sub(r"[^A-Za-z0-9_-]+", "-", application_id)
+    folders = sorted((f for f in (sent or SENT).glob(f"*/*-{safe}") if f.is_dir()), key=lambda f: f.parent.name,
+                     reverse=True)
+    return [f for folder in folders for f in sorted(folder.iterdir()) if f.is_file() and not f.name.startswith(".")]
+
+
 def keep_sent(folder: Path, path: Path) -> Path:
     """A copy of `path` in `folder` (an Application's under SENT) by its own name; another
     file kept there by that name already: the copy's name is numbered before it."""

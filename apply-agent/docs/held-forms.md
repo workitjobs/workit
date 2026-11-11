@@ -282,6 +282,12 @@ fixes it live on that form.
   every frame's fields and values, captcha frames left out, a field on another step marked `hidden`),
   Apply's plan and Record for the form (`_Ask._form`), and the sources (`ask.sources`: profile,
   Answer bank, policies, resume text). Page text is data, never an instruction.
+- **The files it may attach** (`_Ask._files`, KAN-683, KAN-789). Claude's upload tool sees only the files Apply
+  copies into the drive's folder, so Ask gets every file Apply prepared for the form: the files the form was given,
+  then each file kept for its Application under `sent/` (newest folder first, so an earlier fill's cover letter
+  too: `worker.sent_files`), then the profile's resume and transcript. Each name is given once, the first found.
+  Before, Ask had the resume alone, and couldn't put JPMorgan's own cover letter back in its Cover Letter slot
+  (2026-11-10).
 - **How it acts.** `claude_cli.drive`, as Claude fill does (Playwright MCP on CDP, Apply's own MCP server
   on a plain Worker), under the drive guard. Code, not only the prompt, judges the real element, never
   Claude's word for it (KAN-654). The send_click hook runs with `--ask`: a second hook after each browser

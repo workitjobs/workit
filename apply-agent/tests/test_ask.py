@@ -443,6 +443,42 @@ def test_an_ask_is_given_the_profile_s_resume_to_attach(tmp_path, monkeypatch):
     assert claude.calls[0]["files"] == [resume]
 
 
+def test_an_ask_is_given_every_file_apply_prepared_for_the_form(tmp_path, monkeypatch):
+    # KAN-789, JPMorgan on Oracle (2026-11-10): Ask had the resume alone, so it couldn't put back the cover letter that
+    # Apply wrote for this form, which an earlier fill had kept under SENT.
+    from apply import worker
+
+    resume, transcript = tmp_path / "Resume.pdf", tmp_path / "Transcript.pdf"
+    given = tmp_path / "given" / "Resume.pdf"  # the form's own copy of the resume, by the same name
+    sent = tmp_path / "sent"
+    letter = sent / "2026-11-10" / f"acme-robotics-{POSTING.id}" / "Test_Person_Cover_Letter.pdf"
+    older = sent / "2026-11-09" / f"acme-robotics-{POSTING.id}" / "Test_Person_Cover_Letter.pdf"
+    other = sent / "2026-11-10" / "acme-robotics-another-request" / "Other_Cover_Letter.pdf"
+    for path in (resume, transcript, given, letter, older, other):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"%PDF-1.4 " + str(path).encode())
+    monkeypatch.setattr(worker, "SENT", sent)
+    claude = Claude(lambda p: None, said(reply="Attached your cover letter."))
+    adapters = SimpleNamespace(board=Board(), claude=claude, records=FolderRecords(tmp_path), repairs=RepairRequests(),
+                               answer_bank=AnswerBank(), clock=SimpleNamespace(now=lambda: datetime(2026, 11, 10, 23, 50)))
+    facts = {"files.resume_pdf": str(resume), "files.unofficial_transcript_pdf": str(transcript)}
+    profile = SimpleNamespace(policy=lambda key: None, facts=lambda: {"identity": {}}, policies=dict, get=facts.get)
+    gpa = Question("gpa", "GPA", "text", True)
+    saved = Record(POSTING, Status.HELD, "", Filled((gpa,), {"gpa": "3.9"}, {"gpa": "3.9"}, b""), date(2026, 11, 10))
+    done = rehearsal.Rehearsed(POSTING, "ready to submit", saved=saved, questions=(gpa,),
+                               files=[{"label": "Resume", "name": "Resume.pdf", "path": str(given)}])
+    page = Page([{"i": 0, "type": "file", "label": "Cover Letter", "value": ""}])
+    page.title = lambda: "More About You"
+    asker = rehearsal._Ask(lambda: done, adapters, profile, 0, [].append)
+    asker.open(page)
+
+    monkeypatch.setattr(rehearsal, "DriveGuard", lambda *a, **k: Guard())  # no page code: the fake page has none
+    asker(page, {"id": "ask-1", "message": "put my cover letter back in the Cover Letter slot", "thread": [], "via": "terminal"})
+
+    # The form's own copy first, the newest kept cover letter, then the profile's transcript; one file a name.
+    assert claude.calls[0]["files"] == [given, letter, transcript]
+
+
 def test_the_held_page_s_glue_keeps_his_message_and_the_fix_in_the_record_and_files_a_repair(tmp_path):
     gpa = Question("gpa", "GPA", "text", True)
     filled = Filled((gpa,), {"gpa": "3.9"}, {"gpa": "3.9"}, b"")
