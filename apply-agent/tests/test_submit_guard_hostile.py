@@ -487,6 +487,18 @@ GUARD_HOLES = frozenset({
 })
 
 
+# The guard holes that hang on how a plain Worker carries the guards' state, touches, controls and network rules: these
+# run on PRs on a plain Worker too. The other holes are the guard script's own, the same script on both kinds of
+# Worker, and run on PRs on every path on CDP; their plain-Worker pairs run nightly. All 38 on a plain Worker took
+# the hostile step past its 9 minutes on CI (551 s, 2026-11-11).
+PLAIN_HOLES = frozenset({
+    "a page that lifts the guards itself", "a page that arms the account click itself", "an inner frame that arms itself",
+    "a frame that forges the extension's touch", "a pointerdown handler that clicks the page's own button",
+    "a page that vouches for its own Apply", "a page that lifts the guards by their install mark",
+    "a page that hears the drive guard's control name", "requests sent around the guard",
+})
+
+
 def first_page_on_prs() -> list:
     """PAGES for a plain-Worker matrix: PR CI runs every path against the first page, and the
     nightly workflow (apply-nightly.yml) runs the rest, marked `nightly` (KAN-780: the whole
@@ -507,9 +519,10 @@ def each_page_and_path_once_on_prs(paths=None) -> list:
 
 def plain_pairs_on_prs(paths) -> list:
     """(page, path) pairs for the plain-Worker click matrix: PR CI runs every path against the first page and each
-    guard hole's page on one path (a diagonal), and the nightly workflow runs the rest, marked `nightly` (KAN-780)."""
+    plain Worker's guard hole (PLAIN_HOLES) on one path (a diagonal), and the nightly workflow runs the rest, marked
+    `nightly` (KAN-780)."""
     paths, first = list(paths), next(iter(PAGES))
-    return [(page, path) if page == first or (page in GUARD_HOLES and i % len(paths) == paths.index(path))
+    return [(page, path) if page == first or (page in PLAIN_HOLES and i % len(paths) == paths.index(path))
             else pytest.param(page, path, marks=pytest.mark.nightly)
             for i, page in enumerate(PAGES) for path in paths]
 
@@ -1040,3 +1053,4 @@ def test_a_final_submit_dressed_as_a_sign_in_is_still_his_submit_on_a_plain_work
 def test_every_guard_hole_is_a_hostile_page():
     # A name in GUARD_HOLES that is no page would leave that hole to the nightly run alone.
     assert GUARD_HOLES <= set(PAGES)
+    assert PLAIN_HOLES <= GUARD_HOLES

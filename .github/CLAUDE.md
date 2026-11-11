@@ -183,10 +183,14 @@ UTC, or `gh workflow run apply-nightly.yml`) runs every `nightly` test.
 The pages of PR 477's guard holes (KAN-710: `GUARD_HOLES` in
 `test_submit_guard_hostile.py`, among them a page that sets the guards' old
 `window.__apply*` flags itself) are never only nightly: PRs run each one on
-every CDP path and on one plain-Worker path. A page added for a new guard
-hole joins `GUARD_HOLES`. They doubled the plain-Worker cases on PRs (about
-70, one at a time: 3 min 14 s on a 14-core Mac on 2026-11-10), so the hostile
-step's limit is 9 minutes, not 6. A
+every CDP path. The holes that hang on how a plain Worker carries the guards'
+state, touches, controls and network rules (`PLAIN_HOLES`) also run on one
+plain-Worker path; the rest of their plain-Worker pairs run nightly, since the
+guard script is the same on both kinds of Worker. A page added for a new
+guard hole joins `GUARD_HOLES`, and `PLAIN_HOLES` too when it is about a plain
+Worker. With all 38 on a plain Worker the hostile step took 551 s on CI
+(2026-11-11) and hit its limit, so only `PLAIN_HOLES` run there on PRs, and
+the step's limit stays 9 minutes, not 6. A
 test safe only on its own (a fixed port or path) can't join a parallel step.
 
 The frontend job runs `format:check`, so an unformatted file fails the PR.

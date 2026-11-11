@@ -312,8 +312,8 @@ jobs:
         run: uv run python -c "from apply.plain.launcher import chrome_for_testing; print(chrome_for_testing())"
       # The submit guard's hostile pages (KAN-666): no-browser, CDP and plain Worker cases.
       # On PRs every page and every path at least once; every pair nightly.
-      # PR 477's guard holes run on PRs too (KAN-710): their plain-Worker cases, one at a
-      # time, took 3 min 14 s of a 3 min 12 s step on a 14-core Mac, so the limit is 9.
+      # PR 477's guard holes run on PRs too (KAN-710): every CDP path, and PLAIN_HOLES on a
+      # plain Worker. All 38 on a plain Worker took 551 s here (2026-11-11), past the limit of 9.
       - name: Submit guard hostile pages
         timeout-minutes: 9
         run: uv run pytest -q -n auto --dist loadgroup --durations=15 -m "not nightly" tests/test_submit_guard_hostile.py
