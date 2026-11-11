@@ -119,7 +119,7 @@ A file, or a path on this Mac (`/Users/...`, `~/...`, `C:\...`), goes only into 
 engine's plan gives one to any other field, `fill_engine.plan` leaves that field blank (`LOCAL_PATH` in
 `Plan.blanks`, KAN-785). On JPMorgan's Oracle form (2026-11-10), "Resume or Additional Documents Link
 1" got the resume's path, and "Resume or Additional Documents: Cover Letter" got the resume. The
-engine's resume rule matched the heading. From engine v0.3.43, that rule takes only an upload that no
+engine's resume rule matched the heading. From engine v0.3.44, that rule takes only an upload that no
 heading names as another document. A cover letter slot under any heading follows the `cover_letter`
 policy, and "Link N" is the Nth of the profile's links (the portfolio first), else blank. In the same
 version, a master's plan question ("For those of you pursuing a master's degree, do you plan to start
