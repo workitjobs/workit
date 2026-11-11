@@ -462,6 +462,13 @@ Find files with a directory listing; these are the rules for where code goes.
   **Each listed answer carries `answered_at`** (KAN-369), when it was last
   saved: the page marks the student's own answers (captured from a form)
   New by it until they have seen them. Tests: `tests/test_captured_answers.py`.
+  **Documents' Cover Letters tab lists the cover letters** (KAN-766,
+  `GET /applicants/{id}/cover-letters`, `pipeline.cover_letters`): every
+  saved answer asked in words whose Question type is `cover-letter`, read
+  per row as the plan's `type`, else `question_types.classify(label)`
+  (`written.question_type`), at any stage, last saved first, with the
+  posting's logo and the application's stage. Read-only. Tests:
+  `tests/test_pasted_answers.py`.
   **Problem reports from the extension's panel** (KAN-403, fix reports
   KAN-369; `routers/fill_reports.py` over `queries/fill_reports.py`, table
   `fill_reports`, migrations `c4e1a9f2d803`, `e5b8d2a7c914`): `POST

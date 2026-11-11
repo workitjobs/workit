@@ -2871,7 +2871,15 @@ are in `docs/auth.md`.
   tile leads a row, since Type says what each resume is. The headings name each column once: as cards, each resume
   labeled its own date "Modified" or "Created", which the user found
   repetitive. Its columns do not move, resize or hide as the Tracker's
-  do. **Both layouts scroll with the page**, as the Tracker's table does
+  do. **Name is two fifths of the table and Target Job takes the rest**
+  (`RESUME_NAME_COL`, 2026-11-11): Name took all the room the fixed
+  columns left, so a short name stood far from its job, which was cut at
+  256px. **The hover icons fit inside Date Modified** (`RESUME_DATE_COL`
+  144px from `@2xl`, 4 x 32px and 8px of icons), and below `@2xl` they
+  stay off and ⋮ holds them: at 128px and 96px they ran over Type and the
+  name. Cover Letters' table (`cover-letters/cover-letters.tsx`) uses the
+  same column constants, so a width change here changes both tabs.
+  **Both layouts scroll with the page**, as the Tracker's table does
   (2026-11-10): the list, then the grid, scrolled inside their own box
   down to the page's foot from KAN-434 (`ResumeScroll`'s `fill`, which
   Tailor's Pick a Resume keeps), and once the table scrolled with the page

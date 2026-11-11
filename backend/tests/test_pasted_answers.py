@@ -184,3 +184,58 @@ async def test_a_pasted_answer_is_deleted_from_the_page_and_asked_again(running,
     assert kept == [CLEAN]
     assert [q["answer"] for q in await _tab_asks(me, job)] == [None]
     assert [q["name"] for q in (await _page(me))[0]["questions"]] == ["question_7"]
+
+
+COVER = {"name": "question_9", "label": "Cover Letter", "required": False, "max_length": None}
+
+
+async def _cover_letters(me: str):
+    async with _api() as webapp:
+        return await webapp.get(f"{me}/cover-letters")
+
+
+async def test_the_cover_letters_tab_lists_only_cover_letters_last_saved_first(running, applicant, database):  # noqa: F811
+    """Documents' Cover Letters tab (KAN-766): each saved answer whose
+    Question type is cover-letter, with its posting and stage; a plain
+    written answer is not one."""
+    me, (first, second) = await _student_queues(database, applicant, 2)
+    await _company(database, first, "Globex")
+    await _tab_asks(me, first, WHY, COVER)
+    await _tab_asks(me, second, COVER)
+    assert (await _paste(me, first, question_7=CLEAN, question_9=CLEAN)).status_code == 200
+    assert (await _paste(me, second, question_9=CLEAN)).status_code == 200
+
+    res = await _cover_letters(me)
+
+    assert res.status_code == 200, res.text
+    letters = res.json()
+    assert [(c["job_id"], c["name"]) for c in letters] == [(second, "question_9"), (first, "question_9")]
+    globex = letters[1]
+    assert globex["company"] == "Globex" and globex["title"] and globex["label"] == "Cover Letter"
+    assert globex["text"] == CLEAN and globex["own"] is False and globex["answered_at"]
+    assert globex["stage"] == "queued" and globex["closed"] is False
+
+
+async def test_a_letter_their_claude_wrote_is_known_by_its_plan_not_its_label(running, applicant, database):  # noqa: F811
+    me, (job,) = await _student_queues(database, applicant, 1)
+    await _tab_asks(me, job, WHY, COVER)
+    assert (await _paste(me, job, question_7=CLEAN, question_9=CLEAN)).status_code == 200
+    # Their Claude planned WHY as a cover letter and COVER as something else.
+    async with database() as session:
+        for name, kind in (("question_7", "cover-letter"), ("question_9", "why-company")):
+            await session.execute(
+                text("UPDATE written_answers SET review = CAST(:r AS jsonb) WHERE job_id = :j AND name = :n"),
+                {"r": f'{{"plan": {{"type": "{kind}"}}}}', "j": job, "n": name},
+            )
+        await session.commit()
+
+    assert [c["name"] for c in (await _cover_letters(me)).json()] == ["question_7"]
+
+
+async def test_only_the_student_reads_their_cover_letters(running, applicant, database):  # noqa: F811
+    me, _ = await _student_queues(database, applicant, 1)
+    async with database() as session:
+        other = (await session.execute(text("SELECT gen_random_uuid()"))).scalar_one()
+    _signed_in_as(other)
+
+    assert (await _cover_letters(me)).status_code == 403

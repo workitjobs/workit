@@ -2381,9 +2381,15 @@ Resumes, each with a button pointing at the other, until KAN-249 made them
 one row, Resumes & Experiences, with a switcher between two views. KAN-766
 split them again: Experiences is the source, not a kind of document, the
 switcher (for two looks of the same content) sat where a tab should, and
-cover letters needed a home beside the resumes. **Cover Letters** holds a
-placeholder ("Cover Letters Are Coming") until its design
-(`docs/cover_letters.md`) is reviewed and built.
+cover letters needed a home beside the resumes. **Cover Letters**
+(`cover-letters/cover-letters.tsx`, step 1 of `docs/cover_letters.md`)
+lists every cover letter WorkIt wrote as a written answer, in the
+Resumes table's card, headings and column widths: Job (logo, role over
+company), Status (the stage badge), Date Written and Copy, under a search
+over the job and the text. A row opens the letter read-only in a dialog
+with Copy and Open Application. With none it says "No Cover Letters
+Yet". Uploads, the letter each application sent and writing one in
+WorkIt wait on the design's review.
 
 ## Experiences (`/experiences`)
 
