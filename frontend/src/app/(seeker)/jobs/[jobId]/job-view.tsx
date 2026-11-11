@@ -7,7 +7,7 @@ import { AskScoutButton } from "@/components/scout/scout-buttons";
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Section } from "@/components/ui/section";
+import { SectionHeading } from "@/components/ui/section-heading";
 import { listBuiltResumes } from "@/lib/built-resume-actions";
 import { cn } from "@/lib/cn";
 import { listSentResumes } from "@/lib/sent-resume-actions";
@@ -330,10 +330,22 @@ export function JobViewBody({
         </>
       )}
 
-      {/* Its title is for screen readers (2026-11-10): the Overview tab
-          names it, and the description's own 20px section headings
-          (description.tsx) carry it on screen, as Jobright's do. */}
-      <Section title="About the Role" titleHidden={Boolean(job.description)}>
+      {/* A white card, as Key Requirements is (2026-11-10): on the page's
+          grey ground the description floated with nothing holding it. Its
+          title is for screen readers: the Overview tab names it, and the
+          description's own 20px section headings (description.tsx) carry
+          it on screen, as Jobright's do. The block under the title starts
+          at the card's own padding, its margins dropped. */}
+      <Card
+        as="section"
+        padding="lg"
+        elevated={false}
+        aria-label="About the Role"
+        className="mt-6 [&>.sr-only+*]:mt-0 [&>.sr-only+*>:first-child]:mt-0"
+      >
+        <SectionHeading className={job.description ? "sr-only" : undefined}>
+          About the Role
+        </SectionHeading>
         {/* The card names one place and how many more; here, all of them. */}
         {places.length > 1 && (
           <p className="text-ink mt-3 text-base">Open in {places.join(" · ")}.</p>
@@ -350,7 +362,7 @@ export function JobViewBody({
             This posting has no description here. Apply Now opens it on {job.company}&apos;s site.
           </p>
         )}
-      </Section>
+      </Card>
     </div>
   );
 }

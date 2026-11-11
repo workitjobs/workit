@@ -343,9 +343,10 @@ It is the mock's `JobDetailHeader` with the card's own facts
 "About the Role": `[jobId]/description.tsx` reads the plain-text description's
 own shape (Title Case lines as subheadings, the short lines under one as a
 list), and a description the scraper cut at 8,000 characters (it ends " …")
-says so and links to the whole posting. It fills the header's facts column
-at 16px, about 88 characters a line, beside the match rail's column, with
-Key Requirements over it on the same edge (2026-11-10; `JOB_BODY`: the page
+says so and links to the whole posting. It sits in a white card, as Key
+Requirements does (on the grey ground it floated with nothing holding it),
+in the header's facts column at 16px, about 88 characters a line, beside
+the match rail's column, with Key Requirements over it on the same edge (2026-11-10; `JOB_BODY`: the page
 is the Cards view's 944px, as the card it was opened from; 736px of
 content, `max-w-job`, the day before). It stopped at
 46ch of 14px text from KAN-569 while the blocks above it ran the page's
@@ -359,7 +360,7 @@ icons stay grey: there they label controls, here they mark where to read.
 Section titles are 20px bold with a 24px icon, as Jobright's (2026-11-10):
 at 16px bold over the 16px body they read as bold body text, which the
 user found too small. "About the Role" above them is for screen readers
-only when there is a description (`Section`'s `titleHidden`): the Overview
+only when there is a description: the Overview
 tab names it, and at 16px it would rank under its own sections. An
 employer's subheading is 16px semibold. List bullets are ink, like
 the text. **A sectioned description always shows Overview, Responsibilities,

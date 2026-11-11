@@ -9,20 +9,10 @@ import { cn } from "@/lib/cn";
  * Moved here from the search detail pane once the job-detail pages became a
  * second and third consumer of the exact same shape.
  */
-export function Section({
-  title,
-  titleHidden = false,
-  children,
-}: {
-  title: string;
-  /** The title for screen readers only, where the block's own headings
-   *  name it on screen: a job's About the Role (jobs/[jobId]/job-view.tsx). */
-  titleHidden?: boolean;
-  children: ReactNode;
-}) {
+export function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="mt-5">
-      <SectionHeading className={titleHidden ? "sr-only" : undefined}>{title}</SectionHeading>
+      <SectionHeading>{title}</SectionHeading>
       {children}
     </section>
   );
