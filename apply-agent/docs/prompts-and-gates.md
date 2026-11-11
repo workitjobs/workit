@@ -67,9 +67,9 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
   byte (`tests/test_truth.py` compares them): change the backend's file,
   then copy it here. An outcome counts as held only when a fact about the
   same project states that kind of effect (KAN-750): the project the
-  sentence, or the nearest sentence before it, names, matched to a Story
-  bank heading or a name a fact gives. One whose project it cannot tell
-  is a claim. A Draft of a one-off question gets the same check (not the
+  sentence, or the nearest sentence before it, or the plan's story names,
+  matched to a Story bank heading (a tool two projects share tells
+  neither). One whose project it cannot tell is a claim. A Draft of a one-off question gets the same check (not the
   date part: the profile keeps dates as values) and needs Lisul when it
   finds a claim.
 - The not-on-resume gate (`gates.on_resume`) reads the text of the
