@@ -1116,8 +1116,9 @@ def test_no_typing_path_sends_a_hostile_page_on_a_plain_worker(page_name, path):
 
 
 # KAN-793, the review of #555: what outlives a press. A service worker the page started posts after its tab closed,
-# when the last guarded tab's rules had gone with it (its requests come from no tab, -1). It runs with plain code's
-# Next; the control shows the page sends without the guard.
+# when the last guarded tab's rules had gone with it (its requests come from no tab, -1). A pop-up the extension opened
+# for a refused window.open (accounts.js, while something listens on the page) had no rules, and a worker its page
+# started posted. Each runs with plain code's Next; the control shows each page sends without the guard.
 SW = "/hostile-sw/sw.js"  # its own scope, so no other test's page is under it
 LATE_SW = {
     START: f"""<title>Apply</title><form><input name=first value=Test><button id=b type=button>Next</button></form>
@@ -1128,6 +1129,14 @@ LATE_SW = {
 self.addEventListener('message', (e) => e.waitUntil(new Promise((done) => setTimeout(() =>
   done(fetch('{FINAL}', {{method: 'POST', body: 'first=Test'}}).catch(() => {{}})), 4000))));""",
 }
+POPUP = "/acme/jobs/123/popup"
+POPUP_WORKER = {
+    START: f"""<title>Apply</title><form><input name=first value=Test>
+        <button id=b type=button onclick="window.open('{POPUP}')">Next</button></form>""",
+    POPUP: f"""<title>Sign in</title><p>Sign in</p><script>new Worker(URL.createObjectURL(new Blob([
+        "setTimeout(() => fetch('{HOST}{FINAL}', {{method: 'POST', body: 'a'}}).catch(() => {{}}), 1500)"])));</script>""",
+}
+
 
 def _late_sw(guarded: bool) -> list[str]:
     _plain_or_skip()
@@ -1149,6 +1158,23 @@ def _late_sw(guarded: bool) -> list[str]:
     return site.applications()
 
 
+def _popup_worker(guarded: bool) -> list[str]:
+    _plain_or_skip()
+    from plain_fakes import fake_page
+
+    site = Site(POPUP_WORKER)
+    with fake_page(site.handle, url=HOST + START) as page:
+        if guarded:
+            guard(page)
+        page.on("request", lambda request: None)  # as Workday's _send listens on its account click
+        try:
+            plain_next(page, DriveGuard(page), "Next")
+        except Handoff:
+            pass  # the step stays: its Next sends nothing the form shows
+        _settle(page, 4000)
+    return site.applications()
+
+
 @ONE_PLAIN_PROCESS
 def test_a_service_worker_sends_without_the_guard_after_its_tab_closed():
     assert _late_sw(guarded=False) == [FINAL]
@@ -1157,6 +1183,16 @@ def test_a_service_worker_sends_without_the_guard_after_its_tab_closed():
 @ONE_PLAIN_PROCESS
 def test_a_service_worker_sends_nothing_after_the_last_guarded_tab_closed():
     assert _late_sw(guarded=True) == []
+
+
+@ONE_PLAIN_PROCESS
+def test_a_worker_in_a_pop_up_sends_without_the_guard():
+    assert _popup_worker(guarded=False) == [FINAL]
+
+
+@ONE_PLAIN_PROCESS
+def test_a_worker_in_a_pop_up_the_extension_opened_sends_nothing():
+    assert _popup_worker(guarded=True) == []
 
 
 @pytest.mark.parametrize("path", list(TYPING))

@@ -26,7 +26,9 @@ On a plain Worker's page (a PortPage, `apply-agent/docs/plain-workers/PROTOCOL.m
   rule per regex, on all of their tabs, so a Worker holds `len(RULES)` rules however many tabs it
   guards. A closed tab leaves every route, and a route with no tab left goes. Its set's rules stay
   on -1 (requests from no tab) until `guard.reset`: a service worker the page started outlives its
-  tab and could post (the review of #555).
+  tab and could post (the review of #555). A pop-up the extension opens for a refused
+  `window.open` (`accounts.js`) opens blank and takes its opener's rules before its page loads; a
+  tab a guarded page opens joins them on `tabs.onCreated` or `webNavigation.onCreatedNavigationTarget`.
 - **Fails closed.** When Chrome refuses an update, it keeps its rules as they were, the extension
   puts its memory back to match, and the op raises. `guard` and `rearm` put the page's own guard on
   before the rules, so the page is then Apply's and blocked, never lifted, and the error stops
@@ -53,7 +55,7 @@ On a plain Worker's page (a PortPage, `apply-agent/docs/plain-workers/PROTOCOL.m
   160 tabs guarded, lifted, rearmed and closed in one Worker keep one rule set; with Chrome's
   regex cap full, `rearm` raises and the page's Submit still sends nothing.
   `test_submit_guard_hostile.py` has a service worker that posts
-  after its guarded tab closed.
+  after its guarded tab closed, and a worker in a pop-up the extension opened.
 
 ## Plain Workers: trusted text and choices (KAN-716)
 

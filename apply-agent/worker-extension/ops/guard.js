@@ -354,18 +354,27 @@ chrome.webNavigation.onDOMContentLoaded.addListener(onDocument);
 
 // A tab a guarded tab opens is guarded as its opener is (Playwright's routes are the context's),
 // and one a lifted tab opens is Lisul's.
-chrome.tabs.onCreated.addListener((tab) => {
-  const opener = tab.openerTabId;
-  if (opener === undefined) return;
-  if (lifted.has(opener)) lifted.set(tab.id, lifted.get(opener));
-  const keys = [...routes].filter(([, r]) => r.tabs?.has(opener) && !r.tabs.has(tab.id)).map(([key]) => key);
+// Tab `tab` joins every route of tab `opener`, and its lift. Only a tab id more on a set already on: Chrome's count of
+// rules stays. Should Chrome refuse even so, the tab goes rather than run unguarded by the rules, and this throws.
+export async function joinOpener(tab, opener) {
+  await ready;
+  if (lifted.has(opener) && !lifted.has(tab)) lifted.set(tab, lifted.get(opener));
+  const keys = [...routes].filter(([, r]) => r.tabs?.has(opener) && !r.tabs.has(tab)).map(([key]) => key);
   if (!keys.length) return;
-  // Only a tab id more on a set already on: Chrome's count of rules stays. Should it refuse even so, the new tab
-  // goes rather than run unguarded by the rules (its page's own guard covers it until then).
-  ready.then(() => changing(keys, () => {
-    for (const key of keys) routes.set(key, { ...routes.get(key), tabs: new Set([...routes.get(key).tabs, tab.id]) });
-  })).catch(() => chrome.tabs.remove(tab.id).catch(() => {}));
+  try {
+    await changing(keys, () => {
+      for (const key of keys) routes.set(key, { ...routes.get(key), tabs: new Set([...routes.get(key).tabs, tab]) });
+    });
+  } catch (error) {
+    await chrome.tabs.remove(tab).catch(() => {});
+    throw error;
+  }
+}
+chrome.tabs.onCreated.addListener((tab) => {
+  if (tab.openerTabId !== undefined) joinOpener(tab.id, tab.openerTabId).catch(() => {});
 });
+// A tab opened by a page's link or window.open names its opener here even where tabs.onCreated doesn't.
+chrome.webNavigation.onCreatedNavigationTarget.addListener((d) => joinOpener(d.tabId, d.sourceTabId).catch(() => {}));
 // A closed tab leaves every route, and a route with no tab left goes (KAN-793: its rules stayed until guard.reset).
 chrome.tabs.onRemoved.addListener((tab) => {
   lifted.delete(tab);

@@ -274,7 +274,8 @@ Events (S7, from a watched tab): `{"event": "request", "tab", "frame", "url", "m
 (a fetch or XHR comes from the page, with `requested` and, for a call that isn't a GET, its `body`, up
 to 256 K characters); `{"event": "requestfailed", ..., "error"}`; `{"event": "popup.blocked", "tab",
 "url", "popup"}`: the page's `window.open(url)` was refused, so the extension opened `url` in tab
-`popup`, with the page as its opener. An event field is never named `type` (`ctx.send` puts
+`popup`, with the page as its opener. The tab opens blank, takes the page's guard rules, then loads
+`url` (KAN-793), and the event comes after; a tab Chrome refuses the rules to is closed with no event. An event field is never named `type` (`ctx.send` puts
 `type: "event"` on each message, and a field of that name would replace it).
 
 A script call (`eval`, `dom`, `fixed.call`, any `inPage`) whose frame commits a new document before it
