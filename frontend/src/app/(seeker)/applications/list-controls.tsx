@@ -23,6 +23,7 @@ import {
   useColumnLayout,
   type ColumnId,
 } from "./column-layout";
+import { Tip } from "@/components/ui/tip";
 
 /**
  * The list's Table Settings (Columns until 2026-11-10), at the right end of
@@ -98,24 +99,28 @@ export function TableSettingsMenu({ className }: { className?: string }) {
                 <span aria-hidden className="w-12.5 shrink-0" />
               ) : (
                 <>
-                  <MenuPrimitive.Item
-                    aria-label={`Move ${LABEL[id]} Left`}
-                    disabled={!left}
-                    closeOnClick={false}
-                    onClick={() => left && setColumnLayout(moveColumn(layout, id, left))}
-                    className={MOVE}
-                  >
-                    <ArrowLeftIcon className="size-3.5" />
-                  </MenuPrimitive.Item>
-                  <MenuPrimitive.Item
-                    aria-label={`Move ${LABEL[id]} Right`}
-                    disabled={!right}
-                    closeOnClick={false}
-                    onClick={() => right && setColumnLayout(moveColumn(layout, id, right))}
-                    className={MOVE}
-                  >
-                    <ArrowRightIcon className="size-3.5" />
-                  </MenuPrimitive.Item>
+                  <Tip label={`Move ${LABEL[id]} Left`}>
+                    <MenuPrimitive.Item
+                      aria-label={`Move ${LABEL[id]} Left`}
+                      disabled={!left}
+                      closeOnClick={false}
+                      onClick={() => left && setColumnLayout(moveColumn(layout, id, left))}
+                      className={MOVE}
+                    >
+                      <ArrowLeftIcon className="size-3.5" />
+                    </MenuPrimitive.Item>
+                  </Tip>
+                  <Tip label={`Move ${LABEL[id]} Right`}>
+                    <MenuPrimitive.Item
+                      aria-label={`Move ${LABEL[id]} Right`}
+                      disabled={!right}
+                      closeOnClick={false}
+                      onClick={() => right && setColumnLayout(moveColumn(layout, id, right))}
+                      className={MOVE}
+                    >
+                      <ArrowRightIcon className="size-3.5" />
+                    </MenuPrimitive.Item>
+                  </Tip>
                 </>
               )}
             </div>

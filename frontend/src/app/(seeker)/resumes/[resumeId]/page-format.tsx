@@ -22,6 +22,7 @@ import type { FontFamily, PageSettings } from "@/lib/built-resume-actions";
 import { cn } from "@/lib/cn";
 
 import { FoldButton } from "./bar-fold";
+import { Tip } from "@/components/ui/tip";
 
 /**
  * How the resume looks (KAN-435). **The toolbar holds what acts on the line
@@ -265,16 +266,18 @@ export function SizeStepper({
   const finish = () => set(Math.round(parseFloat(typed ?? "") * 2) / 2);
   return (
     <div role="group" aria-label={role.label} className="flex shrink-0 items-center gap-0.5">
-      <Button
-        variant="ghost"
-        size="icon-lg"
-        aria-label={`Smaller ${role.label}`}
-        title={`Smaller ${role.label}`}
-        disabled={disabled || smaller < role.min}
-        onClick={() => set(smaller)}
-      >
-        <MinusIcon aria-hidden />
-      </Button>
+      <Tip label={`Smaller ${role.label}`}>
+        <Button
+          variant="ghost"
+          size="icon-lg"
+          aria-label={`Smaller ${role.label}`}
+
+          disabled={disabled || smaller < role.min}
+          onClick={() => set(smaller)}
+        >
+          <MinusIcon aria-hidden />
+        </Button>
+      </Tip>
       <input
         aria-label={`${role.label} size in points`}
         title={`${role.min} to ${role.max} points`}
@@ -295,16 +298,18 @@ export function SizeStepper({
         }}
         className={cn(FIELD_CONTROL, "sm:text-note h-9 w-11 px-1 text-center font-medium")}
       />
-      <Button
-        variant="ghost"
-        size="icon-lg"
-        aria-label={`Larger ${role.label}`}
-        title={`Larger ${role.label}`}
-        disabled={disabled || larger > role.max}
-        onClick={() => set(larger)}
-      >
-        <PlusIcon aria-hidden />
-      </Button>
+      <Tip label={`Larger ${role.label}`}>
+        <Button
+          variant="ghost"
+          size="icon-lg"
+          aria-label={`Larger ${role.label}`}
+
+          disabled={disabled || larger > role.max}
+          onClick={() => set(larger)}
+        >
+          <PlusIcon aria-hidden />
+        </Button>
+      </Tip>
     </div>
   );
 }
@@ -477,22 +482,25 @@ export function FormatOptions({
         <Setting label="Accent Color">
           <div role="radiogroup" aria-label="Accent Color" className="flex items-center gap-2">
             {ACCENTS.map(({ value, label }) => (
-              <button
-                key={value}
-                type="button"
-                role="radio"
-                aria-checked={page.accent === value}
-                aria-label={label}
-                title={label}
-                style={{ backgroundColor: value }}
-                className={cn(
-                  "focus-visible:ring-brand-ring ring-offset-panel size-7 rounded-full ring-offset-2 transition-shadow focus-visible:ring-2 focus-visible:outline-none",
-                  // A grey ring under the pointer on a colour not picked:
-                  // the swatches had no hover (2026-11-10).
-                  page.accent === value ? "ring-brand ring-2" : "hover:ring-ink-faint hover:ring-2",
-                )}
-                onClick={() => onChange({ ...page, accent: value })}
-              />
+              <Tip key={value} label={label}>
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={page.accent === value}
+                  aria-label={label}
+
+                  style={{ backgroundColor: value }}
+                  className={cn(
+                    "focus-visible:ring-brand-ring ring-offset-panel size-7 rounded-full ring-offset-2 transition-shadow focus-visible:ring-2 focus-visible:outline-none",
+                    // A grey ring under the pointer on a colour not picked:
+                    // the swatches had no hover (2026-11-10).
+                    page.accent === value
+                      ? "ring-brand ring-2"
+                      : "hover:ring-ink-faint hover:ring-2",
+                  )}
+                  onClick={() => onChange({ ...page, accent: value })}
+                />
+              </Tip>
             ))}
           </div>
         </Setting>

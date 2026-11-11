@@ -153,7 +153,17 @@ open choices (Settled choices, near the end).
     action on what is already shown (View, Edit, Show, Hide, Remove All,
     See More), in a heading line, a sentence or a row; **glyph**
     (`IconButton`) for a repeated per-item action with a known icon (Save,
-    ⋯), always with a tooltip. **A table row holds no bordered or filled
+    ⋯), always with a tooltip.
+  - **Every icon-only control shows a tooltip** (2026-11-11, the user's
+    rule): an `IconButton`, which always draws one (a menu's or popover's
+    trigger renders it: `render={<IconButton …/>}`), or `Tip`
+    (`components/ui/tip.tsx`) around a control that keeps another look: a
+    toolbar's ghost glyph, a link, a dialog's Close, the date picker's
+    arrows, the account photo. A `title` alone is not a tooltip (it shows
+    late and never to touch or a keyboard), nor an `aria-label` alone. The
+    job card's ⋯, Table Settings, the editor's bar, the dialogs' Close and
+    about 30 more had neither until then. Logos and the browser's own
+    search clear (×) are left as they are. **A table row holds no bordered or filled
     button and no dashed pill**: its actions are text buttons, glyphs or a
     stage's pill menu, so every row stays one height and one weight.
   - A button acts and a chip is a choice made in place: "A button is a
