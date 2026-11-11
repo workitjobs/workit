@@ -21,6 +21,11 @@ On a plain Worker's page (a PortPage, `apply-agent/docs/plain-workers/PROTOCOL.m
 - **The guards' state** (KAN-710) is set only by token-named control events the extension sends
   from its isolated world (`guard.control`, `guard.lift`, `guard.rearm`, `guard.applied`); no page sees
   or sends them. `guard.tokens` tells the extension the run's touch and tell events once.
+- **One drive guard for every tab.** The drive guard is one registration, `drive`: on_open's
+  lifted copy, until a `DriveGuard` replaces it with its armed one. From then a later `on_open`
+  keeps the armed one (`guards.drive_armed`, cleared by `guards.reset`), so a second form sent in
+  with `--into` never lifts the first form's guard, and its own tab starts armed (PR 477's third
+  review, `docs/claude-fill.md`).
 - **Presses are untrusted.** The plain copy of the guard script (`port=True`) counts as a touch
   the token-named touch the extension sends before each press (a page can't send one): Apply's own (`page/dom.js`) and
   Lisul's from the tile (`tile.input` calls `touch()` in `ops/guard.js`, which also sends `guard.touched`

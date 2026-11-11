@@ -1515,10 +1515,13 @@ def guard(page: Page) -> None:
 def _drive_at_open(page) -> None:
     """The drive guard's init script on a live run's page's context, before its first load (on_open), so it runs
     before each document's code (PR 477's second review). It starts lifted, as no guard: a DriveGuard arms it, with
-    Lisul's opt-ins, by the control in the open documents and an init script for each one after."""
+    Lisul's opt-ins, by the control in the open documents and an init script for each one after. A plain Worker whose drive guard is armed already keeps
+    it: its one registration is every tab's, so on_open's lifted copy would lift another form's (PR 477's third
+    review), and a new tab there starts armed."""
     context = page.context
     if not getattr(context, DRIVE_AT_OPEN, False):
-        context.add_init_script(drive_script(at_open=True))
+        if not (_plain(page) and _plain(page).drive_armed(page)):
+            context.add_init_script(drive_script(at_open=True))
         setattr(context, DRIVE_AT_OPEN, True)
     setattr(page, DRIVE_AT_OPEN, True)
 

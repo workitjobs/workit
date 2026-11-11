@@ -240,3 +240,35 @@ def test_form_into_lifted_popup():
       setTimeout(() => {{ const w = window.open('', 'side'); w.eval("fetch('{FINAL}', {{method:'POST', body:'q'}})"); }}, 2000);</script>"""
     site, _ = live({HOST: {START: page_, STEP2: "<title>Side</title>"}})
     assert site.finals() == []
+
+
+# A plain Worker's drive guard is one registration ("drive") for the whole Worker, every tab. A second form's
+# on_open on the same Worker (a live run sent in with --into while another is open) puts on_open's lifted copy in its
+# place, for the first form's tab too; PlainDriveGuard arms the open document by the control only, so the first
+# form's next page, driven by Claude, has a lifted drive guard.
+NEXT_PAGE = f"<title>Step two</title><script>setTimeout(() => fetch('{FINAL}', {{method: 'POST', body: 'first=Test'}}).catch(() => {{}}), 800);</script>"
+
+
+@pytest.mark.parametrize("second", [False, True], ids=["CONTROL one form", "a second form's on_open"])
+def test_plain_second_on_open_lifts_the_first_forms_drive_guard(second):
+    from test_submit_guard_hostile import Site as HSite
+    from test_submit_guard_hostile import _plain_or_skip
+    _plain_or_skip()
+    from plain_fakes import _shared, fake_page
+
+    from apply.plain import guards
+    from apply.plain.page import PortContext
+    guards.reset(_shared().connection)
+    site = HSite({START: "<title>Apply</title><a id=n href='/acme/jobs/123/step2'>Next</a>", STEP2: NEXT_PAGE})
+    with fake_page(site.handle) as page:
+        submit_guard.on_open(page)  # a live run's tab
+        page.goto(HOST + START)
+        drive = DriveGuard(page)
+        drive.arm()
+        if second:
+            other = PortContext(page.worker).new_page()
+            submit_guard.on_open(other)  # the second form's tab, before its first load
+        page.goto(HOST + STEP2)  # Claude's Next on the first form
+        _settle(page, 2000)
+        print("sent", site.sent, "blocked", drive.blocked())
+    assert site.applications() == []
