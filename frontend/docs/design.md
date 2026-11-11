@@ -504,12 +504,20 @@ width only shows more columns. **Every other seeker page stops at
 left edge beside the rail (2026-10-27): at the old 1024px `max-w-app` they
 sat centred between wide empty margins once the rail freed the room, which
 the user found flawed. A block of prose keeps a readable measure, since text
-past about 90 characters a line is hard to follow. A job's page reaches it
-with its card's shape (2026-11-10): the page is the Cards view's 944px, and
-the prose takes the header's facts column beside the match rail, about 88
-characters at 16px, so it ends where the facts end. It was one 736px column
-(`max-w-job`, 2026-11-09), narrower than the cards; About the Role's own
-46ch before that, beside blocks that ran the full width, read as cut short.
+past about 90 characters a line is hard to follow. **The rule for a page's
+width** (2026-11-10): the Jobs page and a posting's own page, which read one
+posting at a time, take the Cards view's column (`max-w-feed`, 944px of
+content); every other seeker page is a workspace of tables, grids or
+columns (Home, Tracker, Auto Apply, Documents, Experiences, Profile,
+Tailor) and stops at `max-w-dashboard`. **A job's page is one white panel**
+(`JobPanel`, after Jobright's): the header beside the match tile, then
+Key Requirements and About the Role as sections of the same panel, ruled
+apart, at its whole width (about 95 characters at 16px). Its parts as three
+cards, the two lower ones stopping where the rail began, left an empty
+column down the right and read as pieces placed one after another. It was
+one 736px column (`max-w-job`, 2026-11-09), narrower than the cards; About
+the Role's own 46ch before that, beside blocks that ran the full width,
+read as cut short.
 **A `ch` cap goes on the element that has the text's own size** (KAN-569):
 `ch` is read from that element's font, and About the Role's 68ch sat on a
 16px wrapper over 14px text, so its lines ran about 107 characters. Inter
@@ -1169,7 +1177,7 @@ on that step, since every event is on an application. The form stays
 mounted, hidden, under the step, so what was typed survives it. Choose
 Application opened as a second dialog over Create Event at first, which
 read as a page laid over a page with only its own close as a way back. A
-resume is picked in the grouped list every resume dialog shares
+resume is picked in the flat list every resume dialog shares
 (`ResumeLists`, `(seeker)/jobs/resume-picker.tsx`). A dropdown of "Company
 · Role" lines hid where each application stood and cut long titles short;
 Create Event's first version had one.

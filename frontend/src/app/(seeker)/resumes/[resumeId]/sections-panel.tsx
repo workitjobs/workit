@@ -227,7 +227,7 @@ export function SectionsOutline({
       row={(section, handle) => {
         const open = opened.has(section.id);
         return (
-          <section className="bg-panel max-sm:bg-app rounded-xl px-2 py-1.5">
+          <section className="bg-panel max-sm:bg-app rounded-card px-2 py-1.5">
             <div className="flex items-center gap-1">
               {handle}
               <button

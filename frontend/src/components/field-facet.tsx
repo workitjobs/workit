@@ -117,7 +117,7 @@ export function FieldFacet({
         className={facetClasses(active, className)}
       >
         <FacetLabel Icon={Icon} label={label} active={active} count={values.length} />
-        <ChevronDownIcon className="text-muted-foreground size-4" />
+        <ChevronDownIcon className="text-ink-meta size-4" />
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="start"

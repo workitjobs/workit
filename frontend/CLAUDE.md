@@ -1430,17 +1430,24 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   exception: it takes the Cards view's column and its card's shape**
   (`max-w-feed`, `JOB_PAGE_WIDTH` in `jobs/[jobId]/job-view.tsx`,
   2026-11-10), shared with the application's own page: the action bar and
-  the header card take the whole 944px, the header's facts beside the
-  240px match rail the card shows (`GET /jobs/{id}/match`), and the body
-  under it (Key Requirements, About the Role) the facts' column
-  (`JOB_BODY`, 17.25rem short of the right edge: the rail, its gap and the
-  card's padding), so the description's 16px lines run about 88
-  characters and end where the facts end. It was one 800px column
-  (`max-w-job`, 2026-11-09), 208px narrower than the card the student had
-  just clicked, which the user found inconsistent. In the split view's
-  pane the bar takes the pane, the content under it stops at 736px
-  (`JOB_COLUMN`) and the rail is hidden, since the list card beside it
-  shows the score.
+  the job's panel take the whole 944px. **The posting is one white panel**
+  (`JobPanel`, 2026-11-10, after Jobright's): the header (company line with
+  Save and ⋮ at its end, title, facts) beside the match tile the card
+  shows (`GET /jobs/{id}/match`, the card's grey tile at its 240px,
+  stretched to the header's height), then under a rule across the panel
+  the open tab's pane: Key Requirements and About the Role as sections
+  with a rule between them, or the Company tab. It was three cards, and
+  the two under the header stopped 17.25rem short (`JOB_BODY`) where the
+  rail started, so an empty column ran down the right and a 150px hole sat
+  under the facts beside the taller rail; the user found the page not
+  thought out. It was one 800px column (`max-w-job`, 2026-11-09) before,
+  208px narrower than the card the student had just clicked. In the split
+  view's pane the panel is flat, the bar takes the pane, the content under
+  it stops at 736px (`JOB_COLUMN`) and the tile is hidden, since the list
+  card beside it shows the score. Every page outside the Jobs page and a
+  posting's own page (Home, Tracker, Auto Apply, Documents, Experiences,
+  Profile, Tailor) is a workspace of tables, grids or columns and keeps
+  `max-w-dashboard`.
   The user found the floating panels wasted room, and the 256px panel that
   opened over the page on hover a flaw. A height worked out from the
   shell's chrome (the job rail's `100svh-4rem`) changes with it. A sidebar
@@ -1742,9 +1749,10 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   fact is for their Claude to quote, not the answer itself.
   Every resume dialog (Did You Apply?, Tailor's Pick a Resume, Up Next's
   Choose a Resume) picks through one list, `ResumeLists` in
-  `jobs/resume-picker.tsx` (KAN-360; grouped as the Resumes page since
-  KAN-406): change it there, never per dialog (`docs/screens.md`, Job
-  posting page).
+  `jobs/resume-picker.tsx` (KAN-360): change it there, never per dialog
+  (`docs/screens.md`, Job posting page). It is flat with a type badge on
+  each card, as the Resumes table is (2026-11-10; grouped by type with a
+  PDF mark on every card from KAN-406 until then).
   `docs/screens.md`, Applications, has the rest.
 - **Tailor is one step per view** (`(seeker)/jobs/[jobId]/tailor`,
   2026-10-26): every step opens with the same top row (`TailorBar`: Back,
@@ -2579,6 +2587,20 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   against "Oct 20" (a browser in the Americas) broke hydration with React
   error #418 (2026-10-22). `toLocaleDateString()` in render is safe only for
   data fetched in an effect.
+- **A value read from browser storage in a `useState` initializer is
+  false while hydrating** (`useHydrated` in `(seeker)/local-time.tsx`,
+  read in the same render): the server has no storage, so a client that
+  reads it during hydration draws other classes and React warns. The Jobs
+  feed's `fromSnapshot` did, on every hard load with a kept snapshot
+  (2026-11-10).
+- **A page drawn under a modal on a hard load comes hidden from the
+  server.** The Settings modal hides everything outside itself but live
+  regions (`[aria-live]`), and walks into each live region's ancestors to
+  hide their other children, so on a hard load it set `aria-hidden` inside
+  Home's streamed sections before they hydrated, and React warned of a
+  mismatch (2026-11-10). `settings/layout.tsx` wraps Home in
+  `aria-live="off" aria-hidden inert`: one kept region the modal never
+  walks into.
 - **A relative time ("Posted 5 minutes ago") rendered in a client component
   sits in an element with `suppressHydrationWarning`**, as the job card's
   badge does. The clock moves between the server render and hydration, so

@@ -601,7 +601,7 @@ export function Intake({
   );
 
   const uploadStrip = offerImport && !importing && (
-    <div className="border-brand-pale bg-brand-tint/40 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl border border-dashed px-4 py-3">
+    <div className="border-brand-pale bg-brand-tint/40 rounded-card flex flex-wrap items-center gap-x-4 gap-y-2 border border-dashed px-4 py-3">
       <FileArrowUpIcon aria-hidden className="text-brand size-5 shrink-0" />
       <p className="text-note text-ink-muted min-w-0 flex-1">
         Want to pre-fill your entries? Upload your resume. Scout fills in what it can, then asks
@@ -738,7 +738,7 @@ export function Intake({
   }) => (
     <div
       className={cn(
-        "from-brand-tint to-panel ring-brand-tint flex flex-col overflow-hidden rounded-3xl bg-linear-to-b ring-1",
+        "from-brand-tint to-panel ring-brand-tint rounded-shell flex flex-col overflow-hidden bg-linear-to-b ring-1",
         className,
       )}
     >
@@ -831,7 +831,7 @@ export function Intake({
     <button
       type="button"
       onClick={() => setSheet(true)}
-      className="bg-panel ring-brand-tint flex items-center gap-2.5 rounded-2xl px-3.5 py-2.5 text-left ring-1 @4xl/main:hidden"
+      className="bg-panel ring-brand-tint rounded-card flex items-center gap-2.5 px-3.5 py-2.5 text-left ring-1 @4xl/main:hidden"
     >
       <Dot ready={kept?.done ?? false} />
       <span className="text-label text-ink min-w-0 flex-1 truncate">
@@ -889,7 +889,7 @@ export function Intake({
         {fileField}
         {!resumeStage && (
           <div className="px-4">
-            <div className="bg-stage-card rounded-2xl px-3.5 py-3">{stepBar}</div>
+            <div className="bg-stage-card rounded-card px-3.5 py-3">{stepBar}</div>
           </div>
         )}
         {importing ? (
@@ -960,7 +960,7 @@ export function Intake({
 
           <aside
             aria-label="Draft entry"
-            className="bg-panel ring-brand-tint shadow-card hidden rounded-3xl ring-1 @4xl/main:sticky @4xl/main:top-4 @4xl/main:block"
+            className="bg-panel ring-brand-tint shadow-card rounded-shell hidden ring-1 @4xl/main:sticky @4xl/main:top-4 @4xl/main:block"
           >
             {!sheet && card}
           </aside>
@@ -1093,7 +1093,7 @@ function DraftCard({
   return (
     <div className="@container/main flex flex-col gap-4 p-5">
       <div className="flex items-center gap-3">
-        <span className="bg-brand-tint text-brand flex size-10 items-center justify-center rounded-2xl">
+        <span className="bg-brand-tint text-brand rounded-control flex size-10 items-center justify-center">
           <Icon aria-hidden className="size-5" />
         </span>
         <div className="min-w-0 flex-1">

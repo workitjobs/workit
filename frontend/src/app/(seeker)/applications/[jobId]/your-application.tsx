@@ -75,12 +75,18 @@ export function YourApplication({
   job,
   sent,
   now,
+  matchAbove = false,
 }: {
   app: Application;
   job: JobListing | null;
   /** The sent resumes linked to this job posting, newest first. */
   sent: SentResume[];
   now: Date;
+  /** The job's panel above already shows the match (a live posting with a
+   *  score), so this card leaves it out: the same ring twice on one page
+   *  read as a mistake (2026-11-10). A closed posting's header has none,
+   *  and the score shows here. */
+  matchAbove?: boolean;
 }) {
   const cards: { label: string; value: string | number }[] = [];
   // Every live application has `open`; the type leaves it optional.
@@ -206,7 +212,7 @@ export function YourApplication({
             </dl>
           </div>
 
-          {app.match != null && (
+          {app.match != null && !matchAbove && (
             <MatchRail
               score={app.match}
               highlights={app.highlights ?? []}

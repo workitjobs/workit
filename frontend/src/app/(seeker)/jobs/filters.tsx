@@ -357,7 +357,7 @@ function LocationFacet({
         {/* The URL's places, not the ticks: picking California ticks the
             United States too, and should still say 1. */}
         {values.length > 0 && <span className="sr-only">, {values.length} selected</span>}
-        <ChevronDownIcon className="text-muted-foreground size-4" />
+        <ChevronDownIcon className="text-ink-meta size-4" />
       </PopoverTrigger>
       <PopoverContent
         align="start"
@@ -422,7 +422,7 @@ function Location(props: Parameters<typeof LocationFacet>[0]) {
           className={facetTriggerClasses(props.values.length, false, props.className)}
         >
           <FacetLabel Icon={PinIcon} label="Location" active={false} />
-          <ChevronDownIcon className="text-muted-foreground size-4" />
+          <ChevronDownIcon className="text-ink-meta size-4" />
         </button>
       }
     >
@@ -534,7 +534,7 @@ function RoleFacet(props: Parameters<typeof RoleFacetOptions>[0]) {
           className={facetTriggerClasses(props.values.length, false, props.className)}
         >
           <FacetLabel Icon={RoleIcon} label="Role" active={false} />
-          <ChevronDownIcon className="text-muted-foreground size-4" />
+          <ChevronDownIcon className="text-ink-meta size-4" />
         </button>
       }
     >

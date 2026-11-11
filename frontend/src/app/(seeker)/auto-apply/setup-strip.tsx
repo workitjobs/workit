@@ -47,7 +47,7 @@ export function SetupStrip() {
 
   return (
     <Card className="mt-6 flex flex-col gap-4 @2xl/main:flex-row @2xl/main:items-center">
-      <span className="border-border-subtle bg-panel flex size-10 shrink-0 items-center justify-center rounded-lg border">
+      <span className="border-border-subtle bg-panel rounded-control flex size-10 shrink-0 items-center justify-center border">
         <ChromeIcon className="size-5" />
       </span>
       <div className="min-w-0 flex-1">

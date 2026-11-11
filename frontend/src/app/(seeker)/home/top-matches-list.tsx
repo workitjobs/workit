@@ -8,7 +8,6 @@ import { LightningRoundedIcon } from "@/components/custom-icons";
 import { ArrowRightIcon } from "@/components/icons";
 import { MatchBadge } from "@/components/match-badge";
 import { Checkbox } from "@/components/shadcn/checkbox";
-import { Badge } from "@/components/ui/badge";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import { openNextApplication } from "@/lib/autofill-extension";
@@ -217,11 +216,6 @@ export function TopMatchesList({
             const blocked = blockedReason(row);
             const isPicked = picked.has(row.id);
             const match = row.match != null && <MatchBadge score={row.match} />;
-            const posted = row.posted && (
-              <Badge variant="tag" pill>
-                {row.posted}
-              </Badge>
-            );
             const details = (
               <div className="flex min-w-0 flex-1 items-center gap-3">
                 <CompanyLogo
@@ -242,23 +236,27 @@ export function TopMatchesList({
                       {row.title}
                     </TopMatchLink>
                   )}
-                  <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-                    <span className="text-note text-ink-meta min-w-0 truncate">{row.company}</span>
-                    <span className="contents @4xl/main:hidden">
-                      {match}
-                      {posted}
-                    </span>
+                  {/* The company, then when it was posted, as the job
+                      cards' meta line reads ("HP · 21 days ago"): the
+                      company truncates first, so the age always shows. */}
+                  <div className="text-note text-ink-meta mt-1 flex min-w-0 items-center gap-x-1.5">
+                    <span className="min-w-0 truncate">{row.company}</span>
+                    {row.posted && (
+                      <>
+                        <span aria-hidden="true">·</span>
+                        <span className="shrink-0">{row.posted}</span>
+                      </>
+                    )}
+                    {match && <span className="ml-1 flex shrink-0 @4xl/main:hidden">{match}</span>}
                   </div>
                 </div>
-                {/* From @4xl/main the match and the posted date are columns
-                    of their own (KAN-423), centred on the row's height at
-                    fixed widths, so they line up down the list. Squeezed
-                    on the company's line they read as one cramped run, and
-                    a long company name pushed them out of line. */}
-                <div className="hidden shrink-0 items-center gap-6 pl-4 @4xl/main:flex">
-                  <span className="flex w-20">{match}</span>
-                  <span className="flex w-36">{posted}</span>
-                </div>
+                {/* From @4xl/main the match is a column of its own
+                    (KAN-423), against Save and Apply Now, so the scores
+                    line up down the list. The posted date was a second
+                    pill column until 2026-11-10: two pills in fixed
+                    columns floated in the middle of the row, apart from
+                    both the title and the buttons. */}
+                {match && <span className="hidden shrink-0 pl-4 @4xl/main:flex">{match}</span>}
               </div>
             );
 

@@ -148,7 +148,14 @@ export function EntryRow({
             {heading}
           </button>
         ) : (
-          <div className="flex min-w-0 flex-1 items-start gap-2">{heading}</div>
+          <div className="flex min-w-0 flex-1 items-start gap-2">
+            {/* A closed row with nothing to open keeps the chevron's room,
+                so its title lines up with the rows above and below that
+                have one (2026-11-10: a school with no details sat 24px
+                left of the rest of Education). */}
+            {!open && <span aria-hidden="true" className="mt-1 size-4 shrink-0" />}
+            {heading}
+          </div>
         )}
         {actions}
       </div>

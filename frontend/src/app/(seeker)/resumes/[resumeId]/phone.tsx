@@ -74,7 +74,7 @@ const PHONE_QUERY = "(max-width: 40rem)";
 const TAP = "[&_button]:min-h-11 [&_button]:min-w-11";
 /** 16 px: below this, iOS Safari zooms the page when the field gets focus. */
 const FIELD =
-  "bg-panel text-ink ring-border-subtle focus:ring-brand w-full resize-none rounded-xl px-3 py-2.5 text-[16px] leading-6 ring-1 outline-none focus:ring-2";
+  "bg-panel text-ink ring-border-subtle focus:ring-brand w-full resize-none rounded-control px-3 py-2.5 text-base ring-1 outline-none focus:ring-2";
 
 function subscribeQuery(onChange: () => void) {
   const query = window.matchMedia(PHONE_QUERY);

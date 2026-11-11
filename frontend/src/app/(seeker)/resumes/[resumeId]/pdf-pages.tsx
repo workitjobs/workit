@@ -460,7 +460,7 @@ function LinePopup({
     <div
       ref={card}
       data-popup
-      className="bg-panel ring-border-subtle absolute z-20 w-80 max-w-full overflow-y-auto overscroll-none rounded-xl shadow-lg ring-1"
+      className="bg-panel ring-border-subtle rounded-card absolute z-20 w-80 max-w-full overflow-y-auto overscroll-none shadow-lg ring-1"
       style={{
         left: `min(${left * 100}%, calc(100% - 20rem - 8px))`,
         maxHeight: place.room === Infinity ? undefined : place.room,

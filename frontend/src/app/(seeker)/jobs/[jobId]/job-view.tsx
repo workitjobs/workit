@@ -44,26 +44,16 @@ export type JobView = Awaited<ReturnType<typeof loadJobView>>;
 /** A job's page width (2026-11-10): the Jobs page Cards view's column,
  *  `max-w-feed` (1008px with the gutters, 944px inside them), so the page
  *  reads as the card it was opened from, with the same edges: the action bar
- *  and the header card take the whole 944px, the header's facts beside its
- *  240px match rail as the card's body beside its rail, and the body under
- *  it (JOB_BODY) the facts' column. It was `max-w-job` (800px) from
+ *  and the job's panel (`JobPanel`) take the whole 944px, the header beside
+ *  its 240px match tile as the card's body beside its rail. It was `max-w-job` (800px) from
  *  2026-11-09 to keep the description's lines short, which left the page
  *  208px narrower than the cards (the user's call to match them), and the
  *  1440px dashboard column before that. In the split view's pane the page
  *  takes the pane, so the bar's rule meets the list's edge, and JOB_COLUMN
  *  holds the content under the bar to 736px. The job page and the
- *  application's own page share it, so the two stay identical. A size
- *  container (`job`), for JOB_BODY. */
+ *  application's own page share it, so the two stay identical. */
 export const JOB_PAGE_WIDTH =
-  "@container/job max-w-feed mx-auto w-full flex-1 py-6 in-data-split:@4xl/main:max-w-none in-data-split:@4xl/main:px-4!";
-
-/** The body under the header (sent and applied notes, Key Requirements, the
- *  description): the header's facts column, so its lines end where the facts
- *  end, beside the match rail's 240px, the 16px gap and the card's 20px
- *  padding (17.25rem). About 88 characters a line at 16px, where the page's
- *  944px ran to 125. From a 768px page; narrower, and in the split view's
- *  pane, it takes the column. */
-export const JOB_BODY = "@3xl/job:pr-[17.25rem] in-data-split:@4xl/main:pr-0";
+  "max-w-feed mx-auto w-full flex-1 py-6 in-data-split:@4xl/main:max-w-none in-data-split:@4xl/main:px-4!";
 
 /** The job's content under its action bar: 736px in the split view's pane
  *  (see JOB_PAGE_WIDTH); on its own page the page is already that wide. */
@@ -216,12 +206,16 @@ export function JobCardActions({
   );
 }
 
-/** Who is hiring, the title and the facts, and beside the facts the match
- *  rail its card in the feed shows (`match`, 2026-11-10), at the card's
- *  240px: the page reads as the card it was opened from. No rail without a
- *  score (signed out, an empty bank), as the card then draws none either,
- *  and none in the split view's pane (hidden by `in-data-split`, as the page
- *  renders the same there), whose list card beside it shows it.
+/** Who is hiring, the title and the facts, the top of the job's panel
+ *  (`JobPanel`), and beside them the match tile its card in the feed shows
+ *  (`match`, 2026-11-10), at the card's 240px and in the card's own style
+ *  (a grey tile, the ring over its tier and reasons), stretched to the
+ *  header's height: the page reads as the card it was opened from. It was
+ *  a bordered white box beside the facts alone, which left a hole under
+ *  them and drew the rail a second way. No tile without a score (signed
+ *  out, an empty bank), as the card then draws none either, and none in
+ *  the split view's pane (hidden by `in-data-split`, as the page renders
+ *  the same there), whose list card beside it shows it.
  *  `titleAs` is h2 beside the list on /jobs, where the bar's "Jobs" is the h1. */
 export function JobViewHeader({
   job,
@@ -238,14 +232,15 @@ export function JobViewHeader({
     <JobDetailHeader
       posting={toPosting(job)}
       titleAs={titleAs}
+      inPanel
       rail={
         match && (
           <MatchRail
-            standalone
             score={match.score}
             highlights={match.highlights}
-            // Not in the split view's pane: the list card beside it shows it.
-            className="in-data-split:@4xl/main:hidden"
+            // The panel's padding is the tile's margin. Not in the split
+            // view's pane: the list card beside it shows it.
+            className="p-0 in-data-split:@4xl/main:hidden"
           />
         )
       }
@@ -263,47 +258,93 @@ export function JobViewHeader({
   );
 }
 
-/** JobViewHeader's card while the posting loads (./loading.tsx, and the
+/** JobViewHeader while the posting loads (./loading.tsx, and the
  *  application's page's): the company line, the title and the facts under
- *  their rule, as JobDetailHeader draws them, each a bar of its line's
- *  height, so the card is its own size and the page under it holds still. */
-export function JobViewHeaderSkeleton() {
+ *  their rule, as JobDetailHeader draws them in the panel, each a bar of
+ *  its line's height, and the match tile beside them, so the panel is its
+ *  own size and the page under it holds still. */
+export function JobHeaderSkeleton() {
   return (
-    <Card
-      as="header"
-      padding="lg"
-      elevated={false}
+    <div
       aria-hidden="true"
-      className={cn("@container flex flex-col gap-4", JOB_CARD_IN_PANEL)}
+      className="@container flex flex-col gap-4 @xl:flex-row @xl:items-stretch @xl:gap-6"
     >
-      <div>
-        <div className="flex items-center gap-3">
-          <Skeleton className="rounded-control size-10 shrink-0" />
-          <Skeleton className="h-4 w-48" />
+      <div className="flex min-w-0 flex-1 flex-col gap-4">
+        <div>
+          <div className="flex items-center gap-3">
+            <Skeleton className="rounded-control size-10 shrink-0" />
+            <Skeleton className="h-4 w-48" />
+          </div>
+          {/* The title's 32px lines: two below 448px of card, where nearly
+              every title wraps, one above. */}
+          <div className="mt-2 flex h-8 items-center">
+            <Skeleton className="h-6 w-3/4" />
+          </div>
+          <div className="flex h-8 items-center @md:hidden">
+            <Skeleton className="h-6 w-1/2" />
+          </div>
         </div>
-        {/* The title's 32px lines: two below 448px of card, where nearly
-            every title wraps, one above. */}
-        <div className="mt-2 flex h-8 items-center">
-          <Skeleton className="h-7 w-3/4" />
-        </div>
-        <div className="flex h-8 items-center @md:hidden">
-          <Skeleton className="h-7 w-1/2" />
+        <div className="border-border-subtle grid grid-cols-2 gap-x-4 gap-y-2.5 border-t pt-4 @md:grid-cols-3">
+          {Array.from({ length: 6 }, (_, i) => (
+            <Skeleton key={i} className="h-5 w-4/5" />
+          ))}
         </div>
       </div>
-      <div className="border-border-subtle grid grid-cols-2 gap-x-4 gap-y-2 border-t pt-4 @md:grid-cols-3">
-        {Array.from({ length: 6 }, (_, i) => (
-          <Skeleton key={i} className="h-4 w-4/5" />
-        ))}
-      </div>
+      {/* The match tile, at its 240px, as MatchRail draws it in the panel. */}
+      <Skeleton className="rounded-card hidden w-60 shrink-0 @xl:block in-data-split:@4xl/main:hidden" />
+    </div>
+  );
+}
+
+/** The job's panel with its header alone, while the posting loads (the
+ *  application's page's loading frame, whose body is its own). */
+export function JobViewHeaderSkeleton() {
+  return <JobPanel header={<JobHeaderSkeleton />} />;
+}
+
+/** Between the panel's parts: a rule across the panel. */
+const PANEL_RULE = "border-border-subtle mt-6 border-t pt-6";
+
+/**
+ * The whole posting in one white panel (2026-11-10), as Jobright's job page
+ * is: the header (JobViewHeader) and, under a rule across the panel, the
+ * open tab's pane (the Overview's sections, JobViewBody, or the Company
+ * tab). It was three cards, a header with its rail and two narrower cards
+ * under it (Key Requirements, About the Role) that stopped where the rail
+ * started, so an empty column ran down the page's right side, and the page
+ * read as parts placed one after another. Flat in the split view's pane
+ * (`JOB_CARD_IN_PANEL`), where the pane is the panel.
+ */
+export function JobPanel({
+  header,
+  children,
+  className,
+}: {
+  /** None on the application page's Job Description tab, whose header is
+   *  its own panel above the tabs. */
+  header?: ReactNode;
+  children?: ReactNode;
+  className?: string;
+}) {
+  return (
+    <Card as="article" padding="lg" elevated={false} className={cn(JOB_CARD_IN_PANEL, className)}>
+      {header}
+      {/* A pane that opens on a titled section (the Company tab's) starts
+          at the rule's padding, its own top margin dropped. */}
+      {children && (
+        <div className={cn(header && PANEL_RULE, "[&>section:first-child]:mt-0")}>{children}</div>
+      )}
     </Card>
   );
 }
 
-/** Under the header: what was sent and when it was applied to, the
- *  Key Requirements card, and About the Role. `descriptionOnly` keeps About
- *  the Role alone: the application page's Job Description tab (KAN-256),
- *  where the notes and the checklist are the application's business, not
- *  the posting's, and pushed the description down. */
+/** Under the header, in the job's panel: what was sent and when it was
+ *  applied to, the Key Requirements section, and About the Role, each a
+ *  section of the panel with a rule between them, across its whole width.
+ *  `descriptionOnly` keeps About the Role alone: the application page's Job
+ *  Description tab (KAN-256), where the notes and the checklist are the
+ *  application's business, not the posting's, and pushed the description
+ *  down. */
 export function JobViewBody({
   view,
   job,
@@ -316,32 +357,30 @@ export function JobViewBody({
   const { sent, applied, requirements } = view;
   const lastSent = sent[0];
   const places = placesOf(job.location_label ?? job.location);
+  const notes = !descriptionOnly && (lastSent || applied?.appliedAt);
 
   return (
-    <div className={JOB_BODY}>
-      {!descriptionOnly && (
-        <>
+    <div className="divide-border-subtle flex flex-col divide-y [&>*]:py-6 [&>*:first-child]:pt-0 [&>*:last-child]:pb-0">
+      {notes && (
+        <div className="[&>p:first-child]:mt-0">
           {lastSent && <SentNote name={lastSent.name} at={lastSent.created_at} />}
           {applied?.appliedAt && <AppliedNote at={applied.appliedAt} />}
-          <KeyRequirementsCard
-            requirements={requirements}
-            minYearsExperience={job.min_years_experience}
-          />
-        </>
+        </div>
+      )}
+      {!descriptionOnly && (
+        <KeyRequirementsCard
+          requirements={requirements}
+          minYearsExperience={job.min_years_experience}
+        />
       )}
 
-      {/* A white card, as Key Requirements is (2026-11-10): on the page's
-          grey ground the description floated with nothing holding it. Its
-          title is for screen readers: the Overview tab names it, and the
-          description's own 20px section headings (description.tsx) carry
-          it on screen, as Jobright's do. The block under the title starts
-          at the card's own padding, its margins dropped. */}
-      <Card
-        as="section"
-        padding="lg"
-        elevated={false}
+      {/* Its title is for screen readers: the Overview tab names it, and
+          the description's own 20px section headings (description.tsx)
+          carry it on screen, as Jobright's do. The block under the title
+          starts at the section's top, its margins dropped. */}
+      <section
         aria-label="About the Role"
-        className="mt-6 [&>.sr-only+*]:mt-0 [&>.sr-only+*>:first-child]:mt-0"
+        className="[&>.sr-only+*]:mt-0 [&>.sr-only+*>:first-child]:mt-0"
       >
         <SectionHeading className={job.description ? "sr-only" : undefined}>
           About the Role
@@ -362,7 +401,7 @@ export function JobViewBody({
             This posting has no description here. Apply Now opens it on {job.company}&apos;s site.
           </p>
         )}
-      </Card>
+      </section>
     </div>
   );
 }

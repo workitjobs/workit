@@ -1106,7 +1106,7 @@ function ScoutMarked({
         "relative isolate -mx-3 scroll-my-24 overflow-hidden px-3 py-3 transition-colors duration-200",
         // Rounded only while marked: rounded always, the divider under each
         // row curved up at its ends and boxed the row in
-        active && "bg-brand-tint/70 rounded-xl",
+        active && "bg-brand-tint/70 rounded-card",
       )}
     >
       {active && (

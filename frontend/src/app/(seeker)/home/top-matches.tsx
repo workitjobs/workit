@@ -181,11 +181,8 @@ export function TopMatchesSkeleton({ className }: { className?: string }) {
                 <span className="bg-panel h-3.5 w-2/3 animate-pulse rounded" />
                 <span className="bg-panel h-3 w-1/3 animate-pulse rounded" />
               </span>
-              {/* The match and posted columns, at the list's widths. */}
-              <span className="hidden shrink-0 items-center gap-6 pl-4 @4xl/main:flex">
-                <span className="bg-panel mr-4 h-6 w-16 animate-pulse rounded-full" />
-                <span className="bg-panel mr-8 h-6 w-28 animate-pulse rounded-full" />
-              </span>
+              {/* The match's column, against the buttons. */}
+              <span className="bg-panel ml-4 hidden h-6 w-16 shrink-0 animate-pulse rounded-full @4xl/main:block" />
             </span>
             <span className="flex shrink-0 gap-2 @max-xl/main:w-full">
               <span className="bg-panel rounded-control size-9 shrink-0 animate-pulse" />

@@ -355,7 +355,17 @@ function PrimaryBadge() {
  *  that kind (2026-11-10, so the three tell apart at a glance and not by
  *  colour alone): Upload Resume's arrow, Generate Resume's page, and
  *  Tailor's pencil, which the Tracker's Tailored chip wears too. */
-function TypeBadge({ type, narrow = false }: { type: ResumeType; narrow?: boolean }) {
+export function TypeBadge({
+  type,
+  narrow = false,
+  wordClassName,
+}: {
+  type: ResumeType;
+  narrow?: boolean;
+  /** Where the word shows, in place of `narrow`'s rule: a resume picker's
+   *  card drops it below its own `@md` (app/(seeker)/jobs/resume-picker.tsx). */
+  wordClassName?: string;
+}) {
   const icon = "size-3.5 shrink-0";
   return (
     <Badge tone={TYPE_TONE[type]}>
@@ -370,7 +380,7 @@ function TypeBadge({ type, narrow = false }: { type: ResumeType; narrow?: boolea
         {/* `narrow`: the icon alone below a 12rem line (a grid card two or
             four to a row on a phone or tablet), where the word left the
             date no room; a screen reader still hears it. */}
-        <span className={cn(narrow && "sr-only @min-[12rem]:not-sr-only")}>
+        <span className={wordClassName ?? cn(narrow && "sr-only @min-[12rem]:not-sr-only")}>
           {RESUME_TYPES.find((t) => t.value === type)?.label}
         </span>
       </span>
@@ -384,11 +394,14 @@ export type GridCompany = { name: string; logoUrl: string | null; domain: string
 
 /** Each type's badge colour: a different kind of resume, a different tone.
  *  An upload is a file the student brought (grey), a generated resume is
- *  WorkIt's (brand), a tailored one is WorkIt's for one posting (blue). */
+ *  WorkIt's (blue), and a tailored one is WorkIt's for one posting (brand),
+ *  the colour of the Tailored chip on job cards and the Tracker
+ *  (`TailoredChip`), so Tailored is one colour across the app. It was blue
+ *  here and violet there until 2026-11-10. */
 const TYPE_TONE: Record<ResumeType, BadgeTone> = {
   uploaded: "inert",
-  generated: "brand",
-  tailored: "advanced",
+  generated: "advanced",
+  tailored: "brand",
 };
 
 /**

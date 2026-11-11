@@ -16,7 +16,7 @@ import { AutoApplyPanel } from "../auto-apply-panel";
 import { InfoLink } from "../info-link";
 import type { SavedJob } from "../add-jobs-dialog";
 import { SetupStrip } from "../setup-strip";
-import { QueueSummary, UpNext } from "../up-next";
+import { UpNext } from "../up-next";
 import { jobLogo } from "@/lib/job-logo";
 
 export const metadata: Metadata = {
@@ -61,10 +61,10 @@ export const metadata: Metadata = {
  * failed read of the questions leaves the chips out: Up Next says when the
  * API is down.
  *
- * THE HEADER'S LINE says where the queue stands ("3 in progress · 2
- * queued"), in Up Next's group names, counted in the browser
- * (./up-next.tsx, QueueSummary): a job open in a tab is In Progress, and
- * only the extension knows which are.
+ * UP NEXT'S LINE, beside its heading, says where the queue stands ("3
+ * in progress · 2 queued"), in Up Next's group names, counted in the
+ * browser (./up-next.tsx, QueueSummary): a job open in a tab is In
+ * Progress, and only the extension knows which are.
  *
  * It opened with a Resume List of every resume until KAN-359; the page is
  * about which jobs go out, so jobs lead it.
@@ -135,11 +135,6 @@ export default async function AutoApplyPage() {
     : [];
   // Up Next: queued jobs and needs-you ones, which wait on the seeker too.
   const queue = items.filter((item) => item.status === "queued" || item.status === "failed");
-  const summary = queue.length ? (
-    <QueueSummary
-      jobs={queue.map((item) => ({ id: item.id, started: item.status === "failed" }))}
-    />
-  ) : null;
 
   const savedJobs: SavedJob[] = (saved.applications ?? []).map(({ job, match }) => ({
     id: job.id,
@@ -155,7 +150,7 @@ export default async function AutoApplyPage() {
     <div className={cn("max-w-dashboard mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
       {/* So a queued job's page goes back here, not to the feed. */}
       <RememberFeed />
-      <AutoApplyPanel summary={summary}>
+      <AutoApplyPanel>
         {run.error != null ? (
           <EmptyState
             Icon={CloudSlashIcon}

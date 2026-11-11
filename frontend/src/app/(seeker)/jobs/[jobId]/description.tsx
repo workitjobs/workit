@@ -128,7 +128,15 @@ function withCoreSections(blocks: Block[], cut: boolean, pay: string | null): Bl
   const at = (name: string) => blocks.findIndex((b) => b.kind === "heading" && b.text === name);
   const starts = SECTION_ORDER.map(at).filter((i) => i >= 0);
   const intro = blocks.slice(0, starts.length > 0 ? Math.min(...starts) : blocks.length);
-  const out: Block[] = [...intro];
+  // With no Overview heading, the text before the first section is the
+  // overview, so it goes under that heading; with no such text either,
+  // Overview is left out. It said "It may be in the text above" first
+  // thing in the panel, with no text above it (2026-11-10).
+  const overviewMissing = at("Overview") < 0;
+  const out: Block[] =
+    overviewMissing && intro.length > 0
+      ? [{ kind: "heading", text: "Overview" }, ...intro]
+      : [...intro];
   for (const name of SECTION_ORDER) {
     const start = at(name);
     if (start >= 0) {
@@ -136,6 +144,9 @@ function withCoreSections(blocks: Block[], cut: boolean, pay: string | null): Bl
         (b, i) => i > start && b.kind === "heading" && SECTION_ORDER.includes(b.text),
       );
       out.push(...blocks.slice(start, next < 0 ? blocks.length : next));
+    } else if (name === "Overview") {
+      // Drawn above with the intro, or nothing to say.
+      continue;
     } else if (CORE.has(name)) {
       out.push({ kind: "heading", text: name });
       out.push(
@@ -331,11 +342,17 @@ export function JobDescription({
     <div className="mt-3 flex flex-col gap-3 text-base">
       {blocks.map(draw)}
       {extras.length > 0 && (
-        <details className="group border-border mt-3 rounded-xl border">
-          <summary className="hover:bg-hover focus-visible:ring-brand-ring flex cursor-pointer list-none items-center gap-2 rounded-xl px-4 py-3 focus-visible:ring-2 focus-visible:outline-none [&::-webkit-details-marker]:hidden">
-            <span className="text-ink text-base font-semibold">More from the posting</span>
-            <span className="text-note text-ink-meta min-w-0 flex-1 truncate">
-              {extraNames.join(", ")}
+        <details className="group border-border rounded-control mt-3 border">
+          <summary className="hover:bg-hover focus-visible:ring-brand-ring rounded-control flex cursor-pointer list-none items-center gap-2 px-4 py-3 focus-visible:ring-2 focus-visible:outline-none [&::-webkit-details-marker]:hidden">
+            {/* The sections' names go under the title on a phone: beside
+                it they were cut to a word or two. */}
+            <span className="flex min-w-0 flex-1 flex-col sm:flex-row sm:items-center sm:gap-2">
+              <span className="text-ink shrink-0 text-base font-semibold">
+                More from the posting
+              </span>
+              <span className="text-note text-ink-meta min-w-0 truncate">
+                {extraNames.join(", ")}
+              </span>
             </span>
             <ChevronDownIcon className="text-ink-meta size-4 shrink-0 transition-transform duration-150 group-open:rotate-180" />
           </summary>

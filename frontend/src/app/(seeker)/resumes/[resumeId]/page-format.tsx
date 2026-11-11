@@ -353,7 +353,7 @@ export function PanelButton({
 
 function Group({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="bg-panel max-sm:bg-app flex shrink-0 flex-col gap-3 rounded-xl p-3">
+    <section className="bg-panel max-sm:bg-app rounded-card flex shrink-0 flex-col gap-3 p-3">
       <h3 className="text-label text-ink font-semibold">{title}</h3>
       {children}
     </section>
@@ -542,7 +542,7 @@ export function SidePanel({
   return (
     <section
       aria-label={title}
-      className="sm:bg-brand-tint sm:ring-brand-pale flex min-h-0 flex-col gap-2 sm:rounded-2xl sm:p-3 sm:ring-1"
+      className="sm:bg-brand-tint sm:ring-brand-pale sm:rounded-card flex min-h-0 flex-col gap-2 sm:p-3 sm:ring-1"
     >
       <div className="flex min-h-9 shrink-0 items-center justify-between gap-2">
         <h2 className="text-subtitle text-ink font-semibold">{title}</h2>
