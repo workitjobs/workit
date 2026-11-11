@@ -2,8 +2,8 @@
 
 Each page is a fake job form whose application request is a POST to FINAL (or a known job system's final URL).
 Each click path is the real code that presses a button through the guards: plain code's Next (press_step), the
-profile pop-up's click, the account page's click, Ask Claude's press, and Fill again (a held page filled anew in a
-fresh guarded page). Every pair must leave the job system with no application request. The control tests show
+profile pop-up's click, the account page's click, Ask Claude's press, the keep-alive's press of a session dialog's
+stay-signed-in button (KAN-776), and Fill again (a held page filled anew in a fresh guarded page). Every pair must leave the job system with no application request. The control tests show
 each page does send without the guard, so a pass means the guard stopped it.
 
 A new click path joins PATHS, and a new trick joins PAGES, in the same PR (the root CLAUDE.md's review rule).
@@ -14,6 +14,7 @@ Fill again's case (KAN-682) opens its page in a real Worker browser. Three group
 """
 
 import http.server
+import re
 import sys
 import threading
 from contextlib import contextmanager
@@ -22,7 +23,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from apply import ask, claude_fill, send_click, submit_guard
+from apply import ask, claude_fill, keepalive, send_click, submit_guard
 from apply.account_pages import AccountPages, _Click
 from apply.adapters import Drive
 from apply.claude_fill import ClaudeFill, press_step
@@ -137,9 +138,33 @@ PAGES = {
         }}, true);
         b.addEventListener('click', () => sendAll());</script>"""},
 }
+# KAN-776: a held page's session dialog, whose stay-signed-in button the keep-alive presses. Each sends the application.
+_SESSION = ("<title>Apply</title><form id=f method=post action='" + FINAL + "'><input name=first value=Test></form>"
+            + SEND_ALL + "<div role=alertdialog aria-modal=true><p>Your session is about to expire. Do you want to "
+            "continue?</p>%s</div>")
+SESSION_PAGES = {
+    # Its Continue is no form's, but its script sends the application and posts the form.
+    "a session dialog whose Continue sends": {START: _SESSION % "<button type=button id=b>Continue</button>" + """<script>
+        document.getElementById('b').addEventListener('click', () => { sendAll(); document.getElementById('f').submit(); });</script>"""},
+    # Its Stay signed in is the application form's own submit, by the form attribute.
+    "a session dialog whose stay button is the form's submit": {START: _SESSION % "<button form=f id=b>Stay signed in</button>"},
+    # Its Continue sends the application after the press, once a guard put back for the press could be gone.
+    "a session dialog whose Continue sends later": {START: _SESSION % "<button type=button id=b>Continue</button>" + """<script>
+        document.getElementById('b').addEventListener('click', () => setTimeout(() => { sendAll();
+          document.getElementById('f').submit(); }, 1500));</script>"""},
+    # Its Continue reads so when checked, and Submit application when pressed.
+    "a session dialog whose Continue becomes a Submit": {START: _SESSION % "<button type=button id=b>Continue</button>" + """<script>
+        const b = document.getElementById('b');
+        b.addEventListener('pointerdown', () => { b.textContent = 'Submit application'; }, true);
+        b.addEventListener('click', () => { sendAll(); document.getElementById('f').submit(); });</script>"""},
+}
+PAGES |= SESSION_PAGES
 BUTTON = {"a review page's Apply with its answers hidden": "Apply", "a profile pop-up that is the application": "Submit", "a profile pop-up that turns into the application": "Submit",
           "a one-page form in a modal": "Continue", "an application that makes an account": "Continue",
-          "a button whose words change after the check": "Continue"}
+          "a button whose words change after the check": "Continue",
+          "a session dialog whose Continue sends": "Continue", "a session dialog whose stay button is the form's submit":
+          "Stay signed in", "a session dialog whose Continue sends later": "Continue",
+          "a session dialog whose Continue becomes a Submit": "Continue"}
 
 
 def button(page_name: str) -> str:
@@ -201,6 +226,12 @@ def ask_press_listed(page, drive, name):
     press_step(page, drive, name, listed=True)
 
 
+def stay_press(page, drive, name):
+    """The keep-alive's press of a session dialog's stay-signed-in button (KAN-776), its allowlist at its worst: the
+    page's own button named as the stay button, and any dialog's words taken as a session warning."""
+    keepalive.press(page, keepalive.Site("Example", re.compile(r"example\.com$"), (name,), warns="."))
+
+
 # KAN-716: a plain Worker's two typing paths, each with every key that could send a form: Apply's own (fill, type,
 # keys) and Lisul's from the tile. Their text goes in trusted (worker-extension/ops/typing.js, chrome.debugger).
 FIELDS = "input:not([type=hidden]):not([type=file]):not([type=checkbox]):not([type=radio]):not([type=submit]), textarea"
@@ -256,7 +287,8 @@ def choice_clicks(page, drive, name):
 TYPING = {"Apply's typing": apply_typing, "the tile's typing": tile_typing, "Apply's choice clicks": choice_clicks}
 
 PATHS = {"plain code's Next": plain_next, "the profile click": profile_click, "the account click": account_click,
-         "Ask Claude's press": ask_press, "Ask Claude's press of a listed step": ask_press_listed}
+         "Ask Claude's press": ask_press, "Ask Claude's press of a listed step": ask_press_listed,
+         "the keep-alive's stay press": stay_press}
 
 
 def _settle(page, ms=3000) -> None:
@@ -445,6 +477,49 @@ def test_no_click_path_sends_a_held_page_after_a_reload(path):
     assert site.applications() == []
 
 
+class _OnePage:
+    """A JobSite whose one page is already open: _Kept.open goes to the link in it."""
+
+    def __init__(self, page):
+        self.page = page
+
+    @contextmanager
+    def open(self, url, worker=0):
+        self.page.goto(url)
+        yield self.page
+
+
+def _held_with_keeper(page, monkeypatch, name: str) -> keepalive.Keeper:
+    """The page held for Lisul by _Kept.hold (lifted: no guard), its Keeper allowlisting the page's own button."""
+    from apply.rehearsal import _Kept
+
+    monkeypatch.setattr(keepalive, "LOOK_S", 0.25)
+    site = keepalive.Site("Example", re.compile(r"example\.com$"), (name,))
+    keep = keepalive.Keeper("Acme", lambda why: None, sites=(site,))
+    kept = _Kept(_OnePage(page), 0)
+    with kept.open(HOST + START):
+        release = threading.Event()
+        timer = threading.Timer(7, release.set)
+        timer.start()
+        try:
+            kept.hold(release, keep=keep)
+        finally:
+            timer.cancel()
+    return keep
+
+
+@pytest.mark.parametrize("page_name", list(SESSION_PAGES))
+def test_the_stay_press_on_a_held_page_sends_nothing(page_name, monkeypatch):
+    """The press goes in while the page is Lisul's: the guards go back on for it, and stay on after it."""
+    with cdp(PAGES[page_name]) as (page, _, site):
+        keep = _held_with_keeper(page, monkeypatch, button(page_name))
+        _settle(page)
+    assert site.applications() == []
+    # The structure check passes the first, the third and the fourth: the guard is what stops them.
+    pressed = page_name != "a session dialog whose stay button is the form's submit"
+    assert ("pressed the site's" in keep.line()) is pressed
+
+
 # --- Fill again: the held page closes, and the form opens anew in a fresh Worker browser under the guard
 
 LOADS_AND_SENDS = f"""<!doctype html><title>Apply</title><form id=f method=post action="{FINAL}"><input name=first value=Test>
@@ -538,7 +613,7 @@ def plain(pages: dict[str, str]):
 
 
 @pytest.mark.parametrize("path", ["plain code's Next", "the profile click", "the account click",
-                                  "Ask Claude's press of a listed step"])
+                                  "Ask Claude's press of a listed step", "the keep-alive's stay press"])
 @pytest.mark.parametrize("page_name", list(PAGES))
 def test_no_click_path_sends_a_hostile_page_on_a_plain_worker(page_name, path):
     with plain(PAGES[page_name]) as (page, drive, site):
