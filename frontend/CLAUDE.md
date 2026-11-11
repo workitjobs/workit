@@ -2884,7 +2884,11 @@ are in `docs/auth.md`.
   first, in `DeleteDialog`). **No close button**: a × beside the actions
   confused the user; Escape, or Select All while any row is picked,
   clears the pick. Up Next uses the same bar (Auto Apply, then Remove From
-  Queue as a trash glyph), and Add Jobs stays in its place. Each row keeps its current
+  Queue as a trash glyph), and Add Jobs stays in its place; so does the
+  Tracker's list (`applications/pick.tsx`: Status, then Remove while
+  every pick is a saved job). **Every page table picks the same way**: a
+  new one takes `PickBox` in its first cell, Select All in that heading,
+  and `SelectionBar` over its filter row. Each row keeps its current
   actions with the page (`RowPick.register`), so the bar runs the very
   handlers ⋮ runs. Each row keeps ⋮ alone in a 48px column
   (`RESUME_ACTIONS_COL`) for one resume at a time. Hover icons came

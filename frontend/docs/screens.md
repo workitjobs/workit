@@ -912,6 +912,20 @@ empty year with a line saying the applications aren't loading.
 
 ## Applications (the Applications Tracker)
 
+**The list's rows are picked, as Documents' and Up Next's are**
+(2026-11-11, `applications/pick.tsx`): a select box starts each Job cell
+and Select All the Job heading; a picked row takes the brand tint, its
+frozen Job cell too. While any shown row is picked, the selection bar
+(`components/selection-bar.tsx`) lies over the filter row, whose own
+controls hide: "N selected", **Status** (a menu of Applied, Interviewing,
+Offer and Rejected, as each row's stage menu; a saved job among the picks
+asks first, since it cannot go back to Saved; the toast's Undo moves each
+back to its own stage), then **Remove** as a trash glyph while every pick
+is a saved job (it unsaves them; the API keeps an application). Escape or
+Select All clears the pick. The pick is shared through
+`TrackerPickProvider` around the filter bar and the list, which are
+siblings on the page. The grid (Cards) has no boxes.
+
 **Its name on screen is Tracker** (2026-11-05): in the panel, the bar's
 title, the browser tab, and "Back to Tracker" on an application's page
 when the tracker opened it (its Back names the page that did, KAN-363). It

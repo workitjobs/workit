@@ -2,6 +2,11 @@
 
 import { useEffect, type ComponentProps, type ReactNode } from "react";
 
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "@/components/shadcn/dropdown-menu";
 import { Tip } from "@/components/ui/tip";
 import { cn } from "@/lib/cn";
 
@@ -17,7 +22,7 @@ import { cn } from "@/lib/cn";
  * pick, and so does the table's Select All box while any row is picked.
  *
  * The caller places it: `absolute` over the filter row, which takes
- * `SELECTION_ROW`. Up Next's and Documents' resumes.
+ * `SELECTION_ROW`. Up Next's, the Tracker's and Documents' resumes.
  */
 export function SelectionBar({
   count,
@@ -61,6 +66,10 @@ export function SelectionBar({
  *  peeks out beside it. They come back with the pick's end. */
 export const SELECTION_ROW = "relative [&:has(>[role=toolbar])>*:not([role=toolbar])]:invisible";
 
+/** A segment's look: an action's or a menu's. */
+const SEGMENT =
+  "text-body text-ink hover:bg-hover focus-visible:ring-brand-ring data-popup-open:bg-hover flex items-center justify-center gap-2 whitespace-nowrap transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset disabled:pointer-events-none disabled:opacity-50 [&_svg]:size-4 [&_svg]:shrink-0";
+
 /**
  * One action in the bar, the whole segment its target: a glyph and its
  * word, or with `iconOnly` the glyph alone in a square segment, named by
@@ -85,7 +94,7 @@ export function SelectionAction({
         type="button"
         aria-label={label}
         className={cn(
-          "text-body text-ink hover:bg-hover focus-visible:ring-brand-ring flex items-center justify-center gap-2 whitespace-nowrap transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset disabled:pointer-events-none disabled:opacity-50 [&_svg]:size-4 [&_svg]:shrink-0",
+          SEGMENT,
           iconOnly ? "w-10" : "min-w-10 px-2 @lg:px-4",
           danger && "hover:text-danger",
           className,
@@ -99,8 +108,41 @@ export function SelectionAction({
   );
 }
 
+/**
+ * An action in the bar that opens a menu of choices (Notion's Status): its
+ * glyph and word, then the menu under it. `children` are the menu's
+ * `DropdownMenuItem`s. The Tracker's Status.
+ */
+export function SelectionMenu({
+  label,
+  icon,
+  disabled = false,
+  children,
+}: {
+  label: string;
+  icon: ReactNode;
+  disabled?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        disabled={disabled}
+        aria-label={label}
+        className={cn(SEGMENT, "min-w-10 px-2 @lg:px-4")}
+      >
+        {icon}
+        <span className="hidden @lg:inline">{label}</span>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-48">
+        {children}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 /** A row's select box. Its clicks stop here: a row's own click opens it
- *  (components/clickable-row.tsx), and a pick should not. Up Next's and
+ *  (components/clickable-row.tsx), and a pick should not. Up Next's, the Tracker's and
  *  Documents' tables. */
 export function PickBox({ children }: { children: ReactNode }) {
   return (
