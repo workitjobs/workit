@@ -156,3 +156,8 @@ date's answer under its section and label
 places is never banked. An older entry filed under a bare label alone is
 never read again. Lisul's own answer to a bare date applies to that form
 only; Apply does not save it to the profile by its wording.
+
+The engine knows Microsoft Careers (`apply.careers.microsoft.com`) as an Eightfold site (KAN-770): `jobOf`,
+`jobNames` and `jobDescription` read it from Eightfold's API, so a request and `apply applied` get "Microsoft" and
+the role. Apply still fills its form with Claude fill: `model.EIGHTFOLD` leaves it out, since the Eightfold Filler
+was never checked behind Microsoft's sign-in.

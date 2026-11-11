@@ -81,6 +81,35 @@ RESCUE_FORM = """<!doctype html><title>Apply</title><h1>Your details</h1>
 <script>function pick(li) { const box = document.getElementById('pronouns'); box.textContent = li.textContent;
   box.setAttribute('aria-expanded', 'false'); document.getElementById('list').hidden = true; window.picked = li.textContent; }</script>"""
 
+# Eightfold's widgets as Microsoft's form draws them (KAN-767, KAN-768): a dropdown whose picked option, clicked
+# again, empties it; and a resume upload whose file waits behind a "Data Privacy Notice" until its I understand
+# (Cancel drops the file). Nothing here posts.
+EIGHTFOLD_FORM = """<!doctype html><title>Apply</title><h2>Candidate questions</h2>
+<div id=q-label>Have you ever worked with Acme?</div>
+<input role=combobox id=worked aria-labelledby=q-label aria-controls=worked-list aria-expanded=false value=No readonly
+       onclick="document.getElementById('worked-list').hidden = false; this.setAttribute('aria-expanded', 'true')">
+<ul role=listbox id=worked-list hidden>
+  <li role=option aria-selected=false onclick="pick(this)">Yes</li><li role=option aria-selected=true onclick="pick(this)">No</li></ul>
+<h2>Resume</h2><div id=resume-box>Drag &amp; drop file</div>
+<button type=button aria-label="Select file - Upload resume" onclick="document.getElementById('cv').click()">Select file</button>
+<input type=file id=cv style="display:none">
+<div role=dialog aria-modal=true aria-labelledby=dpn-title id=dpn hidden style="position:fixed;inset:0;background:#fff">
+  <h2 id=dpn-title>Data Privacy Notice</h2><p>Read how we use your personal data.</p>
+  <button type=button onclick="drop()">Cancel</button><button type=button onclick="upload()">I understand</button></div>
+<script>
+function pick(li) {
+  const box = document.getElementById('worked'), held = li.getAttribute('aria-selected') === 'true';
+  for (const o of document.querySelectorAll('#worked-list [role=option]')) o.setAttribute('aria-selected', 'false');
+  if (!held) li.setAttribute('aria-selected', 'true');
+  box.value = held ? '' : li.textContent;  // Eightfold's toggle: the held option, clicked again, empties it
+  box.setAttribute('aria-expanded', 'false'); document.getElementById('worked-list').hidden = true;
+}
+let waiting = null;
+document.getElementById('cv').addEventListener('change', e => { waiting = e.target.files[0]; document.getElementById('dpn').hidden = false; });
+function drop() { waiting = null; document.getElementById('dpn').hidden = true; window.cancelled = true; }
+function upload() { document.getElementById('dpn').hidden = true; document.getElementById('resume-box').textContent = waiting.name; }
+</script>"""
+
 
 @pytest.fixture(scope="module")
 def site():
@@ -89,7 +118,8 @@ def site():
     class Pages(http.server.BaseHTTPRequestHandler):
         def do_GET(self):
             body = {"/tools": TOOLS_FORM, "/posting": POSTING, "/rescue": RESCUE_FORM, "/captcha": CAPTCHA_FORM,
-                    "/recaptcha/api2/anchor": ANCHOR, "/ask": ASK_FORM}.get(self.path.split("?")[0], "<p>no")
+                    "/recaptcha/api2/anchor": ANCHOR, "/ask": ASK_FORM,
+                    "/eightfold": EIGHTFOLD_FORM}.get(self.path.split("?")[0], "<p>no")
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.end_headers()
@@ -403,3 +433,58 @@ def test_on_a_plain_worker_a_box_his_message_names_goes_on(page, site, tmp_path)
         assert not tools.tool("browser_click", target=ref(shot, 'checkbox "I certify'))[1]
         assert tools.tool("browser_click", target=ref(shot, "I acknowledge"))[1]
     assert page.evaluate("() => [native.checked, custom.getAttribute('aria-checked')]") == [True, "false"]
+
+
+@needs_chrome
+def test_a_click_on_the_option_a_list_holds_already_is_not_made(page, site, tmp_path):
+    """Eightfold's list empties on a click of its held option (KAN-767): Claude's click on it is not made."""
+    page.goto(f"{site.url}/eightfold")
+    with tools_on(page, tmp_path) as tools:
+        said, _ = tools.tool("browser_click", target=ref(tools.tool("browser_snapshot")[0], "combobox"), element="Worked with Acme")
+        said, error = tools.tool("browser_click", target=ref(tools.tool("browser_snapshot")[0], 'option "No"'), element="No")
+        assert not error and "picked already" in said
+        said, error = tools.tool("browser_click", target=ref(tools.tool("browser_snapshot")[0], 'option "Yes"'), element="Yes")
+        assert not error
+    assert page.evaluate("() => document.getElementById('worked').value") == "Yes"  # an option not held is clicked
+
+
+@needs_chrome
+def test_an_uploads_consent_dialog_stops_claude_and_none_of_its_buttons_is_pressed(page, site, tmp_path):
+    """Microsoft's Data Privacy Notice (KAN-768, KAN-769): the upload's result tells Claude to stop, and its Cancel and
+    I understand are refused; the file waits on the applicant's own press."""
+    page.goto(f"{site.url}/eightfold")
+    (tmp_path / "Test_Person_Resume.pdf").write_bytes(b"%PDF-1.4 test")
+    with tools_on(page, tmp_path) as tools:
+        upload = ref(tools.tool("browser_snapshot")[0], 'button "Select file - Upload resume"')
+        tools.tool("browser_click", target=upload, element="Select file")
+        said, error = tools.tool("browser_file_upload", paths=[str(tmp_path / "Test_Person_Resume.pdf")])
+        assert not error and "### Stop" in said and '"Data Privacy Notice"' in said
+        snapshot = tools.tool("browser_snapshot")[0]
+        for button in ('button "Cancel"', 'button "I understand"'):
+            said, error = tools.tool("browser_click", target=ref(snapshot, button), element=button)
+            assert error and "consent that is the applicant" in said
+    assert page.evaluate("() => window.cancelled") is None
+    assert page.evaluate("() => document.getElementById('dpn').hidden") is False
+
+
+@needs_chrome
+def test_plain_code_hands_the_consent_to_him_and_attaches_after_his_press(page, site, tmp_path):
+    """attach_resume gives the file, sees the consent dialog it brought on, and raises Consent naming its button and
+    title, pressing nothing; once he presses I understand, the next attach finds the file attached (KAN-768)."""
+    from apply.attach import Consent, attach_resume, clear_pop_up
+    page.goto(f"{site.url}/eightfold")
+    resume = tmp_path / "Test_Person_Resume.pdf"
+    resume.write_bytes(b"%PDF-1.4 test")
+
+    with pytest.raises(Consent) as stop:
+        attach_resume(page, resume)
+    assert str(stop.value) == ('Press "I understand" on the "Data Privacy Notice" dialog yourself (a consent: Apply never '
+                               "gives it), then press Resume: Apply attaches your resume then.")
+    with pytest.raises(Consent):
+        attach_resume(page, resume)  # still open: his, and no file is given over it
+    with pytest.raises(Consent):
+        clear_pop_up(page, resume)  # never closed as a pop-up either
+    assert page.evaluate("() => window.cancelled") is None
+
+    page.evaluate("() => upload()")  # his own press of I understand
+    assert attach_resume(page, resume) is True
