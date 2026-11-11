@@ -2911,28 +2911,34 @@ upload, a built resume from its last edit. It is drawn as the Type filter is, bu
 never takes the filter's brand tint, since an order is always in force;
 it is a dropdown because the header already holds the Resumes or Experiences
 pills, the shared `SortMenu`, which the Jobs page's filter row uses too.
-**Each resume is a wide white card on the page's ground, after the
-Tracker's cards** (2026-11-10, `ResumeCard` in
-`components/resume-row.tsx`; the list is no card of its own): a tile
-saying what the resume is, the name, and a line with an icon saying it in
-words ("Uploaded
-PDF", "Made from your experiences", "<posting> at <company>", with no
-"For", which the briefcase says, and no Posting Closed badge, which the
-user found not needed, 2026-11-10), then **Date Modified**, then its
-actions. **Date Modified** (2026-11-10, after Google Drive's) is the latest
-of two events, labeled with which: "Modified" over the last edit's date and
-time, or "Created" over when it was made or uploaded, for a resume never
+**The List is a table after the Tracker's** (2026-11-10, `ResumeList` in
+`resumes/resume-list.tsx`, rows by `ResumeCard` in
+`components/resume-row.tsx`): one white card with 12px grey headings and
+rules between the rows. **Name** holds a tile saying what the resume is
+and the name, with a tailored resume's posting under it ("<posting> at
+<company>", a link while the posting is open; no "For" and no Posting
+Closed badge, which the user found not needed); **Type** its badge
+(Uploaded, Generated, Tailored, as on a grid card); **Date Modified** the
+day and time; then the actions. A click anywhere on a row opens the
+resume. The headings say once what every card said for itself: as wide
+white cards (earlier the same day) each resume labeled its own date
+"Modified" or "Created", which the user found repetitive. Below `@2xl` of
+the table, a phone's, the Type column folds away, the date keeps only its
+day, and the actions column holds only the star and ⋮. Rename turns the
+row into the name's field with Cancel and Save, at the row's height.
+**Date Modified** (2026-11-10, after Google Drive's) is the latest of two
+events: the last edit, or when it was made or uploaded, for a resume never
 edited, on the student's clock, the year only when it is not this one. It
 was two columns, Created and Last Edited, which the user condensed into
 one. **The actions wait for the pointer, as Google Drive's rows do**
-(`CardActionIcons`): at rest a card shows only ⋮ (More actions) and, on the
+(`CardActionIcons`): at rest a row shows only ⋮ (More actions) and, on the
 primary resume, its filled star, a status; on hover, or with the keyboard's
 focus in the card, Make Primary, Rename, Download and Delete fade in left of
 ⋮, in room kept for them, so nothing moves. ⋮ holds every action, worded:
 Open, Rename, Download PDF, Make Primary (on a resume that is not the
 primary), then Delete in red, which asks first (`RowMoreMenu` with
 `always`). A touch screen has no hover, so it shows ⋮ and the primary's
-star only. Four icons on every card at all times read busy to the user.
+star only. Four icons on every row at all times read busy to the user.
 The date and the actions sit in fixed columns, so every card's date lines
 up. **The Grid view** (KAN-766, after Google Drive's and Simplify's): a List /
 Grid switch at the right end of the search's row, where the Jobs and

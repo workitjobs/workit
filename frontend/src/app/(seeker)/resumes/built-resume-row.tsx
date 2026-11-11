@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
 
-import { BriefcaseIcon, FileIcon } from "@/components/icons";
 import { BuiltPageTile, PostingLogoTile, ResumeCard } from "@/components/resume-row";
 import { Button } from "@/components/ui/button";
 import { TextField } from "@/components/ui/text-field";
@@ -88,72 +87,8 @@ export function BuiltResumeRow({
   const edited = Date.parse(resume.edited_at) > Date.parse(resume.created_at);
   const downloadLabel = download.busy === "pdf" ? "Making PDF…" : "Download PDF";
 
-  return (
-    <li>
-      <ResumeCard
-        layout={layout}
-        type={resume.job_posting_id ? "tailored" : "generated"}
-        company={
-          resume.job_posting_id && resume.posting_company
-            ? {
-                name: resume.posting_company,
-                logoUrl: resume.posting_logo_url,
-                domain: resume.posting_company_domain,
-              }
-            : undefined
-        }
-        thumbnail={
-          <ResumeThumbnail
-            source={{ built_resume_id: resume.id }}
-            version={resume.edited_at}
-            fallback={<BuiltPageTile />}
-          />
-        }
-        rename={
-          renaming ? { saving, onSave: rename, onCancel: () => setRenaming(false) } : undefined
-        }
-        name={resume.name}
-        href={`/resumes/${encodeURIComponent(resume.id)}`}
-        tile={
-          resume.job_posting_id ? (
-            <PostingLogoTile
-              company={resume.posting_company ?? resume.posting_title ?? resume.name}
-              logoUrl={resume.posting_logo_url}
-              domain={resume.posting_company_domain}
-            />
-          ) : (
-            <BuiltPageTile />
-          )
-        }
-        about={
-          resume.job_posting_id && resume.posting_title ? (
-            <>
-              <BriefcaseIcon className="size-3.5 shrink-0" />
-              <span className="truncate">
-                <PostingLink resume={resume} />
-              </span>
-            </>
-          ) : (
-            <>
-              <FileIcon className="size-3.5 shrink-0" />
-              <span className="truncate">Made from your experiences</span>
-            </>
-          )
-        }
-        created={resume.created_at}
-        edited={edited ? resume.edited_at : null}
-        actions={{
-          primary: resume.is_default,
-          onMakePrimary: makePrimary,
-          onRename: () => setRenaming(true),
-          download: {
-            label: downloadLabel,
-            busy: download.busy !== null,
-            onPick: () => download.pick("pdf"),
-          },
-          onDelete: remove,
-        }}
-      />
+  const notes = (
+    <>
       <div className="mt-2 empty:hidden">
         <DownloadNotes download={download} />
       </div>
@@ -162,6 +97,68 @@ export function BuiltResumeRow({
           {error}
         </p>
       )}
+    </>
+  );
+  const card = (
+    <ResumeCard
+      layout={layout}
+      type={resume.job_posting_id ? "tailored" : "generated"}
+      company={
+        resume.job_posting_id && resume.posting_company
+          ? {
+              name: resume.posting_company,
+              logoUrl: resume.posting_logo_url,
+              domain: resume.posting_company_domain,
+            }
+          : undefined
+      }
+      thumbnail={
+        <ResumeThumbnail
+          source={{ built_resume_id: resume.id }}
+          version={resume.edited_at}
+          fallback={<BuiltPageTile />}
+        />
+      }
+      rename={renaming ? { saving, onSave: rename, onCancel: () => setRenaming(false) } : undefined}
+      name={resume.name}
+      href={`/resumes/${encodeURIComponent(resume.id)}`}
+      tile={
+        resume.job_posting_id ? (
+          <PostingLogoTile
+            company={resume.posting_company ?? resume.posting_title ?? resume.name}
+            logoUrl={resume.posting_logo_url}
+            domain={resume.posting_company_domain}
+          />
+        ) : (
+          <BuiltPageTile />
+        )
+      }
+      about={
+        resume.job_posting_id && resume.posting_title ? <PostingLink resume={resume} /> : undefined
+      }
+      notes={layout === "list" ? notes : undefined}
+      created={resume.created_at}
+      edited={edited ? resume.edited_at : null}
+      actions={{
+        primary: resume.is_default,
+        onMakePrimary: makePrimary,
+        onRename: () => setRenaming(true),
+        download: {
+          label: downloadLabel,
+          busy: download.busy !== null,
+          onPick: () => download.pick("pdf"),
+        },
+        onDelete: remove,
+      }}
+    />
+  );
+  // A table row prints its notes under its name; a grid card under itself.
+  return layout === "list" ? (
+    card
+  ) : (
+    <li>
+      {card}
+      {notes}
     </li>
   );
 }

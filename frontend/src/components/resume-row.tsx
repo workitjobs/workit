@@ -8,7 +8,7 @@ import { useRef, useState, type FormEvent, type ReactNode } from "react";
 import { LocalDate, LocalDateTime } from "@/app/(seeker)/local-time";
 import { ResumeThumbnail } from "@/app/(seeker)/jobs/[jobId]/tailor/resume-preview";
 import { DeleteResumeConfirm } from "@/app/(seeker)/resumes/delete-confirm";
-import { EllipsisIcon, PdfIcon, PencilIcon, TrashIcon, UploadIcon } from "@/components/icons";
+import { EllipsisIcon, PdfIcon, PencilIcon, TrashIcon } from "@/components/icons";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,8 +16,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/shadcn/dropdown-menu";
+import { ClickableRow } from "@/components/clickable-row";
 import { CompanyLogo } from "@/components/company-logo";
 import { RESUME_TYPES, type ResumeType } from "@/components/resume-list";
+import { TableCell, TableRow } from "@/components/shadcn/table";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -56,14 +58,23 @@ export const ROW_MARK = "hidden size-5 shrink-0 @sm:block";
  *  icons and a badge squeezed one card's name to 0px. */
 export const ROW_NAME = "min-w-1/2 flex-1";
 
-/** The Resumes page's card grid (2026-11-10, after the Tracker's cards and
- *  Google Drive's rows): the name and what the resume is, Date Modified in
- *  a fixed column, and the actions in a column five icons wide (the four
- *  that show on hover and ⋮), so every card's date lines up and nothing
- *  moves when the icons appear. Below `@2xl` of the card (672px) the date
- *  joins the line under the name. */
-const CARD_GRID =
-  "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 p-3 @2xl:grid-cols-[minmax(0,1fr)_11rem_10rem] @2xl:gap-6 @2xl:px-4";
+/** The Resumes table's heading and cell type: the Tracker table's
+ *  (`applications/list.tsx`'s TH and TD), so the two read as one app. */
+export const RESUME_TH = "px-4 text-note text-ink-meta font-medium";
+const RESUME_TD = "px-4 text-note text-ink";
+
+/** The Type column, from `@2xl` of the table. Below that it keeps its
+ *  place with no width and no padding, rather than leaving the table: a
+ *  rename's row spans every column, which a missing column would break. */
+export const RESUME_TYPE_COL = "w-0 overflow-hidden p-0 @2xl:w-32 @2xl:px-4";
+
+/** The Date Modified column: the day on a phone, the day and time wider. */
+export const RESUME_DATE_COL = "w-20 @2xl:w-44";
+
+/** The actions column: five icons wide (the four that show on hover and
+ *  ⋮), so nothing moves when the icons appear; on a touch screen, which
+ *  shows only the star and ⋮, two, so a phone's names keep the room. */
+export const RESUME_ACTIONS_COL = "w-44 pointer-coarse:w-20";
 
 /** What a card's actions do, as its row hands them over. */
 export type CardActions = {
@@ -153,25 +164,30 @@ function CardActionIcons({
 }
 
 /**
- * One resume on the Resumes page, as a wide card after the Tracker's
- * (`applications/cards.tsx`, the user's call of 2026-11-10): a tile saying
- * what the resume is, the name, and a line with an icon saying it in words
- * (`about`), then **Date Modified**, then the actions (`CardActionIcons`).
- * The rows it replaced were 52px grey strips with the date pushed against
- * the icons, which the user found skinny and cramped.
+ * One resume on the Resumes page. **In the list** it is a row of a table
+ * after the Tracker's (`applications/list.tsx`, the user's call of
+ * 2026-11-10), in one white card with grey headings and rules between the
+ * rows (`resumes/resume-list.tsx`): **Name** (a tile saying what the
+ * resume is, the name, and a tailored resume's posting under it, `about`),
+ * **Type** (its badge, `TypeBadge`), **Date Modified**, then the actions
+ * (`CardActionIcons`). The headings name each column once: as cards, every
+ * resume said "Modified" or "Created" over its own date, which the user
+ * found repetitive.
  *
- * Date Modified is the latest of the two events, labeled with which it is:
- * "Modified" over the last edit's date and time, or "Created" over when it
- * was made or uploaded, for a resume never edited. It was two columns,
- * Created and Last Edited, which the user had condensed into one, as
- * Google Drive's Date modified.
+ * Date Modified is the latest of the two events, Google Drive's Date
+ * modified: the last edit, or when it was made or uploaded for a resume
+ * never edited (`edited` null: an upload, or a built resume as made).
  *
- * The whole card opens the resume (`href`): the name's link stretches over
- * it, and the actions and any link in `about` sit above it. `edited` is
- * null for a resume never edited (an upload, or a built resume as made).
- * The pickers' rows keep their one-line strip (`ResumeRow` without `page`).
+ * The whole row opens the resume (`href`, `ClickableRow`, as a Tracker row
+ * opens its application): a click on the name, a link in `about`, a star
+ * or an icon is left to it. The pickers' rows keep their one-line strip
+ * (`ResumeRow` without `page`). `notes` (a download's warning, an error)
+ * print under the name.
  *
- * **Rename edits the name on the card** (`rename`, `RenamingCard`).
+ * It went through wide white cards first (2026-11-10, after the Tracker's
+ * board cards), each with its date in a labeled column, and 52px grey
+ * strips before that. **Rename edits the name in its row** (`rename`,
+ * `RenamingRow`).
  *
  * **In the grid** (`layout="grid"`, KAN-766) the card is the resume's first
  * page over its name, its type and its Date Modified (`ResumeGridCard`).
@@ -181,6 +197,7 @@ export function ResumeCard({
   href,
   tile,
   about,
+  notes,
   created,
   edited,
   actions,
@@ -195,7 +212,11 @@ export function ResumeCard({
   /** What the resume is, at a glance: `FileTypeTile`, `BuiltPageTile` or
    *  `PostingLogoTile`. */
   tile: ReactNode;
-  about: ReactNode;
+  /** The line under the name: a tailored resume's posting. */
+  about?: ReactNode;
+  /** A table row's messages under the name; a grid card's row prints its
+   *  own under the card. */
+  notes?: ReactNode;
   created: string | null;
   edited: string | null;
   actions: CardActions;
@@ -204,7 +225,7 @@ export function ResumeCard({
   layout?: "list" | "grid";
   /** The grid card's picture: the resume's first page. */
   thumbnail?: ReactNode;
-  /** The grid card's type badge: Uploaded, Generated or Tailored. */
+  /** The type's badge: Uploaded, Generated or Tailored. */
   type?: ResumeType;
   /** A tailored resume's company, beside its badge on a grid card. */
   company?: GridCompany;
@@ -224,46 +245,56 @@ export function ResumeCard({
       />
     );
   }
-  if (rename) return <RenamingCard name={name} tile={tile} rename={rename} />;
+  if (rename) return <RenamingRow name={name} tile={tile} rename={rename} />;
   const modified = edited ?? created;
-  const label = edited ? "Modified" : "Created";
   return (
-    <Card
-      padding="none"
-      className="group hover:border-ink-meta hover:shadow-lift ease-glide @container relative mt-3 transition-[box-shadow,border-color] duration-200"
-    >
-      <div className={CARD_GRID}>
+    <ClickableRow href={href} className="group hover:bg-hover">
+      <TableCell className={cn(RESUME_TD, "overflow-hidden py-3")}>
         <div className="flex min-w-0 items-center gap-3">
           <span className="hidden shrink-0 @sm:block">{tile}</span>
           <div className="min-w-0">
             <Link
               href={href}
               title={name}
-              className="text-subtitle text-ink after:rounded-card focus-visible:after:ring-brand-ring block min-w-0 truncate leading-5 after:absolute after:inset-0 focus-visible:outline-none focus-visible:after:ring-2"
+              className="text-label text-ink hover:text-brand focus-visible:ring-brand-ring -my-1 block truncate rounded-xs py-1 font-semibold transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none"
             >
               {name}
             </Link>
-            <div className="text-note text-ink-meta mt-1 flex min-w-0 items-center gap-1.5">
-              {about}
-            </div>
-            {/* Narrower, the column's date reads here. */}
-            {modified && (
-              <div className="text-note text-ink-meta mt-0.5 truncate @2xl:hidden">
-                {label} <LocalDateTime at={modified} />
-              </div>
-            )}
+            {about && <p className="text-note text-ink-meta truncate">{about}</p>}
+            {notes && <div className="whitespace-normal">{notes}</div>}
           </div>
         </div>
-        <div className="hidden min-w-0 @2xl:block">
-          <div className="text-meta text-ink-meta">{label}</div>
-          <div className="text-note text-ink mt-0.5 whitespace-nowrap">
-            {modified ? <LocalDateTime at={modified} /> : "—"}
-          </div>
-        </div>
+      </TableCell>
+      <TableCell className={cn(RESUME_TD, RESUME_TYPE_COL)}>
+        {type && (
+          <span className="hidden @2xl:inline-flex">
+            <TypeBadge type={type} />
+          </span>
+        )}
+      </TableCell>
+      <TableCell className={cn(RESUME_TD, "overflow-hidden")}>
+        {modified && (
+          <>
+            <span className="@2xl:hidden">
+              <LocalDate at={modified} />
+            </span>
+            <span className="hidden @2xl:inline">
+              <LocalDateTime at={modified} />
+            </span>
+          </>
+        )}
+      </TableCell>
+      <TableCell className="pr-2 pl-0">
         <CardActionIcons name={name} href={href} actions={actions} />
-      </div>
-    </Card>
+      </TableCell>
+    </ClickableRow>
   );
+}
+
+/** A resume's type as its badge, in the table's Type column and on a grid
+ *  card. */
+function TypeBadge({ type }: { type: ResumeType }) {
+  return <Badge tone={TYPE_TONE[type]}>{RESUME_TYPES.find((t) => t.value === type)?.label}</Badge>;
 }
 
 /** A tailored resume's company, for its grid card: the name and the job
@@ -367,11 +398,7 @@ function ResumeGridCard({
             </div>
           </div>
           <div className="mt-2 flex h-6 min-w-0 items-center gap-2">
-            {type && (
-              <Badge tone={TYPE_TONE[type]}>
-                {RESUME_TYPES.find((t) => t.value === type)?.label}
-              </Badge>
-            )}
+            {type && <TypeBadge type={type} />}
             {company && (
               <span
                 title={company.name}
@@ -447,16 +474,16 @@ export type Rename = {
 };
 
 /**
- * A card being renamed (2026-11-10): the name becomes its field, in place,
- * with Cancel and Save where the icons were; Enter saves and Escape cancels.
- * The field takes the dates' room while it is open, and the card keeps its
- * height (the field is the tile's 40px), so the list does not move. It was
- * a form in the card's place, a labeled field across the list with "Save
+ * A row being renamed (2026-11-10): the name becomes its field, in place,
+ * with Cancel and Save at the row's end; Enter saves and Escape cancels.
+ * One cell spans the row, so the field and the buttons fit a phone's
+ * table too. The row keeps its height (the field is the tile's 40px), so
+ * the table does not move, and it opens nothing while it is open. It was a
+ * form in the card's place, a labeled field across the list with "Save
  * Name", whose focus ring the list's scroll cut off, which the user found
- * horrible. A name left as it was closes it with no call. The card opens
- * nothing while it is open.
+ * horrible. A name left as it was closes it with no call.
  */
-function RenamingCard({ name, tile, rename }: { name: string; tile: ReactNode; rename: Rename }) {
+function RenamingRow({ name, tile, rename }: { name: string; tile: ReactNode; rename: Rename }) {
   const [draft, setDraft] = useState(name);
   const trimmed = draft.trim();
 
@@ -467,12 +494,11 @@ function RenamingCard({ name, tile, rename }: { name: string; tile: ReactNode; r
   }
 
   return (
-    <Card padding="none" selected className="@container relative mt-3">
-      <form
-        onSubmit={submit}
-        className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 p-3 @2xl:gap-6 @2xl:px-4"
-      >
-        <div className="flex min-w-0 items-center gap-3">
+    <TableRow className="bg-hover hover:bg-hover">
+      {/* 11px, not 12: the field is 42px to the tile's 40, so the row
+          keeps a list row's 65px. */}
+      <TableCell colSpan={4} className="px-4 py-[11px]">
+        <form onSubmit={submit} className="flex items-center gap-3">
           <span className="hidden shrink-0 @sm:block">{tile}</span>
           <div className="min-w-0 flex-1">
             <TextInput
@@ -488,17 +514,15 @@ function RenamingCard({ name, tile, rename }: { name: string; tile: ReactNode; r
               }}
             />
           </div>
-        </div>
-        <div className="flex items-center justify-end gap-2">
           <Button type="button" variant="secondary" size="sm" onClick={rename.onCancel}>
             Cancel
           </Button>
           <Button type="submit" size="sm" disabled={rename.saving || !trimmed}>
             {rename.saving ? "Saving…" : "Save"}
           </Button>
-        </div>
-      </form>
-    </Card>
+        </form>
+      </TableCell>
+    </TableRow>
   );
 }
 
@@ -567,8 +591,8 @@ export function PostingLogoTile({
   );
 }
 
-/** A file in flight on the Resumes page, as the card it becomes, at its
- *  height, so nothing jumps when the real card arrives. */
+/** A file in flight on the Resumes page, as the row or card it becomes, at
+ *  its height, so nothing jumps when the real one arrives. */
 export function PendingResumeCard({
   name,
   note,
@@ -592,19 +616,22 @@ export function PendingResumeCard({
     );
   }
   return (
-    <Card padding="none" className="@container mt-3">
-      <div className={CARD_GRID}>
+    <TableRow className="hover:bg-transparent">
+      <TableCell className={cn(RESUME_TD, "overflow-hidden py-3")}>
         <div className="flex min-w-0 items-center gap-3">
           <span className="hidden shrink-0 @sm:block">
             <FileTypeTile file={name} />
           </span>
           <div className="min-w-0">
-            <div className="text-subtitle text-ink truncate leading-5">{name}</div>
-            <div className="text-note text-ink-meta mt-1">{note}</div>
+            <div className="text-label text-ink truncate font-semibold">{name}</div>
+            <div className="text-note text-ink-meta">{note}</div>
           </div>
         </div>
-      </div>
-    </Card>
+      </TableCell>
+      <TableCell className={cn(RESUME_TD, RESUME_TYPE_COL)} />
+      <TableCell className={RESUME_TD} />
+      <TableCell />
+    </TableRow>
   );
 }
 
@@ -786,8 +813,10 @@ type ResumeRowProps = {
   page?: boolean;
   /** The page card's rename, while it is open. */
   rename?: Rename;
-  /** The Resumes tab's layout: a list card or a grid card. */
+  /** The Resumes tab's layout: a table row or a grid card. */
   layout?: "list" | "grid";
+  /** A table row's messages under the name (`ResumeCard`'s `notes`). */
+  notes?: ReactNode;
   onMakePrimary?: () => void;
   onRename?: () => void;
   onDownload?: () => void;
@@ -801,6 +830,7 @@ export function ResumeRow({
   page = false,
   rename,
   layout = "list",
+  notes,
   onMakePrimary,
   onRename,
   onDownload,
@@ -874,12 +904,7 @@ export function ResumeRow({
             fallback={<FileTypeTile file={resume.storage_path} />}
           />
         }
-        about={
-          <>
-            <UploadIcon className="size-3.5 shrink-0" />
-            <span className="truncate">{pdf ? "Uploaded PDF" : "Uploaded Word file"}</span>
-          </>
-        }
+        notes={notes}
         created={resume.created_at}
         edited={null}
         actions={{

@@ -2766,16 +2766,20 @@ are in `docs/auth.md`.
   short.
 - **The Resumes view is one list of every resume** (KAN-362, KAN-404,
   `(seeker)/resumes/built-resumes.tsx`): uploaded, generated and tailored,
-  newest first, each as its card (`components/resume-row.tsx`'s box, star
-  and icons: star, Rename, Download, Delete; Delete asks in a popover
-  under the trash, `DeleteResumeConfirm`, KAN-347; below `@xl` of the
-  row, a phone's, Rename, Download and Delete sit in a `⋯` menu,
-  `RowMoreMenu`, and the name keeps half the row, KAN-575), in one card that scrolls
-  inside itself and runs down to the foot of the page (`ResumeScroll`'s
-  `fill` in `components/resume-list.tsx`, KAN-434), never shorter than
-  five cards under a heading (`FIVE_ROWS`, 352px). Capped at five cards,
-  it left half a laptop screen empty under it. The cap is measured from
-  the start of the page, not the window: a cap that grew as the list's top
+  newest first, as a List or a Grid (KAN-766). **The List is a table
+  after the Tracker's** (`applications/list.tsx`; `ResumeList` in
+  `resumes/resume-list.tsx`, rows by `ResumeCard`, 2026-11-10): one white
+  card, grey headings Name, Type and Date Modified, rules between rows, a
+  row that opens the resume on a click anywhere (`ClickableRow`), and the
+  actions at the right (star, Rename, Download, Delete on hover, ⋮ always;
+  Delete asks in a popover under the trash, `DeleteResumeConfirm`,
+  KAN-347). The headings name each column once: as cards, each resume
+  labeled its own date "Modified" or "Created", which the user found
+  repetitive. Its columns do not move, resize or hide as the Tracker's
+  do. The page scrolls under the table, as the Tracker's; the Grid
+  scrolls inside itself down to the foot of the page (`ResumeScroll`'s
+  `fill` in `components/resume-list.tsx`, KAN-434), measured from the
+  start of the page, not the window: a cap that grew as the list's top
   rose would grow the page with it as it scrolled. **It is laid
   out as the Applications Tracker is**, so keep the two alike: the search
   on its own row, then the Type filter (`FieldFacet`, the Applications
@@ -2783,12 +2787,11 @@ are in `docs/auth.md`.
   default; Oldest First; Name, A to Z; in `?sort=`, KAN-366) with Upload
   Resume and Generate Resume at the right, both above the list, and `EmptyState` in the list's place
   when no card shows. Upload Resume and Generate Resume never sit in the
-  shared header. A card says what it is in its own line ("Uploaded …",
-  "<posting> at <company>"), so the list needs no Type or date
-  column: two table versions came first in KAN-362, one with Type and
-  Last Edited columns and sort headings, one with each row's icons in a
-  `⋯` menu, and the user found the columns useless beside the cards and
-  the menu hid the actions students use. Three views behind pills, then
+  shared header. Two table versions came first in KAN-362, one with Type
+  and Last Edited columns and sort headings, one with each row's icons in
+  a `⋯` menu; the user found the columns useless beside cards that each
+  said what they were, and the menu hid the actions students use. The
+  table came back on 2026-11-10 with the icons kept on hover. Three views behind pills, then
   tabs, came before that: each split one list though every card acts
   alike, and a student had to look in three places for their latest
   resume. **The list is flat, as the grid is** (2026-11-10): every card

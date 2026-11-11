@@ -8,10 +8,10 @@ import { RESUMES_SEARCH, ResumesHeader } from "../header";
 /**
  * Resumes while both resume lists load (KAN-561): the page's frame
  * (./page.tsx), Documents' tabs live, then the search with the List /
- * Grid switch at its right, the filter row and the list's card
- * (../built-resumes.tsx) as bars: a group's heading and its cards. In this route group so it never stands
- * in for the editor or an upload's page, which have their own. A card is
- * `RESUME_ROW`'s box, written out: that module is a client one.
+ * Grid switch at its right, the filter row and the table
+ * (../resume-list.tsx) as bars: its headings and its rows. In this route
+ * group so it never stands in for the editor or an upload's page, which
+ * have their own.
  */
 export default function ResumesLoading() {
   return (
@@ -35,21 +35,23 @@ export default function ResumesLoading() {
             </div>
           </div>
         </div>
-        <Card padding="none" aria-hidden="true" className="mt-4 px-3 pb-3">
-          <div className="flex h-9 items-center pt-2">
-            <Skeleton className="h-3 w-20" />
+        {/* The table's card (../resume-list.tsx): its headings, then rows
+            with rules between them, a tile, the name and its date. */}
+        <Card padding="none" aria-hidden="true" className="mt-4 overflow-hidden">
+          <div className="border-border-subtle flex h-10 items-center gap-4 border-b px-4">
+            <Skeleton className="h-3 w-12" />
+            <Skeleton className="ml-auto h-3 w-24" />
+            <span className="w-24" />
           </div>
-          {Array.from({ length: 4 }, (_, i) => (
+          {Array.from({ length: 5 }, (_, i) => (
             <div
               key={i}
-              className="border-border-subtle bg-well rounded-control mt-2 flex items-center gap-3 border p-2"
+              className="border-border-subtle flex items-center gap-3 border-b px-4 py-3 last:border-b-0"
             >
-              <Skeleton className="size-5 shrink-0" />
-              <span className="flex min-w-0 flex-1 flex-col gap-1.5 py-0.5">
-                <Skeleton className="h-3.5 w-56 max-w-full" />
-                <Skeleton className="h-3 w-32 max-w-full" />
-              </span>
-              <Skeleton className="size-8 shrink-0" />
+              <Skeleton className="size-10 shrink-0" />
+              <Skeleton className="h-3.5 w-56 max-w-full" />
+              <Skeleton className="ml-auto h-3 w-24 shrink-0" />
+              <span className="w-24 shrink-0" />
             </div>
           ))}
         </Card>
