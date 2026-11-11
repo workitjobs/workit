@@ -159,12 +159,10 @@ that touches `apply-agent/`, the engine pointer, `ci.yml` or
 `test_plain_routing.py`, the last two on a real plain Worker (KAN-667). macOS, because a
 plain Worker starts through `open` and the browser's `.app`; a step fails the
 job if the browser is missing, since these tests skip without it.
-**Its limit is 35 minutes, not 20** (2026-11-10): on the macOS runner the
-whole job took 16 to 20 minutes once the hostile pages' plain-Worker cases
-ran there. That step alone took 10 to 15 minutes, and a passing run (#521)
-finished 12 s under the old 20-minute limit. A run that hit the limit was
-cancelled in the Plain-Worker tests step, with nothing failed. Raise it again
-before it gets close, rather than splitting the job blind.
+**Its limit is 15 minutes** (KAN-780, 2026-11-10): the job took 16 to 20
+minutes once the hostile pages' plain-Worker cases ran there (it was raised
+to 35 for that), and about 6 after KAN-780 (below). Each step has its own
+limit too, so a hang fails in that step.
 **CI does not run the other 28 test files**, which hold the Filler tests
 (`test_*_filler.py`, `test_claude_fill.py`, `test_run.py`,
 `test_rehearse.py` and more). Most of them need Chromium or the macOS
