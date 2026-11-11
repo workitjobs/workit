@@ -20,6 +20,13 @@ parsed by a native form submission, which they block otherwise: KAN-691). Jobvit
 residence and privacy consent, when a tenant asks for them first, are passed
 here too, so Claude never has to.
 
+A dialog that asks the applicant to accept a privacy or data notice before
+the file goes (Microsoft's Eightfold "Data Privacy Notice": I understand /
+Cancel, KAN-768) is his consent: plain code presses none of its buttons, not
+even Cancel or Close (Cancel drops the file), and raises `Consent`, a Handoff
+that names the dialog and the button for him to press. Once he has, the page
+sends the file it holds, or the next attach gives it again.
+
 So is a pop-up that covers the form and takes every click meant for it
 (Paylocity's "Apply with resume", on load): given the résumé if it asks for
 one, else closed by its own close button or Escape. One still there is found
@@ -32,6 +39,8 @@ from contextlib import contextmanager
 from pathlib import Path
 
 from playwright.sync_api import Error, Frame, Page
+
+from apply.model import Handoff
 
 RESUME = r"r[eé]sum[eé]|\bcv\b"
 COVER = r"cover"
@@ -90,6 +99,49 @@ POP_UP = """() => {
   const heading = top.querySelector('h1, h2, h3, [role=heading]');
   return ((heading && heading.innerText.trim()) || top.innerText.trim() || 'a pop-up').replace(/\\s+/g, ' ').slice(0, 80);
 }"""
+# A dialog on show that asks for consent to a privacy or data notice, as {title, button}: the dialog `el` is in, or
+# (el undefined) any on the page; null if none. The button is the one that agrees; Cancel and Close are no agreement.
+CONSENT = """(el) => {
+  const DIALOG = '[role=dialog], [role=alertdialog], [aria-modal=true], dialog';
+  const words = n => ((n && (n.innerText || n.getAttribute('aria-label'))) || '').replace(/\\s+/g, ' ').trim();
+  const shown = n => !n.checkVisibility || n.checkVisibility();
+  const NOTICE = /privacy|personal (data|information)|data (protection|processing|notice)|consent|candidate privacy/i;
+  const AGREE = /^(i )?(understand|agree|accept|acknowledge|consent)( (and|&) (continue|accept|agree))?$|^(accept|agree)( all)?$|^(ok(ay)?|got it)$/i;
+  const dialogs = el ? [el.closest && el.closest(DIALOG)].filter(Boolean) : [...document.querySelectorAll(DIALOG)];
+  for (const d of dialogs) {
+    if (!shown(d) || !NOTICE.test(words(d)) || /cookie/i.test(words(d))) continue;  // a cookie banner is no such notice
+    const agree = [...d.querySelectorAll('button, [role=button]')].filter(shown).find(b => AGREE.test(words(b)));
+    if (!agree) continue;
+    const by = (d.getAttribute('aria-labelledby') || '').split(/\\s+/).filter(Boolean).map(id => words(document.getElementById(id))).join(' ');
+    const heading = d.querySelector('h1, h2, h3, h4, [role=heading]');
+    const title = by || d.getAttribute('aria-label') || words(heading) || words(d).split(/[.\\n]/)[0];
+    return {title: title.slice(0, 80), button: words(agree).slice(0, 40)};
+  }
+  return null;
+}"""
+
+
+class Consent(Handoff):
+    """A dialog asks the applicant to accept a privacy or data notice before the résumé goes (KAN-768). Apply never
+    presses it, nor its Cancel: he presses the agreeing button himself, then Resume, and the résumé is attached."""
+
+    def __init__(self, title: str, button: str):
+        super().__init__(f'Press "{button}" on the "{title}" dialog yourself (a consent: Apply never gives it), '
+                         "then press Resume: Apply attaches your resume then.")
+        self.title, self.button = title, button
+
+
+def consent(page: Page) -> dict | None:
+    """The consent dialog on show in any frame of the page ({title, button}), or None."""
+    for frame in getattr(page, "frames", None) or []:
+        try:
+            if found := frame.evaluate(CONSENT):
+                return found
+        except Exception:
+            continue  # a frame gone, one that refuses scripts, or a page that can't be read now
+    return None
+
+
 CLOSE = re.compile(r"^\s*(×|✕|x|close|dismiss|no,? thanks|not now|skip|maybe later|cancel)\b", re.IGNORECASE)
 
 # The text of the widest part of the page that holds this upload button and no other.
@@ -113,9 +165,12 @@ NATIVE = """name => [...document.querySelectorAll('input[type=file]')].some(el =
 def attach_resume(page: Page, resume: Path, guard=None) -> bool:
     """Attach `resume` to the open form's résumé field. True once the page
     shows its file name (as it may already); False if no input took it.
-    `guard` (a DriveGuard) lets the page post the file meanwhile."""
+    `guard` (a DriveGuard) lets the page post the file meanwhile. Raises
+    `Consent` while a consent dialog waits on the applicant (KAN-768)."""
     if _shows(page, resume.name, wait=0):
         return True
+    if found := consent(page):  # one still open from an earlier try: his to press, and no file is given over it
+        raise Consent(found["title"], found["button"])
     deadline = time.monotonic() + FOUND_WITHIN
     while True:  # a form still rendering may not have its fields yet
         for frame in page.frames:
@@ -201,8 +256,12 @@ def _send_on(frame: Frame) -> None:
 
 
 def _shows(page: Page, name: str, wait: float = SHOWN_WITHIN) -> bool:
+    """Whether the page shows the file's name within `wait` s. A consent dialog that the file brought on
+    (Eightfold's) raises `Consent` at once: the file waits on the applicant, and nothing in it is pressed."""
     deadline = time.monotonic() + wait
     while True:
+        if wait and (found := consent(page)):
+            raise Consent(found["title"], found["button"])
         for frame in page.frames:
             try:
                 if name.casefold() in frame.locator("body").inner_text(timeout=1_000).casefold():
@@ -242,6 +301,8 @@ def clear_pop_up(page: Page, resume: Path | None) -> str:
         said = _pop_up(page)
         if not said:
             return ""
+        if found := consent(page):  # his consent: never closed, and never its Cancel, which drops a file it holds
+            raise Consent(found["title"], found["button"])
         pop_up = page.locator("[data-apply-pop-up]")
         file = pop_up.locator("input[type=file]")
         wait = 1.0

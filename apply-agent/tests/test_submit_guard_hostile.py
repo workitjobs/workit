@@ -339,6 +339,121 @@ PAGES = {
         }}, true);
         b.addEventListener('click', () => sendAll());</script>"""},
 }
+# KAN-783: a page's own getters and methods, against the guards' reads. Each page's Next does its trick, then its
+# script presses the Submit itself (a click and requestSubmit), whose own handler posts to COMMIT, a final request
+# no rule knows (Workday's has no known endpoint): only the guard's reading of the button's words stops that one.
+# The trick is undone right after, so Apply's own reads of the page go on as before.
+COMMIT = "/acme/jobs/123/commit"
+
+
+def _tricked(trick: str, undo: str = "") -> dict[str, str]:
+    return {START: f"""<title>Apply</title><form id=f method=post action="{FINAL}"><input name=first value=Test>
+        <button id=b type=button>Next</button><button id=s>Submit application</button></form>{SEND_ALL}
+        <script>const b = document.getElementById('b'), s = document.getElementById('s'), f = document.getElementById('f');
+        const d = Object.getOwnPropertyDescriptor, def = Object.defineProperty;
+        s.addEventListener('click', () => {{ fetch('{COMMIT}', {{method: 'POST', body: 'first=Test'}}).catch(() => {{}}); sendAll(); }});
+        b.addEventListener('click', () => {{
+          {trick}
+          try {{ s.click(); }} catch (e) {{}}
+          try {{ f.requestSubmit(s); }} catch (e) {{}}
+          {undo}
+        }});</script>"""}
+
+
+# Each request, read twice by a guard that judges one read and sends another: the URL's Symbol.toPrimitive or
+# toString, an init's getter or Proxy, a Request that instanceof can't see, an XHR's kept method and URL rewritten,
+# an XHR open() that throws after one that took (a forbidden method, a bad URL), and an XHR another realm's open()
+# opened.
+_TWICE = f"""let n = 0, m = 0, k = 0, j = 0;
+  const twice = (first, then) => {{ let i = 0; return {{[Symbol.toPrimitive]: () => (i++ ? then : first), toString: () => (i++ ? then : first)}}; }};
+  try {{ fetch(twice('/x', '{FINAL}'), {{method: 'POST', body: 'a'}}).catch(() => {{}}); }} catch (e) {{}}
+  try {{ fetch(twice('{FINAL}', '/x'), {{method: 'POST', body: 'a'}}).catch(() => {{}}); }} catch (e) {{}}
+  try {{ fetch('{FINAL}', new Proxy({{body: 'a'}}, {{get: (t, key) => key === 'method' ? (n++ ? 'POST' : 'GET') : t[key]}})).catch(() => {{}}); }} catch (e) {{}}
+  try {{ fetch('{FINAL}', {{body: 'a', get method() {{ return m++ ? 'POST' : 'GET'; }}}}).catch(() => {{}}); }} catch (e) {{}}
+  try {{ const x = new XMLHttpRequest(); x.open('POST', twice('{FINAL}', '/x')); x.send('a'); }} catch (e) {{}}
+  try {{ const x = new XMLHttpRequest(); x.open(twice('POST', 'GET'), '{FINAL}'); x.send('a'); }} catch (e) {{}}
+  try {{ const x = new XMLHttpRequest(); x.open('POST', '{FINAL}'); for (const key of Object.keys(x)) x[key] = ['GET', '/x']; x.send('a'); }} catch (e) {{}}
+  try {{ const x = new XMLHttpRequest(); x.open('POST', '{FINAL}'); try {{ x.open('CONNECT', '/x'); }} catch (e) {{}} x.send('a'); }} catch (e) {{}}
+  try {{ const x = new XMLHttpRequest(); x.open('POST', '{FINAL}'); try {{ x.open('GET', 'http://[x'); }} catch (e) {{}} x.send('a'); }} catch (e) {{}}
+  try {{ const i = document.createElement('iframe'); document.body.append(i); const x = new XMLHttpRequest();
+    i.contentWindow.XMLHttpRequest.prototype.open.call(x, 'POST', '{FINAL}'); x.send('a'); }} catch (e) {{}}
+  try {{ navigator.sendBeacon(twice('/x', '{FINAL}'), 'a'); }} catch (e) {{}}
+  try {{ navigator.sendBeacon(twice('{FINAL}', '/x'), 'a'); }} catch (e) {{}}
+  const was = d(Request, Symbol.hasInstance);
+  def(Request, Symbol.hasInstance, {{value: () => false, configurable: true}});
+  try {{ fetch(new Request('{FINAL}', {{method: 'POST', body: 'a'}})).catch(() => {{}}); }} catch (e) {{}}
+  if (was) def(Request, Symbol.hasInstance, was); else delete Request[Symbol.hasInstance];"""
+
+# What the built-ins page replaces, and how it puts each back.
+_BUILT_INS = [("Element.prototype", "closest", "function () { return null; }"),
+              ("Element.prototype", "matches", "function () { return false; }"),
+              ("Element.prototype", "querySelector", "function () { return null; }"),
+              ("Element.prototype", "querySelectorAll", "function () { return document.createDocumentFragment().childNodes; }"),
+              ("RegExp.prototype", "exec", "function () { return null; }"),
+              ("RegExp.prototype", "test", "function () { return false; }"),
+              ("Array.prototype", "some", "function () { return false; }"),
+              ("Array.prototype", "filter", "function () { return []; }"),
+              ("String.prototype", "trim", "function () { return ''; }"),
+              ("Event.prototype", "preventDefault", "function () {}"),
+              ("Event.prototype", "stopImmediatePropagation", "function () {}"),
+              ("NodeList.prototype", "Symbol.iterator", "function* () {}"),
+              ("Array.prototype", "Symbol.iterator", "function* () {}"),
+              ("window", "URL", "function () { return {href: 'https://other.example.org/', origin: location.origin, hostname: 'other.example.org'}; }"),
+              ("window", "String", "function () { return '/x'; }")]
+
+
+def _replaced() -> tuple[str, str]:
+    trick, undo = [], []
+    for i, (owner, name, value) in enumerate(_BUILT_INS):
+        key = name if name.startswith("Symbol.") else repr(name)
+        trick.append(f"const w{i} = d({owner}, {key}); def({owner}, {key}, {{value: {value}, configurable: true, writable: true}});")
+        undo.append(f"def({owner}, {key}, w{i});")
+    return " ".join(trick), " ".join(reversed(undo))
+
+
+_PROTO_GETTERS = [("HTMLElement.prototype", "innerText", "() => 'Next'"), ("Node.prototype", "textContent", "() => 'Next'"),
+                  ("HTMLButtonElement.prototype", "value", "() => 'Next'"), ("HTMLButtonElement.prototype", "form", "() => null"),
+                  ("HTMLButtonElement.prototype", "type", "() => 'button'")]
+
+
+def _proto_getters(how: str) -> tuple[str, str]:
+    trick = " ".join(f"const g{i} = d({o}, '{n}'); def({o}, '{n}', {{get: {how or v}, configurable: true}});"
+                     for i, (o, n, v) in enumerate(_PROTO_GETTERS))
+    undo = " ".join(f"def({o}, '{n}', g{i});" for i, (o, n, _) in enumerate(_PROTO_GETTERS))
+    return trick + " const ga = Element.prototype.getAttribute; Element.prototype.getAttribute = function () { return null; };", \
+        undo + " Element.prototype.getAttribute = ga;"
+
+
+_LIES = ("for (const key of ['innerText', 'textContent', 'value', 'outerText']) def(s, key, {get: () => 'Next', configurable: true});"
+         " def(s, 'form', {get: () => null, configurable: true}); def(s, 'type', {get: () => 'button', configurable: true});"
+         " s.getAttribute = () => null; s.closest = () => null; s.matches = () => false;")
+_UNLIE = ("for (const key of ['innerText', 'textContent', 'value', 'outerText', 'form', 'type', 'getAttribute', 'closest', 'matches'])"
+          " delete s[key];")
+_PROXY = ("const hostile = new Proxy(HTMLButtonElement.prototype, {get(t, key, r) {"
+          " if (key === 'innerText' || key === 'textContent') throw new Error('no');"
+          " if (key === 'value') return 'Next'; if (key === 'closest' || key === 'getAttribute') return () => null;"
+          " return Reflect.get(t, key, r); }}); Object.setPrototypeOf(s, hostile);")
+_PAGE_SUBMIT = ("const i = document.createElement('iframe'); document.body.append(i);"
+                " const native = () => { try { i.contentWindow.HTMLFormElement.prototype.submit.call(f); } catch (e) {}"
+                " try { HTMLFormElement.prototype.requestSubmit.call(f); } catch (e) {} return ''; };"
+                " def(s, 'innerText', {get: () => '', configurable: true}); def(s, 'value', {get: native, configurable: true});")
+PAGES |= {
+    # The review of #449: the Submit's own innerText getter throws, inside the guard's listener.
+    "a Submit whose own innerText throws": _tricked("def(s, 'innerText', {get() { throw 1; }, configurable: true});",
+                                                    "delete s.innerText;"),
+    # The review of #449: its value getter, which the guard read when innerText was empty, posts the form itself.
+    "a Submit whose value getter posts the form": _tricked(_PAGE_SUBMIT, "delete s.innerText; delete s.value;"),
+    "a Submit whose own getters and methods lie": _tricked(_LIES, _UNLIE),
+    "a Submit whose prototype is a Proxy": _tricked(_PROXY, "Object.setPrototypeOf(s, HTMLButtonElement.prototype);"),
+    "prototype getters that lie": _tricked(*_proto_getters("")),
+    "prototype getters that throw": _tricked(*_proto_getters("() => { throw new Error('no'); }")),
+    "built-ins the page replaced": _tricked(*_replaced()),
+    "a request whose URL changes on a second read": {START: f"""<title>Apply</title><form id=f method=post
+        action="/acme/jobs/123/step2"><input name=first value=Test><button id=b type=button>Next</button></form>
+        <script>const d = Object.getOwnPropertyDescriptor, def = Object.defineProperty;
+        document.getElementById('b').addEventListener('click', () => {{ {_TWICE} }});</script>""",
+        "/acme/jobs/123/step2": "<title>Two</title><input name=next>"},
+}
 BUTTON = {"a review page's Apply with its answers hidden": "Apply", "a page that vouches for its own Apply": "Apply", "a Submit in another language beside a Submit": "Envoyer ma candidature", "a Submit in a shadow root": "Submit application",
           "a profile pop-up that is the application": "Submit", "a profile pop-up that turns into the application": "Submit",
           "a one-page form in a modal": "Continue", "an application that makes an account": "Continue",
@@ -368,8 +483,9 @@ class Site:
         route.fulfill(body=body, content_type="text/html")
 
     def applications(self) -> list[str]:
-        """The application requests that reached the job system: a final URL's, or SAVE's with its Submit (submit=1)."""
-        return [p for p in self.sent if p in (FINAL, GREENHOUSE)] + [p for p, b in self.bodies if p == SAVE and "submit=1" in b]
+        """The application requests that reached the job system: a final URL's (COMMIT's too, KAN-783), or SAVE's with
+        its Submit (submit=1)."""
+        return [p for p in self.sent if p in (FINAL, GREENHOUSE, COMMIT)] + [p for p, b in self.bodies if p == SAVE and "submit=1" in b]
 
 
 # --- the click paths, each the real code that presses through the guards
@@ -484,6 +600,10 @@ GUARD_HOLES = frozenset({
     "a page that vouches for its own Apply", "a page that lifts the guards by their install mark",
     "a page that hears the drive guard's control name", "a page that poisons RegExp before the guard",
     "a pointerdown handler that clicks the page's own button",
+    # PR 548's (KAN-783): a page's own getters and methods against the guard's reads, and a request read twice.
+    "a Submit whose own innerText throws", "a Submit whose value getter posts the form",
+    "a Submit whose own getters and methods lie", "a Submit whose prototype is a Proxy", "prototype getters that lie",
+    "prototype getters that throw", "built-ins the page replaced", "a request whose URL changes on a second read",
 })
 
 
