@@ -1,5 +1,6 @@
 import { CloudSlashIcon } from "@phosphor-icons/react/ssr";
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import { connection } from "next/server";
 
 import { buttonClasses } from "@/components/ui/button";
@@ -11,6 +12,7 @@ import { listResumes } from "@/lib/resume-actions";
 import { SEEKER_GUTTER } from "../../gutter";
 import { BuiltResumes } from "../built-resumes";
 import { ResumesHeader } from "../header";
+import { RESUMES_LAYOUT_COOKIE, type ResumesLayout } from "../view";
 
 export const metadata: Metadata = {
   title: "Resumes",
@@ -31,12 +33,17 @@ export const metadata: Metadata = {
  */
 export default async function ResumesPage() {
   await connection();
-  const [resumes, uploaded] = await Promise.all([listBuiltResumes(), listResumes()]);
+  const [resumes, uploaded, jar] = await Promise.all([
+    listBuiltResumes(),
+    listResumes(),
+    cookies(),
+  ]);
+  const layout: ResumesLayout = jar.get(RESUMES_LAYOUT_COOKIE)?.value === "grid" ? "grid" : "list";
 
   return (
     <div className={cn("max-w-dashboard mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
       {resumes.data && !uploaded.error ? (
-        <BuiltResumes initial={resumes.data} initialUploaded={uploaded.resumes} />
+        <BuiltResumes initial={resumes.data} initialUploaded={uploaded.resumes} layout={layout} />
       ) : (
         <>
           <ResumesHeader view="resumes" />

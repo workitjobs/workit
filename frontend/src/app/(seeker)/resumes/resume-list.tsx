@@ -23,10 +23,19 @@ import { ResumeScroll } from "@/components/resume-list";
  * room a card's shadow needs) is taken back with -mx-3, so the cards line
  * up with the search and the buttons above.
  */
-export function ResumeList({ children }: { children: ReactNode }) {
+export function ResumeList({
+  grid = false,
+  children,
+}: {
+  /** The grid of first pages (KAN-766), not the list of wide cards. */
+  grid?: boolean;
+  children: ReactNode;
+}) {
   return (
-    <section aria-label="Your Resumes" className="-mx-3 mt-1">
-      <ResumeScroll fill>{children}</ResumeScroll>
+    <section aria-label="Your Resumes" className="@container -mx-3 mt-1">
+      <ResumeScroll fill grid={grid}>
+        {children}
+      </ResumeScroll>
     </section>
   );
 }

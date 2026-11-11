@@ -16,6 +16,7 @@ import {
 } from "@/lib/built-resume-actions";
 
 import { rememberReturnTo } from "../jobs/[jobId]/page-actions";
+import { ResumeThumbnail } from "../jobs/[jobId]/tailor/resume-preview";
 import { DownloadNotes, useResumeDownload } from "./download-menu";
 
 /**
@@ -41,9 +42,12 @@ export function BuiltResumeRow({
   resume,
   reload,
   onDelete,
+  layout = "list",
 }: {
   resume: BuiltResume;
   reload: () => Promise<void>;
+  /** The Resumes tab's layout (KAN-766). */
+  layout?: "list" | "grid";
   /** The list hides the row and sends the delete (KAN-388). */
   onDelete: (send: () => Promise<{ error: string | null }>) => void;
 }) {
@@ -84,6 +88,15 @@ export function BuiltResumeRow({
   return (
     <li>
       <ResumeCard
+        layout={layout}
+        kind={resume.job_posting_id ? (resume.posting_company ?? "Tailored") : "Generated"}
+        thumbnail={
+          <ResumeThumbnail
+            source={{ built_resume_id: resume.id }}
+            version={resume.edited_at}
+            fallback={<BuiltPageTile />}
+          />
+        }
         rename={
           renaming ? { saving, onSave: rename, onCancel: () => setRenaming(false) } : undefined
         }

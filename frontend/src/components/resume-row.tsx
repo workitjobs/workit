@@ -6,8 +6,16 @@ import { useRouter } from "next/navigation";
 import { useRef, useState, type FormEvent, type ReactNode } from "react";
 
 import { LocalDate, LocalDateTime } from "@/app/(seeker)/local-time";
+import { ResumeThumbnail } from "@/app/(seeker)/jobs/[jobId]/tailor/resume-preview";
 import { DeleteResumeConfirm } from "@/app/(seeker)/resumes/delete-confirm";
-import { EllipsisIcon, PdfIcon, PencilIcon, TrashIcon, UploadIcon } from "@/components/icons";
+import {
+  EllipsisIcon,
+  PdfIcon,
+  PencilIcon,
+  PlusIcon,
+  TrashIcon,
+  UploadIcon,
+} from "@/components/icons";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -169,6 +177,9 @@ function CardActionIcons({
  * The pickers' rows keep their one-line strip (`ResumeRow` without `page`).
  *
  * **Rename edits the name on the card** (`rename`, `RenamingCard`).
+ *
+ * **In the grid** (`layout="grid"`, KAN-766) the card is the resume's first
+ * page over its name (`ResumeGridCard`).
  */
 export function ResumeCard({
   name,
@@ -180,6 +191,9 @@ export function ResumeCard({
   edited,
   actions,
   rename,
+  layout = "list",
+  thumbnail,
+  kind,
 }: {
   name: string;
   href: string;
@@ -193,7 +207,28 @@ export function ResumeCard({
   actions: CardActions;
   /** Set while the student renames it: the card holds the name's field. */
   rename?: Rename;
+  layout?: "list" | "grid";
+  /** The grid card's picture: the resume's first page. */
+  thumbnail?: ReactNode;
+  /** The grid card's short word for what it is: "PDF", "Generated",
+   *  "Toshiba". */
+  kind?: string;
 }) {
+  if (layout === "grid") {
+    return (
+      <ResumeGridCard
+        name={name}
+        href={href}
+        thumbnail={thumbnail}
+        kind={kind}
+        badge={badge}
+        modified={edited ?? created}
+        edited={edited !== null}
+        actions={actions}
+        rename={rename}
+      />
+    );
+  }
   if (rename) return <RenamingCard name={name} tile={tile} rename={rename} />;
   const modified = edited ?? created;
   const label = edited ? "Modified" : "Created";
@@ -235,6 +270,160 @@ export function ResumeCard({
         </div>
         <CardActionIcons name={name} href={href} actions={actions} />
       </div>
+    </Card>
+  );
+}
+
+/**
+ * One resume in the Resumes tab's grid (KAN-766, after Google Drive's and
+ * Simplify's): its first page (`thumbnail`, `ResumeThumbnail`), then its
+ * name, when it was last changed and what it is, and ⋮, which holds every
+ * action (Open, Rename, Download, Make Primary, Delete): the grid has no
+ * room for hover icons, as Drive's has none. The primary resume wears a
+ * filled star on its page's corner, as Simplify's does. The whole card
+ * opens the resume. Rename edits the name in place, under the page.
+ */
+function ResumeGridCard({
+  name,
+  href,
+  thumbnail,
+  kind,
+  badge,
+  modified,
+  edited,
+  actions,
+  rename,
+}: {
+  name: string;
+  href: string;
+  thumbnail: ReactNode;
+  kind?: string;
+  badge?: ReactNode;
+  modified: string | null;
+  edited: boolean;
+  actions: CardActions;
+  rename?: Rename;
+}) {
+  return (
+    <Card
+      padding="none"
+      selected={Boolean(rename)}
+      className="group hover:border-ink-meta hover:shadow-lift ease-glide relative overflow-hidden transition-[box-shadow,border-color] duration-200"
+    >
+      <div className="border-border-subtle relative border-b">
+        {thumbnail}
+        {actions.primary && (
+          <span
+            title="Primary resume"
+            className="bg-ink text-on-inverse absolute top-2 right-2 flex size-7 items-center justify-center rounded-full shadow-sm"
+          >
+            <StarIcon aria-hidden weight="fill" className="size-3.5" />
+            <span className="sr-only">Primary resume</span>
+          </span>
+        )}
+      </div>
+      {rename ? (
+        <GridRename name={name} rename={rename} />
+      ) : (
+        <div className="flex items-start gap-1 p-3">
+          <div className="min-w-0 flex-1">
+            <Link
+              href={href}
+              title={name}
+              className="text-label text-ink after:rounded-card focus-visible:after:ring-brand-ring block truncate font-medium after:absolute after:inset-0 focus-visible:outline-none focus-visible:after:ring-2"
+            >
+              {name}
+            </Link>
+            <div className="text-note text-ink-meta mt-0.5 truncate">
+              {modified && (
+                <>
+                  {edited ? "Modified" : "Created"} <LocalDate at={modified} />
+                </>
+              )}
+              {kind && ` · ${kind}`}
+            </div>
+            {badge && <div className="mt-1">{badge}</div>}
+          </div>
+          <div className="relative z-10 -mt-1 -mr-1">
+            <RowMoreMenu
+              always
+              name={name}
+              open={href}
+              onRename={actions.onRename}
+              download={actions.download}
+              onMakePrimary={actions.primary ? undefined : actions.onMakePrimary}
+              onDelete={actions.onDelete}
+            />
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+/** A grid card's rename: the name's field under the page, with Cancel and
+ *  Save under it; Enter saves and Escape cancels, as on a list card. */
+function GridRename({ name, rename }: { name: string; rename: Rename }) {
+  const [draft, setDraft] = useState(name);
+  const trimmed = draft.trim();
+
+  function submit(event: FormEvent) {
+    event.preventDefault();
+    if (trimmed === name) return rename.onCancel();
+    rename.onSave(trimmed);
+  }
+
+  return (
+    <form onSubmit={submit} className="flex flex-col gap-2 p-3">
+      <TextInput
+        aria-label="Resume name"
+        autoFocus
+        required
+        maxLength={80}
+        value={draft}
+        onChange={(event) => setDraft(event.target.value)}
+        onFocus={(event) => event.currentTarget.select()}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") rename.onCancel();
+        }}
+      />
+      <div className="flex justify-end gap-2">
+        <Button type="button" variant="secondary" size="sm" onClick={rename.onCancel}>
+          Cancel
+        </Button>
+        <Button type="submit" size="sm" disabled={rename.saving || !trimmed}>
+          {rename.saving ? "Saving…" : "Save"}
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+/** The grid's first tile (KAN-766, after Simplify's New Resume): a page with
+ *  a plus, which runs Generate, as Generate Resume does. */
+export function NewResumeTile({ onClick, busy }: { onClick: () => void; busy: boolean }) {
+  return (
+    <Card
+      padding="none"
+      className="hover:border-ink-meta hover:shadow-lift ease-glide overflow-hidden transition-[box-shadow,border-color] duration-200"
+    >
+      <button
+        type="button"
+        onClick={onClick}
+        disabled={busy}
+        className="focus-visible:ring-brand-ring flex w-full flex-col text-left focus-visible:ring-2 focus-visible:outline-none disabled:opacity-60"
+      >
+        <span
+          className="border-border-subtle bg-well flex w-full items-center justify-center border-b"
+          style={{ aspectRatio: "8.5 / 11" }}
+        >
+          <PlusIcon aria-hidden className="text-ink-meta size-10" />
+        </span>
+        <span className="p-3">
+          <span className="text-label text-ink block font-medium">New Resume</span>
+          <span className="text-note text-ink-meta block">Made from your experiences</span>
+        </span>
+      </button>
     </Card>
   );
 }
@@ -370,7 +559,28 @@ export function PostingLogoTile({
 
 /** A file in flight on the Resumes page, as the card it becomes, at its
  *  height, so nothing jumps when the real card arrives. */
-export function PendingResumeCard({ name, note }: { name: string; note: string }) {
+export function PendingResumeCard({
+  name,
+  note,
+  layout = "list",
+}: {
+  name: string;
+  note: string;
+  layout?: "list" | "grid";
+}) {
+  if (layout === "grid") {
+    return (
+      <Card padding="none" className="overflow-hidden">
+        <div className="border-border-subtle border-b">
+          <div className="bg-well w-full animate-pulse" style={{ aspectRatio: "8.5 / 11" }} />
+        </div>
+        <div className="p-3">
+          <div className="text-label text-ink truncate font-medium">{name}</div>
+          <div className="text-note text-ink-meta">{note}</div>
+        </div>
+      </Card>
+    );
+  }
   return (
     <Card padding="none" className="@container mt-3">
       <div className={CARD_GRID}>
@@ -566,6 +776,8 @@ type ResumeRowProps = {
   page?: boolean;
   /** The page card's rename, while it is open. */
   rename?: Rename;
+  /** The Resumes tab's layout: a list card or a grid card. */
+  layout?: "list" | "grid";
   onMakePrimary?: () => void;
   onRename?: () => void;
   onDownload?: () => void;
@@ -578,6 +790,7 @@ export function ResumeRow({
   href,
   page = false,
   rename,
+  layout = "list",
   onMakePrimary,
   onRename,
   onDownload,
@@ -643,6 +856,14 @@ export function ResumeRow({
         name={name}
         href={href}
         tile={<FileTypeTile file={resume.storage_path} />}
+        layout={layout}
+        kind={fileType(resume.storage_path)}
+        thumbnail={
+          <ResumeThumbnail
+            source={{ uploaded_resume_id: resume.id }}
+            fallback={<FileTypeTile file={resume.storage_path} />}
+          />
+        }
         about={
           <>
             <UploadIcon className="size-3.5 shrink-0" />

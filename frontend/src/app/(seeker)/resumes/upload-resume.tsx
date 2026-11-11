@@ -141,11 +141,12 @@ export function useResumeUpload({
   );
 
   // The file in flight, as the list's first card.
-  const pending = uploading !== null && (
-    <li>
-      <PendingResumeCard name={uploading} note="Reading your resume…" />
-    </li>
-  );
+  const pending = (layout: "list" | "grid" = "list") =>
+    uploading !== null && (
+      <li>
+        <PendingResumeCard name={uploading} note="Reading your resume…" layout={layout} />
+      </li>
+    );
 
   return { button, notes, pending, uploading: uploading !== null };
 }
@@ -173,9 +174,12 @@ export function UploadedRow({
   resume,
   reload,
   onDelete,
+  layout = "list",
 }: {
   resume: ResumeItem;
   reload: () => Promise<void>;
+  /** The Resumes tab's layout (KAN-766). */
+  layout?: "list" | "grid";
   /** The list hides the row and sends the delete (KAN-388). */
   onDelete: (send: () => Promise<{ error: string | null }>) => void;
 }) {
@@ -221,6 +225,7 @@ export function UploadedRow({
         resume={resume}
         href={`/resumes/uploaded/${encodeURIComponent(resume.id)}`}
         page
+        layout={layout}
         rename={
           renaming ? { saving, onSave: rename, onCancel: () => setRenaming(false) } : undefined
         }

@@ -1,8 +1,15 @@
 "use client";
 
-import { FileTextIcon, TagIcon } from "@phosphor-icons/react/ssr";
+import { FileTextIcon, ListBulletsIcon, SquaresFourIcon, TagIcon } from "@phosphor-icons/react/ssr";
 import { useRouter } from "next/navigation";
-import { startTransition, useEffect, useEffectEvent, useOptimistic, useState } from "react";
+import {
+  startTransition,
+  useEffect,
+  useEffectEvent,
+  useOptimistic,
+  useState,
+  useTransition,
+} from "react";
 
 import { FieldFacet, type FacetOption } from "@/components/field-facet";
 import {
@@ -14,10 +21,12 @@ import {
 } from "@/components/resume-list";
 import { SearchIcon } from "@/components/icons";
 import { useShallowParams, useShallowPush } from "@/components/shallow-routing";
+import { NewResumeTile } from "@/components/resume-row";
 import { SortMenu } from "@/components/sort-menu";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SearchField } from "@/components/ui/search-field";
+import { SegmentedToggle } from "@/components/ui/segmented-control";
 import { readEvents } from "@/components/scout/stream";
 import {
   listBuiltResumes,
@@ -27,12 +36,14 @@ import {
 import { listResumes, type ResumeItem } from "@/lib/resume-actions";
 import { markResumesStale, takeResumesStale } from "@/lib/resumes-stale";
 
+import { setResumesLayout } from "./actions";
 import { BuiltResumeRow } from "./built-resume-row";
 import { DuplicateResumeDialog, type Duplicate } from "./duplicate-resume-dialog";
 import { GenerateRunning, type GenerateStep } from "./generate-running";
 import { RESUMES_SEARCH, ResumesHeader } from "./header";
 import { ResumeList } from "./resume-list";
 import { ShortLabel, UploadedRow, useResumeUpload } from "./upload-resume";
+import type { ResumesLayout } from "./view";
 
 /** The Type filter's options: the list's groups, in their order. */
 const TYPES: FacetOption[] = [...RESUME_TYPES];
@@ -146,11 +157,24 @@ type Lists = Awaited<ReturnType<typeof readLists>>;
 export function BuiltResumes({
   initial,
   initialUploaded,
+  layout,
 }: {
   initial: BuiltResume[];
   initialUploaded: ResumeItem[];
+  /** List or Grid (KAN-766), the student's kept choice (./view.ts). */
+  layout: ResumesLayout;
 }) {
   const router = useRouter();
+  // The layout picked, shown at once; the action keeps it in a cookie.
+  const [shownLayout, showLayout] = useOptimistic(layout);
+  const [, startLayout] = useTransition();
+  function pickLayout(next: ResumesLayout) {
+    startLayout(async () => {
+      showLayout(next);
+      await setResumesLayout(next);
+    });
+  }
+  const grid = shownLayout === "grid";
   const [resumes, setResumes] = useState(initial);
   const [uploaded, setUploaded] = useState(initialUploaded);
   // Generate's step while it runs (KAN-444), null otherwise
@@ -374,6 +398,23 @@ export function BuiltResumes({
               className="min-w-36"
             />
             <SortMenu value={sort} options={SORTS} onChange={(next) => move({ sort: next })} />
+            <SegmentedToggle
+              label="Layout"
+              value={shownLayout}
+              onValueChange={(next) => pickLayout(next as ResumesLayout)}
+              options={[
+                {
+                  value: "list",
+                  label: "List View",
+                  icon: <ListBulletsIcon aria-hidden className="size-4" />,
+                },
+                {
+                  value: "grid",
+                  label: "Grid View",
+                  icon: <SquaresFourIcon aria-hidden className="size-4" />,
+                },
+              ]}
+            />
             <div className="col-span-2 grid grid-cols-2 gap-2 @2xl:ml-auto @2xl:flex">
               {upload.button}
               <Button size="sm" onClick={() => void generate()} disabled={generating !== null}>
@@ -425,12 +466,41 @@ export function BuiltResumes({
             ? "You have no tailored resumes yet. Use Tailor My Resume on a job posting's page to make one for it."
             : "None of your resumes match these filters."}
         </EmptyState>
+      ) : grid ? (
+        // The grid (KAN-766): New Resume, then every resume the filters
+        // show in the sort's order, the primary first, with no groups:
+        // each card says what it is, as Google Drive's and Simplify's do.
+        <ResumeList grid>
+          <li>
+            <NewResumeTile onClick={() => void generate()} busy={generating !== null} />
+          </li>
+          {upload.pending("grid")}
+          {shown.map((row) =>
+            row.type === "uploaded" ? (
+              <UploadedRow
+                key={row.key}
+                layout="grid"
+                resume={row.upload}
+                reload={reload}
+                onDelete={(send) => remove(row.key, send)}
+              />
+            ) : (
+              <BuiltResumeRow
+                key={row.key}
+                layout="grid"
+                resume={row.built}
+                reload={reload}
+                onDelete={(send) => remove(row.key, send)}
+              />
+            ),
+          )}
+        </ResumeList>
       ) : (
         <ResumeList>
           {TYPES.map(({ value, label }) => {
             // The file in flight is the first card of its group, which
             // stays open while it uploads.
-            const pending = value === "uploaded" && upload.pending;
+            const pending = value === "uploaded" && upload.pending();
             const rows = shown.filter((row) => row.type === value);
             if (rows.length === 0 && !pending) return null;
             return (
