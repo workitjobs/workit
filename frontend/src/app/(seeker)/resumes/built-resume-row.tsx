@@ -168,7 +168,11 @@ function PostingLink({ resume, titleOnly = false }: { resume: BuiltResume; title
       href={`/jobs/${encodeURIComponent(resume.job_posting_id)}`}
       onClick={() => rememberReturnTo("/resumes")}
       title={label ?? undefined}
-      className="text-brand hover:text-brand-hover relative z-10 underline-offset-2 hover:underline"
+      // The row's own ink, brand and underlined under the pointer
+      // (2026-11-10): brand at rest, beside a closed posting's plain ink,
+      // gave the column titles in two colours for no reason a student
+      // could see.
+      className="hover:text-brand relative z-10 underline-offset-2 transition-colors duration-150 hover:underline"
     >
       {label}
     </Link>

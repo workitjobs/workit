@@ -10,7 +10,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState, type FormEvent, type ReactNode } from "react";
 
-import { LocalDate, LocalDateTime } from "@/app/(seeker)/local-time";
+import { LocalDate } from "@/app/(seeker)/local-time";
 import { ResumeThumbnail } from "@/app/(seeker)/jobs/[jobId]/tailor/resume-preview";
 import { THUMBNAIL_RATIO } from "@/app/(seeker)/resumes/view";
 import { DeleteResumeConfirm } from "@/app/(seeker)/resumes/delete-confirm";
@@ -280,7 +280,10 @@ export function ResumeCard({
           <Link
             href={href}
             title={name}
-            className="text-label text-ink hover:text-brand focus-visible:ring-brand-ring -my-1 min-w-0 truncate rounded-xs py-1 font-semibold transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none"
+            // Medium, not semibold (2026-11-10): a tailored resume's name
+            // runs to a sentence, and a column of them in semibold was the
+            // heaviest thing on the page.
+            className="text-label text-ink hover:text-brand focus-visible:ring-brand-ring -my-1 min-w-0 truncate rounded-xs py-1 font-medium transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none"
           >
             {name}
           </Link>
@@ -313,21 +316,14 @@ export function ResumeCard({
       <TableCell className={cn(RESUME_TD, RESUME_TYPE_COL)}>
         {type && (
           <span className="hidden @2xl:inline-flex">
-            <TypeBadge type={type} />
+            <TypeLabel type={type} />
           </span>
         )}
       </TableCell>
+      {/* The day, as a file list says it (2026-11-10): "Nov 10, 6:42 PM" in
+          every row was a column of noise, and the list is in order anyway. */}
       <TableCell className={cn(RESUME_TD, "overflow-hidden")}>
-        {modified && (
-          <>
-            <span className="@2xl:hidden">
-              <LocalDate at={modified} />
-            </span>
-            <span className="hidden @2xl:inline">
-              <LocalDateTime at={modified} />
-            </span>
-          </>
-        )}
+        {modified && <LocalDate at={modified} />}
       </TableCell>
       <TableCell className="pr-2 pl-0">
         <CardActionIcons name={name} href={href} actions={actions} />
@@ -350,11 +346,32 @@ function PrimaryBadge() {
   );
 }
 
-/** A resume's type as its badge, in the table's Type column and on a grid
- *  card: its colour and its icon, each the glyph of the button that makes
- *  that kind (2026-11-10, so the three tell apart at a glance and not by
- *  colour alone): Upload Resume's arrow, Generate Resume's page, and
- *  Tailor's pencil, which the Tracker's Tailored chip wears too. */
+/** A resume's type in the table's Type column: its glyph in grey and its
+ *  word, with no pill (2026-11-10). A tinted pill on every row, in three
+ *  colours beside the Primary pill, was the loudest thing in the table and
+ *  read as statuses; the glyph alone tells the three apart. */
+function TypeLabel({ type }: { type: ResumeType }) {
+  const icon = "text-ink-meta size-4 shrink-0";
+  return (
+    <span className="text-ink-muted flex items-center gap-1.5">
+      {type === "uploaded" ? (
+        <UploadIcon className={icon} />
+      ) : type === "generated" ? (
+        <FileTextIcon aria-hidden className={icon} />
+      ) : (
+        <TailorIcon className={icon} />
+      )}
+      {RESUME_TYPES.find((t) => t.value === type)?.label}
+    </span>
+  );
+}
+
+/** A resume's type as its badge, on a grid card and in a resume picker: its
+ *  colour and its icon, each the glyph of the button that makes that kind
+ *  (2026-11-10, so the three tell apart at a glance and not by colour
+ *  alone): Upload Resume's arrow, Generate Resume's page, and Tailor's
+ *  pencil, which the Tracker's Tailored chip wears too. The table draws the
+ *  quieter `TypeLabel`. */
 export function TypeBadge({
   type,
   narrow = false,

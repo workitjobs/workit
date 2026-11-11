@@ -1109,6 +1109,11 @@ tab is 16px: the open one semibold in brand over a 3px underline, the
 others medium in `ink-meta` (2026-11-10). At 13px in ink with a 2px
 underline they read as small print beside the job bar's 36px buttons.
 
+**A page's search is one width** (`PAGE_SEARCH` in
+`components/ui/search-field.tsx`, 2026-11-10): the Jobs page, Documents, the
+Tracker and Experiences fill their row below 512px of page and stop at
+320px from there. The Jobs page's was 320px and the others 256px.
+
 **A posting in several places shows them all** (`PlacesValue`,
 `components/places-value.tsx`, 2026-11-10): its location fact is the first
 place, then "+N more", which opens every place in a popover on hover, a

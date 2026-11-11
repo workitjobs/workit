@@ -2968,15 +2968,21 @@ pills, the shared `SortMenu`, which the Jobs page's filter row uses too.
 `resumes/resume-list.tsx`, rows by `ResumeCard` in
 `components/resume-row.tsx`): one white card with 12px grey headings and
 rules between the rows, after Jobright's resume table. **Name** holds the
-name alone, with a Primary badge (a star and "Primary") on the primary;
-**Target Job** a tailored resume's posting as the Tracker's Role cell draws
-a job, the company's 32px logo, then the posting's title (a link while it
-is open) over the company, and nothing for a resume made for no job;
-**Type** its badge (Uploaded, Generated, Tailored, as on a grid card,
-each with the icon of the button that makes it: Upload Resume's arrow,
-Generate Resume's page, Tailor's pencil, so the three tell apart by more
-than colour);
-**Date Modified** the day and time; then the actions. No tile leads a row
+name alone in medium weight, with a Primary badge (a star and "Primary") on
+the primary;
+**Target Job** a tailored resume's posting as the Tracker's Job cell draws
+a job, the company's 32px logo, then the posting's title over the company,
+in the row's ink (a link while it is open, brand and underlined under the
+pointer), and nothing for a resume made for no job;
+**Type** its glyph in grey and its word, with no pill (`TypeLabel`): the
+icon of the button that makes it, Upload Resume's arrow, Generate Resume's
+page, Tailor's pencil;
+**Date Modified** the day; then the actions. **The table is quiet**
+(2026-11-10, the user found it "off"): it drew a tinted pill per row in
+three colours beside the Primary pill, open postings' titles in brand
+beside closed ones in ink, every name in semibold, and the time on every
+date ("Nov 10, 6:42 PM"). The grid card and the resume pickers keep the
+badge (`TypeBadge`). No tile leads a row
 (each had one, with the logo on a tailored resume's, from earlier the same
 day): Type says what a resume is, and the logos line up in Target Job. No
 "For" and no Posting Closed badge, which the user found not needed. Every
