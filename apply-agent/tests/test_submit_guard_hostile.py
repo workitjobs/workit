@@ -267,6 +267,14 @@ def first_page_on_prs() -> list:
     return names[:1] + [pytest.param(name, marks=pytest.mark.nightly) for name in names[1:]]
 
 
+def each_page_and_path_once_on_prs() -> list:
+    """(page, path) pairs for the CDP matrix: PR CI runs a diagonal, so every page and every path
+    runs at least once, and the nightly workflow runs the other pairs, marked `nightly` (KAN-780)."""
+    paths = list(PATHS)
+    return [(page, path) if i % len(paths) == paths.index(path) else pytest.param(page, path, marks=pytest.mark.nightly)
+            for i, page in enumerate(PAGES) for path in paths]
+
+
 def _settle(page, ms=3000) -> None:
     try:
         page.wait_for_timeout(ms)
@@ -339,8 +347,7 @@ def quick_steps(monkeypatch):
     monkeypatch.setattr(claude_fill, "STEP_SHOWS_MS", 1500)
 
 
-@pytest.mark.parametrize("path", list(PATHS))
-@pytest.mark.parametrize("page_name", list(PAGES))
+@pytest.mark.parametrize(("page_name", "path"), each_page_and_path_once_on_prs())
 def test_no_click_path_sends_a_hostile_page_on_cdp(page_name, path):
     with cdp(PAGES[page_name]) as (page, drive, site):
         try:
