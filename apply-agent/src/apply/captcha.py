@@ -35,6 +35,8 @@ HOSTS = ("captcha-delivery.com", "hcaptcha.com", "arkoselabs.com", "funcaptcha.c
          "recaptcha.net")
 # reCAPTCHA's frames are on www.google.com, by path.
 PATHS = ("/recaptcha/",)
+# The hosts whose PATHS are a captcha's to the guards (KAN-791): a page can serve that path from any host of its own.
+PATH_HOSTS = ("google.com",)
 # A captcha on the page itself: its frame, or the box a widget draws its frame in. Nothing in one is Apply's to touch.
 ELEMENTS = ("iframe[src*='recaptcha'], iframe[src*='hcaptcha.com'], iframe[src*='challenges.cloudflare.com'], "
             "iframe[src*='captcha-delivery.com'], iframe[src*='arkoselabs.com'], iframe[src*='funcaptcha.com'], "
