@@ -13,10 +13,9 @@ import { activityOf } from "../activity-list";
 import { getApplications, getRunApplications } from "../applications";
 import { getWrittenQuestions } from "../answers/questions";
 import { AutoApplyPanel } from "../auto-apply-panel";
-import { InfoLink } from "../info-link";
 import type { SavedJob } from "../add-jobs-dialog";
-import { SetupStrip } from "../setup-strip";
-import { QueueSummary, UpNext } from "../up-next";
+import { SetupRow } from "../setup-strip";
+import { UpNext } from "../up-next";
 import { jobLogo } from "@/lib/job-logo";
 
 export const metadata: Metadata = {
@@ -36,9 +35,6 @@ export const metadata: Metadata = {
  *              with the resume it will go out with, which a click on it
  *              changes, and Add Jobs to queue saved ones (./up-next.tsx).
  *              Needs-you jobs stay in it, since they wait on the seeker.
- *   Application a row card that links to Application Info
- *   Info        (../info/page.tsx, KAN-550; ../info-link.tsx): the answers
- *               and files the extension fills in beyond the resume.
  *
  * HISTORY IS ARCHIVED FOR NOW (KAN-359), its code kept: an applied job is
  * on the Applications Tracker already, so the table only repeated it, and
@@ -49,22 +45,18 @@ export const metadata: Metadata = {
  * section after Up Next; ./live-activity.tsx and the table's "history"
  * variant (./activity-list.tsx) are as they were.
  *
- * THE SETUP STRIP (KAN-424, ./setup-strip.tsx), over Up Next, only while
- * the Chrome extension is missing: Auto Apply needs nothing else. A
- * default resume and the student's Claude are optional, so the rows carry
- * them: No Resume, and a chip counting a row's written questions
- * (`questions`, from GET .../written-questions), whose total Up Next's
- * Write N Questions links to Written Answers (../answers/page.tsx), which
- * offers Connect Claude. The strip
- * replaced the header's Add to Claude, and the Written Questions Waiting
- * card (KAN-385), which counted the questions without saying whose. A
- * failed read of the questions leaves the chips out: Up Next says when the
- * API is down.
+ * THE SETUP ROW (./setup-strip.tsx, 2026-11-10), over Up Next: the Chrome
+ * extension and Application Info, each saying where it stands. A default
+ * resume and the student's Claude are optional, so the rows carry them: No
+ * Resume, and a count of a row's written questions (`questions`, from GET
+ * .../written-questions), whose total the notice over the queue links to
+ * Written Answers (../answers/page.tsx), which offers Connect Claude. A
+ * failed read of the questions leaves the counts out: Up Next says when
+ * the API is down.
  *
- * THE HEADER'S LINE says where the queue stands ("3 in progress · 2
- * queued"), in Up Next's group names, counted in the browser
- * (./up-next.tsx, QueueSummary): a job open in a tab is In Progress, and
- * only the extension knows which are.
+ * UP NEXT'S TOOLBAR (../queue-filters.tsx): the search, the filters and
+ * Table Settings, as every page table has; it filters and groups the rows
+ * in the browser, since this page hands it the whole queue.
  *
  * It opened with a Resume List of every resume until KAN-359; the page is
  * about which jobs go out, so jobs lead it.
@@ -135,11 +127,6 @@ export default async function AutoApplyPage() {
     : [];
   // Up Next: queued jobs and needs-you ones, which wait on the seeker too.
   const queue = items.filter((item) => item.status === "queued" || item.status === "failed");
-  const summary = queue.length ? (
-    <QueueSummary
-      jobs={queue.map((item) => ({ id: item.id, started: item.status === "failed" }))}
-    />
-  ) : null;
 
   const savedJobs: SavedJob[] = (saved.applications ?? []).map(({ job, match }) => ({
     id: job.id,
@@ -155,7 +142,7 @@ export default async function AutoApplyPage() {
     <div className={cn("max-w-dashboard mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
       {/* So a queued job's page goes back here, not to the feed. */}
       <RememberFeed />
-      <AutoApplyPanel summary={summary}>
+      <AutoApplyPanel>
         {run.error != null ? (
           <EmptyState
             Icon={CloudSlashIcon}
@@ -167,9 +154,8 @@ export default async function AutoApplyPage() {
           </EmptyState>
         ) : (
           <>
-            <SetupStrip />
+            <SetupRow />
             <UpNext items={queue} saved={savedJobs} />
-            <InfoLink />
           </>
         )}
       </AutoApplyPanel>

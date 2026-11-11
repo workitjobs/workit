@@ -8,13 +8,34 @@ POST   /applicants/{id}/built-resumes              BuiltResumeCreate -> 201 Buil
        no name it is "Resume #N", one past the highest number in use. No
        limit: only uploads count toward the 5 (KAN-268). 409
        {"detail": {"message": "Duplicate Resume found: <name>",
-       "built_resume_id"}} when the new resume would print the same as one
-       the student has (KAN-267); nothing is written.
+       "built_resume_id", "name"}} when the new resume would print the same
+       as one the student has (KAN-267); nothing is written. With
+       `allow_duplicate` (the student confirmed a copy, KAN-444) it skips
+       that check.
+POST   /applicants/{id}/built-resumes/stream       BuiltResumeCreate -> NDJSON
+       The same Generate, streamed so the Resumes page can show its steps
+       (KAN-444): `{"type": "phase", "phase": "checking"}` before the
+       duplicate check, `"saving"` before the writes, then `{"type": "done",
+       "resume"}` once committed, or `{"type": "error", "status", "message",
+       "built_resume_id"?, "name"?}` with what the JSON route would answer
+       (409 and the resume on a duplicate). With `allow_duplicate` there is
+       no `checking` line. Lines mirror `GenerateStreamEvent` in
+       frontend/src/lib/built-resume-actions.ts.
+POST   /applicants/{id}/built-resumes/copy         BuiltResumeCopy -> 201 BuiltResumeResponse
+       Start From a Resume You Have (2026-11-11), from the Resumes page's
+       Generate Resume dialog. With `built_resume_id`: a copy, "<name>
+       (Copy)", printing as the source does, with its own skills and typed
+       wordings copied, untailored. With `uploaded_resume_id`: a resume of
+       that upload's own entries and skills, "<file name> (Copy)". 404 for a
+       source not the applicant's; 409 for an upload whose import wrote
+       nothing; 422 unless exactly one source is named. No duplicate check.
 GET    /applicants/{id}/built-resumes              -> [BuiltResumeResponse], newest first
        `posting_closed` is true for a tailored resume whose posting the Jobs
        page no longer lists (story 90's "Posting closed"). `posting_title`
        and `posting_company` name a tailored resume's posting, for its
-       card's link back to it (KAN-268); null on a base resume. `edited_at` is
+       card's link back to it (KAN-268), and `posting_logo_url` and
+       `posting_company_domain` give its card the company's logo; null on a
+       base resume. `edited_at` is
        the last change to the resume itself (its choices or its name); it
        equals `created_at` until the first one.
 PATCH  /applicants/{id}/built-resumes/{rid}        BuiltResumeRename -> BuiltResumeResponse
@@ -111,9 +132,11 @@ import base64
 import dataclasses
 import logging
 import uuid
+from collections.abc import AsyncIterator
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from fastapi.exceptions import RequestValidationError
+from fastapi.responses import StreamingResponse
 from pydantic import ValidationError
 from sqlalchemy import update
 from sqlalchemy.exc import SQLAlchemyError
@@ -121,13 +144,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import undefer
 from workit_scout.llm import LLM, ScoutUnavailable
 
-from app.db import get_session
+from app.db import get_session, get_sessionmaker
 from app.deps import owned_applicant, token_applicant
 from app.models.built_resume import Built_Resume
 from app.models.jobs import Job_Post
 from app.models.profiles import Applicant_Profile
 from app.schemas.bank import EntryResponse
 from app.schemas.built_resume import (
+    BuiltResumeCopy,
     BuiltResumeCreate,
     BuiltResumeRename,
     BuiltResumeResponse,
@@ -138,6 +162,9 @@ from app.schemas.built_resume import (
     FitPlan,
     FitPlanned,
     FitResponse,
+    GenerateDone,
+    GenerateFailed,
+    GenerateStep,
     LineSave,
     LineSaved,
     PageSettings,
@@ -193,6 +220,8 @@ def _response(
         posting_closed=posting.closed if posting else False,
         posting_title=posting.title if posting else None,
         posting_company=posting.company if posting else None,
+        posting_logo_url=posting.logo_url if posting else None,
+        posting_company_domain=posting.company_domain if posting else None,
     )
 
 
@@ -226,12 +255,74 @@ async def generate(
     session: AsyncSession = Depends(get_session),
 ) -> BuiltResumeResponse:
     try:
-        resume = await service.generate(session, applicant_id, body.name, refuse_duplicate=True)
+        resume = await service.generate(session, applicant_id, body.name, refuse_duplicate=not body.allow_duplicate)
     except service.DuplicateResume as exc:
-        raise HTTPException(409, {"message": str(exc), "built_resume_id": str(exc.resume.id)})
+        raise HTTPException(409, {"message": str(exc), "built_resume_id": str(exc.resume.id), "name": exc.resume.name})
     default_id = await service.default_built_id(session, applicant_id)
     await _commit(session, "Failed to save the resume")
     return _response(resume, default_id)
+
+
+@router.post("/copy", status_code=201, response_model=BuiltResumeResponse)
+async def start_from(
+    body: BuiltResumeCopy,
+    applicant_id: uuid.UUID = Depends(owned_applicant),
+    session: AsyncSession = Depends(get_session),
+) -> BuiltResumeResponse:
+    """Start From a Resume You Have: a new built resume copied from one of
+    the student's built resumes, or made of one upload's own entries. 404
+    for a source not theirs; 409 for an upload with nothing in it."""
+    try:
+        if body.built_resume_id is not None:
+            resume = await service.copy_resume(session, applicant_id, body.built_resume_id)
+        else:
+            resume = await service.from_upload(session, applicant_id, body.uploaded_resume_id)
+    except NotFound:
+        raise HTTPException(404, "Resume not found")
+    except service.EmptyUpload:
+        raise HTTPException(409, "That upload has no experiences to start from. Generate one from your bank instead.")
+    default_id = await service.default_built_id(session, applicant_id)
+    await _commit(session, "Failed to save the resume")
+    return _response(resume, default_id)
+
+
+@router.post("/stream")
+async def generate_streamed(
+    body: BuiltResumeCreate,
+    applicant_id: uuid.UUID = Depends(owned_applicant),
+) -> StreamingResponse:
+    # Its own session: the request's may be closed once streaming starts.
+    session = get_sessionmaker()()
+    return StreamingResponse(_ndjson(_generated(session, applicant_id, body)), media_type="application/x-ndjson")
+
+
+async def _generated(
+    session: AsyncSession, applicant_id: uuid.UUID, body: BuiltResumeCreate
+) -> AsyncIterator[GenerateStep | GenerateDone | GenerateFailed]:
+    """Generate's lines: each step as it starts, then `done` once the
+    resume is committed, or `error` with what the JSON route answers."""
+    steps = service.generate_steps(session, applicant_id, body.name, refuse_duplicate=not body.allow_duplicate)
+    try:
+        async for step in steps:
+            if isinstance(step, Built_Resume):
+                default_id = await service.default_built_id(session, applicant_id)
+                await _commit(session, "Failed to save the resume")
+                yield GenerateDone(resume=_response(step, default_id))
+            else:
+                yield GenerateStep(phase=step)
+    except service.DuplicateResume as exc:
+        yield GenerateFailed(status=409, message=str(exc), built_resume_id=exc.resume.id, name=exc.resume.name)
+    except HTTPException as exc:
+        yield GenerateFailed(status=exc.status_code, message=str(exc.detail))
+    finally:
+        # A reader who leaves midway stops Generate before its session goes.
+        await steps.aclose()
+        await session.close()
+
+
+async def _ndjson(events: AsyncIterator[GenerateStep | GenerateDone | GenerateFailed]) -> AsyncIterator[bytes]:
+    async for event in events:
+        yield event.model_dump_json().encode() + b"\n"
 
 
 @router.get("", response_model=list[BuiltResumeResponse])

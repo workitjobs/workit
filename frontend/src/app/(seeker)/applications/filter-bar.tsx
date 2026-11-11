@@ -6,10 +6,9 @@ import { useRouter } from "next/navigation";
 import { startTransition, useOptimistic, useRef, useState } from "react";
 
 import { FieldFacet } from "@/components/field-facet";
-import { CloseIcon, FilterIcon, workStyleIcon } from "@/components/icons";
-import { Button } from "@/components/ui/button";
-import { IconButton } from "@/components/ui/icon-button";
-import { SearchField } from "@/components/ui/search-field";
+import { AllFiltersButton, ClearFiltersButton } from "@/components/filter-actions";
+import { workStyleIcon } from "@/components/icons";
+import { PAGE_SEARCH, SearchField } from "@/components/ui/search-field";
 import { cn } from "@/lib/cn";
 
 import type { StageKey } from "../stage-colors";
@@ -21,7 +20,7 @@ import {
   type Picks,
 } from "./field-filters";
 import { StatusIcon } from "./icons";
-import { ColumnsMenu } from "./list-controls";
+import { TableSettingsMenu } from "./list-controls";
 import { ViewSwitcher } from "./view-switcher";
 import {
   applicationsHref,
@@ -109,7 +108,7 @@ export function FilterBar({
       {/* The switcher is two glyphs, so it fits beside the search at every
           width. */}
       <div className="flex items-center justify-between gap-3">
-        <Form action="/applications" className="min-w-0 flex-1 @lg/main:max-w-64">
+        <Form action="/applications" className={PAGE_SEARCH}>
           {query.view !== DEFAULT_VIEW && <input type="hidden" name="view" value={query.view} />}
           {picks.stages.length > 0 && (
             <input type="hidden" name="stage" value={picks.stages.join(",")} />
@@ -125,7 +124,7 @@ export function FilterBar({
             id="applications-search"
             label="Search Applications"
             name="q"
-            placeholder="Search role or company"
+            placeholder="Search job or company"
             defaultValue={query.q}
             enterKeyHint="search"
           />
@@ -162,37 +161,27 @@ export function FilterBar({
         />
         {facet("track", "Job Type", "hidden min-w-36 @min-[46.5rem]:flex")}
         {facet("workModel", "Work Model", "hidden min-w-36 @min-[56rem]:flex")}
-        {facet("source", "Source", "hidden min-w-36 @min-[65.5rem]:flex")}
 
-        {/* Every pick and the search off in one press, shown only while
-            there is one: a round cross on a soft grey (2026-11-09), its name in the tooltip, as on
-            the Jobs page. The press hands focus to All Filters, since the
-            cross leaves with the last pick. */}
+        {/* Clear and All Filters, as on the Jobs page (components/
+            filter-actions.tsx). Clear's press hands focus to All Filters,
+            since it leaves with the last pick. */}
         {filtered && (
-          <IconButton
-            label="Clear filters"
-            variant="soft"
-            className="animate-fade ml-auto size-9 shrink-0"
+          <ClearFiltersButton
+            className="animate-fade ml-auto shrink-0"
             onClick={() => {
               allButton.current?.focus();
               apply({ stages: [], filters: NO_FILTERS }, "");
             }}
-          >
-            <CloseIcon className="size-4" />
-          </IconButton>
+          />
         )}
-        <Button
+        <AllFiltersButton
           ref={allButton}
-          variant="secondary"
-          size="sm"
+          count={picks.stages.length + filterCount(picks.filters)}
           onClick={() => setAllOpen(true)}
           className={cn("shrink-0", !filtered && "ml-auto")}
-        >
-          <FilterIcon className="size-4" />
-          All Filters
-        </Button>
+        />
         {/* The list's own control: the grid has no columns. */}
-        {query.view === "list" && <ColumnsMenu className="shrink-0" />}
+        {query.view === "list" && <TableSettingsMenu />}
       </div>
 
       <AllFiltersPanel
@@ -215,7 +204,13 @@ export function ClearFiltersLink({ className }: { className: string }) {
 
   return (
     <Link
-      href={applicationsHref(query, { stages: [], q: "", filters: NO_FILTERS, app: null })}
+      href={applicationsHref(query, {
+        stages: [],
+        q: "",
+        filters: NO_FILTERS,
+        app: null,
+        closed: false,
+      })}
       scroll={false}
       className={className}
     >

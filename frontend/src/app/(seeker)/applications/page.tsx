@@ -10,9 +10,11 @@ import { cn } from "@/lib/cn";
 
 import { SEEKER_GUTTER } from "../gutter";
 import { INBOX_LIVE } from "../inbox/live";
+import { isClosedSaved } from "../tracker";
 import { getTracker, getUpdatesOnce } from "./data";
 import { ClearFiltersLink, FilterBar } from "./filter-bar";
 import { ApplicationsCards } from "./cards";
+import { ClosedNotice } from "./closed-saved";
 import { ApplicationsList } from "./list";
 import { applicationHref, filterApplications, parseQuery } from "./query";
 import { ViewPanes } from "./view-panes";
@@ -63,7 +65,10 @@ export default async function ApplicationsPage({ searchParams }: PageProps<"/app
   const waiting = updates?.length ?? 0;
   const all = applications ?? [];
 
-  const shown = filterApplications(all, query);
+  // The saved jobs whose postings closed: the notice over the table counts
+  // them, and ?closed=1 shows them alone (./closed-saved.tsx).
+  const closedSaved = all.filter(isClosedSaved);
+  const shown = filterApplications(all, query).filter((app) => !query.closed || isClosedSaved(app));
 
   return (
     // EVERY PIXEL THE SHELL GIVES (KAN-256): no width cap, where every
@@ -99,6 +104,10 @@ export default async function ApplicationsPage({ searchParams }: PageProps<"/app
           source,
         }))}
       />
+
+      {closedSaved.length > 0 && (
+        <ClosedNotice apps={closedSaved.map(({ id, role }) => ({ id, role }))} />
+      )}
 
       {/* The board (./board.tsx) is archived (KAN-256); ./query.ts says how to
           bring it back. Its pane was <ApplicationsBoard applications={shown}

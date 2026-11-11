@@ -343,9 +343,17 @@ It is the mock's `JobDetailHeader` with the card's own facts
 "About the Role": `[jobId]/description.tsx` reads the plain-text description's
 own shape (Title Case lines as subheadings, the short lines under one as a
 list), and a description the scraper cut at 8,000 characters (it ends " …")
-says so and links to the whole posting. It fills the job's one column at
-16px, about 90 characters a line (2026-11-09; `max-w-job`, 736px of
-content, the same edge as the header and Key Requirements). It stopped at
+says so and links to the whole posting. **The whole posting is one white
+panel** (`JobPanel` in `[jobId]/job-view.tsx`, 2026-11-10, after Jobright's):
+the header, then under a rule across the panel Key Requirements and the
+description as sections with a rule between them, at the panel's whole
+width and 16px. They were two cards under the header that stopped where
+its rail started (`JOB_BODY`, 17.25rem short), so an empty column ran down
+the right; the page is the Cards view's 944px, as the card it was opened
+from (736px of content, `max-w-job`, the day before). With no Overview
+heading, the text before the first section goes under Overview; with no
+such text, Overview is left out: its "It may be in the text above" line
+stood first in the panel with no text above it. It stopped at
 46ch of 14px text from KAN-569 while the blocks above it ran the page's
 whole width, and read as cut short. Its paragraphs and list items are
 ink, the headings' colour, not body copy's lighter ink-muted: a posting is
@@ -354,8 +362,12 @@ fixed section headings (Overview, Responsibilities, Requirements, Preferred
 Qualifications, Pay, Details) draws an icon beside it in brand purple
 (`SECTION_ICONS`; Pay reuses the salary fact's coin). All Filters' section
 icons stay grey: there they label controls, here they mark where to read.
-Section titles are 16px bold with a 20px icon, a step under "About the
-Role"; an employer's subheading is 14px semibold. List bullets are ink, like
+Section titles are 20px bold with a 24px icon, as Jobright's (2026-11-10):
+at 16px bold over the 16px body they read as bold body text, which the
+user found too small. "About the Role" above them is for screen readers
+only when there is a description: the Overview
+tab names it, and at 16px it would rank under its own sections. An
+employer's subheading is 16px semibold. List bullets are ink, like
 the text. **A sectioned description always shows Overview, Responsibilities,
 Requirements and Pay** (`withCoreSections`, KAN-229 fix 5); Preferred
 Qualifications and Details only when the posting has them. A missing core
@@ -426,15 +438,17 @@ A job's Key Requirements list is read with the page's other reads
 (`loadJobView`) and handed to the card, not fetched by the card after them
 (KAN-368); it still answers an empty list on any failure, so the page draws
 without the card, and the application page's description tab skips the read.
-The page has a `loading.tsx` whose header and Key Requirements skeletons
-stand at the height of what replaces them; Tailor has its own, so this one
-never stands in for it.
+The page has a `loading.tsx` that draws the panel: its header with the
+match tile, then Key Requirements and About the Role as bars at the height
+of what replaces them; Tailor has its own, so this one never stands in for
+it.
 The job's actions sit in one bar with Back, pinned at the top from md
 (`[jobId]/action-bar.tsx`, KAN-246), after the job's tabs (below): Auto Apply,
 Tailor My Resume and Apply Now, on one row at a 1280px
 window. Ask Scout, Not Interested and Save are bare glyphs at the top right of
-the job's card (`JobCardActions`, after Simplify): in the bar they wrapped Apply
-Now onto a row of its own. Not Interested shows on the job's own page only, and
+the job's panel (`JobCardActions`, after Simplify): in the bar they wrapped Apply
+Now onto a row of its own; they end the company line at every width (on a phone
+they took a row of their own under the title until 2026-11-10). Not Interested shows on the job's own page only, and
 is "Coming Soon", as on the compact card. Below that width the tabs wrap above the
 actions. **Below md Apply Now comes first** (KAN-569): the actions take a row of their
 own under Back and the tabs, Apply Now across it, then Auto Apply and Tailor filling
@@ -448,14 +462,27 @@ Apply Now. An Applied button here once marked jobs on a misclick, with no undo
 moved in place as the application page's are. Overview is the notes, Key
 Requirements and About the Role. Company (`[jobId]/company-tab.tsx`, `GET
 /jobs/{id}/company`) is the employer's website and the shared company brief's
-checked facts by category, each with its source. A brief exists only once a
+checked facts by category, each with its source, after the posting's own
+About the Company section under "From the Job Posting" (`companyFromPosting`
+in `[jobId]/description.tsx`, 2026-11-10): it sat folded at the foot of the
+Overview, a tab away from where a student looks for the company, and the
+Overview now leaves it out. The application page's Job Description tab,
+which has no Company tab, keeps it in its fold. A brief exists only once a
 student's Claude has researched the company, so most jobs show the website
-alone, or "WorkIt has no notes on … yet". Each fact's Source link is underlined,
+and the posting's words, or "WorkIt has no notes on … yet" when the posting
+has none. Its title is drawn as the Overview's sections' are (20px bold
+beside the building glyph), since both sit in the job's one panel. Each fact's Source link is underlined,
 since its brand colour against the ink text was the only cue (KAN-569). The application page draws no tabs. A "…" menu of Copy Link and an inert Report sat
 after Save until KAN-519, when the team removed it. Below md the bar scrolls away and wraps.
-The header card below holds who is hiring, the title and facts; its logo never
-shrinks. Its facts use the card's `JobFacts`: two rows of three fixed slots,
-two columns under 448px, with unstated facts leaving their slots empty.
+The panel's header holds who is hiring, the title (`text-heading`, as every
+sub-page's h1; `text-display` until 2026-11-10, which is for numbers) and the
+facts, with the match tile beside all of them, the feed card's grey tile
+stretched to the header's height (a bordered white box beside the facts
+alone until 2026-11-10, which left a hole under them); its logo never
+shrinks. The Company tab's pane sits in the same panel. Its facts use the card's `JobFacts`: two rows of three fixed slots,
+two columns under 448px, with unstated facts leaving their slots empty, at
+the Jobs page card's size (14px values, 16px glyphs; 12px until 2026-11-10
+read as fine print beside the 16px description).
 Ask Scout, an icon beside Save (KAN-519), asks about the role; it is not
 drawn while `ASK_SCOUT_LIVE` is off (2026-11-09; it stood faded as "Coming
 Soon" until then), and Not Interested is not drawn while
@@ -547,20 +574,24 @@ on a short window.
 KAN-406) is the one picker in all four resume dialogs: this one, Tailor's
 Pick a Resume to Tailor, Auto Apply's Choose a Resume and the Experiences
 view's Choose a Resume to Show (KAN-361, which builds its rows from the
-bank's resumes, with no posting). It is the Resumes page's grouped list
-(`components/resume-list.tsx`): one row with a search by name and by the
-posting a resume was tailored for, the **Type** filter and, in Did You
-Apply? and Tailor, **Upload Resume** (as two even halves under the search
-below a 36rem row; no Sort or Generate Resume, which a dialog does not
-need), then **Uploaded**, **Generated** and **Tailored**
-under pill headings with counts, each heading folding its group for this
-opening, in one scroll five cards high. Each card is the Resumes page's
-box with a radio: the file mark, the name, one line ("Uploaded Oct 21",
-"Last edited Oct 21 · For Backend Intern at Initech", "Made Oct 21 · For
-This Job") and the Primary star. A group lists the resume tailored to this
-posting first, then the primary, then the newest. A click anywhere on a
-card picks it, and the arrow keys move the pick across every group (one
-radio group); the search only filters, so the pick survives it. Names
+bank's resumes, with no posting). It is flat, as the Resumes page's table
+is (`components/resume-list.tsx`, 2026-11-10): one row with a search by
+name and by the posting a resume was tailored for, the **Type** filter
+and, in Did You Apply? and Tailor, **Upload Resume** (as two even halves
+under the search below a 36rem row; no Sort or Generate Resume, which a
+dialog does not need), then one list in one scroll five cards high. Each
+card is the Resumes page's box with a radio: the name, one line
+("Uploaded Oct 21", "Last edited Oct 21 · For Backend Intern at Initech",
+"Made Oct 21 · For This Job"), the type's badge as the Resumes table draws
+it (in a 7rem column, so the stars line up; its icon alone on a phone)
+and the Primary star; Tailor's Preview eye shows on hover or focus, and
+always on a touch screen. The list puts the resume tailored to this
+posting first, then the primary, then the newest. It drew Uploaded,
+Generated and Tailored groups under pill headings, each card with a PDF
+mark, until the Resumes page went flat with a badge per resume (KAN-766)
+and the picker read as another app. A click anywhere on a card picks it,
+and the arrow keys move the pick across the list (one radio group); the
+search only filters, so the pick survives it. Names
 wrap, never truncate: two resumes tailored for one company differ only at
 the end of their names. A table came before it (KAN-360): a Generated or
 Uploaded switch, then Type, Tailored For and Last Edited columns. Once the
@@ -614,8 +645,12 @@ from `components/job-posting-card.tsx` and leaves its slot empty; a screen
 reader still hears "Salary not listed". The slots used to print that in
 italic, and over half the feed's cards had at least one. Under 448px of card
 body the empty slots close up instead. The title is one line, trailing off
-with an ellipsis (a wrapped title made its card taller than the rest), and a
-fact stops at its column's edge. A title is whole on hover; a fact
+with an ellipsis (a wrapped title made its card taller than the rest), two on
+a phone's card, where no card stands beside it (one cut every title to
+"Software Engine…", 2026-11-10), and a fact stops at its column's edge.
+Below 576px of card the match tile is a row, the 48px ring beside the tier
+and the reasons: the 88px ring stacked over them made a phone's card about
+650px tall. A title is whole on hover; a fact
 isn't, on a card that opens its job posting's page, since the card's click
 layer sits over the facts (the job posting's page shows every fact whole). An internship shows when it
 starts in place of years (the card's `startTerm` fact: "Start in Summer
@@ -655,15 +690,20 @@ how to bring them back. The notes below still describe them.
 the seeker's twelve best-scoring open jobs, best first, from the Best Match
 scores (`getMatches` in `home/data.ts`, `GET /jobs/recommended/{id}/home`),
 with no score floor. A new seeker's thin experience bank can score every job a Weak
-Match, and their best weak ones are still where to start; the Strong Matches
+Match, and their best weak ones are still where to start; the Excellent Matches
 number above counts only 80 and up. Each is a flat row in one tile: a well
-with the logo, the title (its link to the job posting page), the company,
-the match ring, when it was posted, then Save and Apply Now (the same
-dialog as everywhere, KAN-290). From `@4xl/main` the match ring and the
-posted date are columns of their own, centred on the row's height at fixed
-widths, so they line up down the list (KAN-423); squeezed onto the
-company's line they read as one cramped run. Below it they stay on that
-line. Tailor My Resume sat between them and was
+with the logo, the title (its link to the job posting page), the company
+and when it was posted on one line ("HP · 21 days ago", as the job cards'
+meta line; the company truncates first), the match ring, then Save and
+Apply Now (the same dialog as everywhere, KAN-290), a secondary button here
+(2026-11-10): filled on every row, five violet buttons stacked into a wall
+on a phone, and a view has one primary action. From `@4xl/main` the
+ring is a column of its own against Save, so the scores line up down the
+list (KAN-423); below it, it leads the buttons' row (in picking mode,
+which has no buttons, it ends the company's line), since on the company's
+line it cut the name short. The posted date was a
+second pill column until 2026-11-10: two pills in fixed columns floated in
+the middle of the row, apart from both the title and the buttons. Tailor My Resume sat between them and was
 taken out at the user's ask: the list is for choosing what to apply to. The
 title's link (`top-match-link.tsx`) makes the job page's Back return to the
 Home. **Auto Apply**, at the heading's right beside See More Matches,
@@ -699,11 +739,11 @@ return to Home is served from it in well under a second. It was three
 a full scan of the job postings' vectors, and took 13 to 23 s on
 2026-10-28. The tracker read here is `getTrackerUnscored`: Home shows no
 application's score. The page awaits
-only the account: the headline numbers (the Strong Matches count is a full
+only the account: the headline numbers (the Excellent Matches count is a full
 scoring pass), Top Matches and Activity each stream over a skeleton of their
 shape, and `home/loading.tsx` draws the same frame (`HomeFrame`),
 so a prefetched click shows it at once and the page replaces it in place. It replaced New Matches, the newest postings in posting order in
-the same scrolling frame, which went when Strong Matches replaced New Roles
+the same scrolling frame, which went when Excellent Matches replaced New Roles
 and came back ordered by fit at the user's ask. The notes below that name
 New Matches describe the archived three-column layout.
 
@@ -761,7 +801,7 @@ All the Agenda; Waiting's Follow Up opens the Applications list filtered to
 Applied. That is a placeholder: it helps nobody contact anyone, and KAN-174
 (still open) plans the real flow, a list of only what has waited two weeks,
 a Scout-drafted note, a recruiter search, then marking an application
-followed up or closed once the tracker has a backend. The headline numbers are Strong Matches, Saved, Applied and Interviewing
+followed up or closed once the tracker has a backend. The headline numbers are Excellent Matches, Saved, Applied and Interviewing
 (`getHeadline` in `home/data.ts`), all live (KAN-342). **The Tracker's
 tiles are named for its stages**, the Status filter each one opens: Applied
 was "Applications", the same word as the page it opened, and Interviewing
@@ -772,24 +812,24 @@ so the left half is what is left to do and the right half how it is going
 was Applications, New Roles, Interviews, Saved, which read out of sequence.
 **Each tile is tinted with its own colour, its glyph white in a solid disc
 of that colour** (KAN-423, `STAT_TONE` in `home/headline.tsx`). The user
-picked the colours: Strong Matches green, Saved grey, Applied violet,
+picked the colours: Excellent Matches green, Saved grey, Applied violet,
 Interviewing yellow. The grounds are the tints each colour already has
 (`--color-positive-tint`, and the stages' tints from `stage-colors.ts`,
 the board's panels); the ink-meta note holds 4.7:1 or better on each, the
-green or red change 4.5:1 or better. The discs: Strong Matches
+green or red change 4.5:1 or better. The discs: Excellent Matches
 `--color-positive-ink` (5.35:1 under the white glyph), Saved and Applied
 their stage fills, Interviewing `--color-warning-deep` (Tailwind's
 yellow-700, 4.92:1), more yellow than the stage's own orange-leaning
 amber. Strong
-Matches' green is Offer's stage hue, a known overlap. Strong Matches was
+Matches' green is Offer's stage hue, a known overlap. Excellent Matches was
 the one filled tile, in violet, until then, and Applied before it: violet
 is Applied's stage colour, so the loud tile and the Applied badges said
 two things in one colour. Tried and turned down on the way: the match
 ramp's magenta, a burnt amber, every tile filled with its solid colour,
 and plain white tiles with only the discs coloured. Applied
 counts the tracker's applications sent in the range, against the same
-length of days before it. Strong Matches counts the job postings from the
-range that score Strong Match (80) or better for this seeker (it was Good
+length of days before it. Excellent Matches counts the job postings from the
+range that score Excellent Match (80) or better for this seeker (it was Good
 Matches, counting from 65, until the user renamed it; the threshold moved
 with the name, so a 70% job never sits under a label its own Good Match
 badge contradicts), from the Best
@@ -919,7 +959,7 @@ company in the table and under its location on a Card View card, from the built 
 beside the applications (`getTailoredJobIds`; Home's unscored read skips it).
 
 **The list is the primary view and the board is archived** (KAN-256).
-A bare `/applications` shows the table, the switcher offers Table View then
+A bare `/applications` shows the table, the switcher offers List View then
 Card View (their URL values stay `list` and `grid`),
 and an old `?view=board` link opens the list. `applications/board.tsx`
 stays, unused. To bring the board back: add `"board"` to `VIEWS` in
@@ -947,8 +987,12 @@ reads "Saved" for a saved job, writes at once with an Undo toast, and asks
 first for a saved job. A click in the table's Status cell, or a pick in its
 popup, never opens the application.
 
-**Table View draws a table** (a table glyph, not bullets; 2026-11-05): the
-user found "List View" with a bulleted glyph wrong for a table of columns.
+**The view switch uses the app's shared views** (`components/views.tsx`,
+2026-11-11): List View (bullets) for the table and Card View (rows) for the
+cards, the names and glyphs the Jobs page and Documents use for the same
+layouts. It said Table View with a table glyph from 2026-11-05, when the
+user found a bulleted glyph wrong for a table; the user then chose one name
+per layout across the app, and a table of rows is a list.
 
 **The list is a table that scrolls sideways** (KAN-256), as a Notion table
 does, rather than dropping columns as the page narrows. In the order job
@@ -973,18 +1017,38 @@ posting closed". Remove asks first, since a closed job can't be saved
 again, so there is no Undo. An applied job's row never mentions its posting
 closing: nothing changes for the student, and the application's page says
 it in its status cards.
-**Role is one column holding the company too**: the company's logo, then
+**Job is one column holding the company too** (named Role until
+2026-11-10: a posting is a "job" on every screen): the company's logo, then
 the role (bold, the row's link, cut with the whole title on hover) over the
-company's name in meta grey. KAN-256 split them into two frozen columns,
+company's name in meta grey, with **Tailored** as a brand word and glyph
+after it (a pill until 2026-11-10, 8px taller than the line, so a row with
+one stood taller than a row without). **The other cells are plain text**
+(2026-11-10): no glyph per cell (a calendar, a briefcase, a pin, a
+building, a coin on every row, though the heading names the column), a
+faint dash for what a job does not have (its word for a screen reader:
+"Not applied yet", "Not listed", "Not scored", "Not sent", which filled
+about a fifth of the cells), and "+N more" on a posting in several places,
+which lists them (`PlacesValue`). **Status is a pill** in the stage's
+tint, 28px tall (`StageMenu`'s `compact`), the same menu; it was a 42px
+bordered field on every row, taller than the page's own buttons, and the
+table read as a form. A closed posting's cell is a Posting Closed pill of
+the same shape in solid ink beside its trash (grey read as Saved, red as
+Rejected; no stage is black). Match and Resume are centred columns. Resume's View is a text button.
+The columns are narrower to match (1420px together, from 1672), and **a
+fade at the card's right edge** shows while the table runs on past it
+(`useMoreToRight`): a 1440px window's table ran 400px past its card and
+cut "Pay Ran…" with no sign it scrolled. KAN-256 split them into two frozen columns,
 Company then Role; together they took about 500px, so few other columns
 showed, and KAN-282 stacked them again. The company is still its own field
-for the filters and the sort. **Role stays frozen** at the left
+for the filters and the sort. **Job stays frozen** at the left
 while the rest scrolls under it (a sticky cell painting the row's
 background and its hover tint; the edge is a shadow, since a collapsed
-table's borders don't move with a sticky cell). **It freezes from 672px of
-page up only**: at 320px it is about a phone's whole table, and frozen
-there it covered it, so the scroll showed no other column; below 672px it
-scrolls with the rest. A sticky
+table's borders don't move with a sticky cell), at every width. **Below
+672px of page it is 208px** (its kept width overridden), with the title
+on two lines, so a phone's table shows most of Status beside it: at its
+320px it was about a phone's whole table, so it scrolled with the rest
+there until 2026-11-10, and the phone's table showed the job alone with
+Status cut in half at its edge. A sticky
 cell traps a stretched link, so **the row opens the application on a click
 anywhere** (`components/clickable-row.tsx`, Live Activity's rows too), leaving clicks on links and
 buttons alone and opening a new tab on Cmd or Ctrl; the role is still the
@@ -1026,8 +1090,10 @@ filtered.
 
 - **The filter row, laid out as the Jobs page's** (`applications/field-filters.tsx`,
   `filter-bar.tsx`; a plain dropdown is `components/field-facet.tsx`, which
-  Auto Apply's Status filter shares): under the search, a row with a dropdown for Status
-  and one per field (Company, Job Type, Work Model, Source), each the Jobs
+  Auto Apply's and Documents' filters share): the toolbar every page table
+  has (`frontend/docs/design.md`, "Every page table has one toolbar").
+  Under the search, a row with a dropdown for Status
+  and one per field (Company, Job Type, Work Model), each the Jobs
   page facet's look (glyph, label, chevron, brand tint while it holds a
   pick) over checkbox rows. Status lists the four stages, each with its
   stage's glyph in its colour; the fields list every value the tracked
@@ -1035,22 +1101,24 @@ filtered.
   list, as the Jobs page's Role dropdown does, since the list grows with
   every application; a pick keeps the search. The dropdowns step out one
   at a time from the right as the row narrows (Status from 440px of row,
-  Company 592, Job Type 744, Work Model 896, Source 1048); at
-  the right end, Clear Filters as an outlined cross (shown while anything
+  Company 592, Job Type 744, Work Model 896); at
+  the right end, Clear (a text button with a cross, shown while anything
   is picked or searched; it hands focus to All Filters), All Filters, and
-  Columns in Table View. A phone's row is All Filters and Columns.
+  Table Settings in List View. A phone's row is All Filters and Table
+  Settings. Source left the filters on 2026-11-10: students do not need it.
   Status was a row of stage chips with counts (KAN-256), and an earlier
   draft had one Filter button with every field in its menu; both became
   dropdowns after the Jobs page on the user's ask (2026-10-19). The
   chips' counts went with them, as the Jobs page's options carry none.
-- **All Filters** is a panel with every field, as on the Jobs page: Status
+- **All Filters** is a panel with every field, in the frame every page
+  table's panel shares (`components/all-filters-dialog.tsx`): Status
   (with the stages' glyphs), Company (a search
-  picker, since the list grows), then Job Type, Work Model and Source as
+  picker, since the list grows), then Job Type and Work Model as
   option chips. Its picks are a draft until "Show 3 Applications", which
   counts the draft in the browser (the page hands the bar what each
   tracked application is filtered on); closing it drops the draft.
 - **Picks**: in one field, any of them; across fields, all. Each is a
-  repeated URL parameter (`?company=`, `?track=`, `?work=`, `?source=`),
+  repeated URL parameter (`?company=`, `?track=`, `?work=`),
   not a comma list, since a company's name can hold a comma. A pick
   replaces the URL (ten ticks are not ten steps of Back) and shows at once
   while the server filters, as the Jobs page's facets do.
@@ -1062,20 +1130,51 @@ filtered.
   pay compare). A missing value goes last either way. A heading moves
   `?sort=` in place (shallow routing): the table sorts the rows it holds,
   with no round trip.
-- **Columns**: drag a heading by its label to a new place (a brand bar
-  marks the side it lands on), or use a column's Move Left and Move Right
-  arrows in the **Columns** menu, the way without a drag (WCAG 2.5.7,
-  KAN-577); drag a heading's right edge to resize it (a 24px handle with a
-  2px line), double-click the edge to reset it, or focus the edge and use
-  the arrow keys; hide and show columns from the same menu, at the filter
-  row's right end, which shows only in Table View and also has Reset
-  Columns. A sort heading's button is 24px high. Role cannot move or hide. Each column has a fixed width
+- **Columns** move as Notion's do (2026-11-11): a movable heading fills
+  grey under the pointer with a grab cursor, and a drag anywhere in it
+  moves the column **along the heading row only**: a raised copy of the
+  heading slides left and right on the row, held between the table's
+  edges, however the pointer moves up and down (the user's call: the
+  browser's own drag image went anywhere on the page). It lands beside the
+  heading under the pointer, marked by a brand bar; Escape cancels it, the
+  table scrolls near its side edge, and a finger scrolls rather than
+  drags. A keyboard moves it with Alt+Left and Alt+Right from its sort button or resize
+  handle. Table Settings had Move Left and Move Right arrows per column
+  (KAN-577, WCAG 2.5.7's way without a drag) until the user dropped them
+  that day, once the heading showed it drags: a pointer that cannot drag
+  now has no way to reorder, a known gap. Drag a heading's right edge to
+  resize it (a 24px handle with a 2px line), double-click the edge to
+  reset it, or focus the edge and use the arrow keys; hide and show
+  columns from **Table Settings** (Columns until 2026-11-10), at the filter
+  row's right end, which shows only in List View and also has Reset
+  Columns. **One rule under the headings**: the heading row draws no
+  border of its own, only its cells' (`STICKY_HEAD`, `STICKY_TH`, and
+  `STICKY_TH_FROZEN` for the frozen Job heading in `components/fill-page.ts`);
+  both drew a 2px grey bar under every heading but Job until 2026-11-11. A sort heading's button is 24px high. Role cannot move or hide. Each column has a fixed width
   (a fixed table layout) and cuts what does not fit, with the whole value
   on hover; an empty last column takes the card's spare width, so a resize
   never stretches the others. A drag needs a mouse: a phone keeps the
   order it has.
+- **Group By** (2026-11-10, Table Settings' first group,
+  `components/table-settings.tsx`): Status (the default), Job Type, Work
+  Model or None, as Auto Apply's Up Next groups its queue. Each group is
+  the shared heading row (`components/table-group.tsx`: a fold, the
+  stage's glyph in its colour, the name and the count), its rows in the
+  table's sort. By Status the groups are the stages in the board's order,
+  then **Posting Closed**: the saved jobs whose postings closed, with
+  Remove All at the heading's right (`RemoveClosedButton`, which asks
+  first, since a closed job cannot be saved again). By a field, its values
+  A to Z, then Not Listed. Reset Columns leaves the grouping.
+- **Closed postings' notice** (`ClosedNotice` in
+  `applications/closed-saved.tsx`): while saved jobs' postings have closed
+  and no Posting Closed group gathers them (Card View, or the list
+  grouped another way), the shared amber notice (`ui/notice.tsx`, as Auto
+  Apply's questions waiting) over the list says how many, with Show Them
+  (`?closed=1`, those alone; Show All undoes it) and Remove All. It was a
+  white card with a black pill of its own until 2026-11-11, a second look
+  for the same job; the user asked for the one notice.
 - **The layout is this browser's** (`applications/column-layout.ts`): order,
-  hidden columns and widths, in localStorage under a `lib/local-drafts.ts`
+  hidden columns, widths and the grouping, in localStorage under a `lib/local-drafts.ts`
   key, so Sign Out clears it. The server draws the default and the stored
   layout swaps in after hydration. It is not in the URL, since a shared
   link should carry the view, not the sender's column widths; keeping it
@@ -1193,7 +1292,9 @@ tracker row, and the tab title comes from the posting's own read:
   rounded white boxes on the tint: each
   card a `Card`, the match the Jobs page card's `MatchRail` with
   `standalone` on white, with its reasons (`?scored=true` sends
-  `highlights` with `match`). Ruled, square cells were tried first and read
+  `highlights` with `match`), only when the job's panel above has no
+  match tile (a closed posting): the same ring twice on one page read as a
+  mistake (2026-11-10, `matchAbove`). Ruled, square cells were tried first and read
   as a spreadsheet next to the app's rounded cards. The match sits right of
   the rest from 576px of card and under it below that. Under the card,
   What You Sent has two parts, Resume and Answers (KAN-317). Resume lists
@@ -1204,11 +1305,14 @@ tracker row, and the tab title comes from the posting's own read:
   list's own, not a green Applied With). The whole row opens
   View Resume's dialog (`useResumeViewer`, shared with the list's button).
   It was a bare View Resume button with loose tags until KAN-317, unlike a
-  resume anywhere else. With none sent, a dashed placeholder box (the
-  upload dropzone's outline) says "No resume sent yet". Answers is that
-  same dashed box for now: neither Apply nor auto apply keeps the answers
-  typed into the employer's form yet, and the slot holds their place so
-  the section keeps its shape when they arrive.
+  resume anywhere else. Resume and Answers sit in one white card under the
+  heading, as Interviews & Dates does. With none sent, one quiet line with
+  its glyph says "No resume sent yet", a resume row's height. Answers is
+  that same line for now: neither Apply nor auto apply keeps the answers
+  typed into the employer's form yet, and the line holds their place so
+  the section keeps its shape when they arrive. Both were dashed boxes, the
+  upload dropzone's outline on the grey ground, until 2026-11-10, and read
+  as places to drop a file.
 - **Job Description**: About the Role alone (`JobViewBody`'s
   `descriptionOnly`). The job page's sent and applied notes and its
   Key Requirements card stay off: they pushed the description down and are
@@ -1458,38 +1562,47 @@ opened the page sees every own answer New.
 **Jobs lead the page** (KAN-359): the heading, with no button since
 2026-10-29, and under the title the queue in a line ("2 ready to apply
 · 1 needs you", each part only when it counts something); then the
-**setup strip**; then **Up Next**; then a row card linking to
-**Application Info** (`auto-apply/info-link.tsx`, KAN-550, below My Profile). It opened
+**setup row**; then **Up Next**. It opened
 with a "Resume List" table of every resume until KAN-359, then a line
 naming the default resume, which the user removed: each queued job now
 shows and changes its own resume. Manage Resumes and Add to Claude sat
 beside Start until KAN-424, three bordered buttons of one weight for a
 page with one action.
 
-- **The setup banner** (`auto-apply/setup-strip.tsx`, KAN-424): one card
-  under the heading, only while the Chrome extension is missing (asked of
-  the extension itself on load and when the tab comes back into focus; it
-  counts as installed until it answers, so the banner never flashes in).
-  Chrome's mark in a 40px bordered tile, "Add the Chrome Extension" over
-  one line on what it does, and Install while
-  `NEXT_PUBLIC_EXTENSION_INSTALL_URL` is set (the line asks the student to
-  get the link from the team while it isn't). **Only the required step**
-  (2026-10-29): it was "Set Up Auto Apply, 1 of 3 done" with a Configure
-  dialog that counted a default resume and the Claude MCP too, and students
-  read all three as required. Both are optional, so each shows where it
-  helps: a row with no resume says No Resume and its Resume cell picks one,
-  and a row's Questions to Write status opens its tab, where the student's
-  Claude writes them; Written Answers' heading offers **Connect Claude** (Claude's Add Custom Connector dialog,
-  and Up Next's Write N Questions links to Written Answers, whose
-  heading offers **Connect Claude** (Claude's Add Custom Connector dialog,
-  wearing Claude's spark, never `SparkleIcon`) in Write with Claude's place
-  while the student's Claude has no WorkIt connector (GET `.../connector`).
+- **The setup row** (`auto-apply/setup-strip.tsx`, `SetupRow`, 2026-11-10):
+  one white card at the top of the page, two cells side by side (stacked
+  below `@3xl/main`), what every application needs, each a glyph on a grey tile, its name, where it
+  stands, and an arrow where it is a link:
+  **Chrome Extension** ("Checking…" until the extension answers its
+  `ping`, on load and when the tab comes back into focus; "Added" with a
+  check; or **Add to Chrome**, which opens the extension's Chrome Web Store
+  page, `EXTENSION_INSTALL_URL` in `lib/autofill-extension.ts`:
+  `NEXT_PUBLIC_EXTENSION_INSTALL_URL`, else the Store page for the
+  extension's id, which is public) and **Application Info** (what the
+  extension fills beyond the resume, `../info`). Written Answers sat here
+  as a third cell for a day and left for the questions notice over Up
+  Next, since it is work a job asks for, not setup. It replaced three pieces in three
+  styles around the queue, which the user found out of place: a banner on
+  top that showed only while the extension was missing (it said its link
+  was coming soon and could not be clicked, though the Store page is
+  public), Up Next's Write N Questions `SectionLink`, and an Application
+  Info row card under the queue (`info-link.tsx`, gone). Onboarding's
+  extension step still waits for the variable (`CAN_INSTALL`), so it skips
+  itself while it is unset. **No count of steps**: it was "Set Up Auto
+  Apply, 1 of 3 done" with a Configure dialog until 2026-10-29, and
+  students read all three as required; only the extension is. A row with
+  no resume says Choose Resume in its Resume cell, and a row's Questions to
+  Write status opens its tab, where the student's Claude writes them;
+  Written Answers' heading offers **Connect Claude** (Claude's Add Custom
+  Connector dialog, wearing Claude's spark, never `SparkleIcon`) while the
+  student's Claude has no WorkIt connector (GET `.../connector`).
   Disconnecting stays in Settings.
 
 - **Up Next** (`auto-apply/up-next.tsx`, its table `auto-apply/queue-table.tsx`;
   redesigned 2026-10-29): every queued job in one table, **grouped by whether
-  WorkIt has started it**, each group under a heading row (its name in a pill and its
-  count) that folds it, as the Resumes page groups its list. A line beside
+  WorkIt has started it**, each group under a quiet heading row (its name
+  in ink and its count, on the table's white; a grey band with the name in
+  a pill until 2026-11-10, as loud as the rows) that folds it. A line beside
   the count, and a line under each status restating its chip ("Filling the
   form"), were cut as noise (2026-10-29). The
   heading's button stays at the left while the table scrolls sideways.
@@ -1497,7 +1610,9 @@ page with one action.
     the status is the tab's own, read live from the extension
     (`useBrowserTabs`, which asks `run/status` every 4 seconds while the
     page shows): Filling (with a spinning ring, as Tailor's run loader),
-    Ready to Submit, Needs You, Fill Failed, Submitted. With its tab closed
+    Ready to Submit, Needs Your Input (with a tooltip: Auto Apply stopped at
+    a field it can't fill; the extension does not say which, so the label
+    cannot name it; "Needs You" until 2026-11-10), Fill Failed, Submitted. With its tab closed
     before WorkIt saw its submit, it is **Tab Closed, Not Submitted**
     (amber; KAN-512): the extension's `run/status` lists it in `closed`
     (`useClosedTabs`), its stage stays as its fill left it (never applied),
@@ -1510,20 +1625,64 @@ page with one action.
   - **Queued**: waiting, in the order the extension takes it; no status. A
     place ("#1 in Queue") was tried and cut: five fill at once, so it read
     as one at a time.
+  - **Posting Closed** (2026-11-10): a job whose posting closed, which can
+    never go out, with no status (the group says it) and **Remove All** at
+    the heading's right (with Undo, as Remove is). It sat in Queued with a
+    red Posting Closed status and read as waiting its turn.
+  **Up Next's toolbar** (`auto-apply/queue-filters.tsx`, 2026-11-10): the
+  toolbar every page table has, in the Tracker's two rows (2026-11-11).
+  **No "Up Next" heading**: the Tracker and Documents open on their
+  toolbar, so the heading went and its name stays for a screen reader.
+  Row one is the search over job and company with **Add Jobs** at its
+  right, filled as the page's main action (as Generate Resume is on
+  Documents; it was bordered beside the heading), or, while rows are
+  picked, "N selected", Remove (a text button) and Auto Apply (filled).
+  Row two is **Status** (In Progress, Queued, Posting Closed), **Company**
+  (with a search, as the Tracker's) and **Match** (Excellent to Weak in
+  their colours, then Not Scored), then Clear, All Filters (the shared
+  panel) and **Table Settings** with Group By: Status (the default, the
+  groups above), Match, or None (a preference of this browser,
+  `auto-apply/queue-layout.ts`). The dropdowns step out from the right at
+  the Tracker's widths (Status from 440px of row, Company 592, Match 744).
+  The notices sit under the filters and over the table, as the Tracker's
+  closed notice does. Auto Apply has no view switch yet, the one page table
+  without one: its second view is still open. The filtering is the
+  page's own, with nothing sent and nothing in the URL, since Up Next holds
+  every queued job; a pick counts only while its row shows, so Remove and
+  Auto Apply never act on a hidden job. Filters that hide every row show
+  No Matching Jobs with Clear Filters. Under another Group By a row's
+  Status cell names what a Status heading would: **Queued** (grey) and
+  **Posting Closed** (in ink, as the Tracker's black pill), and the closed
+  jobs get the Tracker's closed notice (shared `ui/notice.tsx`: Show Them
+  sets the Status filter to Posting Closed, and Remove All has Undo).
+  Each group heading is the shared row (`components/table-group.tsx`).
+  Up Next's heading and Add Jobs shared one centred line until the
+  heading went (2026-11-11), with no counts beside the heading (each group's heading counts its own; "3 in progress ·
+  2 closed" sat off the heading's baseline and said it twice). Group
+  headings are centred on their band. **Questions to write show as a
+  notice over the queue** (`QuestionsNotice`, in the shared
+  `ui/notice.tsx` since 2026-11-11), only while any job has
+  them: "5 questions to write for 3 jobs before they go out" and **Write
+  Answers** (a bordered button: it starts the writing). Resume and Match
+  are centred columns (the table rule, `design.md`); a row with no resume
+  has **Choose Resume** as a text button with a plus, as View is (a dashed
+  pill until 2026-11-10).
   The first version had three groups the same day (In Your Tabs, Waiting,
   Unfinished, then In Progress, Queued, Incomplete): a started job whose
   tab closed sat in a group of its own at the bottom, apart from the same
   kind of job open in a tab, and jumped groups whenever its tab closed or
   reopened. A job now moves once, Queued to In Progress, then leaves when
-  it is sent. The header's line counts the two groups in the browser
-  ("3 in progress · 2 queued", `QueueSummary`), since only the extension
-  knows which jobs are open in a tab. **The status is one item, in its
+  it is sent. Up Next's line beside its heading counts the two groups in
+  the browser ("3 in progress · 2 queued", `QueueSummary`), since only the
+  extension knows which jobs are open in a tab. It stood alone above the
+  setup strip, under the page title, until 2026-11-10, and read as a stray
+  line. **The status is one item, in its
   colour, never a second line**, and a button where there is somewhere to
   go (`Status` in `queue-table.tsx`), most urgent first: Posting Closed
   (red, no click), "N Questions to Write" (amber, while any wait; Filling
   outranks it), the tab's state, and Needs You for a started job whose
-  tab closed. A queued job shows only Posting Closed: its questions show
-  once it starts (they were shown on queued rows too, and the user wanted
+  tab closed. A queued job shows no status under Group By Status: its
+  questions show once it starts (they were shown on queued rows too, and the user wanted
   Queued plain; they can still be written ahead on Written Answers). A
   click goes where the job is finished: its tab, opened again (it fills
   again; the API hands a picked needs_you job out too) if it was closed. The same day it went through a pill badge per row, a
@@ -1578,11 +1737,11 @@ page with one action.
   Clear were there too and went the same day: Stop's square read as one
   more select box and Remove already closes the tab, and Select All
   clears a pick.
-- **The Resume cell is a button**, drawn today as a hand-built bordered
-  pill with a pencil. That breaks `design.md`'s rule that a button is a
-  rounded rectangle, and its 1.4:1 edge is the only cue that it acts, so
-  it becomes a `Button` (`outline`, `sm`); a pill that acts in a table is
-  not an exception (`design.md`, Still open). It opens the row's resume picker (`auto-apply/resume-dialog.tsx`), the
+- **The Resume cell says View** (2026-11-10), a secondary `sm` Button with
+  an eye, as the Tracker's Resume column does: it opens the resume in
+  Tailor's preview dialog, titled with its name. It showed the resume's
+  name in a bordered pill with a pencil ("Resume #6 ✎" on every row), and
+  the names blended together. **Change Resume is in the row's ⋯ menu**: it opens the row's resume picker (`auto-apply/resume-dialog.tsx`), the
   Apply dialog's own resume list (`jobs/resume-picker.tsx`, Job posting
   page), opened on the row's resume. It links nowhere else: Tailor for
   This Job and Build a New Resume links under it went (KAN-360), since
@@ -1598,10 +1757,6 @@ page with one action.
   (`resolveResumeFile`, `autofiller_extension/src/background/api.js`), so
   a pick reaches the form only once the extension calls `POST
   .../applications/{job_id}/resume` for the job it fills.
-- **Write N Questions**, before Add Jobs while any row's written
-  questions wait, is a `SectionLink` to Written Answers (KAN-566), the
-  page's one way there for a student without Claude. It sums every row's
-  count, queued ones too, and hides while rows are picked.
 - **Add Jobs**, at Up Next's right, opens the seeker's saved jobs in a
   dialog (`auto-apply/add-jobs-dialog.tsx`). **The one place a seeker
   queues several jobs at once**: the Jobs page and Home keep one
@@ -1652,8 +1807,9 @@ one client step over the server's rows), in flight.
   an eye for Needs Review, a warning for Couldn't Finish, the Applied
   stage's briefcase, a skip for Skipped. The Status column is 192px, the
   longest badge's width with its glyph and ringing dot.
-  Every column but Role is centred, heading and cell (asked for
-  2026-10-20). Under 864px of table it scrolls sideways rather than
+  Every column is left-aligned, heading and cell, as the Tracker's are
+  (2026-11-10; every column but Role was centred from 2026-10-20, and on a
+  wide window each value floated far from its job). Under 864px of table it scrolls sideways rather than
   squeezing the role. A line under
   the status badge shows only where it says more than the badge: Couldn't
   Finish's "Finish it on the job's page", Working in Browser's "Open in a
@@ -1949,7 +2105,7 @@ Portfolio or Website, Other Link, with **Location** after Phone (KAN-550): the
 home location onboarding asks ("Stony Brook, NY", KAN-372), which no screen
 showed or edited after onboarding until then, though Application Answers'
 Address said its city and state came from here. Each field is drawn like a job posting's
-section heading (16px bold ink beside a 20px brand glyph), its value hanging
+section heading (bold ink beside a brand glyph), its value hanging
 under the heading's text. That glyph only informs, so `design.md`'s icon rule
 makes it `ink-meta`, and the label 600, not bold (KAN-571; `design.md`,
 Still open).
@@ -2059,25 +2215,49 @@ shows initials.
 Everything the extension and the student's Claude fill into a form that is
 not on a resume, under the feature that uses it. The top bar reads
 "Application Info"; Back goes to Auto Apply. Reached from My Profile's
-Application Info card and from a row card after Auto Apply's Up Next
-(`auto-apply/info-link.tsx`): not a header button, since Auto Apply's header
-keeps its top right for a view switcher, and not the setup strip, which
-shows only while the extension is missing.
+Application Info card and from Auto Apply's setup row
+(`auto-apply/setup-strip.tsx`), not a header button, since Auto Apply's
+header keeps its top right for a view switcher.
 
-One white card each, in this order: Work Authorization, Voluntary
-Self-Identification, Application Answers, Transcript, Writing Samples,
-Workday Sign-Up (`(seeker)/auto-apply/info/`). Workday Sign-Up's Set Up
+**One part a page** (2026-11-11, the user's call: six cards down one
+page read as a long form): Work Authorization, Self-Identification,
+Application Answers, Transcript, Writing Samples and Workday Sign-Up, each
+at `/auto-apply/info/<part>` (`auto-apply/info/sections.ts`,
+`[section]/page.tsx`), beside a menu that stays in view: the shared side
+menu (`components/side-nav.tsx`), Settings' own, a glyph and a label per
+part with the open one in the brand tint, and on a phone a row that
+scrolls sideways above the part. Its head is the way back, "← Auto Apply"
+in the items' look, with no button around it (a bordered "Back to Auto
+Apply" sat over the menu until then); it never leads to another part.
+`/auto-apply/info` opens the part an old address's hash names, else the
+first: the WorkIt Autofiller still opens `#writing-samples`, from the one
+page. Each part's glyph is its own, drawn nowhere else (a stamp, a framed
+person, a speech bubble, a scroll, a pen nib, a key); the first set
+borrowed the Tracker's checklist, Tailored's pencil and the Student
+backpack. Each card's actions (Edit, Show Answers, Replace, Add, Remove)
+are glyphs with their word in a tooltip (`SectionAction`), in
+Experiences' heading action's 32px round look, as on My Profile.
+**A fact reads its value first** (2026-11-11, `profile/field-styles.ts`):
+its name small and grey, its answer in ink under it, a missing one a faint
+dash, with no glyph per field (14 named what the labels said, and each
+16px label outweighed its answer); Application Answers' groups are 13px
+semibold names over their facts, School Year among them, its source and
+any gap in one note line. Every answers card says how many are answered
+under its description. A part with nothing yet (Transcript, Writing
+Samples) is the app's empty state with a bordered action; Workday
+Sign-Up's Set Up in the Extension is a bordered button in its body, since
+it opens the extension's page. The parts are at most 48rem wide, and the
+page's one line ("Only you can see these") sits under the menu, once. Workday Sign-Up's Set Up
 opens the extension's own page for one Workday email and password, which
 stay in that browser; it sat in Settings' Sign-In & Security until KAN-571,
-among the sign-ins to WorkIt itself. From `@4xl/main` a nav of plain links to the
-cards sits on the left and stays in view; below it the cards stack with no
-nav. The answer bank and the experience bank (for School Year) are read on
-the server; a failed answer-bank read shows one notice, a failed
+among the sign-ins to WorkIt itself. The answer bank and the experience
+bank (for School Year) are read on the server by the parts that need them; a failed answer-bank read shows one notice, a failed
 experience-bank read leaves School Year unknown. Transcript and Writing
 Samples read their own, each over a skeleton line until it lands, so
 nothing below moves (KAN-561). The page has its own `loading.tsx`, and Up
 Next's sits in the `(queue)` route group, so it never stands in for this
-page or Written Answers on the way in.
+page or Written Answers on the way in. The layout reads nothing, so the
+menu stays live while a part loads.
 
 **Work Authorization and Voluntary Self-Identification (KAN-269)** are two
 cards drawn by one component (`application-questions.tsx`), the questions
@@ -2180,26 +2360,30 @@ replaced or removed there, which the autofiller attaches to a form's
 transcript upload. Remove drops the file from the card and shows a toast
 with Undo; the file is deleted only once the toast closes (KAN-562).
 
-## Resumes & Experiences
+## Experiences and Documents
 
-One sidebar row, above My Profile, for one page in two views (KAN-249):
-**Resumes** (`/resumes`, the row's link) and **Experiences** (`/experiences`, the
-experience bank). Both draw one header (`resumes/header.tsx`; it stays
-beside the Resumes view though `/experiences` imports it too, since the two routes
-are one page's views, not two consumers), laid out as the Jobs page's and the
-Applications Tracker's top row is: the view's search on the left and the
-segmented switcher between the two views at the right, after Experiences'
+Two sidebar rows since KAN-766: **Experiences** (`/experiences`, the
+experience bank) and **Documents**, one page with two tabs, **Resumes**
+(`/resumes`, the row's link) and **Cover Letters** (`/cover-letters`).
+Experiences comes first, as the source every resume, match and written
+answer reads; Documents holds what is made from it. Both pages draw one
+header (`resumes/header.tsx`): on Documents a row of tabs (`ui/tabs.tsx`,
+`TabLinks`, ruled), Resumes then Cover Letters, over the view's search on
+the left and its actions on the right; on Experiences the search and its
 primary action, Fill With Scout, while it is offered (off since KAN-732,
-`FILL_WITH_SCOUT_LIVE`); on a phone the search takes its own line.
-The title is in the top bar. A shared "Resumes & Experiences" title on both views
-said less about where the student was. The views stay two routes, so every link to either still
-lands (the Jobs page's `/experiences?import=1` included), and the switcher is plain
-links, since each view reads its own data on the server; the sidebar row is
-lit on both (`also` in `app-sidebar.tsx`) and in the editor under
-`/resumes`. They were two pages and two rows, Experience Bank and My
-Resumes, each with a button pointing at the other; a student building a
-resume went back and forth between them. "Experiences" is the name students
-see for the experience bank; the glossary term stays.
+`FILL_WITH_SCOUT_LIVE`). On a phone the search takes its own line. The
+title is in the top bar: "Documents" on both tabs (and in the resume
+editor under `/resumes`), "Experiences" on the bank. The tabs are plain
+links between routes, since each reads its own data on the server; the
+Documents row is lit on both tabs (`also` in `app-sidebar.tsx`).
+**History:** they were two pages and two rows, Experience Bank and My
+Resumes, each with a button pointing at the other, until KAN-249 made them
+one row, Resumes & Experiences, with a switcher between two views. KAN-766
+split them again: Experiences is the source, not a kind of document, the
+switcher (for two looks of the same content) sat where a tab should, and
+cover letters needed a home beside the resumes. **Cover Letters** holds a
+placeholder ("Cover Letters Are Coming") until its design
+(`docs/cover_letters.md`) is reviewed and built.
 
 ## Experiences (`/experiences`)
 
@@ -2765,7 +2949,8 @@ with no proposals to accept and no Done (2026-10-25).
   `onPreview` on `ResumeLists`), which opens the resume in a dialog
   (`ResumePreviewDialog`, `resume-preview.tsx`) without moving the pick.
   The other resume dialogs pass no `onPreview` and show no eye; the
-  Resumes page's built resume rows open the same dialog (KAN-358). A preview
+  Resumes page's built resume cards opened the same dialog (KAN-358) until
+  2026-11-10. A preview
   sat in a column beside the list until 2026-10-26; the list needed the
   width, and a dialog gives the page room to read. The dialog takes a
   name and a `TailorSource`, so the review step opens it too, for View
@@ -2890,29 +3075,172 @@ with no proposals to accept and no Done (2026-10-25).
 
 ## Resumes (`/resumes`)
 
-`(seeker)/resumes` (KAN-249), the other view of Resumes & Experiences: the
+`(seeker)/resumes` (KAN-249), Documents' Resumes tab (KAN-766): the
 resumes the bank makes and the uploads, under the shared header. **One
 list holds every resume** (KAN-362, `built-resumes.tsx`), laid out as the
-Applications Tracker is: the search (names and postings) on its own row,
-then the **Type** filter (Uploaded, Generated, Tailored; the Applications
-list's dropdown, `FieldFacet`) and the **Sort** dropdown with Upload
-Resume and Generate Resume at the right, then the list (below). Sort
-(KAN-366) is one pick of three: Last Edited, newest first and the
-default; Oldest First; Name (A to Z). An upload dates from its upload, a
-built resume from its last edit. It is drawn as the Type filter is, but
+Applications Tracker is, with the toolbar every page table has
+(`frontend/docs/design.md`, 2026-11-11): the search (names and postings)
+with **Generate Resume** and the List / Grid switch at its right, then the
+filter row: the **Type** filter (Uploaded, Generated,
+Tailored, each with its glyph, `RESUME_TYPE_ICON`; the Applications
+list's dropdown, `FieldFacet`), **Company** (the companies the tailored
+resumes were made for, with a search; `?company=`, repeated) and the
+**Sort** dropdown, then at the right Clear (while anything is searched or
+picked), **All Filters** (the shared panel: Type chips and a Company
+picker, `resumes/resume-filters.tsx`) and, in the List, **Table
+Settings** with Group By: Type or None. None is the default, since the
+user found the old type headings ugly beside the grid (2026-11-10); a
+student who groups gets the shared quiet heading row
+(`components/table-group.tsx`), and the grid stays flat. Type and Company
+step out of a narrow row from the right (Type from 488px of row, Company
+640); Sort stays. Upload and Generate sat at the right of the filter row
+until 2026-11-11, where the Tracker and Up Next end theirs with the table's
+controls. Then the list (below).
+**Generate Resume opens the ways to start a resume** (`resumes/new-resume-dialog.tsx`,
+2026-11-11, after Simplify's "How would you like to create this
+resume?"; the user wanted one button named for the main way): **Start
+From Your Experiences** (Generate as it was: the duplicate check, the
+steps dialog, then the editor) and **Upload a Resume** (the page's file
+picker; off with the reason at five uploads) as the shared option rows
+(`components/ui/option-row.tsx`, Auto Apply's setup row), then "Or"
+(`components/ui/or-divider.tsx`, the login card's divider) and **Start
+With a Resume You Have**: a search over a small Documents table, a radio
+per row, Name with the Primary badge beside it, Target Job (the
+company's logo, the posting over the company; a dash for none), Date
+Modified and View, always shown, with no Type column; then **Start From
+This Resume** in the footer. **View shows the resume in the dialog's
+place** (`ResumePreviewPane`): a back arrow beside its name, its pages,
+and Back with Start From This Resume (which starts from it) in the
+footer; Back finds the list, its search and its pick as they were. It
+opened Tailor's preview dialog over this one until 2026-11-11, which the
+user found odd. The dialog
+is 56rem wide; its header, its ways to start, the search and its footer
+stay put, and **the table scrolls inside itself** under its pinned
+headings, taking the room left (at least 14rem; on a window too short for
+that, the body scrolls instead). It was "Copy a Resume You Have" over Tailor's picker cards
+(a star at each card's end, a type badge on every card, View on hover)
+on the day it shipped, and the dialog scrolled as one with its footer
+below the window.
+A built resume's copy prints as its source does, its own skills and typed
+wordings copied with it, untailored; an upload's is a resume of that
+upload's own entries (`POST .../built-resumes/copy`, backend
+`copy_resume` and `from_upload`). Either is "<name> (Copy)" and opens in
+the editor. Upload Resume was its own button beside Generate until then.
+Sort
+(KAN-366) is one pick of four: Date Modified, newest first and the
+default ("Last Edited" until 2026-11-10, renamed with the cards' column);
+Recently Created, the newest made first whatever was edited since; Oldest
+First; Name (A to Z). For the modified orders an upload dates from its
+upload, a built resume from its last edit. It is drawn as the Type filter is, but
 never takes the filter's brand tint, since an order is always in force;
 it is a dropdown because the header already holds the Resumes or Experiences
-pills, the shared `SortMenu`, which the Jobs page's filter row uses too. Each resume is its card, with its own
-line saying what it is ("Uploaded Oct 21", "Last edited Oct 21 · For
-<posting>") and its star, Rename, Download and Delete. With no resume at
+pills, the shared `SortMenu`, which the Jobs page's filter row uses too.
+**The List is a table after the Tracker's** (2026-11-10, `ResumeList` in
+`resumes/resume-list.tsx`, rows by `ResumeCard` in
+`components/resume-row.tsx`): one white card with 12px grey headings and
+rules between the rows, after Jobright's resume table. **Name** holds the
+name alone in medium weight, with a Primary badge (a star and "Primary") on
+the primary;
+**Target Job** a tailored resume's posting as the Tracker's Job cell draws
+a job, the company's 32px logo, then the posting's title over the company,
+in the row's ink (a link while it is open, brand and underlined under the
+pointer), and nothing for a resume made for no job;
+**Type** its glyph in grey and its word, with no pill (`TypeLabel`): the
+icon of the button that makes it, Upload Resume's arrow, Generate Resume's
+page, Tailor's pencil;
+**Date Modified** the day; then ⋮. A resume made for no job shows a
+faint dash under Target Job, so most of the column does not read as
+blank. **The table is quiet**
+(2026-11-10, the user found it "off"): it drew a tinted pill per row in
+three colours beside the Primary pill, open postings' titles in brand
+beside closed ones in ink, every name in semibold, and the time on every
+date ("Nov 10, 6:42 PM"). The grid card and the resume pickers keep the
+badge (`TypeBadge`). No tile leads a row
+(each had one, with the logo on a tailored resume's, from earlier the same
+day): Type says what a resume is, and the logos line up in Target Job. No
+"For" and no Posting Closed badge, which the user found not needed. Every
+row is 56px, with a job's two lines or without. A click anywhere on a row opens the
+resume. The headings say once what every card said for itself: as wide
+white cards (earlier the same day) each resume labeled its own date
+"Modified" or "Created", which the user found repetitive. Below `@2xl` of
+the table, a phone's, the Type column folds away, the date keeps only its
+day, the Primary badge keeps only its star, and the actions column holds
+only ⋮. Below `@4xl` (896px) Target Job folds
+too, and the job reads under the name ("<posting> at <company>"). Rename turns the
+row into the name's field with Cancel and Save, at the row's height.
+**Date Modified** (2026-11-10, after Google Drive's) is the latest of two
+events: the last edit, or when it was made or uploaded, for a resume never
+edited, on the student's clock, the year only when it is not this one. It
+was two columns, Created and Last Edited, which the user condensed into
+one. **The actions wait for the pointer, as Google Drive's rows do**
+(`CardActionIcons`): at rest a row shows only ⋮ (More actions), the
+primary's badge sitting by its name; on hover, or with the keyboard's
+focus in the row, Make Primary, Rename, Download and Delete fade in left of
+⋮, over the Date Modified cell on the row's hover fill, as Gmail's row
+actions take the date's place (2026-11-10). They had a column of their own,
+kept for them so nothing moved, which stood empty at rest between the date
+and ⋮. ⋮ holds every action, worded:
+Open, Rename, Download PDF, Make Primary (on a resume that is not the
+primary), then Delete in red, which asks first (`RowMoreMenu` with
+`always`). A touch screen has no hover, so it shows ⋮ only. Four icons on every row at all times read busy to the user.
+The date and the actions sit in fixed columns, so every card's date lines
+up. **The Grid view** (KAN-766, after Google Drive's and Simplify's): a List /
+Grid switch at the right end of the search's row, where the Jobs and
+Applications pages put their view switch (`SegmentedToggle` with icons:
+two looks of the same resumes, so a switcher, not tabs), kept in a cookie as the Jobs
+page's view is (`resumes/view.ts`, `setResumesLayout`), so the server draws
+the chosen layout. The grid, as the list is since the same day, is one
+flat set of cards in the sort's order, the primary first, with no group
+headings (each card says what it is; the Type filter finds one type):
+the top of each resume's first page (4:3, `THUMBNAIL_RATIO` in
+`resumes/view.ts`: the name, contact line and first section; the whole
+page took 83% of a card and 1.5 rows filled a laptop screen, and resumes
+from one bank look alike below their first section), over lines every card
+has, so a row's cards line up: the name with ⋮, on two lines and always
+two lines tall (cut at one, Tailor's names, which open with the student's
+name, lost the role that tells two apart), then the type as a status badge, grey
+for all three with the glyph telling them apart (2026-11-10: three tints on every
+card read as statuses and made the grid loud), a tailored resume's
+company (logo and name, which never wraps and trails off when short of
+room) and, at the line's right, the Date Modified as the list says it
+("Modified" or "Created" and the day). A narrow card drops the badge's
+word and the date's, keeping the type's icon and the day.
+⋮ holds every action (no hover icons, as on Drive's grid), and a filled
+star sits on the primary's page corner, as on Simplify's. No card shows
+a Posting Closed badge: as one more line it made some grid cards taller
+than their row. A New Resume tile led the grid until the
+same day; Generate Resume above does the same (2026-11-10). Rename edits the name under the
+page. The pages (`ResumeThumbnail` in `resume-preview.tsx`) are drawn in
+the browser from the preview the duplicate modal uses, asked for only once
+a card comes within a screen of view and at most two at a time (`inTurn`),
+and kept for the visit: an upload's file costs nothing, and a built
+resume's is one PDF render on the API. A DOCX shows its type. Four to
+a row, two on a phone (below the list's `@3xl`), the user's call. The
+grid scrolls with the page, as the table does.
+**The tile**
+(2026-11-10): an upload's file type ("PDF", "DOCX") on a neutral tile; a
+generated resume's small page in the brand tint, the drawing Generate's
+dialog uses; a tailored resume's company logo, the job card's own
+(`jobLogo`, from the API's `posting_logo_url` and
+`posting_company_domain`), initials without one. Every card wore a PDF
+mark before, though a built resume is no file (it prints from the bank
+each time it opens) and an upload can be a Word file. The rows before were
+52px grey strips in one white card with the date against the icons, which
+the user found skinny and cramped, and whose Created column moved with
+each row's icons. Below `@2xl` of the card (672px) the column hides and
+the date joins the line under the name ("Created Oct 23, 3:27 PM",
+"Modified Nov 5, 2:10 PM"). The server prints the UTC day alone and the
+browser adds the time after hydration (`LocalDateTime`). The pickers' rows
+keep their one-line strip (`ResumeRow` without `page`). On a phone the Sort
+button cuts "Recently Created" to "Recently Cre…". With no resume at
 all the list's place holds "No Resumes Yet"; filters that hide every
 card show "No Matching Resumes" with Clear Filters (`EmptyState`, as the
 Applications page's). The type and the order are the URL's (`?type=uploaded,tailored`,
-`?sort=oldest` or `name`; Last Edited has none), moved in place and
+`?sort=created`, `oldest` or `name`; Date Modified has none), moved in place and
 replacing the entry, so a reload or a shared link keeps them and a tick
 is not a step of Back; Clear Filters keeps the order; the search's words are the
 page's own. A Generate clears a Type filter that would hide its new
-resume. It took six shapes in KAN-362: three cards stacked one under
+resume before it opens the editor, so a Back finds it. It took six shapes in KAN-362: three cards stacked one under
 another (Your Uploaded Resumes, Generated Resumes, Tailored Resumes),
 which a student with many resumes scrolled past; one card behind a pill
 switcher, under the header's own; underline tabs with counts; and the
@@ -2921,8 +3249,8 @@ every card acts alike once Import Updated Resume left the upload's card,
 and a student looking for their latest resume looked in three places.
 Generate Resume sat in the header, on every view though only generated
 resumes come from it, and the upload dropzone sat in a track beside the
-uploads. The resume picker dialogs draw this same grouped list
-(KAN-406, Job posting page). They sat in one "Your Resumes" card at the foot of the bank page
+uploads. The resume picker dialogs draw this same flat list, with a type
+badge per card (KAN-406, Job posting page). They sat in one "Your Resumes" card at the foot of the bank page
 until KAN-249; the spec's "the resumes page" now means this view. The
 editor lives under it (`/resumes/[resumeId]`), so the sidebar keeps the row
 lit there and the phone editor's back arrow lands here. The page needs
@@ -2958,16 +3286,47 @@ upload's page.
   carry; every one was "Base Resume" until KAN-258, so the list read as one
   name repeated. Generate has no limit (KAN-268); a failed one shows its
   message as Generated Resumes' error. **A Generate that would make a
-  resume the student already has makes nothing** (KAN-267): a pop-up says
-  "Duplicate Resume found: <name>" with an OK button, and nothing else
-  happens. "The same" is what prints: a new resume holds the whole bank,
-  so it matches only when nothing changed since an earlier Generate.
+  resume the student already has asks first** (KAN-267, KAN-444): a modal
+  says "You Already Have This Resume. Resume #3 has the same content.
+  Confirm to make a copy anyway." with Cancel and Confirm
+  (`resumes/duplicate-resume-dialog.tsx`). Cancel makes nothing; Confirm
+  runs Generate again with `allow_duplicate` and opens the copy. Under the
+  sentence it shows the resume it matches: a card with its name and when it
+  was created and last edited, and its first page (`ResumeFirstPage`, one
+  render from `/api/resume-preview`), so the student sees which one it is.
+  It opens before Generate's dialog, never over it: while the API compares,
+  the button says "Checking…". It said only "Duplicate Resume found:
+  <name>" with OK until 2026-11-10, which flagged the copy but neither
+  explained it nor let the student go on.
+  "The same" is what prints: a new resume holds the whole bank, so it
+  matches only when nothing changed since an earlier Generate.
+  **Generate shows its steps, then opens the resume in the editor**
+  (KAN-444, `resumes/generate-running.tsx`): a dialog with a small page
+  writing itself lists Reading your experience bank, Checking your resumes
+  for a copy, Saving your new resume and Opening your resume, each ticked
+  as it ends. The middle two are the API's own lines (`POST
+  .../built-resumes/stream` through the route handler
+  `/api/resume-generate`), never a timer; the first runs until the first
+  line, the last while the editor loads, as a Tailor run ends. The dialog
+  opens only once the API says `saving` (its duplicate check passed), with
+  the first two steps ticked, or at once after a Confirm: a copy is asked
+  about first. The student
+  reviews the new resume there: left on this list, it was one more row to
+  find and open (the user's call, 2026-11-10). It is the steps dialog
+  Tailor's run draws (`components/steps-dialog.tsx`), and it cannot be
+  closed. Any failure closes it and shows the message over the list. Until then the
+  button's label read "Generating…" for the whole wait, about 3.6 s from a
+  laptop, and nothing else moved.
 - **Uploads** in Your Uploaded Resumes: picking a file uploads it at once
   (`uploadResume`); the API reads it itself, and the client never sends
   parsed content. **A file whose text the student already uploaded is
   refused** (KAN-267): nothing is kept, whenever and however the file was
-  exported again, and Generate's pop-up opens, "Duplicate Resume found:
-  <name>" with OK (`resumes/duplicate-resume-dialog.tsx`).
+  exported again, and the same modal opens: "You Already Have This
+  Resume. Your upload <name> has the same text." with the upload's card,
+  its first page and OK
+  (`resumes/duplicate-resume-dialog.tsx`). An upload is never confirmed:
+  the database keeps one upload per text, and a copy would take one of
+  the 5 slots.
   Intake and onboarding uploads show the message as their error line. **The upload fills the experience bank** (ADR 0003): a
   note under the filter row says what went in ("Added 6 entries and 2 skills
   from resume.pdf", or "WorkIt couldn't find any entries in …") and links
@@ -2997,7 +3356,7 @@ upload's page.
 - **The list** (`resumes/resume-list.tsx`) is one card that scrolls
   inside itself and runs down to the foot of the page, 24px above the
   window's bottom (`ResumeScroll`'s `fill`, KAN-434), never shorter than
-  five cards under a group heading (`FIVE_ROWS`, 352px), so the search
+  five cards high (`FIVE_ROWS`, 352px), so the search
   and the buttons stay in view however many resumes a student keeps. On
   a window too short for that the page scrolls too. It stopped at five
   cards until KAN-434, which left half a laptop screen empty under it;
@@ -3048,11 +3407,11 @@ upload's page.
   (KAN-258, `resumes/built-resume-row.tsx`), from `components/resume-row.tsx`'s box (`RESUME_ROW`), star
   (`PrimaryStar`) and icon buttons (`ROW_ACTION`), so the two lists cannot
   drift apart: the PDF mark, the name, one line with one day, then the
-  star, **Preview**, Rename, **Download PDF** and Delete. Preview (an eye,
-  KAN-358) opens the resume read-only in Tailor's Preview dialog
-  (`ResumePreviewDialog`, rendered as it is now), so a student can look at
-  it without the editor. An upload's row has no eye: its card opens its
-  own read-only page. **The whole card opens the resume editor**: the
+  star, Rename, **Download PDF** and Delete, the same four icons as an
+  upload's card. Preview (an eye, KAN-358) opened the resume read-only in
+  Tailor's Preview dialog until 2026-11-10; it came off, the user's call,
+  so every card has the same four icons and its dates line up. The card
+  itself opens the resume. **The whole card opens the resume editor**: the
   name's link stretches over it and the icons sit above that link, and it
   lifts under the pointer as every whole-target card does (`docs/motion.md`).
   It held Open, PDF and Word buttons until KAN-258, when downloading moved
@@ -3087,10 +3446,14 @@ upload's page.
   bank changes every resume and does not count. The days are the student's
   own (`LocalDate` in `(seeker)/local-time.tsx`); the UTC day showed a
   resume sent on an evening as sent the next day.
-- **Rename** opens the name in place, in a field with Cancel and Save Name
-  at the field's height, as the bank's Skills form is drawn; Escape cancels
-  and an unchanged name saves nothing. A sent resume keeps the name it went
-  out under.
+- **Rename** edits the name on its card (2026-11-10, `RenamingCard` in
+  `components/resume-row.tsx`): the name becomes its field, selected, with
+  Cancel and Save where the icons were, and the card keeps its height and
+  takes the brand edge; Enter saves, Escape cancels, and an unchanged name
+  saves nothing. It was a labeled field across the list with "Save Name",
+  whose focus ring the list's scroll cut off. An upload's own page keeps
+  that form (`RenameForm`), now with Save. A sent resume keeps the name it
+  went out under.
 - **Delete asks first**, on every resume, in a popover hung from the
   trash that opened it (KAN-347, `DeleteResumeConfirm` in
   `delete-confirm.tsx`): the question, then Delete Resume and Keep It, the

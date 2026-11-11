@@ -42,7 +42,7 @@ export function SaveButton({
 }) {
   return (
     <IconButton
-      variant={quiet ? "quiet" : "soft"}
+      variant={quiet ? "glyph" : "soft"}
       className={cn(
         !quiet && "size-9 shrink-0",
         saved && "text-brand hover:text-brand-hover",

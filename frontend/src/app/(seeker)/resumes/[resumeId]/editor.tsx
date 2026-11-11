@@ -147,6 +147,7 @@ import {
 } from "./tailor-review";
 import { CutPicker, ExperiencesPicker } from "./experiences-picker";
 import { keepFitCuts, readFitCuts } from "./fit-cuts";
+import { Tip } from "@/components/ui/tip";
 
 /**
  * The desktop editor (KAN-218): the built resume's own PDF, edited on the
@@ -192,7 +193,7 @@ const KEEPS_SELECTION = "data-keeps-selection";
 
 /** The panel's mark while it shows Cut From Resume: Fit's scissors, amber. */
 const CUT_MARK = (
-  <span className="bg-warning-tint text-warning flex size-8 shrink-0 items-center justify-center rounded-2xl">
+  <span className="bg-warning-tint text-warning rounded-control flex size-8 shrink-0 items-center justify-center">
     <ScissorsIcon aria-hidden className="size-4.5" weight="duotone" />
   </span>
 );
@@ -200,7 +201,7 @@ const CUT_MARK = (
 /** The panel's mark while it shows the Experiences picker: the toolbar
  *  button's glyph, so what opened it is what it wears, and not Scout's. */
 const EXPERIENCES_MARK = (
-  <span className="bg-brand-tint text-brand flex size-8 shrink-0 items-center justify-center rounded-2xl">
+  <span className="bg-brand-tint text-brand rounded-control flex size-8 shrink-0 items-center justify-center">
     <StackIcon aria-hidden className="size-4.5" weight="duotone" />
   </span>
 );
@@ -2586,7 +2587,7 @@ function useFitToWindow(foot = 24) {
  *  over the page, below the 44px bar (`DOCS_BAR`) at rest and when stuck.
  *  From @6xl it docks in the grid's second column, level with the bar. */
 const FLOATING = cn(
-  "@4xl/main:col-start-1 @4xl/main:row-start-1 @4xl/main:z-30 @4xl/main:mt-13 @4xl/main:top-15 @4xl/main:w-96 @4xl/main:justify-self-end @4xl/main:rounded-2xl @4xl/main:shadow-lift",
+  "@4xl/main:col-start-1 @4xl/main:row-start-1 @4xl/main:z-30 @4xl/main:mt-13 @4xl/main:top-15 @4xl/main:w-96 @4xl/main:justify-self-end @4xl/main:rounded-card @4xl/main:shadow-lift",
   "@6xl/main:col-start-2 @6xl/main:z-auto @6xl/main:mt-0 @6xl/main:top-2 @6xl/main:w-auto @6xl/main:justify-self-stretch @6xl/main:shadow-none",
 );
 
@@ -2749,28 +2750,32 @@ function MarkTools() {
   };
   return (
     <div className="flex shrink-0 items-center gap-0.5">
-      <Button
-        variant="ghost"
-        size="icon-lg"
-        aria-label="Bold"
-        title="Bold"
-        aria-pressed={on.bold}
-        className={cn(on.bold && ON)}
-        onClick={() => press("bold")}
-      >
-        <TextBIcon aria-hidden />
-      </Button>
-      <Button
-        variant="ghost"
-        size="icon-lg"
-        aria-label="Italic"
-        title="Italic"
-        aria-pressed={on.italic}
-        className={cn(on.italic && ON)}
-        onClick={() => press("italic")}
-      >
-        <TextItalicIcon aria-hidden />
-      </Button>
+      <Tip label="Bold">
+        <Button
+          variant="ghost"
+          size="icon-lg"
+          aria-label="Bold"
+
+          aria-pressed={on.bold}
+          className={cn(on.bold && ON)}
+          onClick={() => press("bold")}
+        >
+          <TextBIcon aria-hidden />
+        </Button>
+      </Tip>
+      <Tip label="Italic">
+        <Button
+          variant="ghost"
+          size="icon-lg"
+          aria-label="Italic"
+
+          aria-pressed={on.italic}
+          className={cn(on.italic && ON)}
+          onClick={() => press("italic")}
+        >
+          <TextItalicIcon aria-hidden />
+        </Button>
+      </Tip>
     </div>
   );
 }
@@ -2788,26 +2793,30 @@ function MoveButtons({ moves }: { moves: MoveTools }) {
   return (
     <div className="flex shrink-0 items-center gap-0.5">
       <span aria-hidden className="bg-border-subtle mx-1 h-5 w-px" />
-      <Button
-        variant="ghost"
-        size="icon-lg"
-        aria-label="Move Up"
-        title="Move Up"
-        disabled={!moves.up}
-        onClick={() => moves.onMove(-1)}
-      >
-        <ArrowUpIcon aria-hidden />
-      </Button>
-      <Button
-        variant="ghost"
-        size="icon-lg"
-        aria-label="Move Down"
-        title="Move Down"
-        disabled={!moves.down}
-        onClick={() => moves.onMove(1)}
-      >
-        <ArrowDownIcon aria-hidden />
-      </Button>
+      <Tip label="Move Up">
+        <Button
+          variant="ghost"
+          size="icon-lg"
+          aria-label="Move Up"
+
+          disabled={!moves.up}
+          onClick={() => moves.onMove(-1)}
+        >
+          <ArrowUpIcon aria-hidden />
+        </Button>
+      </Tip>
+      <Tip label="Move Down">
+        <Button
+          variant="ghost"
+          size="icon-lg"
+          aria-label="Move Down"
+
+          disabled={!moves.down}
+          onClick={() => moves.onMove(1)}
+        >
+          <ArrowDownIcon aria-hidden />
+        </Button>
+      </Tip>
     </div>
   );
 }
@@ -2877,26 +2886,30 @@ export type HistoryTools = {
 function History({ tools }: { tools?: HistoryTools }) {
   return (
     <div className="flex shrink-0 items-center gap-0.5">
-      <Button
-        variant="ghost"
-        size="icon-lg"
-        aria-label="Undo"
-        title="Undo"
-        disabled={!tools?.canUndo}
-        onClick={tools?.onUndo}
-      >
-        <ArrowUUpLeftIcon aria-hidden />
-      </Button>
-      <Button
-        variant="ghost"
-        size="icon-lg"
-        aria-label="Redo"
-        title="Redo"
-        disabled={!tools?.canRedo}
-        onClick={tools?.onRedo}
-      >
-        <ArrowUUpRightIcon aria-hidden />
-      </Button>
+      <Tip label="Undo">
+        <Button
+          variant="ghost"
+          size="icon-lg"
+          aria-label="Undo"
+
+          disabled={!tools?.canUndo}
+          onClick={tools?.onUndo}
+        >
+          <ArrowUUpLeftIcon aria-hidden />
+        </Button>
+      </Tip>
+      <Tip label="Redo">
+        <Button
+          variant="ghost"
+          size="icon-lg"
+          aria-label="Redo"
+
+          disabled={!tools?.canRedo}
+          onClick={tools?.onRedo}
+        >
+          <ArrowUUpRightIcon aria-hidden />
+        </Button>
+      </Tip>
       <span aria-hidden className="bg-border-subtle mx-1 h-5 w-px" />
     </div>
   );
@@ -3288,7 +3301,7 @@ function ReviewButtons({ review }: { review: ReviewTools }) {
       >
         <Icon aria-hidden className="size-5.5" />
         {count > 0 && (
-          <span className="bg-brand text-on-brand absolute -top-0.5 -right-0.5 flex h-4.5 min-w-4.5 items-center justify-center rounded-full px-1 text-xs font-semibold tabular-nums">
+          <span className="bg-brand text-on-brand text-note absolute -top-0.5 -right-0.5 flex h-4.5 min-w-4.5 items-center justify-center rounded-full px-1 font-semibold tabular-nums">
             {count}
           </span>
         )}
@@ -3379,24 +3392,28 @@ function LineActions({
 }) {
   const moves = up !== undefined && (
     <>
-      <Button
-        variant="secondary"
-        size="sm"
-        aria-label="Move Up"
-        disabled={!up}
-        onClick={() => up && onApply(up)}
-      >
-        <ArrowUpIcon aria-hidden />
-      </Button>
-      <Button
-        variant="secondary"
-        size="sm"
-        aria-label="Move Down"
-        disabled={!down}
-        onClick={() => down && onApply(down)}
-      >
-        <ArrowDownIcon aria-hidden />
-      </Button>
+      <Tip label="Move Up">
+        <Button
+          variant="secondary"
+          size="sm"
+          aria-label="Move Up"
+          disabled={!up}
+          onClick={() => up && onApply(up)}
+        >
+          <ArrowUpIcon aria-hidden />
+        </Button>
+      </Tip>
+      <Tip label="Move Down">
+        <Button
+          variant="secondary"
+          size="sm"
+          aria-label="Move Down"
+          disabled={!down}
+          onClick={() => down && onApply(down)}
+        >
+          <ArrowDownIcon aria-hidden />
+        </Button>
+      </Tip>
     </>
   );
 
@@ -3535,7 +3552,7 @@ function AddContact({
       placeholder={label}
       onBlur={(e) => save(e.currentTarget)}
       onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
-      className="text-note bg-panel text-ink ring-border-subtle focus:ring-brand h-9 w-36 rounded-lg px-2 ring-1 outline-none focus:ring-2"
+      className="text-note bg-panel text-ink ring-border-subtle focus:ring-brand rounded-control h-9 w-36 px-2 ring-1 outline-none focus:ring-2"
     />
   );
 }

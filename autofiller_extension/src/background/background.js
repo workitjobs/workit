@@ -39,6 +39,7 @@ import { fetchText, planReads } from "./plan-reads.js";
 import { treeStore } from "./stored-data.js";
 import { installed, setUninstallPage } from "./install.js";
 import { remoteConfig, turnedOff } from "./remote-config.js";
+import { prefetchRules } from "./rules.js";
 import { answerList, coverageOf } from "./coverage.js";
 import { TEST_HOOKS } from "../shared/config.js";
 import { PANEL_SITES_KEY } from "../shared/panel-keys.js";
@@ -438,10 +439,18 @@ async function handleMessage(message, sender) {
       const jobSystem = await pageSystem(sender.tab?.id, sender.frameId ?? 0, url);
       const job = Boolean(jobSystem);
       if (job && sender.tab?.id !== undefined) await chrome.action.setPopup({ tabId: sender.tab.id, popup: "" });
-      // A job page's panel will plan a fill: its profile is fetched while the page settles.
-      if (job) warmProfile();
+      // A job page's panel will plan a fill: its profile and its job system's Rules table (rules.js) are
+      // fetched while the page settles.
+      if (job) {
+        warmProfile();
+        senderJobUrl(sender).then(prefetchRules).catch((error) => console.warn("[rules] not fetched:", error.message));
+      }
       return { job, jobSystem, batch: sender.tab ? await inBatch(sender.tab.id) : false, site: await panelSite(url), autoOpen: await autoOpen(), hiddenEverywhere: await hiddenEverywhere() };
     }
+    // The launcher's copy of the Rules table panel/where fetched (rules.js): held in the page's isolated world,
+    // for a fill after Chrome stopped this worker. Memory only, never storage.
+    case "rules/get":
+      return { rules: await prefetchRules(await senderJobUrl(sender)) };
     // The launcher's next step on a page panel/where named a job system's (launcher.js, KAN-749): the panel's
     // files, into that frame only. Other pages never load them.
     case "panel/shell": {

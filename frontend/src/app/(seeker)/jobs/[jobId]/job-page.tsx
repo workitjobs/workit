@@ -6,6 +6,7 @@ import { SEEKER_GUTTER } from "../../gutter";
 import { ListingsError } from "../listing-card";
 import { JobActionBar } from "./action-bar";
 import { CompanyTab } from "./company-tab";
+import { companyFromPosting } from "./description";
 import { JobTabPanes, JobTabs } from "./job-tabs";
 import {
   JOB_COLUMN,
@@ -13,6 +14,7 @@ import {
   JobViewActions,
   JobViewBody,
   JobCardActions,
+  JobPanel,
   JobViewHeader,
   loadJobView,
 } from "./job-view";
@@ -52,16 +54,30 @@ export async function JobPage({ jobId, listed = false }: { jobId: string; listed
       <JobActionBar tabs={<JobTabs />}>
         <JobViewActions view={view} job={job} />
       </JobActionBar>
+      {/* One white panel: the header, then the open tab's pane under a
+          rule (./job-view.tsx, JobPanel). */}
       <div className={JOB_COLUMN}>
-        <JobViewHeader
-          job={job}
-          actions={<JobCardActions view={view} job={job} notInterested />}
-          titleAs={listed ? "h2" : "h1"}
-        />
-        <JobTabPanes
-          overview={<JobViewBody view={view} job={job} />}
-          company={<CompanyTab name={job.company} company={view.company} />}
-        />
+        <JobPanel
+          header={
+            <JobViewHeader
+              job={job}
+              actions={<JobCardActions view={view} job={job} notInterested />}
+              titleAs={listed ? "h2" : "h1"}
+              match={view.match}
+            />
+          }
+        >
+          <JobTabPanes
+            overview={<JobViewBody view={view} job={job} />}
+            company={
+              <CompanyTab
+                name={job.company}
+                company={view.company}
+                about={job.description ? companyFromPosting(job.description, job.company) : null}
+              />
+            }
+          />
+        </JobPanel>
       </div>
     </div>
   );

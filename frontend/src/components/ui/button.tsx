@@ -74,7 +74,7 @@ import { cn } from "@/lib/cn";
  * touching a fill of its own colour reads as a bigger button, not as focus.
  *
  * `font-medium` sits in the base because every button in both mockups resolves
- * to weight 500 — either from --text-label/--text-note's baked-in weight or from
+ * to medium (450 since 2026-11-10) — either from --text-label's baked-in weight or from
  * an explicit font-medium. Gap lives in the sizes, not the base, so that the
  * padding-free `inline` size can tighten it without two gap utilities colliding.
  *

@@ -242,6 +242,9 @@ class Plan:
     # Each attestation the attest_from_sources policy's rules settled from the profile's facts, by name: that fact
     # (KAN-761). The plan answers it with the form's affirmative option; it goes on the Check before Submit list.
     attested: dict[str, str] = field(default_factory=dict)
+    # Optional questions that ask a fact of Lisul's no source holds, which may exist for him (KAN-759): asked in Needs
+    # you with a Skip, never a Missing fact that stops the form. Each is in `blanks` too, until he answers it.
+    optional: list[Question] = field(default_factory=list)
 
 
 TO_TICK = "Yours to tick"  # starts each line of the Check before Submit list that names an attestation
@@ -342,6 +345,7 @@ def plan(questions: QuestionSet, posting: Posting, profile: ApplicantProfile, ba
         sections=dict(result.get("sections") or {}), filed=dict(result.get("filed") or {}),
         waiting=dict(result.get("waiting") or {}), attestations=dict(result.get("attestations") or {}),
         attested=dict(result.get("attested") or {}),
+        optional=list(result.get("optional") or []),
     )
 
 

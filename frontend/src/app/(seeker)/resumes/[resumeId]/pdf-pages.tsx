@@ -8,6 +8,7 @@ import type { RenderBox } from "@/lib/built-resume-actions";
 import { cn } from "@/lib/cn";
 
 import type { Mark } from "./tailor-review";
+import { Tip } from "@/components/ui/tip";
 
 /**
  * The rendered PDF drawn with pdf.js, one canvas per page, with a click
@@ -101,8 +102,17 @@ let pdfjsLoading: Promise<typeof import("pdfjs-dist")> | null = null;
  * downloads while the server is still compiling the PDF rather than after
  * the PDF has arrived. A failed import is forgotten, so the next caller
  * tries again.
+ *
+ * NEVER ON THE SERVER, AND NOT IN ITS BUNDLE. Only effects call it, but the
+ * bare import() still put pdf.js (about 1 MB) into the server's code, which
+ * the app's Cloudflare Worker loads whole each time a new copy of it starts.
+ * The bundler reads `typeof window` as a constant, so the server build drops
+ * the branch and the library with it.
  */
 export function loadPdfjs() {
+  if (typeof window === "undefined") {
+    return Promise.reject(new Error("pdf.js runs in the browser only"));
+  }
   pdfjsLoading ??= import("pdfjs-dist").then(
     (pdfjs) => {
       pdfjs.GlobalWorkerOptions.workerSrc ||= new URL(
@@ -460,7 +470,7 @@ function LinePopup({
     <div
       ref={card}
       data-popup
-      className="bg-panel ring-border-subtle absolute z-20 w-80 max-w-full overflow-y-auto overscroll-none rounded-xl shadow-lg ring-1"
+      className="bg-panel ring-border-subtle rounded-card absolute z-20 w-80 max-w-full overflow-y-auto overscroll-none shadow-lg ring-1"
       style={{
         left: `min(${left * 100}%, calc(100% - 20rem - 8px))`,
         maxHeight: place.room === Infinity ? undefined : place.room,
@@ -503,25 +513,26 @@ function MarginDots({
       const nth = perRow.get(row) ?? 0;
       perRow.set(row, nth + 1);
       return (
-        <button
-          key={`${key}.dot`}
-          type="button"
-          aria-label={DOT_LABEL[dot.mark]}
-          onClick={() => onDot?.(key)}
-          className={cn(
-            // Brand purple whatever the change, and 8px: in each type's
-            // colour the amber dots read as one more signal among the
-            // highlights; a dot says only that a line changed, the panel
-            // says how
-            "outline-panel bg-brand absolute z-10 size-2 rounded-full shadow-sm outline-2 transition-transform hover:z-20 hover:scale-125",
-            "focus-visible:outline-brand focus-visible:outline-2 focus-visible:outline-offset-1",
-            dot.lit && "ring-brand scale-125 ring-2 ring-offset-1",
-          )}
-          style={{
-            left: `calc(${(12 / size.width) * 100}% + ${nth * 7}px)`,
-            top: `calc(${(box.y0 / size.height) * 100}% + 4px)`,
-          }}
-        />
+        <Tip key={`${key}.dot`} label={DOT_LABEL[dot.mark]}>
+          <button
+            type="button"
+            aria-label={DOT_LABEL[dot.mark]}
+            onClick={() => onDot?.(key)}
+            className={cn(
+              // Brand purple whatever the change, and 8px: in each type's
+              // colour the amber dots read as one more signal among the
+              // highlights; a dot says only that a line changed, the panel
+              // says how
+              "outline-panel bg-brand absolute z-10 size-2 rounded-full shadow-sm outline-2 transition-transform hover:z-20 hover:scale-125",
+              "focus-visible:outline-brand focus-visible:outline-2 focus-visible:outline-offset-1",
+              dot.lit && "ring-brand scale-125 ring-2 ring-offset-1",
+            )}
+            style={{
+              left: `calc(${(12 / size.width) * 100}% + ${nth * 7}px)`,
+              top: `calc(${(box.y0 / size.height) * 100}% + 4px)`,
+            }}
+          />
+        </Tip>
       );
     });
 }

@@ -60,15 +60,34 @@ import type { Highlight } from "./data";
 const RADIUS = (64 - 5) / 2;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 
-function MatchRing({ score, small = false }: { score: number | null; small?: boolean }) {
+function MatchRing({
+  score,
+  small = false,
+  compactBelowXl = false,
+}: {
+  score: number | null;
+  small?: boolean;
+  /** 48px below `@xl` of its container, 88px from it: the card's tile on a
+   *  phone, where it is a row (`MatchRail`). */
+  compactBelowXl?: boolean;
+}) {
   const color = score === null ? undefined : matchColor(score);
   // The compact card's tile draws it at 48px, its number at 14px.
-  const figure = small ? "text-body font-semibold" : "text-heading";
+  const figure = small
+    ? "text-body font-semibold"
+    : compactBelowXl
+      ? "text-heading @max-xl:text-body @max-xl:font-semibold"
+      : "text-heading";
 
   // 88px (2026-11-09): the score is the one thing this tile is for, so it is
   // the largest thing in it. At 64px beside the tier it read as a footnote.
   return (
-    <div className={cn("relative", small ? "size-12" : "size-22")}>
+    <div
+      className={cn(
+        "relative",
+        small ? "size-12" : compactBelowXl ? "size-12 @xl:size-22" : "size-22",
+      )}
+    >
       {/* -rotate-90 starts the arc at twelve o'clock rather than three. */}
       <svg viewBox="0 0 64 64" aria-hidden="true" className="size-full -rotate-90">
         <circle
@@ -154,78 +173,90 @@ export function MatchRail({
         className={cn(
           "flex flex-1 flex-col items-center gap-2",
           // Centred down the tile as well as across it: top-aligned, the
-          // spare height of a taller card pooled under the reasons.
-          !standalone && "bg-well rounded-card justify-center px-4 py-3",
+          // spare height of a taller card pooled under the reasons. Below
+          // @xl (a phone's card, where the tile stacks under the body) it
+          // is a row, the 48px ring beside the tier and the reasons
+          // (2026-11-10): an 88px ring over them made a phone's card about
+          // 650px tall.
+          !standalone &&
+            "bg-well rounded-card justify-center px-4 py-3 @max-xl:flex-row @max-xl:justify-start @max-xl:gap-4",
         )}
       >
         {/* The ring over its tier, both centred: the score first, its band
           under it. */}
-        <MatchRing score={score} />
-        {score === null ? (
-          <p className="text-caption text-ink-meta font-semibold uppercase">Score Coming Soon</p>
-        ) : (
-          // The verdict, so ink at 14px: in 13px ink-muted it read as a caption.
-          <p className="text-body text-ink font-semibold">{matchTier(score)}</p>
-        )}
-        {score === null && (
-          <>
-            <p className="sr-only">
-              This role has no match score yet. Reasons it fits you will show here once matching is
-              built.
-            </p>
-            {/* Where the reasons will go: a caveat's dot and a bar per row, at
+        <MatchRing score={score} compactBelowXl={!standalone} />
+        <div
+          className={cn(
+            "flex flex-col items-center gap-2",
+            !standalone && "@max-xl:min-w-0 @max-xl:items-start @max-xl:gap-1",
+          )}
+        >
+          {score === null ? (
+            <p className="text-caption text-ink-meta font-semibold uppercase">Score Coming Soon</p>
+          ) : (
+            // The verdict, so ink at 14px: in 13px ink-muted it read as a caption.
+            <p className="text-body text-ink font-semibold">{matchTier(score)}</p>
+          )}
+          {score === null && (
+            <>
+              <p className="sr-only">
+                This role has no match score yet. Reasons it fits you will show here once matching
+                is built.
+              </p>
+              {/* Where the reasons will go: a caveat's dot and a bar per row, at
               the rows' own 15px rhythm. */}
-            <ul
-              aria-hidden="true"
-              className="border-border-subtle mt-1 flex w-full flex-col gap-1.5 border-t pt-3"
-            >
-              {["w-full", "w-4/5", "w-11/12"].map((width) => (
-                <li key={width} className="flex h-[15px] items-center gap-1.5">
-                  <Dot />
-                  <span className={cn("bg-border-strong h-2 rounded-full", width)} />
-                </li>
-              ))}
-            </ul>
-          </>
-        )}
+              <ul
+                aria-hidden="true"
+                className="border-border-subtle mt-1 flex w-full flex-col gap-1.5 border-t pt-3"
+              >
+                {["w-full", "w-4/5", "w-11/12"].map((width) => (
+                  <li key={width} className="flex h-[15px] items-center gap-1.5">
+                    <Dot />
+                    <span className={cn("bg-border-strong h-2 rounded-full", width)} />
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
 
-        {/* No reasons, no list: an empty one drew a stray rule under the tier. */}
-        {score !== null && highlights.length > 0 && (
-          // A centred block of left-aligned rows, so the list sits under the
-          // ring and tier instead of against the tile's left edge, with no
-          // rule: on the grey tile a hairline only cut it in two
-          // (2026-11-09).
-          <ul className="mt-1 flex w-fit max-w-full flex-col gap-1.5">
-            {highlights.map((highlight) => (
-              <li key={highlight.text} className="flex items-start gap-1.5">
-                {/* The tick and the dot are the whole distinction on screen, so the
+          {/* No reasons, no list: an empty one drew a stray rule under the tier. */}
+          {score !== null && highlights.length > 0 && (
+            // A centred block of left-aligned rows, so the list sits under the
+            // ring and tier instead of against the tile's left edge, with no
+            // rule: on the grey tile a hairline only cut it in two
+            // (2026-11-09).
+            <ul className="mt-1 flex w-fit max-w-full flex-col gap-1.5">
+              {highlights.map((highlight) => (
+                <li key={highlight.text} className="flex items-start gap-1.5">
+                  {/* The tick and the dot are the whole distinction on screen, so the
                 same distinction is spelled out for anyone not seeing them. */}
-                <span className="sr-only">
-                  {highlight.met ? "In your favour:" : "Worth weighing:"}
-                </span>
-                {highlight.met ? (
-                  <CheckIcon className="text-positive-ink mt-0.5 size-4 shrink-0" />
-                ) : (
-                  <Dot />
-                )}
-                {/* A short label (the API's `text`), its whole sentence in
+                  <span className="sr-only">
+                    {highlight.met ? "In your favour:" : "Worth weighing:"}
+                  </span>
+                  {highlight.met ? (
+                    <CheckIcon className="text-positive-ink mt-0.5 size-4 shrink-0" />
+                  ) : (
+                    <Dot />
+                  )}
+                  {/* A short label (the API's `text`), its whole sentence in
                   the tooltip (`detail`); two lines at most, in case a long
                   skill or field name stretches one. A sentence that ran to
                   four lines made the rail, and so the card, taller than the
                   job's own content. */}
-                <span
-                  title={highlight.detail ?? highlight.text}
-                  className={cn(
-                    "text-label line-clamp-2",
-                    highlight.met ? "text-ink" : "text-ink-muted",
-                  )}
-                >
-                  {highlight.text}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
+                  <span
+                    title={highlight.detail ?? highlight.text}
+                    className={cn(
+                      "text-label line-clamp-2",
+                      highlight.met ? "text-ink" : "text-ink-muted",
+                    )}
+                  >
+                    {highlight.text}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       </div>
     </aside>
   );

@@ -207,6 +207,23 @@ async def test_fill_events_past_90_days_are_deleted(database):
     assert names == ["recent"]
 
 
+async def test_rules_tokens_past_a_day_and_rules_fetches_past_90_days_are_deleted(database):
+    async with database() as session:
+        account_id = await _account(session)
+        for table, days in (("rules_tokens", 1), ("rules_fetches", 90)):
+            for name, at in (("old", NOW - datetime.timedelta(days=days) - MINUTE), ("recent", NOW - datetime.timedelta(days=days) + MINUTE)):
+                extra = (", token_hash, expires_at", ", :token, :at") if table == "rules_tokens" else ("", "")
+                await session.execute(
+                    text(f"INSERT INTO {table} (account_id, job_system, created_at{extra[0]}) VALUES (:a, :name, :at{extra[1]})"),
+                    {"a": account_id, "name": name, "at": at} | ({"token": f"hash-{name}"} if extra[0] else {}),
+                )
+        counts = await purge(session, now=NOW)
+        await session.commit()
+        for table in ("rules_tokens", "rules_fetches"):
+            assert counts[table] == 1
+            assert (await session.scalars(text(f"SELECT job_system FROM {table}"))).all() == ["recent"]
+
+
 async def test_a_table_that_does_not_exist_is_skipped(database, monkeypatch):
     monkeypatch.setattr(
         retention,

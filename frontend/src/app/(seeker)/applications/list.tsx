@@ -18,23 +18,18 @@ import {
 } from "@tanstack/react-table";
 import Link from "next/link";
 import {
+  useEffect,
+  useRef,
   useState,
   type ComponentType,
   type CSSProperties,
-  type DragEvent,
   type KeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from "react";
+import { createPortal } from "react-dom";
 
-import {
-  BriefcaseIcon,
-  CalendarIcon,
-  CoinIcon,
-  FileIcon,
-  PinIcon,
-  SortIcon,
-  workStyleIcon,
-} from "@/components/icons";
+import { SortIcon, TailorIcon } from "@/components/icons";
 import {
   Table,
   TableBody,
@@ -46,15 +41,22 @@ import {
 import { ClickableRow } from "@/components/clickable-row";
 import { MatchBadge } from "@/components/match-badge";
 import { Reflow } from "@/components/reflow";
+import { GroupHeadingRow, useFolds } from "@/components/table-group";
 import { useShallowPush } from "@/components/shallow-routing";
 import { Card } from "@/components/ui/card";
-import { Fact } from "@/components/ui/fact";
-import { TailoredChip } from "@/components/tailored-chip";
+import {
+  STICKY_HEAD,
+  STICKY_TH,
+  STICKY_TH_FROZEN,
+  TABLE_FILL,
+  useFillPage,
+} from "@/components/fill-page";
+import { PlacesValue } from "@/components/places-value";
 import { cn } from "@/lib/cn";
 
-import { STAGE_ORDER } from "../stage-colors";
+import { STAGE_COLOR, STAGE_ICON, STAGE_LABEL, STAGE_ORDER, type StageKey } from "../stage-colors";
 import { StageMenu } from "./[jobId]/tracker-controls";
-import { ClosedSavedControl } from "./closed-saved";
+import { ClosedSavedControl, RemoveClosedButton } from "./closed-saved";
 import { LocalDate } from "../local-time";
 import { isClosedSaved, sortKey, type Application } from "../tracker";
 import { ApplicationTile } from "./application-tile";
@@ -68,10 +70,12 @@ import {
   useColumnLayout,
   type ColumnId,
   type ColumnLayout,
+  type GroupBy,
 } from "./column-layout";
 import { applicationHref, applicationsHref, type Sort } from "./query";
 import { useApplicationsQuery } from "./view-switcher";
 import { ViewResumeButton } from "./view-resume";
+import { Missing } from "@/components/ui/missing";
 
 /**
  * The applications as a table, one row each, in the order job trackers read
@@ -171,23 +175,29 @@ const SORT_COLUMN = Object.fromEntries(
 /** What a sort's heading says it sorts by, when that is not the heading. */
 const SORT_HINT: Partial<Record<Sort, string>> = { company: "Sort by company, A to Z" };
 
-/** A fact cell's value, or its missing word a step greyer. */
+/** A fact cell's value as plain text, or a faint dash where the job has
+ *  none, its word ("Not listed") for a screen reader (2026-11-10). Each
+ *  cell drew its column's glyph (a calendar, a pin, a briefcase) and
+ *  "Not yet", "Not listed", "Not scored", "Not sent" in about a fifth of
+ *  them: the column's heading already names it, and the words were noise.
+ *  The cards (./cards.tsx) keep the glyphs, where nothing else names a
+ *  fact. */
 function FactValue({
-  Icon,
   value,
   missing,
   title,
 }: {
-  Icon: ComponentType<{ className?: string }>;
   value: ReactNode;
   missing: string;
   title?: string;
 }) {
   const has = value != null && value !== "";
-  return (
-    <Fact Icon={Icon} title={title} className={cn(!has && "text-ink-meta")}>
-      {has ? value : missing}
-    </Fact>
+  return has ? (
+    <span title={title} className="block truncate">
+      {value}
+    </span>
+  ) : (
+    <Missing word={missing} />
   );
 }
 
@@ -195,7 +205,8 @@ function FactValue({
  *  (ui/fact.tsx); Status, Match and Posting are pills. */
 const CELL: Record<ColumnId, (app: Application) => ReactNode> = {
   // The logo, then the role over its company, as the list drew it before
-  // KAN-256. The role is cut to the column, the whole title on hover:
+  // KAN-256. The role is cut to the column (at two lines in a phone's
+  // 208px column, one from 672px of page), the whole title on hover:
   // scraped titles run long ("... 2027 in Eurasburg / Bavaria"). The row
   // opens on a click anywhere (components/clickable-row.tsx); the role is the link a
   // keyboard reaches.
@@ -206,7 +217,7 @@ const CELL: Record<ColumnId, (app: Application) => ReactNode> = {
         <Link
           href={applicationHref(app.id)}
           title={app.role}
-          className="text-label text-ink hover:text-brand focus-visible:ring-brand-ring -my-1 block truncate rounded-xs py-1 font-semibold transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none"
+          className="text-label text-ink hover:text-brand focus-visible:ring-brand-ring -my-1 block truncate rounded-xs py-1 font-semibold transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none @max-2xl/main:line-clamp-2 @max-2xl/main:whitespace-normal"
         >
           {app.role}
         </Link>
@@ -215,7 +226,15 @@ const CELL: Record<ColumnId, (app: Application) => ReactNode> = {
             {app.company}
           </p>
           {/* A resume made for this job, ready to send (KAN-217). */}
-          {app.tailored && <TailoredChip />}
+          {/* Tailored as a word beside the company, not a pill: the
+              pill stood 8px taller than the line, so a row with one was
+              taller than a row without (2026-11-10). */}
+          {app.tailored && (
+            <span className="text-note text-brand inline-flex shrink-0 items-center gap-1">
+              <TailorIcon className="size-3.5" />
+              Tailored
+            </span>
+          )}
         </div>
       </div>
     </div>
@@ -226,44 +245,32 @@ const CELL: Record<ColumnId, (app: Application) => ReactNode> = {
     isClosedSaved(app) ? (
       <ClosedSavedControl app={app} />
     ) : (
-      <StageMenu jobId={app.id} stage={app.stage} placeholder="Saved" className="w-full" />
+      <StageMenu jobId={app.id} stage={app.stage} placeholder="Saved" className="w-full" compact />
     ),
   applied: (app) => (
     <FactValue
-      Icon={CalendarIcon}
       value={app.appliedOn ? <LocalDate at={app.appliedOn} /> : null}
-      missing="Not yet"
+      missing="Not applied yet"
     />
   ),
   match: (app) =>
-    app.match != null ? (
-      <MatchBadge score={app.match} />
+    app.match != null ? <MatchBadge score={app.match} /> : <Missing word="Not scored" />,
+  track: (app) => <FactValue value={app.track} missing="Not listed" />,
+  // Several places: the first, then "+N more", which opens them all.
+  location: (app) =>
+    (app.places?.length ?? 0) > 1 ? (
+      <PlacesValue places={app.places ?? []} />
     ) : (
-      <span className="text-ink-meta">Not scored</span>
+      <FactValue value={app.location} missing="Not listed" title={app.location ?? undefined} />
     ),
-  track: (app) => <FactValue Icon={BriefcaseIcon} value={app.track} missing="Not listed" />,
-  location: (app) => (
-    <FactValue
-      Icon={PinIcon}
-      value={app.location}
-      missing="Not listed"
-      title={app.location ?? undefined}
-    />
-  ),
-  workModel: (app) => (
-    <FactValue
-      Icon={workStyleIcon(app.workModel ?? null)}
-      value={app.workModel}
-      missing="Not listed"
-    />
-  ),
-  pay: (app) => <FactValue Icon={CoinIcon} value={app.pay} missing="Not listed" />,
-  // View Resume (KAN-267): the button names the resume, filling the cell.
+  workModel: (app) => <FactValue value={app.workModel} missing="Not listed" />,
+  pay: (app) => <FactValue value={app.pay} missing="Not listed" />,
+  // View Resume (KAN-267), a quiet text button, as Auto Apply's is.
   resume: (app) =>
     app.sentResume ? (
-      <ViewResumeButton resume={app.sentResume} />
+      <ViewResumeButton resume={app.sentResume} quiet />
     ) : (
-      <FactValue Icon={FileIcon} value={null} missing="Not sent" />
+      <Missing word="Not sent" />
     ),
 };
 
@@ -287,31 +294,118 @@ const COLUMN_DEFS = helper.columns(
 
 const PINNING = { start: FROZEN, end: [] };
 
+type Group<R> = {
+  key: string;
+  label: string;
+  /** A stage's glyph and its colour on the band. */
+  Icon?: ComponentType<{ className?: string }>;
+  tone?: string;
+  rows: R[];
+};
+
+/**
+ * The rows in their groups, each group's rows in the table's own sort
+ * (Table Settings' Group By, ./column-layout.ts). By Status, the stages in
+ * the board's order, then Posting Closed: a saved job whose posting closed
+ * leaves Saved for it, as Auto Apply's queue gathers its closed jobs, so
+ * they can be seen and removed together. By Job Type or Work Model, A to Z,
+ * then Not Listed. An empty group is not drawn.
+ */
+function groupRows<R extends { original: Application }>(
+  rows: R[],
+  by: Exclude<GroupBy, "none">,
+): Group<R>[] {
+  if (by === "status") {
+    const keyOf = (app: Application) => (isClosedSaved(app) ? "closed" : app.stage);
+    const stages: Group<R>[] = STAGE_ORDER.map((stage: StageKey) => ({
+      key: stage,
+      label: STAGE_LABEL[stage],
+      Icon: STAGE_ICON[stage],
+      tone: STAGE_COLOR[stage].onTint,
+      rows: rows.filter((row) => keyOf(row.original) === stage),
+    }));
+    const closed = rows.filter((row) => keyOf(row.original) === "closed");
+    return [...stages, { key: "closed", label: "Posting Closed", rows: closed }].filter(
+      (group) => group.rows.length > 0,
+    );
+  }
+  const valueOf = (app: Application) => app[by] ?? "";
+  const values = [...new Set(rows.map((row) => valueOf(row.original)))].sort((a, b) =>
+    a === "" ? 1 : b === "" ? -1 : a.localeCompare(b),
+  );
+  return values.map((value) => ({
+    key: value || "none",
+    label: value || "Not Listed",
+    rows: rows.filter((row) => valueOf(row.original) === value),
+  }));
+}
+
+/** The columns whose cells are one control or score each (a match pill,
+ *  View): centred under a centred heading, by the table rule in
+ *  frontend/docs/design.md (2026-11-10). Text columns stay left-aligned. */
+const CENTRED: ColumnId[] = ["match", "resume"];
+
 const TH = "px-4 text-note text-ink-meta font-medium";
 /** A plain fact cell: one line of note text in ink, as easy to read as the
  *  role; it was grey, which read as disabled (KAN-256). */
 const TD = "px-4 text-note text-ink";
 /** A frozen cell paints the row's own background (white, the hover tint
- *  with the row) so scrolled cells don't show through. FROZEN FROM 672PX OF
- *  PAGE UP: Role starts at 320px, about a phone's whole table, so frozen
- *  there it covered it and the scroll showed nothing else; below that it
- *  scrolls with the rest. 672px, not 768px, so a 1024px laptop window
- *  still freezes it. Its place is a custom property, not `left`, which
- *  would shift a narrow page's `relative` heading. */
-const FROZEN_CELL = "z-1 bg-panel @2xl/main:sticky @2xl/main:left-(--frozen-left)";
+ *  with the row) so scrolled cells don't show through. FROZEN AT EVERY
+ *  WIDTH (2026-11-10). Job starts at 320px, about a phone's whole table,
+ *  so below 672px of page (`PHONE_JOB`) it is 208px instead, and Status
+ *  shows beside it. Until then it was frozen only from 672px and scrolled
+ *  with the rest below that, so a phone's table showed the job alone, cut
+ *  Status in half at its edge, and gave no sign the stage was there. Its
+ *  place is a custom property, not `left`, which would shift a narrow
+ *  page's `relative` heading. */
+const FROZEN_CELL = "z-1 bg-panel sticky left-(--frozen-left)";
 /** The last frozen column draws the edge the scrolled cells pass under: a
  *  shadow, since a collapsed table's borders don't move with a sticky cell. */
-const FROZEN_EDGE = "@2xl/main:shadow-[1px_0_0_var(--color-border-subtle)]";
+const FROZEN_EDGE = "shadow-[1px_0_0_var(--color-border-subtle)]";
+/** The Job column's width below 672px of page, over its kept width
+ *  (`!`, since the kept width is an inline style): 208px leaves a phone's
+ *  table room for most of Status beside it. */
+const PHONE_JOB = "@max-2xl/main:w-52!";
 const FROZEN_HOVER = "group-hover/row:bg-hover transition-colors";
 
 /** How far one arrow key press resizes a column. */
 const KEY_STEP = 16;
 
+/**
+ * Whether the table runs on past its card's right edge from where it is
+ * scrolled to: then a fade at the edge says there is more (2026-11-10). It
+ * ran 400px past a 1440px window's card, cut a heading mid-word ("Pay
+ * Ran…") and gave no sign it scrolled. Read again on a scroll and a resize.
+ */
+function useMoreToRight() {
+  const ref = useRef<HTMLElement>(null);
+  const [more, setMore] = useState(false);
+  useEffect(() => {
+    const box = ref.current?.querySelector<HTMLElement>('[data-slot="table-container"]');
+    if (!box) return;
+    const read = () => setMore(box.scrollLeft + box.clientWidth < box.scrollWidth - 1);
+    read();
+    box.addEventListener("scroll", read, { passive: true });
+    const observer = new ResizeObserver(read);
+    observer.observe(box);
+    if (box.firstElementChild) observer.observe(box.firstElementChild);
+    return () => {
+      box.removeEventListener("scroll", read);
+      observer.disconnect();
+    };
+  }, []);
+  return { ref, more };
+}
+
 export function ApplicationsList({ applications }: { applications: Application[] }) {
+  const { ref: edgeRef, more: moreToRight } = useMoreToRight();
+  // The table scrolls inside its card, down to the page's foot, so the
+  // search and the filters above stay in view (components/fill-page.ts).
+  const fill = useFillPage();
   const query = useApplicationsQuery();
   const push = useShallowPush();
   const layout = useColumnLayout();
-  const [drag, setDrag] = useState<{ id: ColumnId; over: ColumnId | null } | null>(null);
+  const [drag, setDrag] = useState<Drag>(null);
 
   const table = useTable({
     features: FEATURES,
@@ -348,14 +442,70 @@ export function ApplicationsList({ applications }: { applications: Application[]
     return FROZEN.includes(id) && cn(FROZEN_CELL, id === lastFrozen && FROZEN_EDGE);
   }
 
+  const rows = table.getRowModel().rows;
+  const groups = layout.group === "none" ? null : groupRows(rows, layout.group);
+  // A group heading spans every shown column and the filler after them.
+  const span = table.getVisibleLeafColumns().length + 1;
+  const [folded, fold] = useFolds();
+
+  const drawRow = (row: (typeof rows)[number], i: number) => (
+    <Reflow key={row.id}>
+      <ClickableRow
+        href={applicationHref(row.id)}
+        className="hover:bg-hover animate-fade"
+        style={{ animationDelay: `${Math.min(i, 10) * 25}ms` }}
+      >
+        {row.getVisibleCells().map((cell) => {
+          const id = cell.column.id as ColumnId;
+          return (
+            <TableCell
+              key={cell.id}
+              // A click in the resume cell around View Resume is a
+              // near miss, not a wish to open the application:
+              // ClickableRow leaves a prevented click alone.
+              // The stage menu's cell too: its options open in a
+              // popup, whose clicks still reach the row in React.
+              onClick={
+                id === "status" || (id === "resume" && row.original.sentResume)
+                  ? (event) => event.preventDefault()
+                  : undefined
+              }
+              className={cn(
+                TD,
+                "overflow-hidden",
+                CENTRED.includes(id) && "text-center",
+                id === "role" && "py-3",
+                frozenClasses(id),
+                FROZEN.includes(id) && FROZEN_HOVER,
+              )}
+              style={frozenStyle(id)}
+            >
+              {CELL[id](row.original)}
+            </TableCell>
+          );
+        })}
+        <TableCell aria-hidden />
+      </ClickableRow>
+    </Reflow>
+  );
+
   return (
-    <Card padding="none" className="mt-4 overflow-hidden">
+    <Card ref={edgeRef} padding="none" className="relative mt-4 overflow-hidden">
+      <span
+        aria-hidden="true"
+        className={cn(
+          "from-panel pointer-events-none absolute inset-y-0 right-0 z-3 w-12 bg-linear-to-l to-transparent transition-opacity duration-200",
+          moreToRight ? "opacity-100" : "opacity-0",
+        )}
+      />
       <Table
+        containerRef={fill}
+        containerClassName={TABLE_FILL}
         className="table-fixed"
         // At least as wide as the card; past that, as wide as its columns.
         style={{ width: table.getTotalSize(), minWidth: "100%" }}
       >
-        <TableHeader>
+        <TableHeader className={STICKY_HEAD}>
           {table.getHeaderGroups().map((group) => (
             <TableRow key={group.id} className="hover:bg-transparent">
               {group.headers.map((header) => (
@@ -369,77 +519,125 @@ export function ApplicationsList({ applications }: { applications: Application[]
                   onDrag={setDrag}
                   onDrop={(id, target) => setColumnLayout(moveColumn(layout, id, target))}
                   order={layout.order}
-                  className={cn(frozenClasses(header.column.id as ColumnId))}
+                  className={cn(
+                    frozenClasses(header.column.id as ColumnId),
+                    // Sticky on both axes: over the scrolled cells and the
+                    // other headings.
+                    FROZEN.includes(header.column.id as ColumnId) && "z-3",
+                    // Its rule under it and its edge beside it (STICKY_TH_FROZEN).
+                    header.column.id === lastFrozen && STICKY_TH_FROZEN,
+                    header.column.id === "role" && PHONE_JOB,
+                  )}
                   style={frozenStyle(header.column.id as ColumnId)}
+                  centred={CENTRED.includes(header.column.id as ColumnId)}
                 />
               ))}
               {/* The rest of the card's width, so a resize never stretches
                   the other columns. */}
-              <TableHead aria-hidden />
+              <TableHead aria-hidden className={STICKY_TH} />
             </TableRow>
           ))}
         </TableHeader>
 
         <TableBody>
-          {table.getRowModel().rows.map((row, i) => (
-            // Fades in down the table on arrival (a row cannot rise: its
-            // transform does not reliably paint), 25ms apart, and glides to
-            // its new place when the sort or a filter moves it.
-            <Reflow key={row.id}>
-              <ClickableRow
-                href={applicationHref(row.id)}
-                className="hover:bg-hover animate-fade"
-                style={{ animationDelay: `${Math.min(i, 10) * 25}ms` }}
-              >
-                {row.getVisibleCells().map((cell) => {
-                  const id = cell.column.id as ColumnId;
-                  return (
-                    <TableCell
-                      key={cell.id}
-                      // A click in the resume cell around View Resume is a
-                      // near miss, not a wish to open the application:
-                      // ClickableRow leaves a prevented click alone.
-                      // The stage menu's cell too: its options open in a
-                      // popup, whose clicks still reach the row in React.
-                      onClick={
-                        id === "status" || (id === "resume" && row.original.sentResume)
-                          ? (event) => event.preventDefault()
-                          : undefined
-                      }
-                      className={cn(
-                        TD,
-                        "overflow-hidden",
-                        id === "role" && "py-3",
-                        frozenClasses(id),
-                        FROZEN.includes(id) && FROZEN_HOVER,
-                      )}
-                      style={frozenStyle(id)}
-                    >
-                      {CELL[id](row.original)}
-                    </TableCell>
-                  );
-                })}
-                <TableCell aria-hidden />
-              </ClickableRow>
-            </Reflow>
-          ))}
+          {groups
+            ? groups.flatMap((group) => {
+                const open = !folded.has(group.key);
+                return [
+                  // A group's heading (components/table-group.tsx): a stage's
+                  // in its glyph and colour; Posting Closed's with Remove All.
+                  <GroupHeadingRow
+                    key={`group:${group.key}`}
+                    colSpan={span}
+                    label={group.label}
+                    count={group.rows.length}
+                    open={open}
+                    onToggle={() => fold(group.key)}
+                    Icon={group.Icon}
+                    iconClassName={group.tone}
+                    action={
+                      group.key === "closed" && (
+                        <RemoveClosedButton
+                          apps={group.rows.map(({ original }) => ({
+                            id: original.id,
+                            role: original.role,
+                          }))}
+                        />
+                      )
+                    }
+                  />,
+                  ...(open ? group.rows.map(drawRow) : []),
+                ];
+              })
+            : rows.map(drawRow)}
         </TableBody>
       </Table>
+      <ColumnGhost drag={drag} />
     </Card>
   );
 }
 
-type Drag = { id: ColumnId; over: ColumnId | null } | null;
+/** A heading being dragged: its column, the column it would land beside,
+ *  and where its raised copy is drawn (viewport px, `ColumnGhost`). */
+type Drag = {
+  id: ColumnId;
+  label: string;
+  over: ColumnId | null;
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+} | null;
+
+/** How far the pointer moves sideways before a press on a heading becomes
+ *  a drag: less is a click, which sorts. */
+const DRAG_START = 4;
+/** Near the scroll box's side edge, a drag scrolls the table that way. */
+const DRAG_EDGE = 32;
+const DRAG_SCROLL = 12;
+
+/**
+ * The dragged heading's raised copy, sliding along the heading row
+ * (2026-11-11): at the row's height and between the table's edges, so the
+ * column moves left and right on a track, as Notion's does. The browser's
+ * own drag image followed the pointer anywhere on the page. In a portal,
+ * so no ancestor's transform or clip moves it.
+ */
+function ColumnGhost({ drag }: { drag: Drag }) {
+  if (!drag || typeof document === "undefined") return null;
+  return createPortal(
+    <div
+      aria-hidden
+      className="bg-panel ring-border-subtle shadow-lift rounded-control text-note text-ink-meta pointer-events-none fixed z-50 flex items-center px-4 font-medium ring-1"
+      style={{ left: drag.left, top: drag.top, width: drag.width, height: drag.height }}
+    >
+      <span className="truncate">{drag.label}</span>
+    </div>,
+    document.body,
+  );
+}
 
 /**
  * One column heading: its label (a sort button where the column sorts), a
  * drag to move it, and a resize handle on its right edge.
  *
- * DRAGGING IS THE BROWSER'S OWN (HTML drag and drop) on the label, not the
- * whole cell, so a press on the resize handle never starts a move. While a
- * heading is dragged over another, a brand bar marks the side it will land
- * on. Frozen columns neither drag nor take a drop. A drag needs a mouse;
- * a phone keeps the default order, which the Columns menu can reset to.
+ * THE WHOLE HEADING CELL MOVES ITS COLUMN (2026-11-11, after Notion's
+ * tables): a movable heading fills grey under the pointer with a grab
+ * cursor, the cue that it drags, and a press anywhere in it that moves
+ * sideways drags the column (`press`). The drag runs on a track: a raised
+ * copy of the heading (`ColumnGhost`) slides left and right along the
+ * heading row, held between the table's edges, whatever the pointer does
+ * up and down; the column lands beside the heading under the pointer's x,
+ * marked by a brand bar, and Escape puts it back. Near the table's side
+ * edge it scrolls that way. It was the browser's own drag and drop until
+ * the same day, whose image followed the pointer anywhere on the page; only
+ * the label dragged before that, with no cue, and Table Settings had Move
+ * Left and Move Right arrows per column. A keyboard moves a column with
+ * Alt+Left and Alt+Right from its heading's sort button or resize handle.
+ * A press on the resize handle never starts a move. Frozen columns neither
+ * drag nor take a drop. A drag takes a mouse: a finger on a heading
+ * scrolls the table, and a phone keeps its order, which Reset Columns
+ * goes back to.
  *
  * THE RESIZE HANDLE is 24px wide across the edge, a target the size the
  * rest of the table's controls are, with a 2px line (KAN-577; it was 8px).
@@ -448,8 +646,9 @@ type Drag = { id: ColumnId; over: ColumnId | null } | null;
  * keyboard (a focusable separator with its width as its value). Its mouse
  * press cancels the browser's own default, and no move starts while a
  * column resizes: a resize moves the headings under a still-pressed
- * pointer, and Chrome then began a drag of the heading that slid under it,
- * which swallowed the mouse-up and left the resize following the pointer.
+ * pointer, and Chrome then began a drag of the heading that slid under it
+ * (with the browser's drag, before 2026-11-11), which swallowed the
+ * mouse-up and left the resize following the pointer.
  */
 function HeadCell({
   header,
@@ -462,6 +661,7 @@ function HeadCell({
   order,
   className,
   style,
+  centred = false,
 }: {
   header: Header<typeof FEATURES, Application, unknown>;
   label: string;
@@ -473,6 +673,8 @@ function HeadCell({
   order: ColumnId[];
   className?: string;
   style?: CSSProperties;
+  /** A column of one control or score per row: its heading centred too. */
+  centred?: boolean;
 }) {
   const column = header.column;
   const id = column.id as ColumnId;
@@ -488,6 +690,8 @@ function HeadCell({
   const side = over && order.indexOf(drag.id) < order.indexOf(id) ? "right" : "left";
 
   function onKeyDown(event: KeyboardEvent) {
+    // Alt+arrow moves the column (the heading's `onKeyDown`), not its width.
+    if (event.altKey) return;
     const step = event.key === "ArrowLeft" ? -KEY_STEP : event.key === "ArrowRight" ? KEY_STEP : 0;
     if (!step) return;
     event.preventDefault();
@@ -497,48 +701,122 @@ function HeadCell({
     }));
   }
 
-  const dragProps = movable
-    ? {
-        draggable: true,
-        onDragStart: (event: DragEvent) => {
-          if (column.table.getAllLeafColumns().some((other) => other.getIsResizing())) {
-            event.preventDefault();
-            return;
-          }
-          event.dataTransfer.effectAllowed = "move";
-          event.dataTransfer.setData("text/plain", id);
-          onDrag({ id, over: null });
-        },
-        onDragEnd: () => onDrag(null),
+  /** A press on the heading: past DRAG_START sideways it drags the column
+   *  (`Drag`, `ColumnGhost`), a mouse only (a finger scrolls the table),
+   *  never from the resize handle. Release drops it beside the column
+   *  under the pointer; Escape puts it back. */
+  function press(event: ReactPointerEvent<HTMLTableCellElement>) {
+    if (!movable || event.pointerType !== "mouse" || event.button !== 0) return;
+    if ((event.target as HTMLElement).closest('[role="separator"]')) return;
+    const cell = event.currentTarget;
+    const box = cell.closest<HTMLElement>('[data-slot="table-container"]');
+    if (!box) return;
+    const startX = event.clientX;
+    const grab = startX - cell.getBoundingClientRect().left;
+    let moving = false;
+    let landing: ColumnId | null = null;
+
+    function move(e: PointerEvent) {
+      if (!moving) {
+        if (Math.abs(e.clientX - startX) < DRAG_START) return;
+        moving = true;
+        document.body.style.userSelect = "none";
+        document.body.style.cursor = "grabbing";
       }
-    : {};
+      if (e.clientX > box!.getBoundingClientRect().right - DRAG_EDGE)
+        box!.scrollLeft += DRAG_SCROLL;
+      else if (e.clientX < box!.getBoundingClientRect().left + DRAG_EDGE)
+        box!.scrollLeft -= DRAG_SCROLL;
+      const bounds = box!.getBoundingClientRect();
+      const rect = cell.getBoundingClientRect();
+      // The movable heading under the pointer's x; past the frozen one, or
+      // off the headings, the last it was over.
+      const hit = [...cell.parentElement!.querySelectorAll<HTMLElement>("th[data-column]")].find(
+        (th) => {
+          const r = th.getBoundingClientRect();
+          return e.clientX >= r.left && e.clientX < r.right;
+        },
+      );
+      const hitId = hit?.dataset.column as ColumnId | undefined;
+      if (hitId && !FROZEN.includes(hitId)) landing = hitId;
+      onDrag({
+        id,
+        label,
+        over: landing,
+        left: Math.min(Math.max(e.clientX - grab, bounds.left), bounds.right - rect.width),
+        top: rect.top,
+        width: rect.width,
+        height: rect.height,
+      });
+    }
+    function stop() {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", cancel);
+      window.removeEventListener("keydown", escape);
+      document.body.style.userSelect = "";
+      document.body.style.cursor = "";
+      onDrag(null);
+      if (!moving) return;
+      // The release ends a drag, not a sort: its click is swallowed, and
+      // the listener goes after this task, so no later click is.
+      const swallow = (e: MouseEvent) => {
+        e.stopPropagation();
+        e.preventDefault();
+      };
+      window.addEventListener("click", swallow, { capture: true, once: true });
+      setTimeout(() => window.removeEventListener("click", swallow, { capture: true }));
+    }
+    function up() {
+      const target = landing;
+      const moved = moving;
+      stop();
+      if (moved && target && target !== id) onDrop(id, target);
+    }
+    function cancel() {
+      stop();
+    }
+    function escape(e: globalThis.KeyboardEvent) {
+      if (e.key === "Escape") cancel();
+    }
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", cancel);
+    window.addEventListener("keydown", escape);
+  }
 
   return (
     <TableHead
       aria-sort={active ? (direction === "asc" ? "ascending" : "descending") : undefined}
-      className={cn(TH, "relative", className)}
+      // Held at the top of the table's scroll box (STICKY_TH, positioned,
+      // so the resize handle still sits on its edge).
+      className={cn(
+        TH,
+        STICKY_TH,
+        className,
+        movable &&
+          "hover:bg-hover cursor-grab transition-colors duration-150 select-none active:cursor-grabbing",
+        drag?.id === id && "opacity-50",
+      )}
       style={{ width, ...style }}
-      onDragOver={(event) => {
-        if (!drag || !movable) return;
+      data-column={id}
+      onPointerDown={press}
+      onKeyDown={(event) => {
+        // Alt+Left and Alt+Right: the keyboard's way to move the column.
+        if (!movable || !event.altKey) return;
+        const at = order.indexOf(id);
+        const target =
+          event.key === "ArrowLeft"
+            ? order[at - 1]
+            : event.key === "ArrowRight"
+              ? order[at + 1]
+              : null;
+        if (!target) return;
         event.preventDefault();
-        event.dataTransfer.dropEffect = "move";
-        if (drag.over !== id) onDrag({ ...drag, over: id });
-      }}
-      onDrop={(event) => {
-        if (!drag || !movable) return;
-        event.preventDefault();
-        onDrop(drag.id, id);
-        onDrag(null);
+        onDrop(id, target);
       }}
     >
-      <div
-        {...dragProps}
-        className={cn(
-          "flex min-w-0 items-center",
-          movable && "cursor-grab active:cursor-grabbing",
-          drag?.id === id && "opacity-50",
-        )}
-      >
+      <div className={cn("flex min-w-0 items-center", centred && "justify-center")}>
         {columnSort ? (
           <button
             type="button"

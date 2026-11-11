@@ -25,30 +25,28 @@
  * has to stay deep enough to carry a white label at AA.
  * ------------------------------------------------------------------------- */
 
-/* The middle dot (U+00B7) alone, from Georgia, before Plus Jakarta Sans in
- * --font-sans. Jakarta draws "·" as a square, the same as its full stop, and
- * the user found the square dots between a job's facts odd (2026-11-03).
- * Georgia's is round and sits at Jakarta's height (centre 217 against 219 of
- * 300 units, measured), and ships with macOS and Windows; Helvetica Neue's,
- * round too, covers iOS. Where neither is installed, Jakarta's square shows.
- * One rule rounds every "·" in the app, strings included, with no markup. */
-@font-face {
-  font-family: "Round Dot";
-  src: local("Georgia"), local("Helvetica Neue");
-  unicode-range: U+00B7;
-}
-
 @theme static {
-  /* Fonts — the faces themselves are loaded by next/font in app/layout.tsx,
-   * except "Round Dot", the middle dot alone (above). */
-  --font-sans: "Round Dot", var(--font-jakarta-sans);
+  /* Fonts — loaded by next/font: Inter and Geist Mono in app/layout.tsx.
+   * Inter since 2026-11-10 (Plus Jakarta Sans before, which now draws only
+   * the marketing pages' headlines: `font-display`, below the theme). Its
+   * "·" is round, so the "Round Dot" face that borrowed Georgia's for
+   * Jakarta's square one is gone. */
+  --font-sans: var(--font-inter);
   --font-mono: var(--font-geist-mono);
-  /* Regular is 450, not 400 (KAN-365). Plus Jakarta Sans's 400 is light, and
-   * small grey text at it (a job card's facts, dates, helper lines) read
-   * thin. next/font loads the face as a variable font, so any weight from
-   * 200 to 800 draws true. This sets `font-normal`, the body's default and
-   * --text-hero's weight; medium (500) stays a step above. */
-  --font-weight-normal: 450;
+  /* Regular is Inter's 400, as Jobright's (2026-11-10). It was 450 from
+   * KAN-365 to the switch to Inter, for Plus Jakarta Sans, whose 400 read
+   * thin in small grey text under `antialiased` smoothing. With Inter and
+   * the Mac's own smoothing (app/layout.tsx), 400 draws as solid as that
+   * 450 did; a separate token, so a weight never needs writing as a
+   * number. This sets `font-normal`, the body's default and --text-hero's
+   * weight; medium (450, below) stays a step above. */
+  --font-weight-normal: 400;
+  /* Medium is 450, not 500 (2026-11-10): with Inter and the Mac's own
+   * smoothing, a 500 nav item, button or chip read thick beside Jobright's
+   * (its sidebar items are 420). It sets `font-medium`, --text-label's
+   * weight and the menu rows' (below), so everything clicked or picked
+   * moves together; semibold (600) stays a clear step above. */
+  --font-weight-medium: 450;
 
   /* Surfaces ------------------------------------------------------------
    * NEUTRALISED, the same way the app roles below were and for the same
@@ -107,14 +105,17 @@
 
   --text-label: 0.8125rem; /* 13px — field labels, links, social buttons */
   --text-label--line-height: 1.125rem;
-  --text-label--font-weight: 500;
+  --text-label--font-weight: var(--font-weight-medium);
 
   --text-body: 0.875rem; /* 14px — body copy, inputs, primary button */
   --text-body--line-height: 1.25rem;
 
   --text-title: 1.25rem; /* 20px — "Welcome Back" */
   --text-title--line-height: 1.75rem;
-  --text-title--font-weight: 700;
+  /* 600, the weight that names a block (docs/design.md, Type weights), as
+   * Jobright's job titles are (2026-11-10). It was 700, which only a page's
+   * name takes (--text-heading). */
+  --text-title--font-weight: 600;
   --text-title--letter-spacing: -0.01em;
 
   /* Radii ---------------------------------------------------------------- */
@@ -278,8 +279,7 @@
    * Role's 68ch), since text past about 80 characters a line is hard to
    * follow. */
   --container-dashboard: 90rem; /* 1440px */
-  --container-job: 50rem; /* 800px: a job's page, 736px of content inside the gutters, the action bar's one row (2026-11-09) */
-  --container-feed: 63rem; /* 1008px: the Jobs page's Cards view, a 944px card inside the gutters (2026-11-09): a 240px match rail, sized to its short labels, beside a 704px body, room for its six actions and the note at the row's left end ("Auto Apply ready") on one line */
+  --container-feed: 63rem; /* 1008px: the Jobs page's Cards view and a job's own page (2026-11-10), a 944px card inside the gutters (2026-11-09): a 240px match rail, sized to its short labels, beside a 704px body, room for its six actions and the note at the row's left end ("Auto Apply ready") on one line */
 
   /* The seeker Dashboard's tiles (KAN-173): white on the white page panel,
    * with no outline, set apart by a soft violet-tinted shadow alone. An
@@ -437,32 +437,40 @@
    * board card's match badge, the arc on a job's match rail, and the bar on
    * the company Dashboard's Recent applicants.
    *
-   * RED, YELLOW AND GREEN (KAN-518), so a score says good or bad with no
-   * legend. A magenta ramp held these tokens until then, to keep a score apart
-   * from the stages, and a weak match read as pink, which says nothing. The
-   * greens and the red are the status colours themselves, so a retone moves
-   * both. Yellow is its own: --color-warning-fill is 2:1 on white, and every
-   * darker warning step reads brown or orange.
+   * RED, ORANGE, YELLOW AND GREEN (KAN-518; four bands since 2026-11-10),
+   * so a score says good or bad with no legend, one step warmer to cooler
+   * per band. A magenta ramp held these tokens until KAN-518, to keep a
+   * score apart from the stages, and a weak match read as pink, which says
+   * nothing. The red is the danger colour itself, so a retone moves both.
+   * Yellow is its own and dark, an ochre: a yellow bright enough to read as
+   * plain yellow is under 2:1 on white (--color-warning-fill is 2:1), and
+   * the darkest yellow that still holds 3:1 is this one. ONE GREEN: Strong
+   * (80 to 89, #139564) and Excellent (90 up, a deeper green) merged into
+   * Excellent at 80 on 2026-11-10, since two greens a step apart read as
+   * one colour drawn twice.
    *
    * Each is a stroke or a bar, never text (the tier words are ink-muted), so
    * the floor is the 3:1 a graphic needs, measured on both grounds they are
    * drawn on: white (a board card) and --color-well (the rail, and the
    * Dashboard bar's track). --color-positive itself misses it, at 2.8:1, so
-   * Strong takes #139564, positive at 33% lightness. --chart-3 shares it.
+   * Excellent takes #139564, positive at 33% lightness. --chart-3 shares it.
    *
-   * WEAK IS RED (KAN-518, back on 2026-11-03). KAN-569 drew it in neutral ink
-   * while the cut-offs in @/lib/match are placeholders, since nearly every
-   * job scored Weak and every card drew a red ring. The user wanted the bands
-   * back: a black ring read as a fault, not as a score.
+   * WEAK IS RED (KAN-518, back on 2026-11-03), BELOW 40 ONLY. KAN-569 drew
+   * every weak score in neutral ink while the cut-offs in @/lib/match are
+   * placeholders, and a black ring read as a fault, not as a score. With
+   * Weak at 0 to 64 every card in the feed drew a red ring, so the whole
+   * list read as failing (2026-11-10). Fair (40 to 64) is orange, between
+   * the red and the yellow: below Good, still worth a look. It was a slate
+   * grey for a day, which read as no score at all.
    *
    *                white   well
-   *   excellent    5.35    4.99
-   *   strong       3.81    3.56
+   *   excellent    3.81    3.56
    *   good         3.24    3.03
+   *   fair         3.68    3.38
    *   weak         5.77    5.39 */
-  --color-match-excellent: var(--color-positive-ink);
-  --color-match-strong: #139564;
+  --color-match-excellent: #139564;
   --color-match-good: #b98600;
+  --color-match-fair: #d9620d;
   --color-match-weak: var(--color-danger);
 
   /* Updates --------------------------------------------------------------
@@ -522,7 +530,7 @@
    * Both colours are new because the old ones failed on a lavender, where the
    * step bar these chips replaced was drawn: the app's pale greys vanish on it
    * (--color-inert-tint is 1.01:1 on the tint) and --color-positive is
-   * 2.38:1. The green is the hex --color-match-strong holds today; the roles
+   * 2.38:1. The green is the hex --color-match-excellent holds today; the roles
    * are unrelated and either may move. The ready dot wears it too. The
    * draft's "Ready to save" is words, so it takes --color-positive-ink, the
    * green made for text, as --color-brand-ink is the brand's.
@@ -993,6 +1001,20 @@ body {
   overscroll-behavior-y: none;
 }
 
+/* And every scroll box inside a page, on both axes (2026-11-10): a table
+ * that scrolls sideways (the Tracker's, Auto Apply's) bounced at its ends,
+ * and a list in a dialog bounced at its foot. Matched by the classes that
+ * make a box scroll, so a new one needs nothing. Not the page's own
+ * scroller (<main>): on x it would take the trackpad's swipe to go back. */
+[data-slot="table-container"],
+[data-slot="scroll-area-viewport"],
+:not(main)[class*="overflow-auto"],
+:not(main)[class*="overflow-x-auto"],
+:not(main)[class*="overflow-y-auto"],
+:not(main)[class*="overflow-scroll"] {
+  overscroll-behavior: none;
+}
+
 /* The canvas — the strip a rubber-band scroll exposes past the top or bottom of
  * the document — is painted by <body>, and <body> is in the root layout, above
  * both shells. So it cannot inherit the page colour a shell sets on itself, and
@@ -1049,7 +1071,7 @@ body:has([data-skyline]) {
  *     --border below points back at it so both spellings agree.
  *
  *   --font-sans: var(--font-sans)  — self-referential, and redundant with the
- *     @theme static definition that already resolves to next/font's Geist.
+ *     @theme static definition that already resolves to next/font's Inter.
  *
  * Anything below whose comment says OPEN is a role WorkIt has never designed;
  * it holds shadcn's stock value until a designer supplies one.
@@ -1187,7 +1209,7 @@ body:has([data-skyline]) {
    *   normal vision   PASS   worst adjacent pair 17.7 (floor 15)
    *   contrast        WARN   --color-positive is 2.72:1, under the 3:1 mark floor
    *
-   * KAN-555 cleared that WARN: slot 3 is now --color-match-strong and slot 5 a
+   * KAN-555 cleared that WARN: slot 3 is now --color-match-excellent and slot 5 a
    * darker grey, so every mark clears 3:1 on white and on --color-app:
    *
    *                white   app
@@ -1211,7 +1233,7 @@ body:has([data-skyline]) {
    * word and a shape rather than beside red in a stack. */
   --chart-1: var(--color-brand); /* in flight, early — Screening */
   --chart-2: var(--color-advanced); /* in flight, late — Interview */
-  --chart-3: var(--color-match-strong); /* ended well — Offer */
+  --chart-3: var(--color-match-excellent); /* ended well — Offer */
   --chart-4: var(--color-danger); /* ended badly — Rejected */
 
   /* Slot 5 is deliberately NOT a fifth identity. It is the de-emphasis grey:
@@ -1321,14 +1343,18 @@ body:has([data-skyline]) {
    * about Lucide's 2px line, with Phosphor's shapes kept. Phosphor draws on
    * a 256 grid and nothing else in the app does, which is what the selector
    * reads. custom-icons.tsx strokes its own glyphs to match (STROKE); change
-   * the two together. In base, so a utility on one icon can still undo it. */
+   * the two together. In base, so a utility on one icon can still undo it.
+   * A glyph drawn by hand never uses the 256 grid: this rule then sets its
+   * lines' width to 5, a 0.3px hairline. All Filters' three lines
+   * (`FilterIcon`) looked greyed out on every page that way until
+   * 2026-11-11; draw on a 24 grid at stroke 2, as custom-icons.tsx does. */
   svg[viewBox="0 0 256 256"] {
     stroke: currentColor;
     stroke-width: 5;
     stroke-linejoin: round;
   }
 
-  /* A menu's, a select's or a combobox's rows are medium (500), as every
+  /* A menu's, a select's or a combobox's rows are medium, as every
    * control a student clicks or picks is: a button, a chip, a segmented
    * control, the filters' options. shadcn's rows set no weight, so they drew
    * at 400 and the account menu read thinner than the Jobs page's filters
@@ -1343,7 +1369,7 @@ body:has([data-skyline]) {
     [data-slot="select-item"],
     [data-slot="combobox-item"]
   ) {
-    font-weight: 500;
+    font-weight: var(--font-weight-medium);
   }
 
   /* On a touch screen those rows are 44px tall (KAN-557): a finger needs
@@ -1400,6 +1426,16 @@ body:has([data-skyline]) {
  * its presses. Hit areas of controls that touch overlap, and the later one
  * wins the overlap; rows that touch grow instead (the menu rows above, the
  * sidebar's sheet rows). */
+/* The marketing pages' headline face, Plus Jakarta Sans (app/fonts.ts):
+ * on their h1 to h3 by landing.css, and on a display line that is no
+ * heading by this class. The face's variable is set only on the layouts
+ * that load it (the marketing pages, the design kit), so it is read here,
+ * on the element, and not in @theme, where :root would resolve it to
+ * nothing; anywhere else it falls back to Inter. */
+@utility font-display {
+  font-family: var(--font-jakarta-sans, var(--font-sans)), system-ui, sans-serif;
+}
+
 @utility hit-area {
   &::after {
     content: "";

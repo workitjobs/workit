@@ -4,16 +4,15 @@ import { EyeIcon, TagIcon } from "@phosphor-icons/react/ssr";
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 
 import { FieldFacet, type FacetOption } from "@/components/field-facet";
-import { PdfIcon, UploadIcon } from "@/components/icons";
+import { UploadIcon } from "@/components/icons";
 import {
   matches,
   RESUME_TYPES,
-  ResumeGroup,
   ResumeScroll,
   searchWords,
   type ResumeType,
 } from "@/components/resume-list";
-import { PrimaryStar, RESUME_ROW, ROW_ACTION } from "@/components/resume-row";
+import { PrimaryStar, RESUME_ROW, ROW_ACTION, TypeBadge } from "@/components/resume-row";
 import { RESUME_ACCEPT, resumeFileError } from "@/components/resume-upload";
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { Button } from "@/components/ui/button";
@@ -21,7 +20,7 @@ import { IconButton } from "@/components/ui/icon-button";
 import { Radio } from "@/components/ui/radio-row";
 import { SearchField } from "@/components/ui/search-field";
 import { cn } from "@/lib/cn";
-import { listBuiltResumes } from "@/lib/built-resume-actions";
+import { listBuiltResumes, type BuiltResume } from "@/lib/built-resume-actions";
 import { listResumes, replaceResume, uploadResume, type ResumeItem } from "@/lib/resume-actions";
 import { MAX_UPLOADS } from "@/lib/resume-limits";
 
@@ -67,16 +66,33 @@ export async function loadChoices(
   if (built.error || uploaded.error) {
     return { choices: [], uploads: [], error: built.error ?? uploaded.error };
   }
-  const choices: Choice[] = [
-    ...(built.data ?? [])
-      // A resume tailored to another posting shows only as the primary
-      // (KAN-268): the student starred it, so it is theirs to pick.
-      .filter((r) => r.job_posting_id == null || r.job_posting_id === jobId || r.is_default)
+  return {
+    choices: toChoices(built.data ?? [], uploaded.resumes, jobId),
+    uploads: uploaded.resumes,
+    error: null,
+  };
+}
+
+/** The picker's rows from the two resume lists. For a job posting
+ *  (`jobId`), a resume tailored to another posting shows only as the
+ *  primary (KAN-268): the student starred it, so it is theirs to pick. With
+ *  no job every resume shows. */
+export function toChoices(
+  built: BuiltResume[],
+  uploaded: ResumeItem[],
+  jobId: string | null = null,
+): Choice[] {
+  return [
+    ...built
+      .filter(
+        (r) =>
+          jobId == null || r.job_posting_id == null || r.job_posting_id === jobId || r.is_default,
+      )
       .map((r) => ({
         key: `built:${r.id}`,
         label: r.name,
         type: r.job_posting_id ? ("Tailored" as const) : ("Base" as const),
-        forThisJob: r.job_posting_id === jobId,
+        forThisJob: jobId != null && r.job_posting_id === jobId,
         tailoredFor: r.job_posting_id
           ? [r.posting_title, r.posting_company].filter(Boolean).join(" at ") || "A job posting"
           : null,
@@ -85,7 +101,7 @@ export async function loadChoices(
         source: { builtResumeId: r.id },
         isDefault: r.is_default,
       })),
-    ...uploaded.resumes
+    ...uploaded
       .filter((r) => r.storage_path)
       .map((r) => ({
         key: `uploaded:${r.id}`,
@@ -99,7 +115,6 @@ export async function loadChoices(
         isDefault: r.is_default,
       })),
   ];
-  return { choices, uploads: uploaded.resumes, error: null };
 }
 
 /** The pick a list starts on: the resume tailored to this job, else the
@@ -108,14 +123,14 @@ export function firstChoice(choices: Choice[]): Choice | undefined {
   return choices.find((c) => c.forThisJob) ?? choices.find((c) => c.isDefault) ?? choices[0];
 }
 
-/** The group each kind of choice falls in. */
+/** Each kind of choice's type, for its badge and the Type filter. */
 const GROUP: Record<Choice["type"], ResumeType> = {
   Uploaded: "uploaded",
   Base: "generated",
   Tailored: "tailored",
 };
 
-/** A group's order: the resume tailored to this job, then the primary,
+/** The list's order: the resume tailored to this job, then the primary,
  *  then the newest. */
 const order = (a: Choice, b: Choice) =>
   Number(b.forThisJob) - Number(a.forThisJob) ||
@@ -128,12 +143,12 @@ const order = (a: Choice, b: Choice) =>
 export function pickRowClasses(picked: boolean) {
   return cn(
     RESUME_ROW,
-    "cursor-pointer transition-colors duration-150",
+    "group cursor-pointer transition-colors duration-150",
     picked ? "border-brand bg-brand-tint" : "hover:border-ink-meta hover:bg-hover",
   );
 }
 
-/** The Type filter's options: the list's groups, in their order. */
+/** The Type filter's options, in the Resumes page's order. */
 const TYPES: FacetOption[] = [...RESUME_TYPES];
 
 /** What a dialog that takes an upload hands the list (KAN-267's rules):
@@ -153,17 +168,22 @@ const CARD_FOOT = 19;
 /**
  * The student's resumes as the Resumes page lists them (KAN-406): one row
  * with the search (names and the postings they were tailored for), the
- * Type filter and, in a dialog that takes one, Upload Resume, then the
- * Uploaded, Generated and Tailored groups (`ResumeGroup`, components/
- * resume-list.tsx) in one scroll five cards high, each card the Resumes
- * page's box with a radio. One radio group spans every group, so a click
- * on a card or the arrow keys move the pick. A group folds away on its
- * heading, for this opening only; a group with no match hides. Below a
- * 36rem row the search takes its own line and the filter and the button
- * share the next, as two even halves.
+ * Type filter and, in a dialog that takes one, Upload Resume, then one
+ * flat list in one scroll five cards high (components/resume-list.tsx),
+ * each card the Resumes page's box with a radio and the type's badge. The
+ * list puts the likely pick first: the resume tailored to this job, then
+ * the primary, then the newest. One radio group spans the list, so a
+ * click on a card or the arrow keys move the pick. Below a 36rem row the
+ * search takes its own line and the filter and the button share the
+ * next, as two even halves.
+ *
+ * It drew Uploaded, Generated and Tailored groups, each card with a PDF
+ * mark, until 2026-11-10: the Resumes page had gone flat with a type badge
+ * per resume (KAN-766), and a picker that still grouped read as another
+ * app. The Type filter finds one type.
  *
  * It has no Sort and no Generate Resume, which the Resumes page's row
- * has: a dialog holds a few resumes, each group already puts the likely
+ * has: a dialog holds a few resumes, the list already puts the likely
  * pick first, and a resume generated mid-dialog is not the file the
  * student sent. Did You Apply? and Tailor had an upload section under the
  * list ("Sent a Different Resume?", a dropzone) until KAN-406: it took
@@ -179,6 +199,9 @@ const CARD_FOOT = 19;
  * With `onPreview`, each card has a Preview button (an eye) that opens the
  * resume without picking it: Tailor's step 1 shows the resume in a dialog
  * (`jobs/[jobId]/tailor/resume-preview.tsx`). The other dialogs pass none.
+ * The eye shows on a card's hover or focus, as the Resumes table's row
+ * actions do, and always on a touch screen: an eye on every card was one
+ * more mark per row to read past.
  */
 export function ResumeLists({
   name,
@@ -206,22 +229,20 @@ export function ResumeLists({
 }) {
   const [query, setQuery] = useState("");
   const [types, setTypes] = useState<ResumeType[]>([]);
-  const [folded, setFolded] = useState<ResumeType[]>([]);
-  // A new upload is picked under Uploaded, so nothing may hide it.
+  // A new upload is picked, so nothing may hide it.
   const sending = useUploadButton(upload, () => {
     setQuery("");
     setTypes([]);
-    setFolded((all) => all.filter((g) => g !== "uploaded"));
   });
 
   const words = searchWords(query);
-  const shown = choices.filter(
-    (c) =>
-      (types.length === 0 || types.includes(GROUP[c.type])) &&
-      matches(`${c.label} ${c.tailoredFor ?? ""}`, words),
-  );
-  const toggle = (group: ResumeType) =>
-    setFolded((all) => (all.includes(group) ? all.filter((g) => g !== group) : [...all, group]));
+  const shown = choices
+    .filter(
+      (c) =>
+        (types.length === 0 || types.includes(GROUP[c.type])) &&
+        matches(`${c.label} ${c.tailoredFor ?? ""}`, words),
+    )
+    .sort(order);
 
   return (
     <div className="@container flex min-w-0 flex-col gap-3">
@@ -254,31 +275,17 @@ export function ResumeLists({
         // or, on a page, so the search above it stays in view.
         <div className="border-border-subtle rounded-card bg-panel border">
           <ResumeScroll label="Your resumes" fill={fill} below={fill ? CARD_FOOT : 0}>
-            {RESUME_TYPES.map(({ value, label }) => {
-              const rows = shown.filter((c) => GROUP[c.type] === value).sort(order);
-              if (rows.length === 0) return null;
-              return (
-                <ResumeGroup
-                  key={value}
-                  label={label}
-                  count={rows.length}
-                  open={!folded.includes(value)}
-                  onToggle={() => toggle(value)}
-                >
-                  {rows.map((c) => (
-                    <li key={c.key}>
-                      <PickCard
-                        choice={c}
-                        name={name}
-                        picked={picked === c.key}
-                        onPick={onPick}
-                        onPreview={onPreview}
-                      />
-                    </li>
-                  ))}
-                </ResumeGroup>
-              );
-            })}
+            {shown.map((c) => (
+              <li key={c.key}>
+                <PickCard
+                  choice={c}
+                  name={name}
+                  picked={picked === c.key}
+                  onPick={onPick}
+                  onPreview={onPreview}
+                />
+              </li>
+            ))}
           </ResumeScroll>
         </div>
       )}
@@ -287,8 +294,7 @@ export function ResumeLists({
 }
 
 /** `ResumeLists` while `loadChoices` runs (KAN-561): the row's search and
- *  Type filter, then the list's box with a group heading and three cards,
- *  as bars. One skeleton for all three dialogs, in place of the line
+ *  Type filter, then the list's box with three cards, as bars. One skeleton for all three dialogs, in place of the line
  *  "Loading your resumes…" each drew. */
 export function ResumeListsSkeleton() {
   return (
@@ -300,19 +306,16 @@ export function ResumeListsSkeleton() {
       </div>
       <div
         aria-hidden="true"
-        className="border-border-subtle rounded-card bg-panel border px-3 pb-3"
+        className="border-border-subtle rounded-card bg-panel border px-3 pt-1 pb-3"
       >
-        <div className="flex h-9 items-center pt-2">
-          <Skeleton className="h-3 w-20" />
-        </div>
         {Array.from({ length: 3 }, (_, i) => (
           <div key={i} className={RESUME_ROW}>
             <Skeleton className="size-4 shrink-0 rounded-full" />
-            <Skeleton className="size-5 shrink-0" />
             <span className="flex min-w-0 flex-1 flex-col gap-1.5 py-0.5">
               <Skeleton className="h-3.5 w-48 max-w-full" />
               <Skeleton className="h-3 w-28 max-w-full" />
             </span>
+            <Skeleton className="h-6 w-6 shrink-0 rounded-full @md:w-24" />
           </div>
         ))}
       </div>
@@ -320,10 +323,12 @@ export function ResumeListsSkeleton() {
   );
 }
 
-/** One resume as a pickable card: the Resumes page's file mark, name and
- *  line ("Uploaded Oct 21", "Last edited Oct 21 · For …"), its primary
- *  star, and a radio. The name wraps, never truncates: two resumes
- *  tailored for one company differ only at the end of their names. */
+/** One resume as a pickable card: a radio, the name and its line
+ *  ("Uploaded Oct 21", "Last edited Oct 21 · For …"), the type's badge as
+ *  the Resumes table draws it (in a column 7rem wide, so the stars line
+ *  up; its icon alone below the card's `@md`), and the primary star. The
+ *  name wraps, never truncates: two resumes tailored for one company
+ *  differ only at the end of their names. */
 function PickCard({
   choice: c,
   name,
@@ -342,7 +347,6 @@ function PickCard({
   return (
     <label className={pickRowClasses(picked)}>
       <Radio name={name} value={c.key} checked={picked} onChange={() => onPick(c.key)} />
-      <PdfIcon className="size-5 shrink-0" />
       <span className="min-w-0 flex-1">
         <span className="text-label text-ink block break-words">{c.label}</span>
         <span className="text-note text-ink-meta block break-words">
@@ -361,6 +365,9 @@ function PickCard({
           )}
         </span>
       </span>
+      <span className="flex shrink-0 @md:w-28">
+        <TypeBadge type={GROUP[c.type]} wordClassName="sr-only @md:not-sr-only" />
+      </span>
       <PrimaryStar name={c.label} primary={c.isDefault} />
       {onPreview && (
         // Inside the card's label, so the click must not reach the radio:
@@ -368,7 +375,10 @@ function PickCard({
         <IconButton
           label={`Preview ${c.label}`}
           tooltip="Preview"
-          className={cn(ROW_ACTION, "relative z-10 shrink-0")}
+          className={cn(
+            ROW_ACTION,
+            "relative z-10 shrink-0 opacity-0 transition-opacity duration-150 group-focus-within:opacity-100 group-hover:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100",
+          )}
           onClick={(event) => {
             event.preventDefault();
             onPreview(c);

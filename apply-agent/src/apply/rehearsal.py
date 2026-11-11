@@ -52,6 +52,7 @@ from apply import (
     embedded,
     fill_engine,
     greenhouse,
+    keepalive,
     lever,
     masked,
     on_page,
@@ -293,7 +294,7 @@ def rehearse(
             # Sent: nothing on it waits on him now, and an answer given later neither fills it nor shows it unsent.
             done.outcome, done.missing = str(Status.SUBMITTED), ()
             batch.done(url)  # it went in: a restart has nothing of it to bring back (KAN-719)
-            adapters.board.update(n, status="submitted", why=note, missing=[])
+            adapters.board.update(n, status="submitted", why=note, missing=[], session="")
             out(" | ".join([done.posting.company or done.title or url, done.posting.title or done.title, note]))
 
         def held() -> None:  # its form is open and planned: Ready, then Filling once Start is pressed
@@ -363,12 +364,33 @@ def rehearse(
             for q, value in watch.tick(page, [q for q, _ in fields.values()]):
                 _answered_on_page(page, q, fields[q.name][1], value, adapters, n, done, out)
 
+        def session_lost(why: str) -> None:
+            """The job site ended the held form's session (apply.keepalive, KAN-776): Lisul hears it at once, on the
+            tile and by phone push, and the form is held no more (Ask Claude stops). Fill again stays his."""
+            asker.close()
+            adapters.board.update(n, status="handoff", why=why, askable=False, refill=True,
+                                  session=f"Session ended at {adapters.clock.now():%H:%M}")
+            if profile.policy("phone_push") is True and adapters.phone is not None:
+                try:
+                    adapters.phone.notify(keepalive.PUSH_TITLE, why)
+                except Exception as failed:
+                    print(f"Couldn't push the ended session to your phone ({failed}); the Apply window shows it.",
+                          file=sys.stderr)
+            try:
+                batch.note(url, status=keepalive.ENDED_STATUS)
+            except OSError:
+                pass  # the data folder unwritable: the tile and the push said it
+            out(" | ".join([done.posting.company or done.title or url, done.posting.title or done.title, why]))
+
         def holds() -> dict:
-            """What holds Submit on the held page (Rehearsed.holding), with its note, for hold()."""
+            """What holds Submit on the held page (Rehearsed.holding), with its note, and the keeper of its
+            session (apply.keepalive), for hold()."""
             # A Board of an older shape (a test's, a run's) has no Fill again from outside the page: never asked.
+            keep = keepalive.Keeper(done.posting.company or done.title, session_lost,
+                                    lambda line: adapters.board.update(n, session=line), now=adapters.clock.now)
             return {"fill_again": lambda: getattr(adapters.board, "fill_again_asked", lambda k: False)(n),
                     "held": lambda: done.holding(), "dismiss": lambda: done.dismiss_holds(),
-                    "note": lambda: (done.warning(), done.wrong())}
+                    "note": lambda: (done.warning(), done.wrong()), "keep": keep}
 
         def paused(stopped: Rehearsed, blocked: Callable[[object], str]) -> bool | str:
             """The fill stopped mid-form for Lisul: hold its page, his to fix, until he presses Resume
@@ -1179,11 +1201,21 @@ class _Calibration:
             return CALIBRATION.format(self._count, self._size)
 
 
+def _eightfold(page) -> bool:
+    """Whether the page is an Eightfold careers site's, by the engine's own reading of its link: Microsoft's, which
+    Claude fill fills, too (KAN-771)."""
+    try:
+        return (fill_engine.job_of(page.url) or {}).get("site") == "eightfold"
+    except Exception:
+        return False
+
+
 def _confirmed(page, job_system: str) -> bool:
     """Whether the page shows that the application went in. A page still
-    loading, or gone, shows nothing yet."""
+    loading, or gone, shows nothing yet. An Eightfold page is read by Eightfold's
+    own check, whichever Filler filled it."""
     try:
-        check = CONFIRMED.get(job_system)
+        check = CONFIRMED.get(job_system) or (CONFIRMED["eightfold"] if _eightfold(page) else None)
         return check(page) if check else page.get_by_text(THANKS).first.is_visible()
     except Exception:
         return False
@@ -1248,7 +1280,8 @@ class _Kept:
              redo: "_Redo | None" = None,
              tend: Callable[[object], None] = lambda page: None, ask: "_Ask | None" = None,
              fill_again: Callable[[], bool] = lambda: False, held: Callable[[], str] = lambda: "", dismiss: Callable[[], None] = lambda: None,
-             note: "Callable[[], tuple[str, bool]] | None" = None, sent: Callable[[], None] = lambda: None) -> str:
+             note: "Callable[[], tuple[str, bool]] | None" = None, sent: Callable[[], None] = lambda: None,
+             keep: "keepalive.Keeper | None" = None) -> str:
         """Each answer Lisul gives in the window meanwhile, of `answers()`,
         `fill(page, question, answer)` puts on the page. Keep the page open where it stopped until `release` is set or its
         window is closed. Apply is done with it, so it is Lisul's: the submit
@@ -1262,8 +1295,8 @@ class _Kept:
         from outside the page (`POST /fill-again`) before his Submit: fill the form anew.
         A paused rehearsal passes `resume(page)`, whether Lisul pressed Resume and
         it can go on: then RESUME, with the page still his until rearm(). Once he presses the form's own Submit
-        (a Submit or Send button not on a sign-in, account or code form), or the job system confirms a press of
-        his sent it, Resume goes on no more, and `sent()` runs, once, so the window stops offering it. His
+        (a Submit or Send button not on a sign-in, account or code step: submit_guard's signInStep), or the job
+        system confirms a press of his sent it (a sign-in step's press too), Resume goes on no more, and `sent()` runs, once, so the window stops offering it. His
         other presses (Apply now, a profile pop-up's Complete) leave Resume his to press.
         A captcha that shows after a press of his calls `challenged()`, once:
         he does it himself, and Apply never touches it. A bot block after a press
@@ -1277,18 +1310,27 @@ class _Kept:
         blocked under a red note; its Dismiss button calls `dismiss()`, and once `held()` is "" (dismissed
         there or in the window) the note says so and Submit is his again: `note()` is its warning and
         wrong then, as they are now (`warning` and `wrong` as given, without it).
+        `keep` keeps the job site's session alive until he presses Submit, and tells when it ends (apply.keepalive):
+        its stay press runs with the guards back on, as Claude's drive does, and then holds his Submit, the guard
+        whole, until he presses the note's Dismiss: a page whose button sends later, at any delay, sends nothing.
         "" when the page closed or `release` was set."""
         if self._page is None or release.is_set():
             return ""
-        pressed, final, again, hooks, regenerates = [], [], [], self._hooks, []
+        pressed, final, signing, again, hooks, regenerates = [], [], [], [], self._hooks, []
 
         def heard(words: str, account: bool = False) -> None:
-            if not account:  # a sign-in, account or code form's press sends no application: Resume still goes on
+            if account:  # a sign-in, account or code step's press sends no application: Resume still goes on (KAN-781)
+                signing.append(words)
+            else:
                 pressed.append(words)
                 if FINAL.search(words):  # the form's own Submit: the form is his to send (KAN-690)
                     final.append(words)
             if code:
                 code.pressed(words)
+        if keep:  # a stay press holds Submit too, until his Dismiss, which takes back both (apply.keepalive)
+            held_by_form, dismiss_form = held, dismiss
+            held = lambda: held_by_form() or keep.holding()
+            dismiss = lambda: (dismiss_form(), keep.dismiss())
         dismissed = []
         hooks |= {"pressed": heard, "again": lambda: again.append(True),
                   "regenerate": lambda name, context: regenerates.append((name, context)),
@@ -1300,6 +1342,23 @@ class _Kept:
             lift(self._page, pressed=lambda words, account=False: hooks["pressed"](words, account), again=lambda: hooks["again"](),
                  warning=warning, wrong=wrong, bound=self._bound, held=holding, dismiss=lambda: hooks["dismiss"]())
             self._lifted = self._bound = True
+
+        @contextmanager
+        def driving():
+            """Apply acts on the held page (an Ask Claude message, a session dialog's stay press): both guards back
+            on, in each document it loads too (going back a step loads one, which lift()'s script would hand to
+            Lisul). His again after."""
+            nonlocal holding
+            guarded = self._lifted
+            if guarded:
+                rearm(self._page)
+            try:
+                yield
+            finally:
+                if guarded:
+                    holding = held()  # a stay press just made: his Submit stays held, the guard whole (KAN-776)
+                    hand_over()
+                    renote(self._page, *(note() if note else (warning, wrong)), holding)
         blocked = bool(self.applied) and not self._dismissed  # he applied already: Submit stays blocked
         try:
             if code:
@@ -1319,6 +1378,9 @@ class _Kept:
             except Exception:
                 pass  # the page closing: the window's button still says so
         kept, closing, told, turned_down, said_sent = False, None, False, False, False
+        # An Eightfold page's own confirmation that shows from now on is his Submit's, heard or not (KAN-771): Lisul's
+        # Submit on Microsoft's form went unseen, and its "Application Submitted" page was never recorded.
+        unheard = _eightfold(self._page) and not _confirmed(self._page, job_system)
         if ask:
             ask.open(self._page)  # the caller closes it once hold() returns
         while not release.is_set():
@@ -1333,7 +1395,8 @@ class _Kept:
                     return AGAIN
                 # Only his Submit, or a press the job system confirms sent the form, makes the page his to send, never
                 # Apply's to drive. His other presses (Apply now, a profile pop-up's Complete) leave Resume his to press.
-                gone = bool(final) or kept or bool(pressed) and _confirmed(self._page, job_system)
+                # A press read as a sign-in's that the job system confirms sent the form is his Submit all the same.
+                gone = bool(final) or kept or bool(pressed or signing) and _confirmed(self._page, job_system)
                 if resume and gone and not said_sent:
                     said_sent = True
                     sent()
@@ -1354,22 +1417,15 @@ class _Kept:
                     for name, context in asked:
                         redo(self._page, name, context)
                 if ask:
-                    if pressed:  # his Submit: the form is his to send, and Claude acts on it no more
+                    if pressed or kept:  # his Submit: the form is his to send, and Claude acts on it no more
                         ask.close()
                     for item in ask.asked():
-                        # Claude drives the page again: both guards back on, in each document it loads too (going
-                        # back a step loads one, which lift()'s script would hand to Lisul). His again after.
-                        guarded = self._lifted
-                        if guarded:
-                            rearm(self._page)
-                        try:
+                        with driving():  # Claude drives the page again
                             ask(self._page, item)
-                        finally:
-                            if guarded:
-                                hand_over()
-                                renote(self._page, *(note() if note else (warning, wrong)), holding)
                 if not pressed:  # once he pressed Submit, the form is his to send: nothing more is read off it
                     tend(self._page)
+                    if keep:
+                        keep.tick(self._page, driving)
                 if code and not kept:
                     code.tick(self._page)
                 if pressed and not kept and not told and captcha.shows(self._page):
@@ -1378,7 +1434,7 @@ class _Kept:
                 if pressed and not kept and not turned_down and (why := captcha.blocks(self._page)):
                     turned_down = True
                     refused(why)
-                if pressed and not kept and _confirmed(self._page, job_system):
+                if (pressed or signing or unheard) and not kept and _confirmed(self._page, job_system):
                     kept = True
                     submitted(self._page)
                     closing = time.monotonic() + CLOSE_AFTER_S

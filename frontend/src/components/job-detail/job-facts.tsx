@@ -8,6 +8,7 @@ import {
   PinIcon,
   workStyleIcon,
 } from "@/components/icons";
+import { PlacesValue } from "@/components/places-value";
 import { Fact } from "@/components/ui/fact";
 
 import type { JobPosting } from "./data";
@@ -29,11 +30,25 @@ import type { JobPosting } from "./data";
  * Location, job type, salary, work style and level draw the same glyphs as
  * `JobPostingCard` (see the job facts note in components/icons.tsx), because
  * this is the expanded view of the same posting that card is a row for.
+ *
+ * At the card's size too (`Fact`'s `md`: 14px values beside 16px glyphs,
+ * 2026-11-10): at 12px under the page's 16px description they read as fine
+ * print, which the user found too small beside the body text. A long value
+ * wraps (`wrap`) rather than losing its tail, as a phone's two columns cut
+ * one at this size.
  */
 export function JobFacts({ posting }: { posting: JobPosting }) {
   return (
-    <div className="text-note grid grid-cols-2 gap-x-4 gap-y-2 @md:grid-cols-3">
-      <JobFact Icon={PinIcon} value={posting.locationCity} />
+    <div className="text-body grid grid-cols-2 gap-x-4 gap-y-2.5 @md:grid-cols-3">
+      {(posting.places?.length ?? 0) > 1 ? (
+        // The first place, then "+N more", which opens every place: the
+        // hover title only said "Novi, MI +1 more" again (2026-11-10).
+        <Fact Icon={PinIcon} size="md" wrap>
+          <PlacesValue places={posting.places ?? []} wrap />
+        </Fact>
+      ) : (
+        <JobFact Icon={PinIcon} value={posting.locationCity} />
+      )}
       <JobFact Icon={BriefcaseIcon} value={posting.jobType} />
       <JobFact Icon={CoinIcon} value={posting.salary} />
       <JobFact Icon={workStyleIcon(posting.workStyle)} value={posting.workStyle} />
@@ -52,14 +67,14 @@ function JobFact({ Icon, value }: { Icon: ComponentType<{ className?: string }>;
   if (!value) {
     return (
       <span aria-hidden="true" className="@max-md:hidden">
-        <Fact Icon={Icon} className="invisible">
+        <Fact Icon={Icon} size="md" wrap className="invisible">
           {" "}
         </Fact>
       </span>
     );
   }
   return (
-    <Fact Icon={Icon}>
+    <Fact Icon={Icon} size="md" wrap>
       <span title={value}>{value}</span>
     </Fact>
   );
