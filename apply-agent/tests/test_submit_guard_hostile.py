@@ -691,3 +691,98 @@ def test_a_second_form_sent_in_with_into_is_guarded_beside_a_held_one():
             pass
         _settle(second)
     assert site.applications() == []
+
+
+# --- His press on a held page (KAN-781): a sign-in, account or code step's press leaves Resume his, so a page must
+# never pass the application's own final Submit off as one. Lifted, nothing stops the press: what is at stake is
+# whether Apply would fill a form he sent. Each page's #b is the application's final button, and it must be heard as
+# his Submit (account False); a confirmation page after it still ends Resume (rehearsal._Kept.hold).
+_CONTACT = "<label>First name <input name=first value=Test></label><label>Email <input type=email name=email></label>" \
+    "<label>Phone <input type=tel name=phone></label>"
+_ANSWERS = "<label>Resume <input type=file name=resume></label><textarea name=why>Because</textarea>"
+HIS_SUBMITS = {
+    # A password box in the Submit's own form, the answers beside it on the page.
+    "a final Submit in a form with a password box": f"""<form>{_ANSWERS}<input type=password name=pw value=x>
+        <button id=b type=button>Submit</button></form>""",
+    # A small form of a code box and the Submit, the answers in a form of their own.
+    "a final Submit in a code form beside the answers": f"""<form>{_ANSWERS}</form><form>
+        <input autocomplete=one-time-code name=otp><button id=b type=button>Submit</button></form>""",
+    # A sign-in's shape, but its button names the application.
+    "Submit application in a sign-in form": """<form><input type=email value=t@example.com><input type=password value=x>
+        <button id=b type=button>Submit application</button></form>""",
+    # A review page with no answer shown: its password and code boxes are hidden.
+    "a review page with hidden sign-in boxes": """<h2>Review</h2><form><input type=password style="display:none">
+        <input autocomplete=one-time-code hidden><button id=b type=button>Submit</button></form>""",
+    # A row of one-digit boxes beside the answers, and a button that says verify and submit.
+    "Verify and Submit beside digit boxes": f"""<form>{_ANSWERS}{'<input maxlength=1>' * 6}
+        <button id=b type=button>Verify and Submit</button></form>""",
+    # A postal code is no sign-in code.
+    "a final Submit beside a postal code box": """<form><label>Postal code <input name=postal_code placeholder="Zip code"></label>
+        <button id=b type=button>Submit</button></form>""",
+    # The adversarial review of #545: a short application of text boxes beside one box that looks like a sign-in's.
+    "a final Submit beside an access code box": f"""<form>{_CONTACT}<label>Access code <input name=access_code></label>
+        <button id=b type=button>Submit</button></form>""",
+    "a final Submit beside an Indian address's PIN code": f"""<form>{_CONTACT}<label>PIN code <input name=pin_code></label>
+        <button id=b type=button>Submit</button></form>""",
+    "a final Submit beside a texted security code box": f"""<form>{_CONTACT}<input name=security_code
+        placeholder="Security code we texted you"><button id=b type=button>Submit</button></form>""",
+    "a final Submit beside four one-character boxes": f"""<form>{_CONTACT}{'<input maxlength=1>' * 4}
+        <button id=b type=button>Submit</button></form>""",
+    "a final Submit in an application that makes an account": f"""<form>{_CONTACT}<input type=password value=x>
+        <button id=b type=button>Submit</button></form>""",
+    "Verify and Send beside an answer and a password box": """<form><textarea name=why>Because</textarea>
+        <input type=password value=x><button id=b type=button>Verify and Send</button></form>""",
+    "Verify and Send beside a one-time code box": f"""<form>{_CONTACT}<input autocomplete=one-time-code>
+        <button id=b type=button>Verify and Send</button></form>""",
+    "a final Submit beside numeric boxes": f"""<form>{_CONTACT}{'<input inputmode=numeric>' * 4}
+        <button id=b type=button>Submit</button></form>""",
+    # Answers drawn as a choice hidden behind styled labels, and a code box: still the application.
+    "a final Send beside a code box and hidden choices": """<form><input type=radio name=auth style="opacity:0;position:absolute"
+        hidden><input name=verification_code><button id=b type=button>Send</button></form>""",
+}
+# Oracle's code boxes as its Candidate Experience draws them: numeric, autocomplete off, no maxlength.
+_PIN = "".join(f'<input class="input-row__control pin-code-input__input" type=text inputmode=numeric autocomplete=off '
+               f'pattern="[0-9]*" id=pin-code-{n} aria-label="Enter verification code digit {n} of six.">' for n in range(1, 7))
+# Sign-in, account and code steps whose button says it sends: heard as such (account True), so Resume goes on.
+SIGN_INS = {
+    "Workday's Sign in with email": """<form><input type=email value=t@example.com><input type=password value=x>
+        <button id=b type=button>Submit</button></form>""",
+    "Oracle's code step's Send New Code": """<form class=pin-code-verification>""" + _PIN
+        + """<button type=submit><span>Verify</span></button><button id=b type=button>Send New Code</button></form>""",
+    "Oracle's code step's Submit": """<form class=pin-code-verification>""" + _PIN
+        + """<button id=b type=submit><span>Submit</span></button></form>""",
+    "Oracle's inline code step on the application's form": f"""<form>{_CONTACT}{_ANSWERS}<div class=pin-code-form>{_PIN}
+        <button id=b type=button>Send New Code</button></div></form>""",
+    "a code form's Submit": """<form><input autocomplete=one-time-code><button id=b type=button>Submit</button></form>""",
+}
+
+
+def _heard(page) -> set[bool]:
+    """Whether each guard on the page (the rehearsal's and the drive guard, both lifted) heard #b's press as a sign-in's."""
+    heard = []
+    lift(page, pressed=lambda words, account=False: heard.append((words, account)))
+    page.locator("#b").click()
+    _settle(page, 500)
+    assert heard, "the press was not heard"
+    return {account for _, account in heard}
+
+
+@pytest.mark.parametrize("page_name", list(HIS_SUBMITS))
+def test_a_final_submit_dressed_as_a_sign_in_is_still_his_submit(page_name):
+    with cdp({START: HIS_SUBMITS[page_name]}) as (page, _, _site):
+        heard = _heard(page)
+    assert heard == {False}
+
+
+@pytest.mark.parametrize("page_name", list(SIGN_INS))
+def test_a_sign_in_steps_press_is_never_his_submit(page_name):
+    with cdp({START: SIGN_INS[page_name]}) as (page, _, _site):
+        heard = _heard(page)
+    assert heard == {True}
+
+
+@pytest.mark.parametrize("page_name", list(HIS_SUBMITS))
+def test_a_final_submit_dressed_as_a_sign_in_is_still_his_submit_on_a_plain_worker(page_name):
+    with plain({START: HIS_SUBMITS[page_name]}) as (page, _, _site):
+        heard = _heard(page)
+    assert heard == {False}
