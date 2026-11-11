@@ -24,7 +24,10 @@ a page Claude drives. In each frame, before the page's own code, it blocks:
 - the final application request of each job system, by fetch (a Request
   object's body read too), XHR or beacon:
   Greenhouse `POST <board>/jobs/<id>`, Lever `POST .../<posting>/apply`,
-  Ashby's `ApiSubmit...` mutation, BambooHR `POST /careers/<id>/add`,
+  Ashby's submit mutation (KAN-791: each body to Ashby read as its GraphQL server
+  reads it, JSON, a batch, a form or multipart body, and each operation's query
+  parsed; a mutation whose root field or name says submit is the application,
+  and a body to its GraphQL the guard can't read is blocked), BambooHR `POST /careers/<id>/add`,
   Workable `POST /api/v1/jobs/<shortcode>/apply`, Jobvite
   `POST <company>/job/<id>/submitApplication` (Enter in any field of its last
   step sends it, which the click guard alone can't stop), and on any job
@@ -473,6 +476,278 @@ _TEMPLATE = r"""
   // Eightfold's (Netflix, Lockheed Martin) sends POST /api/user_interaction/submit as each page loads.
   const NOT_FINAL = [/^https?:\/\/[^\/?#]+\/api\/user_interaction\//i];
   const FINAL_BODIES = [/"operationName"\s*:\s*"ApiSubmit/];
+  // Ashby's submit, read as its server reads it (KAN-791): one regex on the body's operationName let through escaped
+  // JSON, a submit named only in its query, a batch, and a form or multipart body. A body to Ashby is read as JSON (an
+  // object or a batch), a form's fields or a multipart body's (operations, query, operationName); each operation's
+  // query is parsed as GraphQL. A mutation whose root field names a submit (submitMultipleFormsAction,
+  // submitSingleApplicationFormAction: under an alias, through a fragment or an inline one too), or an operation
+  // whose name does, is the application. A body to Ashby's GraphQL that can't be read so is blocked: not JSON, a
+  // duplicate key, an operation with no query text (a persisted query's hash), a query that isn't GraphQL.
+  // Everything here is the guard's own: its lists and maps have no prototype, so a page's setter on one runs nowhere.
+  const ASHBY = /^https?:\/\/[^\/?#]*ashbyhq\.com\//i, ASHBY_GQL = /^https?:\/\/[^\/?#]*ashbyhq\.com\/[^?#]*graphql/i;
+  const SUBMIT = /submit/i, indexOf = fn(SP, 'indexOf');
+  const bag = () => ({__proto__: null, n: 0});
+  const put = (b, x) => { b[b.n] = x; b.n = b.n + 1; };
+  const own = (o, k) => apply(ownP, o, [k]);
+  const unreadable = () => { throw new TypeErr('not a GraphQL request'); };
+  const sticky = (re, s, i) => { re.lastIndex = i; const m = match(re, s); return m === null ? null : m[0]; };
+  // JSON as a server's JSON.parse reads it, but a duplicate key, which two servers may read two ways, is unreadable.
+  const J_STR = /"(?:[^"\\\u0000-\u001f]|\\(?:["\\\/bfnrt]|u[0-9a-fA-F]{4}))*"/y;
+  const J_NUM = /-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?/y, J_WS = /[ \t\n\r]*/y;
+  const readJSON = (s) => {
+    let i = 0;
+    const ws = () => { i += sticky(J_WS, s, i).length; };
+    const str = () => { const t = sticky(J_STR, s, i); if (t === null) unreadable(); i += t.length; return parse(t); };
+    const value = (depth) => {
+      if (depth > 64) unreadable();
+      ws();
+      const c = s[i];
+      if (c === '{') {
+        i++;
+        const o = {__proto__: null};
+        ws();
+        if (s[i] === '}') { i++; return {k: 'o', o}; }
+        for (;;) {
+          ws();
+          const key = str();
+          if (own(o, key)) unreadable();
+          ws();
+          if (s[i] !== ':') unreadable();
+          i++;
+          o[key] = value(depth + 1);
+          ws();
+          if (s[i] === ',') { i++; continue; }
+          if (s[i] === '}') { i++; return {k: 'o', o}; }
+          unreadable();
+        }
+      }
+      if (c === '[') {
+        i++;
+        const b = bag();
+        ws();
+        if (s[i] === ']') { i++; return {k: 'a', b}; }
+        for (;;) {
+          put(b, value(depth + 1));
+          ws();
+          if (s[i] === ',') { i++; continue; }
+          if (s[i] === ']') { i++; return {k: 'a', b}; }
+          unreadable();
+        }
+      }
+      if (c === '"') return {k: 's', v: str()};
+      if (startsWith(s, 'true', i)) { i += 4; return {k: 'true'}; }
+      if (startsWith(s, 'false', i)) { i += 5; return {k: 'false'}; }
+      if (startsWith(s, 'null', i)) { i += 4; return {k: 'null'}; }
+      const t = sticky(J_NUM, s, i);
+      if (t === null) unreadable();
+      i += t.length;
+      return {k: 'x'};
+    };
+    const v = value(0);
+    ws();
+    if (i !== s.length) unreadable();
+    return v;
+  };
+  // GraphQL's tokens: names, punctuators, and the strings and numbers that say nothing here. Anything else: not GraphQL.
+  const G_NAME = /[_A-Za-z][_0-9A-Za-z]*/y, G_NUM = /-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?/y;
+  const G_STR = /"(?:[^"\\\n\r]|\\.)*"/y, G_BLOCK = /"{3}(?:[^"\\]|\\"{3}|\\|"(?!"{2}))*"{3}/y;
+  const PUNCT = '!$&()[]{}:=@|';
+  const gqlTokens = (s) => {
+    const out = bag();
+    for (let i = 0; i < s.length; ) {
+      const c = s[i];
+      if (c === ' ' || c === '\t' || c === '\n' || c === '\r' || c === ',' || c === '﻿') { i++; continue; }
+      if (c === '#') { while (i < s.length && s[i] !== '\n' && s[i] !== '\r') i++; continue; }
+      if (c === '.') { if (slice(s, i, i + 3) !== '...') unreadable(); put(out, {k: 'p', v: '...'}); i += 3; continue; }
+      if (indexOf(PUNCT, c) >= 0) { put(out, {k: 'p', v: c}); i++; continue; }
+      let t;
+      if (c === '"') {
+        t = sticky(G_BLOCK, s, i) || sticky(G_STR, s, i);
+        if (t === null) unreadable();
+        put(out, {k: 'v', v: ''});
+      } else if ((t = sticky(G_NAME, s, i)) !== null) {
+        put(out, {k: 'n', v: t});
+      } else if ((t = sticky(G_NUM, s, i)) !== null) {
+        put(out, {k: 'v', v: ''});
+      } else {
+        unreadable();
+      }
+      i += t.length;
+    }
+    return out;
+  };
+  // Whether a query document holds a mutation that reaches a submit: its name, or a root field's (aliased, in an
+  // inline fragment, or in a fragment it spreads at its root).
+  const gqlSubmits = (query) => {
+    const t = gqlTokens(query);
+    let p = 0;
+    const peek = () => p < t.n ? t[p] : null;
+    const next = () => { if (p >= t.n) unreadable(); const tok = t[p]; p++; return tok; };
+    const isP = (tok, c) => tok !== null && tok.k === 'p' && tok.v === c;
+    const nameOf = (tok) => tok !== null && tok.k === 'n' ? tok.v : null;
+    const group = (open, close) => {  // at `open`: past its match
+      let depth = 0;
+      do { const tok = next(); if (isP(tok, open)) depth++; else if (isP(tok, close)) depth--; } while (depth > 0);
+    };
+    const directives = () => {
+      while (isP(peek(), '@')) { next(); if (nameOf(next()) === null) unreadable(); if (isP(peek(), '(')) group('(', ')'); }
+    };
+    const roots = (fields, spreads) => {  // a selection set's root fields, and the fragments it spreads
+      if (!isP(next(), '{')) unreadable();
+      while (!isP(peek(), '}')) {
+        const tok = next();
+        if (isP(tok, '...')) {
+          const n = nameOf(peek());
+          if (n !== null && n !== 'on') { next(); put(spreads, n); directives(); continue; }
+          if (n === 'on') { next(); if (nameOf(next()) === null) unreadable(); }
+          directives();
+          roots(fields, spreads);  // an inline fragment's fields are the root's
+          continue;
+        }
+        let n = nameOf(tok);
+        if (n === null) unreadable();
+        if (isP(peek(), ':')) { next(); n = nameOf(next()); if (n === null) unreadable(); }
+        put(fields, n);
+        if (isP(peek(), '(')) group('(', ')');
+        directives();
+        if (isP(peek(), '{')) group('{', '}');
+      }
+      next();
+    };
+    const mutations = bag(), fragments = {__proto__: null};
+    while (p < t.n) {
+      const tok = peek(), kw = nameOf(tok);
+      if (isP(tok, '{')) { roots(bag(), bag()); continue; }  // a query's shorthand
+      next();
+      if (kw === 'query' || kw === 'mutation' || kw === 'subscription') {
+        const name = nameOf(peek());
+        if (name !== null) next();
+        if (isP(peek(), '(')) group('(', ')');
+        directives();
+        const fields = bag(), spreads = bag();
+        roots(fields, spreads);
+        if (kw === 'mutation') put(mutations, {name: name || '', fields, spreads});
+      } else if (kw === 'fragment') {
+        const name = nameOf(next());
+        if (name === null || nameOf(next()) !== 'on' || nameOf(next()) === null) unreadable();
+        directives();
+        const fields = bag(), spreads = bag();
+        roots(fields, spreads);
+        fragments[name] = {fields, spreads};
+      } else {
+        unreadable();
+      }
+    }
+    const seen = {__proto__: null};
+    const reaches = (fields, spreads) => {
+      for (let i = 0; i < fields.n; i++) if (test(SUBMIT, fields[i])) return true;
+      for (let i = 0; i < spreads.n; i++) {
+        const name = spreads[i];
+        if (seen[name] === true) continue;
+        seen[name] = true;
+        const f = fragments[name];
+        if (f === undefined) unreadable();
+        if (reaches(f.fields, f.spreads)) return true;
+      }
+      return false;
+    };
+    for (let i = 0; i < mutations.n; i++) {
+      const m = mutations[i];
+      if (test(SUBMIT, m.name) || reaches(m.fields, m.spreads)) return true;
+    }
+    return false;
+  };
+  // One operation of a JSON body: its query text and its name, or unreadable.
+  const jsonOp = (v, ops) => {
+    if (v.k !== 'o') unreadable();
+    const q = own(v.o, 'query') ? v.o.query : null, name = own(v.o, 'operationName') ? v.o.operationName : null;
+    if (q === null || q.k !== 's' || (name !== null && name.k !== 's' && name.k !== 'null')) unreadable();
+    put(ops, {query: q.v, name: name !== null && name.k === 's' ? name.v : ''});
+  };
+  const jsonOps = (s, ops) => {
+    const v = readJSON(s);
+    if (v.k !== 'a') return jsonOp(v, ops);
+    if (v.b.n === 0) unreadable();
+    for (let i = 0; i < v.b.n; i++) jsonOp(v.b[i], ops);
+  };
+  // A form's or a multipart body's fields: operations (JSON, the multipart spec's), query and operationName.
+  const fieldOps = (fields, ops) => {
+    let names = '', found = false;
+    for (let i = 0; i < fields.n; i++) {
+      const f = fields[i];
+      if (f.name !== 'operations' && f.name !== 'query' && f.name !== 'operationName') continue;
+      if (typeof f.value !== 'string') unreadable();  // a file the guard can't read at once
+      found = true;
+      if (f.name === 'operations') jsonOps(f.value, ops);
+      else if (f.name === 'query') put(ops, {query: f.value, name: ''});
+      else names += ' ' + f.value;
+    }
+    if (!found) unreadable();
+    put(ops, {query: '', name: names});  // every name the form gives, judged once
+  };
+  const USP = URLSearchParams, uspEntries = fn(USP.prototype, 'entries');
+  const uspNext = (() => { try { return fn(Object.getPrototypeOf(uspEntries(new USP(''))), 'next'); } catch (e) { return null; } })();
+  const formFields = (s) => {
+    const out = bag(), it = uspEntries(new USP(s));
+    for (let r = uspNext(it); !r.done; r = uspNext(it)) put(out, {name: r.value[0], value: r.value[1]});
+    return out;
+  };
+  const MP_NAME = /;\s*name="([^"]*)"/i;
+  const multipartFields = (s) => {
+    const eol = indexOf(s, '\r\n');
+    if (eol < 3) unreadable();
+    const boundary = '\r\n' + slice(s, 0, eol), out = bag();
+    for (let at = eol + 2; ; ) {
+      const head = indexOf(s, '\r\n\r\n', at);
+      if (head < 0) unreadable();
+      const end = indexOf(s, boundary, head + 4);
+      if (end < 0) unreadable();
+      const name = match(MP_NAME, slice(s, at, head));
+      put(out, {name: name === null ? '' : name[1], value: slice(s, head + 4, end)});
+      at = end + boundary.length;
+      if (slice(s, at, at + 2) === '--') return out;
+      if (slice(s, at, at + 2) !== '\r\n') unreadable();
+      at += 2;
+    }
+  };
+  const isFormData = (b) => { try { fdHas(b, ''); return true; } catch (e) { return false; } };
+  const formDataFields = (b) => {
+    const out = bag(), it = fdEntries(b);
+    for (let r = fdNext(it); !r.done; r = fdNext(it)) put(out, {name: r.value[0], value: r.value[1]});
+    return out;
+  };
+  // A body (text, or a FormData) to Ashby: 'submit', 'unreadable', or '' (a request that sends no application).
+  const ashbyBody = (b) => {
+    try {
+      const ops = bag();
+      if (typeof b !== 'string') fieldOps(formDataFields(b), ops);
+      else {
+        const s = trim(b);
+        if (startsWith(s, '{') || startsWith(s, '[')) jsonOps(s, ops);
+        else if (startsWith(b, '--')) fieldOps(multipartFields(b), ops);
+        else fieldOps(formFields(b), ops);
+      }
+      for (let i = 0; i < ops.n; i++) if (test(SUBMIT, ops[i].name) || gqlSubmits(ops[i].query)) return 'submit';
+      return '';
+    } catch (e) {
+      return 'unreadable';
+    }
+  };
+  // An Ashby request's URL alone: GraphQL in its query string (a GET's) is judged as a form's fields.
+  const searchOf = get(URL_.prototype, 'search');
+  const ashbyURL = (href) => {
+    let q;
+    try { q = slice(searchOf(new URL_(href)), 1); } catch (e) { return false; }
+    return ashbyBody(q) === 'submit';
+  };
+  // A non-GET to Ashby: a body that sends its submit, or one to its GraphQL the guard can't read. `body` undefined is
+  // a request that carries none the guard was given (a form's post, a ping): to Ashby's GraphQL, never one of its own.
+  const ashbyFinal = (href, body) => {
+    if (!test(ASHBY, href) || body === null) return false;
+    if (body === undefined) return test(ASHBY_GQL, href);
+    const said = ashbyBody(body);
+    return said === 'submit' || (said === 'unreadable' && test(ASHBY_GQL, href));
+  };
   const SENDS = /\b(submit|send|finish|complete)\b/i;
   const APPLY = /\bapply\b/i;
   const READS = /^(GET|HEAD|OPTIONS)$/i;
@@ -480,13 +755,13 @@ _TEMPLATE = r"""
 @NOTE@
   const isFinal = (method, url, body) => {
     if (lifted()) return false;
-    if (test(READS, text(method) || 'GET')) return false;
     const href = resolve(text(url), base()) || text(url);
+    if (test(READS, text(method) || 'GET')) return test(ASHBY_GQL, href) && ashbyURL(href);
     // The Posting's Apply went through: nothing else is posted to its own site from the page (KAN-725), its
     // other hosts included (an API on another subdomain).
     if (starting !== null) { try { if (site(hostGet(new URL_(href))) === site(location.hostname)) return true; } catch (e) { return true; } }
     if (any(NOT_FINAL, (r) => test(r, href))) return false;
-    return any(FINAL_URLS, (r) => test(r, href)) || any(FINAL_BODIES, (r) => test(r, body));
+    return any(FINAL_URLS, (r) => test(r, href)) || any(FINAL_BODIES, (r) => test(r, body)) || ashbyFinal(href, body);
   };
 
   // A button's words as a person reads them (KAN-710): its text, its value, its labels, its title, an image's alt, or
@@ -1069,8 +1344,14 @@ _TEMPLATE = r"""
     }
     return Str(b);
   };
-  const ASHBY = /^https?:\/\/[^\/?#]*ashbyhq\.com\//i;
-  const unread = (method, url, b) => !test(READS, text(method) || 'GET') && isBlob(b) && test(ASHBY, resolve(text(url), base()) || '');
+  // What the guard judges of a body sent as it is: its text, a FormData, undefined for none, or null for one it can't
+  // read at once (a Blob, a document), which to Ashby is blocked (unread).
+  const readable = (b) => {
+    if (b === undefined || b === null) return undefined;
+    const t = bodyText(b);
+    return t !== null ? t : isFormData(b) ? b : null;
+  };
+  const unread = (method, url, b) => !test(READS, text(method) || 'GET') && readable(b) === null && test(ASHBY, resolve(text(url), base()) || '');
   // What each XHR opened, kept where its page can't change it: only once the browser's open() took it, so an open()
   // that throws (a forbidden method, a bad URL) leaves the request and what is kept of it as they were (KAN-783).
   const opened = new WeakMap(), wmGet = fn(WeakMap.prototype, 'get'), wmSet = fn(WeakMap.prototype, 'set');
@@ -1093,7 +1374,7 @@ _TEMPLATE = r"""
       throw new DOMExc('Blocked by the @NAME@', 'NetworkError');
     }
     const method = kept ? kept[0] : '', url = kept ? kept[1] : '', sent = once(body, true);
-    if (isFinal(method, url, bodyText(sent)) || unread(method, url, sent)) {
+    if (isFinal(method, url, readable(sent)) || unread(method, url, sent)) {
       note(named(method, url));
       throw new DOMExc('Blocked by the @NAME@', 'NetworkError');
     }
@@ -1104,7 +1385,7 @@ _TEMPLATE = r"""
   if (beacon) {
     Navigator.prototype.sendBeacon = function (url, data) {
       const u = Str(url), sent = once(data, false);  // each read once, and sent as read (KAN-783)
-      if (isFinal('POST', u, bodyText(sent)) || unread('POST', u, sent)) { note(named('POST', u)); return false; }
+      if (isFinal('POST', u, readable(sent)) || unread('POST', u, sent)) { note(named('POST', u)); return false; }
       return apply(beacon, this, arguments.length > 1 ? [u, sent] : [u]);
     };
   }

@@ -14,6 +14,7 @@ Fill again's case (KAN-682) opens its page in a real Worker browser. Three group
 """
 
 import http.server
+import json
 import sys
 import threading
 from contextlib import contextmanager
@@ -466,6 +467,43 @@ PAGES |= {
         document.getElementById('b').addEventListener('click', () => {{ {_TWICE} }});</script>""",
         "/acme/jobs/123/step2": "<title>Two</title><input name=next>"},
 }
+# KAN-791: Ashby's submit, which the guard once found by one regex on the body's operationName. Each body here is a
+# submit Ashby's GraphQL server would run, or one the guard can't read (a duplicate key, a persisted query's hash
+# alone, text that is no JSON): the guard reads each as the server would, and any of them reaching Ashby is an
+# application (Site.applications).
+ASHBY_GQL = "https://jobs.ashbyhq.com/api/non-user-graphql"
+_ASHBY_SEND = """<script>const GQL = '@GQL@';
+const hide = (s) => s.replace(/submit/gi, (m) => '\\\\u00' + m.charCodeAt(0).toString(16) + m.slice(1));
+const post = (body, how) => {
+  if (how === 'xhr') { try { const x = new XMLHttpRequest(); x.open('POST', GQL); x.send(body); } catch (e) {} return; }
+  if (how === 'beacon') { try { navigator.sendBeacon(GQL, body); } catch (e) {} return; }
+  try { fetch(GQL, {method: 'POST', body}).catch(() => {}); } catch (e) {}
+};
+const SUBMIT = 'mutation { submitMultipleFormsAction(jobPostingId: "1") { __typename } }';
+document.getElementById('b').addEventListener('click', () => { @SENDS@ });</script>"""
+_ASHBY_JSON = """
+  post(JSON.stringify({query: 'mutation { submitSingleApplicationFormAction(formRenderIdentifier: "r") { __typename } }'}));
+  post(hide(JSON.stringify({operationName: 'ApiSubmitMultipleFormsAction', query: 'mutation ApiSubmitMultipleFormsAction { submitMultipleFormsAction { a } }'})));
+  post(JSON.stringify([{query: 'query A { jobPosting { title } }'}, {operationName: 'ApiSetFormValue', query: SUBMIT}]));
+  post(JSON.stringify({operationName: 'ApiSetFormValue', query: 'mutation ApiSetFormValue { ...F } fragment F on Mutation { submitMultipleFormsAction { a } }'}));
+  post(JSON.stringify({operationName: 'ApiSetFormValue', query: 'mutation ApiSetFormValue { # setFormValue\\n ... on Mutation @include(if: true) { setFormValue: submitSingleApplicationFormAction(note: "not a submit") { a } } }'}));
+  post('{"query": "' + SUBMIT.replace(/"/g, '\\\\"') + '", "query": "query { a }"}');
+  post(JSON.stringify({operationName: 'ApiSetFormValue', extensions: {persistedQuery: {version: 1, sha256Hash: 'ab12'}}}));
+  post(JSON.stringify({query: SUBMIT}), 'xhr');
+  post(new Blob([JSON.stringify({query: SUBMIT})], {type: 'application/json'}), 'beacon');"""
+_ASHBY_FORMS = """
+  post(new URLSearchParams({query: SUBMIT}));
+  post('operationName=ApiSetFormValue&query=' + encodeURIComponent(SUBMIT), 'xhr');
+  post(new URLSearchParams({query: SUBMIT}), 'beacon');
+  const multipart = () => { const f = new FormData(); f.append('operations', JSON.stringify({query: SUBMIT, variables: {file: null}}));
+    f.append('map', '{"0": ["variables.file"]}'); f.append('0', new Blob(['resume']), 'resume.pdf'); return f; };
+  post(multipart()); post(multipart(), 'xhr'); post(multipart(), 'beacon');
+  post(SUBMIT); post(SUBMIT, 'xhr');"""
+_ASHBY_NEXT = '<title>Apply</title><input name=first value=Test><button id=b type=button>Next</button>'
+PAGES |= {
+    "Ashby's submit in JSON the regex missed": {START: _ASHBY_NEXT + _ASHBY_SEND.replace("@GQL@", ASHBY_GQL).replace("@SENDS@", _ASHBY_JSON)},
+    "Ashby's submit in a form or multipart body": {START: _ASHBY_NEXT + _ASHBY_SEND.replace("@GQL@", ASHBY_GQL).replace("@SENDS@", _ASHBY_FORMS)},
+}
 BUTTON = {"an Amazon card whose Continue sends": "Continue", "a review page's Apply with its answers hidden": "Apply", "a page that vouches for its own Apply": "Apply", "a Submit in another language beside a Submit": "Envoyer ma candidature", "a Submit in a shadow root": "Submit application",
           "a profile pop-up that is the application": "Submit", "a profile pop-up that turns into the application": "Submit",
           "a one-page form in a modal": "Continue", "an application that makes an account": "Continue",
@@ -496,8 +534,9 @@ class Site:
 
     def applications(self) -> list[str]:
         """The application requests that reached the job system: a final URL's (COMMIT's too, KAN-783), or SAVE's with
-        its Submit (submit=1)."""
-        return [p for p in self.sent if p in (FINAL, GREENHOUSE, COMMIT)] + [p for p, b in self.bodies if p == SAVE and "submit=1" in b]
+        its Submit (submit=1), or any post to Ashby's GraphQL (only the Ashby pages post there, KAN-791)."""
+        return [p for p in self.sent if p in (FINAL, GREENHOUSE, COMMIT) or p.startswith(ASHBY_GQL)] \
+            + [p for p, b in self.bodies if p == SAVE and "submit=1" in b]
 
 
 # --- the click paths, each the real code that presses through the guards
@@ -627,6 +666,8 @@ GUARD_HOLES = frozenset({
     "a Submit whose own innerText throws", "a Submit whose value getter posts the form",
     "a Submit whose own getters and methods lie", "a Submit whose prototype is a Proxy", "prototype getters that lie",
     "prototype getters that throw", "built-ins the page replaced", "a request whose URL changes on a second read",
+    # KAN-791's: Ashby's submit the operationName regex missed.
+    "Ashby's submit in JSON the regex missed", "Ashby's submit in a form or multipart body",
 })
 
 
@@ -772,6 +813,30 @@ def test_without_the_guard_each_hostile_page_sends(page_name):
         _then(page, page_name)
         _settle(page)
     assert site.applications()
+
+
+# Ashby's own requests, which the guard must let through as it reads Ashby's bodies (KAN-791): its posting's query,
+# whose selections name a submit below the root, and each answer's and file's save, mutations whose root saves.
+ASHBY_OWN = {
+    "ApiOrganizationFromHostedJobsPageName": "query ApiOrganizationFromHostedJobsPageName($name: String!) { "
+        "organization: organizationFromHostedJobsPageName(organizationHostedJobsPageName: $name) { "
+        "theme { applicationSubmittedSuccessMessage } } }",
+    "ApiSetFormValue": "mutation ApiSetFormValue($id: String!, $path: String!, $value: JSON) { "
+        "setFormValue(formRenderIdentifier: $id, path: $path, value: $value) { id fieldEntries { submittedAt } } }",
+    "ApiSetFormValueToFile": "mutation ApiSetFormValueToFile($id: String!, $path: String!, $fileHandle: String!) { "
+        "setFormValueToFile(formRenderIdentifier: $id, path: $path, fileHandle: $fileHandle) { id } }",
+}
+
+
+def test_ashbys_own_queries_and_saves_go_through():
+    sends = "".join(f"fetch('{ASHBY_GQL}?op={op}', {{method: 'POST', headers: {{'Content-Type': 'application/json'}}, "
+                    f"body: JSON.stringify({{operationName: '{op}', variables: {{id: 'r', path: 'p'}}, query: {json.dumps(q)}}})}});"
+                    for op, q in ASHBY_OWN.items())
+    with cdp({START: f"<title>Apply</title><button id=b type=button>Next</button><script>"
+                     f"document.getElementById('b').addEventListener('click', () => {{ {sends} }});</script>"}) as (page, _, site):
+        page.click("#b")
+        _settle(page, 1500)
+    assert sorted(p.split("op=")[-1] for p in site.sent if p.startswith(ASHBY_GQL)) == sorted(ASHBY_OWN)
 
 
 # Ask Claude's press of a listed step (KAN-692) against a TAL.net-like form, whose final Submit posts to the same

@@ -171,6 +171,14 @@ into it and the window shows "Sample data".
   goes through `judged` (a throw blocks). A request's URL, method and body
   are read once, and what was judged is what is sent: an XHR keeps what its
   `open()` took, and one opened by no `open()` of the guard's is not sent.
+- **A request body is read as its server reads it, never by a regex on
+  its text** (KAN-791). One regex on Ashby's `operationName` let through
+  escaped JSON, a submit named only in `query`, a batch, and form or
+  multipart bodies. The guard parses each body to Ashby (JSON with no
+  duplicate key, form fields, multipart `operations`), parses each
+  query as GraphQL, and blocks a mutation whose root field names a
+  submit. A body to Ashby's GraphQL that it can't read is blocked: when
+  the guard can't tell, it fails closed.
 - **No test reaches past loopback** (`tests/network_block.py`, KAN-662). A
   socket or name lookup to another host raises `NetworkBlocked`, Chrome
   started by a test resolves other hosts to nothing, and Playwright's own
