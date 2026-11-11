@@ -2,7 +2,8 @@
 The admins' look at the Rules table's fetch log (KAN-772): the anomaly
 report's four flags on fixture rows (services/rules_anomalies.py `flag`),
 GET /admin/rules-anomalies and its script's table against real Postgres,
-admins only.
+admins only, and the leak check naming the account a table was served to
+with its fetch history (app/scripts/trace_rules_leak.py).
 """
 
 import datetime
@@ -18,8 +19,10 @@ from app.deps import get_current_account
 from app.main import app
 from app.schemas.auth import AccountType, AuthenticatedAccount
 from app.scripts import rules_anomalies as anomalies_script
+from app.scripts import trace_rules_leak
 from app.services import rules_table
 from app.services.rules_anomalies import flag, table
+from app.services.rules_watermark import watermark
 
 T0 = datetime.datetime(2026, 11, 10, 9, 0, tzinfo=datetime.UTC)
 SETTINGS = Settings(rules_token_daily_cap=400, rules_fetch_daily_cap=400)
@@ -171,3 +174,25 @@ async def test_an_empty_log_reports_no_account(accounts):
     printed = table(await anomalies_script._report(3))
     assert printed == "No account flagged in the last 3 days."
 
+
+@pytest.mark.anyio
+async def test_the_leak_check_names_the_account_and_prints_its_fetch_history(accounts, database):
+    student, admin = accounts(0), accounts(1)
+    day = datetime.datetime(2026, 11, 2, 15, tzinfo=datetime.UTC)
+    await _log(database, admin, [("workday", day)])
+    await _log(database, student, [("workday", day), ("workday", day + datetime.timedelta(hours=1)),
+                                   ("greenhouse", day + datetime.timedelta(days=1))])
+    leaked = watermark(rules_table.for_site("workday"), student)
+
+    found = await trace_rules_leak.identify(leaked)
+    assert found is not None
+    match, history = found
+    assert match.account_id == student and match.decoy
+    assert history == [(day.date(), "workday", 2), (day.date() + datetime.timedelta(days=1), "greenhouse", 1)]
+    printed = trace_rules_leak.describe(match, history)
+    assert printed.splitlines()[0].startswith(f"{student}  ")
+    assert "Fetches: 3 in the log" in printed
+    assert "2026-11-02  workday          2" in printed and "2026-11-03  greenhouse       1" in printed
+
+    # A table served to an account the log doesn't hold fits no one.
+    assert await trace_rules_leak.identify(watermark(rules_table.for_site("workday"), uuid.uuid4())) is None

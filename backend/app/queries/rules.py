@@ -11,7 +11,7 @@ import hashlib
 import secrets
 import uuid
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.daily_counts import Daily_Count
@@ -69,3 +69,13 @@ async def daily_counts_since(db: AsyncSession, since: datetime.date, kinds: list
         .where(Daily_Count.day >= since, Daily_Count.kind.in_(kinds))
     )).all()]
 
+
+async def fetch_history(db: AsyncSession, account_id: uuid.UUID) -> list[tuple[datetime.date, str, int]]:
+    """One account's fetches in the log (all 90 days) as (UTC day, job system, count), oldest first."""
+    day = func.date(func.timezone("UTC", Rules_Fetch.created_at))
+    return [tuple(row) for row in (await db.execute(
+        select(day, Rules_Fetch.job_system, func.count())
+        .where(Rules_Fetch.account_id == account_id)
+        .group_by(day, Rules_Fetch.job_system)
+        .order_by(day, Rules_Fetch.job_system)
+    )).all()]
