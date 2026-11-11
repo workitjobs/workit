@@ -274,6 +274,40 @@ def test_an_ended_session_is_told_at_once(monkeypatch):
     assert sent == []
 
 
+class OnePage:
+    """A JobSite whose one page is already open: _Kept.open goes to the link in it."""
+
+    def __init__(self, page):
+        self.page = page
+
+    @contextmanager
+    def open(self, url, worker=0):
+        self.page.goto(url)
+        yield self.page
+
+
+def test_a_held_form_whose_session_ends_is_told_and_fills_again(monkeypatch):
+    """The hold loop runs the Keeper: the end is told while the page stays held, and Fill again still comes back."""
+    from apply.rehearsal import AGAIN, _Kept
+
+    monkeypatch.setattr(keepalive, "LOOK_S", 0.25)
+    monkeypatch.setattr(keepalive, "SITES", ())  # nothing keeps it alive: it ends
+    lost = []
+    with held(session_page(warn=300, end=600)) as (page, sent):
+        kept = _Kept(OnePage(page), 0)
+        with kept.open(ORACLE):
+            release = threading.Event()
+            timer = threading.Timer(20, release.set)  # the test's own end, if the hold never returns
+            timer.start()
+            try:
+                how = kept.hold(release, keep=Keeper("JPMorgan Chase", lost.append), fill_again=lambda: bool(lost))
+            finally:
+                timer.cancel()
+    assert how == AGAIN
+    assert lost == ["JPMorgan Chase's session ended; press Fill again after signing in"]
+    assert sent == []
+
+
 @contextmanager
 def loopback(html: str):
     """The page on 127.0.0.1 with a session cookie, for the ping (Playwright's request API reaches no route)."""
