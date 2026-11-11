@@ -56,6 +56,9 @@ def files() -> dict[str, str]:
     for sms in (False, True):
         for marketing in (False, True):
             out[f"drive-{int(sms)}{int(marketing)}.js"] = submit_guard.drive_script(sms, marketing, port=True)
+            # The block-only copy for a tab's open document, put in after its own code (submit_guard's LATE).
+            out[f"drive-{int(sms)}{int(marketing)}-late.js"] = submit_guard.drive_script(sms, marketing, port=True, late=True)
+    out["drive-open.js"] = submit_guard.drive_script(port=True, at_open=True)  # on_open's, lifted until armed
     return out
 
 
@@ -65,6 +68,7 @@ def _prepared() -> dict[str, str]:
     for sms in (False, True):
         for marketing in (False, True):
             known[_sha(submit_guard.drive_script(sms, marketing))] = f"drive-{int(sms)}{int(marketing)}.js"
+    known[_sha(submit_guard.drive_script(at_open=True))] = "drive-open.js"
     return known
 
 
@@ -90,7 +94,8 @@ def init_script(script: str) -> dict:
     """guard.script's params for an add_init_script of `script`: its guard file when it is one
     of the guards' scripts, else the code itself (which needs Allow User Scripts on)."""
     if (name := PREPARED.get(_sha(script))):
-        return {"id": name.removesuffix(".js"), **file_params(name)}
+        # The drive guard is one registration whatever its opt-ins: a later one, with Lisul's, replaces on_open's.
+        return {"id": "drive" if name.startswith("drive-") else name.removesuffix(".js"), **file_params(name)}
     return {"id": _sha(script)[:16], "code": script}
 
 
@@ -225,11 +230,22 @@ class PlainDriveGuard(DriveGuard):
         self._page = page
         self._blocked: list[str] = []
         self._driving = False
-        script = submit_guard.drive_script(sms_opt_in, marketing_opt_in)
         tokens(page.worker)
         page.worker.on("guard.said", self._said)
-        page.context.add_init_script(script)
-        page.worker.call("guard.inject", tab=page.tab, **file_params(PREPARED[_sha(script)]))
+        self._open(page, sms_opt_in, marketing_opt_in)
+
+    def _open(self, page, sms_opt_in: bool, marketing_opt_in: bool) -> None:
+        """DriveGuard._open on a plain Worker. Its init script is one registration ("drive") whatever the opt-ins,
+        so this one, armed and with Lisul's, takes the place of on_open's (lifted until now) for every document from
+        now; the open document's copy is armed and takes them by the control. Any other page's open document gets DriveGuard._late's copy."""
+        page.context.add_init_script(submit_guard.drive_script(sms_opt_in, marketing_opt_in))
+        if not getattr(page, submit_guard.DRIVE_AT_OPEN, False):
+            self._late(sms_opt_in, marketing_opt_in, getattr(page, submit_guard.REHEARSAL_AT_OPEN, False))
+        submit_guard.control(page, {"lift": None, "optSms": sms_opt_in, "optMarketing": marketing_opt_in}, (submit_guard.DRIVE,))
+
+    def _late(self, sms_opt_in: bool, marketing_opt_in: bool, held: bool) -> None:
+        name = f"drive-{int(sms_opt_in)}{int(marketing_opt_in)}{'' if held else '-late'}.js"
+        self._page.worker.call("guard.inject", tab=self._page.tab, **file_params(name))
 
     def _said(self, message: dict) -> None:
         if message.get("tab") == self._page.tab:

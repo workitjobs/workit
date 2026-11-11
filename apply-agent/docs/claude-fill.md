@@ -82,7 +82,21 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
   hears (`TELL_TYPE`): no page can call those, as it could call a binding. Each secret is a random value of its
   own (`TOKENS` for the controls, `TOUCHES`, `TELL`), and the install mark each guard leaves on `window`
   (`MARKS`), which any page can read, names none of them: PR 477's second review found the mark carried the
-  control's token, so a page could lift both guards. The guard takes every built-in it
+  control's token, so a page could lift both guards.
+- The drive guard in a live run runs before each page's code (PR 477's second review): `on_open`, which a
+  Worker calls on every page before its first load, puts its init script on the context there
+  (`DRIVE_AT_OPEN`). That copy starts lifted, as no guard, so a Filler's own submit in a live run goes on
+  as ever; `DriveGuard` arms it, with Lisul's opt-ins (`optSms`, `optMarketing`), by the control in the
+  open document and an init script for each one after (on a plain Worker the drive guard is one
+  registration, `drive`, which `DriveGuard`'s armed one replaces). Only Apply's control changes it. In a rehearsal, the rehearsal's guard holds the page from before its code
+  (`REHEARSAL_AT_OPEN`) and blocks every send itself, so the drive guard's copy in the open document is the
+  full one, as before. Any other page's open document gets a block-only copy (`LATE`): one evaluated after
+  the page's code, which may have wrapped `addEventListener` and heard its control event's name, takes no
+  lift and no allowance (account, profile, upload, start, Ask's tick, an opt-in), so a send there is left to
+  Lisul. A page that replaced a built-in the guard reads with before such a copy came defeats it; every
+  Worker page goes through `on_open`. Still open: in a rehearsal, a page that wrapped `addEventListener`
+  first can hear the drive guard's control event in its open document and lift it there; the rehearsal's
+  guard still blocks every send, but not the drive guard's own blocks (another site's sign-in, a payment). The guard takes every built-in it
   reads with before any page code, and a guard listener that throws blocks what it judged.
 - Each form post is judged again as it leaves (KAN-710): at its `navigate` event, with the URL and entries
   it really carries. Entries its own fields don't make (a `formdata` handler's), a final URL, or a form that

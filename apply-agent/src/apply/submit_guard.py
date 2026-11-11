@@ -78,7 +78,8 @@ token, sent from an isolated world or an init script, which no page sees. The gu
 in its own voice (a console line, or the worker extension's event, with the token). It reads with built-ins taken
 before any page code, and a listener of its that throws blocks. Each form post is judged again as it leaves, with
 the URL and entries it really carries; URLs resolve against the document's base; a button that holds a frame is
-never pressed. What no guard can tell: a page's plain fetch, or a form's own hidden field, to a URL that names no
+never pressed. The drive guard's init script goes on at on_open, before each page's first load, in a live run too;
+a copy put into a page that skipped it, after its code, takes no lift or allowance (LATE). What no guard can tell: a page's plain fetch, or a form's own hidden field, to a URL that names no
 submit is a save to any guard (a CDP Worker routes only URLs that name a submit; a plain Worker's rules block the
 final URLs); while plain code attaches the résumé, the form that holds it may post (iCIMS parses its whole profile
 form, Submit and all), and a frame with scripts off runs no guard.
@@ -233,7 +234,10 @@ _TEMPLATE = r"""
   let starting = null, startGone = false;
   // Its install mark, so a second copy in the same document stands down: visible to the page, so named with a random
   // value of its own that says nothing of the control's, the touch's or the tell's (PR 477's second review).
-  const MARK = '__@KEY@Guard@MARK@';
+  const MARK = '__@KEY@Guard@MARK@', LATE = @LATE@;
+  // The drive guard on_open puts on a live run's page: lifted, as no guard, until a DriveGuard arms it (by the control,
+  // and its init script on each document after), so a Filler's own submit in a live run goes on as ever.
+  if (@AT_OPEN@) S.lifted = true;
   if (apply(ownP, W, [MARK])) return;
   defineProp(W, MARK, {value: true});
   const onControl = [];  // what else hears a control: the note, below
@@ -246,6 +250,10 @@ _TEMPLATE = r"""
       if (S[Str(cmd.query)] === true || (cmd.query === 'account' && S.account !== null)) prevent(event);
       return;
     }
+    // A copy put into a page already open (LATE: after the page's own code, which may have heard this event's name)
+    // only ever blocks more: it takes no lift and no allowance (PR 477's second review).
+    if (LATE && ((has(cmd, 'lift') && cmd.lift !== null) || (has(cmd, 'renote') && cmd.renote !== null)
+      || any(['account', 'profile', 'upload', 'start', 'askTick', 'optSms', 'optMarketing'], (k) => has(cmd, k) && !!cmd[k]))) return;
     if (has(cmd, 'lift')) {
       const n = cmd.lift;
       S.lifted = n !== null && typeof n === 'object';
@@ -261,7 +269,7 @@ _TEMPLATE = r"""
       const at = targetGet(event);
       S.account = cmd.account === true ? true : cmd.account === 'element' && isEl(at) ? at : null;
     }
-    const FLAGS = ['profile', 'upload', 'asking', 'askTick', 'driving', 'appliedDismissed', 'start'];
+    const FLAGS = ['profile', 'upload', 'asking', 'askTick', 'driving', 'appliedDismissed', 'start', 'optSms', 'optMarketing'];
     for (let i = 0; i < FLAGS.length; i++) if (has(cmd, FLAGS[i])) S[FLAGS[i]] = cmd[FLAGS[i]] === true;
     if (has(cmd, 'applied')) S.applied = typeof cmd.applied === 'string' ? cmd.applied : null;
     for (let i = 0; i < onControl.length; i++) { try { onControl[i](cmd); } catch (e) {} }
@@ -995,11 +1003,11 @@ _CONTROLS = r"""
     // upload's Delete, Remove or × goes on, so Claude can replace a wrong file.
     String.raw`\b(?:withdraw|delete|remove)\b(?:\s+\S+){0,2}?\s+(?:application|account|profile|candidacy)s?\b`,
   ].join('|'), 'i');
-  const OPT_INS = [
-    [/\bsms\b|text messages?|\btext me\b|whatsapp/i, @SMS_OPT_IN@],
-    [/marketing|newsletter|job alerts|talent (?:community|network)|advertis|subscribe/i, @MARKETING_OPT_IN@],
-  ].filter(([, yes]) => !yes).map(([words]) => words);
-  const optIn = (words) => any(OPT_INS, (r) => test(r, words));
+  // Lisul's policy on each (DriveGuard's control: optSms, optMarketing), so the copy on_open puts on takes it too.
+  if (S.optSms === undefined) { S.optSms = @SMS_OPT_IN@; S.optMarketing = @MARKETING_OPT_IN@; }
+  const OPT_INS = [[/\bsms\b|text messages?|\btext me\b|whatsapp/i, 'optSms'],
+                   [/marketing|newsletter|job alerts|talent (?:community|network)|advertis|subscribe/i, 'optMarketing']];
+  const optIn = (words) => any(OPT_INS, (o) => S[o[1]] !== true && test(o[0], words));
   const BOX = 'input[type=checkbox], [role=checkbox], [role=switch]';
   const PRESSES = BOX + ', button, input[type=submit], input[type=button], [role=button], a';
   const labelsGet = getter(HTMLInputElement, 'labels'), checkedGet = getter(HTMLInputElement, 'checked');
@@ -1126,23 +1134,25 @@ _IN_CAPTCHA = r"""
 
 
 def _script(key: str, name: str, extra: str = "", in_captcha: str = "", held: str = "false", note: str = "",
-            port: bool = False) -> str:
+            port: bool = False, late: bool = False, at_open: bool = False) -> str:
     """The guard's script under its own key, so two guards can share a page, naming itself `name` in the note on
     what it blocked: off while lifted, and blocking `extra`'s controls too; `in_captcha` runs in a captcha's own
     frame, which the guard leaves alone; `note` is Lisul's note on a lifted page. Its state is set only by its
     control event (CONTROL), named with this run's token for `key`. `port`: a plain Worker's copy
     (apply.plain.guards), whose page events are all untrusted: it also counts a press the worker extension marks
     (Apply's own, or Lisul's from the tile) as a touch, and tells the extension what it blocked and what Lisul
-    pressed, since no console reaches Apply there."""
+    pressed, since no console reaches Apply there. `late`: the copy put into a document already open, after its own
+    code, which may have wrapped addEventListener and heard the control event's name: it takes no lift or allowance."""
     box = name.lower().replace(" ", "-") + "-blocked"
     script = _TEMPLATE
     for placeholder, value in {"@PORT_TOUCH@": PORT_TOUCH if port else "", "@PORT_SAID@": PORT_SAID if port else "",
-                               "@TELL@": TELL_PORT if port else TELL_CDP, "@NOTE@": note or NO_NOTE,
+                               "@TELL@": "" if key != REHEARSAL else TELL_PORT if port else TELL_CDP, "@NOTE@": note or NO_NOTE,
                                "@EXTRA@": extra, "@CAPTCHA@": in_captcha, "@HELD@": held,
                                "@PROFILE_DIALOG@": PROFILE_DIALOG, "@CAPTCHA_HOSTS@": json.dumps(captcha.HOSTS),
                                "@CAPTCHA_PATHS@": json.dumps(captcha.PATHS), "@CONTROL@": control_type(key),
                                "@TELL_TYPE@": TELL_TYPE, "@TELL_PREFIX@": TELL_PREFIX, "@TOUCH@": touch_type(key),
-                               "@KEY@": key, "@NAME@": name, "@BOX@": box, "@MARK@": MARKS[key]}.items():
+                               "@KEY@": key, "@NAME@": name, "@BOX@": box, "@MARK@": MARKS[key], "@LATE@": _js(late),
+                               "@AT_OPEN@": _js(at_open)}.items():
         script = script.replace(placeholder, value)
     return script
 
@@ -1278,15 +1288,18 @@ def rehearsal_script(port: bool = False) -> str:
         + HIDE_LINKEDIN_BUTTON
 
 
-def drive_script(sms_opt_in: bool = False, marketing_opt_in: bool = False, port: bool = False) -> str:
+def drive_script(sms_opt_in: bool = False, marketing_opt_in: bool = False, port: bool = False, late: bool = False,
+                 at_open: bool = False) -> str:
     """The drive guard's script, letting through ticking an opt-in to texts or
-    marketing that Lisul's policy says yes to (`port`: a plain Worker's copy)."""
+    marketing that Lisul's policy says yes to (`port`: a plain Worker's copy; `late`: the block-only copy for a
+    document already open, after its own code; `at_open`: on_open's copy for a live run's page, lifted until a
+    DriveGuard arms it)."""
     controls = _CONTROLS.replace("@SMS_OPT_IN@", _js(sms_opt_in)).replace("@MARKETING_OPT_IN@", _js(marketing_opt_in))
     for name, value in {"@CAPTCHA_CARRIED@": json.dumps(captcha.CARRIED), "@SIGN_IN_CLICK@": json.dumps(captcha.SIGN_IN_CLICK),"@ASK_ELEMENT@": send_click.ELEMENT, "@ASK_SECRET@": json.dumps(send_click.SECRET.pattern),
                         "@ASK_ATTEST@": json.dumps(send_click.ATTEST.pattern), "@ASK_RESEND@": json.dumps(send_click.RESEND.pattern)}.items():
         controls = controls.replace(name, value)
     return _script(DRIVE, "Apply drive guard", extra=controls,
-                   in_captcha=_IN_CAPTCHA.replace("@TRY@", CAPTCHA_TRY), port=port)
+                   in_captcha=_IN_CAPTCHA.replace("@TRY@", CAPTCHA_TRY), port=port, late=late, at_open=at_open)
 
 
 def _js(yes: bool) -> str:
@@ -1304,6 +1317,11 @@ HEARD = (DRIVE_BLOCKED, "Apply rehearsal blocked ")
 
 _opening = threading.local()
 GUARDED = "_apply_guarded_at_open"  # set on a page (and a CDP page's context) that on_open guarded
+# Set on a page whose documents the drive guard's init script has run in before their own code (on_open, guard()),
+# and on a context that has that init script.
+DRIVE_AT_OPEN = "_apply_drive_at_open"
+# Set on a page the rehearsal's guard holds from before its documents' code (on_open in a rehearsal, guard()).
+REHEARSAL_AT_OPEN = "_apply_rehearsal_at_open"
 
 
 @contextmanager
@@ -1320,9 +1338,11 @@ def guarding_on_open():
 
 def on_open(page: Page) -> None:
     """A JobSite calls this between making a page and its first navigation. Inside guarding_on_open, the guard
-    goes on then; guard() later sees it and needs no reload. Outside it (a live run's page), it does nothing."""
+    goes on then; guard() later sees it and needs no reload. Outside it (a live run's page), the drive guard's init
+    script goes on then, so it runs before the page's code (PR 477's second review)."""
     if not getattr(_opening, "on", False):
-        return
+        return _drive_at_open(page)  # a live run's page: no rehearsal's guard holds it
+    setattr(page, REHEARSAL_AT_OPEN, True)
     if _plain(page):
         _plain(page).guard(page, reload=False)
     else:
@@ -1340,12 +1360,33 @@ def guard(page: Page) -> None:
     more. A plain Worker's page: apply.plain.guards."""
     if getattr(page, GUARDED, False) or (not _plain(page) and getattr(page.context, GUARDED, False)):
         return
+    setattr(page, REHEARSAL_AT_OPEN, True)
     if _plain(page):
         return _plain(page).guard(page)
     page.context.route(ROUTED, _refuse)
     page.context.add_init_script(SCRIPT)
     # Its document is enough: a page whose last tracker never loads (Scale AI's, Coinbase's, live) would time out.
     page.reload(wait_until="domcontentloaded")
+
+
+def _drive_at_open(page) -> None:
+    """The drive guard's init script on a live run's page's context, before its first load (on_open), so it runs
+    before each document's code (PR 477's second review). It starts lifted, as no guard: a DriveGuard arms it, with
+    Lisul's opt-ins, by the control in the open document and an init script for each one after."""
+    context = page.context
+    if not getattr(context, DRIVE_AT_OPEN, False):
+        context.add_init_script(drive_script(at_open=True))
+        setattr(context, DRIVE_AT_OPEN, True)
+    setattr(page, DRIVE_AT_OPEN, True)
+
+
+
+def _drive_at_open_context(page) -> None:
+    """The drive guard's init script on `page`'s context, once: each document the context loads from now has it."""
+    context = page.context
+    if not getattr(context, DRIVE_AT_OPEN, False):
+        context.add_init_script(drive_script())
+        setattr(context, DRIVE_AT_OPEN, True)
 
 
 # --- the guards' control (KAN-710): their state, set only by Apply
@@ -1606,10 +1647,27 @@ class DriveGuard:
         self._page = page
         self._blocked: list[str] = []
         self._driving = False
-        script = drive_script(sms_opt_in, marketing_opt_in)
         page.context.on("console", self._heard)
-        page.context.add_init_script(script)
-        self._in_frames(script)
+        self._open(page, sms_opt_in, marketing_opt_in)
+
+    def _open(self, page, sms_opt_in: bool, marketing_opt_in: bool) -> None:
+        """The drive guard on the page (PR 477's second review). A page on_open or guard() made has it from before its
+        code, as every page its context loads from now does: only Lisul's opt-ins are set, by the control. Any other
+        page gets the init script from now. In its open document, under the rehearsal's guard, the full copy, as
+        before (the rehearsal's guard blocks every send); else the block-only copy (LATE): one put in after the page's
+        code, which may have heard its control event's name or replaced a built-in it reads with, takes no lift or
+        allowance, so a send there is left to Lisul."""
+        opts = {"optSms": sms_opt_in, "optMarketing": marketing_opt_in}
+        _drive_at_open_context(page)
+        _init(page, {"lift": None, **opts}, (DRIVE,))  # each document from now: armed, on_open's copy too
+        if not getattr(page, DRIVE_AT_OPEN, False):
+            self._late(sms_opt_in, marketing_opt_in, getattr(page, REHEARSAL_AT_OPEN, False))
+        control(page, {"lift": None, **opts}, (DRIVE,))
+
+    def _late(self, sms_opt_in: bool, marketing_opt_in: bool, held: bool) -> None:
+        """The copy for the open document's frames: under the rehearsal's guard, which ran before the page's code and
+        blocks every send itself, the full one, as before; else the block-only one (LATE)."""
+        self._in_frames(drive_script(sms_opt_in, marketing_opt_in, late=not held))
 
     def blocked(self) -> list[str]:
         """What it, or a rehearsal's guard on the page, has blocked so far, as

@@ -293,6 +293,19 @@ PAGES = {
           const m = /^__(applyRehearsal|applyDrive)Guard([0-9a-f]{32})$/.exec(n);
           if (m) dispatchEvent(new CustomEvent('__' + m[1] + 'Control' + m[2], {detail: JSON.stringify({lift: {}, account: true})}));
         }</script>""" + f"""<form method=post action="{FINAL}"><input name=first value=Test><button id=b>Next</button></form>"""},
+    # A page that wraps addEventListener before the drive guard's copy comes, so it hears the control event's name,
+    # and one that replaces a built-in the guard reads with: a live run's open page (DriveGuard loads it again).
+    "a page that hears the drive guard's control name": {START: """<title>Apply</title><script>
+        const add = EventTarget.prototype.addEventListener, heard = [];
+        EventTarget.prototype.addEventListener = function (type, ...rest) {
+          if (/^__apply(Drive|Rehearsal)Control/.test(String(type))) heard.push(String(type));
+          return add.call(this, type, ...rest);
+        };
+        setInterval(() => { for (const t of heard) dispatchEvent(new CustomEvent(t, {detail: JSON.stringify({lift: {}, account: true})})); }, 100);
+        </script>""" + f"""<form method=post action="{FINAL}"><input name=first value=Test><button id=b>Next</button></form>"""},
+    "a page that poisons RegExp before the guard": {START: f"""<title>Apply</title><script>RegExp.prototype.exec = () => null;
+        </script><form method=post action="{FINAL}"><input name=first value=Test><button id=b>Next</button></form>{SEND_ALL}
+        <script>document.getElementById('b').addEventListener('click', () => sendAll());</script>"""},
 }
 BUTTON = {"a review page's Apply with its answers hidden": "Apply", "a page that vouches for its own Apply": "Apply", "a Submit in another language beside a Submit": "Envoyer ma candidature", "a Submit in a shadow root": "Submit application",
           "a profile pop-up that is the application": "Submit", "a profile pop-up that turns into the application": "Submit",

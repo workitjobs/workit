@@ -3,7 +3,7 @@
 import pytest
 from test_submit_guard_hostile import FINAL, SAVE, START, _settle, cdp, plain
 
-from apply import claude_fill
+from apply import claude_fill, submit_guard
 
 STEP2 = "/acme/jobs/123/step2"
 ALWAYS = {STEP2: "<title>Two</title><input name=next>"}
@@ -68,6 +68,71 @@ def test_plain_load(name):
 
 # The drive guard put on a page that is already open (DriveGuard._in_frames: frame.evaluate in the page's own world,
 
+
+# after its code, as a live run's Claude fill does): a page that wrapped addEventListener first hears the control
+# event's name, token and all. No install-mark read here.
+HOOK = """<script>
+const add = EventTarget.prototype.addEventListener;
+window.heard = [];
+EventTarget.prototype.addEventListener = function (type, ...rest) {
+  if (/^__applyDriveControl[0-9a-f]{32}$/.test(String(type))) heard.push(String(type));
+  return add.call(this, type, ...rest);
+};
+setInterval(() => {
+  for (const t of heard) dispatchEvent(new CustomEvent(t, {detail: JSON.stringify({lift: {}})}));
+}, 100);
+</script>"""
+
+LIVE = {
+    "drive token heard through a wrapped addEventListener, then fetch": "<title>Apply</title>" + HOOK
+        + f"<script>setTimeout(() => fetch('{FINAL}', {{method: 'POST', body: 'first=Test'}}), 1000);</script>",
+    "drive token heard, then Claude's click on Submit goes through": f"<title>Apply</title>{FORM}" + HOOK,
+    "RegExp exec poisoned before the drive guard came, then fetch": "<title>Apply</title><script>RegExp.prototype.exec = () => null;</script>"
+        + f"<script>setTimeout(() => fetch('{FINAL}', {{method: 'POST', body: 'first=Test'}}).catch(() => {{}}), 1000);</script>",
+    "CONTROL no hook, fetch": "<title>Apply</title>"
+        + f"<script>setTimeout(() => fetch('{FINAL}', {{method: 'POST', body: 'first=Test'}}).catch(() => {{}}), 1000);</script>",
+    "CONTROL no hook, Claude's click on Submit": f"<title>Apply</title>{FORM}",
+}
+
+
+# How the page was opened: by a Worker, which puts the drive guard's init script on before its first load
+# (submit_guard.on_open, browsers.py), or by code that skips that, so DriveGuard puts its block-only copy in after the
+# page's own code. A page that replaced a built-in first defeats any copy put in after it: only the first applies.
+OPENED = {"by a Worker": True, "by other code": False}
+CASES = [(name, opened) for name in LIVE for opened in OPENED if OPENED[opened] or "RegExp" not in name]
+
+
+@pytest.mark.parametrize("name, opened", CASES, ids=[f"{n}, {o}" for n, o in CASES])
+def test_live_run_drive_guard_only(name, opened):
+    """A live run: no rehearsal guard, only Claude fill's DriveGuard on the open page."""
+    from playwright.sync_api import sync_playwright
+    from test_submit_guard_hostile import HOST, Site
+
+    from apply.submit_guard import DriveGuard
+
+    site = Site({START: LIVE[name]} | ALWAYS)
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        context = browser.new_context()
+        context.route(lambda url: True, site.handle)
+        page = context.new_page()
+        if OPENED[opened]:
+            submit_guard.on_open(page)
+        page.goto(HOST + START)
+        drive = DriveGuard(page)
+        drive.arm()
+        _settle(page, 600)
+        if "Claude's click" in name:
+            try:
+                page.locator("#s").click(timeout=2000)  # what Claude's browser_click is: trusted
+            except Exception:
+                pass
+        _settle(page, 1500)
+        print("blocked:", drive.blocked())
+        browser.close()
+    assert site.applications() == []
+
+
 # --- KAN-725's vouched Apply
 
 def test_tal_page_vouches_for_itself_with_the_stolen_token():
@@ -75,3 +140,40 @@ def test_tal_page_vouches_for_itself_with_the_stolen_token():
     steal = STEAL.replace("{lift: {}}", "{start: true}").replace("<script>", "<script>setInterval(() => {", 1).replace("</script>", "}, 50);</script>", 1)
     posts, blocked = _press_tal_apply(page=steal, start=False, rehearsal=True)
     assert posts == [] and blocked
+
+
+# A live run's page opened by code that skips on_open: its drive guard is the block-only copy, put in after the page's
+# code, which takes no lift or allowance from anyone, the page's forged events and Apply's own alike.
+POSTED = "/acme/jobs/123/posted"
+
+
+@pytest.mark.parametrize("apply_lifts", [False, True], ids=["page lifts", "Apply lifts"])
+def test_a_page_opened_without_on_open_gets_a_drive_guard_that_only_blocks(apply_lifts):
+    from playwright.sync_api import sync_playwright
+    from test_submit_guard_hostile import HOST, Site
+
+    from apply.submit_guard import DriveGuard
+
+    site = Site({START: f"""<title>Jobs</title><form id=go method=post action="{POSTED}"><input type=hidden name=a value=1>
+                 </form><script>document.getElementById('go').submit();</script>""",
+                 POSTED: f"<title>Apply</title>{FORM}" + HOOK} | ALWAYS)
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        context = browser.new_context()
+        context.route(lambda url: True, site.handle)
+        page = context.new_page()
+        page.goto(HOST + START)
+        page.wait_for_url("**" + POSTED)
+        drive = DriveGuard(page)
+        drive.arm()
+        if apply_lifts:
+            drive.lift()
+        _settle(page, 600)
+        try:
+            page.locator("#s").click(timeout=2000)
+        except Exception:
+            pass
+        _settle(page, 1000)
+        blocked = drive.blocked()
+        browser.close()
+    assert site.applications() == [] and blocked

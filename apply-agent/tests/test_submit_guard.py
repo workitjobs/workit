@@ -111,6 +111,7 @@ def test_the_final_application_post_never_leaves_a_guarded_page(system):
 def test_without_the_guard_the_same_post_reaches_the_job_system(system):
     server, url, script = FINAL_POST[system]
     with server() as fake:
+        fake.guard_at_open = False  # no guard at all, not even a live run's drive guard
         with fake.open(url) as page:
             _post(page, script)
         assert len(fake.submissions) == 1
@@ -390,6 +391,7 @@ def test_enter_in_a_field_on_jobvites_last_step_sends_nothing_from_a_guarded_pag
 
 def test_without_the_guard_enter_on_jobvites_last_step_sends_the_application():
     with FakeJobviteServer() as server:
+        server.guard_at_open = False  # no guard at all, not even a live run's drive guard
         with server.open(JOBVITE_URL) as page:
             _fill_jobvite(page)
             page.get_by_label("Email*").press("Enter")

@@ -346,6 +346,8 @@ def test_a_lifted_tab_stays_lisuls_on_reload_and_rearm_guards_it_again(page, sit
 
 @live
 def test_the_drive_guard_blocks_claudes_submit_until_lifted_for_its_own_click(page, site):
+    submit_guard.on_open(page)  # a live run's page, as a Worker opens it: the drive guard before the page's code
+    page.goto(f"{site.url}/form")
     drive = DriveGuard(page)
     assert isinstance(drive, guards.PlainDriveGuard)
     page.get_by_role("button", name="Submit application").click()
@@ -357,6 +359,17 @@ def test_the_drive_guard_blocks_claudes_submit_until_lifted_for_its_own_click(pa
     while not site.posts and time.monotonic() < deadline:
         time.sleep(0.1)
     assert site.posts == ["/acme/j/42/apply"]
+
+
+@live
+def test_a_drive_guard_put_in_after_the_pages_code_takes_no_lift(page, site):
+    # A page not opened through on_open: its drive guard came after the page's code, which may have heard the control
+    # event's name, so it only blocks (PR 477's second review).
+    drive = DriveGuard(page)
+    drive.lift()
+    page.get_by_role("button", name="Submit application").click()
+    _settle(page, 1)
+    assert drive.blocked() == ['the "Submit application" click'] and site.posts == []
 
 
 @live
