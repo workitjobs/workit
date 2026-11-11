@@ -4,7 +4,7 @@ Worker runs as code its extension ships, not through eval.
 On a plain Worker, `evaluate(code)` needs eval or user scripts: a page whose CSP forbids eval
 refuses it in Chrome for Testing, where Allow User Scripts can't be turned on. So the page
 functions the held page runs on every turn (Needs you's FIELD, Resume's FIELD_ERROR, the emailed
-code's WORDS, regenerate's button and its field lock and read-back, Ask Claude's field read and undo) are written into the extension as `vendor/fixed.js` by
+code's WORDS, a held page's session look and keep-alive, regenerate's button and its field lock and read-back, Ask Claude's field read and undo) are written into the extension as `vendor/fixed.js` by
 `apply plain prepare`, from the very strings their modules hold. PortPage's `evaluate` and
 `Locator.evaluate` see one of these strings and run its fixed copy (the `fixed.call` op) instead,
 so the modules stay as they are, and one source serves both kinds of Worker.
@@ -26,6 +26,7 @@ def functions() -> dict[str, tuple[str, str, str]]:
         attach,
         captcha,
         email_code,
+        keepalive,
         on_page,
         regenerate,
         send_click,
@@ -56,6 +57,12 @@ def functions() -> dict[str, tuple[str, str, str]]:
         # An upload's consent dialog (KAN-768): read on the page, or for the element a click would reach.
         attach.CONSENT: ("consentDialog", "ISOLATED", attach.CONSENT),
         tools.PICKED: ("pickedOption", "ISOLATED", tools.PICKED),
+        # A held page's session (KAN-776): read for its dialog or end, the stay press's check, and the keep-alive.
+        # ISOLATED: the page's own code can't change what they see, nor see the ping.
+        keepalive.LOOK: ("sessionLook", "ISOLATED", keepalive.LOOK),
+        keepalive.STAY: ("sessionStay", "ISOLATED", keepalive.STAY),
+        keepalive.ACTIVITY: ("sessionActivity", "ISOLATED", keepalive.ACTIVITY),
+        keepalive.PING: ("sessionPing", "ISOLATED", keepalive.PING),
     }
 
 

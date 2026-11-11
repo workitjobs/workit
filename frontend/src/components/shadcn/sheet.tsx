@@ -4,6 +4,7 @@ import * as React from "react";
 import { Dialog as SheetPrimitive } from "@base-ui/react/dialog";
 
 import { cn } from "@/lib/cn";
+import { Tip } from "@/components/ui/tip";
 import { Button } from "@/components/shadcn/button";
 import { XIcon } from "@phosphor-icons/react/ssr";
 
@@ -69,13 +70,17 @@ function SheetContent({
       >
         {children}
         {showCloseButton && (
-          <SheetPrimitive.Close
-            data-slot="sheet-close"
-            render={<Button variant="ghost" className="absolute top-3 right-3" size="icon-sm" />}
-          >
-            <XIcon aria-hidden />
-            <span className="sr-only">Close</span>
-          </SheetPrimitive.Close>
+          // Its name on hover too, as every icon-only control says
+          // (components/ui/tip.tsx, 2026-11-11).
+          <Tip label="Close">
+            <SheetPrimitive.Close
+              data-slot="sheet-close"
+              render={<Button variant="ghost" className="absolute top-3 right-3" size="icon-sm" />}
+            >
+              <XIcon aria-hidden />
+              <span className="sr-only">Close</span>
+            </SheetPrimitive.Close>
+          </Tip>
         )}
       </SheetPrimitive.Popup>
     </SheetPortal>

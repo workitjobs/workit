@@ -1,15 +1,14 @@
 "use client";
 
-import { PlusIcon } from "@/components/icons";
-import { XIcon } from "@phosphor-icons/react/ssr";
+import { PlusIcon, SearchIcon } from "@/components/icons";
+import { PencilLineIcon, ProhibitIcon, XIcon } from "@phosphor-icons/react/ssr";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 
 import { EmptyState } from "@/components/ui/empty-state";
 import { LightningRoundedIcon } from "@/components/custom-icons";
-import { Button } from "@/components/ui/button";
-import { SectionHeading } from "@/components/ui/section-heading";
-import { SectionLink } from "@/components/ui/section-link";
+import { Button, ButtonLink } from "@/components/ui/button";
+import { Notice } from "@/components/ui/notice";
 import { useToast } from "@/components/ui/toast";
 import {
   closeRunTab,
@@ -23,6 +22,8 @@ import { dequeueJob, queueJob, skipJob } from "./actions";
 import type { ActivityItem } from "./activity-list";
 import { AddJobsDialog, type SavedJob } from "./add-jobs-dialog";
 import { openedNote } from "./opened-note";
+import { filterQueue, NO_QUEUE_FILTERS, QueueToolbar, type QueueFilters } from "./queue-filters";
+import { useQueueGroupBy } from "./queue-layout";
 import { canOpen, groupOf, QueueTable, type QueueRow } from "./queue-table";
 import { ResumeDialog } from "./resume-dialog";
 
@@ -66,12 +67,14 @@ import { ResumeDialog } from "./resume-dialog";
  *
  * **Add Jobs** opens the saved jobs to pick and queue (./add-jobs-dialog.tsx).
  *
- * **Write N Questions**, before Add Jobs while any row's written questions
- * wait, is the page's way to Written Answers (./answers/page.tsx), for a
- * student without Claude (KAN-566). A row's "N Questions to Write" goes to
- * its tab, as every status does, so until then no link reached that page.
- * It counts queued rows too, whose status shows no questions: they can be
- * written ahead.
+ * **Notices over the queue**, in the shared amber notice
+ * (components/ui/notice.tsx): written questions waiting, with Write
+ * Answers (`QuestionsNotice`), and, while no Posting Closed heading gathers
+ * them, the closed postings (`ClosedQueueNotice`, the Tracker's words).
+ *
+ * **The toolbar** (./queue-filters.tsx): search, Status, Company and Match
+ * filters, All Filters and Table Settings (Group By), as every page table
+ * has. The filtering is done here, on the rows this page holds.
  */
 export function UpNext({ items, saved }: { items: ActivityItem[]; saved: SavedJob[] }) {
   const router = useRouter();
@@ -81,6 +84,8 @@ export function UpNext({ items, saved }: { items: ActivityItem[]; saved: SavedJo
   const [adding, setAdding] = useState(false);
   const [resumeFor, setResumeFor] = useState<ActivityItem | null>(null);
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
+  const [filters, setFilters] = useState<QueueFilters>(NO_QUEUE_FILTERS);
+  const groupBy = useQueueGroupBy();
   const [pending, start] = useTransition();
   // One action at a time: `pending` lands a render late, and a fast double press sent two requests.
   const busy = useRef(false);
@@ -90,9 +95,12 @@ export function UpNext({ items, saved }: { items: ActivityItem[]; saved: SavedJo
     const tabClosed = !tab && closedTabs.has(item.id);
     return { ...item, tab, tabClosed, group: groupOf(item, tab, tabClosed) };
   });
-  const checked = rows.filter((row) => picked.has(row.id));
+  // What the filter row lets through. A pick counts only while its row
+  // shows, so Remove and Auto Apply never act on a hidden job.
+  const shown = filterQueue(rows, filters);
+  const checked = shown.filter((row) => picked.has(row.id));
+  const closed = rows.filter((row) => row.group === "closed");
   const openable = checked.filter(canOpen);
-  const toWrite = items.reduce((sum, item) => sum + (item.questions ?? 0), 0);
 
   // A tab that closed or sent its application: its stage may have moved, so read the queue again.
   const seen = useRef<ReadonlyMap<string, string>>(new Map());
@@ -178,68 +186,86 @@ export function UpNext({ items, saved }: { items: ActivityItem[]; saved: SavedJo
   }
 
   return (
-    <section aria-labelledby="up-next" className="mt-8">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        {/* The queue in a line beside the heading ("1 in progress · 2
-            queued"). It sat alone above the setup strip, under the page
-            title, until 2026-11-10, where it read as a stray line. */}
-        <div className="flex flex-wrap items-baseline gap-x-3">
-          <SectionHeading id="up-next">Up Next</SectionHeading>
-          {items.length > 0 && (
-            <span className="text-body text-ink-meta">
-              <QueueSummary
-                jobs={items.map((item) => ({ id: item.id, started: item.status === "failed" }))}
-              />
-            </span>
-          )}
-        </div>
-        {checked.length > 0 ? (
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-note text-ink tabular-nums">{checked.length} selected</span>
-            <Button
-              variant="secondary"
-              size="sm"
-              disabled={pending}
-              onClick={() => remove(checked)}
-            >
-              <XIcon aria-hidden className="size-4" />
-              Remove
-            </Button>
-            <Button
-              size="sm"
-              disabled={openable.length === 0 || pending}
-              onClick={() => apply(openable)}
-            >
-              <LightningRoundedIcon aria-hidden />
-              Auto Apply
-            </Button>
-          </div>
-        ) : (
-          <div className="flex flex-wrap items-center gap-4">
-            {toWrite > 0 && (
-              <SectionLink href="/auto-apply/answers">
-                Write {toWrite} {toWrite === 1 ? "Question" : "Questions"}
-              </SectionLink>
-            )}
-            <Button variant="secondary" size="sm" onClick={() => setAdding(true)}>
+    // No heading (2026-11-11): the Tracker and Documents open on their
+    // toolbar, and "Up Next" over a page that holds only the queue said
+    // nothing. The name stays for a screen reader.
+    <section aria-label="Up Next" className="mt-6">
+      <QueueToolbar
+        rows={rows}
+        filters={filters}
+        onChange={setFilters}
+        actions={
+          checked.length > 0 ? (
+            <>
+              <span className="text-note text-ink tabular-nums">{checked.length} selected</span>
+              {/* Text: it acts on the picked rows (frontend/docs/design.md,
+                  which button look). Auto Apply is the view's one main
+                  action while rows are picked, so it alone is filled. */}
+              <Button variant="ghost" size="sm" disabled={pending} onClick={() => remove(checked)}>
+                <XIcon aria-hidden className="size-4" />
+                Remove
+              </Button>
+              <Button
+                size="sm"
+                disabled={openable.length === 0 || pending}
+                onClick={() => apply(openable)}
+              >
+                <LightningRoundedIcon aria-hidden />
+                Auto Apply
+              </Button>
+            </>
+          ) : (
+            // Filled: the page's main action, as Generate Resume is on
+            // Documents. It was bordered beside the old heading.
+            <Button size="sm" onClick={() => setAdding(true)}>
               <PlusIcon className="size-4" />
               Add Jobs
             </Button>
-          </div>
-        )}
-      </div>
+          )
+        }
+      />
 
-      {rows.length > 0 ? (
+      {/* The notices under the filters and over the table, where the
+          Tracker draws its closed postings' notice. */}
+      <QuestionsNotice items={items} />
+      {/* The closed postings, as the Tracker's notice says its own, while
+          no Posting Closed heading gathers them (Group By other than
+          Status). */}
+      {groupBy !== "status" && closed.length > 0 && (
+        <ClosedQueueNotice
+          count={closed.length}
+          showing={filters.groups.length === 1 && filters.groups[0] === "closed"}
+          onShow={(on) => setFilters({ ...NO_QUEUE_FILTERS, groups: on ? ["closed"] : [] })}
+          onRemoveAll={() => remove(closed)}
+        />
+      )}
+
+      {rows.length > 0 && shown.length === 0 ? (
+        <EmptyState
+          Icon={SearchIcon}
+          title="No Matching Jobs"
+          className="mt-4"
+          action={
+            <Button variant="secondary" size="sm" onClick={() => setFilters(NO_QUEUE_FILTERS)}>
+              Clear Filters
+            </Button>
+          }
+        >
+          Nothing in Up Next matches these filters.
+        </EmptyState>
+      ) : rows.length > 0 ? (
         <QueueTable
-          rows={rows}
+          rows={shown}
+          groupBy={groupBy}
           picked={picked}
           onPick={(ids) => setPicked(new Set(ids))}
           onAction={act}
           onResume={setResumeFor}
           onRemove={(row) => remove([row])}
+          onRemoveAll={remove}
         />
       ) : (
-        <EmptyState Icon={LightningRoundedIcon} title="Nothing Queued Yet" className="mt-3">
+        <EmptyState Icon={LightningRoundedIcon} title="Nothing Queued Yet" className="mt-4">
           Add Jobs from your saved ones, or click Auto Apply on any job.
         </EmptyState>
       )}
@@ -261,20 +287,72 @@ export function UpNext({ items, saved }: { items: ActivityItem[]; saved: SavedJo
 }
 
 /**
- * Up Next's line beside its heading: how many jobs are In Progress
- * and how many Queued, by Up Next's own rule (`groupOf`), so it reads the
- * live tabs too. Each part only when it counts something: "0 queued" read
- * as a fault.
+ * Up Next's closed postings, in the shared notice (components/ui/notice.tsx)
+ * with the Tracker's words and actions (applications/closed-saved.tsx,
+ * `ClosedNotice`): Show Them (the Status filter set to Posting Closed; Show
+ * All clears it) and Remove All, which has Undo, as Remove does.
  */
-function QueueSummary({ jobs }: { jobs: { id: string; started: boolean }[] }) {
-  const tabs = useBrowserTabs();
-  const closedTabs = useClosedTabs();
-  const started = jobs.filter(
-    (job) => job.started || tabs.has(job.id) || closedTabs.has(job.id),
-  ).length;
-  const queued = jobs.length - started;
-  return [
-    ...(started ? [`${started} in progress`] : []),
-    ...(queued ? [`${queued} queued`] : []),
-  ].join(" · ");
+function ClosedQueueNotice({
+  count,
+  showing,
+  onShow,
+  onRemoveAll,
+}: {
+  count: number;
+  showing: boolean;
+  onShow: (on: boolean) => void;
+  onRemoveAll: () => void;
+}) {
+  const jobs = count === 1 ? "job" : "jobs";
+  return (
+    <Notice
+      Icon={ProhibitIcon}
+      className="mt-4"
+      actions={
+        <>
+          <Button variant="section" onClick={() => onShow(!showing)}>
+            {showing ? "Show All" : "Show Them"}
+          </Button>
+          <Button variant="section" onClick={onRemoveAll} className="hover:text-danger">
+            Remove All
+          </Button>
+        </>
+      }
+    >
+      {showing
+        ? `Showing the ${count} queued ${jobs} whose posting closed.`
+        : count === 1
+          ? "The posting closed for 1 queued job. It can't go out."
+          : `Postings closed for ${count} queued jobs. They can't go out.`}
+    </Notice>
+  );
+}
+
+/**
+ * Written questions waiting, as a notice over the queue, only while any
+ * job has them (2026-11-10): how many, for how many jobs, and Write
+ * Answers (Written Answers, ../answers). It is work a job asks for, not
+ * setup, so it left the setup row (./setup-strip.tsx) after a day there;
+ * as "Write 5 Questions →" in Up Next's heading before that, it read as a
+ * stray link. Each job's own count stays in its Status cell.
+ */
+function QuestionsNotice({ items }: { items: ActivityItem[] }) {
+  const waiting = items.filter((item) => (item.questions ?? 0) > 0 && !item.closed);
+  const total = waiting.reduce((sum, item) => sum + (item.questions ?? 0), 0);
+  if (total === 0) return null;
+  return (
+    <Notice
+      Icon={PencilLineIcon}
+      className="mt-4"
+      actions={
+        <ButtonLink href="/auto-apply/answers" variant="secondary" size="sm">
+          Write Answers
+        </ButtonLink>
+      }
+    >
+      {total} {total === 1 ? "question" : "questions"} to write for {waiting.length}{" "}
+      {waiting.length === 1 ? "job" : "jobs"} before {waiting.length === 1 ? "it goes" : "they go"}{" "}
+      out.
+    </Notice>
+  );
 }

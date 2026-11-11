@@ -29,6 +29,21 @@ class BuiltResumeCreate(BaseModel):
     allow_duplicate: bool = False
 
 
+class BuiltResumeCopy(BaseModel):
+    """POST body for Start From a Resume You Have (2026-11-11): exactly one
+    source, a built resume to copy or an upload whose own entries the new
+    resume shows (`services/built_resumes.copy_resume`, `from_upload`)."""
+
+    built_resume_id: UUID | None = None
+    uploaded_resume_id: UUID | None = None
+
+    @model_validator(mode="after")
+    def one_source(self) -> "BuiltResumeCopy":
+        if (self.built_resume_id is None) == (self.uploaded_resume_id is None):
+            raise ValueError("Name one source: built_resume_id or uploaded_resume_id")
+        return self
+
+
 class BuiltResumeRename(BaseModel):
     """PATCH body: the resume's new name (KAN-258)."""
 

@@ -132,6 +132,10 @@ _Avoid_: ban, captcha, stealth
 The action that continues a paused Rehearsal on its open page. A Rehearsal pauses when its fill stops mid-form for Lisul, for example on a step that does not go on. He fixes the page, then presses Resume on its card or Needs you item. Apply reads the page as it is, keeps his fixes and fills the remaining steps. It never starts over, never submits and never asks for a new code. When the tab is closed, the button says why it cannot continue. A filling Rehearsal also shows Resume when Apply waits on Claude, the page shows a field error, or the fill makes no progress for 45 seconds. There, Resume stops the wait and continues from the page as he left it.
 _Avoid_: retry, restart, continue
 
+**Session keep-alive**:
+What Apply does to keep a job site's session open while a form is held for the applicant. It acts on every job site, and its site table adds what is known of each system. It sends a request for the page's own address and a mouse-move event to the page. When the site shows a "session about to expire" dialog, Apply presses only that dialog's stay-signed-in button, with the guards on. The applicant's Submit then stays held until they press Dismiss on the page. It never saves, never sends the Application and never changes a field. When a session ends, the tile and the phone push say to press Fill again.
+_Avoid_: heartbeat, refresh, keep awake
+
 **Worker**:
 One process with its own browser that carries one Application at a time: it runs the Filler for the Posting's job system and calls Claude only for answers no stored fact covers. Several run at once.
 _Avoid_: bot, agent, runner

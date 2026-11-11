@@ -1,42 +1,74 @@
 "use client";
 
+import { CheckIcon, NotepadIcon } from "@phosphor-icons/react/ssr";
 import { useEffect, useState } from "react";
 
 import { ChromeIcon } from "@/components/icons";
-import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { extensionState } from "@/lib/autofill-extension";
-import { cn } from "@/lib/cn";
-
-/** Where the student adds the extension (KAN-378): unset until its Chrome Web Store listing exists. */
-const INSTALL_URL = process.env.NEXT_PUBLIC_EXTENSION_INSTALL_URL;
+import { OptionRow } from "@/components/ui/option-row";
+import { EXTENSION_INSTALL_URL, extensionState } from "@/lib/autofill-extension";
 
 /**
- * Auto Apply's setup banner (KAN-424): shown only while the Chrome
- * extension is missing, the one thing Auto Apply can't run without. The
- * extension is asked itself (`ping`) on load and when the student comes
- * back to the tab, since an install happens elsewhere. Before it answers it
- * counts as installed, so a student who has it never sees the banner flash
- * in.
+ * Auto Apply's setup, in one row at the top of the page (2026-11-10): the
+ * Chrome extension and Application Info, what every application needs,
+ * each with where it stands ("Added") and, where there is something to do,
+ * a link. They were a card on top that showed only while the extension was
+ * missing and a large Application Info card at the foot. Written Answers
+ * sat here for a day and left: it is not setup but work a job asks for, so
+ * it shows as a notice over the queue while questions wait (./up-next.tsx,
+ * `QuestionsNotice`).
  *
- * ONLY WHAT IS REQUIRED (asked for 2026-10-29). It was "Set Up Auto Apply,
- * 1 of 3 done" with a Configure dialog, counting a default resume and the
- * Claude MCP as steps too, and students read all three as required. Both
- * are optional, so each now shows where it helps instead: a row with no
- * resume says No Resume and its Resume cell picks one, and while
- * questions wait Up Next's Write N Questions links to Written Answers,
- * which offers Connect Claude while their Claude isn't connected
- * (./write-with-claude.tsx).
+ * NO COUNT OF STEPS. It was "Set Up Auto Apply, 1 of 3 done" with a
+ * Configure dialog until 2026-10-29, and students read all three as
+ * required. Only the extension is: the other two say what they hold, not
+ * that they are undone.
  *
- * IT OPENS, IT DOES NOT POP IN (2026-11-10). The answer comes after the
- * page has drawn, so for a student without the extension the banner
- * pushed Up Next down in one jump. Its row now grows from nothing
- * (`grid-rows` 0fr to 1fr, 300ms), so the table glides down to make room;
- * with reduced motion it simply appears. The gap under it is its own
- * (`mb-8`, inside the row, so it closes with it), and the page drops Up
- * Next's top margin after it (../auto-apply-panel.tsx).
+ * THE EXTENSION is asked itself (`ping`) on load and when the student comes
+ * back to the tab, since an install happens elsewhere. Until it answers its
+ * line says "Checking…". Missing, "Add to Chrome" opens its Chrome Web Store
+ * page (`EXTENSION_INSTALL_URL`); added, the cell is not a link.
  */
-export function SetupStrip() {
+export function SetupRow() {
+  const installed = useExtensionInstalled();
+  return (
+    <Card
+      as="section"
+      padding="none"
+      aria-label="Setup"
+      className="divide-border-subtle grid divide-y overflow-hidden @3xl/main:grid-cols-2 @3xl/main:divide-x @3xl/main:divide-y-0"
+    >
+      <OptionRow
+        icon={<ChromeIcon className="size-5" />}
+        title="Chrome Extension"
+        href={installed === false ? EXTENSION_INSTALL_URL : undefined}
+        external
+        line={
+          installed === null ? (
+            <span className="text-ink-meta">Checking…</span>
+          ) : installed ? (
+            <span className="text-positive-ink inline-flex items-center gap-1">
+              <CheckIcon aria-hidden weight="bold" className="size-3.5" />
+              Added
+            </span>
+          ) : (
+            <span className="text-brand font-medium">Add to Chrome</span>
+          )
+        }
+      />
+      <OptionRow
+        icon={<NotepadIcon aria-hidden className="text-ink-meta size-5" />}
+        title="Application Info"
+        href="/auto-apply/info"
+        line={
+          <span className="text-ink-meta">Work authorization, screening answers, transcript</span>
+        }
+      />
+    </Card>
+  );
+}
+
+/** Whether the extension is in this Chrome: null until it answers. */
+function useExtensionInstalled() {
   const [installed, setInstalled] = useState<boolean | null>(null);
   useEffect(() => {
     let stopped = false;
@@ -51,38 +83,5 @@ export function SetupStrip() {
       window.removeEventListener("focus", ask);
     };
   }, []);
-
-  const missing = installed === false;
-
-  return (
-    <div
-      data-setup-strip
-      aria-hidden={!missing}
-      inert={!missing}
-      className={cn(
-        "ease-glide grid transition-[grid-template-rows] duration-300 motion-reduce:transition-none",
-        missing ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
-      )}
-    >
-      <div className="min-h-0 overflow-hidden">
-        <Card className="mb-8 flex flex-col gap-4 @2xl/main:flex-row @2xl/main:items-center">
-          <span className="border-border-subtle bg-panel rounded-control flex size-10 shrink-0 items-center justify-center border">
-            <ChromeIcon className="size-5" />
-          </span>
-          <div className="min-w-0 flex-1">
-            <h2 className="text-label text-ink font-semibold">Add the Chrome Extension</h2>
-            <p className="text-note text-ink-meta mt-0.5">
-              Auto Apply fills each application in your own Chrome, and you press Submit.
-              {!INSTALL_URL && " Its install link is coming soon."}
-            </p>
-          </div>
-          {INSTALL_URL && (
-            <ButtonLink href={INSTALL_URL} target="_blank" rel="noreferrer" size="sm">
-              Install
-            </ButtonLink>
-          )}
-        </Card>
-      </div>
-    </div>
-  );
+  return installed;
 }

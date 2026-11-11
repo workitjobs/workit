@@ -1,5 +1,6 @@
 "use client";
 
+import { PenNibIcon } from "@phosphor-icons/react/ssr";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 
 import { PlusIcon, TrashIcon } from "@/components/icons";
@@ -7,6 +8,7 @@ import { Skeleton } from "@/components/shadcn/skeleton";
 import { TextAreaField } from "@/components/text-area-field";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { useToast } from "@/components/ui/toast";
 import {
@@ -124,6 +126,35 @@ export function WritingSamples() {
   }
 
   const room = samples !== null && samples.length < MAX_SAMPLES;
+
+  // None yet, and none being written: the app's empty state with a bordered
+  // Add (2026-11-11), in place of the card's "No writing samples yet." line.
+  if (samples && samples.length === 0 && !adding) {
+    return (
+      <>
+        <EmptyState
+          Icon={PenNibIcon}
+          title="No Writing Samples Yet"
+          action={
+            <Button variant="secondary" size="sm" onClick={startAdding}>
+              <PlusIcon className="size-4" />
+              Add Writing Sample
+            </Button>
+          }
+        >
+          Up to three pieces of your own writing, such as a class essay or a cover letter. Your
+          Claude reads them so the answers it writes sound like you. Optional, and only your Claude
+          reads them.
+        </EmptyState>
+        {error && (
+          <p role="alert" className="text-note text-danger">
+            {error}
+          </p>
+        )}
+      </>
+    );
+  }
+
   return (
     <Card
       as="section"
@@ -135,9 +166,8 @@ export function WritingSamples() {
       <div className="flex items-baseline justify-between gap-4">
         <SectionHeading id="writing-samples-heading">Writing Samples</SectionHeading>
         {room && !adding && (
-          <SectionAction aria-label="Add Writing Sample" onClick={startAdding}>
+          <SectionAction label="Add Writing Sample" onClick={startAdding} tooltip="Add">
             <PlusIcon />
-            Add
           </SectionAction>
         )}
       </div>
@@ -171,18 +201,15 @@ export function WritingSamples() {
                 {s.text}
               </p>
               <SectionAction
-                aria-label={`Remove Writing Sample ${n + 1}`}
+                label={`Remove Writing Sample ${n + 1}`}
                 onClick={() => remove(s)}
+                tooltip="Remove"
               >
                 <TrashIcon />
-                Remove
               </SectionAction>
             </li>
           ))}
         </ul>
-      )}
-      {samples && samples.length === 0 && !adding && (
-        <p className="text-body text-ink-meta mt-4">No writing samples yet.</p>
       )}
 
       {adding && (

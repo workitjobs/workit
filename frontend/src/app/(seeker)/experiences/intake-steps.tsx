@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 
 import { sectionOf } from "./sections";
+import { Tip } from "@/components/ui/tip";
 
 /**
  * Intake's step bar (KAN-214), in the order intake leads a student through
@@ -193,15 +194,17 @@ export function StepBar({
     <div className="flex flex-col gap-1">
       {/* Back and Skip are 36px; up 2px, they centre on the 32px chips. */}
       <div className="flex items-start gap-2">
-        <button
-          type="button"
-          aria-label={previous ? `Back to ${sectionOf(previous).label}` : "Back"}
-          disabled={!previous || busy}
-          onClick={() => previous && onJump(previous)}
-          className="text-brand hover:bg-brand-tint disabled:text-brand-pale focus-visible:ring-brand-ring -mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-full transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:hover:bg-transparent"
-        >
-          <CaretLeftIcon aria-hidden className="size-5" weight="bold" />
-        </button>
+        <Tip label={previous ? `Back to ${sectionOf(previous).label}` : "Back"}>
+          <button
+            type="button"
+            aria-label={previous ? `Back to ${sectionOf(previous).label}` : "Back"}
+            disabled={!previous || busy}
+            onClick={() => previous && onJump(previous)}
+            className="text-brand hover:bg-brand-tint disabled:text-brand-pale focus-visible:ring-brand-ring -mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-full transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:hover:bg-transparent"
+          >
+            <CaretLeftIcon aria-hidden className="size-5" weight="bold" />
+          </button>
+        </Tip>
 
         <div className="min-w-0 flex-1">{chips}</div>
 
