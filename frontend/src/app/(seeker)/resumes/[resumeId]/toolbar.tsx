@@ -11,10 +11,9 @@ import {
   EyeSlashIcon,
   IdentificationCardIcon,
   LightbulbIcon,
-  ListDashesIcon,
   PencilSimpleIcon,
   ScissorsIcon,
-  SlidersHorizontalIcon,
+  SidebarSimpleIcon,
   StackIcon,
   TextBIcon,
   TextItalicIcon,
@@ -55,15 +54,7 @@ import { cn } from "@/lib/cn";
 
 import { FOLD, FoldButton } from "./bar-fold";
 import { typed, type Line } from "./model";
-import {
-  degreeLeads,
-  ON,
-  PanelButton,
-  SizeStepper,
-  TEXT_ROLES,
-  textRoleOf,
-  type TextRole,
-} from "./page-format";
+import { degreeLeads, ON, SizeStepper, TEXT_ROLES, textRoleOf, type TextRole } from "./page-format";
 import { SLIM_BAR } from "./slim-bar";
 import { unmarked } from "./text-marks";
 import { Zoom, ZoomSubmenu } from "./zoom";
@@ -99,13 +90,17 @@ export type FormatTools = {
   page: PageSettings;
   disabled: boolean;
   onChange: (next: PageSettings) => void;
-  formatOpen: boolean;
-  sectionsOpen: boolean;
-  onToggle: (panel: "format" | "sections") => void;
+  /** Whether the side panel is open, and its button (KAN-586): the panel
+   *  holds Sections and Format as tabs, so neither has a button of its own. */
+  panelOpen: boolean;
+  onPanel: () => void;
 };
 
+/** The side panel's tabs (KAN-586). */
+export type PanelTab = "sections" | "format";
+
 /** What sits beside the page on Tailor's review. */
-export type Side = "suggestions" | "original" | "format" | "sections" | "cut" | null;
+export type Side = "suggestions" | "original" | PanelTab | "cut" | null;
 
 /** The title row's review tools: the changes left, and which column shows
  *  beside the page. */
@@ -606,47 +601,8 @@ export function Bar({
         </>
       )}
       <div className="ml-auto flex shrink-0 items-center gap-2">
-        {/* Until the first render lands, the panel buttons and the zoom
-            are bars, not their names in grey (KAN-561). */}
-        {!rendered ? (
-          <span aria-hidden="true" className={cn("flex items-center gap-2", FOLD.skeletonAway)}>
-            <Skeleton className="h-7 w-24" />
-            <Skeleton className="h-7 w-28" />
-          </span>
-        ) : (
-          <>
-            <span
-              data-fold="sections"
-              data-away-at={steps?.panelsAt ?? FOLD.idle.panelsAt}
-              data-word-at={steps?.panelWordsAt ?? FOLD.idle.sectionsWordAt}
-              className={cn("flex shrink-0", FOLD.away)}
-            >
-              <PanelButton
-                label="Sections"
-                Icon={ListDashesIcon}
-                fold={FOLD.word}
-                open={format.sectionsOpen}
-                disabled={format.disabled}
-                onToggle={() => format.onToggle("sections")}
-              />
-            </span>
-            <span
-              data-fold="format"
-              data-away-at={steps?.panelsAt ?? FOLD.idle.panelsAt}
-              data-word-at={steps?.panelWordsAt ?? FOLD.idle.formatWordAt}
-              className={cn("flex shrink-0", FOLD.away)}
-            >
-              <PanelButton
-                label="Format Options"
-                Icon={SlidersHorizontalIcon}
-                fold={FOLD.word}
-                open={format.formatOpen}
-                disabled={format.disabled}
-                onToggle={() => format.onToggle("format")}
-              />
-            </span>
-          </>
-        )}
+        {/* Until the first render lands, the zoom is a bar, not its
+            numbers in grey (KAN-561). */}
         <span
           data-fold="zoom"
           data-away-at={rendered ? (steps?.zoomAt ?? FOLD.idle.zoomAt) : undefined}
@@ -659,11 +615,32 @@ export function Bar({
           <MoreMenu
             bar={bar}
             zoom={zoom}
-            format={format}
             experiences={open ? null : experiences}
             tools={open?.tools ?? []}
           />
         )}
+        {/* The side panel's one button (KAN-586), always at the row's end,
+            above where the panel opens: never folded away, since it is the
+            only way back to a closed panel */}
+        <Divider />
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                variant="ghost"
+                size="icon-lg"
+                aria-label={format.panelOpen ? "Hide Panel" : "Show Panel"}
+                aria-pressed={format.panelOpen}
+                disabled={format.disabled}
+                className="aria-pressed:bg-brand-tint aria-pressed:text-brand shrink-0"
+                onClick={format.onPanel}
+              />
+            }
+          >
+            <SidebarSimpleIcon aria-hidden className="-scale-x-100" />
+          </TooltipTrigger>
+          <TooltipContent>{format.panelOpen ? "Hide Panel" : "Show Panel"}</TooltipContent>
+        </Tooltip>
       </div>
     </div>
   );
@@ -910,13 +887,11 @@ export function HistoryButtons({ tools }: { tools: HistoryTools }) {
 function MoreMenu({
   bar,
   zoom,
-  format,
   experiences,
   tools,
 }: {
   bar: RefObject<HTMLDivElement | null>;
   zoom: ZoomTools;
-  format: FormatTools;
   experiences: ExperiencesTools | null;
   tools: LineTool[];
 }) {
@@ -969,24 +944,6 @@ function MoreMenu({
               onCheckedChange={experiences.cut.onToggle}
             >
               <ScissorsIcon aria-hidden /> Cut From Resume
-            </DropdownMenuCheckboxItem>
-          )}
-          {away.has("sections") && (
-            <DropdownMenuCheckboxItem
-              checked={format.sectionsOpen}
-              disabled={format.disabled}
-              onCheckedChange={() => format.onToggle("sections")}
-            >
-              <ListDashesIcon aria-hidden /> Sections
-            </DropdownMenuCheckboxItem>
-          )}
-          {away.has("format") && (
-            <DropdownMenuCheckboxItem
-              checked={format.formatOpen}
-              disabled={format.disabled}
-              onCheckedChange={() => format.onToggle("format")}
-            >
-              <SlidersHorizontalIcon aria-hidden /> Format Options
             </DropdownMenuCheckboxItem>
           )}
           {away.has("zoom") && <ZoomSubmenu zoom={zoom.zoom} onZoom={zoom.onZoom} />}

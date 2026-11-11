@@ -3743,13 +3743,11 @@ student who opened a resume from Experiences landed on another view.
   the load of reading it): opening one closes the other, and the Header
   opening from the page's header line closes the open section. It replaced the bar's up and down buttons,
   which moved one line one step and could not move a section. A phone keeps
-  those buttons, since a drag there fights the scroll. The bar's Sections
-  and Format Options (`PanelButton`) fold to glyphs with a tooltip, shown
-  only while the word is hidden, as the bar narrows, and then move into More
-  (`[resumeId]/bar-fold.tsx`, `frontend/CLAUDE.md`: one row, never two).
-  They lost the words below `@5xl` until KAN-574, named only by a `title`,
-  which touch cannot read, and below `@3xl/main` until the bar folded by
-  its own width.
+  those buttons, since a drag there fights the scroll. **It is the Sections
+  tab of the editor's one side panel** (KAN-586), beside the Format tab, with
+  the toolbar's panel button at the bar's end to open and close it
+  (`frontend/CLAUDE.md`, the bar). Sections and Format Options were two
+  toolbar buttons that folded to glyphs and then into More until then.
 - **The toolbar holds what acts on the line clicked; Format Options holds what
   acts on the whole resume** (`page-format.tsx`, KAN-435). With a line open the
   bar shows Undo, Redo, zoom, **that line's kind of text with its size** (Your

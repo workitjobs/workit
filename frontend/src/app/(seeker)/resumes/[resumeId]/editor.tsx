@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  CloudSlashIcon,
-  ListDashesIcon,
-  ScissorsIcon,
-  SlidersHorizontalIcon,
-  StackIcon,
-} from "@phosphor-icons/react/ssr";
+import { CloudSlashIcon, ScissorsIcon, StackIcon } from "@phosphor-icons/react/ssr";
 import localFont from "next/font/local";
 import {
   Suspense,
@@ -23,12 +17,13 @@ import {
 
 import { CloseIcon } from "@/components/icons";
 import { ASK_SCOUT_LIVE } from "@/components/scout/scout-buttons";
-import { setScoutOpen, useScout } from "@/components/scout/scout-store";
+import { closeScout, setScoutOpen, useScout } from "@/components/scout/scout-store";
 import { ScoutTakeover } from "@/components/scout/scout-takeover";
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { buttonClasses } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { IconButton } from "@/components/ui/icon-button";
+import { TabButtons } from "@/components/ui/tabs";
 import {
   addBullet,
   addSkill,
@@ -116,6 +111,7 @@ import {
   type HistoryTools,
   type LineHandlers,
   type MoveTools,
+  type PanelTab,
   type Side,
 } from "./toolbar";
 import { readMarked, runs, showMarked, unmarked } from "./text-marks";
@@ -194,21 +190,42 @@ const EXPERIENCES_MARK = (
   </span>
 );
 
-/** The panel's marks for Sections and Format Options (KAN-586): the
- *  toolbar button's glyph, as Experiences', never Scout's sparkle, which
- *  marks AI alone (`docs/design.md`, Brand and icons). */
-const SECTIONS_MARK = (
-  <span className="bg-brand-tint text-brand rounded-control flex size-8 shrink-0 items-center justify-center">
-    {/* Regular, as on its toolbar button: the duotone fills a block behind
-        the lines that reads as a second shape over them */}
-    <ListDashesIcon aria-hidden className="size-4.5" />
-  </span>
-);
-const FORMAT_MARK = (
-  <span className="bg-brand-tint text-brand rounded-control flex size-8 shrink-0 items-center justify-center">
-    <SlidersHorizontalIcon aria-hidden className="size-4.5" weight="duotone" />
-  </span>
-);
+/** The side panel's top (KAN-586): its tabs, Sections and Format, on a
+ *  rule, and its close. Its own header: the panel draws none (`bare`), so the
+ *  tabs are its title, not a heading over a heading. */
+function PanelTabs({
+  tab,
+  onTab,
+  onClose,
+}: {
+  tab: PanelTab;
+  onTab: (tab: PanelTab) => void;
+  onClose: () => void;
+}) {
+  return (
+    <div className="flex items-end gap-2">
+      <TabButtons
+        label="Side Panel"
+        ruled
+        className="flex-1"
+        options={[
+          { value: "sections", label: "Sections" },
+          { value: "format", label: "Format" },
+        ]}
+        value={tab}
+        onChange={onTab}
+      />
+      <IconButton
+        label="Close Panel"
+        tooltip="Close"
+        className="hover:bg-hover mb-1 size-8 rounded-full"
+        onClick={onClose}
+      >
+        <CloseIcon className="size-4" />
+      </IconButton>
+    </div>
+  );
+}
 
 // Letter is 612 pt wide; field type is set in cqw of the page so it matches
 // the PDF's at any width.
@@ -668,13 +685,18 @@ export function Editor({
   // is the way back, and a switch only took up the panel's top. Closed, it
   // goes back to the assistant, so the top bar's Scout always opens Scout
   const scoutOpen = useScout().open;
-  const [panelView, setPanelView] = useState<
-    "scout" | "experiences" | "cut" | "format" | "sections"
-  >("scout");
+  // The side panel's tabs (KAN-586): Sections and Format, one panel with a
+  // tab each, opened and closed by the toolbar's one panel button. They were
+  // two toolbar buttons, which read as tools when they are views. The tab
+  // shown last is the one the button opens again
+  const [tab, setTab] = useState<PanelTab>("sections");
+  const [panelView, setPanelView] = useState<"scout" | "experiences" | "cut" | PanelTab>(
+    "sections",
+  );
   const [panelWasOpen, setPanelWasOpen] = useState(scoutOpen);
   if (panelWasOpen !== scoutOpen) {
     setPanelWasOpen(scoutOpen);
-    if (!scoutOpen) setPanelView("scout");
+    if (!scoutOpen) setPanelView(tab);
   }
   const showScout = useCallback(() => setPanelView("scout"), []);
   const showPanel = (view: "experiences" | "cut" | "format" | "sections") => {
@@ -687,12 +709,27 @@ export function Editor({
   const [showMarks, setShowMarks] = useState(true);
   // The line whose popup the student closed, so it stays closed on that line
   const [closedPopup, setClosedPopup] = useState<string | null>(null);
-  /** Format Options or Sections: beside the page on Tailor's review, in
-   *  Scout's panel on the editor's own page, as the Experiences picker is. */
-  const togglePanel = (panel: "format" | "sections") => {
-    if (suggestions) return showSide(side === panel ? null : panel);
-    showPanel(panel);
+  /** The toolbar's panel button: the side panel on its last tab, or closed.
+   *  Beside the page on Tailor's review, in Scout's panel on the editor's own
+   *  page, as the Experiences picker is. */
+  const tabbed = (view: unknown): view is PanelTab => view === "sections" || view === "format";
+  const panelOpen = suggestions ? tabbed(side) : scoutOpen;
+  const togglePanel = () => {
+    if (suggestions) return showSide(tabbed(side) ? null : tab);
+    if (scoutOpen) return setScoutOpen(false);
+    setPanelView(tab);
+    setScoutOpen(true);
   };
+  const showTab = (next: PanelTab) => {
+    setTab(next);
+    if (suggestions) showSide(next);
+    else setPanelView(next);
+  };
+  // Open when the editor opens, where the panel docks beside the page
+  // (xl up): below, it floats over the page, so it waits for the button
+  useEffect(() => {
+    if (!suggestions && window.matchMedia("(min-width: 80rem)").matches) setScoutOpen(true);
+  }, [suggestions]);
   const showExperiences = () => {
     showPanel("experiences");
   };
@@ -2144,8 +2181,7 @@ export function Editor({
   // the phone opens it as a sheet from its own button
   const shownPanel = side === "suggestions" && panel;
   const shownOriginal = side === "original" && original;
-  const shownFormat = side === "format";
-  const shownSections = side === "sections";
+  const shownTabs = tabbed(side);
   const shownCut = side === "cut";
   const cutOpen = suggestions ? shownCut : scoutOpen && panelView === "cut";
   const headerPanel = (
@@ -2458,9 +2494,8 @@ export function Editor({
         page,
         disabled: !rendered,
         onChange: applyPage,
-        formatOpen: suggestions ? shownFormat : scoutOpen && panelView === "format",
-        sectionsOpen: suggestions ? shownSections : scoutOpen && panelView === "sections",
-        onToggle: togglePanel,
+        panelOpen,
+        onPanel: togglePanel,
       }}
     />
   );
@@ -2478,8 +2513,7 @@ export function Editor({
         "grid items-start gap-5",
         // The column docks beside the page from @6xl only; below it floats
         // over the page (`floating`)
-        (shownPanel || shownFormat || shownSections || shownCut) &&
-          "@6xl/main:grid-cols-[minmax(0,1fr)_24rem]",
+        (shownPanel || shownTabs || shownCut) && "@6xl/main:grid-cols-[minmax(0,1fr)_24rem]",
         // The two resumes at one width, so a line reads against its twin
         shownOriginal && "@4xl/main:grid-cols-2",
       )}
@@ -2566,16 +2600,13 @@ export function Editor({
       {rendered && !suggestions && (ASK_SCOUT_LIVE || panelView !== "scout") && (
         <ScoutTakeover
           float
+          bare={tabbed(panelView)}
           mark={
             panelView === "experiences"
               ? EXPERIENCES_MARK
               : panelView === "cut"
                 ? CUT_MARK
-                : panelView === "sections"
-                  ? SECTIONS_MARK
-                  : panelView === "format"
-                    ? FORMAT_MARK
-                    : undefined
+                : undefined
           }
           away={panelView !== "scout" ? showScout : undefined}
           title={
@@ -2615,15 +2646,19 @@ export function Editor({
                 <CutPicker bank={bank} choices={choices} cuts={cuts} onApply={apply} />
               </div>
             )}
-            {panelView === "sections" && (
-              <div className="relative min-h-0 flex-1 overflow-y-auto overscroll-none px-4 pt-2 pb-4">
-                {sectionsOutline}
-              </div>
-            )}
-            {panelView === "format" && (
-              <div className="relative flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-none px-4 pt-2 pb-4">
-                <FormatOptions page={page} onChange={applyPage} />
-              </div>
+            {tabbed(panelView) && (
+              <>
+                <div className="shrink-0 px-4 pt-3">
+                  <PanelTabs tab={tab} onTab={showTab} onClose={closeScout} />
+                </div>
+                <div className="relative flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-none px-4 pt-3 pb-4">
+                  {panelView === "sections" ? (
+                    sectionsOutline
+                  ) : (
+                    <FormatOptions page={page} onChange={applyPage} />
+                  )}
+                </div>
+              </>
             )}
           </div>
         </ScoutTakeover>
@@ -2638,7 +2673,7 @@ export function Editor({
           Below @6xl it floats over the page's right side in the page's own
           cell (KAN-576), under the 44px bar, with `shadow-lift`: docked at
           1024, the 384px column left the resume about 480px wide */}
-      {(shownPanel || shownFormat || shownSections || shownCut) && (
+      {(shownPanel || shownTabs || shownCut) && (
         <div
           data-keeps-selection
           ref={fitPanel}
@@ -2647,14 +2682,20 @@ export function Editor({
             FLOATING,
           )}
         >
-          {shownFormat ? (
-            <SidePanel title="Format Options" onClose={() => showSide(null)}>
-              <FormatOptions page={page} onChange={applyPage} />
-            </SidePanel>
-          ) : shownSections ? (
-            <SidePanel title="Sections" onClose={() => showSide(null)}>
-              {sectionsOutline}
-            </SidePanel>
+          {shownTabs ? (
+            <section
+              aria-label="Side Panel"
+              className="sm:bg-brand-tint sm:ring-brand-pale sm:rounded-card flex min-h-0 flex-col gap-3 sm:p-3 sm:ring-1"
+            >
+              <PanelTabs tab={tab} onTab={showTab} onClose={() => showSide(null)} />
+              <div className="relative -mr-1.5 flex min-h-0 flex-col gap-2 overflow-y-auto overscroll-none pr-1.5">
+                {side === "sections" ? (
+                  sectionsOutline
+                ) : (
+                  <FormatOptions page={page} onChange={applyPage} />
+                )}
+              </div>
+            </section>
           ) : shownCut ? (
             <SidePanel title="Cut From Resume" onClose={() => showSide(null)}>
               <CutPicker bank={bank} choices={choices} cuts={cuts} onApply={apply} />

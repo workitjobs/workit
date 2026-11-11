@@ -27,6 +27,7 @@ export function ScoutTakeover({
   mark,
   away,
   float = false,
+  bare = false,
   children,
 }: {
   title: string;
@@ -39,6 +40,9 @@ export function ScoutTakeover({
   /** Below xl, float the panel over the page instead of taking room beside
    *  it: the resume editor's page shrank to about 4px text at 1024. */
   float?: boolean;
+  /** The children draw the panel's top (and its close, `closeScout`), in
+   *  place of the title, subtitle and mark. */
+  bare?: boolean;
   children: ReactNode;
 }) {
   const [slot, setSlot] = useState<HTMLElement | null>(null);
@@ -47,8 +51,8 @@ export function ScoutTakeover({
     // The panel renders in the layout, so its slot is in the DOM by now.
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reads the DOM once mounted
     setSlot(document.getElementById(SCOUT_SLOT_ID));
-    return takeOverScout({ title, subtitle, mark, away, float });
-  }, [title, subtitle, mark, away, float]);
+    return takeOverScout({ title, subtitle, mark, away, float, bare });
+  }, [title, subtitle, mark, away, float, bare]);
 
   return slot
     ? createPortal(

@@ -16,13 +16,14 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/too
  * `data-word-at` (its word goes, `FOLD.word`) or `data-away-at` (it leaves,
  * `FOLD.away`).
  *
- * The idle bar's steps (`FOLD.idle`): Format Options' and Cut From Resume's
- * words, Sections', Add Experiences', Fit to One Page's; then Cut From
- * Resume, the zoom, the panels and Add Experiences leave. Undo, Redo and Fit
- * to One Page never leave.
+ * The idle bar's steps (`FOLD.idle`): Cut From Resume's word, Add
+ * Experiences', Fit to One Page's; then Cut From Resume, the zoom and Add
+ * Experiences leave. Undo, Redo, Fit to One Page and the side panel's button
+ * never leave: the panel's button (KAN-586) is the only way back to a closed
+ * panel, which holds Sections and Format as tabs.
  *
- * With a line open (`FOLD.line`): the size's name ("Body"), the panels'
- * words, the line tools' words; then the zoom, the panels, the line's lesser
+ * With a line open (`FOLD.line`): the size's name ("Body"), the line tools'
+ * words; then the zoom, the line's lesser
  * tools (Original, GPA, Coursework, Edit in Experiences), its moves and its
  * main tools (Add Bullet, Hide, Edit Header) leave, and last Done's word
  * goes. Undo, Redo, the size, bold and italic never leave.
@@ -44,22 +45,17 @@ export const FOLD = {
   /** More, once any box has left. */
   more: "hidden in-data-[some-away]:flex",
   idle: {
-    formatWordAt: 1,
     cutWordAt: 1,
-    sectionsWordAt: 2,
     experiencesWordAt: 3,
     fitWordAt: 4,
     cutAt: 5,
     zoomAt: 6,
-    panelsAt: 7,
     experiencesAt: 8,
   },
   line: {
     roleWordAt: 1,
-    panelWordsAt: 2,
     toolWordsAt: 3,
     zoomAt: 4,
-    panelsAt: 5,
     toolAt: { extra: 6, move: 7, main: 8 },
     doneWordAt: 9,
   },

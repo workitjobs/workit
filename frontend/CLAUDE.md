@@ -2584,8 +2584,17 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   status ("Saving…", "Saved"; `SaveStatus`) and Download, the page's one
   filled button (secondary on Tailor's review, whose fill is Finish), with
   the review's Original and Suggestions before it. The bar is three groups
-  that keep their places: Undo and Redo; the middle; Sections, Format
-  Options and the zoom. Only the middle changes when a line opens: idle, the
+  that keep their places: Undo and Redo; the middle; the zoom and **the side
+  panel's one button** (KAN-586), at the row's end above where the panel
+  opens, never folded away. **Sections and Format are tabs of one side
+  panel** (`PanelTabs`, `ui/tabs.tsx`'s `TabButtons`), not toolbar buttons:
+  they are views, not tools. The panel opens with the editor where it docks
+  beside the page (xl up) and waits for the button below that, where it
+  floats over the page; its ✕ and the button close it, and the button opens
+  it on the tab shown last. On the editor's page it is Scout's panel with no
+  header of its own (`ScoutTakeover`'s `bare`); on Tailor's review it is the
+  column beside the page. Sections and Format Options were two toolbar
+  buttons, each opening its own panel, until then. Only the middle changes when a line opens: idle, the
   page's tools (Add Experiences, Fit to One Page, Cut From Resume); open,
   the line's size, a bullet's bold and italic, its tools (`lineTools`) and
   **Done**, which saves and closes the line as Esc does. Until then the
