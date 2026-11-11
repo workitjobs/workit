@@ -6,7 +6,11 @@
 //   for goes through chrome.userScripts (only where Allow User Scripts is on).
 // - Routes: declarativeNetRequest session rules that block a non-GET request whose URL matches,
 //   from the tab (and the tabs it opens) or from no tab (a service worker), before any page code:
-//   what a page's script, its workers or a form's native POST would send.
+//   what a page's script, its workers or a form's native POST would send. Routes with the same
+//   regexes share one rule set (KAN-793): one rule per regex, on every tab of those routes. Chrome
+//   caps a profile's regex rules (about 1000), and 7 rules for each guarded tab, kept after the tab
+//   closed, filled it after about 142 tabs. A closed tab leaves every route. A failed update keeps
+//   Chrome's rules and this file's memory as they were, and throws (fails closed).
 // - Bindings: window[name] in MAIN dispatches `__apply_call` on the document; page/relay.js (the
 //   isolated world) hands it here, and Apply gets a `binding` event.
 // - What a guard blocked comes up as `guard.said` (its `__apply_said`), since no console reaches
@@ -25,7 +29,8 @@ const NO_TAB = -1; // chrome.tabs.TAB_ID_NONE: a service or shared worker's requ
 
 let ctxRef = null; // the background's ctx, for events
 export const useCtx = (ctx) => { ctxRef = ctx; }; // from its start: what a page blocks after a reload comes before any op
-const routes = new Map(); // key -> {tab, regexes, caseSensitive, ids, tabs: Set}
+const routes = new Map(); // key -> {tab, regexes, caseSensitive, tabs: Set (null: every tab)}
+const sets = new Map(); // the routes' regexes (setOf) -> the ids of their shared rules
 const lifted = new Map(); // tab -> the control events that lift it, with its note (apply.submit_guard.lift)
 const applied = new Map(); // tab -> the control events of the "You already applied" note (KAN-621) it shows
 // This run's guard events (KAN-710, apply.plain.guards.tokens): the touch sent before each press, the rehearsal
@@ -46,6 +51,7 @@ async function reset() {
   } catch {}
   try { if (userScriptsOn()) await chrome.userScripts.unregister(); } catch {}
   routes.clear();
+  sets.clear();
   lifted.clear();
   applied.clear();
   bindings.clear();
@@ -81,11 +87,8 @@ async function restore() {
   for (const [where, names] of kept.bindings) bindings.set(where, new Set(names));
   for (const [tab, note] of kept.lifted) lifted.set(tab, note);
   for (const [tab, day] of kept.applied) applied.set(tab, day);
-  for (const [key, r] of kept.routes) {
-    const entry = { ...r, ids: r.regexes.map(() => nextRule++), tabs: r.tabs && new Set(r.tabs) };
-    routes.set(key, entry);
-    await putRules(entry, []);
-  }
+  for (const [key, r] of kept.routes) routes.set(key, { ...r, tabs: r.tabs && new Set(r.tabs) });
+  for (const set of new Set([...routes.values()].map(setOf))) await putSet(set);
   if (kept.scripts.length) await chrome.scripting.registerContentScripts(kept.scripts);
   if (kept.userScripts.length && userScriptsOn()) await chrome.userScripts.register(kept.userScripts);
   // The open documents kept their page guards, but their relay died with the old code.
@@ -171,18 +174,49 @@ async function inject({ tab, file, sha256: sha }) {
 
 // --- routes
 
-function rulesOf(route) {
-  return route.regexes.map((regexFilter, i) => ({
-    id: route.ids[i], priority: 1, action: { type: "block" },
+const setOf = (route) => JSON.stringify([route.regexes, route.caseSensitive]);
+
+// The rules of one rule set: each regex once, on every tab of the routes that share it (no tabIds
+// when one of them is every tab's). No route left: no rule.
+function rulesOf(set) {
+  const members = [...routes.values()].filter((r) => setOf(r) === set);
+  if (!members.length) return [];
+  const [regexes, caseSensitive] = JSON.parse(set);
+  const every = members.some((r) => !r.tabs);
+  const tabs = new Set(members.flatMap((r) => (r.tabs ? [...r.tabs] : [])));
+  if (!sets.has(set)) sets.set(set, regexes.map(() => nextRule++));
+  return regexes.map((regexFilter, i) => ({
+    id: sets.get(set)[i], priority: 1, action: { type: "block" },
     condition: {
-      regexFilter, isUrlFilterCaseSensitive: route.caseSensitive, excludedRequestMethods: ["get", "head", "options"],
-      resourceTypes: RESOURCE_TYPES, ...(route.tabs ? { tabIds: [...route.tabs] } : {}),
+      regexFilter, isUrlFilterCaseSensitive: caseSensitive, excludedRequestMethods: ["get", "head", "options"],
+      resourceTypes: RESOURCE_TYPES, ...(every ? {} : { tabIds: [...tabs] }),
     },
   }));
 }
 
-async function putRules(route, old = route.ids) {
-  await chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: old, addRules: rulesOf(route) });
+// One update, in place: Chrome removes the set's rules, then adds them anew, or (on a throw) keeps them as they were.
+async function putSet(set) {
+  await chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: sets.get(set) ?? [], addRules: rulesOf(set) });
+}
+
+// `change` to `routes`, then the sets it touched in Chrome. A throw puts `routes` back as it was, so Chrome's rules and
+// this memory agree, and goes on to Apply: its guard() or rearm() raises, with the page's own guard on (fails closed).
+async function changing(keys, change) {
+  const before = new Map(keys.map((key) => [key, routes.get(key)]));
+  const touched = () => keys.map((key) => routes.get(key)).filter(Boolean).map(setOf);
+  const was = touched();
+  change();
+  const done = [];
+  try {
+    for (const set of new Set([...touched(), ...was])) {
+      await putSet(set);
+      done.push(set);
+    }
+  } catch (error) {
+    for (const [key, entry] of before) entry ? routes.set(key, entry) : routes.delete(key);
+    for (const set of done) await putSet(set).catch(() => {}); // more blocked, never less, if this fails too
+    throw error;
+  }
 }
 
 async function route({ key, tab = null, regexes, caseSensitive = false }) {
@@ -191,19 +225,13 @@ async function route({ key, tab = null, regexes, caseSensitive = false }) {
     if (!answer.isSupported) throw named("BadOp", `declarativeNetRequest can't take ${regex}: ${answer.reason}`);
   }
   const old = routes.get(key);
-  const entry = {
-    tab, regexes, caseSensitive, ids: regexes.map(() => nextRule++),
-    tabs: tab === null ? null : new Set([tab, NO_TAB, ...(old?.tabs ?? [])]),
-  };
-  routes.set(key, entry);
-  await putRules(entry, old?.ids ?? []);
-  return { rules: entry.ids.length };
+  const entry = { tab, regexes, caseSensitive, tabs: tab === null ? null : new Set([tab, NO_TAB, ...(old?.tabs ?? [])]) };
+  await changing([key], () => routes.set(key, entry));
+  return { rules: regexes.length };
 }
 
 async function unroute({ key }) {
-  const old = routes.get(key);
-  routes.delete(key);
-  if (old) await chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: old.ids });
+  if (routes.has(key)) await changing([key], () => routes.delete(key));
   return null;
 }
 
@@ -323,17 +351,28 @@ chrome.tabs.onCreated.addListener((tab) => {
   const opener = tab.openerTabId;
   if (opener === undefined) return;
   if (lifted.has(opener)) lifted.set(tab.id, lifted.get(opener));
-  for (const entry of routes.values()) {
-    if (entry.tabs?.has(opener) && !entry.tabs.has(tab.id)) {
-      entry.tabs.add(tab.id);
-      putRules(entry).catch(() => {});
-    }
-  }
+  const keys = [...routes].filter(([, r]) => r.tabs?.has(opener) && !r.tabs.has(tab.id)).map(([key]) => key);
+  if (!keys.length) return;
+  // Only a tab id more on a set already on: Chrome's count of rules stays. Should it refuse even so, the new tab
+  // goes rather than run unguarded by the rules (its page's own guard covers it until then).
+  ready.then(() => changing(keys, () => {
+    for (const key of keys) routes.set(key, { ...routes.get(key), tabs: new Set([...routes.get(key).tabs, tab.id]) });
+  })).catch(() => chrome.tabs.remove(tab.id).catch(() => {}));
 });
+// A closed tab leaves every route, and a route with no tab left goes (KAN-793: its rules stayed until guard.reset).
 chrome.tabs.onRemoved.addListener((tab) => {
   lifted.delete(tab);
   applied.delete(tab);
   bindings.delete(tab);
+  const keys = [...routes].filter(([, r]) => r.tabs?.has(tab)).map(([key]) => key);
+  if (!keys.length) return;
+  ready.then(() => changing(keys, () => {
+    for (const key of keys) {
+      const tabs = new Set([...routes.get(key).tabs].filter((t) => t !== tab));
+      if ([...tabs].some((t) => t !== NO_TAB)) routes.set(key, { ...routes.get(key), tabs });
+      else routes.delete(key);
+    }
+  })).catch(() => {}); // Chrome kept the closed tab's rules: more blocked, never less; the next update drops them
 });
 
 // --- touches and what the page said

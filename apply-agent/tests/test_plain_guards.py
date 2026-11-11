@@ -383,6 +383,41 @@ def test_the_drive_guard_rests_and_arms_as_claude_fill_drives(page, site):
     assert site.posts == []
 
 
+# --- the rules' count (KAN-793): Chrome caps a profile's regex rules (about 1000). Each guarded tab had 7 rules of
+# its own, and a closed tab's stayed until guard.reset, which comes only when no other form is open in the Worker.
+# About 142 guarded tabs later, every guard() failed with "Session rule count for regex rules exceeded".
+
+def _all_rules(worker) -> int:
+    return worker.call("guard.status")["rules"]
+
+
+def _new_tab(worker) -> PortPage:
+    return PortPage(worker, worker.call("tabs.create", url="about:blank", active=False)["tab"])
+
+
+@live
+def test_many_guarded_tabs_in_one_worker_share_one_rule_set(worker, site):
+    """A form held all along (`--into`), and 160 more tabs guarded, lifted, guarded again and closed in turn (Fill
+    again's fresh tab, Ask's and Resume's rearm): never more rules than one set, and none once every tab is closed."""
+    guards.reset(worker)
+    held = _new_tab(worker)
+    guards.guard(held, reload=False)
+    for n in range(160):
+        page = _new_tab(worker)
+        guards.guard(page, reload=False)
+        if n % 4 == 0:
+            guards.lift(page)
+            assert worker.call("guard.status", tab=page.tab)["rules"] == 0
+            guards.rearm(page)
+        assert _all_rules(worker) == len(guards.RULES)
+        assert worker.call("guard.status", tab=page.tab)["rules"] == len(guards.RULES)
+        worker.call("tabs.close", tab=page.tab)
+    assert worker.call("guard.status", tab=held.tab)["rules"] == len(guards.RULES)
+    worker.call("tabs.close", tab=held.tab)
+    deadline = time.monotonic() + 5
+    while _all_rules(worker) and time.monotonic() < deadline:
+        time.sleep(0.1)
+    assert _all_rules(worker) == 0
 
 
 # --- a reload of the worker extension (KAN-657): chrome.runtime.reload() drops its registered scripts, its session
