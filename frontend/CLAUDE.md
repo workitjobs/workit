@@ -2381,7 +2381,10 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   revert, which moves several bullets, waited for the compile. A
   swap is kept by item, not by position, so a PDF that lands before its
   own still shows it, and one the page already shows draws nothing.
-  A phone's "Saved, N ms" times the render.
+  The round trip from the send to the paint is a performance measure,
+  "resume edit round trip" (`drawn`), read in the browser's developer
+  tools (Safari's on an iPhone) for the open production check; a phone's
+  bar showed it as "Saved, N ms" until KAN-799, noise to a student.
 - **Undo and Redo live in the tab's memory, never in browser storage**
   (KAN-391, `(seeker)/resumes/[resumeId]/history.ts`, tested with
   `node --test`). Each edit records a step: the edit and its reverse,
@@ -2551,10 +2554,12 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   `degreeLeads` swaps that line's type too (`textRoleOf`, `typeOf`) and must
   agree with the API's `degree_leads`. The API keeps the settings the
   panel dropped, so a resume set that way prints as it did. The bar mutes every
-  button's words (`SLIM_BAR`, `DOCS_BAR`), so a real action there (Add Bullet,
-  `FitButton`) carries `data-bar-action`, or a filled button reads grey on purple.
-  **An open bullet or entry moves from the bar** (`MoveButtons`, Move Up
-  and Move Down beside bold and italic, or an entry's size): a bullet within
+  button's words (`BAR_BUTTONS` in `slim-bar.ts`, on the phone's row and line
+  sheet too), so a real action there (`FitButton`, Download) carries
+  `data-bar-action`, or a filled button reads grey on purple.
+  **An open bullet or entry moves from the bar** (`lineTools`' Move Up and
+  Move Down, after bold and italic or an entry's size, and in the phone's
+  line sheet): a bullet within
   its entry, an entry within its section, through `move` and `apply`, so it
   trades places with its neighbour on the page at once (`swapsOf`; an entry
   takes its bullets with it, and only when both sit on one page) while the
@@ -2568,23 +2573,55 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   value in a save, so a reverse of null undid nothing.
   **One bar, one height** (KAN-576): every button on it is 36px, text
   buttons `sm` and icon buttons `icon-lg` (the kit's `icon-sm` is 28px);
-  `xs` and `icon-sm` there stood 26 and 28px beside 36px ones. An upload's
-  page draws the same box (`SLIM_BAR`, `[resumeId]/slim-bar.ts`).
-  **One row, never two** (`[resumeId]/bar-fold.tsx`): the idle bar is a
-  container (`@container/bar`), so it folds by its own width, which the
-  side panel and Tailor's columns change, never by the window's. Words go
-  first, least needed first (Format Options, Sections, the save status, Add
-  Experiences, Fit to One Page, Download), each button keeping its glyph,
-  its `aria-label` and a tooltip (`FoldButton`); then zoom, the panels and
-  Add Experiences leave the row for More (⋯) at its end, which lists only
-  what the bar hides (each piece in a `data-fold` box, read on open). Undo,
-  Redo, Fit and Download never leave. The steps are measured widths in
-  `FOLD`: a control added to the row, or a longer word, means measuring
-  them again (sweep the bar's width by script and look for a button past
-  its edge). The phone editor's row folds its words the same way
-  (`PHONE_FOLD`). The bar wrapped to a ragged second row at about 800px
-  until then. **Still open:** the bar with a line open still wraps.
-- **A bullet's one wording button is Original** (`LineActions`), shown
+  `xs` and `icon-sm` there stood 26 and 28px beside 36px ones. **One bar
+  shape** (KAN-799): the editor's own page, Tailor's review and an upload's
+  page draw the same box (`SLIM_BAR`, `[resumeId]/slim-bar.ts`); Tailor's
+  was a pill of its own (`DOCS_BAR`) with zoom at its left, and the
+  review's icons in the title row were 40px.
+  **The bar holds editing tools only; the title row holds the file**
+  (KAN-799, `[resumeId]/toolbar.tsx`). The title row is the name, the save
+  status ("Saving…", "Saved"; `SaveStatus`) and Download, the page's one
+  filled button (secondary on Tailor's review, whose fill is Finish), with
+  the review's Original and Suggestions before it. The bar is three groups
+  that keep their places: Undo and Redo; the middle; Sections, Format
+  Options and the zoom. Only the middle changes when a line opens: idle, the
+  page's tools (Add Experiences, Fit to One Page, Cut From Resume); open,
+  the line's size, a bullet's bold and italic, its tools (`lineTools`) and
+  **Done**, which saves and closes the line as Esc does. Until then the
+  panels, the zoom, Download and More left the bar when a line opened, Fit
+  moved, "Esc when done" stood as text where Done is, and the save status
+  sat in the bar and left it below 58rem. **The phone's line sheet draws
+  the same `lineTools`** in the same weights, after bold and italic: the
+  desktop had no Hide or Original for a bullet and no Hide for a skill, and
+  the phone no bold, italic or Add Bullet. A bullet's field in the sheet is
+  the desktop's rich one (`richLine`), and Add Bullet there opens a sheet
+  of its own (`newBullet`), since the phone's page draws no field.
+  **Show and Hide Suggestions is the Suggestions panel's own** (its eye
+  icon, `marks` on `SuggestionsApi`): the toolbar's toggle beside the title
+  row's Suggestions was two controls for one thing.
+  **One row, never two** (`[resumeId]/bar-fold.tsx`), idle and with any
+  line open: the bar folds by measure (`useFoldToFit`), one step at a time
+  until the row is no wider than the bar, whenever what it holds or its
+  width changes, before paint. Words go first, least needed first, each
+  button keeping its glyph, its `aria-label` and a tooltip (`FoldButton`);
+  then controls leave the row for More (⋯) at its end, which lists only what
+  the bar hides (each piece in a `data-fold` box, read on open). The steps
+  are `FOLD.idle` and `FOLD.line`; a new control joins by naming its step on
+  its box (`data-word-at`, `data-away-at`), with no width to measure.
+  Undo, Redo and Fit never leave; with a line open neither do the size,
+  bold, italic or Done. Fixed container-query widths came first (KAN-576),
+  measured on the editor's own page: they folded Tailor's bar early,
+  needed measuring again for each button or word, and could not cover a
+  line's tools, which differ by kind, so the bar wrapped with a line open
+  until KAN-799. The idle bar's real buttons wait for the first render,
+  which only the browser runs, so measuring costs the server's first paint
+  nothing. Swept by script on 2026-11-11 from 300px to 1300px, idle (with
+  and without Fit and Cut From Resume) and with a bullet, an entry, the
+  header, a skill and a new bullet open: no overflow from 424px up, and the
+  narrowest desktop bar (a 641px window) is 596px. The phone editor's row
+  folds its words with fixed steps (`PHONE_FOLD`), which still fit at 320px.
+- **A bullet's one wording button is Original** (`lineTools`), on the
+  desktop bar and the phone's sheet, shown
   only while the bullet shows another wording (Tailor's, or one typed on
   this resume): it puts the bank's text back, and Undo takes that back.
   The resume's own wording and Tailor's stay in `bank_bullet_variants`.
@@ -2605,9 +2642,10 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
 - **Tailor's review is the resume editor with props, not a fork**
   (`(seeker)/resumes/[resumeId]/editor.tsx`), and both pages draw one
   editor design (KAN-411): the title row (`heading`, `ResumeTitle`
-  renamed in place) and the slim toolbar (`SlimBar`). Only the review
-  passes `suggestions` (the panel, and with it the margin dots and tints,
-  the view switch in the title row, no Experiences picker, and Scout's
+  renamed in place) and the slim toolbar (`Bar`, `toolbar.tsx`). Only the
+  review passes `suggestions` (the panel, and with it the margin dots and
+  tints, Original and Suggestions in the title row (`ReviewButtons`), a
+  secondary Download, no Experiences picker, and Scout's
   panel left to the job chat), `original`, `phoneBar` and `phoneBack`
   (the phone layer covers the step's row, so its header carries the job,
   the step and Finish, KAN-574). A change for the review goes behind

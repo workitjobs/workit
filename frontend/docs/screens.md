@@ -3027,28 +3027,27 @@ with no proposals to accept and no Done (2026-10-25).
   480px wide. The
   page is laid out as a Google Doc (KAN-499), edge to edge with a 16px
   gutter and no width cap: the resume's name over the job under the step's
-  row, with the Original and Suggestions icons and Download at that row's
-  right, as Docs keeps its comments and Share, over a filled pill toolbar of
-  Undo, Redo and zoom. The two icons
+  row, with the save status, the Original and Suggestions icons (36px) and
+  Download (secondary, since Finish is the step's fill) at that row's
+  right, as Docs keeps its comments and Share, over the editor's own slim
+  toolbar (KAN-799; a pill of Undo, Redo and zoom of its own until then).
+  The two icons
   open what sits beside the page, each closing it when pressed again, and
   the panel has its own X. Both closed, the page takes the full width. Original
   sets the source resume beside the tailored one at one width in
   place of the panel: a plain heading over each, Tailored Resume and
   Original Resume, no toolbars, no click targets or marks on the page, and
   the two scroll together, with an X on the Original Resume heading (KAN-499). The
-  top row sits in the brand tint, rounded. The toolbar holds only tools
-  for the page: at the left Undo and Redo and, over one page,
-  Fit to One Page, a brand outline button with a scissors icon (`FitButton`,
-  with the overrun in its title: an amber "2 pages" chip with a caret came
-  first, whose click opened a card holding this button); at the right
-  Download, secondary. No Experiences picker on this page
-  (the editor's own page has it); while a line is open, the page's settings and an entry's choices with "Esc
-  when done"; no Ask Scout and no Done. Each changed line is tinted in its
+  top row sits in the brand tint, rounded. The toolbar is the editor's
+  (above), with no Add Experiences (the editor's own page has the
+  picker); no Ask Scout. Each changed line is tinted in its
   type's colour, with a 1px dark border, rounded, while its suggestion is
   pointed at or open. A click on one opens the panel, scrolls to its
   suggestion and outlines it as the line is; a small card beside the line did
-  this until 2026-11-01 and is archived (`POPUP_LIVE`). Hide Suggestions
-  on the toolbar takes the tints off the page. A phone keeps a
+  this until 2026-11-01 and is archived (`POPUP_LIVE`). The panel's eye
+  icon (Hide Marks on the Page) takes the tints off the page; it was a Show
+  and Hide Suggestions toggle on the toolbar beside the title row's
+  Suggestions until KAN-799, two controls for one thing. A phone keeps a
   margin dot per line. The panel's top holds a
   type filter in the heading row (a dropdown of All Types
   and each change type, each with its coloured badge, added green,
@@ -3475,28 +3474,29 @@ upload's page.
 KAN-366: an upload's own page, opened from its card on the Resumes view,
 so every resume opens inside WorkIt (a built one opens the editor, next).
 Back (to the page that opened it, such as Experiences, else `/resumes`;
-`(seeker)/back-link.tsx`), the file's name as the heading, then a sticky bar in
-the editor's look, its own box (`SLIM_BAR`, `[resumeId]/slim-bar.ts`; a
-lavender bar with a ring and a shadow until KAN-576): "Uploaded Oct 21" and
-"★ Primary" on the primary, then
-Make Primary (while it is not), Rename, Delete and **Download**, the
-page's main action, filled. Under it the PDF, drawn page by page with the
+`(seeker)/back-link.tsx`), then the title row, in the editor's layout
+(KAN-799): the file's name as the heading over "Uploaded Oct 21" and
+"★ Primary" on the primary, and at the right Make Primary (while it is
+not), Rename, Delete and **Download**, the page's one filled button. Under
+it a sticky bar in the editor's look (`SLIM_BAR`, `[resumeId]/slim-bar.ts`;
+a lavender bar with a ring and a shadow until KAN-576) holds the page's one
+tool, the zoom, at its end; then the PDF, drawn page by page with the
 editor's pdf.js preview (`PdfPages`, no click targets: an upload is read
-here, its facts are edited in Experiences). The server reads the file
+here, its facts are edited in Experiences). The buttons and the date sat in
+the bar until KAN-799, which wrapped the date under them on purpose. The
+server reads the file
 (`readUploadedResume`, which asks for the list and the file link together,
 KAN-368), so the browser never opens the Storage link. A DOCX
 cannot be drawn, so its place holds "This File Can't Be Shown Here" and
-Download. Rename turns the heading into the cards' Rename form; Delete
+Download, and it has no bar. Rename turns the heading into the cards' Rename form; Delete
 asks in a popover under its button, as a card's trash does, and then
 returns to the Resumes view.
 An id the student has no upload by is a 404; a list or file that fails
 to load shows "This Resume Isn't Loading Right Now" with Try Again. The
-buttons are one row that never wraps, so Download stays in the first row
-(at 768 it wrapped alone onto a second): below `@2xl/main` the date line
-goes under them, below `@3xl/main` Make Primary, Rename and Delete keep
-their glyph alone, named by `title`, and below `@md/main` the zoom goes,
-since even its 50% step is wider than the page there. On a phone the
-pages take the width.
+title row's buttons never wrap: below `@3xl/main` Make Primary, Rename and
+Delete keep their glyph alone, named by a tooltip, and below `@md/main`
+Download does too and the bar goes, since even the zoom's 50% step is
+wider than the page there. On a phone the pages take the width.
 
 ## Resume editor
 
@@ -3563,46 +3563,50 @@ student who opened a resume from Experiences landed on another view.
   on the review, under its step's sr-only h1. It spans the page and the
   column beside it, so the review's panel starts level with the bar.
   It was a plain h1 at heading size until KAN-411; a failed load still
-  shows it over the error.
-- **The sticky bar is the slim toolbar** (`SlimBar`), the same on this
-  page and on Tailor's review (KAN-411), so a line's actions never cover
-  nearby lines. It is a quiet white row (`--color-panel`). Every button on
-  it is 36px: text buttons `sm`, icon buttons `icon-lg` (KAN-576; Sections
-  and Format Options were `xs`, 26px with 12px type, and Undo, Redo, the
-  zoom arrows and the size stepper 28px). At its left,
-  Undo and Redo, UI only: the editor keeps no history yet, so both stay
-  disabled. With a line selected: the line's kind, Move Up and Move Down
-  first (`LineActions`' `movesFirst`: entries within their section,
-  bullets within their entry, one PATCH that renumbers the siblings),
-  then Hide (Hide Entry), the bullet's wordings (Original, each Tailored
-  version, This Resume's Wording) and, on Education, Show/Hide GPA and
-  Coursework; at the right, "Esc when done" in place of a Done button,
-  since Escape or a click off the page already saves and closes. A press
-  on a bar button keeps focus in the field. Over one page, with a line open
-  or not, **Fit to One Page** is a brand outline button with a scissors icon
-  (`FitButton`), its title saying by how much (the render's `lines_over`, an
-  estimate); only a bullet being added hides it. An amber "⚠ 2 pages ⌄" chip
-  stood here until 2026-11-01, whose click opened a card holding this button,
-  one step too many. Add Bullet, with a line open, is the bar's filled brand
-  button. A fit is one Undo step like any edit: Undo (or Cmd+Z) shows again
-  everything it hid (the response's `undo` body), and Redo hides it again.
-  Its own Undo Fit button, kept in sessionStorage per resume, went on
-  2026-11-01: it was a second way to do what Undo does. The response still
-  names what Fit hid (`hidden`), for a list that puts each one back. A
-  one-page resume shows no count: a green "1 page" said what the page
-  itself shows. No "Click a line to edit it." hint: the pointer's own
-  highlight on a line says so. In both states the bar says "Saving…" while a save is on its way; the
-  last round trip ("Saved, 412 ms") is on a phone only now, the measure for
-  the production check (`backend/app/services/resume_render/CLAUDE.md`, Still
-  open): on the bar the user found it noise. Idle, **Download** (PDF, Word or LaTeX) ends the bar,
-  secondary, so it stays in reach down a two-page resume
-  (`../download-menu.tsx`, KAN-258; it was on each card of the Resumes
-  view). It keeps nothing (KAN-267) and holds a PDF with characters the
-  font lacks for Download Anyway; the warning and any error show under
-  the bar. **No Ask Scout**: the top bar's Scout opens the assistant
-  (below). Ask Scout ended this bar for a day, filled, and the user
-  found two Scout buttons on one page one too many.
-  **Until KAN-411 this page had its own full bar**, brand-tinted, with
+  shows it over the error. At its right (KAN-799) the save status,
+  "Saving…" or "✓ Saved" (`SaveStatus`; "Fitting to One Page…" during a
+  fit), and **Download** (PDF, Word or LaTeX, `../download-menu.tsx`), the
+  page's one filled button. Both sat in the bar until then: Download as a
+  secondary button among the tools, which left the bar while a line was
+  open, and the status as "Saved, 412 ms", hidden below 58rem. Download
+  keeps nothing (KAN-267) and holds a PDF with characters the font lacks
+  for Download Anyway; the warning and any error show under the title
+  row.
+- **The sticky bar is the slim toolbar** (`Bar`, `[resumeId]/toolbar.tsx`),
+  the same on this page and on Tailor's review (KAN-411), so a line's
+  tools never cover nearby lines. It is a quiet white row
+  (`--color-panel`) of editing tools only (KAN-799), in three groups that
+  keep their places:
+  `Undo Redo | the middle ........ Sections  Format Options | Zoom (⋯)`.
+  Every button on it is 36px: text buttons secondary `sm`, icon buttons
+  ghost `icon-lg` (KAN-576). Idle, the middle is the page's tools: **Add
+  Experiences** (this page only), **Fit to One Page** while the resume runs
+  over a page (`FitButton`, its own glyph of lines pressed together, its
+  tooltip saying by how much from the render's `lines_over`; it shared Cut's
+  scissors until KAN-799), and **Cut From Resume** after a fit cut
+  something, amber with the scissors. With a line open only the middle
+  changes: the line's kind of text and its size (`SizeStepper`), a bullet's
+  **Bold** and **Italic**, then its tools (`lineTools`): a bullet's Move Up
+  and Move Down, **Add Bullet**, **Hide** and, while it shows another
+  wording, **Original**; an entry's moves, Add Bullet, Hide Entry,
+  Education's Show/Hide GPA and Coursework, and **Edit in Experiences** on a
+  field the page cannot type (dates, the degree line); the header's **Edit
+  Header** (its tooltip says the email is set on My Profile); a skill's
+  **Hide**. Then **Done**, which saves and closes the line, as Esc, Enter
+  or a click off the page do. Until KAN-799 the panels, the zoom, Download
+  and More left the bar when a line opened, Fit moved after the line's
+  tools, "Esc when done" and "Change this in Experiences." stood as text
+  among the buttons, a bullet had no Hide or Original and a skill no Hide
+  here (the phone had them), and Add Bullet was the bar's one filled button.
+  A press on a bar button keeps focus in the field. A fit is one Undo step
+  like any edit: Undo (or Cmd+Z) shows again everything it hid, and Redo
+  hides it again. A one-page resume shows no count: a green "1 page" said
+  what the page itself shows. No "Click a line to edit it." hint: the
+  pointer's own highlight on a line says so. **No Ask Scout**: the top
+  bar's Scout opens the assistant (below). **One row at every width**,
+  idle and with any line open: words fold first, then controls move into
+  More (⋯), which lists only what left (`../../CLAUDE.md`, "One row, never
+  two"). **Until KAN-411 this page had its own full bar**, brand-tinted, with
   the hint first, the page count and Fit to One Page as one amber group
   (`fit-notice.tsx`'s `FitNotice`, now the phone's), a Done button, and
   Download and Ask Scout in both states, while Tailor's review had the
@@ -3632,8 +3636,10 @@ student who opened a resume from Experiences landed on another view.
   Back target (`useTailorBack`, Choose Keywords, or Pick a Resume with no
   record), not to Resumes.
 - **The phone layout keeps its own bars** (`phone.tsx`): its top and
-  bottom bars take the brand tint and its Ask Scout buttons the brand's
-  fill, and its sheets are white.
+  bottom bars take the brand tint and its sheets are white. Its tools wear
+  the desktop bar's weights (KAN-799): Undo, Redo and a line's moves are
+  ghost glyphs, muted as on the bar (`BAR_BUTTONS`), the rest secondary, and
+  Download is the one filled button; Ask Scout was filled too.
 - **A toast says it first** (`fit-notice.tsx`, KAN-258): when the editor
   opens on a resume over one page, or an edit pushes one over, a toast at
   the bottom right (above the bottom bar on a phone) says by how much, with
@@ -3865,8 +3871,13 @@ student who opened a resume from Experiences landed on another view.
   (Apple's smallest touch target), and **previous and next arrows** that
   step through the boxes in page order (page, then top, then left), so a
   mis-tap on a 7 px line costs one press. **Zoom** draws the page at two
-  times the width, scrolled sideways; Fit Width undoes it. Download sits
-  beside Zoom in the top bar, and beside the back arrow the top bar says
+  times the width, scrolled sideways; Fit Width undoes it. Download ends
+  the top bar's second row, after Format and Zoom (KAN-799; it sat between
+  them), and the save status ends its first. The line's sheet holds the
+  desktop bar's tools (`lineTools`): a bullet's Bold and Italic over a rich
+  field like the desktop's (a textarea showed the `**` markers), its moves,
+  Add Bullet, Hide and Original; Add Bullet opens a New Bullet sheet with
+  Bold, Italic and Done. Beside the back arrow the top bar says
   "Tap a line to edit it.", or, over one page, the bar's amber group in its
   place, short to fit there: "3 lines over" and "Fit" (named Fit to One
   Page for a screen reader). The toast spells it out. The selected line
@@ -3883,7 +3894,8 @@ student who opened a resume from Experiences landed on another view.
   is the desktop layout (the server cannot know the width), then a phone
   switches. Manual checks on a real iPhone: the sheet stays above the
   keyboard, and the field does not zoom; and the render time on cellular
-  data, read from "Saved, N ms".
+  data, read from the "resume edit round trip" performance measure in
+  Safari's Web Inspector (the bar said "Saved, N ms" until KAN-799).
 - **The assistant** (`assistant.tsx`, KAN-221) **opens from the top
   bar's Scout, in Scout's panel** (KAN-411): the editor takes the panel
   over (`ScoutTakeover`, as the Experience Bank does with intake), under

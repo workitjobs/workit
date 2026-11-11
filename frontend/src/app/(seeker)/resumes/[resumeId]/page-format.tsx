@@ -331,7 +331,7 @@ export function PanelButton({
 }: {
   label: string;
   Icon: PhosphorIcon;
-  /** The `FOLD` step that hides the word. */
+  /** The class that folds the word away (`FOLD.word`, ./bar-fold.tsx). */
   fold: string;
   open: boolean;
   disabled: boolean;

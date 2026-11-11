@@ -6,51 +6,72 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/too
 
 /**
  * How the slim bar folds as it narrows, after Google Docs' toolbar: one row,
- * never two. The bar is a container (`@container/bar`), so each step reads
- * the bar's own width, which the side panel and Tailor's columns change, not
- * the window's. The words go first, least needed first (Format Options,
- * Sections, the save status, Add Experiences, Fit to One Page, Download),
- * each control keeping its glyph, its name and a tooltip; then whole
- * controls leave the row for More at its end (zoom, then the panels, then
- * Add Experiences). Undo, Redo, Fit to One Page and Download never leave.
- * Cut From Resume, which only shows after a fit, leaves early, since no
- * step counts its room. Each step is the width the row needs (the bar's
- * content box, inside its padding) once the step before it has folded,
- * with a save status as long as "Saved, 1234 ms", measured on 2026-11-05;
- * a control added to the row, or a longer word, means measuring them
- * again. The status is the one part that shrinks, so a longer one is cut
- * short, never pushes a button past the bar. The bar wrapped to a second,
- * ragged row at about 800px until then. The bar with a line open (a
- * bullet's tools) does not fold yet.
+ * never two (KAN-576, KAN-799). Words go first, least needed first, each
+ * control keeping its glyph, its name and a tooltip (`FoldButton`); then
+ * whole controls leave the row for More (⋯) at its end, which lists only
+ * what has left. The bar folds by measure, not by fixed widths:
+ * `useFoldToFit` (./toolbar.tsx) takes one step at a time until the row is no
+ * wider than the bar, after every change of what the row holds and of the
+ * bar's width, before paint. Each box names the step that folds it:
+ * `data-word-at` (its word goes, `FOLD.word`) or `data-away-at` (it leaves,
+ * `FOLD.away`).
+ *
+ * The idle bar's steps (`FOLD.idle`): Format Options' and Cut From Resume's
+ * words, Sections', Add Experiences', Fit to One Page's; then Cut From
+ * Resume, the zoom, the panels and Add Experiences leave. Undo, Redo and Fit
+ * to One Page never leave.
+ *
+ * With a line open (`FOLD.line`): the size's name ("Body"), the panels'
+ * words, the line tools' words; then the zoom, the panels, the line's lesser
+ * tools (Original, GPA, Coursework, Edit in Experiences), its moves and its
+ * main tools (Add Bullet, Hide, Edit Header) leave, and last Done's word
+ * goes. Undo, Redo, the size, bold and italic never leave.
+ *
+ * Fixed widths came first (KAN-576): container-query steps measured by hand
+ * on the editor's own page, which folded Tailor's bar, with fewer buttons,
+ * early, and needed measuring again for every button or word added. A bar
+ * with a line open had none and wrapped to a second row. The idle bar's real
+ * buttons wait for the first render, which only the browser runs, so the
+ * server's first paint never needed CSS steps; only the skeletons have one.
  *
  * Classes are whole strings, so Tailwind finds them in this file.
  */
 export const FOLD = {
-  /** The word goes, the glyph stays: `sr-only` keeps the name. */
-  formatWord: "@max-[69rem]/bar:sr-only",
-  cutWord: "@max-[69rem]/bar:sr-only",
-  sectionsWord: "@max-[62rem]/bar:sr-only",
-  status: "@max-[58rem]/bar:sr-only",
-  experiencesWord: "@max-[51.75rem]/bar:sr-only",
-  fitWord: "@max-[44.5rem]/bar:sr-only",
-  downloadWord: "@max-[38rem]/bar:sr-only",
-  /** The control leaves the row; More lists it. */
-  cutAway: "@max-[58rem]/bar:hidden",
-  zoomAway: "@max-[33.5rem]/bar:hidden",
-  panelsAway: "@max-[25.25rem]/bar:hidden",
-  experiencesAway: "@max-[19rem]/bar:hidden",
-  /** More shows once the first control has left. */
-  more: "hidden @max-[33.5rem]/bar:flex",
-  moreWithCut: "hidden @max-[58rem]/bar:flex",
-  /** A skeleton's width once its control has folded to a glyph. */
-  formatSkeleton: "@max-[69rem]/bar:w-9",
-  sectionsSkeleton: "@max-[62rem]/bar:w-9",
+  /** On a word inside a box whose `data-word-at` step has come. */
+  word: "in-data-[words-folded]:sr-only",
+  /** On a box whose `data-away-at` step has come. */
+  away: "data-[away]:hidden",
+  /** More, once any box has left. */
+  more: "hidden in-data-[some-away]:flex",
+  idle: {
+    formatWordAt: 1,
+    cutWordAt: 1,
+    sectionsWordAt: 2,
+    experiencesWordAt: 3,
+    fitWordAt: 4,
+    cutAt: 5,
+    zoomAt: 6,
+    panelsAt: 7,
+    experiencesAt: 8,
+  },
+  line: {
+    roleWordAt: 1,
+    panelWordsAt: 2,
+    toolWordsAt: 3,
+    zoomAt: 4,
+    panelsAt: 5,
+    toolAt: { extra: 6, move: 7, main: 8 },
+    doneWordAt: 9,
+  },
+  /** The panels' skeletons, before the first render, on a narrow bar. */
+  skeletonAway: "@max-[30rem]/bar:hidden",
 } as const;
 
 /** The phone editor's row (./phone.tsx) folds the same way, with nothing to
  *  move to More: Format's word first, then Zoom's, then Download's, so a
  *  390px phone keeps "Download" and a 375px one shows the three glyphs. It
- *  wrapped Format, Download and Zoom under Undo and Redo at 375px. */
+ *  wrapped Format, Download and Zoom under Undo and Redo at 375px. Download
+ *  ends the row (KAN-799), the page's one filled button. */
 export const PHONE_FOLD = {
   formatWord: "@max-[27.5rem]/bar:sr-only",
   zoomWord: "@max-[24.5rem]/bar:sr-only",

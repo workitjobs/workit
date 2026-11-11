@@ -14,6 +14,7 @@ import {
   setPrimaryResume,
   type ResumeItem,
 } from "@/lib/resume-actions";
+import { cn } from "@/lib/cn";
 import { openDownload } from "@/lib/save-file";
 
 import { LocalDate } from "../../../local-time";
@@ -25,14 +26,15 @@ import { DeleteResumeConfirm } from "../../delete-confirm";
 import { Tip } from "@/components/ui/tip";
 
 /**
- * An uploaded resume's page (KAN-366): its name, then a sticky bar in the
- * editor's own look (`SLIM_BAR`, ../../[resumeId]/slim-bar.ts: a quiet white
- * row, the actions at its end; it was a lavender bar with a ring and a
- * shadow until KAN-576), then the file. The bar says when it was uploaded
- * and marks the primary resume; its buttons are Make Primary (while it is
- * not), Rename, Delete and Download, the page's main action, filled. They
+ * An uploaded resume's page (KAN-366), in the editor's layout (KAN-799): a
+ * title row with its name, when it was uploaded and whether it is the
+ * primary resume, then its file actions at the right, Make Primary (while it
+ * is not), Rename, Delete and Download, the page's one filled button; then
+ * a sticky bar in the editor's own look (`SLIM_BAR`,
+ * ../../[resumeId]/slim-bar.ts) holding the zoom; then the file. The actions
  * call what the upload's card on the Resumes view calls
- * (../../upload-resume.tsx), and the card keeps its icons.
+ * (../../upload-resume.tsx), and the card keeps its icons. They sat in the
+ * bar until KAN-799, which wrapped the date under them on purpose.
  *
  * A PDF is drawn page by page with the editor's pdf.js preview
  * (`PdfPages`), with no click targets: an upload is read, not edited, and
@@ -98,81 +100,86 @@ export function UploadedViewer({ resume, pdf }: { resume: ResumeItem; pdf: strin
 
   return (
     <>
-      {renaming ? (
-        <RenameForm
-          id={resume.id}
-          name={name}
-          saving={saving}
-          onSave={rename}
-          onCancel={() => setRenaming(false)}
-        />
-      ) : (
-        <h1 className="text-heading text-ink break-words">{name}</h1>
-      )}
-
-      <div className="mt-4 flex flex-col gap-4">
-        <div className={SLIM_BAR}>
-          {/* Under the buttons where the page is narrow, so Download stays
-              in the first row: last in the bar, it wrapped alone at 768 */}
-          <span className="text-note text-ink-meta flex items-center gap-3 pl-1 @max-2xl/main:order-last @max-2xl/main:basis-full">
+      {/* The title row, as the editor's (KAN-799): the name, then when it
+          was uploaded and whether it is primary, at the left; the file's
+          actions at the right, Download last and filled. They sat in the
+          bar until then, which wrapped on purpose */}
+      <div className="flex items-center gap-3">
+        <div className="min-w-0 flex-1">
+          {renaming ? (
+            <RenameForm
+              id={resume.id}
+              name={name}
+              saving={saving}
+              onSave={rename}
+              onCancel={() => setRenaming(false)}
+            />
+          ) : (
+            <h1 className="text-heading text-ink break-words">{name}</h1>
+          )}
+          <p className="text-note text-ink-meta mt-0.5 flex items-center gap-3">
             {resume.created_at && (
               <span>
                 Uploaded <LocalDate at={resume.created_at} />
               </span>
             )}
             {primary && (
-              <span className="text-brand text-note inline-flex items-center gap-1">
+              <span className="text-brand inline-flex items-center gap-1">
                 <StarIcon aria-hidden weight="fill" className="size-3.5" />
                 Primary
               </span>
             )}
-          </span>
-          {/* One row that never wraps: it gives way first. Below @3xl the
-              three lesser buttons keep their glyph alone, named by `title`,
-              and below @md the zoom goes, where even its 50% step (408px)
-              is wider than the page's column, so no step changes anything */}
-          <div className="ml-auto flex items-center gap-2">
-            {pdf && (
-              <div className="@max-md/main:hidden">
-                <Zoom zoom={zoom} onZoom={setZoom} />
-              </div>
-            )}
-            {!primary && (
-              <Tip label={"Make Primary"}>
-                <Button
-                  variant="secondary"
-                  size="sm"
-
-                  onClick={makePrimary}
-                  disabled={saving}
-                >
-                  <StarIcon aria-hidden className="size-4" />
-                  <span className="@max-3xl/main:sr-only">Make Primary</span>
-                </Button>
-              </Tip>
-            )}
-            <Tip label={"Rename"}>
-              <Button variant="secondary" size="sm" onClick={() => setRenaming(true)}>
-                <PencilIcon className="size-4" />
-                <span className="@max-3xl/main:sr-only">Rename</span>
+          </p>
+        </div>
+        {/* One row that never wraps: below @3xl the three lesser buttons
+            keep their glyph alone, named by their tooltip */}
+        <div className="flex shrink-0 items-center gap-2">
+          {!primary && (
+            <Tip label="Make Primary">
+              <Button variant="secondary" size="sm" onClick={makePrimary} disabled={saving}>
+                <StarIcon aria-hidden className="size-4" />
+                <span className="@max-3xl/main:sr-only">Make Primary</span>
               </Button>
             </Tip>
-            <DeleteResumeConfirm
-              busy={deleting}
-              onDelete={remove}
-              tip="Delete"
-              trigger={
-                <Button variant="secondary" size="sm" disabled={deleting}>
-                  <TrashIcon className="size-4" />
-                  <span className="@max-3xl/main:sr-only">Delete</span>
-                </Button>
-              }
-            />
-            <Button size="sm" data-bar-action onClick={download}>
-              <FileArrowDownIcon aria-hidden className="size-4" /> Download
+          )}
+          <Tip label="Rename">
+            <Button variant="secondary" size="sm" onClick={() => setRenaming(true)}>
+              <PencilIcon className="size-4" />
+              <span className="@max-3xl/main:sr-only">Rename</span>
             </Button>
-          </div>
+          </Tip>
+          <DeleteResumeConfirm
+            busy={deleting}
+            onDelete={remove}
+            tip="Delete"
+            trigger={
+              <Button variant="secondary" size="sm" disabled={deleting}>
+                <TrashIcon className="size-4" />
+                <span className="@max-3xl/main:sr-only">Delete</span>
+              </Button>
+            }
+          />
+          <Tip label="Download">
+            <Button size="sm" onClick={download}>
+              <FileArrowDownIcon aria-hidden className="size-4" />
+              <span className="@max-md/main:sr-only">Download</span>
+            </Button>
+          </Tip>
         </div>
+      </div>
+
+      <div className="mt-4 flex flex-col gap-4">
+        {/* The editor's bar (`SLIM_BAR`), holding this page's one tool, the
+            zoom, at its end where the editor's is. A DOCX has no page to
+            zoom, so no bar, and nor does a column under @md, where even the
+            50% step (408px) is wider than the page */}
+        {pdf && (
+          <div className={cn(SLIM_BAR, "@max-md/main:hidden")}>
+            <div className="ml-auto">
+              <Zoom zoom={zoom} onZoom={setZoom} />
+            </div>
+          </div>
+        )}
 
         {error && (
           <p role="alert" className="text-note text-danger">

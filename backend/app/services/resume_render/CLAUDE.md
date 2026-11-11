@@ -356,7 +356,9 @@ resume; KAN-207 renders the bank and retired the proof endpoint.
 ## Still open
 
 - **The edit-to-PDF round trip in production, warm and cold** (KAN-209):
-  read it on a phone after a save ("Saved, 412 ms", KAN-218).
+  read it on a phone after a save, as the "resume edit round trip"
+  performance measure in Safari's Web Inspector (the phone's bar showed
+  "Saved, 412 ms" from KAN-218 until KAN-799).
   The team chose the HTML copy of the page for typing (research option 4)
   as step 1, with this package's PDF still the only output, and is
   considering Typst for step 2 (`docs/live_page.md`, ADR 0002's status).
