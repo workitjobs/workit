@@ -828,6 +828,8 @@ def test_the_hash_counts_only_the_header_the_page_prints():
     assert content_hash(VIEW, here, "jakes", hide) == content_hash(VIEW, replace(here, location="Elsewhere"), "jakes", hide)
     assert "location" not in _snapshot(VIEW, here, "jakes", hide)["identity"]
     assert "page" not in _snapshot(VIEW, here, "jakes", hide)
+    assert content_hash(VIEW, replace(IDENTITY, extra="Open to relocation"), "jakes") != content_hash(
+        VIEW, IDENTITY, "jakes")
     assert _snapshot(VIEW, IDENTITY, "jakes", DEFAULT_PAGE)["identity"] == {
         "name": IDENTITY.name, "email": IDENTITY.email, "phone": IDENTITY.phone,
         "links": IDENTITY.links,

@@ -90,6 +90,8 @@ export type IdentityCopy = {
   us_citizen: boolean;
   /** The profile's location (KAN-436). */
   location: string | null;
+  /** The Additional line (KAN-436). */
+  extra: string | null;
 };
 
 /** How a built resume's page is set (schemas `PageSettings`, KAN-435).
@@ -133,7 +135,8 @@ export type HideableField =
   | "linkedin_url"
   | "github_url"
   | "portfolio_url"
-  | "other_url";
+  | "other_url"
+  | "resume_header_extra";
 
 export type FontFamily =
   | "latin_modern"

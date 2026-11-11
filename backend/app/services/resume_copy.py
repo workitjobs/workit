@@ -56,7 +56,7 @@ def from_copy(copy: ResumeCopy):
     i = copy.identity
     identity = HeaderIdentity(
         name=i.name, email=i.email, phone=i.phone, links=tuple(tuple(link) for link in i.links),
-        us_citizen=i.us_citizen, location=i.location,
+        us_citizen=i.us_citizen, location=i.location, extra=i.extra,
     )
     return bank, choices, identity
 
@@ -65,7 +65,7 @@ def identity_copy(identity: HeaderIdentity) -> IdentityCopy:
     return IdentityCopy(
         name=identity.name, email=identity.email, phone=identity.phone,
         links=[tuple(link) for link in identity.links], us_citizen=identity.us_citizen,
-        location=identity.location,
+        location=identity.location, extra=identity.extra,
     )
 
 

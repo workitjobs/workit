@@ -970,6 +970,7 @@ async def load_header_identity(session: AsyncSession, applicant_id: uuid.UUID) -
         ),
         us_citizen=answers.work_authorization_status == "us_citizen",
         location=profile.location,
+        extra=profile.resume_header_extra,
     )
 
 

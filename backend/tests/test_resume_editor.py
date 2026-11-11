@@ -719,6 +719,25 @@ async def test_a_typed_header_location_saves_to_the_profile_and_prints(student):
     assert render["identity"]["location"] == "Albany, NY"
 
 
+async def test_the_additional_line_saves_to_the_profile_and_prints_under_the_contact_line(student):
+    _tectonic_or_skip()
+    client, me = student
+    await _fill_bank(client, me)
+    resume_id = await _generate(client, me)
+
+    res = await _type(client, me, resume_id, "header", "resume_header_extra", "Open to relocation")
+    assert res.status_code == 200, res.text
+    assert res.json()["profile"]["resume_header_extra"] == "Open to relocation"
+    render = (await client.get(f"{me}/built-resumes/{resume_id}/render")).json()
+    assert _box(render, "resume_header_extra", "header")["text"] == "Open to relocation"
+    assert render["identity"]["extra"] == "Open to relocation"
+    # One short line: longer is refused, and the profile keeps the old one
+    res = await _type(client, me, resume_id, "header", "resume_header_extra", "x" * 101)
+    assert res.status_code == 422
+    profile = (await client.get(f"{me}/profile")).json()
+    assert profile["resume_header_extra"] == "Open to relocation"
+
+
 async def test_a_hidden_header_field_leaves_this_resume_only(student):
     # KAN-436: the Header panel's check box is a page setting, so the copy
     # keeps the value and only this page leaves it out

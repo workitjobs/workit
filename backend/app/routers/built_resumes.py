@@ -629,6 +629,8 @@ def _with_header(identity: HeaderIdentity, changes: dict) -> HeaderIdentity:
         return dataclasses.replace(identity, phone=value)
     if field == "location":
         return dataclasses.replace(identity, location=value)
+    if field == "resume_header_extra":
+        return dataclasses.replace(identity, extra=value)
     links = dict(identity.links)
     links[field] = value
     order = ("linkedin_url", "github_url", "portfolio_url", "other_url")

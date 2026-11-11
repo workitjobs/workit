@@ -1,6 +1,6 @@
 "use client";
 
-import { PhoneIcon } from "@phosphor-icons/react/ssr";
+import { PhoneIcon, TextAlignLeftIcon } from "@phosphor-icons/react/ssr";
 import { useState, type ComponentType } from "react";
 
 import {
@@ -43,17 +43,27 @@ type Row = {
   Icon: ComponentType<{ className?: string }>;
   placeholder?: string;
   link?: boolean;
+  /** The API's limit (`schemas/profile.py`). */
+  max: number;
+  hint?: string;
 };
 
 const ROWS: Row[] = [
-  { field: "phone_number", label: "Phone", Icon: PhoneIcon, placeholder: "Your phone number" },
-  { field: "location", label: "Location", Icon: PinIcon, placeholder: "Stony Brook, NY" },
+  {
+    field: "phone_number",
+    label: "Phone",
+    Icon: PhoneIcon,
+    placeholder: "Your phone number",
+    max: 30,
+  },
+  { field: "location", label: "Location", Icon: PinIcon, placeholder: "Stony Brook, NY", max: 100 },
   {
     field: "linkedin_url",
     label: "LinkedIn",
     Icon: LinkedInGlyph,
     placeholder: "linkedin.com/in/your-name",
     link: true,
+    max: 500,
   },
   {
     field: "github_url",
@@ -61,6 +71,7 @@ const ROWS: Row[] = [
     Icon: GitHubGlyph,
     placeholder: "github.com/your-name",
     link: true,
+    max: 500,
   },
   {
     field: "portfolio_url",
@@ -68,8 +79,19 @@ const ROWS: Row[] = [
     Icon: WebsiteGlyph,
     placeholder: "your-name.com",
     link: true,
+    max: 500,
   },
-  { field: "other_url", label: "Other Link", Icon: OtherLinkGlyph, link: true },
+  { field: "other_url", label: "Other Link", Icon: OtherLinkGlyph, link: true, max: 500 },
+  // The student's own words, on a line under the contact line: one line,
+  // so a short limit (the API's RESUME_HEADER_EXTRA_MAX)
+  {
+    field: "resume_header_extra",
+    label: "Additional Line",
+    Icon: TextAlignLeftIcon,
+    placeholder: "Open to relocation",
+    max: 100,
+    hint: "One short line under your contact details, such as a clearance or work authorization.",
+  },
 ];
 
 /** The value as the field shows it: a link without its scheme, as My
@@ -105,6 +127,7 @@ export function HeaderPanel({
         id="header-full_name"
         label="Name"
         Icon={UserIcon}
+        max={50}
         saved={header.full_name}
         onSave={(text) => onSave("full_name", text)}
       />
@@ -135,6 +158,8 @@ export function HeaderPanel({
             Icon={row.Icon}
             placeholder={row.placeholder}
             link={row.link}
+            max={row.max}
+            hint={row.hint}
             saved={header[row.field]}
             onSave={(text) => onSave(row.field, text)}
           />
@@ -182,6 +207,8 @@ function ValueField({
   Icon,
   placeholder,
   link,
+  max,
+  hint,
   saved,
   onSave,
 }: {
@@ -190,6 +217,8 @@ function ValueField({
   Icon: ComponentType<{ className?: string }>;
   placeholder?: string;
   link?: boolean;
+  max: number;
+  hint?: string;
   saved: string | null | undefined;
   onSave: (text: string) => void;
 }) {
@@ -215,11 +244,17 @@ function ValueField({
         value={text}
         placeholder={placeholder}
         inputMode={link ? "url" : undefined}
-        maxLength={link ? 500 : label === "Phone" ? 30 : label === "Name" ? 50 : 100}
+        maxLength={max}
+        aria-describedby={hint ? `${id}-hint` : undefined}
         onChange={(event) => setDraft({ from: shown, text: event.target.value })}
         onBlur={save}
         onKeyDown={(event) => event.key === "Enter" && event.currentTarget.blur()}
       />
+      {hint && (
+        <p id={`${id}-hint`} className="text-note text-ink-meta mt-1">
+          {hint}
+        </p>
+      )}
     </div>
   );
 }

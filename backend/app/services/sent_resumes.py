@@ -92,14 +92,15 @@ class SentFile:
 def _identity(identity: HeaderIdentity, page: PageSettings = DEFAULT_PAGE) -> dict:
     """The header's fields as stored and hashed: only what the page prints
     (`shown_header`, KAN-436), so a field the resume hides is neither kept
-    nor counted. `us_citizen` and `location` are left out while unset, so a
+    nor counted. `us_citizen`, `location` and `extra` are left out while unset, so a
     resume sent before either existed still hashes the same and a repeat
     still finds it; an old snapshot reads them as unset."""
     data = dataclasses.asdict(shown_header(identity, page))
     if not data["us_citizen"]:
         del data["us_citizen"]
-    if data["location"] is None:
-        del data["location"]
+    for field in ("location", "extra"):
+        if data[field] is None:
+            del data[field]
     return data
 
 

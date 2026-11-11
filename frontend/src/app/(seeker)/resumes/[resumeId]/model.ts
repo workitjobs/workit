@@ -23,7 +23,8 @@ export type HeaderField =
   | "linkedin_url"
   | "github_url"
   | "portfolio_url"
-  | "other_url";
+  | "other_url"
+  | "resume_header_extra";
 export type Header = Pick<ApplicantProfile, HeaderField>;
 
 export type Line =
@@ -60,7 +61,13 @@ const TYPED_ENTRY = new Set([
  *  the profile's contact email, else the sign-in address, so it is set on
  *  My Profile, not typed here. The location is the profile's (KAN-436),
  *  not an entry's, though both boxes are "location". */
-const TYPED_HEADER = new Set<string>(["full_name", "phone_number", "location", ...LINK_FIELDS]);
+const TYPED_HEADER = new Set<string>([
+  "full_name",
+  "phone_number",
+  "location",
+  ...LINK_FIELDS,
+  "resume_header_extra",
+]);
 
 /** True when the line's text is typed in place. */
 export function typed(line: Line) {

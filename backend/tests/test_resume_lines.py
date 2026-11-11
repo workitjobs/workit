@@ -51,3 +51,9 @@ def test_the_headers_location_goes_to_the_profile_and_an_entrys_to_the_bank():
         parse("title", "x", header=True)
     with pytest.raises(LineError):
         parse("full_name", "", header=True)
+
+
+def test_the_additional_line_is_typed_as_written():
+    assert parse("resume_header_extra", " Open to relocation ", header=True) == Line(
+        "header", {"resume_header_extra": "Open to relocation"})
+    assert parse("resume_header_extra", "", header=True) == Line("header", {"resume_header_extra": None})

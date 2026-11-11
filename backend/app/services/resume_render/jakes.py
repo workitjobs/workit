@@ -92,6 +92,13 @@ def _header(identity: HeaderIdentity, marks: bool, printed: Printed, page: PageS
     lines = [rf"\begin{{{box}}}", rf"{name} \\ \vspace{{1pt}}"]
     if contact:
         lines.append(r"\small " + " $|$ ".join(contact))
+    # The Additional line, under the contact line in its type: the
+    # student's own words, never cut by Fit to One Page
+    if identity.extra:
+        extra = slot("resume_header_extra", escape(identity.extra), identity.extra)
+        if contact:
+            lines[-1] += r" \\"
+        lines.append(r"\small " + extra)
     lines.append(rf"\end{{{box}}}")
     return lines
 

@@ -34,7 +34,7 @@ from decimal import Decimal, InvalidOperation
 BULLET = "bullet"
 ENTRY_KINDS = ("title", "organization", "location", "honors", "coursework", "gpa", "tools")
 LINK_KINDS = ("linkedin_url", "github_url", "portfolio_url", "other_url")
-HEADER_KINDS = ("full_name", "phone_number", "location", *LINK_KINDS)
+HEADER_KINDS = ("full_name", "phone_number", "location", "resume_header_extra", *LINK_KINDS)
 # The label each detail line prints before its value (fields.details)
 LABELS = {"gpa": "GPA", "coursework": "Relevant Coursework", "honors": "Honors"}
 REQUIRED = {

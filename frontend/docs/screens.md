@@ -3652,7 +3652,7 @@ student who opened a resume from Experiences landed on another view.
   its own tick (`cutSkills`, `CutSkills`).
  - **The Header panel** (`header-panel.tsx`, KAN-436), after Simplify's
   Resume Header: a row per header field (Phone, Email, Location, LinkedIn,
-  GitHub, Portfolio, Other Link), each a check box, its glyph and label,
+  GitHub, Portfolio, Other Link, Additional Line), each a check box, its glyph and label,
   and its value, with the Name first and no check box, since it always
   prints. **The check box is this resume's** (`hidden_header`, a page
   setting, saved and rendered as one, with Undo); **the value is the
@@ -3669,6 +3669,12 @@ student who opened a resume from Experiences landed on another view.
   Scout's panel on the editor's page, beside the page on Tailor's review,
   and as a sheet on a phone. Format Options' Reset Formatting leaves the
   hidden fields, as it leaves the section order.
+  **The Additional Line is one free text line** under the contact line
+  (`resume_header_extra`, 100 characters), for what a resume header holds
+  that has no field: a clearance, "Open to relocation". Simplify has no
+  such field; one line was chosen over unlimited custom lines, which bloat
+  the header, which Fit to One Page cannot cut, and which neither a hiring
+  system's parser nor the autofiller can read.
  - **Moving is the Sections panel** (`sections-panel.tsx`, KAN-435): an
   outline of what prints, as Jobright's, opened from the toolbar's end beside
   Format Options. Sections fold to their entries and entries to their bullets,

@@ -89,6 +89,7 @@ const KIND_LABELS: Record<string, string> = {
   github_url: "GitHub",
   portfolio_url: "Portfolio",
   other_url: "Link",
+  resume_header_extra: "Additional Line",
 };
 export const kindLabel = (kind: string) => KIND_LABELS[kind] ?? kind;
 

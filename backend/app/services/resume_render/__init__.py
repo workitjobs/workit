@@ -122,6 +122,7 @@ HEADER = "header"
 # Application Questions' answer, so neither is here.
 HEADER_FIELDS = (
     "phone_number", "email", "location", "linkedin_url", "github_url", "portfolio_url", "other_url",
+    "resume_header_extra",
 )
 # The distance between a wrapped line's baselines in Jake's bullets, in
 # points; `PageSettings.wrapped_line` on any other page
@@ -319,6 +320,9 @@ class HeaderIdentity:
     # Where the student lives, "Stony Brook, NY" (the profile's `location`,
     # KAN-436): after the email
     location: str | None = None
+    # The Additional line (the profile's `resume_header_extra`, KAN-436): the
+    # student's own text, on a line of its own under the contact line
+    extra: str | None = None
 
 
 def shown_header(identity: HeaderIdentity, page: PageSettings) -> HeaderIdentity:
@@ -334,6 +338,7 @@ def shown_header(identity: HeaderIdentity, page: PageSettings) -> HeaderIdentity
         phone=None if "phone_number" in hidden else identity.phone,
         email=None if "email" in hidden else identity.email,
         location=None if "location" in hidden else identity.location,
+        extra=None if "resume_header_extra" in hidden else identity.extra,
         links=tuple((field, url) for field, url in identity.links if field not in hidden),
     )
 

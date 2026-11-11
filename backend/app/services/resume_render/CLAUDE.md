@@ -112,6 +112,14 @@ resume; KAN-207 renders the bank and retired the proof endpoint.
   field with no value changes nothing, and a hidden value never sits in a
   snapshot. The list is kept in `HEADER_FIELDS`' order, so two resumes
   hiding the same fields hash the same.
+  **The Additional line** (`HeaderIdentity.extra`, the profile's
+  `resume_header_extra`, KAN-436) prints on a line of its own under the
+  contact line, in its `\small` type, PDF, LaTeX and Word alike, with a
+  box of kind `resume_header_extra` the editor types into the profile. It
+  can be hidden as any other field. Fit to One Page never cuts a header
+  line: the header is part of the page it measures, not a cut. "U.S.
+  Citizen" stays on the contact line, never in this line, since
+  Application Questions owns it.
   The name's box
   reaches `NAME_ASCENT`/`NAME_DESCENT`, since it prints `\Huge`. The editor
   types them into the profile. The render route sends them as `RenderResponse.boxes`

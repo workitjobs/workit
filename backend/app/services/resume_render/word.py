@@ -118,6 +118,8 @@ def render_docx(view: ResumeView, identity: HeaderIdentity, page: PageSettings =
     )
     if contact:
         _paragraph(doc, space_after=4, align=WD_ALIGN_PARAGRAPH.CENTER).add_run(" | ".join(contact))
+    if identity.extra:
+        _paragraph(doc, space_after=4, align=WD_ALIGN_PARAGRAPH.CENTER).add_run(identity.extra)
 
     by_name = {section.section: section for section in view.sections}
     for name in printed_order(page.section_order, view.sections):

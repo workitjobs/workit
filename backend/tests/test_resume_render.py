@@ -384,6 +384,26 @@ def test_a_hidden_header_field_does_not_print_on_that_resume() -> None:
     assert "Stony Brook" in resume_render.latex(VIEW, identity, "jakes")
 
 
+def test_the_additional_line_prints_under_the_contact_line() -> None:
+    # KAN-436: its own line, in the contact line's type, with a box the
+    # editor types into the profile
+    identity = replace(IDENTITY, extra="Secret clearance | Open to relocation")
+    tex = jakes_body(VIEW, identity, marks=False)
+    assert r"\underline{github.com/jake}} \\" + "\n" + r"\small Secret clearance \textbar{} Open to relocation" in tex
+    assert "Secret clearance" not in jakes_body(
+        VIEW, shown_header(identity, PageSettings(hidden_header=("resume_header_extra",))), marks=False)
+    # With no contact line it stands alone, with no empty line above it
+    bare = replace(identity, phone=None, email=None, links=())
+    assert r"\vspace{1pt}" + "\n" + r"\small Secret" in jakes_body(VIEW, bare, marks=False)
+    _tectonic_or_skip()
+    rendered = render(VIEW, identity, "jakes")
+    box = next(b for b in rendered.boxes if b.item_id == "header" and b.kind == "resume_header_extra")
+    contact = next(b for b in rendered.boxes if b.item_id == "header" and b.kind == "phone_number")
+    assert box.text == "Secret clearance | Open to relocation"
+    assert box.y0 >= contact.y1 - 1
+    assert rendered.page_count == 1 and rendered.missing_characters == ()
+
+
 def test_the_hidden_header_fields_are_kept_in_one_order_and_checked() -> None:
     assert PageSettings(hidden_header=["github_url", "phone_number"]).hidden_header == ("phone_number", "github_url")
     with pytest.raises(ValueError):
@@ -505,6 +525,11 @@ def test_the_word_file_prints_the_location_and_leaves_out_hidden_fields() -> Non
     page = PageSettings(hidden_header=("email", "linkedin_url"))
     doc = Document(io.BytesIO(render_docx(VIEW, identity, page)))
     assert doc.paragraphs[1].text == "123-456-7890 | Stony Brook, NY | github.com/jake"
+    doc = Document(io.BytesIO(render_docx(VIEW, replace(identity, extra="Open to relocation"))))
+    assert doc.paragraphs[2].text == "Open to relocation"
+    page = PageSettings(hidden_header=("resume_header_extra",))
+    doc = Document(io.BytesIO(render_docx(VIEW, replace(identity, extra="Open to relocation"), page)))
+    assert "Open to relocation" not in [p.text for p in doc.paragraphs]
 
 
 def test_the_word_file_prints_a_projects_tools_under_its_heading() -> None:

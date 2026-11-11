@@ -137,6 +137,8 @@ class IdentityCopy(BaseModel):
     links: list[tuple[str, str]] = []
     us_citizen: bool = False
     location: str | None = None
+    # The Additional line (KAN-436)
+    extra: str | None = None
 
 
 SECTION_ORDER = ("education", "experience", "projects", "leadership", "awards", "certifications", "skills")
@@ -144,6 +146,7 @@ SECTION_ORDER = ("education", "experience", "projects", "leadership", "awards", 
 
 HeaderField = Literal[
     "phone_number", "email", "location", "linkedin_url", "github_url", "portfolio_url", "other_url",
+    "resume_header_extra",
 ]
 HEADER_FIELD_NAMES = get_args(HeaderField)
 
