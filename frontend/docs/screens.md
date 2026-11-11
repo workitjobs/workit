@@ -3109,8 +3109,10 @@ per row, Name with the Primary badge beside it, Target Job (the
 company's logo, the posting over the company; a dash for none), Date
 Modified and View, always shown (`ResumeViewButton`, Up Next's own), with
 no Type column; then **Start From This Resume** in the footer. The dialog
-is 56rem wide, its header and footer stay put and its body scrolls
-between them. It was "Copy a Resume You Have" over Tailor's picker cards
+is 56rem wide; its header, its ways to start, the search and its footer
+stay put, and **the table scrolls inside itself** under its pinned
+headings, taking the room left (at least 14rem; on a window too short for
+that, the body scrolls instead). It was "Copy a Resume You Have" over Tailor's picker cards
 (a star at each card's end, a type badge on every card, View on hover)
 on the day it shipped, and the dialog scrolled as one with its footer
 below the window.

@@ -30,6 +30,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Missing } from "@/components/ui/missing";
+import { STICKY_HEAD, STICKY_TH } from "@/components/fill-page";
 import { OptionRow } from "@/components/ui/option-row";
 import { OrDivider } from "@/components/ui/or-divider";
 import { Radio } from "@/components/ui/radio-row";
@@ -67,9 +68,10 @@ import type { Source } from "../jobs/resume-picker";
  * Auto Apply's setup row), and act at once; the third needs a pick, so it
  * ends with the footer's filled button, as every resume picker does.
  *
- * The header and the footer stay put and the body scrolls between them
- * (2026-11-11): the whole dialog scrolled as one, and the footer's buttons
- * sat below the window. The third way was "Copy a Resume You Have", over
+ * The table scrolls inside itself and nothing else moves (2026-11-11, the
+ * user's call): the header, the ways to start, the search and the footer
+ * stay put. The whole dialog scrolled as one at first, with the footer's
+ * buttons below the window, and then its body scrolled. The third way was "Copy a Resume You Have", over
  * Tailor's picker cards (a star at the right end, the type's badge on
  * every card, View on hover) until then; the user wanted a table's few
  * columns, the badge by the name, and no type.
@@ -214,7 +216,9 @@ function Body({
         </DialogDescription>
       </DialogHeader>
 
-      {/* overscroll-none: a fling past the end stops here, not on the page. */}
+      {/* The table scrolls, not this (2026-11-11, the user's call): the ways
+          to start and the search stay put and the table takes the rest. On
+          a window too short for the table's 14rem, this scrolls instead. */}
       <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto overscroll-none px-6 py-5">
         <Card padding="none" className="divide-border-subtle shrink-0 divide-y overflow-hidden">
           <OptionRow
@@ -238,9 +242,12 @@ function Body({
           />
         </Card>
 
-        <OrDivider />
+        <OrDivider className="shrink-0" />
 
-        <section aria-labelledby="start-with" className="flex min-w-0 flex-col gap-3">
+        <section
+          aria-labelledby="start-with"
+          className="flex min-h-0 min-w-0 flex-1 flex-col gap-3"
+        >
           <div>
             <h3 id="start-with" className="text-body text-ink font-semibold">
               Start With a Resume You Have
@@ -257,6 +264,7 @@ function Body({
           ) : (
             <>
               <SearchField
+                className="shrink-0"
                 id="start-with-search"
                 label="Search resumes"
                 placeholder="Search by name or job"
@@ -309,19 +317,25 @@ function StartTable({
   onPick: (key: string) => void;
 }) {
   return (
-    <div className="border-border-subtle rounded-card @container overflow-hidden border">
-      <Table aria-label="Your resumes" className="table-fixed">
-        <TableHeader>
+    // Fills what the dialog leaves it, at least 14rem, and scrolls inside
+    // itself under its pinned headings (components/fill-page.ts).
+    <div className="border-border-subtle rounded-card @container flex min-h-56 flex-1 flex-col overflow-hidden border">
+      <Table
+        aria-label="Your resumes"
+        className="table-fixed"
+        containerClassName="min-h-0 flex-1 overflow-y-auto"
+      >
+        <TableHeader className={STICKY_HEAD}>
           <TableRow className="hover:bg-transparent">
-            <TableHead className="w-11 pr-0 pl-4">
+            <TableHead className={cn(STICKY_TH, "w-11 pr-0 pl-4")}>
               <span className="sr-only">Pick</span>
             </TableHead>
-            <TableHead className={RESUME_TH}>Name</TableHead>
-            <TableHead className={cn(RESUME_TH, "hidden w-64 @2xl:table-cell")}>
+            <TableHead className={cn(RESUME_TH, STICKY_TH)}>Name</TableHead>
+            <TableHead className={cn(RESUME_TH, STICKY_TH, "hidden w-64 @2xl:table-cell")}>
               Target Job
             </TableHead>
-            <TableHead className={cn(RESUME_TH, "w-32")}>Date Modified</TableHead>
-            <TableHead className="w-24">
+            <TableHead className={cn(RESUME_TH, STICKY_TH, "w-32")}>Date Modified</TableHead>
+            <TableHead className={cn(STICKY_TH, "w-24")}>
               <span className="sr-only">View</span>
             </TableHead>
           </TableRow>
