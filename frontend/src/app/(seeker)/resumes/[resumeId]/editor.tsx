@@ -49,7 +49,14 @@ import { Button, buttonClasses } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { IconButton } from "@/components/ui/icon-button";
 import { TextLink } from "@/components/ui/text-link";
-import { addBullet, getBank, type Bank } from "@/lib/bank-actions";
+import {
+  addBullet,
+  addSkill,
+  getBank,
+  type Bank,
+  type BankEntry,
+  type EntrySection,
+} from "@/lib/bank-actions";
 import {
   fitToOnePage,
   getChoices,
@@ -85,6 +92,7 @@ import { Zoom, ZoomSubmenu, useZoom, zoomWidth } from "./zoom";
 import { TitleHistoryContext, type ApplyName, type TitleHistory } from "./resume-title";
 import {
   addCuts,
+  customKey,
   cutLeft,
   HEADER,
   LINK_FIELDS,
@@ -102,6 +110,7 @@ import {
   type Line,
 } from "./model";
 import { hideAgain, push, reverseChoices, reverseLine, type Edit, type Step } from "./history";
+import { OutlineEntryDialog } from "./outline-entry";
 import {
   afterStrips,
   boxKey,
@@ -2177,17 +2186,87 @@ export function Editor({
   // own beside Sections for a day. Open or closed is the editor's, since a
   // click on the header's line on the page opens it
   const [headerOpen, setHeaderOpen] = useState(false);
+  // The outline's entry form (KAN-586): an entry's Edit, or a section's Add.
+  // A save writes the bank, so the editor reads it again (`reload`), which
+  // also ends the Undo steps before it, as any change from outside does
+  const [entryForm, setEntryForm] = useState<{
+    target: BankEntry | null;
+    section: EntrySection;
+    customSectionId: string | null;
+  } | null>(null);
+  const formOpener = useRef<() => HTMLElement | null>(() => null);
+  const openEntryForm = (form: NonNullable<typeof entryForm>, opener: HTMLElement) => {
+    formOpener.current = () => opener;
+    setEntryForm(form);
+  };
+  /** A section's outline id as the bank names it: a fixed section, or a
+   *  custom one by its key (`customKey`). */
+  const sectionOf = (id: string): { section: EntrySection; customSectionId: string | null } => {
+    if (!id.startsWith("custom:")) return { section: id as EntrySection, customSectionId: null };
+    const custom = bank.sections.find((s) => customKey(s.name) === id);
+    return { section: "custom", customSectionId: custom?.id ?? null };
+  };
   const sectionsOutline = (
-    <SectionsOutline
-      bank={bank}
-      choices={choices}
-      order={page.section_order}
-      onOrder={(section_order) => void applyPage({ ...page, section_order })}
-      onApply={apply}
-      header={headerPanel}
-      headerOpen={headerOpen}
-      onHeaderOpen={setHeaderOpen}
-    />
+    <>
+      <SectionsOutline
+        bank={bank}
+        choices={choices}
+        order={page.section_order}
+        onOrder={(section_order) => void applyPage({ ...page, section_order })}
+        onApply={apply}
+        header={headerPanel}
+        headerOpen={headerOpen}
+        onHeaderOpen={setHeaderOpen}
+        onEditEntry={(entryId, opener) => {
+          const target = bank.entries.find((e) => e.id === entryId);
+          if (target)
+            openEntryForm(
+              {
+                target,
+                section: target.section,
+                customSectionId: target.custom_section_id ?? null,
+              },
+              opener,
+            );
+        }}
+        onAddEntry={(sectionId, opener) =>
+          openEntryForm({ target: null, ...sectionOf(sectionId) }, opener)
+        }
+        onAddBullet={(entryId) => {
+          const entry = bank.entries.find((e) => e.id === entryId);
+          if (entry) startBullet({ kind: "entry", entry, field: "title" });
+        }}
+        onAddSkill={async (group, name) => {
+          // A skill the bank already has (any case) goes on this resume in
+          // this group, at its end, with Undo: the API refuses a second copy
+          const key = name.trim().toLowerCase();
+          const held = bank.skills.find((skill) => skill.name.trim().toLowerCase() === key);
+          if (held) {
+            if (choices.skills.find((c) => c.skill_id === held.id)?.shown)
+              return `${held.name} is already on this resume.`;
+            const last = Math.max(-1, ...choices.skills.map((c) => c.position));
+            apply({ skills: [{ skill_id: held.id, shown: true, position: last + 1, group }] });
+            return null;
+          }
+          const { error } = await addSkill(name, group || null, resumeId);
+          if (error) return error;
+          reload(null);
+          return null;
+        }}
+      />
+      {entryForm && (
+        <OutlineEntryDialog
+          bank={bank}
+          resumeId={resumeId}
+          target={entryForm.target}
+          section={entryForm.section}
+          customSectionId={entryForm.customSectionId}
+          returnTo={formOpener}
+          onClose={() => setEntryForm(null)}
+          onSaved={async () => reload(null)}
+        />
+      )}
+    </>
   );
   // The header's line opens the outline's Header row: beside the page on
   // the desktop, a sheet on a phone

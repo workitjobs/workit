@@ -3710,7 +3710,21 @@ student who opened a resume from Experiences landed on another view.
   an entry was as bold as its section at the same indent, which read as one
   flat list, and Technical Skills was a row with nothing under it. The panel
   wears the toolbar button's list glyph, and Format Options its sliders,
-  never Scout's sparkle, which marks AI alone. It replaced the bar's up and down buttons,
+  never Scout's sparkle, which marks AI alone.
+  **Each row acts on itself** (KAN-586, after Simplify's and Jobright's
+  per-row controls), its actions showing while the pointer or the focus is
+  on its line (always on a touch screen): **Remove** (trash) on a section,
+  entry, bullet, skill group and skill takes it off this resume only, a hide
+  with Undo, never a delete, and Add Experiences puts it back; **Edit**
+  (pencil) on an entry opens the Experiences page's own form
+  (`outline-entry.tsx`), so dates, degree, location and "Present" change
+  without leaving the editor. Until KAN-800 makes resume edits local, that
+  form's save is the bank's and names the other resumes it changes. Each
+  open level ends in **+ Add**: Add Job (or School, Project...) opens the
+  same form for a new entry saved onto this resume (not in a Lines section),
+  Add Bullet starts a line on the page under the entry, and Add Skill opens
+  a field at the group's foot; a skill the bank already has goes on the
+  resume in that group instead of a second copy. It replaced the bar's up and down buttons,
   which moved one line one step and could not move a section. A phone keeps
   those buttons, since a drag there fights the scroll. The bar's Sections
   and Format Options (`PanelButton`) fold to glyphs with a tooltip, shown

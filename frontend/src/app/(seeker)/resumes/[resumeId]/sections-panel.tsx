@@ -10,11 +10,14 @@ import {
   type ReactNode,
 } from "react";
 
-import { UserIcon } from "@/components/icons";
+import { PencilIcon, PlusIcon, TrashIcon, UserIcon } from "@/components/icons";
+import { Button } from "@/components/ui/button";
+import { IconButton } from "@/components/ui/icon-button";
 import { Tip } from "@/components/ui/tip";
 import type { Bank } from "@/lib/bank-actions";
 import type { Choices, ChoicesUpdate } from "@/lib/built-resume-actions";
 import { cn } from "@/lib/cn";
+import { TextInput } from "@/components/ui/text-field";
 
 import {
   arrangeSkills,
@@ -213,23 +216,77 @@ function Fold({ open, label, onToggle }: { open: boolean; label: string; onToggl
   );
 }
 
+// A row's actions show while the pointer or the focus is on its line, and
+// always on a touch screen, which has no hover
+const LINE = "group/line flex items-center gap-1";
+const ACTIONS =
+  "flex shrink-0 items-center opacity-0 transition-opacity duration-150 group-hover/line:opacity-100 group-focus-within/line:opacity-100 [@media(hover:none)]:opacity-100";
+
+/** A row's Edit or Remove: a quiet glyph, named in full for a screen reader
+ *  and in short in its tooltip. */
+function Action({
+  label,
+  tooltip,
+  onClick,
+  children,
+}: {
+  label: string;
+  tooltip: string;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <IconButton label={label} tooltip={tooltip} className="size-7" onClick={onClick}>
+      {children}
+    </IconButton>
+  );
+}
+
+/** Remove From This Resume: the row and all under it leave this resume only
+ *  (a hide, with Undo); the bank keeps them, and Add Experiences puts them
+ *  back. */
+function Remove({ name, onRemove }: { name: string; onRemove: () => void }) {
+  return (
+    <Action
+      label={`Remove ${name} from this resume`}
+      tooltip="Remove From Resume"
+      onClick={onRemove}
+    >
+      <TrashIcon className="size-4" />
+    </Action>
+  );
+}
+
+/** "+ Add …" at the foot of what it adds to, one step in. */
+function AddRow({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <div className="py-0.5 pl-6">
+      <Button variant="section" size="inline" onClick={onClick}>
+        <PlusIcon aria-hidden /> {label}
+      </Button>
+    </div>
+  );
+}
+
 /** An entry or a skill group: its name over a muted line, both a press
- *  that folds it. */
+ *  that folds it, then its actions and its fold. */
 function ItemRow({
   handle,
   name,
   detail,
+  actions,
   fold,
   onToggle,
 }: {
   handle: ReactNode;
   name: string;
   detail?: string | null;
+  actions?: ReactNode;
   fold: ReactNode;
   onToggle: () => void;
 }) {
   return (
-    <div className="flex items-center gap-1 py-0.5">
+    <div className={cn(LINE, "py-0.5")}>
       {handle}
       <button
         type="button"
@@ -239,7 +296,65 @@ function ItemRow({
         <span className={ITEM_NAME}>{name}</span>
         {detail && <span className="text-note text-ink-meta block truncate">{detail}</span>}
       </button>
+      {actions && <div className={ACTIONS}>{actions}</div>}
       {fold}
+    </div>
+  );
+}
+
+/** "+ Add Skill" at a group's foot: a press opens a field in its place, and
+ *  Enter saves the skill into this group on this resume (Escape or an empty
+ *  field closes it). */
+function AddSkill({
+  group,
+  onAdd,
+}: {
+  group: PrintedSkillGroup;
+  onAdd: (group: string, name: string) => Promise<string | null>;
+}) {
+  const [typing, setTyping] = useState(false);
+  const [name, setName] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  if (!typing) return <AddRow label="Add Skill" onClick={() => setTyping(true)} />;
+  const close = () => {
+    setTyping(false);
+    setName("");
+    setError(null);
+  };
+  const save = async () => {
+    const typed = name.trim();
+    if (!typed) return close();
+    setBusy(true);
+    const failed = await onAdd(group.key, typed);
+    setBusy(false);
+    if (failed) return setError(failed);
+    // Ready for the next one
+    setName("");
+    setError(null);
+  };
+  return (
+    <div className="py-0.5 pl-6">
+      <TextInput
+        autoFocus
+        value={name}
+        disabled={busy}
+        placeholder={`A skill for ${group.label}`}
+        aria-label={`New skill in ${group.label}`}
+        aria-invalid={error ? true : undefined}
+        maxLength={60}
+        onChange={(event) => setName(event.target.value)}
+        onBlur={() => !name.trim() && close()}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") void save();
+          if (event.key === "Escape") close();
+        }}
+      />
+      {error && (
+        <div role="alert" className="text-note text-danger mt-1">
+          {error}
+        </div>
+      )}
     </div>
   );
 }
@@ -255,6 +370,8 @@ function SkillsOutline({
   toggle,
   reveal,
   onArrange,
+  onRemove,
+  onAddSkill,
 }: {
   groups: PrintedSkillGroup[];
   opened: Set<string>;
@@ -262,6 +379,10 @@ function SkillsOutline({
   /** Opens a row, leaving it open if it is. */
   reveal: (id: string) => void;
   onArrange: (groups: PrintedSkillGroup[]) => void;
+  /** Takes these skills off this resume. */
+  onRemove: (skillIds: string[]) => void;
+  /** Saves a new skill into the group on this resume; an error, or null. */
+  onAddSkill?: (group: string, name: string) => Promise<string | null>;
 }) {
   const [dragged, setDragged] = useState<Spot | null>(null);
   // Where the skill would land: before the skill at this index of its group
@@ -347,6 +468,12 @@ function SkillsOutline({
               name={group.label}
               detail={open ? null : group.skills.map((s) => s.name).join(", ")}
               onToggle={() => toggle(id)}
+              actions={
+                <Remove
+                  name={`the ${group.label} skills`}
+                  onRemove={() => onRemove(group.skills.map((skill) => skill.id))}
+                />
+              }
               fold={<Fold open={open} label={group.label} onToggle={() => toggle(id)} />}
             />
             {open && (
@@ -357,7 +484,8 @@ function SkillsOutline({
                     onDragOver={(event) => overSkill(event, g, at)}
                     onDrop={drop}
                     className={cn(
-                      "relative flex items-center gap-1",
+                      "relative",
+                      LINE,
                       dragged?.group === g && dragged.at === at && "opacity-50",
                       target && gap.at === at && LINE_ABOVE,
                       target && gap.at === at + 1 && at === group.skills.length - 1 && LINE_BELOW,
@@ -371,8 +499,16 @@ function SkillsOutline({
                       onKeyDown={(event) => keys(event, { group: g, at }, skill.id)}
                     />
                     <span className={cn(LEAF, "truncate")}>{skill.name}</span>
+                    <div className={ACTIONS}>
+                      <Remove name={skill.name} onRemove={() => onRemove([skill.id])} />
+                    </div>
                   </li>
                 ))}
+                {onAddSkill && (
+                  <li>
+                    <AddSkill group={group} onAdd={onAddSkill} />
+                  </li>
+                )}
               </ul>
             )}
           </div>
@@ -391,6 +527,10 @@ export function SectionsOutline({
   header,
   headerOpen = false,
   onHeaderOpen,
+  onEditEntry,
+  onAddEntry,
+  onAddBullet,
+  onAddSkill,
 }: {
   bank: Bank;
   choices: Choices;
@@ -404,6 +544,15 @@ export function SectionsOutline({
    *  header's line on the page opens it. */
   headerOpen?: boolean;
   onHeaderOpen?: (open: boolean) => void;
+  /** Opens an entry's form (`OutlineEntryDialog`), from its Edit. */
+  onEditEntry?: (entryId: string, opener: HTMLElement) => void;
+  /** Opens a new entry's form for a section, or none where a section takes
+   *  no new entry here (a Lines section). */
+  onAddEntry?: (sectionId: string, opener: HTMLElement) => void;
+  /** Starts a new bullet at the foot of an entry, on the page. */
+  onAddBullet?: (entryId: string) => void;
+  /** Saves a new skill into a group on this resume; an error, or null. */
+  onAddSkill?: (group: string, name: string) => Promise<string | null>;
 }) {
   const [opened, setOpened] = useState<Set<string>>(() => new Set());
   // Opened from the page's header line, the Header row may be scrolled out
@@ -420,6 +569,12 @@ export function SectionsOutline({
   };
   const sections = printedSections(bank, choices, order);
   const skills = printedSkills(bank, choices);
+  // Remove From This Resume: a hide, so Undo takes it back and the bank
+  // keeps the item for Add Experiences to put back
+  const removeEntries = (ids: string[]) =>
+    onApply({ entries: ids.map((entry_id) => ({ entry_id, shown: false })) });
+  const removeSkills = (ids: string[]) =>
+    onApply({ skills: ids.map((skill_id) => ({ skill_id, shown: false })) });
 
   const entryRow = (entry: PrintedEntry, handle: ReactNode) => {
     const open = opened.has(entry.id);
@@ -430,13 +585,23 @@ export function SectionsOutline({
           name={entry.title}
           detail={entry.detail}
           onToggle={() => toggle(entry.id)}
-          fold={
-            entry.bullets.length > 1 && (
-              <Fold open={open} label={entry.title} onToggle={() => toggle(entry.id)} />
-            )
+          actions={
+            <>
+              {onEditEntry && (
+                <Action
+                  label={`Edit ${entry.title}`}
+                  tooltip="Edit"
+                  onClick={() => onEditEntry(entry.id, document.activeElement as HTMLElement)}
+                >
+                  <PencilIcon className="size-4" />
+                </Action>
+              )}
+              <Remove name={entry.title} onRemove={() => removeEntries([entry.id])} />
+            </>
           }
+          fold={<Fold open={open} label={entry.title} onToggle={() => toggle(entry.id)} />}
         />
-        {open && (
+        {open && entry.bullets.length > 0 && (
           <SortableList
             items={entry.bullets}
             idOf={(bullet) => bullet.id}
@@ -451,12 +616,23 @@ export function SectionsOutline({
               })
             }
             row={(bullet, handle) => (
-              <div className="flex items-center gap-1">
+              <div className={LINE}>
                 {handle}
                 <span className={cn(LEAF, "line-clamp-2")}>{bullet.text}</span>
+                <div className={ACTIONS}>
+                  <Remove
+                    name="this bullet"
+                    onRemove={() => onApply({ bullets: [{ bullet_id: bullet.id, shown: false }] })}
+                  />
+                </div>
               </div>
             )}
           />
+        )}
+        {open && onAddBullet && (
+          <div className={NEST}>
+            <AddRow label="Add Bullet" onClick={() => onAddBullet(entry.id)} />
+          </div>
         )}
       </div>
     );
@@ -501,17 +677,24 @@ export function SectionsOutline({
         row={(section, handle) => {
           const open = opened.has(section.id);
           const isSkills = section.id === "skills";
-          const filled = isSkills ? skills.length > 0 : section.entries.length > 0;
           return (
             <section className="py-1.5">
-              <div className="flex items-center gap-1">
+              <div className={LINE}>
                 {handle}
                 <button type="button" className={SECTION_NAME} onClick={() => toggle(section.id)}>
                   {section.label}
                 </button>
-                {filled && (
-                  <Fold open={open} label={section.label} onToggle={() => toggle(section.id)} />
-                )}
+                <div className={ACTIONS}>
+                  <Remove
+                    name={section.label}
+                    onRemove={() =>
+                      isSkills
+                        ? removeSkills(skills.flatMap((group) => group.skills.map((s) => s.id)))
+                        : removeEntries(section.entries.map((entry) => entry.id))
+                    }
+                  />
+                </div>
+                <Fold open={open} label={section.label} onToggle={() => toggle(section.id)} />
               </div>
               {open && isSkills && (
                 <SkillsOutline
@@ -520,6 +703,8 @@ export function SectionsOutline({
                   toggle={toggle}
                   reveal={(id) => !opened.has(id) && toggle(id)}
                   onArrange={(groups) => onApply(arrangeSkills(bank, choices, groups))}
+                  onRemove={removeSkills}
+                  onAddSkill={onAddSkill}
                 />
               )}
               {open && !isSkills && section.entries.length > 0 && (
@@ -538,6 +723,14 @@ export function SectionsOutline({
                   }
                   row={entryRow}
                 />
+              )}
+              {open && !isSkills && section.addable && onAddEntry && (
+                <div className={NEST}>
+                  <AddRow
+                    label={`Add ${section.noun}`}
+                    onClick={() => onAddEntry(section.id, document.activeElement as HTMLElement)}
+                  />
+                </div>
               )}
             </section>
           );

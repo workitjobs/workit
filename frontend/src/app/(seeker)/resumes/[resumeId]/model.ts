@@ -3,7 +3,7 @@ import type { ChoicesUpdate, Choices, RenderBox } from "@/lib/built-resume-actio
 import type { ApplicantProfile } from "@/lib/profile-actions";
 
 import { ALL, rowsOf, skillCopies, type BankRow } from "../../experiences/holdings.ts";
-import { SECTIONS } from "../../experiences/sections.ts";
+import { NOUNS, SECTIONS } from "../../experiences/sections.ts";
 import { unmarked } from "./text-marks.ts";
 
 /**
@@ -215,7 +215,15 @@ export type PrintedEntry = {
   detail: string | null;
   bullets: { id: string; text: string }[];
 };
-export type PrintedSection = { id: string; label: string; entries: PrintedEntry[] };
+/** `noun` names one of its entries ("Job"); `addable` says a new entry can
+ *  be added to it from the outline (not Skills, not a Lines section). */
+export type PrintedSection = {
+  id: string;
+  label: string;
+  entries: PrintedEntry[];
+  noun: string;
+  addable: boolean;
+};
 
 // `fields.py`'s SECTION_LABELS and SKILLS_LABEL, as the page prints them
 const SECTION_LABELS: Record<string, string> = {
@@ -238,17 +246,22 @@ export function printedSections(bank: Bank, choices: Choices, order: string[]): 
   return printedOrder(order, custom).flatMap((id): PrintedSection[] => {
     if (id === "skills") {
       const shown = bank.skills.some((s) => choices.skills.find((c) => c.skill_id === s.id)?.shown);
-      return shown ? [{ id, label: SECTION_LABELS[id], entries: [] }] : [];
+      return shown
+        ? [{ id, label: SECTION_LABELS[id], entries: [], noun: "Skill", addable: false }]
+        : [];
     }
     const entries = ordered(
       bank.entries.filter((e) => groupOf(bank, e) === id),
       entry,
     );
     if (!entries.length) return [];
+    const group = custom.find((g) => g.id === id);
     return [
       {
         id,
-        label: SECTION_LABELS[id] ?? custom.find((g) => g.id === id)?.label ?? id,
+        noun: group ? "Entry" : (NOUNS[id as keyof typeof NOUNS]?.[0] ?? "Entry"),
+        addable: group ? group.layout !== "lines" : true,
+        label: SECTION_LABELS[id] ?? group?.label ?? id,
         entries: entries.map((e) => ({
           id: e.id,
           title: e.title,
