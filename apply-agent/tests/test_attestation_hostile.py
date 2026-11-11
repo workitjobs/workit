@@ -328,3 +328,12 @@ def test_a_second_claim_joined_by_another_word_is_never_attested(tmp_path, label
     q = Question("q1", label, "select", True, ("I Confirm", "I Do Not Confirm"))
     planned = fill_engine.plan([q], POSTING, ApplicantProfile.load(path))
     assert planned.answers == {} and planned.attested == {} and "q1" in planned.attestations
+
+
+@pytest.mark.parametrize("options", [("Yes, and I accept the offer terms", "No"), ("Agree to all terms", "Decline")])
+def test_an_option_that_says_more_than_yes_is_never_picked(tmp_path, options):
+    # PR fe#126's third adversarial review: the option picked must say yes and nothing more.
+    path = profile_with(tmp_path, policies={"attest_from_sources": ["sponsorship", "age_18"]})
+    q = Question("q1", "I certify that I am at least 18 years of age", "select", True, options)
+    planned = fill_engine.plan([q], POSTING, ApplicantProfile.load(path))
+    assert planned.answers == {} and planned.attested == {} and "q1" in planned.attestations

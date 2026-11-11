@@ -71,7 +71,8 @@ attestation whose every claim the profile's facts settle (KAN-761). Its
 rules are the engine's (`src/attest.ts`): `sponsorship`,
 `work_authorization`, `age_18`, and `truthful_information` only when
 listed by name. It picks the form's one affirmative option ("I Confirm",
-"Yes", "I Affirm"), and never signs, types a name, consents, opts in or
+"Yes", "I Affirm"), which must say yes and nothing more, matched whole
+(never "Yes, and I accept the offer terms"), and never signs, types a name, consents, opts in or
 answers a clause that no listed rule settles. Each clause, its lead-in
 ("I certify that") left out, must match one of a rule's wordings whole,
 or an employer's notice whole: anything else in it, a second claim or
