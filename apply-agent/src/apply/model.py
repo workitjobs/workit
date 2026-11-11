@@ -50,6 +50,8 @@ def host_company(url: str) -> str:
 
 
 # An Eightfold careers site's Posting or form: on eightfold.ai, or on a company's own host (Netflix's).
+# amazon.jobs: a posting, or its signed-in application (KAN-765), as the engine's jobOf reads them.
+AMAZON = re.compile(r"https?://(www\.|account\.)?amazon\.jobs/([a-z]{2}(-[a-z]{2})?/)?(applicant/)?jobs/\d+", re.IGNORECASE)
 EIGHTFOLD = re.compile(r"https?://([^/]+\.eightfold\.ai|explore\.jobs\.netflix\.net)/careers/(job/\d+|apply\?(.*&)?pid=\d+)")
 
 
@@ -116,6 +118,8 @@ class Posting:
             return "rippling"
         if EIGHTFOLD.match(self.url):
             return "eightfold"
+        if AMAZON.match(self.url):
+            return "amazon"
         return "other"
 
 

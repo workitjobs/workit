@@ -157,6 +157,46 @@ places is never banked. An older entry filed under a bare label alone is
 never read again. Lisul's own answer to a bare date applies to that form
 only; Apply does not save it to the profile by its wording.
 
+## amazon.jobs (KAN-765)
+
+An amazon.jobs Posting (`model.AMAZON`, job system `amazon`) has its own
+Filler, `apply.amazon.AmazonFiller`: plain code through the engine's Amazon
+Stepper (`src/amazon.ts`), not Claude fill. Before it, Claude fill filled
+only the step Amazon opened, so the steps that Lisul's old Amazon profile
+ticked kept their stale answers (a Minor, a graduation date, "3+ years
+experience" Yes), typed dates didn't register, and picked dates read back a
+day early (2026-11-06 to 11-10).
+
+- The sign-in is Lisul's, in the Worker. The engine reports it, and the
+  AI-preference choice, as a gate; the Filler hands it off and reads again
+  on Resume.
+- The engine visits every step in the "My progress" list's order, the
+  ticked ones too (opened by their pencils). Each step is planned (a
+  Question is `"<step> / <label>"`, a date with its format), filled field by
+  field, read again for a follow-up, then left by its own Continue
+  (`amazon.next_step`, the engine's `next`), which never presses Submit
+  application. After Continue, the step's saved answers are read back into
+  the Record: what Amazon kept, so a date shown a day early fails the
+  read-back.
+- A text box that Amazon takes only from a person's typing (KAN-716) fails
+  in the engine with "KAN-716". The Filler types it again with Playwright's
+  own fill, which a plain Worker sends trusted once KAN-716's worker
+  extension (PR #521) is in, then the Rescue, then a FillError.
+- The Acknowledgement is an attestation (the engine gives the lone box its
+  card's words). The fill stops on its step for Lisul, as Workday's does,
+  and a box the page showed ticked at the pause is not his.
+- `submit` is a Handoff: Review & submit's Submit application is Lisul's.
+- The step's Continue is a click path: it is in
+  `tests/test_submit_guard_hostile.py` PATHS, with an Amazon-shaped hostile
+  page. A change to it needs the adversarial review (root `CLAUDE.md`).
+
+Not proven until a live rehearsal of an Amazon posting: the edit-mode markup
+of a ticked step opened by its pencil (Contact information, the EEO and
+veteran steps), the calendar's day cells, and whether Amazon's select2
+lists take the engine's clicks. `test_amazon_filler.py` runs the Filler on
+the engine's fake (`test/fake-amazon-page.js`), which needs a browser, so CI
+doesn't run it.
+
 The engine knows Microsoft Careers (`apply.careers.microsoft.com`) as an Eightfold site (KAN-770): `jobOf`,
 `jobNames` and `jobDescription` read it from Eightfold's API, so a request and `apply applied` get "Microsoft" and
 the role. Apply still fills its form with Claude fill: `model.EIGHTFOLD` leaves it out, since the Eightfold Filler

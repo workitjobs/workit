@@ -208,6 +208,11 @@ builds it: `dist/engine.js` is committed in the engine repo.
   review, goesOn, banner, wentWrong()}. A new stepped system (iCIMS,
   SuccessFactors) is one more script giving it, loaded before `steps.js`
   (shared/content-scripts.js), plus its name in `steps.js`'s list.
+  Still open: the engine fills amazon.jobs as a stepped system too
+  (`site: "amazon"`, KAN-765, Apply's Amazon Filler), but the extension
+  doesn't run there yet: it needs an `amazon.js` face, the manifest's
+  `*://*.amazon.jobs/*/applicant/jobs/*` match and the backend's
+  AUTO_APPLY_HOSTS.
 - **Oracle Recruiting Cloud** (`oracle.js`, KAN-369). The manifest runs on
   `*.oraclecloud.com/hcmUI/CandidateExperience/*`. Oracle's Apply opens an
   email gate (Email Address, a terms box, a hidden honeypot; a returning

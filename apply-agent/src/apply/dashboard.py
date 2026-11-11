@@ -187,7 +187,7 @@ HOLD_WORDS = [
 ]
 # Each job system by its proper name; any other is capitalised.
 JOB_SYSTEMS = {"greenhouse": "Greenhouse", "ashby": "Ashby", "lever": "Lever", "workday": "Workday",
-               "rippling": "Rippling", "workable": "Workable", "smartrecruiters": "SmartRecruiters", "icims": "iCIMS",
+               "rippling": "Rippling", "workable": "Workable", "smartrecruiters": "SmartRecruiters", "icims": "iCIMS", "amazon": "amazon.jobs",
                "bamboohr": "BambooHR"}
 # A reason that is a raw Python or Playwright error, "TimeoutError: Page.goto: ...", and the plain words for its kinds.
 RAW_ERROR = re.compile(r"^[A-Z]\w*(Error|Exception|Interrupt|Exit)\b:?")

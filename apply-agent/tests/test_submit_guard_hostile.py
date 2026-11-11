@@ -22,11 +22,11 @@ from types import SimpleNamespace
 
 import pytest
 
-from apply import ask, claude_fill, send_click, submit_guard
+from apply import amazon, ask, claude_fill, send_click, submit_guard
 from apply.account_pages import AccountPages, _Click
 from apply.adapters import Drive
 from apply.claude_fill import ClaudeFill, press_step
-from apply.model import Handoff, Posting
+from apply.model import FillError, Handoff, Posting
 from apply.plain import guards as plain_guards
 from apply.submit_guard import ROUTED, DriveGuard, guard, lift
 
@@ -338,6 +338,18 @@ PAGES = {
           Object.assign(b.style, {{position: 'fixed', left: box.left - 30 + 'px', top: box.top - 30 + 'px', width: '90px', height: '70px', zIndex: 9}});
         }}, true);
         b.addEventListener('click', () => sendAll());</script>"""},
+    # amazon.jobs's one page of step cards (KAN-765): the open card's Continue posts the application and closes the card.
+    "an Amazon card whose Continue sends": {START: f"""<title>Apply to a Job | Amazon.jobs</title>
+        <ul id=my-progress-menu role=tablist aria-label="My progress"><li><a role=tab aria-controls=JOB aria-selected=true
+        aria-label="review incomplete Job-specific questions form">Job-specific questions</a></li><li><span role=tab
+        aria-controls=REVIEW_AND_SUBMIT aria-label="review all application forms">Review &amp; submit</span></li></ul>
+        <div id=JOB class=active role=tabpanel aria-label="Job-specific questions"><form id=f method=post action="{FINAL}">
+        <div class=form-group><div class="question-label required"><label id=first-label>First name</label></div>
+        <div class=text-field><input class=form-control name=first value=Test></div></div>
+        <button id=b type=button>Continue</button></form></div>{SEND_ALL}
+        <script>document.getElementById('b').addEventListener('click', () => {{ sendAll();
+          try {{ document.getElementById('f').requestSubmit(); }} catch (e) {{}}
+          document.getElementById('JOB').innerHTML = '<div class=input-display-mode><span>Test</span></div>'; }});</script>"""},
 }
 # KAN-783: a page's own getters and methods, against the guards' reads. Each page's Next does its trick, then its
 # script presses the Submit itself (a click and requestSubmit), whose own handler posts to COMMIT, a final request
@@ -454,7 +466,7 @@ PAGES |= {
         document.getElementById('b').addEventListener('click', () => {{ {_TWICE} }});</script>""",
         "/acme/jobs/123/step2": "<title>Two</title><input name=next>"},
 }
-BUTTON = {"a review page's Apply with its answers hidden": "Apply", "a page that vouches for its own Apply": "Apply", "a Submit in another language beside a Submit": "Envoyer ma candidature", "a Submit in a shadow root": "Submit application",
+BUTTON = {"an Amazon card whose Continue sends": "Continue", "a review page's Apply with its answers hidden": "Apply", "a page that vouches for its own Apply": "Apply", "a Submit in another language beside a Submit": "Envoyer ma candidature", "a Submit in a shadow root": "Submit application",
           "a profile pop-up that is the application": "Submit", "a profile pop-up that turns into the application": "Submit",
           "a one-page form in a modal": "Continue", "an application that makes an account": "Continue",
           "a button whose words change after the check": "Continue"}
@@ -578,7 +590,18 @@ def choice_clicks(page, drive, name):
 
 TYPING = {"Apply's typing": apply_typing, "the tile's typing": tile_typing, "Apply's choice clicks": choice_clicks}
 
-PATHS = {"plain code's Next": plain_next, "the profile click": profile_click, "the account click": account_click,
+def amazon_continue(page, drive, name):
+    """The amazon.jobs Filler's step Continue (KAN-765): the Fill engine presses the open card's own Continue in the
+    page, never Submit application. A page with no Amazon step has nothing it presses."""
+    try:
+        amazon.next_step(page, "Job-specific questions")
+    except FillError as refused:
+        raise Handoff(str(refused)) from refused
+    except Exception as broke:  # the engine couldn't run on the page (one that poisons RegExp): what was sent is
+        raise Handoff(str(broke)) from broke  # checked all the same
+
+
+PATHS = {"plain code's Next": plain_next, "the Amazon Filler's Continue": amazon_continue, "the profile click": profile_click, "the account click": account_click,
          "Ask Claude's press": ask_press, "Ask Claude's press of a listed step": ask_press_listed}
 
 
@@ -938,7 +961,7 @@ def plain(pages: dict[str, str]):
         yield page, DriveGuard(page), site
 
 
-PLAIN_PATHS = ["plain code's Next", "the profile click", "the account click", "Ask Claude's press of a listed step"]
+PLAIN_PATHS = ["plain code's Next", "the Amazon Filler's Continue", "the profile click", "the account click", "Ask Claude's press of a listed step"]
 
 
 @pytest.mark.parametrize(("page_name", "path"), plain_pairs_on_prs(PLAIN_PATHS))
