@@ -352,7 +352,7 @@ function JobsRail({
         )}
         {showable && (
           <div className="text-meta text-ink-meta mt-0.5">
-            {jobs.length} {jobs.length === 1 ? "role" : "roles"}
+            {jobs.length} {jobs.length === 1 ? "job" : "jobs"}
             {showable.more ? " loaded" : ""}
           </div>
         )}

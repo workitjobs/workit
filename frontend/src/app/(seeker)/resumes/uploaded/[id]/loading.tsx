@@ -4,6 +4,7 @@ import { cn } from "@/lib/cn";
 import { BackLink } from "../../../back-link";
 import { SEEKER_GUTTER } from "../../../gutter";
 import { PageSkeleton } from "../../[resumeId]/pdf-pages";
+import { SLIM_BAR } from "../../[resumeId]/slim-bar";
 
 /**
  * An uploaded resume's page while it loads (KAN-368): the page reads the
@@ -21,7 +22,7 @@ export default function UploadedResumeLoading() {
         <span className="sr-only">Loading the resume</span>
         <Skeleton aria-hidden="true" className="h-8 w-56 max-w-full" />
         <div aria-hidden="true" className="mt-4 flex flex-col gap-4">
-          <div className="bg-brand-tint/95 ring-brand-pale flex min-h-12 flex-wrap items-center gap-2 rounded-2xl p-1.5 pl-3 shadow-sm ring-1">
+          <div className={SLIM_BAR}>
             <Skeleton className="h-4 w-32" />
             <div className="ml-auto flex items-center gap-2">
               <Skeleton className="h-9 w-24" />

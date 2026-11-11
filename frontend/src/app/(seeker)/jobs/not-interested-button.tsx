@@ -18,7 +18,7 @@ export function NotInterestedButton({ title, quiet = false }: { title: string; q
     <IconButton
       label={`Not Interested in ${title}`}
       tooltip="Not Interested"
-      variant={quiet ? "quiet" : "soft"}
+      variant={quiet ? "glyph" : "soft"}
       className={quiet ? undefined : "size-9"}
     >
       <ProhibitIcon aria-hidden className="size-4" />

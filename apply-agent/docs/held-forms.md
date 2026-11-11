@@ -29,7 +29,12 @@ reads: it does not click, type or submit.
   profile on the job site carried it over (Amazon's Minor, KAN-754). A
   None or N/A that the plan picked and the page does not show is the
   read-back's flag. A field whose fact the profile only lacks is never a
-  leftover. Claude makes only the judgment checks, in
+  leftover. Entries an old profile on the job site carried over hold as
+  leftovers too (`verify._extra_entries`, KAN-762): a jobs or schools
+  section read back with more entries than the plan gave it (JPMorgan's
+  Oracle kept a Princeton entry the profile doesn't list), and an employer
+  field of a work entry Apply didn't fill that names no job on file.
+  Claude makes only the judgment checks, in
   the Pre-submit review call (`presubmit.SYSTEM`: contradictions, wrong
   answers); its findings join the flags. Its `<profile>` block holds
   the facts as the plan read them, the Tracker's past applications too
@@ -45,7 +50,11 @@ reads: it does not click, type or submit.
   Claude draft that a fix replaces leaves the Answer bank. On Workday, the
   next fill goes Back to the step that holds the fixed answer
   (`WorkdayFiller._back_to_changed`). A read-back replan also refills
-  this way.
+  this way. Once there, it reloads the page before it fills the step.
+  Back draws a step from what the page kept of it, not from Workday's
+  server, and NVIDIA's My Experience, filled again that way, answered
+  Save and Continue with Workday's error page (2026-11-10, KAN-758). A
+  reload that opens another step is followed by Back again.
 - A flag that `holds` goes in the reason as `Verify: <field>: <why>` and
   holds a live run (Needs you, kind `check`). Read-back and review flags
   hold already by their own reason. A blank optional field holds as a
@@ -121,6 +130,9 @@ goes on from the step that the page shows.
   and the site's account menu does. Then the pause goes on, and Claude fill reads the same page
   again; on the posting page it presses Apply now itself, under the drive guard. Any other Claude fill
   pause keeps `signed_in` None (or Oracle's), so a page gate's pause never goes on by itself.
+- Signing in on a paused page never ends Resume: a press on a sign-in, account or code step is not
+  his Submit, on any job system (KAN-781, `docs/sign-in.md`). Only the application's own Submit, or a
+  confirmation page after any press of his, makes the form his to send (`rehearsal.SENT`).
 - A tab that closed, or a rehearsal that ended, makes `resume={"ok": False,
   "why": ...}` (`rehearsal.TAB_CLOSED`, `ENDED`). The button stays, turned
   off, and says why. Fill again still fills the form anew.
@@ -140,7 +152,9 @@ Review with no submit. Also a closed tab, the `/resume` route, and the
 window's card and tile. `-k by_itself`: Lisul signs in to Google on the paused page and the fill goes
 on with no Resume; a captcha there stops that. Run it with `-k`; it opens Chromium. `tests/test_provider_sign_in.py`:
 the fake Microsoft Careers (`tests/fake_microsoft.py`) pauses at its sign-in window, Lisul signs in,
-and the form fills to its last page with no Resume, no provider button pressed and nothing sent.
+and the form fills to its last page with no Resume, no provider button pressed and nothing sent. `tests/test_rehearse.py -k oracle`: Lisul signs in
+to an Oracle-shaped page (email, Next, Send New Code, the code, Verify), and Resume goes on; the
+application's own Submit after it still ends Resume.
 
 ## Resume while a rehearsal fills (KAN-594)
 
@@ -297,9 +311,27 @@ fixes it live on that form.
   (`apply_bug`) is a Repair request (`ask.repair_requests`). His message and the fix go in the Record
   (`asks.json`, the README's "Ask Claude" section, history lines, and the changed fields' on-page answers).
 
+- **A consent dialog stops it (KAN-769).** An upload that brings on a consent dialog (Microsoft's Data Privacy
+  Notice) ends Claude's drive: its tool result says to stop, its buttons are refused, and the prompt says the
+  same. After the drive, an open one is a waiting item, "Press 'I understand' on the 'Data Privacy Notice' dialog
+  yourself". A capped Ask names it too. Before, Claude pressed its Cancel, the upload went, and Claude spent its
+  3,000,000-token cap (about 33 tool calls of a 90k-token page each) setting fields again. His press lets the file
+  the page holds go: nothing is attached again. Claude never clicks the option a list holds already (KAN-767).
+
 **Tests.** `tests/test_ask.py` (in CI, no browser): the hook's Ask mode, the read-back, an attestation
 put back, the window's routes, `apply ask`, and the Record and Repair request.
 `tests/test_dashboard.py -k ask_claude_box` types in the tile's box in Chromium.
+
+## His own Submit on an Eightfold form (KAN-771)
+
+A held page on an Eightfold careers site (the engine's `jobOf`: Netflix, Lockheed Martin, and Microsoft, which
+Claude fill fills) is confirmed by Eightfold's own check (`eightfold.confirmed`, "Application Submitted"), whichever
+Filler filled it. A confirmation that shows after the hold began counts as his Submit even when his press was not
+heard (`_Kept.hold`'s `unheard`): Lisul's Submit on Microsoft 200061280 (2026-11-10) went in, and Apply recorded
+nothing. Then the Tracker row and the Record are written as for any job system. The engine's `submitResult` also
+reads Eightfold's `POST /api/application/v2/submit` answer (`data.success`), for the extension's watch.
+
+**Tests.** `tests/test_rehearse.py -k eightfolds_own_check`; the engine's `test/submit.spec.ts`.
 
 ## Page gates (KAN-637)
 
@@ -349,6 +381,45 @@ through `worker._Planned._missing` first.
 
 **Tests.** `test_claude_answers.py -k already_holds` and
 `test_dashboard.py -k says_where_it_sits` (opens Chromium).
+
+## An optional question no source answers (KAN-759)
+
+Lisul answers optional questions too (Lisul, 2026-11-10: "if it's optional
+and i can provide it then it should prompt me for it"), but never one about
+a fact that can't exist for him ("if it's something that doesn't exist then
+don't prompt me for it").
+
+- The engine's plan lists each such question in `Plan.optional`: a rule's
+  profile fact that the profile doesn't keep at all. A fact the profile keeps
+  empty (`line2: ""`, `minors: []`) is none: blank, never asked. The rules
+  for Address Line 2 and 3 and for Tax District (its table of local taxes,
+  `src/local-tax.ts` in the engine) leave those blank where the home has none
+  (`docs/fill-engine.md`). A one-off question that Claude can't answer goes
+  to Lisul as before, marked Optional by the form's own flag.
+- `_Planned.add` passes `Plan.optional` to `_missing` with the Missing facts.
+  A rehearsal lists them all. A run stops only for a required one
+  (`self.required`): an optional one is left blank and the form goes on.
+- Verifying (`verify._blanks`) notes an asked optional field that is still
+  blank (`OPTIONAL_UNANSWERED`). The note holds nothing.
+- The tile (`dashboard.verdict`) makes only the required questions a Missing
+  fact. With only optional ones left, it says `OPTIONAL_ASK`, after any real
+  flag or check, and the item's `optional` list puts their answer boxes on
+  the card whatever its kind.
+- The card has a **Skip (leave blank)** button. It posts an empty answer to
+  `/answer`, which calls the window's `answer` with `""`. `cli._answering`
+  then saves the Skip as an empty answer in the profile's
+  `answered_questions` (`AnswersTab.save_skipped`). The engine leaves an
+  optional question of that wording blank from then on (`SKIPPED`). A
+  required one with that wording is still asked. The Answers tab shows the
+  Skip as an empty answer, which he may fill in later. An Essay fact or a
+  bare date is skipped on that form only.
+- An answer is saved as a Missing fact's answer is: on his click, to the
+  profile, for every later form.
+
+**Tests.** `tests/test_optional_ask.py` (in CI): Tax District on a New York
+home (not asked) and an Ohio home (asked), a run that goes on, the note, the
+Skip and the answer kept for the next form, the tile, and `/answer`. The
+engine's `test/planner.spec.ts` has the planner's cases.
 
 ## An answer from the window, on a held form (`rehearsal._fill_answer`, KAN-686)
 

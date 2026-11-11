@@ -156,3 +156,27 @@ def test_without_a_tracker_to_add_to_the_window_shows_no_paste_box(board, window
     window.goto(board.url + "/#history")
 
     assert window.locator("#applied-link").count() == 0
+
+
+MICROSOFT = "https://apply.careers.microsoft.com/careers/job/1970393557037859"
+MICROSOFT_API = ("https://apply.careers.microsoft.com/api/pcsx/position_details?position_id=1970393557037859"
+                 "&domain=microsoft.com&hl=en")
+
+
+def test_a_microsoft_posting_is_named_from_eightfolds_api_with_no_claude_call():
+    """Microsoft's careers page is a script shell (KAN-770): the Fill engine names it from Eightfold's API."""
+    claude = Reads()  # a Claude that could tell nothing, as it couldn't live
+    tracker = applied(MICROSOFT, claude=claude, pages={MICROSOFT_API: b'{"status": 200, "data": {"name": "Software Engineer:'
+                                                                       b' Internship Opportunities", "displayJobId": "200061280"}}'})
+
+    [row] = tracker.rows()
+    assert (row.company, row.role, row.posting_url) == ("Microsoft", "Software Engineer: Internship Opportunities", MICROSOFT)
+    assert claude.prompts == []
+
+
+def test_an_engine_posting_its_api_wont_name_is_read_by_claude():
+    claude = Reads(company="Microsoft", role="Software Engineer")
+    tracker = applied(MICROSOFT, claude=claude)  # the API answers nothing here
+
+    assert [(r.company, r.role) for r in tracker.rows()] == [("Microsoft", "Software Engineer")]
+    assert len(claude.prompts) == 1

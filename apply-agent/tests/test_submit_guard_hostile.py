@@ -23,11 +23,11 @@ from types import SimpleNamespace
 
 import pytest
 
-from apply import ask, claude_fill, keepalive, send_click, submit_guard
+from apply import amazon, ask, claude_fill, keepalive, send_click, submit_guard
 from apply.account_pages import AccountPages, _Click
 from apply.adapters import Drive
 from apply.claude_fill import ClaudeFill, press_step
-from apply.model import Handoff, Posting
+from apply.model import FillError, Handoff, Posting
 from apply.plain import guards as plain_guards
 from apply.submit_guard import ROUTED, DriveGuard, guard, lift
 
@@ -36,6 +36,7 @@ FINAL = "/acme/jobs/123/apply"  # final by its name alone: a path ending in /app
 GREENHOUSE = "https://job-boards.greenhouse.io/acme/jobs/5442881008"  # a known final URL
 START = "/acme/jobs/123/start"
 FORM = "/acme/jobs/123/form"
+SAVE = "/acme/jobs/123/save_page"  # TAL.net's: each step's save and the final Submit post here; submit=1 is the Submit
 
 # What a page's script uses to send the application every way it can, once called.
 SEND_ALL = """<script>
@@ -109,11 +110,212 @@ PAGES = {
         </ul></nav><form id=f method=post action="{FINAL}"><input name=first value=Test></form>{SEND_ALL}
         <script>document.getElementById('b').addEventListener('click', (e) => {{ e.preventDefault(); sendAll();
           document.getElementById('f').submit(); }});</script>"""},
+    # KAN-710: the guard holes plain code's press shared, from the KAN-692 review. The application is the form's
+    # post to SAVE with submit=1 in its body (TAL.net's Submit posts to the same save_page as each step's save).
+    # A Submit in another language, in a form that also has an English Submit: only the account click presses it.
+    "a Submit in another language beside a Submit": {START: f"""<title>Apply</title><form method=post action="{SAVE}">
+        <input name=first value=Test><button name=submit value=1>Envoyer ma candidature</button>
+        <button name=submit value=1>Submit application</button></form>"""},
+    # A Next that sends the form by a hidden button that says nothing that sends, though the form has a Submit.
+    "a Next that sends by a hidden button": {START: f"""<title>Apply</title><form id=f method=post action="{SAVE}">
+        <input name=first value=Test><button id=h name=submit value=1 hidden>Go</button>
+        <button name=submit value=1 style="position:absolute;left:-9999px">Submit application</button></form>
+        <button id=b type=button>Next</button>
+        <script>document.getElementById('b').addEventListener('click', () =>
+          document.getElementById('f').requestSubmit(document.getElementById('h')));</script>"""},
+    # A link whose ping is the application request: the browser POSTs it as it follows the link.
+    "a link that pings the final URL": {
+        START: f"""<title>Apply</title><ul><li><a id=b role=button href="/acme/jobs/123/step2" ping="{FINAL}">Next</a></li>
+            <li><a href="#">Help</a></li></ul><input name=first value=Test>""",
+        "/acme/jobs/123/step2": "<title>Two</title><input name=next>"},
+    # A frame inside the Next: the press lands in the frame, whose own form posts the application to the top page.
+    "a frame inside the Next": {
+        START: f"""<title>Apply</title><form method=post action="/acme/jobs/123/step2"><input name=first value=Test>
+            <button id=b style="width:320px;height:140px;padding:0">Next<iframe style="border:0;width:300px;height:120px"
+            srcdoc="<form method=post action='{SAVE}' target=_top style='margin:0'><input type=hidden name=submit value=1>
+            <button style='width:300px;height:120px'>Next</button></form>"></iframe></button></form>""",
+        "/acme/jobs/123/step2": "<title>Two</title><input name=next>"},
+    # A timer that tries to post the application all the time: it must not get through while a Next is pressed.
+    "a form a timer posts while a Next is pressed": {START: f"""<title>Apply</title><div id=step>
+        <label>First name <input name=first value=Test></label></div><button id=b type=button>Next</button>
+        <form id=f2 method=post action="{SAVE}"><input type=hidden name=submit value=1></form>
+        <script>document.getElementById('b').addEventListener('click', () => setTimeout(() => {{
+          document.getElementById('step').innerHTML = '<label>Last name <input name=last></label>'; }}, 1000));
+        setInterval(() => {{ try {{ HTMLFormElement.prototype.submit.call(document.getElementById('f2')); }} catch (e) {{}} }}, 100);</script>"""},
+    # A step list's link on a page that says steps remain posts a form to a URL ending in /apply (KAN-656's moreSteps).
+    "a step list's link to /apply on a page with more steps": {START: f"""<title>Apply</title><p>Step 2 of 5</p>
+        <nav><ul><li><a id=b role=button href="#">Next</a></li><li><a href="#">Help</a></li></ul></nav>
+        <form id=f method=post action="{FINAL}"><input name=first value=Test></form>
+        <script>document.getElementById('b').addEventListener('click', (e) => {{ e.preventDefault();
+          document.getElementById('f').submit(); }});</script>"""},
+    # PR 477's review (KAN-710): a page that sets the guards' own state, every flag they once read on window (main's
+    # KAN-716 flags for trusted input too). The guard keeps it in its closure, set only by Apply's control event, so a
+    # page's window.__apply* is nothing to it.
+    "a page that lifts the guards itself": {START: f"""<title>Apply</title>
+        <script>window.__applyRehearsalLifted = window.__applyDriveLifted = true;
+        window.__applyAccountClick = window.__applyProfileClick = window.__applyUploadPost = window.__applyStartClick = true;
+        window.__applyAsking = window.__applyDriving = false; window.__applyAskTick = true;</script>
+        <form method=post action="{FINAL}"><input name=first value=Test><button id=b>Next</button></form>"""},
+    # Arms plain code's press itself, for good, so a form its timer posts after the Next counts as the press's.
+    "a page that arms the account click itself": {START: f"""<title>Apply</title><script>window.__applyAccountClick = true;
+        Object.defineProperty(window, '__applyAccountClick', {{get: () => true, set() {{}}}});</script>
+        <label>First <input name=first value=Test></label><button id=b type=button>Next</button>
+        <form id=f2 method=post action="{SAVE}"><input type=hidden name=submit value=1></form>
+        <script>document.getElementById('b').addEventListener('click', () => setTimeout(() =>
+          HTMLFormElement.prototype.submit.call(document.getElementById('f2')), 1200));</script>"""},
+    # A frame inside the Next that arms its own guard, so the press that lands in it posts its form to the top page.
+    "an inner frame that arms itself": {
+        START: f"""<title>Apply</title><form method=post action="/acme/jobs/123/step2"><input name=first value=Test>
+            <button id=b style="width:320px;height:140px;padding:0">Next<iframe style="border:0;width:300px;height:120px"
+            srcdoc="<script>window.__applyAccountClick = true</script><form method=post action='{SAVE}' target=_top
+            style='margin:0'><input type=hidden name=submit value=1><button style='width:300px;height:120px'>Next</button>
+            </form>"></iframe></button></form>""",
+        "/acme/jobs/123/step2": "<title>Two</title><input name=next>"},
+    # A frame that sends the worker extension's touch itself, then clicks its own form's button: on a plain Worker
+    # the touch counted that untrusted click as Apply's press while the account click was armed in every frame.
+    "a frame that forges the extension's touch": {START: f"""<title>Apply</title><label>First <input name=first
+        value=Test></label><button id=b type=button>Next</button><iframe srcdoc="<form id=f method=post action='{SAVE}'
+        target=_top><input name=last value=P><input type=hidden name=submit value=1><button id=g>Go</button></form>
+        <script>setInterval(() => {{ dispatchEvent(new Event('__apply_touch')); document.getElementById('g').click(); }},
+        100)</script>"></iframe>"""},
+    # A page that puts its own built-ins on a prototype, or a field that shadows the form's own method: the guard
+    # reads with the built-ins it took before any page code, and a guard listener that throws blocks (KAN-710).
+    "a page that fakes getAttribute": {START: f"""<title>Apply</title><script>const was = Element.prototype.getAttribute;
+        Element.prototype.getAttribute = function (n) {{ return n === 'action' ? '/acme/jobs/123/step2' : was.call(this, n); }};
+        </script><form method=post action="{FINAL}"><input name=first value=Test><button id=b>Next</button></form>"""},
+    "a page that fakes RegExp's test": {START: f"""<title>Apply</title><script>RegExp.prototype.test = () => false;</script>
+        <form method=post action="{FINAL}"><input name=first value=Test><button id=b>Next</button></form>{SEND_ALL}
+        <script>document.getElementById('b').addEventListener('click', () => sendAll());</script>"""},
+    # Every event says it is still in dispatch, so a timer's post looks like the press's own handler's.
+    "a page that fakes eventPhase": {START: f"""<title>Apply</title><label>First <input name=first value=Test></label>
+        <button id=b type=button>Next</button><form id=f2 method=post action="{SAVE}"><input type=hidden name=submit value=1>
+        </form><script>Object.defineProperty(Event.prototype, 'eventPhase', {{get: () => 1}});
+        setInterval(() => HTMLFormElement.prototype.submit.call(document.getElementById('f2')), 100);</script>"""},
+    # A field named getAttribute, added as the press lands, made the guard's own read throw: it let the form go.
+    "a field named getAttribute": {START: f"""<title>Apply</title><form id=f method=post action="{FINAL}">
+        <input name=first value=Test><button id=b>Next</button></form><script>document.getElementById('b')
+        .addEventListener('pointerdown', () => document.getElementById('f').insertAdjacentHTML('beforeend',
+        '<input type=hidden name=getAttribute value=x>'));</script>"""},
+    # The page's own handlers, after the guard's submit listener, change what is sent: judged again as it leaves.
+    "a Submit renamed in the Next's handler": {START: f"""<title>Apply</title><form id=app method=post action="{SAVE}"><input name=first value=Test>
+        <button id=s name=submit value=1>Submit application</button></form><button id=b type=button>Next</button><script>document.getElementById('b').addEventListener('click', () => {{ const s = document.getElementById('s'); s.textContent = 'Go'; document.getElementById('app').requestSubmit(s); }});</script>"""},
+    "a Submit taken away in the Next's handler": {START: f"""<title>Apply</title><form id=app method=post action="{SAVE}"><input name=first value=Test>
+        <button id=s name=submit value=1>Submit application</button></form><button id=b type=button>Next</button><script>document.getElementById('b').addEventListener('click', () => {{ const f = document.getElementById('app'); document.getElementById('s').remove(); f.insertAdjacentHTML('beforeend', '<input type=hidden name=submit value=1>'); HTMLFormElement.prototype.submit.call(f); }});</script>"""},
+    "an action the form's own submit handler changes": {
+        START: f"""<title>Apply</title><form id=app method=post action="/acme/jobs/123/step2"><input name=first value=Test>
+            <button id=b>Next</button></form><script>document.getElementById('app').addEventListener('submit',
+            (e) => e.target.setAttribute('action', '{FINAL}'));</script>""",
+        "/acme/jobs/123/step2": "<title>Two</title><input name=next>"},
+    "submit=1 added by the formdata event": {START: f"""<title>Apply</title><form id=app method=post action="{SAVE}">
+        <input name=first value=Test><button id=b>Next</button></form><script>document.getElementById('app')
+        .addEventListener('formdata', (e) => e.formData.append('submit', '1'));</script>"""},
+    # Where a form posts, as the browser makes it: relative to its <base>, and an empty formaction is the page's URL.
+    "a base that makes a query the final URL": {START: f"""<title>Apply</title><base href="{HOST}{FINAL}">
+        <form method=post action="?a=1"><input name=first value=Test><button id=b>Next</button></form>"""},
+    "a base that makes a path Greenhouse's": {START: f"""<title>Apply</title><base href="{GREENHOUSE}/x">
+        <form method=post action="../5442881008"><input name=first value=Test><button id=b>Next</button></form>"""},
+    "an empty formaction on a page at the final URL": {START: f"""<title>Apply</title><script>history.replaceState(null,
+        '', '{FINAL}');</script><form method=post action="/acme/jobs/123/step2"><input name=first value=Test>
+        <button id=b formaction="">Next</button></form>"""},
+    # A page that says steps remain where no one sees it: text of no size, a step list clipped to nothing.
+    "Step 1 of 2 in text of no size": {START: f"""<title>Apply</title><p style="font-size:0">Step 1 of 2</p>
+        <form method=post action="{FINAL}"><input name=first value=Test><button id=b>Next</button></form>"""},
+    "a step list clipped to nothing": {START: f"""<title>Apply</title><ul style="height:0;overflow:hidden">
+        <li aria-current=step>a</li><li>b</li></ul>
+        <form method=post action="{FINAL}"><input name=first value=Test><button id=b>Next</button></form>"""},
+    # A sandboxed frame inside the Next runs no script, so no guard: its form posts the application to the top page.
+    "a sandboxed frame inside the Next": {
+        START: f"""<title>Apply</title><form method=post action="/acme/jobs/123/step2"><input name=first value=Test>
+            <button id=b style="width:320px;height:140px;padding:0">Next<iframe sandbox="allow-forms allow-top-navigation"
+            style="border:0;width:300px;height:120px" srcdoc="<form method=post action='{FINAL}' target=_top
+            style='margin:0'><input type=hidden name=first value=Test><button style='width:300px;height:120px'>Next
+            </button></form>"></iframe></button></form>""",
+        "/acme/jobs/123/step2": "<title>Two</title><input name=next>"},
+    # Another form, of hidden fields only, posted by the Next's own handler: not the step's.
+    "another form posted in the Next's handler": {START: f"""<title>Apply</title><label>First <input name=first
+        value=Test></label><button id=b type=button>Next</button><form id=f2 method=post action="{SAVE}">
+        <input type=hidden name=submit value=1></form><script>document.getElementById('b').addEventListener('click',
+        () => HTMLFormElement.prototype.submit.call(document.getElementById('f2')));</script>"""},
+    # A Submit whose words the guard didn't read: no value (the browser writes "Submit"), an icon's title, role=button.
+    "an input Submit with no value": {START: f"""<title>Apply</title><form id=app method=post action="{SAVE}">
+        <input name=first value=Test><input type=hidden name=submit value=1><input id=s type=submit></form>
+        <button id=b type=button>Next</button><script>document.getElementById('b').addEventListener('click', () =>
+        document.getElementById('s').click());</script>"""},
+    "an icon Submit with a title": {START: f"""<title>Apply</title><form id=app method=post action="{SAVE}">
+        <input name=first value=Test><button id=s name=submit value=1 title="Submit application"><img
+        alt="Submit application" src="data:,"></button></form><button id=b type=button>Next</button>
+        <script>document.getElementById('b').addEventListener('click', () => document.getElementById('s').click());</script>"""},
+    "a role=button Submit": {START: f"""<title>Apply</title><form id=app method=post action="{SAVE}">
+        <input name=first value=Test><input type=hidden name=submit value=1><div role=button>Submit application</div>
+        </form><button id=b type=button>Next</button><script>document.getElementById('b').addEventListener('click', () =>
+        HTMLFormElement.prototype.submit.call(document.getElementById('app')));</script>"""},
+    # In a shadow root: a form's submit event stays there, and a link's ping is clicked where the window can't see it.
+    "a form in a shadow root": {START: f"""<title>Apply</title><div><template shadowrootmode=open><form method=post
+        action="{FINAL}"><input name=first value=Test><button id=b>Next</button></form></template></div>"""},
+    "a Submit in a shadow root": {START: f"""<title>Apply</title><div><template shadowrootmode=open><form method=post
+        action="{SAVE}"><input name=first value=Test><button name=submit value=1>Submit application</button></form>
+        </template></div>"""},
+    "a ping in a shadow root": {
+        START: f"""<title>Apply</title><input name=first value=Test><div><template shadowrootmode=open><ul><li><a
+            role=button href="/acme/jobs/123/step2" ping="{FINAL}">Next</a></li><li><a href="#">Help</a></li></ul>
+            </template></div>""",
+        "/acme/jobs/123/step2": "<title>Two</title><input name=next>"},
+    "a ping on a link in no document": {
+        START: f"""<title>Apply</title><input name=first value=Test><button id=b type=button>Next</button>
+            <script>document.getElementById('b').addEventListener('click', () => {{ const d = document.createElement('div');
+            d.innerHTML = '<a href="/acme/jobs/123/step2" ping="{FINAL}">x</a>'; d.firstChild.click(); }});</script>""",
+        "/acme/jobs/123/step2": "<title>Two</title><input name=next>"},
+    # Requests the guard read twice, or from where it wasn't: the beacon from Navigator's prototype, an XHR whose
+    # note the page rewrote, a URL whose words change on a second read, a new frame's fetch, a fetch through <base>.
+    "requests sent around the guard": {START: f"""<title>Apply</title><base href="{HOST}{FINAL}"><input name=first
+        value=Test><button id=b type=button>Next</button><script>document.getElementById('b').addEventListener('click',
+        () => {{
+          try {{ Navigator.prototype.sendBeacon.call(navigator, '{FINAL}', 'first=Test'); }} catch (e) {{}}
+          try {{ const x = new XMLHttpRequest(); x.open('POST', '{FINAL}'); x.__applyRequest = ['GET', '/']; x.send('a'); }} catch (e) {{}}
+          let n = 0; fetch({{toString() {{ return n++ ? '{FINAL}' : '/ok'; }}}}, {{method: 'POST', body: 'x'}}).catch(() => {{}});
+          const i = document.createElement('iframe'); document.body.append(i);
+          i.contentWindow.fetch('{FINAL}', {{method: 'POST', body: 'x'}}).catch(() => {{}});
+          fetch('?a=1', {{method: 'POST', body: 'x'}}).catch(() => {{}});
+        }});</script>"""},
     # A review page's Apply (KAN-725 lets a posting's Apply that only opens the form through): its answers ride
     # in hidden fields beside a token, in a fresh tab with no field shown.
     "a review page's Apply with its answers hidden": {START: f"""<title>Review</title><form method=post action="{FINAL}">
         <input type=hidden name=__vxXSRF_Token value=t><input type=hidden name=first value=Test>
         <input type=submit id=b value=Apply></form>"""},
+    # A page that vouches for its own Apply (KAN-725's pass, ported to the guards' control by KAN-710): the flag main
+    # read, held true, and the control events sent by their names without the run's token. Nothing hears them.
+    "a page that vouches for its own Apply": {START: f"""<title>Jobs</title><script>
+        Object.defineProperty(window, '__applyStartClick', {{get: () => true, set() {{}}}});
+        for (const k of ['__applyDriveControl', '__applyRehearsalControl']) dispatchEvent(new CustomEvent(k,
+          {{detail: JSON.stringify({{start: true, lift: {{}}}})}}));</script><form method=post action="{FINAL}">
+        <input type=hidden name=__vxXSRF_Token value=t><input type=hidden name=first value=Test>
+        <input type=submit id=b value=Apply></form>"""},
+    # PR 477's second review: the install mark on window once carried the control's token. The page reads every
+    # guard's mark and sends its control event by that name, lifting it, then its Next posts the application.
+    "a page that lifts the guards by their install mark": {START: """<title>Apply</title><script>
+        for (const n of Object.getOwnPropertyNames(window)) {
+          const m = /^__(applyRehearsal|applyDrive)Guard([0-9a-f]{32})$/.exec(n);
+          if (m) dispatchEvent(new CustomEvent('__' + m[1] + 'Control' + m[2], {detail: JSON.stringify({lift: {}, account: true})}));
+        }</script>""" + f"""<form method=post action="{FINAL}"><input name=first value=Test><button id=b>Next</button></form>"""},
+    # A page that wraps addEventListener before the drive guard's copy comes, so it hears the control event's name,
+    # and one that replaces a built-in the guard reads with: a live run's open page (DriveGuard loads it again).
+    "a page that hears the drive guard's control name": {START: """<title>Apply</title><script>
+        const add = EventTarget.prototype.addEventListener, heard = [];
+        EventTarget.prototype.addEventListener = function (type, ...rest) {
+          if (/^__apply(Drive|Rehearsal)Control/.test(String(type))) heard.push(String(type));
+          return add.call(this, type, ...rest);
+        };
+        setInterval(() => { for (const t of heard) dispatchEvent(new CustomEvent(t, {detail: JSON.stringify({lift: {}, account: true})})); }, 100);
+        </script>""" + f"""<form method=post action="{FINAL}"><input name=first value=Test><button id=b>Next</button></form>"""},
+    "a page that poisons RegExp before the guard": {START: f"""<title>Apply</title><script>RegExp.prototype.exec = () => null;
+        </script><form method=post action="{FINAL}"><input name=first value=Test><button id=b>Next</button></form>{SEND_ALL}
+        <script>document.getElementById('b').addEventListener('click', () => sendAll());</script>"""},
+    # A plain Worker's touch came before the pointer events, so a page's pointerdown handler that clicks its own button
+    # made that click the one the touch counted as Apply's press (PR 477's second review).
+    "a pointerdown handler that clicks the page's own button": {START: f"""<title>Apply</title><label>First <input
+        name=first value=Test></label><button id=b type=button>Next</button><form id=f2 method=post action="{SAVE}">
+        <input type=hidden name=submit value=1><button id=g>Go</button></form><script>document.getElementById('b')
+        .addEventListener('pointerdown', () => document.getElementById('g').click());</script>"""},
     # KAN-716: a step's box inside the application's form, whose Enter would send it (implicit submission, its button).
     "a box whose Enter would send the form": {START: f"""<title>Job-specific questions</title><form id=f method=post action="{FINAL}">
         <label>School <input id=school name=school></label><textarea name=why></textarea>
@@ -137,6 +339,133 @@ PAGES = {
           Object.assign(b.style, {{position: 'fixed', left: box.left - 30 + 'px', top: box.top - 30 + 'px', width: '90px', height: '70px', zIndex: 9}});
         }}, true);
         b.addEventListener('click', () => sendAll());</script>"""},
+    # amazon.jobs's one page of step cards (KAN-765): the open card's Continue posts the application and closes the card.
+    "an Amazon card whose Continue sends": {START: f"""<title>Apply to a Job | Amazon.jobs</title>
+        <ul id=my-progress-menu role=tablist aria-label="My progress"><li><a role=tab aria-controls=JOB aria-selected=true
+        aria-label="review incomplete Job-specific questions form">Job-specific questions</a></li><li><span role=tab
+        aria-controls=REVIEW_AND_SUBMIT aria-label="review all application forms">Review &amp; submit</span></li></ul>
+        <div id=JOB class=active role=tabpanel aria-label="Job-specific questions"><form id=f method=post action="{FINAL}">
+        <div class=form-group><div class="question-label required"><label id=first-label>First name</label></div>
+        <div class=text-field><input class=form-control name=first value=Test></div></div>
+        <button id=b type=button>Continue</button></form></div>{SEND_ALL}
+        <script>document.getElementById('b').addEventListener('click', () => {{ sendAll();
+          try {{ document.getElementById('f').requestSubmit(); }} catch (e) {{}}
+          document.getElementById('JOB').innerHTML = '<div class=input-display-mode><span>Test</span></div>'; }});</script>"""},
+}
+# KAN-783: a page's own getters and methods, against the guards' reads. Each page's Next does its trick, then its
+# script presses the Submit itself (a click and requestSubmit), whose own handler posts to COMMIT, a final request
+# no rule knows (Workday's has no known endpoint): only the guard's reading of the button's words stops that one.
+# The trick is undone right after, so Apply's own reads of the page go on as before.
+COMMIT = "/acme/jobs/123/commit"
+
+
+def _tricked(trick: str, undo: str = "") -> dict[str, str]:
+    return {START: f"""<title>Apply</title><form id=f method=post action="{FINAL}"><input name=first value=Test>
+        <button id=b type=button>Next</button><button id=s>Submit application</button></form>{SEND_ALL}
+        <script>const b = document.getElementById('b'), s = document.getElementById('s'), f = document.getElementById('f');
+        const d = Object.getOwnPropertyDescriptor, def = Object.defineProperty;
+        s.addEventListener('click', () => {{ fetch('{COMMIT}', {{method: 'POST', body: 'first=Test'}}).catch(() => {{}}); sendAll(); }});
+        b.addEventListener('click', () => {{
+          {trick}
+          try {{ s.click(); }} catch (e) {{}}
+          try {{ f.requestSubmit(s); }} catch (e) {{}}
+          {undo}
+        }});</script>"""}
+
+
+# Each request, read twice by a guard that judges one read and sends another: the URL's Symbol.toPrimitive or
+# toString, an init's getter or Proxy, a Request that instanceof can't see, an XHR's kept method and URL rewritten,
+# an XHR open() that throws after one that took (a forbidden method, a bad URL), and an XHR another realm's open()
+# opened.
+_TWICE = f"""let n = 0, m = 0, k = 0, j = 0;
+  const twice = (first, then) => {{ let i = 0; return {{[Symbol.toPrimitive]: () => (i++ ? then : first), toString: () => (i++ ? then : first)}}; }};
+  try {{ fetch(twice('/x', '{FINAL}'), {{method: 'POST', body: 'a'}}).catch(() => {{}}); }} catch (e) {{}}
+  try {{ fetch(twice('{FINAL}', '/x'), {{method: 'POST', body: 'a'}}).catch(() => {{}}); }} catch (e) {{}}
+  try {{ fetch('{FINAL}', new Proxy({{body: 'a'}}, {{get: (t, key) => key === 'method' ? (n++ ? 'POST' : 'GET') : t[key]}})).catch(() => {{}}); }} catch (e) {{}}
+  try {{ fetch('{FINAL}', {{body: 'a', get method() {{ return m++ ? 'POST' : 'GET'; }}}}).catch(() => {{}}); }} catch (e) {{}}
+  try {{ const x = new XMLHttpRequest(); x.open('POST', twice('{FINAL}', '/x')); x.send('a'); }} catch (e) {{}}
+  try {{ const x = new XMLHttpRequest(); x.open(twice('POST', 'GET'), '{FINAL}'); x.send('a'); }} catch (e) {{}}
+  try {{ const x = new XMLHttpRequest(); x.open('POST', '{FINAL}'); for (const key of Object.keys(x)) x[key] = ['GET', '/x']; x.send('a'); }} catch (e) {{}}
+  try {{ const x = new XMLHttpRequest(); x.open('POST', '{FINAL}'); try {{ x.open('CONNECT', '/x'); }} catch (e) {{}} x.send('a'); }} catch (e) {{}}
+  try {{ const x = new XMLHttpRequest(); x.open('POST', '{FINAL}'); try {{ x.open('GET', 'http://[x'); }} catch (e) {{}} x.send('a'); }} catch (e) {{}}
+  try {{ const i = document.createElement('iframe'); document.body.append(i); const x = new XMLHttpRequest();
+    i.contentWindow.XMLHttpRequest.prototype.open.call(x, 'POST', '{FINAL}'); x.send('a'); }} catch (e) {{}}
+  try {{ navigator.sendBeacon(twice('/x', '{FINAL}'), 'a'); }} catch (e) {{}}
+  try {{ navigator.sendBeacon(twice('{FINAL}', '/x'), 'a'); }} catch (e) {{}}
+  const was = d(Request, Symbol.hasInstance);
+  def(Request, Symbol.hasInstance, {{value: () => false, configurable: true}});
+  try {{ fetch(new Request('{FINAL}', {{method: 'POST', body: 'a'}})).catch(() => {{}}); }} catch (e) {{}}
+  if (was) def(Request, Symbol.hasInstance, was); else delete Request[Symbol.hasInstance];"""
+
+# What the built-ins page replaces, and how it puts each back.
+_BUILT_INS = [("Element.prototype", "closest", "function () { return null; }"),
+              ("Element.prototype", "matches", "function () { return false; }"),
+              ("Element.prototype", "querySelector", "function () { return null; }"),
+              ("Element.prototype", "querySelectorAll", "function () { return document.createDocumentFragment().childNodes; }"),
+              ("RegExp.prototype", "exec", "function () { return null; }"),
+              ("RegExp.prototype", "test", "function () { return false; }"),
+              ("Array.prototype", "some", "function () { return false; }"),
+              ("Array.prototype", "filter", "function () { return []; }"),
+              ("String.prototype", "trim", "function () { return ''; }"),
+              ("Event.prototype", "preventDefault", "function () {}"),
+              ("Event.prototype", "stopImmediatePropagation", "function () {}"),
+              ("NodeList.prototype", "Symbol.iterator", "function* () {}"),
+              ("Array.prototype", "Symbol.iterator", "function* () {}"),
+              ("window", "URL", "function () { return {href: 'https://other.example.org/', origin: location.origin, hostname: 'other.example.org'}; }"),
+              ("window", "String", "function () { return '/x'; }")]
+
+
+def _replaced() -> tuple[str, str]:
+    trick, undo = [], []
+    for i, (owner, name, value) in enumerate(_BUILT_INS):
+        key = name if name.startswith("Symbol.") else repr(name)
+        trick.append(f"const w{i} = d({owner}, {key}); def({owner}, {key}, {{value: {value}, configurable: true, writable: true}});")
+        undo.append(f"def({owner}, {key}, w{i});")
+    return " ".join(trick), " ".join(reversed(undo))
+
+
+_PROTO_GETTERS = [("HTMLElement.prototype", "innerText", "() => 'Next'"), ("Node.prototype", "textContent", "() => 'Next'"),
+                  ("HTMLButtonElement.prototype", "value", "() => 'Next'"), ("HTMLButtonElement.prototype", "form", "() => null"),
+                  ("HTMLButtonElement.prototype", "type", "() => 'button'")]
+
+
+def _proto_getters(how: str) -> tuple[str, str]:
+    trick = " ".join(f"const g{i} = d({o}, '{n}'); def({o}, '{n}', {{get: {how or v}, configurable: true}});"
+                     for i, (o, n, v) in enumerate(_PROTO_GETTERS))
+    undo = " ".join(f"def({o}, '{n}', g{i});" for i, (o, n, _) in enumerate(_PROTO_GETTERS))
+    return trick + " const ga = Element.prototype.getAttribute; Element.prototype.getAttribute = function () { return null; };", \
+        undo + " Element.prototype.getAttribute = ga;"
+
+
+_LIES = ("for (const key of ['innerText', 'textContent', 'value', 'outerText']) def(s, key, {get: () => 'Next', configurable: true});"
+         " def(s, 'form', {get: () => null, configurable: true}); def(s, 'type', {get: () => 'button', configurable: true});"
+         " s.getAttribute = () => null; s.closest = () => null; s.matches = () => false;")
+_UNLIE = ("for (const key of ['innerText', 'textContent', 'value', 'outerText', 'form', 'type', 'getAttribute', 'closest', 'matches'])"
+          " delete s[key];")
+_PROXY = ("const hostile = new Proxy(HTMLButtonElement.prototype, {get(t, key, r) {"
+          " if (key === 'innerText' || key === 'textContent') throw new Error('no');"
+          " if (key === 'value') return 'Next'; if (key === 'closest' || key === 'getAttribute') return () => null;"
+          " return Reflect.get(t, key, r); }}); Object.setPrototypeOf(s, hostile);")
+_PAGE_SUBMIT = ("const i = document.createElement('iframe'); document.body.append(i);"
+                " const native = () => { try { i.contentWindow.HTMLFormElement.prototype.submit.call(f); } catch (e) {}"
+                " try { HTMLFormElement.prototype.requestSubmit.call(f); } catch (e) {} return ''; };"
+                " def(s, 'innerText', {get: () => '', configurable: true}); def(s, 'value', {get: native, configurable: true});")
+PAGES |= {
+    # The review of #449: the Submit's own innerText getter throws, inside the guard's listener.
+    "a Submit whose own innerText throws": _tricked("def(s, 'innerText', {get() { throw 1; }, configurable: true});",
+                                                    "delete s.innerText;"),
+    # The review of #449: its value getter, which the guard read when innerText was empty, posts the form itself.
+    "a Submit whose value getter posts the form": _tricked(_PAGE_SUBMIT, "delete s.innerText; delete s.value;"),
+    "a Submit whose own getters and methods lie": _tricked(_LIES, _UNLIE),
+    "a Submit whose prototype is a Proxy": _tricked(_PROXY, "Object.setPrototypeOf(s, HTMLButtonElement.prototype);"),
+    "prototype getters that lie": _tricked(*_proto_getters("")),
+    "prototype getters that throw": _tricked(*_proto_getters("() => { throw new Error('no'); }")),
+    "built-ins the page replaced": _tricked(*_replaced()),
+    "a request whose URL changes on a second read": {START: f"""<title>Apply</title><form id=f method=post
+        action="/acme/jobs/123/step2"><input name=first value=Test><button id=b type=button>Next</button></form>
+        <script>const d = Object.getOwnPropertyDescriptor, def = Object.defineProperty;
+        document.getElementById('b').addEventListener('click', () => {{ {_TWICE} }});</script>""",
+        "/acme/jobs/123/step2": "<title>Two</title><input name=next>"},
 }
 # KAN-776: a held page's session dialog, whose stay-signed-in button the keep-alive presses. Each sends the application.
 _SESSION = ("<title>Apply</title><form id=f method=post action='" + FINAL + "'><input name=first value=Test></form>"
@@ -169,7 +498,8 @@ SESSION_PAGES = {
 }
 MOVED = {"a session dialog whose Continue sends after the next mouse move"}
 PAGES |= SESSION_PAGES
-BUTTON = {"a review page's Apply with its answers hidden": "Apply", "a profile pop-up that is the application": "Submit", "a profile pop-up that turns into the application": "Submit",
+BUTTON = {"an Amazon card whose Continue sends": "Continue", "a review page's Apply with its answers hidden": "Apply", "a page that vouches for its own Apply": "Apply", "a Submit in another language beside a Submit": "Envoyer ma candidature", "a Submit in a shadow root": "Submit application",
+          "a profile pop-up that is the application": "Submit", "a profile pop-up that turns into the application": "Submit",
           "a one-page form in a modal": "Continue", "an application that makes an account": "Continue",
           "a button whose words change after the check": "Continue",
           "a session dialog whose stay button is the form's submit": "Stay signed in",
@@ -184,19 +514,24 @@ class Site:
     """The fake job system: each page by path, and every request that isn't a GET."""
 
     def __init__(self, pages: dict[str, str]):
-        self.pages, self.sent = pages, []
+        self.pages, self.sent, self.bodies = pages, [], []
 
     def handle(self, route) -> None:
         request = route.request
         path = request.url.split("example.com", 1)[-1].split("?")[0] if "example.com" in request.url else request.url
         if request.method not in ("GET", "HEAD", "OPTIONS"):
             self.sent.append(path)
+            try:
+                self.bodies.append((path, request.post_data or ""))
+            except Exception:
+                self.bodies.append((path, ""))
         body = self.pages.get(path, "<title>Thanks</title><p>Thank you for applying</p>")
         route.fulfill(body=body, content_type="text/html")
 
     def applications(self) -> list[str]:
-        """The application requests that reached the job system."""
-        return [p for p in self.sent if p in (FINAL, GREENHOUSE)]
+        """The application requests that reached the job system: a final URL's (COMMIT's too, KAN-783), or SAVE's with
+        its Submit (submit=1)."""
+        return [p for p in self.sent if p in (FINAL, GREENHOUSE, COMMIT)] + [p for p, b in self.bodies if p == SAVE and "submit=1" in b]
 
 
 # --- the click paths, each the real code that presses through the guards
@@ -295,9 +630,85 @@ def choice_clicks(page, drive, name):
 
 TYPING = {"Apply's typing": apply_typing, "the tile's typing": tile_typing, "Apply's choice clicks": choice_clicks}
 
-PATHS = {"plain code's Next": plain_next, "the profile click": profile_click, "the account click": account_click,
+def amazon_continue(page, drive, name):
+    """The amazon.jobs Filler's step Continue (KAN-765): the Fill engine presses the open card's own Continue in the
+    page, never Submit application. A page with no Amazon step has nothing it presses."""
+    try:
+        amazon.next_step(page, "Job-specific questions")
+    except FillError as refused:
+        raise Handoff(str(refused)) from refused
+    except Exception as broke:  # the engine couldn't run on the page (one that poisons RegExp): what was sent is
+        raise Handoff(str(broke)) from broke  # checked all the same
+
+
+PATHS = {"plain code's Next": plain_next, "the Amazon Filler's Continue": amazon_continue, "the profile click": profile_click, "the account click": account_click,
          "Ask Claude's press": ask_press, "Ask Claude's press of a listed step": ask_press_listed,
          "the keep-alive's stay press": stay_press}
+
+
+# PR 477's guard holes (KAN-710): each page a hole the guards had, so each runs on PRs, never only nightly. A page
+# that sets the guards' old window flags itself ("a page that lifts the guards itself") is one of them.
+GUARD_HOLES = frozenset({
+    "a Submit in another language beside a Submit", "a Next that sends by a hidden button", "a link that pings the final URL",
+    "a frame inside the Next", "a form a timer posts while a Next is pressed",
+    "a step list's link to /apply on a page with more steps", "a page that lifts the guards itself",
+    "a page that arms the account click itself", "an inner frame that arms itself", "a frame that forges the extension's touch",
+    "a page that fakes getAttribute", "a page that fakes RegExp's test", "a page that fakes eventPhase",
+    "a field named getAttribute", "a Submit renamed in the Next's handler", "a Submit taken away in the Next's handler",
+    "an action the form's own submit handler changes", "submit=1 added by the formdata event",
+    "a base that makes a query the final URL", "a base that makes a path Greenhouse's",
+    "an empty formaction on a page at the final URL", "Step 1 of 2 in text of no size", "a step list clipped to nothing",
+    "a sandboxed frame inside the Next", "another form posted in the Next's handler", "an input Submit with no value",
+    "an icon Submit with a title", "a role=button Submit", "a form in a shadow root", "a Submit in a shadow root",
+    "a ping in a shadow root", "a ping on a link in no document", "requests sent around the guard",
+    "a page that vouches for its own Apply", "a page that lifts the guards by their install mark",
+    "a page that hears the drive guard's control name", "a page that poisons RegExp before the guard",
+    "a pointerdown handler that clicks the page's own button",
+    # PR 548's (KAN-783): a page's own getters and methods against the guard's reads, and a request read twice.
+    "a Submit whose own innerText throws", "a Submit whose value getter posts the form",
+    "a Submit whose own getters and methods lie", "a Submit whose prototype is a Proxy", "prototype getters that lie",
+    "prototype getters that throw", "built-ins the page replaced", "a request whose URL changes on a second read",
+})
+
+
+# The guard holes that hang on how a plain Worker carries the guards' state, touches, controls and network rules: these
+# run on PRs on a plain Worker too. The other holes are the guard script's own, the same script on both kinds of
+# Worker, and run on PRs on every path on CDP; their plain-Worker pairs run nightly. All 38 on a plain Worker took
+# the hostile step past its 9 minutes on CI (551 s, 2026-11-11).
+PLAIN_HOLES = frozenset({
+    "a page that lifts the guards itself", "a page that arms the account click itself", "an inner frame that arms itself",
+    "a frame that forges the extension's touch", "a pointerdown handler that clicks the page's own button",
+    "a page that vouches for its own Apply", "a page that lifts the guards by their install mark",
+    "a page that hears the drive guard's control name", "requests sent around the guard",
+})
+
+
+def first_page_on_prs() -> list:
+    """PAGES for a plain-Worker matrix: PR CI runs every path against the first page, and the
+    nightly workflow (apply-nightly.yml) runs the rest, marked `nightly` (KAN-780: the whole
+    plain matrix took about 9 of the apply job's 20 minutes)."""
+    names = list(PAGES)
+    return names[:1] + [pytest.param(name, marks=pytest.mark.nightly) for name in names[1:]]
+
+
+def each_page_and_path_once_on_prs(paths=None) -> list:
+    """(page, path) pairs for a matrix: PR CI runs a diagonal, so every page and every path
+    runs at least once, and the nightly workflow runs the other pairs, marked `nightly` (KAN-780).
+    A guard hole's page (GUARD_HOLES) runs on PRs on every path."""
+    paths = list(PATHS) if paths is None else list(paths)
+    return [(page, path) if page in GUARD_HOLES or i % len(paths) == paths.index(path)
+            else pytest.param(page, path, marks=pytest.mark.nightly)
+            for i, page in enumerate(PAGES) for path in paths]
+
+
+def plain_pairs_on_prs(paths) -> list:
+    """(page, path) pairs for the plain-Worker click matrix: PR CI runs every path against the first page and each
+    plain Worker's guard hole (PLAIN_HOLES) on one path (a diagonal), and the nightly workflow runs the rest, marked
+    `nightly` (KAN-780)."""
+    paths, first = list(paths), next(iter(PAGES))
+    return [(page, path) if page == first or (page in PLAIN_HOLES and i % len(paths) == paths.index(path))
+            else pytest.param(page, path, marks=pytest.mark.nightly)
+            for i, page in enumerate(PAGES) for path in paths]
 
 
 def _settle(page, ms=3000) -> None:
@@ -345,7 +756,9 @@ def test_a_link_sent_in_never_joins_a_cdp_worker():
 # --- CDP: Playwright's Chromium, the rehearsal's guard and the drive guard on the page
 
 @contextmanager
-def cdp(pages: dict[str, str], guarded: bool = True):
+def cdp(pages: dict[str, str], guarded: bool = True, first: bool = False):
+    """The pages in Playwright's Chromium, guarded as a rehearsal guards them: after a first load, or with `first`
+    before it (submit_guard.on_open, as a rehearsal opens each page: KAN-682), for a page that sends as it loads."""
     from playwright.sync_api import sync_playwright
 
     site = Site(pages)
@@ -356,6 +769,9 @@ def cdp(pages: dict[str, str], guarded: bool = True):
         context = browser.new_context()
         context.route(lambda url: True, site.handle)  # every request: no real site is ever reached
         page = context.new_page()
+        if guarded and first:
+            with submit_guard.guarding_on_open():
+                submit_guard.on_open(page)
         page.goto(HOST + START)
         drive = None
         if guarded:
@@ -372,8 +788,7 @@ def quick_steps(monkeypatch):
     monkeypatch.setattr(claude_fill, "STEP_SHOWS_MS", 1500)
 
 
-@pytest.mark.parametrize("path", list(PATHS))
-@pytest.mark.parametrize("page_name", list(PAGES))
+@pytest.mark.parametrize(("page_name", "path"), each_page_and_path_once_on_prs())
 def test_no_click_path_sends_a_hostile_page_on_cdp(page_name, path):
     with cdp(PAGES[page_name]) as (page, drive, site):
         try:
@@ -387,9 +802,14 @@ def test_no_click_path_sends_a_hostile_page_on_cdp(page_name, path):
 
 @pytest.mark.parametrize("page_name", list(PAGES))
 def test_without_the_guard_each_hostile_page_sends(page_name):
-    """The control: a plain click on the same button, unguarded, sends the application."""
+    """The control: a plain click on the same button, unguarded, sends the application. A page whose timer posts
+    on its own keeps navigating unguarded, so on a slow runner the click may never land: it has sent all the same,
+    and the assertion is what counts (CI, 2026-11-11)."""
     with cdp(PAGES[page_name], guarded=False) as (page, _, site):
-        page.get_by_role("button", name=button(page_name)).click()
+        try:
+            page.get_by_role("button", name=button(page_name)).click(timeout=10_000)
+        except Exception:
+            pass  # the page navigated away under the click: whether it sent is asserted below
         _then(page, page_name)
         if page_name in MOVED:
             page.mouse.move(5, 5)
@@ -401,7 +821,6 @@ def test_without_the_guard_each_hostile_page_sends(page_name):
 # Ask Claude's press of a listed step (KAN-692) against a TAL.net-like form, whose final Submit posts to the same
 # save_page as each step's save: only the body (submit=1) tells them apart. The adversarial review's pages: none
 # may send the form's own button.
-SAVE = "/acme/jobs/123/save_page"
 _FORM = f'<form id=f method=post action="{SAVE}"><input name=first value=Test>'
 LISTED_SENDS = {
     "a Submit in another language": (f"<title>Declaration</title>{_FORM}<ul class=actions><li>"
@@ -625,6 +1044,11 @@ def test_fill_again_opens_the_form_guarded_before_its_first_load(tmp_path):
 
 # --- plain: a plain Worker on Chrome for Testing (no CDP), the same pages and paths
 
+# One test process takes every plain-Worker case, one at a time, beside the CDP cases in the others
+# (`pytest -n auto --dist loadgroup`): in parallel, plain Workers' trusted typing missed its field (KAN-780).
+ONE_PLAIN_PROCESS = pytest.mark.xdist_group("plain-worker")
+
+
 def _plain_or_skip():
     from plain_fakes import have_chrome_for_testing
     if not have_chrome_for_testing():
@@ -642,9 +1066,12 @@ def plain(pages: dict[str, str]):
         yield page, DriveGuard(page), site
 
 
-@pytest.mark.parametrize("path", ["plain code's Next", "the profile click", "the account click",
-                                  "Ask Claude's press of a listed step", "the keep-alive's stay press"])
-@pytest.mark.parametrize("page_name", list(PAGES))
+PLAIN_PATHS = ["plain code's Next", "the Amazon Filler's Continue", "the profile click", "the account click", "Ask Claude's press of a listed step",
+               "the keep-alive's stay press"]
+
+
+@pytest.mark.parametrize(("page_name", "path"), plain_pairs_on_prs(PLAIN_PATHS))
+@ONE_PLAIN_PROCESS
 def test_no_click_path_sends_a_hostile_page_on_a_plain_worker(page_name, path):
     with plain(PAGES[page_name]) as (page, drive, site):
         try:
@@ -657,7 +1084,8 @@ def test_no_click_path_sends_a_hostile_page_on_a_plain_worker(page_name, path):
 
 
 @pytest.mark.parametrize("path", list(TYPING))
-@pytest.mark.parametrize("page_name", list(PAGES))
+@pytest.mark.parametrize("page_name", first_page_on_prs())
+@ONE_PLAIN_PROCESS
 def test_no_typing_path_sends_a_hostile_page_on_a_plain_worker(page_name, path):
     with plain(PAGES[page_name]) as (page, drive, site):
         try:
@@ -670,6 +1098,7 @@ def test_no_typing_path_sends_a_hostile_page_on_a_plain_worker(page_name, path):
 
 
 @pytest.mark.parametrize("path", list(TYPING))
+@ONE_PLAIN_PROCESS
 def test_an_enter_in_a_box_sends_nothing_even_on_a_lifted_page(path):
     """KAN-716: on amazon.jobs a synthetic Enter in a box pressed the form's submit button. Lifted (a held page, a live
     run's last step), no guard would stop it: the Enter itself must send nothing."""
@@ -721,6 +1150,7 @@ STEERS = {
 
 
 @pytest.mark.parametrize("page_name", list(STEERS))
+@ONE_PLAIN_PROCESS
 def test_a_trusted_choice_click_presses_nothing_else_on_a_lifted_page(page_name):
     with plain({START: STEERS[page_name], "/inner": INNER_BUTTON, "https://other.example.org/inner": INNER_BUTTON}) as (page, _, site):
         lift(page)
@@ -735,6 +1165,7 @@ def test_a_trusted_choice_click_presses_nothing_else_on_a_lifted_page(page_name)
     assert [p for p in site.sent if p.startswith("/")] == []
 
 
+@ONE_PLAIN_PROCESS
 def test_a_trusted_click_that_misses_raises():
     """The page puts its Submit over the radio as the press goes down: the click is cancelled, and Apply hears it."""
     page_html = STEERS["a listener that runs first and hides the press"].replace(
@@ -749,6 +1180,7 @@ def test_a_trusted_click_that_misses_raises():
     assert pressed == [0, 0, False]
 
 
+@ONE_PLAIN_PROCESS
 def test_a_second_form_sent_in_with_into_is_guarded_beside_a_held_one():
     """`apply rehearse --into`: a new tab in the same plain Worker, while the first form is held (lifted) for Lisul."""
     _plain_or_skip()
@@ -770,3 +1202,104 @@ def test_a_second_form_sent_in_with_into_is_guarded_beside_a_held_one():
             pass
         _settle(second)
     assert site.applications() == []
+
+
+# --- His press on a held page (KAN-781): a sign-in, account or code step's press leaves Resume his, so a page must
+# never pass the application's own final Submit off as one. Lifted, nothing stops the press: what is at stake is
+# whether Apply would fill a form he sent. Each page's #b is the application's final button, and it must be heard as
+# his Submit (account False); a confirmation page after it still ends Resume (rehearsal._Kept.hold).
+_CONTACT = "<label>First name <input name=first value=Test></label><label>Email <input type=email name=email></label>" \
+    "<label>Phone <input type=tel name=phone></label>"
+_ANSWERS = "<label>Resume <input type=file name=resume></label><textarea name=why>Because</textarea>"
+HIS_SUBMITS = {
+    # A password box in the Submit's own form, the answers beside it on the page.
+    "a final Submit in a form with a password box": f"""<form>{_ANSWERS}<input type=password name=pw value=x>
+        <button id=b type=button>Submit</button></form>""",
+    # A small form of a code box and the Submit, the answers in a form of their own.
+    "a final Submit in a code form beside the answers": f"""<form>{_ANSWERS}</form><form>
+        <input autocomplete=one-time-code name=otp><button id=b type=button>Submit</button></form>""",
+    # A sign-in's shape, but its button names the application.
+    "Submit application in a sign-in form": """<form><input type=email value=t@example.com><input type=password value=x>
+        <button id=b type=button>Submit application</button></form>""",
+    # A review page with no answer shown: its password and code boxes are hidden.
+    "a review page with hidden sign-in boxes": """<h2>Review</h2><form><input type=password style="display:none">
+        <input autocomplete=one-time-code hidden><button id=b type=button>Submit</button></form>""",
+    # A row of one-digit boxes beside the answers, and a button that says verify and submit.
+    "Verify and Submit beside digit boxes": f"""<form>{_ANSWERS}{'<input maxlength=1>' * 6}
+        <button id=b type=button>Verify and Submit</button></form>""",
+    # A postal code is no sign-in code.
+    "a final Submit beside a postal code box": """<form><label>Postal code <input name=postal_code placeholder="Zip code"></label>
+        <button id=b type=button>Submit</button></form>""",
+    # The adversarial review of #545: a short application of text boxes beside one box that looks like a sign-in's.
+    "a final Submit beside an access code box": f"""<form>{_CONTACT}<label>Access code <input name=access_code></label>
+        <button id=b type=button>Submit</button></form>""",
+    "a final Submit beside an Indian address's PIN code": f"""<form>{_CONTACT}<label>PIN code <input name=pin_code></label>
+        <button id=b type=button>Submit</button></form>""",
+    "a final Submit beside a texted security code box": f"""<form>{_CONTACT}<input name=security_code
+        placeholder="Security code we texted you"><button id=b type=button>Submit</button></form>""",
+    "a final Submit beside four one-character boxes": f"""<form>{_CONTACT}{'<input maxlength=1>' * 4}
+        <button id=b type=button>Submit</button></form>""",
+    "a final Submit in an application that makes an account": f"""<form>{_CONTACT}<input type=password value=x>
+        <button id=b type=button>Submit</button></form>""",
+    "Verify and Send beside an answer and a password box": """<form><textarea name=why>Because</textarea>
+        <input type=password value=x><button id=b type=button>Verify and Send</button></form>""",
+    "Verify and Send beside a one-time code box": f"""<form>{_CONTACT}<input autocomplete=one-time-code>
+        <button id=b type=button>Verify and Send</button></form>""",
+    "a final Submit beside numeric boxes": f"""<form>{_CONTACT}{'<input inputmode=numeric>' * 4}
+        <button id=b type=button>Submit</button></form>""",
+    # Answers drawn as a choice hidden behind styled labels, and a code box: still the application.
+    "a final Send beside a code box and hidden choices": """<form><input type=radio name=auth style="opacity:0;position:absolute"
+        hidden><input name=verification_code><button id=b type=button>Send</button></form>""",
+}
+# Oracle's code boxes as its Candidate Experience draws them: numeric, autocomplete off, no maxlength.
+_PIN = "".join(f'<input class="input-row__control pin-code-input__input" type=text inputmode=numeric autocomplete=off '
+               f'pattern="[0-9]*" id=pin-code-{n} aria-label="Enter verification code digit {n} of six.">' for n in range(1, 7))
+# Sign-in, account and code steps whose button says it sends: heard as such (account True), so Resume goes on.
+SIGN_INS = {
+    "Workday's Sign in with email": """<form><input type=email value=t@example.com><input type=password value=x>
+        <button id=b type=button>Submit</button></form>""",
+    "Oracle's code step's Send New Code": """<form class=pin-code-verification>""" + _PIN
+        + """<button type=submit><span>Verify</span></button><button id=b type=button>Send New Code</button></form>""",
+    "Oracle's code step's Submit": """<form class=pin-code-verification>""" + _PIN
+        + """<button id=b type=submit><span>Submit</span></button></form>""",
+    "Oracle's inline code step on the application's form": f"""<form>{_CONTACT}{_ANSWERS}<div class=pin-code-form>{_PIN}
+        <button id=b type=button>Send New Code</button></div></form>""",
+    "a code form's Submit": """<form><input autocomplete=one-time-code><button id=b type=button>Submit</button></form>""",
+}
+
+
+def _heard(page) -> set[bool]:
+    """Whether each guard on the page (the rehearsal's and the drive guard, both lifted) heard #b's press as a sign-in's."""
+    heard = []
+    lift(page, pressed=lambda words, account=False: heard.append((words, account)))
+    page.locator("#b").click()
+    _settle(page, 500)
+    assert heard, "the press was not heard"
+    return {account for _, account in heard}
+
+
+@pytest.mark.parametrize("page_name", list(HIS_SUBMITS))
+def test_a_final_submit_dressed_as_a_sign_in_is_still_his_submit(page_name):
+    with cdp({START: HIS_SUBMITS[page_name]}) as (page, _, _site):
+        heard = _heard(page)
+    assert heard == {False}
+
+
+@pytest.mark.parametrize("page_name", list(SIGN_INS))
+def test_a_sign_in_steps_press_is_never_his_submit(page_name):
+    with cdp({START: SIGN_INS[page_name]}) as (page, _, _site):
+        heard = _heard(page)
+    assert heard == {True}
+
+
+@pytest.mark.parametrize("page_name", list(HIS_SUBMITS))
+def test_a_final_submit_dressed_as_a_sign_in_is_still_his_submit_on_a_plain_worker(page_name):
+    with plain({START: HIS_SUBMITS[page_name]}) as (page, _, _site):
+        heard = _heard(page)
+    assert heard == {False}
+
+
+def test_every_guard_hole_is_a_hostile_page():
+    # A name in GUARD_HOLES that is no page would leave that hole to the nightly run alone.
+    assert GUARD_HOLES <= set(PAGES)
+    assert PLAIN_HOLES <= GUARD_HOLES

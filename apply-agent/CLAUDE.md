@@ -143,7 +143,9 @@ into it and the window shows "Sample data".
 - CI (the `apply` job in `../.github/workflows/ci.yml`) runs ruff and only
   a fixed list of fast test files: the files that need no browser, no
   network and no `claude` CLI. When you add a test file that needs none of
-  them, add it to that list. CI also installs Chrome for Testing and runs
+  them, add it to that list. Its test steps run in parallel
+  (`pytest -n auto`), so a new test there can't share a fixed port or
+  path with another. CI also installs Chrome for Testing and runs
   `test_plain_guards.py` and `test_plain_routing.py` on a real plain Worker.
   CI never runs the Filler tests (`test_*_filler.py`, `test_claude_fill.py`
   and the other files that open Chromium). Run the ones that your change
@@ -154,8 +156,22 @@ into it and the window shows "Sample data".
   the keep-alive's stay-signed-in press, Fill again) against pages built to
   trick them. Every pair must send no
   application request. A new click path joins `PATHS`, and a new trick joins
-  `PAGES`, in the same PR. CI runs its no-browser, CDP and plain Worker
-  cases. A guard PR gets an adversarial review first (root `CLAUDE.md`).
+  `PAGES`, in the same PR. CI runs its no-browser cases, every page and
+  every path at least once on CDP (a diagonal), and every path against the
+  first page in `PAGES` on a plain Worker; the other pairs are marked
+  `nightly` and run in `apply-nightly.yml` (KAN-780). Mark a test `nightly` only when it is slow
+  and a faster PR case covers the same code. A guard PR gets an adversarial review first (root `CLAUDE.md`).
+- **The guards read the page only through built-ins taken before any page
+  code** (KAN-710, KAN-783): the guard script's own (`fn`, `get`, `test`,
+  `up`, `formOf`, ...), and `apply.natives` for the reads that also run on
+  their own (`PROFILE_DIALOG`, `send_click.ELEMENT`; the drive guard takes
+  the natives for Ask's read as it starts). A page's getter that throws or
+  lies, a Proxy prototype, or a replaced built-in sent an application when
+  a guard read `el.innerText` directly. A new read uses one of these, never
+  a property of the page's object, and a new listener that judges a press
+  goes through `judged` (a throw blocks). A request's URL, method and body
+  are read once, and what was judged is what is sent: an XHR keeps what its
+  `open()` took, and one opened by no `open()` of the guard's is not sent.
 - **No test reaches past loopback** (`tests/network_block.py`, KAN-662). A
   socket or name lookup to another host raises `NetworkBlocked`, Chrome
   started by a test resolves other hosts to nothing, and Playwright's own

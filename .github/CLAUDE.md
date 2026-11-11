@@ -58,7 +58,7 @@ The build first runs `npm ci` in `store/` for esbuild, which minifies every
 packaged script (KAN-744).
 
 **Without `FILL_ENGINE_TOKEN`, the engine's tests are skipped, never green.**
-`ci.yml`, `extension-nightly.yml` and `live-canary.yml` each first call
+`ci.yml`, `extension-nightly.yml`, `apply-nightly.yml` and `live-canary.yml` each first call
 `workflows/engine-token.yml` (a reusable workflow, job `engine`), which
 answers whether the secret is set and, when it isn't, writes "SKIPPED: ..."
 to its job summary and a warning. A job that needs the engine depends on it
@@ -113,8 +113,8 @@ gitlink `git ls-tree HEAD` actually records, then `git -C
 autofiller_extension/fill-engine fetch --depth 1 origin <that SHA> &&
 checkout --detach <that SHA>`. This is the "Pin fill-engine to the commit
 this branch actually records" step in `ci.yml` (`extension-store-build`,
-`extension`, `apply`), `extension-nightly.yml`, `live-canary.yml` and
-`publish-extension.yml` — six places, one pattern. If `actions/checkout`
+`extension`, `apply`), `extension-nightly.yml`, `apply-nightly.yml`,
+`live-canary.yml` and `publish-extension.yml` — seven places, one pattern. If `actions/checkout`
 ever fixes this upstream, these steps are redundant but harmless; don't
 remove them without confirming a real run's build log prints the version
 `git ls-tree HEAD` actually names, not just that the step exists.
@@ -159,12 +159,43 @@ that touches `apply-agent/`, the engine pointer, `ci.yml` or
 `test_plain_routing.py`, the last two on a real plain Worker (KAN-667). macOS, because a
 plain Worker starts through `open` and the browser's `.app`; a step fails the
 job if the browser is missing, since these tests skip without it.
+**Its limit is 20 minutes** (KAN-780, 2026-11-10; raised from 15 on
+2026-11-11): the job took 16 to 20 minutes once the hostile pages'
+plain-Worker cases ran there (it was raised to 35 for that), about 6 after
+KAN-780 (below), and about 13 once the guard holes' pages ran on every CDP
+path (KAN-710, KAN-783). Each step has its own
+limit too, so a hang fails in that step.
 **CI does not run the other 28 test files**, which hold the Filler tests
 (`test_*_filler.py`, `test_claude_fill.py`, `test_run.py`,
 `test_rehearse.py` and more). Most of them need Chromium or the macOS
 `security` tool. The full suite takes more than 20
 minutes. Run the files that a change touches on a Mac, with `-k`
 (`apply-agent/CLAUDE.md`, Testing).
+
+Each test step has its own `timeout-minutes` and skips tests marked
+`nightly` (KAN-780). The fast tests and the hostile pages run in parallel
+(`pytest -n auto`, pytest-xdist), but plain-Worker cases always run one at
+a time in one process (the hostile pages' `xdist_group`, `--dist
+loadgroup`, and the plain-Worker step without `-n`): in parallel, plain
+Workers' trusted typing missed its field. The tile's tests, which time
+frames in real seconds, have their own one-process step too. Before KAN-780 the job took 16 to 20 minutes,
+10 to 15 of them in the hostile pages' matrix. PRs now run every hostile
+page and every path at least once; `workflows/apply-nightly.yml` (07:53
+UTC, or `gh workflow run apply-nightly.yml`) runs every `nightly` test.
+The pages of PR 477's guard holes (KAN-710: `GUARD_HOLES` in
+`test_submit_guard_hostile.py`, among them a page that sets the guards' old
+`window.__apply*` flags itself) are never only nightly: PRs run each one on
+every CDP path. The holes that hang on how a plain Worker carries the guards'
+state, touches, controls and network rules (`PLAIN_HOLES`) also run on one
+plain-Worker path; the rest of their plain-Worker pairs run nightly, since the
+guard script is the same on both kinds of Worker. A page added for a new
+guard hole joins `GUARD_HOLES`, and `PLAIN_HOLES` too when it is about a plain
+Worker. With all 38 on a plain Worker the hostile step took 551 s on CI
+(2026-11-11) and hit its 9-minute limit, so only `PLAIN_HOLES` run there on
+PRs. Even then the step took 505 s for 350 cases, and 547 s for 398 once
+KAN-783's eight pages joined (about five times its time on a 14-core Mac),
+so its limit is 12 minutes. A
+test safe only on its own (a fixed port or path) can't join a parallel step.
 
 The frontend job runs `format:check`, so an unformatted file fails the PR.
 Run `npm run format` before pushing. Markdown docs are in

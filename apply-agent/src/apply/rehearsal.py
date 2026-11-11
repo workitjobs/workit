@@ -1201,11 +1201,21 @@ class _Calibration:
             return CALIBRATION.format(self._count, self._size)
 
 
+def _eightfold(page) -> bool:
+    """Whether the page is an Eightfold careers site's, by the engine's own reading of its link: Microsoft's, which
+    Claude fill fills, too (KAN-771)."""
+    try:
+        return (fill_engine.job_of(page.url) or {}).get("site") == "eightfold"
+    except Exception:
+        return False
+
+
 def _confirmed(page, job_system: str) -> bool:
     """Whether the page shows that the application went in. A page still
-    loading, or gone, shows nothing yet."""
+    loading, or gone, shows nothing yet. An Eightfold page is read by Eightfold's
+    own check, whichever Filler filled it."""
     try:
-        check = CONFIRMED.get(job_system)
+        check = CONFIRMED.get(job_system) or (CONFIRMED["eightfold"] if _eightfold(page) else None)
         return check(page) if check else page.get_by_text(THANKS).first.is_visible()
     except Exception:
         return False
@@ -1285,8 +1295,8 @@ class _Kept:
         from outside the page (`POST /fill-again`) before his Submit: fill the form anew.
         A paused rehearsal passes `resume(page)`, whether Lisul pressed Resume and
         it can go on: then RESUME, with the page still his until rearm(). Once he presses the form's own Submit
-        (a Submit or Send button not on a sign-in, account or code form), or the job system confirms a press of
-        his sent it, Resume goes on no more, and `sent()` runs, once, so the window stops offering it. His
+        (a Submit or Send button not on a sign-in, account or code step: submit_guard's signInStep), or the job
+        system confirms a press of his sent it (a sign-in step's press too), Resume goes on no more, and `sent()` runs, once, so the window stops offering it. His
         other presses (Apply now, a profile pop-up's Complete) leave Resume his to press.
         A captcha that shows after a press of his calls `challenged()`, once:
         he does it himself, and Apply never touches it. A bot block after a press
@@ -1306,10 +1316,12 @@ class _Kept:
         "" when the page closed or `release` was set."""
         if self._page is None or release.is_set():
             return ""
-        pressed, final, again, hooks, regenerates = [], [], [], self._hooks, []
+        pressed, final, signing, again, hooks, regenerates = [], [], [], [], self._hooks, []
 
         def heard(words: str, account: bool = False) -> None:
-            if not account:  # a sign-in, account or code form's press sends no application: Resume still goes on
+            if account:  # a sign-in, account or code step's press sends no application: Resume still goes on (KAN-781)
+                signing.append(words)
+            else:
                 pressed.append(words)
                 if FINAL.search(words):  # the form's own Submit: the form is his to send (KAN-690)
                     final.append(words)
@@ -1366,6 +1378,9 @@ class _Kept:
             except Exception:
                 pass  # the page closing: the window's button still says so
         kept, closing, told, turned_down, said_sent = False, None, False, False, False
+        # An Eightfold page's own confirmation that shows from now on is his Submit's, heard or not (KAN-771): Lisul's
+        # Submit on Microsoft's form went unseen, and its "Application Submitted" page was never recorded.
+        unheard = _eightfold(self._page) and not _confirmed(self._page, job_system)
         if ask:
             ask.open(self._page)  # the caller closes it once hold() returns
         while not release.is_set():
@@ -1380,7 +1395,8 @@ class _Kept:
                     return AGAIN
                 # Only his Submit, or a press the job system confirms sent the form, makes the page his to send, never
                 # Apply's to drive. His other presses (Apply now, a profile pop-up's Complete) leave Resume his to press.
-                gone = bool(final) or kept or bool(pressed) and _confirmed(self._page, job_system)
+                # A press read as a sign-in's that the job system confirms sent the form is his Submit all the same.
+                gone = bool(final) or kept or bool(pressed or signing) and _confirmed(self._page, job_system)
                 if resume and gone and not said_sent:
                     said_sent = True
                     sent()
@@ -1401,7 +1417,7 @@ class _Kept:
                     for name, context in asked:
                         redo(self._page, name, context)
                 if ask:
-                    if pressed:  # his Submit: the form is his to send, and Claude acts on it no more
+                    if pressed or kept:  # his Submit: the form is his to send, and Claude acts on it no more
                         ask.close()
                     for item in ask.asked():
                         with driving():  # Claude drives the page again
@@ -1418,7 +1434,7 @@ class _Kept:
                 if pressed and not kept and not turned_down and (why := captcha.blocks(self._page)):
                     turned_down = True
                     refused(why)
-                if pressed and not kept and _confirmed(self._page, job_system):
+                if (pressed or signing or unheard) and not kept and _confirmed(self._page, job_system):
                     kept = True
                     submitted(self._page)
                     closing = time.monotonic() + CLOSE_AFTER_S

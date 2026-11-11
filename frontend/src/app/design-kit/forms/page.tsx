@@ -1,4 +1,7 @@
+import { Suspense } from "react";
+
 import { ONBOARDING_STEPS } from "@/app/onboarding/applicant/steps";
+import { ShallowRouting } from "@/components/shallow-routing";
 import { Stepper } from "@/components/stepper";
 import { CheckRowBox, checkRowClasses } from "@/components/ui/check-row";
 import { LinkedInGlyph } from "@/app/(seeker)/profile/icons";
@@ -15,6 +18,7 @@ import {
   MonthFieldSpecimen,
   ResumeUploadSpecimen,
   SegmentedSpecimen,
+  TabsSpecimen,
   SelectFieldSpecimen,
 } from "../interactive";
 import { FieldFacetStates, MultiSelectSpecimen, SortMenuSpecimen } from "../parts";
@@ -61,9 +65,22 @@ export default function FormsPage() {
         </Row>
         <Row
           name="<SegmentedToggle> / <SegmentedLinks>"
-          role="One choice among a few, its thumb sliding to the pick: sm (36px) and lg (44px)"
+          role="One look of the same content among a few, its thumb sliding to the pick: sm (36px) and lg (44px)"
         >
           <SegmentedSpecimen />
+        </Row>
+        <Row
+          name="<TabLinks>"
+          role="Moves between different content on one subject: in a bar (a job's Overview and Company), and ruled under a page's top (Documents)"
+        >
+          {/* It reads `?tab=`, which a static page must wait for under a
+              Suspense boundary or the build fails; ShallowRouting moves the
+              query in place, as on the motion page. */}
+          <Suspense>
+            <ShallowRouting>
+              <TabsSpecimen />
+            </ShallowRouting>
+          </Suspense>
         </Row>
         <Row
           name="<Stepper>"

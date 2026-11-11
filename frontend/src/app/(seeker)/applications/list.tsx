@@ -195,7 +195,8 @@ function FactValue({
  *  (ui/fact.tsx); Status, Match and Posting are pills. */
 const CELL: Record<ColumnId, (app: Application) => ReactNode> = {
   // The logo, then the role over its company, as the list drew it before
-  // KAN-256. The role is cut to the column, the whole title on hover:
+  // KAN-256. The role is cut to the column (at two lines in a phone's
+  // 208px column, one from 672px of page), the whole title on hover:
   // scraped titles run long ("... 2027 in Eurasburg / Bavaria"). The row
   // opens on a click anywhere (components/clickable-row.tsx); the role is the link a
   // keyboard reaches.
@@ -206,7 +207,7 @@ const CELL: Record<ColumnId, (app: Application) => ReactNode> = {
         <Link
           href={applicationHref(app.id)}
           title={app.role}
-          className="text-label text-ink hover:text-brand focus-visible:ring-brand-ring -my-1 block truncate rounded-xs py-1 font-semibold transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none"
+          className="text-label text-ink hover:text-brand focus-visible:ring-brand-ring -my-1 block truncate rounded-xs py-1 font-semibold transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none @max-2xl/main:line-clamp-2 @max-2xl/main:whitespace-normal"
         >
           {app.role}
         </Link>
@@ -292,16 +293,22 @@ const TH = "px-4 text-note text-ink-meta font-medium";
  *  role; it was grey, which read as disabled (KAN-256). */
 const TD = "px-4 text-note text-ink";
 /** A frozen cell paints the row's own background (white, the hover tint
- *  with the row) so scrolled cells don't show through. FROZEN FROM 672PX OF
- *  PAGE UP: Role starts at 320px, about a phone's whole table, so frozen
- *  there it covered it and the scroll showed nothing else; below that it
- *  scrolls with the rest. 672px, not 768px, so a 1024px laptop window
- *  still freezes it. Its place is a custom property, not `left`, which
- *  would shift a narrow page's `relative` heading. */
-const FROZEN_CELL = "z-1 bg-panel @2xl/main:sticky @2xl/main:left-(--frozen-left)";
+ *  with the row) so scrolled cells don't show through. FROZEN AT EVERY
+ *  WIDTH (2026-11-10). Job starts at 320px, about a phone's whole table,
+ *  so below 672px of page (`PHONE_JOB`) it is 208px instead, and Status
+ *  shows beside it. Until then it was frozen only from 672px and scrolled
+ *  with the rest below that, so a phone's table showed the job alone, cut
+ *  Status in half at its edge, and gave no sign the stage was there. Its
+ *  place is a custom property, not `left`, which would shift a narrow
+ *  page's `relative` heading. */
+const FROZEN_CELL = "z-1 bg-panel sticky left-(--frozen-left)";
 /** The last frozen column draws the edge the scrolled cells pass under: a
  *  shadow, since a collapsed table's borders don't move with a sticky cell. */
-const FROZEN_EDGE = "@2xl/main:shadow-[1px_0_0_var(--color-border-subtle)]";
+const FROZEN_EDGE = "shadow-[1px_0_0_var(--color-border-subtle)]";
+/** The Job column's width below 672px of page, over its kept width
+ *  (`!`, since the kept width is an inline style): 208px leaves a phone's
+ *  table room for most of Status beside it. */
+const PHONE_JOB = "@max-2xl/main:w-52!";
 const FROZEN_HOVER = "group-hover/row:bg-hover transition-colors";
 
 /** How far one arrow key press resizes a column. */
@@ -369,7 +376,10 @@ export function ApplicationsList({ applications }: { applications: Application[]
                   onDrag={setDrag}
                   onDrop={(id, target) => setColumnLayout(moveColumn(layout, id, target))}
                   order={layout.order}
-                  className={cn(frozenClasses(header.column.id as ColumnId))}
+                  className={cn(
+                    frozenClasses(header.column.id as ColumnId),
+                    header.column.id === "role" && PHONE_JOB,
+                  )}
                   style={frozenStyle(header.column.id as ColumnId)}
                 />
               ))}

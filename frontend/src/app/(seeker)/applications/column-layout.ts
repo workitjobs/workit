@@ -35,7 +35,7 @@ import { APPLICATIONS_COLUMNS_KEY } from "@/lib/local-drafts";
  * object, and one that finds the key gone (Sign Out) returns the default.
  */
 export const COLUMNS = [
-  { id: "role", label: "Role", width: 320 },
+  { id: "role", label: "Job", width: 320 },
   { id: "status", label: "Status", width: 184 },
   { id: "applied", label: "Date Applied", width: 152 },
   { id: "match", label: "Match", width: 128 },

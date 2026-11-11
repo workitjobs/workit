@@ -235,7 +235,7 @@ function Bubble({ children }: { children: ReactNode }) {
  *  the two above it and did nothing. */
 function Suggestions({ onPick, disabled }: { onPick: (text: string) => void; disabled: boolean }) {
   return (
-    <div className="bg-surface rounded-2xl p-2">
+    <div className="bg-surface rounded-card p-2">
       <p className="text-label text-ink px-2 pt-1 pb-1.5 font-semibold">Tasks I can help with</p>
       <Suggestion
         icon={<SlidersHorizontalIcon aria-hidden className="size-4" />}
@@ -282,11 +282,11 @@ function Suggestion({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="group/task hover:bg-panel focus-visible:ring-brand-ring flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left transition-[background-color,transform] duration-150 ease-out focus-visible:ring-2 focus-visible:outline-none active:scale-[0.99] disabled:opacity-50"
+      className="group/task hover:bg-panel focus-visible:ring-brand-ring rounded-control flex w-full items-center gap-3 px-2 py-2 text-left transition-[background-color,transform] duration-150 ease-out focus-visible:ring-2 focus-visible:outline-none active:scale-[0.99] disabled:opacity-50"
     >
       <span
         aria-hidden="true"
-        className="bg-panel text-ink-meta group-hover/task:bg-brand-tint group-hover/task:text-brand flex size-8 shrink-0 items-center justify-center rounded-lg transition-colors duration-150"
+        className="bg-panel text-ink-meta group-hover/task:bg-brand-tint group-hover/task:text-brand rounded-control flex size-8 shrink-0 items-center justify-center transition-colors duration-150"
       >
         {icon}
       </span>

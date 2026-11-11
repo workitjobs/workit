@@ -302,8 +302,9 @@ def test_text_whose_field_goes_to_another_frame_raises_and_lands_nowhere(amazon)
 
 
 def test_the_drive_guards_checks_on_trusted_input_act_on_a_plain_worker(amazon):
-    # PlainDriveGuard sets the page's flags now that a plain Worker's text is trusted: Ask's typing in a password box is
-    # refused by the page's guard, and an error for Apply; out of Ask, the same box takes it.
+    # PlainDriveGuard sets the drive guard's Ask and driving state now that a plain Worker's text is trusted: Ask's
+    # typing in a password box is refused by the page's guard, and an error for Apply; out of Ask, the same box takes
+    # it. The state goes by the guard's control (KAN-710), so the page sees no window flag of it.
     from apply.plain.guards import PlainDriveGuard
 
     page, _ = amazon
@@ -318,4 +319,4 @@ def test_the_drive_guards_checks_on_trusted_input_act_on_a_plain_worker(amazon):
     drive.asking(False)
     page.locator("#pw").fill("hunter2")
 
-    assert flags == [True, True] and refused == "" and page.input_value("#pw") == "hunter2"
+    assert flags == [None, None] and refused == "" and page.input_value("#pw") == "hunter2"

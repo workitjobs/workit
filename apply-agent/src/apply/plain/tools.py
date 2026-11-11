@@ -36,7 +36,7 @@ import uuid
 from pathlib import Path
 from typing import Self
 
-from apply import captcha, send_click
+from apply import attach, captcha, send_click
 from apply.plain.bridge import PortError
 from apply.plain.page import PortFrame, PortPage
 
@@ -52,6 +52,20 @@ CAPTCHA = ("That is a captcha, and Apply never touches one: a person does it. Do
 IN_CAPTCHA = "(el, captchas) => !!(el.closest && el.closest(captchas))"
 # Whether the focused element, where a key would go, is a captcha's frame or in a widget box.
 FOCUS_IN_CAPTCHA = """(captchas) => { const el = document.activeElement; return !!(el && el.closest && el.closest(captchas)); }"""
+# Whether the element is an option its single-choice list already holds (aria-selected): Eightfold's lists
+# (Microsoft's) are toggles, and a click on the held option empties the field (KAN-767).
+PICKED = """(el) => {
+  const option = el.closest && el.closest('[role=option]');
+  if (!option || option.getAttribute('aria-selected') !== 'true') return false;
+  const list = option.closest('[role=listbox]');
+  return !(list && list.getAttribute('aria-multiselectable') === 'true');
+}"""
+PICKED_ALREADY = ("### Result\nThat option is picked already: the field shows it, so nothing was clicked. On this form a "
+                  "click on the picked option empties the field. Close the list (press Escape) and go on.")
+CONSENT = ('That is in the "{title}" dialog, a consent that is the applicant\'s own: Apply never presses any of its '
+           'buttons, not "{button}" and not Cancel or Close either (Cancel drops the file it holds). Stop now and '
+           "give your answer: put 'Press \"{button}\" on the \"{title}\" dialog' in `waiting` (in `for_lisul` on a "
+           "fill). Apply attaches the file once they have pressed it.")
 
 
 def socket_folder() -> Path:
@@ -214,6 +228,15 @@ class Tools:
         if button != "left":
             raise ToolError(f"a {button} click can't be made on this page; use a left click")
         locator = self._locator(target, "click")
+        frame, selector = self._resolve(target)
+        try:
+            in_consent, picked = frame.eval_on_selector(selector, attach.CONSENT), frame.eval_on_selector(selector, PICKED)
+        except PortError:
+            in_consent, picked = None, False  # gone: the click fails on its own
+        if in_consent:
+            raise ToolError(CONSENT.format(**in_consent))
+        if picked and not doubleClick:
+            return PICKED_ALREADY
         if doubleClick:
             locator.dblclick(timeout=ACTION_TIMEOUT)
         else:
@@ -274,7 +297,10 @@ class Tools:
             return "### Result\nThe file chooser was cancelled."
         frame = self.page if frame_id == 0 else PortFrame(self.page, frame_id)
         frame.locator(f'[data-apply-mcp-chooser="{token}"]').set_input_files(files, timeout=ACTION_TIMEOUT)
-        return self._after(f"await fileChooser.setFiles({json.dumps([f.name for f in files])});")
+        done = self._after(f"await fileChooser.setFiles({json.dumps([f.name for f in files])});")
+        if found := attach.consent(self.page):  # the file brought on a consent dialog: Claude stops here (KAN-769)
+            return f"{done}\n### Stop\n{CONSENT.format(**found)}"
+        return done
 
     def browser_press_key(self, key: str) -> str:
         try:
