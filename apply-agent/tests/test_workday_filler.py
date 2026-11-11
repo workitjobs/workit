@@ -156,6 +156,26 @@ def test_a_date_is_typed_key_by_key_even_where_it_shows_already():
     assert server.submissions[0].application["dateSignedOn"] == "10/16/2026"
 
 
+def test_a_date_workday_holds_wrong_as_typed_is_picked_from_its_calendar():
+    # NVIDIA's My Experience (live, 2026-11-10, KAN-716): typed 08/2026 showed, held nothing ("The field To is
+    # required"); 01/2026 saved as 12/2026. Its Calendar picked the same dates right.
+    steps = [("My Experience", [Field("startDate", "From", "date", True), Field("endDate", "To", "date", True)])]
+    keychain = InMemoryKeychain()
+    filler = WorkdayFiller(Accounts(keychain, FakeMailbox(), FakeClock(NOW), "test.person@example.com", "CACI"))
+
+    with FakeWorkdayServer(CACI_FORM, keychain=keychain, steps=steps, dates_need_calendar=True) as server, OnePage(server) as site:
+        start, end = filler.question_set(CACI_URL, site)
+        with site.open(CACI_URL) as page:
+            readback = filler.fill(page, [start, end], {start.name: "01/2026", end.name: "08/2026"})
+            picked = page.evaluate("() => sessionStorage.picked")
+            filler.submit(page)
+
+    assert picked == "2"
+    assert readback == {start.name: "01/2026", end.name: "08/2026"}
+    assert server.submissions[0].application["startDate"] == "01/2026"
+    assert server.submissions[0].application["endDate"] == "08/2026"
+
+
 def test_a_date_saved_on_an_earlier_visit_is_typed_over_whole():
     # Axiom's My Experience, filled again (live): typed into, saved dates garbled into 1/6202.
     steps = [("My Experience", [Field("startDate", "From", "date", True)])]
