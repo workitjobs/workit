@@ -671,7 +671,7 @@ class _Planned:
                                                 for q in yours]
             self.answers = {n: a for n, a in planned.answers.items() if n not in self._skipped}
             return None
-        if stop := self._missing(planned.missing):
+        if stop := self._missing(planned.missing + planned.optional):
             return stop
         # An optional catch-all box ("Additional information", "Anything else?") stays blank on purpose, always:
         # Claude never drafts it and Lisul is never asked it (Lisul, 2026-11-04). A required one is answered.
@@ -724,8 +724,8 @@ class _Planned:
         answered = {d.question for d in self.drafted + self.unbanked} | set(moot) \
             | {q for q in planned.drafts if q.name in self.kept_blank}
         asks = [asked for essay in self.written if essay.plan for asked in essay.plan.asks]
-        if stop := self._missing(planned.missing + [q for q in planned.drafts if q not in answered] + list(self._yours)
-                                 + called_for, asks):
+        if stop := self._missing(planned.missing + planned.optional + [q for q in planned.drafts if q not in answered]
+                                 + list(self._yours) + called_for, asks):
             return stop
         for essay in written:
             self.holds += self._holds(essay, essay.question in planned.high_stakes)
@@ -863,9 +863,10 @@ class _Planned:
         return self._posting_text
 
     def _missing(self, missing: list[Question], asks: list[str] = ()) -> Result | None:
-        """A Missing fact Result for the first of `missing`, in form order,
-        then of `asks` (what an essay asks Lisul for, apply.essays.ASK); a
-        rehearsal lists them all instead and goes on. A question Apply already
+        """A Missing fact Result for the first required one of `missing`, in
+        form order, then of `asks` (what an essay asks Lisul for,
+        apply.essays.ASK); a rehearsal lists them all instead and goes on. An
+        optional one never stops the form: it is listed, with its Skip. A question Apply already
         holds the answer to (apply.asking.known) never reaches him: a text
         field gets that answer, and an ask is dropped. Each one asked has its
         context line (apply.asking): its step, the question it follows and its
@@ -889,8 +890,9 @@ class _Planned:
             | {asked: asking.for_essay(essay_of[asked]) for asked in asks if asked in essay_of}
         if self._rehearse and self.missing != was:
             self._on_missing(self.missing, self.choices, self.required, self.where)
-        if self.missing and not self._rehearse:
-            question = self.missing[0]
+        # An optional one never stops a run: the form is filled without it, and verifying notes it (KAN-759).
+        if (stops := [asked for asked in self.missing if self.required.get(asked, True)]) and not self._rehearse:
+            question = stops[0]
             where = self.where.get(question, "")
             return Result(Status.MISSING_FACT, f"Missing fact: {question}" + (f"; {asking.IN}{where}" if where else ""),
                           missing_fact=question,
