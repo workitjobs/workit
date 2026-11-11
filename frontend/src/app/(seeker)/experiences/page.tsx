@@ -19,14 +19,14 @@ export const metadata: Metadata = {
 };
 
 /**
- * /experiences, the experience bank (KAN-206), shown as the Experiences view of
- * Resumes & Experiences (KAN-249; the header's switcher leads to Resumes at
- * /resumes): every entry in the seven sections, kept once, that built
+ * /experiences, the experience bank (KAN-206), its own sidebar row since
+ * KAN-766 (a view of Resumes & Experiences, behind a switcher, from KAN-249
+ * until then): every entry in the seven sections, kept once, that built
  * resumes draw from. Live from the API's `GET /applicants/{id}/bank`; when
  * that fails the page says so and offers a retry, never fixture rows. The
  * page is the bank itself: the sections and Skills. Intake, with Import
  * inside its chat, lives in Scout's panel (bank-screen.tsx), opened by Fill
- * With Scout, the view's primary action beside the switcher, while
+ * With Scout, the view's primary action, while
  * `FILL_WITH_SCOUT_LIVE` is on; it is off (KAN-732), so the view has no
  * primary action. It was /bank until KAN-440, which next.config.ts
  * redirects here.

@@ -112,7 +112,8 @@ function useFillPage(on: boolean, below: number) {
 }
 
 /**
- * One group of the list (KAN-404), as Notion's Group by draws one: a
+ * One group of a resume picker's list (KAN-404), as Notion's Group by
+ * draws one: a
  * heading with the group's name in a pill (`Badge`, brand, the same for
  * every group) and how many of its resumes the search and the filters
  * leave, then its cards. The heading is a button that folds the group away
@@ -123,7 +124,8 @@ function useFillPage(on: boolean, below: number) {
  * icons, lifted over the stretched link): on the same z-10 the icons came
  * later and painted over the heading as they scrolled under it. The name
  * was grey capitals in the sidebar's caption style at first, which read
- * faint beside the grey cards.
+ * faint beside the grey cards. The Resumes page drew its list in these
+ * groups too until 2026-11-10, when it went flat as its grid is.
  */
 export function ResumeGroup({
   label,

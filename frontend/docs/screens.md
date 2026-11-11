@@ -547,8 +547,9 @@ on a short window.
 KAN-406) is the one picker in all four resume dialogs: this one, Tailor's
 Pick a Resume to Tailor, Auto Apply's Choose a Resume and the Experiences
 view's Choose a Resume to Show (KAN-361, which builds its rows from the
-bank's resumes, with no posting). It is the Resumes page's grouped list
-(`components/resume-list.tsx`): one row with a search by name and by the
+bank's resumes, with no posting). It is the Resumes page's list
+(`components/resume-list.tsx`), still grouped by type, which the Resumes
+page itself dropped on 2026-11-10: one row with a search by name and by the
 posting a resume was tailored for, the **Type** filter and, in Did You
 Apply? and Tailor, **Upload Resume** (as two even halves under the search
 below a 36rem row; no Sort or Generate Resume, which a dialog does not
@@ -2180,26 +2181,30 @@ replaced or removed there, which the autofiller attaches to a form's
 transcript upload. Remove drops the file from the card and shows a toast
 with Undo; the file is deleted only once the toast closes (KAN-562).
 
-## Resumes & Experiences
+## Experiences and Documents
 
-One sidebar row, above My Profile, for one page in two views (KAN-249):
-**Resumes** (`/resumes`, the row's link) and **Experiences** (`/experiences`, the
-experience bank). Both draw one header (`resumes/header.tsx`; it stays
-beside the Resumes view though `/experiences` imports it too, since the two routes
-are one page's views, not two consumers), laid out as the Jobs page's and the
-Applications Tracker's top row is: the view's search on the left and the
-segmented switcher between the two views at the right, after Experiences'
+Two sidebar rows since KAN-766: **Experiences** (`/experiences`, the
+experience bank) and **Documents**, one page with two tabs, **Resumes**
+(`/resumes`, the row's link) and **Cover Letters** (`/cover-letters`).
+Experiences comes first, as the source every resume, match and written
+answer reads; Documents holds what is made from it. Both pages draw one
+header (`resumes/header.tsx`): on Documents a row of tabs (`ui/tabs.tsx`,
+`TabLinks`, ruled), Resumes then Cover Letters, over the view's search on
+the left and its actions on the right; on Experiences the search and its
 primary action, Fill With Scout, while it is offered (off since KAN-732,
-`FILL_WITH_SCOUT_LIVE`); on a phone the search takes its own line.
-The title is in the top bar. A shared "Resumes & Experiences" title on both views
-said less about where the student was. The views stay two routes, so every link to either still
-lands (the Jobs page's `/experiences?import=1` included), and the switcher is plain
-links, since each view reads its own data on the server; the sidebar row is
-lit on both (`also` in `app-sidebar.tsx`) and in the editor under
-`/resumes`. They were two pages and two rows, Experience Bank and My
-Resumes, each with a button pointing at the other; a student building a
-resume went back and forth between them. "Experiences" is the name students
-see for the experience bank; the glossary term stays.
+`FILL_WITH_SCOUT_LIVE`). On a phone the search takes its own line. The
+title is in the top bar: "Documents" on both tabs (and in the resume
+editor under `/resumes`), "Experiences" on the bank. The tabs are plain
+links between routes, since each reads its own data on the server; the
+Documents row is lit on both tabs (`also` in `app-sidebar.tsx`).
+**History:** they were two pages and two rows, Experience Bank and My
+Resumes, each with a button pointing at the other, until KAN-249 made them
+one row, Resumes & Experiences, with a switcher between two views. KAN-766
+split them again: Experiences is the source, not a kind of document, the
+switcher (for two looks of the same content) sat where a tab should, and
+cover letters needed a home beside the resumes. **Cover Letters** holds a
+placeholder ("Cover Letters Are Coming") until its design
+(`docs/cover_letters.md`) is reviewed and built.
 
 ## Experiences (`/experiences`)
 
@@ -2765,7 +2770,8 @@ with no proposals to accept and no Done (2026-10-25).
   `onPreview` on `ResumeLists`), which opens the resume in a dialog
   (`ResumePreviewDialog`, `resume-preview.tsx`) without moving the pick.
   The other resume dialogs pass no `onPreview` and show no eye; the
-  Resumes page's built resume rows open the same dialog (KAN-358). A preview
+  Resumes page's built resume cards opened the same dialog (KAN-358) until
+  2026-11-10. A preview
   sat in a column beside the list until 2026-10-26; the list needed the
   width, and a dialog gives the page room to read. The dialog takes a
   name and a `TailorSource`, so the review step opens it too, for View
@@ -2890,29 +2896,115 @@ with no proposals to accept and no Done (2026-10-25).
 
 ## Resumes (`/resumes`)
 
-`(seeker)/resumes` (KAN-249), the other view of Resumes & Experiences: the
+`(seeker)/resumes` (KAN-249), Documents' Resumes tab (KAN-766): the
 resumes the bank makes and the uploads, under the shared header. **One
 list holds every resume** (KAN-362, `built-resumes.tsx`), laid out as the
 Applications Tracker is: the search (names and postings) on its own row,
 then the **Type** filter (Uploaded, Generated, Tailored; the Applications
 list's dropdown, `FieldFacet`) and the **Sort** dropdown with Upload
 Resume and Generate Resume at the right, then the list (below). Sort
-(KAN-366) is one pick of three: Last Edited, newest first and the
-default; Oldest First; Name (A to Z). An upload dates from its upload, a
-built resume from its last edit. It is drawn as the Type filter is, but
+(KAN-366) is one pick of four: Date Modified, newest first and the
+default ("Last Edited" until 2026-11-10, renamed with the cards' column);
+Recently Created, the newest made first whatever was edited since; Oldest
+First; Name (A to Z). For the modified orders an upload dates from its
+upload, a built resume from its last edit. It is drawn as the Type filter is, but
 never takes the filter's brand tint, since an order is always in force;
 it is a dropdown because the header already holds the Resumes or Experiences
-pills, the shared `SortMenu`, which the Jobs page's filter row uses too. Each resume is its card, with its own
-line saying what it is ("Uploaded Oct 21", "Last edited Oct 21 · For
-<posting>") and its star, Rename, Download and Delete. With no resume at
+pills, the shared `SortMenu`, which the Jobs page's filter row uses too.
+**The List is a table after the Tracker's** (2026-11-10, `ResumeList` in
+`resumes/resume-list.tsx`, rows by `ResumeCard` in
+`components/resume-row.tsx`): one white card with 12px grey headings and
+rules between the rows, after Jobright's resume table. **Name** holds the
+name alone, with a Primary badge (a star and "Primary") on the primary;
+**Target Job** a tailored resume's posting as the Tracker's Role cell draws
+a job, the company's 32px logo, then the posting's title (a link while it
+is open) over the company, and nothing for a resume made for no job;
+**Type** its badge (Uploaded, Generated, Tailored, as on a grid card,
+each with the icon of the button that makes it: Upload Resume's arrow,
+Generate Resume's page, Tailor's pencil, so the three tell apart by more
+than colour);
+**Date Modified** the day and time; then the actions. No tile leads a row
+(each had one, with the logo on a tailored resume's, from earlier the same
+day): Type says what a resume is, and the logos line up in Target Job. No
+"For" and no Posting Closed badge, which the user found not needed. Every
+row is 56px, with a job's two lines or without. A click anywhere on a row opens the
+resume. The headings say once what every card said for itself: as wide
+white cards (earlier the same day) each resume labeled its own date
+"Modified" or "Created", which the user found repetitive. Below `@2xl` of
+the table, a phone's, the Type column folds away, the date keeps only its
+day, the Primary badge keeps only its star, and the actions column holds
+only ⋮. Below `@4xl` (896px) Target Job folds
+too, and the job reads under the name ("<posting> at <company>"). Rename turns the
+row into the name's field with Cancel and Save, at the row's height.
+**Date Modified** (2026-11-10, after Google Drive's) is the latest of two
+events: the last edit, or when it was made or uploaded, for a resume never
+edited, on the student's clock, the year only when it is not this one. It
+was two columns, Created and Last Edited, which the user condensed into
+one. **The actions wait for the pointer, as Google Drive's rows do**
+(`CardActionIcons`): at rest a row shows only ⋮ (More actions), the
+primary's badge sitting by its name; on hover, or with the keyboard's
+focus in the row, Make Primary, Rename, Download and Delete fade in left of
+⋮, in room kept for them, so nothing moves. ⋮ holds every action, worded:
+Open, Rename, Download PDF, Make Primary (on a resume that is not the
+primary), then Delete in red, which asks first (`RowMoreMenu` with
+`always`). A touch screen has no hover, so it shows ⋮ only. Four icons on every row at all times read busy to the user.
+The date and the actions sit in fixed columns, so every card's date lines
+up. **The Grid view** (KAN-766, after Google Drive's and Simplify's): a List /
+Grid switch at the right end of the search's row, where the Jobs and
+Applications pages put their view switch (`SegmentedToggle` with icons:
+two looks of the same resumes, so a switcher, not tabs), kept in a cookie as the Jobs
+page's view is (`resumes/view.ts`, `setResumesLayout`), so the server draws
+the chosen layout. The grid, as the list is since the same day, is one
+flat set of cards in the sort's order, the primary first, with no group
+headings (each card says what it is; the Type filter finds one type):
+the top of each resume's first page (4:3, `THUMBNAIL_RATIO` in
+`resumes/view.ts`: the name, contact line and first section; the whole
+page took 83% of a card and 1.5 rows filled a laptop screen, and resumes
+from one bank look alike below their first section), over lines every card
+has, so a row's cards line up: the name with ⋮, on two lines and always
+two lines tall (cut at one, Tailor's names, which open with the student's
+name, lost the role that tells two apart), then the type as a status badge (Uploaded in
+grey, Generated in the brand, Tailored in blue), a tailored resume's
+company (logo and name, which never wraps and trails off when short of
+room) and, at the line's right, the Date Modified as the list says it
+("Modified" or "Created" and the day). A narrow card drops the badge's
+word and the date's, keeping the type's icon and the day.
+⋮ holds every action (no hover icons, as on Drive's grid), and a filled
+star sits on the primary's page corner, as on Simplify's. No card shows
+a Posting Closed badge: as one more line it made some grid cards taller
+than their row. A New Resume tile led the grid until the
+same day; Generate Resume above does the same (2026-11-10). Rename edits the name under the
+page. The pages (`ResumeThumbnail` in `resume-preview.tsx`) are drawn in
+the browser from the preview the duplicate modal uses, asked for only once
+a card comes within a screen of view and at most two at a time (`inTurn`),
+and kept for the visit: an upload's file costs nothing, and a built
+resume's is one PDF render on the API. A DOCX shows its type. Four to
+a row, two on a phone (below the list's `@3xl`), the user's call. The
+grid scrolls with the page, as the table does.
+**The tile**
+(2026-11-10): an upload's file type ("PDF", "DOCX") on a neutral tile; a
+generated resume's small page in the brand tint, the drawing Generate's
+dialog uses; a tailored resume's company logo, the job card's own
+(`jobLogo`, from the API's `posting_logo_url` and
+`posting_company_domain`), initials without one. Every card wore a PDF
+mark before, though a built resume is no file (it prints from the bank
+each time it opens) and an upload can be a Word file. The rows before were
+52px grey strips in one white card with the date against the icons, which
+the user found skinny and cramped, and whose Created column moved with
+each row's icons. Below `@2xl` of the card (672px) the column hides and
+the date joins the line under the name ("Created Oct 23, 3:27 PM",
+"Modified Nov 5, 2:10 PM"). The server prints the UTC day alone and the
+browser adds the time after hydration (`LocalDateTime`). The pickers' rows
+keep their one-line strip (`ResumeRow` without `page`). On a phone the Sort
+button cuts "Recently Created" to "Recently Cre…". With no resume at
 all the list's place holds "No Resumes Yet"; filters that hide every
 card show "No Matching Resumes" with Clear Filters (`EmptyState`, as the
 Applications page's). The type and the order are the URL's (`?type=uploaded,tailored`,
-`?sort=oldest` or `name`; Last Edited has none), moved in place and
+`?sort=created`, `oldest` or `name`; Date Modified has none), moved in place and
 replacing the entry, so a reload or a shared link keeps them and a tick
 is not a step of Back; Clear Filters keeps the order; the search's words are the
 page's own. A Generate clears a Type filter that would hide its new
-resume. It took six shapes in KAN-362: three cards stacked one under
+resume before it opens the editor, so a Back finds it. It took six shapes in KAN-362: three cards stacked one under
 another (Your Uploaded Resumes, Generated Resumes, Tailored Resumes),
 which a student with many resumes scrolled past; one card behind a pill
 switcher, under the header's own; underline tabs with counts; and the
@@ -2958,16 +3050,47 @@ upload's page.
   carry; every one was "Base Resume" until KAN-258, so the list read as one
   name repeated. Generate has no limit (KAN-268); a failed one shows its
   message as Generated Resumes' error. **A Generate that would make a
-  resume the student already has makes nothing** (KAN-267): a pop-up says
-  "Duplicate Resume found: <name>" with an OK button, and nothing else
-  happens. "The same" is what prints: a new resume holds the whole bank,
-  so it matches only when nothing changed since an earlier Generate.
+  resume the student already has asks first** (KAN-267, KAN-444): a modal
+  says "You Already Have This Resume. Resume #3 has the same content.
+  Confirm to make a copy anyway." with Cancel and Confirm
+  (`resumes/duplicate-resume-dialog.tsx`). Cancel makes nothing; Confirm
+  runs Generate again with `allow_duplicate` and opens the copy. Under the
+  sentence it shows the resume it matches: a card with its name and when it
+  was created and last edited, and its first page (`ResumeFirstPage`, one
+  render from `/api/resume-preview`), so the student sees which one it is.
+  It opens before Generate's dialog, never over it: while the API compares,
+  the button says "Checking…". It said only "Duplicate Resume found:
+  <name>" with OK until 2026-11-10, which flagged the copy but neither
+  explained it nor let the student go on.
+  "The same" is what prints: a new resume holds the whole bank, so it
+  matches only when nothing changed since an earlier Generate.
+  **Generate shows its steps, then opens the resume in the editor**
+  (KAN-444, `resumes/generate-running.tsx`): a dialog with a small page
+  writing itself lists Reading your experience bank, Checking your resumes
+  for a copy, Saving your new resume and Opening your resume, each ticked
+  as it ends. The middle two are the API's own lines (`POST
+  .../built-resumes/stream` through the route handler
+  `/api/resume-generate`), never a timer; the first runs until the first
+  line, the last while the editor loads, as a Tailor run ends. The dialog
+  opens only once the API says `saving` (its duplicate check passed), with
+  the first two steps ticked, or at once after a Confirm: a copy is asked
+  about first. The student
+  reviews the new resume there: left on this list, it was one more row to
+  find and open (the user's call, 2026-11-10). It is the steps dialog
+  Tailor's run draws (`components/steps-dialog.tsx`), and it cannot be
+  closed. Any failure closes it and shows the message over the list. Until then the
+  button's label read "Generating…" for the whole wait, about 3.6 s from a
+  laptop, and nothing else moved.
 - **Uploads** in Your Uploaded Resumes: picking a file uploads it at once
   (`uploadResume`); the API reads it itself, and the client never sends
   parsed content. **A file whose text the student already uploaded is
   refused** (KAN-267): nothing is kept, whenever and however the file was
-  exported again, and Generate's pop-up opens, "Duplicate Resume found:
-  <name>" with OK (`resumes/duplicate-resume-dialog.tsx`).
+  exported again, and the same modal opens: "You Already Have This
+  Resume. Your upload <name> has the same text." with the upload's card,
+  its first page and OK
+  (`resumes/duplicate-resume-dialog.tsx`). An upload is never confirmed:
+  the database keeps one upload per text, and a copy would take one of
+  the 5 slots.
   Intake and onboarding uploads show the message as their error line. **The upload fills the experience bank** (ADR 0003): a
   note under the filter row says what went in ("Added 6 entries and 2 skills
   from resume.pdf", or "WorkIt couldn't find any entries in …") and links
@@ -2997,7 +3120,7 @@ upload's page.
 - **The list** (`resumes/resume-list.tsx`) is one card that scrolls
   inside itself and runs down to the foot of the page, 24px above the
   window's bottom (`ResumeScroll`'s `fill`, KAN-434), never shorter than
-  five cards under a group heading (`FIVE_ROWS`, 352px), so the search
+  five cards high (`FIVE_ROWS`, 352px), so the search
   and the buttons stay in view however many resumes a student keeps. On
   a window too short for that the page scrolls too. It stopped at five
   cards until KAN-434, which left half a laptop screen empty under it;
@@ -3048,11 +3171,11 @@ upload's page.
   (KAN-258, `resumes/built-resume-row.tsx`), from `components/resume-row.tsx`'s box (`RESUME_ROW`), star
   (`PrimaryStar`) and icon buttons (`ROW_ACTION`), so the two lists cannot
   drift apart: the PDF mark, the name, one line with one day, then the
-  star, **Preview**, Rename, **Download PDF** and Delete. Preview (an eye,
-  KAN-358) opens the resume read-only in Tailor's Preview dialog
-  (`ResumePreviewDialog`, rendered as it is now), so a student can look at
-  it without the editor. An upload's row has no eye: its card opens its
-  own read-only page. **The whole card opens the resume editor**: the
+  star, Rename, **Download PDF** and Delete, the same four icons as an
+  upload's card. Preview (an eye, KAN-358) opened the resume read-only in
+  Tailor's Preview dialog until 2026-11-10; it came off, the user's call,
+  so every card has the same four icons and its dates line up. The card
+  itself opens the resume. **The whole card opens the resume editor**: the
   name's link stretches over it and the icons sit above that link, and it
   lifts under the pointer as every whole-target card does (`docs/motion.md`).
   It held Open, PDF and Word buttons until KAN-258, when downloading moved
@@ -3087,10 +3210,14 @@ upload's page.
   bank changes every resume and does not count. The days are the student's
   own (`LocalDate` in `(seeker)/local-time.tsx`); the UTC day showed a
   resume sent on an evening as sent the next day.
-- **Rename** opens the name in place, in a field with Cancel and Save Name
-  at the field's height, as the bank's Skills form is drawn; Escape cancels
-  and an unchanged name saves nothing. A sent resume keeps the name it went
-  out under.
+- **Rename** edits the name on its card (2026-11-10, `RenamingCard` in
+  `components/resume-row.tsx`): the name becomes its field, selected, with
+  Cancel and Save where the icons were, and the card keeps its height and
+  takes the brand edge; Enter saves, Escape cancels, and an unchanged name
+  saves nothing. It was a labeled field across the list with "Save Name",
+  whose focus ring the list's scroll cut off. An upload's own page keeps
+  that form (`RenameForm`), now with Save. A sent resume keeps the name it
+  went out under.
 - **Delete asks first**, on every resume, in a popover hung from the
   trash that opened it (KAN-347, `DeleteResumeConfirm` in
   `delete-confirm.tsx`): the question, then Delete Resume and Keep It, the

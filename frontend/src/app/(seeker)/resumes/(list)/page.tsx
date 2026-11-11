@@ -1,5 +1,6 @@
 import { CloudSlashIcon } from "@phosphor-icons/react/ssr";
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import { connection } from "next/server";
 
 import { buttonClasses } from "@/components/ui/button";
@@ -11,6 +12,7 @@ import { listResumes } from "@/lib/resume-actions";
 import { SEEKER_GUTTER } from "../../gutter";
 import { BuiltResumes } from "../built-resumes";
 import { ResumesHeader } from "../header";
+import { readResumesLayout, RESUMES_LAYOUT_COOKIE } from "../view";
 
 export const metadata: Metadata = {
   title: "Resumes",
@@ -18,8 +20,8 @@ export const metadata: Metadata = {
 };
 
 /**
- * /resumes, the Resumes view of Resumes & Experiences (KAN-249; /experiences is
- * the other view, behind the header's switcher): the base resumes the bank
+ * /resumes, Documents' Resumes tab (KAN-766; /cover-letters is the other,
+ * and Experiences has its own page since then): the base resumes the bank
  * makes (KAN-207), the tailored ones and the student's uploads (My
  * Profile's until 2026-10-18), in one scrolling list with a Type filter
  * (KAN-362, ./built-resumes.tsx). The Sent list (KAN-208) sat
@@ -31,12 +33,17 @@ export const metadata: Metadata = {
  */
 export default async function ResumesPage() {
   await connection();
-  const [resumes, uploaded] = await Promise.all([listBuiltResumes(), listResumes()]);
+  const [resumes, uploaded, jar] = await Promise.all([
+    listBuiltResumes(),
+    listResumes(),
+    cookies(),
+  ]);
+  const layout = readResumesLayout(jar.get(RESUMES_LAYOUT_COOKIE)?.value);
 
   return (
     <div className={cn("max-w-dashboard mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
       {resumes.data && !uploaded.error ? (
-        <BuiltResumes initial={resumes.data} initialUploaded={uploaded.resumes} />
+        <BuiltResumes initial={resumes.data} initialUploaded={uploaded.resumes} layout={layout} />
       ) : (
         <>
           <ResumesHeader view="resumes" />

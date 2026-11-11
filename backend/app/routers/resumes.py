@@ -23,8 +23,9 @@ saved and are remembered as removed (KAN-369). A preview never lists a
 skill the student removed.
 **Duplicates** (KAN-267): an upload whose text matches one of the student's
 uploads (`text_hash`, which says what "matches" means) answers 409
-`{"detail": {"message": "Duplicate Resume found: <name>", "resume_id"}}`
-before anything is stored; Import Updated Resume checks the student's other
+`{"detail": {"message": "Duplicate Resume found: <name>", "resume_id",
+"name"}}` before anything is stored (`name` for the Resumes page's
+duplicate modal to name the upload it matches); Import Updated Resume checks the student's other
 uploads. Checked before the 5-upload limit, so a student at the limit still
 learns the file is already there.
 `PUT .../{resume_id}` (a file, as upload takes it) is Import Updated Resume:
@@ -144,10 +145,13 @@ async def _duplicate_of(
 
 def _duplicate(resume: Resume) -> HTTPException:
     # A dict detail: the message to show, and which resume it is, for a
-    # screen that selects it (docs/sent_resume.md, flow 1).
+    # screen that selects it (docs/sent_resume.md, flow 1), and its name for
+    # one that says it in its own words (the Resumes page's modal).
+    name = resume.original_filename or "Uploaded resume"
     return HTTPException(409, {
-        "message": f"Duplicate Resume found: {resume.original_filename or 'Uploaded resume'}",
+        "message": f"Duplicate Resume found: {name}",
         "resume_id": str(resume.id),
+        "name": name,
     })
 
 
