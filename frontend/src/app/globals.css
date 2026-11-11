@@ -1343,7 +1343,11 @@ body:has([data-skyline]) {
    * about Lucide's 2px line, with Phosphor's shapes kept. Phosphor draws on
    * a 256 grid and nothing else in the app does, which is what the selector
    * reads. custom-icons.tsx strokes its own glyphs to match (STROKE); change
-   * the two together. In base, so a utility on one icon can still undo it. */
+   * the two together. In base, so a utility on one icon can still undo it.
+   * A glyph drawn by hand never uses the 256 grid: this rule then sets its
+   * lines' width to 5, a 0.3px hairline. All Filters' three lines
+   * (`FilterIcon`) looked greyed out on every page that way until
+   * 2026-11-11; draw on a 24 grid at stroke 2, as custom-icons.tsx does. */
   svg[viewBox="0 0 256 256"] {
     stroke: currentColor;
     stroke-width: 5;

@@ -959,7 +959,7 @@ company in the table and under its location on a Card View card, from the built 
 beside the applications (`getTailoredJobIds`; Home's unscored read skips it).
 
 **The list is the primary view and the board is archived** (KAN-256).
-A bare `/applications` shows the table, the switcher offers Table View then
+A bare `/applications` shows the table, the switcher offers List View then
 Card View (their URL values stay `list` and `grid`),
 and an old `?view=board` link opens the list. `applications/board.tsx`
 stays, unused. To bring the board back: add `"board"` to `VIEWS` in
@@ -987,8 +987,12 @@ reads "Saved" for a saved job, writes at once with an Undo toast, and asks
 first for a saved job. A click in the table's Status cell, or a pick in its
 popup, never opens the application.
 
-**Table View draws a table** (a table glyph, not bullets; 2026-11-05): the
-user found "List View" with a bulleted glyph wrong for a table of columns.
+**The view switch uses the app's shared views** (`components/views.tsx`,
+2026-11-11): List View (bullets) for the table and Card View (rows) for the
+cards, the names and glyphs the Jobs page and Documents use for the same
+layouts. It said Table View with a table glyph from 2026-11-05, when the
+user found a bulleted glyph wrong for a table; the user then chose one name
+per layout across the app, and a table of rows is a list.
 
 **The list is a table that scrolls sideways** (KAN-256), as a Notion table
 does, rather than dropping columns as the page narrows. In the order job
@@ -1086,8 +1090,10 @@ filtered.
 
 - **The filter row, laid out as the Jobs page's** (`applications/field-filters.tsx`,
   `filter-bar.tsx`; a plain dropdown is `components/field-facet.tsx`, which
-  Auto Apply's Status filter shares): under the search, a row with a dropdown for Status
-  and one per field (Company, Job Type, Work Model, Source), each the Jobs
+  Auto Apply's and Documents' filters share): the toolbar every page table
+  has (`frontend/docs/design.md`, "Every page table has one toolbar").
+  Under the search, a row with a dropdown for Status
+  and one per field (Company, Job Type, Work Model), each the Jobs
   page facet's look (glyph, label, chevron, brand tint while it holds a
   pick) over checkbox rows. Status lists the four stages, each with its
   stage's glyph in its colour; the fields list every value the tracked
@@ -1095,22 +1101,24 @@ filtered.
   list, as the Jobs page's Role dropdown does, since the list grows with
   every application; a pick keeps the search. The dropdowns step out one
   at a time from the right as the row narrows (Status from 440px of row,
-  Company 592, Job Type 744, Work Model 896, Source 1048); at
-  the right end, Clear Filters as an outlined cross (shown while anything
+  Company 592, Job Type 744, Work Model 896); at
+  the right end, Clear (a text button with a cross, shown while anything
   is picked or searched; it hands focus to All Filters), All Filters, and
-  Columns in Table View. A phone's row is All Filters and Columns.
+  Table Settings in List View. A phone's row is All Filters and Table
+  Settings. Source left the filters on 2026-11-10: students do not need it.
   Status was a row of stage chips with counts (KAN-256), and an earlier
   draft had one Filter button with every field in its menu; both became
   dropdowns after the Jobs page on the user's ask (2026-10-19). The
   chips' counts went with them, as the Jobs page's options carry none.
-- **All Filters** is a panel with every field, as on the Jobs page: Status
+- **All Filters** is a panel with every field, in the frame every page
+  table's panel shares (`components/all-filters-dialog.tsx`): Status
   (with the stages' glyphs), Company (a search
-  picker, since the list grows), then Job Type, Work Model and Source as
+  picker, since the list grows), then Job Type and Work Model as
   option chips. Its picks are a draft until "Show 3 Applications", which
   counts the draft in the browser (the page hands the bar what each
   tracked application is filtered on); closing it drops the draft.
 - **Picks**: in one field, any of them; across fields, all. Each is a
-  repeated URL parameter (`?company=`, `?track=`, `?work=`, `?source=`),
+  repeated URL parameter (`?company=`, `?track=`, `?work=`),
   not a comma list, since a company's name can hold a comma. A pick
   replaces the URL (ten ticks are not ten steps of Back) and shows at once
   while the server filters, as the Jobs page's facets do.
@@ -1124,18 +1132,37 @@ filtered.
   with no round trip.
 - **Columns**: drag a heading by its label to a new place (a brand bar
   marks the side it lands on), or use a column's Move Left and Move Right
-  arrows in the **Columns** menu, the way without a drag (WCAG 2.5.7,
+  arrows in the **Table Settings** menu (Columns until 2026-11-10), the way
+  without a drag (WCAG 2.5.7,
   KAN-577); drag a heading's right edge to resize it (a 24px handle with a
   2px line), double-click the edge to reset it, or focus the edge and use
   the arrow keys; hide and show columns from the same menu, at the filter
-  row's right end, which shows only in Table View and also has Reset
+  row's right end, which shows only in List View and also has Reset
   Columns. A sort heading's button is 24px high. Role cannot move or hide. Each column has a fixed width
   (a fixed table layout) and cuts what does not fit, with the whole value
   on hover; an empty last column takes the card's spare width, so a resize
   never stretches the others. A drag needs a mouse: a phone keeps the
   order it has.
+- **Group By** (2026-11-10, Table Settings' first group,
+  `components/table-settings.tsx`): Status (the default), Job Type, Work
+  Model or None, as Auto Apply's Up Next groups its queue. Each group is
+  the shared heading row (`components/table-group.tsx`: a fold, the
+  stage's glyph in its colour, the name and the count), its rows in the
+  table's sort. By Status the groups are the stages in the board's order,
+  then **Posting Closed**: the saved jobs whose postings closed, with
+  Remove All at the heading's right (`RemoveClosedButton`, which asks
+  first, since a closed job cannot be saved again). By a field, its values
+  A to Z, then Not Listed. Reset Columns leaves the grouping.
+- **Closed postings' notice** (`ClosedNotice` in
+  `applications/closed-saved.tsx`): while saved jobs' postings have closed
+  and no Posting Closed group gathers them (Card View, or the list
+  grouped another way), the shared amber notice (`ui/notice.tsx`, as Auto
+  Apply's questions waiting) over the list says how many, with Show Them
+  (`?closed=1`, those alone; Show All undoes it) and Remove All. It was a
+  white card with a black pill of its own until 2026-11-11, a second look
+  for the same job; the user asked for the one notice.
 - **The layout is this browser's** (`applications/column-layout.ts`): order,
-  hidden columns and widths, in localStorage under a `lib/local-drafts.ts`
+  hidden columns, widths and the grouping, in localStorage under a `lib/local-drafts.ts`
   key, so Sign Out clears it. The server draws the default and the stored
   layout swaps in after hydration. It is not in the URL, since a shared
   link should carry the view, not the sender's column widths; keeping it
@@ -1590,11 +1617,39 @@ page with one action.
     never go out, with no status (the group says it) and **Remove All** at
     the heading's right (with Undo, as Remove is). It sat in Queued with a
     red Posting Closed status and read as waiting its turn.
-  Up Next's heading and Add Jobs share one centred line, with no counts
-  beside the heading (each group's heading counts its own; "3 in progress ·
+  **Up Next's toolbar** (`auto-apply/queue-filters.tsx`, 2026-11-10): the
+  toolbar every page table has, in the Tracker's two rows (2026-11-11).
+  **No "Up Next" heading**: the Tracker and Documents open on their
+  toolbar, so the heading went and its name stays for a screen reader.
+  Row one is the search over job and company with **Add Jobs** at its
+  right, filled as the page's main action (as Generate Resume is on
+  Documents; it was bordered beside the heading), or, while rows are
+  picked, "N selected", Remove (a text button) and Auto Apply (filled).
+  Row two is **Status** (In Progress, Queued, Posting Closed), **Company**
+  (with a search, as the Tracker's) and **Match** (Excellent to Weak in
+  their colours, then Not Scored), then Clear, All Filters (the shared
+  panel) and **Table Settings** with Group By: Status (the default, the
+  groups above), Match, or None (a preference of this browser,
+  `auto-apply/queue-layout.ts`). The dropdowns step out from the right at
+  the Tracker's widths (Status from 440px of row, Company 592, Match 744).
+  The notices sit under the filters and over the table, as the Tracker's
+  closed notice does. Auto Apply has no view switch yet, the one page table
+  without one: its second view is still open. The filtering is the
+  page's own, with nothing sent and nothing in the URL, since Up Next holds
+  every queued job; a pick counts only while its row shows, so Remove and
+  Auto Apply never act on a hidden job. Filters that hide every row show
+  No Matching Jobs with Clear Filters. Under another Group By a row's
+  Status cell names what a Status heading would: **Queued** (grey) and
+  **Posting Closed** (in ink, as the Tracker's black pill), and the closed
+  jobs get the Tracker's closed notice (shared `ui/notice.tsx`: Show Them
+  sets the Status filter to Posting Closed, and Remove All has Undo).
+  Each group heading is the shared row (`components/table-group.tsx`).
+  Up Next's heading and Add Jobs shared one centred line until the
+  heading went (2026-11-11), with no counts beside the heading (each group's heading counts its own; "3 in progress ·
   2 closed" sat off the heading's baseline and said it twice). Group
   headings are centred on their band. **Questions to write show as a
-  notice over the queue** (`QuestionsNotice`), only while any job has
+  notice over the queue** (`QuestionsNotice`, in the shared
+  `ui/notice.tsx` since 2026-11-11), only while any job has
   them: "5 questions to write for 3 jobs before they go out" and **Write
   Answers** (a bordered button: it starts the writing). Resume and Match
   are centred columns (the table rule, `design.md`); a row with no resume
@@ -1614,8 +1669,8 @@ page with one action.
   go (`Status` in `queue-table.tsx`), most urgent first: Posting Closed
   (red, no click), "N Questions to Write" (amber, while any wait; Filling
   outranks it), the tab's state, and Needs You for a started job whose
-  tab closed. A queued job shows only Posting Closed: its questions show
-  once it starts (they were shown on queued rows too, and the user wanted
+  tab closed. A queued job shows no status under Group By Status: its
+  questions show once it starts (they were shown on queued rows too, and the user wanted
   Queued plain; they can still be written ahead on Written Answers). A
   click goes where the job is finished: its tab, opened again (it fills
   again; the API hands a picked needs_you job out too) if it was closed. The same day it went through a pill badge per row, a
@@ -2986,10 +3041,24 @@ with no proposals to accept and no Done (2026-10-25).
 `(seeker)/resumes` (KAN-249), Documents' Resumes tab (KAN-766): the
 resumes the bank makes and the uploads, under the shared header. **One
 list holds every resume** (KAN-362, `built-resumes.tsx`), laid out as the
-Applications Tracker is: the search (names and postings) on its own row,
-then the **Type** filter (Uploaded, Generated, Tailored; the Applications
-list's dropdown, `FieldFacet`) and the **Sort** dropdown with Upload
-Resume and Generate Resume at the right, then the list (below). Sort
+Applications Tracker is, with the toolbar every page table has
+(`frontend/docs/design.md`, 2026-11-11): the search (names and postings)
+with **Upload Resume**, **Generate Resume** and the List / Grid switch at
+its right, then the filter row: the **Type** filter (Uploaded, Generated,
+Tailored, each with its glyph, `RESUME_TYPE_ICON`; the Applications
+list's dropdown, `FieldFacet`), **Company** (the companies the tailored
+resumes were made for, with a search; `?company=`, repeated) and the
+**Sort** dropdown, then at the right Clear (while anything is searched or
+picked), **All Filters** (the shared panel: Type chips and a Company
+picker, `resumes/resume-filters.tsx`) and, in the List, **Table
+Settings** with Group By: Type or None. None is the default, since the
+user found the old type headings ugly beside the grid (2026-11-10); a
+student who groups gets the shared quiet heading row
+(`components/table-group.tsx`), and the grid stays flat. Type and Company
+step out of a narrow row from the right (Type from 488px of row, Company
+640); Sort stays. Upload and Generate sat at the right of the filter row
+until 2026-11-11, where the Tracker and Up Next end theirs with the table's
+controls. Then the list (below). Sort
 (KAN-366) is one pick of four: Date Modified, newest first and the
 default ("Last Edited" until 2026-11-10, renamed with the cards' column);
 Recently Created, the newest made first whatever was edited since; Oldest

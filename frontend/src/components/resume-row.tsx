@@ -8,7 +8,7 @@ import {
 } from "@phosphor-icons/react/ssr";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useRef, useState, type ComponentType, type FormEvent, type ReactNode } from "react";
 
 import { LocalDate } from "@/app/(seeker)/local-time";
 import { ResumeThumbnail } from "@/app/(seeker)/jobs/[jobId]/tailor/resume-preview";
@@ -363,21 +363,29 @@ function PrimaryBadge() {
   );
 }
 
+/** Each resume type's glyph, the glyph of the button that makes that kind:
+ *  Upload Resume's arrow, Generate Resume's page and Tailor's pencil. The
+ *  table's Type column, the badges, Documents' Type filter and its group
+ *  headings all draw these, so a type reads the same everywhere. */
+export const RESUME_TYPE_ICON: Record<ResumeType, ComponentType<{ className?: string }>> = {
+  uploaded: UploadIcon,
+  generated: GeneratedIcon,
+  tailored: TailorIcon,
+};
+
+function GeneratedIcon({ className }: { className?: string }) {
+  return <FileTextIcon aria-hidden className={className} />;
+}
+
 /** A resume's type in the table's Type column: its glyph in grey and its
  *  word, with no pill (2026-11-10). A tinted pill on every row, in three
  *  colours beside the Primary pill, was the loudest thing in the table and
  *  read as statuses; the glyph alone tells the three apart. */
 function TypeLabel({ type }: { type: ResumeType }) {
-  const icon = "text-ink-meta size-4 shrink-0";
+  const Icon = RESUME_TYPE_ICON[type];
   return (
     <span className="text-ink-muted flex items-center gap-1.5">
-      {type === "uploaded" ? (
-        <UploadIcon className={icon} />
-      ) : type === "generated" ? (
-        <FileTextIcon aria-hidden className={icon} />
-      ) : (
-        <TailorIcon className={icon} />
-      )}
+      <Icon className="text-ink-meta size-4 shrink-0" />
       {RESUME_TYPES.find((t) => t.value === type)?.label}
     </span>
   );
@@ -400,17 +408,11 @@ export function TypeBadge({
    *  card drops it below its own `@md` (app/(seeker)/jobs/resume-picker.tsx). */
   wordClassName?: string;
 }) {
-  const icon = "size-3.5 shrink-0";
+  const Icon = RESUME_TYPE_ICON[type];
   return (
     <Badge tone={TYPE_TONE[type]}>
       <span className="flex items-center gap-1">
-        {type === "uploaded" ? (
-          <UploadIcon className={icon} />
-        ) : type === "generated" ? (
-          <FileTextIcon aria-hidden className={icon} />
-        ) : (
-          <TailorIcon className={icon} />
-        )}
+        <Icon className="size-3.5 shrink-0" />
         {/* `narrow`: the icon alone below a 12rem line (a grid card two or
             four to a row on a phone or tablet), where the word left the
             date no room; a screen reader still hears it. */}

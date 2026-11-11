@@ -120,6 +120,19 @@ open choices (Settled choices, near the end).
 
 ### Components
 
+- **Reuse before drawing** (2026-11-11, the user's rule): before a screen
+  draws a banner, a toolbar control, a group heading or a panel, find the
+  one the app already draws for that job and use it; when it lives inside
+  one page, move it to `components/` and point both pages at it. A second
+  look for the same job is a break, even when it is close. The shared
+  parts so far: `ui/notice.tsx` (a notice over a table, below),
+  `components/filter-actions.tsx` (Clear, All Filters),
+  `components/all-filters-dialog.tsx` (All Filters' panel),
+  `components/table-settings.tsx` (Table Settings, Group By),
+  `components/table-group.tsx` (a group's heading row),
+  `components/fill-page.ts` (a table that scrolls inside itself) and
+  `PAGE_SEARCH`. A fix to one page table is checked on every other: the
+  Tracker, Auto Apply's Up Next and Documents' resumes.
 - **Pick a component by its role, never by its look.** A look picked by eye
   drifts from screen to screen (GOV.UK Design System; Material 3). The roles
   are:
@@ -280,6 +293,14 @@ open choices (Settled choices, near the end).
   filters at the left, and the view switcher (a segmented control) and the
   page's actions at the right. Narrow, the row wraps, filters first. The
   Applications Tracker and the Resumes page are the model.
+- **One name and one glyph per view** (`components/views.tsx`, 2026-11-11,
+  the user's rule): List View (rows, one item a line), Card View (wide
+  cards, one a row), Grid View (small cards, several a row) and Split View
+  (a list beside the open item, the Jobs page's). A view switch builds its
+  options there, whatever its page calls its items; the same layout never
+  gets a second name or glyph (the Tracker's "Table View" and the Jobs
+  page's "Cards View" went). A layout none of them is joins that file
+  first.
 - **Check each screen at 375, 768, 1024 and 1440px, with no sideways
   scroll.** Students use phones, tablets and laptops, and WCAG 2.2 SC 1.4.10
   asks for no two-way scroll down to 320px. Only a wide table scrolls
@@ -1221,6 +1242,28 @@ screen's own `<input>`, `<textarea>` or `FIELD_CONTROL` string:
   (onboarding's steps); a pill in a row is the Chip.
 - A filter over a table is `SearchField` and `FieldFacet` (above), the
   company tables' toolbar included.
+- **Every page table has one toolbar** (2026-11-11): the Tracker, Auto
+  Apply's Up Next and Documents' resumes, in two rows. Row one: the search
+  (`PAGE_SEARCH`) with the page's actions at its right, the main one filled
+  (Add Jobs, Generate Resume), then the view switch (Auto Apply's second
+  view is still open, so it has none yet). Row two: a
+  `FieldFacet` dropdown per filter, and at the row's right end Clear
+  (while anything is searched or picked), All Filters (a soft round icon
+  button, three lines, with a brand count of the picks) and Table
+  Settings (sliders), which holds Group By and any other setting of the
+  table. The dropdowns step out from the right as the row narrows; All
+  Filters holds them all and stays. The page's create actions never sit in
+  the filter row. A page table has no section heading of its own over the
+  toolbar: Auto Apply's "Up Next" went on 2026-11-11.
+- **A grouped table draws the shared heading row** (`GroupHeadingRow`): a
+  fold, an optional glyph, the name in ink and its count on the row's
+  light band, and the group's own action at its right (Remove All on
+  Posting Closed).
+- **A notice over a table is `ui/notice.tsx`**: one amber band with a
+  glyph, one sentence and the actions that settle it, for something that
+  waits on the student (written questions, closed postings). The Tracker's
+  closed postings drew a white card with a black pill of their own until
+  2026-11-11.
 
 **Named exceptions**, each a control drawn for its place, not a form field:
 the resume editor's in-place lines, title rename, size stepper, phone sheet

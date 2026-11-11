@@ -1,25 +1,22 @@
 "use client";
 
 import { Menu as MenuPrimitive } from "@base-ui/react/menu";
-import { useState } from "react";
 
 import {
-  DropdownMenu,
-  DropdownMenuContent,
   DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
-  DropdownMenuTrigger,
 } from "@/components/shadcn/dropdown-menu";
-import { ArrowLeftIcon, ArrowRightIcon, TableSettingsIcon } from "@/components/icons";
+import { ArrowLeftIcon, ArrowRightIcon } from "@/components/icons";
+import { GroupByOptions, TableSettingsMenu as SettingsMenu } from "@/components/table-settings";
 import { CheckRowBox, checkRowClasses } from "@/components/ui/check-row";
-import { SOFT_BUTTON } from "@/components/ui/icon-button";
-import { cn } from "@/lib/cn";
 
 import {
   COLUMNS,
+  DEFAULT_LAYOUT,
   FROZEN,
+  GROUP_BY,
   isCustomLayout,
   moveColumn,
   setColumnLayout,
@@ -28,18 +25,14 @@ import {
 } from "./column-layout";
 
 /**
- * The list's Table Settings menu (Columns until 2026-11-10), at the right
- * end of the filter bar's second row while the list is shown (KAN-282): a
- * round icon button, sliders (`TableSettingsIcon`), beside All Filters, as
- * Notion's table toolbar has its settings beside its filter. Today it holds
- * the columns; a later table setting joins it here, under its own heading. A menu of checkbox rows
- * (ui/check-row.tsx, the Jobs page's filter rows); a pick leaves it open for
- * the next. The button takes the brand tint while columns are hidden and
- * the menu is closed, as a Jobs page facet does with a pick
- * (jobs/filters.tsx).
+ * The list's Table Settings (Columns until 2026-11-10), at the right end of
+ * the filter bar's second row while the list is shown (KAN-282): the shared
+ * button and menu (components/table-settings.tsx), holding Group By and the
+ * columns. The button takes the brand tint while columns are hidden and the
+ * menu is closed, as a Jobs page facet does with a pick (jobs/filters.tsx).
+ * The columns are checkbox rows (ui/check-row.tsx, the Jobs page's filter
+ * rows); a pick leaves the menu open for the next.
  */
-const IN_USE = "border-brand bg-brand-tint text-brand hover:bg-brand-tint";
-
 const LABEL = Object.fromEntries(COLUMNS.map(({ id, label }) => [id, label])) as Record<
   ColumnId,
   string
@@ -60,8 +53,6 @@ const MOVE =
  */
 export function TableSettingsMenu({ className }: { className?: string }) {
   const layout = useColumnLayout();
-  const [open, setOpen] = useState(false);
-  const inUse = layout.hidden.length > 0 && !open;
 
   function toggle(id: ColumnId, shown: boolean) {
     const hidden = layout.hidden.filter((other) => other !== id);
@@ -69,86 +60,77 @@ export function TableSettingsMenu({ className }: { className?: string }) {
   }
 
   return (
-    <DropdownMenu open={open} onOpenChange={setOpen}>
-      <DropdownMenuTrigger
-        aria-label={
-          layout.hidden.length > 0
-            ? `Table Settings, ${layout.hidden.length} columns hidden`
-            : "Table Settings"
-        }
-        title="Table Settings"
-        render={
-          <button
-            type="button"
-            className={cn(
-              SOFT_BUTTON,
-              "hit-area relative size-9 shrink-0 transition-colors duration-150 focus-visible:outline-none",
-              inUse && IN_USE,
-              className,
-            )}
-          />
-        }
+    <SettingsMenu
+      label={
+        layout.hidden.length > 0
+          ? `Table Settings, ${layout.hidden.length} columns hidden`
+          : "Table Settings"
+      }
+      inUse={layout.hidden.length > 0}
+      className={className}
+    >
+      <GroupByOptions
+        options={GROUP_BY}
+        value={layout.group}
+        onChange={(group) => setColumnLayout({ ...layout, group })}
+      />
+      <DropdownMenuSeparator />
+      <DropdownMenuGroup>
+        <DropdownMenuLabel>Shown Columns</DropdownMenuLabel>
+        {[...FROZEN, ...layout.order].map((id) => {
+          const at = layout.order.indexOf(id);
+          const left = layout.order[at - 1];
+          const right = at < 0 ? undefined : layout.order[at + 1];
+          return (
+            <div key={id} className="flex items-center gap-0.5">
+              <MenuPrimitive.CheckboxItem
+                checked={!layout.hidden.includes(id)}
+                disabled={FROZEN.includes(id)}
+                onCheckedChange={(shown) => toggle(id, shown)}
+                closeOnClick={false}
+                className={checkRowClasses}
+              >
+                {LABEL[id]}
+                <CheckRowBox />
+              </MenuPrimitive.CheckboxItem>
+              {/* Role's row keeps the buttons' room, so the boxes line up. */}
+              {at < 0 ? (
+                <span aria-hidden className="w-12.5 shrink-0" />
+              ) : (
+                <>
+                  <MenuPrimitive.Item
+                    aria-label={`Move ${LABEL[id]} Left`}
+                    disabled={!left}
+                    closeOnClick={false}
+                    onClick={() => left && setColumnLayout(moveColumn(layout, id, left))}
+                    className={MOVE}
+                  >
+                    <ArrowLeftIcon className="size-3.5" />
+                  </MenuPrimitive.Item>
+                  <MenuPrimitive.Item
+                    aria-label={`Move ${LABEL[id]} Right`}
+                    disabled={!right}
+                    closeOnClick={false}
+                    onClick={() => right && setColumnLayout(moveColumn(layout, id, right))}
+                    className={MOVE}
+                  >
+                    <ArrowRightIcon className="size-3.5" />
+                  </MenuPrimitive.Item>
+                </>
+              )}
+            </div>
+          );
+        })}
+      </DropdownMenuGroup>
+      <DropdownMenuSeparator />
+      <DropdownMenuItem
+        disabled={!isCustomLayout(layout)}
+        // Back to the default columns; the grouping stays as picked.
+        onClick={() => setColumnLayout({ ...DEFAULT_LAYOUT, group: layout.group })}
+        className="font-medium"
       >
-        <TableSettingsIcon className="size-4" />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-max min-w-52">
-        <p className="text-label text-ink px-2 pt-1.5 pb-1 font-semibold">Table Settings</p>
-        <DropdownMenuGroup>
-          <DropdownMenuLabel>Shown Columns</DropdownMenuLabel>
-          {[...FROZEN, ...layout.order].map((id) => {
-            const at = layout.order.indexOf(id);
-            const left = layout.order[at - 1];
-            const right = at < 0 ? undefined : layout.order[at + 1];
-            return (
-              <div key={id} className="flex items-center gap-0.5">
-                <MenuPrimitive.CheckboxItem
-                  checked={!layout.hidden.includes(id)}
-                  disabled={FROZEN.includes(id)}
-                  onCheckedChange={(shown) => toggle(id, shown)}
-                  closeOnClick={false}
-                  className={checkRowClasses}
-                >
-                  {LABEL[id]}
-                  <CheckRowBox />
-                </MenuPrimitive.CheckboxItem>
-                {/* Role's row keeps the buttons' room, so the boxes line up. */}
-                {at < 0 ? (
-                  <span aria-hidden className="w-12.5 shrink-0" />
-                ) : (
-                  <>
-                    <MenuPrimitive.Item
-                      aria-label={`Move ${LABEL[id]} Left`}
-                      disabled={!left}
-                      closeOnClick={false}
-                      onClick={() => left && setColumnLayout(moveColumn(layout, id, left))}
-                      className={MOVE}
-                    >
-                      <ArrowLeftIcon className="size-3.5" />
-                    </MenuPrimitive.Item>
-                    <MenuPrimitive.Item
-                      aria-label={`Move ${LABEL[id]} Right`}
-                      disabled={!right}
-                      closeOnClick={false}
-                      onClick={() => right && setColumnLayout(moveColumn(layout, id, right))}
-                      className={MOVE}
-                    >
-                      <ArrowRightIcon className="size-3.5" />
-                    </MenuPrimitive.Item>
-                  </>
-                )}
-              </div>
-            );
-          })}
-        </DropdownMenuGroup>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem
-          disabled={!isCustomLayout(layout)}
-          onClick={() => setColumnLayout(null)}
-          className="font-medium"
-        >
-          Reset Columns
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+        Reset Columns
+      </DropdownMenuItem>
+    </SettingsMenu>
   );
 }

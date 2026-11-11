@@ -1,8 +1,9 @@
 "use client";
 
 import { Combobox as ComboboxPrimitive } from "@base-ui/react/combobox";
-import { useRef, useState, type ReactNode } from "react";
+import { useRef, useState } from "react";
 
+import { AllFiltersBody, AllFiltersDialog, FilterSection } from "@/components/all-filters-dialog";
 import { BriefcaseIcon, CompanyIcon, SearchIcon, workStyleIcon } from "@/components/icons";
 import { facetClasses, FacetLabel, type FacetOption, type Glyph } from "@/components/field-facet";
 import { OptionChip as Chip, SearchPicker } from "@/components/filter-controls";
@@ -12,10 +13,7 @@ import {
   ComboboxEmpty,
   ComboboxTrigger,
 } from "@/components/shadcn/combobox";
-import { Dialog, DialogContent, DialogTitle } from "@/components/shadcn/dialog";
-import { Button } from "@/components/ui/button";
 import { CheckRowBox, checkRowClasses } from "@/components/ui/check-row";
-import { cn } from "@/lib/cn";
 
 import { STAGE_COLOR, STAGE_ICON, STAGE_LABEL, STAGE_ORDER, type StageKey } from "../stage-colors";
 import { StatusIcon } from "./icons";
@@ -185,25 +183,18 @@ export function AllFiltersPanel({
   onApply: (picks: Picks) => void;
 }) {
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[min(44rem,calc(100dvh-2rem))] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl">
-        <div className="border-border-subtle flex items-center border-b px-5 py-3.5 pr-12">
-          <DialogTitle className="text-subtitle font-semibold">All Filters</DialogTitle>
-        </div>
-        {open && (
-          <PanelBody
-            picks={picks}
-            apps={apps}
-            q={q}
-            options={options}
-            onApply={(next) => {
-              onApply(next);
-              onOpenChange(false);
-            }}
-          />
-        )}
-      </DialogContent>
-    </Dialog>
+    <AllFiltersDialog open={open} onOpenChange={onOpenChange}>
+      <PanelBody
+        picks={picks}
+        apps={apps}
+        q={q}
+        options={options}
+        onApply={(next) => {
+          onApply(next);
+          onOpenChange(false);
+        }}
+      />
+    </AllFiltersDialog>
   );
 }
 
@@ -246,57 +237,44 @@ function PanelBody({
     }));
 
   return (
-    <>
-      {/* overscroll-none: a fling past the end stops here instead of
-          scrolling the page behind. */}
-      <div data-panel-scroll className="min-h-0 flex-1 overflow-y-auto overscroll-none px-5">
-        <Section Icon={StatusIcon} label="Status" first>
-          {STAGE_ORDER.map((stage) => (
-            <Chip
-              key={stage}
-              Icon={STAGE_ICON[stage]}
-              pressed={draft.stages.includes(stage)}
-              onClick={() => toggleStage(stage)}
-            >
-              {STAGE_LABEL[stage]}
-            </Chip>
-          ))}
-        </Section>
+    <AllFiltersBody
+      onClear={() => {
+        setDraft({ stages: [], filters: NO_FILTERS });
+        setCleared((n) => n + 1);
+      }}
+      onShow={() => onApply(draft)}
+      showLabel={`Show ${count} ${count === 1 ? "Application" : "Applications"}`}
+    >
+      <FilterSection Icon={StatusIcon} label="Status" first>
+        {STAGE_ORDER.map((stage) => (
+          <Chip
+            key={stage}
+            Icon={STAGE_ICON[stage]}
+            pressed={draft.stages.includes(stage)}
+            onClick={() => toggleStage(stage)}
+          >
+            {STAGE_LABEL[stage]}
+          </Chip>
+        ))}
+      </FilterSection>
 
-        <Section Icon={FIELD_ICON.company} label="Company">
-          <SearchPicker
-            key={`company-${cleared}`}
-            label="Companies"
-            placeholder="Search a company"
-            empty="No company by that name in your applications."
-            options={options.company.map((value) => ({ value, label: value, nested: false }))}
-            values={draft.filters.company}
-            onChange={(values) => setField("company", values)}
-          />
-        </Section>
+      <FilterSection Icon={FIELD_ICON.company} label="Company">
+        <SearchPicker
+          key={`company-${cleared}`}
+          label="Companies"
+          placeholder="Search a company"
+          empty="No company by that name in your applications."
+          options={options.company.map((value) => ({ value, label: value, nested: false }))}
+          values={draft.filters.company}
+          onChange={(values) => setField("company", values)}
+        />
+      </FilterSection>
 
-        <div className="grid gap-x-6 sm:grid-cols-2">
-          {chipSection("track", "Job Type")}
-          {chipSection("workModel", "Work Model")}
-        </div>
+      <div className="grid gap-x-6 sm:grid-cols-2">
+        {chipSection("track", "Job Type")}
+        {chipSection("workModel", "Work Model")}
       </div>
-
-      <div className="border-border-subtle flex items-center justify-between gap-3 border-t px-5 py-3">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => {
-            setDraft({ stages: [], filters: NO_FILTERS });
-            setCleared((n) => n + 1);
-          }}
-        >
-          Clear All
-        </Button>
-        <Button size="sm" onClick={() => onApply(draft)}>
-          {`Show ${count} ${count === 1 ? "Application" : "Applications"}`}
-        </Button>
-      </div>
-    </>
+    </AllFiltersBody>
   );
 
   /** A field whose values are few enough to show as chips. A function, not
@@ -304,7 +282,7 @@ function PanelBody({
    *  the pressed chip's focus. */
   function chipSection(field: FilterKey, label: string) {
     return (
-      <Section Icon={FIELD_ICON[field]} label={label}>
+      <FilterSection Icon={FIELD_ICON[field]} label={label}>
         {options[field].length === 0 ? (
           <p className="text-note text-ink-meta">None of your applications says.</p>
         ) : (
@@ -319,31 +297,7 @@ function PanelBody({
             </Chip>
           ))
         )}
-      </Section>
+      </FilterSection>
     );
   }
-}
-
-/** One field's section: its glyph and name over its options, as in the Jobs
- *  page's panel. */
-function Section({
-  Icon,
-  label,
-  first = false,
-  children,
-}: {
-  Icon: Glyph;
-  label: string;
-  first?: boolean;
-  children: ReactNode;
-}) {
-  return (
-    <section className={cn("py-4", !first && "border-border-subtle border-t")}>
-      <h3 className="text-body text-ink mb-2.5 flex items-center gap-2 font-semibold">
-        <Icon aria-hidden className="text-ink-meta size-4 shrink-0" />
-        {label}
-      </h3>
-      <div className="flex flex-wrap items-center gap-2">{children}</div>
-    </section>
-  );
 }

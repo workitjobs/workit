@@ -118,31 +118,33 @@ export function SearchIcon({ className }: IconProps) {
 
 /** All Filters and every filter button (2026-11-10, after Notion's):
  *  three centred lines, each a quarter shorter than the one above (full,
- *  three quarters, half), drawn here at Phosphor's regular weight. It was
- *  sliders for a day (now `TableSettingsIcon`), and FunnelSimple before
- *  that, whose lines fell so steeply (full, a half, a fifth) that at 16px
- *  they did not read as one mark. */
+ *  three quarters, half). It was sliders for a day (now
+ *  `TableSettingsIcon`), and FunnelSimple before that, whose lines fell so
+ *  steeply (full, a half, a fifth) that at 16px they did not read as one
+ *  mark.
+ *
+ *  DRAWN ON A 24 GRID AT STROKE 2, as custom-icons.tsx draws its glyphs:
+ *  the weight the app gives Phosphor's. It was drawn on Phosphor's 256 grid
+ *  at stroke 16 until 2026-11-11, and globals.css's rule for that grid
+ *  (every Phosphor glyph gets a 5-unit outline) set its lines' width to 5:
+ *  0.3px hairlines, so All Filters looked greyed out on every page beside
+ *  Table Settings' sliders, though it was the same ink. */
 export function FilterIcon({ className }: IconProps) {
   return (
     <svg
       aria-hidden="true"
-      viewBox="0 0 256 256"
+      viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth={16}
+      strokeWidth={2}
       strokeLinecap="round"
       width="1em"
       height="1em"
       className={className}
     >
-      {/* On pixel centres at 16px (16k + 8 units), so each 1px line is
-          crisp: on the pixel edges between them it drew as two grey rows. */}
-      {/* FunnelSimple's top width (208 of 256 units) and stroke (16), so it
-          weighs what the app's other glyphs do; then three quarters and a
-          half of it. */}
-      <line x1="32" y1="88" x2="224" y2="88" />
-      <line x1="58" y1="136" x2="198" y2="136" />
-      <line x1="84" y1="184" x2="172" y2="184" />
+      <line x1="3" y1="7" x2="21" y2="7" />
+      <line x1="5.25" y1="12" x2="18.75" y2="12" />
+      <line x1="7.5" y1="17" x2="16.5" y2="17" />
     </svg>
   );
 }

@@ -2,10 +2,8 @@ import {
   ArchiveIcon as Archive,
   ArrowBendUpLeftIcon,
   CalendarPlusIcon as CalendarPlus,
-  RowsIcon,
   KanbanIcon,
   RadioButtonIcon,
-  TableIcon,
 } from "@phosphor-icons/react/ssr";
 
 type IconProps = { className?: string };
@@ -17,22 +15,14 @@ type IconProps = { className?: string };
  * other screens draw them too. */
 
 /* View switcher ----------------------------------------------------------
- * Each glyph draws the shape of its layout: columns, cells, rows.
+ * Its glyphs are the app's shared ones (components/views.tsx) since
+ * 2026-11-11: this file drew a table for Table View and rows for Card View.
  * ---------------------------------------------------------------------- */
 
+/** The archived board (./board.tsx). It joins components/views.tsx as
+ *  Board View if the board returns. */
 export function BoardIcon({ className }: IconProps) {
   return <KanbanIcon aria-hidden className={className} />;
-}
-
-/** Card View: cards stacked in rows (./cards.tsx), not a grid of cells. */
-export function CardsIcon({ className }: IconProps) {
-  return <RowsIcon aria-hidden className={className} />;
-}
-
-/** Table View: the table of columns (./list.tsx), so it draws a table, not
- *  bullets (2026-11-05). */
-export function TableViewIcon({ className }: IconProps) {
-  return <TableIcon aria-hidden className={className} />;
 }
 
 /* List controls (KAN-282) ------------------------------------------------ */

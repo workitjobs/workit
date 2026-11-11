@@ -23,15 +23,19 @@ import { cn } from "@/lib/cn";
  * <button> — rather than a wrapper around one, so there is no extra element in
  * the flex rows these sit in. TooltipProvider is in the root layout.
  */
-/** The `glyph` variant's classes, for a control drawn without IconButton
- *  (the job's ⋮ menu trigger, app/(seeker)/jobs/job-more-menu.tsx). An open
- *  menu keeps the hover look on its trigger (`data-popup-open`). */
-export const GLYPH_BUTTON =
+/** The `glyph` variant's classes. An open menu keeps the hover look on its
+ *  trigger (`data-popup-open`).
+ *
+ *  EVERY ICON BUTTON IS AN IconButton, a menu's or a popover's trigger too
+ *  (`render={<IconButton …/>}` on the trigger), so each shows its tooltip
+ *  (2026-11-11). These classes were exported for two triggers drawn without
+ *  it, the job's ⋯ menu and Table Settings, and neither said what it was on
+ *  hover. */
+const GLYPH_BUTTON =
   "text-ink hover:text-brand hover:bg-hover data-popup-open:bg-hover data-popup-open:text-brand focus-visible:ring-brand-ring -m-1.5 inline-flex items-center justify-center rounded-full p-1.5 [--hit-grow:2px] focus-visible:ring-2";
 
-/** The `soft` variant's classes, for a control drawn without IconButton
- *  (the Tracker's Table Settings menu trigger). */
-export const SOFT_BUTTON =
+/** The `soft` variant's classes. */
+const SOFT_BUTTON =
   "border-border-surface bg-panel text-ink hover:bg-hover focus-visible:ring-brand-ring inline-flex items-center justify-center rounded-full border focus-visible:ring-[3px]";
 
 const VARIANTS = {

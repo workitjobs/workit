@@ -21,6 +21,7 @@ import {
   useEffect,
   useRef,
   useState,
+  type ComponentType,
   type CSSProperties,
   type DragEvent,
   type KeyboardEvent,
@@ -39,15 +40,16 @@ import {
 import { ClickableRow } from "@/components/clickable-row";
 import { MatchBadge } from "@/components/match-badge";
 import { Reflow } from "@/components/reflow";
+import { GroupHeadingRow, useFolds } from "@/components/table-group";
 import { useShallowPush } from "@/components/shallow-routing";
 import { Card } from "@/components/ui/card";
 import { STICKY_TH, TABLE_FILL, useFillPage } from "@/components/fill-page";
 import { PlacesValue } from "@/components/places-value";
 import { cn } from "@/lib/cn";
 
-import { STAGE_ORDER } from "../stage-colors";
+import { STAGE_COLOR, STAGE_ICON, STAGE_LABEL, STAGE_ORDER, type StageKey } from "../stage-colors";
 import { StageMenu } from "./[jobId]/tracker-controls";
-import { ClosedSavedControl } from "./closed-saved";
+import { ClosedSavedControl, RemoveClosedButton } from "./closed-saved";
 import { LocalDate } from "../local-time";
 import { isClosedSaved, sortKey, type Application } from "../tracker";
 import { ApplicationTile } from "./application-tile";
@@ -61,6 +63,7 @@ import {
   useColumnLayout,
   type ColumnId,
   type ColumnLayout,
+  type GroupBy,
 } from "./column-layout";
 import { applicationHref, applicationsHref, type Sort } from "./query";
 import { useApplicationsQuery } from "./view-switcher";
@@ -293,6 +296,52 @@ const COLUMN_DEFS = helper.columns(
 
 const PINNING = { start: FROZEN, end: [] };
 
+type Group<R> = {
+  key: string;
+  label: string;
+  /** A stage's glyph and its colour on the band. */
+  Icon?: ComponentType<{ className?: string }>;
+  tone?: string;
+  rows: R[];
+};
+
+/**
+ * The rows in their groups, each group's rows in the table's own sort
+ * (Table Settings' Group By, ./column-layout.ts). By Status, the stages in
+ * the board's order, then Posting Closed: a saved job whose posting closed
+ * leaves Saved for it, as Auto Apply's queue gathers its closed jobs, so
+ * they can be seen and removed together. By Job Type or Work Model, A to Z,
+ * then Not Listed. An empty group is not drawn.
+ */
+function groupRows<R extends { original: Application }>(
+  rows: R[],
+  by: Exclude<GroupBy, "none">,
+): Group<R>[] {
+  if (by === "status") {
+    const keyOf = (app: Application) => (isClosedSaved(app) ? "closed" : app.stage);
+    const stages: Group<R>[] = STAGE_ORDER.map((stage: StageKey) => ({
+      key: stage,
+      label: STAGE_LABEL[stage],
+      Icon: STAGE_ICON[stage],
+      tone: STAGE_COLOR[stage].onTint,
+      rows: rows.filter((row) => keyOf(row.original) === stage),
+    }));
+    const closed = rows.filter((row) => keyOf(row.original) === "closed");
+    return [...stages, { key: "closed", label: "Posting Closed", rows: closed }].filter(
+      (group) => group.rows.length > 0,
+    );
+  }
+  const valueOf = (app: Application) => app[by] ?? "";
+  const values = [...new Set(rows.map((row) => valueOf(row.original)))].sort((a, b) =>
+    a === "" ? 1 : b === "" ? -1 : a.localeCompare(b),
+  );
+  return values.map((value) => ({
+    key: value || "none",
+    label: value || "Not Listed",
+    rows: rows.filter((row) => valueOf(row.original) === value),
+  }));
+}
+
 /** The columns whose cells are one control or score each (a match pill,
  *  View): centred under a centred heading, by the table rule in
  *  frontend/docs/design.md (2026-11-10). Text columns stay left-aligned. */
@@ -395,6 +444,53 @@ export function ApplicationsList({ applications }: { applications: Application[]
     return FROZEN.includes(id) && cn(FROZEN_CELL, id === lastFrozen && FROZEN_EDGE);
   }
 
+  const rows = table.getRowModel().rows;
+  const groups = layout.group === "none" ? null : groupRows(rows, layout.group);
+  // A group heading spans every shown column and the filler after them.
+  const span = table.getVisibleLeafColumns().length + 1;
+  const [folded, fold] = useFolds();
+
+  const drawRow = (row: (typeof rows)[number], i: number) => (
+    <Reflow key={row.id}>
+      <ClickableRow
+        href={applicationHref(row.id)}
+        className="hover:bg-hover animate-fade"
+        style={{ animationDelay: `${Math.min(i, 10) * 25}ms` }}
+      >
+        {row.getVisibleCells().map((cell) => {
+          const id = cell.column.id as ColumnId;
+          return (
+            <TableCell
+              key={cell.id}
+              // A click in the resume cell around View Resume is a
+              // near miss, not a wish to open the application:
+              // ClickableRow leaves a prevented click alone.
+              // The stage menu's cell too: its options open in a
+              // popup, whose clicks still reach the row in React.
+              onClick={
+                id === "status" || (id === "resume" && row.original.sentResume)
+                  ? (event) => event.preventDefault()
+                  : undefined
+              }
+              className={cn(
+                TD,
+                "overflow-hidden",
+                CENTRED.includes(id) && "text-center",
+                id === "role" && "py-3",
+                frozenClasses(id),
+                FROZEN.includes(id) && FROZEN_HOVER,
+              )}
+              style={frozenStyle(id)}
+            >
+              {CELL[id](row.original)}
+            </TableCell>
+          );
+        })}
+        <TableCell aria-hidden />
+      </ClickableRow>
+    </Reflow>
+  );
+
   return (
     <Card ref={edgeRef} padding="none" className="relative mt-4 overflow-hidden">
       <span
@@ -444,49 +540,36 @@ export function ApplicationsList({ applications }: { applications: Application[]
         </TableHeader>
 
         <TableBody>
-          {table.getRowModel().rows.map((row, i) => (
-            // Fades in down the table on arrival (a row cannot rise: its
-            // transform does not reliably paint), 25ms apart, and glides to
-            // its new place when the sort or a filter moves it.
-            <Reflow key={row.id}>
-              <ClickableRow
-                href={applicationHref(row.id)}
-                className="hover:bg-hover animate-fade"
-                style={{ animationDelay: `${Math.min(i, 10) * 25}ms` }}
-              >
-                {row.getVisibleCells().map((cell) => {
-                  const id = cell.column.id as ColumnId;
-                  return (
-                    <TableCell
-                      key={cell.id}
-                      // A click in the resume cell around View Resume is a
-                      // near miss, not a wish to open the application:
-                      // ClickableRow leaves a prevented click alone.
-                      // The stage menu's cell too: its options open in a
-                      // popup, whose clicks still reach the row in React.
-                      onClick={
-                        id === "status" || (id === "resume" && row.original.sentResume)
-                          ? (event) => event.preventDefault()
-                          : undefined
-                      }
-                      className={cn(
-                        TD,
-                        "overflow-hidden",
-                        CENTRED.includes(id) && "text-center",
-                        id === "role" && "py-3",
-                        frozenClasses(id),
-                        FROZEN.includes(id) && FROZEN_HOVER,
-                      )}
-                      style={frozenStyle(id)}
-                    >
-                      {CELL[id](row.original)}
-                    </TableCell>
-                  );
-                })}
-                <TableCell aria-hidden />
-              </ClickableRow>
-            </Reflow>
-          ))}
+          {groups
+            ? groups.flatMap((group) => {
+                const open = !folded.has(group.key);
+                return [
+                  // A group's heading (components/table-group.tsx): a stage's
+                  // in its glyph and colour; Posting Closed's with Remove All.
+                  <GroupHeadingRow
+                    key={`group:${group.key}`}
+                    colSpan={span}
+                    label={group.label}
+                    count={group.rows.length}
+                    open={open}
+                    onToggle={() => fold(group.key)}
+                    Icon={group.Icon}
+                    iconClassName={group.tone}
+                    action={
+                      group.key === "closed" && (
+                        <RemoveClosedButton
+                          apps={group.rows.map(({ original }) => ({
+                            id: original.id,
+                            role: original.role,
+                          }))}
+                        />
+                      )
+                    }
+                  />,
+                  ...(open ? group.rows.map(drawRow) : []),
+                ];
+              })
+            : rows.map(drawRow)}
         </TableBody>
       </Table>
     </Card>

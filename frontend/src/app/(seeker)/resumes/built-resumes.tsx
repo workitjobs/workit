@@ -1,31 +1,38 @@
 "use client";
 
-import { FileTextIcon, ListBulletsIcon, SquaresFourIcon, TagIcon } from "@phosphor-icons/react/ssr";
+import { FileTextIcon, TagIcon } from "@phosphor-icons/react/ssr";
 import { useRouter } from "next/navigation";
 import {
   startTransition,
   useEffect,
   useEffectEvent,
   useOptimistic,
+  useRef,
   useState,
   useTransition,
 } from "react";
 
 import { FieldFacet, type FacetOption } from "@/components/field-facet";
+import { AllFiltersButton, ClearFiltersButton } from "@/components/filter-actions";
 import { matches, RESUME_TYPES, searchWords, type ResumeType } from "@/components/resume-list";
-import { SearchIcon } from "@/components/icons";
+import { RESUME_TYPE_ICON } from "@/components/resume-row";
+import { CompanyIcon, SearchIcon } from "@/components/icons";
+import { GroupHeadingRow, useFolds } from "@/components/table-group";
+import { GroupByOptions, TableSettingsMenu } from "@/components/table-settings";
 import { useShallowParams, useShallowPush } from "@/components/shallow-routing";
 import { SortMenu } from "@/components/sort-menu";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SearchField } from "@/components/ui/search-field";
 import { SegmentedToggle } from "@/components/ui/segmented-control";
+import { viewOption } from "@/components/views";
 import { readEvents } from "@/components/scout/stream";
 import {
   listBuiltResumes,
   type BuiltResume,
   type GenerateStreamEvent,
 } from "@/lib/built-resume-actions";
+import { cn } from "@/lib/cn";
 import { listResumes, type ResumeItem } from "@/lib/resume-actions";
 import { markResumesStale, takeResumesStale } from "@/lib/resumes-stale";
 
@@ -33,13 +40,25 @@ import { setResumesLayout } from "./actions";
 import { BuiltResumeRow } from "./built-resume-row";
 import { DuplicateResumeDialog, type Duplicate } from "./duplicate-resume-dialog";
 import { GenerateRunning, type GenerateStep } from "./generate-running";
+import { SearchFacet } from "../applications/field-filters";
 import { RESUMES_SEARCH, ResumesHeader } from "./header";
+import {
+  RESUME_GROUP_BY,
+  ResumeAllFilters,
+  setResumeGroupBy,
+  useResumeGroupBy,
+  type ResumePicks,
+} from "./resume-filters";
 import { ResumeList } from "./resume-list";
 import { ShortLabel, UploadedRow, useResumeUpload } from "./upload-resume";
 import type { ResumesLayout } from "./view";
 
-/** The Type filter's options. */
-const TYPES: FacetOption[] = [...RESUME_TYPES];
+/** The Type filter's options, each with its type's glyph. */
+const TYPES: FacetOption[] = RESUME_TYPES.map((type) => ({
+  ...type,
+  Icon: RESUME_TYPE_ICON[type.value],
+  iconClassName: "text-ink-meta",
+}));
 
 /** `?type=uploaded,tailored`: the picked types, in the options' order;
  *  none (or none valid) is every type. */
@@ -78,6 +97,8 @@ type Row =
       created: string;
       text: string;
       primary: boolean;
+      /** The job posting's company, a tailored resume's only. */
+      company: null;
       upload: ResumeItem;
     }
   | {
@@ -88,6 +109,7 @@ type Row =
       created: string;
       text: string;
       primary: boolean;
+      company: string | null;
       built: BuiltResume;
     };
 
@@ -105,20 +127,25 @@ type Lists = Awaited<ReturnType<typeof readLists>>;
  * "Made from your experiences", "<posting> at <company>").
  *
  * The list and the grid hold the same rows in the same order, the starred
- * resume first, with no groups (2026-11-10). The list was grouped by type
- * from KAN-404 (Uploaded, Generated, Tailored, each under a heading with a
- * count that folded it, in `?collapsed=`) until the grid came without
- * groups: the user found the headings ugly beside it and the Type filter
- * enough to find one type. The list is one scroll (./resume-list.tsx): no
+ * resume first, with no groups by default (2026-11-10). The list was
+ * grouped by type from KAN-404 (Uploaded, Generated, Tailored, each under a
+ * heading with a count that folded it, in `?collapsed=`) until the grid
+ * came without groups: the user found the headings ugly beside it and the
+ * Type filter enough to find one type. Table Settings' Group By Type
+ * groups the list again, under the shared quiet heading
+ * (./resume-filters.tsx). The list is one scroll (./resume-list.tsx): no
  * scroll box per type and no Show N More, which the user turned down.
  *
  * It is laid out as the Applications Tracker is (../applications/page.tsx
- * and filter-bar.tsx), so the two read as one app: a search over the
- * names and the postings on its own row, then the Type filter
- * (`FieldFacet`, the Applications list's dropdown) and Sort, with Upload Resume
- * (./upload-resume.tsx) and Generate Resume at the right, then the list,
- * or an `EmptyState` in its place. The type and the order are the URL's
- * (`?type=`, `?sort=`), moved in place and replacing the entry
+ * and filter-bar.tsx), with the toolbar every page table has
+ * (frontend/docs/design.md), so the pages read as one app: a search over
+ * the names and the postings, with Upload Resume (./upload-resume.tsx),
+ * Generate Resume and the layout at its right; then the Type and Company
+ * filters (`FieldFacet`, `SearchFacet`, the Tracker's dropdowns) and Sort,
+ * with Clear, All Filters and, in the list, Table Settings at the right;
+ * then the list, or an `EmptyState` in its place. The type, the companies
+ * and the order are the URL's (`?type=`, `?company=`, `?sort=`), moved in
+ * place and replacing the entry
  * (`useShallowPush`), so a reload or a shared link keeps them and a tick
  * is not a step of Back. The
  * search's words are the page's own.
@@ -180,15 +207,23 @@ export function BuiltResumes({
   const params = useShallowParams();
   const push = useShallowPush();
   const types = parseTypes(params.get("type"));
+  // `?company=A&company=B`: a name may hold a comma.
+  const companies = params.getAll("company");
   const sort = parseSort(params.get("sort"));
+  const groupBy = useResumeGroupBy();
+  const [folded, fold] = useFolds();
+  const [allOpen, setAllOpen] = useState(false);
+  // Clear leaves with the last pick, so its press hands focus here.
+  const allButton = useRef<HTMLButtonElement>(null);
 
   // The type and the sort ride in the URL together, each left out at its
   // default, replacing the entry so a tick is not a step of Back.
-  function move(next: { types?: ResumeType[]; sort?: Sort }) {
+  function move(next: { types?: ResumeType[]; companies?: string[]; sort?: Sort }) {
     const search = new URLSearchParams();
     const t = next.types ?? types;
     const o = next.sort ?? sort;
     if (t.length > 0) search.set("type", t.join(","));
+    for (const company of next.companies ?? companies) search.append("company", company);
     if (o !== "edited") search.set("sort", o);
     const qs = search.toString();
     push(qs ? `/resumes?${qs}` : "/resumes", undefined, { replace: true });
@@ -306,6 +341,7 @@ export function BuiltResumes({
       created: r.created_at ?? "",
       text: r.original_filename ?? "Resume",
       primary: r.is_default,
+      company: null,
       upload: r,
     })),
     ...resumes.map((r) => ({
@@ -316,25 +352,69 @@ export function BuiltResumes({
       created: r.created_at,
       text: `${r.name} ${r.posting_title ?? ""} ${r.posting_company ?? ""}`,
       primary: r.is_default,
+      company: r.job_posting_id ? r.posting_company : null,
       built: r,
     })),
   ].filter((row) => !gone.includes(row.key));
   const words = searchWords(query);
-  const shown = rows
-    .filter((row) => types.length === 0 || types.includes(row.type))
-    .filter((row) => matches(row.text, words))
-    .sort(
-      (a, b) =>
-        // The starred resume leads the list, whatever the order.
-        Number(b.primary) - Number(a.primary) ||
-        (sort === "name"
-          ? a.name.localeCompare(b.name, undefined, { sensitivity: "base", numeric: true })
-          : sort === "created"
-            ? Date.parse(b.created || "0") - Date.parse(a.created || "0")
-            : (Date.parse(b.at || "0") - Date.parse(a.at || "0")) * (sort === "oldest" ? -1 : 1)),
-    );
+  /** The rows `picks` and the search let through. */
+  const pass = (picks: ResumePicks) =>
+    rows
+      .filter((row) => picks.types.length === 0 || picks.types.includes(row.type))
+      .filter(
+        (row) =>
+          picks.companies.length === 0 ||
+          (row.company != null && picks.companies.includes(row.company)),
+      )
+      .filter((row) => matches(row.text, words));
+  // Company's options: the companies the tailored resumes were made for.
+  const companyOptions = [
+    ...new Set(rows.flatMap((row) => (row.company ? [row.company] : []))),
+  ].sort((a, b) => a.localeCompare(b));
+  const shown = pass({ types, companies }).sort(
+    (a, b) =>
+      // The starred resume leads the list, whatever the order.
+      Number(b.primary) - Number(a.primary) ||
+      (sort === "name"
+        ? a.name.localeCompare(b.name, undefined, { sensitivity: "base", numeric: true })
+        : sort === "created"
+          ? Date.parse(b.created || "0") - Date.parse(a.created || "0")
+          : (Date.parse(b.at || "0") - Date.parse(a.at || "0")) * (sort === "oldest" ? -1 : 1)),
+  );
 
-  const filtered = types.length > 0 || words.length > 0;
+  const filtered = types.length > 0 || companies.length > 0 || words.length > 0;
+  function clearAll() {
+    setQuery("");
+    move({ types: [], companies: [] });
+  }
+
+  /** The list's rows under Type headings (Table Settings' Group By,
+   *  ./resume-filters.tsx), or flat; the grid is always flat. */
+  const groups =
+    grid || groupBy === "none"
+      ? null
+      : RESUME_TYPES.map((type) => ({
+          ...type,
+          rows: shown.filter((row) => row.type === type.value),
+        })).filter((group) => group.rows.length > 0);
+  const drawRow = (row: Row) =>
+    row.type === "uploaded" ? (
+      <UploadedRow
+        key={row.key}
+        layout={shownLayout}
+        resume={row.upload}
+        reload={reload}
+        onDelete={(send) => remove(row.key, send)}
+      />
+    ) : (
+      <BuiltResumeRow
+        key={row.key}
+        layout={shownLayout}
+        resume={row.built}
+        reload={reload}
+        onDelete={(send) => remove(row.key, send)}
+      />
+    );
 
   return (
     <>
@@ -350,60 +430,87 @@ export function BuiltResumes({
             className={RESUMES_SEARCH}
           />
         }
-        // The layout at the right end of the search's row, as the Jobs
-        // and Applications pages place their view switch.
+        // Upload and Generate, then the layout at the right end of the
+        // search's row, as the Jobs and Applications pages place their view
+        // switch. The two buttons sat at the right of the filter row until
+        // 2026-11-11, where the Tracker and Up Next end theirs with Clear,
+        // All Filters and Table Settings.
         action={
-          <SegmentedToggle
-            label="Layout"
-            value={shownLayout}
-            onValueChange={(next) => pickLayout(next as ResumesLayout)}
-            options={[
-              {
-                value: "list",
-                label: "List View",
-                icon: <ListBulletsIcon aria-hidden className="size-4" />,
-              },
-              {
-                value: "grid",
-                label: "Grid View",
-                icon: <SquaresFourIcon aria-hidden className="size-4" />,
-              },
-            ]}
-          />
+          <>
+            {upload.button}
+            <Button size="sm" onClick={() => void generate()} disabled={generating !== null}>
+              <FileTextIcon aria-hidden className="size-4" />
+              {generating === null ? (
+                <ShortLabel verb="Generate" />
+              ) : showSteps ? (
+                "Generating…"
+              ) : (
+                "Checking…"
+              )}
+            </Button>
+            <SegmentedToggle
+              label="Layout"
+              value={shownLayout}
+              onValueChange={(next) => pickLayout(next as ResumesLayout)}
+              options={[viewOption("list", "list"), viewOption("grid", "grid")]}
+            />
+          </>
         }
       />
 
-      {/* The filters with the buttons at the right, above the card: the
-          Applications page's FilterBar, row for row. */}
+      {/* The filter row, as the Tracker's and Up Next's (applications/
+          filter-bar.tsx): the dropdowns, then at the right Clear (while
+          anything is picked), All Filters and, with the list, Table
+          Settings. THE DROPDOWNS STEP OUT from the right, as theirs do: Sort
+          stays, about 150px, and Clear's room, All Filters and Table
+          Settings take about 170px, so this row (its own @container) fits
+          Type from 488px and Company from 640. */}
       <div className="mt-3 flex flex-col gap-3">
-        {/* Below 42rem the row is two even rows, the dropdowns, then the
-            buttons; wrapped as one flex row it left the buttons at the
-            right of a line of their own. */}
-        <div className="@container">
-          <div className="grid grid-cols-2 items-center gap-2 @2xl:flex">
-            <FieldFacet
-              label="Type"
-              Icon={TagIcon}
-              options={TYPES}
-              values={types}
-              onChange={(values) => setTypes(values as ResumeType[])}
-              className="min-w-36"
+        <div className="@container flex items-center gap-2">
+          <FieldFacet
+            label="Type"
+            Icon={TagIcon}
+            options={TYPES}
+            values={types}
+            onChange={(values) => setTypes(values as ResumeType[])}
+            className="hidden min-w-36 @min-[30.5rem]:flex"
+          />
+          <SearchFacet
+            label="Company"
+            Icon={CompanyIcon}
+            searchLabel="Search companies"
+            empty="No company by that name."
+            options={companyOptions}
+            values={companies}
+            onChange={(values) => move({ companies: values })}
+            className="hidden min-w-36 @min-[40rem]:flex"
+          />
+          <SortMenu value={sort} options={SORTS} onChange={(next) => move({ sort: next })} />
+          {filtered && (
+            <ClearFiltersButton
+              className="animate-fade ml-auto shrink-0"
+              onClick={() => {
+                allButton.current?.focus();
+                clearAll();
+              }}
             />
-            <SortMenu value={sort} options={SORTS} onChange={(next) => move({ sort: next })} />
-            <div className="col-span-2 grid grid-cols-2 gap-2 @2xl:ml-auto @2xl:flex">
-              {upload.button}
-              <Button size="sm" onClick={() => void generate()} disabled={generating !== null}>
-                <FileTextIcon aria-hidden className="size-4" />
-                {generating === null ? (
-                  <ShortLabel verb="Generate" />
-                ) : showSteps ? (
-                  "Generating…"
-                ) : (
-                  "Checking…"
-                )}
-              </Button>
-            </div>
-          </div>
+          )}
+          <AllFiltersButton
+            ref={allButton}
+            count={types.length + companies.length}
+            onClick={() => setAllOpen(true)}
+            className={cn("shrink-0", !filtered && "ml-auto")}
+          />
+          {/* The list's own control: the grid has no groups. */}
+          {!grid && (
+            <TableSettingsMenu>
+              <GroupByOptions
+                options={RESUME_GROUP_BY}
+                value={groupBy}
+                onChange={setResumeGroupBy}
+              />
+            </TableSettingsMenu>
+          )}
         </div>
         {error && (
           <p role="alert" className="text-note text-danger">
@@ -424,14 +531,7 @@ export function BuiltResumes({
           className="mt-4"
           action={
             filtered && (
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => {
-                  setQuery("");
-                  setTypes([]);
-                }}
-              >
+              <Button variant="secondary" size="sm" onClick={clearAll}>
                 Clear Filters
               </Button>
             )
@@ -449,25 +549,24 @@ export function BuiltResumes({
         // the grid did the same and came off on 2026-11-10.
         <ResumeList grid={grid}>
           {upload.pending(shownLayout)}
-          {shown.map((row) =>
-            row.type === "uploaded" ? (
-              <UploadedRow
-                key={row.key}
-                layout={shownLayout}
-                resume={row.upload}
-                reload={reload}
-                onDelete={(send) => remove(row.key, send)}
-              />
-            ) : (
-              <BuiltResumeRow
-                key={row.key}
-                layout={shownLayout}
-                resume={row.built}
-                reload={reload}
-                onDelete={(send) => remove(row.key, send)}
-              />
-            ),
-          )}
+          {groups
+            ? groups.flatMap((group) => {
+                const open = !folded.has(group.value);
+                return [
+                  <GroupHeadingRow
+                    key={`group:${group.value}`}
+                    colSpan={5}
+                    label={group.label}
+                    count={group.rows.length}
+                    open={open}
+                    onToggle={() => fold(group.value)}
+                    Icon={RESUME_TYPE_ICON[group.value]}
+                    iconClassName="text-ink-meta"
+                  />,
+                  ...(open ? group.rows.map(drawRow) : []),
+                ];
+              })
+            : shown.map(drawRow)}
         </ResumeList>
       )}
       <DuplicateResumeDialog
@@ -479,6 +578,14 @@ export function BuiltResumes({
         onClose={() => setDuplicate(null)}
       />
       <GenerateRunning step={showSteps ? generating : null} />
+      <ResumeAllFilters
+        open={allOpen}
+        onOpenChange={setAllOpen}
+        picks={{ types, companies }}
+        companies={companyOptions}
+        count={(picks) => pass(picks).length}
+        onApply={(picks) => move(picks)}
+      />
     </>
   );
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { ProhibitIcon } from "@phosphor-icons/react/ssr";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
@@ -15,12 +16,13 @@ import {
   DialogTitle,
 } from "@/components/shadcn/dialog";
 import { Button, buttonClasses } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { IconButton } from "@/components/ui/icon-button";
+import { Notice } from "@/components/ui/notice";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/cn";
 
 import type { Application } from "../tracker";
+import { useColumnLayout } from "./column-layout";
 import { applicationsHref } from "./query";
 import { useApplicationsQuery } from "./view-switcher";
 import { unsaveJob } from "../jobs/actions";
@@ -103,15 +105,12 @@ export function ClosedSavedControl({
 }
 
 /**
- * The saved jobs whose postings closed, as a notice over the table, only
- * while there are any (2026-11-10): how many, **Show Them** (?closed=1, the
- * table with those alone; Show All undoes it) and **Remove All**, which asks
- * first, as one row's trash does, since a closed job cannot be saved again.
- * They were scattered through the table, each found by its row, and taken
- * out one at a time. A group pinned to the table's top or foot was weighed
- * and left: it would fight the columns' sort.
+ * Remove All for the saved jobs whose postings closed: a text button that
+ * asks first, as one row's trash does, since a closed job cannot be saved
+ * again. The Tracker's Posting Closed group heading carries it (./list.tsx)
+ * and so does the notice over the cards (`ClosedNotice`).
  */
-export function ClosedNotice({ apps }: { apps: Pick<Application, "id" | "role">[] }) {
+export function RemoveClosedButton({ apps }: { apps: Pick<Application, "id" | "role">[] }) {
   const query = useApplicationsQuery();
   const router = useRouter();
   const toast = useToast();
@@ -131,46 +130,21 @@ export function ClosedNotice({ apps }: { apps: Pick<Application, "id" | "role">[
             ? `Removed ${count} closed ${jobs}.`
             : `Removed ${count - failed}. ${failed} couldn't be removed.`,
       });
-      router.push(applicationsHref(query, { closed: false }), { scroll: false });
+      if (query.closed) router.push(applicationsHref(query, { closed: false }), { scroll: false });
       router.refresh();
     });
   }
 
   return (
-    <Card
-      padding="none"
-      role="status"
-      className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-2.5"
-    >
-      <span className="bg-ink text-on-inverse text-note shrink-0 rounded-full px-2 py-0.5 font-medium">
-        Posting Closed
-      </span>
-      {/* At least 15rem: narrower, the buttons take a line of their own
-          rather than squeezing the words into a column. */}
-      <p className="text-body text-ink min-w-0 flex-1 basis-60">
-        {query.closed
-          ? `Showing the ${count} saved ${jobs} whose posting closed.`
-          : count === 1
-            ? "The posting closed for 1 saved job. You can no longer apply to it."
-            : `Postings closed for ${count} saved jobs. You can no longer apply to them.`}
-      </p>
-      <div className="flex items-center gap-4">
-        <Link
-          href={applicationsHref(query, { closed: !query.closed })}
-          scroll={false}
-          className={buttonClasses({ variant: "section" })}
-        >
-          {query.closed ? "Show All" : "Show Them"}
-        </Link>
-        <Button
-          variant="section"
-          disabled={pending}
-          onClick={() => setAsking(true)}
-          className="hover:text-danger"
-        >
-          Remove All
-        </Button>
-      </div>
+    <>
+      <Button
+        variant="section"
+        disabled={pending}
+        onClick={() => setAsking(true)}
+        className="hover:text-danger"
+      >
+        Remove All
+      </Button>
       <Dialog open={asking} onOpenChange={setAsking}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -178,7 +152,8 @@ export function ClosedNotice({ apps }: { apps: Pick<Application, "id" | "role">[
               Remove {count} closed {jobs}?
             </DialogTitle>
             <DialogDescription>
-              Their postings have closed, so you can&apos;t save them again.
+              {count === 1 ? "Its posting has" : "Their postings have"} closed, so you can&apos;t
+              save {count === 1 ? "it" : "them"} again.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -189,6 +164,51 @@ export function ClosedNotice({ apps }: { apps: Pick<Application, "id" | "role">[
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </Card>
+    </>
+  );
+}
+
+/**
+ * The saved jobs whose postings closed, as a notice over the table, while
+ * there are any and the table does not already gather them (2026-11-10):
+ * the list grouped by Status draws them in a Posting Closed group with
+ * Remove All on its heading, so the notice shows only over the cards or a
+ * list grouped another way. How many, **Show Them** (?closed=1, those
+ * alone; Show All undoes it) and **Remove All** (`RemoveClosedButton`).
+ * They were scattered through the table, each taken out one at a time.
+ * The shared amber notice (components/ui/notice.tsx), as Auto Apply's
+ * questions waiting: it was a white card with a black pill of its own until
+ * 2026-11-11.
+ */
+export function ClosedNotice({ apps }: { apps: Pick<Application, "id" | "role">[] }) {
+  const query = useApplicationsQuery();
+  const layout = useColumnLayout();
+  const count = apps.length;
+  if (query.view === "list" && layout.group === "status") return null;
+  const jobs = count === 1 ? "job" : "jobs";
+
+  return (
+    <Notice
+      Icon={ProhibitIcon}
+      className="mt-4"
+      actions={
+        <>
+          <Link
+            href={applicationsHref(query, { closed: !query.closed })}
+            scroll={false}
+            className={buttonClasses({ variant: "section" })}
+          >
+            {query.closed ? "Show All" : "Show Them"}
+          </Link>
+          <RemoveClosedButton apps={apps} />
+        </>
+      }
+    >
+      {query.closed
+        ? `Showing the ${count} saved ${jobs} whose posting closed.`
+        : count === 1
+          ? "The posting closed for 1 saved job. You can no longer apply to it."
+          : `Postings closed for ${count} saved jobs. You can no longer apply to them.`}
+    </Notice>
   );
 }

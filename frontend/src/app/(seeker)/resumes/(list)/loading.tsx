@@ -10,8 +10,8 @@ import { readResumesLayout, RESUME_GRID, RESUMES_LAYOUT_COOKIE, THUMBNAIL_RATIO 
 
 /**
  * Resumes while both resume lists load (KAN-561): the page's frame
- * (./page.tsx), Documents' tabs live, then the search with the List /
- * Grid switch at its right, the filter row and the table
+ * (./page.tsx), Documents' tabs live, then the search with Upload, Generate
+ * and the List / Grid switch at its right, the filter row and the table
  * (../resume-list.tsx) as bars: its headings and its rows, or the grid's
  * cards, as the student's kept layout says (../view.ts): drawn as the
  * table for a student on the grid, the page jumped from one to the other
@@ -25,21 +25,25 @@ export default async function ResumesLoading() {
       <ResumesHeader
         view="resumes"
         search={<Skeleton aria-hidden="true" className={cn(RESUMES_SEARCH, "h-10 rounded-full")} />}
-        action={<Skeleton aria-hidden="true" className="h-9 w-17 rounded-full" />}
+        action={
+          <>
+            <Skeleton aria-hidden="true" className="h-9 w-24" />
+            <Skeleton aria-hidden="true" className="h-9 w-28" />
+            <Skeleton aria-hidden="true" className="h-9 w-17 rounded-full" />
+          </>
+        }
       />
       <div role="status">
         <span className="sr-only">Loading your resumes</span>
-        {/* The real row's grid (../built-resumes.tsx): the buttons take a
-            second line below its @2xl. */}
-        <div aria-hidden="true" className="@container mt-3">
-          <div className="grid grid-cols-2 items-center gap-2 @2xl:flex">
-            <Skeleton className="h-9 rounded-full @2xl:w-36" />
-            <Skeleton className="h-9 rounded-full @2xl:w-28" />
-            <div className="col-span-2 grid grid-cols-2 gap-2 @2xl:ml-auto @2xl:flex">
-              <Skeleton className="h-9 @2xl:w-28" />
-              <Skeleton className="h-9 @2xl:w-28" />
-            </div>
-          </div>
+        {/* The real filter row (../built-resumes.tsx): Type, Company and
+            Sort, then All Filters and Table Settings at the right. Type
+            and Company step out of a narrow row, as the real ones do. */}
+        <div aria-hidden="true" className="@container mt-3 flex items-center gap-2">
+          <Skeleton className="hidden h-9 w-36 rounded-full @min-[30.5rem]:block" />
+          <Skeleton className="hidden h-9 w-36 rounded-full @min-[40rem]:block" />
+          <Skeleton className="h-9 w-36 rounded-full" />
+          <Skeleton className="ml-auto size-9 rounded-full" />
+          {!grid && <Skeleton className="size-9 rounded-full" />}
         </div>
         {grid ? (
           // The grid's cards: the page's top, then the name's two lines,

@@ -1,14 +1,22 @@
 "use client";
 
-import { CheckIcon, EyeIcon, PencilLineIcon, WarningIcon } from "@phosphor-icons/react/ssr";
+import {
+  CheckIcon,
+  ClockIcon,
+  EyeIcon,
+  PencilLineIcon,
+  ProhibitIcon,
+  WarningIcon,
+} from "@phosphor-icons/react/ssr";
 import Link from "next/link";
 import { useCallback, useState, type ReactNode } from "react";
 
 import { ClickableRow } from "@/components/clickable-row";
 import { CompanyLogo } from "@/components/company-logo";
-import { ChevronDownIcon, PlusIcon } from "@/components/icons";
+import { PlusIcon } from "@/components/icons";
 import { MatchBadge } from "@/components/match-badge";
 import { Reflow } from "@/components/reflow";
+import { GroupHeadingRow, useFolds } from "@/components/table-group";
 import { Checkbox } from "@/components/shadcn/checkbox";
 import {
   Table,
@@ -23,11 +31,13 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import type { BatchTabState } from "@/lib/autofill-extension";
 import { cn } from "@/lib/cn";
+import { MATCH_TIERS, matchTier } from "@/lib/match";
 import type { TailorSource } from "@/lib/tailor-actions";
 
 import { ResumePreviewDialog } from "../jobs/[jobId]/tailor/resume-preview";
 import { LocalDate } from "../local-time";
 import { ALIGN, TD, TH, type ActivityItem } from "./activity-list";
+import type { QueueGroupBy } from "./queue-layout";
 import { RowMenu } from "./row-menu";
 
 /** Whether WorkIt has started an Up Next job: In Progress (opened in a
@@ -73,6 +83,37 @@ const GROUP_ORDER: { id: QueueGroup; label: string }[] = [
   { id: "queued", label: "Queued" },
   { id: "closed", label: "Posting Closed" },
 ];
+
+/** A row's match band, as Group By Match and the Match filter read it
+ *  (./queue-filters.tsx): its tier's name (lib/match.ts), or Not Scored. */
+export const NOT_SCORED = "Not Scored";
+export const MATCH_KEYS = [...MATCH_TIERS, NOT_SCORED];
+export function matchKey(score: number | null) {
+  return score == null ? NOT_SCORED : matchTier(score);
+}
+
+/** One heading's rows; a null label draws no heading (Group By None). */
+type Section = { id: string; label: string | null; rows: QueueRow[] };
+
+/** The table's headings and the rows under each, by Group By (Table
+ *  Settings, ./queue-layout.ts), each in the queue's order. A group with no
+ *  rows draws no heading. */
+function sectionsOf(rows: QueueRow[], by: QueueGroupBy): Section[] {
+  if (by === "none") return [{ id: "all", label: null, rows }];
+  const sections =
+    by === "status"
+      ? GROUP_ORDER.map(({ id, label }) => ({
+          id,
+          label,
+          rows: rows.filter((row) => row.group === id),
+        }))
+      : MATCH_KEYS.map((key) => ({
+          id: key,
+          label: key,
+          rows: rows.filter((row) => matchKey(row.match) === key),
+        }));
+  return sections.filter((section) => section.rows.length > 0);
+}
 
 /** A batch tab's state as the row's status: a word in its colour, with
  *  its glyph. Plain text, not a pill: the group already names the state in
@@ -159,9 +200,10 @@ function useClipped() {
 }
 
 /**
- * Up Next's table (./up-next.tsx): every queued job in two groups, each
- * under a heading row with its name in a pill and its count, which folds it
- * (as the Resumes page groups its list):
+ * Up Next's table (./up-next.tsx): every queued job under the headings
+ * Table Settings' Group By picks (`groupBy`, ./queue-layout.ts: Status, the
+ * default, Match or None), each the shared heading row with its name and
+ * count, which folds it (components/table-group.tsx). By Status:
  *
  *   In Progress    started: open in a batch tab, with the tab's own state
  *                  (Filling, Ready to Submit, Needs You, Fill Failed), read
@@ -182,6 +224,7 @@ function useClipped() {
  */
 export function QueueTable({
   rows,
+  groupBy,
   picked,
   onPick,
   onAction,
@@ -190,6 +233,8 @@ export function QueueTable({
   onRemoveAll,
 }: {
   rows: QueueRow[];
+  /** How the rows go under headings (./queue-layout.ts). */
+  groupBy: QueueGroupBy;
   picked: ReadonlySet<string>;
   onPick: (ids: string[]) => void;
   /** The row's one action (`actionOf`). */
@@ -200,7 +245,7 @@ export function QueueTable({
    *  heading (with Undo, as Remove is). */
   onRemoveAll?: (rows: QueueRow[]) => void;
 }) {
-  const [folded, setFolded] = useState<ReadonlySet<QueueGroup>>(new Set());
+  const [folded, fold] = useFolds();
   const [clipped, tableRef] = useClipped();
   // The queue scrolls inside its card, down to the page's foot, so the setup
   // row and Up Next's heading stay in view (components/fill-page.ts).
@@ -212,15 +257,8 @@ export function QueueTable({
     onPick(on ? [...picked, row.id] : [...picked].filter((id) => id !== row.id));
   }
 
-  function fold(group: QueueGroup) {
-    const next = new Set(folded);
-    if (next.has(group)) next.delete(group);
-    else next.add(group);
-    setFolded(next);
-  }
-
   return (
-    <Card padding="none" className="mt-3 overflow-hidden" data-clipped={clipped || undefined}>
+    <Card padding="none" className="mt-4 overflow-hidden" data-clipped={clipped || undefined}>
       <Table
         ref={tableRef}
         containerRef={fill}
@@ -275,51 +313,36 @@ export function QueueTable({
         </TableHeader>
 
         <TableBody>
-          {GROUP_ORDER.map(({ id, label }) => {
-            const members = rows.filter((row) => row.group === id);
-            if (members.length === 0) return null;
-            const open = !folded.has(id);
+          {sectionsOf(rows, groupBy).map(({ id, label, rows: members }) => {
+            const open = label == null || !folded.has(id);
             return [
-              // A quiet heading (2026-11-10): the name in ink and its count,
-              // centred on the row's light band (the table's own fill for a
-              // row with a fold). A pill in it was as loud as the rows it
-              // heads, and padding heavier on top sat the words on the band's
-              // floor.
-              <TableRow key={id} className="hover:bg-transparent">
-                {/* The heading spans every column, so it is the button that stays at the left while the
-                    table scrolls sideways: a sticky cell this wide scrolled away with the rest. */}
-                <TableCell colSpan={COLUMNS.length} className="px-4 py-2">
-                  <div className="flex items-center justify-between gap-3">
-                    <button
-                      type="button"
-                      onClick={() => fold(id)}
-                      aria-expanded={open}
-                      className="group/fold focus-visible:ring-brand-ring sticky left-4 flex items-center gap-2 rounded-xs focus-visible:ring-2 focus-visible:outline-none"
-                    >
-                      <ChevronDownIcon
-                        className={cn(
-                          // Ink under the pointer: the fold had no hover.
-                          "text-ink-meta group-hover/fold:text-ink size-3.5 transition-[transform,color] duration-150",
-                          !open && "-rotate-90",
-                        )}
-                      />
-                      <span className="text-label text-ink font-semibold">{label}</span>
-                      <span className="text-note text-ink-meta tabular-nums">{members.length}</span>
-                    </button>
-                    {id === "closed" && onRemoveAll && (
+              // The shared heading (components/table-group.tsx); Posting
+              // Closed's with Remove All.
+              label != null && (
+                <GroupHeadingRow
+                  key={id}
+                  colSpan={COLUMNS.length}
+                  label={label}
+                  count={members.length}
+                  open={open}
+                  onToggle={() => fold(id)}
+                  action={
+                    id === "closed" &&
+                    onRemoveAll && (
                       <Button variant="section" onClick={() => onRemoveAll(members)}>
                         Remove All
                       </Button>
-                    )}
-                  </div>
-                </TableCell>
-              </TableRow>,
+                    )
+                  }
+                />
+              ),
               ...(open
                 ? members.map((row, i) => (
                     <Reflow key={row.id}>
                       <Row
                         row={row}
                         index={i}
+                        byStatus={groupBy === "status"}
                         picked={picked.has(row.id)}
                         onPick={pick}
                         onAction={onAction}
@@ -340,6 +363,7 @@ export function QueueTable({
 function Row({
   row,
   index,
+  byStatus,
   picked,
   onPick,
   onAction,
@@ -348,6 +372,9 @@ function Row({
 }: {
   row: QueueRow;
   index: number;
+  /** The rows sit under Status headings, which say Queued and Posting
+   *  Closed, so their cells need not. */
+  byStatus: boolean;
   picked: boolean;
   onPick: (row: QueueRow, on: boolean) => void;
   onAction: (row: QueueRow) => void;
@@ -405,7 +432,7 @@ function Row({
       </TableCell>
 
       <TableCell className={cn(TD, ALIGN, "overflow-hidden")}>
-        <Status row={row} onAction={onAction} />
+        <Status row={row} byStatus={byStatus} onAction={onAction} />
       </TableCell>
 
       <TableCell className={cn(TD, "overflow-hidden py-0 text-center")}>
@@ -511,17 +538,32 @@ function Row({
  * place. A place in the queue ("#1 in Queue") was cut before that: five
  * fill at once, so the order read as one at a time.
  */
-function Status({ row, onAction }: { row: QueueRow; onAction: (row: QueueRow) => void }) {
+function Status({
+  row,
+  byStatus,
+  onAction,
+}: {
+  row: QueueRow;
+  byStatus: boolean;
+  onAction: (row: QueueRow) => void;
+}) {
   // Its group, Posting Closed, says it (2026-11-10), as Queued's name says
-  // a queued job's state.
-  if (row.closed) return null;
+  // a queued job's state; under another Group By the cell says it, in ink
+  // so it stands out, as the Tracker's black Posting Closed pill does.
+  if (row.closed) {
+    return byStatus ? null : (
+      <PlainStatus Icon={ProhibitIcon} label="Posting Closed" ink="text-ink" />
+    );
+  }
 
   let label: string;
   let ink: string;
   let glyph: ReactNode;
-  // A queued job shows only Posting Closed: its questions wait for it to start (asked for 2026-10-29),
-  // though they can be written ahead on Written Answers.
-  if (row.group === "queued") return null;
+  // A queued job shows no questions: they wait for it to start (asked for 2026-10-29), though they
+  // can be written ahead on Written Answers.
+  if (row.group === "queued") {
+    return byStatus ? null : <PlainStatus Icon={ClockIcon} label="Queued" ink="text-ink-meta" />;
+  }
   if (row.questions && row.tab !== "filling" && row.tab !== "applied") {
     label = `${row.questions} ${row.questions === 1 ? "Question" : "Questions"} to Write`;
     ink = "text-warning";
@@ -575,6 +617,17 @@ function Status({ row, onAction }: { row: QueueRow; onAction: (row: QueueRow) =>
       {glyph}
       {label}
     </button>
+  );
+}
+
+/** A status with nothing to open: a word and its glyph, as a button's look
+ *  without the button. */
+function PlainStatus({ Icon, label, ink }: { Icon: typeof CheckIcon; label: string; ink: string }) {
+  return (
+    <span className={cn("text-note inline-flex items-center gap-1.5 font-medium", ink)}>
+      <Icon aria-hidden className="size-3.5 shrink-0" />
+      {label}
+    </span>
   );
 }
 

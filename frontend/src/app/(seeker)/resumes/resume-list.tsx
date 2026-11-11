@@ -19,8 +19,9 @@ import { RESUME_GRID } from "./view";
 /**
  * The Resumes page's resumes (KAN-362), in the layout the student picked
  * (KAN-766): every resume's row or card (an upload's `ResumeRow`, a built
- * resume's ./built-resume-row.tsx), in the sort's order, with no group
- * headings since 2026-11-10.
+ * resume's ./built-resume-row.tsx), in the sort's order, flat unless Table
+ * Settings groups the list by type (./resume-filters.tsx), when
+ * ./built-resumes.tsx puts the shared heading rows among them.
  *
  * **The list is a table after the Tracker's** (`applications/list.tsx`,
  * 2026-11-10): one white card, 12px grey headings (Name, Target Job, Type,
