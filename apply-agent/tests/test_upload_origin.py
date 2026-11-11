@@ -108,6 +108,40 @@ PROBES = {
     # The same on a plain Worker: localhost stands in for the job system's host.
     "gh2": '<!doctype html><p>Ad</p><iframe src="http://localhost:{port}/own" width=500 height=200></iframe>',
 }
+# PR 556's re-review: four more, each again a page on {foreign} framed as /tx/<name>.
+INPUT = """<!doctype html><label>Resume <input type=file id=f></label>
+<script>addEventListener('change', (e) => { window.got = (window.got || 0) + 1; }, true);</script>"""
+PROBES.update({
+    # A closed shadow root from the page's HTML (declarative), its label's text slotted, read through the internals.
+    "dsd": """<!doctype html><x-up id=host><template shadowrootmode="closed"><label style="display:inline-block;padding:20px">
+        <slot></slot><input type=file style="display:none"></label></template><span id=txt>Upload resume</span></x-up>
+        <script>customElements.define('x-up', class extends HTMLElement { constructor() { super();
+          const root = this.attachInternals().shadowRoot;
+          if (root) root.querySelector('input').addEventListener('change', (e) => { window.got = e.target.files[0].name; }); } });
+        </script>""",
+    # A pop-up that opens a second one: the second's opener is a top frame.
+    "chain1": """<!doctype html><button type=button id=up onclick="window.open(location.origin + '/x/chain2', 'p1')">Upload resume</button>""",
+    "chain2": """<!doctype html><button type=button id=up onclick="window.open(location.origin + '/x/input', 'p2')">Continue</button>""",
+    "input": INPUT,
+    # A pop-up whose page sets COOP, which cuts its opener.
+    "coopopen": """<!doctype html><button type=button id=up onclick="window.open(location.origin + '/x/coop', 'pc')">Upload resume</button>""",
+    "coop": INPUT,
+    # A form a script posts to a new tab with rel=noopener: no click on it, no submit event.
+    "formopen": """<!doctype html><form id=fm action="/x/input" method=get target=_blank rel=noopener></form>
+        <button type=button id=up onclick="document.getElementById('fm').submit()">Upload resume</button>""",
+    # A scriptless child made scripted in its attribute only (it takes effect at its next load), its inert taken off.
+    "flip": """<!doctype html><iframe id=c sandbox="allow-same-origin" src="/x/sbxchild" width=300 height=100></iframe>
+        <script>
+          const c = document.getElementById('c');
+          window.flip = () => { c.setAttribute('sandbox', 'allow-same-origin allow-scripts'); setTimeout(() => c.removeAttribute('inert'), 50); };
+          setInterval(() => { try { const f = c.contentDocument.getElementById('f'); if (f && f.files.length) window.got = f.files[0].name; } catch (e) {} }, 50);
+        </script>""",
+    # A scriptless child inside a declarative closed shadow root, read through window.frames.
+    "dsdsbx": """<!doctype html><div><template shadowrootmode="closed"><iframe sandbox="allow-same-origin" src="/x/sbxchild"
+        width=300 height=100></iframe></template></div>
+        <script>setInterval(() => { try { const f = window.frames[0].document.getElementById('f');
+          if (f && f.files.length) window.got = f.files[0].name; } catch (e) { window.err = String(e); } }, 50);</script>""",
+})
 for _name, _body in PROBES.items():
     PAGES[f"/x/{_name}"] = _body
     PAGES[f"/tx/{_name}"] = (f'<!doctype html><title>Apply</title><h1>Apply to Acme</h1>'
@@ -123,6 +157,8 @@ def _serve(fill: dict, posted: list):
                 body = body.replace(key, value)
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
+            if urlsplit(self.path).path == "/x/coop":
+                self.send_header("Cross-Origin-Opener-Policy", "same-origin")
             self.end_headers()
             self.wfile.write(body.encode())
 
@@ -503,7 +539,7 @@ def test_plain_the_guard_opens_no_picker_in_another_sites_frame(plain, site, tmp
         tools.tool("browser_click", target=_ref(snapshot, 'button "Upload resume"', "/evil"), element="Upload resume")
         _, error = tools.tool("browser_file_upload", paths=[str(_resume(tmp_path))])
         assert error
-    assert any(b.startswith(upload_origin.BLOCKED) and "localhost" in b for b in guard.blocked())
+    assert any("another site's frame (http://localhost" in b for b in guard.blocked())  # the click on its button
     assert evil.evaluate("() => document.getElementById('f').files.length") == 0
     guard.lift()
 
@@ -552,22 +588,22 @@ def test_cdp_claudes_upload_gets_no_file_into_another_sites_frame_by_any_click(s
         frame = _frame(page, f"{site.foreign}/x/{name}")
         _mcp_try(page, frame, selector, _resume(tmp_path), how)
         assert not _got(frame), "the other site's frame got the file"
-        if name in ("dispatch", "shadow"):
-            assert any(b.startswith(upload_origin.BLOCKED) for b in guard.blocked())
+        if name in ("dispatch", "shadow"):  # Claude's click in that frame was cancelled, and the guard said so
+            assert any("another site's frame" in b for b in guard.blocked())
 
 
 @needs_chromium
 def test_cdp_a_pop_up_another_sites_frame_opens_takes_no_file(site, tmp_path):
+    """Guarded, the frame opens no pop-up; unguarded it does, and give() refuses the pop-up: its opener page is the
+    form's, of another origin."""
     with cdp_page(guarded=True) as (page, armed):
         page.goto(f"{site.url}/tx/opener")
         armed()
-        frame = _frame(page, f"{site.foreign}/x/opener")
-        with page.context.expect_page() as popped:
-            frame.locator("#up").click()
-        pop = popped.value
-        pop.wait_for_load_state("load")
-        assert not _mcp_try(pop, pop.main_frame, "#f", _resume(tmp_path))  # Claude's: no picker opens there
-        with pytest.raises(Elsewhere):  # plain code's
+        assert _pop(page, _frame(page, f"{site.foreign}/x/opener")) is None
+    with cdp_page() as (page, _):
+        page.goto(f"{site.url}/tx/opener")
+        pop = _pop(page, _frame(page, f"{site.foreign}/x/opener"))
+        with pytest.raises(Elsewhere):
             upload_origin.give(pop.locator("#f"), _resume(tmp_path))
         assert not _got(pop.main_frame)
 
@@ -659,3 +695,136 @@ def test_plain_a_job_systems_form_inside_another_sites_frame_gets_no_file(plain,
     with pytest.raises(Elsewhere):
         attach_resume(plain, _resume(tmp_path))
     assert gh.evaluate("() => document.getElementById('f').files.length") == 0
+
+
+# --- PR 556's re-review: four more bypasses, each a hostile page that must get no file
+
+
+def _pop(page, frame, selector="#up"):
+    """The pop-up a click in `frame` opens, or None when none opens."""
+    from playwright.sync_api import Error
+
+    try:
+        with page.context.expect_page(timeout=2_000) as popped:
+            frame.locator(selector).click(timeout=2_000)
+    except Error:
+        return None
+    pop = popped.value
+    pop.wait_for_load_state("load")
+    return pop
+
+
+@needs_chromium
+def test_cdp_a_declarative_closed_shadow_roots_input_gets_no_file(site, tmp_path):
+    with cdp_page(guarded=True) as (page, armed):
+        page.goto(f"{site.url}/tx/dsd")
+        guard = armed()
+        frame = _frame(page, f"{site.foreign}/x/dsd")
+        _mcp_try(page, frame, "#txt", _resume(tmp_path))
+        assert not _got(frame)
+        assert any("another site's frame" in b for b in guard.blocked())
+
+
+@needs_chromium
+@pytest.mark.parametrize("name", ["chain1", "coopopen", "formopen"])
+def test_cdp_another_sites_frame_opens_no_pop_up_that_could_take_a_file(site, tmp_path, name):
+    """A pop-up chain, a pop-up with COOP, and a script's form post to a new tab with rel=noopener: the frame opens
+    nothing. And were a pop-up open, give() reads its whole chain of openers."""
+    with cdp_page(guarded=True) as (page, armed):
+        page.goto(f"{site.url}/tx/{name}")
+        guard = armed()
+        frame = _frame(page, f"{site.foreign}/x/{name}")
+        assert _pop(page, frame) is None
+        assert len(page.context.pages) == 1
+        assert any("another site's frame" in b for b in guard.blocked())
+
+
+@needs_chromium
+def test_cdp_give_reads_a_pop_ups_whole_chain_of_openers(site, tmp_path):
+    """Unguarded, the chain opens: the second pop-up's opener is the first, of its own origin, but the form's page
+    above them is not, so give() refuses it."""
+    with cdp_page() as (page, _):
+        page.goto(f"{site.url}/tx/chain1")
+        first = _pop(page, _frame(page, f"{site.foreign}/x/chain1"))
+        second = _pop(first, first.main_frame)
+        assert "/x/input" in second.url
+        with pytest.raises(Elsewhere):
+            upload_origin.give(second.locator("#f"), _resume(tmp_path))
+        assert not _got(second.main_frame)
+
+
+@needs_chromium
+def test_cdp_a_sandbox_flipped_to_scripts_and_its_inert_taken_off_stays_inert(site, tmp_path):
+    with cdp_page(guarded=True) as (page, armed):
+        page.goto(f"{site.url}/tx/flip")
+        armed()
+        parent = _frame(page, f"{site.foreign}/x/flip")
+        page.wait_for_timeout(300)
+        parent.evaluate("() => window.flip()")
+        page.wait_for_timeout(400)
+        assert parent.evaluate("() => document.getElementById('c').hasAttribute('inert')")
+        child = _frame(page, f"{site.foreign}/x/sbxchild")
+        _mcp_try(page, child, "#f", _resume(tmp_path))
+        assert not _got(parent)
+
+
+@needs_chromium
+def test_cdp_a_scriptless_frame_in_a_declarative_shadow_root_gives_no_file(site, tmp_path):
+    with cdp_page(guarded=True) as (page, armed):
+        page.goto(f"{site.url}/tx/dsdsbx")
+        armed()
+        parent = _frame(page, f"{site.foreign}/x/dsdsbx")
+        child = _frame(page, f"{site.foreign}/x/sbxchild")
+        _mcp_try(page, child, "#f", _resume(tmp_path))
+        assert not _got(parent)
+
+
+@needs_chrome
+@pytest.mark.parametrize("name, label", [("dsd", "Upload resume"), ("chain1", "Upload resume"),
+                                         ("formopen", "Upload resume")])
+def test_plain_the_re_reviews_pages_give_no_file(plain, site, tmp_path, name, label):
+    from apply import submit_guard
+    from apply.submit_guard import DriveGuard
+
+    plain.goto("about:blank")
+    submit_guard.on_open(plain)
+    plain.goto(f"{site.url}/tx/{name}")
+    guard = DriveGuard(plain)
+    guard.arm()
+    frame = _port_frame(plain, f"{site.foreign}/x/{name}")
+    tabs = len(plain.context.pages)
+    try:
+        with tools_on(plain, tmp_path) as tools:
+            snapshot = tools.tool("browser_snapshot")[0]
+            tools.tool("browser_click", target=_ref(snapshot, label, f"/x/{name}"), element=label)
+            tools.tool("browser_file_upload", paths=[str(_resume(tmp_path))])
+        assert not frame.evaluate("() => window.got")
+        assert len(plain.context.pages) == tabs  # nor did it open a tab
+    finally:
+        guard.lift()
+
+
+@needs_chrome
+def test_plain_a_sandbox_flipped_to_scripts_and_its_inert_taken_off_stays_inert(plain, site, tmp_path):
+    from apply import submit_guard
+    from apply.submit_guard import DriveGuard
+
+    plain.goto("about:blank")
+    submit_guard.on_open(plain)
+    plain.goto(f"{site.url}/tx/flip")
+    guard = DriveGuard(plain)
+    guard.arm()
+    parent = _port_frame(plain, f"{site.foreign}/x/flip")
+    try:
+        parent.wait_for_function("() => document.getElementById('c').hasAttribute('inert')")
+        parent.evaluate("() => window.flip()")
+        import time
+
+        time.sleep(0.4)
+        assert parent.evaluate("() => document.getElementById('c').hasAttribute('inert')")
+        child = _port_frame(plain, f"{site.foreign}/x/sbxchild")
+        with pytest.raises(Elsewhere):
+            child.locator("#f").set_input_files(_resume(tmp_path))
+        assert not parent.evaluate("() => window.got")
+    finally:
+        guard.lift()

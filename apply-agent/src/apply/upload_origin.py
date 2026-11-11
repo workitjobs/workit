@@ -11,10 +11,10 @@ So a file goes only to a file input in:
 
 and every frame between it and the top is the top frame's own origin: a job system's form inside another site's frame
 is that site's to embed (a free tenant's form), and a frame under one is that site's to read (PR 556's review). A pop-up
-is a top frame, so one a frame of another site opens could take a file: `give` refuses a pop-up whose opener page is of
-another site, the guard keeps a picker shut in a top frame whose opener is a frame (not a top frame), and in a frame
-that may not take a file the guard keeps the opener on what that frame opens. On a plain Worker, Claude's upload goes
-only to the drive's own tab, or a tab of its origin.
+is a top frame, so one a frame of another site opens could take a file: `give` refuses a pop-up with a page of another
+origin up its chain of openers, and the guard lets a frame that may not take a file open no pop-up at all (nor a
+picker, nor any press: see submit_guard's Uploads section). On a plain Worker, Claude's upload goes only to the drive's
+own tab, or a tab of its origin.
 
 Any other frame gets no file, and Apply hands the field to the applicant (`Elsewhere`). Each place a file is set
 checks in the same step as the set, so a frame that navigates to another site between the choice and the set
@@ -28,16 +28,13 @@ gets nothing:
   in the frame itself, in the same task as the set, against the hosts Apply sends with each call (none sent: the
   top site only).
 - Claude's own upload (Playwright MCP's on a CDP Worker, apply.plain.tools on a plain one): while a guard is on,
-  a file input in a frame that may not take a file opens no picker, so Claude has no chooser there
-  (submit_guard's `uploadsNow`): a click on it or its label, at the window and at each shadow root the page makes, and
-  a script's click(), showPicker() or dispatched click. The guard notes BLOCKED, and Claude fill hands the form over.
+  a frame that may not take a file is closed to every press (submit_guard's Uploads section), so Claude has no
+  chooser there and the frame opens no pop-up. The guard notes BLOCKED, and Claude fill hands the form over.
 
 What stays open: a job system's host is any of its tenants. A hostile top page could embed its own Greenhouse board's
 form, and a file given there goes to that board. The page's own site could take the file anyway, so this is no
-worse than the page itself. A frame with scripts off runs no guard, so the guard
-around it makes it inert while it is on (submit_guard). A declarative shadow root (from the page's HTML, not
-attachShadow) that is closed is not watched: the window can't see into it. A tab opened with no opener by a top
-frame of another site is a top frame.
+worse than the page itself. Claude can press nothing in another site's frame while a guard is on (a
+Google sign-in button's frame too): the form is handed over instead.
 """
 
 from urllib.parse import urlsplit
@@ -144,14 +141,22 @@ def frame_may_upload(frame) -> bool:
 
 
 def page_may_upload(page) -> bool:
-    """A pop-up takes a file only when it is of its opener's own site (PR 556's review): a frame of another site on the
-    form's page could open one, and a pop-up is a top frame, which the rule lets take a file."""
-    opener = getattr(page, "opener", None)
-    try:
-        opened_by = opener() if callable(opener) else None
-    except Exception:
-        return False
-    return opened_by is None or origin(page.url) == origin(opened_by.url)
+    """A pop-up takes a file only when every page up its chain of openers is of its own origin (PR 556's reviews): a
+    frame of another site on the form's page could open one, or one that opens another, and a pop-up is a top frame,
+    which the rule lets take a file. Playwright knows the opener even where the page has none (COOP, noopener)."""
+    own, seen = origin(page.url), 0
+    while seen < 20:
+        opener = getattr(page, "opener", None)
+        try:
+            page = opener() if callable(opener) else None
+        except Exception:
+            return False
+        if page is None:
+            return True
+        if origin(page.url) != own:
+            return False
+        seen += 1
+    return False
 
 
 def host_of(frame) -> str:

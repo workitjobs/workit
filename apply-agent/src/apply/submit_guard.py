@@ -1406,16 +1406,19 @@ _TEMPLATE = r"""
     };
   }
 
-  // Uploads (KAN-795): a file goes only to the form's own site (apply.upload_origin). In a frame that may not take one
-  // (another site's: an ad, a widget, a hostile page's trap, or any frame under one), a file input opens no picker
-  // while the guard is on, so Claude's upload tool (Playwright MCP's, or a plain Worker's) has no chooser there:
-  // - a click on the input or its label is cancelled before the page hears it: at the window, and at each shadow root
-  //   the page makes (attachShadow, a closed one too), whose inside the window can't see (PR 556's review);
-  // - a script's click(), showPicker() or dispatchEvent() of a click on one is refused, a detached input's too.
-  // The frame's origin and its ancestors' are read once, as the document starts: they never change. A top frame that
-  // a frame opened (a pop-up whose opener is no top frame) takes no file: a frame of another site on the form's page
-  // could open one, and it would be a top frame (PR 556's review). Such a frame's links, forms and window.open keep
-  // their opener, so the pop-up knows it.
+  // Uploads (KAN-795): a file goes only to the form's own site (apply.upload_origin). A frame that may not take one
+  // (another site's: an ad, a widget, a hostile page's trap, any frame under one, or a pop-up a frame opened) is
+  // closed to Claude and to page tricks alike while the guard is on (PR 556's reviews):
+  // - every click is cancelled at the window before the page hears it: the input behind a closed shadow root's
+  //   label, one in the page's HTML (declarative) too, then opens no picker, and nothing else there is pressed;
+  // - a script's click(), showPicker(), dispatched click, window.open() and form submission are refused, a detached
+  //   element's too: it opens no picker and no pop-up;
+  // - every frame in it is inert, and stays so until the page is handed to Lisul, whatever its attributes say later.
+  // In a frame that may take one, a file input's picker opens as ever, but a frame that runs no script (a sandbox
+  // without allow-scripts) runs no guard, so it is inert there too, and stays so. Each shadow root the page makes or
+  // reaches (attachShadow, ElementInternals.shadowRoot) is watched the same way.
+  // The frame's origin and its ancestors' are read once, as the document starts: they never change. A top frame whose
+  // opener is a frame, not a top frame, is a pop-up a frame opened.
   const ancestorList = [];
   { const found = location.ancestorOrigins; for (let i = 0; found && found[i] !== undefined; i++) push(ancestorList, found[i]); }
   const uploadOrigin = location.protocol === 'about:' ? (ancestorList[0] || 'null') : location.origin;
@@ -1426,6 +1429,7 @@ _TEMPLATE = r"""
   // page starts lifted with no note, and a pop-up's stays so (no DriveGuard arms it), so that is no hand-over.
   const handedOver = () => lifted() && S.note !== null;
   const uploadsNow = () => handedOver() || frameUploads;
+  const closed = () => !uploadsNow();  // a frame closed to every press
   const uploadFrom = uploadOrigin === 'null' ? 'another site' : uploadOrigin;
   const isFile = (el) => tag(el) === 'INPUT' && lower(typeOf(el)) === 'file';
   const labelControl = getter(HTMLLabelElement, 'control');  // composedPath and eventType: the ping section's
@@ -1436,61 +1440,48 @@ _TEMPLATE = r"""
     return !!control && isFile(control);
   };
   const refusePicker = () => note(@UPLOAD_BLOCKED@ + ' (' + uploadFrom + ')');
-  const pickerClick = judged((event) => {
-    if (uploadsNow()) return;
-    const path = composedPath(event);
-    if (!picker(path.length ? path[0] : targetGet(event))) return;
+  const refusePress = (what) => note(what + " in another site's frame (" + uploadFrom + ')');
+  const pressIn = judged((event) => {
+    if (!closed()) return;
+    const path = composedPath(event), at = path.length ? path[0] : targetGet(event);
     prevent(event);
     stopNow(event);
-    refusePicker();
+    if (picker(at)) refusePicker();
+    else if (user(event)) refusePress('a click');
   });
-  on('click', pickerClick);
-  if (!frameUploads) {  // what this frame opens keeps its opener (Chrome drops it for target=_blank by default)
-    const keepOpener = judged((event) => {
-      const path = composedPath(event), at = up(path.length ? path[0] : targetGet(event), 'a[target], area[target], form[target]');
-      if (at && !handedOver()) setAttr(at, 'rel', 'opener');
-    });
-    on('click', keepOpener);
-    on('submit', keepOpener);
-    const nativeOpen = W.open, strReplace = fn(SP, 'replace');
-    if (typeof nativeOpen === 'function') defineProp(W, 'open', {value: function open(url, name, features) {
-      const kept = handedOver() ? features : strReplace(Str(features === undefined ? '' : features), /\bno(opener|referrer)\b/gi, 'x');
-      return apply(nativeOpen, this, arguments.length > 2 ? [url, name, kept] : arguments.length > 1 ? [url, name] : [url]);
+  on('click', pressIn);
+  on('submit', judged((event) => { if (closed()) { prevent(event); stopNow(event); refusePress('a form'); } }));
+  const nativeOpen = W.open;
+  if (typeof nativeOpen === 'function') defineProp(W, 'open', {value: function open(...args) {
+    if (closed()) { refusePress('a pop-up'); return null; }
+    return apply(nativeOpen, this, args);
+  }, writable: true, configurable: true});
+  const FP = HTMLFormElement.prototype;
+  for (const name of ['submit', 'requestSubmit']) {
+    const native = FP[name];
+    if (typeof native === 'function') defineProp(FP, name, {value: function (...args) {
+      if (closed()) { refusePress('a form'); return undefined; }
+      return apply(native, this, args);
     }, writable: true, configurable: true});
   }
-  const nativeAttach = EP.attachShadow;
-  if (typeof nativeAttach === 'function') defineProp(EP, 'attachShadow', {value: function attachShadow(...args) {
-    const root = apply(nativeAttach, this, args);
-    listen(root, 'click', pickerClick, true);
-    try { fenceWatch(root); } catch (e) {}
-    return root;
-  }, writable: true, configurable: true});
-  const nativeClick = HP.click, nativePicker = HTMLInputElement.prototype.showPicker;
-  const nativeDispatch = EventTarget.prototype.dispatchEvent;
-  defineProp(HP, 'click', {value: function click() {
-    if (!uploadsNow() && isFile(this)) { refusePicker(); return undefined; }
-    return apply(nativeClick, this, []);
-  }, writable: true, configurable: true});
-  if (typeof nativePicker === 'function') defineProp(HTMLInputElement.prototype, 'showPicker', {value: function showPicker() {
-    if (!uploadsNow() && isFile(this)) { refusePicker(); throw new DOMExc('Blocked by the @NAME@', 'NotAllowedError'); }
-    return apply(nativePicker, this, []);
-  }, writable: true, configurable: true});
-  // A frame that runs no script (a sandbox without allow-scripts) runs no guard either, so nothing in it would keep
-  // its picker shut, and a same-origin frame with scripts could read the file it took (PR 556's review). While the
-  // guard is on, such a frame is made inert: no click or key reaches it, Claude's included. Lifted, it is as it was.
-  const ALLOW_SCRIPTS = /(^|\s)allow-scripts(\s|$)/i;
-  const MO = MutationObserver, observe = fn(MO.prototype, 'observe'), fenced = [];
+  // Every frame of a closed frame, and a frame that runs no script anywhere, is inert while the guard is on; once
+  // fenced, it stays so until the hand-over (a sandbox flipped to allow-scripts runs no script until it navigates).
+  const ALLOW_SCRIPTS = /(^|\s)allow-scripts(\s|$)/i, FRAMES = 'iframe, frame, object, embed, fencedframe';
+  const MO = MutationObserver, observe = fn(MO.prototype, 'observe');
+  const fenced = [];
+  const isFenced = (f) => any(fenced, (x) => x === f);
   const scriptless = (f) => tag(f) === 'IFRAME' && hasAttr(f, 'sandbox') && !test(ALLOW_SCRIPTS, text(attr(f, 'sandbox')));
   const fence = (f) => {
-    if (handedOver() || !scriptless(f) || hasAttr(f, 'inert')) return;
-    setAttr(f, 'inert', '');
-    push(fenced, f);
+    if (handedOver() || !isEl(f) || !matches(f, FRAMES)) return;
+    if (!isFenced(f) && !closed() && !scriptless(f)) return;
+    if (!isFenced(f)) push(fenced, f);
+    if (!hasAttr(f, 'inert')) setAttr(f, 'inert', '');
   };
-  const fenceIn = (scope) => { const found = all(scope, 'iframe[sandbox]'); for (let i = 0; i < found.length; i++) fence(found[i]); };
+  const fenceIn = (scope) => { const found = all(scope, FRAMES); for (let i = 0; i < found.length; i++) fence(found[i]); };
   const fencer = new MO((records) => {
     for (let i = 0; i < records.length; i++) {
-      const r = records[i], t = r.target;
-      if (isEl(t) && tag(t) === 'IFRAME') fence(t);
+      const r = records[i];
+      fence(r.target);
       const added = r.addedNodes;
       for (let j = 0; added && j < nlLen(added); j++) {
         const n = nlItem(added, j);
@@ -1502,15 +1493,44 @@ _TEMPLATE = r"""
   });
   const fenceWatch = (root) => observe(fencer, root, {childList: true, subtree: true, attributes: true, attributeFilter: ['sandbox', 'inert']});
   fenceWatch(D);
+  const watched = [];
+  const watchRoot = (root) => {
+    if (!root || any(watched, (x) => x === root)) return;
+    push(watched, root);
+    listen(root, 'click', pressIn, true);
+    try { fenceWatch(root); fenceIn(root); } catch (e) {}
+  };
   onControl[onControl.length] = () => {
-    if (!handedOver()) { fenceIn(D); return; }
+    if (!handedOver()) { fenceIn(D); for (let i = 0; i < watched.length; i++) { try { fenceIn(watched[i]); } catch (e) {} } return; }
     for (let i = 0; i < fenced.length; i++) { try { removeAttr(fenced[i], 'inert'); } catch (e) {} }
     fenced.length = 0;
   };
+  const nativeAttach = EP.attachShadow;
+  if (typeof nativeAttach === 'function') defineProp(EP, 'attachShadow', {value: function attachShadow(...args) {
+    const root = apply(nativeAttach, this, args);
+    watchRoot(root);
+    return root;
+  }, writable: true, configurable: true});
+  const internalsRoot = W.ElementInternals ? gopd(ElementInternals.prototype, 'shadowRoot') : null;
+  if (internalsRoot && internalsRoot.get) defineProp(ElementInternals.prototype, 'shadowRoot', {...internalsRoot, get() {
+    const root = apply(internalsRoot.get, this, []);
+    watchRoot(root);
+    return root;
+  }});
+  const nativeClick = HP.click, nativePicker = HTMLInputElement.prototype.showPicker;
+  const nativeDispatch = EventTarget.prototype.dispatchEvent;
+  defineProp(HP, 'click', {value: function click() {
+    if (closed()) { if (isFile(this)) refusePicker(); return undefined; }
+    return apply(nativeClick, this, []);
+  }, writable: true, configurable: true});
+  if (typeof nativePicker === 'function') defineProp(HTMLInputElement.prototype, 'showPicker', {value: function showPicker() {
+    if (closed() && isFile(this)) { refusePicker(); throw new DOMExc('Blocked by the @NAME@', 'NotAllowedError'); }
+    return apply(nativePicker, this, []);
+  }, writable: true, configurable: true});
   defineProp(EventTarget.prototype, 'dispatchEvent', {value: function dispatchEvent(event) {
     let type = '';
     try { type = eventType(event); } catch (e) {}
-    if (type === 'click' && isEl(this) && !uploadsNow() && picker(this)) { refusePicker(); return false; }
+    if (type === 'click' && isEl(this) && closed()) { if (picker(this)) refusePicker(); return false; }
     return apply(nativeDispatch, this, [event]);
   }, writable: true, configurable: true});
 
