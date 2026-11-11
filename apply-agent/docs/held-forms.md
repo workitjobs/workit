@@ -45,7 +45,11 @@ reads: it does not click, type or submit.
   Claude draft that a fix replaces leaves the Answer bank. On Workday, the
   next fill goes Back to the step that holds the fixed answer
   (`WorkdayFiller._back_to_changed`). A read-back replan also refills
-  this way.
+  this way. Once there, it reloads the page before it fills the step.
+  Back draws a step from what the page kept of it, not from Workday's
+  server, and NVIDIA's My Experience, filled again that way, answered
+  Save and Continue with Workday's error page (2026-11-10, KAN-758). A
+  reload that opens another step is followed by Back again.
 - A flag that `holds` goes in the reason as `Verify: <field>: <why>` and
   holds a live run (Needs you, kind `check`). Read-back and review flags
   hold already by their own reason. A blank optional field holds as a

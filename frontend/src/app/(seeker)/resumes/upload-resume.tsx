@@ -140,12 +140,12 @@ export function useResumeUpload({
     </>
   );
 
-  // The file in flight, as the list's first card.
-  const pending = uploading !== null && (
-    <li>
-      <PendingResumeCard name={uploading} note="Reading your resume…" />
-    </li>
-  );
+  // The file in flight, as the table's first row or the grid's first card.
+  const pending = (layout: "list" | "grid" = "list") => {
+    if (uploading === null) return false;
+    const card = <PendingResumeCard name={uploading} note="Reading your resume…" layout={layout} />;
+    return layout === "list" ? card : <li>{card}</li>;
+  };
 
   return { button, notes, pending, uploading: uploading !== null };
 }
@@ -173,9 +173,12 @@ export function UploadedRow({
   resume,
   reload,
   onDelete,
+  layout = "list",
 }: {
   resume: ResumeItem;
   reload: () => Promise<void>;
+  /** The Resumes tab's layout (KAN-766). */
+  layout?: "list" | "grid";
   /** The list hides the row and sends the delete (KAN-388). */
   onDelete: (send: () => Promise<{ error: string | null }>) => void;
 }) {
@@ -215,25 +218,32 @@ export function UploadedRow({
     onDelete(() => deleteResume(resume.id));
   }
 
-  return (
+  const notes = error && (
+    <p role="alert" className="text-note text-danger mt-2">
+      {error}
+    </p>
+  );
+  const row = (
+    <ResumeRow
+      resume={resume}
+      href={`/resumes/uploaded/${encodeURIComponent(resume.id)}`}
+      page
+      layout={layout}
+      notes={layout === "list" ? notes : undefined}
+      rename={renaming ? { saving, onSave: rename, onCancel: () => setRenaming(false) } : undefined}
+      onMakePrimary={makePrimary}
+      onRename={() => setRenaming(true)}
+      onDownload={download}
+      onDelete={remove}
+    />
+  );
+  // A table row prints its error under its name; a grid card under itself.
+  return layout === "list" ? (
+    row
+  ) : (
     <li>
-      <ResumeRow
-        resume={resume}
-        href={`/resumes/uploaded/${encodeURIComponent(resume.id)}`}
-        page
-        rename={
-          renaming ? { saving, onSave: rename, onCancel: () => setRenaming(false) } : undefined
-        }
-        onMakePrimary={makePrimary}
-        onRename={() => setRenaming(true)}
-        onDownload={download}
-        onDelete={remove}
-      />
-      {error && (
-        <p role="alert" className="text-note text-danger mt-2">
-          {error}
-        </p>
-      )}
+      {row}
+      {notes}
     </li>
   );
 }

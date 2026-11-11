@@ -13,8 +13,9 @@ import { cn } from "@/lib/cn";
  * A row of mutually exclusive options on a pill-shaped track, with a white
  * thumb that slides to the chosen one: the Calendar's Month, Week and Agenda,
  * the Dashboard's range, the Applications layouts, the sign-in card's
- * Applicant or Company, the company chart's range, and Resumes &
- * Experiences' two views.
+ * Applicant or Company, and the company chart's range: looks of the same
+ * content, or one setting. Moving between different content is tabs
+ * (`ui/tabs.tsx`, KAN-766).
  *
  * WHY THE THUMB SLIDES. The options used to be squared-off segments that
  * swapped a white fill on and off, which read as sharp and abrupt. Now the
@@ -142,9 +143,8 @@ export function SegmentedLinks({
   options: SegmentedLinkOption[];
   value: string;
   /** Move the URL in place rather than navigating: for content the browser
-   *  already holds, which then reads the choice from the URL itself. Every
-   *  current caller sets it but Resumes & Experiences' switcher, whose
-   *  options are two routes that each read their own data. */
+   *  already holds, which then reads the choice from the URL itself. A
+   *  choice between two routes is tabs (`ui/tabs.tsx`), not this. */
   shallow?: boolean;
   size?: Size;
   className?: string;
