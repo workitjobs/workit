@@ -736,8 +736,10 @@ Find files with a directory listing; these are the rules for where code goes.
   `tests/test_truth_check.py`). It reads each saved answer in words,
   Claude's or a paste. It finds the claims that none of the student's facts
   hold: numbers, names of tools and employers, a month or season, and
-  outcomes such as "went into use". The student's facts are their bank,
-  profile and own answers. The posting, brief and question can also give a
+  outcomes such as "went into use". An outcome counts only from a fact
+  about the same project or role (KAN-750): the bank goes in one entry per
+  text under a "## title, organization" heading (`written.bank_facts`).
+  The student's facts are their bank, profile and own answers. The posting, brief and question can also give a
   number or a name. WorkIt saves such an answer as written and flags it in
   the tab (`review.flag_claims`, kept as `answer_review.truth`). The flag
   names the claims and marks the first one's sentence. It holds until the
