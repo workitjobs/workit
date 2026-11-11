@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
 
-import { BuiltPageTile, ResumeCard } from "@/components/resume-row";
+import { BuiltPageTile, ResumeCard, type RowPick } from "@/components/resume-row";
 import { Button } from "@/components/ui/button";
 import { TextField } from "@/components/ui/text-field";
 import {
@@ -38,11 +38,14 @@ export function BuiltResumeRow({
   reload,
   onDelete,
   layout = "list",
+  pick,
 }: {
   resume: BuiltResume;
   reload: () => Promise<void>;
   /** The Resumes tab's layout (KAN-766). */
   layout?: "list" | "grid";
+  /** The row's select box, in the list (`ResumeCard`'s `pick`). */
+  pick?: RowPick;
   /** The list hides the row and sends the delete (KAN-388). */
   onDelete: (send: () => Promise<{ error: string | null }>) => void;
 }) {
@@ -124,6 +127,7 @@ export function BuiltResumeRow({
         resume.job_posting_id && resume.posting_title ? <PostingLink resume={resume} /> : undefined
       }
       notes={layout === "list" ? notes : undefined}
+      pick={pick}
       created={resume.created_at}
       edited={edited ? resume.edited_at : null}
       actions={{

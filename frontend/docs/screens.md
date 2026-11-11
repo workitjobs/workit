@@ -3178,19 +3178,20 @@ row into the name's field with Cancel and Save, at the row's height.
 events: the last edit, or when it was made or uploaded, for a resume never
 edited, on the student's clock, the year only when it is not this one. It
 was two columns, Created and Last Edited, which the user condensed into
-one. **The actions wait for the pointer, as Google Drive's rows do**
-(`CardActionIcons`), in a column of their own (`RESUME_ACTIONS_COL`):
-under a mouse, from `@2xl` of the table, Make Primary (on a resume that
-is not the primary), Rename, Download and Delete fade in on hover, or
-with the keyboard's focus in the row, and there is no ⋮. On a touch
-screen, which has no hover, or a narrower table, the row shows only ⋮
-(More actions), which holds every action, worded: Open, Rename, Download
-PDF, Make Primary, then Delete in red, which asks first (`RowMoreMenu`
-with `always`). Four icons on every row at all times read busy to the
-user. **History:** the icons covered the Date Modified cell, as Gmail's
-row actions take the date's place, beside an always-shown ⋮ (2026-11-10);
-on 2026-11-11 the user found them overlapping the row's fields and ⋮
-redundant beside them, so they got their column back, empty at rest.
+one. **Rows are picked, as Up Next's are, and a bar acts on them**
+(2026-11-11, after Notion's): a select box starts each row and Select All
+the Name heading; while any row is picked, a small white bar
+(`components/selection-bar.tsx`) floats over the filter row with "N
+selected", Make Primary and Rename for a single pick, Download, Delete
+(asks first: "Delete N Resumes?"), and Clear; Escape clears too. A picked
+row takes the brand tint. Each row keeps ⋮ (More actions) for one resume:
+Open, Rename, Download PDF, Make Primary (on a resume that is not the
+primary), then Delete in red, which asks first (`RowMoreMenu` with
+`always`). **History:** Make Primary, Rename, Download and Delete showed
+as icons on hover, first over the Date Modified cell, as Gmail's row
+actions take the date's place (2026-11-10), then in a column of their
+own; the user found them covering the row's fields and ⋮ redundant beside
+them. The grid has no select boxes.
 The date and the actions sit in fixed columns, so every card's date lines
 up. **The Grid view** (KAN-766, after Google Drive's and Simplify's): a List /
 Grid switch at the right end of the search's row, where the Jobs and

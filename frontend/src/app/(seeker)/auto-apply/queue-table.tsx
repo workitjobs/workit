@@ -16,6 +16,7 @@ import { PlusIcon } from "@/components/icons";
 import { MatchBadge } from "@/components/match-badge";
 import { Reflow } from "@/components/reflow";
 import { GroupHeadingRow, useFolds } from "@/components/table-group";
+import { PickBox } from "@/components/selection-bar";
 import { Checkbox } from "@/components/shadcn/checkbox";
 import {
   Table,
@@ -636,17 +637,6 @@ function PlainStatus({ Icon, label, ink }: { Icon: typeof CheckIcon; label: stri
     <span className={cn("text-note inline-flex items-center gap-1.5 font-medium", ink)}>
       <Icon aria-hidden className="size-3.5 shrink-0" />
       {label}
-    </span>
-  );
-}
-
-/** A select box's square in the Role cell. Its clicks stop here: the row's
- *  own click opens the job posting (components/clickable-row.tsx), and a
- *  pick should not. */
-function PickBox({ children }: { children: ReactNode }) {
-  return (
-    <span className="flex shrink-0 items-center" onClick={(event) => event.stopPropagation()}>
-      {children}
     </span>
   );
 }

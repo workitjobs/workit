@@ -2863,7 +2863,7 @@ are in `docs/auth.md`.
   card, grey headings Name, Target Job, Type and Date Modified, rules
   between rows, a row that opens the resume on a click anywhere
   (`ClickableRow`), and the actions at the right (Make Primary, Rename,
-  Download, Delete on hover under a mouse, ⋮ instead on touch or a narrow table; Delete asks in a popover under the
+  Download and Delete in ⋮, and for picked rows in the bar over the table; Delete asks in a popover under the
   trash, `DeleteResumeConfirm`, KAN-347). After Jobright's resume table,
   the name stands alone with a Primary badge on the primary, and a
   tailored resume's job has its own column, drawn as the Tracker's Role
@@ -2874,16 +2874,22 @@ are in `docs/auth.md`.
   do. **Name is two fifths of the table and Target Job takes the rest**
   (`RESUME_NAME_COL`, 2026-11-11): Name took all the room the fixed
   columns left, so a short name stood far from its job, which was cut at
-  256px. **The actions have a column of their own and never cover a
-  field** (`RESUME_ACTIONS_COL`, 2026-11-11): under a mouse from `@2xl` of
-  the table, the four icons (144px) on hover and no ⋮; on a touch screen
-  or a narrower table, ⋮ alone (48px). The icons covered Date Modified,
-  as Gmail's do, and ran over Type at narrow widths, with ⋮ beside them
-  repeating the same four; the user found both wrong. An empty 144px
-  column at rest is the price. Cover Letters' table
-  (`cover-letters/cover-letters.tsx`) uses the same column constants but
-  its own 48px actions column (Copy alone), so a width change here
-  changes both tabs.
+  256px. **Rows are picked with select boxes, and a bar acts on them**
+  (2026-11-11, after Notion's; `components/selection-bar.tsx`): a box
+  starts each row's Name cell and Select All the Name heading, as Up
+  Next's Role cell and heading do (the same `PickBox`); while any row is
+  picked, `SelectionBar` floats over the filter row with the count, Make
+  Primary and Rename (one pick only), Download, Delete (asks first, in
+  `DeleteDialog`) and Clear; Escape clears too. Each row keeps its current
+  actions with the page (`RowPick.register`), so the bar runs the very
+  handlers ⋮ runs. Each row keeps ⋮ alone in a 48px column
+  (`RESUME_ACTIONS_COL`) for one resume at a time. Hover icons came
+  first: over Date Modified, which they hid and ran past into Type, then
+  in a 144px column of their own, empty at rest, with ⋮ beside them
+  holding the same four; the user found both wrong. The grid has no
+  boxes. The bar's words fold to icons below `@lg` of the filter row (a
+  phone's). Cover Letters' table (`cover-letters/cover-letters.tsx`) uses
+  the same column constants, so a width change here changes both tabs.
   **Both layouts scroll with the page**, as the Tracker's table does
   (2026-11-10): the list, then the grid, scrolled inside their own box
   down to the page's foot from KAN-434 (`ResumeScroll`'s `fill`, which
