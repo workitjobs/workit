@@ -57,6 +57,10 @@ def slugs(link: str) -> list[tuple[str, str]]:
             "https://acme.pinpointhq.com/postings/591998-software-engineering-intern",
             ("pinpoint", "acme"),
         ),
+        (
+            "https://jobs.jobvite.com/tylertech/job/oAVOAfwD?nl=1&fr=false",
+            ("jobvite", "tylertech"),
+        ),
     ],
 )
 def test_an_apply_link_names_its_board(link: str, board: tuple[str, str]) -> None:

@@ -37,8 +37,8 @@ boards.csv ─▶ __main__ ─▶ polite.Robots ─▶ providers.PROVIDERS ─�
 Each module owns one stage (its docstring says which); every network read goes
 through `web.get` (or Workday's and TikTok's `web.post`) behind `polite.Robots`.
 Greenhouse, Lever, Ashby, Workable, Recruitee, BambooHR and Pinpoint return a whole
-board in one request. JazzHR returns its list in one HTML page; each kept posting's
-detail page has JSON-LD. Workday sends 20 postings a request, which changes how its boards are
+board in one request. JazzHR and Jobvite each return their list in one HTML page;
+each kept posting's detail page has JSON-LD. Workday sends 20 postings a request, which changes how its boards are
 read: `docs/workday.md`. Oracle, TikTok, Jibe, SmartRecruiters, SuccessFactors
 and Eightfold page as well (`Provider.paged`): `docs/providers.md`.
 
@@ -216,7 +216,7 @@ robots and pacing.
 - **Bump `providers.PAGE_VERSION` whenever a `Page` starts holding something
   new, or a fact's pattern changes**, or stored postings never get it.
   `with_page` re-reads any page under an older version, once per kept
-  Greenhouse, Workable, BambooHR, Rippling, iCIMS, Oracle, SmartRecruiters, Eightfold, JazzHR and Workday posting.
+  Greenhouse, Workable, BambooHR, Rippling, iCIMS, Oracle, SmartRecruiters, Eightfold, JazzHR, Jobvite and Workday posting.
 - **Changing `DESCRIPTION_CHARS` does not re-cut stored Greenhouse
   descriptions.** Clear them so the next run fetches them again:
 
