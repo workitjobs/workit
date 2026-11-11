@@ -152,7 +152,7 @@ def test_a_lifted_page_tells_apply_when_lisul_clicks_a_button_that_sends(job_ser
     pressed, again = [], []
     with job_server.open(ARC_URL) as page:
         guard(page)
-        lift(page, pressed=pressed.append, again=lambda: again.append(True))
+        lift(page, pressed=lambda words, account=False: pressed.append(words), again=lambda: again.append(True))
         page.evaluate("""() => { const next = document.createElement('button');
             next.type = 'button'; next.textContent = 'Next'; document.body.appendChild(next); }""")
         page.get_by_role("button", name="Next").click()
