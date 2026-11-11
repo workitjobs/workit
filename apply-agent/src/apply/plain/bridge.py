@@ -31,7 +31,7 @@ from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
 from apply.home import HOME
-from apply.plain.extension import EXTENSION_ORIGIN, engine_identity
+from apply.plain.extension import EXTENSION_ORIGIN, code_hash, engine_identity
 
 PROTOCOL = 1
 SOCKET = "workers.sock"
@@ -44,6 +44,9 @@ RELOADS_FROM = 2  # the first level with the extension.reload op
 SETS_FROM = 3  # the first level that reads Apply's files from the vendor set its welcome names (KAN-645)
 RELOAD_WAIT = 10.0  # s a reloading extension may take to close its port
 OUT_OF_DATE = "Worker extension is out of date: quit Apply and start it again"
+# How to bring a folder of other code up to date (KAN-764): Apply updates it before a Worker starts, once no Chrome loads it.
+STALE_FIX = ("Once no Chrome loads that folder, start Apply again: it updates the folder before a Worker starts. Or run "
+             "`uv run apply plain seed`.")
 
 
 def features(hello: dict) -> int:
@@ -226,6 +229,11 @@ class Bridge:
         self.vendor: str | None = None
         self.folder: Path | None = None  # the folder the Workers load the extension from (PlainWorkers.prepare)
         self.expects = expects  # the feature level a Worker's extension must have not to be stale
+        # This Apply's worker extension code (extension.code_hash) and the folder Worker k loads it from (PlainWorkers):
+        # a Worker whose folder holds other code is stale too, whatever its feature level says (KAN-764).
+        self.code: str | None = None
+        self.loaded: Callable[[int], Path | None] = lambda worker: None
+        self._told: set[int] = set()  # Workers told their folder holds other code
         self._reloaded: set[int] = set()  # Workers told to reload once already
         self.reloadable: Callable[[int], bool] = lambda worker: False  # PlainWorkers: its profile's Developer mode
         self._warned = False
@@ -313,8 +321,13 @@ class Bridge:
                 self._changed.notify_all()
             return
         connection = Connection(worker, sock, hello, relay)
-        connection.stale = level < self.expects
-        if connection.stale and not self._warned:
+        other = self.other_code(worker)
+        connection.stale = level < self.expects or other is not None
+        if other is not None and worker not in self._told:
+            self._told.add(worker)
+            print(f"Plain Worker {worker + 1}: {OUT_OF_DATE}. Its worker extension, in {other}, holds other code than "
+                  f"this Apply's, so guard and fill fixes since then don't reach it. {STALE_FIX}", file=sys.stderr)
+        elif connection.stale and not self._warned:
             self._warned = True
             print(f"Plain Worker {worker + 1}'s extension has features {level}, Apply expects {self.expects}. "
                   f"{OUT_OF_DATE}.", file=sys.stderr)
@@ -335,6 +348,16 @@ class Bridge:
             if self._workers.get(worker) is connection:
                 del self._workers[worker]
             self._changed.notify_all()
+
+    def other_code(self, worker: int) -> Path | None:
+        """The folder Worker `worker` loads the worker extension from, when its code isn't this Apply's; else None."""
+        if not self.code:
+            return None
+        try:
+            folder = self.loaded(worker)
+            return folder if folder and code_hash(folder) != self.code else None
+        except OSError:
+            return None
 
     def _reload(self, worker: int, sock: socket.socket) -> None:
         """Tell Worker `worker`'s extension to reload (it answers, then its port closes), never

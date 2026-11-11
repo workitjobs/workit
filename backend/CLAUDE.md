@@ -90,6 +90,8 @@ uv run python -m app.scripts.intake_test_set   intake's fixed test set against t
 uv run python -m app.scripts.ship_check ...   the connector's blind read, KAN-386 (by hand, never CI; data outside the repo)
 uv run python -m app.scripts.clean_bank_entries  one-off: split "| C++, Go" off older bank titles, drop read skills the catalog lacks; --typed also drops Tailor-added degrees/"AI tools" (dry run unless --apply; local DB only)
 uv run python -m app.scripts.fill_report <id>   a fill report's fix brief + form fixture into fill-reports/ (--latest; reads DATABASE_URL, writes nothing)
+uv run python -m app.scripts.trace_rules_leak <table.json>  the account a leaked Rules table was served to and its fetch history, KAN-756/KAN-772 (reads DATABASE_URL, writes nothing)
+uv run python -m app.scripts.rules_anomalies [--days 7]  accounts whose Rules table fetches look like scraping, as a table, KAN-772 (reads DATABASE_URL, writes nothing)
 uv run python -m app.scripts.import_apply_profile <applicant_id> [<apply_dir>]  a student's Apply data folder ($APPLY_HOME, else ~/.config/apply) into WorkIt (--dry-run rolls back; local DB only; app/models/CLAUDE.md, "The Fill engine's profile")
 uv run python -m app.scripts.label_resume_headings  label data/resume_heading_candidates.txt's resume headings once with Groq into app/utils/learned_headings.json (--dry-run lists them; review the diff; app/utils/CLAUDE.md, Learned headings)
 uv run python -m app.scripts.purge_old_data  delete rows past app/services/retention.py's periods, KAN-482 (--dry-run counts, deletes nothing; daily in CI)
@@ -587,6 +589,51 @@ Find files with a directory listing; these are the rules for where code goes.
   for Python's re and Postgres's `~*` alike (the Greenhouse one uses a
   negative lookahead, which both take). Tests:
   `tests/test_job_system_off.py`.
+  **The Rules table, one job system at a time** (KAN-756,
+  `routers/extension_rules.py` over `queries/rules.py`,
+  `services/rules_table.py` and `services/rules_watermark.py`, tables
+  `rules_tokens` and `rules_fetches`, migration `b3d8e6f1a756`): the Fill
+  engine's per-job-system selectors, wordings and patterns plus its answer
+  rules (KAN-745), served after sign-in instead of shipped. The router's
+  docstring is the contract. **Source of truth is the engine**: its build
+  writes `bundledRules()` to the submodule's `dist/rules-table.json`, which
+  this API reads at start (`RULES_TABLE_PATH`) and the image copies at the
+  same path; never a copy here, which would drift. Without the submodule the
+  app starts and both routes answer 503. Nothing here names the table's
+  version or fields beyond `answers` and `systems`, so the engine's next
+  schema version is a submodule bump. **Two steps**: `POST
+  /extension/rules/token {"url"}` names the job system from the posting's
+  link (`hosts.py` `job_system_of`; a host on none, or a system the table
+  lacks, is 422) and answers a site token, kept only as its sha256 and good
+  for `RULES_TOKEN_MINUTES` (5) for that account and job system; `GET
+  /extension/rules` with `X-WorkIt-Site-Token` (and the account's Bearer)
+  answers the table `loadRules` takes, cut to that one site, and logs the
+  fetch (account, site, time) in `rules_fetches`. Stored tokens, not signed
+  ones, because this API signs no token (Auth). **Capped** per account a UTC
+  day (`RULES_TOKEN_DAILY_CAP`, `RULES_FETCH_DAILY_CAP`, 400 each).
+  **Watermarked per account**: the order of a CSS selector list's parts,
+  one never-matching `[data-v-<10 hex>]` part per site, and equivalent regex
+  spellings (` ` or `[ ]`, `\d` or `[0-9]`, `\s+` or `\s{1,}` outside a
+  class), each chosen by a hash of the account id, so the engine fills the
+  same. Only strings every part of which reads as a selector are touched,
+  and the engine must use those only whole (a test reads its source for
+  that). `uv run python -m app.scripts.trace_rules_leak <table.json>` names
+  the account a leaked table was served to, from the fetch log's accounts,
+  and prints its fetch history (KAN-772).
+  **Anomaly report** (KAN-772, `services/rules_anomalies.py`, admins only:
+  `GET /admin/rules-anomalies?days=` and `app.scripts.rules_anomalies`):
+  flags accounts that fetch many job systems in a short window, fetch far
+  more than they fill (the account's `fill_event` daily counts, since
+  `fill_events` names no account), fetch at timer-like gaps, or reach the
+  daily cap on several days. Thresholds are the `RULES_ANOMALY_*` settings
+  in `app/config.py`. Whole UTC days, at most 30 (`daily_counts` is kept
+  30). A flag is a lead to read, never a block.
+  **Plain data only**: never encrypted, encoded, step lists or expressions
+  (the Chrome Web Store's line). Tokens are purged after a day, fetches
+  after 90 (`services/retention.py`). Tests:
+  `tests/test_extension_rules.py`, `tests/test_rules_anomalies.py`,
+  `tests/test_rules_watermark.py` (the engine's round trip on watermarked
+  tables, with Node and the submodule).
   **Save to WorkIt by a page's link** (KAN-401, `POST /jobs/saved-by-link`
   in `routers/applications.py`, `queries/applications.py`
   `listed_job_by_link`): the extension's toolbar popup on a site it can't
