@@ -21,7 +21,6 @@ import {
 } from "@/components/resume-list";
 import { SearchIcon } from "@/components/icons";
 import { useShallowParams, useShallowPush } from "@/components/shallow-routing";
-import { NewResumeTile } from "@/components/resume-row";
 import { SortMenu } from "@/components/sort-menu";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -471,13 +470,12 @@ export function BuiltResumes({
             : "None of your resumes match these filters."}
         </EmptyState>
       ) : grid ? (
-        // The grid (KAN-766): New Resume, then every resume the filters
-        // show in the sort's order, the primary first, with no groups:
-        // each card says what it is, as Google Drive's and Simplify's do.
+        // The grid (KAN-766): every resume the filters show in the sort's
+        // order, the primary first, with no groups: each card says what it
+        // is, as Google Drive's and Simplify's do. Generate Resume above
+        // makes a new one; a New Resume tile first in the grid did the same
+        // and came off on 2026-11-10.
         <ResumeList grid>
-          <li>
-            <NewResumeTile onClick={() => void generate()} busy={generating !== null} />
-          </li>
           {upload.pending("grid")}
           {shown.map((row) =>
             row.type === "uploaded" ? (

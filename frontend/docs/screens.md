@@ -2938,19 +2938,26 @@ Applications pages put their view switch (`SegmentedToggle` with icons:
 two looks of the same resumes, so a switcher, not tabs), kept in a cookie as the Jobs
 page's view is (`resumes/view.ts`, `setResumesLayout`), so the server draws
 the chosen layout. The grid is one flat set of cards in the sort's order,
-the primary first, with no group headings (each card says what it is): a
-**New Resume** tile first, which runs Generate, then each resume's first
-page over its name, "Modified" or "Created" and its day, and what it is
-("PDF", "Generated", the tailored resume's company), with ⋮ holding every
-action (no hover icons, as on Drive's grid) and a filled star on the
-primary's page corner, as on Simplify's. Rename edits the name under the
+the primary first, with no group headings (each card says what it is):
+each resume's first page over two lines every card has, so a row's cards
+line up: the name with ⋮, then the type as a status badge (Uploaded in
+grey, Generated in the brand, Tailored in blue), a tailored resume's
+company (logo and name, which never wraps and trails off when short of
+room) and, at the line's right, the Date Modified as the list says it
+("Modified" or "Created" and the day). A narrow card drops the date's
+word and keeps the day.
+⋮ holds every action (no hover icons, as on Drive's grid), and a filled
+star sits on the primary's page corner, as on Simplify's. The list's
+Posting Closed badge is not on a grid card: as one more line it made some
+cards taller than their row. A New Resume tile led the grid until the
+same day; Generate Resume above does the same (2026-11-10). Rename edits the name under the
 page. The pages (`ResumeThumbnail` in `resume-preview.tsx`) are drawn in
 the browser from the preview the duplicate modal uses, asked for only once
 a card comes within a screen of view and at most two at a time (`inTurn`),
 and kept for the visit: an upload's file costs nothing, and a built
-resume's is one PDF render on the API. A DOCX shows its type. Columns
-follow the list's own width: two on a phone, up to five on a wide screen.
-On a phone the switch takes a row of its own under Type and Sort. **The tile**
+resume's is one PDF render on the API. A DOCX shows its type. Four to
+a row, two on a phone (below the list's `@3xl`), the user's call.
+**The tile**
 (2026-11-10): an upload's file type ("PDF", "DOCX") on a neutral tile; a
 generated resume's small page in the brand tint, the drawing Generate's
 dialog uses; a tailored resume's company logo, the job card's own

@@ -80,9 +80,7 @@ export function ResumeScroll({
       className={cn(
         fill ? FILL_PAGE : FIVE_ROWS,
         "overflow-y-auto px-3 pb-3",
-        grid
-          ? "grid grid-cols-2 content-start gap-4 pt-3 @2xl:grid-cols-3 @4xl:grid-cols-4 @6xl:grid-cols-5"
-          : "flex flex-col",
+        grid ? "grid grid-cols-2 content-start gap-4 pt-3 @3xl:grid-cols-4" : "flex flex-col",
       )}
     >
       {children}

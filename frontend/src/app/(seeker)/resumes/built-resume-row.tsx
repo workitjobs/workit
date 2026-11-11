@@ -89,7 +89,16 @@ export function BuiltResumeRow({
     <li>
       <ResumeCard
         layout={layout}
-        kind={resume.job_posting_id ? (resume.posting_company ?? "Tailored") : "Generated"}
+        type={resume.job_posting_id ? "tailored" : "generated"}
+        company={
+          resume.job_posting_id && resume.posting_company
+            ? {
+                name: resume.posting_company,
+                logoUrl: resume.posting_logo_url,
+                domain: resume.posting_company_domain,
+              }
+            : undefined
+        }
         thumbnail={
           <ResumeThumbnail
             source={{ built_resume_id: resume.id }}

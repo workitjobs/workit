@@ -8,14 +8,7 @@ import { useRef, useState, type FormEvent, type ReactNode } from "react";
 import { LocalDate, LocalDateTime } from "@/app/(seeker)/local-time";
 import { ResumeThumbnail } from "@/app/(seeker)/jobs/[jobId]/tailor/resume-preview";
 import { DeleteResumeConfirm } from "@/app/(seeker)/resumes/delete-confirm";
-import {
-  EllipsisIcon,
-  PdfIcon,
-  PencilIcon,
-  PlusIcon,
-  TrashIcon,
-  UploadIcon,
-} from "@/components/icons";
+import { EllipsisIcon, PdfIcon, PencilIcon, TrashIcon, UploadIcon } from "@/components/icons";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,6 +17,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/shadcn/dropdown-menu";
 import { CompanyLogo } from "@/components/company-logo";
+import { RESUME_TYPES, type ResumeType } from "@/components/resume-list";
+import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { IconButton } from "@/components/ui/icon-button";
@@ -179,7 +174,7 @@ function CardActionIcons({
  * **Rename edits the name on the card** (`rename`, `RenamingCard`).
  *
  * **In the grid** (`layout="grid"`, KAN-766) the card is the resume's first
- * page over its name (`ResumeGridCard`).
+ * page over its name, its type and its Date Modified (`ResumeGridCard`).
  */
 export function ResumeCard({
   name,
@@ -193,7 +188,8 @@ export function ResumeCard({
   rename,
   layout = "list",
   thumbnail,
-  kind,
+  type,
+  company,
 }: {
   name: string;
   href: string;
@@ -210,9 +206,10 @@ export function ResumeCard({
   layout?: "list" | "grid";
   /** The grid card's picture: the resume's first page. */
   thumbnail?: ReactNode;
-  /** The grid card's short word for what it is: "PDF", "Generated",
-   *  "Toshiba". */
-  kind?: string;
+  /** The grid card's type badge: Uploaded, Generated or Tailored. */
+  type?: ResumeType;
+  /** A tailored resume's company, beside its badge on a grid card. */
+  company?: GridCompany;
 }) {
   if (layout === "grid") {
     return (
@@ -220,8 +217,8 @@ export function ResumeCard({
         name={name}
         href={href}
         thumbnail={thumbnail}
-        kind={kind}
-        badge={badge}
+        type={type}
+        company={company}
         modified={edited ?? created}
         edited={edited !== null}
         actions={actions}
@@ -274,21 +271,47 @@ export function ResumeCard({
   );
 }
 
+/** A tailored resume's company, for its grid card: the name and the job
+ *  card's logo sources (`jobLogo`). */
+export type GridCompany = { name: string; logoUrl: string | null; domain: string | null };
+
+/** Each type's badge colour: a different kind of resume, a different tone.
+ *  An upload is a file the student brought (grey), a generated resume is
+ *  WorkIt's (brand), a tailored one is WorkIt's for one posting (blue). */
+const TYPE_TONE: Record<ResumeType, BadgeTone> = {
+  uploaded: "inert",
+  generated: "brand",
+  tailored: "advanced",
+};
+
 /**
  * One resume in the Resumes tab's grid (KAN-766, after Google Drive's and
- * Simplify's): its first page (`thumbnail`, `ResumeThumbnail`), then its
- * name, when it was last changed and what it is, and ⋮, which holds every
- * action (Open, Rename, Download, Make Primary, Delete): the grid has no
- * room for hover icons, as Drive's has none. The primary resume wears a
- * filled star on its page's corner, as Simplify's does. The whole card
- * opens the resume. Rename edits the name in place, under the page.
+ * Simplify's): its first page (`thumbnail`, `ResumeThumbnail`), then two
+ * lines every card has, so the cards of a row line up: its name with ⋮,
+ * then its type as a badge, a tailored resume's company (its logo and
+ * name) and, at the right, its Date Modified as the list's column says
+ * it: "Modified" or "Created" and the day. One line to save room, the
+ * user's call (2026-11-10): the company's name never wraps and trails off
+ * when the line is short of room, with the whole name on hover. ⋮ holds
+ * every action (Open, Rename, Download, Make Primary, Delete): the grid
+ * has no room for hover icons, as Drive's has none. The primary resume
+ * wears a filled star on its page's corner, as Simplify's does. The whole
+ * card opens the resume. Rename edits the name in place, under the page.
+ *
+ * A narrow card (two to a row on a phone, four on a tablet) shows the
+ * day without its word ("Modified", "Created"), which comes back where
+ * the line has room for it.
+ *
+ * The list card's Posting Closed badge is not here (2026-11-10): as one
+ * more line it made some cards taller than the rest of their row, and the
+ * user found it not needed in the grid.
  */
 function ResumeGridCard({
   name,
   href,
   thumbnail,
-  kind,
-  badge,
+  type,
+  company,
   modified,
   edited,
   actions,
@@ -297,8 +320,8 @@ function ResumeGridCard({
   name: string;
   href: string;
   thumbnail: ReactNode;
-  kind?: string;
-  badge?: ReactNode;
+  type?: ResumeType;
+  company?: GridCompany;
   modified: string | null;
   edited: boolean;
   actions: CardActions;
@@ -308,7 +331,7 @@ function ResumeGridCard({
     <Card
       padding="none"
       selected={Boolean(rename)}
-      className="group hover:border-ink-meta hover:shadow-lift ease-glide relative overflow-hidden transition-[box-shadow,border-color] duration-200"
+      className="group hover:border-ink-meta hover:shadow-lift ease-glide relative flex h-full flex-col overflow-hidden transition-[box-shadow,border-color] duration-200"
     >
       <div className="border-border-subtle relative border-b">
         {thumbnail}
@@ -325,35 +348,56 @@ function ResumeGridCard({
       {rename ? (
         <GridRename name={name} rename={rename} />
       ) : (
-        <div className="flex items-start gap-1 p-3">
-          <div className="min-w-0 flex-1">
+        // ⋮ shares the name's line only, so the line under it has the
+        // card's whole width.
+        <div className="@container p-3">
+          <div className="flex items-center gap-1">
             <Link
               href={href}
               title={name}
-              className="text-label text-ink after:rounded-card focus-visible:after:ring-brand-ring block truncate font-medium after:absolute after:inset-0 focus-visible:outline-none focus-visible:after:ring-2"
+              className="text-label text-ink after:rounded-card focus-visible:after:ring-brand-ring min-w-0 flex-1 truncate font-medium after:absolute after:inset-0 focus-visible:outline-none focus-visible:after:ring-2"
             >
               {name}
             </Link>
-            <div className="text-note text-ink-meta mt-0.5 truncate">
-              {modified && (
-                <>
-                  {edited ? "Modified" : "Created"} <LocalDate at={modified} />
-                </>
-              )}
-              {kind && ` · ${kind}`}
+            <div className="relative z-10 -my-1 -mr-1">
+              <RowMoreMenu
+                always
+                name={name}
+                open={href}
+                onRename={actions.onRename}
+                download={actions.download}
+                onMakePrimary={actions.primary ? undefined : actions.onMakePrimary}
+                onDelete={actions.onDelete}
+              />
             </div>
-            {badge && <div className="mt-1">{badge}</div>}
           </div>
-          <div className="relative z-10 -mt-1 -mr-1">
-            <RowMoreMenu
-              always
-              name={name}
-              open={href}
-              onRename={actions.onRename}
-              download={actions.download}
-              onMakePrimary={actions.primary ? undefined : actions.onMakePrimary}
-              onDelete={actions.onDelete}
-            />
+          <div className="mt-2 flex h-6 min-w-0 items-center gap-2">
+            {type && (
+              <Badge tone={TYPE_TONE[type]}>
+                {RESUME_TYPES.find((t) => t.value === type)?.label}
+              </Badge>
+            )}
+            {company && (
+              <span
+                title={company.name}
+                className="text-note text-ink-muted flex min-w-0 items-center gap-1.5"
+              >
+                <CompanyLogo
+                  name={company.name}
+                  src={jobLogo({ logo_url: company.logoUrl, company_domain: company.domain })}
+                  className="size-5 rounded-[5px] text-[9px]"
+                />
+                <span className="truncate">{company.name}</span>
+              </span>
+            )}
+            {modified && (
+              <span className="text-note text-ink-meta ml-auto shrink-0 whitespace-nowrap">
+                <span className="sr-only @min-[12rem]:not-sr-only">
+                  {edited ? "Modified" : "Created"}{" "}
+                </span>
+                <LocalDate at={modified} />
+              </span>
+            )}
           </div>
         </div>
       )}
@@ -396,35 +440,6 @@ function GridRename({ name, rename }: { name: string; rename: Rename }) {
         </Button>
       </div>
     </form>
-  );
-}
-
-/** The grid's first tile (KAN-766, after Simplify's New Resume): a page with
- *  a plus, which runs Generate, as Generate Resume does. */
-export function NewResumeTile({ onClick, busy }: { onClick: () => void; busy: boolean }) {
-  return (
-    <Card
-      padding="none"
-      className="hover:border-ink-meta hover:shadow-lift ease-glide overflow-hidden transition-[box-shadow,border-color] duration-200"
-    >
-      <button
-        type="button"
-        onClick={onClick}
-        disabled={busy}
-        className="focus-visible:ring-brand-ring flex w-full flex-col text-left focus-visible:ring-2 focus-visible:outline-none disabled:opacity-60"
-      >
-        <span
-          className="border-border-subtle bg-well flex w-full items-center justify-center border-b"
-          style={{ aspectRatio: "8.5 / 11" }}
-        >
-          <PlusIcon aria-hidden className="text-ink-meta size-10" />
-        </span>
-        <span className="p-3">
-          <span className="text-label text-ink block font-medium">New Resume</span>
-          <span className="text-note text-ink-meta block">Made from your experiences</span>
-        </span>
-      </button>
-    </Card>
   );
 }
 
@@ -570,7 +585,7 @@ export function PendingResumeCard({
 }) {
   if (layout === "grid") {
     return (
-      <Card padding="none" className="overflow-hidden">
+      <Card padding="none" className="h-full overflow-hidden">
         <div className="border-border-subtle border-b">
           <div className="bg-well w-full animate-pulse" style={{ aspectRatio: "8.5 / 11" }} />
         </div>
@@ -857,7 +872,7 @@ export function ResumeRow({
         href={href}
         tile={<FileTypeTile file={resume.storage_path} />}
         layout={layout}
-        kind={fileType(resume.storage_path)}
+        type="uploaded"
         thumbnail={
           <ResumeThumbnail
             source={{ uploaded_resume_id: resume.id }}
