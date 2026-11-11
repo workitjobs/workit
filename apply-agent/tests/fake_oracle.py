@@ -29,6 +29,7 @@ from fake_lever import _load_responses
 from fakes import FakeMailbox, Submission
 from playwright.sync_api import Route, sync_playwright
 
+from apply import submit_guard
 from apply.oracle import MAIL_SEARCH
 
 # Put on the saved Oracle pages: sends the email step to the fake.
@@ -134,6 +135,8 @@ class FakeOracleServer:
             context.route("**/*", self._handle)
             try:
                 page = context.new_page()
+                if getattr(self, "guard_at_open", True):  # as a Worker opens each page (apply.browsers)
+                    submit_guard.on_open(page)
                 page.goto(url)
                 yield page
             finally:

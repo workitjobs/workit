@@ -112,7 +112,8 @@ function useFillPage(on: boolean, below: number) {
 }
 
 /**
- * One group of the list (KAN-404), as Notion's Group by draws one: a
+ * One group of a resume picker's list (KAN-404), as Notion's Group by
+ * draws one: a
  * heading with the group's name in a pill (`Badge`, brand, the same for
  * every group) and how many of its resumes the search and the filters
  * leave, then its cards. The heading is a button that folds the group away
@@ -123,23 +124,20 @@ function useFillPage(on: boolean, below: number) {
  * icons, lifted over the stretched link): on the same z-10 the icons came
  * later and painted over the heading as they scrolled under it. The name
  * was grey capitals in the sidebar's caption style at first, which read
- * faint beside the grey cards.
+ * faint beside the grey cards. The Resumes page drew its list in these
+ * groups too until 2026-11-10, when it went flat as its grid is.
  */
 export function ResumeGroup({
   label,
   count,
   open,
   onToggle,
-  ground = false,
   children,
 }: {
   label: string;
   count: number;
   open: boolean;
   onToggle: () => void;
-  /** On the page's ground, not in a white card (the Resumes page since
-   *  2026-11-10): the sticky heading takes the ground's fill. */
-  ground?: boolean;
   children: ReactNode;
 }) {
   const id = useId();
@@ -150,10 +148,7 @@ export function ResumeGroup({
         aria-expanded={open}
         aria-controls={id}
         onClick={onToggle}
-        className={cn(
-          ground ? "bg-app" : "bg-panel",
-          "text-note text-ink-meta hover:text-ink focus-visible:ring-brand-ring sticky top-0 z-20 flex w-full items-center gap-2 rounded-xs pt-3 pb-1 text-left transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none",
-        )}
+        className="bg-panel text-note text-ink-meta hover:text-ink focus-visible:ring-brand-ring sticky top-0 z-20 flex w-full items-center gap-2 rounded-xs pt-3 pb-1 text-left transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none"
       >
         <ChevronDownIcon
           className={cn("size-3.5 transition-transform duration-150", !open && "-rotate-90")}

@@ -637,6 +637,9 @@ class ClaudeFill:
                           "Fill it in yourself.")
         before = _fields_shown(page)
         if self._guard is not None:
+            if not self._guard.may_press(button):  # a frame inside it, where the press could land (KAN-710)
+                raise Handoff(f"The profile step's {name!r} holds a frame, where Apply's press could land on another "
+                              "form. Press it yourself.")
             self._guard.let_profile_click()
         try:
             button.click()
@@ -848,8 +851,12 @@ def press_step(page: Page, guard, name: str, back: bool = False, listed: bool = 
     words = _sends_or_reviews(page, button)
     if words and not (back and words == REVIEW_WORDS):
         raise Handoff(f"Claude fill's Next ({name!r}) is {words}, which may send the form. Fill it in yourself.")
-    if guard:
-        guard.let_account_click()
+    # A frame inside the button (KAN-710): the press lands in it, where no guard may run (a sandboxed one runs no
+    # script), and its form could post the application to the top page. Never pressed.
+    if guard and not guard.let_account_click(button):
+        guard.arm()
+        raise Handoff(f"The form's {name!r} holds a frame, where Apply's press could land on another form. "
+                      "Press it yourself.")
     try:
         button.click()
         waited = 0
@@ -908,6 +915,15 @@ STEP_ENTRY = """el => {
 }"""
 
 
+def _step_entry(el) -> bool:
+    """Whether `el` is an entry of the form's list of steps (STEP_ENTRY); an element Apply can't read there (a plain
+    Worker's in a shadow root) is none, so it is never pressed."""
+    try:
+        return el.evaluate(STEP_ENTRY) is True
+    except Exception:
+        return False
+
+
 def _the_listed(page: Page, name: str):
     """The one entry in the form's list of steps that Claude named: of exactly that name, else the one whose name
     starts with it (a tracker's "Declaration Item not completed"), else the one that has it just after a heading's
@@ -921,7 +937,7 @@ def _the_listed(page: Page, name: str):
     headed = re.compile(rf"^[^:]{{0,40}}:\s*{re.escape(name.strip())}(?!\w)", re.IGNORECASE)
     for match in ({"name": name, "exact": True}, {"name": starts}, {"name": headed}):
         found = [el for role in ("link", "button", "tab") for el in page.get_by_role(role, **match).all()
-                 if el.is_visible() and el.evaluate(STEP_ENTRY) is True]
+                 if el.is_visible() and _step_entry(el)]
         if found:
             break
     if not found:

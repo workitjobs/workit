@@ -82,7 +82,7 @@ export async function injectFill(tabId, { batch = false, frameId = undefined } =
   const release = () => chrome.scripting.executeScript({ target, func: () => void (window.WIA.running = false) }).catch(() => {});
   try {
     await chrome.scripting.executeScript({ target, world: "MAIN", files: ENGINE_FILES });
-    await loadRulesIn(target, await rulesFor(jobSystem, claim.rules).catch(() => null));
+    await loadRulesIn(target, await rulesFor(jobSystem, claim.rules, href).catch(() => null));
   } catch (error) {
     await release();
     throw error;

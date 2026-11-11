@@ -125,6 +125,9 @@ goes on from the step that the page shows.
   and the site's account menu does. Then the pause goes on, and Claude fill reads the same page
   again; on the posting page it presses Apply now itself, under the drive guard. Any other Claude fill
   pause keeps `signed_in` None (or Oracle's), so a page gate's pause never goes on by itself.
+- Signing in on a paused page never ends Resume: a press on a sign-in, account or code step is not
+  his Submit, on any job system (KAN-781, `docs/sign-in.md`). Only the application's own Submit, or a
+  confirmation page after any press of his, makes the form his to send (`rehearsal.SENT`).
 - A tab that closed, or a rehearsal that ended, makes `resume={"ok": False,
   "why": ...}` (`rehearsal.TAB_CLOSED`, `ENDED`). The button stays, turned
   off, and says why. Fill again still fills the form anew.
@@ -144,7 +147,9 @@ Review with no submit. Also a closed tab, the `/resume` route, and the
 window's card and tile. `-k by_itself`: Lisul signs in to Google on the paused page and the fill goes
 on with no Resume; a captcha there stops that. Run it with `-k`; it opens Chromium. `tests/test_provider_sign_in.py`:
 the fake Microsoft Careers (`tests/fake_microsoft.py`) pauses at its sign-in window, Lisul signs in,
-and the form fills to its last page with no Resume, no provider button pressed and nothing sent.
+and the form fills to its last page with no Resume, no provider button pressed and nothing sent. `tests/test_rehearse.py -k oracle`: Lisul signs in
+to an Oracle-shaped page (email, Next, Send New Code, the code, Verify), and Resume goes on; the
+application's own Submit after it still ends Resume.
 
 ## Resume while a rehearsal fills (KAN-594)
 

@@ -9,14 +9,15 @@ submit while the guard reads it, a Proxy in the prototype chain, or a
 on main (the review of #449).
 
 NATIVES is a JS prelude: `$`-named consts taken from the browser's own
-prototypes when it runs. The guards run it before any page code (an init script,
-or a plain Worker's MAIN-world content script at document_start), so what they
-take is the browser's own; their reads go through these alone. An arrow `$R`
-call never looks a method up on the object it reads, a `$bare()` array has no
-prototype (so no setter of the page's runs on a write to it), and loops go by
-index (no iterator of the page's). A function evaluated on a page later
-(PROFILE_DIALOG from claude_fill, send_click.ELEMENT) runs it at the call: in
-the extension's isolated world that is the browser's own too, and in the page's
+prototypes when it runs. The guard script has its own such built-ins (KAN-710,
+apply.submit_guard); NATIVES serves the reads that also run outside it, so one
+body serves both: PROFILE_DIALOG (Claude fill evaluates it on its own) and
+send_click.ELEMENT (Ask's read, by plain.tools too, and the drive guard's Ask
+section, which runs NATIVES once as the guard starts, before any page code). An
+arrow `$R` call never looks a method up on the object it reads, a `$bare()` array
+has no prototype (so no setter of the page's runs on a write to it), and loops go
+by index (no iterator of the page's). Evaluated on its own, it runs at the call:
+in the extension's isolated world that is the browser's own, and in the page's
 world it is no worse than a plain read.
 
 Each helper takes the guards' own values (strings, elements) and answers
