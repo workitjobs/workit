@@ -196,3 +196,8 @@ veteran steps), the calendar's day cells, and whether Amazon's select2
 lists take the engine's clicks. `test_amazon_filler.py` runs the Filler on
 the engine's fake (`test/fake-amazon-page.js`), which needs a browser, so CI
 doesn't run it.
+
+The engine knows Microsoft Careers (`apply.careers.microsoft.com`) as an Eightfold site (KAN-770): `jobOf`,
+`jobNames` and `jobDescription` read it from Eightfold's API, so a request and `apply applied` get "Microsoft" and
+the role. Apply still fills its form with Claude fill: `model.EIGHTFOLD` leaves it out, since the Eightfold Filler
+was never checked behind Microsoft's sign-in.

@@ -311,9 +311,27 @@ fixes it live on that form.
   (`apply_bug`) is a Repair request (`ask.repair_requests`). His message and the fix go in the Record
   (`asks.json`, the README's "Ask Claude" section, history lines, and the changed fields' on-page answers).
 
+- **A consent dialog stops it (KAN-769).** An upload that brings on a consent dialog (Microsoft's Data Privacy
+  Notice) ends Claude's drive: its tool result says to stop, its buttons are refused, and the prompt says the
+  same. After the drive, an open one is a waiting item, "Press 'I understand' on the 'Data Privacy Notice' dialog
+  yourself". A capped Ask names it too. Before, Claude pressed its Cancel, the upload went, and Claude spent its
+  3,000,000-token cap (about 33 tool calls of a 90k-token page each) setting fields again. His press lets the file
+  the page holds go: nothing is attached again. Claude never clicks the option a list holds already (KAN-767).
+
 **Tests.** `tests/test_ask.py` (in CI, no browser): the hook's Ask mode, the read-back, an attestation
 put back, the window's routes, `apply ask`, and the Record and Repair request.
 `tests/test_dashboard.py -k ask_claude_box` types in the tile's box in Chromium.
+
+## His own Submit on an Eightfold form (KAN-771)
+
+A held page on an Eightfold careers site (the engine's `jobOf`: Netflix, Lockheed Martin, and Microsoft, which
+Claude fill fills) is confirmed by Eightfold's own check (`eightfold.confirmed`, "Application Submitted"), whichever
+Filler filled it. A confirmation that shows after the hold began counts as his Submit even when his press was not
+heard (`_Kept.hold`'s `unheard`): Lisul's Submit on Microsoft 200061280 (2026-11-10) went in, and Apply recorded
+nothing. Then the Tracker row and the Record are written as for any job system. The engine's `submitResult` also
+reads Eightfold's `POST /api/application/v2/submit` answer (`data.success`), for the extension's watch.
+
+**Tests.** `tests/test_rehearse.py -k eightfolds_own_check`; the engine's `test/submit.spec.ts`.
 
 ## Page gates (KAN-637)
 

@@ -160,6 +160,17 @@ into it and the window shows "Sample data".
   first page in `PAGES` on a plain Worker; the other pairs are marked
   `nightly` and run in `apply-nightly.yml` (KAN-780). Mark a test `nightly` only when it is slow
   and a faster PR case covers the same code. A guard PR gets an adversarial review first (root `CLAUDE.md`).
+- **The guards read the page only through built-ins taken before any page
+  code** (KAN-710, KAN-783): the guard script's own (`fn`, `get`, `test`,
+  `up`, `formOf`, ...), and `apply.natives` for the reads that also run on
+  their own (`PROFILE_DIALOG`, `send_click.ELEMENT`; the drive guard takes
+  the natives for Ask's read as it starts). A page's getter that throws or
+  lies, a Proxy prototype, or a replaced built-in sent an application when
+  a guard read `el.innerText` directly. A new read uses one of these, never
+  a property of the page's object, and a new listener that judges a press
+  goes through `judged` (a throw blocks). A request's URL, method and body
+  are read once, and what was judged is what is sent: an XHR keeps what its
+  `open()` took, and one opened by no `open()` of the guard's is not sent.
 - **No test reaches past loopback** (`tests/network_block.py`, KAN-662). A
   socket or name lookup to another host raises `NetworkBlocked`, Chrome
   started by a test resolves other hosts to nothing, and Playwright's own

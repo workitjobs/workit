@@ -1179,11 +1179,21 @@ class _Calibration:
             return CALIBRATION.format(self._count, self._size)
 
 
+def _eightfold(page) -> bool:
+    """Whether the page is an Eightfold careers site's, by the engine's own reading of its link: Microsoft's, which
+    Claude fill fills, too (KAN-771)."""
+    try:
+        return (fill_engine.job_of(page.url) or {}).get("site") == "eightfold"
+    except Exception:
+        return False
+
+
 def _confirmed(page, job_system: str) -> bool:
     """Whether the page shows that the application went in. A page still
-    loading, or gone, shows nothing yet."""
+    loading, or gone, shows nothing yet. An Eightfold page is read by Eightfold's
+    own check, whichever Filler filled it."""
     try:
-        check = CONFIRMED.get(job_system)
+        check = CONFIRMED.get(job_system) or (CONFIRMED["eightfold"] if _eightfold(page) else None)
         return check(page) if check else page.get_by_text(THANKS).first.is_visible()
     except Exception:
         return False
@@ -1321,6 +1331,9 @@ class _Kept:
             except Exception:
                 pass  # the page closing: the window's button still says so
         kept, closing, told, turned_down, said_sent = False, None, False, False, False
+        # An Eightfold page's own confirmation that shows from now on is his Submit's, heard or not (KAN-771): Lisul's
+        # Submit on Microsoft's form went unseen, and its "Application Submitted" page was never recorded.
+        unheard = _eightfold(self._page) and not _confirmed(self._page, job_system)
         if ask:
             ask.open(self._page)  # the caller closes it once hold() returns
         while not release.is_set():
@@ -1357,7 +1370,7 @@ class _Kept:
                     for name, context in asked:
                         redo(self._page, name, context)
                 if ask:
-                    if pressed:  # his Submit: the form is his to send, and Claude acts on it no more
+                    if pressed or kept:  # his Submit: the form is his to send, and Claude acts on it no more
                         ask.close()
                     for item in ask.asked():
                         # Claude drives the page again: both guards back on, in each document it loads too (going
@@ -1381,7 +1394,7 @@ class _Kept:
                 if pressed and not kept and not turned_down and (why := captcha.blocks(self._page)):
                     turned_down = True
                     refused(why)
-                if (pressed or signing) and not kept and _confirmed(self._page, job_system):
+                if (pressed or signing or unheard) and not kept and _confirmed(self._page, job_system):
                     kept = True
                     submitted(self._page)
                     closing = time.monotonic() + CLOSE_AFTER_S

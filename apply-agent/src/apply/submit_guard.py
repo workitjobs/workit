@@ -76,7 +76,13 @@ What a page can't reach (KAN-710, PR 477's review): the guards' state (lifted, h
 upload allowances, Ask's, the Posting's Apply's vouch) lives in each guard's closure, set only by control(): an event named with this run's
 token, sent from an isolated world or an init script, which no page sees. The guard tells Apply of Lisul's presses
 in its own voice (a console line, or the worker extension's event, with the token). It reads with built-ins taken
-before any page code, and a listener of its that throws blocks. Each form post is judged again as it leaves, with
+before any page code, and a listener of its that throws blocks. A request's URL, method and body are read once, and
+what was judged is what is sent (KAN-783): fetch sends the one Request it made and judged, an XHR keeps what its
+open() was given only once the browser took it, an XHR opened by no open() of the guard's is not sent while the guard
+is on, and an XHR's or a beacon's body the browser would turn into text is turned into text once, by the guard. The
+reads that run outside these built-ins (PROFILE_DIALOG, evaluated on its own by Claude fill, and send_click.ELEMENT,
+Ask's read) go through apply.natives, the same kind of built-ins; the drive guard takes them for Ask as it starts,
+and an evaluation on its own takes them as it runs. Each form post is judged again as it leaves, with
 the URL and entries it really carries; URLs resolve against the document's base; a button that holds a frame is
 never pressed. The drive guard's init script goes on at on_open, before each page's first load, in a live run too;
 a copy put into a page that skipped it, after its code, takes no lift or allowance (LATE). What no guard can tell: a page's plain fetch, or a form's own hidden field, to a URL that names no
@@ -102,6 +108,7 @@ from contextlib import contextmanager
 from playwright.sync_api import Page, Route
 
 from apply import captcha, send_click
+from apply.natives import NATIVES
 
 # The final requests the route stops, from the page or a worker: a path segment that names a
 # submit (Jobvite's .../submitApplication among them), Ashby's ApiSubmit, BambooHR's and Workable's.
@@ -117,19 +124,23 @@ ROUTED = re.compile(
 # KAN-647), and nothing an application could be: titled as making or finishing a profile, with
 # nothing in it that only an application asks (a file, an essay, a box or a choice to tick, a
 # password), and no form field of the page's own behind it. Claude fill and the guards both use it.
-PROFILE_DIALOG = r"""(dialog) => {
-  const by = (dialog.getAttribute('aria-labelledby') || '').split(/\s+/).filter(Boolean)
-    .map(id => (document.getElementById(id) || {}).innerText || '').join(' ');
-  const heading = dialog.querySelector('h1, h2, h3, [role=heading]');
-  const title = (dialog.getAttribute('aria-label') || by || (heading && heading.innerText) || '').trim();
-  if (!/\b(?:create|complete|build|set\s*up|finish)\b[^.]{0,30}\bprofile\b/i.test(title)) return false;
-  if (/\b(?:appl(?:y|ying|ication)|job|position|role)\b/i.test(title)) return false;
-  if (dialog.querySelector('input[type=file], textarea, input[type=checkbox], [role=checkbox], input[type=radio], '
+PROFILE_BODY = r"""(dialog) => {
+  const ids = $words($attr(dialog, 'aria-labelledby'));
+  let by = '';
+  for (let i = 0; i < ids.length; i++) { const n = $byId(ids[i]); by += (i ? ' ' : '') + (n ? $text(n) : ''); }
+  const heading = $one(dialog, 'h1, h2, h3, [role=heading]');
+  const title = $trim($attr(dialog, 'aria-label') || by || (heading ? $text(heading) : ''));
+  if (!$re(/\b(?:create|complete|build|set\s*up|finish)\b[^.]{0,30}\bprofile\b/i, title)) return false;
+  if ($re(/\b(?:appl(?:y|ying|ication)|job|position|role)\b/i, title)) return false;
+  if ($one(dialog, 'input[type=file], textarea, input[type=checkbox], [role=checkbox], input[type=radio], '
     + '[role=radio], input[type=password]')) return false;
-  const shown = (n) => n.type !== 'hidden' && n.type !== 'search' && (!n.checkVisibility || n.checkVisibility());
-  return ![...document.querySelectorAll('input, select, textarea')].some((n) => !dialog.contains(n) && shown(n)
-    && !n.closest('[role=search], [role=dialog], [aria-modal=true], dialog'));
+  const shown = (n) => $type(n) !== 'hidden' && $type(n) !== 'search' && $shown(n);
+  return !$any($all(document, 'input, select, textarea'), (n) => !$contains(dialog, n) && shown(n)
+    && !$up(n, '[role=search], [role=dialog], [aria-modal=true], dialog'));
 }"""
+# Evaluated on its own (claude_fill), outside the guards: through apply.natives, taken as it runs (KAN-783). The
+# guards judge a pop-up with their own copy (profileDialog), read with the built-ins they took before page code.
+PROFILE_DIALOG = "(dialog) => {" + NATIVES + "  return (" + PROFILE_BODY + ")(dialog);\n}"
 
 _TEMPLATE = r"""
 (() => {
@@ -1011,8 +1022,9 @@ _TEMPLATE = r"""
   const paramsText = fn(URLSearchParams.prototype, 'toString');
   const paramsOf = (x) => { try { return paramsText(x); } catch (e) { return null; } };
   const refused = (method, url) => (note(named(method, url)), reject(new TypeErr('Blocked by the @NAME@')));
-  // Read once (KAN-710): the request is made here, as fetch would make it, and that one request is judged and sent, so
-  // a URL whose words change on a second read, or an init whose method does, sends what was judged.
+  // Read once (KAN-710, KAN-783): the request is made here, as fetch would make it, and that one request is judged and
+  // sent, so a URL whose words change on a second read, an init whose getter or Proxy says another method or body on a
+  // second read, or a Request that instanceof can't see, sends what was judged. Its body is judged from the request.
   const Req = Request;
   W.fetch = function (input, init) {
     let request;
@@ -1022,8 +1034,7 @@ _TEMPLATE = r"""
       return reject(e);
     }
     const url = reqUrl(request), method = reqMethod(request);
-    const body = init && typeof init === 'object' && has(init, 'body') ? init.body : null;
-    if (isFinal(method, url, typeof body === 'string' ? body : paramsOf(body))) return refused(method, url);
+    if (isFinal(method, url, null)) return refused(method, url);
     // A body is read first (a Request's, a Blob's, any): Ashby's submit is named only there.
     if (!test(READS, method)) {
       const self = this;
@@ -1045,35 +1056,56 @@ _TEMPLATE = r"""
     try { if (isBytes(b)) return decode(decoder, b); } catch (e) {}
     return null;
   };
+  // An XHR's or a beacon's body, read once (KAN-783): one the browser sends as it is (a Blob, bytes, form data,
+  // URLSearchParams, and for an XHR a document), else the text the browser would make of it, made here once, so a
+  // toString or Symbol.toPrimitive of the page's that says another body on a second read sends what was judged.
+  const fdHas = fn(FD.prototype, 'has');
+  const once = (b, docs) => {
+    if (b === undefined || b === null || typeof b === 'string') return b;
+    if (typeof b === 'object' || typeof b === 'function') {
+      if (isBlob(b) || isBytes(b) || paramsOf(b) !== null) return b;
+      try { fdHas(b, ''); return b; } catch (e) {}
+      if (docs) { try { if (nodeTypeOf(b) === 9) return b; } catch (e) {} }
+    }
+    return Str(b);
+  };
   const ASHBY = /^https?:\/\/[^\/?#]*ashbyhq\.com\//i;
   const unread = (method, url, b) => !test(READS, text(method) || 'GET') && isBlob(b) && test(ASHBY, resolve(text(url), base()) || '');
-  // What each XHR opened, kept where its page can't change it.
+  // What each XHR opened, kept where its page can't change it: only once the browser's open() took it, so an open()
+  // that throws (a forbidden method, a bad URL) leaves the request and what is kept of it as they were (KAN-783).
   const opened = new WeakMap(), wmGet = fn(WeakMap.prototype, 'get'), wmSet = fn(WeakMap.prototype, 'set');
   const open = XMLHttpRequest.prototype.open;
   XMLHttpRequest.prototype.open = function (method, url) {
     const m = Str(method), u = Str(url);  // read once, and opened as read
     const args = [m, u];
     for (let i = 2; i < arguments.length; i++) args[i] = arguments[i];
+    const done = apply(open, this, args);
     wmSet(opened, this, [m, resolve(u, base()) || u]);
-    return apply(open, this, args);
+    return done;
   };
   const send = XMLHttpRequest.prototype.send;
   XMLHttpRequest.prototype.send = function (body) {
-    const sent = wmGet(opened, this) || ['', ''];
-    const method = sent[0], url = sent[1];
-    if (isFinal(method, url, bodyText(body)) || unread(method, url, body)) {
+    const kept = wmGet(opened, this);
+    // Opened by no open() of this guard's (another realm's, or before the guard went on): it can't be judged, so it
+    // isn't sent while the guard is on (KAN-783).
+    if (!kept && !lifted()) {
+      note('a request it could not read');
+      throw new DOMExc('Blocked by the @NAME@', 'NetworkError');
+    }
+    const method = kept ? kept[0] : '', url = kept ? kept[1] : '', sent = once(body, true);
+    if (isFinal(method, url, bodyText(sent)) || unread(method, url, sent)) {
       note(named(method, url));
       throw new DOMExc('Blocked by the @NAME@', 'NetworkError');
     }
-    return apply(send, this, arguments);
+    return apply(send, this, arguments.length ? [sent] : []);
   };
   // The beacon on Navigator's prototype, where a page's call of it from there comes too.
   const beacon = Navigator.prototype.sendBeacon;
   if (beacon) {
     Navigator.prototype.sendBeacon = function (url, data) {
-      const u = Str(url);
-      if (isFinal('POST', u, bodyText(data)) || unread('POST', u, data)) { note(named('POST', u)); return false; }
-      return apply(beacon, this, [u, data]);
+      const u = Str(url), sent = once(data, false);  // each read once, and sent as read (KAN-783)
+      if (isFinal('POST', u, bodyText(sent)) || unread('POST', u, sent)) { note(named('POST', u)); return false; }
+      return apply(beacon, this, arguments.length > 1 ? [u, sent] : [u]);
     };
   }
 })();
@@ -1172,6 +1204,7 @@ _CONTROLS = r"""
   }));
   // Ask Claude's drive (DriveGuard.asking): each trusted act judged on the real element, its text and attributes,
   // by send_click's words. The hook sees a snapshot's role and name only; this sees type=password and the rest.
+  // Read through apply.natives, taken here as the guard starts (KAN-783): no getter or method of the page's runs in it.
   const askFacts = @ASK_ELEMENT@;
   const SECRET = new RegExp(@ASK_SECRET@, 'i'), ATTESTS = new RegExp(@ASK_ATTEST@, 'i'), RESEND = new RegExp(@ASK_RESEND@, 'i');
   const DASHES = /[-_]+/g;
@@ -1203,6 +1236,11 @@ _CONTROLS = r"""
     } else if (test(RESEND, words)) refuse(event, 'the "' + slice(words, 0, 40) + '" click');
   }));
 """
+
+
+# The Ask section's read of an element (send_click.ELEMENT's), with the natives it reads through taken once, as the
+# drive guard starts, before any page code (KAN-783); ELEMENT evaluated on its own takes them as it runs.
+ASK_ELEMENT = "(() => {" + NATIVES + "  return (" + send_click.ELEMENT_BODY + ");\n})()"
 
 
 # The drive guard in a captcha's own frame: while Claude drives (DriveGuard.arm), every click, tap and key
@@ -1239,7 +1277,7 @@ def _script(key: str, name: str, extra: str = "", in_captcha: str = "", held: st
     for placeholder, value in {"@PORT_TOUCH@": PORT_TOUCH if port else "", "@PORT_SAID@": PORT_SAID if port else "",
                                "@TELL@": "" if key != REHEARSAL else TELL_PORT if port else TELL_CDP, "@NOTE@": note or NO_NOTE,
                                "@EXTRA@": extra, "@CAPTCHA@": in_captcha, "@HELD@": held,
-                               "@PROFILE_DIALOG@": PROFILE_DIALOG, "@CAPTCHA_HOSTS@": json.dumps(captcha.HOSTS),
+                               "@CAPTCHA_HOSTS@": json.dumps(captcha.HOSTS),
                                "@CAPTCHA_PATHS@": json.dumps(captcha.PATHS), "@CONTROL@": control_type(key),
                                "@TELL_TYPE@": TELL_TYPE, "@TELL_PREFIX@": TELL_PREFIX, "@TOUCH@": touch_type(key),
                                "@KEY@": key, "@NAME@": name, "@BOX@": box, "@MARK@": MARKS[key], "@LATE@": _js(late),
@@ -1389,7 +1427,7 @@ def drive_script(sms_opt_in: bool = False, marketing_opt_in: bool = False, port:
     document already open, after its own code; `at_open`: on_open's copy for a live run's page, lifted until a
     DriveGuard arms it)."""
     controls = _CONTROLS.replace("@SMS_OPT_IN@", _js(sms_opt_in)).replace("@MARKETING_OPT_IN@", _js(marketing_opt_in))
-    for name, value in {"@CAPTCHA_CARRIED@": json.dumps(captcha.CARRIED), "@SIGN_IN_CLICK@": json.dumps(captcha.SIGN_IN_CLICK),"@ASK_ELEMENT@": send_click.ELEMENT, "@ASK_SECRET@": json.dumps(send_click.SECRET.pattern),
+    for name, value in {"@CAPTCHA_CARRIED@": json.dumps(captcha.CARRIED), "@SIGN_IN_CLICK@": json.dumps(captcha.SIGN_IN_CLICK),"@ASK_ELEMENT@": ASK_ELEMENT, "@ASK_SECRET@": json.dumps(send_click.SECRET.pattern),
                         "@ASK_ATTEST@": json.dumps(send_click.ATTEST.pattern), "@ASK_RESEND@": json.dumps(send_click.RESEND.pattern)}.items():
         controls = controls.replace(name, value)
     return _script(DRIVE, "Apply drive guard", extra=controls,
