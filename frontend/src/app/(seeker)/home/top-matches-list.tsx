@@ -247,7 +247,11 @@ export function TopMatchesList({
                         <span className="shrink-0">{row.posted}</span>
                       </>
                     )}
-                    {match && <span className="ml-1 flex shrink-0 @4xl/main:hidden">{match}</span>}
+                    {/* Picking has no buttons' row, so the match stays
+                        here below @4xl/main; otherwise it leads that row. */}
+                    {picking && match && (
+                      <span className="ml-1 flex shrink-0 @4xl/main:hidden">{match}</span>
+                    )}
                   </div>
                 </div>
                 {/* From @4xl/main the match is a column of its own
@@ -300,8 +304,16 @@ export function TopMatchesList({
                     {details}
                     {/* Save, then Apply Now: their own full-width line below
                         @xl/main, since beside the text on a phone they
-                        squeezed the title to two words a line. */}
+                        squeezed the title to two words a line. Below
+                        @4xl/main the match leads the line: on the
+                        company's line it cut the name to "Hewlett P…".
+                        Apply Now is secondary here (2026-11-10): filled on
+                        every row, five violet buttons stacked into a wall
+                        on a phone, and the title is the row's way in. */}
                     <div className="flex shrink-0 items-center gap-2 @max-xl/main:w-full">
+                      {match && (
+                        <span className="mr-auto flex shrink-0 @4xl/main:hidden">{match}</span>
+                      )}
                       <SaveJobButton jobId={row.id} title={row.title} stage={row.stage} />
                       <ApplyButton
                         jobId={row.id}
@@ -309,6 +321,7 @@ export function TopMatchesList({
                         applyUrl={row.applyUrl}
                         canMarkApplied={canMarkApplied}
                         applied={hasApplied(row.stage)}
+                        variant="secondary"
                         className="whitespace-nowrap @max-xl/main:flex-1"
                       />
                     </div>

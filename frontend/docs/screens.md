@@ -638,8 +638,12 @@ from `components/job-posting-card.tsx` and leaves its slot empty; a screen
 reader still hears "Salary not listed". The slots used to print that in
 italic, and over half the feed's cards had at least one. Under 448px of card
 body the empty slots close up instead. The title is one line, trailing off
-with an ellipsis (a wrapped title made its card taller than the rest), and a
-fact stops at its column's edge. A title is whole on hover; a fact
+with an ellipsis (a wrapped title made its card taller than the rest), two on
+a phone's card, where no card stands beside it (one cut every title to
+"Software Engine…", 2026-11-10), and a fact stops at its column's edge.
+Below 576px of card the match tile is a row, the 48px ring beside the tier
+and the reasons: the 88px ring stacked over them made a phone's card about
+650px tall. A title is whole on hover; a fact
 isn't, on a card that opens its job posting's page, since the card's click
 layer sits over the facts (the job posting's page shows every fact whole). An internship shows when it
 starts in place of years (the card's `startTerm` fact: "Start in Summer
@@ -684,9 +688,13 @@ number above counts only 80 and up. Each is a flat row in one tile: a well
 with the logo, the title (its link to the job posting page), the company
 and when it was posted on one line ("HP · 21 days ago", as the job cards'
 meta line; the company truncates first), the match ring, then Save and
-Apply Now (the same dialog as everywhere, KAN-290). From `@4xl/main` the
+Apply Now (the same dialog as everywhere, KAN-290), a secondary button here
+(2026-11-10): filled on every row, five violet buttons stacked into a wall
+on a phone, and a view has one primary action. From `@4xl/main` the
 ring is a column of its own against Save, so the scores line up down the
-list (KAN-423); below it, it ends the company's line. The posted date was a
+list (KAN-423); below it, it leads the buttons' row (in picking mode,
+which has no buttons, it ends the company's line), since on the company's
+line it cut the name short. The posted date was a
 second pill column until 2026-11-10: two pills in fixed columns floated in
 the middle of the row, apart from both the title and the buttons. Tailor My Resume sat between them and was
 taken out at the user's ask: the list is for choosing what to apply to. The
@@ -998,18 +1006,21 @@ posting closed". Remove asks first, since a closed job can't be saved
 again, so there is no Undo. An applied job's row never mentions its posting
 closing: nothing changes for the student, and the application's page says
 it in its status cards.
-**Role is one column holding the company too**: the company's logo, then
+**Job is one column holding the company too** (named Role until
+2026-11-10: a posting is a "job" on every screen): the company's logo, then
 the role (bold, the row's link, cut with the whole title on hover) over the
 company's name in meta grey. KAN-256 split them into two frozen columns,
 Company then Role; together they took about 500px, so few other columns
 showed, and KAN-282 stacked them again. The company is still its own field
-for the filters and the sort. **Role stays frozen** at the left
+for the filters and the sort. **Job stays frozen** at the left
 while the rest scrolls under it (a sticky cell painting the row's
 background and its hover tint; the edge is a shadow, since a collapsed
-table's borders don't move with a sticky cell). **It freezes from 672px of
-page up only**: at 320px it is about a phone's whole table, and frozen
-there it covered it, so the scroll showed no other column; below 672px it
-scrolls with the rest. A sticky
+table's borders don't move with a sticky cell), at every width. **Below
+672px of page it is 208px** (its kept width overridden), with the title
+on two lines, so a phone's table shows most of Status beside it: at its
+320px it was about a phone's whole table, so it scrolled with the rest
+there until 2026-11-10, and the phone's table showed the job alone with
+Status cut in half at its edge. A sticky
 cell traps a stretched link, so **the row opens the application on a click
 anywhere** (`components/clickable-row.tsx`, Live Activity's rows too), leaving clicks on links and
 buttons alone and opening a new tab on Cmd or Ctrl; the role is still the
@@ -1231,11 +1242,14 @@ tracker row, and the tab title comes from the posting's own read:
   list's own, not a green Applied With). The whole row opens
   View Resume's dialog (`useResumeViewer`, shared with the list's button).
   It was a bare View Resume button with loose tags until KAN-317, unlike a
-  resume anywhere else. With none sent, a dashed placeholder box (the
-  upload dropzone's outline) says "No resume sent yet". Answers is that
-  same dashed box for now: neither Apply nor auto apply keeps the answers
-  typed into the employer's form yet, and the slot holds their place so
-  the section keeps its shape when they arrive.
+  resume anywhere else. Resume and Answers sit in one white card under the
+  heading, as Interviews & Dates does. With none sent, one quiet line with
+  its glyph says "No resume sent yet", a resume row's height. Answers is
+  that same line for now: neither Apply nor auto apply keeps the answers
+  typed into the employer's form yet, and the line holds their place so
+  the section keeps its shape when they arrive. Both were dashed boxes, the
+  upload dropzone's outline on the grey ground, until 2026-11-10, and read
+  as places to drop a file.
 - **Job Description**: About the Role alone (`JobViewBody`'s
   `descriptionOnly`). The job page's sent and applied notes and its
   Key Requirements card stay off: they pushed the description down and are
@@ -1497,10 +1511,14 @@ page with one action.
   under the heading, only while the Chrome extension is missing (asked of
   the extension itself on load and when the tab comes back into focus; it
   counts as installed until it answers, so the banner never flashes in).
+  For a student without the extension it opens, its row growing from
+  nothing over 300ms, so Up Next glides down rather than jumping
+  (2026-11-10); the gap under it is its own and closes with it.
   Chrome's mark in a 40px bordered tile, "Add the Chrome Extension" over
   one line on what it does, and Install while
-  `NEXT_PUBLIC_EXTENSION_INSTALL_URL` is set (the line asks the student to
-  get the link from the team while it isn't). **Only the required step**
+  `NEXT_PUBLIC_EXTENSION_INSTALL_URL` is set (while it isn't, the line says
+  the install link is coming soon; it asked the student to get the link
+  from the team until 2026-11-10, which read as an internal note). **Only the required step**
   (2026-10-29): it was "Set Up Auto Apply, 1 of 3 done" with a Configure
   dialog that counted a default resume and the Claude MCP too, and students
   read all three as required. Both are optional, so each shows where it

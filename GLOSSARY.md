@@ -197,7 +197,7 @@ A job posting that a student added by its link, because WorkIt does not list it:
 _Avoid_: unlisted job posting, external job, custom job, manual job
 
 **Match score**:
-How well one job posting fits a student, from 0 to 100, in bands named by their lowest score (Strong Match at 80 and above).
+How well one job posting fits a student, from 0 to 100, in bands named by their lowest score: Weak Match under 40, Fair Match from 40, Good Match from 65, Strong Match from 80 and Excellent Match from 90.
 _Avoid_: fit score, fit, match percentage
 
 **Application event**:

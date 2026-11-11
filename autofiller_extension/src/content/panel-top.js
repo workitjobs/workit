@@ -72,6 +72,7 @@ window.WIA = window.WIA || {};
     [90, "Excellent Match"],
     [80, "Strong Match"],
     [65, "Good Match"],
+    [40, "Fair Match"],
     [0, "Weak Match"],
   ];
   const bandOf = (score) => BANDS.find(([min]) => score >= min)[1];

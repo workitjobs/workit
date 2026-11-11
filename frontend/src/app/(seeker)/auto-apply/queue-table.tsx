@@ -85,7 +85,7 @@ const TAB_STATUS: Record<BatchTabState, { label: string; ink: string; Icon: type
  *  752px instead (TABLE_WIDTH), so Role keeps 248px: at 456px it ran past
  *  the card and the ⋯ column covered the end of a long title. */
 const COLUMNS: { id: string; label: string; width?: string; folds?: boolean }[] = [
-  { id: "role", label: "Role" },
+  { id: "role", label: "Job" },
   // "Ready to Submit · Review" with its glyph, about 200px.
   { id: "status", label: "Status", width: "w-60" },
   { id: "resume", label: "Resume", width: "w-52" },

@@ -10,9 +10,9 @@
  * are a placeholder: whoever owns the matching model sets the real ones, and
  * the labels are the only place the screen states them.
  *
- * Four bands in red, yellow and green, the `--color-match-*` tokens in
- * globals.css: red for Weak, yellow for Good, green for Strong and a deeper
- * green for Excellent, so a score says good or bad at a glance (KAN-518). They
+ * Five bands, the `--color-match-*` tokens in globals.css: red for Weak,
+ * slate grey for Fair, yellow for Good, green for Strong and a deeper green
+ * for Excellent, so a score says good or bad at a glance (KAN-518). They
  * were one magenta ramp until then, picked so a score shared no hue with a
  * stage, but a pink ring said nothing about the fit: the user wanted the
  * colours everyone reads without a legend. So an Offer card can draw two greens;
@@ -26,14 +26,17 @@
  * words are ink-muted wherever they are printed (see `MatchRail`), so no step
  * has to pass as text.
  *
- * Four bands, not five: Fair Match, the old 50-64 band, folds into Weak Match
- * instead of getting its own step, since below Good is all "don't count on
- * this one."
+ * Fair Match (40 to 64) is back as its own band (2026-11-10). It folded
+ * into Weak, since below Good is all "don't count on this one", but with
+ * these placeholder cut-offs nearly every job scores in the 50s, and Weak
+ * at 0 to 64 drew a red ring on every card in the feed. Red now says what
+ * it should: a poor fit, under 40.
  */
 const TIERS = [
   { min: 90, label: "Excellent Match", color: "var(--color-match-excellent)" },
   { min: 80, label: "Strong Match", color: "var(--color-match-strong)" },
   { min: 65, label: "Good Match", color: "var(--color-match-good)" },
+  { min: 40, label: "Fair Match", color: "var(--color-match-fair)" },
   { min: 0, label: "Weak Match", color: "var(--color-match-weak)" },
 ] as const;
 

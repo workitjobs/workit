@@ -450,19 +450,24 @@
    * Dashboard bar's track). --color-positive itself misses it, at 2.8:1, so
    * Strong takes #139564, positive at 33% lightness. --chart-3 shares it.
    *
-   * WEAK IS RED (KAN-518, back on 2026-11-03). KAN-569 drew it in neutral ink
-   * while the cut-offs in @/lib/match are placeholders, since nearly every
-   * job scored Weak and every card drew a red ring. The user wanted the bands
-   * back: a black ring read as a fault, not as a score.
+   * WEAK IS RED (KAN-518, back on 2026-11-03), BELOW 40 ONLY. KAN-569 drew
+   * every weak score in neutral ink while the cut-offs in @/lib/match are
+   * placeholders, and a black ring read as a fault, not as a score. With
+   * Weak at 0 to 64 every card in the feed drew a red ring, so the whole
+   * list read as failing (2026-11-10). Fair (40 to 64) is a mid slate:
+   * grey enough to read as neither good nor bad, light enough not to read
+   * as the black ring.
    *
    *                white   well
    *   excellent    5.35    4.99
    *   strong       3.81    3.56
    *   good         3.24    3.03
+   *   fair         3.68    3.38
    *   weak         5.77    5.39 */
   --color-match-excellent: var(--color-positive-ink);
   --color-match-strong: #139564;
   --color-match-good: #b98600;
+  --color-match-fair: #7b8698;
   --color-match-weak: var(--color-danger);
 
   /* Updates --------------------------------------------------------------

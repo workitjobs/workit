@@ -18,6 +18,8 @@ import type { ReactNode } from "react";
  * (./setup-strip.tsx) offers what a batch still needs.
  */
 export function AutoApplyPanel({ children }: { children: ReactNode }) {
-  // The page's padding is the first section's top margin.
-  return <div className="[&>:first-child]:mt-0">{children}</div>;
+  // The page's padding is the first section's top margin. The setup strip
+  // is always there, open or closed (./setup-strip.tsx), and holds the gap
+  // under itself, so the section after it drops its own.
+  return <div className="[&>:first-child]:mt-0 [&>[data-setup-strip]+*]:mt-0">{children}</div>;
 }

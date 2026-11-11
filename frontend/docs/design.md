@@ -751,9 +751,10 @@ say the same thing about an application (the grid and list, and the board
 when it returns): its role, company, date and match
 score (KAN-256). There is no progress bar; it only restated the stage.
 
-A match score is red, yellow or green (KAN-518): Weak red, Good yellow,
-Strong green and Excellent a deeper green, so it says good or bad with no
-legend. The four `--color-match-*` tokens in `globals.css` are read only
+A match score is red, slate, yellow or green (KAN-518): Weak (under 40)
+red, Fair (40 to 64) slate grey, Good yellow, Strong green and Excellent a
+deeper green, so it says good or bad with no legend. The five
+`--color-match-*` tokens in `globals.css` are read only
 through `matchColor()` in `lib/match.ts`: the Applications match badge, the
 job page's match rail, Tailor's ring and the company Dashboard's match bar.
 They paint strokes and bars, never text; the tier words stay ink-muted, with
@@ -768,7 +769,15 @@ other's. The marketing pages' pink, which borrowed that ramp, is
 (2026-11-03). KAN-569 drew Weak in neutral ink while the cut-offs in
 `lib/match.ts` are placeholders, since every card on the Jobs page scored
 under 65 and all 50 drew a red ring. The user brought red back: a black ring
-read as a fault rather than a score.
+read as a fault rather than a score. **Red is for under 40 only**
+(2026-11-10): with Weak at 0 to 64 the whole feed still drew red rings and
+read as failing, so Fair Match (40 to 64) came back as its own band, in a
+mid slate (`--color-match-fair`, 3.68:1), grey enough to read as neither
+good nor bad and light enough not to read as that black ring.
+**One score display per context**: a posting's tile (the ring over its
+tier and reasons on a grey tile: a feed card, a job's panel), the compact
+card's 48px tile in the split list, and a ring pill in a table row (the
+Tracker, Home's Top Matches, Auto Apply). A page shows a job's score once.
 
 Intake's step chips say what became of each section with a corner badge
 in two of those (KAN-257): a check on `--color-step-done` green, a dash on

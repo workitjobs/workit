@@ -125,7 +125,7 @@ export function FilterBar({
             id="applications-search"
             label="Search Applications"
             name="q"
-            placeholder="Search role or company"
+            placeholder="Search job or company"
             defaultValue={query.q}
             enterKeyHint="search"
           />

@@ -2085,7 +2085,7 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   the assistant two marks (`docs/design.md`, Brand and icons). Tailor My
   Resume on a job's card and page is the one exception (`TailorIcon`,
   KAN-518): beside Ask Scout, a second sparkle read as a second assistant.
-- **A match score is red, yellow or green, only through `matchColor()`**
+- **A match score is red, slate, yellow or green, only through `matchColor()`**
   (`lib/match.ts`, KAN-518; `docs/design.md`, Colour): a magenta ramp said
   nothing about the fit, so the score now shares hues with the stages. The
   ramp's pink lives on as the marketing pages' `--color-updates`: a landing
@@ -2093,7 +2093,9 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   there when the bands changed. **Weak is red** (`--color-match-weak` is
   `--color-danger`): KAN-569 drew it in neutral ink while the cut-offs are
   placeholders, and the user brought the bands back on 2026-11-03, since a
-  black ring read as a fault. Keep all four bands coloured.
+  black ring read as a fault. Since 2026-11-10 red is under 40 only, and
+  Fair (40 to 64) is a mid slate (`--color-match-fair`): with Weak at 0 to
+  64 every card in the feed drew red. Keep all five bands coloured.
 - **A button is a rounded rectangle; a pill is a chip** (`ui/chip.tsx`, KAN-251).
   Pick a button's size by where it sits (`docs/design.md`, Components). A
   `className` on a Button or Chip may place it or colour a state, never change

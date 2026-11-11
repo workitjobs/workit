@@ -180,7 +180,7 @@ export const COLOR_GROUPS: ColorGroup[] = [
   },
   {
     title: "Match",
-    note: "The bands a match score is read in, from @/lib/match: the ring on a board card's badge, the arc on a job's match rail, and the bar on the company Dashboard's Recent Applicants. Red, yellow and green, so a score says good or bad with no legend. Strokes and bars only, never text: the tier's words stay ink-muted. Every step clears 3:1 on white and on --color-well.",
+    note: "The bands a match score is read in, from @/lib/match: the ring on a board card's badge, the arc on a job's match rail, and the bar on the company Dashboard's Recent Applicants. Red, slate, yellow and green, so a score says good or bad with no legend; red only under 40. Strokes and bars only, never text: the tier's words stay ink-muted. Every step clears 3:1 on white and on --color-well.",
     tokens: [
       {
         token: "--color-match-excellent",
@@ -191,9 +191,10 @@ export const COLOR_GROUPS: ColorGroup[] = [
         role: "Strong Match, green · 3.81:1 on white",
       },
       { token: "--color-match-good", role: "Good Match, yellow · 3.24:1 on white" },
+      { token: "--color-match-fair", role: "Fair Match, 40 to 64, slate grey · 3.68:1 on white" },
       {
         token: "--color-match-weak",
-        role: "→ --color-ink-muted · Weak Match, neutral until real cut-offs (KAN-569) · 10.70:1 on white",
+        role: "→ --color-danger · Weak Match, under 40, red · 5.77:1 on white",
       },
     ],
   },

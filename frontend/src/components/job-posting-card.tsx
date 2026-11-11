@@ -76,7 +76,8 @@ import type { LogoSrc } from "@/lib/job-logo";
  * only three and the grid's columns sat ~300px apart with nothing between
  * them; the fixed slots are what made the grid hold up with gaps in it.
  *
- * THE TITLE IS ONE LINE, trailing off with an ellipsis. Scraped titles run to
+ * THE TITLE IS ONE LINE, trailing off with an ellipsis, and two on a phone's
+ * card, where no card stands beside it (2026-11-10). Scraped titles run to
  * 113 characters ("… (Bangkok-based, Relocation Provided)"), and a title that
  * wrapped made its card taller than the ones around it (asked for
  * 2026-10-09; it was clamped at two lines before). The whole title is the
@@ -357,9 +358,13 @@ export function JobPostingCard({
               {/* p-0.5 inside -m-0.5: room for a link's focus ring, which
                   the clamp's overflow would otherwise cut, at no change of
                   place (mt-1 plus the padding is the 1.5 it was). */}
+              {/* Two lines on a phone's card (below 448px of body), one
+                  above: a phone's cards stack one to a row, so a taller one
+                  stands beside nothing, and one line cut every title to
+                  "Software Engine…" (2026-11-10). */}
               <h3
                 title={job.title}
-                className="text-title text-ink -mx-0.5 mt-1 -mb-0.5 truncate p-0.5"
+                className="text-title text-ink -mx-0.5 mt-1 -mb-0.5 truncate p-0.5 @max-md:line-clamp-2 @max-md:whitespace-normal"
               >
                 {job.titleHref ? (
                   <Link
