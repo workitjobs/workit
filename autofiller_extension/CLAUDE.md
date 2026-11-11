@@ -1678,7 +1678,11 @@ the row names the signed-in sender, who alone can read it back. The popup's Requ
 (KAN-369) sends `POST /job-system-requests` (`routers/job_system_requests.py`):
 the host alone, no account in the row. The off switch (KAN-467) reads `GET
 /extension/config` (`routers/extension_config.py`), public and sent with no
-token: it names only the job systems turned off. Every fill sends `POST
+token: it names only the job systems turned off. The Rules table (KAN-756's
+contract, KAN-773; `src/background/rules.js`) is `POST /extension/rules/token`
+with the posting's link, then `GET /extension/rules` with that site token
+(`routers/extension_rules.py`): the account's watermarked copy of the
+engine's table for that one job system, below. Every fill sends `POST
 /fill-events` (KAN-476, `routers/fill_events.py`; "Fill numbers" below):
 counts and error names only, with the sender for the backend's daily cap.
 The rest are older:
@@ -1764,6 +1768,41 @@ browser trusts the extension's declared permission instead of requiring the
 server to opt in. This is standard, documented Chrome extension behavior,
 not something this prototype had to build. See Open Items for the one
 caveat (this is unverified against a live Chrome instance — see below).
+
+## The Rules table from the API (KAN-773): fetched on posting open, memory only
+
+The engine bundles its Rules table (selectors, wordings, patterns, answer
+rules; the engine README's "The Rules table") and the API serves the same
+table, one job system at a time, watermarked per account
+(`backend/app/routers/extension_rules.py`). `src/background/rules.js`
+fetches it as a posting opens, before any fill: `panel/where` (the
+launcher) and a batch tab's `openTab` call `prefetchRules`, which asks a
+site token for the page's link, then the table. A token is used again
+until 15 s before it expires (5 min by default), then a new one is asked
+for; a 401 for the table gets one new token and one more fetch.
+
+- **Memory only.** The table lives in the service worker's memory and in the
+  page's isolated world (`window.WIA.rules`, which the launcher asks for with
+  `rules/get`, so a worker Chrome stopped while the student read the posting
+  loses nothing). Never `chrome.storage`, IndexedDB or the page's storage.
+  Another account's sign-in drops every token and table.
+- **Every injection loads it.** `injectFill` (and `tab-load.js`'s Workable
+  draft check) runs `loadRulesIn` right after `ENGINE_FILES`; the
+  background's own engine, which plans, holds every site's held table at
+  once (the answers are the same in each).
+- **Any failure is the bundled table.** No answer, any 4xx or 5xx (a 500
+  too), a token for another job system, or a table the engine refuses (a
+  `RulesError`, checked in the background before it is held): the table
+  isn't held and the engine fills with its bundled one. A fill never waits
+  for the API: a table still on its way is the next fill's.
+- **As received.** The watermark is in the strings' order and spelling:
+  nothing here sorts, dedupes or rewrites them.
+- Practice forms, job systems the off switch turned off and signed-out
+  pages ask for nothing. The Store package still bundles the table.
+
+`test/rules.extension.spec.ts`: the prefetch, a renamed Ashby submit
+selector the fill then can't find, the token's reuse and renewal, every
+error in the contract falling back, and nothing stored.
 
 ## Work authorization, visa, clearance and EEO self-identification questions
 

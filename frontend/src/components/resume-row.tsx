@@ -1,20 +1,27 @@
 "use client";
 
-import { FileArrowDownIcon, StarIcon } from "@phosphor-icons/react/ssr";
+import { ArrowSquareOutIcon, FileArrowDownIcon, StarIcon } from "@phosphor-icons/react/ssr";
 import Link from "next/link";
-import { useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useRef, useState, type FormEvent, type ReactNode } from "react";
 
-import { LocalDate } from "@/app/(seeker)/local-time";
+import { LocalDate, LocalDateTime } from "@/app/(seeker)/local-time";
 import { DeleteResumeConfirm } from "@/app/(seeker)/resumes/delete-confirm";
-import { EllipsisIcon, PdfIcon, PencilIcon, TrashIcon } from "@/components/icons";
+import { EllipsisIcon, PdfIcon, PencilIcon, TrashIcon, UploadIcon } from "@/components/icons";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/shadcn/dropdown-menu";
+import { CompanyLogo } from "@/components/company-logo";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { IconButton } from "@/components/ui/icon-button";
+import { TextInput } from "@/components/ui/text-field";
 import { cn } from "@/lib/cn";
+import { jobLogo } from "@/lib/job-logo";
 import type { ResumeItem } from "@/lib/resume-actions";
 
 /** One resume row. The in-flight upload (the Resumes view's
@@ -45,6 +52,341 @@ export const ROW_MARK = "hidden size-5 shrink-0 @sm:block";
 /** The name and its line: never under half the row (KAN-575). At 375 the
  *  icons and a badge squeezed one card's name to 0px. */
 export const ROW_NAME = "min-w-1/2 flex-1";
+
+/** The Resumes page's card grid (2026-11-10, after the Tracker's cards and
+ *  Google Drive's rows): the name and what the resume is, Date Modified in
+ *  a fixed column, and the actions in a column five icons wide (the four
+ *  that show on hover and ⋮), so every card's date lines up and nothing
+ *  moves when the icons appear. Below `@2xl` of the card (672px) the date
+ *  joins the line under the name. */
+const CARD_GRID =
+  "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 p-3 @2xl:grid-cols-[minmax(0,1fr)_11rem_10rem] @2xl:gap-6 @2xl:px-4";
+
+/** What a card's actions do, as its row hands them over. */
+export type CardActions = {
+  primary: boolean;
+  onMakePrimary: () => void;
+  onRename: () => void;
+  download: { label: string; busy?: boolean; onPick: () => void };
+  onDelete: () => Promise<void>;
+};
+
+/** The icons that wait for the pointer (Google Drive's rows): hidden until
+ *  the card is hovered or holds the keyboard's focus, in place, so the row
+ *  never shifts; on a touch screen, which has no hover, never, and ⋮ holds
+ *  them. */
+const ON_HOVER =
+  "opacity-0 transition-opacity duration-150 group-focus-within:opacity-100 group-hover:opacity-100 pointer-coarse:hidden";
+
+/**
+ * A card's actions (2026-11-10, after Google Drive): at rest only ⋮ (More
+ * actions) and, on the primary resume, its filled star, which is a status;
+ * on hover or focus, Make Primary, Rename, Download and Delete appear left
+ * of ⋮. ⋮ holds every action, worded (`RowMoreMenu` with `always`), so a
+ * touch screen and a phone reach them all. Four icons on every card at all
+ * times read busy to the user. Delete asks first, from either place.
+ */
+function CardActionIcons({
+  name,
+  href,
+  actions,
+}: {
+  name: string;
+  href: string;
+  actions: CardActions;
+}) {
+  const { primary, onMakePrimary, onRename, download, onDelete } = actions;
+  return (
+    <div className="relative z-10 flex items-center justify-end">
+      {primary ? (
+        <PrimaryStar name={name} primary />
+      ) : (
+        <span className={ON_HOVER}>
+          <PrimaryStar name={name} primary={false} onMakePrimary={onMakePrimary} />
+        </span>
+      )}
+      <div className={cn("flex items-center", ON_HOVER)}>
+        <IconButton
+          label={`Rename ${name}`}
+          tooltip="Rename"
+          className={ROW_ACTION}
+          onClick={onRename}
+        >
+          <PencilIcon className="size-4" />
+        </IconButton>
+        <IconButton
+          label={`Download ${name}`}
+          tooltip={download.label}
+          className={ROW_ACTION}
+          disabled={download.busy}
+          onClick={download.onPick}
+        >
+          <FileArrowDownIcon aria-hidden className="size-4" />
+        </IconButton>
+        <DeleteResumeConfirm
+          onDelete={onDelete}
+          trigger={
+            <IconButton
+              label={`Delete ${name}`}
+              tooltip="Delete"
+              className={cn(ROW_ACTION, "hover:text-danger")}
+            >
+              <TrashIcon className="size-4" />
+            </IconButton>
+          }
+        />
+      </div>
+      <RowMoreMenu
+        always
+        name={name}
+        open={href}
+        onRename={onRename}
+        download={download}
+        onMakePrimary={primary ? undefined : onMakePrimary}
+        onDelete={onDelete}
+      />
+    </div>
+  );
+}
+
+/**
+ * One resume on the Resumes page, as a wide card after the Tracker's
+ * (`applications/cards.tsx`, the user's call of 2026-11-10): a tile saying
+ * what the resume is, the name, and a line with an icon saying it in words
+ * (`about`), then **Date Modified**, then the actions (`CardActionIcons`).
+ * The rows it replaced were 52px grey strips with the date pushed against
+ * the icons, which the user found skinny and cramped.
+ *
+ * Date Modified is the latest of the two events, labeled with which it is:
+ * "Modified" over the last edit's date and time, or "Created" over when it
+ * was made or uploaded, for a resume never edited. It was two columns,
+ * Created and Last Edited, which the user had condensed into one, as
+ * Google Drive's Date modified.
+ *
+ * The whole card opens the resume (`href`): the name's link stretches over
+ * it, and the actions and any link in `about` sit above it. `edited` is
+ * null for a resume never edited (an upload, or a built resume as made).
+ * The pickers' rows keep their one-line strip (`ResumeRow` without `page`).
+ *
+ * **Rename edits the name on the card** (`rename`, `RenamingCard`).
+ */
+export function ResumeCard({
+  name,
+  href,
+  tile,
+  about,
+  badge,
+  created,
+  edited,
+  actions,
+  rename,
+}: {
+  name: string;
+  href: string;
+  /** What the resume is, at a glance: `FileTypeTile`, `BuiltPageTile` or
+   *  `PostingLogoTile`. */
+  tile: ReactNode;
+  about: ReactNode;
+  badge?: ReactNode;
+  created: string | null;
+  edited: string | null;
+  actions: CardActions;
+  /** Set while the student renames it: the card holds the name's field. */
+  rename?: Rename;
+}) {
+  if (rename) return <RenamingCard name={name} tile={tile} rename={rename} />;
+  const modified = edited ?? created;
+  const label = edited ? "Modified" : "Created";
+  return (
+    <Card
+      padding="none"
+      className="group hover:border-ink-meta hover:shadow-lift ease-glide @container relative mt-3 transition-[box-shadow,border-color] duration-200"
+    >
+      <div className={CARD_GRID}>
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="hidden shrink-0 @sm:block">{tile}</span>
+          <div className="min-w-0">
+            <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+              <Link
+                href={href}
+                title={name}
+                className="text-subtitle text-ink after:rounded-card focus-visible:after:ring-brand-ring min-w-0 truncate leading-5 after:absolute after:inset-0 focus-visible:outline-none focus-visible:after:ring-2"
+              >
+                {name}
+              </Link>
+              {badge}
+            </div>
+            <div className="text-note text-ink-meta mt-1 flex min-w-0 items-center gap-1.5">
+              {about}
+            </div>
+            {/* Narrower, the column's date reads here. */}
+            {modified && (
+              <div className="text-note text-ink-meta mt-0.5 truncate @2xl:hidden">
+                {label} <LocalDateTime at={modified} />
+              </div>
+            )}
+          </div>
+        </div>
+        <div className="hidden min-w-0 @2xl:block">
+          <div className="text-meta text-ink-meta">{label}</div>
+          <div className="text-note text-ink mt-0.5 whitespace-nowrap">
+            {modified ? <LocalDateTime at={modified} /> : "—"}
+          </div>
+        </div>
+        <CardActionIcons name={name} href={href} actions={actions} />
+      </div>
+    </Card>
+  );
+}
+
+/** A card's rename, as its row hands it: the save in flight, the save of a
+ *  new name, and Cancel. */
+export type Rename = {
+  saving: boolean;
+  onSave: (name: string) => void;
+  onCancel: () => void;
+};
+
+/**
+ * A card being renamed (2026-11-10): the name becomes its field, in place,
+ * with Cancel and Save where the icons were; Enter saves and Escape cancels.
+ * The field takes the dates' room while it is open, and the card keeps its
+ * height (the field is the tile's 40px), so the list does not move. It was
+ * a form in the card's place, a labeled field across the list with "Save
+ * Name", whose focus ring the list's scroll cut off, which the user found
+ * horrible. A name left as it was closes it with no call. The card opens
+ * nothing while it is open.
+ */
+function RenamingCard({ name, tile, rename }: { name: string; tile: ReactNode; rename: Rename }) {
+  const [draft, setDraft] = useState(name);
+  const trimmed = draft.trim();
+
+  function submit(event: FormEvent) {
+    event.preventDefault();
+    if (trimmed === name) return rename.onCancel();
+    rename.onSave(trimmed);
+  }
+
+  return (
+    <Card padding="none" selected className="@container relative mt-3">
+      <form
+        onSubmit={submit}
+        className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 p-3 @2xl:gap-6 @2xl:px-4"
+      >
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="hidden shrink-0 @sm:block">{tile}</span>
+          <div className="min-w-0 flex-1">
+            <TextInput
+              aria-label="Resume name"
+              autoFocus
+              required
+              maxLength={80}
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              onFocus={(event) => event.currentTarget.select()}
+              onKeyDown={(event) => {
+                if (event.key === "Escape") rename.onCancel();
+              }}
+            />
+          </div>
+        </div>
+        <div className="flex items-center justify-end gap-2">
+          <Button type="button" variant="secondary" size="sm" onClick={rename.onCancel}>
+            Cancel
+          </Button>
+          <Button type="submit" size="sm" disabled={rename.saving || !trimmed}>
+            {rename.saving ? "Saving…" : "Save"}
+          </Button>
+        </div>
+      </form>
+    </Card>
+  );
+}
+
+/** A tile's box: the Tracker's company tile at `md` (`ApplicationTile`). */
+const TILE = "rounded-control flex size-10 items-center justify-center";
+
+/** An upload's file type, from its name or Storage path: "PDF", "DOCX" or
+ *  "DOC". */
+export function fileType(file: string): string {
+  const ext = file.toLowerCase().split(".").pop() ?? "";
+  return ext === "pdf" || ext === "docx" || ext === "doc" ? ext.toUpperCase() : "FILE";
+}
+
+/**
+ * The tiles that say what a resume is (2026-11-10). Every card showed a PDF
+ * mark until then, though a generated or tailored resume is no file at all
+ * (it prints from the bank each time it opens) and an upload can be a Word
+ * file. The Tracker's cards lead with the company's logo; these do the same
+ * where a resume has a company.
+ *
+ * - `FileTypeTile`: an upload, as its file type on a neutral tile.
+ * - `BuiltPageTile`: a resume WorkIt built from the student's experiences,
+ *   as a small page in the brand tint, the drawing Generate's dialog uses.
+ * - `PostingLogoTile`: a tailored resume, as its company's logo, the job
+ *   card's own (`jobLogo`: Brandfetch by the website, then the job board's
+ *   logo, then initials).
+ */
+export function FileTypeTile({ file }: { file: string }) {
+  return (
+    <span aria-hidden className={cn(TILE, "bg-well border-border-subtle border")}>
+      <span className="text-meta text-ink-muted font-semibold tracking-wide">{fileType(file)}</span>
+    </span>
+  );
+}
+
+export function BuiltPageTile() {
+  return (
+    <span aria-hidden className={cn(TILE, "bg-brand-tint items-end overflow-hidden")}>
+      <span className="bg-panel flex h-8 w-6 flex-col gap-[3px] rounded-t-[2px] px-1 pt-1.5 shadow-sm">
+        <span className="bg-ink/60 mx-auto block h-[2px] w-3/5 rounded-full" />
+        <span className="bg-ink/30 block h-[1.5px] w-2/5 rounded-full" />
+        <span className="bg-ink/15 block h-[1.5px] w-full rounded-full" />
+        <span className="bg-ink/15 block h-[1.5px] w-4/5 rounded-full" />
+        <span className="bg-ink/30 block h-[1.5px] w-2/5 rounded-full" />
+        <span className="bg-ink/15 block h-[1.5px] w-11/12 rounded-full" />
+      </span>
+    </span>
+  );
+}
+
+export function PostingLogoTile({
+  company,
+  logoUrl,
+  domain,
+}: {
+  company: string;
+  logoUrl: string | null;
+  domain: string | null;
+}) {
+  return (
+    <CompanyLogo
+      name={company}
+      src={jobLogo({ logo_url: logoUrl, company_domain: domain })}
+      className="text-meta rounded-control size-10"
+    />
+  );
+}
+
+/** A file in flight on the Resumes page, as the card it becomes, at its
+ *  height, so nothing jumps when the real card arrives. */
+export function PendingResumeCard({ name, note }: { name: string; note: string }) {
+  return (
+    <Card padding="none" className="@container mt-3">
+      <div className={CARD_GRID}>
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="hidden shrink-0 @sm:block">
+            <FileTypeTile file={name} />
+          </span>
+          <div className="min-w-0">
+            <div className="text-subtitle text-ink truncate leading-5">{name}</div>
+            <div className="text-note text-ink-meta mt-1">{note}</div>
+          </div>
+        </div>
+      </div>
+    </Card>
+  );
+}
 
 /**
  * The primary resume's star. On the primary it is filled; on the others it
@@ -89,18 +431,30 @@ export function PrimaryStar({
  * for its name, and its trash ended past the card's edge. The star and
  * Preview stay out of it. Delete is last and red, and still asks first:
  * once the menu has closed, the confirm hangs from this menu's button.
+ *
+ * The Resumes page's cards show it at every width (`always`, 2026-11-10,
+ * after Google Drive's rows) with every action a card has: Open (`open`,
+ * the card's own page), Rename, Download, Make Primary (`onMakePrimary`,
+ * on a resume that is not the primary), then Delete.
  */
 export function RowMoreMenu({
   name,
+  always = false,
+  open,
   onRename,
   download,
+  onMakePrimary,
   onDelete,
 }: {
   name: string;
+  always?: boolean;
+  open?: string;
   onRename?: () => void;
   download?: { label: string; busy?: boolean; onPick: () => void };
+  onMakePrimary?: () => void;
   onDelete?: () => Promise<void>;
 }) {
+  const router = useRouter();
   const button = useRef<HTMLButtonElement>(null);
   const [confirming, setConfirming] = useState(false);
   // Delete opens the confirm only once the menu has closed, so the menu's
@@ -108,7 +462,7 @@ export function RowMoreMenu({
   const deleting = useRef(false);
 
   return (
-    <div className="@xl:hidden">
+    <div className={always ? undefined : "@xl:hidden"}>
       <DropdownMenu
         onOpenChangeComplete={(open) => {
           if (open || !deleting.current) return;
@@ -128,7 +482,13 @@ export function RowMoreMenu({
             </IconButton>
           }
         />
-        <DropdownMenuContent align="end" className="w-44">
+        <DropdownMenuContent align="end" className="w-48">
+          {open && (
+            <DropdownMenuItem onClick={() => router.push(open)}>
+              <ArrowSquareOutIcon aria-hidden className="text-ink size-4" />
+              Open
+            </DropdownMenuItem>
+          )}
           {onRename && (
             <DropdownMenuItem onClick={onRename}>
               <PencilIcon className="text-ink size-4" />
@@ -141,6 +501,13 @@ export function RowMoreMenu({
               {download.label}
             </DropdownMenuItem>
           )}
+          {onMakePrimary && (
+            <DropdownMenuItem onClick={onMakePrimary}>
+              <StarIcon aria-hidden className="text-ink size-4" />
+              Make Primary
+            </DropdownMenuItem>
+          )}
+          {onDelete && always && <DropdownMenuSeparator />}
           {onDelete && (
             <DropdownMenuItem
               variant="destructive"
@@ -195,6 +562,10 @@ type ResumeRowProps = {
   resume: ResumeItem;
   /** The upload's page, which the whole card opens. */
   href: string;
+  /** Draw it as the Resumes page's card (`ResumeCard`), not a picker's strip. */
+  page?: boolean;
+  /** The page card's rename, while it is open. */
+  rename?: Rename;
   onMakePrimary?: () => void;
   onRename?: () => void;
   onDownload?: () => void;
@@ -205,13 +576,92 @@ type ResumeRowProps = {
 export function ResumeRow({
   resume,
   href,
+  page = false,
+  rename,
   onMakePrimary,
   onRename,
   onDownload,
   onDelete,
 }: ResumeRowProps) {
   const name = resume.original_filename ?? "Resume";
-  const downloadLabel = resume.storage_path.endsWith(".pdf") ? "Download PDF" : "Download";
+  const pdf = resume.storage_path.endsWith(".pdf");
+  const downloadLabel = pdf ? "Download PDF" : "Download";
+
+  const actions = (
+    <>
+      <PrimaryStar name={name} primary={resume.is_default} onMakePrimary={onMakePrimary} />
+      <div className={ROW_WIDE}>
+        {onRename && (
+          <IconButton
+            label={`Rename ${name}`}
+            tooltip="Rename"
+            className={ROW_ACTION}
+            onClick={onRename}
+          >
+            <PencilIcon className="size-4" />
+          </IconButton>
+        )}
+        {onDownload && (
+          <IconButton
+            label={`Download ${name}`}
+            tooltip={downloadLabel}
+            className={ROW_ACTION}
+            onClick={onDownload}
+          >
+            <FileArrowDownIcon aria-hidden className="size-4" />
+          </IconButton>
+        )}
+        {onDelete && (
+          <DeleteResumeConfirm
+            onDelete={onDelete}
+            trigger={
+              <IconButton
+                label={`Delete ${name}`}
+                tooltip="Delete"
+                className={cn(ROW_ACTION, "hover:text-danger")}
+              >
+                <TrashIcon className="size-4" />
+              </IconButton>
+            }
+          />
+        )}
+      </div>
+      {(onRename || onDownload || onDelete) && (
+        <RowMoreMenu
+          name={name}
+          onRename={onRename}
+          download={onDownload && { label: downloadLabel, onPick: onDownload }}
+          onDelete={onDelete}
+        />
+      )}
+    </>
+  );
+
+  if (page && onMakePrimary && onRename && onDownload && onDelete) {
+    return (
+      <ResumeCard
+        name={name}
+        href={href}
+        tile={<FileTypeTile file={resume.storage_path} />}
+        about={
+          <>
+            <UploadIcon className="size-3.5 shrink-0" />
+            <span className="truncate">{pdf ? "Uploaded PDF" : "Uploaded Word file"}</span>
+          </>
+        }
+        created={resume.created_at}
+        edited={null}
+        actions={{
+          primary: resume.is_default,
+          onMakePrimary,
+          onRename,
+          download: { label: downloadLabel, onPick: onDownload },
+          onDelete,
+        }}
+        rename={rename}
+      />
+    );
+  }
 
   return (
     <div
@@ -241,53 +691,7 @@ export function ResumeRow({
           )}
         </p>
       </div>
-      <div className={ROW_ACTIONS}>
-        <PrimaryStar name={name} primary={resume.is_default} onMakePrimary={onMakePrimary} />
-        <div className={ROW_WIDE}>
-          {onRename && (
-            <IconButton
-              label={`Rename ${name}`}
-              tooltip="Rename"
-              className={ROW_ACTION}
-              onClick={onRename}
-            >
-              <PencilIcon className="size-4" />
-            </IconButton>
-          )}
-          {onDownload && (
-            <IconButton
-              label={`Download ${name}`}
-              tooltip={downloadLabel}
-              className={ROW_ACTION}
-              onClick={onDownload}
-            >
-              <FileArrowDownIcon aria-hidden className="size-4" />
-            </IconButton>
-          )}
-          {onDelete && (
-            <DeleteResumeConfirm
-              onDelete={onDelete}
-              trigger={
-                <IconButton
-                  label={`Delete ${name}`}
-                  tooltip="Delete"
-                  className={cn(ROW_ACTION, "hover:text-danger")}
-                >
-                  <TrashIcon className="size-4" />
-                </IconButton>
-              }
-            />
-          )}
-        </div>
-        {(onRename || onDownload || onDelete) && (
-          <RowMoreMenu
-            name={name}
-            onRename={onRename}
-            download={onDownload && { label: downloadLabel, onPick: onDownload }}
-            onDelete={onDelete}
-          />
-        )}
-      </div>
+      <div className={ROW_ACTIONS}>{actions}</div>
     </div>
   );
 }

@@ -23,7 +23,8 @@ import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const EXTENSION = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-/** What Chrome loads: never test/, store/, the docs, or the engine's source. */
+/** What Chrome loads: never test/, store/, the docs, or the engine's source. Of the engine's dist/ only
+ *  engine.js: its rules-table.json is for the API to serve (KAN-756), never the package. */
 const PARTS = ["manifest.json", "icons", "fonts", "src", "fill-engine/dist/engine.js"];
 const DEV_ONLY = /localhost|vercel\.app/;
 /** What no packaged file may contain. "Prototype" as a word: the engine's Object.getPrototypeOf is fine. */

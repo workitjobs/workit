@@ -311,7 +311,10 @@ chrome.tabs.onRemoved.addListener((tab) => {
 
 // --- flags, touches and what the page said
 
-const FLAGS = new Set(["__applyRehearsalLifted", "__applyDriveLifted", "__applyAccountClick", "__applyProfileClick", "__applyUploadPost", "__applyStartClick"]);
+// __applyAsking, __applyAskTick and __applyDriving (KAN-716): the drive guard's checks on trusted input, which a
+// plain Worker's text and choice clicks now are.
+const FLAGS = new Set(["__applyRehearsalLifted", "__applyDriveLifted", "__applyAccountClick", "__applyProfileClick", "__applyUploadPost", "__applyStartClick",
+                       "__applyAsking", "__applyAskTick", "__applyDriving"]);
 
 async function flags({ tab, set }) {
   const pairs = Object.entries(set || {}).filter(([name, value]) => FLAGS.has(name) && typeof value === "boolean");

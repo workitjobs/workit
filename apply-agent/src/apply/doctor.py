@@ -182,6 +182,9 @@ SIGN_IN = ("sign in to Google by hand, in a Chrome started with --user-data-dir=
 
 
 PLAIN_SEED = "run `uv run apply plain seed` once no plain Worker runs, and follow its steps (docs/plain-workers/guide.md)"
+# A seed whose worker extension folder holds other code than this checkout's (KAN-764).
+STALE_SEED = ("once no Chrome loads that folder, start Apply (it updates the folder before a Worker starts), or run "
+              "`uv run apply plain seed` and follow its steps (docs/plain-workers/guide.md)")
 
 
 def _workers(machine: Machine) -> list[Check]:
@@ -202,6 +205,9 @@ def _plain_seed(machine: Machine) -> Check:
         return Check(name, FAIL, f"no seed profile at {seed}", PLAIN_SEED)
     if not (folder := worker_extension.loaded_folder(seed)):
         return Check(name, FAIL, f"the worker extension isn't installed in {seed}", PLAIN_SEED)
+    if worker_extension.code_hash(folder) != worker_extension.code_hash(worker_extension.EXTENSION_DIR):
+        return Check(name, FAIL, f"the seed's worker extension, in {folder}, holds other code than this checkout's, so "
+                                 "every new Worker misses the guard and fill fixes since then", STALE_SEED)
     if not developer_mode(seed):
         return Check(name, WARN, f"Developer mode is off in {seed}, so Chrome disables the worker extension "
                                  "when it reloads", PLAIN_SEED)
