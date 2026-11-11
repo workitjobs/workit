@@ -7,13 +7,19 @@ keeps Apply from applying to that Posting again.
 A thank-you page is often drawn by script (Cisco's is), so a plain fetch
 shows nothing and the link's own parameters are all there is to read. Claude
 may then name the Posting's own page from an id in them; that page is used
-only if it loads and names the role or the id, else the pasted link is kept."""
+only if it loads and names the role or the id, else the pasted link is kept.
+
+A Posting of a job system the Fill engine knows is named by the engine first,
+from what the job system serves (`fill_engine.job_names`): Microsoft's careers
+page is a script shell that names nothing, but Eightfold's API names its role
+(KAN-770). Claude reads the link only when the engine can't."""
 
 import hashlib
 import json
 import re
 from urllib.parse import parse_qsl, urlsplit
 
+from apply import fill_engine
 from apply.adapters import Claude, Clock, JobSite, Tracker
 from apply.company import text_of
 from apply.feed import normalize_url
@@ -55,13 +61,17 @@ def add(url: str, *, tracker: Tracker, claude: Claude, site: JobSite, clock: Clo
     """Add the Own application `url` links to as a submitted Tracker row, dated
     today. None if the Tracker already has it."""
     url = url.strip()
-    page = _fetch(url, site)
-    found = claude.ask(model=MODEL, system=SYSTEM, prompt=_prompt(url, page), schema=SCHEMA)
-    company, role = found["company"].strip(), found["role"].strip()
-    if not company or not role:
-        raise Unreadable(f"Claude couldn't tell the company and role from {url}; nothing was added.")
-    posting = Posting(id="", company=company, title=role,
-                      url=_posting_link(found["posting_link"].strip(), url, page, role, found["job_id"].strip(), site))
+    company, role = _named_by_engine(url, site)
+    if company and role:
+        posting = Posting(id="", company=company, title=role, url=url)
+    else:
+        page = _fetch(url, site)
+        found = claude.ask(model=MODEL, system=SYSTEM, prompt=_prompt(url, page), schema=SCHEMA)
+        company, role = found["company"].strip(), found["role"].strip()
+        if not company or not role:
+            raise Unreadable(f"Claude couldn't tell the company and role from {url}; nothing was added.")
+        posting = Posting(id="", company=company, title=role,
+                          url=_posting_link(found["posting_link"].strip(), url, page, role, found["job_id"].strip(), site))
     application_id = own_id(posting.url)
     if tracker.get(application_id):
         return None
@@ -80,6 +90,17 @@ def report(url: str, **adapters) -> str:
     if row is None:
         return f"Already in the Tracker: {url}"
     return f"Added {row.company}, {row.role} ({row.date_applied}) to the Tracker as submitted."
+
+
+def _named_by_engine(url: str, site: JobSite) -> tuple[str, str]:
+    """The company and role the job system serves for `url`, where the Fill engine knows it; ("", "") else."""
+    try:
+        if fill_engine.job_of(url):
+            company, role = fill_engine.job_names(url, site)
+            return " ".join(str(company or "").split()), " ".join(str(role or "").split())
+    except Exception:
+        pass  # a fetch that failed, or an engine that can't read it: Claude reads the link
+    return "", ""
 
 
 def own_id(url: str) -> str:

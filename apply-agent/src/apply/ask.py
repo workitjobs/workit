@@ -46,6 +46,7 @@ import yaml
 from apply import captcha
 from apply.adapters import Claude
 from apply.applicant import named, pronouns_note
+from apply.attach import consent
 from apply.claude_fill import BACK, NEXT, press_step
 from apply.model import Handoff, Posting, one_line
 from apply.repair import WRONG, RepairRequest, _shape, _signature
@@ -147,6 +148,8 @@ You may: fill or change a field, pick an option, tick or untick an ordinary choi
 Take every fact from <message> or <sources>. Never make up a name, number, date, school, grade or other fact. If the fix needs a fact you don't have, change nothing for it and say so in `couldnt`.
 Never: click the button that sends the application (Submit, Send, Finish, Complete) or press Enter to send it; click, tick, type in or solve a captcha or bot check ("I'm not a robot", reCAPTCHA, hCaptcha, Turnstile, a puzzle or slider); type a password or a code; sign in, sign out or create an account; ask the site for a verification code or email again (Resend, Send new code); pay, withdraw or delete anything.
 Never tick, untick or type in an attestation, certification, signature, consent, terms or privacy box ("I certify", "I acknowledge", "I agree", "electronic signature"): those are the applicant's own. Only if <message> names that very box by its own words (Apply checks this and refuses anything less, so "check the box" is not enough), tick it alone and name it in `ticked`. Otherwise list it in `waiting` if it is still to do.
+A dialog that asks the applicant to accept a privacy or data notice (a "Data Privacy Notice" with "I understand" and Cancel, often opened by a file upload) is theirs: press none of its buttons, not Cancel or Close either (Cancel drops the file). Stop at once, change nothing more, and put "Press '<its button>' on the '<its title>' dialog" in `waiting`: Apply attaches the file once they have pressed it.
+In a dropdown list, never click the option the field already shows (marked selected): on some forms that click empties the field.
 A step's Next, Continue or Back, or a step's link in the form's list of steps (a Progress Tracker), that does nothing when you click it (a step that posts the page, which the guard blocks for you): don't click it again or try another way. Put its exact name in `press` (a list's link by the step's name as the list shows it), change nothing more and give your answer now: Apply presses it itself, checks it, and asks you to go on from the next step.
 When you are done, the form should show the step it showed when you started: if you went back, come forward again, but never past the step that sends.
 In <page>, a field with `hidden` is not on view now (another step, kept in the page).
@@ -376,9 +379,13 @@ def ask(claude: Claude, page, message: str, thread: list[dict], form: Form, give
     rows = _read_back(claimed, changed)
     found = _unasked(page, message, claimed, changed, rows, restore=finished) + _emptied(after, form, changed, _told(thread))
     waiting += found
+    if dialog := consent(page):  # an upload's consent dialog waits on him: his press, then the file goes (KAN-769)
+        line = f"Press '{dialog['button']}' on the '{dialog['title']}' dialog yourself (a consent: Apply never gives it)"
+        waiting = [w for w in waiting if dialog["title"].casefold() not in w.casefold()] + [line]
     if drive.capped or drive.output is None:
-        return Reply(f"Claude stopped at its cap ({MAX_TURNS} turns, {MAX_TOKENS:,} tokens) before it was done. "
-                     "Check the form.", rows, couldnt, waiting, tokens=tokens, failed=True)
+        stopped = f" The '{dialog['title']}' dialog is open, waiting on you." if dialog else ""
+        return Reply(f"Claude stopped at its cap ({MAX_TURNS} turns, {MAX_TOKENS:,} tokens) before it was done."
+                     f"{stopped} Check the form.", rows, couldnt, waiting, tokens=tokens, failed=True)
     if said.get("blocked") is True:
         why = one_line(str(said.get("why") or "it couldn't work on the form"))
         return Reply(f"Claude couldn't work on the form: {why}", rows, couldnt, waiting, tokens=tokens, failed=True)

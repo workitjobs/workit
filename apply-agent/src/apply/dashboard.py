@@ -176,6 +176,7 @@ IDLE = "Waiting for the next job"
 # Parts of a rehearsal's ready-to-submit reason that Lisul must look at; the
 # rest (Calibration run, Target company...) only say a run would hold it.
 TO_CHECK = ("Not filled", "Pre-submit check failed", "Pre-submit review", "Verify: ", "Yours to tick")
+OPTIONAL_ASK = "Answer an optional question, or skip it"  # what no source holds, on a form that goes on without it
 TICK_YOURS = "Tick or sign what is yours before it's sent"  # an attestation Apply left for Lisul, his alone
 # Each part of a Hold's reason in plain words.
 HOLD_WORDS = [
@@ -186,7 +187,7 @@ HOLD_WORDS = [
 ]
 # Each job system by its proper name; any other is capitalised.
 JOB_SYSTEMS = {"greenhouse": "Greenhouse", "ashby": "Ashby", "lever": "Lever", "workday": "Workday",
-               "rippling": "Rippling", "workable": "Workable", "smartrecruiters": "SmartRecruiters", "icims": "iCIMS",
+               "rippling": "Rippling", "workable": "Workable", "smartrecruiters": "SmartRecruiters", "icims": "iCIMS", "amazon": "amazon.jobs",
                "bamboohr": "BambooHR"}
 # A reason that is a raw Python or Playwright error, "TimeoutError: Page.goto: ...", and the plain words for its kinds.
 RAW_ERROR = re.compile(r"^[A-Z]\w*(Error|Exception|Interrupt|Exit)\b:?")
@@ -236,7 +237,11 @@ def verdict(caption: dict) -> dict[str, str]:
     verification = caption.get("verification") or {}
     flags = [f for f in verification.get("flags") or [] if f.get("holds")]
     verified = verification.get("state") == "verified"
-    missing = "; ".join(caption.get("missing") or [])
+    # An optional question is asked with a Skip, and never makes the form wait on Lisul (KAN-759): only the required
+    # ones are a Missing fact's; the optional ones are asked after any real check.
+    required = caption.get("required") or {}
+    missing = "; ".join(q for q in caption.get("missing") or [] if required.get(q) is not False)
+    optional = [q for q in caption.get("missing") or [] if required.get(q) is False]
     company, system = str(caption.get("company") or ""), job_system(caption.get("job_system"))
     checks = [part for part in why.split("; ") if part.startswith(TO_CHECK)]
     cause, error = failure(why or status)
@@ -270,6 +275,10 @@ def verdict(caption: dict) -> dict[str, str]:
         needs = {"kind": "check", "do": do, "why": plain("; ".join(checks)),
                  "then": "Nothing has been sent. Fix it on the page, then press Submit yourself if you want it sent"
                  if status == "ready to submit" else "Apply checks every answer again before it sends"}
+    elif optional:
+        needs = {"kind": "missing fact", "do": OPTIONAL_ASK, "why": "; ".join(optional),
+                 "then": "Optional: nothing waits on it. Your answer is saved to your facts and filled in on this form; "
+                 "Skip leaves it blank, and Apply won't ask it again"}
     elif status == "ready to submit":
         tone, label, kind = "ready", f"{WORDS['verified'][0]} · {READY.lower()}" if verified else READY, "ready to submit"
         detail = "\n".join(filter(None, [
@@ -326,6 +335,8 @@ def verdict(caption: dict) -> dict[str, str]:
     if tone == "filling" and detail:
         shown["doing"] = detail  # its banner says it, small too
     shown |= needs
+    if optional:
+        shown["optional"] = optional  # their answer boxes show on the item, whatever else it needs
     if flags and needs.get("kind") == "check":
         shown["flags"] = [{"field": f.get("field") or "", "why": f["why"]} for f in flags]
     if verified:
@@ -1071,13 +1082,13 @@ class Dashboard:
                 item["essays"] = [{"question": q, "text": t} for q, t in cell_texts(str(item.get("essay") or ""))]
             if item.get("kind") in ("held", "check") and item["id"] in approved:
                 item["answered"] = True  # approved here: it waits on Lisul no more
-            if item.get("kind") == "missing fact":
+            if item.get("kind") == "missing fact" or item.get("optional"):
                 item["questions"] = [q for q in _questions(item) if f"{item['id']}|{q}" not in answered
                                      and not (item.get("posting_url") and f"{item['posting_url']}|{q}" in answered)]
                 item["choices"] = {q: c for q, c in (item.get("choices") or {}).items() if q in item["questions"]}
                 item["required"] = {q: r for q, r in (item.get("required") or {}).items() if q in item["questions"]}
                 item["where"] = {q: w for q, w in (item.get("where") or {}).items() if q in item["questions"]}
-                if not item["questions"]:
+                if not item["questions"] and item.get("kind") == "missing fact":
                     item["answered"] = True  # every question answered here: it waits on Lisul no more
         return {"summary": summary(captions, items if self._workers else None), "tiles": captions, "items": items,
                 "context": self._context | context, "run": run}
@@ -1421,8 +1432,16 @@ class _Handler(BaseHTTPRequestHandler):
         if not answer:
             if (item.get("required") or {}).get(question) is not False:
                 return self._json(400, {"error": "Write an answer."})
-            # An optional question he has no answer to: left blank on this form, and not asked again here.
-            return self._in_place(item, key, question, None, "Skipped: it's optional, so the form leaves it blank.")
+            # An optional question he skips: left blank on this form, and his Skip is kept, so no later form asks it
+            # again (KAN-759).
+            message = "Skipped: it's optional, so the form leaves it blank."
+            try:
+                message = (self.dashboard.answer(item, question, "") if self.dashboard.answer else "") or message
+            except Refused as refused:
+                return self._json(refused.status, {"error": str(refused)})
+            except Exception as error:
+                return self._json(502, {"error": f"Not saved: {error}"})
+            return self._in_place(item, key, question, None, message)
         try:
             message = self.dashboard.answer(item, question, answer)
         except Refused as refused:

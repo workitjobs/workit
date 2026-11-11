@@ -161,11 +161,11 @@ def test_captions_say_what_each_worker_is_on():
     assert kind == "application/json"
     tiles = json.loads(state)["tiles"]
     assert tiles == [
-        {"tone": "idle", "label": "Waiting for the next job", "detail": ""},
+        {"tone": "idle", "label": "Waiting for the next job", "detail": "", "thread": []},
         {"company": "Arc Boat Company", "role": "Software Engineering Intern", "job_system": "greenhouse",
          "status": "ready to submit", "line": "Arc Boat Company | ... | ready to submit",
          "tone": "ready", "label": READY, "detail": dashboard.verdict({"status": "ready to submit"})["detail"],
-         "kind": "ready to submit", "system": "Greenhouse"},
+         "kind": "ready to submit", "system": "Greenhouse", "thread": []},  # Ask Claude's thread (KAN-638), none yet
     ]
 
 
@@ -1124,7 +1124,8 @@ def test_a_file_question_offers_this_mac_dropbox_and_google_drive_and_attaches_t
         window.wait_for_selector("text=Nothing needs you right now.", timeout=10_000)
         (question, attached), = board.answered(0)
 
-    assert offered == ["Attach from this Mac", "Dropbox", "Google Drive"]  # no Skip: the form requires it
+    # No Skip: the form requires it. Go to question (KAN-600): the form is still held open in its Worker.
+    assert offered == ["Attach from this Mac", "Dropbox", "Google Drive", "Go to question"]
     assert (question, attached.name, attached.read_bytes()) == ("Writing sample", "Writing Sample.pdf", b"%PDF-1.4 sample")
 
 
@@ -1286,9 +1287,10 @@ def test_a_form_sent_with_questions_open_shows_as_sent_and_leaves_needs_you(answ
     assert late.value.code == 404
 
 
-def test_an_optional_question_saved_blank_is_skipped_and_a_file_is_attached_but_neither_kept_as_a_fact():
+def test_an_optional_question_saved_blank_is_skipped_and_kept_and_a_file_is_attached_but_not_kept_as_a_fact():
+    # His Skip goes to the save as an empty answer (KAN-759): kept, so no later form asks it again.
     saved = []
-    with Dashboard(1, FakeFrames({}), answer=lambda item, q, a: saved.append(q) or "Saved.") as board:
+    with Dashboard(1, FakeFrames({}), answer=lambda item, q, a: saved.append((q, a)) or "Skipped, and kept.") as board:
         board.update(0, company="Appian", posting_url="https://a.example/1", status=rehearsal.READY,
                      missing=["Certifications", "Writing sample", "Pronouns"],
                      required={"Certifications": False, "Writing sample": True, "Pronouns": True},
@@ -1302,8 +1304,8 @@ def test_an_optional_question_saved_blank_is_skipped_and_a_file_is_attached_but_
         with pytest.raises(urllib.error.HTTPError) as blank:
             post_answer(board, item, "Pronouns", "")  # a required one can't be skipped
 
-        assert skipped["message"].startswith("Skipped") and attached["message"].endswith("essay.pdf on the open form now.")
-        assert blank.value.code == 400 and saved == []
+        assert skipped["message"] == "Skipped, and kept." and attached["message"].endswith("essay.pdf on the open form now.")
+        assert blank.value.code == 400 and saved == [("Certifications", "")]
         (q1, none), (q2, file) = board.answered(0)
         assert (q1, none, q2, file.name, file.read_bytes()) == ("Certifications", None, "Writing sample", "essay.pdf", b"%PDF-1.4 essay")
         assert board.state()["items"][0]["questions"] == ["Pronouns"]

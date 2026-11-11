@@ -243,6 +243,44 @@ def test_an_attestation_box_claude_ticked_unasked_is_put_back():
     assert "yours to tick" in reply.couldnt[0]
 
 
+class ConsentPage(Page):
+    """A page whose upload opened a consent dialog (Microsoft's Eightfold Data Privacy Notice), once `opened`."""
+
+    opened = False
+
+    def evaluate(self, code, arg=None):
+        from apply.attach import CONSENT
+        if code == CONSENT:
+            return {"title": "Data Privacy Notice", "button": "I understand"} if self.opened else None
+        return super().evaluate(code, arg)
+
+
+def test_an_open_consent_dialog_waits_on_him_by_its_button_and_title():
+    page = ConsentPage([dict(f) for f in FORM])
+    reply = ask.ask(Claude(lambda p: setattr(p, "opened", True), said(reply="Gave the resume.")), page,
+                    "attach my resume", [], ask.Form(POSTING), "", guard=Guard())
+    assert reply.waiting == ["Press 'I understand' on the 'Data Privacy Notice' dialog yourself (a consent: Apply never gives it)"]
+    assert not reply.failed
+
+
+def test_a_capped_ask_names_the_consent_dialog_left_open():
+    page = ConsentPage([dict(f) for f in FORM])
+
+    class Capped(Claude):
+        def drive(self, **given):
+            self.act(given["page"])
+            return Drive(None, 61, 3_100_000, capped=True)
+
+    reply = ask.ask(Capped(lambda p: setattr(p, "opened", True), {}), page, "attach my resume", [], ask.Form(POSTING), "",
+                    guard=Guard())
+    assert reply.failed and "'Data Privacy Notice' dialog is open, waiting on you" in reply.reply
+    assert reply.waiting[-1].startswith("Press 'I understand'")
+
+
+def test_the_prompt_forbids_a_consent_dialogs_cancel_and_a_picked_options_click():
+    assert "not Cancel or Close either" in ask.SYSTEM and "never click the option the field already shows" in ask.SYSTEM
+
+
 def test_a_box_he_named_stays_ticked():
     page = Page([dict(f) for f in FORM])
     message = "tick the box: I certify that the information above is true"

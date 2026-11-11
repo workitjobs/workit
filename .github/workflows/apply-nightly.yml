@@ -3,7 +3,7 @@ name: Apply nightly
 # Apply's tests marked `nightly` (pytest -m nightly): slow browser cases the
 # `apply` job in ci.yml skips on PRs, for time (KAN-780). Today that is the
 # submit guard's plain-Worker matrix on every hostile page; PRs run every path
-# against one page.
+# against one page, and each plain Worker's guard hole (PLAIN_HOLES, KAN-710) on one.
 on:
   schedule:
     - cron: "53 7 * * *"

@@ -1,0 +1,68 @@
+{
+  "src/background/engine.js": [
+    "tiktok SIGN_IN_PATH"
+  ],
+  "src/background/tab-load.js": [
+    "workable SUBMIT"
+  ],
+  "src/content/icims.js": [
+    "icims EMAIL_FORM",
+    "icims FRAME",
+    "icims HEADER",
+    "icims LABEL",
+    "icims NOT_FIELDS",
+    "icims PAGE_STEP",
+    "icims PRIMARY",
+    "icims ROW",
+    "icims SIGN_IN",
+    "icims STEPS",
+    "icims STEP_CONTENT",
+    "icims STEP_NUMBER",
+    "icims STEP_STATE"
+  ],
+  "src/content/oracle.js": [
+    "oracle CHECKBOX_LABEL",
+    "oracle FOOTER_BUTTONS",
+    "oracle GATE",
+    "oracle GATE_PATH",
+    "oracle GOES_ON",
+    "oracle LABEL",
+    "oracle ROW",
+    "oracle SECTION_PATH",
+    "oracle STEP_NUMBER",
+    "oracle STEP_STATE",
+    "oracle TRAIN"
+  ],
+  "src/content/panel-top.js": [
+    "workday ACTIVE_STEP",
+    "workday STEP_OF"
+  ],
+  "src/content/primary.js": [
+    "workday NEXT_BUTTON"
+  ],
+  "src/content/successfactors.js": [
+    "successfactors GATE",
+    "successfactors LABEL",
+    "successfactors QUESTIONS_PAGE",
+    "successfactors ROW",
+    "successfactors SECTION",
+    "successfactors SECTION_TITLE"
+  ],
+  "src/content/workday-walk.js": [
+    "icims SENDS",
+    "oracle SENDS",
+    "successfactors SENDS",
+    "workday SENDS"
+  ],
+  "src/content/workday.js": [
+    "workday ACTIVE_STEP",
+    "workday DATE_INPUTS",
+    "workday ERRORS",
+    "workday FIELD",
+    "workday GROUP",
+    "workday NEXT_BUTTON",
+    "workday REVIEW_PAGE",
+    "workday STEP_OF",
+    "workday UPLOAD"
+  ]
+}

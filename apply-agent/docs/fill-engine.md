@@ -89,6 +89,12 @@ A required one stops a stepped form on its page with one ask
   Lisul changed from what the step showed at the pause
   (`WorkdayFiller.paused`) is his. An untouched box (read "No") or one
   the page pre-ticked stays on his list (`_Planned.keep`) and stops again.
+- A Workday date reads back what Workday holds (its hidden "current value is
+  06/2026" line), not what its boxes show. A typed date it doesn't hold is
+  picked from its Calendar and read back again (engine v0.3.38, KAN-716):
+  NVIDIA's typed 08/2026 showed and was held as nothing, and 01/2026 saved
+  as 12/2026. One still not held is a FillError naming the field, which
+  goes to the Rescue as any other.
 
 A Minor that the profile gives as none (`education.minors: []`) is the
 form's None or N/A in the engine's plan, or N/A typed, so a minor that an
@@ -96,6 +102,18 @@ old profile on the job site carried over is replaced (Amazon's Education,
 2026-11-10, KAN-754). With no such option it is left blank, and verifying
 holds the form if the field still shows a value (`docs/held-forms.md`).
 A profile with no `minors` key leaves it as before.
+
+An optional question whose rule reads a profile fact that the profile
+doesn't keep at all goes in `Plan.optional` (KAN-759). Apply asks it in
+Needs you with a Skip, and never holds the form for it
+(`docs/held-forms.md`). A fact the profile keeps empty is none: the field
+stays blank and is never asked. An empty answer in `answered_questions`
+is Lisul's Skip: an optional question of that wording stays blank. Address
+Line 2 and 3 are blank when the home address has a first line and no such
+line. Tax District is `identity.home_address.tax_district`, else blank
+for a home in no local tax district (the engine's `LOCAL_TAX` table: the US
+states with local income taxes, and for New York only New York City and
+Yonkers), else asked. A home outside the US, or with no state, is asked.
 
 A phone type question (Workday's Phone Device Type, iCIMS's Phones: Type,
 "Type of phone", a "Mobile or landline?" choice) is the profile's
@@ -144,3 +162,48 @@ date's answer under its section and label
 places is never banked. An older entry filed under a bare label alone is
 never read again. Lisul's own answer to a bare date applies to that form
 only; Apply does not save it to the profile by its wording.
+
+## amazon.jobs (KAN-765)
+
+An amazon.jobs Posting (`model.AMAZON`, job system `amazon`) has its own
+Filler, `apply.amazon.AmazonFiller`: plain code through the engine's Amazon
+Stepper (`src/amazon.ts`), not Claude fill. Before it, Claude fill filled
+only the step Amazon opened, so the steps that Lisul's old Amazon profile
+ticked kept their stale answers (a Minor, a graduation date, "3+ years
+experience" Yes), typed dates didn't register, and picked dates read back a
+day early (2026-11-06 to 11-10).
+
+- The sign-in is Lisul's, in the Worker. The engine reports it, and the
+  AI-preference choice, as a gate; the Filler hands it off and reads again
+  on Resume.
+- The engine visits every step in the "My progress" list's order, the
+  ticked ones too (opened by their pencils). Each step is planned (a
+  Question is `"<step> / <label>"`, a date with its format), filled field by
+  field, read again for a follow-up, then left by its own Continue
+  (`amazon.next_step`, the engine's `next`), which never presses Submit
+  application. After Continue, the step's saved answers are read back into
+  the Record: what Amazon kept, so a date shown a day early fails the
+  read-back.
+- A text box that Amazon takes only from a person's typing (KAN-716) fails
+  in the engine with "KAN-716". The Filler types it again with Playwright's
+  own fill, which a plain Worker sends trusted once KAN-716's worker
+  extension (PR #521) is in, then the Rescue, then a FillError.
+- The Acknowledgement is an attestation (the engine gives the lone box its
+  card's words). The fill stops on its step for Lisul, as Workday's does,
+  and a box the page showed ticked at the pause is not his.
+- `submit` is a Handoff: Review & submit's Submit application is Lisul's.
+- The step's Continue is a click path: it is in
+  `tests/test_submit_guard_hostile.py` PATHS, with an Amazon-shaped hostile
+  page. A change to it needs the adversarial review (root `CLAUDE.md`).
+
+Not proven until a live rehearsal of an Amazon posting: the edit-mode markup
+of a ticked step opened by its pencil (Contact information, the EEO and
+veteran steps), the calendar's day cells, and whether Amazon's select2
+lists take the engine's clicks. `test_amazon_filler.py` runs the Filler on
+the engine's fake (`test/fake-amazon-page.js`), which needs a browser, so CI
+doesn't run it.
+
+The engine knows Microsoft Careers (`apply.careers.microsoft.com`) as an Eightfold site (KAN-770): `jobOf`,
+`jobNames` and `jobDescription` read it from Eightfold's API, so a request and `apply applied` get "Microsoft" and
+the role. Apply still fills its form with Claude fill: `model.EIGHTFOLD` leaves it out, since the Eightfold Filler
+was never checked behind Microsoft's sign-in.

@@ -112,6 +112,13 @@
     return target.dispatchEvent(event);
   }
 
+  // Apply's press of `element` (KAN-710, PR 477's second review): the run's touch on that element itself, right before
+  // the click the guard then counts as Apply's. A touch on the window, before the pointer events, let a page's
+  // pointerdown handler click its own button first and have that count.
+  function touch(element) {
+    for (const type of globalThis.__applyTouchTypes || []) element.dispatchEvent(new CustomEvent(type, { bubbles: true, composed: true }));
+  }
+
   // A choice a trusted click may make (KAN-716): a radio, a checkbox or an option, never a button,
   // a link or anything in one. amazon.jobs dropped the radios a synthetic click had set. Only in
   // the top frame (the debugger's points are the tab's viewport), only a plain single click.
@@ -167,7 +174,8 @@
   }
 
   function syntheticClick(target, at, keys, clickCount) {
-    touch(); // a trusted click's own pointerdown is its touch: it sends none ahead, for a page to time a move by
+    // Its touch goes on the target right before the click (touch, KAN-710), none ahead of the pointer events: a page
+    // could time a move by one, or click its own button in a pointerdown handler.
     mouse(target, "pointerover", at, keys);
     mouse(target, "mouseover", at, keys);
     mouse(target, "pointermove", at, keys);
@@ -182,6 +190,7 @@
       }
       mouse(target, "pointerup", at, { ...keys, detail: n });
       mouse(target, "mouseup", at, { ...keys, detail: n });
+      touch(target);
       mouse(target, "click", at, { ...keys, detail: n });
     }
     if (clickCount === 2) mouse(target, "dblclick", at, { ...keys, detail: 2 });
@@ -436,7 +445,7 @@
         // keyup after the trusted insertion (`after`), as a keyboard's.
         // If its keydown moved the focus, the character goes nowhere: not into a box no call chose.
         if (field) return deepActive() === field ? request(field, { __applyType: k, after: ["keyup", [key]] }, () => insert(field, k)) : keyup(key);
-        if (target.matches?.("input[type=checkbox], input[type=radio], button") && k === " ") target.click();
+        if (target.matches?.("input[type=checkbox], input[type=radio], button") && k === " ") { touch(target); target.click(); }
         else insert(target, k);
       } else if ((init.ctrlKey || init.metaKey) && name.toLowerCase() === "a") {
         if (target.select) target.select();
@@ -447,7 +456,7 @@
         // form's submit button and jumped to Review; on a lifted last step it would have sent it.
         // The page still hears the keydown and keyup, and its own handlers act on them as they will.
         if (target.matches?.("textarea") || target.isContentEditable) insert(target, "\n");
-        else if (target.matches?.("a[href], input[type=button], button[type=button], input[type=checkbox], input[type=radio]")) target.click();
+        else if (target.matches?.("a[href], input[type=button], button[type=button], input[type=checkbox], input[type=radio]")) { touch(target); target.click(); }
       } else if (k === "Tab") {
         const list = tabbables();
         const at = list.indexOf(target);
@@ -615,19 +624,19 @@
   };
 
   const TOUCHES = new Set(["click", "type", "press", "keys", "keyInto", "check"]);
-  function touch() {
-    window.dispatchEvent(new CustomEvent("__apply_touch", { detail: "apply" }));
-  }
 
   globalThis.__applyDom = {
     leaving, // for page/tile.js's presses
+    touch, // and its touch before each click of Lisul's
     run(method, args, { trusted = false } = {}) {
       const fn = METHODS[method];
       if (!fn) return { err: { name: "BadOp", message: `no dom method ${method}` } };
       // A press of Apply's counts as a touch for the page's guard (apply.plain.guards), as a
       // trusted click of Playwright's does: the guard then shows what it blocked.
-      // A click's touch goes with its synthetic press (syntheticClick): a trusted one needs none.
-      if (TOUCHES.has(method) && method !== "click" && method !== "check") touch();
+      // The touch is named with this run's tokens (ops/guard.js), which no page knows, so no page can send one. A
+      // click's touch goes on its element, right before its synthetic click (syntheticClick): a trusted one needs none.
+      if (TOUCHES.has(method) && method !== "click" && method !== "check")
+        for (const type of globalThis.__applyTouchTypes || []) window.dispatchEvent(new CustomEvent(type));
       canTrust = trusted === true;
       try {
         const value = fn(...args);
