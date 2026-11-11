@@ -52,12 +52,12 @@ from apply.accounts_tab import AccountsTab
 from apply.adapters import Adapters
 from apply.answer_bank import AnswerBank
 from apply.answers_tab import AnswersTab
+from apply.ask_model import live_claude
 from apply.browsers import ProfileInUse, WorkerBrowsers
 from apply.claude_cli import ClaudeCLI
 from apply.clock import SystemClock
 from apply.feed import live_feed
 from apply.gmail import live_mailbox
-from apply.groq import live_claude
 from apply.home import HOME
 from apply.keychain import GMAIL, MacKeychain
 from apply.match_queue import match_queue

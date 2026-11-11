@@ -189,7 +189,7 @@ jobs:
             tests/test_gates.py \
             tests/test_gmail.py \
             tests/test_graduate_only.py \
-            tests/test_groq.py \
+            tests/test_ask_model.py \
             tests/test_into.py \
             tests/test_plain_tile_identity.py \
             tests/test_review_kan717_hostile.py \

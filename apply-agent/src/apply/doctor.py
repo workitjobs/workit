@@ -16,8 +16,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TextIO
 
-from apply import cover_letter, gates, groq, native_host, resume_check
-from apply.adapters import Mailbox, Tracker, Usage
+from apply import ask_model, cover_letter, gates, native_host, resume_check
+from apply.adapters import Mailbox, SetupError, Tracker, Usage
 from apply.browsers import (
     CHROME,
     WORKER_PROFILES,
@@ -96,7 +96,8 @@ class Machine:
     usage: Usage | None = None  # read only when asked (`--usage`): reading it costs a tiny Haiku call
     native_hosts: Path = native_host.CHROME_HOSTS  # everyday Chrome's NativeMessagingHosts folder
     resume_check: Callable = resume_check.compare  # the resume against policies.yaml's resume_source
-    groq_key: Callable[[], str | None] = lambda: groq.key()  # for ask_model: groq; never printed
+    # A provider's API key, by its name in ask_model.PROVIDERS; never printed.
+    ask_key: Callable[[str], str | None] = lambda name: ask_model.key(ask_model.PROVIDERS[name])
 
 
 def diagnose(machine: Machine) -> list[Check]:
@@ -155,18 +156,20 @@ def _claude(machine: Machine) -> Check:
 
 
 def _ask_model(machine: Machine) -> list[Check]:
-    """Where `ask` goes (policies.yaml's ask_model): no line for claude, the default; for groq, whether a key
-    is set (apply.groq). The key itself is never printed."""
-    backend = _policy(machine, "ask_model") or "claude"
-    if backend == "claude":
-        return []
+    """Where `ask` goes (policies.yaml's ask_model): no line for claude, the default; for hosted providers,
+    whether each has a key (apply.ask_model). A key itself is never printed."""
     name = "Ask model"
-    if backend != "groq":
-        return [Check(name, FAIL, f"ask_model: {backend} is neither claude nor groq", "set ask_model to claude or groq in policies.yaml")]
-    if not machine.groq_key():
-        return [Check(name, FAIL, "ask_model: groq, but there is no Groq key", groq.NO_KEY)]
-    return [Check(name, OK, "Groq's gpt-oss models answer and write (ask_model: groq); Claude fill, Rescue and "
-                            "company briefs stay on claude")]
+    try:
+        names = ask_model.chain({"ask_model": _policy(machine, "ask_model")})
+    except SetupError as e:
+        return [Check(name, FAIL, str(e), "set ask_model to claude, groq, gemini or a list of them in policies.yaml")]
+    if not names:
+        return []
+    if missing := [n for n in names if not machine.ask_key(n)]:
+        return [Check(name, FAIL, f"ask_model: {', '.join(names)}, but there is no {missing[0]} key",
+                      ask_model.no_key(ask_model.PROVIDERS[missing[0]]))]
+    return [Check(name, OK, f"{', then '.join(names)} answer and write (ask_model), with lean essay prompts; "
+                            "Claude fill, Rescue and company briefs stay on claude")]
 
 
 def _chrome(machine: Machine) -> Check:

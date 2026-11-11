@@ -817,8 +817,9 @@ WorkIt stays the fallback if the measured cost per Application is small.
 **First step (2026-11-10): an API model on Groq, then a local one.** An
 API model is the fastest way to replace Claude end to end and measure
 quality and cost; a local model can take its place later behind the same
-adapter. **Built for `ask` (2026-11-10):** `ask_model: groq`
-(`apply-agent/docs/ask-model.md`); `research` and `drive` are next
+adapter. **Built for `ask` (2026-11-10):** `ask_model: [groq, gemini]`,
+with Gemini as Groq's backup and lean essay prompts that fit Groq's free
+tier (`apply-agent/docs/ask-model.md`); `research` and `drive` are next
 (section 10). Groq's catalog (https://console.groq.com/docs/models, read
 2026-11-10):
 
@@ -841,8 +842,8 @@ https://console.groq.com/docs/tool-use):
   place of `claude -p --json-schema`.
 - **Strict schemas** need every field `required` and
   `additionalProperties: false`; an optional field becomes a nullable
-  type. `apply/groq.py`'s `strict` does that pass for `ask`, and drops the
-  nulls from the answer.
+  type. `apply/ask_model.py`'s `strict` does that pass for `ask`, and drops
+  the nulls from the answer.
 - **No parallel tool calls** on gpt-oss: one action per turn, which suits
   the guards.
 - **Apply runs the loop.** `claude -p` ran the loop before; Apply now
@@ -915,13 +916,13 @@ is KAN-723's owner unless it names teammates. Status as of 2026-11-10.
 | # | Work | Where |
 |---|---|---|
 | 1 | `worker_mode: protected` as the default | Section 6 |
-| 2 | `ask` on Groq: `ask_model: groq` in `policies.yaml` sends every answer, essay and check to gpt-oss (`apply/groq.py`), with `claude -p` as the default; doctor checks the key | Section 8; `apply-agent/docs/ask-model.md` |
+| 2 | `ask` on hosted models: `ask_model: [groq, gemini]` in `policies.yaml` sends every answer, essay and check to Groq's gpt-oss, with Gemini taking what Groq can't (too large, rate-limited, down), on lean essay prompts that fit Groq's free tier (`apply/ask_model.py`); `claude -p` stays the default; doctor checks the keys | Section 8; `apply-agent/docs/ask-model.md` |
 
 **Task 1: a model that works with no student in the loop (section 8)**
 
 | # | Work | Owner | Status |
 |---|---|---|---|
-| 3 | Rehearse the same postings with `ask_model: claude` and `groq`; compare the answers, and the essays with `essays.py`'s paired judging | KAN-723's owner | Started 2026-11-10 on Test Person's data: one-off answers compared (both right; Groq's less tied to the company); gpt-oss passed the plan's quote check in 1 of 6 tries; the free tier (8,000 tokens a minute) refuses the essay-writing call (11,344 tokens), so essays wait on a Developer tier key or shorter prompts (`apply-agent/docs/ask-model.md`) |
+| 3 | Rehearse the same postings with `ask_model: claude` and `[groq, gemini]`; compare the answers and essays | KAN-723's owner | Started 2026-11-10 on Test Person's data, outside a rehearsal: `[groq, gemini]` wrote both essays and the one-off answers in 39 s; plainer than Claude's, one held by the length gate (`apply-agent/docs/ask-model.md`). Next: a real rehearsal |
 | 4 | Measure one Application's model use (calls and tokens by call kind) on about 20 rehearsals across hiring systems: the cost per Application on Groq | KAN-723's owner | Not started |
 | 5 | `research` on Groq: gpt-oss-120b with Groq's built-in browser search, for company briefs | KAN-723's owner | Not started |
 | 6 | `drive` on Groq: Apply's own tool loop over `apply/plain/mcp_tools.json`, run through Playwright (CDP) or `apply/plain/tools.py` (plain), a `finish` tool for the answer, a trimmed snapshot per turn, the caps, the send-click hook and the captcha refusal | KAN-723's owner | Not started |

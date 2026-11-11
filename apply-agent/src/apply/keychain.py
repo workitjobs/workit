@@ -18,9 +18,11 @@ GMAIL = "apply-gmail"
 # Anyone who knows a topic can read its pushes, so it is kept like a password.
 PHONE_PUSH = "apply-ntfy"
 PHONE_PUSH_HOST = "ntfy.sh"
-# A developer's Groq API key, for policies.yaml's ask_model: groq (apply.groq); the item's account is GROQ_HOST.
+# A developer's API keys for policies.yaml's ask_model (apply.ask_model); each item's account is the API's host.
 GROQ = "apply-groq"
 GROQ_HOST = "api.groq.com"
+GEMINI = "apply-gemini"
+GEMINI_HOST = "generativelanguage.googleapis.com"
 # `security find-generic-password` exits with this when there is no such item.
 NOT_FOUND = 44
 # One attribute line of `security dump-keychain` (no -d, so it prints no secret).

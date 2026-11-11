@@ -101,10 +101,12 @@ never submits.** Apply runs on macOS only. Before you change code here, read
      ([docs/accounts-setup.md](docs/accounts-setup.md)).
    - `apply-ntfy`: an ntfy topic for phone notifications
      (`./scripts/setup-wizard.sh` sets it up).
-   - `apply-groq` (account `api.groq.com`): a Groq API key, only for
-     `ask_model: groq` in `policies.yaml`, which writes the answers with
-     Groq instead of Claude ([docs/ask-model.md](docs/ask-model.md)).
-     Doctor's "Ask model" line checks it.
+   - `apply-groq` (account `api.groq.com`) and `apply-gemini` (account
+     `generativelanguage.googleapis.com`): Groq and Gemini API keys, only
+     for `ask_model: [groq, gemini]` in `policies.yaml`, which writes the
+     answers with them instead of Claude
+     ([docs/ask-model.md](docs/ask-model.md)). Doctor's "Ask model" line
+     checks them.
 
 8. Optional: log in to WorkIt, so Apply can write your applications to
    your Applications Tracker on WorkIt: a submit as Applied (with the

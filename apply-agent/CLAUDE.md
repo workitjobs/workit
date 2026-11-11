@@ -16,8 +16,9 @@ extension, with WorkIt as the source of the student's data, a model it may
 call with no student in the loop (not `claude -p` on a login, not the
 connector) and code that can't be stolen. Read
 `../docs/desktop_application_auto_apply.md` before a change toward that.
-`ask_model: groq` in `policies.yaml` already sends the text answers and
-essays to Groq instead of `claude -p` (`docs/ask-model.md`).
+`ask_model: [groq, gemini]` in `policies.yaml` already sends the text
+answers and essays to Groq, with Gemini as its backup, instead of `claude -p`,
+on shorter (lean) essay prompts (`docs/ask-model.md`).
 
 Workers default to `worker_mode: protected` (2026-11-06, KAN-723): plain
 Workers fill the hosts that block CDP Workers, and CDP Workers fill the rest
@@ -75,7 +76,7 @@ this folder's `CLAUDE.md` for its area.
 - `docs/fill-engine.md`: Apply's plan rules, `fill_engine.py`, `APPLY_FILL_ENGINE`, or what the plan answers from the Tracker, the Answer bank or a bare date.
 - `docs/workit.md`: a WorkIt call, `apply login`, `import-sheet`, `clean-tracker`, a Tracker write, the already-applied check, the resume check, or the tailored resume.
 - `docs/held-forms.md`: verifying, a flag, Resume, Regenerate, Ask Claude, Fill again (`apply fill-again`), page gates, or how a question reaches Needs you.
-- `docs/ask-model.md`: `ask_model`, `groq.py`, or another model behind `ask` (`Adapters.claude`).
+- `docs/ask-model.md`: `ask_model`, `ask_model.py` (Groq, Gemini), the lean essay prompts, or another model behind `ask` (`Adapters.claude`).
 - `docs/prompts-and-gates.md`: a prompt, a length, cap or names gate, or the catch-all box rule.
 - `docs/claude-fill.md`: Claude fill, its Next and profile clicks, its dropdowns, or a Filler's `form_url`.
 - `docs/captchas-and-bot-blocks.md`: a captcha wait, a block's handoff, or `captcha.py`.
