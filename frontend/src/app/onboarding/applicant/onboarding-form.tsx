@@ -338,10 +338,29 @@ export function OnboardingForm({
       for (const name of removedSkills) form.append("removed_skills", name);
       // The reading the student checked, so the save asks AI for nothing
       // more (KAN-732): one AI reading per resume.
-      const { error: uploadError, duplicateOf } = await uploadResume(form, {
+      const {
+        resume: saved,
+        error: uploadError,
+        duplicateOf,
+      } = await uploadResume(form, {
         replaceMatching: true,
         reading: preview ?? undefined,
       });
+      // What the resume's header filled on the profile (KAN-436) shows in
+      // the Profile step's fields, as saved, unless the student typed there
+      const added = saved?.bank?.header?.added ?? {};
+      const fromHeader = Object.fromEntries(
+        (["location", ...LINKS.map((l) => l.key)] as const).flatMap((key) =>
+          added[key] ? [[key, added[key]]] : [],
+        ),
+      ) as Partial<Contact>;
+      contactSaved.current = { ...contactSaved.current, ...fromHeader };
+      setContact((c) => ({
+        ...c,
+        ...Object.fromEntries(
+          Object.entries(fromHeader).filter(([key]) => !c[key as keyof Contact]),
+        ),
+      }));
       // A duplicate is already uploaded (KAN-267): an upload that reached
       // the API before a dropped connection, sent again on retry. Not a
       // reason to keep the student here.

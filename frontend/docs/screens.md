@@ -3669,6 +3669,14 @@ student who opened a resume from Experiences landed on another view.
   Scout's panel on the editor's page, beside the page on Tailor's review,
   and as a sheet on a phone. Format Options' Reset Formatting leaves the
   hidden fields, as it leaves the section order.
+  **An upload fills the header's empty fields** (KAN-436, the backend's
+  `services/header_fill.py`): the note under an upload (Resumes, intake's
+  import card, the Jobs page's resume picker) adds "Added your location
+  and phone to your profile." (`headerSummary`), and each value that
+  differs from the profile's gets a line with Use This
+  (`components/header-offers.tsx`), since the upload never overwrites one.
+  Onboarding's Profile step shows what Save Resume added in its Location
+  and link fields.
   **The Additional Line is one free text line** under the contact line
   (`resume_header_extra`, 100 characters), for what a resume header holds
   that has no field: a clearance, "Open to relocation". Simplify has no

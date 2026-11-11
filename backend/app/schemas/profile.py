@@ -171,3 +171,22 @@ class ApplicantProfileUpdate(BaseModel):
     @classmethod
     def _web_link(cls, value: str | None) -> str | None:
         return web_link(value)
+
+
+class HeaderOffer(BaseModel):
+    """A value the header has that differs from the profile's: the note's
+    Use This saves it (PATCH .../profile)."""
+
+    field: str
+    value: str
+
+
+class HeaderFill(BaseModel):
+    """What an upload's header did to the profile: each field it filled,
+    with the value; what it offers in place of a value the profile already
+    has; and whether free text was left that the Additional line could not
+    take."""
+
+    added: dict[str, str] = {}
+    offers: list[HeaderOffer] = []
+    overflow: bool = False

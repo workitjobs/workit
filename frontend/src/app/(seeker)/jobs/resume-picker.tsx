@@ -20,6 +20,7 @@ import { IconButton } from "@/components/ui/icon-button";
 import { Radio } from "@/components/ui/radio-row";
 import { SearchField } from "@/components/ui/search-field";
 import { cn } from "@/lib/cn";
+import { headerSummary } from "@/lib/import-summary";
 import { listBuiltResumes, type BuiltResume } from "@/lib/built-resume-actions";
 import { listResumes, replaceResume, uploadResume, type ResumeItem } from "@/lib/resume-actions";
 import { MAX_UPLOADS } from "@/lib/resume-limits";
@@ -455,7 +456,13 @@ function useUploadButton(upload: PickerUpload | undefined, onSent: () => void) {
     setNote(
       duplicateOf
         ? `${error} It is picked under Uploaded.`
-        : `Uploaded ${file.name}. It is picked under Uploaded.`,
+        : // What its header filled on the profile (KAN-436)
+          [
+            `Uploaded ${file.name}. It is picked under Uploaded.`,
+            headerSummary(resume?.bank?.header),
+          ]
+            .filter(Boolean)
+            .join(" "),
     );
   }
 
