@@ -55,6 +55,18 @@ reads: it does not click, type or submit.
   server, and NVIDIA's My Experience, filled again that way, answered
   Save and Continue with Workday's error page (2026-11-10, KAN-758). A
   reload that opens another step is followed by Back again.
+- On Workday, the read-back of each repeating section (Work Experience,
+  Education) is Review's, not the step's (`WorkdayFiller._reviewed`, the
+  engine's `workdayEntries.reviewed`, KAN-775). NVIDIA's keeps only the
+  entries changed on a step's last visit: Ask went back to My
+  Experience, changed one date and saved, and Review then showed one of
+  three jobs, while verifying still read the step as filled (live,
+  2026-11-10). Each planned entry is found on Review by its company or
+  school (title only when neither shows), never by its place. The
+  section reads back as the count Review shows, and an entry Review
+  lacks reads back blank, so the read-back and the Work history check
+  (`verify._work_history`) hold the form. The next fill goes Back to
+  that step and types every entry again, which Workday then keeps.
 - A Workday fill deletes an entry panel only when the section shows more
   panels than the plan's entries and the panel holds none of them by its
   naming fields (`workdayEntries.naming`, sent with the count). When

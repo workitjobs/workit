@@ -315,6 +315,38 @@ def test_entries_filled_again_on_a_later_visit_are_kept():
     assert [job["companyName"] for job in sent.application["workExperience"]] == ["Hitachi Rail", "Cloud Data Pro"]
 
 
+REVIEW_URL = f"https://{CACI}/__fake__/apply/{len(EXPERIENCE_STEPS) + 1}"
+SECTION = "My Experience / Work Experience"  # the section's Question: "Work Experience (entries)"
+
+
+def test_an_entry_review_lacks_reads_back_blank_and_the_next_fill_puts_it_again():
+    # NVIDIA's, live 2026-11-10 (KAN-775): Ask went back to My Experience, changed one entry's date and saved; Workday
+    # kept only that entry, and Review showed one of the profile's jobs. Verifying read My Experience as it was filled.
+    keychain = InMemoryKeychain()
+    filler = WorkdayFiller(Accounts(keychain, FakeMailbox(), FakeClock(NOW), "test.person@example.com", "CACI"))
+
+    with FakeWorkdayServer(CACI_FORM, keychain=keychain, steps=EXPERIENCE_STEPS, drops_untouched=True) as server, \
+            OnePage(server) as site:
+        questions = filler.question_set(CACI_URL, site)
+        with site.open(CACI_URL) as page:
+            questions, answers, _ = fill_all(filler, page, questions, ANSWERS | EXPERIENCE)
+            # Ask's visit: one entry changed and saved, so Workday kept that entry alone.
+            server.save(CACI, workExperience=server.saved(CACI)["workExperience"][1:])
+            page.goto(REVIEW_URL)
+            held = filler.fill(page, questions, answers)  # Resume: from Review
+            again = filler.fill(page, questions, answers)  # the fill after verifying found it short
+            filler.submit(page)
+
+    named = {q.label: q.name for q in questions}
+    assert held[SECTION] == "1"
+    assert held[named["Work Experience 1 / Company"]] == ""  # Hitachi Rail: gone, wherever Review would show it
+    assert held[named["Work Experience 2 / Company"]] == "Cloud Data Pro"
+    assert again[SECTION] == "2"
+    assert again[named["Work Experience 1 / Company"]] == "Hitachi Rail"
+    [sent] = server.submissions
+    assert [job["companyName"] for job in sent.application["workExperience"]] == ["Hitachi Rail", "Cloud Data Pro"]
+
+
 def test_a_fill_again_over_entries_shown_with_an_extra_one_deletes_only_the_extra():
     # A fill again over the applicant's entries, their dates set from Workday's Calendar (read back blank), and before
     # them a panel holding none of them: only that panel goes, and each entry keeps what the plan doesn't answer.
