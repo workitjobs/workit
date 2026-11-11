@@ -83,6 +83,9 @@ export function storeConfig(dev) {
   return config;
 }
 
+/** `text` as a regex matching it literally. */
+const escaped = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 /** Every file under `dir`, relative to it. */
 function walk(dir, root = dir) {
   return readdirSync(dir).flatMap((name) => {
@@ -95,7 +98,9 @@ function walk(dir, root = dir) {
  * What of the job systems' data the package at `dir` holds, as lines (none: it holds none). Its engine,
  * run on its own, must bundle no site's data and only basic answer rules, and no packaged file may hold
  * a selector, wording or pattern of the full table that looks like one (8 characters or more, with one
- * of . # [ = > : \ or a parenthesis), other than GENERIC's and the extension's own KNOWN ones (KAN-778).
+ * of . # [ = > : \ or a parenthesis), a field-kind map (all its `type: "kind"` pairs) or a timeout (its name
+ * given its ms), other than GENERIC's and the extension's own KNOWN ones (KAN-778). The engine's own check
+ * covers `kinds` and `timeouts` whole: every site's data, all four parts, must be `{}`.
  */
 export function perSiteData(dir) {
   const leaks = [];
@@ -110,8 +115,20 @@ export function perSiteData(dir) {
     ...Object.entries(data.strings ?? {}).map(([name, value]) => [`${site} ${name}`, value]),
     ...Object.entries(data.patterns ?? {}).map(([name, value]) => [`${site} ${name}`, value.source]),
   ]).filter(([, value]) => value.length >= 8 && /[.#[=>:\\(]/.test(value) && !GENERIC.has(value));
+  // A field-kind map, written out in code: all of its `type: "kind"` pairs in one file. A timeout: its name given its ms.
+  const kindMaps = Object.entries(full.systems).flatMap(([site, data]) => Object.entries(data.kinds ?? {})
+    .filter(([, map]) => Object.keys(map).length >= 2)
+    .map(([name, map]) => [`${site} kinds ${name}`, Object.entries(map).map(([type, kind]) => new RegExp(`["']?${escaped(type)}["']?\\s*:\\s*["']${kind}["']`))]));
+  const timeouts = Object.entries(full.systems).flatMap(([site, data]) => Object.entries(data.timeouts ?? {})
+    .map(([name, ms]) => [`${site} timeouts ${name}`, new RegExp(`\\b${name}["']?\\s*:\\s*(${ms}|${String(ms).replace(/(\\d)(?=(\\d{3})+$)/g, "$1_")}|${ms / 1000}e3)\\b`)]));
   for (const file of walk(dir).filter((f) => !/\.(png|woff2?)$/.test(f))) {
     const text = readFileSync(join(dir, file), "utf8");
+    for (const [name, pairs] of kindMaps) {
+      if (!KNOWN[file]?.includes(name) && pairs.every((pair) => pair.test(text))) leaks.push(`${file} holds ${name}`);
+    }
+    for (const [name, written] of timeouts) {
+      if (!KNOWN[file]?.includes(name) && written.test(text)) leaks.push(`${file} holds ${name}`);
+    }
     for (const [name, value] of values) {
       if (KNOWN[file]?.includes(name)) continue;
       if (text.includes(value) || text.includes(JSON.stringify(value).slice(1, -1))) leaks.push(`${file} holds ${name}: ${value}`);

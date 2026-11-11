@@ -118,3 +118,13 @@ test("the build's check finds a job system's selector in any packaged file", () 
   appendFileSync(join(copy, "src", "content", "overlay.js"), `\nconst x = ${JSON.stringify(selector)};\n`);
   expect(perSiteData(copy)).toEqual([`src/content/overlay.js holds ashby SUBMIT: ${selector}`]);
 });
+
+test("the build's check finds a job system's field-kind map or timeout written out in a packaged file", () => {
+  const copy = join(out, "leaky-kinds");
+  cpSync(join(out, "extension"), copy, { recursive: true });
+  const full = JSON.parse(readFileSync(join(EXTENSION, "fill-engine", "dist", "rules-table.json"), "utf8"));
+  const [kindsName, kinds] = Object.entries(full.systems.workable.kinds)[0] as [string, Record<string, string>];
+  const [waitName, ms] = Object.entries(full.systems.greenhouse.timeouts)[0] as [string, number];
+  appendFileSync(join(copy, "src", "content", "overlay.js"), `\nconst k = ${JSON.stringify(kinds)};\nconst w = { ${waitName}: ${ms} };\n`);
+  expect(perSiteData(copy)).toEqual([`src/content/overlay.js holds workable kinds ${kindsName}`, `src/content/overlay.js holds greenhouse timeouts ${waitName}`]);
+});
