@@ -34,7 +34,8 @@ none.
   touches the database; runs with `python3 -m workit_scraper`, tests under
   `uvx pytest`.
 - `autofiller_extension/` — the ATS autofiller (KAN-164): a Manifest V3
-  Chrome extension, no build step, no dependency manifest. It fills through
+  Chrome extension, no build step, no dependency manifest (the Store
+  package's build minifies a copy). It fills through
   the Fill engine, the git submodule `autofiller_extension/fill-engine`
   pinned to a commit on its `main` (`git submodule update --init` once per
   checkout). Batch
@@ -176,8 +177,8 @@ with the failure it prevents.
   the sent resume it went out with (`job_applications.sent_resume_id`); a
   sent resume is an uploaded resume's file (frozen as parsed JSON once the
   upload is replaced or deleted) or a gzipped snapshot of a built resume,
-  rendered again on view; downloads keep nothing; uploads and Generate
-  refuse duplicates. Read it before changing sent resumes, applications,
+  rendered again on view; downloads keep nothing; uploads refuse
+  duplicates, and Generate asks before it makes one (KAN-444). Read it before changing sent resumes, applications,
   resume upload or delete, Generate or the editor's Download.
 - `docs/bank_by_resume.md` — KAN-343's design, built, as revised by ADR
   0005: each upload owns its own entries and skills (no merge, no
@@ -208,6 +209,12 @@ with the failure it prevents.
   it prints last (a Summary first), Fit cuts it first and Tailor reads it as
   any entry. Read it before changing the bank's sections, a resume's
   section order or import's headings.
+- `docs/cover_letters.md` — KAN-766's cover letters design, a draft for
+  review, not built: the Documents page's Cover Letters tab lists the
+  letters WorkIt wrote as written answers, then uploads (a new
+  `cover_letters` table), then records the letter each application sent
+  (`sent_cover_letter_id`), then writes one in WorkIt. Read it before
+  building any of it.
 - `docs/live_page.md` — the editor's live page (KAN-391), step 1 partly
   built: each edit renders from the editor's copy with no database read
   while its save writes beside it, and the page below a typed line

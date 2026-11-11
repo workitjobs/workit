@@ -50,6 +50,28 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
   "MongoDB Intelligent Workload Management" is the company and a brief
   name, and "Hitachi Rail's CTO" is two Story bank names. A one-word piece
   must be in the sources with its capital.
+- The truth check (`apply/truth.py`, KAN-748) reads each written essay
+  for claims that nothing Lisul gave holds (`essays.own_facts`: the
+  profile, the Story bank, the Stock and core answers, and the Answer
+  bank's answers in his own words, `source: lisul`: WorkIt's own-answer
+  rule, so a reviewed draft of Claude's is no fact of his). It finds numbers,
+  names (a single capitalized word inside a sentence, an acronym, and a
+  sentence's first word that no source uses in lower case),
+  a month or season outside his dates, and outcomes such as "adopted" or
+  "went into use". The posting, the Company material and the question
+  may also give a number or a name, never a date or an outcome. Its
+  numbers are `Essay.unsupported` and the rest `Essay.claims`: each holds
+  the Application with the claims named. Nothing is cut or rewritten,
+  and judgment stays with the editor's claim check and the Pre-submit
+  check. The file is WorkIt's `backend/app/auto_apply/truth.py`, byte for
+  byte (`tests/test_truth.py` compares them): change the backend's file,
+  then copy it here. An outcome counts as held only when a fact about the
+  same project states that kind of effect (KAN-750): the project the
+  sentence, or the nearest sentence before it, or the plan's story names,
+  matched to a Story bank heading (a tool two projects share tells
+  neither). One whose project it cannot tell is a claim. A Draft of a one-off question gets the same check (not the
+  date part: the profile keeps dates as values) and needs Lisul when it
+  finds a claim.
 - The not-on-resume gate (`gates.on_resume`) reads the text of the
   profile's resume PDF. With no PDF, or one with no text, the gate passes
   every answer; `apply doctor` shows this as "Not-on-resume gate: off".

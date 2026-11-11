@@ -267,9 +267,14 @@ class PlainDriveGuard(DriveGuard):
         return True
 
     def asking(self, on: bool, may_tick: bool = False) -> None:
-        """Nothing on the page: every press here comes through plain.tools, which judges it on the real element."""
+        """Ask's drive: plain.tools judges each press on the real element, and the page's guard refuses trusted
+        typing in a password or code box and an attestation (KAN-716: a plain Worker's text is now trusted). The
+        state goes by the drive guard's control in every frame of the open document (KAN-710), never a window flag."""
+        submit_guard.control(self._page, {"asking": on, "askTick": may_tick}, (submit_guard.DRIVE,))
 
     def _set_driving(self, driving: bool) -> None:
-        """Only keeps the state. A captcha's frame refuses trusted presses alone, and every press on a plain
-        Worker is synthetic: there the plain tools refuse each action on a captcha (KAN-617)."""
+        """While Claude drives, a captcha's frame refuses trusted presses and keys (KAN-716: a plain Worker's
+        text and choice clicks are now trusted), by the drive guard's control. The plain tools refuse each action
+        on a captcha too (KAN-617)."""
         self._driving = driving
+        submit_guard.control(self._page, {"driving": driving}, (submit_guard.DRIVE,))

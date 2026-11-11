@@ -97,6 +97,9 @@ SIGN_INS = ("email", "google")  # policies.yaml: workday_sign_in
 GOOGLE_WAIT = 60.0  # s for Workday to come back from Sign in with Google
 FOLLOW_UP_WAIT = 300  # ms for a follow-up question to show once its question is answered
 REFUSED = "won't leave its"  # the engine's Handoff when Save and Continue doesn't leave the step
+# The engine's FillError when Workday answers Save and Continue with its error page ("Something went wrong. Please refresh
+# the page and then try again."): its React error boundary, shown when the page's own script throws (KAN-758).
+WENT_WRONG = "showed its error page"
 REFILL_WAIT = 1_000  # ms for a step Workday refused to settle before it is filled again
 SEND_WAIT = 10.0  # s for an auth form's click to send it, before it is clicked again
 SEND_CLICKS = 3  # clicks on an auth form's button at most
@@ -220,6 +223,7 @@ class WorkdayFiller:
         self._known = list(questions)
         self._back_to_changed(page, questions, answers)
         refilled: set[str] = set()  # the steps Workday refused once, filled again
+        crashed: set[str] = set()  # the steps whose Save and Continue showed Workday's error page once
         attests = {name for name in fill_engine.attestations(questions) if name not in answers}  # Lisul's to tick
         # The last step is Review, or whichever step's footer button sends (a tenant may name it
         # otherwise): filling stops there, and only submit() clicks that button.
@@ -246,7 +250,7 @@ class WorkdayFiller:
             if unticked := [q.label for q in fields if q.required and q.name in attests and q.name not in kept]:
                 raise Handoff(fill_engine.tick_ask(unticked))
             try:
-                next_step(page, shown["step"])
+                self._save_and_continue(page, shown["step"], crashed)
             except Handoff as refused:
                 # Workday may drop a step's picks as it loads the step's questions again: ASML's Application
                 # Questions showed each pick, yet Save and Continue found two required answers empty, while the
@@ -256,6 +260,22 @@ class WorkdayFiller:
                 refilled.add(shown["step"])
                 page.wait_for_timeout(REFILL_WAIT)
         return dict(self._readback)
+
+    def _save_and_continue(self, page: Page, step: str, crashed: set[str]) -> None:
+        """Save and Continue on `step`. Workday's error page in its place (NVIDIA's My Experience, live, KAN-758) is
+        reloaded, as it asks: the fill goes on from the step the reload shows, and fills that step again if it is the
+        same one. A second error page on the step is Lisul's."""
+        try:
+            next_step(page, step)
+        except FillError as error:
+            if WENT_WRONG not in str(error):
+                raise
+            if step in crashed:
+                raise Handoff(f"Workday showed its error page (\"Something went wrong\") after Save and Continue on its "
+                              f"'{step}' step twice. Refresh the page, check the step and press Save and Continue "
+                              "yourself") from None
+            crashed.add(step)
+            page.reload()
 
     def _back_to_changed(self, page: Page, questions: QuestionSet, answers: Answers) -> None:
         """Back to the first step holding an answer other than the one the last fill was given there (the
@@ -268,13 +288,25 @@ class WorkdayFiller:
         if not changed:
             return
         wanted = changed[0].name.split(" / ", 1)[0]  # a Question's name starts with its step
+        if self._back_to(page, wanted):
+            # Back draws each step from what the page kept of it, not from Workday's server. Filled again on that
+            # page, NVIDIA's My Experience answered Save and Continue with Workday's error page (live, KAN-758). Once
+            # reloaded, the page loads the step from Workday, as a fill on the draft's first visit does.
+            page.reload()
+            self._back_to(page, wanted)
+
+    def _back_to(self, page: Page, wanted: str) -> bool:
+        """Press Back until the page shows `wanted` (or has no Back): whether it pressed it."""
+        pressed = False
         for _ in range(MAX_BACK):
             step = self._shown(page)["step"]
             back = page.locator(BACK_BUTTON).first
             if step == wanted or not back.count() or not back.is_visible():
-                return
+                break
             back.click()
+            pressed = True
             _until(page, lambda: _on_step(page) and _step(page) != step)
+        return pressed
 
     def resume_blocked(self, page: Page) -> str:
         """Why Resume can't go on from the page now, or "": only from an

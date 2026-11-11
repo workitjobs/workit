@@ -28,7 +28,7 @@ import { sendFill, setFillNumbers } from "./fill-events.js";
 import { SELF_ID, checkedSelfId, unansweredSelfId } from "./self-id.js";
 import { forgetSubmits, submitHinted, watchSubmitRequests } from "./submit-proof.js";
 import { watchEmbeddedForms } from "./embedded-forms.js";
-import { injectFill } from "../shared/content-scripts.js";
+import { SHELL_FILES, injectFill } from "../shared/content-scripts.js";
 import { forgetShownWorkableDraft } from "./tab-load.js";
 import { allowForMe, forgetLogin, markCreated, markRefused, markSignedIn, removeLogin, sentSince, watchWorkdaySends, workdayLogin } from "./workday-logins.js";
 import { writeEarly } from "./write-early.js";
@@ -39,6 +39,8 @@ import { fetchText, planReads } from "./plan-reads.js";
 import { treeStore } from "./stored-data.js";
 import { installed, setUninstallPage } from "./install.js";
 import { remoteConfig, turnedOff } from "./remote-config.js";
+import { prefetchRules } from "./rules.js";
+import { answerList, coverageOf } from "./coverage.js";
 import { TEST_HOOKS } from "../shared/config.js";
 import { PANEL_SITES_KEY } from "../shared/panel-keys.js";
 
@@ -437,15 +439,39 @@ async function handleMessage(message, sender) {
       const jobSystem = await pageSystem(sender.tab?.id, sender.frameId ?? 0, url);
       const job = Boolean(jobSystem);
       if (job && sender.tab?.id !== undefined) await chrome.action.setPopup({ tabId: sender.tab.id, popup: "" });
-      // A job page's panel will plan a fill: its profile is fetched while the page settles.
-      if (job) warmProfile();
+      // A job page's panel will plan a fill: its profile and its job system's Rules table (rules.js) are
+      // fetched while the page settles.
+      if (job) {
+        warmProfile();
+        senderJobUrl(sender).then(prefetchRules).catch((error) => console.warn("[rules] not fetched:", error.message));
+      }
       return { job, jobSystem, batch: sender.tab ? await inBatch(sender.tab.id) : false, site: await panelSite(url), autoOpen: await autoOpen(), hiddenEverywhere: await hiddenEverywhere() };
+    }
+    // The launcher's copy of the Rules table panel/where fetched (rules.js): held in the page's isolated world,
+    // for a fill after Chrome stopped this worker. Memory only, never storage.
+    case "rules/get":
+      return { rules: await prefetchRules(await senderJobUrl(sender)) };
+    // The launcher's next step on a page panel/where named a job system's (launcher.js, KAN-749): the panel's
+    // files, into that frame only. Other pages never load them.
+    case "panel/shell": {
+      if (sender.tab?.id === undefined || !(await pageSystem(sender.tab.id, sender.frameId ?? 0, sender.url ?? ""))) return { loaded: false };
+      await chrome.scripting.executeScript({ target: { tabId: sender.tab.id, frameIds: [sender.frameId ?? 0] }, files: SHELL_FILES });
+      return { loaded: true };
     }
     case "panel/site":
       return { site: await panelSite(sender.url ?? "", message.set) };
     // The panel's and the edge tab's Hide everywhere (KAN-480); Options' switch turns it back on.
     case "panel/hide-everywhere":
       return hideEverywhere();
+    // The coverage badge before a fill (coverage.js, KAN-749): how much of this page's job system WorkIt fills.
+    case "panel/coverage": {
+      const link = await senderJobUrl(sender);
+      const job = jobOf(link);
+      return coverageOf({ site: job?.site ?? null, practice: Boolean(job?.practice), off: await turnedOff(link) });
+    }
+    // The student's answers to copy, on a page WorkIt can't fill (coverage.js answerList).
+    case "panel/answers":
+      return { answers: answerList(await getAutofillProfile(), await autofillOff()) };
     // The off switch (remote-config.js, KAN-467): the job system's name when WorkIt turned it off, which the
     // panel shows in place of its button and the fill in place of filling (a batch tab then needs the student).
     case "fill/available":
@@ -467,7 +493,7 @@ async function handleMessage(message, sender) {
     // Allow WorkIt on <host> (popup.js, KAN-369): the popup's permission request was granted.
     case "popup/allow": {
       const allowed = await allowTabSite(message.tabId);
-      if (allowed.onPage) await openShell(message.tabId, false);
+      if (allowed.onPage) await openShell(message.tabId);
       return allowed;
     }
     // The options page's allowed sites, and its Remove.
@@ -522,8 +548,13 @@ async function handleMessage(message, sender) {
     // The toolbar popup off job pages: the batch's status, and (KAN-424) what the student is doing, with its next step.
     case "popup/batch":
       return batchStatus();
-    // Only the popup's own page may switch tabs or open a batch (a content script's sender is the job page,
-    // never the extension's popup.html), so a page's script can't press these.
+    // Only the popup's own page may switch tabs, open a batch or open the panel's answers (a content script's
+    // sender is the job page, never the extension's popup.html), so a page's script can't press these.
+    // Show My Answers on a site WorkIt can't fill (KAN-749): the panel opens there with the answers to copy.
+    case "popup/answers":
+      if (!fromPopup(sender)) return { error: "not_popup" };
+      await openShell(message.tabId, { answers: true });
+      return {};
     case "popup/home":
       return fromPopup(sender) ? popupHome() : { error: "not_popup" };
     case "popup/next":
@@ -690,19 +721,22 @@ async function panelSite(url, change) {
   return sites[site];
 }
 
-// What the panel's shell injects when the toolbar icon or Alt+W finds no panel on a job page yet.
-const SHELL_FILES = ["src/shared/tokens.js", "src/content/ui.js", "src/shared/report-parts.js", "src/content/panel.js", "src/content/panel-top.js", "src/content/resume-card.js", "src/content/panel-settings.js", "src/content/report.js", "src/content/panel-states.js"];
-
-/** Opens the panel's shell in the tab's top frame, as the toolbar icon does on a job page with no edge tab yet
- * (`inject`: its files first; an allowed site's were just injected with the launcher). */
-async function openShell(tabId, inject = true) {
-  if (inject) await chrome.scripting.executeScript({ target: { tabId }, files: SHELL_FILES });
+/**
+ * Opens the panel's shell in the tab's top frame, its files first (a copy
+ * already there keeps its shell): as the toolbar icon does on a job page with
+ * no edge tab yet, or with `answers` on a site WorkIt can't fill (Show My
+ * Answers: the coverage badge and the answers to copy, no fill button).
+ */
+async function openShell(tabId, { answers = false } = {}) {
+  await chrome.scripting.executeScript({ target: { tabId }, files: SHELL_FILES });
   await chrome.scripting.executeScript({
     target: { tabId },
-    func: async () => {
+    args: [answers],
+    func: async (answers) => {
       const panel = window.WIA.panel;
       await panel.ensure();
-      if (!window.WIA.overlay?.state?.()) await window.WIA.panelStates.start();
+      if (answers) await window.WIA.coverage.show();
+      else if (!window.WIA.overlay?.state?.()) await window.WIA.panelStates.start();
       panel.open();
     },
   });

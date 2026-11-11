@@ -147,7 +147,8 @@ async function pageTabId() {
 
 /**
  * A web page WorkIt can't fill (KAN-401; background/panel-states.js): says
- * so, with Save to WorkIt (the feed's job whose apply link the page is, to
+ * so, with Show My Answers (KAN-749: the panel on the page, its answers to
+ * copy), Save to WorkIt (the feed's job whose apply link the page is, to
  * the student's Applications), Request this job system (KAN-369: the page's
  * host only, once per host) and Report a problem (what it sends, then Send
  * report). Nothing leaves on opening the popup.
@@ -184,8 +185,17 @@ async function showUnsupported() {
     box.querySelector(".allow-hint").hidden = true;
     if (!answer.found) return say("WorkIt found no application it fills on this page. Request this job system to ask for it.");
     box.querySelector(".unsupported-line").textContent = "WorkIt can fill this page";
-    for (const button of box.querySelectorAll("#save-button, #request-button, #report-button")) button.hidden = true;
+    for (const button of box.querySelectorAll("#answers-button, #save-button, #request-button, #report-button")) button.hidden = true;
     say(answer.onPage ? "Its panel is open at the right edge of the page." : "Open WorkIt's tab at the right edge of the application form.");
+  });
+  // Show My Answers (KAN-749): the panel opens on the page with the student's answers, each with Copy.
+  const answers = box.querySelector("#answers-button");
+  answers.addEventListener("click", async () => {
+    answers.disabled = true;
+    const answer = await sendMessage({ type: "popup/answers", tabId });
+    answers.disabled = false;
+    if (!answer?.ok) return say("WorkIt couldn't open its panel on this page. Reload it and try again.", true);
+    window.close();
   });
   const save = box.querySelector("#save-button");
   save.addEventListener("click", async () => {

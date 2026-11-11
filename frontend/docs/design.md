@@ -538,7 +538,7 @@ strength card at the panel's foot (`(seeker)/profile-strength.tsx`), which
 counts only steps the API can see. Only messages backed by real data belong in
 the bar — deadlines go first once the tracker has a backend, and not before.
 The seeker panel holds only the search (Home, Jobs, Auto Apply,
-Applications Tracker, Resumes & Experiences, Inbox, Calendar, My Profile:
+Tracker, Experiences, Documents (KAN-766), Inbox, Calendar, Profile:
 the tools for applying, then what comes back, KAN-426; the Inbox is
 archived for now, KAN-428), with no caption over it. Settings, Help and Sign Out, once its General
 group, live in the bar's account menu and nowhere else. The
@@ -1035,10 +1035,22 @@ runs once it is gone without its action, so Undo is the write never sent.
 `lib/format-count.ts` prints a headline figure ("1,234", "12.3K") in en-US so
 the server and the browser print the same.
 
-**Every choice of one among a few is `ui/segmented-control.tsx`**: the
-Calendar's Month, Week and Agenda, Home's range, the Applications
-layouts, the sign-in card's Applicant or Company, the company chart's
-range, and Resumes & Experiences' two views. A pill-shaped track (a 5% ink wash, so it reads on the white page and
+**Tabs or a switcher** (KAN-766): a **switcher** changes how the same
+content looks, or one setting; **tabs** (`ui/tabs.tsx`, `TabLinks`) move
+between different content on one subject. Material Design and Nielsen
+Norman Group draw the line the same way. Tabs: a job's Overview and
+Company, an application's Your Application and Job Description, and
+Documents' Resumes and Cover Letters, each a link kept in the URL, drawn as
+text with a brand underline on the open one, never the switcher's pill.
+The job and application pages used the switcher until KAN-766, which read
+as a setting of one view rather than a way to another, and Resumes &
+Experiences' switcher led to a different page.
+
+**Every choice of one among a few looks of the same content is
+`ui/segmented-control.tsx`**: the Calendar's Month, Week and Agenda, Home's
+range, the Tracker's and Jobs page's layouts, the streak's 2D or 3D, pay
+per hour or per year, the sign-in card's Applicant or Company, and the
+company chart's range. A pill-shaped track (a 5% ink wash, so it reads on the white page and
 the off-white auth card alike, edged in `--color-border-control` as an inset
 ring, since with no outline it was 1.1:1 on the seeker pages' grey ground,
 KAN-556) with a white thumb that slides
@@ -1049,9 +1061,8 @@ kept in the URL: the thumb moves on the click, before anything else answers.
 Every caller but one passes `shallow`, which moves the query in place
 (`components/shallow-routing.tsx`) for content the page already holds, so
 the content redraws with the thumb; without it, the page goes back to the
-server and the content follows a round trip later. The one is Resumes &
-Experiences' switcher (`(seeker)/resumes/header.tsx`): its options are two
-routes, and each reads its own data on the server. `SegmentedToggle` is for component state, on Base UI's
+server and the content follows a round trip later. A choice between two
+routes is tabs, not this. `SegmentedToggle` is for component state, on Base UI's
 ToggleGroup for its arrow keys and single tab stop; a null value hides the
 thumb. An icon option is a rendered element, not a component, since a server
 page passes the options. Build a new segmented choice from it rather than

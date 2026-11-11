@@ -66,7 +66,8 @@ class Applicant_Profile(Profile):
     fill_profile: Mapped[dict] = mapped_column(JSONB, server_default=text("'{}'::jsonb"))
     fill_policies: Mapped[dict] = mapped_column(JSONB, server_default=text("'{}'::jsonb"))
     # {question wording: {"answer": text or the options ticked, "own": bool,
-    # "company": where it was first asked or null}}
+    # "company": where it was first asked or null, "edited_at": when Apply
+    # changed it, for its sync (KAN-746), absent when unknown}}
     fill_answers: Mapped[dict] = mapped_column(JSONB, server_default=text("'{}'::jsonb"))
     # KAN-298: opt-in, off until the student turns it on in Settings — a
     # new unsolicited daily email should never surprise an existing

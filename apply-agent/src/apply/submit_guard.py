@@ -366,8 +366,62 @@ _TEMPLATE = r"""
   const password = (form) => !!form && !!one(form, 'input[type=password]');
   // A sign-in or new account's form: one with a password box, which no application's final button is in.
   const accountForm = (el) => password(formOf(el));
-  // A verification code's form: one with a one-time-code box, which no application's final button is in either.
-  const codeForm = (el) => { const form = formOf(el); return !!form && !!one(form, 'input[autocomplete=one-time-code]'); };
+  // Lisul's press on a lifted page was a sign-in, account or code step's, never the application's Submit (KAN-688,
+  // KAN-781): Workday's Sign in with email names its button Submit, and Oracle's code step is a form of six digit
+  // boxes (autocomplete off) with a "Send New Code" button. Read from the button's own form, never the words alone.
+  // A sign-in step's form holds nothing an application asks:
+  // - a login: password boxes, and at most one other box beside them (the email or username);
+  // - a code step: a one-time-code box (by its autocomplete) or a row of four or more one-digit boxes,
+  //   and no other box;
+  // and the page shows no answer field (a file, a long answer, a list, a choice). A box named for a code (an access,
+  // security or PIN code: an Indian address's postal code) is an application's box, never a sign-in's on its own.
+  // The one exception: a button whose words name the code ("Send New Code", "Verify"), and no submit, finish,
+  // complete or application, in a form with a one-time-code box or a row of digit boxes (Oracle's inline code step,
+  // on the application's own form). A press whose words name the application, or on no form, is always his Submit.
+  // A confirmation page after any press of his still ends Resume (rehearsal._Kept.hold).
+  // Read with the built-ins taken first, as the rest of the guard (KAN-710).
+  const CODE_PRESS = /\b(code|passcode|otp|verify|verification)\b/i;
+  // Words that send the application: submit, finish, complete, apply, or a send that sends no code ("Verify and Send").
+  const NOT_AUTH = /\b(submit|finish|complete|appl(?:y|ying|ication))\b|\bsend\b(?!\s+(?:(?:me|a|an)\s+)*(?:new|another)?\s*(?:code|passcode|otp|verification))/i;
+  const NAMES_APPLY = /\bappl(?:y|ying|ication)\b/i, NOT_TYPED = /^(hidden|checkbox|radio|submit|button|reset|image|file)$/;
+  const DIGIT_NAME = /digit|pin-code/i, CHOICE_TYPE = /^(file|radio)$/;
+  const autoGet = getter(HTMLInputElement, 'autocomplete'), maxLengthGet = getter(HTMLInputElement, 'maxLength');
+  const inputModeGet = getter(HTMLElement, 'inputMode');
+  const shownBox = (n) => typeOf(n) !== 'hidden' && seen(n);
+  const typedBox = (n) => !test(NOT_TYPED, typeOf(n));
+  // One box of a code's row: one character long, or numeric and named a digit (Oracle's has no maxlength).
+  const digitBox = (n) => read([maxLengthGet], n, -1) === 1 || (text(read([inputModeGet], n, '')) === 'numeric'
+    && test(DIGIT_NAME, text(attr(n, 'id')) + ' ' + text(attr(n, 'class')) + ' ' + text(attr(n, 'aria-label'))));
+  // A file box or a choice is often drawn hidden behind a styled control; a long answer or a list is counted only when
+  // shown (a captcha's hidden response box is a textarea).
+  const answerField = (n) => test(CHOICE_TYPE, typeOf(n)) || attr(n, 'role') === 'radio' || shownBox(n);
+  const signInStep = (el) => {
+    const words = wordsOf(el);
+    if (test(NAMES_APPLY, words)) return false;
+    const form = formOf(el);
+    if (!form) return false;  // a button on no form is the application's, as before (KAN-688)
+    const boxes = [], codes = [], digits = [], passwords = [], inputs = all(form, 'input');
+    for (let i = 0; i < inputs.length; i++) {
+      const n = inputs[i];
+      if (!typedBox(n) || !shownBox(n)) continue;
+      push(boxes, n);
+      if (text(read([autoGet], n, '')) === 'one-time-code') push(codes, n);
+      if (digitBox(n)) push(digits, n);
+      if (typeOf(n) === 'password') push(passwords, n);
+    }
+    const row = digits.length >= 4 ? digits : [];
+    const code = codes.length > 0 || row.length > 0;
+    if (code && test(CODE_PRESS, words) && !test(NOT_AUTH, words)) return true;
+    if (any(all(D, 'input[type=file], input[type=radio], [role=radio], textarea, select, '
+      + '[contenteditable]:not([contenteditable=false])'), answerField)) return false;
+    let rest = 0;
+    for (let i = 0; i < boxes.length; i++) {
+      const n = boxes[i];
+      if (typeOf(n) !== 'password' && !any(codes, (c) => c === n) && !any(row, (r) => r === n)) rest++;
+    }
+    if (passwords.length) return rest <= 1;
+    return code && rest === 0;
+  };
   // Plain code's click on the button of a profile step before the application (Microsoft's
   // "Create your profile" pop-up names its button Submit, live: KAN-647).
   const profileClick = () => S.profile;
@@ -581,11 +635,11 @@ _TEMPLATE = r"""
     const target = up(targetGet(event), 'button, input[type=submit], input[type=button], [role=button], a');
     if (!target) return;
     if (lifted()) {  // Lisul's page: his click goes through, and Apply hears of one that sends
-      // Saying whether it was a sign-in, account or code form's (Workday's Sign in with email names its button
-      // Submit): that press sends no application, so Resume still goes on after it. Only his own press: a trusted
-      // click, or a plain Worker's press from the tile.
+      // Saying whether it was a sign-in, account or code step's (signInStep, KAN-781): that press sends no
+      // application, so Resume still goes on after it. Only his own press: a trusted click, or a plain Worker's
+      // press from the tile.
       if (sends(target) && user(event)) tell('__applyLisulPressed', slice(trim(wordsOf(target)), 0, 80),
-        accountForm(target) || codeForm(target));
+        signInStep(target));
       return;
     }
     if (opensBy(target, event)) {  // the Posting's Apply, once (KAN-725)
@@ -778,6 +832,19 @@ _TEMPLATE = r"""
   // button that sends, and never to a final URL; outside the attach's window it is blocked as ever.
   const uploadPost = (form, by, href) => S.upload && !(isEl(by) && sends(by))
     && any(all(form, 'input[type=file]'), chosen) && !postsFinal(form, by, href);
+  // A blocked form submission named by where it went, its frame target and what sent it (a button's words, else a
+  // script), so a Handoff and the Trace tell a page's own post from the application (KAN-679).
+  const formNamed = (form, by) => {
+    try {
+      const href = text(postTarget(form, by));
+      const target = (isEl(by) && text(attr(by, 'formtarget'))) || text(attr(form, 'target'));
+      const words = isEl(by) ? slice(trim(innerText(by) || valueOf(by) || text(attr(by, 'aria-label'))), 0, 40) : '';
+      return 'a form submission (POST ' + slice(href, 0, 160) + (target ? ', into frame ' + slice(target, 0, 60) : '')
+        + ', by ' + (words ? 'the "' + words + '" button' : 'a script') + ')';
+    } catch (e) {
+      return 'a form submission';
+    }
+  };
   // The form the guard last let post, and whether by plain code's press: the navigation it makes comes a task later
   // (a script's form.submit()), when the press's dispatch is over, and may name another element its source.
   let posting = null;
@@ -796,7 +863,7 @@ _TEMPLATE = r"""
     if (readyOf(D) === 'loading' && relayLike(form, by)) {  // a relay's post as the page loads: judged once it has
       prevent(event);
       listen(D, 'DOMContentLoaded', () => {
-        if (!relay(form, by)) return note('a form submission');
+        if (!relay(form, by)) return note(formNamed(form, by));
         posting = {form, by: null, press: false};
         apply(submit, form, []);
       });
@@ -818,7 +885,7 @@ _TEMPLATE = r"""
     const step = apply_ && !postsFinal(form, by) && !hadSends(form) && !inShadow(form);
     if (final || (posts(form, by) && !step)) {
       prevent(event);
-      note('a form submission');
+      note(formNamed(form, by));
     }
   });
   on('submit', judgeSubmit);
@@ -852,13 +919,13 @@ _TEMPLATE = r"""
     if (!go && readyOf(D) === 'loading' && relayLike(this, null)) {  // judged once the rest of the page is there
       const form = this;
       listen(D, 'DOMContentLoaded', () => {
-        if (!relay(form, null)) return note('a form submission');
+        if (!relay(form, null)) return note(formNamed(form, null));
         posting = {form, by: null, press: false};
         apply(submit, form, []);
       });
       return;
     }
-    if (!go) return note('a form submission');
+    if (!go) return note(formNamed(this, null));
     posting = {form: this, by: null, press: fromPress(this, null)};
     return apply(submit, this, []);
   };
@@ -1568,7 +1635,7 @@ def lift(page: Page, pressed: Callable[[str], None] | None = None, again: Callab
     Claude drives it any more, so a Submit on it can only be his, and it goes
     through, on this page and every page he loads from it. `pressed` hears
     the words of each button he clicks that sends, with `account=True` when it is a sign-in, account
-    or verification code form's (it sends no application); `again`, when he presses
+    or verification code step's (the script's signInStep: it sends no application); `again`, when he presses
     the note's Fill again. Both are called on the page's own thread, and only for his own press (the guard tells
     Apply; a page script can't). A `warning` goes on the note, red when an answer is `wrong`, amber when
     it only names fields left blank. `bound`: the page was lifted before

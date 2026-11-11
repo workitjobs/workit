@@ -10,6 +10,16 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
   that button, with word to stop. A click the drive guard still blocked on
   the button Claude then names as the submit leaves the form filled
   (`claude_fill._only_its_submit`); any other block is a Handoff.
+- Claude's stop for a captcha holds the fill only when Apply's own check
+  sees the challenge or its box showing to a person (`captcha.shows`,
+  `captcha.unsolved`; KAN-760, `docs/captchas-and-bot-blocks.md`). Else
+  Claude is told that no challenge is open (`NO_CAPTCHA`) and drives once
+  more, and a second such stop is a Handoff (`UNSEEN_CAPTCHA`). The rules
+  tell Claude that an invisible captcha's frame or its words in the
+  snapshot ("Please try again", "Verify") don't stop it.
+- Claude's "blocked" on a page that shows a provider sign-in ("Sign in using Google" and the like) is
+  a Needs sign-in Handoff, read by plain code, never Claude's free-text reason (KAN-763,
+  `docs/sign-in.md`). Its pause goes on by itself once Lisul signs in.
 - Only what the drive guard blocked during that drive stops it. A block of
   an earlier drive was its Handoff already: after Lisul's Resume, the next
   read or fill goes on (LinkedIn's SmartRecruiters page posts a form of its
@@ -163,3 +173,13 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
   is filled once more, after a second's wait, and saved again; a second
   refusal is the Handoff. ASML's Application Questions showed every pick,
   yet Workday held two of them empty (`WorkdayFiller.fill`).
+- Workday may answer Save and Continue with its error page, "Something
+  went wrong. Please refresh the page and then try again." That page is
+  Workday's React error boundary: the page's own script threw. It is not a
+  refused answer, which shows as a "Page Error" banner. The engine's `next`
+  names it at once ("showed its error page"). Before, it waited 30 s and
+  failed the Application, since the progress bar still named the step
+  (NVIDIA's My Experience, 2026-11-10, KAN-758). Apply reloads the page, as
+  it asks, and goes on from the step the reload shows. It fills that step
+  again if it is the same one. A second error page on the step is the
+  Handoff (`WorkdayFiller._save_and_continue`).

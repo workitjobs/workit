@@ -35,6 +35,31 @@ test("the zip holds what Chrome loads and nothing of the repo's own", () => {
   expect(list.filter((f) => /^(test|store)\/|CLAUDE\.md|README\.md|fill-engine\/(src|test)\//.test(f))).toEqual([]);
 });
 
+test("every script in the zip is minified, starts with the copyright notice and has no source map", () => {
+  const scripts = files().filter((f) => f.endsWith(".js"));
+  expect(scripts.length).toBeGreaterThan(10);
+  expect(files().filter((f) => f.endsWith(".map"))).toEqual([]);
+  for (const file of scripts) {
+    const text = read(file);
+    // The copyright notice (store/build.mjs, BANNER) is its first line.
+    expect(text, file).toMatch(/^\/\*! WorkIt\. Copyright \(c\) 2026 [^\n]+ \*\/\n/);
+    expect(text, file).not.toContain("sourceMappingURL");
+    // Minified: no comment line is left (a template string's CSS keeps its own lines, so this, not a line count).
+    expect(text, file).not.toMatch(/^\s*\/\/ /m);
+  }
+  const size = (texts: string[]) => texts.reduce((sum, text) => sum + text.length, 0);
+  const dev = size(scripts.map((f) => readFileSync(join(EXTENSION, f), "utf8")));
+  expect(size(scripts.map(read))).toBeLessThan(dev * 0.6);
+});
+
+test("the engine ships once, minified, and smaller than its readable bundle", () => {
+  expect(files().filter((f) => f.startsWith("fill-engine/") && !f.endsWith("/"))).toEqual(["fill-engine/dist/engine.js"]);
+  const engine = read("fill-engine/dist/engine.js");
+  expect(engine.length).toBeLessThan(readFileSync(join(EXTENSION, "fill-engine", "dist", "engine.js"), "utf8").length * 0.7);
+  // What the extension reads from it survives: the global and its version.
+  expect(engine).toContain("globalThis.FillEngine=");
+});
+
 test("the Store manifest is WorkIt's, at its launch version, with no dev key", () => {
   const manifest = JSON.parse(read("manifest.json"));
   expect(manifest.name).toBe("WorkIt");
@@ -48,9 +73,10 @@ test("the Store manifest is WorkIt's, at its launch version, with no dev key", (
 
 test("the Store build's config has no dev servers and no test hooks", () => {
   const config = read("src/shared/config.js");
-  expect(config).toMatch(/export const DEV_API_URL = null;/);
-  expect(config).toMatch(/export const DEV_WEB_URL = null;/);
-  expect(config).toMatch(/export const TEST_HOOKS = false;/);
+  // Minified: esbuild writes false as !1.
+  expect(config).toMatch(/\bDEV_API_URL=null\b/);
+  expect(config).toMatch(/\bDEV_WEB_URL=null\b/);
+  expect(config).toMatch(/\bTEST_HOOKS=!1\b/);
 });
 
 test("the dev manifest is left as it is", () => {

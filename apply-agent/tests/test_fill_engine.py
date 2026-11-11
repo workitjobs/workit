@@ -6,9 +6,9 @@ from datetime import date
 import pytest
 from conftest import APPLY, FIXTURES, FORMS
 
-from apply import fill_engine
+from apply import essays, fill_engine
 from apply.answer_bank import AnswerBank
-from apply.model import FillError, Outcome, Posting, Question, Status
+from apply.model import FillError, Outcome, Posting, Question, Status, host_company
 from apply.profile import ApplicantProfile
 from apply.tracker import FileTracker, Row
 
@@ -175,6 +175,24 @@ def test_past_applications_and_interviews_at_the_company_come_from_the_tracker_t
     # ...till his Outcome records one.
     rows.edit_as_lisul("a2", outcome=Outcome.INTERVIEW)
     assert plan() == {"q1": "Yes", "q2": "Yes"}
+
+
+def test_the_pre_submit_review_reads_the_past_applications_the_plan_answered_from():
+    # amazon.jobs (live 2026-11-10, KAN-753): the plan said Yes to "previously applied to Amazon?" from the Tracker, and
+    # the review, shown a profile with previously_applied_to empty, called it wrong. The link names no company:
+    # Apply names it from the host, and the Tracker's row is named so too.
+    amazon = Posting("a", host_company("https://www.amazon.jobs/en/jobs/2/intern"), "Intern", "https://www.amazon.jobs/en/jobs/2/intern")
+    asked = Question("q1", "Have you previously applied to Amazon or any Amazon subsidiary or affiliate?", "select", False, ("Yes", "No"))
+    FileTracker().add(Row("a1", "Amazon", "Intern", "https://www.amazon.jobs/en/jobs/1/intern", "amazon", Status.SUBMITTED))
+
+    assert fill_engine.plan([asked], amazon, PROFILE).answers == {"q1": "Yes"}
+    shown = json.loads(essays.profile_block(PROFILE, amazon).removeprefix("<profile>\n").removesuffix("\n</profile>\n"))
+    assert shown["screeners"]["previously_applied_to"] == ["Amazon"]
+    assert "Amazon" in essays.sources(PROFILE, facts=True, posting=amazon)
+    # Without the Posting, the profile as it is: the Tracker's join is for the Application being checked.
+    assert '"previously_applied_to": []' in essays.profile_block(PROFILE)
+    # The profile itself is never changed.
+    assert PROFILE.get("screeners.previously_applied_to") == []
 
 
 def test_a_changed_bundle_on_disk_is_reloaded_before_the_next_posting(tmp_path, monkeypatch):

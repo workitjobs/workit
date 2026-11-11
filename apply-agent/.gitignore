@@ -28,6 +28,7 @@
 /workit-login.*
 /tracker.*
 /workit-queue.*
+/workit-answers-queue.*
 /open-forms.*
 
 # The privacy gate's identifier list. It stays outside the repo; this line

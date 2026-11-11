@@ -17,10 +17,10 @@ transaction:
    Apply's run settings (caps, limits, schedules) stay Apply's;
 3. `fill_answers`: every Answer bank entry, with the company it was first
    asked at (the answer bank keeps a company's answers to that company's
-   forms). As in Apply, only an entry with `source: lisul` is the student's
-   own words; Claude's drafts (`source: claude`, reviewed or not) come as
-   their Claude's, so they pass Claude's checks and a form that bans AI text
-   never takes them. A choice's entry (its options, or a list) is `choice`;
+   forms), by the rules Apply's sync uses too (services/apply_answers.py):
+   only an entry with `source: lisul`, and never one marked `reviewed:
+   false`, is the student's own words; Claude's drafts come as their
+   Claude's. A choice's entry (its options, or a list) is `choice`;
 4. WorkIt's own fields from the profile's identity: name, contact email,
    phone, links, home location, and the education entry (the student's own,
    matched by school);
@@ -71,7 +71,7 @@ from app.models.resume import Resume
 from app.schemas.bank import EntryFields
 from app.schemas.profile import ApplicantProfileUpdate
 from app.scripts import import_apply_writing
-from app.services import bank, local_files
+from app.services import apply_answers, bank, local_files
 from app.services.names import join_name
 
 PROFILE, POLICIES, ANSWERS = "applicant-profile.yaml", "policies.yaml", "answer-bank.yaml"
@@ -118,24 +118,6 @@ def _month(value: Any) -> datetime.date | None:
         return datetime.date(int(year), int(month), 1)
     except (ValueError, TypeError):
         return None
-
-
-def _answers(entries: dict) -> dict:
-    brought = {}
-    for filed, entry in entries.items():
-        if not isinstance(entry, dict) or entry.get("answer") in (None, "", []):
-            continue
-        answer = entry["answer"]
-        answer = [str(a) for a in answer] if isinstance(answer, list) else str(answer)
-        first = entry.get("first_seen") if isinstance(entry.get("first_seen"), dict) else {}
-        # Apply's own rule (answer_bank.py, LISUL): only an answer the student
-        # gave is theirs. A Claude draft stays Claude's even once reviewed.
-        brought[str(entry.get("question") or filed).strip()] = {
-            "answer": answer, "own": entry.get("source") == "lisul",
-            "choice": isinstance(answer, list) or bool(entry.get("options")),
-            "company": (str(first.get("company") or "").strip() or None),
-        }
-    return brought
 
 
 def _home(place: Any) -> str | None:
@@ -295,7 +277,7 @@ async def import_apply(session: AsyncSession, applicant_id: uuid.UUID, apply_dir
 
     profile.fill_profile = _plain({k: v for k, v in facts.items() if k != "files"})
     profile.fill_policies = _plain({k: policies[k] for k in ENGINE_POLICIES if k in policies})
-    profile.fill_answers = _plain(_answers(_read(apply_dir / ANSWERS)))
+    profile.fill_answers = _plain(apply_answers.from_bank(_read(apply_dir / ANSWERS)))
     report.profile_sections = sorted(profile.fill_profile)
     report.policies = sorted(profile.fill_policies)
     report.answers = len(profile.fill_answers)

@@ -12,10 +12,12 @@ import { revalidatingResumes } from "@/lib/resume-revalidate";
  * the browser turns into a download: a resume is tens of KB, far under
  * Vercel's 4.5 MB response limit.
  *
- * A write the Resumes page shows (Generate, Rename, Delete, the star) goes
- * through `revalidatingResumes`, so a Back to a list of resumes reads it
- * again. The editor's per-edit saves and Fit do not: each would render the
- * editor's page, PDF and all, again (`lib/resume-revalidate.ts`).
+ * A write the Resumes page shows (Rename, Delete, the star) goes through
+ * `revalidatingResumes`, so a Back to a list of resumes reads it again. The
+ * editor's per-edit saves and Fit do not: each would render the editor's
+ * page, PDF and all, again (`lib/resume-revalidate.ts`). Generate is a
+ * stream through the route handler `/api/resume-generate` (KAN-444,
+ * `GenerateStreamEvent`), not an action, so the page can show its steps.
  */
 
 export type BuiltResume = {
@@ -34,7 +36,31 @@ export type BuiltResume = {
    *  (KAN-268); null on a base resume. */
   posting_title: string | null;
   posting_company: string | null;
+  /** Its company's logo and website, for the card's logo tile (`jobLogo`);
+   *  null on a base resume or a posting with none. */
+  posting_logo_url: string | null;
+  posting_company_domain: string | null;
 };
+
+/** One line of a streamed Generate (`/api/resume-generate`, the API's
+ *  `POST .../built-resumes/stream`, KAN-444): `checking` before the
+ *  duplicate check, `saving` before the writes, then `done` with the new
+ *  resume or `error` with the JSON route's status and message (409 and the
+ *  resume it matches on a duplicate). The body's `allow_duplicate` skips
+ *  the check (the student confirmed a copy), and with it `checking`. Mirrors `GenerateStep`,
+ *  `GenerateDone` and `GenerateFailed` in backend/app/schemas/built_resume.py;
+ *  change both or neither. */
+export type GenerateStreamEvent =
+  | { type: "phase"; phase: "checking" | "saving" }
+  | { type: "done"; resume: BuiltResume }
+  | {
+      type: "error";
+      status: number;
+      message: string;
+      /** On a duplicate (409): the resume it matches, and its name. */
+      built_resume_id?: string | null;
+      name?: string | null;
+    };
 
 /**
  * Where one line sits on the PDF (schemas `RenderBox`): the bank id of the
@@ -166,12 +192,6 @@ export async function listBuiltResumes(): Promise<Result<BuiltResume[]>> {
 
 /** Generate: a base resume with everything in the bank, "Resume #N" when
  *  no name is given. No limit: only uploads count toward the 5. */
-export async function generateResume(name?: string): Promise<Result<BuiltResume>> {
-  return revalidatingResumes(
-    call<BuiltResume>("", { method: "POST", body: JSON.stringify(name ? { name } : {}) }),
-  );
-}
-
 /** A new name for the resume (KAN-258); its sent resumes keep theirs. */
 export async function renameBuiltResume(
   resumeId: string,

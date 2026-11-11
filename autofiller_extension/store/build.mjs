@@ -10,19 +10,36 @@
 // - src/shared/config.js: DEV_API_URL and DEV_WEB_URL null (never probe or call localhost), the
 //   Vercel site gone (KAN-296), TEST_HOOKS false (no hooks on the service worker's global).
 //
+// - every .js file: minified by esbuild (KAN-744), no source map, and BANNER, the copyright notice, as
+//   its first line. The engine ships only as its minified dist/engine.js.
+//
 // The dev manifest and config stay as they are, for the tests. KAN-447's publish workflow uploads
-// this zip rather than packaging the folder itself. Needs `zip` (macOS and ubuntu-latest have it).
+// this zip rather than packaging the folder itself. Needs `zip` (macOS and ubuntu-latest have it) and
+// esbuild (`npm ci --prefix store` from autofiller_extension/).
 import { execFileSync } from "node:child_process";
+import { transform } from "esbuild";
 import { cpSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const EXTENSION = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-/** What Chrome loads: never test/, store/, the docs, or the engine's source. */
-const PARTS = ["manifest.json", "icons", "fonts", "src", "fill-engine/dist"];
+/** What Chrome loads: never test/, store/, the docs, or the engine's source. Of the engine's dist/ only
+ *  engine.js: its rules-table.json is for the API to serve (KAN-756), never the package. */
+const PARTS = ["manifest.json", "icons", "fonts", "src", "fill-engine/dist/engine.js"];
 const DEV_ONLY = /localhost|vercel\.app/;
 /** What no packaged file may contain. "Prototype" as a word: the engine's Object.getPrototypeOf is fine. */
 export const FORBIDDEN = /localhost|vercel\.app|\bPrototype\b/;
+/** The first line of every packaged script. The holders are the repo's LICENSE line. */
+export const BANNER = "/*! WorkIt. Copyright (c) 2026 Xiang Liu, Brian Cao, Andrew Shi, Lisul Elvitigala, Vedant Vyas. */";
+
+/** One packaged script, minified, with no source map. No `format`, so esbuild keeps a classic script's
+ *  top-level names (the content scripts share them through `window.WIA`) and a module's imports and
+ *  exports (it renames a module's other names); no `target`, so it lowers no syntax and adds no helper
+ *  an `executeScript` `func` would lack. A bundled `/*!` licence comment moves to the file's end. */
+async function minify(file) {
+  const { code } = await transform(readFileSync(file, "utf8"), { minify: true, legalComments: "eof", sourcemap: false, banner: BANNER });
+  writeFileSync(file, code);
+}
 
 /** The Store manifest from the dev one. */
 export function storeManifest(dev, store) {
@@ -59,7 +76,7 @@ function walk(dir, root = dir) {
   });
 }
 
-export function build(out = join(EXTENSION, ".store-build")) {
+export async function build(out = join(EXTENSION, ".store-build")) {
   const dir = join(out, "extension");
   const zip = join(out, "workit-extension.zip");
   rmSync(dir, { recursive: true, force: true });
@@ -73,6 +90,8 @@ export function build(out = join(EXTENSION, ".store-build")) {
   const config = join(dir, "src", "shared", "config.js");
   writeFileSync(config, storeConfig(readFileSync(config, "utf8")));
 
+  for (const file of walk(dir).filter((f) => f.endsWith(".js"))) await minify(join(dir, file));
+
   const found = walk(dir)
     .filter((file) => !/\.(png|woff2?)$/.test(file))
     .filter((file) => FORBIDDEN.test(readFileSync(join(dir, file), "utf8")));
@@ -84,7 +103,7 @@ export function build(out = join(EXTENSION, ".store-build")) {
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try {
-    const { zip } = build(process.argv[2] ? resolve(process.argv[2]) : undefined);
+    const { zip } = await build(process.argv[2] ? resolve(process.argv[2]) : undefined);
     console.log(zip);
   } catch (error) {
     console.error(error.message);

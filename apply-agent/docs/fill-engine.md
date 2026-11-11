@@ -90,6 +90,21 @@ A required one stops a stepped form on its page with one ask
   (`WorkdayFiller.paused`) is his. An untouched box (read "No") or one
   the page pre-ticked stays on his list (`_Planned.keep`) and stops again.
 
+A Minor that the profile gives as none (`education.minors: []`) is the
+form's None or N/A in the engine's plan, or N/A typed, so a minor that an
+old profile on the job site carried over is replaced (Amazon's Education,
+2026-11-10, KAN-754). With no such option it is left blank, and verifying
+holds the form if the field still shows a value (`docs/held-forms.md`).
+A profile with no `minors` key leaves it as before.
+
+A phone type question (Workday's Phone Device Type, iCIMS's Phones: Type,
+"Type of phone", a "Mobile or landline?" choice) is the profile's
+`identity.phone_type` (`mobile`, `landline` or `work`) in the engine's
+plan, as the form's closest option: a mobile is Mobile or Cell, else
+Workday's Home Cellular, and never a work mobile such as Work Cellular
+(NVIDIA's Workday, 2026-11-10, KAN-757). Doctor warns while it is blank;
+the plan then guesses Mobile on Workday's and iCIMS's wordings, as before.
+
 An Answer bank entry with `answer: []` and `none: true` answers a
 multi-select with none of its options (Roblox's partner organizations):
 its boxes stay unticked, a blank on purpose in the plan.
@@ -104,6 +119,12 @@ or an offer goes in `screeners.previously_interviewed_at`. So "Have you
 previously interviewed at <company>?" is No when no record shows an
 interview there. If he applied there but no interview is recorded, he
 answers it himself.
+
+The Pre-submit review and Claude's drafts read the same facts
+(`fill_engine.with_past_applications`, used by `essays.profile_facts`
+when given the Posting). Before, the review's `<profile>` block had the
+profile alone. It called the plan's "Yes, previously applied to Amazon",
+taken from the Tracker, wrong (amazon.jobs, 2026-11-10, KAN-753).
 
 A bare date (From, To, Start date, End date: a label that does not say
 what the date is for) is answered for its section (KAN-595). The engine
