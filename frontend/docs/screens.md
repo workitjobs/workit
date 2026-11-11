@@ -3713,18 +3713,26 @@ student who opened a resume from Experiences landed on another view.
   never Scout's sparkle, which marks AI alone.
   **Each row acts on itself** (KAN-586, after Simplify's and Jobright's
   per-row controls), its actions showing while the pointer or the focus is
-  on its line (always on a touch screen): **Remove** (trash) on a section,
-  entry, bullet, skill group and skill takes it off this resume only, a hide
-  with Undo, never a delete, and Add Experiences puts it back; **Edit**
-  (pencil) on an entry opens the Experiences page's own form
-  (`outline-entry.tsx`), so dates, degree, location and "Present" change
-  without leaving the editor. Until KAN-800 makes resume edits local, that
-  form's save is the bank's and names the other resumes it changes. Each
-  open level ends in **+ Add**: Add Job (or School, Project...) opens the
+  on its line (always on a touch screen). The outline is two levels:
+  sections, then entries (and Technical Skills' groups, then skills).
+  **Remove** (trash) on a section, entry, skill group and skill takes it off
+  this resume only, a hide with Undo, never a delete; Add Experiences puts
+  it back. **An entry's row opens its form** (its name or its pencil,
+  `outline-entry.tsx`, the Experiences page's own `EntryDialog` in resume
+  mode): its fields and its bullets' words, which are the bank's (until
+  KAN-800 makes resume edits local, so the form names the other resumes a
+  save changes), and **this resume's bullet order and which bullets show**:
+  each bullet has a handle (drag, or its arrow keys) and a saved one a check
+  box in place of the ×, every bullet the bank holds listed, the ones this
+  resume leaves out unticked (`entry-order.ts`). The order and the boxes save
+  as one choice change with Undo, and a save that changed no field and no
+  word never writes the bank. The bullets were a third level of the panel
+  until then, cut at two lines in its narrow column, with a × that would have
+  meant two things beside the form's. **"+" on a section's row** opens the
   same form for a new entry saved onto this resume (not in a Lines section),
-  Add Bullet starts a line on the page under the entry, and Add Skill opens
-  a field at the group's foot; a skill the bank already has goes on the
-  resume in that group instead of a second copy. It replaced the bar's up and down buttons,
+  and **"+" on a skill group's row** opens a field at the group's foot; a
+  skill the bank already has goes on the resume in that group instead of a
+  second copy. A school's row shows its degree under its name. It replaced the bar's up and down buttons,
   which moved one line one step and could not move a section. A phone keeps
   those buttons, since a drag there fights the scroll. The bar's Sections
   and Format Options (`PanelButton`) fold to glyphs with a tooltip, shown

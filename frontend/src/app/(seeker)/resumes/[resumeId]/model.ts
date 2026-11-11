@@ -265,7 +265,12 @@ export function printedSections(bank: Bank, choices: Choices, order: string[]): 
         entries: entries.map((e) => ({
           id: e.id,
           title: e.title,
-          detail: e.organization ?? null,
+          // A school's line is its degree: five rows of one university read
+          // the same otherwise
+          detail:
+            e.section === "education"
+              ? [e.degree, e.field_of_study].filter(Boolean).join(", ") || null
+              : (e.organization ?? null),
           bullets: ordered(e.bullets, bullet).map((b) => ({
             id: b.id,
             text: unmarked(wording(choices, b)),

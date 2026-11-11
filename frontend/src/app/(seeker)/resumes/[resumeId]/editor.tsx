@@ -870,8 +870,9 @@ export function Editor({
    * what the page should show.
    */
   const reload = useCallback(
-    (notice: string | null) => {
-      void enqueue(async () => {
+    // Answers once the read is in, for a caller that acts on the new copy
+    (notice: string | null) =>
+      enqueue(async () => {
         await saves.current;
         const current = begin();
         const bankRead = await getBank(resumeId);
@@ -898,8 +899,7 @@ export function Editor({
         setSaving(false);
         if (pdf.data) keepRendered(pdf.data);
         setError(notice);
-      });
-    },
+      }),
     [begin, countSteps, enqueue, keepChoices, keepRendered, resumeId],
   );
 
@@ -2232,10 +2232,6 @@ export function Editor({
         onAddEntry={(sectionId, opener) =>
           openEntryForm({ target: null, ...sectionOf(sectionId) }, opener)
         }
-        onAddBullet={(entryId) => {
-          const entry = bank.entries.find((e) => e.id === entryId);
-          if (entry) startBullet({ kind: "entry", entry, field: "title" });
-        }}
         onAddSkill={async (group, name) => {
           // A skill the bank already has (any case) goes on this resume in
           // this group, at its end, with Undo: the API refuses a second copy
@@ -2257,13 +2253,35 @@ export function Editor({
       {entryForm && (
         <OutlineEntryDialog
           bank={bank}
+          choices={choices}
           resumeId={resumeId}
           target={entryForm.target}
           section={entryForm.section}
           customSectionId={entryForm.customSectionId}
           returnTo={formOpener}
           onClose={() => setEntryForm(null)}
-          onSaved={async () => reload(null)}
+          onSaved={async ({ entryId, bankChanged, bullets }) => {
+            if (bankChanged) await reload(null);
+            const entry = held.current.bank.entries.find((e) => e.id === entryId);
+            if (!entry || !bullets) return;
+            // This resume's order and boxes, as one choice change with Undo.
+            // A new bullet has its id only once the bank is read again: the
+            // new ones are the entry's bullets the form did not list, in the
+            // order they were added
+            const listed = new Set(bullets.flatMap((b) => (b.id ? [b.id] : [])));
+            const fresh = entry.bullets.filter((b) => !listed.has(b.id)).map((b) => b.id);
+            let n = 0;
+            const rows = bullets.flatMap((b, position) => {
+              const bullet_id = b.id ?? fresh[n++];
+              return bullet_id ? [{ bullet_id, position, shown: !b.off }] : [];
+            });
+            const now = held.current.choices.bullets;
+            const same = rows.every((r) => {
+              const c = now.find((x) => x.bullet_id === r.bullet_id);
+              return c && c.shown === r.shown && (!r.shown || c.position === r.position);
+            });
+            if (!same) void apply({ bullets: rows });
+          }}
         />
       )}
     </>

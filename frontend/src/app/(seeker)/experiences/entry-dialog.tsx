@@ -309,6 +309,7 @@ export function EntryPane({
   onSaved,
   onCancel,
   remove,
+  resumeMode = false,
 }: {
   ref?: Ref<EntryPaneHandle>;
   title: string;
@@ -324,6 +325,9 @@ export function EntryPane({
   onCancel: () => void;
   /** An entry already kept: Delete, on the foot's left. */
   remove?: EntryRemoval;
+  /** The resume editor's form (KAN-586): bullets reorder and tick on or off
+   *  for that resume (`EntryEditor`'s `resumeMode`). */
+  resumeMode?: boolean;
 }) {
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -422,6 +426,7 @@ export function EntryPane({
           framed
           initial={initial}
           lines={lines}
+          resumeMode={resumeMode}
           onChange={() => setDirty(true)}
           onSave={(draft) => submit(draft)}
           onSaveAsNew={(draft) => submit(draft, true)}
