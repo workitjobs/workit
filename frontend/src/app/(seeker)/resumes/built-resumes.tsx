@@ -51,7 +51,7 @@ import {
   useResumeGroupBy,
   type ResumePicks,
 } from "./resume-filters";
-import type { Choice } from "../jobs/resume-picker";
+import type { Source } from "../jobs/resume-picker";
 import { NewResumeDialog } from "./new-resume-dialog";
 import { ResumeList } from "./resume-list";
 import { ShortLabel, UploadedRow, useResumeUpload } from "./upload-resume";
@@ -338,13 +338,13 @@ export function BuiltResumes({
     router.push(`/resumes/${encodeURIComponent(made.id)}`);
   }
 
-  /** Copy a Resume You Have (./new-resume-dialog.tsx): the copy, then the
+  /** Start With a Resume You Have (./new-resume-dialog.tsx): the copy, then the
    *  editor, as Generate ends. Its error goes back to the dialog. */
-  async function copyResume(choice: Choice): Promise<string | null> {
+  async function copyResume(source: Source): Promise<string | null> {
     const { data, error } = await startFromResume(
-      "builtResumeId" in choice.source
-        ? { built_resume_id: choice.source.builtResumeId }
-        : { uploaded_resume_id: choice.source.uploadedResumeId },
+      "builtResumeId" in source
+        ? { built_resume_id: source.builtResumeId }
+        : { uploaded_resume_id: source.uploadedResumeId },
     );
     if (error || !data) return error ?? "Couldn't copy the resume. Try again.";
     // A Back here reads the list again and finds the copy in view.

@@ -74,7 +74,7 @@ export const ROW_NAME = "min-w-1/2 flex-1";
 /** The Resumes table's heading and cell type: the Tracker table's
  *  (`applications/list.tsx`'s TH and TD), so the two read as one app. */
 export const RESUME_TH = "px-4 text-note text-ink-meta font-medium";
-const RESUME_TD = "px-4 text-note text-ink";
+export const RESUME_TD = "px-4 text-note text-ink";
 
 /** The Target Job column, from `@4xl` of the table (896px: a laptop's
  *  window; narrower, the name kept under 200px). Below that it keeps its
@@ -310,25 +310,7 @@ export function ResumeCard({
             <span className="sr-only">No target job</span>
           </span>
         )}
-        {role && (
-          <div className="hidden min-w-0 items-center gap-3 @4xl:flex">
-            {company && (
-              <CompanyLogo
-                name={company.name}
-                src={jobLogo({ logo_url: company.logoUrl, company_domain: company.domain })}
-                className="text-meta size-8 rounded"
-              />
-            )}
-            <div className="min-w-0">
-              <p className="truncate">{role}</p>
-              {company && (
-                <p className="text-ink-meta truncate" title={company.name}>
-                  {company.name}
-                </p>
-              )}
-            </div>
-          </div>
-        )}
+        {role && <TargetJob role={role} company={company} className="hidden @4xl:flex" />}
       </TableCell>
       <TableCell className={cn(RESUME_TD, RESUME_TYPE_COL)}>
         {type && (
@@ -349,10 +331,44 @@ export function ResumeCard({
   );
 }
 
+/** A tailored resume's job in the Target Job column: the company's 32px
+ *  logo, then the posting's title over the company, as the Tracker's Job
+ *  cell draws a job. Documents' table and Generate Resume's list of
+ *  resumes to start from (app/(seeker)/resumes/new-resume-dialog.tsx). */
+export function TargetJob({
+  role,
+  company,
+  className,
+}: {
+  role: ReactNode;
+  company?: GridCompany | null;
+  className?: string;
+}) {
+  return (
+    <div className={cn("flex min-w-0 items-center gap-3", className)}>
+      {company && (
+        <CompanyLogo
+          name={company.name}
+          src={jobLogo({ logo_url: company.logoUrl, company_domain: company.domain })}
+          className="text-meta size-8 shrink-0 rounded"
+        />
+      )}
+      <div className="min-w-0">
+        <p className="truncate">{role}</p>
+        {company && (
+          <p className="text-ink-meta truncate" title={company.name}>
+            {company.name}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /** The primary resume's badge, beside its name (after Jobright's PRIMARY
  *  pill, 2026-11-10): a star and "Primary", the star alone below `@2xl` of
  *  the table, a phone's, where the name needs the room. */
-function PrimaryBadge() {
+export function PrimaryBadge() {
   return (
     <Badge tone="brand">
       <span title="Primary resume" className="flex items-center gap-1">

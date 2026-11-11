@@ -3103,9 +3103,17 @@ From Your Experiences** (Generate as it was: the duplicate check, the
 steps dialog, then the editor) and **Upload a Resume** (the page's file
 picker; off with the reason at five uploads) as the shared option rows
 (`components/ui/option-row.tsx`, Auto Apply's setup row), then "Or"
-(`components/ui/or-divider.tsx`, the login card's divider) and **Copy a
-Resume You Have**: Tailor's resume picker (`ResumeLists`: search, Type,
-a radio per card, the View eye), then **Copy This Resume** in the footer.
+(`components/ui/or-divider.tsx`, the login card's divider) and **Start
+With a Resume You Have**: a search over a small Documents table, a radio
+per row, Name with the Primary badge beside it, Target Job (the
+company's logo, the posting over the company; a dash for none), Date
+Modified and View, always shown (`ResumeViewButton`, Up Next's own), with
+no Type column; then **Start From This Resume** in the footer. The dialog
+is 56rem wide, its header and footer stay put and its body scrolls
+between them. It was "Copy a Resume You Have" over Tailor's picker cards
+(a star at each card's end, a type badge on every card, View on hover)
+on the day it shipped, and the dialog scrolled as one with its footer
+below the window.
 A built resume's copy prints as its source does, its own skills and typed
 wordings copied with it, untailored; an upload's is a resume of that
 upload's own entries (`POST .../built-resumes/copy`, backend

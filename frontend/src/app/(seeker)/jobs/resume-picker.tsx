@@ -76,8 +76,7 @@ export async function loadChoices(
 /** The picker's rows from the two resume lists. For a job posting
  *  (`jobId`), a resume tailored to another posting shows only as the
  *  primary (KAN-268): the student starred it, so it is theirs to pick. With
- *  no job (Generate Resume's Copy a Resume You Have,
- *  ../resumes/new-resume-dialog.tsx) every resume shows. */
+ *  no job every resume shows. */
 export function toChoices(
   built: BuiltResume[],
   uploaded: ResumeItem[],

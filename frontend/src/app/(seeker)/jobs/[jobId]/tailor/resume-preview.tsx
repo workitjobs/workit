@@ -1,6 +1,6 @@
 "use client";
 
-import { FileArrowDownIcon } from "@phosphor-icons/react/ssr";
+import { EyeIcon, FileArrowDownIcon } from "@phosphor-icons/react/ssr";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import {
@@ -334,5 +334,38 @@ function DocxNote({ id, label }: { id: string; label: string }) {
         </p>
       )}
     </div>
+  );
+}
+
+/**
+ * View for one resume in a list of them: a text button with an eye that
+ * opens the resume in `ResumePreviewDialog`, titled with its name. The
+ * key is the resume pickers' ("built:<id>", "uploaded:<id>"). Auto Apply's
+ * Up Next (Resume column) and Generate Resume's list of resumes to start
+ * from (resumes/new-resume-dialog.tsx) draw it, always shown: a View that
+ * waited for the row's hover was missed (2026-11-11).
+ */
+export function ResumeViewButton({ name, resumeKey }: { name: string; resumeKey: string }) {
+  const [open, setOpen] = useState(false);
+  const [kind, id] = resumeKey.split(":");
+  const source: TailorSource =
+    kind === "built" ? { built_resume_id: id } : { uploaded_resume_id: id };
+  return (
+    <>
+      {/* Text, not a bordered button: a table row holds none
+          (frontend/docs/design.md, which button look). */}
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => setOpen(true)}
+        title={`View ${name}`}
+        aria-label={`View resume ${name}`}
+        className="text-ink hover:text-brand"
+      >
+        <EyeIcon aria-hidden />
+        View
+      </Button>
+      <ResumePreviewDialog open={open} onOpenChange={setOpen} label={name} source={source} />
+    </>
   );
 }

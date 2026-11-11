@@ -3,7 +3,6 @@
 import {
   CheckIcon,
   ClockIcon,
-  EyeIcon,
   PencilLineIcon,
   ProhibitIcon,
   WarningIcon,
@@ -32,9 +31,8 @@ import { Card } from "@/components/ui/card";
 import type { BatchTabState } from "@/lib/autofill-extension";
 import { cn } from "@/lib/cn";
 import { MATCH_TIERS, matchTier } from "@/lib/match";
-import type { TailorSource } from "@/lib/tailor-actions";
 
-import { ResumePreviewDialog } from "../jobs/[jobId]/tailor/resume-preview";
+import { ResumeViewButton } from "../jobs/[jobId]/tailor/resume-preview";
 import { LocalDate } from "../local-time";
 import { ALIGN, TD, TH, type ActivityItem } from "./activity-list";
 import type { QueueGroupBy } from "./queue-layout";
@@ -453,7 +451,7 @@ function Row({
             so the row's own click (it opens the job) leaves it alone
             (components/clickable-row.tsx). */}
         {row.resume && row.resumeKey ? (
-          <ViewQueuedResume name={row.resume} resumeKey={row.resumeKey} />
+          <ResumeViewButton name={row.resume} resumeKey={row.resumeKey} />
         ) : (
           // A text button, as View is: a table row holds no bordered or
           // dashed controls (frontend/docs/design.md, buttons). It was a
@@ -650,32 +648,5 @@ function PickBox({ children }: { children: ReactNode }) {
     <span className="flex shrink-0 items-center" onClick={(event) => event.stopPropagation()}>
       {children}
     </span>
-  );
-}
-
-/** A queued job's resume behind View: the resume in Tailor's preview
- *  dialog, titled with its name. The resume key is the picker's
- *  ("built:<id>", "uploaded:<id>", ./(queue)/page.tsx). */
-function ViewQueuedResume({ name, resumeKey }: { name: string; resumeKey: string }) {
-  const [open, setOpen] = useState(false);
-  const [kind, id] = resumeKey.split(":");
-  const source: TailorSource =
-    kind === "built" ? { built_resume_id: id } : { uploaded_resume_id: id };
-  return (
-    <>
-      {/* Text, not a bordered button, as the Tracker's (2026-11-10). */}
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={() => setOpen(true)}
-        title={`View ${name}`}
-        aria-label={`View resume ${name}`}
-        className="text-ink hover:text-brand"
-      >
-        <EyeIcon aria-hidden />
-        View
-      </Button>
-      <ResumePreviewDialog open={open} onOpenChange={setOpen} label={name} source={source} />
-    </>
   );
 }
