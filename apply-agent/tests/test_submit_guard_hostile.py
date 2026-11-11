@@ -17,6 +17,7 @@ import http.server
 import re
 import sys
 import threading
+import time
 from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace
@@ -542,7 +543,7 @@ class Site:
             except Exception:
                 self.bodies.append((path, ""))
         body = self.pages.get(path, "<title>Thanks</title><p>Thank you for applying</p>")
-        route.fulfill(body=body, content_type="text/html")
+        route.fulfill(body=body, content_type="text/javascript" if path.endswith(".js") else "text/html")
 
     def applications(self) -> list[str]:
         """The application requests that reached the job system: a final URL's (COMMIT's too, KAN-783), or SAVE's with
@@ -1112,6 +1113,50 @@ def test_no_typing_path_sends_a_hostile_page_on_a_plain_worker(page_name, path):
         _then(page, page_name)
         _settle(page, 1500)
     assert site.applications() == []
+
+
+# KAN-793, the review of #555: what outlives a press. A service worker the page started posts after its tab closed,
+# when the last guarded tab's rules had gone with it (its requests come from no tab, -1). It runs with plain code's
+# Next; the control shows the page sends without the guard.
+SW = "/hostile-sw/sw.js"  # its own scope, so no other test's page is under it
+LATE_SW = {
+    START: f"""<title>Apply</title><form><input name=first value=Test><button id=b type=button>Next</button></form>
+        <script>const reg = navigator.serviceWorker.register('{SW}');
+        document.getElementById('b').addEventListener('click', () => reg.then((r) => (r.active || r.waiting || r.installing).postMessage('go')));
+        </script>""",
+    SW: f"""self.addEventListener('install', () => self.skipWaiting());
+self.addEventListener('message', (e) => e.waitUntil(new Promise((done) => setTimeout(() =>
+  done(fetch('{FINAL}', {{method: 'POST', body: 'first=Test'}}).catch(() => {{}})), 4000))));""",
+}
+
+def _late_sw(guarded: bool) -> list[str]:
+    _plain_or_skip()
+    from plain_fakes import fake_page
+
+    site = Site(LATE_SW)
+    with fake_page(site.handle, url=HOST + START) as page:
+        if guarded:
+            guard(page)
+        _settle(page, 1500)  # the service worker installed
+        try:
+            plain_next(page, DriveGuard(page), "Next")
+        except Handoff:
+            pass  # the step stays: its Next sends nothing the form shows
+        page.close()  # the last guarded tab: its worker lives on
+    deadline = time.monotonic() + 8
+    while not site.applications() and time.monotonic() < deadline:
+        time.sleep(0.2)
+    return site.applications()
+
+
+@ONE_PLAIN_PROCESS
+def test_a_service_worker_sends_without_the_guard_after_its_tab_closed():
+    assert _late_sw(guarded=False) == [FINAL]
+
+
+@ONE_PLAIN_PROCESS
+def test_a_service_worker_sends_nothing_after_the_last_guarded_tab_closed():
+    assert _late_sw(guarded=True) == []
 
 
 @pytest.mark.parametrize("path", list(TYPING))

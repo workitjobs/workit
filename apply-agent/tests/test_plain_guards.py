@@ -411,7 +411,7 @@ def _fill_the_regex_cap(worker) -> None:
 @live
 def test_many_guarded_tabs_in_one_worker_share_one_rule_set(worker, site):
     """A form held all along (`--into`), and 160 more tabs guarded, lifted, guarded again and closed in turn (Fill
-    again's fresh tab, Ask's and Resume's rearm): never more rules than one set, and none once every tab is closed."""
+    again's fresh tab, Ask's and Resume's rearm): never more rules than one set, and none on a tab once it closed."""
     guards.reset(worker)
     held = _new_tab(worker)
     guards.guard(held, reload=False)
@@ -428,9 +428,11 @@ def test_many_guarded_tabs_in_one_worker_share_one_rule_set(worker, site):
     assert worker.call("guard.status", tab=held.tab)["rules"] == len(guards.RULES)
     worker.call("tabs.close", tab=held.tab)
     deadline = time.monotonic() + 5
-    while _all_rules(worker) and time.monotonic() < deadline:
+    while worker.call("guard.status", tab=held.tab)["rules"] and time.monotonic() < deadline:
         time.sleep(0.1)
-    assert _all_rules(worker) == 0
+    # No tab keeps them, but the set stays on -1 until guard.reset: a closed page's service worker lives on.
+    assert worker.call("guard.status", tab=held.tab)["rules"] == 0
+    assert _all_rules(worker) == len(guards.RULES)
 
 
 @live

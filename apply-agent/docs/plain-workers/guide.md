@@ -24,7 +24,9 @@ On a plain Worker's page (a PortPage, `apply-agent/docs/plain-workers/PROTOCOL.m
   run; a form held through many `--into` postings and Fill agains), every `guard()` failed with
   "Session rule count for regex rules exceeded". Now the routes with the same regexes share one
   rule per regex, on all of their tabs, so a Worker holds `len(RULES)` rules however many tabs it
-  guards. A closed tab leaves every route, and a route with no tab left goes.
+  guards. A closed tab leaves every route, and a route with no tab left goes. Its set's rules stay
+  on -1 (requests from no tab) until `guard.reset`: a service worker the page started outlives its
+  tab and could post (the review of #555).
 - **Fails closed.** When Chrome refuses an update, it keeps its rules as they were, the extension
   puts its memory back to match, and the op raises. `guard` and `rearm` put the page's own guard on
   before the rules, so the page is then Apply's and blocked, never lifted, and the error stops
@@ -50,6 +52,8 @@ On a plain Worker's page (a PortPage, `apply-agent/docs/plain-workers/PROTOCOL.m
   A tile press shows the blocked note, and a lifted page's Submit goes through and is heard.
   160 tabs guarded, lifted, rearmed and closed in one Worker keep one rule set; with Chrome's
   regex cap full, `rearm` raises and the page's Submit still sends nothing.
+  `test_submit_guard_hostile.py` has a service worker that posts
+  after its guarded tab closed.
 
 ## Plain Workers: trusted text and choices (KAN-716)
 
