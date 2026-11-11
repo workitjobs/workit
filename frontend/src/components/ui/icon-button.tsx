@@ -30,12 +30,27 @@ const VARIANTS = {
    *  touch) without moving anything around it. */
   quiet:
     "text-ink hover:text-brand focus-visible:ring-brand-ring inline-flex items-center justify-center rounded-xs [--hit-grow:8px] focus-visible:ring-2",
-  /** Bordered — an icon action that has to hold its own beside a filled
-   *  button, so it needs the same visual weight a button has. Size it at the
-   *  call site: the feed card's Not Interested button is size-9, the `sm`
-   *  button height (36px), to line up with the actions beside it. */
+  /** Bordered and square. No screen uses it since 2026-11-09, when every
+   *  icon button among buttons went `soft`; kept for the design kit and a
+   *  screen that needs a square edge. Size it at the call site (size-9, the
+   *  `sm` button height). */
   outline:
-    "border-border-control bg-panel text-ink hover:bg-hover focus-visible:ring-brand-ring rounded-control inline-flex items-center justify-center border focus-visible:ring-[3px]",
+    "border-border-surface bg-panel text-ink hover:bg-hover focus-visible:ring-brand-ring rounded-control inline-flex items-center justify-center border focus-visible:ring-[3px]",
+  /** A round icon button with a secondary Button's fill and edge (white,
+   *  --color-border-surface, the hover fill), ONLY ON THE GREY PAGE GROUND
+   *  (2026-11-09): the Jobs page's and the Tracker's Clear Filters and All
+   *  Filters. On a white card, header or panel an icon button is `quiet`, a
+   *  bare glyph (a card's Save and "⋯", Tailor's Undo All): a white circle
+   *  on white only repeated the surface, the user's rule.
+   *  It was a soft grey with no border for a day, which made it a second
+   *  family beside the white buttons and sat close to the disabled fill
+   *  (8% ink), so a live Save read as switched off. Size it at the call
+   *  site. */
+  soft: "border-border-surface bg-panel text-ink hover:bg-hover focus-visible:ring-brand-ring inline-flex items-center justify-center rounded-full border focus-visible:ring-[3px]",
+  /** A bare glyph on the inverted surface: a toast's close (ui/toast.tsx,
+   *  KAN-217). On-inverse at 80%, full on hover; never on a light page. */
+  inverse:
+    "text-on-inverse/80 hover:text-on-inverse focus-visible:ring-on-inverse inline-flex items-center justify-center rounded-xs [--hit-grow:8px] focus-visible:ring-2",
   /** Brand disc — an edit affordance overlapping the thing it edits. The border
    *  matches the panel behind it so the disc reads as cut out of the surface. */
   brand:

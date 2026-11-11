@@ -1,7 +1,7 @@
 "use server";
 
 import { applicantCall, encodeId, type Result } from "@/lib/applicant-call";
-import type { BankEntry, Skill } from "@/lib/bank-actions";
+import type { BankEntry, CustomSection, Skill } from "@/lib/bank-actions";
 import type { ApplicantProfile } from "@/lib/profile-actions";
 import { revalidatingResumes } from "@/lib/resume-revalidate";
 
@@ -87,6 +87,10 @@ export type PageSettings = {
   heading_size: number | null;
   title_size: number | null;
   body_size: number | null;
+  /** "Aug. 2018", "August 2018", "2018" or "08/2018". */
+  date_format: "short" | "long" | "year" | "numeric";
+  /** Which of an Education entry's two rows goes on top. */
+  education_first: "school" | "degree";
 };
 
 export type FontFamily =
@@ -140,6 +144,9 @@ export type RenderMeasure = Pick<
 export type ResumeCopy = {
   entries: BankEntry[];
   skills: Skill[];
+  /** The sections the student named (KAN-498): a custom entry prints under
+   *  its section's name and layout, and without them prints nowhere. */
+  sections: CustomSection[];
   choices: Choices;
   identity: IdentityCopy;
   template: string;

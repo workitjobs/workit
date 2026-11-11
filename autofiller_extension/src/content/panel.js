@@ -9,15 +9,15 @@
 //
 // This file owns only the frame. What goes in it plugs into its slots
 // (`slot(name)`, autofiller_extension/CLAUDE.md "The panel's shell"):
-// "header-actions", "batch-line", "job-card", "primary", the tabs
+// "header-actions", "batch-line", "job-card", "coverage", "primary", the tabs
 // (`addTab`; "autofill" holds overlay.js's rows and cards) and "settings",
 // and into the header's ⋯ menu (`menuItem`, KAN-369 Q4). The frame, top to
 // bottom: the header (WorkIt, ⋯, Close), the job (batch line, job card) and
 // the tabs, fixed (Q6); the tab's body, which scrolls; and the primary slot,
 // fixed at the bottom (Q5).
-// Loaded by launcher.js's static content script on job pages and by every
-// fill (content-scripts.js), in the same isolated world: the first copy
-// makes the shell and later ones keep it.
+// Loaded on job pages by the launcher's panel/shell (background.js
+// SHELL_FILES) and by every fill (content-scripts.js), in the same isolated
+// world: the first copy makes the shell and later ones keep it.
 window.WIA = window.WIA || {};
 
 /**
@@ -202,6 +202,7 @@ window.WIA.onWorkday = () => window.WIA.jobSystem === "workday";
       <div class="top">
         <div class="card" data-slot="batch-line" hidden></div>
         <div class="card" data-slot="job-card" hidden></div>
+        <div class="card" data-slot="coverage" hidden></div>
         <div class="tabs" role="tablist" hidden><span class="thumb" aria-hidden="true"></span></div>
       </div>
       <div class="scroll">
@@ -419,10 +420,12 @@ window.WIA.onWorkday = () => window.WIA.jobSystem === "workday";
    * Asks the background, once per page and before anything is drawn:
    * whether the page is a job system's page WorkIt covers (`job`), whether
    * the tab is a batch's (`batch`), and this site's kept choices.
+   * `known`: the answer the launcher already has (launcher.js), so it isn't asked twice.
+   * @param {object} [known]
    * @returns {Promise<{ job: boolean, batch: boolean }>}
    */
-  function where() {
-    ready ??= send({ type: "panel/where" }).then((answer) => {
+  function where(known) {
+    ready ??= (known ? Promise.resolve(known) : send({ type: "panel/where" })).then((answer) => {
       site = answer?.site ?? {};
       window.WIA.jobSystem ??= answer?.jobSystem ?? null;
       hiddenEverywhere = Boolean(answer?.hiddenEverywhere);

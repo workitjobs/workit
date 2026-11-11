@@ -136,3 +136,6 @@ successfactors/jobdetails.nestle.com,nestle.com,Nestle,"Refuses scripts (403); a
 workday/freight.wd108/fxf_external_career_site,fedex.com,FedEx Freight,"FedEx's own site: Freight has no domain of its own"
 jibe/jobs.aon.com,aon.com,Aon,
 jibe/careers.garmin.com,garmin.com,Garmin,
+jibe/spa.jibeapply.com,spa.com,Systems Planning and Analysis (SPA),"Its board is on Jibe's own host; spa.com refuses scripts (403), a browser shows Systems Planning & Analysis, and Brandfetch draws its logo (2026-11-09)"
+successfactors/careers.consumersenergy.com,cmsenergy.com,CMS Energy,"Its careers site is its subsidiary Consumers Energy's; cmsenergy.com refuses scripts, a browser shows CMS Energy Corporation, and Brandfetch draws its logo (2026-11-09)"
+workday/simon.wd1/simon,simon.com,Simon Property Group,"simon.com refuses scripts and browsers; investors.simon.com shows Simon Property Group, and Brandfetch draws its logo (2026-11-09)"

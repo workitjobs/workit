@@ -20,6 +20,7 @@ from app.services.resume_render import (
     escape,
     escape_url,
     mark,
+    printed_order,
     type_size,
 )
 from app.services.resume_render.fields import (
@@ -27,13 +28,14 @@ from app.services.resume_render.fields import (
     SKILLS_LABEL,
     TWO_ROW,
     US_CITIZEN,
+    degree_leads,
     details,
     heading,
     heading_fields,
     link_text,
     skill_lines,
 )
-from app.services.resume_view import ResumeView, ViewEntry, runs
+from app.services.resume_view import ResumeView, ViewEntry, ViewSection, runs
 
 Printed = dict[str, str] | None
 
@@ -92,9 +94,9 @@ def _header(identity: HeaderIdentity, marks: bool, printed: Printed, page: PageS
     return lines
 
 
-def _entry(entry: ViewEntry, marks: bool, printed: Printed) -> list[str]:
-    h = heading(entry)
-    kinds = heading_fields(entry.section)
+def _entry(entry: ViewEntry, marks: bool, printed: Printed, page: PageSettings) -> list[str]:
+    h = heading(entry, page.date_format, page.education_first)
+    kinds = heading_fields(entry.section, degree_leads(entry, page.education_first))
 
     def slot(name: str) -> str:
         text = getattr(h, name)
@@ -104,7 +106,20 @@ def _entry(entry: ViewEntry, marks: bool, printed: Printed) -> list[str]:
         line = rf"\resumeSubheading{{{slot('title')}}}{{{slot('right')}}}{{{slot('subtitle')}}}{{{slot('subright')}}}"
     else:
         left = rf"\textbf{{{slot('title')}}}" + (rf" $|$ \emph{{{slot('tag')}}}" if h.tag else "")
-        line = rf"\resumeProjectHeading{{{left}}}{{{slot('right')}}}"
+        if h.subtitle:
+            # A project's tools on a line of their own (KAN-738): Jake's
+            # \resumeProjectHeading with a second row in the italic of
+            # \resumeSubheading's. Written out here, since jakes.tex stays
+            # byte for byte and has no two-row project heading.
+            line = "\n".join((
+                r"\item",
+                r"\begin{tabular*}{0.97\textwidth}[t]{l@{\extracolsep{\fill}}r}",
+                rf"\small{left} & {slot('right')} \\",
+                rf"\textit{{\small {slot('subtitle')}}} & \\",
+                r"\end{tabular*}\vspace{-7pt}",
+            ))
+        else:
+            line = rf"\resumeProjectHeading{{{left}}}{{{slot('right')}}}"
     items = [(entry.id, kind, escape(text), text) for kind, text in details(entry)]
     # A marked bullet's box carries its markers: the editor opens the line on
     # them, and saves it only when they change
@@ -121,6 +136,23 @@ def _entry(entry: ViewEntry, marks: bool, printed: Printed) -> list[str]:
         # full, TeX broke at that space and printed an empty line after it
         rows.append(rf"\resumeItem{{{body}\ignorespaces}}")
     return [line, r"\resumeItemListStart", *rows, r"\resumeItemListEnd"]
+
+
+def _lines(section: ViewSection, marks: bool, printed: Printed) -> list[str]:
+    '''A Lines section (KAN-498): its entries' bullets as plain lines, with
+    no heading and no dot, in the list the skills sit in. Each line is a
+    bullet to the editor (its box), so it types, moves and hides as one.
+    Empty when it has no line: an empty itemize is a LaTeX error.'''
+    rows = []
+    for entry in section.entries:
+        for b in entry.bullets:
+            latex = _rich(b.marked) if b.marked else escape(b.text)
+            body = _marked(b.id, "bullet", latex, b.marked or b.text, marks, printed)
+            # \ignorespaces as in _entry: Jake's \resumeItem leaves a space
+            rows.append(rf"\resumeItem{{{body}\ignorespaces}}")
+    if not rows:
+        return []
+    return [r"\begin{itemize}[leftmargin=0.15in, label={}]", *rows, r"\end{itemize}"]
 
 
 def _skills(view: ResumeView, marks: bool, printed: Printed) -> str:
@@ -148,9 +180,15 @@ def body(
     lines += _header(identity, marks, printed, page)
     blocks: dict[str, list[str]] = {}
     for section in view.sections:
-        block = [rf"\section{{{escape(SECTION_LABELS[section.section])}}}", r"\resumeSubHeadingListStart"]
+        # A custom section (KAN-498) prints its own name
+        title = rf"\section{{{escape(section.label or SECTION_LABELS[section.section])}}}"
+        if section.layout == "lines":
+            if rows := _lines(section, marks, printed):
+                blocks[section.section] = [title, *rows]
+            continue
+        block = [title, r"\resumeSubHeadingListStart"]
         for entry in section.entries:
-            block += _entry(entry, marks, printed)
+            block += _entry(entry, marks, printed, page)
         blocks[section.section] = [*block, r"\resumeSubHeadingListEnd"]
     if view.skills:
         blocks["skills"] = [
@@ -159,6 +197,6 @@ def body(
             rf"\small{{\item{{{_skills(view, marks, printed)}}}}}",
             r"\end{itemize}",
         ]
-    for name in page.section_order:
+    for name in printed_order(page.section_order, view.sections):
         lines += blocks.get(name, [])
     return "\n".join(lines)

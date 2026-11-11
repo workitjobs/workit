@@ -14,13 +14,14 @@ import { listSentResumes } from "@/lib/sent-resume-actions";
 
 import type { ApplicationStage } from "../../auto-apply/actions";
 import { getApplicationStage } from "../../auto-apply/applications";
-import { AutoApplyButton } from "../../auto-apply/auto-apply-button";
 import { placesOf } from "../format";
 import { listingFacts } from "../listing-card";
 import { getApplied, getJobListing, type JobListing } from "../listings";
 import { NotInterestedButton } from "../not-interested-button";
 import { SaveJobButton } from "../save-job-button";
 import { factText, toPosting } from "../to-posting";
+import { ApplySplitButton } from "../apply-split-button";
+import { JobMoreMenu } from "../job-more-menu";
 import { ApplyButton } from "../apply-button";
 import { JobDescription } from "./description";
 import { getCompany, type JobCompany } from "./company-tab";
@@ -38,13 +39,22 @@ import { jobLogo } from "@/lib/job-logo";
  */
 export type JobView = Awaited<ReturnType<typeof loadJobView>>;
 
-/** A job's page width: every seeker page's `max-w-dashboard` (2026-10-27;
- *  it was 70rem, after 1024px left the header's six facts cramped, KAN-279).
- *  About the Role keeps its own 46ch measure, so its lines do not grow with
- *  it. The job page and the application's own page share it, so the two
- *  stay identical. */
+/** A job's page width (2026-11-09): one centred column, `max-w-job` (800px
+ *  with the gutters, 736px inside them), for the action bar, the header, the
+ *  facts, Key Requirements and About the Role alike, so every block shares
+ *  one right edge. It was the 1440px dashboard column, with About the Role
+ *  alone held to 46ch, and the text read as cut short beside the full-width
+ *  blocks above it. 736px is the action bar's one row (Back, the tabs, Auto
+ *  Apply, Tailor, Apply Now). In the split view's pane the page takes the
+ *  pane, so the bar's rule meets the list's edge, and JOB_COLUMN holds the
+ *  content under the bar to the same 736px. The job page and the
+ *  application's own page share it, so the two stay identical. */
 export const JOB_PAGE_WIDTH =
-  "max-w-dashboard mx-auto w-full flex-1 py-6 in-data-split:@4xl/main:px-4!";
+  "max-w-job mx-auto w-full flex-1 py-6 in-data-split:@4xl/main:max-w-none in-data-split:@4xl/main:px-4!";
+
+/** The job's content under its action bar: 736px in the split view's pane
+ *  (see JOB_PAGE_WIDTH); on its own page the page is already that wide. */
+export const JOB_COLUMN = "in-data-split:@4xl/main:max-w-[46rem]";
 
 /** What the application page already knows about its job from the
  *  tracker's row: its stage and when it was applied. Null when the row is
@@ -123,10 +133,6 @@ export function JobViewActions({ view, job }: { view: JobView; job: JobListing }
         data-phone-first
         className="contents max-md:flex max-md:basis-full max-md:flex-wrap max-md:gap-2 max-md:*:grow"
       >
-        {/* Only where auto apply can fill the form (Greenhouse for now). */}
-        {job.auto_apply && (
-          <AutoApplyButton jobId={job.id} title={job.title} company={job.company} stage={stage} />
-        )}
         <ButtonLink
           href={`/jobs/${encodeURIComponent(job.id)}/tailor`}
           variant="secondary"
@@ -137,15 +143,31 @@ export function JobViewActions({ view, job }: { view: JobView; job: JobListing }
           {tailored ? "Tailored Resume" : "Tailor My Resume"}
         </ButtonLink>
       </div>
-      <ApplyButton
-        jobId={job.id}
-        title={job.title}
-        applyUrl={job.apply_url}
-        canMarkApplied={applied != null}
-        applied={applied?.appliedAt != null}
-        showsSent
-        className="shrink-0 max-md:order-first max-md:basis-full"
-      />
+      {/* One Apply where auto apply can fill the form (Greenhouse for now):
+          Auto Apply, with Apply Manually under its arrow
+          (../apply-split-button.tsx); Apply Now everywhere else. */}
+      {job.auto_apply ? (
+        <ApplySplitButton
+          jobId={job.id}
+          title={job.title}
+          company={job.company}
+          applyUrl={job.apply_url}
+          stage={stage}
+          canMarkApplied={applied != null}
+          applied={applied?.appliedAt != null}
+          className="max-md:order-first max-md:basis-full max-md:*:first:grow"
+        />
+      ) : (
+        <ApplyButton
+          jobId={job.id}
+          title={job.title}
+          applyUrl={job.apply_url}
+          canMarkApplied={applied != null}
+          applied={applied?.appliedAt != null}
+          showsSent
+          className="shrink-0 max-md:order-first max-md:basis-full"
+        />
+      )}
     </>
   );
 }
@@ -167,6 +189,13 @@ export function JobCardActions({
       <AskScoutButton id={job.id} title={job.title} company={job.company} quiet />
       {notInterested && <NotInterestedButton title={job.title} quiet />}
       <SaveJobButton jobId={job.id} title={job.title} stage={view.stage} quiet />
+      <JobMoreMenu
+        jobId={job.id}
+        title={job.title}
+        company={job.company}
+        canMarkApplied={view.applied != null}
+        applied={view.applied?.appliedAt != null}
+      />
     </div>
   );
 }
@@ -270,7 +299,7 @@ export function JobViewBody({
       <Section title="About the Role">
         {/* The card names one place and how many more; here, all of them. */}
         {places.length > 1 && (
-          <p className="text-body text-ink mt-3">Open in {places.join(" · ")}.</p>
+          <p className="text-ink mt-3 text-base">Open in {places.join(" · ")}.</p>
         )}
         {job.description ? (
           <JobDescription

@@ -10,6 +10,7 @@ import { useToast } from "@/components/ui/toast";
 import { openNextApplication, showRunTab, useBrowserJobs } from "@/lib/autofill-extension";
 
 import { hasApplied } from "../applied";
+import { rememberStage } from "../jobs/shown-list";
 import { dequeueJob, queueJob, type ApplicationStage, type RunStage } from "./actions";
 import { openedNote } from "./opened-note";
 
@@ -41,6 +42,10 @@ const STAGE_LABEL: Record<RunStage, string> = {
  * Activity's cross and its Undo, the other way round. Only a new queueing
  * raises one; a click that finds an earlier stage just shows it.
  *
+ * Every stage it sets goes to the shown list (`rememberStage`, KAN-217), so
+ * the job's other buttons and every list follow: a saved job queued here
+ * empties its bookmark and comes back to the Jobs page.
+ *
  * THEN THE SAME PIPELINE AS START AUTO APPLY, without the matching: a click
  * that leaves the job queued asks the extension to open the oldest queued
  * job in its background tab beside this one (openNextApplication). That is
@@ -51,7 +56,12 @@ const STAGE_LABEL: Record<RunStage, string> = {
  * page load; only a failure shows (no extension stays silent: most
  * visitors have none).
  */
-export function AutoApplyButton({
+/** What a job's Auto Apply knows and does, shared by AutoApplyButton and the
+ *  Jobs page's combined Apply button (../jobs/apply-split-button.tsx), so
+ *  the two queue, take out, toast and open the extension's tab the same way.
+ *  `done` is a stage past queued (Needs You, Skipped, Applied): what
+ *  happened, not a plan, so nothing undoes it. */
+export function useAutoApply({
   jobId,
   title,
   company,
@@ -75,15 +85,6 @@ export function AutoApplyButton({
   const busy = useRef(false);
   const inBrowser = useBrowserJobs().has(jobId);
 
-  if (stage && stage !== "queued") {
-    return (
-      <Button variant="secondary" size="sm" disabled>
-        <CheckIcon className="size-4" />
-        {STAGE_LABEL[stage]}
-      </Button>
-    );
-  }
-
   /** The toast's Undo. A failure (a fill that began meanwhile) says so in a
    *  toast and leaves the button Queued. */
   async function undo() {
@@ -93,20 +94,7 @@ export function AutoApplyButton({
       return;
     }
     setStage(null);
-  }
-
-  if (stage === "queued" && inBrowser) {
-    return (
-      <Button
-        variant="secondary"
-        size="sm"
-        title="Go to the tab"
-        onClick={() => void showRunTab(jobId)}
-      >
-        <AppWindowIcon aria-hidden className="size-4" />
-        Working in Browser
-      </Button>
-    );
+    rememberStage(jobId, null);
   }
 
   /** The tab opens in the background; only a failure is worth a line. */
@@ -118,61 +106,110 @@ export function AutoApplyButton({
   }
 
   const queued = stage === "queued";
+
+  /** Queues the job, or takes a queued one out: Queued is a toggle. */
+  function toggle() {
+    if (busy.current) return;
+    busy.current = true;
+    start(async () => {
+      try {
+        if (queued) {
+          const result = await dequeueJob(jobId);
+          setError(result.error);
+          if (!result.error) {
+            setStage(null);
+            rememberStage(jobId, null);
+          }
+          return;
+        }
+        const result = await queueJob(jobId);
+        setError(result.error);
+        if (!result.stage) return;
+        // The job may have moved past applied in another tab since
+        // this page was drawn; it reads as Applied, as on first draw.
+        setStage(hasApplied(result.stage) ? "applied" : result.stage);
+        // Every other button for this job follows (KAN-217): a saved
+        // job's bookmark empties once it is queued.
+        rememberStage(jobId, result.stage);
+        if (result.stage === "queued") {
+          void openInBrowser();
+          toast.show({
+            message: (
+              <>
+                <span className="font-medium">{title}</span> from{" "}
+                <span className="font-medium">{company}</span> is queued for Auto Apply.
+              </>
+            ),
+            action: { label: "Undo", onClick: undo },
+          });
+        }
+      } finally {
+        busy.current = false;
+      }
+    });
+  }
+
+  return {
+    stage,
+    queued,
+    /** Queued and open in the extension's tab right now. */
+    inBrowser: queued && inBrowser,
+    done: stage != null && stage !== "queued" ? STAGE_LABEL[stage] : null,
+    pending,
+    error,
+    toggle,
+    goToTab: () => void showRunTab(jobId),
+  };
+}
+
+export function AutoApplyButton(props: {
+  jobId: string;
+  title: string;
+  company: string;
+  stage: ApplicationStage | null;
+}) {
+  const auto = useAutoApply(props);
+
+  if (auto.done) {
+    return (
+      <Button variant="secondary" size="sm" disabled>
+        <CheckIcon className="size-4" />
+        {auto.done}
+      </Button>
+    );
+  }
+
+  if (auto.inBrowser) {
+    return (
+      <Button variant="secondary" size="sm" title="Go to the tab" onClick={auto.goToTab}>
+        <AppWindowIcon aria-hidden className="size-4" />
+        Working in Browser
+      </Button>
+    );
+  }
+
   return (
     <>
-      {error && (
+      {auto.error && (
         <p role="alert" className="text-note text-ink-meta">
-          {error}
+          {auto.error}
         </p>
       )}
       <Button
         variant="secondary"
         size="sm"
-        disabled={pending}
+        disabled={auto.pending}
         // A toggle: pressed while queued, and the hover says what a click does.
-        aria-pressed={queued}
-        title={queued ? "Remove from the queue" : undefined}
-        onClick={() => {
-          if (busy.current) return;
-          busy.current = true;
-          start(async () => {
-            try {
-              if (queued) {
-                const result = await dequeueJob(jobId);
-                setError(result.error);
-                if (!result.error) setStage(null);
-                return;
-              }
-              const result = await queueJob(jobId);
-              setError(result.error);
-              if (!result.stage) return;
-              // The job may have moved past applied in another tab since
-              // this page was drawn; it reads as Applied, as on first draw.
-              setStage(hasApplied(result.stage) ? "applied" : result.stage);
-              if (result.stage === "queued") {
-                void openInBrowser();
-                toast.show({
-                  message: (
-                    <>
-                      <span className="font-medium">{title}</span> from{" "}
-                      <span className="font-medium">{company}</span> is queued for Auto Apply.
-                    </>
-                  ),
-                  action: { label: "Undo", onClick: undo },
-                });
-              }
-            } finally {
-              busy.current = false;
-            }
-          });
-        }}
+        aria-pressed={auto.queued}
+        title={auto.queued ? "Remove from the queue" : undefined}
+        onClick={auto.toggle}
       >
-        {queued ? (
+        {auto.queued ? (
           <CheckIcon className="size-4" />
         ) : (
           <LightningRoundedIcon aria-hidden className="size-4" />
         )}
-        {queued ? STAGE_LABEL.queued : "Auto Apply"}
+        {auto.queued ? STAGE_LABEL.queued : "Auto Apply"}
       </Button>
     </>
   );

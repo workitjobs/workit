@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 from test_dashboard import window  # noqa: F401 (a fixture)
 
-from apply import verify
+from apply import fill_engine, verify
 from apply.model import Posting, Question
 from apply.profile import ApplicantProfile
 
@@ -84,6 +84,27 @@ def test_a_blank_the_engine_meant_is_a_note(person, tmp_path):
     assert (flag.field, flag.why, flag.holds) == (
         "Personal website", "left blank on purpose: The form asks for the website in another field", False)
     assert result.verified and result.label() == "Verified · 1 note"
+
+
+def test_a_value_carried_over_where_the_profile_has_none_is_flagged(person, tmp_path):
+    # amazon.jobs (live 2026-11-10, KAN-754): Minor kept "Applied Mathematics" from an old candidate profile, though the
+    # profile lists no minor. With no None to pick, the plan leaves it blank, and a value still shown there holds.
+    minor = Question("minor", "Minor", "select", False, ("Applied Mathematics", "Economics"))
+    none = ApplicantProfile({**person.facts(), "education": {"expected_graduation": "2028-05", "minors": []}}, tmp_path)
+    planned = fill_engine.plan([minor], POSTING, none)
+    assert "minor" not in planned.answers and "minor" in planned.blanks
+    questions, answers, readback = filled(person, tmp_path)
+
+    result = verify.check([*questions, minor], answers, readback | {"minor": "Applied Mathematics"}, none, POSTING,
+                          today=TODAY, allowed="Hitachi Rail", blanks=planned.blanks)
+
+    assert [(f.field, f.why, f.kind) for f in result.needs] == [
+        ("Minor", "shows 'Applied Mathematics', but your profile has none: clear it", verify.LEFTOVER)]
+    # Blank, as the plan meant: a note. A blank the profile only lacks the fact for is never a leftover.
+    assert verify.check([*questions, minor], answers, readback, none, POSTING, today=TODAY, allowed="Hitachi Rail",
+                        blanks=planned.blanks).verified
+    assert verify.check([*questions, minor], answers, readback | {"minor": "Economics"}, person, POSTING, today=TODAY,
+                        allowed="Hitachi Rail", blanks={"minor": "Optional, and your profile has no answer to it"}).verified
 
 
 def test_a_blank_optional_self_id_question_is_flagged(person, tmp_path):
@@ -407,3 +428,42 @@ def test_a_review_problem_with_a_legal_answer_holds_submit_until_it_is_dismissed
     flag = found.flags[0]
     gone = verify.check((), {}, {}, person, POSTING, review=[problem], today=TODAY, dismissed=[(flag.field, flag.why)])
     assert gone.holds_submit == ()
+
+
+# Bank of America's TAL.net Employment (live 2026-11-06, KAN-728): one job of three was filled, and nothing said so.
+JOBS = [{"employer": "Acme Rail", "title": "Software Engineer Intern", "start": "2026-06", "end": "2026-08"},
+        {"employer": "Data Shop", "title": "Software Engineer (Part-time)", "start": "2025-10", "end": None},
+        {"employer": "Bus Co", "title": "Software Engineering Intern", "start": "2025-06", "end": "2025-08"}]
+
+
+def _work_form(tmp_path, entries: int, cap: tuple[str, ...] = ()):
+    person = ApplicantProfile({"experience_facts": {"employment_history": JOBS}}, tmp_path, {})
+    questions = [Question("n", "Work Experience (entries)", "select", False, cap)]
+    shown = {"n": str(entries)}
+    for n, job in enumerate([JOBS[0], JOBS[2]][:entries], 1):
+        questions += [Question(f"e{n}", f"Work Experience {n} / Employer", "select", True, ("Accenture", "Other")),
+                      Question(f"o{n}", f"Work Experience {n} / Employer / Organization - other", "text", True)]
+        shown |= {f"e{n}": "Other", f"o{n}": job["employer"]}
+    return verify.check(questions, shown, shown, person, POSTING, today=TODAY)
+
+
+def test_a_job_missing_from_the_work_section_holds(tmp_path):
+    result = _work_form(tmp_path, 1)
+
+    assert sorted(f.why for f in result.needs if f.kind == verify.HISTORY_KIND) == [
+        "Bus Co, a job on your profile, is not on the form's work section",
+        "Data Shop, a job on your profile, is not on the form's work section"]
+
+
+def test_a_job_a_capped_work_section_leaves_out_is_a_note(tmp_path):
+    result = _work_form(tmp_path, 2, cap=("1", "2"))
+
+    assert not [f for f in result.needs if f.kind == verify.HISTORY_KIND]
+    [note] = [f for f in result.notes if f.kind == verify.HISTORY_KIND]
+    assert "left out Data Shop" in note.why and "Acme Rail, Bus Co" in note.why
+
+
+def test_a_capped_work_section_not_yet_full_still_holds(tmp_path):
+    result = _work_form(tmp_path, 1, cap=("1", "2"))
+
+    assert len([f for f in result.needs if f.kind == verify.HISTORY_KIND]) == 2

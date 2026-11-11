@@ -208,10 +208,9 @@ function Highlight({
 }
 
 type NavRowBase = {
+  /** The section's one name: the rail's tile and the phone's sheet show
+   *  the same one, short enough for a 72px tile. */
   label: string;
-  /** The name a rail tile shows where `label` does not fit 72px; `label`
-   *  must contain it, so the accessible name holds what is seen. */
-  short?: string;
   /** A Phosphor icon — see "THE ICONS ARE PHOSPHOR'S" above. */
   Icon: ComponentType<{ className?: string }>;
 };
@@ -233,6 +232,10 @@ export type SidebarNavItem = NavRowBase &
         /** A section that does not work yet: its row stays, greyed out, with
          *  no link. */
         disabled?: boolean;
+        /** A count on the row's icon's top right, as the Jobs page's filter
+         *  count sits on its button: the Auto Apply queue's (2026-11-09).
+         *  The node draws nothing when there is nothing to count. */
+        badge?: ReactNode;
       }
     | { action: () => void | Promise<void> }
   );
@@ -252,10 +255,11 @@ export type SidebarNavGroup = { label?: string; items: SidebarNavItem[] };
  *
  * 88px wide (--sidebar-width, set by the shell), white, flush with the
  * window and ruled off by one hairline. Each row is a 72px by 64px tile:
- * a 24px icon over a 12px name, centred, with 8px of panel either side. A
- * name that does not fit there takes its item's `short` ("Tracker" for
- * Applications Tracker), and the full name stays the link's accessible
- * name, which contains the short one.
+ * a 24px icon over a 12px name, centred, with 8px of panel either side.
+ * Each row has one name, short enough for that tile ("Tracker"), and the
+ * sheet below shows the same one. Rows had a `short` for the tile and a
+ * longer name for the sheet ("Applications Tracker") until 2026-11-05: the
+ * user found two sets of names for the same sections confusing.
  *
  * Below md the panel is shadcn's sheet, as before: there the rows go back
  * to an icon beside the full name (RAIL_SHEET_*), since a sheet has the
@@ -268,7 +272,7 @@ export type SidebarNavGroup = { label?: string; items: SidebarNavItem[] };
  * full-width bar, offset by the bar's height. See "WHY IT IS OFFSET".
  */
 // The rail's edge is the control edge, as the top bar's rule is (2026-11-03).
-const RAIL = "group-data-[side=left]:border-border-control [&>[data-slot=sidebar-inner]]:bg-panel";
+const RAIL = "group-data-[side=left]:border-border-surface [&>[data-slot=sidebar-inner]]:bg-panel";
 const RAIL_GROUP = "px-2 py-2";
 const RAIL_BUTTON =
   "h-16 flex-col justify-center gap-1 px-1 text-center text-note leading-tight font-medium [&_svg]:size-6 " +
@@ -523,13 +527,10 @@ function NavRow({
   onUnhighlight: () => void;
   onPending: (pending: boolean) => void;
 }) {
-  const { label, short, Icon } = item;
+  const { label, Icon } = item;
   const { setOpenMobile } = useSidebar();
   const tile = look === "tile";
   const size = tile ? RAIL_BUTTON : look === "sheet" ? RAIL_SHEET_BUTTON : MENU_BUTTON;
-  // A tile shows the short name; the full one stays the accessible name.
-  const text = tile && short ? short : label;
-  const name = text === label ? undefined : label;
 
   // Keyboard focus moves the hover fill too; a mouse click's focus does not.
   const focusProps = {
@@ -549,11 +550,11 @@ function NavRow({
             void item.action();
           }}
           {...focusProps}
-          aria-label={name}
+
           className={cn(size, ROW, "cursor-pointer")}
         >
           <Icon aria-hidden className="size-4" />
-          <span>{text}</span>
+          <span>{label}</span>
         </SidebarMenuButton>
       </SidebarMenuItem>
     );
@@ -562,9 +563,9 @@ function NavRow({
   if (item.disabled) {
     return (
       <SidebarMenuItem>
-        <SidebarMenuButton disabled aria-label={name} className={cn(size, ROW, "opacity-50")}>
+        <SidebarMenuButton disabled className={cn(size, ROW, "opacity-50")}>
           <Icon aria-hidden className="size-4" />
-          <span>{text}</span>
+          <span>{label}</span>
         </SidebarMenuButton>
       </SidebarMenuItem>
     );
@@ -575,16 +576,21 @@ function NavRow({
       <SidebarMenuButton
         isActive={lit}
         tooltip={label}
-        render={
-          <Link href={item.href} aria-current={current ? "page" : undefined} aria-label={name} />
-        }
+        render={<Link href={item.href} aria-current={current ? "page" : undefined} />}
         // Closes the phone sheet on the way out; a no-op on the desktop panel.
         onClick={() => setOpenMobile(false)}
         {...focusProps}
         className={cn(size, ROW, lit && CURRENT_ITEM)}
       >
-        <Icon aria-hidden className="size-4" />
-        <span>{text}</span>
+        {item.badge ? (
+          <span className="relative inline-flex">
+            <Icon aria-hidden className="size-4" />
+            <span className="absolute -top-2 -right-3">{item.badge}</span>
+          </span>
+        ) : (
+          <Icon aria-hidden className="size-4" />
+        )}
+        <span>{label}</span>
         <PendingMark onPending={onPending} />
       </SidebarMenuButton>
     </SidebarMenuItem>

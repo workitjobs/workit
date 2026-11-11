@@ -165,6 +165,19 @@ def test_a_required_essay_is_written_by_claude_and_sent_with_the_form(monkeypatc
     assert essay == MICROMOUSE
 
 
+def test_an_essay_with_a_made_up_number_and_outcome_is_held_with_each_named_and_never_sent(monkeypatch):
+    # The truth check (apply.truth, KAN-748): the Story bank never says 47 clubs, nor that any adopted it.
+    form = ResearchForm("Northwood Space")
+    made_up = "I captained our Micromouse team at MIT. 47 other clubs adopted its firmware."
+
+    row = run(monkeypatch, form, FakeClaude(essays={PROJECT: made_up}))
+
+    assert row.status == "held"
+    assert "states 47, which no source backs" in row.reason
+    assert 'claims what no source backs: "adopted" (an outcome)' in row.reason
+    assert form.submitted == []
+
+
 POSTING_PAGE = "https://jobs.example.com/example/1"  # the one Match's link in `run`
 PORTAL = "Interns work on Portal, our network of phased-array ground stations tracking 1,200 satellites."
 
@@ -202,7 +215,7 @@ def test_an_essay_stating_his_zip_code_is_not_held_for_an_unsupported_number(mon
 
 
 def test_an_essay_may_state_a_number_the_companys_material_states(monkeypatch):
-    essay = "Portal tracks 1,200 satellites. My GTFS adapters at Hitachi Rail tracked live buses."
+    essay = "Portal tracks 1,200 satellites. My adapters at Hitachi Rail tracked live buses."
 
     row = run(monkeypatch, ResearchForm("Northwood Space"), FakeClaude(essays={PROJECT: essay}),
               site=Browser({POSTING_PAGE: f"<p>{PORTAL}</p>"}))
@@ -2009,12 +2022,29 @@ def test_a_question_for_facts_apply_already_holds_never_reaches_lisul():
     planned._rehearse, planned._approved, planned.written, planned.lisuls, planned.found = True, None, [], {}, {}
     planned.fixes = {}  # no Pre-submit review has run (KAN-595)
     planned.missing, planned._on_missing, planned._answers, planned._shown_files = (), lambda *heard: None, {}, None
+    planned.attestations = {}
     planned._on_files = lambda files: None
     planned.profile, planned._bank = ApplicantProfile.load(PROFILE, POLICIES), AnswerBank()
     planned.posting, planned._today = FIGMA, NOW.date()
     planned._bank.add(Question("x", "Why us?", "text"), "Made-up reason.", "Example Co", NOW.date())
     assert planned._missing(planned.questions, [f"Essay fact: {ask}"]) is None
     assert planned.missing == () and planned.answers == {"g": "https://github.com/test-person", "w": "Made-up reason."}
+
+
+def test_setting_the_answers_keeps_the_forms_files_and_no_attestation(tmp_path):
+    """The form's files reach the Application's folder and the window, and an attestation is never an answer (KAN-676)."""
+    resume = tmp_path / "resume.pdf"
+    resume.write_bytes(b"%PDF")
+    planned = worker._Planned.__new__(worker._Planned)
+    planned.questions = [Question("r", "Resume", "file", True), Question("a", "I certify this is true", "checkbox", True)]
+    planned.found, planned.fixes, planned.lisuls = {}, {}, {}
+    planned.attestations = {"a": "I certify this is true"}
+    planned.posting, planned._today, planned._shown_files = FIGMA, NOW.date(), None
+    shown = []
+    planned._on_files = shown.append
+    planned.answers = {"r": resume, "a": "Yes"}
+    assert planned.answers == {"r": resume}
+    assert [f["name"] for f in shown[0]] == ["resume.pdf"]
 
 
 def _block_text(prompt: str, tag: str) -> str:

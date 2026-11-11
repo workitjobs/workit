@@ -158,6 +158,24 @@ def anyio_backend():
 
 
 @pytest.fixture(autouse=True)
+def _model_down():
+    """Every route that asks for a model gets one that is unreachable, unless
+    the test installs its own (tests/fake_models.py's `use`, or its own
+    dependency override). Every upload asks the model first (KAN-732): without
+    this, a test's upload read with the real model the root `.env` names,
+    spending its quota and depending on the network."""
+    import httpx
+    from openai import APIConnectionError
+    from workit_scout.testing import ScriptedLLM
+
+    from tests import fake_models
+
+    fake_models.use(ScriptedLLM(APIConnectionError(request=httpx.Request("POST", "http://model.test/v1"))))
+    yield
+    fake_models.clear()
+
+
+@pytest.fixture(autouse=True)
 def _researched(request, monkeypatch):
     """Every company counts as researched, so a test about something else
     gets its application without saving a brief first. Tests marked

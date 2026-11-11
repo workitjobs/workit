@@ -1,29 +1,38 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-
-const SignedIn = createContext(false);
+import { useEffect, type ReactNode } from "react";
 
 /**
  * Asks /api/session once, after the header mounts, whether this browser
- * holds a session (KAN-581). The marketing pages are prerendered and read
- * no session (frontend/CLAUDE.md, KAN-368), so the header is drawn signed
- * out and swaps its sign-up pair here. Any failure leaves it signed out.
+ * holds a session (KAN-581), and marks `<html data-signed-in>` to match.
+ * The marketing pages are prerendered and read no session (frontend/CLAUDE.md,
+ * KAN-368), so the first guess comes from the signed-in hint cookie, which
+ * app/layout.tsx's inline script reads before the first paint (KAN-743);
+ * this corrects it. Any failure leaves the guess as it is.
  */
-export function SessionProbe({ children }: { children: ReactNode }) {
-  const [signedIn, setSignedIn] = useState(false);
+export function SessionProbe() {
   useEffect(() => {
     const controller = new AbortController();
     fetch("/api/session", { signal: controller.signal })
       .then((response) => response.json())
-      .then((body: { signed_in?: boolean }) => setSignedIn(body.signed_in === true))
+      .then((body: { signed_in?: boolean }) => {
+        const root = document.documentElement;
+        const signedIn = body.signed_in === true;
+        if (signedIn !== root.hasAttribute("data-signed-in")) {
+          root.toggleAttribute("data-signed-in", signedIn);
+        }
+      })
       .catch(() => {});
     return () => controller.abort();
   }, []);
-  return <SignedIn value={signedIn}>{children}</SignedIn>;
+  return null;
 }
 
-/** `signedIn` in place of `signedOut` once SessionProbe hears of a session. */
+/**
+ * Both pairs, drawn on the server; landing.css shows `signedIn` while
+ * `<html>` carries `data-signed-in`, and `signedOut` otherwise. A CSS swap,
+ * not React state, so the inline script's guess shows on the first paint.
+ */
 export function SessionSwap({
   signedOut,
   signedIn,
@@ -31,5 +40,10 @@ export function SessionSwap({
   signedOut: ReactNode;
   signedIn: ReactNode;
 }) {
-  return useContext(SignedIn) ? signedIn : signedOut;
+  return (
+    <>
+      <div className="session-signed-out">{signedOut}</div>
+      <div className="session-signed-in">{signedIn}</div>
+    </>
+  );
 }

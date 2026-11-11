@@ -142,3 +142,107 @@ challenge) and Gallagher's home page is empty to one, so each was checked in a
 browser and by the logo Brandfetch draws for it, and its row's note says so.
 A site that refuses scripts is no reason to leave a row out: Brandfetch's own
 logo for the domain is a second check that the domain is the company's.
+On 2026-11-09 three more went in this way, each a kind the address check
+cannot pass: SPA's board is on Jibe's own `jibeapply.com` (no address), CMS
+Energy's careers site is its subsidiary's (`consumersenergy.com`, whose name
+is not CMS's), and Simon Property Group's `simon.com` is a one-word Workday
+guess. All three home pages refuse scripts; `simon.com` refuses a browser
+too, so its own `investors.simon.com` was the page checked.
+
+## The board's own address, checked by the scraper
+
+After the batches, 7,089 jobs at 811 companies still had no domain, most on
+Workday (2,266), Jibe (1,305), Oracle (1,049) and SuccessFactors (1,044), whose
+boards name no website. Rows by hand did not scale, so **the scraper now runs
+the script check itself, once per board, on the domain the board's own address
+gives** (`logos.board_address`, `logos.check_addresses`, kept in
+`Store.addresses`):
+
+- **A Jibe or SuccessFactors board** lives on the company's careers site
+  (`careers.garmin.com`, `jobs.mcdonalds.com`), so its host's registered domain
+  is the company's: evidence, not a guess. It passes when the domain's name is
+  in the company's name or starts with it (`chsinc.com` for CHS), the company's
+  initials start it (`gxo.com`), or the home page's title names the company's
+  first word. A host on Jibe's own `jibeapply.com` gives none (`VENDOR_DOMAINS`).
+- **A Workday tenant** is the name the company chose for its Workday account,
+  so `{tenant}.com` is only a guess. It passes only when the home page's title
+  holds the company's whole name, of two words or more: `sbdinc.com` is
+  "Stanley Black & Decker", `cbrands.com` "Constellation Brands". A one-word
+  name is in too many titles: in the first run `denver.com` was Denver Media,
+  not the City of Denver, and `nexstar.com` a web host, not Nexstar Media.
+  `yale.com` sells locks; Yale University's tenant is `yale`.
+- **The home page is read at `www.` first.** Most bare domains redirect there,
+  their robots.txt too, and `web.get` refuses a redirect to another host, so
+  the bare domain read as robots.txt refusing us: on 2026-11-04 that failed 21
+  of 30 sampled boards (viasat.com). A redirect between hosts of the same
+  domain is followed; any other is not.
+- **A board is checked once.** A pass or a fail is kept; a site that did not
+  answer at all is asked again the next run. A person's row in
+  `checked_websites.csv` wins over either.
+
+On 2026-11-04 the check proved 133 of the 404 boards with an address to try:
+58 Jibe, 38 SuccessFactors and 37 Workday, 1,941 of the 7,089 jobs. Most fails
+are a site that refuses scripts or a Workday tenant that is not the company's
+`.com`. A few that passed are careers-only domains (`osfcareers.org`,
+`cakecareers.com`), whose Brandfetch logo can be a careers banner; a checked
+row fixes one.
+
+**Everything left is flagged each run**: `metrics.json`'s
+`boards_without_domain` (and the run's log, top ten) lists each board whose
+roles go out with no domain, most roles first, with `tried` true when its
+address failed the check. A person takes the top of that list, finds and
+checks the website as above, and adds a row to `checked_websites.csv`; never a
+change in the database, which the next import overwrites from the feed.
+Oracle, Greenhouse and iCIMS boards have no address to try, so they reach a
+logo only that way.
+
+## Wikidata proposals
+
+**Rows for `boards_without_domain` are proposed from Wikidata, in one PR a
+person reviews** (`domain_pr.py`, `workit_scraper/wikidata.py`, the daily
+`.github/workflows/company-domains.yml`). A board's own page and address give
+no domain for most Workday, Oracle and iCIMS boards: 755 boards (6,001 jobs)
+on 2026-11-09. Wikidata keeps a company's official website (P856) under its
+name, and its data is CC0, so an answer may be stored.
+
+**Why not Brandfetch's own name search:** its terms want it embedded in a
+user-facing autocomplete, called from the user's browser, with nothing stored
+(checked 2026-11-10). A batch job that saves domains breaks both.
+
+**A name is not a key**, so an answer counts only when it passes every rule
+(`wikidata.pick`):
+
+- The item's English label or an alias is the company's name, compared
+  without case, punctuation, a parenthesis or trailing legal words ("CMS
+  Energy Corporation" is "CMS Energy"; "CMS", a law firm, is not).
+- It names an official website on one registered domain, not a hiring
+  vendor's, and is not dissolved (P576).
+- It is not a kind of thing that never hires (`NOT_EMPLOYERS`, matched on its
+  own "instance of"): a racehorse, a band, a town, a TV channel.
+- No other item of that name names another domain: two answers give none.
+- A one-word name's domain is its own name, or its name and a company word
+  (`own_domain`: `paccar.com`, `safran-group.com`, `thecloroxcompany.com`).
+
+**The trial behind the rules** (2026-11-10, the 200 boards with the most jobs
+and no domain): the first rules found a domain for 108 (2,450 of 4,461 jobs),
+and 7 were another thing of the same name, all but one a one-word name:
+Secretariat (a racehorse), Arc (a French commune), Black Box (a band),
+Freeform (a TV channel), Kroll (a German publisher), Chubb (`chubbfs.com`, a
+fire-systems maker) and Teledyne (`teledyne-e2v.com`, one of its parts).
+`NOT_EMPLOYERS` and `own_domain` drop those 7 and keep the other 101. They were
+written from that same trial, so the review stays: a wrong row is another
+company's logo on real cards.
+
+**Each row's note names the item and its description** ("Thoroughbred
+racehorse", "American bank holding company"), which tells a reviewer at a
+glance whether it is the employer. Remove a wrong row before merging.
+`company-domains.json` records every board looked up, answer or not, so a
+removed row is never proposed again; a board with no answer is asked again
+after `RETRY_DAYS` (60). Up to `LIMIT` (150) boards a run, most jobs first.
+
+**It is the one part of the scraper that bypasses `polite.Robots`.**
+Wikidata's robots.txt disallows `/w/` (and the query service's `/sparql`) to
+crawlers, because its dynamic pages are costly to index; Wikimedia's API
+etiquette welcomes a script that names itself (our User-Agent), asks one thing
+at a time (`PACE_S`) and backs off (`maxlag=5`, `Retry-After` capped at a
+minute). It never runs inside the scrape, and it reads only the API.

@@ -1,0 +1,24 @@
+# The specs ci.yml's extension job runs on a PR: what would really hurt, about
+# 3 minutes on the macOS runner. Install and the toolbar popup, the panel, the
+# fill on Greenhouse, Ashby, SmartRecruiters and Workday, sign-out and the
+# session's refresh, a real submit marking applied and a refused one not, and the
+# minified Store package loading and filling (KAN-744). A test
+# tagged @nightly in these specs is left out on PRs; the whole suite runs every
+# night (extension-nightly.yml).
+# Not here yet: job-systems.spec.ts and tokens.spec.ts, which fail on main.
+apply-profile.spec.ts
+engine-reading.spec.ts
+greenhouse.spec.ts
+manifest.spec.ts
+smartrecruiters.spec.ts
+stored-data.spec.ts
+write-early.spec.ts
+ashby.extension.spec.ts
+install.extension.spec.ts
+panel-tabs.extension.spec.ts
+popup-home.extension.spec.ts
+session-refresh.extension.spec.ts
+sign-out.extension.spec.ts
+store-build.extension.spec.ts
+submit.extension.spec.ts
+workday-lists.extension.spec.ts

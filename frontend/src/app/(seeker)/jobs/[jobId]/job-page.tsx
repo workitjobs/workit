@@ -8,6 +8,7 @@ import { JobActionBar } from "./action-bar";
 import { CompanyTab } from "./company-tab";
 import { JobTabPanes, JobTabs } from "./job-tabs";
 import {
+  JOB_COLUMN,
   JOB_PAGE_WIDTH,
   JobViewActions,
   JobViewBody,
@@ -51,15 +52,17 @@ export async function JobPage({ jobId, listed = false }: { jobId: string; listed
       <JobActionBar tabs={<JobTabs />}>
         <JobViewActions view={view} job={job} />
       </JobActionBar>
-      <JobViewHeader
-        job={job}
-        actions={<JobCardActions view={view} job={job} notInterested />}
-        titleAs={listed ? "h2" : "h1"}
-      />
-      <JobTabPanes
-        overview={<JobViewBody view={view} job={job} />}
-        company={<CompanyTab name={job.company} company={view.company} />}
-      />
+      <div className={JOB_COLUMN}>
+        <JobViewHeader
+          job={job}
+          actions={<JobCardActions view={view} job={job} notInterested />}
+          titleAs={listed ? "h2" : "h1"}
+        />
+        <JobTabPanes
+          overview={<JobViewBody view={view} job={job} />}
+          company={<CompanyTab name={job.company} company={view.company} />}
+        />
+      </div>
     </div>
   );
 }

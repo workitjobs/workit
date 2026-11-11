@@ -38,7 +38,12 @@ FEATURES = [
     ("tailor", "run", {"large", "small"}),
     ("tailor", "run_streamed", {"large", "small"}),
     ("tailor", "match", {"small"}),
-    ("bank", "import_resume", {"large"}),
+    # Every upload's reading (KAN-732) takes the default chain, Gemini first:
+    # a long resume is more than Groq's free tier takes in a minute.
+    ("bank", "import_resume", {"default"}),
+    ("resumes", "upload_resume", {"default"}),
+    ("resumes", "preview_resume", {"default"}),
+    ("resumes", "replace_resume", {"default"}),
     ("assistant", "ask", {"large"}),
     ("built_resumes", "keyword_match", {"small"}),
     ("company_jobs", "create_job", {"small"}),

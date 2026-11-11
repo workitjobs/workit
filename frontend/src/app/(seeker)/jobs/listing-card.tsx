@@ -1,6 +1,8 @@
 import { CloudSlashIcon } from "@phosphor-icons/react/ssr";
 
 import { TailorIcon } from "@/components/icons";
+import { AutoApplyChip } from "@/components/auto-apply-chip";
+import { TailoredChip } from "@/components/tailored-chip";
 import { JobPostingCard, NOT_LISTED } from "@/components/job-posting-card";
 import { AskScoutButton } from "@/components/scout/scout-buttons";
 import { Skeleton } from "@/components/shadcn/skeleton";
@@ -19,9 +21,10 @@ import {
 } from "./format";
 import { hasApplied } from "../applied";
 import type { ApplicationStage } from "../auto-apply/actions";
-import { AutoApplyButton } from "../auto-apply/auto-apply-button";
+import { ApplySplitButton } from "./apply-split-button";
 import { ApplyButton } from "./apply-button";
 import type { JobListing } from "./listings";
+import { JobMoreMenu } from "./job-more-menu";
 import { MatchRail } from "./match-rail";
 import { NotInterestedButton } from "./not-interested-button";
 import { SaveJobButton } from "./save-job-button";
@@ -72,7 +75,8 @@ import { jobLogo } from "@/lib/job-logo";
  * its description; Apply Now opens the page's own Apply dialog (./apply-button,
  * KAN-290). Tailor
  * My Resume is the page's own button (KAN-241): it opens Tailor for this
- * role, and reads "Tailored Resume" once the seeker has one for it.
+ * role, and reads "Tailored Resume" once the seeker has one for it, with a
+ * Tailored chip by the posting's age (KAN-217).
  */
 export function ListingCard({
   job,
@@ -103,7 +107,40 @@ export function ListingCard({
         timing: job.posted_at ? formatPosted(job.posted_at) : NOT_LISTED,
         ...listingFacts(job),
       }}
+      // The card's top right: Not Interested (while it is live) and Save, as
+      // bare glyphs on the white card, then "⋯" with Already Applied? and
+      // Share (./job-more-menu). Save sat in the action row beside Tailor
+      // and Apply until 2026-11-09; the user wanted the quick verdicts apart
+      // from the steps toward applying.
+      headerAction={
+        <div className="flex items-center gap-4">
+          <AskScoutButton id={job.id} title={job.title} company={job.company} quiet />
+          <NotInterestedButton title={job.title} quiet />
+          <SaveJobButton jobId={job.id} title={job.title} stage={stage} quiet />
+          <JobMoreMenu
+            jobId={job.id}
+            title={job.title}
+            company={job.company}
+            canMarkApplied={canMarkApplied}
+            applied={hasApplied(stage)}
+            onApplied={onApplied}
+          />
+        </div>
+      }
       rail={<MatchRail score={job.match ?? null} highlights={job.highlights ?? []} />}
+      // A tailored job is saved, so it is rarely here: one auto apply holds
+      // stays on the feed (./feed-stages), and the chip says it has a resume.
+      // Status chips in the badge row beside the post date: Auto Apply on
+      // the jobs whose form it can fill (the same jobs that show its
+      // button), Tailored once the job has a tailored resume.
+      marks={
+        (job.auto_apply || tailored) && (
+          <>
+            {job.auto_apply && <AutoApplyChip />}
+            {tailored && <TailoredChip />}
+          </>
+        )
+      }
       /* One row of actions rather than a "⋯" up top as well: the menu had
          nothing in it, and two places to look for what a card can do is one
          too many. All sit at the row's right end, as on the mock cards: the
@@ -121,25 +158,7 @@ export function ListingCard({
          row is back. */
       actions={
         <>
-          <div className="contents @max-xl:flex @max-xl:basis-full @max-xl:flex-wrap @max-xl:gap-2 @max-xl:*:not-first:grow">
-            <div className="contents @max-xl:flex @max-xl:gap-2">
-              <NotInterestedButton title={job.title} />
-
-              <SaveJobButton jobId={job.id} title={job.title} stage={stage} />
-
-              <AskScoutButton id={job.id} title={job.title} company={job.company} />
-            </div>
-
-            {/* Only where auto apply can fill the form (Greenhouse for now). */}
-            {job.auto_apply && (
-              <AutoApplyButton
-                jobId={job.id}
-                title={job.title}
-                company={job.company}
-                stage={stage}
-              />
-            )}
-
+          <div className="contents @max-xl:flex @max-xl:basis-full @max-xl:flex-wrap @max-xl:gap-2 @max-xl:*:grow">
             <ButtonLink
               href={`/jobs/${encodeURIComponent(job.id)}/tailor`}
               variant="secondary"
@@ -154,15 +173,32 @@ export function ListingCard({
               send, then "Did You Apply?". No new-tab glyph: the button opens
               the dialog, and the dialog's links to the employer carry it.
               An applied job is already gone from the seeker's feed. */}
-          <ApplyButton
-            jobId={job.id}
-            title={job.title}
-            applyUrl={job.apply_url}
-            canMarkApplied={canMarkApplied}
-            applied={hasApplied(stage)}
-            onApplied={onApplied}
-            className="@max-xl:basis-full"
-          />
+          {/* One Apply where auto apply can fill the form (Greenhouse for
+              now): Auto Apply, with Apply Manually under its arrow
+              (./apply-split-button.tsx); Apply Now everywhere else. */}
+          {job.auto_apply ? (
+            <ApplySplitButton
+              jobId={job.id}
+              title={job.title}
+              company={job.company}
+              applyUrl={job.apply_url}
+              stage={stage}
+              canMarkApplied={canMarkApplied}
+              applied={hasApplied(stage)}
+              onApplied={onApplied}
+              className="@max-xl:basis-full @max-xl:*:first:grow"
+            />
+          ) : (
+            <ApplyButton
+              jobId={job.id}
+              title={job.title}
+              applyUrl={job.apply_url}
+              canMarkApplied={canMarkApplied}
+              applied={hasApplied(stage)}
+              onApplied={onApplied}
+              className="@max-xl:basis-full"
+            />
+          )}
         </>
       }
     />
@@ -235,7 +271,7 @@ export function ListingsSkeleton() {
               <div className="flex flex-col @xl:flex-row">
                 <div className="@container min-w-0 flex-1 p-4">
                   <div className="flex items-start gap-3">
-                    <Skeleton className="rounded-card w-14 shrink-0 self-stretch @md:w-20" />
+                    <Skeleton className="rounded-card size-14 shrink-0 self-start @md:size-20" />
                     <div className="flex-1 space-y-2">
                       <Skeleton className="h-6 w-32 rounded-full" />
                       <Skeleton className="h-6 w-2/3" />
@@ -257,9 +293,11 @@ export function ListingsSkeleton() {
                   </div>
                 </div>
                 {/* The match rail's box: the ring, the tier line, three rows. */}
-                <div className="bg-panel border-border-subtle flex shrink-0 flex-col items-center gap-2 border-t p-4 @xl:w-52 @xl:border-t-0 @xl:border-l">
-                  <Skeleton className="size-16 rounded-full" />
-                  <Skeleton className="h-3 w-24" />
+                <div className="bg-panel border-border-subtle flex shrink-0 flex-col items-center gap-2 border-t p-4 @xl:w-60 @xl:border-t-0 @xl:border-l">
+                  <div className="flex items-center gap-3 self-stretch">
+                    <Skeleton className="size-16 rounded-full" />
+                    <Skeleton className="h-3 w-24" />
+                  </div>
                   <div className="border-border-subtle mt-1 flex w-full flex-col gap-1.5 border-t pt-3">
                     <Skeleton className="h-2 w-full" />
                     <Skeleton className="h-2 w-4/5" />

@@ -63,16 +63,17 @@ open choices (Settled choices, near the end).
   or decorative glyph only. A filled button's text holds 4.5:1 on its fill:
   white goes on `positive-ink`, never on `positive` (2.80:1), and words and
   glyphs on the Scout amber are `ink`, never white (3.19:1).
-- **Rings, control borders and chart marks hold 3:1 on white and on grey.**
-  A ring, a dash or an edge that marks a control or a state (a field, a
-  segmented track, a choice tile, a table pill, the timeline's upcoming
-  ring, an empty slot, an outlined button or chip) uses `border-control`,
+- **Field edges, rings and chart marks hold 3:1 on white and on grey.**
+  A field's edge (`TextField`, `SearchField`) and a ring, a dash or an edge
+  that alone marks a state (an empty checkbox or radio, the timeline's
+  upcoming ring, the upload dropzone) use `border-control` (#929292),
   and a chart's series colours reach 3:1 on `panel` and on `app` (WCAG 2.2
-  SC 1.4.11). `border-control` is 3.37:1 on white, 3.29:1 on `app` and
-  3.09:1 on `well`, so a control keeps its white fill on the ground. A
-  card's outer edge takes `border-control` too (2026-11-03), so cards and
-  controls match; a rule inside a card (`border`, `border-subtle`) is about
-  1.2:1, decoration only, never what marks a control.
+  SC 1.4.11). `border-control` is 3.11:1 on white and 3.03:1 on `app`,
+  so a field keeps its white fill on the ground; it is 2.85:1 on `well`, so
+  a field never sits on a `bg-well` fill. A
+  card's outer edge is `border-surface` (#d9d9d9, 1.4:1, 2026-11-09),
+  decoration only like a rule inside a card (`border`, `border-subtle`,
+  about 1.2:1); neither ever marks a control.
 - **A prose block stops at about 68 characters a line.** Past about 75, the
   eye loses the next line (Butterick, "Line length": 45 to 90; Baymard: 50
   to 75). The measure is one token, `--measure-prose` (68ch, Settled
@@ -236,9 +237,10 @@ open choices (Settled choices, near the end).
   (Material 3, "Layout": 4dp grid). Use Tailwind's whole steps: `1` (4px),
   `2`, `3`, `4`, `5`, `6`, `8`, `10`, `12`. A half step (`0.5`, `1.5`,
   `2.5`, `3.5`) only centres content inside a control.
-- **Near-white ground, white cards, dark edges.** The page is `bg-app`
-  (#fcfcfc), as Simplify's is, and every surface on it is `bg-panel` with a
-  `border-control` edge, the edge its buttons and fields have: "The seeker
+- **Near-white ground, white cards, soft edges, dark controls.** The page
+  is `bg-app` (#fcfcfc), as Simplify's is, and every surface on it is
+  `bg-panel` with a `border-surface` edge (#d9d9d9), lighter than the
+  `border-control` edge its buttons and fields have (2026-11-09): "The seeker
   pages stand on a near-white ground" (`frontend/CLAUDE.md`). A field on the
   ground is white with a `border-control` edge, a panel at a card's edge (the
   match rail) is white with an #e8e8e8 rule, and a grey fill (`bg-well`,
@@ -324,9 +326,18 @@ open choices (Settled choices, near the end).
   over a dialog", below). Only a one-line confirm may open over a dialog.
 - **A dialog keeps a 16px margin at every width**, and its scrolling part
   keeps `scrollbar-gutter: stable`, so its width never jumps when a
-  scrollbar shows.
+  scrollbar shows. One exception: the experience bank's section list and
+  entry form fill a phone's screen below sm (`BankDialog`, KAN-740), since
+  a form of up to thirteen fields in a box 16px in from each edge showed a
+  few fields at a time.
 - **A dialog's backdrop dims and blurs 4px; a panel from the right only
-  dims** ("A panel from the right floats", below).
+  dims** ("A panel from the right floats", below). A dialog that leads the
+  student through steps over a busy page (Tailor's Your Resume Is Ready)
+  sets `data-backdrop="strong"` on its `DialogContent` for a 55% ink dim
+  (`globals.css`), so the page behind stops competing with the steps.
+- **A dialog of steps makes the next step its primary**, and moves the
+  primary and focus on as each step is done (Your Resume Is Ready's
+  Download PDF, then Open the Application).
 - **A dialog's buttons sit right, the primary last**, and its close
   button is `ink`, with a 44px target on touch. Its field errors follow
   the form rule: under the field, with focus on the first bad one.
@@ -494,8 +505,11 @@ width only shows more columns. **Every other seeker page stops at
 `max-w-dashboard` (1440px)**, Home's cap, so all of them start at the same
 left edge beside the rail (2026-10-27): at the old 1024px `max-w-app` they
 sat centred between wide empty margins once the rail freed the room, which
-the user found flawed. A block of prose keeps its own measure (About the
-Role's 46ch), since text past about 75 characters a line is hard to follow.
+the user found flawed. A block of prose keeps a readable measure, since text
+past about 90 characters a line is hard to follow. A job's page reaches it by
+being one 736px column at 16px (`max-w-job`, 2026-11-09), so its prose ends
+where its header and cards end; About the Role's own 46ch, beside blocks
+that ran the full width, read as cut short.
 **A `ch` cap goes on the element that has the text's own size** (KAN-569):
 `ch` is read from that element's font, and About the Role's 68ch sat on a
 16px wrapper over 14px text, so its lines ran about 107 characters. Plus
@@ -538,9 +552,11 @@ is real, but its name is still hard-coded in `company/layout.tsx`.
 
 **The seeker panel is a rail that is always open** (2026-10-27): 88px,
 each section an icon over its name, after Jobright's and LinkedIn's
-navigation, so it never covers the page and never moves it. A name too long
-for the 72px tile takes the item's `short` (Tracker, Resumes, Profile),
-with the full name kept as the accessible name; the rail's icons draw a
+navigation, so it never covers the page and never moves it. Each section has
+one name, short enough for the 72px tile (Tracker, Resumes, Profile), and
+the phone's sheet shows the same one: until 2026-11-05 the sheet showed
+longer names ("Applications Tracker"), two sets for one app. Page titles,
+the bar's title and Back links use the same names. The rail's icons draw a
 lighter line than the app's other icons (about 1.7px against 2px), which
 read heavy at 24px. The logo is the mark alone, in a 64px header. The
 profile strength card is a ring tile named Setup there. Below md it is
@@ -821,31 +837,53 @@ every card read as a heavy box. Home's tiles (`tone="tile"`) keep their
 shadow and no outline (KAN-173). A link card's hover darkens its edge to
 `ink-meta`.
 
+**Then cards and the shell took a lighter edge of their own** (2026-11-09).
+The user found the dark control edge on every card, the top bar and the
+rail too strong and confusing: with each section ringed in near black,
+nothing told a box from a button. So `--color-border-surface` (#d9d9d9,
+1.4:1 on white, neutral) is the outer edge of `Card`, every hand-drawn
+page-level surface listed above, the auth cards, the split view's panel and
+its rules, the seeker top bar's rule and the rail's edge. Outlined buttons
+took it the same day: a `secondary` Button, an `outline` IconButton, an
+unpressed choice Chip, the signup tiles, the match pill and the
+Auto Apply queue's resume pills are edged in `border-surface`. A labelled
+button needs no 3:1 edge (WCAG 1.4.11), since its words say what it is. The
+segmented track took it too: its options' words say what it is. Fields
+keep `border-control`, since a field has no words inside its edge and WCAG
+1.4.11 asks 3:1 of it, but the token went from #878c97 to #929292: neutral,
+like every other grey, and the lightest grey that holds 3:1 on white
+(3.11:1) and on the ground (3.03:1). It is 2.85:1 on `well`, so a field
+never sits on a `bg-well` fill. A 2px light edge was ruled out: 1.4.11
+measures colour, not width. Fields took `border-surface` for a moment and
+were put back, and dark (#404040) button edges, as LinkedIn draws them,
+were previewed and turned down: the user wanted the calm page. LinkedIn,
+measured on 2026-11-09, has card edges of #ddded9 and rules of #e7e7e7,
+the same as WorkIt's, on a #f4f2ee ground. This reverses the 2026-11-03
+entries above and below on cards, the shell and buttons.
+
 **A control's edge is `--color-border-control`; a rule is decoration only**
-(KAN-556). Any edge, ring or dash that marks a control or a state (a
-field, the search pill, the segmented track, an empty checkbox or radio, a
-table cell's button, the timeline's step still ahead, an empty slot, the
-upload dropzone) takes `border-control`: 3.37:1 on white, 3.29:1 on the
-ground and 3.09:1 on `well`, so it meets WCAG 1.4.11's 3:1 on each.
+(KAN-556). A field's edge (the search pill included) and any edge, ring or dash
+that alone marks a state (an empty checkbox or radio, the timeline's step
+still ahead, the upload dropzone) takes `border-control`: #929292 since
+2026-11-09, 3.11:1 on white and 3.03:1 on the ground, so it meets WCAG
+1.4.11's 3:1 on each (not on `well`, 2.85:1). Buttons, chips and the
+segmented track moved to `border-surface` (above).
 `--color-border`, `--color-border-subtle` and `--color-border-strong` are
 1.2:1 to 1.5:1, so they draw only what nothing depends on: a rule inside a
 card, a box nested in one, a score ring's empty track. A card's outline is
-`border-control` for the look, not for contrast (below). The search pill and the segmented track
+`border-surface` (above). The search pill and the segmented track
 had no outline, a 5% ink wash chosen for a white page, and fell to 1.1:1 once
 the seeker pages stood on grey (#f5f5f5, until 2026-11-03). shadcn's `--input` maps to `border-control`
 too, so its checkboxes, fields and the switch's off track follow.
 
-**Every outlined control takes the same edge, buttons included**
-(2026-11-03). A `secondary` Button, an `outline` IconButton, an unpressed
-choice Chip and the signup tiles are drawn in `border-control`, as the
-search pill and the fields are. A labelled button does not need a 3:1 edge
-under WCAG 1.4.11, since its words say what it is; it takes one so that a
-toolbar reads as one set. The Jobs page's search pill sat in a dark edge
-over a row of filter buttons in `border-subtle`, and the user saw the two
-as a mismatch. Cards then took the same edge (above), so an outer edge on
-the page is dark and a rule, a nested box or a toast is light. A choice Chip's hover darkens
-its edge to `ink-meta`, as the search pill's does; a Button's hover keeps
-its `hover` fill.
+**Every outlined button takes the same edge** (2026-11-03, revised
+2026-11-09). A `secondary` Button, an `outline` IconButton, an unpressed
+choice Chip and the signup tiles share one edge, so a toolbar reads as one
+set. It was `border-control`, matched to the search pill; since 2026-11-09
+it is `border-surface`, matched to the cards, and the user preferred the
+softer page to the match with the search pill. A choice Chip's hover
+darkens its edge to `ink-meta`, as the search pill's does; a Button's hover
+keeps its `hover` fill.
 
 **The seeker shell is ruled in the control edge too** (2026-11-03): the top
 bar's rule and the rail's edge are `border-control`, tried and kept, so the
@@ -861,9 +899,9 @@ Dot", an `@font-face` in `globals.css` that takes U+00B7 alone from Georgia
 "·" in text; never draw a dot with markup or swap in "•", which is about
 three times the size.
 
-**The match score pill takes the control edge** (2026-11-03): it is to open a
-modal that explains the score, so `MatchBadge` is edged in `border-control`,
-as a button is.
+**The match score pill takes the button edge** (`border-surface`,
+2026-11-09): it opens a modal that explains the score, so `MatchBadge` is
+edged as a button is.
 
 **Rules meet in a T, never a "+"** (2026-11-03). Where a column's edge meets a
 row's rule, one of them stops at the other. The rail's logo header has no
@@ -973,13 +1011,20 @@ pointer is over what it scrolls. Style it there, never per element.
 `components/save-button.tsx` is the one Save control on every job surface.
 
 **Every short "this happened" message is a toast** (`components/ui/toast.tsx`):
-`useToast().show({ message, action? })` from any page, since one
-`<ToastProvider>` sits in the root layout beside the tooltips'. A toast is a
-white card (`bg-panel`, the subtle border, `--shadow-lift`, the card radius)
-in the window's bottom right corner, body text, an optional action as a
-secondary button (Undo), and a cross. It stays 5 seconds, paused while the
-pointer or focus is on it, so an Undo is never lost mid-reach; at most three
-show, newest nearest the corner. The provider holds them, so a toast
+`useToast().show({ message, action? })` from any page, or `actions` for two
+side by side (Save's View and Undo), since one
+`<ToastProvider>` sits in the root layout beside the tooltips'. A toast is the
+inverted surface (`bg-inverse`, `text-on-inverse`, `--shadow-lift`, the card
+radius, KAN-217) in the window's bottom right corner: dark on the light app,
+so it stands out from every white card. It was a white card until the user
+missed one. Body text, its actions as `inverse` buttons (light, with a
+light edge), and an `inverse` cross. Read the two tokens, never ink and
+panel, so a dark theme turns it light by setting them. It stays 5 seconds,
+8 with an action (`TOAST_ACTION_DURATION`: at 5 the user missed Save's
+Undo), paused while the pointer or focus is on it, so an Undo is never lost
+mid-reach; at most three show, newest nearest the corner. An action that
+goes somewhere (View) is a button beside the others, never a link in the
+message: a link beside a button read as two kinds of thing. The provider holds them, so a toast
 outlives the part that raised it (a row that a refresh removes). Use one for
 a result the page does not show by itself, never for an error a form can
 show beside its field. **A write the student can't take back offers Undo in
@@ -1114,6 +1159,13 @@ carries the margin (a call site's `sm:max-w-*` had replaced the vendored
 one, and the Settings modal stood flush with both edges at 768), and a
 `data-slot="dialog-scroller"` box takes `scrollbar-gutter: stable` (the
 Settings cards were 608px wide on one section and 600px on the next).
+The experience bank's dialogs (`experiences/entry-dialog.tsx`, KAN-740) are
+the one exception to the margin: below sm they fill the screen, as a page
+would, by setting a width of their own (which merges the vendored `w-full`,
+and with it the margin rule, away), and keep the 16px from sm up. Their
+steps and questions follow the rules above: the entry form opened from a
+section's list is a step with Back, and Delete, Clear All, Delete Section
+and Discard Your Changes? are bars across the foot (`ConfirmBar`).
 
 **A field's error sits under its field and takes the focus** (KAN-563):
 the error names itself to the field through `aria-describedby`, an input
