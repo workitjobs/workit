@@ -5,6 +5,8 @@ import {
   ArrowUUpLeftIcon,
   ArrowsDownUpIcon,
   CaretDownIcon,
+  EyeIcon,
+  EyeSlashIcon,
   MinusIcon,
   PencilSimpleIcon,
   PlusIcon,
@@ -215,6 +217,7 @@ function SuggestionsPanel({
   focus,
   show,
   active,
+  marks,
 }: SuggestionsApi) {
   const list = useRef<HTMLDivElement>(null);
   const changes = changesOf(record.edits, bank);
@@ -279,6 +282,23 @@ function SuggestionsPanel({
             Suggestions <Count n={changes.length} />
           </h2>
           {changes.length > 0 && <TypeFilter only={only} counts={counts} onChange={setOnly} />}
+          {/* The marks on the page, here with the changes they mark: a Show
+              and Hide Suggestions toggle sat in the toolbar beside the title
+              row's Suggestions until KAN-799, two controls for one thing */}
+          {changes.length > 0 && (
+            <IconButton
+              label={marks.shown ? "Hide Marks on the Page" : "Show Marks on the Page"}
+              variant="quiet"
+              className="size-9 shrink-0"
+              onClick={marks.onToggle}
+            >
+              {marks.shown ? (
+                <EyeSlashIcon aria-hidden className="size-4" />
+              ) : (
+                <EyeIcon aria-hidden className="size-4" />
+              )}
+            </IconButton>
+          )}
           {/* Every change at once, an icon beside the filter so it stays in
               sight: a full-width button under the list took a row from it */}
           {changes.length > 0 && (

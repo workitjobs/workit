@@ -1,22 +1,11 @@
 "use client";
 
 import {
-  ArrowDownIcon,
-  ArrowUUpLeftIcon,
-  ArrowUUpRightIcon,
-  ArrowUpIcon,
-  CircleNotchIcon,
   CloudSlashIcon,
-  EyeIcon,
-  EyeSlashIcon,
-  IdentificationCardIcon,
-  LightbulbIcon,
   ListDashesIcon,
   ScissorsIcon,
   SlidersHorizontalIcon,
   StackIcon,
-  TextBIcon,
-  TextItalicIcon,
 } from "@phosphor-icons/react/ssr";
 import localFont from "next/font/local";
 import {
@@ -30,25 +19,16 @@ import {
   type ComponentProps,
   type ComponentType,
   type ReactNode,
-  type RefObject,
 } from "react";
 
-import { CloseIcon, EllipsisIcon, FileIcon, PlusIcon } from "@/components/icons";
+import { CloseIcon } from "@/components/icons";
 import { ASK_SCOUT_LIVE } from "@/components/scout/scout-buttons";
 import { setScoutOpen, useScout } from "@/components/scout/scout-store";
 import { ScoutTakeover } from "@/components/scout/scout-takeover";
-import {
-  DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-} from "@/components/shadcn/dropdown-menu";
 import { Skeleton } from "@/components/shadcn/skeleton";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
-import { Button, buttonClasses } from "@/components/ui/button";
+import { buttonClasses } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { IconButton } from "@/components/ui/icon-button";
-import { TextLink } from "@/components/ui/text-link";
 import {
   addBullet,
   addSkill,
@@ -79,16 +59,11 @@ import type { Result } from "@/lib/applicant-call";
 import { cn } from "@/lib/cn";
 import { markResumesStale } from "@/lib/resumes-stale";
 
-import {
-  DownloadMenu,
-  DownloadNotes,
-  useResumeDownload,
-  type ResumeDownload,
-} from "../download-menu";
+import { DownloadMenu, DownloadNotes, useResumeDownload } from "../download-menu";
 import { bulletPlaced, NEW_BULLET } from "./add-bullet";
 import { Assistant } from "./assistant";
 import { FitToast } from "./fit-notice";
-import { Zoom, ZoomSubmenu, useZoom, zoomWidth } from "./zoom";
+import { useZoom, zoomWidth } from "./zoom";
 import { TitleHistoryContext, type ApplyName, type TitleHistory } from "./resume-title";
 import {
   addCuts,
@@ -126,20 +101,23 @@ import {
   degreeLeads,
   FONTS,
   FormatOptions,
-  ON,
-  PanelButton,
   SidePanel,
-  SizeStepper,
   sizeOf,
-  TEXT_ROLES,
   textRoleOf,
-  type TextRole,
 } from "./page-format";
-import { PhoneEditor, usePhone } from "./phone";
+import { PHONE_FIELD, PhoneEditor, usePhone } from "./phone";
 import { HeaderPanel } from "./header-panel";
 import { SectionsOutline } from "./sections-panel";
 import { SLIM_BAR } from "./slim-bar";
-import { FOLD, FoldButton } from "./bar-fold";
+import {
+  Bar,
+  ReviewButtons,
+  SaveStatus,
+  type HistoryTools,
+  type LineHandlers,
+  type MoveTools,
+  type Side,
+} from "./toolbar";
 import { readMarked, runs, showMarked, unmarked } from "./text-marks";
 import {
   cardsOf,
@@ -158,7 +136,6 @@ import {
 } from "./tailor-review";
 import { CutPicker, ExperiencesPicker } from "./experiences-picker";
 import { keepFitCuts, readFitCuts } from "./fit-cuts";
-import { Tip } from "@/components/ui/tip";
 
 /**
  * The desktop editor (KAN-218): the built resume's own PDF, edited on the
@@ -643,7 +620,6 @@ export function Editor({
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [elapsed, setElapsed] = useState<number | null>(null);
   // The resume's PDF and Word downloads, here since KAN-258 (../download-menu.tsx)
   const download = useResumeDownload(resumeId);
   // Tailor's changes awaiting review; `apply` reads the newest through a ref
@@ -668,6 +644,7 @@ export function Editor({
     return () => clearTimeout(timer);
   }, [toast]);
   const latest = useRef(0);
+  // When the newest edit was sent, for the round trip's measure (`drawn`)
   const started = useRef<number | null>(null);
   const pending = useRef<Draft | null>(null);
   // Where the last press on the pages landed, from their top left (the bar
@@ -2009,8 +1986,12 @@ export function Editor({
     // The page prints the new bullet now, so its drawn text goes
     setAdding((now) => (now?.id && rendered?.boxes.some((b) => b.item_id === now.id) ? null : now));
     refresh();
+    // The edit-to-PDF round trip, from the send to the paint, as a
+    // performance measure: the open production check reads it in the
+    // browser's developer tools (Safari's on an iPhone). The phone's bar
+    // showed it ("Saved, 412 ms") until KAN-799, which was noise to a student
     if (started.current == null) return;
-    setElapsed(Math.round(performance.now() - started.current));
+    performance.measure("resume edit round trip", { start: started.current });
     started.current = null;
   };
 
@@ -2156,6 +2137,7 @@ export function Editor({
         }}
         active={active}
         open={setActive}
+        marks={{ shown: showMarks, onToggle: () => setShowMarks(!showMarks) }}
       />
     ) : null;
   // Beside the page, the toolbar's Suggestions shows and hides the panel;
@@ -2305,8 +2287,49 @@ export function Editor({
     onUndo: () => travel(true),
     onRedo: () => travel(false),
   };
+  // The open line's Move Up and Move Down, on the desktop bar and in the
+  // phone's sheet: typed text goes first, so the move's render prints it
+  const moves: MoveTools | null =
+    line?.kind === "bullet" || line?.kind === "entry"
+      ? {
+          up: Boolean(move(bank, choices, line, -1)),
+          down: Boolean(move(bank, choices, line, 1)),
+          onMove: (by) => {
+            flush();
+            const changes = move(held.current.bank, held.current.choices, line, by);
+            if (changes) void apply(changes);
+          },
+        }
+      : null;
+  // What the open line's tools act through, on both layouts (KAN-799)
+  const handlers: LineHandlers = {
+    moves,
+    onApply: apply,
+    onHide: hide,
+    onAddBullet: () => line && startBullet(line),
+    onOpenHeader: openHeader,
+  };
+  const composing = Boolean(adding && !adding.sent);
   if (phone) {
     const start = line && box && startText(line, box);
+    // A bullet's field is a rich one, as on the desktop, so the sheet's bold
+    // and italic show in its words (KAN-799); it was a textarea showing the
+    // markers. Other lines keep the sheet's own plain field
+    const bulletField =
+      line?.kind === "bullet" && box && selected && start != null
+        ? () =>
+            richLine(drafts[selected] ?? start, (text) => type(selected, text), {
+              "aria-label": kindLabel(box.kind),
+              attach: () => undefined,
+              onBlur: () => flush(),
+              onKeyDown: (e) => {
+                if (e.key !== "Enter") return;
+                e.preventDefault();
+                e.currentTarget.blur();
+              },
+              className: cn(PHONE_FIELD, "min-h-24"),
+            })
+        : null;
     return (
       <>
         <PhoneEditor
@@ -2334,9 +2357,36 @@ export function Editor({
           line={line}
           box={box}
           text={start == null ? null : (drafts[selected!] ?? start)}
+          bulletField={bulletField}
+          newBullet={
+            // Add Bullet's line, in its own sheet: the phone's page draws no
+            // field. Enter, Done or a tap away adds it, or drops it empty
+            adding && !adding.sent
+              ? {
+                  field: () =>
+                    richLine(adding.text, (text) => setAdding((now) => now && { ...now, text }), {
+                      "aria-label": "New Bullet",
+                      attach: (element) => {
+                        focusAt(NEW_BULLET.key, element);
+                        return undefined;
+                      },
+                      onBlur: (e) => void finishBullet(readMarked(e.currentTarget)),
+                      onKeyDown: (e) => {
+                        if (e.key !== "Enter") return;
+                        e.preventDefault();
+                        void finishBullet(readMarked(e.currentTarget));
+                      },
+                      className: cn(
+                        PHONE_FIELD,
+                        "before:text-ink-meta min-h-24 empty:before:content-['New_Bullet']",
+                      ),
+                    }),
+                  onDone: () => void finishBullet(adding.text),
+                }
+              : null
+          }
           saving={saving || fittingNow}
           fitting={fittingNow}
-          elapsed={elapsed}
           error={error}
           download={download}
           bar={phoneBar}
@@ -2351,19 +2401,7 @@ export function Editor({
               onOpenChange: setSuggestionsOpen,
             }
           }
-          actions={
-            line && (
-              <LineActions
-                line={line}
-                choices={choices}
-                onApply={apply}
-                onOpenHeader={openHeader}
-                onHide={hide}
-                up={move(bank, choices, line, -1)}
-                down={move(bank, choices, line, 1)}
-              />
-            )
-          }
+          handlers={handlers}
           assistant={assistant("h-full")}
           header={{ open: headerSheet, onOpenChange: setHeaderSheet, panel: headerPanel }}
           onSelect={select}
@@ -2384,30 +2422,12 @@ export function Editor({
       line={line}
       box={box}
       choices={choices}
+      handlers={handlers}
+      onDone={composing ? () => void finishBullet(adding?.text ?? "") : () => select(null)}
       rendered={rendered}
       saving={saving || fittingNow}
       fitting={fittingNow}
-      elapsed={elapsed}
-      download={download}
-      onApply={apply}
-      onOpenHeader={openHeader}
-      composing={Boolean(adding && !adding.sent)}
-      onAddBullet={() => line && startBullet(line)}
-      moves={
-        line?.kind === "bullet" || line?.kind === "entry"
-          ? {
-              up: Boolean(move(bank, choices, line, -1)),
-              down: Boolean(move(bank, choices, line, 1)),
-              onMove: (by) => {
-                // Typed text goes first, so the move's render prints it
-                flush();
-                const changes = move(held.current.bank, held.current.choices, line, by);
-                if (changes) void apply(changes);
-              },
-            }
-          : null
-      }
-      onClose={() => select(null)}
+      composing={composing}
       onFit={fit}
       experiences={
         // They wait for the first render, since a pick renders again
@@ -2434,7 +2454,6 @@ export function Editor({
       }
       zoom={{ zoom, onZoom: setZoom }}
       history={history}
-      docs={Boolean(suggestions)}
       format={{
         page,
         disabled: !rendered,
@@ -2442,7 +2461,6 @@ export function Editor({
         formatOpen: suggestions ? shownFormat : scoutOpen && panelView === "format",
         sectionsOpen: suggestions ? shownSections : scoutOpen && panelView === "sections",
         onToggle: togglePanel,
-        marks: reviewing ? { shown: showMarks, onToggle: () => setShowMarks(!showMarks) } : null,
       }}
     />
   );
@@ -2480,7 +2498,6 @@ export function Editor({
             {error}
           </p>
         )}
-        <DownloadNotes download={download} />
         <div
           ref={pages}
           data-keeps-selection
@@ -2676,26 +2693,31 @@ export function Editor({
   // from the page it reviews
   return (
     <div className={cn("flex flex-col", suggestions ? "mt-2 gap-2" : "mt-4 gap-3")}>
-      <div className="flex items-center gap-4">
+      {/* The title row (KAN-799): the resume and its file, the name at the
+          left, then whether it is saved, the review's columns and Download,
+          the page's one filled button (secondary on Tailor's review, whose
+          fill is Finish), at the right. Download and the status
+          sat in the bar until then, among the tools */}
+      <div className="flex items-center gap-3">
         <div className="min-w-0 flex-1">
           <TitleHistoryContext value={titleHistory}>{heading}</TitleHistoryContext>
         </div>
-        {suggestions && (
-          <div className="flex shrink-0 items-center gap-1.5">
-            {reviewing && (
-              <ReviewButtons
-                review={{
-                  count: suggestionCount,
-                  side,
-                  onSide: showSide,
-                  hasOriginal: Boolean(original),
-                }}
-              />
-            )}
-            <DownloadMenu download={download} />
+        <SaveStatus saving={saving} fitting={fittingNow} ready={Boolean(rendered)} />
+        {reviewing && (
+          <div className="flex shrink-0 items-center gap-1">
+            <ReviewButtons
+              review={{
+                count: suggestionCount,
+                side,
+                onSide: showSide,
+                hasOriginal: Boolean(original),
+              }}
+            />
           </div>
         )}
+        <DownloadMenu download={download} secondary={Boolean(suggestions)} />
       </div>
+      <DownloadNotes download={download} />
       {grid}
     </div>
   );
@@ -2741,943 +2763,12 @@ function useFitToWindow(foot = 24) {
 }
 
 /** The review's column from @4xl to @6xl: in the page's cell, at its right,
- *  over the page, below the 44px bar (`DOCS_BAR`) at rest and when stuck.
+ *  over the page, below the 44px bar (`SLIM_BAR`) at rest and when stuck.
  *  From @6xl it docks in the grid's second column, level with the bar. */
 const FLOATING = cn(
   "@4xl/main:col-start-1 @4xl/main:row-start-1 @4xl/main:z-30 @4xl/main:mt-13 @4xl/main:top-15 @4xl/main:w-96 @4xl/main:justify-self-end @4xl/main:rounded-card @4xl/main:shadow-lift",
   "@6xl/main:col-start-2 @6xl/main:z-auto @6xl/main:mt-0 @6xl/main:top-2 @6xl/main:w-auto @6xl/main:justify-self-stretch @6xl/main:shadow-none",
 );
-
-/** The sticky bar above the page (`SlimBar`), on the editor's own page
- *  and on Tailor's review: the selected line's kind and actions, or the
- *  page-count chip and Fit to One Page. Sticky, so a line's actions never
- *  cover the lines around it (user story 63), and Download stays in reach
- *  down a two-page resume. */
-function Bar({
-  line,
-  box,
-  choices,
-  rendered,
-  saving,
-  fitting,
-  elapsed,
-  download,
-  onApply,
-  onOpenHeader,
-  composing,
-  onAddBullet,
-  moves,
-  onClose,
-  onFit,
-  experiences,
-  docs,
-  format,
-  zoom,
-  history,
-}: {
-  line: Line | null;
-  box: RenderBox | undefined;
-  choices: Choices;
-  /** Null until the first render lands. */
-  rendered: RenderedPdf | null;
-  saving: boolean;
-  /** A Fit to One Page is under way. */
-  fitting: boolean;
-  elapsed: number | null;
-  download: ResumeDownload;
-  onApply: (changes: ChoicesUpdate) => void;
-  /** Opens the Header panel, from a line of the header. */
-  onOpenHeader: () => void;
-  /** A bullet is being added: its field is the open line. */
-  composing: boolean;
-  onAddBullet: () => void;
-  /** The open bullet's or entry's Move Up and Move Down; null for any
-   *  other line. */
-  moves: MoveTools | null;
-  onClose: () => void;
-  onFit: () => void;
-  experiences: ExperiencesTools | null;
-  docs: boolean;
-  format: FormatTools;
-  zoom: ZoomTools;
-  history: HistoryTools;
-}) {
-  return (
-    <SlimBar
-      rendered={rendered}
-      saving={saving}
-      fitting={fitting}
-      elapsed={elapsed}
-      download={download}
-      onFit={onFit}
-      experiences={experiences}
-      docs={docs}
-      format={format}
-      zoom={zoom}
-      history={history}
-      lineOpen={composing || Boolean(line && box)}
-      composing={composing}
-      editing={
-        // What acts on the line clicked: its kind of text's size, named, then a
-        // bullet's bold, italic and Add Bullet. A kind's label, Hide and
-        // Original crowded the bar for what the page and the Sections and
-        // Experiences panels already say. An entry keeps its GPA and
-        // coursework choices, and the header its missing contacts
-        composing ? (
-          <>
-            <RoleTools role={TEXT_ROLES.body} format={format} />
-            <MarkTools />
-          </>
-        ) : (
-          line &&
-          box && (
-            <>
-              <RoleTools
-                role={textRoleOf(
-                  box.kind,
-                  "entry" in line ? line.entry.section : null,
-                  "entry" in line && degreeLeads(line.entry, format.page),
-                )}
-                format={format}
-              />
-              {line.kind === "bullet" && <MarkTools />}
-              {moves && <MoveButtons moves={moves} />}
-              {(line.kind === "bullet" || line.kind === "entry") && (
-                <Button size="sm" data-bar-action className="shrink-0" onClick={onAddBullet}>
-                  <PlusIcon aria-hidden /> Add Bullet
-                </Button>
-              )}
-              {(line.kind === "entry" || line.kind === "header") && (
-                <LineActions
-                  line={line}
-                  choices={choices}
-                  onApply={onApply}
-                  onOpenHeader={onOpenHeader}
-                  onHide={(changes) => {
-                    onApply(changes);
-                    onClose();
-                  }}
-                />
-              )}
-            </>
-          )
-        )
-      }
-    />
-  );
-}
-
-/** The size of the kind of text clicked, under its name: it changes every line
- *  of that kind, and an unnamed size looked as if it changed the selection. */
-function RoleTools({ role, format }: { role: TextRole; format: FormatTools }) {
-  return (
-    <div className="flex shrink-0 items-center gap-1">
-      <span className="text-note text-ink-muted pl-1 font-medium">{role.label}</span>
-      <SizeStepper
-        role={role}
-        page={format.page}
-        disabled={format.disabled}
-        onChange={format.onChange}
-      />
-      <span aria-hidden className="bg-border-subtle mx-1 h-5 w-px" />
-    </div>
-  );
-}
-
-/** Bold and italic for the open bullet, lit while the selection has them,
- *  as Docs does. The bar keeps the focus in the field, so the browser acts on
- *  the selection and the field reports the change as typing. */
-function MarkTools() {
-  const [on, setOn] = useState({ bold: false, italic: false });
-  useEffect(() => {
-    const read = () =>
-      setOn({
-        bold: document.queryCommandState("bold"),
-        italic: document.queryCommandState("italic"),
-      });
-    read();
-    document.addEventListener("selectionchange", read);
-    return () => document.removeEventListener("selectionchange", read);
-  }, []);
-  const press = (mark: "bold" | "italic") => {
-    document.execCommand(mark);
-    setOn((was) => ({ ...was, [mark]: document.queryCommandState(mark) }));
-  };
-  return (
-    <div className="flex shrink-0 items-center gap-0.5">
-      <Tip label="Bold">
-        <Button
-          variant="ghost"
-          size="icon-lg"
-          aria-label="Bold"
-
-          aria-pressed={on.bold}
-          className={cn(on.bold && ON)}
-          onClick={() => press("bold")}
-        >
-          <TextBIcon aria-hidden />
-        </Button>
-      </Tip>
-      <Tip label="Italic">
-        <Button
-          variant="ghost"
-          size="icon-lg"
-          aria-label="Italic"
-
-          aria-pressed={on.italic}
-          className={cn(on.italic && ON)}
-          onClick={() => press("italic")}
-        >
-          <TextItalicIcon aria-hidden />
-        </Button>
-      </Tip>
-    </div>
-  );
-}
-
-/** Move Up and Move Down for the open line: a bullet within its entry, an
- *  entry within its section. */
-type MoveTools = { up: boolean; down: boolean; onMove: (by: -1 | 1) => void };
-
-/** Beside bold and italic, or an entry's size: the line trades places with
- *  its neighbour on the page at once (`swapsOf`; an entry with its bullets),
- *  the Sections panel reorders from the same choices, its save and render go
- *  behind it, and the line stays open on it, so a second press moves it
- *  again. */
-function MoveButtons({ moves }: { moves: MoveTools }) {
-  return (
-    <div className="flex shrink-0 items-center gap-0.5">
-      <span aria-hidden className="bg-border-subtle mx-1 h-5 w-px" />
-      <Tip label="Move Up">
-        <Button
-          variant="ghost"
-          size="icon-lg"
-          aria-label="Move Up"
-
-          disabled={!moves.up}
-          onClick={() => moves.onMove(-1)}
-        >
-          <ArrowUpIcon aria-hidden />
-        </Button>
-      </Tip>
-      <Tip label="Move Down">
-        <Button
-          variant="ghost"
-          size="icon-lg"
-          aria-label="Move Down"
-
-          disabled={!moves.down}
-          onClick={() => moves.onMove(1)}
-        >
-          <ArrowDownIcon aria-hidden />
-        </Button>
-      </Tip>
-    </div>
-  );
-}
-
-/** The toolbar's Experiences (KAN-440): whether Scout's panel shows the
- *  picker now. */
-type ExperiencesTools = {
-  /** Add Experiences, on the editor's own page only. */
-  picker: { open: boolean; onToggle: () => void } | null;
-  /** Cut From Resume, only after a fit cut something still off the page. */
-  cut: { open: boolean; onToggle: () => void } | null;
-};
-
-/** The page's zoom and its setter (./zoom.tsx), for the bar's `Zoom` and
- *  More's `ZoomSubmenu`. */
-type ZoomTools = { zoom: number; onZoom: (zoom: number) => void };
-
-/** The bar's page settings (./page-format.tsx). */
-type FormatTools = {
-  page: PageSettings;
-  disabled: boolean;
-  onChange: (next: PageSettings) => void;
-  formatOpen: boolean;
-  sectionsOpen: boolean;
-  onToggle: (panel: "format" | "sections") => void;
-  /** Tailor's marks on the page, on Tailor's review only. */
-  marks: { shown: boolean; onToggle: () => void } | null;
-};
-
-/** What sits beside the page on Tailor's review. */
-type Side = "suggestions" | "original" | "format" | "sections" | "cut" | null;
-
-/** The slim bar's review tools: the changes left, and which column shows
- *  beside the page. */
-type ReviewTools = {
-  count: number;
-  side: Side;
-  onSide: (side: Side) => void;
-  /** False when the run's record names no source resume. */
-  hasOriginal: boolean;
-};
-
-/** The bar on Tailor's review, as Google Docs draws its own (KAN-499): a
- *  pill, its tools from the left, white and ruled since the page's ground
- *  went grey. Both bars' buttons are dark grey, as Docs' are, and only a
- *  pressed one takes the brand. The page count's amber chip keeps its colour. */
-const DOCS_BAR = cn(
-  "bg-panel ring-border-subtle sticky top-2 z-20 flex min-h-11 flex-wrap items-center gap-2 rounded-full px-3 py-1 ring-1",
-  "[&_button:not([aria-pressed=true]):not([data-bar-action])]:text-ink-muted [&_button:not([aria-pressed=true]):not([data-bar-action]):hover]:text-ink",
-);
-
-/** The editor's Undo and Redo (./history.ts), for the slim bar and the
- *  phone's bar. */
-export type HistoryTools = {
-  canUndo: boolean;
-  canRedo: boolean;
-  onUndo: () => void;
-  onRedo: () => void;
-};
-
-/**
- * Undo and Redo, first on the slim bar in both its states (KAN-391: until
- * then disabled, UI only). Each goes back or forward one step of
- * `HISTORY_STEPS`; Cmd+Z and Shift+Cmd+Z do the same off a field. A Fit to
- * One Page is one step too; its own Undo Fit button went on 2026-11-01.
- */
-function History({ tools }: { tools?: HistoryTools }) {
-  return (
-    <div className="flex shrink-0 items-center gap-0.5">
-      <Tip label="Undo">
-        <Button
-          variant="ghost"
-          size="icon-lg"
-          aria-label="Undo"
-
-          disabled={!tools?.canUndo}
-          onClick={tools?.onUndo}
-        >
-          <ArrowUUpLeftIcon aria-hidden />
-        </Button>
-      </Tip>
-      <Tip label="Redo">
-        <Button
-          variant="ghost"
-          size="icon-lg"
-          aria-label="Redo"
-
-          disabled={!tools?.canRedo}
-          onClick={tools?.onRedo}
-        >
-          <ArrowUUpRightIcon aria-hidden />
-        </Button>
-      </Tip>
-      <span aria-hidden className="bg-border-subtle mx-1 h-5 w-px" />
-    </div>
-  );
-}
-
-/**
- * The slim bar, the editor's one toolbar, on its own page and on Tailor's
- * review (KAN-411: the editor's own page had a brand-tinted full bar until
- * then, with a hint, a Done button and an amber Fit group, so a student saw
- * two editor designs). Over the page with the column beside it starting
- * level, holding only tools for the page: Undo and Redo (`History`), then
- * Fit to One Page (over one page only, `FitButton`) and, idle, Download at
- * the right,
- * secondary, since Finish is the review's one filled button. Not on This
- * Resume was a button here with a modal for a day; the review does not
- * need it (see the grid). No "Click a line to edit it." hint: the
- * pointer's own highlight on a line says so. On Tailor's review it is Docs'
- * bar (`DOCS_BAR`, KAN-499): a filled pill of Undo, Redo and zoom from the
- * left, with Download and the view icons (`ReviewButtons`) in the name's row. With a line open: the text's
- * own tools (a bullet's bold and italic) or an entry's or the header's
- * choices, and "Esc when done" in place of a Done button, since Escape or a
- * click off the page already saves and closes. The page's settings (font
- * size, spacing, margins) sat here too until 2026-11-01: beside bold and
- * italic they looked as if they acted on the selection, and they change the
- * whole page, so they are Format Options' alone.
- *
- * Download sat in the page's top row beside Finish for a day; the user
- * wanted it back with the page's tools. No Ask Scout: on the editor's own
- * page the top bar's Scout opens the assistant (`ScoutTakeover`), and an
- * Ask Scout ending this bar for a day was a second Scout button on one
- * page; on the review the panel holds the page's attention, and a second
- * AI entry beside it split it. The bar spanned the page and the panel for a
- * day, which put the panel under it, apart from the page; the panel folded
- * to a rail of its own (») until the user found it dated.
- */
-function SlimBar({
-  rendered,
-  saving,
-  fitting = false,
-  elapsed,
-  download,
-  onFit,
-  lineOpen,
-  composing,
-  editing,
-  experiences,
-  docs = false,
-  format,
-  zoom,
-  history,
-}: {
-  rendered: RenderedPdf | null;
-  saving: boolean;
-  /** A Fit to One Page is under way: the status and the button say so. */
-  fitting?: boolean;
-  elapsed: number | null;
-  download: ResumeDownload;
-  onFit: () => void;
-  /** Whether a line is open. */
-  lineOpen: boolean;
-  /** Whether that line is a bullet being added. */
-  composing: boolean;
-  /** The open line's own tools, if it has any. */
-  editing: ReactNode;
-  /** The editor's own page only; null on Tailor's review. */
-  experiences: ExperiencesTools | null;
-  /** Tailor's review: Docs' bar (`DOCS_BAR`), with zoom from the left and
-   *  Download in the name's row. By the page, not the run's record, which
-   *  is read after mount, so nothing moves when it lands. */
-  docs?: boolean;
-  /** The ways to the panels, at the bar's end while no line is open. */
-  format?: FormatTools;
-  /** The page's zoom (`Zoom`, and `ZoomSubmenu` in More). */
-  zoom?: ZoomTools;
-  history?: HistoryTools;
-}) {
-  const bar = useRef<HTMLDivElement>(null);
-  const status = (
-    // Shrinks before any button does, and folds away (`FOLD.status`) while
-    // still read out, so a long one never pushes the row past the bar
-    <span
-      className={cn("text-note text-ink-meta min-w-0 truncate pr-1", FOLD.status)}
-      aria-live="polite"
-    >
-      {fitting
-        ? "Fitting to One Page…"
-        : saving
-          ? "Saving…"
-          : elapsed !== null
-            ? `Saved, ${elapsed} ms`
-            : ""}
-    </span>
-  );
-  const box = docs ? DOCS_BAR : SLIM_BAR;
-  const zoomControl = zoom && <Zoom zoom={zoom.zoom} onZoom={zoom.onZoom} />;
-  // `Zoom` ends in its own divider; a second one here stood beside it
-  const docsZoom = docs && zoom && (rendered ? zoomControl : <ZoomSkeleton />);
-  // Gone while a bullet is being added: a fit would read a resume without it
-  const fitButton = !composing && rendered && rendered.page_count > 1 && (
-    <FitButton
-      pages={rendered.page_count}
-      linesOver={rendered.lines_over}
-      disabled={saving}
-      fitting={fitting}
-      onFit={onFit}
-    />
-  );
-  if (lineOpen) {
-    return (
-      <div
-        data-keeps-selection
-        data-page-bar
-        className={box}
-        // A press on a button keeps focus in the field, so it does not blur and save first
-        onMouseDown={(e) => {
-          if ((e.target as HTMLElement).closest("button")) e.preventDefault();
-        }}
-      >
-        <History tools={history} />
-        {docsZoom}
-        {editing}
-        {fitButton}
-        <div className="ml-auto flex items-center gap-2">
-          {status}
-          <span className="text-note text-ink-meta">
-            <kbd className="bg-ink/5 rounded-xs px-1 font-sans">Esc</kbd> when done
-          </span>
-        </div>
-      </div>
-    );
-  }
-  // One row at every width (./bar-fold.tsx): each piece that can leave the
-  // row sits in a `data-fold` box, which More reads to list what has left
-  const cutShown = Boolean(experiences?.cut);
-  return (
-    <div
-      ref={bar}
-      data-keeps-selection
-      data-page-bar
-      className={cn(box, "@container/bar flex-nowrap")}
-    >
-      <History tools={history} />
-      {docsZoom && (
-        <span data-fold="zoom" className={cn("flex shrink-0", FOLD.zoomAway)}>
-          {docsZoom}
-        </span>
-      )}
-      {fitButton}
-      {experiences?.picker && (
-        // A button of the bar's own weight, as Download is: it is the way to
-        // add to the resume, not a label. Tinted while its panel is open
-        <span data-fold="experiences" className={cn("flex shrink-0", FOLD.experiencesAway)}>
-          <FoldButton
-            label="Add Experiences"
-            hint="Pick what this resume shows"
-            icon={<StackIcon aria-hidden />}
-            fold={FOLD.experiencesWord}
-            render={
-              <Button
-                variant="secondary"
-                size="sm"
-                aria-pressed={experiences.picker.open}
-                className={cn(
-                  experiences.picker.open &&
-                    "border-brand bg-brand-tint text-brand hover:bg-brand-tint",
-                )}
-                onClick={experiences.picker.onToggle}
-              />
-            }
-          />
-        </span>
-      )}
-      {experiences?.cut && (
-        // Beside Add Experiences, in the same weight, amber as Fit is
-        <span data-fold="cut" className={cn("flex shrink-0", FOLD.cutAway)}>
-          <FoldButton
-            label="Cut From Resume"
-            hint="Put back what Fit to One Page cut"
-            icon={<ScissorsIcon aria-hidden />}
-            fold={FOLD.cutWord}
-            render={
-              <Button
-                variant="secondary"
-                size="sm"
-                aria-pressed={experiences.cut.open}
-                className={cn(
-                  "text-warning hover:text-warning",
-                  experiences.cut.open && "border-warning/50 bg-warning-tint hover:bg-warning-tint",
-                )}
-                onClick={experiences.cut.onToggle}
-              />
-            }
-          />
-        </span>
-      )}
-      <div className="ml-auto flex min-w-0 items-center gap-2">
-        {status}
-        {/* Until the first render lands, the panel buttons and the zoom
-            are bars, not their names in grey (KAN-561). */}
-        {format && !rendered && (
-          <span aria-hidden="true" className={cn("flex items-center gap-2", FOLD.panelsAway)}>
-            {format.marks && <Skeleton className={cn("h-7 w-28", FOLD.sectionsSkeleton)} />}
-            <Skeleton className={cn("h-7 w-24", FOLD.sectionsSkeleton)} />
-            <Skeleton className={cn("h-7 w-28", FOLD.formatSkeleton)} />
-          </span>
-        )}
-        {format && rendered && (
-          <>
-            {format.marks && (
-              <span data-fold="marks" className={cn("flex shrink-0", FOLD.panelsAway)}>
-                <PanelButton
-                  label={format.marks.shown ? "Hide Suggestions" : "Show Suggestions"}
-                  Icon={format.marks.shown ? EyeSlashIcon : EyeIcon}
-                  fold={FOLD.sectionsWord}
-                  open={false}
-                  disabled={format.disabled}
-                  onToggle={format.marks.onToggle}
-                />
-              </span>
-            )}
-            <span data-fold="sections" className={cn("flex shrink-0", FOLD.panelsAway)}>
-              <PanelButton
-                label="Sections"
-                Icon={ListDashesIcon}
-                fold={FOLD.sectionsWord}
-                open={format.sectionsOpen}
-                disabled={format.disabled}
-                onToggle={() => format.onToggle("sections")}
-              />
-            </span>
-            <span data-fold="format" className={cn("flex shrink-0", FOLD.panelsAway)}>
-              <PanelButton
-                label="Format Options"
-                Icon={SlidersHorizontalIcon}
-                fold={FOLD.formatWord}
-                open={format.formatOpen}
-                disabled={format.disabled}
-                onToggle={() => format.onToggle("format")}
-              />
-            </span>
-          </>
-        )}
-        {!docs && zoom && (
-          <span data-fold="zoom" className={cn("flex shrink-0", FOLD.zoomAway)}>
-            {rendered ? zoomControl : <ZoomSkeleton />}
-          </span>
-        )}
-        {/* On Tailor's review it sits in the name's row, as Docs' Share does.
-            Secondary: Finish is the review's one filled button, and in the
-            brand fill too, the two competed */}
-        {!docs && <DownloadMenu download={download} fold={FOLD.downloadWord} />}
-        {rendered && (
-          <MoreMenu
-            bar={bar}
-            className={cutShown ? FOLD.moreWithCut : FOLD.more}
-            zoom={zoom}
-            format={format}
-            experiences={experiences}
-          />
-        )}
-      </div>
-    </div>
-  );
-}
-
-/**
- * The slim bar's More (⋯), at the row's end once a control has left a
- * narrow bar (./bar-fold.tsx), as Docs keeps its own. It lists only what
- * has left: on open it reads which `data-fold` boxes the bar hides, so the
- * row's classes alone decide, and nothing is listed twice. A panel's item
- * is checked while its panel is open, as its button is pressed.
- */
-function MoreMenu({
-  bar,
-  className,
-  zoom,
-  format,
-  experiences,
-}: {
-  bar: RefObject<HTMLDivElement | null>;
-  className: string;
-  zoom?: ZoomTools;
-  format?: FormatTools;
-  experiences: ExperiencesTools | null;
-}) {
-  const [away, setAway] = useState<ReadonlySet<string>>(new Set());
-  const read = () => {
-    const boxes = bar.current?.querySelectorAll<HTMLElement>("[data-fold]") ?? [];
-    setAway(
-      new Set([...boxes].filter((box) => box.offsetWidth === 0).map((box) => box.dataset.fold!)),
-    );
-  };
-  return (
-    <span className={cn("shrink-0", className)}>
-      <DropdownMenu onOpenChange={(open) => open && read()}>
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <DropdownMenuTrigger
-                render={<Button variant="ghost" size="icon-lg" aria-label="More Tools" />}
-              />
-            }
-          >
-            <EllipsisIcon className="size-5" />
-          </TooltipTrigger>
-          <TooltipContent>More Tools</TooltipContent>
-        </Tooltip>
-        <DropdownMenuContent data-keeps-selection align="end" className="w-auto min-w-52">
-          {experiences?.picker && away.has("experiences") && (
-            <DropdownMenuCheckboxItem
-              checked={experiences.picker.open}
-              onCheckedChange={experiences.picker.onToggle}
-            >
-              <StackIcon aria-hidden /> Add Experiences
-            </DropdownMenuCheckboxItem>
-          )}
-          {experiences?.cut && away.has("cut") && (
-            <DropdownMenuCheckboxItem
-              checked={experiences.cut.open}
-              onCheckedChange={experiences.cut.onToggle}
-            >
-              <ScissorsIcon aria-hidden /> Cut From Resume
-            </DropdownMenuCheckboxItem>
-          )}
-          {format?.marks && away.has("marks") && (
-            <DropdownMenuCheckboxItem
-              checked={format.marks.shown}
-              disabled={format.disabled}
-              onCheckedChange={format.marks.onToggle}
-            >
-              <EyeIcon aria-hidden /> Suggestions
-            </DropdownMenuCheckboxItem>
-          )}
-          {format && away.has("sections") && (
-            <DropdownMenuCheckboxItem
-              checked={format.sectionsOpen}
-              disabled={format.disabled}
-              onCheckedChange={() => format.onToggle("sections")}
-            >
-              <ListDashesIcon aria-hidden /> Sections
-            </DropdownMenuCheckboxItem>
-          )}
-          {format && away.has("format") && (
-            <DropdownMenuCheckboxItem
-              checked={format.formatOpen}
-              disabled={format.disabled}
-              onCheckedChange={() => format.onToggle("format")}
-            >
-              <SlidersHorizontalIcon aria-hidden /> Format Options
-            </DropdownMenuCheckboxItem>
-          )}
-          {zoom && away.has("zoom") && <ZoomSubmenu zoom={zoom.zoom} onZoom={zoom.onZoom} />}
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </span>
-  );
-}
-
-/**
- * What sits beside the page on Tailor's review, as icons at the right of the
- * name's row, over the toolbar, where Google Docs keeps its own (KAN-499):
- * Original, the file every resume wears, and Suggestions, a lightbulb, each
- * tinted while its column is open, and each closing it when pressed again.
- * Docs' history and comment glyphs stood here for a moment, then the sparkle,
- * which read as Scout's beside the top bar's. The place is Docs', the marks
- * are WorkIt's. Neither open is
- * the page alone at full width. A three-way switch in the name's row held
- * this, then labelled buttons in the toolbar, which the user found unlike
- * Docs: the bar holds tools for the page, and these are the document's.
- */
-function ReviewButtons({ review }: { review: ReviewTools }) {
-  const button = (
-    side: "suggestions" | "original",
-    label: string,
-    Icon: ComponentType<{ className?: string; "aria-hidden"?: boolean }>,
-    count = 0,
-  ) => {
-    const open = review.side === side;
-    return (
-      <IconButton
-        label={count > 0 ? `${label}, ${count}` : label}
-        tooltip={label}
-        aria-pressed={open}
-        className={cn(
-          "hover:bg-ink/5 size-10 rounded-full after:inset-0",
-          open && "bg-brand/10 text-brand hover:bg-brand/10 hover:text-brand",
-        )}
-        onClick={() => review.onSide(open ? null : side)}
-      >
-        <Icon aria-hidden className="size-5.5" />
-        {count > 0 && (
-          <span className="bg-brand text-on-brand text-note absolute -top-0.5 -right-0.5 flex h-4.5 min-w-4.5 items-center justify-center rounded-full px-1 font-semibold tabular-nums">
-            {count}
-          </span>
-        )}
-      </IconButton>
-    );
-  };
-  return (
-    <>
-      {review.hasOriginal && button("original", "Original Resume", FileIcon)}
-      {button("suggestions", "Suggestions", LightbulbIcon, review.count)}
-    </>
-  );
-}
-
-/** The way back to one page, on the bar only while the resume runs over it.
- *  It is the action itself: an amber "2 pages" chip with a caret came first,
- *  whose click opened a card holding this button, which the user found one
- *  step too many (2026-11-01). The count and what it does are in its title. A
- *  brand outline, since it is a choice the student may pass on, and Add Bullet
- *  beside it is the bar's one fill. */
-function FitButton({
-  pages,
-  linesOver,
-  disabled,
-  fitting,
-  onFit,
-}: {
-  pages: number;
-  linesOver: number;
-  disabled: boolean;
-  /** While a fit runs it reads "Fitting…" with a spinner. Not a modal: the
-   *  page stays in view, where each cycle's cuts close up as they come
-   *  (KAN-584), the progress a modal would cover. */
-  fitting: boolean;
-  onFit: () => void;
-}) {
-  const over =
-    linesOver > 0
-      ? `About ${linesOver} ${linesOver === 1 ? "line runs" : "lines run"} onto page 2.`
-      : `It runs to ${pages} pages.`;
-  // Its word folds late (`FOLD.fitWord`), and it never leaves the row
-  return (
-    <FoldButton
-      label={fitting ? "Fitting…" : "Fit to One Page"}
-      hint={`${over} This hides the least useful lines until it fits.`}
-      icon={
-        fitting ? (
-          <CircleNotchIcon aria-hidden className="animate-spin motion-reduce:animate-none" />
-        ) : (
-          <ScissorsIcon aria-hidden />
-        )
-      }
-      fold={FOLD.fitWord}
-      disabled={disabled}
-      render={
-        <Button
-          variant="outline"
-          size="sm"
-          data-bar-action
-          className="shrink-0"
-          disabled={disabled}
-          onClick={onFit}
-        />
-      }
-    />
-  );
-}
-
-function LineActions({
-  line,
-  choices,
-  onApply,
-  onOpenHeader,
-  onHide,
-  up,
-  down,
-}: {
-  line: Line;
-  choices: Choices;
-  onApply: (changes: ChoicesUpdate) => void;
-  onOpenHeader: () => void;
-  onHide: (changes: ChoicesUpdate) => void;
-  /** A phone's way to move a line; a desktop's bar has `MoveButtons`. */
-  up?: ChoicesUpdate | null;
-  down?: ChoicesUpdate | null;
-}) {
-  const moves = up !== undefined && (
-    <>
-      <Tip label="Move Up">
-        <Button
-          variant="secondary"
-          size="sm"
-          aria-label="Move Up"
-          disabled={!up}
-          onClick={() => up && onApply(up)}
-        >
-          <ArrowUpIcon aria-hidden />
-        </Button>
-      </Tip>
-      <Tip label="Move Down">
-        <Button
-          variant="secondary"
-          size="sm"
-          aria-label="Move Down"
-          disabled={!down}
-          onClick={() => down && onApply(down)}
-        >
-          <ArrowDownIcon aria-hidden />
-        </Button>
-      </Tip>
-    </>
-  );
-
-  if (line.kind === "header") {
-    // Every header field, and whether this resume prints it, is in the
-    // Header panel (KAN-436): a field the profile lacks, or one this resume
-    // hides, has no line to click
-    return (
-      <>
-        <Button variant="secondary" size="sm" className="shrink-0" onClick={onOpenHeader}>
-          <IdentificationCardIcon aria-hidden /> Edit Header
-        </Button>
-        {line.field === "email" && (
-          <span className="text-note text-ink-meta">
-            Set on My Profile, so it changes on every resume.
-          </span>
-        )}
-      </>
-    );
-  }
-
-  if (line.kind === "skill") {
-    return (
-      <Button
-        variant="secondary"
-        size="sm"
-        onClick={() => onHide({ skills: [{ skill_id: line.skill.id, shown: false }] })}
-      >
-        <EyeSlashIcon aria-hidden /> Hide
-      </Button>
-    );
-  }
-
-  if (line.kind === "bullet") {
-    const id = line.bullet.id;
-    const row = choices.bullets.find((c) => c.bullet_id === id);
-    // One wording button, Original, shown while the bullet shows any other
-    // wording (Tailor's or one typed on this resume): it puts the bank's
-    // text back, and Undo takes it back. The resume's own wording stays
-    // stored. A "Tailored N" button per Tailor wording went first, then a
-    // This Resume's Wording button; the user wanted Original alone
-    // (2026-10-29)
-    const reworded = row?.variant_id != null || row?.text != null;
-    return (
-      <>
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={() => onHide({ bullets: [{ bullet_id: id, shown: false }] })}
-        >
-          <EyeSlashIcon aria-hidden /> Hide
-        </Button>
-        {moves}
-        {reworded && (
-          <Button
-            variant="secondary"
-            size="sm"
-            title={line.bullet.text}
-            onClick={() => onApply({ bullets: [{ bullet_id: id, variant_id: null }] })}
-          >
-            Original
-          </Button>
-        )}
-      </>
-    );
-  }
-
-  const entry = line.entry;
-  const choice = choices.entries.find((c) => c.entry_id === entry.id);
-  return (
-    <>
-      <Button
-        variant="secondary"
-        size="sm"
-        onClick={() => onHide({ entries: [{ entry_id: entry.id, shown: false }] })}
-      >
-        <EyeSlashIcon aria-hidden /> Hide Entry
-      </Button>
-      {moves}
-      {entry.section === "education" && choice && (
-        <>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() =>
-              onApply({ entries: [{ entry_id: entry.id, show_gpa: !choice.show_gpa }] })
-            }
-          >
-            {choice.show_gpa ? "Hide GPA" : "Show GPA"}
-          </Button>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() =>
-              onApply({
-                entries: [{ entry_id: entry.id, show_coursework: !choice.show_coursework }],
-              })
-            }
-          >
-            {choice.show_coursework ? "Hide Coursework" : "Show Coursework"}
-          </Button>
-        </>
-      )}
-      {!typed(line) && (
-        <span className="text-note text-ink-meta">
-          Change this in <TextLink href="/experiences">Experiences</TextLink>.
-        </span>
-      )}
-    </>
-  );
-}
 
 /**
  * Where the first PDF is drawn, while the page's render is on its way: it
@@ -3723,29 +2814,25 @@ function FirstRenderPane({
   );
 }
 
-/** The zoom control (./zoom.tsx) as a bar, until the first render lands. */
-function ZoomSkeleton() {
-  return <Skeleton aria-hidden="true" className="h-7 w-20 shrink-0" />;
-}
-
 /**
  * The desktop editor before anything has loaded, for ./loading.tsx: the
- * title row's title, then the slim bar's box with Undo and Redo and its
- * end (Download) as bars, over a page's skeleton, in the
- * editor's own layout, so the editor that replaces it keeps every edge
+ * title row's title and Download, then the slim bar's box with Undo and Redo
+ * and its end (the panels and the zoom) as bars, over a page's skeleton, in
+ * the editor's own layout, so the editor that replaces it keeps every edge
  * where it was.
  */
 export function EditorSkeleton() {
   return (
     <div aria-hidden="true" className="mt-4 flex flex-col gap-3">
       {/* The title's height (`ResumeTitle`) */}
-      <div className="flex h-8 items-center">
+      <div className="flex h-9 items-center gap-3">
         <Skeleton className="h-6 w-56 max-w-full" />
+        <Skeleton className="ml-auto h-9 w-28" />
       </div>
       <div className="flex min-w-0 flex-col gap-2">
         <div className={SLIM_BAR}>
           <Skeleton className="h-6 w-14" />
-          <Skeleton className="ml-auto h-9 w-28" />
+          <Skeleton className="ml-auto h-7 w-40" />
         </div>
         <PageSkeleton />
       </div>
