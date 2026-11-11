@@ -275,7 +275,8 @@ What changes on a plain Worker:
   on there. See "The seed's guided setup" below.
 - **`apply doctor`** checks the Workers `worker_mode` runs: the CDP Worker profiles for `cdp`, the
   "Plain seed" line for `plain` (the seed exists, Load unpacked registered the worker extension in it,
-  and Developer mode is on), and both for `protected`. With `plain_chrome: testing` the seed line is ok.
+  that folder holds this checkout's extension code (KAN-764), and Developer mode is on), and both for
+  `protected`. With `plain_chrome: testing` the seed line is ok.
 - **Held Submit and the already-applied note** (KAN-629, KAN-621) work on plain pages:
   `submit_guard.lift(held=, dismiss=)`, `renote(held=)`, `warn_applied` and `applied_dismissed`
   hand over to `apply.plain.guards` (`guard.lift`'s `held` and `onlyLifted`, `guard.applied`). A
@@ -353,7 +354,9 @@ differs from its Apply's crashed the page guard. So:
     one line with the folder and the fix (`bridge.STALE_FIX`). The hash is taken by Apply, not sent
     in the hello: old code could never send a new field, and Apply reads the very folder Chrome's
     preferences name.
-  - Tests: `tests/test_plain_stale_extension.py` (in CI).
+  - `apply doctor` fails "Plain seed" when the seed's folder holds other code than the checkout's
+    (`doctor.STALE_SEED`).
+  - Tests: `tests/test_plain_stale_extension.py` (in CI) and `tests/test_doctor.py`.
 - Rolling it out: no running Worker is touched. When no plain Worker runs, `uv run apply plain
   seed` once: it shows the copy to load and checks it. New Worker profiles copy that seed; an
   existing idle `plain-<k>` profile keeps its old registration until it is deleted.
