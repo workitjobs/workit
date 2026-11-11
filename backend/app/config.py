@@ -144,6 +144,18 @@ class Settings(BaseSettings):
     fill_event_daily_cap: int = 2000
     # Jobs a student added from a form WorkIt doesn't list (KAN-515): one per form they ask their Claude to write for.
     added_job_daily_cap: int = 50
+    # The Fill engine's Rules table, one job system at a time (KAN-756, routers/extension_rules.py): a
+    # site token per posting opened, and a fetch per token. A student opening 100 postings a day, five
+    # batch tabs at a time, stays far below; a scraper pulling the table over and over doesn't.
+    rules_token_daily_cap: int = 400
+    rules_fetch_daily_cap: int = 400
+
+    # How long a site token fetches its job system's rules (KAN-756): long enough for the extension's
+    # prefetch on posting open, short enough that a copied one dies quickly.
+    rules_token_minutes: int = 5
+    # The Fill engine's bundled Rules table as JSON, which its build writes into its own dist/
+    # (services/rules_table.py). The image copies it to the same place beside backend/.
+    rules_table_path: Path = ENV_FILE.parent / "autofiller_extension" / "fill-engine" / "dist" / "rules-table.json"
 
     # The oldest extension version the API still serves (KAN-466): a request whose
     # X-WorkIt-Extension header names an older one gets 426, and the panel asks the
