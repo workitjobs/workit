@@ -97,28 +97,40 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
   own (`TOKENS` for the controls, `TOUCHES`, `TELL`), and the install mark each guard leaves on `window`
   (`MARKS`), which any page can read, names none of them: PR 477's second review found the mark carried the
   control's token, so a page could lift both guards.
-- The drive guard in a live run runs before each page's code (PR 477's second review): `on_open`, which a
+- The drive guard runs before each page's code (PR 477's second and third reviews): `on_open`, which a
   Worker calls on every page before its first load, puts its init script on the context there
-  (`DRIVE_AT_OPEN`). That copy starts lifted, as no guard, so a Filler's own submit in a live run goes on
-  as ever; `DriveGuard` arms it, with Lisul's opt-ins (`optSms`, `optMarketing`), by the control in the
-  open document and an init script for each one after (on a plain Worker the drive guard is one
-  registration, `drive`, which `DriveGuard`'s armed one replaces). Only Apply's control changes it. In a rehearsal, the rehearsal's guard holds the page from before its code
-  (`REHEARSAL_AT_OPEN`) and blocks every send itself, so the drive guard's copy in the open document is the
-  full one, as before. Any other page's open document gets a block-only copy (`LATE`): one evaluated after
-  the page's code, which may have wrapped `addEventListener` and heard its control event's name, takes no
-  lift and no allowance (account, profile, upload, start, Ask's tick, an opt-in), so a send there is left to
-  Lisul. A page that replaced a built-in the guard reads with before such a copy came defeats it; every
-  Worker page goes through `on_open`. Still open: in a rehearsal, a page that wrapped `addEventListener`
-  first can hear the drive guard's control event in its open document and lift it there; the rehearsal's
-  guard still blocks every send, but not the drive guard's own blocks (another site's sign-in, a payment). The guard takes every built-in it
-  reads with before any page code, and a guard listener that throws blocks what it judged.
+  (`DRIVE_AT_OPEN`), in a live run and in a rehearsal, and `guard()` puts it on before its reload. That
+  copy starts lifted, as no guard, so a Filler's own submit in a live run goes on as ever, and it takes no
+  lift until it is armed (a rehearsal's `rearm()` of a page no `DriveGuard` drove leaves it as it was).
+  `DriveGuard` arms it (`arm`), with Lisul's opt-ins (`optSms`, `optMarketing`), by the control in the open
+  document and in every other page of the context (a pop-up the page opened before), and by an init script
+  for each document after. A page that `lift()` or a `DriveGuard` set already keeps what it has, so Lisul's
+  held page stays his. Only Apply's control changes it. So a rehearsal's page never gets the drive guard's
+  full copy after its own code: PR 477's third review found a page that heard the control's name there kept
+  it in `sessionStorage` and lifted the drive guard in each later document. A page opened before either
+  (none that a Worker opens) gets a block-only copy (`LATE`): one evaluated after the page's code, which may
+  have wrapped `addEventListener` and heard its control event's name, takes no lift and no allowance
+  (account, profile, upload, start, Ask's tick, an opt-in), so a send there is left to Lisul. A page that
+  replaced a built-in the guard reads with before such a copy came defeats it. The guard takes every
+  built-in it reads with before any page code, and a guard listener that throws blocks what it judged.
+- On a plain Worker the drive guard is one registration, `drive`, for every tab of the Worker, which
+  `DriveGuard`'s armed one replaces. Once a `DriveGuard` has armed it, a later `on_open` (a second form sent
+  in with `--into`) keeps it: PR 477's third review found on_open's lifted copy took its place and lifted
+  the first form's guard in its next document. So a new tab on that Worker starts armed, and a plain
+  Filler's own submit there is blocked until `guard.reset` (fail closed). Still open on a plain Worker:
+  `asking` and `driving` reach only the open document (no init script carries them to the next one, as
+  `_init` does on CDP); `plain.tools` judges each of Ask's presses and refuses each action on a captcha
+  (KAN-617) all the same. The tokens are per process, not per run: no copy put in after a page's code
+  takes a lift, so a page that heard one can only block more.
 - Each form post is judged again as it leaves (KAN-710): at its `navigate` event, with the URL and entries
   it really carries. Entries its own fields don't make (a `formdata` handler's), a final URL, or a form that
   had a Submit, are cancelled there. URLs resolve against the document's base; an empty action or formaction
   is the page's own URL. A sign-in relay is only the top page's own post into itself, once the page loaded.
   fetch makes its request once and sends that one. XHR's and the beacon's bodies are read too: a string,
-  URLSearchParams or bytes (an ArrayBuffer or a view of one); a Blob, which can't be read at once, is
-  refused in a non-GET to Ashby, whose submit is named only in its body (PR 477's second review). A form
+  URLSearchParams, bytes (an ArrayBuffer or a view of one) or form data's entries (PR 477's third review:
+  Ashby's multipart `operations` by XHR or beacon went unread); a Blob or a document, which can't be read
+  at once, is refused in a non-GET to Ashby, whose submit is named only in its body (PR 477's second
+  review). A form
   in another site's frame (a sandboxed one runs no guard) that posts into the top page is beyond the
   guard: the browser fires no `navigate` event for a navigation another site's document starts. A profile pop-up may post to its own page there. A known final URL
   (Lever's, Greenhouse's, a segment with `submit`) never goes, whatever the page says. TAL.net's
