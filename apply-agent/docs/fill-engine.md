@@ -50,7 +50,11 @@ warrant", "I acknowledge" or "I affirm" except to a privacy or data
 notice, "under penalty", an electronic or typed-name signature, its date
 (a bare "Date" beside one, Workday's `dateSignedOn`), any statement that
 the application is true, accurate or complete, even beside privacy words
-or an "I agree") is Lisul's alone (Lisul, 2026-11-05, KAN-676). The
+or an "I agree", an agreement to the employer's terms: "you agree to our
+Terms and Conditions", terms of use or of service, KAN-775) is Lisul's
+alone (Lisul, 2026-11-05, KAN-676). NVIDIA's Workday box ("By selecting the
+checkbox, you agree to our Terms and Conditions and Applicant Privacy
+Policy.") was ticked under `tick_consent_when_true` before (2026-11-10). The
 engine reads it in the label, the help text and the options, with
 zero-width characters and lookalike letters made plain. The engine's plan
 never answers one, whatever a rule, `tick_consent_when_true`, the Answer
@@ -63,7 +67,7 @@ dashboard `TO_CHECK`). The pattern is the engine's (`asksAttestation`,
 `src/holds.ts`): keep no copy in Apply. A privacy or data consent ("I
 agree to the privacy policy") still follows `tick_consent_when_true`, and
 a background-check consent `willing_to_undergo_checks`, unless it attests
-that the application is true.
+that the application is true or agrees to the employer's terms.
 
 A required one stops a stepped form on its page with one ask
 (`fill_engine.tick_ask`), and Apply fails closed there:
