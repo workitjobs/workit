@@ -25,7 +25,7 @@ pytestmark = pytest.mark.anyio
 
 GREENHOUSE = "https://job-boards.greenhouse.io/acme/jobs/123"
 TABLE = {
-    "version": 1,
+    "version": 2,
     "answers": [{"pattern": {"source": "^first name$"}, "value": "fact", "args": ["identity.legal_first_name"]}],
     "systems": {
         "greenhouse": {"strings": {"PLACE_US": "United States"}, "patterns": {"DIAL_CODE": {"source": r"\s+\+\d+$"}}},
