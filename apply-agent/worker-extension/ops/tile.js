@@ -10,7 +10,9 @@
 // the chooser ops stand in for the file picker an untrusted click can't open.
 
 import { capture, inPage, named, sleep, vendor } from "./shared.js";
+import { domCall } from "./dom.js";
 import { touch } from "./guard.js";
+import { available, finish } from "./typing.js";
 
 const SHOWN = { interval: 500, quality: 88, maxWidth: 1280, maxHeight: 900, native: false };
 const AIM_EVERY = 200; // ms between looks at the shown window and tab, with `native`
@@ -217,7 +219,7 @@ async function input({ tab, event, width, height, by = "lisul" }) {
   tab = tab ?? (await shownTab())?.id;
   if (tab === undefined) throw named("NoTab", "no tab to replay a tile event on");
   let frame = event.type === "choose" ? menus.get(tab) ?? 0 : 0;
-  let shown = { ...event, width, height };
+  let shown = { ...event, width, height, trusted: available() };
   for (let depth = 0; depth < 8; depth++) {
     if (shown.type === "down" || shown.type === "up") await hook(tab, frame);
     if (PRESSES.has(shown.type)) await touch({ tab, frame, by }, depth === 0 ? undefined : null);
@@ -231,6 +233,12 @@ async function input({ tab, event, width, height, by = "lisul" }) {
     }
     if (answer?.menu) menus.set(tab, frame);
     if (answer?.chooser) return { ...answer, tab, frame };
+    // A key or text the tile typed into a field: trusted, as his own keyboard's are (KAN-716).
+    if (shown.type === "text" || shown.type === "key") {
+      const typed = await finish({ tab, frame }, { ok: answer }, (method, args) => domCall({ tab, frame }, method, args, shown.trusted));
+      if (typed?.err) throw named(typed.err.name, typed.err.message);
+      return typed?.ok ?? null;
+    }
     return answer;
   }
   return null;

@@ -9,7 +9,7 @@ import { RESUMES_SEARCH, ResumesHeader } from "../resumes/header";
 
 /**
  * Experiences while the bank loads (KAN-561): the page's frame (./page.tsx),
- * the Resumes or Experiences switch live, then the search, Fill With Scout
+ * then the search, Fill With Scout
  * while it is offered (`FILL_WITH_SCOUT_LIVE`), the Showing card, the section
  * links and the first sections (./bank-screen.tsx) as bars.
  */

@@ -6,6 +6,7 @@ import {
   FileTextIcon,
   ListChecksIcon,
   HouseIcon,
+  StackIcon,
   TrayIcon,
   UserCircleIcon,
 } from "@phosphor-icons/react/ssr";
@@ -46,7 +47,7 @@ import { INBOX_LIVE } from "./inbox/live";
  * ClipboardList: a framed page with lines, it read as FileText, the next
  * row down.
  *
- * Inbox and Calendar sit after Resumes & Experiences (KAN-426): they hold
+ * Inbox and Calendar sit after Documents (KAN-426): they hold
  * what comes back once applications are out, replies and dated events, so
  * the tools for applying come first and the follow-up after them.
  * Calendar's glyph is CalendarDots, not CalendarBlank: the plain calendar is
@@ -59,20 +60,24 @@ import { INBOX_LIVE } from "./inbox/live";
  * that. It was "My Profile" until 2026-11-05; in the seeker's own shell no
  * employer's profile is ever named, so "My" told nothing apart.
  *
- * Resumes & Experiences sits right after the Applications Tracker, beside
- * the work it feeds: every application goes out with a resume. It sat just
- * above My Profile, after Calendar, until KAN-426. It is one row for two
- * views, Resumes (/resumes) and Experiences (/experiences, where resume facts are
- * kept, KAN-206), lit on either (`also`) and on the resume editor under
- * /resumes. They were two rows, Experience Bank and My Resumes, until
- * KAN-249 merged them behind one switcher. Its glyph is FileText, the one
- * on Generate Resume.
+ * Experiences and Documents sit right after the Applications Tracker,
+ * beside the work they feed: every application goes out with a resume, and
+ * every resume is made from the experiences. Experiences (/experiences,
+ * where resume facts are kept, KAN-206) comes first, as the source; its
+ * glyph is Stack, entries kept one on another. Documents is one row for
+ * its two tabs, Resumes (/resumes, with the resume editor under it) and
+ * Cover Letters (/cover-letters), lit on either (`also`); its glyph is
+ * FileText, the one on Generate Resume. Resumes and Experiences were two
+ * rows (Experience Bank, My Resumes) until KAN-249, one row behind a
+ * switcher (Resumes & Experiences) until KAN-766, and two rows again since,
+ * with cover letters joining the resumes.
  *
- * One set of names (2026-11-05): Tracker, Resumes and Profile on the rail
- * and on the phone's sheet alike. They were the rail's short names, beside
- * "Applications Tracker", "Resumes & Experiences" and "My Profile" on the
- * sheet, and the user found two names for one section confusing. The
- * bar's title, page titles, Back links and breadcrumbs use the same names.
+ * One set of names (2026-11-05): Tracker, Experiences, Documents and
+ * Profile on the rail and on the phone's sheet alike. They were the rail's
+ * short names, beside "Applications Tracker", "Resumes & Experiences" and
+ * "My Profile" on the sheet, and the user found two names for one section
+ * confusing. The bar's title, page titles, Back links and breadcrumbs use
+ * the same names.
  */
 /** Whether the Calendar row shows (2026-11-09). Off while the Calendar does
  *  not work: a greyed-out row on every page was a promise the app could not
@@ -88,7 +93,12 @@ const GROUPS: SidebarNavGroup[] = [
       { href: "/jobs", label: "Jobs", Icon: BriefcaseIcon },
       { href: "/auto-apply", label: "Auto Apply", Icon: LightningRoundedIcon },
       { href: "/applications", label: "Tracker", Icon: ListChecksIcon },
-      { href: "/resumes", also: ["/experiences"], label: "Resumes", Icon: FileTextIcon },
+      // KAN-766: Experiences is the source every resume, match and answer
+      // reads, so it has its own row, before the documents made from it.
+      // Documents holds the resumes and cover letters, as tabs. The two
+      // shared one row (Resumes & Experiences) from KAN-249 until then.
+      { href: "/experiences", label: "Experiences", Icon: StackIcon },
+      { href: "/resumes", also: ["/cover-letters"], label: "Documents", Icon: FileTextIcon },
       // KAN-413: replies to applications, after the tools that send them.
       // No count badge: one was built and taken out as out of place.
       // Archived with the Inbox until WorkIt has a source of emails

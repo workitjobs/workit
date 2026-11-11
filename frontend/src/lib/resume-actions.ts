@@ -178,7 +178,8 @@ export async function previewResume(
 // The API reads the file itself, with AI first and the parser behind it
 // (KAN-732), and writes what it read into the experience bank. A file whose
 // text the student has already uploaded is refused (KAN-267): `error` is
-// "Duplicate Resume found: <name>" and `duplicateOf` that resume's id.
+// "Duplicate Resume found: <name>", `duplicateOf` that resume's id and
+// `duplicateName` its name (the Resumes page's modal says it in its words).
 // `replaceMatching` confirms a parse preview: the other uploads' matching
 // entries and skills are replaced, not copied (ADR 0006). `reading` is that
 // preview, sent back so the API saves what the student saw instead of
@@ -186,7 +187,12 @@ export async function previewResume(
 export async function uploadResume(
   formData: FormData,
   { replaceMatching = false, reading }: { replaceMatching?: boolean; reading?: ResumePreview } = {},
-): Promise<{ resume: ResumeItem | null; error: string | null; duplicateOf?: string }> {
+): Promise<{
+  resume: ResumeItem | null;
+  error: string | null;
+  duplicateOf?: string;
+  duplicateName?: string;
+}> {
   try {
     const { id, token } = await getApplicantSession();
     if (reading) {
@@ -208,13 +214,16 @@ export async function uploadResume(
  *  duplicate (409, KAN-267) the id of the resume it matched. */
 async function refused(
   res: Response,
-): Promise<{ resume: null; error: string; duplicateOf?: string }> {
+): Promise<{ resume: null; error: string; duplicateOf?: string; duplicateName?: string }> {
   const body: unknown = await res.json().catch(() => null);
-  const duplicateOf = (body as { detail?: { resume_id?: unknown } } | null)?.detail?.resume_id;
+  const detail = (body as { detail?: { resume_id?: unknown; name?: unknown } } | null)?.detail;
+  const duplicateOf = detail?.resume_id;
+  const duplicateName = detail?.name;
   return {
     resume: null,
     error: errorMessage(body),
     ...(res.status === 409 && typeof duplicateOf === "string" ? { duplicateOf } : {}),
+    ...(res.status === 409 && typeof duplicateName === "string" ? { duplicateName } : {}),
   };
 }
 

@@ -1,5 +1,7 @@
 // Fix from the window (S3, KAN-609): one of Lisul's tile events replayed on this frame, in the
-// worker extension's isolated world, as synthetic DOM events (isTrusted: false).
+// worker extension's isolated world, as synthetic DOM events (isTrusted: false). The text he types
+// goes in trusted where it can (KAN-716): page/dom.js's keys and inserts answer a request that
+// ops/typing.js types.
 //
 // Loaded after vendor/injected.js and page/dom.js, whose key presses and inserts it reuses.
 // A point is in CSS pixels of this frame's viewport; a tile's point comes scaled from the
@@ -136,6 +138,7 @@
       return null;
     }
     document.documentElement.removeAttribute("data-apply-chooser");
+    globalThis.__applyDom?.touch?.(clicked);  // Lisul's press: the click right after the touch on that element counts
     mouse(clicked, "click", at, { button, detail });
     if (detail === 2) mouse(clicked, "dblclick", at, { button, detail });
     // A click that asked for a file opens no picker without user activation: the tile asks Lisul instead.
@@ -182,10 +185,12 @@
     return null;
   }
 
-  const keys = (method, value) => {
-    const answer = globalThis.__applyDom.run(method, [value]);
+  // A key or text through page/dom.js. With `trusted`, its answer may ask the service worker to type
+  // the text trusted (ops/typing.js, KAN-716): that request is the tile's answer, and it does.
+  const keys = (method, value, trusted) => {
+    const answer = globalThis.__applyDom.run(method, [value], { trusted });
     if (answer.err) throw Object.assign(new Error(answer.err.message), { name: answer.err.name });
-    return null;
+    return answer.ok ?? null;
   };
 
   function run(event) {
@@ -207,8 +212,8 @@
     }
     // Keys, text and copy go where the focus is: into a focused iframe, its own frame.
     if (kind !== "choose" && isFrame(document.activeElement)) return { descend: { child: child(document.activeElement) } };
-    if (kind === "text") return String(event.text).length === 1 ? keys("keys", event.text) : keys("insert", event.text);
-    if (kind === "key") return keys("keys", [...(event.modifiers || []), event.key].join("+"));
+    if (kind === "text") return String(event.text).length === 1 ? keys("keys", event.text, event.trusted) : keys("insert", event.text, event.trusted);
+    if (kind === "key") return keys("keys", [...(event.modifiers || []), event.key].join("+"), event.trusted);
     if (kind === "copy") return { text: selected() };
     if (kind === "choose") return choose(event.index);
     throw Object.assign(new Error(`no tile event ${kind}`), { name: "BadOp" });
