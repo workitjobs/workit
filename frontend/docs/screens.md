@@ -3107,8 +3107,13 @@ picker; off with the reason at five uploads) as the shared option rows
 With a Resume You Have**: a search over a small Documents table, a radio
 per row, Name with the Primary badge beside it, Target Job (the
 company's logo, the posting over the company; a dash for none), Date
-Modified and View, always shown (`ResumeViewButton`, Up Next's own), with
-no Type column; then **Start From This Resume** in the footer. The dialog
+Modified and View, always shown, with no Type column; then **Start From
+This Resume** in the footer. **View shows the resume in the dialog's
+place** (`ResumePreviewPane`): a back arrow beside its name, its pages,
+and Back with Start From This Resume (which starts from it) in the
+footer; Back finds the list, its search and its pick as they were. It
+opened Tailor's preview dialog over this one until 2026-11-11, which the
+user found odd. The dialog
 is 56rem wide; its header, its ways to start, the search and its footer
 stay put, and **the table scrolls inside itself** under its pinned
 headings, taking the room left (at least 14rem; on a window too short for

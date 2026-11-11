@@ -3,7 +3,7 @@
 import { FileTextIcon } from "@phosphor-icons/react/ssr";
 import { useState } from "react";
 
-import { UploadIcon } from "@/components/icons";
+import { ArrowLeftIcon, UploadIcon } from "@/components/icons";
 import {
   Dialog,
   DialogContent,
@@ -29,6 +29,7 @@ import {
 } from "@/components/shadcn/table";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { HEADING_ACTION, IconButton } from "@/components/ui/icon-button";
 import { Missing } from "@/components/ui/missing";
 import { STICKY_HEAD, STICKY_TH } from "@/components/fill-page";
 import { OptionRow } from "@/components/ui/option-row";
@@ -40,7 +41,7 @@ import type { BuiltResume } from "@/lib/built-resume-actions";
 import type { ResumeItem } from "@/lib/resume-actions";
 
 import { LocalDate } from "../local-time";
-import { ResumeViewButton } from "../jobs/[jobId]/tailor/resume-preview";
+import { ResumePreviewPane, sourceOfKey, ViewButton } from "../jobs/[jobId]/tailor/resume-preview";
 import type { Source } from "../jobs/resume-picker";
 
 /**
@@ -58,7 +59,9 @@ import type { Source } from "../jobs/resume-picker";
  *   Start With a Resume You Have  a small Documents table (`StartTable`):
  *                                a radio per row, the name with the
  *                                Primary badge, Target Job, Date Modified
- *                                and View, always shown; then Start From
+ *                                and View, always shown, which shows the
+ *                                resume in this dialog's place, with Back
+ *                                (no second dialog over this one); then Start From
  *                                This Resume: a built resume copied, or one
  *                                upload's own entries as a new resume
  *                                (POST .../built-resumes/copy), opened in
@@ -193,7 +196,10 @@ function Body({
   const shown = rows.filter((r) =>
     matches(`${r.name} ${r.role ?? ""} ${r.company?.name ?? ""}`, words),
   );
-  const row = rows.find((r) => r.key === picked) ?? null;
+  // The resume View shows in place of the list (2026-11-11): View opened
+  // the preview as a second dialog over this one, the user's "weird".
+  const [viewing, setViewing] = useState<StartRow | null>(null);
+  const row = viewing ?? rows.find((r) => r.key === picked) ?? null;
 
   async function start() {
     if (!row) return;
@@ -209,17 +215,48 @@ function Body({
 
   return (
     <>
-      <DialogHeader className="border-border-subtle border-b px-6 pt-5 pr-12 pb-4">
-        <DialogTitle className="text-subtitle font-semibold">Generate a Resume</DialogTitle>
-        <DialogDescription>
-          Start from your experiences, upload a resume, or start with one you already have.
-        </DialogDescription>
-      </DialogHeader>
+      {viewing ? (
+        // The resume, with the way back to the list in the title's place.
+        <DialogHeader className="border-border-subtle flex-row items-center gap-2 border-b px-6 pt-5 pr-12 pb-4">
+          <IconButton
+            label="Back to your resumes"
+            tooltip="Back"
+            className={HEADING_ACTION}
+            onClick={() => setViewing(null)}
+          >
+            <ArrowLeftIcon className="size-5" />
+          </IconButton>
+          <DialogTitle className="text-subtitle min-w-0 truncate font-semibold">
+            {viewing.name}
+          </DialogTitle>
+          <DialogDescription className="sr-only">A preview of this resume.</DialogDescription>
+        </DialogHeader>
+      ) : (
+        <DialogHeader className="border-border-subtle border-b px-6 pt-5 pr-12 pb-4">
+          <DialogTitle className="text-subtitle font-semibold">Generate a Resume</DialogTitle>
+          <DialogDescription>
+            Start from your experiences, upload a resume, or start with one you already have.
+          </DialogDescription>
+        </DialogHeader>
+      )}
+
+      {viewing && (
+        <div className="flex min-h-[min(40rem,60dvh)] flex-1 flex-col px-6 py-5">
+          <ResumePreviewPane source={sourceOfKey(viewing.key)} label={viewing.name} />
+        </div>
+      )}
 
       {/* The table scrolls, not this (2026-11-11, the user's call): the ways
           to start and the search stay put and the table takes the rest. On
           a window too short for the table's 14rem, this scrolls instead. */}
-      <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto overscroll-none px-6 py-5">
+      {/* Kept while a resume shows, hidden, so Back finds the search and
+          the pick as they were. */}
+      <div
+        className={cn(
+          "flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto overscroll-none px-6 py-5",
+          viewing && "hidden",
+        )}
+      >
         <Card padding="none" className="divide-border-subtle shrink-0 divide-y overflow-hidden">
           <OptionRow
             icon={<FileTextIcon aria-hidden className="text-ink size-5" />}
@@ -274,7 +311,7 @@ function Body({
               {shown.length === 0 ? (
                 <p className="text-note text-ink-meta py-2">None of your resumes match.</p>
               ) : (
-                <StartTable rows={shown} picked={picked} onPick={setPicked} />
+                <StartTable rows={shown} picked={picked} onPick={setPicked} onView={setViewing} />
               )}
             </>
           )}
@@ -287,9 +324,15 @@ function Body({
             {error}
           </p>
         )}
-        <Button variant="secondary" onClick={onClose}>
-          Cancel
-        </Button>
+        {viewing ? (
+          <Button variant="secondary" onClick={() => setViewing(null)}>
+            Back
+          </Button>
+        ) : (
+          <Button variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+        )}
         <Button onClick={() => void start()} disabled={!row || busy}>
           {busy ? "Starting…" : "Start From This Resume"}
         </Button>
@@ -311,10 +354,13 @@ function StartTable({
   rows,
   picked,
   onPick,
+  onView,
 }: {
   rows: StartRow[];
   picked: string | null;
   onPick: (key: string) => void;
+  /** Shows the resume in the dialog's place. */
+  onView: (row: StartRow) => void;
 }) {
   return (
     // Fills what the dialog leaves it, at least 14rem, and scrolls inside
@@ -386,7 +432,7 @@ function StartTable({
                 </TableCell>
                 {/* Its own click: View opens the resume, not a pick. */}
                 <TableCell className="pr-2 pl-0 text-center" onClick={(e) => e.stopPropagation()}>
-                  <ResumeViewButton name={row.name} resumeKey={row.key} />
+                  <ViewButton name={row.name} onClick={() => onView(row)} />
                 </TableCell>
               </TableRow>
             );
