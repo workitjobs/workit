@@ -67,10 +67,13 @@ with its exact wording. Apply keeps it out of every answer
 stays blank and unticked, and the form holds with a "Yours to tick:
 <wording>" line on its Check before Submit list (`_Planned.to_tick`,
 dashboard `TO_CHECK`). The pattern is the engine's (`asksAttestation`,
-`src/holds.ts`): keep no copy in Apply. A privacy or data consent ("I
-agree to the privacy policy") still follows `tick_consent_when_true`, and
-a background-check consent `willing_to_undergo_checks`, unless it attests
-that the application is true or agrees to the employer's terms.
+`src/holds.ts`): keep no copy in Apply. Only a box that is solely a privacy
+or data consent ("I agree to the privacy policy", the terms of a company's
+privacy notice) still follows `tick_consent_when_true`, and one solely a
+background-check consent `willing_to_undergo_checks`. Anything more beside
+it in its label or help text makes the whole box Lisul's: a second thing
+joined to it ("and the Code of Conduct"), arbitration, a jury waiver, a
+non-compete, a probation, relocating, Ts&Cs (PR 543's re-review, KAN-775).
 
 A required one stops a stepped form on its page with one ask
 (`fill_engine.tick_ask`), and Apply fails closed there:
