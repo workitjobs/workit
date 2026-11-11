@@ -107,6 +107,13 @@
     return target.dispatchEvent(event);
   }
 
+  // Apply's press of `element` (KAN-710, PR 477's second review): the run's touch on that element itself, right before
+  // the click the guard then counts as Apply's. A touch on the window, before the pointer events, let a page's
+  // pointerdown handler click its own button first and have that count.
+  function touch(element) {
+    for (const type of globalThis.__applyTouchTypes || []) element.dispatchEvent(new CustomEvent(type, { bubbles: true, composed: true }));
+  }
+
   function click(selector, { force = false, clickCount = 1, position, modifiers } = {}) {
     const element = one(selector);
     actionable(element, { force });
@@ -128,6 +135,7 @@
       }
       mouse(target, "pointerup", at, { ...keys, detail: n });
       mouse(target, "mouseup", at, { ...keys, detail: n });
+      touch(target);
       mouse(target, "click", at, { ...keys, detail: n });
     }
     if (clickCount === 2) mouse(target, "dblclick", at, { ...keys, detail: 2 });
@@ -238,17 +246,17 @@
     if (go) {
       if (k.length === 1 && plain) {
         target.dispatchEvent(new KeyboardEvent("keypress", { ...init, charCode: k.charCodeAt(0) }));
-        if (target.matches?.("input[type=checkbox], input[type=radio], button") && k === " ") target.click();
+        if (target.matches?.("input[type=checkbox], input[type=radio], button") && k === " ") { touch(target); target.click(); }
         else insert(target, k);
       } else if ((init.ctrlKey || init.metaKey) && name.toLowerCase() === "a") {
         if (target.select) target.select();
         else document.execCommand("selectAll");
       } else if (k === "Enter") {
         if (target.matches?.("textarea") || target.isContentEditable) insert(target, "\n");
-        else if (target.matches?.("button, a[href], input[type=submit], input[type=button], input[type=checkbox], input[type=radio]")) target.click();
+        else if (target.matches?.("button, a[href], input[type=submit], input[type=button], input[type=checkbox], input[type=radio]")) { touch(target); target.click(); }
         else if (target.form) {
           const button = target.form.querySelector("button:not([type]), button[type=submit], input[type=submit]");
-          if (button) button.click();
+          if (button) { touch(button); button.click(); }
           else target.form.requestSubmit();
         }
       } else if (k === "Tab") {
@@ -374,6 +382,7 @@
 
   globalThis.__applyDom = {
     leaving, // for page/tile.js's presses
+    touch, // and its touch before each click of Lisul's
     run(method, args) {
       const fn = METHODS[method];
       if (!fn) return { err: { name: "BadOp", message: `no dom method ${method}` } };

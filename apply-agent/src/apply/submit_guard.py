@@ -228,7 +228,7 @@ _TEMPLATE = r"""
   // from an isolated world (a CDP isolated world, or the worker extension's), or by an init script before any page
   // code. The guard hears it first, at the window, and stops it there.
   const S = {lifted: false, held: false, paused: false, note: null, account: null, profile: false, upload: false,
-             asking: false, askTick: false, driving: false, touchUntil: 0, applied: null, appliedDismissed: false,
+             asking: false, askTick: false, driving: false, touchUntil: 0, touchAt: null, applied: null, appliedDismissed: false,
              start: false};
   // The Posting's Apply that went through (KAN-725, below): the button, and whether its one post has left.
   let starting = null, startGone = false;
@@ -336,8 +336,11 @@ _TEMPLATE = r"""
   let userClick = null;  // the click in dispatch that is Apply's or Lisul's own
   const user = (event) => event.isTrusted || event === userClick;
   on('click', judged((event) => {
-    userClick = event.isTrusted || now() < S.touchUntil ? event : null;
+    // On a plain Worker, the extension's press: the click it dispatches right after its touch on that same element (PR
+    // 477's second review: a touch on the window let a page's own click in a pointerdown handler count instead).
+    userClick = event.isTrusted || (S.touchAt !== null && now() < S.touchUntil && targetGet(event) === S.touchAt) ? event : null;
     S.touchUntil = 0;
+    S.touchAt = null;
     const at = armed();
     if (!userClick) return;
     const target = targetGet(event);
@@ -1190,7 +1193,10 @@ TELLS = ("__applyLisulPressed", "__applyFillAgain", "__applyDismissHold", "__app
 
 # A plain Worker's additions (port=True): the worker extension sends its touch (the token's) on the page before each
 # press it makes (Apply's own, and Lisul's from the tile), and hears `__apply_said`.
-PORT_TOUCH = "\n  on('@TOUCH@', (event) => { stopNow(event); touched = true; S.touchUntil = now() + 1000; });"
+# A touch on the window counts only as a touch (the note shows); one on an element, sent right before the extension's
+# click on it, makes that one click Apply's or Lisul's press.
+PORT_TOUCH = ("\n  on('@TOUCH@', (event) => { stopNow(event); touched = true; const at = targetGet(event);"
+              " S.touchAt = isEl(at) ? at : null; S.touchUntil = S.touchAt ? now() + 1000 : 0; });")
 PORT_SAID = "\n      dispatch(D, new Custom('__apply_said', {detail: '@NAME@ blocked ' + what}));"
 
 NO_NOTE = "  const showNote = () => {};"

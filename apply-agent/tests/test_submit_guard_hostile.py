@@ -306,6 +306,12 @@ PAGES = {
     "a page that poisons RegExp before the guard": {START: f"""<title>Apply</title><script>RegExp.prototype.exec = () => null;
         </script><form method=post action="{FINAL}"><input name=first value=Test><button id=b>Next</button></form>{SEND_ALL}
         <script>document.getElementById('b').addEventListener('click', () => sendAll());</script>"""},
+    # A plain Worker's touch came before the pointer events, so a page's pointerdown handler that clicks its own button
+    # made that click the one the touch counted as Apply's press (PR 477's second review).
+    "a pointerdown handler that clicks the page's own button": {START: f"""<title>Apply</title><label>First <input
+        name=first value=Test></label><button id=b type=button>Next</button><form id=f2 method=post action="{SAVE}">
+        <input type=hidden name=submit value=1><button id=g>Go</button></form><script>document.getElementById('b')
+        .addEventListener('pointerdown', () => document.getElementById('g').click());</script>"""},
 }
 BUTTON = {"a review page's Apply with its answers hidden": "Apply", "a page that vouches for its own Apply": "Apply", "a Submit in another language beside a Submit": "Envoyer ma candidature", "a Submit in a shadow root": "Submit application",
           "a profile pop-up that is the application": "Submit", "a profile pop-up that turns into the application": "Submit",

@@ -133,6 +133,31 @@ def test_live_run_drive_guard_only(name, opened):
     assert site.applications() == []
 
 
+# A plain Worker: the extension's real touch (the run's token) comes, then its synthetic pointerdown; the page's
+# pointerdown handler clicks its own button first, so that untrusted click is the one the 1 s window counts.
+HIJACK = f"""<title>Apply</title><label>First <input name=first></label><button id=b type=button>Next</button>
+<form id=f2 method=post action="{SAVE}"><input type=hidden name=submit value=1><button id=g>Go</button></form>
+<script>document.getElementById('b').addEventListener('pointerdown', () => document.getElementById('g').click());</script>"""
+
+
+def test_plain_touch_window_hijacked_by_pointerdown():
+    from test_rev477_bypasses import _press
+    with plain({START: HIJACK} | ALWAYS) as (page, drive, site):
+        _press("plain code's Next", page, drive)
+        _settle(page, 2500)
+        print("bodies", site.bodies)
+    assert site.applications() == []
+
+
+def test_cdp_trusted_press_hijacked_by_pointerdown():
+    """Control on CDP: the page's click is untrusted there, so it never counts."""
+    from test_rev477_bypasses import _press
+    with cdp({START: HIJACK} | ALWAYS) as (page, drive, site):
+        _press("plain code's Next", page, drive)
+        _settle(page, 2500)
+    assert site.applications() == []
+
+
 # --- KAN-725's vouched Apply
 
 def test_tal_page_vouches_for_itself_with_the_stolen_token():

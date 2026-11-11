@@ -63,8 +63,10 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
   sees it (a readable size, on the page, not clipped away: KAN-710), the form has no button that sends
   (KAN-656), and the button plain code pressed sends it: never a script's post or a step list's link.
 - Plain code's press (KAN-710): `DriveGuard.let_account_click(element)` arms the account click with the
-  element, in that element's frame alone (a plain Worker: in every frame, and the press is the click right
-  after the extension's touch). It returns False, and plain code hands off unpressed, when the element holds
+  element, in that element's frame alone, on a plain Worker too. There the press is the extension's click
+  right after its touch on that same element (`page/dom.js`'s `touch`, sent between mouseup and click; PR
+  477's second review found a touch on the window, before the pointer events, let a page's pointerdown
+  handler click its own button and have that count). A touch on the window only shows the note. It returns False, and plain code hands off unpressed, when the element holds
   a frame. The guard lets a form post only for a press that lands on that element in that frame: the pressed
   button's own submission, the pressed element's own form, or (for a Next in no form) a form that shows a
   field of the step, posted while the click is still dispatched. A form with any button that sends (hidden,

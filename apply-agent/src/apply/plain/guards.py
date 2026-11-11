@@ -262,11 +262,6 @@ class PlainDriveGuard(DriveGuard):
             pass  # a page that went away has said all it will
         return list(self._blocked)
 
-    def let_account_click(self, element=None) -> bool:
-        """In every frame: the guard there lets only a press the extension makes in that frame (its touch)."""
-        submit_guard.control(self._page, {"account": True})
-        return True
-
     def may_press(self, element) -> bool:
         """A plain Worker presses the element itself (page/dom.js), never a point a frame inside it could take."""
         return True

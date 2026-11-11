@@ -245,7 +245,11 @@ Page channel: the MAIN world and `page/relay.js` (the isolated world) talk throu
 with string `detail` on the document (`__apply_said`, `__apply_call`, and the rehearsal guard's
 token-named tell); the extension's touch is a token-named event on window (`guard.tokens`), which
 no page can send. `page/dom.js` dispatches it (`by: apply`) before each
-`click`, `type`, `press`, `keys` and `check`, as Playwright's trusted input counted as a touch.
+`click`, `type`, `press`, `keys` and `check`, as Playwright's trusted input counted as a touch. That
+touch on the window only shows the guard's note. A click counts as Apply's (or Lisul's) press only when
+the same touch comes on the clicked element itself right before it: `page/dom.js`'s `touch(element)`,
+between mouseup and click (and before an Enter's or Space's `click()`), and `page/tile.js` before each
+click it replays (KAN-710, PR 477's second review).
 
 ## Ops (S5: Records, Needs you, Resume, emailed code; KAN-611)
 
