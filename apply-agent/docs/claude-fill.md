@@ -151,6 +151,22 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
   `browser_click` refuses any button in such a dialog, and `browser_file_upload` tells Claude to stop when its
   file brought one on (`plain.tools.CONSENT`). `CONSENT` is a fixed function (`plain/fixed.py`): run `apply
   plain prepare` (or seed again) before a plain Worker uses it.
+- A file goes only to the form's own site (KAN-795, `apply.upload_origin`): the top frame, a frame of the top
+  frame's own origin, or a job system's embedded form (`JOB_SYSTEM_HOSTS`: Greenhouse's
+  `job-boards.greenhouse.io/embed/job_app`, an iCIMS careers frame, Ashby's embed). An adversarial review found
+  that Claude's upload tool and plain code gave a file to an input in any frame, so a hostile page's frame from
+  another site could take the resume. Now every place a file is set checks the frame where and as it sets:
+  `upload_origin.give` on a CDP Worker (the input's ElementHandle first, so a frame that navigated meanwhile
+  fails the set), page/dom.js's `files` and ops/tile.js's `chooser.set` on a plain Worker. Plain code
+  (`attach_resume`) skips such frames, and one whose only resume input is there raises `upload_origin.Elsewhere`,
+  a Handoff. While a guard is on, a file input in such a frame opens no picker, so Claude has no chooser there;
+  the guard notes `upload_origin.BLOCKED`, and Claude fill raises `Elsewhere`. On a plain Worker,
+  `browser_file_upload` also refuses such a frame, and the input must be the one the chooser opened for:
+  `plain.tools` pins it in the isolated world when a tool's answer first shows the chooser, and a script's new
+  input with the old one's mark gets nothing (`SWAPPED`). Lisul's own pick from a tile goes where he picked it.
+  What stays open: a job system's host serves every tenant's form, so a page could embed another board's form.
+  A frame with scripts off runs no guard, so a picker there is stopped only at the set. The hostile pages are in
+  `tests/test_upload_origin.py`.
 - Eightfold's dropdowns are toggles: a click on the option a list already holds (`aria-selected`) empties the
   field (KAN-767; Microsoft's "worked with Microsoft" and "subsidiary" went blank so in an Ask). On a plain Worker
   `browser_click` makes no click on an option its single-choice list holds already (`plain.tools.PICKED`) and

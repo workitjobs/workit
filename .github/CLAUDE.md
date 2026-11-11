@@ -155,8 +155,9 @@ needs `FILL_ENGINE_TOKEN` and is skipped without it. It runs only on a PR
 that touches `apply-agent/`, the engine pointer, `ci.yml` or
 `engine-token.yml` (the `changes` job). It then installs Chrome for Testing
 (cached by `uv.lock`) and runs `test_submit_guard_hostile.py`,
-`test_plain_focus.py`, `test_plain_guards.py` and
-`test_plain_routing.py`, the last two on a real plain Worker (KAN-667). macOS, because a
+`test_plain_focus.py`, `test_plain_guards.py`,
+`test_plain_routing.py` and `test_upload_origin.py`, the last three on a real plain Worker (KAN-667;
+`test_upload_origin.py`'s hostile upload pages also run on CDP, KAN-795). macOS, because a
 plain Worker starts through `open` and the browser's `.app`; a step fails the
 job if the browser is missing, since these tests skip without it.
 **Its limit is 20 minutes** (KAN-780, 2026-11-10; raised from 15 on

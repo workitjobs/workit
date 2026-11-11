@@ -324,6 +324,7 @@ jobs:
         timeout-minutes: 2
         run: uv run pytest -q tests/test_plain_focus.py
       # A real plain Worker on a fake job system. A new suite this fast joins the list.
+      # test_upload_origin.py (KAN-795) runs its CDP and plain Worker cases here too.
       # One process: in parallel each pays a 40 s Worker start and the typing
       # tests' timing slips, for no gain (KAN-780).
       - name: Plain-Worker tests
@@ -332,7 +333,8 @@ jobs:
           uv run pytest -q -rs --durations=15 -m "not nightly" \
             tests/test_plain_guards.py \
             tests/test_plain_routing.py \
-            tests/test_plain_typing.py
+            tests/test_plain_typing.py \
+            tests/test_upload_origin.py
 
   # The API's Cloudflare Worker (KAN-169): a type error here would otherwise
   # surface only when the deploy on main fails.

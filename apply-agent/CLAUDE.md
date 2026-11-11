@@ -197,6 +197,15 @@ into it and the window shows "Sample data".
   for one. A page served that path from its own site or another one, and
   the frame posted the application, or the page did through its `fetch`
   and `Worker`.
+- **A file goes only to the form's own site** (KAN-795, `apply.upload_origin`,
+  `docs/claude-fill.md`): the top frame, a frame of its origin, or a job
+  system's embedded form. A hostile page's frame from another site could take
+  the resume when nothing checked where a file went. Every new way to set a
+  file goes through `upload_origin.give` (CDP) or the worker extension's
+  checked sets (plain), and each new trick joins `tests/test_upload_origin.py`
+  on CDP and on a plain Worker. The rule's JS copies (page/dom.js,
+  ops/tile.js) stay word for word the same as `RULE_JS`; a test checks that.
+  The guard's picker block is guard code: its PR gets an adversarial review.
 - **No test reaches past loopback** (`tests/network_block.py`, KAN-662). A
   socket or name lookup to another host raises `NetworkBlocked`, Chrome
   started by a test resolves other hosts to nothing, and Playwright's own
