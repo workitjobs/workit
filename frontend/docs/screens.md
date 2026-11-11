@@ -2977,7 +2977,9 @@ pointer), and nothing for a resume made for no job;
 **Type** its glyph in grey and its word, with no pill (`TypeLabel`): the
 icon of the button that makes it, Upload Resume's arrow, Generate Resume's
 page, Tailor's pencil;
-**Date Modified** the day; then the actions. **The table is quiet**
+**Date Modified** the day; then ⋮. A resume made for no job shows a
+faint dash under Target Job, so most of the column does not read as
+blank. **The table is quiet**
 (2026-11-10, the user found it "off"): it drew a tinted pill per row in
 three colours beside the Primary pill, open postings' titles in brand
 beside closed ones in ink, every name in semibold, and the time on every
@@ -3003,7 +3005,10 @@ one. **The actions wait for the pointer, as Google Drive's rows do**
 (`CardActionIcons`): at rest a row shows only ⋮ (More actions), the
 primary's badge sitting by its name; on hover, or with the keyboard's
 focus in the row, Make Primary, Rename, Download and Delete fade in left of
-⋮, in room kept for them, so nothing moves. ⋮ holds every action, worded:
+⋮, over the Date Modified cell on the row's hover fill, as Gmail's row
+actions take the date's place (2026-11-10). They had a column of their own,
+kept for them so nothing moved, which stood empty at rest between the date
+and ⋮. ⋮ holds every action, worded:
 Open, Rename, Download PDF, Make Primary (on a resume that is not the
 primary), then Delete in red, which asks first (`RowMoreMenu` with
 `always`). A touch screen has no hover, so it shows ⋮ only. Four icons on every row at all times read busy to the user.
@@ -3022,9 +3027,9 @@ page took 83% of a card and 1.5 rows filled a laptop screen, and resumes
 from one bank look alike below their first section), over lines every card
 has, so a row's cards line up: the name with ⋮, on two lines and always
 two lines tall (cut at one, Tailor's names, which open with the student's
-name, lost the role that tells two apart), then the type as a status badge (Uploaded in
-grey, Generated in blue, Tailored in the brand, as the Tailored chip on job cards
-and the Tracker is: Tailored was blue here and violet there until 2026-11-10), a tailored resume's
+name, lost the role that tells two apart), then the type as a status badge, grey
+for all three with the glyph telling them apart (2026-11-10: three tints on every
+card read as statuses and made the grid loud), a tailored resume's
 company (logo and name, which never wraps and trails off when short of
 room) and, at the line's right, the Date Modified as the list says it
 ("Modified" or "Created" and the day). A narrow card drops the badge's

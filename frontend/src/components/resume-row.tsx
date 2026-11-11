@@ -86,14 +86,15 @@ export const RESUME_TARGET_COL = "w-0 overflow-hidden p-0 @4xl:w-64 @4xl:px-4";
 /** The Type column, from `@2xl` of the table, folded as Target Job is. */
 export const RESUME_TYPE_COL = "w-0 overflow-hidden p-0 @2xl:w-32 @2xl:px-4";
 
-/** The Date Modified column: the day on a phone, under "Modified", the day
- *  and time wider. */
-export const RESUME_DATE_COL = "w-24 @2xl:w-44";
+/** The Date Modified column: the day ("Nov 10"), and room for the four
+ *  hover icons that cover it under the pointer (`CardActionIcons`). */
+export const RESUME_DATE_COL = "w-24 @2xl:w-32";
 
-/** The actions column: five icons wide (the four that show on hover and
- *  ⋮), so nothing moves when the icons appear; on a touch screen, which
- *  shows only ⋮, one, so a phone's names keep the room. */
-export const RESUME_ACTIONS_COL = "w-44 pointer-coarse:w-12";
+/** The actions column: ⋮ alone (2026-11-10). It was five icons wide, the
+ *  four that show on hover and ⋮, so at rest a 150px empty column stood
+ *  between the date and ⋮. The hover icons now cover the date, as
+ *  Gmail's do. */
+export const RESUME_ACTIONS_COL = "w-12";
 
 /** What a card's actions do, as its row hands them over. */
 export type CardActions = {
@@ -114,7 +115,9 @@ const ON_HOVER =
 /**
  * A row's actions (2026-11-10, after Google Drive): at rest only ⋮ (More
  * actions); on hover or focus, Make Primary (on a resume that is not the
- * primary), Rename, Download and Delete appear left of ⋮. The primary says
+ * primary), Rename, Download and Delete appear left of ⋮, over the Date
+ * Modified cell, on the row's own hover fill, as Gmail's row actions take
+ * the date's place. They took a column of their own, empty at rest. The primary says
  * so in a badge beside its name (`PrimaryBadge`, after Jobright's), not a
  * star here. ⋮ holds every action, worded (`RowMoreMenu` with `always`), so a
  * touch screen and a phone reach them all. Four icons on every card at all
@@ -132,12 +135,15 @@ function CardActionIcons({
   const { primary, onMakePrimary, onRename, download, onDelete } = actions;
   return (
     <div className="relative z-10 flex items-center justify-end">
-      {!primary && (
-        <span className={ON_HOVER}>
-          <PrimaryStar name={name} primary={false} onMakePrimary={onMakePrimary} />
-        </span>
-      )}
-      <div className={cn("flex items-center", ON_HOVER)}>
+      {/* Left of ⋮, over the date: the row's hover fill under it hides the
+          day; white while only the keyboard's focus shows it. */}
+      <div
+        className={cn(
+          "bg-panel group-hover:bg-hover absolute top-1/2 right-full flex -translate-y-1/2 items-center pl-2",
+          ON_HOVER,
+        )}
+      >
+        {!primary && <PrimaryStar name={name} primary={false} onMakePrimary={onMakePrimary} />}
         <IconButton
           label={`Rename ${name}`}
           tooltip="Rename"
@@ -188,8 +194,9 @@ function CardActionIcons({
  * rows (`resumes/resume-list.tsx`): **Name** (the name, with a Primary
  * badge on the primary), **Target Job** (a tailored resume's posting, as
  * the Tracker's Role cell draws a job: the company's logo, then the role
- * over the company; empty for a resume made for no job), **Type** (its
- * badge, `TypeBadge`), **Date Modified**, then the actions
+ * over the company; a faint dash for a resume made for no job), **Type**
+ * (its grey glyph and word, `TypeLabel`), **Date Modified**, then ⋮ (the
+ * other actions cover the date on hover)
  * (`CardActionIcons`). After Jobright's resume table, the name stands
  * alone, with no tile beside it: the Type column says what each resume is,
  * and the job has a column of its own, where the logos line up. The
@@ -293,6 +300,16 @@ export function ResumeCard({
         {notes && <div className="whitespace-normal">{notes}</div>}
       </TableCell>
       <TableCell className={cn(RESUME_TD, RESUME_TARGET_COL)}>
+        {/* A faint dash where the resume was made for no job: a blank in
+            most rows read as a column that failed to load. */}
+        {!role && (
+          <span className="hidden @4xl:inline">
+            <span aria-hidden="true" className="text-ink-faint">
+              —
+            </span>
+            <span className="sr-only">No target job</span>
+          </span>
+        )}
         {role && (
           <div className="hidden min-w-0 items-center gap-3 @4xl:flex">
             {company && (
@@ -409,16 +426,14 @@ export function TypeBadge({
  *  card's logo sources (`jobLogo`). */
 export type GridCompany = { name: string; logoUrl: string | null; domain: string | null };
 
-/** Each type's badge colour: a different kind of resume, a different tone.
- *  An upload is a file the student brought (grey), a generated resume is
- *  WorkIt's (blue), and a tailored one is WorkIt's for one posting (brand),
- *  the colour of the Tailored chip on job cards and the Tracker
- *  (`TailoredChip`), so Tailored is one colour across the app. It was blue
- *  here and violet there until 2026-11-10. */
+/** Each type's badge colour: grey for all three (2026-11-10), the glyph
+ *  telling them apart. Three tints (grey, blue, brand) on every card and
+ *  every picker row read as statuses and made the lists loud; the user
+ *  found them in their face. The Primary badge is then the one tint. */
 const TYPE_TONE: Record<ResumeType, BadgeTone> = {
   uploaded: "inert",
-  generated: "advanced",
-  tailored: "brand",
+  generated: "inert",
+  tailored: "inert",
 };
 
 /**
