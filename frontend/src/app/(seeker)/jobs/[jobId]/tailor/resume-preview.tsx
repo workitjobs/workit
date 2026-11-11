@@ -271,11 +271,7 @@ export function ResumeThumbnail({
         />
       ) : (
         <div className="flex h-full items-center justify-center">
-          {preview.error ? (
-            <span className="text-note text-ink-meta">No Preview</span>
-          ) : (
-            fallback
-          )}
+          {preview.error ? <span className="text-note text-ink-meta">No Preview</span> : fallback}
         </div>
       )}
     </div>
