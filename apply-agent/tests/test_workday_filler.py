@@ -662,6 +662,58 @@ def test_a_step_workday_refused_as_missing_picks_it_shows_is_filled_once_more():
     assert server.saved("caci.wd1.myworkdayjobs.com")["education"] == "Bachelor’s degree"
 
 
+def test_workdays_error_page_after_save_and_continue_is_reloaded_and_the_step_filled_again():
+    # NVIDIA's My Experience answered Save and Continue with "Something went wrong. Please refresh the page and then
+    # try again." under its progress bar (live, KAN-758): the fill waited out 30 s and the Application ended.
+    steps = [("My Information", [Field("legalName--firstName", "First Name", "text", True)]),
+             ("Application Questions", [Field("why", "Why?", "text", False)])]
+    keychain = InMemoryKeychain()
+    filler = WorkdayFiller(Accounts(keychain, FakeMailbox(), FakeClock(NOW), "test.person@example.com", "CACI"))
+
+    with FakeWorkdayServer(CACI_FORM, keychain=keychain, steps=steps, crashes_on_save=1) as server, OnePage(server) as site:
+        [name] = filler.question_set(CACI_URL, site)
+        with site.open(CACI_URL) as page:
+            with pytest.raises(MoreQuestions):  # the next step's question: the second Save and Continue went through
+                filler.fill(page, [name], {name.name: "Test"})
+
+    assert server.saved(CACI)["legalName--firstName"] == "Test"
+
+
+def test_workdays_error_page_twice_on_a_step_is_lisuls_with_what_to_do():
+    steps = [("My Information", [Field("legalName--firstName", "First Name", "text", True)])]
+    keychain = InMemoryKeychain()
+    filler = WorkdayFiller(Accounts(keychain, FakeMailbox(), FakeClock(NOW), "test.person@example.com", "CACI"))
+
+    with FakeWorkdayServer(CACI_FORM, keychain=keychain, steps=steps, crashes_on_save=2) as server, OnePage(server) as site:
+        [name] = filler.question_set(CACI_URL, site)
+        with site.open(CACI_URL) as page, pytest.raises(
+                Handoff, match="error page .*Something went wrong.* on its 'My Information' step twice. Refresh the page"):
+            filler.fill(page, [name], {name.name: "Test"})
+
+    assert server.submissions == []
+
+
+def test_a_fill_again_goes_back_to_the_changed_step_and_reloads_it_before_filling_it():
+    # Back draws a step from what the page kept of it; filled again there, NVIDIA's My Experience answered Save and
+    # Continue with Workday's error page (live, KAN-758). Reloaded, the step comes from Workday's server.
+    steps = [("My Information", [Field("legalName--firstName", "First Name", "text", True)]),
+             ("Application Questions", [Field("why", "Why?", "text", False)])]
+    keychain = InMemoryKeychain()
+    filler = WorkdayFiller(Accounts(keychain, FakeMailbox(), FakeClock(NOW), "test.person@example.com", "CACI"))
+
+    with FakeWorkdayServer(CACI_FORM, keychain=keychain, steps=steps) as server, OnePage(server) as site:
+        questions = filler.question_set(CACI_URL, site)
+        with site.open(CACI_URL) as page:
+            questions, answers, _ = fill_all(filler, page, questions, {"First Name": "Test", "Why?": "Because"})
+            loads = len(server.step_loads)
+            changed = {**answers, next(q.name for q in questions if q.label == "First Name"): "Tess"}
+            filler.fill(page, questions, changed)
+
+    assert server.step_loads[loads:loads + 3] == [2, 1, 1]  # Back from Review, Back again, then the reload
+    assert server.saved(CACI)["legalName--firstName"] == "Tess"
+    assert server.submissions == []
+
+
 def test_an_error_workday_flashes_before_the_next_step_is_no_handoff():
     # Adobe showed "Upload a file ... is required" mid-save, then went on to the next step (seen live).
     steps = [("My Information", [Field("legalName--firstName", "First Name", "text", True)])]
