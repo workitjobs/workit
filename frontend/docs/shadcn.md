@@ -162,6 +162,21 @@ in `globals.css`, keyed on its `data-slot`s, change it from outside
 overlay dims without blurring, as the Sheet's does, and a
 `data-slot="dialog-scroller"` box keeps its scrollbar's room. Each rule
 names the one class it overrides; check them after any `add dialog`.
+
+#### Slider is not forked: globals.css sets its thumb and track
+
+`src/components/shadcn/slider.tsx` is as `shadcn add` wrote it (2026-11-11,
+the resume editor's Format tab), but for its `cn` import (the `add` bug
+below). Rules in `globals.css`, keyed on its `data-slot`s, change it from
+outside: Base UI puts the focus on a range input inside the thumb, so the
+thumb's own `focus-visible:ring-3` never showed, and the app's 2px ring is
+drawn while the input has it (`:has(:focus-visible)`); the thumb is 16px
+with a 2px brand edge and no hover halo; the track's unfilled part is
+`border-surface`, since `bg-muted` is the well grey and vanished on a white
+card; and on touch the thumb's target is 44px. **Pass it an array
+`value`**: given a number, its `_values` falls back to `[min, max]` and it
+draws two thumbs. Check the rules after any `add slider`.
+
 #### Sidebar is forked: the phone sheet is named "Menu"
 
 `src/components/shadcn/sidebar.tsx` names the phone's sheet "Menu" (KAN-570),

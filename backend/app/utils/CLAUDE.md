@@ -82,6 +82,57 @@ Papers, Presentations and Patents are publications.
   `section_of` too, so a header word also changes which PDF extraction mode
   wins: run the fixtures.
 
+### The header (`read_header`, KAN-436)
+
+`_split_sections` drops every line above the first heading. `read_header`
+reads those lines, by these rules alone and never by a model (ADR 0007,
+"The contact block stays home"), so upload can fill the profile's empty
+fields (`services/header_fill.py`, below).
+
+- **Only a header near the top**: the lines above the first heading when
+  that heading is in the first `HEADER_LINES` (12) lines; none otherwise,
+  since a resume that opens with paragraphs has no contact block to read.
+- **A line splits into pieces** at "|", "•", "·", a tab, a PDF gap (two
+  spaces or more) and a spaced dash; a label ("Email:", "LinkedIn:") comes
+  off. In each piece the email, links and phone are taken out by pattern,
+  and what is left is a "City, ST" place (a US code; a street before it is
+  dropped, never kept) or free text.
+- **The first line is the name** and is skipped, unless it holds a contact
+  detail ("Jane Doe | jane@x.com": then only the name piece is skipped).
+- **Links**: linkedin.com is LinkedIn, github.com is GitHub (github.io is a
+  site), any other is `links`, in order. A bare host counts with a path or
+  on a usual site ending (.com, .dev, .io and the like).
+- **Free text is a short phrase, never a sentence**: 8 words and 60
+  characters at most, and not ending in a full stop (an abbreviation such
+  as "U.S." is no sentence end). An objective written above the first
+  heading is a sentence, so it is never taken. "U.S. Citizen" is never
+  taken either: Application Questions owns it and the header prints it.
+- **Known ceilings**: US places only, as `_extract_location`; a headline
+  under the name ("Computer Science Student") reads as free text.
+
+### Upload fills the profile (`services/header_fill.py`, KAN-436)
+
+Every upload (POST and PUT `/resumes`, onboarding's Save Resume included)
+and Import Again plans from `read_header` and writes in the same commit:
+
+- **Only an empty field is filled. A value is never overwritten.** One that
+  differs (a phone compared by its last ten digits, a link without its
+  scheme, "www." or trailing slash, the rest in any case) is an offer, which
+  the upload's note shows with Use This.
+- **The email fills `contact_email`**, unless it is the sign-in email,
+  which an empty contact email already means.
+- **A link that is neither LinkedIn nor GitHub** takes Portfolio, then
+  Other Link; one with no free field joins the Additional line.
+- **Free text goes to the Additional line** (`resume_header_extra`), its
+  phrases joined with " | ", only when the line is empty and the text fits
+  (100 characters); text over that sets `overflow`, and the note says to
+  add it in the Header panel.
+- Every value passes My Profile's own check (`ApplicantProfileUpdate`)
+  first, so a link that is no web address is left out.
+- The answer is `ImportResult.header` (`HeaderFill`: `added`, `offers`,
+  `overflow`). Tests: `tests/test_resume_header.py` (pure), and the upload
+  and Import Again tests in `tests/test_bank_import.py`.
+
 ### Learned headings (KAN-348)
 
 A heading the rules miss is looked up in `learned_headings.json`: labels a

@@ -6,7 +6,8 @@ import { useRef, useState, type ChangeEvent } from "react";
 import { PendingResumeCard, ResumeRow, type RowPick } from "@/components/resume-row";
 import { RESUME_ACCEPT, resumeFileError } from "@/components/resume-upload";
 import { type ImportResponse } from "@/lib/bank-actions";
-import { importSummary } from "@/lib/import-summary";
+import { HeaderOffers } from "@/components/header-offers";
+import { headerSummary, importSummary } from "@/lib/import-summary";
 import { MAX_UPLOADS } from "@/lib/resume-limits";
 import { openDownload } from "@/lib/save-file";
 import {
@@ -124,11 +125,14 @@ export function useResumeUpload({
       {shownImport && (
         <p className="text-note text-ink-muted" aria-live="polite">
           {importSummary(shownImport, shownImport.filename)}{" "}
+          {/* What its header filled on the profile (KAN-436) */}
+          {headerSummary(shownImport.header) && `${headerSummary(shownImport.header)} `}
           <Link href="/experiences" className="text-brand hover:text-brand-hover underline">
             Open Experiences
           </Link>
         </p>
       )}
+      {shownImport && <HeaderOffers header={shownImport.header} />}
     </>
   );
 

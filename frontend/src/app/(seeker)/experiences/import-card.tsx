@@ -6,7 +6,8 @@ import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { importResume, type ImportResponse } from "@/lib/bank-actions";
-import { importSummary } from "@/lib/import-summary";
+import { HeaderOffers } from "@/components/header-offers";
+import { headerSummary, importSummary } from "@/lib/import-summary";
 
 /**
  * What an import wrote into the experience bank (ADR 0003). An upload
@@ -69,7 +70,9 @@ export function ImportCard({
 
       <p className="text-body text-ink-meta mt-1" aria-live="polite">
         {result
-          ? importSummary(result, result.filename)
+          ? [importSummary(result, result.filename), headerSummary(result.header)]
+              .filter(Boolean)
+              .join(" ")
           : busy
             ? "Reading your resume…"
             : !error && "Getting your resume…"}
@@ -83,6 +86,12 @@ export function ImportCard({
           </>
         )}
       </p>
+
+      {result?.header?.offers.length ? (
+        <div className="mt-2">
+          <HeaderOffers header={result.header} />
+        </div>
+      ) : null}
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <Button size="sm" onClick={onClose} disabled={busy}>

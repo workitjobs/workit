@@ -40,6 +40,9 @@ type ScoutState = {
     mark?: ReactNode;
     away?: () => void;
     float?: boolean;
+    /** The page draws the panel's top itself (the resume editor's tabs,
+     *  KAN-586), so the panel draws no header of its own. */
+    bare?: boolean;
   } | null;
 };
 

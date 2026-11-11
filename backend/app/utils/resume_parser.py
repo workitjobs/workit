@@ -1,6 +1,7 @@
 import itertools
 import json
 import re
+from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 
@@ -904,3 +905,141 @@ def _parse_awards(text: str) -> list[Award]:
         if parts[0]:
             results.append(Award(title=parts[0], issuer=parts[1] if len(parts) > 1 and parts[1] else None, date=when))
     return results
+
+
+# --- The header (KAN-436) ---------------------------------------------------
+#
+# The lines above the first heading: the name, the contact details, and
+# whatever else a student put there ("Secret Clearance", "Open to
+# relocation"). Read by these rules alone, never by a model (ADR 0007, "The
+# contact block stays home"), for upload to fill the profile's empty fields
+# (`services/header_fill.py`).
+
+# The header is the contact block: a heading further down than this means
+# the resume opens with text that is no header
+HEADER_LINES = 12
+_HEADER_EMAIL_RE = re.compile(r'(?:mailto:)?([\w.+-]+@[\w-]+(?:\.[\w-]+)+)', re.IGNORECASE)
+# A link: a scheme or "www.", or a host with a path, or a bare host on a
+# site's usual ending ("janedoe.dev"); the email went first, so no "@" is left
+_HEADER_URL_RE = re.compile(
+    r'(?:https?://|www\.)[^\s|,;]+'
+    r'|(?<![\w@.])[\w-]+(?:\.[\w-]+)*\.[A-Za-z]{2,}/[^\s|,;]*'
+    r'|(?<![\w@.])[\w-]+(?:\.[\w-]+)*\.(?:com|dev|io|me|net|org|edu|co|ai|app|site|tech|xyz|page|info)\b(?!\.\w)',
+    re.IGNORECASE,
+)
+# A phone: ten digits in the usual groups, with an optional country code
+_HEADER_PHONE_RE = re.compile(
+    r'(?<![\w+])(?:\+\d{1,3}[\s.-]?)?(?:\(\d{3}\)|\d{3})[\s.-]?\d{3}[\s.-]?\d{4}(?!\w)')
+# "City, ST" or "City, ST 11790", the whole piece; a street before it is
+# taken off first, since an address is never kept
+_HEADER_PLACE_RE = re.compile(
+    r"([A-Z][A-Za-z.'\-]*(?:\s+[A-Z][A-Za-z.'\-]*){0,3}),\s*([A-Z]{2})(?:\s+\d{5}(?:-\d{4})?)?$")
+_HEADER_STREET_RE = re.compile(r'^\d+\s+[\w .\'-]+?,\s*(?=[A-Z])')
+# How the pieces of a contact line are set apart
+_HEADER_SPLIT_RE = re.compile(r'\s*[|•·◆♦⋄✉☎]\s*|\t|\s{2,}|\s+[–—]\s+')
+# A label before a value ("Email: ...", "LinkedIn: ...")
+_HEADER_LABEL_RE = re.compile(
+    r'^(?:e-?mail|phone|tel|mobile|cell|linkedin|github|portfolio|website|web|address|location|links?)\s*:\s*',
+    re.IGNORECASE,
+)
+# "U.S. Citizen" belongs to Application Questions, which prints it itself
+_HEADER_CITIZEN_RE = re.compile(r'^u\.?\s?s\.?\s+citizen(?:ship)?$', re.IGNORECASE)
+# Free text kept for the Additional line: a short phrase, never a sentence
+_HEADER_TEXT_WORDS = 8
+_HEADER_TEXT_CHARS = 60
+
+
+@dataclass(frozen=True)
+class HeaderReading:
+    """What a resume's header holds, by the parser's rules (`read_header`).
+    `links` are the links that are neither LinkedIn nor GitHub, in order;
+    `text` is the free text left once the name and every contact detail
+    are taken out, a phrase per item."""
+
+    email: str | None = None
+    phone: str | None = None
+    location: str | None = None
+    linkedin: str | None = None
+    github: str | None = None
+    links: tuple[str, ...] = ()
+    text: tuple[str, ...] = ()
+
+
+def header_lines(raw_text: str) -> list[str]:
+    """The lines above the first heading, when it is in the first
+    HEADER_LINES lines; none when no heading is there."""
+    lines = [ln.strip() for ln in _clean_text(raw_text).splitlines() if ln.strip()]
+    for at, line in enumerate(lines[:HEADER_LINES + 1]):
+        if section_of(line):
+            return lines[:at]
+    return []
+
+
+def _link(url: str) -> str:
+    url = url.rstrip(".)")
+    return url if re.match(r'https?://', url, re.IGNORECASE) else f"https://{url}"
+
+
+def _phrase(piece: str) -> str | None:
+    """A piece of free text worth keeping: short, no sentence, no
+    citizenship (Application Questions prints it)."""
+    piece = piece.strip(" ,;:-–—|()[]")
+    words = piece.split()
+    if not words or not re.search(r'[A-Za-z]', piece) or _HEADER_CITIZEN_RE.match(piece):
+        return None
+    # "Authorized to work in the U.S." ends in an abbreviation, not a sentence
+    ends = piece.endswith(("!", "?")) or (piece.endswith(".") and not re.search(r'\b(?:[A-Za-z]\.){1,3}$', piece))
+    sentence = ends and len(words) >= 3
+    if sentence or len(words) > _HEADER_TEXT_WORDS or len(piece) > _HEADER_TEXT_CHARS:
+        return None
+    return piece
+
+
+def read_header(raw_text: str) -> HeaderReading:
+    """The resume's header read by rules: the first email and phone, a
+    "City, ST" place, the LinkedIn and GitHub links, the other links, and
+    the short phrases left (a clearance, "Open to relocation"). The first
+    line is the name and is skipped unless it holds a contact detail; a
+    sentence (an objective written above the first heading) is never kept."""
+    found: dict[str, str] = {}
+    links: list[str] = []
+    text: list[str] = []
+    for at, line in enumerate(header_lines(raw_text)):
+        # A line that reads as a sentence is an objective or a summary
+        if len(line.split()) > 2 * _HEADER_TEXT_WORDS and not _HEADER_SPLIT_RE.search(line):
+            continue
+        name_line = at == 0
+        for piece in _HEADER_SPLIT_RE.split(line):
+            piece = _HEADER_LABEL_RE.sub("", piece.strip())
+            for match in _HEADER_EMAIL_RE.finditer(piece):
+                found.setdefault("email", match.group(1))
+                name_line = False
+            piece = _HEADER_EMAIL_RE.sub(" ", piece)
+            for match in _HEADER_URL_RE.finditer(piece):
+                url = _link(match.group(0))
+                host = re.sub(r'^https?://(?:www\.)?', "", url, flags=re.IGNORECASE).lower()
+                kind = "linkedin" if host.startswith("linkedin.com") else (
+                    "github" if host.startswith("github.com") else None)
+                if kind and kind not in found:
+                    found[kind] = url
+                elif url not in links:
+                    links.append(url)
+                name_line = False
+            piece = _HEADER_URL_RE.sub(" ", piece)
+            for match in _HEADER_PHONE_RE.finditer(piece):
+                found.setdefault("phone", match.group(0).strip())
+                name_line = False
+            piece = " ".join(_HEADER_PHONE_RE.sub(" ", piece).split())
+            place = _HEADER_PLACE_RE.fullmatch(_HEADER_STREET_RE.sub("", piece))
+            if place and place.group(2) in US_STATES:
+                found.setdefault("location", f"{place.group(1)}, {place.group(2)}")
+                continue
+            if name_line or _HEADER_STREET_RE.match(piece):
+                continue
+            if (phrase := _phrase(piece)) and phrase not in text:
+                text.append(phrase)
+    return HeaderReading(
+        email=found.get("email"), phone=found.get("phone"), location=found.get("location"),
+        linkedin=found.get("linkedin"), github=found.get("github"),
+        links=tuple(links), text=tuple(text),
+    )

@@ -114,7 +114,7 @@ applicant_profiles
   └── built_resumes            name, template id, optional job posting
         ├── built_resume_entries   entry: shown, position in its section, GPA and coursework toggles
         ├── built_resume_bullets   bullet: shown, position in its entry, variant (null: the original)
-        └── built_resume_skills    skill: shown, position
+        └── built_resume_skills    skill: shown, position, its group on this resume (null: the bank's)
 ```
 
 - **No text on a built resume.** The view (`backend/app/services/resume_view.py`)

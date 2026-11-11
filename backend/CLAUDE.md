@@ -1983,6 +1983,14 @@ go then. A change needs to work on Cloudflare only.
   them: an upload never wrote one, and Tailor, the resume view, Generate,
   Scout, the recommender and the embedding all ignored them. A skill is
   one list per student.
+- **Apply `d8f3b6a1c947` (`built_resume_skills.group`, KAN-586) before
+  the deploy that maps it.** The model selects the column with every skill
+  choice, so deployed first, every built resume, Generate, Tailor and the
+  editor answer 500. It only adds a nullable column (null is the bank's
+  group, so every row prints as before), so applying it early is safe. It
+  sits on KAN-436's `c5e1a9d3b724` (`applicant_profiles.resume_header_extra`),
+  so `upgrade head` applies that one first; both go to `main` before either
+  is applied (`alembic/CLAUDE.md`, "Commit the migration in the same PR").
 - **Apply `d642d93fcfbc` (`resumes.text_hash`, KAN-267) before the deploy
   that writes it.** The model maps the column, so every upload's INSERT
   names it: deployed first, every upload answers 500. It only adds a

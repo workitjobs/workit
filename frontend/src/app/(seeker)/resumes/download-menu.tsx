@@ -90,14 +90,30 @@ const BUSY: Record<Format, string> = {
 /**
  * One Download for every file: PDF and Word were two buttons. LaTeX is the
  * PDF's own source, for a student who edits it in Overleaf. While a file
- * is being made, the trigger says which one and takes no second pick. On
- * the editor's slim bar its word folds away as the bar narrows (`fold`,
- * ./[resumeId]/bar-fold.tsx), leaving the glyph and the caret.
+ * is being made, the trigger says which one and takes no second pick.
+ *
+ * It is the page's one filled button, at the end of the title row, and at
+ * the end of the phone's row (KAN-799), but on Tailor's review (`secondary`):
+ * a file action, not a tool, so it left the slim bar, where it was a
+ * secondary button among the tools. On the phone's row its word folds away
+ * as the row narrows (`fold`, ./[resumeId]/bar-fold.tsx), leaving the glyph
+ * and the caret.
  */
-export function DownloadMenu({ download, fold }: { download: ResumeDownload; fold?: string }) {
+export function DownloadMenu({
+  download,
+  fold,
+  secondary = false,
+}: {
+  download: ResumeDownload;
+  fold?: string;
+  /** Tailor's review, whose one filled button is Finish, the step's way on
+   *  (`TailorFinish`): two fills there competed. */
+  secondary?: boolean;
+}) {
   const { busy, pick } = download;
+  const variant = secondary ? "secondary" : "default";
   const label = busy ? BUSY[busy] : "Download";
-  const caret = <ChevronDownIcon className="text-ink-meta" />;
+  const caret = <ChevronDownIcon className={secondary ? "text-ink-meta" : "opacity-80"} />;
   return (
     <DropdownMenu>
       {fold ? (
@@ -110,14 +126,14 @@ export function DownloadMenu({ download, fold }: { download: ResumeDownload; fol
           render={
             <DropdownMenuTrigger
               disabled={busy !== null}
-              render={<Button variant="secondary" size="sm" className="shrink-0" />}
+              render={<Button variant={variant} size="sm" data-bar-action className="shrink-0" />}
             />
           }
         />
       ) : (
         <DropdownMenuTrigger
           disabled={busy !== null}
-          render={<Button variant="secondary" size="sm" />}
+          render={<Button variant={variant} size="sm" data-bar-action className="shrink-0" />}
         >
           <FileArrowDownIcon aria-hidden /> {label}
           {caret}
