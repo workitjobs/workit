@@ -4,8 +4,8 @@ import { ResumeScroll } from "@/components/resume-list";
 
 /**
  * The Resumes page's list (KAN-362): every resume's card (an upload's
- * `ResumeRow`, a built resume's ./built-resume-row.tsx) under its group's
- * heading (`ResumeGroup`, KAN-404), in one card that scrolls inside itself
+ * `ResumeRow`, a built resume's ./built-resume-row.tsx), with no group
+ * headings since 2026-11-10, in one list that scrolls inside itself
  * (`ResumeScroll`, components/resume-list.tsx, shared with the resume
  * picker since KAN-406) down to the foot of the page (`fill`, KAN-434), so
  * the search and the buttons above it stay in view however many resumes a

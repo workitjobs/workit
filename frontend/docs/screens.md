@@ -547,8 +547,9 @@ on a short window.
 KAN-406) is the one picker in all four resume dialogs: this one, Tailor's
 Pick a Resume to Tailor, Auto Apply's Choose a Resume and the Experiences
 view's Choose a Resume to Show (KAN-361, which builds its rows from the
-bank's resumes, with no posting). It is the Resumes page's grouped list
-(`components/resume-list.tsx`): one row with a search by name and by the
+bank's resumes, with no posting). It is the Resumes page's list
+(`components/resume-list.tsx`), still grouped by type, which the Resumes
+page itself dropped on 2026-11-10: one row with a search by name and by the
 posting a resume was tailored for, the **Type** filter and, in Did You
 Apply? and Tailor, **Upload Resume** (as two even halves under the search
 below a 36rem row; no Sort or Generate Resume, which a dialog does not
@@ -2937,8 +2938,9 @@ Grid switch at the right end of the search's row, where the Jobs and
 Applications pages put their view switch (`SegmentedToggle` with icons:
 two looks of the same resumes, so a switcher, not tabs), kept in a cookie as the Jobs
 page's view is (`resumes/view.ts`, `setResumesLayout`), so the server draws
-the chosen layout. The grid is one flat set of cards in the sort's order,
-the primary first, with no group headings (each card says what it is):
+the chosen layout. The grid, as the list is since the same day, is one
+flat set of cards in the sort's order, the primary first, with no group
+headings (each card says what it is; the Type filter finds one type):
 each resume's first page over two lines every card has, so a row's cards
 line up: the name with ⋮, then the type as a status badge (Uploaded in
 grey, Generated in the brand, Tailored in blue), a tailored resume's
@@ -3096,7 +3098,7 @@ upload's page.
 - **The list** (`resumes/resume-list.tsx`) is one card that scrolls
   inside itself and runs down to the foot of the page, 24px above the
   window's bottom (`ResumeScroll`'s `fill`, KAN-434), never shorter than
-  five cards under a group heading (`FIVE_ROWS`, 352px), so the search
+  five cards high (`FIVE_ROWS`, 352px), so the search
   and the buttons stay in view however many resumes a student keeps. On
   a window too short for that the page scrolls too. It stopped at five
   cards until KAN-434, which left half a laptop screen empty under it;

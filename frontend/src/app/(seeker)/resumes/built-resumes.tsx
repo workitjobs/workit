@@ -12,13 +12,7 @@ import {
 } from "react";
 
 import { FieldFacet, type FacetOption } from "@/components/field-facet";
-import {
-  matches,
-  RESUME_TYPES,
-  ResumeGroup,
-  searchWords,
-  type ResumeType,
-} from "@/components/resume-list";
+import { matches, RESUME_TYPES, searchWords, type ResumeType } from "@/components/resume-list";
 import { SearchIcon } from "@/components/icons";
 import { useShallowParams, useShallowPush } from "@/components/shallow-routing";
 import { SortMenu } from "@/components/sort-menu";
@@ -44,7 +38,7 @@ import { ResumeList } from "./resume-list";
 import { ShortLabel, UploadedRow, useResumeUpload } from "./upload-resume";
 import type { ResumesLayout } from "./view";
 
-/** The Type filter's options: the list's groups, in their order. */
+/** The Type filter's options. */
 const TYPES: FacetOption[] = [...RESUME_TYPES];
 
 /** `?type=uploaded,tailored`: the picked types, in the options' order;
@@ -110,17 +104,13 @@ type Lists = Awaited<ReturnType<typeof readLists>>;
  * holds them all; each says what it is in its own line ("Uploaded …",
  * "Last edited …", "For <posting>").
  *
- * The list is grouped by type, as Notion's Group by draws one (KAN-404):
- * Uploaded, Generated, then Tailored, the Type filter's order, each under
- * a heading with its name in a pill and its count, which folds it away
- * (`?collapsed=`). Search, Type and Sort apply to every row first, then
- * each row falls into its group, the order runs inside each group, the
- * starred resume leads its own, and a group with no row left hides. The
- * list is one scroll, five cards high (./resume-list.tsx): no scroll box
- * per group and no Show N More, which the user turned down. Ungrouped,
- * the 5 uploads sank under the tailored resumes, which have no cap, and a
- * student needed the Type filter to find their own file; three stacked
- * cards (below) had no search over all.
+ * The list and the grid hold the same rows in the same order, the starred
+ * resume first, with no groups (2026-11-10). The list was grouped by type
+ * from KAN-404 (Uploaded, Generated, Tailored, each under a heading with a
+ * count that folded it, in `?collapsed=`) until the grid came without
+ * groups: the user found the headings ugly beside it and the Type filter
+ * enough to find one type. The list is one scroll (./resume-list.tsx): no
+ * scroll box per type and no Show N More, which the user turned down.
  *
  * It is laid out as the Applications Tracker is (../applications/page.tsx
  * and filter-bar.tsx), so the two read as one app: a search over the
@@ -146,8 +136,8 @@ type Lists = Awaited<ReturnType<typeof readLists>>;
  * Generate makes a base resume from the whole bank in Jake's Resume, named
  * "Resume #N" by the API until the student renames it, and opens it in the
  * editor for the student to review (KAN-444). A Type filter that would hide
- * it is cleared and Generated opens first, so a Back finds it at the top
- * of Generated, under the starred resume if that is there. Generate has no limit:
+ * it is cleared, so a Back finds it at the top of the list, under the
+ * starred resume if that is there. Generate has no limit:
  * only uploads count toward the 5 (KAN-268). A failed Generate or reload
  * shows its error under the filter row. A Generate or an upload that would
  * make a resume the student already has (the API's 409, KAN-267) makes
@@ -191,21 +181,15 @@ export function BuiltResumes({
   const push = useShallowPush();
   const types = parseTypes(params.get("type"));
   const sort = parseSort(params.get("sort"));
-  // `?collapsed=tailored`: the folded groups (KAN-404), named as the
-  // types are; none is every group open.
-  const collapsed = parseTypes(params.get("collapsed"));
 
-  // The type, the sort and the folded groups ride in the URL together,
-  // each left out at its default, replacing the entry so a tick is not a
-  // step of Back.
-  function move(next: { types?: ResumeType[]; sort?: Sort; collapsed?: ResumeType[] }) {
+  // The type and the sort ride in the URL together, each left out at its
+  // default, replacing the entry so a tick is not a step of Back.
+  function move(next: { types?: ResumeType[]; sort?: Sort }) {
     const search = new URLSearchParams();
     const t = next.types ?? types;
     const o = next.sort ?? sort;
-    const c = next.collapsed ?? collapsed;
     if (t.length > 0) search.set("type", t.join(","));
     if (o !== "edited") search.set("sort", o);
-    if (c.length > 0) search.set("collapsed", c.join(","));
     const qs = search.toString();
     push(qs ? `/resumes?${qs}` : "/resumes", undefined, { replace: true });
   }
@@ -304,25 +288,13 @@ export function BuiltResumes({
     // A route handler cannot clear the router's copies (lib/resumes-stale.ts),
     // so a Back here reads the list again, the new resume in it.
     markResumesStale();
-    // A Back also finds it in view: a Type filter that hides it is cleared,
-    // and its group opens.
-    const hidden = types.length > 0 && !types.includes("generated");
-    if (hidden || collapsed.includes("generated")) {
-      move({ types: hidden ? [] : types, collapsed: collapsed.filter((g) => g !== "generated") });
-    }
+    // A Back also finds it in view: a Type filter that hides it is cleared.
+    if (types.length > 0 && !types.includes("generated")) move({ types: [] });
     // The student reviews it in the editor, as a Tailor run ends: on this
     // list it was one more row to find and open. The dialog stays until the
     // editor's page takes over.
     setGenerating("opening");
     router.push(`/resumes/${encodeURIComponent(made.id)}`);
-  }
-
-  function toggle(group: ResumeType) {
-    move({
-      collapsed: collapsed.includes(group)
-        ? collapsed.filter((g) => g !== group)
-        : [...collapsed, group],
-    });
   }
 
   const rows: Row[] = [
@@ -353,7 +325,7 @@ export function BuiltResumes({
     .filter((row) => matches(row.text, words))
     .sort(
       (a, b) =>
-        // The starred resume leads its group, whatever the order.
+        // The starred resume leads the list, whatever the order.
         Number(b.primary) - Number(a.primary) ||
         (sort === "name"
           ? a.name.localeCompare(b.name, undefined, { sensitivity: "base", numeric: true })
@@ -469,19 +441,19 @@ export function BuiltResumes({
             ? "You have no tailored resumes yet. Use Tailor My Resume on a job posting's page to make one for it."
             : "None of your resumes match these filters."}
         </EmptyState>
-      ) : grid ? (
-        // The grid (KAN-766): every resume the filters show in the sort's
-        // order, the primary first, with no groups: each card says what it
-        // is, as Google Drive's and Simplify's do. Generate Resume above
-        // makes a new one; a New Resume tile first in the grid did the same
-        // and came off on 2026-11-10.
-        <ResumeList grid>
-          {upload.pending("grid")}
+      ) : (
+        // Every resume the filters show, in the sort's order, the primary
+        // first, as list cards or as the grid's (KAN-766), with no groups:
+        // each card says what it is, as Google Drive's and Simplify's do.
+        // Generate Resume above makes a new one; a New Resume tile first in
+        // the grid did the same and came off on 2026-11-10.
+        <ResumeList grid={grid}>
+          {upload.pending(shownLayout)}
           {shown.map((row) =>
             row.type === "uploaded" ? (
               <UploadedRow
                 key={row.key}
-                layout="grid"
+                layout={shownLayout}
                 resume={row.upload}
                 reload={reload}
                 onDelete={(send) => remove(row.key, send)}
@@ -489,52 +461,13 @@ export function BuiltResumes({
             ) : (
               <BuiltResumeRow
                 key={row.key}
-                layout="grid"
+                layout={shownLayout}
                 resume={row.built}
                 reload={reload}
                 onDelete={(send) => remove(row.key, send)}
               />
             ),
           )}
-        </ResumeList>
-      ) : (
-        <ResumeList>
-          {TYPES.map(({ value, label }) => {
-            // The file in flight is the first card of its group, which
-            // stays open while it uploads.
-            const pending = value === "uploaded" && upload.pending();
-            const rows = shown.filter((row) => row.type === value);
-            if (rows.length === 0 && !pending) return null;
-            return (
-              <ResumeGroup
-                ground
-                key={value}
-                label={label}
-                count={rows.length}
-                open={!collapsed.includes(value as ResumeType) || Boolean(pending)}
-                onToggle={() => toggle(value as ResumeType)}
-              >
-                {pending}
-                {rows.map((row) =>
-                  row.type === "uploaded" ? (
-                    <UploadedRow
-                      key={row.key}
-                      resume={row.upload}
-                      reload={reload}
-                      onDelete={(send) => remove(row.key, send)}
-                    />
-                  ) : (
-                    <BuiltResumeRow
-                      key={row.key}
-                      resume={row.built}
-                      reload={reload}
-                      onDelete={(send) => remove(row.key, send)}
-                    />
-                  ),
-                )}
-              </ResumeGroup>
-            );
-          })}
         </ResumeList>
       )}
       <DuplicateResumeDialog

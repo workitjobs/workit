@@ -2791,35 +2791,30 @@ are in `docs/auth.md`.
   the menu hid the actions students use. Three views behind pills, then
   tabs, came before that: each split one list though every card acts
   alike, and a student had to look in three places for their latest
-  resume. **The list is grouped by type, as Notion's Group by**
-  (KAN-404): Uploaded, Generated, then Tailored, the Type filter's order,
-  each under a sticky heading with its name in a `Badge` pill and its
-  count, which folds it (`ResumeGroup`, `?collapsed=`). The search, Type
-  and Sort still run over every row; the groups only split what they
-  leave, the order runs inside each group, and the starred resume leads
-  its own. **Keep one scroll for the list, never a scroll box per group
+  resume. **The list is flat, as the grid is** (2026-11-10): every card
+  the search, Type and Sort leave, in the sort's order, the starred resume
+  first. It was grouped by type from KAN-404 (Uploaded, Generated, then
+  Tailored, each under a sticky heading with a pill and a count that
+  folded it, `?collapsed=`), so the uploads, capped at 5, did not sink
+  under the tailored resumes, which have no cap. The user dropped the
+  groups once the grid came without them: the headings looked ugly beside
+  it, and the Type filter finds one type. Do not group one view and not
+  the other. **Keep one scroll for the list, never a scroll box per type
   and no Show N More**: nested, the wheel and a finger get caught in the
   inner box, and a per-group limit with Show N More (Notion's) was built
-  and turned down by the user, who wants the list to scroll on. The
-  heading sits on z-20, over the cards' z-10 icons, which bled over it on
-  the same layer. Uploads are capped at 5 and Generate refuses duplicates, but
-  tailored resumes have no cap (one per job posting), so ungrouped they
-  buried the uploads and a student needed the Type filter to find their
-  own file. A first version had two groups, Uploaded and Generated, then
-  Tailored, with grey capitals for names; the user wanted one group per
-  type and the names in pills, which stand out from the grey cards.
+  and turned down by the user, who wants the list to scroll on.
   **Below a 42rem row the filters are two even rows** (Type and Sort,
   then the two buttons), and below 24rem the buttons say only Upload and
   Generate (`ShortLabel`, "Resume" kept for screen readers): wrapped as
   one row the buttons sat alone at the right, and "Generate Resume"
   broke onto two lines on a phone. **Every resume picker dialog draws
-  the same grouped list** (KAN-406): `components/resume-list.tsx` holds
-  the groups, the heading (`ResumeGroup`) and the scroll (`ResumeScroll`:
-  five cards in a picker, the page's foot with `fill`), and each screen
-  draws its own cards in it, the
-  Resumes page's with their actions, a picker's with a radio. A change
-  to how the list groups or scrolls goes there, so the page and the
-  dialogs never drift apart again. The picker's row is the page's row
+  the same list** (KAN-406): `components/resume-list.tsx` holds the
+  scroll (`ResumeScroll`: five cards in a picker, the page's foot with
+  `fill`) and the pickers' group heading (`ResumeGroup`), and each screen
+  draws its own cards in it, the Resumes page's with their actions, a
+  picker's with a radio. The pickers still group by type; the Resumes
+  page stopped on 2026-11-10 (above). A change to how the list scrolls
+  goes there, so the page and the dialogs never drift apart again. The picker's row is the page's row
   cut down: the search, the Type filter and, where the dialog takes a
   file (Did You Apply?, Tailor), Upload Resume, which at the 5-upload
   limit asks which upload the file replaces, under the row. No Sort and
