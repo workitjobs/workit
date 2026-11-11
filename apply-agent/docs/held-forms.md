@@ -66,7 +66,10 @@ reads: it does not click, type or submit.
   section reads back as the count Review shows, and an entry Review
   lacks reads back blank, so the read-back and the Work history check
   (`verify._work_history`) hold the form. The next fill goes Back to
-  that step and types every entry again, which Workday then keeps.
+  that step and types every entry again, which Workday then keeps. Ask
+  Claude's prompt (`ask.SYSTEM`) tells it the same: on a Workday step it
+  went back to, a change to one entry goes with the other entries'
+  Company or School typed again.
 - A Workday fill deletes an entry panel only when the section shows more
   panels than the plan's entries and the panel holds none of them by its
   naming fields (`workdayEntries.naming`, sent with the count). When
