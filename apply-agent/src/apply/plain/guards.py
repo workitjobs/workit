@@ -14,7 +14,13 @@ blocked before it leaves Chrome, from page code, its workers, or a form's native
 shared worker's non-GET to Ashby's GraphQL is blocked too (WORKER_RULES, KAN-791): no rule reads a
 body, and the guard script, which reads the page's, refuses the page any new worker. Unlike a
 Playwright route, a rule needs no Python handler, so it blocks the page URLs too (Greenhouse's
-posting, Lever's /apply), a page Claude opens never waits on it, and GETs always go.
+posting, Lever's /apply), a page Claude opens never waits on it, and GETs always go. Every guarded
+tab of a Worker shares one set of these rules (KAN-793), so their count stays at len(RULES).
+
+Fails closed: guard and rearm put the page's own guard on before the rules, so when Chrome refuses
+the rules (the route raises) the page is Apply's and blocked, never Lisul's, and the error goes on
+to the caller, which stops driving it. A page guard() can't put rules on goes to about:blank first,
+so no worker it started is left to send.
 
 Untrusted presses: a plain Worker's every click and key is synthetic, so the guard script's copy
 here (`port=True`) also counts as a touch the `__apply_touch` the extension dispatches before
@@ -32,6 +38,7 @@ from apply import submit_guard
 from apply.submit_guard import DriveGuard
 
 FOLDER = "guards"  # under worker-extension/vendor/
+BLANK = "about:blank"  # where a page goes when Chrome refuses its rules
 
 
 def _final_urls() -> list[str]:
@@ -162,9 +169,17 @@ def guard(page, reload: bool = True) -> None:
     """submit_guard.guard: the rules on this tab (and WORKER_RULES on its workers), the guard on every page from now,
     then a reload (none from submit_guard.on_open, before the tab's first load)."""
     tokens(page.worker)
-    page.route(PATTERN, submit_guard._refuse)
-    _workers_route(page, True)
-    page.context.add_init_script(submit_guard.SCRIPT)
+    page.context.add_init_script(submit_guard.SCRIPT)  # first: the page's own guard holds if Chrome refuses the rules
+    try:
+        page.route(PATTERN, submit_guard._refuse)
+        _workers_route(page, True)
+    except Exception:
+        # Refused: the page's own guard is no stop for a worker it started, so the page goes (the review of #555).
+        try:
+            page.goto(BLANK)
+        except Exception:
+            page.close()
+        raise
     if reload:
         page.reload(wait_until="domcontentloaded")
 
@@ -218,11 +233,12 @@ def applied_dismissed(page) -> None:
 
 
 def rearm(page) -> None:
-    """submit_guard.rearm: the rules back on and the page Apply's again, with no reload."""
-    page.route(PATTERN, submit_guard._refuse)
-    _workers_route(page, True)
+    """submit_guard.rearm: the page Apply's again, with no reload, then the rules back on (WORKER_RULES too). In that
+    order: when Chrome refuses the rules, the route raises with the page already guarded, never left lifted (KAN-793)."""
     tokens(page.worker)
     page.worker.call("guard.rearm", tab=page.tab, events=submit_guard._events({"lift": None}))
+    page.route(PATTERN, submit_guard._refuse)
+    _workers_route(page, True)
 
 
 def touch(page, by: str = "lisul", frame: int = 0) -> None:
