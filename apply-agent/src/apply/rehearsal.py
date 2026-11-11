@@ -1301,7 +1301,8 @@ class _Kept:
         there or in the window) the note says so and Submit is his again: `note()` is its warning and
         wrong then, as they are now (`warning` and `wrong` as given, without it).
         `keep` keeps the job site's session alive until he presses Submit, and tells when it ends (apply.keepalive):
-        its stay press runs with the guards back on, as Claude's drive does.
+        its stay press runs with the guards back on, as Claude's drive does, and then holds his Submit, the guard
+        whole, until he presses the note's Dismiss: a page whose button sends later, at any delay, sends nothing.
         "" when the page closed or `release` was set."""
         if self._page is None or release.is_set():
             return ""
@@ -1314,6 +1315,10 @@ class _Kept:
                     final.append(words)
             if code:
                 code.pressed(words)
+        if keep:  # a stay press holds Submit too, until his Dismiss, which takes back both (apply.keepalive)
+            held_by_form, dismiss_form = held, dismiss
+            held = lambda: held_by_form() or keep.holding()
+            dismiss = lambda: (dismiss_form(), keep.dismiss())
         dismissed = []
         hooks |= {"pressed": heard, "again": lambda: again.append(True),
                   "regenerate": lambda name, context: regenerates.append((name, context)),
@@ -1331,6 +1336,7 @@ class _Kept:
             """Apply acts on the held page (an Ask Claude message, a session dialog's stay press): both guards back
             on, in each document it loads too (going back a step loads one, which lift()'s script would hand to
             Lisul). His again after."""
+            nonlocal holding
             guarded = self._lifted
             if guarded:
                 rearm(self._page)
@@ -1338,6 +1344,7 @@ class _Kept:
                 yield
             finally:
                 if guarded:
+                    holding = held()  # a stay press just made: his Submit stays held, the guard whole (KAN-776)
                     hand_over()
                     renote(self._page, *(note() if note else (warning, wrong)), holding)
         blocked = bool(self.applied) and not self._dismissed  # he applied already: Submit stays blocked

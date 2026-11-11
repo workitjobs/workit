@@ -142,29 +142,38 @@ PAGES = {
 _SESSION = ("<title>Apply</title><form id=f method=post action='" + FINAL + "'><input name=first value=Test></form>"
             + SEND_ALL + "<div role=alertdialog aria-modal=true><p>Your session is about to expire. Do you want to "
             "continue?</p>%s</div>")
+_LATER = """<script>document.getElementById('b').addEventListener('click', () => setTimeout(() => { sendAll();
+        document.getElementById('f').submit(); }, %d));</script>"""
+# The adversarial review of #541: a press that re-armed the guard for 3 s let a Continue that sent 3.5 s later through.
+SENDS_AFTER = {"a session dialog whose Continue sends later": 1500, "a session dialog whose Continue sends after 3.5 s": 3500,
+               "a session dialog whose Continue sends after 10 s": 10_000,
+               "a session dialog whose Continue sends after 60 s": 60_000}
 SESSION_PAGES = {
     # Its Continue is no form's, but its script sends the application and posts the form.
     "a session dialog whose Continue sends": {START: _SESSION % "<button type=button id=b>Continue</button>" + """<script>
         document.getElementById('b').addEventListener('click', () => { sendAll(); document.getElementById('f').submit(); });</script>"""},
     # Its Stay signed in is the application form's own submit, by the form attribute.
     "a session dialog whose stay button is the form's submit": {START: _SESSION % "<button form=f id=b>Stay signed in</button>"},
-    # Its Continue sends the application after the press, once a guard put back for the press could be gone.
-    "a session dialog whose Continue sends later": {START: _SESSION % "<button type=button id=b>Continue</button>" + """<script>
-        document.getElementById('b').addEventListener('click', () => setTimeout(() => { sendAll();
-          document.getElementById('f').submit(); }, 1500));</script>"""},
+    # Its Continue sends the application a while after the press, once a guard put back for the press could be gone.
+    **{name: {START: _SESSION % "<button type=button id=b>Continue</button>" + _LATER % ms} for name, ms in SENDS_AFTER.items()},
+    # Its Continue arms on the press, and sends 3.5 s after the next mouse move: the Keeper's own activity ping.
+    "a session dialog whose Continue sends after the next mouse move": {START: _SESSION % "<button type=button id=b>Continue</button>"
+        + """<script>let armed = false; document.getElementById('b').addEventListener('click', () => { armed = true; });
+        document.addEventListener('mousemove', () => { if (armed) { armed = false; setTimeout(() => { sendAll();
+          document.getElementById('f').submit(); }, 3500); } }, true);</script>"""},
     # Its Continue reads so when checked, and Submit application when pressed.
     "a session dialog whose Continue becomes a Submit": {START: _SESSION % "<button type=button id=b>Continue</button>" + """<script>
         const b = document.getElementById('b');
         b.addEventListener('pointerdown', () => { b.textContent = 'Submit application'; }, true);
         b.addEventListener('click', () => { sendAll(); document.getElementById('f').submit(); });</script>"""},
 }
+MOVED = {"a session dialog whose Continue sends after the next mouse move"}
 PAGES |= SESSION_PAGES
 BUTTON = {"a review page's Apply with its answers hidden": "Apply", "a profile pop-up that is the application": "Submit", "a profile pop-up that turns into the application": "Submit",
           "a one-page form in a modal": "Continue", "an application that makes an account": "Continue",
           "a button whose words change after the check": "Continue",
-          "a session dialog whose Continue sends": "Continue", "a session dialog whose stay button is the form's submit":
-          "Stay signed in", "a session dialog whose Continue sends later": "Continue",
-          "a session dialog whose Continue becomes a Submit": "Continue"}
+          "a session dialog whose stay button is the form's submit": "Stay signed in",
+          **{name: "Continue" for name in SESSION_PAGES if name != "a session dialog whose stay button is the form's submit"}}
 
 
 def button(page_name: str) -> str:
@@ -382,7 +391,10 @@ def test_without_the_guard_each_hostile_page_sends(page_name):
     with cdp(PAGES[page_name], guarded=False) as (page, _, site):
         page.get_by_role("button", name=button(page_name)).click()
         _then(page, page_name)
-        _settle(page)
+        if page_name in MOVED:
+            page.mouse.move(5, 5)
+            page.mouse.move(9, 9)
+        _settle(page, max(3000, SENDS_AFTER.get(page_name, 0) + 1500, 5000 if page_name in MOVED else 0))
     assert site.applications()
 
 
@@ -489,17 +501,19 @@ class _OnePage:
         yield self.page
 
 
-def _held_with_keeper(page, monkeypatch, name: str) -> keepalive.Keeper:
-    """The page held for Lisul by _Kept.hold (lifted: no guard), its Keeper allowlisting the page's own button."""
+def _held_with_keeper(page, monkeypatch, name: str, seconds: float) -> keepalive.Keeper:
+    """The page held for Lisul by _Kept.hold (lifted: no guard) for `seconds`, its Keeper allowlisting the page's
+    own button, with a mouse move every second (no GET: the fake host is not on loopback)."""
     from apply.rehearsal import _Kept
 
     monkeypatch.setattr(keepalive, "LOOK_S", 0.25)
-    site = keepalive.Site("Example", re.compile(r"example\.com$"), (name,))
+    monkeypatch.setattr(keepalive, "PING_S", 1.0)
+    site = keepalive.Site("Example", re.compile(r"example\.com$"), (name,), ping=False)
     keep = keepalive.Keeper("Acme", lambda why: None, sites=(site,))
     kept = _Kept(_OnePage(page), 0)
     with kept.open(HOST + START):
         release = threading.Event()
-        timer = threading.Timer(7, release.set)
+        timer = threading.Timer(seconds, release.set)
         timer.start()
         try:
             kept.hold(release, keep=keep)
@@ -508,16 +522,32 @@ def _held_with_keeper(page, monkeypatch, name: str) -> keepalive.Keeper:
     return keep
 
 
+def _held_seconds(page_name: str) -> float:
+    return max(7.0, SENDS_AFTER.get(page_name, 0) / 1000 + 6)
+
+
 @pytest.mark.parametrize("page_name", list(SESSION_PAGES))
 def test_the_stay_press_on_a_held_page_sends_nothing(page_name, monkeypatch):
-    """The press goes in while the page is Lisul's: the guards go back on for it, and stay on after it."""
+    """The press goes in while the page is Lisul's: the guards go back on for it, and his Submit stays held after
+    it, the guard whole, however long the page waits to send, until his Dismiss."""
     with cdp(PAGES[page_name]) as (page, _, site):
-        keep = _held_with_keeper(page, monkeypatch, button(page_name))
-        _settle(page)
+        keep = _held_with_keeper(page, monkeypatch, button(page_name), _held_seconds(page_name))
+        _settle(page, 1500)
     assert site.applications() == []
-    # The structure check passes the first, the third and the fourth: the guard is what stops them.
+    # The structure check passes all but the form's own submit: the guard, kept whole, is what stops them.
     pressed = page_name != "a session dialog whose stay button is the form's submit"
     assert ("pressed the site's" in keep.line()) is pressed
+    assert bool(keep.holding()) is pressed  # still held: only his Dismiss gives Submit back
+
+
+@pytest.mark.parametrize("page_name", ["a session dialog whose Continue sends after 3.5 s",
+                                       "a session dialog whose Continue sends after the next mouse move"])
+def test_the_stay_press_on_a_held_plain_page_sends_nothing(page_name, monkeypatch):
+    with plain(PAGES[page_name]) as (page, _, site):
+        keep = _held_with_keeper(page, monkeypatch, button(page_name), _held_seconds(page_name))
+        _settle(page, 1500)
+    assert site.applications() == []
+    assert "pressed the site's" in keep.line() and keep.holding()
 
 
 # --- Fill again: the held page closes, and the form opens anew in a fresh Worker browser under the guard

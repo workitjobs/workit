@@ -308,6 +308,41 @@ def test_a_held_form_whose_session_ends_is_told_and_fills_again(monkeypatch):
     assert sent == []
 
 
+def test_after_a_stay_press_submit_is_held_until_his_dismiss(monkeypatch):
+    """KAN-776, the review of #541: after the press, the page is his but his Submit stays held, the guard whole.
+    His click on Submit sends nothing; once he presses the note's Dismiss, his Submit goes through."""
+    from apply.rehearsal import _Kept
+
+    monkeypatch.setattr(keepalive, "LOOK_S", 0.25)
+    steps, sent_at = [], {}
+    with held(session_page(warn=500, end=60_000)) as (page, sent):
+        keep = Keeper("JPMorgan Chase", lambda why: None)
+
+        def tend(page) -> None:  # Lisul, on the hold loop's own thread
+            if keep.holding() and "held" not in steps:
+                steps.append("held")
+                page.locator("#send").click()  # his Submit while held: blocked
+                page.wait_for_timeout(800)
+                sent_at["held"] = list(sent)
+                page.locator("#apply-rehearsal-blocked button", has_text="Dismiss").click()
+            elif "held" in steps and not keep.holding() and "sent" not in steps:
+                steps.append("sent")
+                page.locator("#send").click()  # his Submit, his again
+
+        kept = _Kept(OnePage(page), 0)
+        with kept.open(ORACLE):
+            release = threading.Event()
+            timer = threading.Timer(12, release.set)
+            timer.start()
+            try:
+                kept.hold(release, keep=keep, tend=tend)
+            finally:
+                timer.cancel()
+    assert steps == ["held", "sent"]
+    assert sent_at["held"] == []
+    assert any(url.endswith("/acme/jobs/123/apply") for url in sent)
+
+
 @contextmanager
 def loopback(html: str):
     """The page on 127.0.0.1 with a session cookie, for the ping (Playwright's request API reaches no route)."""

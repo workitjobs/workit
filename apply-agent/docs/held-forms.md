@@ -433,10 +433,16 @@ filled form was lost.
   (`account_pages.SENDS`). `STAY` checks the real element (a fixed function, isolated world, on a plain page):
   in a dialog whose words warn, no form's (nor `form=` or `formaction`), no input or link away, nothing inside
   it, and a dialog with no form and no field. Then the press runs in `driving()`, the same context Ask Claude's
-  drive uses: both guards back on (`rearm`), and handed back to Lisul (`lift`, the note again) only `SETTLE_MS`
-  (3 s) after the press, so a button that sends the form, now or a moment later, sends nothing. It is in
-  `tests/test_submit_guard_hostile.py` (`PATHS`, the session dialogs in `SESSION_PAGES`): a change here gets an
-  adversarial review before it merges (KAN-666).
+  drive uses: both guards back on (`rearm`). After it (and `SETTLE_MS`, 3 s), the page is his again, but his
+  Submit is held (`Keeper.holding`, `keepalive.STAY_HELD`): `lift(held=...)`, under the red note with Dismiss,
+  where the in-page guard stays whole. Only his Dismiss on the note gives Submit back (`Keeper.dismiss`, with any
+  flag's hold). So a button that sends the form at any delay after the press sends nothing while the form is
+  held. A fixed 3 s of guard was not enough: in the adversarial review of #541, a Continue that sent 3.5 s later
+  went through. From the press on, the Keeper sends no more mouse moves on that page, since a page could arm on
+  the press and send on the next one; the GET, which the page's code never sees, goes on. It is in
+  `tests/test_submit_guard_hostile.py` (`PATHS`, the session dialogs in `SESSION_PAGES`, sending 1.5 s, 3.5 s,
+  10 s and 60 s after the press or after the next mouse move): a change here gets an adversarial review before
+  it merges (KAN-666).
 - **When a session ends anyway.** On every site, listed or not, the Keeper reads for `ENDED` (past tense only:
   "was ended due to inactivity", "has expired"; never "will expire") showing anew, or, where the entry knows the
   form's own pages (`form`: Oracle's `/apply/section/<n>`, Workday's `/apply`), the page leaving them. Words
@@ -454,7 +460,8 @@ filled form was lost.
 **Tests.** `tests/test_keepalive.py` (in CI; its browser cases skip there without Chromium): the allowlist, the
 ended words, the Keeper's turns on a fake page, a fake Oracle form whose session dialog gets only Continue, its
 expiry told through `_Kept.hold` with Fill again after, the ping on loopback with its cookie, and the same on a
-plain Worker. `tests/test_into.py -k session`: Fill again on a form whose session ended.
+plain Worker, and his Submit held after a stay press until his Dismiss. `tests/test_into.py -k session`: Fill
+again on a form whose session ended.
 `tests/test_submit_guard_hostile.py -k "session or stay"`: the stay press against every hostile page, and on a
 held page through `_Kept.hold`.
 

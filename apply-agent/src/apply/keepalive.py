@@ -17,9 +17,14 @@ in SITES (the allowlist) names, never anything that saves, posts the application
   stay-signed-in button pressed, by one of the names the entry lists, matched exactly. Plain code checks the
   real element first (STAY): it is in that dialog, in no form, holds nothing, and the dialog has no field and
   no form. A name that sends (submit, apply, confirm...) is never pressed. The press is made with the
-  rehearsal's guard put back on (`driving`, as Ask Claude's drive), and the guard stays on SETTLE_MS after it,
-  so a page whose button sends the form anyway sends nothing. It is a click path of the submit guard's hostile
-  pages (tests/test_submit_guard_hostile.py): a change here gets an adversarial review first (KAN-666).
+  rehearsal's guard put back on (`driving`, as Ask Claude's drive). After it, the page is Lisul's again but
+  his Submit is held (`holding()`, STAY_HELD), so the in-page guard stays whole, until he presses the note's
+  Dismiss: a page whose button sends the form later, at any delay, sends nothing while the form is held. A
+  fixed wait after the press was not enough: a Continue that sent 3.5 s later went through (the adversarial
+  review of #541). From the press on, the Keeper sends no more mouse moves on that page (a page could arm on
+  the press and send on the next one); the GET, which the page's code never sees, goes on. It is a click path
+  of the submit guard's hostile pages (tests/test_submit_guard_hostile.py): a change here gets an adversarial
+  review first (KAN-666).
 
 On every site, listed or not, the Keeper only reads for the session's end: ENDED's words showing anew (an
 expiry toast or page), or, on a site whose entry knows its form's address (`form`), the page leaving it. Then
@@ -42,7 +47,9 @@ from apply.account_pages import SENDS
 
 LOOK_S = 5.0  # how often a held page is read for a session dialog or its end
 PING_S = 240.0  # how often a listed site is pinged: well inside any idle limit seen (15 min and up)
-SETTLE_MS = 3000  # the guard stays on this long after a stay press: a page that sends after it sends nothing
+SETTLE_MS = 3000  # the press waits this long, guard on, before the page is his again (his Submit still held)
+STAY_HELD = ("Apply pressed this site's {} to keep you signed in. Check the form; press Dismiss when you are "
+             "ready to submit.")
 
 ENDED_WHY = "{}'s session ended; press Fill again after signing in"
 PUSH_TITLE = "Apply: a held form's session ended"
@@ -146,7 +153,8 @@ def _plain(page) -> bool:
 def press(page, site: Site, driving: Callable[[], AbstractContextManager] = nullcontext) -> str:
     """Press the stay-signed-in button of the site's session dialog on `page`, if one shows: the name pressed,
     or "". Only a name of `site.stay` that sends nothing, and only a button STAY passes. The press, and SETTLE_MS
-    after it, run inside `driving()`: the held page's guard back on."""
+    after it, run inside `driving()`: the held page's guard back on. A name is returned once the press was tried,
+    even when it raised: the caller then holds Lisul's Submit (Keeper.holding) until his Dismiss."""
     for name in site.stay:
         if SENDS.search(name):
             continue
@@ -164,7 +172,7 @@ def press(page, site: Site, driving: Callable[[], AbstractContextManager] = null
                 try:
                     button.click(timeout=3000)
                 except Exception:
-                    return ""  # refused or missed: nothing more on this look
+                    pass  # refused or missed, maybe after the press went down: held all the same
                 try:
                     page.wait_for_timeout(SETTLE_MS)
                 except Exception:
@@ -173,11 +181,11 @@ def press(page, site: Site, driving: Callable[[], AbstractContextManager] = null
     return ""
 
 
-def ping(page, site: Site) -> None:
+def ping(page, site: Site, activity: bool = True) -> None:
     """What `site` allows: a mouse move on the page's document, and one GET of its own URL with its cookies.
     Errors are ignored: the next look tries again."""
     try:
-        if site.activity:
+        if site.activity and activity:
             page.evaluate(ACTIVITY)
     except Exception:
         pass
@@ -209,6 +217,8 @@ class Keeper:
         self._look_at = self._ping_at = 0.0
         self._since = ""
         self._pressed = ""
+        self._hold = ""  # why his Submit is held: a stay press, until his Dismiss
+        self._quiet = False  # no mouse move after a stay press
 
     def line(self) -> str:
         """The tile's session line: since when the form is held, what Apply does for it and what the site allows."""
@@ -254,12 +264,25 @@ class Keeper:
         self._showed_ended = ended
         if not self.site or site_of(url, self._sites) is not self.site:
             return  # an unlisted site, or the page on another host (a sign-in's): nothing is done there
-        if looked.get("warned") and (name := press(page, self.site, driving)):
-            self._pressed = f"pressed the site's {name} at {self._now().strftime('%H:%M')}"
-            self._say(self.line())
+        if looked.get("warned"):
+            before, self._hold = self._hold, STAY_HELD.format("stay-signed-in button")  # held as the guard lifts
+            if name := press(page, self.site, driving):
+                self._hold, self._quiet = STAY_HELD.format(repr(name)), True
+                self._pressed = f"pressed the site's {name} at {self._now().strftime('%H:%M')}"
+                self._say(self.line())
+            else:
+                self._hold = before
         if now >= self._ping_at:
             self._ping_at = now + PING_S
-            ping(page, self.site)
+            ping(page, self.site, activity=not self._quiet)
+
+    def holding(self) -> str:
+        """Why Lisul's Submit is held: a stay press, until he dismisses it. "" when it is his."""
+        return self._hold
+
+    def dismiss(self) -> None:
+        """He pressed the note's Dismiss: Submit is his again (the mouse moves stay off on this page)."""
+        self._hold = ""
 
     def _left_form(self, url: str) -> bool:
         return self._held_on_form and not self.site.form.search(urlsplit(url).path)
