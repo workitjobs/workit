@@ -433,6 +433,7 @@ queue take only those job postings (`backend/app/auto_apply/hosts.py`).
 | `GET /jobs/facets` | How many job postings each filter option holds, across the whole feed (a job posting in two categories counts in both) |
 | `GET /jobs/locations` | Every country and state that has job postings, with counts |
 | `GET /jobs/{id}` | One job posting with its description, or 404 once closed |
+| `GET /jobs/{id}/match` | Signed-in applicants: its match score and reasons, as the feed's card shows them, for the job's own page; empty for anyone else |
 | `GET /jobs/{id}/applied` | Applicants only: when they marked it applied, or null |
 | `POST /jobs/{id}/applied` | Applicants only: marks it applied, a queued or saved one too; a second mark keeps the first date |
 | `POST /jobs/{id}/saved` | Applicants only: saves it, and answers its stage; one already queued or applied keeps that stage |

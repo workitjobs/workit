@@ -202,7 +202,7 @@ export function ExperiencesPicker({
               {rows.map((row) => (
                 <li
                   key={row.entry.id}
-                  className="ring-border-subtle bg-panel rounded-xl px-3 py-2.5 ring-1"
+                  className="ring-border-subtle bg-panel rounded-card px-3 py-2.5 ring-1"
                 >
                   <PickerRow row={row} onApply={onApply} />
                 </li>
@@ -461,7 +461,7 @@ export function CutPicker({
               {group.map((row) => (
                 <li
                   key={row.entry.id}
-                  className="ring-warning/25 bg-panel rounded-xl px-3 py-2.5 ring-1"
+                  className="ring-warning/25 bg-panel rounded-card px-3 py-2.5 ring-1"
                 >
                   <CutRow row={row} bank={bank} onApply={onApply} />
                 </li>
@@ -504,7 +504,7 @@ function CutSkills({
   return (
     <ul className="flex flex-col gap-2">
       {[...groups].map(([group, rows]) => (
-        <li key={group} className="ring-warning/25 bg-panel rounded-xl px-3 py-2.5 ring-1">
+        <li key={group} className="ring-warning/25 bg-panel rounded-card px-3 py-2.5 ring-1">
           {group && <p className="text-note text-ink-meta mb-1.5 break-words">{group}</p>}
           <ul className="text-body text-ink-muted flex flex-col gap-1">
             {rows.map((row) => (

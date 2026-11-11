@@ -266,7 +266,7 @@ function SuggestionsPanel({
     // shows and hides it.
     <section
       aria-labelledby="suggestions-heading"
-      className="sm:bg-brand-tint sm:ring-brand-pale flex min-h-0 flex-col gap-2 sm:rounded-2xl sm:p-3 sm:ring-1"
+      className="sm:bg-brand-tint sm:ring-brand-pale sm:rounded-card flex min-h-0 flex-col gap-2 sm:p-3 sm:ring-1"
     >
       {/* The top stays put and only the sections under it scroll, so the
           scroll bar starts under it and the panel keeps its rounded corners */}
@@ -321,7 +321,7 @@ function SuggestionsPanel({
                 aria-label={group.title}
                 // shrink-0: in the scrolling list a clipped section would
                 // otherwise squeeze to fit rather than scroll
-                className="bg-panel max-sm:bg-app shrink-0 overflow-hidden rounded-xl"
+                className="bg-panel max-sm:bg-app rounded-card shrink-0 overflow-hidden"
               >
                 <h3>
                   <button
@@ -410,7 +410,7 @@ function TypeFilter({
           )}
           <span className="truncate">{only ? KINDS[only].label : "All Types"}</span>
         </span>
-        <ChevronDownIcon className="text-muted-foreground size-4" />
+        <ChevronDownIcon className="text-ink-meta size-4" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-52">
         <DropdownMenuRadioGroup
@@ -515,7 +515,7 @@ function Suggestion({
       // is also outlined as its lines are, so a click on a line lands on a
       // card that is plain to see among the others
       className={cn(
-        "scroll-mt-2 rounded-lg pb-3 transition-[background-color,box-shadow]",
+        "rounded-control scroll-mt-2 pb-3 transition-[background-color,box-shadow]",
         (lit || current) && "bg-ink/[0.03]",
         current && "ring-ink/25 ring-1 ring-inset",
       )}
@@ -615,7 +615,7 @@ function ChangeBody({ change, bank, choices }: { change: Change; bank: Bank; cho
           return {
             key: bulletId,
             tag: (
-              <span className="bg-warning-tint text-warning rounded-md px-1.5 py-0.5 text-xs font-semibold whitespace-nowrap tabular-nums">
+              <span className="bg-warning-tint text-warning text-note rounded-md px-1.5 py-0.5 font-semibold whitespace-nowrap tabular-nums">
                 <span className="sr-only">
                   From {ordinal(from)} to {ordinal(to)}:{" "}
                 </span>
@@ -665,7 +665,7 @@ function ChangeCard({ rows }: { rows: { key: string; tag?: ReactNode; body: Reac
   return (
     <ul
       role="list"
-      className="bg-panel border-border-subtle divide-border-subtle text-note text-ink divide-y rounded-lg border"
+      className="bg-panel border-border-subtle divide-border-subtle text-note text-ink rounded-control divide-y border"
     >
       {rows.map(({ key, tag, body }) => (
         <li key={key} className="flex items-start gap-2.5 px-2.5 py-2">
@@ -678,7 +678,7 @@ function ChangeCard({ rows }: { rows: { key: string; tag?: ReactNode; body: Reac
 }
 
 function RowLabel({ children }: { children: ReactNode }) {
-  return <span className="text-ink-meta w-11 text-xs font-semibold">{children}</span>;
+  return <span className="text-ink-meta text-note w-11 font-semibold">{children}</span>;
 }
 
 function Removed({ children }: { children: ReactNode }) {

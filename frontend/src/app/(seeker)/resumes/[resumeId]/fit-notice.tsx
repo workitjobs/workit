@@ -93,7 +93,7 @@ export function FitToast({
     <div
       role="status"
       className={cn(
-        "bg-panel ring-border-subtle shadow-lift animate-rise fixed z-50 flex items-start gap-3 rounded-2xl p-4 ring-1",
+        "bg-panel ring-border-subtle shadow-lift animate-rise rounded-card fixed z-50 flex items-start gap-3 p-4 ring-1",
         className,
       )}
     >

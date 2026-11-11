@@ -24,7 +24,7 @@ export const SECTIONS = {
   type: {
     slug: "type",
     title: "Type",
-    note: "One typeface, Plus Jakarta Sans, with Geist Mono for code. Weight and letter-spacing are baked into each token, so a caption cannot be used without its tracking. Two sizes are both 11px: caption carries uppercase tracking and weight 600, meta carries neither. shadcn's stock sizes resolve to this scale too. Four weights, each with one job (Weights), and icons drawn to sit beside medium text (Icons).",
+    note: "Inter for every word in the app, Plus Jakarta Sans for the marketing pages' headlines only, and Geist Mono for code. Weight and letter-spacing are baked into each token, so a caption cannot be used without its tracking. Two sizes are both 11px: caption carries uppercase tracking and weight 600, meta carries neither. shadcn's stock sizes resolve to this scale too. Four weights, each with one job (Weights), and icons drawn to sit beside medium text (Icons).",
   },
   shape: {
     slug: "shape",
@@ -173,27 +173,30 @@ export const COLOR_GROUPS: ColorGroup[] = [
     tokens: [
       { token: "--chart-1", role: "→ --color-brand · in flight, early (Screening)" },
       { token: "--chart-2", role: "→ --color-advanced · in flight, late (Interview)" },
-      { token: "--chart-3", role: "→ --color-match-strong · ended well (Offer) · 3.50:1 on app" },
+      {
+        token: "--chart-3",
+        role: "→ --color-match-excellent · ended well (Offer) · 3.50:1 on app",
+      },
       { token: "--chart-4", role: "→ --color-danger · ended badly (Rejected)" },
       { token: "--chart-5", role: "Slate grey · inert, Other, de-emphasis · 3.25:1 on app" },
     ],
   },
   {
     title: "Match",
-    note: "The bands a match score is read in, from @/lib/match: the ring on a board card's badge, the arc on a job's match rail, and the bar on the company Dashboard's Recent Applicants. Red, yellow and green, so a score says good or bad with no legend. Strokes and bars only, never text: the tier's words stay ink-muted. Every step clears 3:1 on white and on --color-well.",
+    note: "The bands a match score is read in, from @/lib/match: the ring on a board card's badge, the arc on a job's match rail, and the bar on the company Dashboard's Recent Applicants. Red, orange, yellow and green, four bands, so a score says good or bad with no legend; red only under 40. Strokes and bars only, never text: the tier's words stay ink-muted. Every step clears 3:1 on white and on --color-well.",
     tokens: [
       {
         token: "--color-match-excellent",
-        role: "→ --color-positive-ink · Excellent Match, deep green · 5.35:1 on white",
+        role: "Excellent Match, 80 up, green · 3.81:1 on white",
       },
       {
-        token: "--color-match-strong",
-        role: "Strong Match, green · 3.81:1 on white",
+        token: "--color-match-good",
+        role: "Good Match, 65 to 79, dark yellow, the darkest that reads yellow at 3:1 · 3.24:1 on white",
       },
-      { token: "--color-match-good", role: "Good Match, yellow · 3.24:1 on white" },
+      { token: "--color-match-fair", role: "Fair Match, 40 to 64, orange · 3.68:1 on white" },
       {
         token: "--color-match-weak",
-        role: "→ --color-ink-muted · Weak Match, neutral until real cut-offs (KAN-569) · 10.70:1 on white",
+        role: "→ --color-danger · Weak Match, under 40, red · 5.77:1 on white",
       },
     ],
   },
@@ -308,7 +311,11 @@ export const TYPE_SCALE: { token: string; cls: string; role: string }[] = [
   { token: "--text-label", cls: "text-label", role: "Field labels, links, buttons" },
   { token: "--text-body", cls: "text-body", role: "Body copy, inputs" },
   { token: "--text-subtitle", cls: "text-subtitle", role: "Work-history job titles" },
-  { token: "--text-title", cls: "text-title", role: "Card and column headings" },
+  {
+    token: "--text-title",
+    cls: "text-title",
+    role: "Section and column headings, a job card's title; 600",
+  },
   { token: "--text-heading", cls: "text-heading", role: "Page name — Tracker" },
   { token: "--text-display", cls: "text-display", role: "Company Dashboard headline figures" },
   {
@@ -319,9 +326,16 @@ export const TYPE_SCALE: { token: string; cls: string; role: string }[] = [
   { token: "--text-hero", cls: "text-hero", role: "Onboarding question from lg, 40px regular" },
 ];
 
-/** The faces themselves come from next/font in app/layout.tsx. */
+/** The faces themselves come from next/font: Inter and Geist Mono in
+ *  app/layout.tsx, Plus Jakarta Sans in app/fonts.ts (loaded by this kit's
+ *  layout and the marketing pages' only). */
 export const TYPEFACES: { token: string; cls: string; role: string }[] = [
-  { token: "--font-sans", cls: "font-sans", role: "Plus Jakarta Sans · every word in the app" },
+  { token: "--font-sans", cls: "font-sans", role: "Inter · every word in the app" },
+  {
+    token: "font-display",
+    cls: "font-display",
+    role: "Plus Jakarta Sans · the marketing pages' headlines (every h1 to h3 there), never the app",
+  },
   {
     token: "--font-mono",
     cls: "font-mono",
@@ -330,7 +344,7 @@ export const TYPEFACES: { token: string; cls: string; role: string }[] = [
   {
     token: "--font-heading",
     cls: "font-heading",
-    role: "→ --font-sans · shadcn's title face, so a dialog title is Plus Jakarta Sans too",
+    role: "→ --font-sans · shadcn's title face, so a dialog title is Inter too",
   },
 ];
 
@@ -343,24 +357,24 @@ export const TYPEFACES: { token: string; cls: string; role: string }[] = [
  */
 export const WEIGHTS: { token: string; cls: string; role: string }[] = [
   {
-    token: "450 · font-normal",
+    token: "400 · font-normal",
     cls: "font-normal",
     role: "Reading: body copy, helper text, typed values in inputs, descriptions",
   },
   {
-    token: "500 · font-medium",
+    token: "450 · font-medium",
     cls: "font-medium",
-    role: "Anything clicked or picked: buttons, chips, segmented controls, menu rows, select and filter options, field labels (--text-label)",
+    role: "Anything clicked or picked: buttons, chips, segmented controls, menu rows, select and filter options, field labels (--text-label). A filter or sort trigger is 400",
   },
   {
     token: "600 · font-semibold",
     cls: "font-semibold",
-    role: "Names a block: card and dialog titles at --text-subtitle, a job's title, captions",
+    role: "Names a block: card and dialog titles at --text-subtitle, --text-title, a job's title, captions",
   },
   {
     token: "700 · font-bold",
     cls: "font-bold",
-    role: "Names a page: --text-title, --text-heading, --text-display",
+    role: "Names a page: --text-heading, --text-display; a job description's section heading",
   },
 ];
 

@@ -1,5 +1,6 @@
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { Card } from "@/components/ui/card";
+import { PAGE_SEARCH } from "@/components/ui/search-field";
 import { cn } from "@/lib/cn";
 
 import { SEEKER_GUTTER } from "../gutter";
@@ -32,10 +33,7 @@ export default function ApplicationsLoading() {
       <div role="status" className="flex flex-col gap-3">
         <span className="sr-only">Loading your applications</span>
         <div className="flex items-center justify-between gap-3">
-          <Skeleton
-            aria-hidden="true"
-            className="h-10 min-w-0 flex-1 rounded-full @lg/main:max-w-64"
-          />
+          <Skeleton aria-hidden="true" className={cn("h-10 rounded-full", PAGE_SEARCH)} />
           <ViewSwitcher />
         </div>
         {/* The dropdowns step out at the real row's own container widths

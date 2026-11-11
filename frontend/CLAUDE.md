@@ -68,8 +68,33 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   `cf:deploy` uploads it. Each is one binary, so `cf:preview` and `cf:deploy`
   need a fresh `cf:build` first. `npx wrangler deploy --dry-run --outdir
   <dir>` prints the upload size with no Cloudflare login: the Workers Paid cap
-  is 10 MiB gzip (4.8 MiB on 2026-11-02; the cached pages are assets and
-  do not count). Never run a real deploy locally.
+  is 10 MiB gzip (4.8 MiB on 2026-11-02, 4.5 MiB on 2026-11-10; the cached
+  pages are assets and do not count). Never run a real deploy locally.
+- **The Worker's size is its cold start** (KAN-782, 2026-11-10). Each new copy of
+  the Worker loads and parses the whole script before it answers. Static
+  files are served before the Worker runs. On workitjobs.ai, about half of
+  the requests one second apart met a new copy: 0.75 to 1.35 s, against
+  0.06 s once warm, even for a prerendered page or `/api/session`. A ping
+  cannot keep it warm, as the API's cron keeps the API's containers
+  (`backend/CLAUDE.md`, Deployment): Cloudflare starts and drops Worker
+  copies itself. So keep the script small. `"minify": true` in
+  `wrangler.jsonc` (wrangler bundles OpenNext's output again and wrote it
+  unminified, 22.5 MB, now 15.1 MB), and a library only the browser runs
+  stays out of the server bundle: a bare `import()` in a client component
+  still puts its target there, so guard it with `typeof window ===
+  "undefined"`, which the bundler folds (`loadPdfjs` in
+  `resumes/[resumeId]/pdf-pages.tsx`, pdf.js, about 0.4 MB). To measure:
+  `npx wrangler deploy --dry-run --outdir <dir>` prints the size;
+  `npx wrangler check startup` profiles startup (about 18 ms of CPU: the
+  cost is the parse and the first request, not startup code); and a loop of
+  `curl -so /dev/null -w '%{time_starttransfer}\n'
+  https://workitjobs.ai/api/session`, a second apart, counts the cold
+  answers after a deploy. **Still open:** about 3.8 MB of the 9 MB of page
+  code are copies of shared modules that Turbopack puts in each route's
+  server chunk (Phosphor icons in 128 chunks), with no setting to share
+  them; and the Node proxy brings Next's server and `@vercel/og` with its
+  two WebAssembly files (3.2 MB and 1.4 MB) into the bundle, which only
+  moving the proxy to the Edge runtime would drop (`src/proxy.ts`, below).
 - **`@opennextjs/cloudflare` is pinned exactly**: each release's peer range
   sets a floor on `next` (1.20.6 is the newest that takes `next` 16.3.3).
   Raise them together; a newer adapter on an older Next fails to install.
@@ -222,10 +247,10 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
 - **The page at `/` is the landing page, `app/(landing)/`**, ported from
   the team's Astro marketing site (`WorkIt-Website`, kept outside this repo)
   in place of the old Job Seeker / Hiring chooser. Its components keep the
-  site's markup, classes and copy, with two deliberate changes, and set the
-  app's own face (`--font-sans`, Plus Jakarta Sans) instead of the site's
-  Inter, so the page and the app read as one product; Google Sans loads only
-  for the Google sign-in button.
+  site's markup, classes and copy, with two deliberate changes, and read in
+  the app's own face (`--font-sans`, Inter, as the site had it), with Plus
+  Jakarta Sans on the headlines (below, "Type on the marketing pages");
+  Google Sans loads only for the Google sign-in button.
   **Colour and logo:** the site's numbered blue scale became
   `landing-brand-50` to `950` in `globals.css`, the same steps in WorkIt
   violet, so a component copied from the site needs only `brand-N` renamed
@@ -1241,7 +1266,17 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   client navigation to a marketing page shows "Open WorkIt" until the
   probe answers. The hint is a guess for the header alone; nothing
   decides access by it.
-- **Type on the marketing pages.** Plus Jakarta Sans is 1.26em tall
+- **Type on the marketing pages.** **Headlines are Plus Jakarta Sans and
+  everything else is Inter** (2026-11-10, Jobright's split: a display face
+  on marketing headlines, Inter in the product). One rule in landing.css
+  gives every `h1` to `h3` under `.landing` the face, so a new section's
+  heading cannot miss it; a display line that is no heading (the bridge's
+  lines, the footer's tagline, the quote, a plan's price) takes the
+  `font-display` utility, and a heading that is a small label (the
+  footer's column titles) takes `font-sans` back. Mock app screens on the
+  page draw no `h1` to `h3`, so they stay Inter, as the app is. The face
+  loads from `app/fonts.ts`, only in this layout and the design kit's, so
+  an app page never downloads it. Plus Jakarta Sans is 1.26em tall
   (ascent 1.038, descent 0.222), taller than any display line, so a
   wrapped heading's lines overlap by a few pixels. The selection
   (`.landing ::selection`) is see-through, 14% of the brand violet, so a
@@ -1401,13 +1436,15 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   sticky bar on the page takes `bg-app`, or it shows as a white strip. Each
   rail tile is an icon over its name, and below md the rail is a sheet of
   rows with the same names. **Each section has one name in the panel**
-  (Tracker, Resumes, Profile), short enough for a tile: a `short` for the
+  (Tracker, Experiences, Documents, Profile), short enough for a tile: a `short` for the
   tile beside a longer name in the sheet ("Applications Tracker") read as
   two sets of names for one app (2026-11-05). **The same names are used
   everywhere a student reads them**: the bar's title, page titles, Back
   links, breadcrumbs and any line that sends them there ("on your Profile",
-  "on Resumes"). Never "Applications Tracker", "Resumes & Experiences" or
-  "My Profile" again. On hover
+  "on Experiences"). Never "Applications Tracker", "Resumes & Experiences" or
+  "My Profile" again. Documents' tabs, Resumes and Cover Letters
+  (KAN-766), name its two pages and their Back links ("Back to
+  Resumes"). On hover
   and press only the fills move; the icon stays still (KAN-426), since a
   2px icon nudge on top of the gliding fill read as the row jumping. The panel
   never moves the page, so there is no pin, no peek and no `--panel-gain`
@@ -1415,14 +1452,28 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   (1440px) inside `SEEKER_GUTTER`, so all start at Home's left edge; the
   Applications Tracker alone has no cap. At `max-w-app` (1024px) they sat
   centred between wide empty margins beside the rail. **A job's page is the
-  exception: one centred 800px column** (`max-w-job`, `JOB_PAGE_WIDTH` in
-  `jobs/[jobId]/job-view.tsx`, 2026-11-09), shared with the application's
-  own page, so the action bar, the header, Key Requirements and About the
-  Role all end on one edge (736px of content, the action bar's one row).
-  In the split view's pane the bar takes the pane and the content under it
-  stops at the same 736px (`JOB_COLUMN`). About the Role is 16px there,
-  about 90 characters a line; at 46ch of 14px (KAN-569) it ended halfway
-  across the full-width blocks above it and read as cut short.
+  exception: it takes the Cards view's column and its card's shape**
+  (`max-w-feed`, `JOB_PAGE_WIDTH` in `jobs/[jobId]/job-view.tsx`,
+  2026-11-10), shared with the application's own page: the action bar and
+  the job's panel take the whole 944px. **The posting is one white panel**
+  (`JobPanel`, 2026-11-10, after Jobright's): the header (company line with
+  Save and ⋮ at its end, title, facts) beside the match tile the card
+  shows (`GET /jobs/{id}/match`, the card's grey tile at its 240px,
+  stretched to the header's height), then under a rule across the panel
+  the open tab's pane: Key Requirements and About the Role as sections
+  with a rule between them, or the Company tab. It was three cards, and
+  the two under the header stopped 17.25rem short (`JOB_BODY`) where the
+  rail started, so an empty column ran down the right and a 150px hole sat
+  under the facts beside the taller rail; the user found the page not
+  thought out. It was one 800px column (`max-w-job`, 2026-11-09) before,
+  208px narrower than the card the student had just clicked. In the split
+  view's pane the panel is flat, the bar takes the pane, the content under
+  it stops at 736px (`JOB_COLUMN`), and the tile shows there too
+  (2026-11-10; it was hidden, since the list card beside it has a score,
+  but that small tile has no reasons and the open job read as unscored). Every page outside the Jobs page and a
+  posting's own page (Home, Tracker, Auto Apply, Documents, Experiences,
+  Profile, Tailor) is a workspace of tables, grids or columns and keeps
+  `max-w-dashboard`.
   The user found the floating panels wasted room, and the 256px panel that
   opened over the page on hover a flaw. A height worked out from the
   shell's chrome (the job rail's `100svh-4rem`) changes with it. A sidebar
@@ -1521,9 +1572,10 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   company bar's corner and the split view's list heading each crossed one
   until 2026-11-03. The seeker top bar's rule and the rail's edge are
   `border-surface`, as the cards are (2026-11-09); the company shell keeps its lavender
-  `rail-border`. A "·" between facts is round: the "Round Dot" face in
-  `globals.css` draws U+00B7 from Georgia, since Jakarta's is square; keep
-  typing "·" and never draw a dot in markup (`docs/design.md`, Components).
+  `rail-border`. A "·" between facts is round: Inter's own is (the "Round
+  Dot" face that borrowed Georgia's for Jakarta's square one went with the
+  switch, 2026-11-10); keep typing "·" and never draw a dot in markup
+  (`docs/design.md`, Components).
   Skeletons are `bg-ink/6`, so they show on white and on the ground.
 - **The sidebar's current fill never slides** (`components/app-sidebar.tsx`,
   2026-11-02): it lands on the row at once, because the slide read as
@@ -1547,7 +1599,12 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   Up Next's skeleton showed on the way to Application Info. The company side
   follows the same rules, with its own `error.tsx` and `not-found.tsx`. A
   client-side read draws a skeleton line in its place too (Transcript, the
-  resume pickers' `ResumeListsSkeleton`), never a "Loading…" line.
+  resume pickers' `ResumeListsSkeleton`), never a "Loading…" line. **A
+  part that draws only once it hydrates (a canvas) keeps a skeleton in its
+  own place until its first frame** (Home's Activity map, `drawn` in
+  `home/streak.tsx`): the section's Suspense fallback ends when the
+  server's HTML lands, and the map's room stood blank white until the
+  page's script loaded, which read as a section with no loader.
   A page with two long reads streams each in its own `<Suspense>` over a
   skeleton of its shape, and starts every read before its first `await` (the
   Home: only the account is awaited). **Settings' modal has no
@@ -1648,13 +1705,13 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   (`applications/email-kinds.tsx`). No sidebar badge: one was removed; Settings > Integrations is the
   design only until the Google sign-in is built (`docs/screens.md`). Home's four numbers are all live and all links
   (KAN-342), each a white tile with its glyph in a small chip of its own
-  colour (KAN-423): Strong Matches green, Saved grey, Applied violet,
+  colour (KAN-423): Excellent Matches green, Saved grey, Applied violet,
   Interviewing yellow, from the matched `--color-kpi-*` set (2026-11-09:
   the tiles were tinted with the stage tints, which read as four families
   with no shared shade; white tiles with chips were chosen over a matched
   set of tinted tiles, `globals.css`); a filled
   Activity day opens a table of that day's applications. Its
-  Strong Matches reads the Best Match scores
+  Excellent Matches reads the Best Match scores
   (`getMatches`, one read with Top Matches), and Top Matches under them lists the twelve
   best-scoring jobs as flat rows that scroll inside a tile, with no score
   floor; its Auto Apply button picks jobs for the queue
@@ -1723,9 +1780,10 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   fact is for their Claude to quote, not the answer itself.
   Every resume dialog (Did You Apply?, Tailor's Pick a Resume, Up Next's
   Choose a Resume) picks through one list, `ResumeLists` in
-  `jobs/resume-picker.tsx` (KAN-360; grouped as the Resumes page since
-  KAN-406): change it there, never per dialog (`docs/screens.md`, Job
-  posting page).
+  `jobs/resume-picker.tsx` (KAN-360): change it there, never per dialog
+  (`docs/screens.md`, Job posting page). It is flat with a type badge on
+  each card, as the Resumes table is (2026-11-10; grouped by type with a
+  PDF mark on every card from KAN-406 until then).
   `docs/screens.md`, Applications, has the rest.
 - **Tailor is one step per view** (`(seeker)/jobs/[jobId]/tailor`,
   2026-10-26): every step opens with the same top row (`TailorBar`: Back,
@@ -1850,7 +1908,7 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   (`revalidate.js`: "TODO: only revalidate if the path matches"), so:
   the editor's per-edit saves (`saveLine`, `updateChoices`) and Fit never
   call it, or every edit would compile the PDF again and hold the save
-  queue behind it; they, and the Tailor run (a route handler, whose
+  queue behind it; they, the Tailor run and Generate (route handlers, whose
   revalidation never reaches the browser), call `markResumesStale`
   (`lib/resumes-stale.ts`), and the Resumes list reads itself again on
   mount when it is set. A screen whose write already revalidates calls no
@@ -2033,11 +2091,17 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   right (KAN-565). A disabled filled button is grey (`ui/button.tsx`,
   DISABLED_FILL), never a faded brand fill, and a lesser action beside a
   button is `variant="section"`, never brand text.
-- **Anything clicked or picked is medium (500)**: buttons, chips,
+- **Anything clicked or picked is medium (450, `--font-weight-medium`; 500
+  until 2026-11-10, which read thick beside Jobright's)**: buttons, chips,
   segmented controls, filter options, and shadcn's menu, select and
   combobox rows, which `globals.css` sets by `data-slot` since they set no
-  weight of their own (KAN-365). Regular text is 450, not 400
-  (`--font-weight-normal`): the face's 400 read thin in small grey text. The four weights and their jobs are in
+  weight of their own (KAN-365). One exception: a filter or sort trigger
+  (the row over the Jobs page, the Tracker's and the Resumes tab's) is
+  regular, 400, as Jobright's are (2026-11-10). `text-title` is 600; 700
+  names a page only. Regular text is 400
+  (`--font-weight-normal`, Inter's own, as Jobright's), and the page keeps
+  the Mac's own smoothing: no `antialiased`, which drew every word thinner
+  (2026-11-10). The four weights and their jobs are in
   `docs/design.md`, Type weights, and on `/design-kit/type`.
 - **Reading text is 12px or more** (KAN-554, `docs/design.md`, Type sizes):
   a sentence, hint, error, status or group name is `text-note` or larger;
@@ -2052,7 +2116,7 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   the assistant two marks (`docs/design.md`, Brand and icons). Tailor My
   Resume on a job's card and page is the one exception (`TailorIcon`,
   KAN-518): beside Ask Scout, a second sparkle read as a second assistant.
-- **A match score is red, yellow or green, only through `matchColor()`**
+- **A match score is red, orange, yellow or green, only through `matchColor()`**
   (`lib/match.ts`, KAN-518; `docs/design.md`, Colour): a magenta ramp said
   nothing about the fit, so the score now shares hues with the stages. The
   ramp's pink lives on as the marketing pages' `--color-updates`: a landing
@@ -2060,7 +2124,10 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   there when the bands changed. **Weak is red** (`--color-match-weak` is
   `--color-danger`): KAN-569 drew it in neutral ink while the cut-offs are
   placeholders, and the user brought the bands back on 2026-11-03, since a
-  black ring read as a fault. Keep all four bands coloured.
+  black ring read as a fault. Since 2026-11-10 there are four bands: Weak
+  (under 40) red, Fair (40 to 64) orange, Good (65 to 79) yellow,
+  Excellent (80 up) one green; Strong merged into Excellent, and with Weak
+  at 0 to 64 every card in the feed drew red. Keep all four coloured.
 - **A button is a rounded rectangle; a pill is a chip** (`ui/chip.tsx`, KAN-251).
   Pick a button's size by where it sits (`docs/design.md`, Components). A
   `className` on a Button or Chip may place it or colour a state, never change
@@ -2116,7 +2183,13 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   the kit's layout. Never type a variant's hover or focus classes into the
   kit: Tailwind builds only the classes it finds in the source, so a class cut
   from `hover:bg-brand-hover` at run time has no rule, and a typed copy
-  drifts.
+  drifts. **A kit row that reads the URL** (`useShallowParams`,
+  `useSearchParams`) sits in `<Suspense>` with `<ShallowRouting>` around
+  it, as the motion page's ShallowRouting row and the forms page's
+  TabLinks row do: the kit's pages are static, and without the boundary
+  `npm run build` fails on that page ("useSearchParams() should be wrapped
+  in a suspense boundary", KAN-766's CI, 2026-11-10). `npm run dev` never
+  shows it, so run the build after adding one.
 - **Never key a Tailwind `group-*` variant on the shell wrapper, or on any
   large ancestor whose attribute changes often** (KAN-368). Tailwind v4
   compiles it to `.cls:is(:where(.group)[attr] *)`, and Chrome then restyles
@@ -2234,8 +2307,8 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   `PdfPages`) and Tailor's page (`(seeker)/jobs/[jobId]/tailor`: the
   editor and a resume card's Preview dialog, `resume-preview.tsx`, which
   the review's View Original sets beside the page, `OriginalResume`), and
-  the Resumes page, whose built resume rows open that same Preview dialog
-  from an eye (KAN-358), through `import("pdfjs-dist")` inside an effect in
+  the Resumes page, whose duplicate modal draws the matching resume's first
+  page from the same preview (`ResumeFirstPage`, KAN-444), through `import("pdfjs-dist")` inside an effect in
   `(seeker)/resumes/[resumeId]/pdf-pages.tsx`: about 110 KB gzip plus a
   290 KB worker, which every other page would otherwise pay for, and its
   module touches browser globals, so a top-level import breaks the server
@@ -2548,6 +2621,26 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   against "Oct 20" (a browser in the Americas) broke hydration with React
   error #418 (2026-10-22). `toLocaleDateString()` in render is safe only for
   data fetched in an effect.
+- **A value read from browser storage in a `useState` initializer is
+  false while hydrating** (`useHydrated` in `(seeker)/local-time.tsx`,
+  read in the same render): the server has no storage, so a client that
+  reads it during hydration draws other classes and React warns. The Jobs
+  feed's `fromSnapshot` did, on every hard load with a kept snapshot
+  (2026-11-10).
+- **A page drawn under a modal on a hard load comes hidden from the
+  server.** The Settings modal hides everything outside itself but live
+  regions (`[aria-live]`), and walks into each live region's ancestors to
+  hide their other children, so on a hard load it set `aria-hidden` inside
+  Home's streamed sections before they hydrated, and React warned of a
+  mismatch (2026-11-10). `settings/layout.tsx` wraps Home in
+  `aria-live="off" aria-hidden inert`: one kept region the modal never
+  walks into.
+- **A control inside a card with a click layer sits above the layer**
+  (`relative z-2`; the layer is `absolute inset-0 z-1`,
+  `components/job-posting-card.tsx`). `relative` alone is not enough: Save
+  on the job card had no z-index, sat under the layer, showed no hover and
+  opened the job when clicked (2026-11-10). Check a new control with
+  `document.elementFromPoint` at its centre.
 - **A relative time ("Posted 5 minutes ago") rendered in a client component
   sits in an element with `suppressHydrationWarning`**, as the job card's
   badge does. The clock moves between the server render and hydration, so
@@ -2764,60 +2857,64 @@ are in `docs/auth.md`.
   short.
 - **The Resumes view is one list of every resume** (KAN-362, KAN-404,
   `(seeker)/resumes/built-resumes.tsx`): uploaded, generated and tailored,
-  newest first, each as its card (`components/resume-row.tsx`'s box, star
-  and icons: star, Rename, Download, Delete; Delete asks in a popover
-  under the trash, `DeleteResumeConfirm`, KAN-347; below `@xl` of the
-  row, a phone's, Rename, Download and Delete sit in a `⋯` menu,
-  `RowMoreMenu`, and the name keeps half the row, KAN-575), in one card that scrolls
-  inside itself and runs down to the foot of the page (`ResumeScroll`'s
-  `fill` in `components/resume-list.tsx`, KAN-434), never shorter than
-  five cards under a heading (`FIVE_ROWS`, 352px). Capped at five cards,
-  it left half a laptop screen empty under it. The cap is measured from
-  the start of the page, not the window: a cap that grew as the list's top
-  rose would grow the page with it as it scrolled. **It is laid
+  newest first, as a List or a Grid (KAN-766). **The List is a table
+  after the Tracker's** (`applications/list.tsx`; `ResumeList` in
+  `resumes/resume-list.tsx`, rows by `ResumeCard`, 2026-11-10): one white
+  card, grey headings Name, Target Job, Type and Date Modified, rules
+  between rows, a row that opens the resume on a click anywhere
+  (`ClickableRow`), and the actions at the right (Make Primary, Rename,
+  Download, Delete on hover, ⋮ always; Delete asks in a popover under the
+  trash, `DeleteResumeConfirm`, KAN-347). After Jobright's resume table,
+  the name stands alone with a Primary badge on the primary, and a
+  tailored resume's job has its own column, drawn as the Tracker's Role
+  cell (logo, then the role over the company), empty for the rest; no
+  tile leads a row, since Type says what each resume is. The headings name each column once: as cards, each resume
+  labeled its own date "Modified" or "Created", which the user found
+  repetitive. Its columns do not move, resize or hide as the Tracker's
+  do. **Both layouts scroll with the page**, as the Tracker's table does
+  (2026-11-10): the list, then the grid, scrolled inside their own box
+  down to the page's foot from KAN-434 (`ResumeScroll`'s `fill`, which
+  Tailor's Pick a Resume keeps), and once the table scrolled with the page
+  a switch of layout also switched how the page scrolled. The loading
+  frame draws the layout the cookie names ((list)/loading.tsx), or the
+  page jumped from a table to the grid as it loaded. **It is laid
   out as the Applications Tracker is**, so keep the two alike: the search
   on its own row, then the Type filter (`FieldFacet`, the Applications
   list's dropdown, in `?type=`) and the Sort dropdown (Last Edited, the
   default; Oldest First; Name, A to Z; in `?sort=`, KAN-366) with Upload
   Resume and Generate Resume at the right, both above the list, and `EmptyState` in the list's place
   when no card shows. Upload Resume and Generate Resume never sit in the
-  shared header. A card says what it is in its own line ("Uploaded …",
-  "Last edited … · For <posting>"), so the list needs no Type or date
-  column: two table versions came first in KAN-362, one with Type and
-  Last Edited columns and sort headings, one with each row's icons in a
-  `⋯` menu, and the user found the columns useless beside the cards and
-  the menu hid the actions students use. Three views behind pills, then
+  shared header. Two table versions came first in KAN-362, one with Type
+  and Last Edited columns and sort headings, one with each row's icons in
+  a `⋯` menu; the user found the columns useless beside cards that each
+  said what they were, and the menu hid the actions students use. The
+  table came back on 2026-11-10 with the icons kept on hover. Three views behind pills, then
   tabs, came before that: each split one list though every card acts
   alike, and a student had to look in three places for their latest
-  resume. **The list is grouped by type, as Notion's Group by**
-  (KAN-404): Uploaded, Generated, then Tailored, the Type filter's order,
-  each under a sticky heading with its name in a `Badge` pill and its
-  count, which folds it (`ResumeGroup`, `?collapsed=`). The search, Type
-  and Sort still run over every row; the groups only split what they
-  leave, the order runs inside each group, and the starred resume leads
-  its own. **Keep one scroll for the list, never a scroll box per group
+  resume. **The list is flat, as the grid is** (2026-11-10): every card
+  the search, Type and Sort leave, in the sort's order, the starred resume
+  first. It was grouped by type from KAN-404 (Uploaded, Generated, then
+  Tailored, each under a sticky heading with a pill and a count that
+  folded it, `?collapsed=`), so the uploads, capped at 5, did not sink
+  under the tailored resumes, which have no cap. The user dropped the
+  groups once the grid came without them: the headings looked ugly beside
+  it, and the Type filter finds one type. Do not group one view and not
+  the other. **Keep one scroll for the list, never a scroll box per type
   and no Show N More**: nested, the wheel and a finger get caught in the
   inner box, and a per-group limit with Show N More (Notion's) was built
-  and turned down by the user, who wants the list to scroll on. The
-  heading sits on z-20, over the cards' z-10 icons, which bled over it on
-  the same layer. Uploads are capped at 5 and Generate refuses duplicates, but
-  tailored resumes have no cap (one per job posting), so ungrouped they
-  buried the uploads and a student needed the Type filter to find their
-  own file. A first version had two groups, Uploaded and Generated, then
-  Tailored, with grey capitals for names; the user wanted one group per
-  type and the names in pills, which stand out from the grey cards.
+  and turned down by the user, who wants the list to scroll on.
   **Below a 42rem row the filters are two even rows** (Type and Sort,
   then the two buttons), and below 24rem the buttons say only Upload and
   Generate (`ShortLabel`, "Resume" kept for screen readers): wrapped as
   one row the buttons sat alone at the right, and "Generate Resume"
   broke onto two lines on a phone. **Every resume picker dialog draws
-  the same grouped list** (KAN-406): `components/resume-list.tsx` holds
-  the groups, the heading (`ResumeGroup`) and the scroll (`ResumeScroll`:
-  five cards in a picker, the page's foot with `fill`), and each screen
-  draws its own cards in it, the
-  Resumes page's with their actions, a picker's with a radio. A change
-  to how the list groups or scrolls goes there, so the page and the
-  dialogs never drift apart again. The picker's row is the page's row
+  the same list** (KAN-406): `components/resume-list.tsx` holds the
+  scroll (`ResumeScroll`: five cards in a picker, the page's foot with
+  `fill`) and the pickers' group heading (`ResumeGroup`), and each screen
+  draws its own cards in it, the Resumes page's with their actions, a
+  picker's with a radio. The pickers still group by type; the Resumes
+  page stopped on 2026-11-10 (above). A change to how the list scrolls
+  goes there, so the page and the dialogs never drift apart again. The picker's row is the page's row
   cut down: the search, the Type filter and, where the dialog takes a
   file (Did You Apply?, Tailor), Upload Resume, which at the 5-upload
   limit asks which upload the file replaces, under the row. No Sort and
@@ -2836,11 +2933,12 @@ are in `docs/auth.md`.
   card, since pdf.js cannot draw one. Its bar (the editor's look) holds
   Make Primary, Rename, Delete and Download, calling what the upload's
   card calls, and reads the name and star back with `router.refresh()`
-  rather than guessing them. A built resume's row also has an eye
-  (KAN-358) that shows it read-only in Tailor's Preview dialog
-  (`ResumePreviewDialog`), so a look never opens the editor; it passes the
-  row's `edited_at` as `version`, because the dialog keeps each answer for
-  the app's life and would show a PDF from before an edit. An upload's card opened its Storage link in
+  rather than guessing them. A built resume's card had an eye (KAN-358)
+  that showed it in Tailor's Preview dialog until 2026-11-10, when it came
+  off so every card has the same four icons (`docs/screens.md`, Resumes);
+  the duplicate modal's first page still passes the resume's `edited_at`
+  as `version`, because the preview keeps each answer for the app's life
+  and would show a PDF from before an edit. An upload's card opened its Storage link in
   a new tab until then (`lib/preview-resume.ts`, now gone), so an upload
   left the app and a DOCX simply downloaded.
 - **The Experiences view opens on All Experiences, and filters to one

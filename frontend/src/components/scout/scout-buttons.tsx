@@ -36,7 +36,7 @@ export function AskScoutButton({
     <IconButton
       label={`Ask Scout about ${job.title}`}
       tooltip="Ask Scout whether this role fits you"
-      variant={quiet ? "quiet" : "soft"}
+      variant={quiet ? "glyph" : "soft"}
       className={quiet ? undefined : "size-9 shrink-0"}
       onClick={() => askScoutAbout(job)}
     >

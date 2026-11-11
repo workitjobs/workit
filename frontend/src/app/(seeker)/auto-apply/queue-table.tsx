@@ -85,7 +85,7 @@ const TAB_STATUS: Record<BatchTabState, { label: string; ink: string; Icon: type
  *  752px instead (TABLE_WIDTH), so Role keeps 248px: at 456px it ran past
  *  the card and the ⋯ column covered the end of a long title. */
 const COLUMNS: { id: string; label: string; width?: string; folds?: boolean }[] = [
-  { id: "role", label: "Role" },
+  { id: "role", label: "Job" },
   // "Ready to Submit · Review" with its glyph, about 200px.
   { id: "status", label: "Status", width: "w-60" },
   { id: "resume", label: "Resume", width: "w-52" },
@@ -256,11 +256,12 @@ export function QueueTable({
                     type="button"
                     onClick={() => fold(id)}
                     aria-expanded={open}
-                    className="focus-visible:ring-brand-ring sticky left-4 flex items-center gap-2 rounded-xs focus-visible:ring-2 focus-visible:outline-none"
+                    className="group/fold focus-visible:ring-brand-ring sticky left-4 flex items-center gap-2 rounded-xs focus-visible:ring-2 focus-visible:outline-none"
                   >
                     <ChevronDownIcon
                       className={cn(
-                        "text-ink-meta size-3.5 transition-transform duration-150",
+                        // Ink under the pointer: the fold had no hover.
+                        "text-ink-meta group-hover/fold:text-ink size-3.5 transition-[transform,color] duration-150",
                         !open && "-rotate-90",
                       )}
                     />

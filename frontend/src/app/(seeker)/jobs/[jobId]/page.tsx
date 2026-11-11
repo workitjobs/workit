@@ -31,7 +31,9 @@ export async function generateMetadata({ params }: PageProps<"/jobs/[jobId]">): 
  * while the description scrolls (./action-bar): Save, Ask Scout, Auto Apply (queues it for the Auto
  * Apply page, as on the card), Tailor My Resume (./tailor, KAN-217; "Your
  * Tailored Resume" once the student has one for this posting) and Apply Now.
- * The header card below holds only who is hiring, the title and the facts.
+ * The header card below holds who is hiring, the title and the facts, and
+ * beside the facts the match rail its card shows (`GET /jobs/{id}/match`,
+ * 2026-11-10), so the page reads as the card it was opened from.
  * Apply Now asks which resume to send, keeps it as a sent resume linked to
  * this posting, then leaves for the employer's posting (../apply-button,
  * KAN-220); once one is sent, the page says "You sent <name> on <date>"
@@ -39,8 +41,8 @@ export async function generateMetadata({ params }: PageProps<"/jobs/[jobId]">): 
  * dialog asks "Did You Apply?" (KAN-242); Yes marks the job applied (KAN-232),
  * the page says "You applied on <date>", and the job leaves their feed. There
  * is no Applied button: one misclick marked a job applied with no undo. Save
- * keeps the job in My Applications (KAN-261). No
- * match rail: nothing scores a role yet, and an empty ring here would read as
+ * keeps the job in My Applications (KAN-261). With no score (signed out, an
+ * empty experience bank) there is no rail: an empty ring here would read as
  * a verdict.
  */
 export default async function JobDetailPage({ params }: PageProps<"/jobs/[jobId]">) {

@@ -138,6 +138,7 @@
       return null;
     }
     document.documentElement.removeAttribute("data-apply-chooser");
+    globalThis.__applyDom?.touch?.(clicked);  // Lisul's press: the click right after the touch on that element counts
     mouse(clicked, "click", at, { button, detail });
     if (detail === 2) mouse(clicked, "dblclick", at, { button, detail });
     // A click that asked for a file opens no picker without user activation: the tile asks Lisul instead.

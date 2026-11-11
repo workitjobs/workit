@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 
 import { useShallowParams } from "@/components/shallow-routing";
-import { SegmentedLinks } from "@/components/ui/segmented-control";
+import { TabLinks } from "@/components/ui/tabs";
 
 import { INBOX_LIVE } from "../../inbox/live";
 
@@ -24,7 +24,8 @@ import { INBOX_LIVE } from "../../inbox/live";
  * Both read the tab with useShallowParams, so the thumb and the pane follow
  * the same query, Back and Forward included. A hard load or a reload
  * renders the pane ?tab= names on the server, since the query is the
- * request's there.
+ * request's there. They are tabs (`TabLinks`, KAN-766), not the switcher
+ * they were: each is a different pane, not a look of one.
  */
 type Tab = "application" | "emails" | "job";
 
@@ -35,11 +36,11 @@ function useTab(): Tab {
   return tab === "job" || (tab === "emails" && INBOX_LIVE) ? tab : "application";
 }
 
-/** The tab switch, in the action bar or under the header (./page.tsx says
+/** The tabs, in the action bar or under the header (./page.tsx says
  *  which). `base` is the page's own address, with no query. */
 export function ApplicationTabs({ base, className }: { base: string; className?: string }) {
   return (
-    <SegmentedLinks
+    <TabLinks
       shallow
       label="Application Tabs"
       value={useTab()}

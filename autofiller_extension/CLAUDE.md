@@ -188,7 +188,10 @@ builds it: `dist/engine.js` is committed in the engine repo.
   taken as a source (KAN-489). A dropdown answer its list lacks takes the
   list's own name for it (Ferrovial's "United States of America"), and
   Phone Device Type takes Telephone where a tenant offers no Mobile (Ace
-  Hardware's).
+  Hardware's). The engine reads a phone type from `identity.phone_type`
+  (KAN-757); WorkIt holds no phone type and the adapter gives none, so
+  Mobile stays the engine's guess here. Adding one would need a profile
+  column and a migration.
   `test/workday-steps.extension.spec.ts` walks a whole application (Apply's
   fake Workday steps, as new pages and drawn in place) from Create Account
   to Review, Fill to Review saving each step it can and the test answering
@@ -1675,7 +1678,11 @@ the row names the signed-in sender, who alone can read it back. The popup's Requ
 (KAN-369) sends `POST /job-system-requests` (`routers/job_system_requests.py`):
 the host alone, no account in the row. The off switch (KAN-467) reads `GET
 /extension/config` (`routers/extension_config.py`), public and sent with no
-token: it names only the job systems turned off. Every fill sends `POST
+token: it names only the job systems turned off. The Rules table (KAN-756's
+contract, KAN-773; `src/background/rules.js`) is `POST /extension/rules/token`
+with the posting's link, then `GET /extension/rules` with that site token
+(`routers/extension_rules.py`): the account's watermarked copy of the
+engine's table for that one job system, below. Every fill sends `POST
 /fill-events` (KAN-476, `routers/fill_events.py`; "Fill numbers" below):
 counts and error names only, with the sender for the backend's daily cap.
 The rest are older:
@@ -1761,6 +1768,68 @@ browser trusts the extension's declared permission instead of requiring the
 server to opt in. This is standard, documented Chrome extension behavior,
 not something this prototype had to build. See Open Items for the one
 caveat (this is unverified against a live Chrome instance — see below).
+
+## The Rules table from the API (KAN-773): fetched on posting open, memory only
+
+The engine bundles its Rules table (selectors, wordings, patterns, answer
+rules; the engine README's "The Rules table") and the API serves the same
+table, one job system at a time, watermarked per account
+(`backend/app/routers/extension_rules.py`). `src/background/rules.js`
+fetches it as a posting opens, before any fill: `panel/where` (the
+launcher) and a batch tab's `openTab` call `prefetchRules`, which asks a
+site token for the page's link, then the table. A token is used again
+until 15 s before it expires (5 min by default), then a new one is asked
+for; a 401 for the table gets one new token and one more fetch.
+
+- **Memory only.** The table lives in the service worker's memory and in the
+  page's isolated world (`window.WIA.rules`, which the launcher asks for with
+  `rules/get`, so a worker Chrome stopped while the student read the posting
+  loses nothing). Never `chrome.storage`, IndexedDB or the page's storage.
+  Another account's sign-in drops every token and table.
+- **Every injection loads it.** `injectFill` (and `tab-load.js`'s Workable
+  draft check) runs `loadRulesIn` right after `ENGINE_FILES`; the
+  background's own engine, which plans, holds every site's held table at
+  once (the answers are the same in each).
+- **Any failure is the bundled table.** No answer, any 4xx or 5xx (a 500
+  too), a token for another job system, or a table the engine refuses (a
+  `RulesError`, checked in the background before it is held): the table
+  isn't held and the engine fills with its bundled one. With the full engine (the dev
+  extension's) a fill never waits for the API: a table still on its way is
+  the next fill's. The Store package's engine has no data of its own, so
+  there the fill waits a while and, with no table, is a basic one (below).
+- **As received.** The watermark is in the strings' order and spelling:
+  nothing here sorts, dedupes or rewrites them.
+- Job systems the off switch turned off and signed-out pages ask for
+  nothing. A practice form is Lever's form on WorkIt's own site: it asks for
+  Lever's table with a Lever link for its job (`tokenLink`), since the API
+  names no job system on WorkIt's site.
+- **The Store package bundles no job system's data (KAN-777).** It ships the
+  engine's Store bundle (fill-engine `dist/engine.store.js`, packaged as
+  `dist/engine.js`): the same code, every site `{}` and only the basic answer
+  rules (names, email, phone, links, home, school, degree, major,
+  graduation, work authorization, sponsorship, age). So every job system's
+  selectors, patterns, kinds and timeouts come from this table. A fill whose
+  table is still on its way, or failed as the posting opened, waits up to 5 s
+  for it, or for a new fetch for the page (`rulesFor`, `TABLE_WAIT_MS`; only
+  when the engine has no data of its own for the site). Whether the fill is
+  basic is the page's engine's to say (`supported`), not the background's,
+  which may hold a table that came after the page's engine was loaded.
+  With none, **the fill is a basic one** (`engine.js` `planBasic`): the
+  engine's `readBasic` reads the form's plain fields by their labels, the
+  basic rules plan them, `fillBasic` types the text answers (no file, no
+  list), and the panel's first row says "Basic fill: WorkIt can't reach its
+  server" and what it filled. A basic fill flags no empty required field and
+  watches no edits (the engine reads no job system's fields back), and the
+  row keeps a batch tab the student's. A stepped job system (Workday, Oracle,
+  iCIMS, SuccessFactors) gets no basic fill: its step is the student's. The
+  dev extension and every test but the Store build's load the full bundle,
+  which fills as before with no API.
+
+`test/store-build.extension.spec.ts`: the Store package filling Greenhouse
+fully with the served table, and a basic fill (and its row) with the API
+down. `test/rules.extension.spec.ts`: the prefetch, a renamed Ashby submit
+selector the fill then can't find, the token's reuse and renewal, every
+error in the contract falling back, and nothing stored.
 
 ## Work authorization, visa, clearance and EEO self-identification questions
 
@@ -2427,8 +2496,8 @@ after panel.js everywhere panel.js is (`CONTENT_SCRIPT_FILES`,
   logo when the API has one (in a 40 px tile; gone if the page won't load
   it), the title on up to two lines, then one line of company, place (`location_label`) and pay ("$45–$55 an
   hour"), and the Match score as a small ring
-  (purple) with its band (Strong Match at 80,
-  as frontend/src/lib/match.ts), and "You applied on Oct 25" at the applied
+  (purple) with its band (four since 2026-11-10: Weak, Fair from 40, Good
+  from 65, Excellent from 80, as frontend/src/lib/match.ts; Store 1.0.7), and "You applied on Oct 25" at the applied
   stage. No application, or signed out: the engine's `jobNames` read gives
   title and company only. No score: no ring. **A job WorkIt has is a link**
   (KAN-424): the whole card (`.job[role=link]`, Enter too) opens its job
@@ -2901,8 +2970,11 @@ so it stays. The **Store** gets `node store/build.mjs [outDir]` instead
 - `src/shared/config.js`: `DEV_API_URL` and `DEV_WEB_URL` null (every user
   of them skips a null one, so nothing probes or calls localhost),
   `TEST_HOOKS` false, the Vercel site gone (KAN-296).
-- only what Chrome loads: `manifest.json`, `icons`, `fonts`, `src`,
-  `fill-engine/dist`.
+- only what Chrome loads: `manifest.json`, `icons`, `fonts`, `src`, and
+  the engine's Store bundle as `fill-engine/dist/engine.js` (KAN-777, "The
+  Rules table from the API" above). Not its full bundle or the rest of its
+  `dist/`: `rules-table.json` (fill-engine KAN-756) is for other hosts, and
+  the Store spec fails on any engine file but `engine.js`.
 - every `.js` file minified by esbuild (KAN-744), with no source map and
   `BANNER`, the copyright notice, as its first line. The engine ships only
   as its minified `dist/engine.js` (about 284 KB, from 465 KB). esbuild runs
@@ -2912,7 +2984,16 @@ so it stays. The **Store** gets `node store/build.mjs [outDir]` instead
   needs `npm ci --prefix store` once.
 
 The build fails if any packaged file still names localhost, vercel.app or
-"Prototype" (as a word). A new dev-only line in `config.js` must be one
+"Prototype" (as a word), and if the package holds any job system's data
+(`perSiteData`): the packaged engine must bundle no site's data and only
+basic answer rules, and no packaged file may hold a selector, wording or
+pattern of the full table (`fill-engine/dist/rules-table.json`, the copy kept
+outside the package), nor a field-kind map (all its `type: "kind"` pairs) or
+a timeout written out (its name given its ms); the engine's own `{}` for
+every site covers all four parts, `kinds` and `timeouts` too, other than two generic label patterns (`GENERIC`) and
+the stepped systems' walk's own copies listed by file in
+`store/extension-site-data.json`, which KAN-778 moves behind the served
+table. A new one anywhere fails the build. A new dev-only line in `config.js` must be one
 `storeConfig` rewrites, or the build fails. `test/store-build.spec.ts` reads
 the zip back (minified, the banner, no source map, one engine file);
 `test/store-build.extension.spec.ts` loads the built package
