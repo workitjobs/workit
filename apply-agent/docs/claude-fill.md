@@ -163,21 +163,26 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
     input's ElementHandle first, so a frame that navigated meanwhile fails the set; a pop-up whose opener page is of
     another site is refused), page/dom.js's `files` and ops/tile.js's `chooser.set` on a plain Worker. Plain code
     (`attach_resume`) skips such frames, and one whose only resume input is there raises `upload_origin.Elsewhere`.
-  - While a guard is on, a file input in such a frame opens no picker, so Claude (Playwright MCP's own set is
-    unchecked) has no chooser there: a click on the input or its label is cancelled at the window and at each shadow
-    root `attachShadow` makes, closed ones too; a script's `click()`, `showPicker()` or dispatched click is refused.
-    A top frame whose opener is a frame (a pop-up another frame opened) is such a frame, and in a frame that may not
-    take a file, what it opens keeps its opener (`rel=opener`, `window.open`'s `noopener` dropped). A frame that
-    runs no script (a sandbox without `allow-scripts`) runs no guard, so the guard makes it `inert` while it is on.
-    The guard notes `upload_origin.BLOCKED`, and Claude fill raises `Elsewhere`. The guard's upload block is off only
-    on a page handed to Lisul (`lift()` with its note), never for the drive guard's lifted copy at open.
+  - While a guard is on, a frame that may not take a file is closed to every press, so Claude (Playwright MCP's own
+    set is unchecked) gets no chooser there and opens nothing from there (PR 556's re-review: a declarative closed
+    shadow root, a pop-up chain, a pop-up with no opener, a sandbox flipped then un-fenced). Every click is
+    cancelled at the window and at each shadow root the page makes or reaches (`attachShadow`,
+    `ElementInternals.shadowRoot`); a script's `click()`, `showPicker()`, dispatched click, `window.open()` and form
+    submission are refused; every frame in it is `inert`. A frame that runs no script (a sandbox without
+    `allow-scripts`) runs no guard, so it is `inert` anywhere. A fenced frame stays `inert` until the hand-over,
+    whatever its attributes say later. A top frame whose opener is a frame is such a frame. The guard notes
+    `upload_origin.BLOCKED` for a picker and "a click in another site's frame" for any other press, and Claude fill
+    hands the form over. The cost: Claude can press nothing in another site's frame (a Google sign-in button's frame
+    too). The guard's block is off only on a page handed to Lisul (`lift()` with its note), never for the drive
+    guard's lifted copy at open.
   - On a plain Worker, `browser_file_upload` also refuses such a frame and a tab of another origin than the drive's
     own, and the input must be the one the chooser opened for: `plain.tools` pins it in the isolated world when a
     tool's answer first shows the chooser, and a script's new input with the old one's mark gets nothing
     (`SWAPPED`). Lisul's own pick from a tile goes where he picked it.
+  - `give` refuses a pop-up with a page of another origin anywhere up its chain of openers (Playwright knows the
+    opener even under COOP or `noopener`).
   - What stays open: a job system's host serves every tenant's form, so a hostile top page could embed another
-    board's form (no worse than its own input). A closed shadow root from the page's HTML (declarative, no
-    `attachShadow`) is not watched. A tab opened with no opener by a top frame of another site is a top frame.
+    board's form (no worse than its own input).
 - Eightfold's dropdowns are toggles: a click on the option a list already holds (`aria-selected`) empties the
   field (KAN-767; Microsoft's "worked with Microsoft" and "subsidiary" went blank so in an Ask). On a plain Worker
   `browser_click` makes no click on an option its single-choice list holds already (`plain.tools.PICKED`) and

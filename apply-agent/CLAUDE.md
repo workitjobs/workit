@@ -203,7 +203,10 @@ into it and the window shows "Sample data".
   top's own origin. A hostile page's frame from another site could take the
   resume when nothing checked where a file went, and PR 556's review found
   five more ways past the first fix (a form inside another site's frame, a
-  dispatched click, a closed shadow root, a scriptless frame, a pop-up). Every new way to set a
+  dispatched click, a closed shadow root, a scriptless frame, a pop-up), and
+  its re-review four more. So while a guard is on, a frame that may not take a
+  file is closed to every press, Claude's too: a narrower block was got round
+  each time. Every new way to set a
   file goes through `upload_origin.give` (CDP) or the worker extension's
   checked sets (plain), and each new trick joins `tests/test_upload_origin.py`
   on CDP and on a plain Worker. The rule's JS copies (page/dom.js,
