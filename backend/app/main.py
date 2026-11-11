@@ -32,6 +32,7 @@ from app.routers.connector import added_router as connector_added_router
 from app.routers.connector import router as connector_router
 from app.routers.documents import router as documents_router
 from app.routers.extension_config import router as extension_config_router
+from app.routers.extension_rules import router as extension_rules_router
 from app.routers.fill_events import router as fill_events_router
 from app.routers.fill_reports import router as fill_reports_router
 from app.routers.intake import router as intake_router
@@ -49,13 +50,15 @@ from app.routers.tracker import router as tracker_router
 from app.routers.uninstall_answers import router as uninstall_answers_router
 from app.routers.writing_samples import router as writing_samples_router
 from app.schemas.extension_config import version_key
-from app.services import daily_caps
+from app.services import daily_caps, rules_table
 
 logger = logging.getLogger(__name__)
 
 
 @contextlib.asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    # The Fill engine's Rules table, read once (KAN-756); without the submodule the app still starts.
+    rules_table.load()
     # The connector's MCP server (KAN-377) answers only while this runs.
     async with connector.running():
         yield
@@ -125,6 +128,7 @@ app.include_router(fill_reports_router)
 app.include_router(fill_events_router)
 app.include_router(job_system_requests_router)
 app.include_router(extension_config_router)
+app.include_router(extension_rules_router)
 app.include_router(tracker_router)
 app.include_router(uninstall_answers_router)
 # The connector's MCP server and its OAuth endpoints (app/connector/server.py).

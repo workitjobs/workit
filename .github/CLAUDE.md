@@ -19,11 +19,17 @@ there, a test database that cannot be reached fails the job instead of
 skipping the tests.
 
 **The backend job runs only on a PR that touches `backend/`, `scout/`,
-`scraper/` or `ci.yml`** (the `changes` job's `backend` filter). The API
+`scraper/`, the fill-engine submodule's pin or `ci.yml`** (the `changes` job's `backend` filter). The API
 installs both packages (`workit-scout` and `workit-scraper`, path
 dependencies in `backend/pyproject.toml`), and its tests read no other
 folder: the root `.env` is absent in CI, and the Fill engine test skips
-without the submodule. A new path dependency joins the filter too. Only 3 of the 40 PRs merged before
+without the submodule. A new path dependency joins the filter too.
+**The backend job checks out the fill-engine submodule when
+`FILL_ENGINE_TOKEN` is set** (KAN-756), pinned as the other engine jobs
+pin it, and sets up Node 22: the Rules table's tests read the engine's
+`dist/rules-table.json` and run its round trip on the built engine
+(`backend/tests/test_rules_watermark.py`). Without the token those tests
+skip and the rest of the job runs. Only 3 of the 40 PRs merged before
 2026-11-04 touched either folder; the rest waited about 7 minutes for a
 job their change could not fail. A skipped job passes a required check. A
 new backend test that reads a file outside those folders adds that folder
@@ -177,6 +183,10 @@ concurrency group (`deploy-cloudflare`), whatever its ref: a group per ref let
 a branch run and a push to `main` deploy at once, so the app could end up on
 one's code and the API on the other's.
 
+- **The API job checks out the fill-engine submodule** with
+  `FILL_ENGINE_TOKEN`, pinned to the commit `main` records, because the image
+  copies the engine's Rules table from it (`backend/Dockerfile`, KAN-756). A
+  missing table fails the image build, never a deploy without it.
 - **Secrets:** `CLOUDFLARE_API_TOKEN` (account token from the "Edit Cloudflare
   Workers" template, scoped to the WorkIt account and the `workitjobs.ai`
   zone) and `CLOUDFLARE_ACCOUNT_ID`, which wrangler reads from the env.

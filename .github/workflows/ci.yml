@@ -101,6 +101,8 @@ jobs:
               - backend/**
               - scout/**
               - scraper/**
+              # The Rules table the API serves (KAN-756) is the engine's
+              - autofiller_extension/fill-engine
               - .github/workflows/ci.yml
             extension:
               - autofiller_extension/**
@@ -319,7 +321,7 @@ jobs:
   # changes job): 37 of the 40 PRs merged before 2026-11-04 touched neither, and each
   # waited about 7 minutes for it. A skipped job passes a required check.
   backend:
-    needs: changes
+    needs: [changes, engine]
     if: needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
     defaults:
@@ -343,7 +345,30 @@ jobs:
     env:
       TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:54330/postgres
     steps:
+      # The Rules table's tests (tests/test_rules_watermark.py, KAN-756) read
+      # the fill-engine submodule's table and run its round trip with Node;
+      # without FILL_ENGINE_TOKEN they skip and the rest runs.
       - uses: actions/checkout@v4
+        if: needs.engine.outputs.set == 'true'
+        with:
+          submodules: true
+          fetch-depth: 0
+          token: ${{ secrets.FILL_ENGINE_TOKEN }}
+      - name: Pin fill-engine to the commit this branch actually records
+        if: needs.engine.outputs.set == 'true'
+        working-directory: .
+        run: |
+          PINNED=$(git ls-tree HEAD autofiller_extension/fill-engine | awk '{print $3}')
+          git -C autofiller_extension/fill-engine fetch --depth 1 origin "$PINNED"
+          git -C autofiller_extension/fill-engine checkout --detach "$PINNED"
+          echo "fill-engine pinned at: $(git -C autofiller_extension/fill-engine rev-parse HEAD)"
+      - uses: actions/checkout@v4
+        if: needs.engine.outputs.set != 'true'
+      # Node 22 reads the engine's TypeScript fixtures as they are.
+      - uses: actions/setup-node@v4
+        if: needs.engine.outputs.set == 'true'
+        with:
+          node-version-file: .nvmrc
       - uses: astral-sh/setup-uv@v3
       - run: uv sync --locked
       - run: uv run ruff check .
