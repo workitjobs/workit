@@ -21,6 +21,7 @@ import { QueueBadge } from "./queue-badge";
 import { ScrollMemory } from "./scroll-memory";
 import { SeekerNotificationsBell } from "./seeker-notifications-bell";
 import { SeekerSidebar } from "./seeker-sidebar";
+import { Tip } from "@/components/ui/tip";
 
 /**
  * Chrome shared by every signed-in seeker screen, ruled into regions by the
@@ -167,10 +168,12 @@ export default async function AppLayout({
               phone's sheet. Named here, since shadcn's own name is "Toggle
               Sidebar". No logo beside it: the sheet's header shows the logo,
               and the bar's room on a phone goes to the bell (KAN-570). */}
-          <SidebarTrigger
-            aria-label="Open Menu"
-            className="text-ink hover:bg-well size-10 shrink-0 rounded-full md:hidden [&_svg]:size-4"
-          />
+          <Tip label="Open Menu">
+            <SidebarTrigger
+              aria-label="Open Menu"
+              className="text-ink hover:bg-well size-10 shrink-0 rounded-full md:hidden [&_svg]:size-4"
+            />
+          </Tip>
 
           <div className="min-w-0 flex-1 md:pl-2 lg:pl-4">
             <BarTitle

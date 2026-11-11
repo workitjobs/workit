@@ -43,9 +43,9 @@ export default function ApplicationsLoading() {
           <Skeleton className="hidden h-9 w-36 @min-[37rem]:block" />
           <Skeleton className="hidden h-9 w-36 @min-[46.5rem]:block" />
           <Skeleton className="hidden h-9 w-36 @min-[56rem]:block" />
-          <Skeleton className="hidden h-9 w-36 @min-[65.5rem]:block" />
-          <Skeleton className="ml-auto h-9 w-28 shrink-0" />
-          <Skeleton className="h-9 w-28 shrink-0" />
+          {/* All Filters and Table Settings: two round icon buttons. */}
+          <Skeleton className="ml-auto size-9 shrink-0 rounded-full" />
+          <Skeleton className="size-9 shrink-0 rounded-full" />
         </div>
       </div>
 

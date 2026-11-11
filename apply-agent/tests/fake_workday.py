@@ -322,6 +322,9 @@ class FakeWorkdayServer:
     `review_delay`: seconds the Review step shows only a placeholder, and its
     Submit button, before its answers (NVIDIA's, live).
     `box_wiring`: seconds after a step shows before its checkboxes take a click.
+    `dates_need_calendar`: each date shows what Workday holds in a hidden
+    "current value is" line and has a Calendar button; typed dates show but
+    are held wrong, and only the Calendar sets them (NVIDIA's, live, KAN-716).
     `to_sign_in`: Create Account makes the account and goes to a bare Sign
     In view, with no notice, as Workday's own code does on a success that
     says isLoginRedirect (Visa's, Northrop's, live). A tenant that verifies
@@ -345,7 +348,7 @@ class FakeWorkdayServer:
                  drops_untouched: bool = False, flashes_error: bool = False,
                  dropped_saves: int = 0, box_wiring: float = 0, to_sign_in: bool = False,
                  lost_picks: int = 0, exists_quietly: bool = False, hides_errors: bool = False,
-                 crashes_on_save: int = 0, plain: bool | None = None):
+                 crashes_on_save: int = 0, plain: bool | None = None, dates_need_calendar: bool = False):
         self.plain = bool(os.environ.get("APPLY_TEST_PLAIN")) if plain is None else plain
         self._responses: dict[str, tuple[int, str, bytes]] = {}
         redirects: dict[str, str] = {}
@@ -385,6 +388,7 @@ class FakeWorkdayServer:
         self._to_sign_in = to_sign_in
         self._exists_quietly = exists_quietly
         self._hides_errors = hides_errors
+        self._dates_need_calendar = dates_need_calendar
         # How many of the first saves hold none of the step's dropdown picks, though the page shows them
         # (ASML's Application Questions, live): the step is refused as missing them.
         self._lost_picks = lost_picks
@@ -421,6 +425,9 @@ class FakeWorkdayServer:
                 f"window.__fakeDroppedSaves = {self._dropped_saves}",
                 f"window.__fakeBoxWiring = {self._box_wiring}",
                 f"window.__fakeHidesErrors = {str(self._hides_errors).lower()}",
+                # Each date says what it holds and has a Calendar; typed dates are held wrong (NVIDIA's, live, KAN-716).
+                f"window.__fakeHeldLine = {str(self._dates_need_calendar).lower()}",
+                f"window.__fakeTypedDatesWrong = {str(self._dates_need_calendar).lower()}",
                 AUTH_SCRIPT, *([CONTINUE_SCRIPT] if self._in_progress else [])]
 
     @contextmanager

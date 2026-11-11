@@ -13,6 +13,7 @@ import {
 } from "@/components/shadcn/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/shadcn/popover";
 import { Button } from "@/components/ui/button";
+import { Tip } from "@/components/ui/tip";
 
 /**
  * A delete's question on a line under what it deletes: what goes and what
@@ -141,6 +142,7 @@ export function DeleteDialog({
  */
 export function DeleteResumeConfirm({
   trigger,
+  tip,
   anchor,
   open: shown,
   onOpenChange,
@@ -149,6 +151,8 @@ export function DeleteResumeConfirm({
 }: {
   /** The button the popover hangs from. */
   trigger?: ReactElement;
+  /** Its tooltip, for a trigger whose word folds away (an icon alone). */
+  tip?: string;
   /** With no trigger: what the popover hangs from, and `open` says when. */
   anchor?: RefObject<HTMLElement | null>;
   open?: boolean;
@@ -167,7 +171,14 @@ export function DeleteResumeConfirm({
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      {trigger && <PopoverTrigger render={trigger} />}
+      {trigger &&
+        (tip ? (
+          <Tip label={tip}>
+            <PopoverTrigger render={trigger} />
+          </Tip>
+        ) : (
+          <PopoverTrigger render={trigger} />
+        ))}
       <PopoverContent
         anchor={anchor}
         finalFocus={anchor}

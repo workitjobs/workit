@@ -175,6 +175,11 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
   "(YYYY-MM)", as the planner reads a format (`_with_formats`, KAN-714): Amazon's graduation month box
   says its format only there, and refused "May 2028". (amazon.jobs has its own Filler since KAN-765:
   `docs/fill-engine.md`.)
+- A date Claude fills is typed in the box's format and left; one that then shows an error, stays empty or reads
+  back another date is picked with its calendar and read back (FILL's date rule, KAN-716). amazon.jobs held no
+  typed date and held every date picked from its calendar, which a later page can show a day early: Claude lists
+  that in `for_lisul` and never picks another day to make up for it. Workday's dates are the Fill engine's: it
+  picks a date its "current value is" line doesn't hold as typed from Workday's Calendar (`docs/fill-engine.md`).
 - On a plain Worker (KAN-612; a PortPage, no CDP), `claude_cli.drive` gives
   `claude -p` Apply's own MCP server under the same name, `playwright`
   (`apply.plain.mcp`, a stdio relay, and `apply.plain.tools`, which runs

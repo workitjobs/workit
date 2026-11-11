@@ -8,7 +8,7 @@ import {
 } from "@phosphor-icons/react/ssr";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useRef, useState, type ComponentType, type FormEvent, type ReactNode } from "react";
 
 import { LocalDate } from "@/app/(seeker)/local-time";
 import { ResumeThumbnail } from "@/app/(seeker)/jobs/[jobId]/tailor/resume-preview";
@@ -74,7 +74,7 @@ export const ROW_NAME = "min-w-1/2 flex-1";
 /** The Resumes table's heading and cell type: the Tracker table's
  *  (`applications/list.tsx`'s TH and TD), so the two read as one app. */
 export const RESUME_TH = "px-4 text-note text-ink-meta font-medium";
-const RESUME_TD = "px-4 text-note text-ink";
+export const RESUME_TD = "px-4 text-note text-ink";
 
 /** The Target Job column, from `@4xl` of the table (896px: a laptop's
  *  window; narrower, the name kept under 200px). Below that it keeps its
@@ -310,25 +310,7 @@ export function ResumeCard({
             <span className="sr-only">No target job</span>
           </span>
         )}
-        {role && (
-          <div className="hidden min-w-0 items-center gap-3 @4xl:flex">
-            {company && (
-              <CompanyLogo
-                name={company.name}
-                src={jobLogo({ logo_url: company.logoUrl, company_domain: company.domain })}
-                className="text-meta size-8 rounded"
-              />
-            )}
-            <div className="min-w-0">
-              <p className="truncate">{role}</p>
-              {company && (
-                <p className="text-ink-meta truncate" title={company.name}>
-                  {company.name}
-                </p>
-              )}
-            </div>
-          </div>
-        )}
+        {role && <TargetJob role={role} company={company} className="hidden @4xl:flex" />}
       </TableCell>
       <TableCell className={cn(RESUME_TD, RESUME_TYPE_COL)}>
         {type && (
@@ -349,10 +331,44 @@ export function ResumeCard({
   );
 }
 
+/** A tailored resume's job in the Target Job column: the company's 32px
+ *  logo, then the posting's title over the company, as the Tracker's Job
+ *  cell draws a job. Documents' table and Generate Resume's list of
+ *  resumes to start from (app/(seeker)/resumes/new-resume-dialog.tsx). */
+export function TargetJob({
+  role,
+  company,
+  className,
+}: {
+  role: ReactNode;
+  company?: GridCompany | null;
+  className?: string;
+}) {
+  return (
+    <div className={cn("flex min-w-0 items-center gap-3", className)}>
+      {company && (
+        <CompanyLogo
+          name={company.name}
+          src={jobLogo({ logo_url: company.logoUrl, company_domain: company.domain })}
+          className="text-meta size-8 shrink-0 rounded"
+        />
+      )}
+      <div className="min-w-0">
+        <p className="truncate">{role}</p>
+        {company && (
+          <p className="text-ink-meta truncate" title={company.name}>
+            {company.name}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /** The primary resume's badge, beside its name (after Jobright's PRIMARY
  *  pill, 2026-11-10): a star and "Primary", the star alone below `@2xl` of
  *  the table, a phone's, where the name needs the room. */
-function PrimaryBadge() {
+export function PrimaryBadge() {
   return (
     <Badge tone="brand">
       <span title="Primary resume" className="flex items-center gap-1">
@@ -363,21 +379,29 @@ function PrimaryBadge() {
   );
 }
 
+/** Each resume type's glyph, the glyph of the button that makes that kind:
+ *  Upload Resume's arrow, Generate Resume's page and Tailor's pencil. The
+ *  table's Type column, the badges, Documents' Type filter and its group
+ *  headings all draw these, so a type reads the same everywhere. */
+export const RESUME_TYPE_ICON: Record<ResumeType, ComponentType<{ className?: string }>> = {
+  uploaded: UploadIcon,
+  generated: GeneratedIcon,
+  tailored: TailorIcon,
+};
+
+function GeneratedIcon({ className }: { className?: string }) {
+  return <FileTextIcon aria-hidden className={className} />;
+}
+
 /** A resume's type in the table's Type column: its glyph in grey and its
  *  word, with no pill (2026-11-10). A tinted pill on every row, in three
  *  colours beside the Primary pill, was the loudest thing in the table and
  *  read as statuses; the glyph alone tells the three apart. */
 function TypeLabel({ type }: { type: ResumeType }) {
-  const icon = "text-ink-meta size-4 shrink-0";
+  const Icon = RESUME_TYPE_ICON[type];
   return (
     <span className="text-ink-muted flex items-center gap-1.5">
-      {type === "uploaded" ? (
-        <UploadIcon className={icon} />
-      ) : type === "generated" ? (
-        <FileTextIcon aria-hidden className={icon} />
-      ) : (
-        <TailorIcon className={icon} />
-      )}
+      <Icon className="text-ink-meta size-4 shrink-0" />
       {RESUME_TYPES.find((t) => t.value === type)?.label}
     </span>
   );
@@ -400,17 +424,11 @@ export function TypeBadge({
    *  card drops it below its own `@md` (app/(seeker)/jobs/resume-picker.tsx). */
   wordClassName?: string;
 }) {
-  const icon = "size-3.5 shrink-0";
+  const Icon = RESUME_TYPE_ICON[type];
   return (
     <Badge tone={TYPE_TONE[type]}>
       <span className="flex items-center gap-1">
-        {type === "uploaded" ? (
-          <UploadIcon className={icon} />
-        ) : type === "generated" ? (
-          <FileTextIcon aria-hidden className={icon} />
-        ) : (
-          <TailorIcon className={icon} />
-        )}
+        <Icon className="size-3.5 shrink-0" />
         {/* `narrow`: the icon alone below a 12rem line (a grid card two or
             four to a row on a phone or tablet), where the word left the
             date no room; a screen reader still hears it. */}

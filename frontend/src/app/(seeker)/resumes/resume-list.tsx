@@ -1,3 +1,5 @@
+"use client";
+
 import type { ReactNode } from "react";
 
 import {
@@ -7,6 +9,7 @@ import {
   RESUME_TH,
   RESUME_TYPE_COL,
 } from "@/components/resume-row";
+import { STICKY_HEAD, STICKY_TH, TABLE_FILL, useFillPage } from "@/components/fill-page";
 import { Table, TableBody, TableHead, TableHeader, TableRow } from "@/components/shadcn/table";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/cn";
@@ -16,8 +19,9 @@ import { RESUME_GRID } from "./view";
 /**
  * The Resumes page's resumes (KAN-362), in the layout the student picked
  * (KAN-766): every resume's row or card (an upload's `ResumeRow`, a built
- * resume's ./built-resume-row.tsx), in the sort's order, with no group
- * headings since 2026-11-10.
+ * resume's ./built-resume-row.tsx), in the sort's order, flat unless Table
+ * Settings groups the list by type (./resume-filters.tsx), when
+ * ./built-resumes.tsx puts the shared heading rows among them.
  *
  * **The list is a table after the Tracker's** (`applications/list.tsx`,
  * 2026-11-10): one white card, 12px grey headings (Name, Target Job, Type,
@@ -49,6 +53,7 @@ export function ResumeList({
   grid?: boolean;
   children: ReactNode;
 }) {
+  const fill = useFillPage(!grid);
   if (grid) {
     return (
       <section className="@container mt-4">
@@ -60,21 +65,29 @@ export function ResumeList({
   }
   return (
     <Card padding="none" className="@container mt-4 overflow-hidden">
-      <Table aria-label="Your Resumes" className="table-fixed">
-        <TableHeader>
+      {/* It scrolls inside its card, down to the page's foot, so the tabs,
+          the search and the filters above stay in view
+          (components/fill-page.ts). */}
+      <Table
+        aria-label="Your Resumes"
+        containerRef={fill}
+        containerClassName={TABLE_FILL}
+        className="table-fixed"
+      >
+        <TableHeader className={STICKY_HEAD}>
           <TableRow className="hover:bg-transparent">
-            <TableHead className={RESUME_TH}>Name</TableHead>
-            <TableHead className={cn(RESUME_TH, RESUME_TARGET_COL)}>
+            <TableHead className={cn(RESUME_TH, STICKY_TH)}>Name</TableHead>
+            <TableHead className={cn(RESUME_TH, STICKY_TH, RESUME_TARGET_COL)}>
               <span className="hidden @4xl:inline">Target Job</span>
             </TableHead>
-            <TableHead className={cn(RESUME_TH, RESUME_TYPE_COL)}>
+            <TableHead className={cn(RESUME_TH, STICKY_TH, RESUME_TYPE_COL)}>
               <span className="hidden @2xl:inline">Type</span>
             </TableHead>
-            <TableHead className={cn(RESUME_TH, RESUME_DATE_COL)}>
+            <TableHead className={cn(RESUME_TH, STICKY_TH, RESUME_DATE_COL)}>
               <span className="@2xl:hidden">Modified</span>
               <span className="hidden @2xl:inline">Date Modified</span>
             </TableHead>
-            <TableHead className={RESUME_ACTIONS_COL}>
+            <TableHead className={cn(STICKY_TH, RESUME_ACTIONS_COL)}>
               <span className="sr-only">Actions</span>
             </TableHead>
           </TableRow>

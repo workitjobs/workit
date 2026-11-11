@@ -44,12 +44,14 @@ export const FILTER_FIELDS = [
   { key: "company", param: "company", label: "Company" },
   { key: "track", param: "track", label: "Job Type" },
   { key: "workModel", param: "work", label: "Work Model" },
-  { key: "source", param: "source", label: "Source" },
+  // Source (the hiring system a job is posted on) went on 2026-11-10, the
+  // user's call: students do not pick jobs by it. An old ?source= link is
+  // ignored, so it filters nothing unseen.
 ] as const;
 export type FilterKey = (typeof FILTER_FIELDS)[number]["key"];
 export type Filters = Record<FilterKey, string[]>;
 
-export const NO_FILTERS: Filters = { company: [], track: [], workModel: [], source: [] };
+export const NO_FILTERS: Filters = { company: [], track: [], workModel: [] };
 
 export type ApplicationsQuery = {
   view: View;
@@ -63,6 +65,9 @@ export type ApplicationsQuery = {
   /** An old side-panel link's application, by id: ./page.tsx redirects it
    *  to the application's own page. */
   app: string | null;
+  /** Only the saved jobs whose postings closed (?closed=1, 2026-11-10), from
+   *  the closed postings' notice (./closed-saved.tsx, `ClosedNotice`). */
+  closed: boolean;
 };
 
 type SearchParams = Record<string, string | string[] | undefined>;
@@ -94,6 +99,7 @@ export function parseQuery(params: SearchParams): ApplicationsQuery {
       FILTER_FIELDS.map(({ key, param }) => [key, all(params[param])]),
     ) as Filters,
     app: first(params.app) || null,
+    closed: first(params.closed) === "1",
   };
 }
 
@@ -114,6 +120,7 @@ export function applicationsHref(query: ApplicationsQuery, patch: Partial<Applic
   }
   if (next.sort !== DEFAULT_SORT) params.set("sort", next.sort);
   if (next.app) params.set("app", next.app);
+  if (next.closed) params.set("closed", "1");
 
   const search = params.toString().replaceAll("%2C", ",");
   return search ? `/applications?${search}` : "/applications";

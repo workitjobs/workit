@@ -10,6 +10,7 @@ server refuses and records any POST: nothing is ever sent.
 import http.server
 import json
 import os
+import re
 import socket
 import subprocess
 import sys
@@ -240,7 +241,10 @@ def test_a_drive_on_a_plain_workers_page_gets_apply_s_server_under_playwright_s_
     assert name == "playwright" and server["command"] == sys.executable
     assert server["args"][:3] == ["-I", "-m", "apply.plain.mcp"] and not Path(server["args"][-1]).exists()  # closed after
     assert argv[argv.index("--allowedTools") + 1] == ",".join(f"mcp__playwright__{t}" for t in BROWSER_TOOLS)
-    assert "mcp__playwright__browser_click" in argv[argv.index("--settings") + 1]  # the submit-click hook, unchanged
+    # The submit-click hook, unchanged: it runs send_click before every click (and, since KAN-617, every other act).
+    [hook] = json.loads(argv[argv.index("--settings") + 1])["hooks"]["PreToolUse"]
+    assert re.fullmatch(hook["matcher"], "mcp__playwright__browser_click")
+    assert [h["command"].split()[-2:] for h in hook["hooks"]] == [["-m", "apply.send_click"]]
 
 
 @needs_chrome
