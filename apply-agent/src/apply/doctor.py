@@ -252,6 +252,10 @@ REQUIRED = [
     "work_authorization.authorized_to_work_us", "work_authorization.requires_sponsorship_now_or_future",
 ]
 
+# Facts some forms ask that the Fill engine otherwise guesses: blank, doctor warns but passes.
+# identity.phone_type (mobile, landline or work): Workday's Phone Device Type (KAN-757).
+OPTIONAL = ["identity.phone_type"]
+
 
 TEMPLATE = CODE / "applicant-profile.template.yaml"
 
@@ -268,6 +272,11 @@ def _facts(machine: Machine) -> Check:
     if blank:
         return Check("Applicant profile", FAIL, f"blank: {', '.join(blank)}",
                      f"fill them in the Applicant profile in {machine.profile.folder}")
+    unset = [key for key in OPTIONAL if machine.profile.get(key) in (None, "", [], {})]
+    if unset:
+        return Check("Applicant profile", WARN, f"all {len(REQUIRED)} required facts filled; optional blank: {', '.join(unset)}",
+                     f"fill them in the Applicant profile in {machine.profile.folder}, or forms guess them "
+                     "(identity.phone_type: mobile, landline or work)")
     return Check("Applicant profile", OK, f"all {len(REQUIRED)} required facts filled")
 
 

@@ -1401,13 +1401,15 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   sticky bar on the page takes `bg-app`, or it shows as a white strip. Each
   rail tile is an icon over its name, and below md the rail is a sheet of
   rows with the same names. **Each section has one name in the panel**
-  (Tracker, Resumes, Profile), short enough for a tile: a `short` for the
+  (Tracker, Experiences, Documents, Profile), short enough for a tile: a `short` for the
   tile beside a longer name in the sheet ("Applications Tracker") read as
   two sets of names for one app (2026-11-05). **The same names are used
   everywhere a student reads them**: the bar's title, page titles, Back
   links, breadcrumbs and any line that sends them there ("on your Profile",
-  "on Resumes"). Never "Applications Tracker", "Resumes & Experiences" or
-  "My Profile" again. On hover
+  "on Experiences"). Never "Applications Tracker", "Resumes & Experiences" or
+  "My Profile" again. Documents' tabs, Resumes and Cover Letters
+  (KAN-766), name its two pages and their Back links ("Back to
+  Resumes"). On hover
   and press only the fills move; the icon stays still (KAN-426), since a
   2px icon nudge on top of the gliding fill read as the row jumping. The panel
   never moves the page, so there is no pin, no peek and no `--panel-gain`
@@ -2116,7 +2118,13 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   the kit's layout. Never type a variant's hover or focus classes into the
   kit: Tailwind builds only the classes it finds in the source, so a class cut
   from `hover:bg-brand-hover` at run time has no rule, and a typed copy
-  drifts.
+  drifts. **A kit row that reads the URL** (`useShallowParams`,
+  `useSearchParams`) sits in `<Suspense>` with `<ShallowRouting>` around
+  it, as the motion page's ShallowRouting row and the forms page's
+  TabLinks row do: the kit's pages are static, and without the boundary
+  `npm run build` fails on that page ("useSearchParams() should be wrapped
+  in a suspense boundary", KAN-766's CI, 2026-11-10). `npm run dev` never
+  shows it, so run the build after adding one.
 - **Never key a Tailwind `group-*` variant on the shell wrapper, or on any
   large ancestor whose attribute changes often** (KAN-368). Tailwind v4
   compiles it to `.cls:is(:where(.group)[attr] *)`, and Chrome then restyles
@@ -2764,60 +2772,64 @@ are in `docs/auth.md`.
   short.
 - **The Resumes view is one list of every resume** (KAN-362, KAN-404,
   `(seeker)/resumes/built-resumes.tsx`): uploaded, generated and tailored,
-  newest first, each as its card (`components/resume-row.tsx`'s box, star
-  and icons: star, Rename, Download, Delete; Delete asks in a popover
-  under the trash, `DeleteResumeConfirm`, KAN-347; below `@xl` of the
-  row, a phone's, Rename, Download and Delete sit in a `⋯` menu,
-  `RowMoreMenu`, and the name keeps half the row, KAN-575), in one card that scrolls
-  inside itself and runs down to the foot of the page (`ResumeScroll`'s
-  `fill` in `components/resume-list.tsx`, KAN-434), never shorter than
-  five cards under a heading (`FIVE_ROWS`, 352px). Capped at five cards,
-  it left half a laptop screen empty under it. The cap is measured from
-  the start of the page, not the window: a cap that grew as the list's top
-  rose would grow the page with it as it scrolled. **It is laid
+  newest first, as a List or a Grid (KAN-766). **The List is a table
+  after the Tracker's** (`applications/list.tsx`; `ResumeList` in
+  `resumes/resume-list.tsx`, rows by `ResumeCard`, 2026-11-10): one white
+  card, grey headings Name, Target Job, Type and Date Modified, rules
+  between rows, a row that opens the resume on a click anywhere
+  (`ClickableRow`), and the actions at the right (Make Primary, Rename,
+  Download, Delete on hover, ⋮ always; Delete asks in a popover under the
+  trash, `DeleteResumeConfirm`, KAN-347). After Jobright's resume table,
+  the name stands alone with a Primary badge on the primary, and a
+  tailored resume's job has its own column, drawn as the Tracker's Role
+  cell (logo, then the role over the company), empty for the rest; no
+  tile leads a row, since Type says what each resume is. The headings name each column once: as cards, each resume
+  labeled its own date "Modified" or "Created", which the user found
+  repetitive. Its columns do not move, resize or hide as the Tracker's
+  do. **Both layouts scroll with the page**, as the Tracker's table does
+  (2026-11-10): the list, then the grid, scrolled inside their own box
+  down to the page's foot from KAN-434 (`ResumeScroll`'s `fill`, which
+  Tailor's Pick a Resume keeps), and once the table scrolled with the page
+  a switch of layout also switched how the page scrolled. The loading
+  frame draws the layout the cookie names ((list)/loading.tsx), or the
+  page jumped from a table to the grid as it loaded. **It is laid
   out as the Applications Tracker is**, so keep the two alike: the search
   on its own row, then the Type filter (`FieldFacet`, the Applications
   list's dropdown, in `?type=`) and the Sort dropdown (Last Edited, the
   default; Oldest First; Name, A to Z; in `?sort=`, KAN-366) with Upload
   Resume and Generate Resume at the right, both above the list, and `EmptyState` in the list's place
   when no card shows. Upload Resume and Generate Resume never sit in the
-  shared header. A card says what it is in its own line ("Uploaded …",
-  "Last edited … · For <posting>"), so the list needs no Type or date
-  column: two table versions came first in KAN-362, one with Type and
-  Last Edited columns and sort headings, one with each row's icons in a
-  `⋯` menu, and the user found the columns useless beside the cards and
-  the menu hid the actions students use. Three views behind pills, then
+  shared header. Two table versions came first in KAN-362, one with Type
+  and Last Edited columns and sort headings, one with each row's icons in
+  a `⋯` menu; the user found the columns useless beside cards that each
+  said what they were, and the menu hid the actions students use. The
+  table came back on 2026-11-10 with the icons kept on hover. Three views behind pills, then
   tabs, came before that: each split one list though every card acts
   alike, and a student had to look in three places for their latest
-  resume. **The list is grouped by type, as Notion's Group by**
-  (KAN-404): Uploaded, Generated, then Tailored, the Type filter's order,
-  each under a sticky heading with its name in a `Badge` pill and its
-  count, which folds it (`ResumeGroup`, `?collapsed=`). The search, Type
-  and Sort still run over every row; the groups only split what they
-  leave, the order runs inside each group, and the starred resume leads
-  its own. **Keep one scroll for the list, never a scroll box per group
+  resume. **The list is flat, as the grid is** (2026-11-10): every card
+  the search, Type and Sort leave, in the sort's order, the starred resume
+  first. It was grouped by type from KAN-404 (Uploaded, Generated, then
+  Tailored, each under a sticky heading with a pill and a count that
+  folded it, `?collapsed=`), so the uploads, capped at 5, did not sink
+  under the tailored resumes, which have no cap. The user dropped the
+  groups once the grid came without them: the headings looked ugly beside
+  it, and the Type filter finds one type. Do not group one view and not
+  the other. **Keep one scroll for the list, never a scroll box per type
   and no Show N More**: nested, the wheel and a finger get caught in the
   inner box, and a per-group limit with Show N More (Notion's) was built
-  and turned down by the user, who wants the list to scroll on. The
-  heading sits on z-20, over the cards' z-10 icons, which bled over it on
-  the same layer. Uploads are capped at 5 and Generate refuses duplicates, but
-  tailored resumes have no cap (one per job posting), so ungrouped they
-  buried the uploads and a student needed the Type filter to find their
-  own file. A first version had two groups, Uploaded and Generated, then
-  Tailored, with grey capitals for names; the user wanted one group per
-  type and the names in pills, which stand out from the grey cards.
+  and turned down by the user, who wants the list to scroll on.
   **Below a 42rem row the filters are two even rows** (Type and Sort,
   then the two buttons), and below 24rem the buttons say only Upload and
   Generate (`ShortLabel`, "Resume" kept for screen readers): wrapped as
   one row the buttons sat alone at the right, and "Generate Resume"
   broke onto two lines on a phone. **Every resume picker dialog draws
-  the same grouped list** (KAN-406): `components/resume-list.tsx` holds
-  the groups, the heading (`ResumeGroup`) and the scroll (`ResumeScroll`:
-  five cards in a picker, the page's foot with `fill`), and each screen
-  draws its own cards in it, the
-  Resumes page's with their actions, a picker's with a radio. A change
-  to how the list groups or scrolls goes there, so the page and the
-  dialogs never drift apart again. The picker's row is the page's row
+  the same list** (KAN-406): `components/resume-list.tsx` holds the
+  scroll (`ResumeScroll`: five cards in a picker, the page's foot with
+  `fill`) and the pickers' group heading (`ResumeGroup`), and each screen
+  draws its own cards in it, the Resumes page's with their actions, a
+  picker's with a radio. The pickers still group by type; the Resumes
+  page stopped on 2026-11-10 (above). A change to how the list scrolls
+  goes there, so the page and the dialogs never drift apart again. The picker's row is the page's row
   cut down: the search, the Type filter and, where the dialog takes a
   file (Did You Apply?, Tailor), Upload Resume, which at the 5-upload
   limit asks which upload the file replaces, under the row. No Sort and

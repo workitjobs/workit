@@ -188,7 +188,10 @@ builds it: `dist/engine.js` is committed in the engine repo.
   taken as a source (KAN-489). A dropdown answer its list lacks takes the
   list's own name for it (Ferrovial's "United States of America"), and
   Phone Device Type takes Telephone where a tenant offers no Mobile (Ace
-  Hardware's).
+  Hardware's). The engine reads a phone type from `identity.phone_type`
+  (KAN-757); WorkIt holds no phone type and the adapter gives none, so
+  Mobile stays the engine's guess here. Adding one would need a profile
+  column and a migration.
   `test/workday-steps.extension.spec.ts` walks a whole application (Apply's
   fake Workday steps, as new pages and drawn in place) from Create Account
   to Review, Fill to Review saving each step it can and the test answering
@@ -2969,8 +2972,9 @@ so it stays. The **Store** gets `node store/build.mjs [outDir]` instead
   `TEST_HOOKS` false, the Vercel site gone (KAN-296).
 - only what Chrome loads: `manifest.json`, `icons`, `fonts`, `src`, and
   the engine's Store bundle as `fill-engine/dist/engine.js` (KAN-777, "The
-  Rules table from the API" above), never its full bundle or
-  `rules-table.json`.
+  Rules table from the API" above). Not its full bundle or the rest of its
+  `dist/`: `rules-table.json` (fill-engine KAN-756) is for other hosts, and
+  the Store spec fails on any engine file but `engine.js`.
 - every `.js` file minified by esbuild (KAN-744), with no source map and
   `BANNER`, the copyright notice, as its first line. The engine ships only
   as its minified `dist/engine.js` (about 284 KB, from 465 KB). esbuild runs
