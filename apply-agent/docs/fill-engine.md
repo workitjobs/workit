@@ -74,6 +74,12 @@ background-check consent `willing_to_undergo_checks`. Anything more beside
 it in its label or help text makes the whole box Lisul's: a second thing
 joined to it ("and the Code of Conduct"), arbitration, a jury waiver, a
 non-compete, a probation, relocating, Ts&Cs (PR 543's re-review, KAN-775).
+Each sentence of the label and help text is judged alone: it either
+agrees to that consent in its own words and nothing more, or binds Lisul
+to nothing. "; I agree to work weekends", "which forms part of my
+employment contract", "including sharing it with partner companies" and
+a help text "I accept the offer letter" under a "Privacy" label each make
+the box his. When unsure, the box is his.
 
 A required one stops a stepped form on its page with one ask
 (`fill_engine.tick_ask`), and Apply fails closed there:
