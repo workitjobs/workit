@@ -659,6 +659,40 @@ DELAYS = SENDS_AFTER | GENERIC_SENDS_AFTER
 MOVED = {"a session dialog whose Continue sends after the next mouse move",
          "a generic session dialog whose I'm still here sends after the next mouse move"}
 PAGES |= SESSION_PAGES | GENERIC_SESSION_PAGES
+
+# KAN-796: the application in a pop-up the form's Next opens. Each pop-up's form sends by its Submit, by its Next's
+# script, and (in PAGES) by itself as it loads. In a live run, Chrome ran no listener in a pop-up's first document
+# while the init scripts ran, so the drive guard's copy there stayed lifted, and its Submit sent; a pop-up open before
+# the drive guard armed was never armed. A form an opener writes into a pop-up's about:blank (document.write, which
+# erases every listener on the window) sent too.
+POP_UP = "/acme/jobs/123/pop-up"
+_POP_UP_FORM = f"""<title>Apply</title><form id=f method=post action="{FINAL}"><label>First name <input id=first name=first
+    value=Test></label><button id=s>Submit application</button><button id=n type=button>Next</button></form>{SEND_ALL}
+    <script>document.getElementById('n').addEventListener('click', () => sendAll());</script>"""
+_SENDS_ITSELF = """<script>setTimeout(() => { sendAll();
+    try { HTMLFormElement.prototype.submit.call(document.getElementById('f')); } catch (e) {} }, 300);</script>"""
+_OPENS = {
+    "a Next that opens the form in a pop-up": f"window.open('{POP_UP}')",
+    "a Next that opens the form in a noopener pop-up": f"window.open('{POP_UP}', '_blank', 'noopener')",
+    "a Next that writes the form into a pop-up": "const w = window.open(''); w.document.write(FORM); w.document.close()",
+}
+
+
+def _pop_up_pages(form: str) -> dict[str, dict[str, str]]:
+    """Each way a Next opens the application `form` in a pop-up, and a link that opens it in a new tab."""
+    script = json.dumps(form).replace("</", "<\\/")  # inside a script element
+    pages = {name: {START: f"""<title>Jobs</title><p>Software Intern</p><button id=b type=button>Next</button>
+        <script>const FORM = {script}; document.getElementById('b').addEventListener('click', () => {{ {opens}; }});</script>""",
+                    POP_UP: form} for name, opens in _OPENS.items()}
+    pages["a Next link that opens the form in a new tab"] = {
+        START: f"""<title>Jobs</title><p>Software Intern</p><a id=b role=button href="{POP_UP}" target=_blank>Next</a>""",
+        POP_UP: form}
+    return pages
+
+
+POP_UP_PAGES = _pop_up_pages(_POP_UP_FORM + _SENDS_ITSELF)
+PAGES |= POP_UP_PAGES
+LIVE_POP_UPS = _pop_up_pages(_POP_UP_FORM)  # a live run's: sent only by a press, Claude's in the test
 BUTTON = {"an Amazon card whose Continue sends": "Continue", "a review page's Apply with its answers hidden": "Apply", "a page that vouches for its own Apply": "Apply", "a Submit in another language beside a Submit": "Envoyer ma candidature", "a Submit in a shadow root": "Submit application",
           "a profile pop-up that is the application": "Submit", "a profile pop-up that turns into the application": "Submit",
           "a one-page form in a modal": "Continue", "an application that makes an account": "Continue",
