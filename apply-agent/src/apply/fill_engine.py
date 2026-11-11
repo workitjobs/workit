@@ -239,12 +239,21 @@ class Plan:
     # Each attestation, certification or signature question, by name: its exact wording (KAN-676). Never answered,
     # by the plan, the Answer bank, Claude fill or the essay writer: Lisul ticks or signs it ("Yours to tick").
     attestations: dict[str, str] = field(default_factory=dict)
+    # Each attestation the attest_from_sources policy's rules settled from the profile's facts, by name: that fact
+    # (KAN-761). The plan answers it with the form's affirmative option; it goes on the Check before Submit list.
+    attested: dict[str, str] = field(default_factory=dict)
     # Optional questions that ask a fact of Lisul's no source holds, which may exist for him (KAN-759): asked in Needs
     # you with a Skip, never a Missing fact that stops the form. Each is in `blanks` too, until he answers it.
     optional: list[Question] = field(default_factory=list)
 
 
 TO_TICK = "Yours to tick"  # starts each line of the Check before Submit list that names an attestation
+ATTESTED = "Attested from sources"  # starts each line that names an attestation the plan answered from the facts
+
+
+def attested_line(label: str, fact: str) -> str:
+    """The Check before Submit line for an attestation the plan answered from the profile's facts (KAN-761)."""
+    return f"{ATTESTED}: {' '.join(fact.split())} ({' '.join(label.split()).replace('; ', ', ')})"
 
 
 def to_tick(wording: str) -> str:
@@ -335,6 +344,7 @@ def plan(questions: QuestionSet, posting: Posting, profile: ApplicantProfile, ba
         accepted=accepted, blanks=dict(result.get("blanks") or {}),
         sections=dict(result.get("sections") or {}), filed=dict(result.get("filed") or {}),
         waiting=dict(result.get("waiting") or {}), attestations=dict(result.get("attestations") or {}),
+        attested=dict(result.get("attested") or {}),
         optional=list(result.get("optional") or []),
     )
 
