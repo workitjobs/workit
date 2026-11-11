@@ -1639,6 +1639,50 @@ def test_a_label_in_another_section_is_a_new_question_never_merged(html, named):
         browser.close()
 
 
+# Oracle's More About You (JPMorgan's, 2026-11-10): each option of a choice is labelled with the question too.
+ORACLE_GROUPS = """<h2>Diversity Information</h2>
+<span id="eth">Ethnicity</span>
+<label><input type="checkbox" aria-labelledby="eth opt1"><span id="opt1">Asian</span></label>
+<label><input type="checkbox" aria-labelledby="eth opt2"><span id="opt2">White</span></label>
+<label><input type="checkbox" aria-labelledby="eth opt3"><span id="opt3">Decline</span></label>
+<fieldset><legend>Veteran Status</legend>
+<label><input type="radio" name="vet" aria-label="Veteran Status">I am not a protected veteran</label>
+<label><input type="radio" name="vet" aria-label="Veteran Status">I am a protected veteran</label></fieldset>"""
+
+
+def _questions_found(html: str, known: list, found: list[dict], rounds: int = 1) -> list[list[str]]:
+    from playwright.sync_api import sync_playwright
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.set_content(html)
+        sectioned: set[str] = set()
+        named = [[q["label"] for q in claude_fill._new_questions(page, known, found, sectioned)] for _ in range(rounds)]
+        browser.close()
+    return named
+
+
+def test_a_choice_whose_options_carry_its_label_is_one_question_not_another_sections():
+    # KAN-788: Ethnicity and Veteran Status were named again ("Diversity Information: Ethnicity") in each of ~45 rounds,
+    # till Claude fill's cap of 300 turns and 6,000,000 tokens.
+    from apply.model import Question
+
+    known = [Question("q1", "Ethnicity", "multi_select", False, ()), Question("q2", "Veteran Status", "select", True, ())]
+    found = [{"label": "Ethnicity", "kind": "multi_select", "required": False, "options": []},
+             {"label": "Veteran Status", "kind": "select", "required": True, "options": []}]
+    assert _questions_found(ORACLE_GROUPS, known, found) == [[]]
+
+
+def test_a_label_is_named_as_another_sections_once_a_step_however_often_claude_lists_it():
+    # KAN-788: Claude lists a question it wasn't given to fill in every round; the campus line is named the first time only.
+    from apply.model import Question
+
+    known = [Question("q1", "Address line 1", "text", True, ())]
+    found = [{"label": "Address line 1", "kind": "text", "required": True, "options": []}]
+    assert _questions_found(HOME_AND_CAMPUS, known, found, rounds=3) == [["Campus Address: Address line 1"], [], []]
+
+
 def test_the_step_limit_comes_from_the_policy(tmp_path):
     # Bank of America's TAL.net form has more than 8 steps (KAN-649): a limit of 1 hands off at the first Next.
     profile = profile_with(tmp_path, policies={"claude_fill": {"max_turns": 80, "max_tokens": 1200000, "max_steps": 1}})
