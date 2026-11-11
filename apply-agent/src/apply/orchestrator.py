@@ -379,7 +379,7 @@ class _Run:
             if (behind := greenhouse.board_behind(posting, self._adapters.site)) == posting:
                 if posting.job_system == "other":
                     fetched = description.from_link(posting, on_worker)
-                behind = embedded.form_behind(posting, on_worker, fetched)  # a Greenhouse, Lever or Ashby form in the page
+                behind = embedded.form_behind(posting, on_worker, fetched)  # a job system's form in the page
             if behind != posting and (applied := self._adapters.applied_before.of(behind, posting.url)):
                 return Result(Status.HANDOFF, f"{applied.said()}; Apply didn't open the form")
             if behind != posting:
