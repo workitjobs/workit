@@ -492,6 +492,9 @@ _TEMPLATE = r"""
   if (W.navigation) listen(W.navigation, 'navigate', () => { S.start = false; });
   for (const kind of ['popstate', 'hashchange']) on(kind, () => { S.start = false; });
   const TOKEN = /token|csrf|xsrf|nonce|authenticity|viewstate|eventvalidation/i;  // a form's anti-forgery token
+  // ...whose name says nothing else: a hidden "finalSubmitToken" or "submit_token" tells the server to send.
+  const NOT_TOKEN = /submit|final|send|finish|complete|confirm|apply|answer|draft|commit/i;
+  const tokenField = (n) => typeOf(n) === 'hidden' && test(TOKEN, text(attr(n, 'name'))) && !test(NOT_TOKEN, text(attr(n, 'name')));
   // A page that shows an application of the applicant's already (a draft the site kept, its review), or one that
   // applies with a profile the site holds: its Apply may send.
   const DRAFT = /\b(review (and|&) (submit|apply)|review (your|my) (application|answers)|application (summary|preview)|your answers|(continue|resume|finish) (your|my) application|(saved|your|my) draft|draft application|declaration|signed in as|(apply|applying) with (your|my|a|the|saved) (saved )?(profile|resume|cv|details)|quick apply|one[- ]click apply|easy apply)\b/i;
@@ -511,7 +514,7 @@ _TEMPLATE = r"""
   };
   // The form, as it is now: a hidden token and buttons only, bound for the page's own origin and no final URL.
   const tokenOnly = (form, by) => {
-    if (!every(fields(form), (n) => (typeOf(n) === 'hidden' && test(TOKEN, text(attr(n, 'name')))) || tag(n) === 'FIELDSET'
+    if (!every(fields(form), (n) => tokenField(n) || tag(n) === 'FIELDSET'
       || test(/^(submit|button|reset)$/, typeOf(n)))) return false;
     const href = postTarget(form, by);
     return originOf(href) === pageOrigin() && !any(FINAL_URLS, (r) => test(r, href));

@@ -221,3 +221,11 @@ def test_the_vouched_apply_sends_one_post():
     posts, blocked = _press_tal_apply(page=MANY, rehearsal=True)
     print(posts, blocked)
     assert len(posts) <= 1
+
+
+# A hidden field whose name says token but also says send: never part of the Apply's token-only form.
+@pytest.mark.parametrize("name", ["finalSubmitToken", "submit_token", "applyNonce"])
+def test_a_token_named_field_that_says_send_keeps_the_apply_blocked(name):
+    from test_submit_guard import _press_tal_apply
+    posts, blocked = _press_tal_apply(fields=f'<input type="hidden" name="{name}" value="1">', rehearsal=True)
+    assert posts == [] and blocked

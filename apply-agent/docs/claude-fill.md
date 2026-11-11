@@ -43,7 +43,7 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
   flag: a page that sets `__applyStartClick`, or sends a control event without the run's token, changes
   nothing (KAN-710). Then Apply's own press of that button (a trusted click, or a plain Worker's marked
   one; never a page script's click) goes through once, while its words name no send, its form holds a
-  hidden token and buttons and nothing else, bound for its own origin and no final URL, no field on the
+  hidden token (named as one and naming nothing that sends: no `finalSubmitToken`) and buttons and nothing else, bound for its own origin and no final URL, no field on the
   page holds an answer, and the page shows no draft, review or saved-profile apply (`DRAFT` in its text,
   `HEADED` in its title or headings). A key, input or change, a click on anything but that Apply or a
   cookie banner's button, or the page changing its URL by script (the `navigate` event) takes the word
