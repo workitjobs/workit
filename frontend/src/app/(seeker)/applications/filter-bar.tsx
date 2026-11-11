@@ -6,9 +6,8 @@ import { useRouter } from "next/navigation";
 import { startTransition, useOptimistic, useRef, useState } from "react";
 
 import { FieldFacet } from "@/components/field-facet";
-import { CloseIcon, FilterIcon, workStyleIcon } from "@/components/icons";
-import { Button } from "@/components/ui/button";
-import { IconButton } from "@/components/ui/icon-button";
+import { AllFiltersButton, ClearFiltersButton } from "@/components/filter-actions";
+import { workStyleIcon } from "@/components/icons";
 import { PAGE_SEARCH, SearchField } from "@/components/ui/search-field";
 import { cn } from "@/lib/cn";
 
@@ -21,7 +20,7 @@ import {
   type Picks,
 } from "./field-filters";
 import { StatusIcon } from "./icons";
-import { ColumnsMenu } from "./list-controls";
+import { TableSettingsMenu } from "./list-controls";
 import { ViewSwitcher } from "./view-switcher";
 import {
   applicationsHref,
@@ -163,35 +162,26 @@ export function FilterBar({
         {facet("track", "Job Type", "hidden min-w-36 @min-[46.5rem]:flex")}
         {facet("workModel", "Work Model", "hidden min-w-36 @min-[56rem]:flex")}
 
-        {/* Every pick and the search off in one press, shown only while
-            there is one: a round cross on a soft grey (2026-11-09), its name in the tooltip, as on
-            the Jobs page. The press hands focus to All Filters, since the
-            cross leaves with the last pick. */}
+        {/* Clear and All Filters, as on the Jobs page (components/
+            filter-actions.tsx). Clear's press hands focus to All Filters,
+            since it leaves with the last pick. */}
         {filtered && (
-          <IconButton
-            label="Clear filters"
-            variant="soft"
-            className="animate-fade ml-auto size-9 shrink-0"
+          <ClearFiltersButton
+            className="animate-fade ml-auto shrink-0"
             onClick={() => {
               allButton.current?.focus();
               apply({ stages: [], filters: NO_FILTERS }, "");
             }}
-          >
-            <CloseIcon className="size-4" />
-          </IconButton>
+          />
         )}
-        <Button
+        <AllFiltersButton
           ref={allButton}
-          variant="secondary"
-          size="sm"
+          count={picks.stages.length + filterCount(picks.filters)}
           onClick={() => setAllOpen(true)}
           className={cn("shrink-0", !filtered && "ml-auto")}
-        >
-          <FilterIcon className="size-4" />
-          All Filters
-        </Button>
+        />
         {/* The list's own control: the grid has no columns. */}
-        {query.view === "list" && <ColumnsMenu className="shrink-0" />}
+        {query.view === "list" && <TableSettingsMenu />}
       </div>
 
       <AllFiltersPanel

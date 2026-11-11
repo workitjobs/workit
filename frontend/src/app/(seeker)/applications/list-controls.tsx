@@ -12,9 +12,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/shadcn/dropdown-menu";
-import { ArrowLeftIcon, ArrowRightIcon } from "@/components/icons";
-import { Button } from "@/components/ui/button";
+import { ArrowLeftIcon, ArrowRightIcon, TableSettingsIcon } from "@/components/icons";
 import { CheckRowBox, checkRowClasses } from "@/components/ui/check-row";
+import { SOFT_BUTTON } from "@/components/ui/icon-button";
 import { cn } from "@/lib/cn";
 
 import {
@@ -26,11 +26,13 @@ import {
   useColumnLayout,
   type ColumnId,
 } from "./column-layout";
-import { ColumnsIcon } from "./icons";
 
 /**
- * The list's Columns menu, at the right end of the filter bar's second row
- * while the list is shown (KAN-282). A menu of checkbox rows
+ * The list's Table Settings menu (Columns until 2026-11-10), at the right
+ * end of the filter bar's second row while the list is shown (KAN-282): a
+ * round icon button, sliders (`TableSettingsIcon`), beside All Filters, as
+ * Notion's table toolbar has its settings beside its filter. Today it holds
+ * the columns; a later table setting joins it here, under its own heading. A menu of checkbox rows
  * (ui/check-row.tsx, the Jobs page's filter rows); a pick leaves it open for
  * the next. The button takes the brand tint while columns are hidden and
  * the menu is closed, as a Jobs page facet does with a pick
@@ -56,7 +58,7 @@ const MOVE =
  * the row beside it, hidden or not, as the menu lists them, and the menu
  * stays open. Role is listed but cannot be unticked or moved: it is frozen.
  */
-export function ColumnsMenu({ className }: { className?: string }) {
+export function TableSettingsMenu({ className }: { className?: string }) {
   const layout = useColumnLayout();
   const [open, setOpen] = useState(false);
   const inUse = layout.hidden.length > 0 && !open;
@@ -69,15 +71,28 @@ export function ColumnsMenu({ className }: { className?: string }) {
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger
-        render={<Button variant="secondary" size="sm" className={cn(inUse && IN_USE, className)} />}
+        aria-label={
+          layout.hidden.length > 0
+            ? `Table Settings, ${layout.hidden.length} columns hidden`
+            : "Table Settings"
+        }
+        title="Table Settings"
+        render={
+          <button
+            type="button"
+            className={cn(
+              SOFT_BUTTON,
+              "hit-area relative size-9 shrink-0 transition-colors duration-150 focus-visible:outline-none",
+              inUse && IN_USE,
+              className,
+            )}
+          />
+        }
       >
-        <ColumnsIcon className={inUse ? "text-brand" : "text-ink"} />
-        Columns
-        {layout.hidden.length > 0 && (
-          <span className="sr-only">, {layout.hidden.length} hidden</span>
-        )}
+        <TableSettingsIcon className="size-4" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-max min-w-52">
+        <p className="text-label text-ink px-2 pt-1.5 pb-1 font-semibold">Table Settings</p>
         <DropdownMenuGroup>
           <DropdownMenuLabel>Shown Columns</DropdownMenuLabel>
           {[...FROZEN, ...layout.order].map((id) => {

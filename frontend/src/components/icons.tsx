@@ -116,11 +116,40 @@ export function SearchIcon({ className }: IconProps) {
   return <MagnifyingGlass aria-hidden className={className} />;
 }
 
-/** All Filters and every filter button: sliders, equal lines with a knob
- *  each (2026-11-09). It was FunnelSimple, three lines of falling length,
- *  which the user found odd at 16px, the lines too unlike to read as one
- *  mark. */
+/** All Filters and every filter button (2026-11-10, after Notion's):
+ *  three centred lines, each a quarter shorter than the one above (full,
+ *  three quarters, half), drawn here at Phosphor's regular weight. It was
+ *  sliders for a day (now `TableSettingsIcon`), and FunnelSimple before
+ *  that, whose lines fell so steeply (full, a half, a fifth) that at 16px
+ *  they did not read as one mark. */
 export function FilterIcon({ className }: IconProps) {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 256 256"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={16}
+      strokeLinecap="round"
+      width="1em"
+      height="1em"
+      className={className}
+    >
+      {/* On pixel centres at 16px (16k + 8 units), so each 1px line is
+          crisp: on the pixel edges between them it drew as two grey rows. */}
+      {/* FunnelSimple's top width (208 of 256 units) and stroke (16), so it
+          weighs what the app's other glyphs do; then three quarters and a
+          half of it. */}
+      <line x1="32" y1="88" x2="224" y2="88" />
+      <line x1="58" y1="136" x2="198" y2="136" />
+      <line x1="84" y1="184" x2="172" y2="184" />
+    </svg>
+  );
+}
+
+/** A table's settings (the Tracker's, which hold its columns): sliders,
+ *  two lines with a knob each, the glyph All Filters wore for a day. */
+export function TableSettingsIcon({ className }: IconProps) {
   return <SlidersHorizontal aria-hidden className={className} />;
 }
 

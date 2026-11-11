@@ -2,7 +2,6 @@ import {
   ArchiveIcon as Archive,
   ArrowBendUpLeftIcon,
   CalendarPlusIcon as CalendarPlus,
-  ColumnsIcon as Columns,
   RowsIcon,
   KanbanIcon,
   RadioButtonIcon,
@@ -37,11 +36,6 @@ export function TableViewIcon({ className }: IconProps) {
 }
 
 /* List controls (KAN-282) ------------------------------------------------ */
-
-/** The Columns menu's button: show, hide and reset the list's columns. */
-export function ColumnsIcon({ className }: IconProps) {
-  return <Columns aria-hidden className={className} />;
-}
 
 /** All Filters' Status section: where an application stands. The stages
  *  themselves wear their own glyphs (../stage-colors.ts). */

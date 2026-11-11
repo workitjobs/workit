@@ -145,7 +145,9 @@ export function ClosedNotice({ apps }: { apps: Pick<Application, "id" | "role">[
       <span className="bg-ink text-on-inverse text-note shrink-0 rounded-full px-2 py-0.5 font-medium">
         Posting Closed
       </span>
-      <p className="text-body text-ink min-w-0 flex-1">
+      {/* At least 15rem: narrower, the buttons take a line of their own
+          rather than squeezing the words into a column. */}
+      <p className="text-body text-ink min-w-0 flex-1 basis-60">
         {query.closed
           ? `Showing the ${count} saved ${jobs} whose posting closed.`
           : count === 1
