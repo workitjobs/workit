@@ -2893,7 +2893,8 @@ are in `docs/auth.md`.
   (`components/fill-page.ts`, 2026-11-11): the shadcn row's own grey hover
   turned a picked row grey under the pointer while its frozen Job cell
   stayed purple, and an open group heading grey while a folded one stayed
-  white; the base row now has only the app's hover grey. A frozen column
+  white; the base row now has only the app's hover grey, and a group
+  heading draws its own light band (`table-group.tsx`), open or folded. A frozen column
   ends in `FROZEN_EDGE`, darker than the row rules, so it reads as
   apart (after Notion's). **Draw that edge as a 1px `after:` line inside
   the sticky cell, never a `box-shadow` outside it**: the shadow showed
