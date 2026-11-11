@@ -161,11 +161,11 @@ def test_captions_say_what_each_worker_is_on():
     assert kind == "application/json"
     tiles = json.loads(state)["tiles"]
     assert tiles == [
-        {"tone": "idle", "label": "Waiting for the next job", "detail": ""},
+        {"tone": "idle", "label": "Waiting for the next job", "detail": "", "thread": []},
         {"company": "Arc Boat Company", "role": "Software Engineering Intern", "job_system": "greenhouse",
          "status": "ready to submit", "line": "Arc Boat Company | ... | ready to submit",
          "tone": "ready", "label": READY, "detail": dashboard.verdict({"status": "ready to submit"})["detail"],
-         "kind": "ready to submit", "system": "Greenhouse"},
+         "kind": "ready to submit", "system": "Greenhouse", "thread": []},  # Ask Claude's thread (KAN-638), none yet
     ]
 
 
@@ -183,6 +183,8 @@ CALIBRATION = "Calibration run: Application 4 of 10, held so you can judge Claud
      "needs", "Fix an answer before it's sent"),
     ({"status": rehearsal.READY, "why": f"Yours to tick: I certify that all of the above information is true; {CALIBRATION}"},
      "needs", "Tick or sign what is yours before it's sent"),
+    ({"status": rehearsal.READY, "why": f"Attested from sources: you are 18 or older (I am at least 18); {CALIBRATION}"},
+     "needs", "Check what Apply attested from your facts before it's sent"),
     ({"status": rehearsal.SIGN_IN, "why": "jobs.example.com wants a password", "company": "Zipline",
       "job_system": "workday"}, "needs", "Sign in to Zipline's Workday site once"),
     ({"status": "handoff", "why": "Claude fill can't finish this form: a captcha"}, "needs", "Finish this one yourself"),
@@ -1124,7 +1126,8 @@ def test_a_file_question_offers_this_mac_dropbox_and_google_drive_and_attaches_t
         window.wait_for_selector("text=Nothing needs you right now.", timeout=10_000)
         (question, attached), = board.answered(0)
 
-    assert offered == ["Attach from this Mac", "Dropbox", "Google Drive"]  # no Skip: the form requires it
+    # No Skip: the form requires it. Go to question (KAN-600): the form is still held open in its Worker.
+    assert offered == ["Attach from this Mac", "Dropbox", "Google Drive", "Go to question"]
     assert (question, attached.name, attached.read_bytes()) == ("Writing sample", "Writing Sample.pdf", b"%PDF-1.4 sample")
 
 

@@ -27,7 +27,7 @@ import { Button } from "@/components/ui/button";
 import { SearchField } from "@/components/ui/search-field";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/cn";
-import { IconButton } from "@/components/ui/icon-button";
+import { HEADING_ACTION, IconButton } from "@/components/ui/icon-button";
 import { TextField } from "@/components/ui/text-field";
 import {
   addSkill,
@@ -73,12 +73,7 @@ import { Intake, type IntakeFocus } from "./intake";
 import { draftOf, emptyDraft, isFixed, NOUNS, SECTIONS, type EntryDraft } from "./sections";
 import { ResumeBar } from "./resume-bar";
 import { SECTION_ICONS, SectionMark } from "./section-icons";
-import {
-  HEADING_ACTION,
-  SectionDialog,
-  type PaneSetup,
-  type SectionAction,
-} from "./section-dialog";
+import { SectionDialog, type PaneSetup, type SectionAction } from "./section-dialog";
 import { SectionNav } from "./section-nav";
 import { SkillGroups } from "./skill-groups";
 

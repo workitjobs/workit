@@ -3179,6 +3179,15 @@ query, the percent; `node --test`); its read is `getFillHealth` in
   Settled choices (16px card gap, the 68ch `--measure-prose` and 48rem
   `--measure-form`, the wizard footer, no Experiences exception to the
   icon rule) change only with the user.
+- **Reuse before drawing** (2026-11-11, the user's rule, after the
+  Tracker's closed-postings notice drew a look of its own beside Auto
+  Apply's notice for the same job, and Documents lacked the table toolbar
+  the Tracker and Auto Apply had): before drawing a banner, a toolbar
+  control, a group heading or a panel, find the one the app already has
+  and use it, moving it to `components/` when it lives in one page. A
+  change to one page table is checked on the others (the Tracker, Up
+  Next, Documents' resumes). The shared parts are listed in
+  `docs/design.md`, "Reuse before drawing".
 - **Motion**: before adding or changing an animation, transition, hover or
   press state, `<ViewTransition>` or shallow routing, read `docs/motion.md`.
 

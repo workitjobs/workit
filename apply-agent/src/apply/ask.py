@@ -325,7 +325,7 @@ def system_for(profile) -> str:
 def ask(claude: Claude, page, message: str, thread: list[dict], form: Form, given: str, system: str = SYSTEM,
         guard: DriveGuard | None = None, opt_ins: dict | None = None, files: list[Path] | None = None) -> Reply:
     """Claude acts on the open `page` as `message` asks, under the drive guard, and Apply reads it back.
-    `files` are the ones it may attach, as Claude fill's: the profile's resume (KAN-683)."""
+    `files` are the ones it may attach, as Claude fill's: every file Apply prepared for the form (KAN-683, KAN-789)."""
     guard = guard or DriveGuard(page, **(opt_ins or {}))
     before = state(page)
     tick = asks_a_tick(message)

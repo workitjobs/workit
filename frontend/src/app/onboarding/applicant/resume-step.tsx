@@ -13,7 +13,7 @@ import { ResumeUpload } from "@/components/resume-upload";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { IconButton } from "@/components/ui/icon-button";
+import { HEADING_ACTION, IconButton } from "@/components/ui/icon-button";
 import type { Section } from "@/lib/bank-actions";
 import type { PreviewEntry, ResumePreview } from "@/lib/resume-actions";
 
@@ -123,10 +123,6 @@ export function ResumeStep({
     </>
   );
 }
-
-/** The Experiences page's heading action: a 32px round icon button
- *  (bank-screen's HEADING_ACTION). */
-const HEADING_ACTION = "hover:bg-hover size-8 rounded-full";
 
 /** The controls focus goes back to. */
 const editId = (index: number) => `preview-entry-${index}-edit`;

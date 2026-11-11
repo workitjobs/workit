@@ -10,7 +10,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/shadcn/dropdown-menu";
-import { IconButton } from "@/components/ui/icon-button";
+import { HEADING_ACTION, IconButton } from "@/components/ui/icon-button";
 import type { BankEntry } from "@/lib/bank-actions";
 
 import {
@@ -23,9 +23,6 @@ import {
   type EntryRemoval,
 } from "./entry-dialog";
 import type { BankRow } from "./holdings";
-
-/** A card heading's icon action: a 32px round target, as LinkedIn's. */
-export const HEADING_ACTION = "hover:bg-hover size-8 rounded-full";
 
 /** An item of the list's ⋯ that asks across the foot first: Clear All,
  *  Delete Section. On a yes it runs, and the list closes once it is done,

@@ -116,11 +116,42 @@ export function SearchIcon({ className }: IconProps) {
   return <MagnifyingGlass aria-hidden className={className} />;
 }
 
-/** All Filters and every filter button: sliders, equal lines with a knob
- *  each (2026-11-09). It was FunnelSimple, three lines of falling length,
- *  which the user found odd at 16px, the lines too unlike to read as one
- *  mark. */
+/** All Filters and every filter button (2026-11-10, after Notion's):
+ *  three centred lines, each a quarter shorter than the one above (full,
+ *  three quarters, half). It was sliders for a day (now
+ *  `TableSettingsIcon`), and FunnelSimple before that, whose lines fell so
+ *  steeply (full, a half, a fifth) that at 16px they did not read as one
+ *  mark.
+ *
+ *  DRAWN ON A 24 GRID AT STROKE 2, as custom-icons.tsx draws its glyphs:
+ *  the weight the app gives Phosphor's. It was drawn on Phosphor's 256 grid
+ *  at stroke 16 until 2026-11-11, and globals.css's rule for that grid
+ *  (every Phosphor glyph gets a 5-unit outline) set its lines' width to 5:
+ *  0.3px hairlines, so All Filters looked greyed out on every page beside
+ *  Table Settings' sliders, though it was the same ink. */
 export function FilterIcon({ className }: IconProps) {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      width="1em"
+      height="1em"
+      className={className}
+    >
+      <line x1="3" y1="7" x2="21" y2="7" />
+      <line x1="5.25" y1="12" x2="18.75" y2="12" />
+      <line x1="7.5" y1="17" x2="16.5" y2="17" />
+    </svg>
+  );
+}
+
+/** A table's settings (the Tracker's, which hold its columns): sliders,
+ *  two lines with a knob each, the glyph All Filters wore for a day. */
+export function TableSettingsIcon({ className }: IconProps) {
   return <SlidersHorizontal aria-hidden className={className} />;
 }
 

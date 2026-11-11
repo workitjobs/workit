@@ -175,9 +175,10 @@ SENT = WORDS["submitted"][0]
 IDLE = "Waiting for the next job"
 # Parts of a rehearsal's ready-to-submit reason that Lisul must look at; the
 # rest (Calibration run, Target company...) only say a run would hold it.
-TO_CHECK = ("Not filled", "Pre-submit check failed", "Pre-submit review", "Verify: ", "Yours to tick")
+TO_CHECK = ("Not filled", "Pre-submit check failed", "Pre-submit review", "Verify: ", "Yours to tick", "Attested from sources")
 OPTIONAL_ASK = "Answer an optional question, or skip it"  # what no source holds, on a form that goes on without it
 TICK_YOURS = "Tick or sign what is yours before it's sent"  # an attestation Apply left for Lisul, his alone
+ATTESTED_CHECK = "Check what Apply attested from your facts before it's sent"  # attest_from_sources (KAN-761)
 # Each part of a Hold's reason in plain words.
 HOLD_WORDS = [
     (re.compile(r"^Target company: (.+)$"), r"\1 is on your check-first list"),
@@ -271,7 +272,10 @@ def verdict(caption: dict) -> dict[str, str]:
                     else "; once every one is dismissed, approve it to send it")}
     elif checks:
         # Only attestations to tick (KAN-676): Lisul ticks or signs each himself; nothing of Apply's is wrong.
-        do = TICK_YOURS if all(part.startswith("Yours to tick") for part in checks) else "Fix an answer before it's sent"
+        # An attestation the plan answered from his facts (KAN-761) is Apply's tick for him to check.
+        do = TICK_YOURS if all(part.startswith("Yours to tick") for part in checks) \
+            else ATTESTED_CHECK if all(part.startswith(("Yours to tick", "Attested from sources")) for part in checks) \
+            else "Fix an answer before it's sent"
         needs = {"kind": "check", "do": do, "why": plain("; ".join(checks)),
                  "then": "Nothing has been sent. Fix it on the page, then press Submit yourself if you want it sent"
                  if status == "ready to submit" else "Apply checks every answer again before it sends"}
@@ -874,7 +878,9 @@ class Dashboard:
         with self._lock:
             if not 0 <= k < self._workers:
                 raise Refused("No such form.", 404)
-            if not self._captions[k].get("askable"):  # a rehearsal's held page, until he presses Submit (rehearsal._Ask)
+            # A rehearsal's held page, until he presses Submit (rehearsal._Ask); or one whose job site ended its
+            # session (`refill`, apply.keepalive): held no more, but Fill again is how it comes back.
+            if not (self._captions[k].get("askable") or self._captions[k].get("refill")):
                 raise Refused("That form isn't held for you now: Fill again works once Apply has stopped on it, "
                               "before Submit.", 409)
             self._again.add(k)
@@ -1116,6 +1122,7 @@ class Dashboard:
             f'<span class="fields"></span></div><div class="caption" id="caption-{k}">Browser {self.worker_of(k) + 1}</div>'
             f'<div class="sent" id="sent-{k}" hidden></div>'
             f'<div class="capture" id="capture-{k}" hidden></div>'
+            f'<div class="session" id="session-{k}" hidden></div>'
             f'<div class="resumebar" id="resume-{k}" hidden><button class="primary">Resume</button>'
             f'<span class="why"></span></div>'
             f'<div class="askclaude" id="ask-{k}" hidden><div class="thread"></div><form><input maxlength="4000" '

@@ -1001,6 +1001,20 @@ body {
   overscroll-behavior-y: none;
 }
 
+/* And every scroll box inside a page, on both axes (2026-11-10): a table
+ * that scrolls sideways (the Tracker's, Auto Apply's) bounced at its ends,
+ * and a list in a dialog bounced at its foot. Matched by the classes that
+ * make a box scroll, so a new one needs nothing. Not the page's own
+ * scroller (<main>): on x it would take the trackpad's swipe to go back. */
+[data-slot="table-container"],
+[data-slot="scroll-area-viewport"],
+:not(main)[class*="overflow-auto"],
+:not(main)[class*="overflow-x-auto"],
+:not(main)[class*="overflow-y-auto"],
+:not(main)[class*="overflow-scroll"] {
+  overscroll-behavior: none;
+}
+
 /* The canvas — the strip a rubber-band scroll exposes past the top or bottom of
  * the document — is painted by <body>, and <body> is in the root layout, above
  * both shells. So it cannot inherit the page colour a shell sets on itself, and
@@ -1329,7 +1343,11 @@ body:has([data-skyline]) {
    * about Lucide's 2px line, with Phosphor's shapes kept. Phosphor draws on
    * a 256 grid and nothing else in the app does, which is what the selector
    * reads. custom-icons.tsx strokes its own glyphs to match (STROKE); change
-   * the two together. In base, so a utility on one icon can still undo it. */
+   * the two together. In base, so a utility on one icon can still undo it.
+   * A glyph drawn by hand never uses the 256 grid: this rule then sets its
+   * lines' width to 5, a 0.3px hairline. All Filters' three lines
+   * (`FilterIcon`) looked greyed out on every page that way until
+   * 2026-11-11; draw on a 24 grid at stroke 2, as custom-icons.tsx does. */
   svg[viewBox="0 0 256 256"] {
     stroke: currentColor;
     stroke-width: 5;

@@ -185,7 +185,8 @@ async function putRules(route, old = route.ids) {
   await chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: old, addRules: rulesOf(route) });
 }
 
-async function route({ key, tab = null, regexes, caseSensitive = false }) {
+// `workers`: the rules hold only for requests from no tab (a service or shared worker's), never the tab's own (KAN-791).
+async function route({ key, tab = null, regexes, caseSensitive = false, workers = false }) {
   for (const regex of regexes) {
     const answer = await chrome.declarativeNetRequest.isRegexSupported({ regex, isCaseSensitive: caseSensitive });
     if (!answer.isSupported) throw named("BadOp", `declarativeNetRequest can't take ${regex}: ${answer.reason}`);
@@ -193,7 +194,7 @@ async function route({ key, tab = null, regexes, caseSensitive = false }) {
   const old = routes.get(key);
   const entry = {
     tab, regexes, caseSensitive, ids: regexes.map(() => nextRule++),
-    tabs: tab === null ? null : new Set([tab, NO_TAB, ...(old?.tabs ?? [])]),
+    tabs: workers ? new Set([NO_TAB]) : tab === null ? null : new Set([tab, NO_TAB, ...(old?.tabs ?? [])]),
   };
   routes.set(key, entry);
   await putRules(entry, old?.ids ?? []);

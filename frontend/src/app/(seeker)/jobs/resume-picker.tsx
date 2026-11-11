@@ -20,7 +20,7 @@ import { IconButton } from "@/components/ui/icon-button";
 import { Radio } from "@/components/ui/radio-row";
 import { SearchField } from "@/components/ui/search-field";
 import { cn } from "@/lib/cn";
-import { listBuiltResumes } from "@/lib/built-resume-actions";
+import { listBuiltResumes, type BuiltResume } from "@/lib/built-resume-actions";
 import { listResumes, replaceResume, uploadResume, type ResumeItem } from "@/lib/resume-actions";
 import { MAX_UPLOADS } from "@/lib/resume-limits";
 
@@ -66,16 +66,33 @@ export async function loadChoices(
   if (built.error || uploaded.error) {
     return { choices: [], uploads: [], error: built.error ?? uploaded.error };
   }
-  const choices: Choice[] = [
-    ...(built.data ?? [])
-      // A resume tailored to another posting shows only as the primary
-      // (KAN-268): the student starred it, so it is theirs to pick.
-      .filter((r) => r.job_posting_id == null || r.job_posting_id === jobId || r.is_default)
+  return {
+    choices: toChoices(built.data ?? [], uploaded.resumes, jobId),
+    uploads: uploaded.resumes,
+    error: null,
+  };
+}
+
+/** The picker's rows from the two resume lists. For a job posting
+ *  (`jobId`), a resume tailored to another posting shows only as the
+ *  primary (KAN-268): the student starred it, so it is theirs to pick. With
+ *  no job every resume shows. */
+export function toChoices(
+  built: BuiltResume[],
+  uploaded: ResumeItem[],
+  jobId: string | null = null,
+): Choice[] {
+  return [
+    ...built
+      .filter(
+        (r) =>
+          jobId == null || r.job_posting_id == null || r.job_posting_id === jobId || r.is_default,
+      )
       .map((r) => ({
         key: `built:${r.id}`,
         label: r.name,
         type: r.job_posting_id ? ("Tailored" as const) : ("Base" as const),
-        forThisJob: r.job_posting_id === jobId,
+        forThisJob: jobId != null && r.job_posting_id === jobId,
         tailoredFor: r.job_posting_id
           ? [r.posting_title, r.posting_company].filter(Boolean).join(" at ") || "A job posting"
           : null,
@@ -84,7 +101,7 @@ export async function loadChoices(
         source: { builtResumeId: r.id },
         isDefault: r.is_default,
       })),
-    ...uploaded.resumes
+    ...uploaded
       .filter((r) => r.storage_path)
       .map((r) => ({
         key: `uploaded:${r.id}`,
@@ -98,7 +115,6 @@ export async function loadChoices(
         isDefault: r.is_default,
       })),
   ];
-  return { choices, uploads: uploaded.resumes, error: null };
 }
 
 /** The pick a list starts on: the resume tailored to this job, else the

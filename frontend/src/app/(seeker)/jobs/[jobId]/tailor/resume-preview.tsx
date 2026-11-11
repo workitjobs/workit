@@ -1,6 +1,6 @@
 "use client";
 
-import { FileArrowDownIcon } from "@phosphor-icons/react/ssr";
+import { EyeIcon, FileArrowDownIcon } from "@phosphor-icons/react/ssr";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import {
@@ -183,11 +183,31 @@ export function ResumePreviewDialog({
           </DialogTitle>
           <DialogDescription className="sr-only">A preview of this resume.</DialogDescription>
         </DialogHeader>
-        <div className="bg-well rounded-card min-h-0 flex-1 overflow-y-auto p-3 sm:p-4">
-          <PreviewPages source={source} label={label} enabled={open} version={version} />
-        </div>
+        <ResumePreviewPane source={source} label={label} enabled={open} version={version} />
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** The preview's pages in their grey well, scrolling under whatever sits
+ *  above it: the preview dialog's body, and Generate Resume's dialog when
+ *  its View turns the dialog into the resume (resumes/new-resume-dialog.tsx)
+ *  rather than opening this dialog over it. */
+export function ResumePreviewPane({
+  source,
+  label,
+  enabled = true,
+  version,
+}: {
+  source: TailorSource;
+  label: string;
+  enabled?: boolean;
+  version?: string;
+}) {
+  return (
+    <div className="bg-well rounded-card min-h-0 flex-1 overflow-y-auto overscroll-none p-3 sm:p-4">
+      <PreviewPages source={source} label={label} enabled={enabled} version={version} />
+    </div>
   );
 }
 
@@ -335,4 +355,52 @@ function DocxNote({ id, label }: { id: string; label: string }) {
       )}
     </div>
   );
+}
+
+/**
+ * View for one resume in a list of them: a text button with an eye that
+ * opens the resume in `ResumePreviewDialog`, titled with its name. The
+ * key is the resume pickers' ("built:<id>", "uploaded:<id>"). Auto Apply's
+ * Up Next (Resume column) and Generate Resume's list of resumes to start
+ * from (resumes/new-resume-dialog.tsx) draw it, always shown: a View that
+ * waited for the row's hover was missed (2026-11-11).
+ */
+export function ResumeViewButton({ name, resumeKey }: { name: string; resumeKey: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <ViewButton name={name} onClick={() => setOpen(true)} />
+      <ResumePreviewDialog
+        open={open}
+        onOpenChange={setOpen}
+        label={name}
+        source={sourceOfKey(resumeKey)}
+      />
+    </>
+  );
+}
+
+/** View's look, for a list that shows the resume its own way (Generate
+ *  Resume's dialog shows it in place). Text, not a bordered button: a table
+ *  row holds none (frontend/docs/design.md, which button look). */
+export function ViewButton({ name, onClick }: { name: string; onClick: () => void }) {
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      onClick={onClick}
+      title={`View ${name}`}
+      aria-label={`View resume ${name}`}
+      className="text-ink hover:text-brand"
+    >
+      <EyeIcon aria-hidden />
+      View
+    </Button>
+  );
+}
+
+/** A picker's key ("built:<id>", "uploaded:<id>") as the preview's source. */
+export function sourceOfKey(resumeKey: string): TailorSource {
+  const [kind, id] = resumeKey.split(":");
+  return kind === "built" ? { built_resume_id: id } : { uploaded_resume_id: id };
 }

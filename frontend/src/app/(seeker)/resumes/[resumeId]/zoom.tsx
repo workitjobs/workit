@@ -16,6 +16,7 @@ import {
 } from "@/components/shadcn/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { EDITOR_ZOOM_KEY, readLocalDraft, writeLocalDraft } from "@/lib/local-drafts";
+import { Tip } from "@/components/ui/tip";
 
 /** The zoom steps, in percent of the page's printed size: 100% is 8.5in
  *  at 96 CSS px an inch (816px), as a browser's PDF viewer draws it. The
@@ -63,16 +64,18 @@ export function Zoom({ zoom, onZoom }: { zoom: number; onZoom: (zoom: number) =>
   const at = ZOOMS.indexOf(zoom);
   return (
     <div className="flex shrink-0 items-center gap-0.5">
-      <Button
-        variant="ghost"
-        size="icon-lg"
-        aria-label="Zoom out"
-        title="Zoom out"
-        disabled={at <= 0}
-        onClick={() => onZoom(ZOOMS[at - 1])}
-      >
-        <MagnifyingGlassMinusIcon aria-hidden />
-      </Button>
+      <Tip label="Zoom out">
+        <Button
+          variant="ghost"
+          size="icon-lg"
+          aria-label="Zoom out"
+
+          disabled={at <= 0}
+          onClick={() => onZoom(ZOOMS[at - 1])}
+        >
+          <MagnifyingGlassMinusIcon aria-hidden />
+        </Button>
+      </Tip>
       <DropdownMenu>
         <DropdownMenuTrigger
           aria-label={`Zoom, ${zoom}%`}
@@ -91,16 +94,18 @@ export function Zoom({ zoom, onZoom }: { zoom: number; onZoom: (zoom: number) =>
           </DropdownMenuRadioGroup>
         </DropdownMenuContent>
       </DropdownMenu>
-      <Button
-        variant="ghost"
-        size="icon-lg"
-        aria-label="Zoom in"
-        title="Zoom in"
-        disabled={at >= ZOOMS.length - 1}
-        onClick={() => onZoom(ZOOMS[at + 1])}
-      >
-        <MagnifyingGlassPlusIcon aria-hidden />
-      </Button>
+      <Tip label="Zoom in">
+        <Button
+          variant="ghost"
+          size="icon-lg"
+          aria-label="Zoom in"
+
+          disabled={at >= ZOOMS.length - 1}
+          onClick={() => onZoom(ZOOMS[at + 1])}
+        >
+          <MagnifyingGlassPlusIcon aria-hidden />
+        </Button>
+      </Tip>
       <span aria-hidden className="bg-border-subtle mx-1 h-5 w-px" />
     </div>
   );

@@ -4,6 +4,7 @@ import type { ComponentProps, ReactNode } from "react";
 
 import { CloseIcon } from "@/components/icons";
 import { cn } from "@/lib/cn";
+import { Tip } from "@/components/ui/tip";
 
 /**
  * The one chip (KAN-251): a pill for a choice made in place. Buttons are
@@ -108,14 +109,16 @@ export function RemovableChip({
   return (
     <span className={cn(chipVariants({ pressed: true, size }), "gap-1 pr-1.5 active:scale-100")}>
       {children}
-      <button
-        type="button"
-        aria-label={removeLabel}
-        onClick={onRemove}
-        className="hover:bg-brand/10 focus-visible:ring-brand-ring hit-area relative flex size-6 items-center justify-center rounded-full transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none active:scale-90"
-      >
-        <CloseIcon className="size-3.5" />
-      </button>
+      <Tip label={removeLabel}>
+        <button
+          type="button"
+          aria-label={removeLabel}
+          onClick={onRemove}
+          className="hover:bg-brand/10 focus-visible:ring-brand-ring hit-area relative flex size-6 items-center justify-center rounded-full transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none active:scale-90"
+        >
+          <CloseIcon className="size-3.5" />
+        </button>
+      </Tip>
     </span>
   );
 }

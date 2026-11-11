@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { EllipsisIcon } from "@/components/icons";
-import { GLYPH_BUTTON } from "@/components/ui/icon-button";
+import { IconButton } from "@/components/ui/icon-button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,7 +13,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/shadcn/dropdown-menu";
 import { useToast } from "@/components/ui/toast";
-import { cn } from "@/lib/cn";
 
 import { ApplyDialog } from "./apply-button";
 
@@ -33,10 +32,10 @@ import { ApplyDialog } from "./apply-button";
  * Not Interested being stored (NOT_INTERESTED_LIVE). A menu row that does
  * nothing is a dead button.
  *
- * The trigger is a bare glyph (IconButton's `glyph` look, `GLYPH_BUTTON`,
- * drawn here because a menu trigger renders its own button): it sits on a
- * white card or header, and a circle with an edge is only for the grey
- * ground. Its hover disc stays while the menu is open.
+ * The trigger is a bare glyph (IconButton's `glyph` look, with its "More
+ * actions" tooltip): it sits on a white card or header, and a circle with
+ * an edge is only for the grey ground. Its hover disc stays while the menu
+ * is open.
  */
 export function JobMoreMenu({
   jobId,
@@ -87,15 +86,21 @@ export function JobMoreMenu({
   return (
     <>
       <DropdownMenu>
+        {/* An IconButton, so the ⋯ says what it is on hover, as every icon
+            button does (2026-11-11; it had a name for a screen reader only).
+            z-2: over a card's click layer (components/job-posting-card.tsx). */}
         <DropdownMenuTrigger
-          aria-label={`More for ${title}`}
-          className={cn(
-            "hit-area relative z-2 shrink-0 transition-[color,background-color] duration-150 ease-out focus-visible:outline-none",
-            GLYPH_BUTTON,
-          )}
-        >
-          <EllipsisIcon className="size-4" />
-        </DropdownMenuTrigger>
+          render={
+            <IconButton
+              variant="glyph"
+              label={`More for ${title}`}
+              tooltip="More actions"
+              className="z-2 shrink-0"
+            >
+              <EllipsisIcon className="size-4" />
+            </IconButton>
+          }
+        />
         <DropdownMenuContent align="end" className="w-56 p-1.5">
           {askable && (
             <DropdownMenuItem
