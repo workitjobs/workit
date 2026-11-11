@@ -2984,7 +2984,9 @@ The build fails if any packaged file still names localhost, vercel.app or
 (`perSiteData`): the packaged engine must bundle no site's data and only
 basic answer rules, and no packaged file may hold a selector, wording or
 pattern of the full table (`fill-engine/dist/rules-table.json`, the copy kept
-outside the package) other than two generic label patterns (`GENERIC`) and
+outside the package), nor a field-kind map (all its `type: "kind"` pairs) or
+a timeout written out (its name given its ms); the engine's own `{}` for
+every site covers all four parts, `kinds` and `timeouts` too, other than two generic label patterns (`GENERIC`) and
 the stepped systems' walk's own copies listed by file in
 `store/extension-site-data.json`, which KAN-778 moves behind the served
 table. A new one anywhere fails the build. A new dev-only line in `config.js` must be one
