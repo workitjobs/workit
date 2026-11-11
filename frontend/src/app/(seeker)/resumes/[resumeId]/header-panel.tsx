@@ -11,8 +11,7 @@ import {
 } from "@/app/(seeker)/profile/icons";
 import { MailIcon, PinIcon, UserIcon } from "@/components/icons";
 import { Checkbox } from "@/components/shadcn/checkbox";
-import { TextField } from "@/components/ui/text-field";
-import { TextLink } from "@/components/ui/text-link";
+import { FIELD_LABEL, TextInput } from "@/components/ui/text-field";
 import type { HideableField } from "@/lib/built-resume-actions";
 import { cn } from "@/lib/cn";
 import { linkText } from "@/lib/profile-links";
@@ -20,21 +19,28 @@ import { linkText } from "@/lib/profile-links";
 import type { Header, HeaderField } from "./model";
 
 /**
- * The Header panel (KAN-436), after Simplify's Resume Header: one row per
- * field the header prints, each a check box, a glyph, a label and the value.
- * **The check box is this resume's** (a page setting, `hidden_header`), so a
- * resume sent to one job can leave the phone off while the others print it;
- * **the value is the profile's**, so a change shows on every resume, and the
- * panel says so once at its top. The name always prints, so it has no check
- * box. The email is the profile's contact email, else the sign-in address,
- * set on My Profile, so it shows here read only, as the page never types it
- * either.
+ * The header's fields (KAN-436), the Sections outline's Header row
+ * (KAN-586), after Simplify's Resume Header: one field per value the header
+ * prints, its label line a check box, a glyph and the label, the field under
+ * it. **The check box is this resume's** (a page setting, `hidden_header`),
+ * so a resume sent to one job can leave the phone off while the others print
+ * it; **the value is the profile's**, so a change shows on every resume. The
+ * name always prints, so it has no box, only the box's room. The email is the
+ * profile's contact email, else the sign-in address, set on My Profile, so it
+ * shows here read only, as the page never types it either.
  *
- * Each field is My Profile's and onboarding's own: a `TextField` with the
- * glyph in its label (`profile/icons.tsx`), and a link typed without
- * "https://", as there, which the API adds. A value saves as the student
- * leaves the field (Enter or a click away), never while they type, as a
- * line typed on the page does; it renders and has Undo the same way.
+ * **Kept plain on purpose** (2026-11-11, the user's call): every field starts
+ * at the panel's left edge, with no line of text above the fields or under
+ * one. A sentence on what the boxes and values do, a note under the email and
+ * a hint under the Additional Line, and the fields set in from their boxes,
+ * read as clutter.
+ *
+ * Each field is My Profile's and onboarding's own input (`TextInput`, the
+ * label in `FIELD_LABEL` with its glyph, `profile/icons.tsx`), and a link is
+ * typed without "https://", as there, which the API adds. A value saves as
+ * the student leaves the field (Enter or a click away), never while they
+ * type, as a line typed on the page does; it renders and has Undo the same
+ * way.
  */
 
 type Row = {
@@ -45,7 +51,6 @@ type Row = {
   link?: boolean;
   /** The API's limit (`schemas/profile.py`). */
   max: number;
-  hint?: string;
 };
 
 const ROWS: Row[] = [
@@ -90,7 +95,6 @@ const ROWS: Row[] = [
     Icon: TextAlignLeftIcon,
     placeholder: "Open to relocation",
     max: 100,
-    hint: "One short line under your contact details, such as a clearance or work authorization.",
   },
 ];
 
@@ -117,12 +121,13 @@ export function HeaderPanel({
   onSave: (field: HeaderField, text: string) => void;
   onShow: (field: HideableField, shown: boolean) => void;
 }) {
+  const box = (field: HideableField, label: string) => ({
+    shown: !hidden.includes(field),
+    onShow: (shown: boolean) => onShow(field, shown),
+    label,
+  });
   return (
     <div className="flex flex-col gap-4">
-      <p className="text-note text-ink-meta">
-        A check box applies to this resume only. A value saves to your profile, so every resume
-        shows the change.
-      </p>
       <ValueField
         id="header-full_name"
         label="Name"
@@ -131,70 +136,66 @@ export function HeaderPanel({
         saved={header.full_name}
         onSave={(text) => onSave("full_name", text)}
       />
-      <HeaderRow field="email" label="Email" hidden={hidden} onShow={onShow}>
-        <TextField
-          id="header-email"
-          label="Email"
-          labelIcon={MailIcon}
-          value={email ?? ""}
-          readOnly
-          aria-describedby="header-email-note"
-        />
-        <p id="header-email-note" className="text-note text-ink-meta mt-1">
-          Change it on <TextLink href="/profile#contact">My Profile</TextLink>.
-        </p>
-      </HeaderRow>
+      <FieldRow id="header-email" label="Email" Icon={MailIcon} box={box("email", "Email")}>
+        <TextInput id="header-email" value={email ?? ""} readOnly />
+      </FieldRow>
       {ROWS.map((row) => (
-        <HeaderRow
+        <ValueField
           key={row.field}
-          field={row.field}
+          id={`header-${row.field}`}
           label={row.label}
-          hidden={hidden}
-          onShow={onShow}
-        >
-          <ValueField
-            id={`header-${row.field}`}
-            label={row.label}
-            Icon={row.Icon}
-            placeholder={row.placeholder}
-            link={row.link}
-            max={row.max}
-            hint={row.hint}
-            saved={header[row.field]}
-            onSave={(text) => onSave(row.field, text)}
-          />
-        </HeaderRow>
+          Icon={row.Icon}
+          placeholder={row.placeholder}
+          link={row.link}
+          max={row.max}
+          saved={header[row.field]}
+          onSave={(text) => onSave(row.field, text)}
+          box={box(row.field, row.label)}
+        />
       ))}
     </div>
   );
 }
 
-/** A field with its check box at its left, level with the label. */
-function HeaderRow({
-  field,
+type Box = { shown: boolean; onShow: (shown: boolean) => void; label: string };
+
+/** A field's label line, its check box first, over the field. Every field
+ *  starts at the panel's left edge, and every label after a box's room. */
+function FieldRow({
+  id,
   label,
-  hidden,
-  onShow,
+  Icon,
+  box,
   children,
 }: {
-  field: HideableField;
+  id: string;
   label: string;
-  hidden: HideableField[];
-  onShow: (field: HideableField, shown: boolean) => void;
+  Icon: ComponentType<{ className?: string }>;
+  /** This resume's check box; none for the name. */
+  box?: Box;
   children: React.ReactNode;
 }) {
-  const shown = !hidden.includes(field);
+  const shown = box?.shown ?? true;
   return (
-    <div className="flex items-start gap-3">
-      <Checkbox
-        checked={shown}
-        onCheckedChange={(next) => onShow(field, next)}
-        aria-label={`Show ${label} on this resume`}
-        className="mt-0.5"
-      />
-      <div className={cn("min-w-0 flex-1 transition-opacity", !shown && "opacity-60")}>
-        {children}
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center gap-2">
+        {box ? (
+          <Checkbox
+            checked={shown}
+            onCheckedChange={(next) => box.onShow(next === true)}
+            aria-label={`Show ${box.label} on this resume`}
+          />
+        ) : (
+          // The name always prints: no box, only its room, so the labels
+          // line up. A ticked box that did nothing read as one that works
+          <span aria-hidden className="size-4 shrink-0" />
+        )}
+        <label htmlFor={id} className={cn(FIELD_LABEL, "flex items-center gap-2")}>
+          <Icon className="text-ink-meta size-4" />
+          {label}
+        </label>
       </div>
+      <div className={cn("transition-opacity", !shown && "opacity-60")}>{children}</div>
     </div>
   );
 }
@@ -208,9 +209,9 @@ function ValueField({
   placeholder,
   link,
   max,
-  hint,
   saved,
   onSave,
+  box,
 }: {
   id: string;
   label: string;
@@ -218,9 +219,9 @@ function ValueField({
   placeholder?: string;
   link?: boolean;
   max: number;
-  hint?: string;
   saved: string | null | undefined;
   onSave: (text: string) => void;
+  box?: Box;
 }) {
   const shown = shownValue({ link }, saved);
   // What is typed, while it differs from the saved value; the saved value
@@ -235,26 +236,17 @@ function ValueField({
     onSave(typed);
   };
   return (
-    // The checkbox's row leaves the name level with the others' labels
-    <div className={cn(id === "header-full_name" && "pl-7")}>
-      <TextField
+    <FieldRow id={id} label={label} Icon={Icon} box={box}>
+      <TextInput
         id={id}
-        label={label}
-        labelIcon={Icon}
         value={text}
         placeholder={placeholder}
         inputMode={link ? "url" : undefined}
         maxLength={max}
-        aria-describedby={hint ? `${id}-hint` : undefined}
         onChange={(event) => setDraft({ from: shown, text: event.target.value })}
         onBlur={save}
         onKeyDown={(event) => event.key === "Enter" && event.currentTarget.blur()}
       />
-      {hint && (
-        <p id={`${id}-hint`} className="text-note text-ink-meta mt-1">
-          {hint}
-        </p>
-      )}
-    </div>
+    </FieldRow>
   );
 }

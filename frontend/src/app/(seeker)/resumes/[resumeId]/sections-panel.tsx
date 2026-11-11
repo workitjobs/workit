@@ -479,7 +479,7 @@ export function SectionsOutline({
             </button>
             <Fold open={headerOpen} label="Header" onToggle={() => onHeaderOpen?.(!headerOpen)} />
           </div>
-          {headerOpen && <div className="pt-2 pb-2 pl-6">{header}</div>}
+          {headerOpen && <div className="pt-2 pb-2">{header}</div>}
         </section>
       )}
       <SortableList

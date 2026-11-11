@@ -3656,12 +3656,18 @@ student who opened a resume from Experiences landed on another view.
   and its value, with the Name first and no check box, since it always
   prints. **The check box is this resume's** (`hidden_header`, a page
   setting, saved and rendered as one, with Undo); **the value is the
-  profile's**, so a change shows on every resume, which the panel says
-  once at its top. A value saves as the student leaves its field (Enter or
+  profile's**, so a change shows on every resume. **Kept plain**
+  (2026-11-11, the user's call): each field's label line is its check box,
+  glyph and label, the field under it at the panel's left edge, and no
+  sentence sits above the fields or under one (a line on what the boxes and
+  values do, a note under the email and a hint under the Additional Line
+  read as clutter). The name has no box, only the box's room, so the labels
+  line up: a ticked box that did nothing read as one that works. A value saves as the student leaves its field (Enter or
   a click away), through the same typed-line path as the page
-  (`saveText(HEADER, ...)`), so it has Undo. The email is read only, with
-  a link to My Profile. Its fields are My Profile's and onboarding's own
-  (`TextField` with the glyph in its label, `profile/icons.tsx`): a link
+  (`saveText(HEADER, ...)`), so it has Undo. The email is read only (it is
+  set on My Profile). Its fields are My Profile's and onboarding's own
+  (`TextInput`, the label in `FIELD_LABEL` with its glyph,
+  `profile/icons.tsx`): a link
   is typed without "https://", which the API adds, as on My Profile;
   Simplify's fixed "https://" prefix was not drawn, since no field in the
   app has one. **It is the Sections outline's first row** (KAN-586), the
