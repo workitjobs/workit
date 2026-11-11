@@ -2118,7 +2118,13 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   the kit's layout. Never type a variant's hover or focus classes into the
   kit: Tailwind builds only the classes it finds in the source, so a class cut
   from `hover:bg-brand-hover` at run time has no rule, and a typed copy
-  drifts.
+  drifts. **A kit row that reads the URL** (`useShallowParams`,
+  `useSearchParams`) sits in `<Suspense>` with `<ShallowRouting>` around
+  it, as the motion page's ShallowRouting row and the forms page's
+  TabLinks row do: the kit's pages are static, and without the boundary
+  `npm run build` fails on that page ("useSearchParams() should be wrapped
+  in a suspense boundary", KAN-766's CI, 2026-11-10). `npm run dev` never
+  shows it, so run the build after adding one.
 - **Never key a Tailwind `group-*` variant on the shell wrapper, or on any
   large ancestor whose attribute changes often** (KAN-368). Tailwind v4
   compiles it to `.cls:is(:where(.group)[attr] *)`, and Chrome then restyles
