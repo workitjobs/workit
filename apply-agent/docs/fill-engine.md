@@ -50,8 +50,11 @@ warrant", "I acknowledge" or "I affirm" except to a privacy or data
 notice, "under penalty", an electronic or typed-name signature, its date
 (a bare "Date" beside one, Workday's `dateSignedOn`), any statement that
 the application is true, accurate or complete, even beside privacy words
-or an "I agree", an agreement to the employer's terms: "you agree to our
-Terms and Conditions", terms of use or of service, KAN-775) is Lisul's
+or an "I agree", any agreeing to the employer's terms, conditions, an
+agreement or a policy that is not a privacy one: T&Cs, terms of use, of
+service or of employment, the User Agreement, a EULA, "the statement
+above", and a box's own bare "I agree" or "Accept" that names no privacy
+notice, check or messages, KAN-775) is Lisul's
 alone (Lisul, 2026-11-05, KAN-676). NVIDIA's Workday box ("By selecting the
 checkbox, you agree to our Terms and Conditions and Applicant Privacy
 Policy.") was ticked under `tick_consent_when_true` before (2026-11-10). The
