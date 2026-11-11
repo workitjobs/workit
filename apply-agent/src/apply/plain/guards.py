@@ -12,7 +12,12 @@ guarded tab (and the tabs it opens, and requests from no tab: service workers): 
 request to any of the guard's final application URLs (its FINAL_URLS, which include ROUTED's) is
 blocked before it leaves Chrome, from page code, its workers, or a form's native POST. Unlike a
 Playwright route, a rule needs no Python handler, so it blocks the page URLs too (Greenhouse's
-posting, Lever's /apply), a page Claude opens never waits on it, and GETs always go.
+posting, Lever's /apply), a page Claude opens never waits on it, and GETs always go. Every guarded
+tab of a Worker shares one set of these rules (KAN-793), so their count stays at len(RULES).
+
+Fails closed: guard and rearm put the page's own guard on before the rules, so when Chrome refuses
+the rules (the route raises) the page is Apply's and blocked, never Lisul's, and the error goes on
+to the caller, which stops driving it.
 
 Untrusted presses: a plain Worker's every click and key is synthetic, so the guard script's copy
 here (`port=True`) also counts as a touch the `__apply_touch` the extension dispatches before
@@ -147,10 +152,12 @@ def guard(page, reload: bool = True) -> None:
     """submit_guard.guard: the rules on this tab, the guard on every page from now, then a reload
     (none from submit_guard.on_open, before the tab's first load)."""
     tokens(page.worker)
-    page.route(PATTERN, submit_guard._refuse)
-    page.context.add_init_script(submit_guard.SCRIPT)
-    if reload:
-        page.reload(wait_until="domcontentloaded")
+    page.context.add_init_script(submit_guard.SCRIPT)  # first: the page's own guard holds if Chrome refuses the rules
+    try:
+        page.route(PATTERN, submit_guard._refuse)
+    finally:
+        if reload:  # on a refusal too: the open document gets the guard script, then the error goes on
+            page.reload(wait_until="domcontentloaded")
 
 
 def lift(page, pressed=None, again=None, warning: str = "", wrong: bool = True, bound: bool = False,
@@ -201,10 +208,11 @@ def applied_dismissed(page) -> None:
 
 
 def rearm(page) -> None:
-    """submit_guard.rearm: the rules back on and the page Apply's again, with no reload."""
-    page.route(PATTERN, submit_guard._refuse)
+    """submit_guard.rearm: the page Apply's again, with no reload, then the rules back on. In that order: when Chrome
+    refuses the rules, the route raises with the page already guarded, never left lifted (KAN-793)."""
     tokens(page.worker)
     page.worker.call("guard.rearm", tab=page.tab, events=submit_guard._events({"lift": None}))
+    page.route(PATTERN, submit_guard._refuse)
 
 
 def touch(page, by: str = "lisul", frame: int = 0) -> None:

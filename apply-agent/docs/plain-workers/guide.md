@@ -25,6 +25,12 @@ On a plain Worker's page (a PortPage, `apply-agent/docs/plain-workers/PROTOCOL.m
   "Session rule count for regex rules exceeded". Now the routes with the same regexes share one
   rule per regex, on all of their tabs, so a Worker holds `len(RULES)` rules however many tabs it
   guards. A closed tab leaves every route, and a route with no tab left goes.
+- **Fails closed.** When Chrome refuses an update, it keeps its rules as they were, the extension
+  puts its memory back to match, and the op raises. `guard` and `rearm` put the page's own guard on
+  before the rules, so the page is then Apply's and blocked, never lifted, and the error stops
+  the caller (the hold ends; Resume raises). A tab that a guarded tab opens is closed if its rules
+  can't go on. `lift` takes the rules off before its note, so a refusal there leaves the page
+  guarded.
 - **The guards' state** (KAN-710) is set only by token-named control events the extension sends
   from its isolated world (`guard.control`, `guard.lift`, `guard.rearm`, `guard.applied`); no page sees
   or sends them. `guard.tokens` tells the extension the run's touch and tell events once.
@@ -42,7 +48,8 @@ On a plain Worker's page (a PortPage, `apply-agent/docs/plain-workers/PROTOCOL.m
   records every POST. A page that sends by script (fetch from a fresh realm, a worker, a beacon,
   requestSubmit, a native POST) sends nothing once guarded, and the rules alone stop it too.
   A tile press shows the blocked note, and a lifted page's Submit goes through and is heard.
-  160 tabs guarded, lifted, rearmed and closed in one Worker keep one rule set.
+  160 tabs guarded, lifted, rearmed and closed in one Worker keep one rule set; with Chrome's
+  regex cap full, `rearm` raises and the page's Submit still sends nothing.
 
 ## Plain Workers: trusted text and choices (KAN-716)
 
