@@ -2603,6 +2603,12 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   mismatch (2026-11-10). `settings/layout.tsx` wraps Home in
   `aria-live="off" aria-hidden inert`: one kept region the modal never
   walks into.
+- **A control inside a card with a click layer sits above the layer**
+  (`relative z-2`; the layer is `absolute inset-0 z-1`,
+  `components/job-posting-card.tsx`). `relative` alone is not enough: Save
+  on the job card had no z-index, sat under the layer, showed no hover and
+  opened the job when clicked (2026-11-10). Check a new control with
+  `document.elementFromPoint` at its centre.
 - **A relative time ("Posted 5 minutes ago") rendered in a client component
   sits in an element with `suppressHydrationWarning`**, as the job card's
   badge does. The clock moves between the server render and hydration, so

@@ -395,6 +395,9 @@ export function JobViewBody({
             company={job.company}
             applyUrl={job.apply_url}
             pay={factText(listingFacts(job).salary) || null}
+            // The job's own page has a Company tab; the application's
+            // Job Description tab has none, so it keeps the section.
+            companyElsewhere={!descriptionOnly}
           />
         ) : (
           <p className="text-body text-ink-meta mt-3">

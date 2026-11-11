@@ -487,7 +487,9 @@ export function FormatOptions({
                 style={{ backgroundColor: value }}
                 className={cn(
                   "focus-visible:ring-brand-ring ring-offset-panel size-7 rounded-full ring-offset-2 transition-shadow focus-visible:ring-2 focus-visible:outline-none",
-                  page.accent === value && "ring-brand ring-2",
+                  // A grey ring under the pointer on a colour not picked:
+                  // the swatches had no hover (2026-11-10).
+                  page.accent === value ? "ring-brand ring-2" : "hover:ring-ink-faint hover:ring-2",
                 )}
                 onClick={() => onChange({ ...page, accent: value })}
               />

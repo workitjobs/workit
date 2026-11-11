@@ -831,7 +831,7 @@ export function Intake({
     <button
       type="button"
       onClick={() => setSheet(true)}
-      className="bg-panel ring-brand-tint rounded-card flex items-center gap-2.5 px-3.5 py-2.5 text-left ring-1 @4xl/main:hidden"
+      className="bg-panel ring-brand-tint hover:bg-hover active:bg-hover focus-visible:ring-brand-ring rounded-card flex items-center gap-2.5 px-3.5 py-2.5 text-left ring-1 transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none @4xl/main:hidden"
     >
       <Dot ready={kept?.done ?? false} />
       <span className="text-label text-ink min-w-0 flex-1 truncate">

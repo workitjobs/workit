@@ -391,7 +391,12 @@ export function JobPostingCard({
               </p>
             </div>
 
-            {headerAction}
+            {/* Over the card's click layer (z-1), as the title, the
+                company and the actions row are: a glyph with no z-index of
+                its own (Save) sat under the layer, so it had no hover and a
+                click on it opened the job instead of saving it
+                (2026-11-10). */}
+            {headerAction && <div className="relative z-2 flex shrink-0">{headerAction}</div>}
           </div>
 
           <JobFactGrid

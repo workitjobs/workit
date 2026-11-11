@@ -235,7 +235,9 @@ export function PhoneEditor({
             href={back.href}
             aria-label={back.label}
             onClick={back.onClick}
-            className="text-ink -ml-2 flex size-11 items-center justify-center rounded-full"
+            // A fill on the press (and under a pointer, or a keyboard's
+            // ring): the phone's back arrow gave no sign it was touched.
+            className="text-ink hover:bg-brand-pale/60 active:bg-brand-pale focus-visible:ring-brand-ring -ml-2 flex size-11 items-center justify-center rounded-full transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none"
           >
             <ArrowLeftIcon aria-hidden className="size-5" />
           </Link>

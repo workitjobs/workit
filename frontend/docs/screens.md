@@ -462,9 +462,16 @@ Apply Now. An Applied button here once marked jobs on a misclick, with no undo
 moved in place as the application page's are. Overview is the notes, Key
 Requirements and About the Role. Company (`[jobId]/company-tab.tsx`, `GET
 /jobs/{id}/company`) is the employer's website and the shared company brief's
-checked facts by category, each with its source. A brief exists only once a
+checked facts by category, each with its source, after the posting's own
+About the Company section under "From the Job Posting" (`companyFromPosting`
+in `[jobId]/description.tsx`, 2026-11-10): it sat folded at the foot of the
+Overview, a tab away from where a student looks for the company, and the
+Overview now leaves it out. The application page's Job Description tab,
+which has no Company tab, keeps it in its fold. A brief exists only once a
 student's Claude has researched the company, so most jobs show the website
-alone, or "WorkIt has no notes on … yet". Each fact's Source link is underlined,
+and the posting's words, or "WorkIt has no notes on … yet" when the posting
+has none. Its title is drawn as the Overview's sections' are (20px bold
+beside the building glyph), since both sit in the job's one panel. Each fact's Source link is underlined,
 since its brand colour against the ink text was the only cue (KAN-569). The application page draws no tabs. A "…" menu of Copy Link and an inert Report sat
 after Save until KAN-519, when the team removed it. Below md the bar scrolls away and wraps.
 The panel's header holds who is hiring, the title (`text-heading`, as every

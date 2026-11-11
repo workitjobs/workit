@@ -6,6 +6,7 @@ import { SEEKER_GUTTER } from "../../gutter";
 import { ListingsError } from "../listing-card";
 import { JobActionBar } from "./action-bar";
 import { CompanyTab } from "./company-tab";
+import { companyFromPosting } from "./description";
 import { JobTabPanes, JobTabs } from "./job-tabs";
 import {
   JOB_COLUMN,
@@ -68,7 +69,13 @@ export async function JobPage({ jobId, listed = false }: { jobId: string; listed
         >
           <JobTabPanes
             overview={<JobViewBody view={view} job={job} />}
-            company={<CompanyTab name={job.company} company={view.company} />}
+            company={
+              <CompanyTab
+                name={job.company}
+                company={view.company}
+                about={job.description ? companyFromPosting(job.description, job.company) : null}
+              />
+            }
           />
         </JobPanel>
       </div>

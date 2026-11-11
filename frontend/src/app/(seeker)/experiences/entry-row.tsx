@@ -100,8 +100,11 @@ export function EntryRow({
         <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
           <span
             className={cn(
-              "text-body min-w-0 font-medium break-words",
+              "text-body min-w-0 font-medium break-words transition-colors duration-150",
               muted ? "text-ink-muted" : "text-ink",
+              // A row that opens says so under the pointer, as a link
+              // does: it had no hover at all (2026-11-10).
+              "group-hover/entry:text-brand",
             )}
           >
             {entry.title}
@@ -137,7 +140,7 @@ export function EntryRow({
             type="button"
             aria-expanded={shown}
             onClick={() => setOpened((was) => !was)}
-            className="focus-visible:ring-brand-ring flex min-w-0 flex-1 items-start gap-2 rounded-xs text-left outline-none focus-visible:ring-2"
+            className="group/entry focus-visible:ring-brand-ring flex min-w-0 flex-1 cursor-pointer items-start gap-2 rounded-xs text-left outline-none focus-visible:ring-2"
           >
             <ChevronDownIcon
               className={cn(

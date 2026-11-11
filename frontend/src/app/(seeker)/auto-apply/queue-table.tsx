@@ -256,11 +256,12 @@ export function QueueTable({
                     type="button"
                     onClick={() => fold(id)}
                     aria-expanded={open}
-                    className="focus-visible:ring-brand-ring sticky left-4 flex items-center gap-2 rounded-xs focus-visible:ring-2 focus-visible:outline-none"
+                    className="group/fold focus-visible:ring-brand-ring sticky left-4 flex items-center gap-2 rounded-xs focus-visible:ring-2 focus-visible:outline-none"
                   >
                     <ChevronDownIcon
                       className={cn(
-                        "text-ink-meta size-3.5 transition-transform duration-150",
+                        // Ink under the pointer: the fold had no hover.
+                        "text-ink-meta group-hover/fold:text-ink size-3.5 transition-[transform,color] duration-150",
                         !open && "-rotate-90",
                       )}
                     />

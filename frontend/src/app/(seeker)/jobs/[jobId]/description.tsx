@@ -44,7 +44,12 @@
  * scraper also keeps Benefits, How to Apply and About the Company, after the
  * job's sections (sections.py, `EXTRA`). They show last, in one "More from the
  * posting" fold that names them, closed at first, so the job itself is what a
- * student reads first; matching never reads them. Before, they were left out,
+ * student reads first; matching never reads them. **About the Company goes to
+ * the job's Company tab** where the page has one (`companyFromPosting`,
+ * ./company-tab.tsx; `companyElsewhere` leaves it out here, 2026-11-10): at the
+ * foot of the Overview it sat under the job, a tab away from where a student
+ * looks for the company. The application page's Job Description tab has no
+ * Company tab, so it keeps it in the fold. Before, they were left out,
  * and with them what an employer wrote about the job under a perks heading.
  * Only the job's sections make a description "sectioned": a description stored
  * before KAN-229 with its own "Benefits" line draws as before.
@@ -54,7 +59,7 @@
  * on the employer's site.
  */
 
-import type { ComponentType } from "react";
+import type { ComponentType, ReactNode } from "react";
 
 import {
   ApplyIcon,
@@ -159,6 +164,32 @@ function withCoreSections(blocks: Block[], cut: boolean, pay: string | null): Bl
   return out;
 }
 
+/** Whether the description is in KAN-229's format: one of the job's fixed
+ *  headings, not only an extra's. */
+function isSectioned(blocks: Block[]): boolean {
+  return blocks.some(
+    (b) =>
+      b.kind === "heading" &&
+      Object.hasOwn(SECTION_ICONS, b.text) &&
+      !EXTRA_SECTIONS.includes(b.text),
+  );
+}
+
+/** One section's blocks under its heading (to the next fixed or extra
+ *  heading), and the blocks without the section, heading and all. */
+function splitSection(blocks: Block[], name: string): { section: Block[]; rest: Block[] } {
+  const start = blocks.findIndex((b) => b.kind === "heading" && b.text === name);
+  if (start < 0) return { section: [], rest: blocks };
+  const after = blocks.findIndex(
+    (b, i) => i > start && b.kind === "heading" && SECTION_ORDER.includes(b.text),
+  );
+  const end = after < 0 ? blocks.length : after;
+  return {
+    section: blocks.slice(start + 1, end),
+    rest: [...blocks.slice(0, start), ...blocks.slice(end)],
+  };
+}
+
 const BULLET = /^(?:[-•*·▪●◦]|\d{1,2}[.)])\s+/;
 
 /** The marker the scraper adds after a cut, and so the sign it was cut. */
@@ -257,30 +288,30 @@ export function JobDescription({
   company,
   applyUrl,
   pay = null,
+  companyElsewhere = false,
 }: {
   text: string;
   company: string;
   applyUrl: string;
   /** The card's pay ("$50–70/hr"), shown under Pay when the text has none. */
   pay?: string | null;
+  /** The page's Company tab shows About the Company (`companyFromPosting`),
+   *  so the fold leaves it out. */
+  companyElsewhere?: boolean;
 }) {
   const cut = isCut(text);
   const parsed = toBlocks(cut ? text.slice(0, -CUT.length) : text);
   // One of the job's fixed headings means the KAN-229 format, where the
   // employer's other headings are subheadings and every core section shows.
-  const sectioned = parsed.some(
-    (b) =>
-      b.kind === "heading" &&
-      Object.hasOwn(SECTION_ICONS, b.text) &&
-      !EXTRA_SECTIONS.includes(b.text),
-  );
+  const sectioned = isSectioned(parsed);
   const all = sectioned ? withCoreSections(parsed, cut, pay) : parsed;
   // withCoreSections puts the extras last, so they are one tail to fold.
   const firstExtra = sectioned
     ? all.findIndex((b) => b.kind === "heading" && EXTRA_SECTIONS.includes(b.text))
     : -1;
   const blocks = firstExtra < 0 ? all : all.slice(0, firstExtra);
-  const extras = firstExtra < 0 ? [] : all.slice(firstExtra);
+  const tail = firstExtra < 0 ? [] : all.slice(firstExtra);
+  const extras = companyElsewhere ? splitSection(tail, "About the Company").rest : tail;
   const extraNames = extras.flatMap((b) =>
     b.kind === "heading" && EXTRA_SECTIONS.includes(b.text) ? [b.text] : [],
   );
@@ -296,42 +327,7 @@ export function JobDescription({
     </a>
   );
   const draw = (block: Block, i: number) =>
-    block.kind === "heading" ? (
-      <Heading key={i} text={block.text} sectioned={sectioned} />
-    ) : block.kind === "list" ? (
-      <ul key={i} role="list" className="flex flex-col gap-1.5 pl-4">
-        {block.items.map((item, j) => (
-          <li key={j} className="text-ink flex items-start gap-2 text-base">
-            {/* Ink like the text: in the faintest grey the bullets were
-                    hard to see (2026-10-17). */}
-            <span aria-hidden="true" className="bg-ink mt-2 size-1.5 shrink-0 rounded-full" />
-            {item}
-          </li>
-        ))}
-      </ul>
-    ) : block.kind === "listed-pay" ? (
-      <p key={i} className="text-ink text-base">
-        {block.pay}{" "}
-        <span className="text-ink-meta">
-          (from {company}&apos;s listing, not the posting&apos;s text)
-        </span>
-      </p>
-    ) : block.kind === "missing" ? (
-      <p key={i} className="text-ink-meta text-base">
-        {block.why === "cut" ? (
-          <>Not in the part shown here. It may be further down the posting. </>
-        ) : (
-          // Never "not available": a heading the scraper doesn't know
-          // ("Role Purpose") leaves its text in the section above.
-          <>Not under its own heading in this posting. It may be in the text above. </>
-        )}
-        {fullPosting(`Read the full posting on ${company}'s site`)}.
-      </p>
-    ) : (
-      <p key={i} className="text-ink text-base">
-        {block.text}
-      </p>
-    );
+    drawBlock(block, i, { sectioned, company, fullPosting });
   // NO MEASURE OF ITS OWN (2026-11-09): the job's content is one column
   // (JOB_COLUMN, ./job-view.tsx), and the text fills it at 16px, about 90
   // characters a line. It stopped at 46ch of 14px text from KAN-569 (64 to
@@ -369,6 +365,52 @@ export function JobDescription({
   );
 }
 
+/** How a block draws, in the Overview and in the Company tab. */
+type DrawContext = {
+  sectioned: boolean;
+  company: string;
+  fullPosting: (label: string) => ReactNode;
+};
+
+function drawBlock(block: Block, i: number, { sectioned, company, fullPosting }: DrawContext) {
+  return block.kind === "heading" ? (
+    <Heading key={i} text={block.text} sectioned={sectioned} />
+  ) : block.kind === "list" ? (
+    <ul key={i} role="list" className="flex flex-col gap-1.5 pl-4">
+      {block.items.map((item, j) => (
+        <li key={j} className="text-ink flex items-start gap-2 text-base">
+          {/* Ink like the text: in the faintest grey the bullets were
+                    hard to see (2026-10-17). */}
+          <span aria-hidden="true" className="bg-ink mt-2 size-1.5 shrink-0 rounded-full" />
+          {item}
+        </li>
+      ))}
+    </ul>
+  ) : block.kind === "listed-pay" ? (
+    <p key={i} className="text-ink text-base">
+      {block.pay}{" "}
+      <span className="text-ink-meta">
+        (from {company}&apos;s listing, not the posting&apos;s text)
+      </span>
+    </p>
+  ) : block.kind === "missing" ? (
+    <p key={i} className="text-ink-meta text-base">
+      {block.why === "cut" ? (
+        <>Not in the part shown here. It may be further down the posting. </>
+      ) : (
+        // Never "not available": a heading the scraper doesn't know
+        // ("Role Purpose") leaves its text in the section above.
+        <>Not under its own heading in this posting. It may be in the text above. </>
+      )}
+      {fullPosting(`Read the full posting on ${company}'s site`)}.
+    </p>
+  ) : (
+    <p key={i} className="text-ink text-base">
+      {block.text}
+    </p>
+  );
+}
+
 /** A heading in the description: a fixed section's with its icon, an
  *  employer's own inside a sectioned description as a smaller subheading, or
  *  any heading of a description stored before KAN-229, the same size as a
@@ -389,4 +431,25 @@ function Heading({ text, sectioned }: { text: string; sectioned: boolean }) {
   }
   if (sectioned) return <h4 className="text-subtitle text-ink">{text}</h4>;
   return <h3 className="text-title text-ink mt-4 font-bold">{text}</h3>;
+}
+
+/**
+ * The posting's own About the Company section, drawn for the job's Company
+ * tab (./company-tab.tsx), or null when it has none. Only a description in
+ * KAN-229's format has one: an older description draws whole in the
+ * Overview, so taking it out there would lose it.
+ */
+export function companyFromPosting(text: string, company: string): ReactNode | null {
+  const parsed = toBlocks(isCut(text) ? text.slice(0, -CUT.length) : text);
+  if (!isSectioned(parsed)) return null;
+  const { section } = splitSection(parsed, "About the Company");
+  if (section.length === 0) return null;
+  // Its own headings are subheadings, as in a sectioned description. A cut
+  // or missing line never falls in it, so it links nowhere.
+  const context: DrawContext = { sectioned: true, company, fullPosting: () => null };
+  return (
+    <div className="flex flex-col gap-3 text-base">
+      {section.map((block, i) => drawBlock(block, i, context))}
+    </div>
+  );
 }

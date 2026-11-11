@@ -972,7 +972,24 @@ black (`ink`) if it can be clicked, purple (`brand`) if it is on or selected, gr
 (`ink-meta`) if it only gives information (a job's facts, a field's magnifier, a
 dropdown's arrow), `ink-subtle` if it cannot be used now, and the status colour
 for a status. `IconButton` is black at rest and its `quiet` variant turns purple
-on hover, and an icon beside a label takes the label's colour. Each component
+on hover, and an icon beside a label takes the label's colour. **A bare glyph
+among a card's or a panel's own actions (Save, Not Interested, Ask Scout, the
+job's ⋮) is the `glyph` variant**: purple on a 28px `hover` disc, which an open
+menu keeps on its trigger (`GLYPH_BUTTON`, 2026-11-10). Purple alone on a 16px
+glyph read as no hover at all.
+
+**Every control states what it does before the click** (2026-11-10, the
+interaction audit). Under the pointer, a button or glyph changes its fill or
+colour, a whole-target card lifts or tints its edge, a row that opens turns
+its title purple (Experiences' rows, the editor's sections, Tailor's
+changes), a fold turns its chevron black, a field darkens its edge to
+`ink-meta`, and a swatch not picked takes a grey ring. A keyboard sees the
+brand focus ring. On a touch screen, where there is no hover, a control that
+only navigates (the phone editor's back arrow) fills on the press. **A card
+with a click layer over it lifts every control inside it above the layer**
+(`relative z-2`, `components/job-posting-card.tsx`): Save on the job card had
+no z-index, sat under the layer, showed no hover, and a click on it opened
+the job instead of saving it. Each component
 chose for itself until then, so All Filters was grey beside a black Auto Apply. One
 exception: a segmented control's unpicked option stays grey, since black against
 grey is what says which option is on. A dialog's or sheet's close X is black too,

@@ -167,10 +167,14 @@ export function SectionsOutline({
           {handle}
           <button
             type="button"
-            className="focus-visible:outline-brand min-w-0 flex-1 text-left focus-visible:outline-2"
+            className="group/entry focus-visible:outline-brand min-w-0 flex-1 text-left focus-visible:outline-2"
             onClick={() => toggle(entry.id)}
           >
-            <span className="text-note text-ink block truncate font-semibold">{entry.title}</span>
+            {/* Brand under the pointer, as a section's name is: the rows
+                had no hover (2026-11-10). */}
+            <span className="text-note text-ink group-hover/entry:text-brand block truncate font-semibold transition-colors duration-150">
+              {entry.title}
+            </span>
             {entry.detail && (
               <span className="text-note text-ink-meta block truncate">{entry.detail}</span>
             )}
@@ -232,7 +236,7 @@ export function SectionsOutline({
               {handle}
               <button
                 type="button"
-                className="text-label text-ink focus-visible:outline-brand min-w-0 flex-1 truncate py-0.5 text-left font-semibold focus-visible:outline-2"
+                className="text-label text-ink hover:text-brand focus-visible:outline-brand min-w-0 flex-1 truncate py-0.5 text-left font-semibold transition-colors duration-150 focus-visible:outline-2"
                 onClick={() => toggle(section.id)}
               >
                 {section.label}
