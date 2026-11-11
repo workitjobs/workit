@@ -97,6 +97,14 @@ old profile on the job site carried over is replaced (Amazon's Education,
 holds the form if the field still shows a value (`docs/held-forms.md`).
 A profile with no `minors` key leaves it as before.
 
+A phone type question (Workday's Phone Device Type, iCIMS's Phones: Type,
+"Type of phone", a "Mobile or landline?" choice) is the profile's
+`identity.phone_type` (`mobile`, `landline` or `work`) in the engine's
+plan, as the form's closest option: a mobile is Mobile or Cell, else
+Workday's Home Cellular, and never a work mobile such as Work Cellular
+(NVIDIA's Workday, 2026-11-10, KAN-757). Doctor warns while it is blank;
+the plan then guesses Mobile on Workday's and iCIMS's wordings, as before.
+
 An Answer bank entry with `answer: []` and `none: true` answers a
 multi-select with none of its options (Roblox's partner organizations):
 its boxes stay unticked, a blank on purpose in the plan.
