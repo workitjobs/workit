@@ -101,8 +101,17 @@ let pdfjsLoading: Promise<typeof import("pdfjs-dist")> | null = null;
  * downloads while the server is still compiling the PDF rather than after
  * the PDF has arrived. A failed import is forgotten, so the next caller
  * tries again.
+ *
+ * NEVER ON THE SERVER, AND NOT IN ITS BUNDLE. Only effects call it, but the
+ * bare import() still put pdf.js (about 1 MB) into the server's code, which
+ * the app's Cloudflare Worker loads whole each time a new copy of it starts.
+ * The bundler reads `typeof window` as a constant, so the server build drops
+ * the branch and the library with it.
  */
 export function loadPdfjs() {
+  if (typeof window === "undefined") {
+    return Promise.reject(new Error("pdf.js runs in the browser only"));
+  }
   pdfjsLoading ??= import("pdfjs-dist").then(
     (pdfjs) => {
       pdfjs.GlobalWorkerOptions.workerSrc ||= new URL(

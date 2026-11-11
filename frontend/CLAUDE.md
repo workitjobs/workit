@@ -68,8 +68,33 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   `cf:deploy` uploads it. Each is one binary, so `cf:preview` and `cf:deploy`
   need a fresh `cf:build` first. `npx wrangler deploy --dry-run --outdir
   <dir>` prints the upload size with no Cloudflare login: the Workers Paid cap
-  is 10 MiB gzip (4.8 MiB on 2026-11-02; the cached pages are assets and
-  do not count). Never run a real deploy locally.
+  is 10 MiB gzip (4.8 MiB on 2026-11-02, 4.5 MiB on 2026-11-10; the cached
+  pages are assets and do not count). Never run a real deploy locally.
+- **The Worker's size is its cold start** (KAN-782, 2026-11-10). Each new copy of
+  the Worker loads and parses the whole script before it answers. Static
+  files are served before the Worker runs. On workitjobs.ai, about half of
+  the requests one second apart met a new copy: 0.75 to 1.35 s, against
+  0.06 s once warm, even for a prerendered page or `/api/session`. A ping
+  cannot keep it warm, as the API's cron keeps the API's containers
+  (`backend/CLAUDE.md`, Deployment): Cloudflare starts and drops Worker
+  copies itself. So keep the script small. `"minify": true` in
+  `wrangler.jsonc` (wrangler bundles OpenNext's output again and wrote it
+  unminified, 22.5 MB, now 15.1 MB), and a library only the browser runs
+  stays out of the server bundle: a bare `import()` in a client component
+  still puts its target there, so guard it with `typeof window ===
+  "undefined"`, which the bundler folds (`loadPdfjs` in
+  `resumes/[resumeId]/pdf-pages.tsx`, pdf.js, about 0.4 MB). To measure:
+  `npx wrangler deploy --dry-run --outdir <dir>` prints the size;
+  `npx wrangler check startup` profiles startup (about 18 ms of CPU: the
+  cost is the parse and the first request, not startup code); and a loop of
+  `curl -so /dev/null -w '%{time_starttransfer}\n'
+  https://workitjobs.ai/api/session`, a second apart, counts the cold
+  answers after a deploy. **Still open:** about 3.8 MB of the 9 MB of page
+  code are copies of shared modules that Turbopack puts in each route's
+  server chunk (Phosphor icons in 128 chunks), with no setting to share
+  them; and the Node proxy brings Next's server and `@vercel/og` with its
+  two WebAssembly files (3.2 MB and 1.4 MB) into the bundle, which only
+  moving the proxy to the Edge runtime would drop (`src/proxy.ts`, below).
 - **`@opennextjs/cloudflare` is pinned exactly**: each release's peer range
   sets a floor on `next` (1.20.6 is the newest that takes `next` 16.3.3).
   Raise them together; a newer adapter on an older Next fails to install.
@@ -1547,7 +1572,12 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   Up Next's skeleton showed on the way to Application Info. The company side
   follows the same rules, with its own `error.tsx` and `not-found.tsx`. A
   client-side read draws a skeleton line in its place too (Transcript, the
-  resume pickers' `ResumeListsSkeleton`), never a "Loading…" line.
+  resume pickers' `ResumeListsSkeleton`), never a "Loading…" line. **A
+  part that draws only once it hydrates (a canvas) keeps a skeleton in its
+  own place until its first frame** (Home's Activity map, `drawn` in
+  `home/streak.tsx`): the section's Suspense fallback ends when the
+  server's HTML lands, and the map's room stood blank white until the
+  page's script loaded, which read as a section with no loader.
   A page with two long reads streams each in its own `<Suspense>` over a
   skeleton of its shape, and starts every read before its first `await` (the
   Home: only the account is awaited). **Settings' modal has no
