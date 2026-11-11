@@ -209,6 +209,12 @@ with the failure it prevents.
   it prints last (a Summary first), Fit cuts it first and Tailor reads it as
   any entry. Read it before changing the bank's sections, a resume's
   section order or import's headings.
+- `docs/cover_letters.md` — KAN-766's cover letters design, a draft for
+  review, not built: the Documents page's Cover Letters tab lists the
+  letters WorkIt wrote as written answers, then uploads (a new
+  `cover_letters` table), then records the letter each application sent
+  (`sent_cover_letter_id`), then writes one in WorkIt. Read it before
+  building any of it.
 - `docs/live_page.md` — the editor's live page (KAN-391), step 1 partly
   built: each edit renders from the editor's copy with no database read
   while its save writes beside it, and the page below a typed line
