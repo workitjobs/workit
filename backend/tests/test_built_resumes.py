@@ -6,6 +6,7 @@ render route's tests below skip without Tectonic (backend/CLAUDE.md, Tests).
 """
 
 import datetime
+import json
 import uuid
 
 import httpx
@@ -289,6 +290,12 @@ async def test_generate_shows_a_skill_two_uploads_hold_once(student, monkeypatch
     assert [line.lower() for line in lines if line.startswith("Languages")] == ["languages: python"]
     choices = (await client.get(f"{me}/built-resumes/{resume_id}/choices")).json()
     assert sorted(s["shown"] for s in choices["skills"]) == [False, True]
+    # The copy shown is the one with the lower id, on every read (KAN-444):
+    # the bank's order broke the tie at random, so a second Generate could
+    # show the other copy and miss that it was a duplicate.
+    assert next(s for s in choices["skills"] if s["shown"])["skill_id"] == min(s["skill_id"] for s in choices["skills"])
+    res = await client.post(f"{me}/built-resumes", json={})
+    assert (res.status_code, res.json()["detail"]["built_resume_id"]) == (409, resume_id)
 
 
 async def test_generate_refuses_a_resume_the_student_already_has(student):
@@ -299,7 +306,8 @@ async def test_generate_refuses_a_resume_the_student_already_has(student):
 
     res = await client.post(f"{me}/built-resumes", json={})
     assert res.status_code == 409
-    assert res.json()["detail"] == {"message": "Duplicate Resume found: General SWE", "built_resume_id": first}
+    assert res.json()["detail"] == {
+        "message": "Duplicate Resume found: General SWE", "built_resume_id": first, "name": "General SWE"}
     assert [r["id"] for r in (await client.get(f"{me}/built-resumes")).json()] == [first]
 
     # The first resume edited, a new one is not the same...
@@ -315,6 +323,86 @@ async def test_generate_refuses_a_resume_the_student_already_has(student):
     # A bank entry added since makes the next one new.
     await client.post(f"{me}/bank/entries", json={"section": "experience", "title": "Barista", "organization": "Cafe"})
     assert (await client.post(f"{me}/built-resumes", json={})).status_code == 201
+
+
+def _lines(res: httpx.Response) -> list[dict]:
+    return [json.loads(line) for line in res.text.splitlines()]
+
+
+async def test_a_streamed_generate_names_each_step_then_the_resume(student):
+    """KAN-444: the Resumes page shows Generate's steps as they happen."""
+    client, me = student
+    await _fill_bank(client, me)
+    res = await client.post(f"{me}/built-resumes/stream", json={})
+
+    assert res.status_code == 200
+    assert res.headers["content-type"].startswith("application/x-ndjson")
+    lines = _lines(res)
+    assert lines[:2] == [{"type": "phase", "phase": "checking"}, {"type": "phase", "phase": "saving"}]
+    assert [line["type"] for line in lines] == ["phase", "phase", "done"]
+    made = lines[-1]["resume"]
+    assert (made["name"], made["is_default"]) == ("Resume #1", True)
+    # Committed: the list reads it back
+    assert [r["id"] for r in (await client.get(f"{me}/built-resumes")).json()] == [made["id"]]
+
+
+async def test_a_streamed_generate_names_the_duplicate_and_writes_nothing(student):
+    client, me = student
+    await _fill_bank(client, me)
+    first = await _generate(client, me, "General SWE")
+
+    lines = _lines(await client.post(f"{me}/built-resumes/stream", json={}))
+    assert lines == [
+        {"type": "phase", "phase": "checking"},
+        {"type": "error", "status": 409, "message": "Duplicate Resume found: General SWE", "built_resume_id": first,
+         "name": "General SWE"},
+    ]
+    assert [r["id"] for r in (await client.get(f"{me}/built-resumes")).json()] == [first]
+
+
+async def test_a_confirmed_copy_is_made_without_the_check(student):
+    """KAN-444: the Resumes page asks "You Already Have This Resume", and
+    the student's Confirm makes the copy, streamed or not."""
+    client, me = student
+    await _fill_bank(client, me)
+    first = await _generate(client, me, "General SWE")
+
+    lines = _lines(await client.post(f"{me}/built-resumes/stream", json={"allow_duplicate": True}))
+    assert [line.get("phase", line["type"]) for line in lines] == ["saving", "done"]
+    res = await client.post(f"{me}/built-resumes", json={"allow_duplicate": True})
+    assert res.status_code == 201
+    listed = [r["id"] for r in (await client.get(f"{me}/built-resumes")).json()]
+    assert len(listed) == 3 and first in listed
+
+
+async def test_generate_tells_a_tailored_resume_with_its_own_skill_from_a_new_base_resume(student, database):
+    """Generate reads the bank once, every resume's own skills included, and
+    leaves those skills off the new resume (KAN-444): a tailored resume
+    whose own skill is its only difference is not a duplicate, and the new
+    resume does not show that skill."""
+    client, me = student
+    await _fill_bank(client, me)
+    first = await _generate(client, me, "General SWE")
+    applicant_id = uuid.UUID(me.rsplit("/", 1)[1])
+    skill = uuid.uuid4()
+    async with database() as session:
+        await session.execute(
+            text("INSERT INTO bank_skills (id, applicant_id, name, built_resume_id) VALUES (:id, :a, 'Kubernetes', :r)"),
+            {"id": skill, "a": applicant_id, "r": uuid.UUID(first)},
+        )
+        await session.execute(
+            text("INSERT INTO built_resume_skills (built_resume_id, skill_id, shown, position) VALUES (:r, :s, true, 99)"),
+            {"r": uuid.UUID(first), "s": skill},
+        )
+        await session.commit()
+
+    # The first resume now prints Kubernetes, so a new one is no duplicate of it
+    second = await _generate(client, me)
+    choices = (await client.get(f"{me}/built-resumes/{second}/choices")).json()
+    names = {s["skill_id"] for s in choices["skills"]}
+    bank_skills = {s["id"]: s["name"] for s in (await client.get(f"{me}/bank")).json()["skills"]}
+    assert "Kubernetes" not in {bank_skills.get(i) for i in names}
+    assert all(i in bank_skills for i in names)
 
 
 async def test_generate_matches_a_resume_only_on_what_it_prints(student):
@@ -397,6 +485,11 @@ async def test_a_tailored_resume_names_its_posting_and_says_when_it_has_closed(s
                 " (gen_random_uuid(), 'Intern', 'published', 'Acme', 'https://example.com/apply') RETURNING id"
             )
         )
+        await session.execute(
+            text("UPDATE job_postings SET company_logo_url = 'https://example.com/acme.png',"
+                 " company_domain = 'acme.com' WHERE id = :p"),
+            {"p": posting},
+        )
         tailored = await session.scalar(
             text(
                 "INSERT INTO built_resumes (applicant_id, name, template, job_posting_id)"
@@ -412,6 +505,11 @@ async def test_a_tailored_resume_names_its_posting_and_says_when_it_has_closed(s
 
     # The card names the posting and links to it (KAN-268).
     assert await postings() == {base: (None, None, False), str(tailored): ("Intern", "Acme", False)}
+    # ...and shows its company's logo (2026-11-10)
+    rows = {r["id"]: r for r in (await client.get(f"{me}/built-resumes")).json()}
+    assert (rows[str(tailored)]["posting_logo_url"], rows[str(tailored)]["posting_company_domain"]) == (
+        "https://example.com/acme.png", "acme.com")
+    assert rows[base]["posting_logo_url"] is None
     async with database() as session:
         await session.execute(text("UPDATE job_postings SET status = 'closed' WHERE id = :p"), {"p": posting})
         await session.commit()

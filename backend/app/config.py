@@ -144,6 +144,37 @@ class Settings(BaseSettings):
     fill_event_daily_cap: int = 2000
     # Jobs a student added from a form WorkIt doesn't list (KAN-515): one per form they ask their Claude to write for.
     added_job_daily_cap: int = 50
+    # The Fill engine's Rules table, one job system at a time (KAN-756, routers/extension_rules.py): a
+    # site token per posting opened, and a fetch per token. A student opening 100 postings a day, five
+    # batch tabs at a time, stays far below; a scraper pulling the table over and over doesn't.
+    rules_token_daily_cap: int = 400
+    rules_fetch_daily_cap: int = 400
+
+    # How long a site token fetches its job system's rules (KAN-756): long enough for the extension's
+    # prefetch on posting open, short enough that a copied one dies quickly.
+    rules_token_minutes: int = 5
+
+    # When the admins' anomaly report flags an account's Rules table fetches (KAN-772,
+    # services/rules_anomalies.py, GET /admin/rules-anomalies). Each flag is a lead to read, never
+    # a block: a student opening postings from a list crosses job systems quickly, and one who
+    # turned Send fill numbers off shows no fills at all.
+    # Many job systems in a short window: this many different ones within this many minutes.
+    rules_anomaly_systems: int = Field(default=6, ge=2)
+    rules_anomaly_systems_minutes: int = Field(default=30, ge=1)
+    # Fetching without filling: at least this many fetches, and this many per fill (fill events,
+    # counted per account a day in daily_counts) or more.
+    rules_anomaly_min_fetches: int = Field(default=30, ge=1)
+    rules_anomaly_fetches_per_fill: float = Field(default=5, gt=0)
+    # Bot-like timing: at least this many gaps between fetches, and this share of them within
+    # this fraction of the median gap (a person's gaps scatter; a timer's don't).
+    rules_anomaly_min_gaps: int = Field(default=20, ge=2)
+    rules_anomaly_regular_share: float = Field(default=0.8, gt=0, le=1)
+    rules_anomaly_regular_tolerance: float = Field(default=0.1, ge=0)
+    # Hitting the cap: RULES_TOKEN_DAILY_CAP or RULES_FETCH_DAILY_CAP reached on this many days.
+    rules_anomaly_capped_days: int = Field(default=2, ge=1)
+    # The Fill engine's bundled Rules table as JSON, which its build writes into its own dist/
+    # (services/rules_table.py). The image copies it to the same place beside backend/.
+    rules_table_path: Path = ENV_FILE.parent / "autofiller_extension" / "fill-engine" / "dist" / "rules-table.json"
 
     # The oldest extension version the API still serves (KAN-466): a request whose
     # X-WorkIt-Extension header names an older one gets 426, and the panel asks the

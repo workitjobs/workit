@@ -802,12 +802,13 @@ async def fetch_saved_answers(
 async def fetch_profile_facts(db: AsyncSession, applicant_id: uuid.UUID) -> list[str]:
     """The student's own profile facts as text, for the truth check (KAN-748):
     their name, headline and location, and their Application Info
-    (`fill_profile`) as JSON. Empty with no profile."""
+    (`fill_profile`) as JSON, one value a line (so no line gives every name
+    in it, for the outcome check's project, KAN-750). Empty with no profile."""
     profile = await db.get(Applicant_Profile, applicant_id)
     if profile is None:
         return []
     return [*(v for v in (profile.full_name, profile.headline, profile.location) if v),
-            json.dumps(profile.fill_profile or {}, default=str)]
+            json.dumps(profile.fill_profile or {}, default=str, indent=1)]
 
 
 async def fetch_brought_answers(db: AsyncSession, applicant_id: uuid.UUID) -> list[SavedAnswer]:

@@ -27,6 +27,7 @@ const PAGES: [RegExp, string][] = [
   [/^\/resumes\/uploaded\/[^/]+$/, "Uploaded Resume"],
   [/^\/resumes\/[^/]+$/, "Resume Editor"],
   [/^\/experiences$/, "Experiences"],
+  [/^\/cover-letters$/, "Cover Letters"],
   [/^\/profile$/, "Profile"],
   [/^\/settings$/, "Settings"],
   [/^\/help$/, "Help"],

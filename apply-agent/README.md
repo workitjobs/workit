@@ -40,7 +40,7 @@ never submits.** Apply runs on macOS only. Before you change code here, read
    lists each Worker profile, `worker-1` and on). With `worker_mode: plain`
    in `policies.yaml`, doctor checks "Plain seed" instead: `uv run apply
    plain seed` fixes it. Fix every other fail first. The warn lines are for
-   optional features.
+   optional features and optional facts (`identity.phone_type`).
 
 ## First rehearsal: Test Person
 

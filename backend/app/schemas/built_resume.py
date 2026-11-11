@@ -21,9 +21,12 @@ Name = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max
 class BuiltResumeCreate(BaseModel):
     """POST body for Generate. With no name the resume is "Resume #N"
     (`services/built_resumes.next_name`, KAN-258); every one made with no
-    name was "Base Resume" before."""
+    name was "Base Resume" before. `allow_duplicate`: the student confirmed
+    a copy of a resume they have, so Generate skips the duplicate check
+    (KAN-444: the Resumes page asks "You Already Have This Resume" first)."""
 
     name: Name | None = None
+    allow_duplicate: bool = False
 
 
 class BuiltResumeRename(BaseModel):
@@ -49,6 +52,39 @@ class BuiltResumeResponse(BaseModel):
     # it (KAN-268). Null on a base resume.
     posting_title: str | None = None
     posting_company: str | None = None
+    # Its company's logo and website, for the Resumes page card's logo tile
+    # (2026-11-10), as a job card draws a company (`jobLogo`)
+    posting_logo_url: str | None = None
+    posting_company_domain: str | None = None
+
+
+class GenerateStep(BaseModel):
+    """A streamed Generate's progress line (KAN-444): `checking` before the
+    duplicate check, `saving` before the writes."""
+
+    type: Literal["phase"] = "phase"
+    phase: Literal["checking", "saving"]
+
+
+class GenerateDone(BaseModel):
+    """A streamed Generate's last line when it saved: what `POST
+    .../built-resumes` answers."""
+
+    type: Literal["done"] = "done"
+    resume: BuiltResumeResponse
+
+
+class GenerateFailed(BaseModel):
+    """A streamed Generate's last line when it failed: the status and
+    message the JSON route would have answered, and on a duplicate (409)
+    the resume it would print the same as."""
+
+    type: Literal["error"] = "error"
+    status: int
+    message: str
+    built_resume_id: UUID | None = None
+    # The matching resume's name, on a duplicate
+    name: str | None = None
 
 
 class RenderBox(BaseModel):

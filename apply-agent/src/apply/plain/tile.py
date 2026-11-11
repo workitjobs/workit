@@ -12,7 +12,9 @@ helper never aimed), or none for STALLED s after the extension said its picture 
 stops filming it and the extension's frames show. Then it tries filming again after RETRY s, doubling up to
 RETRY_MOST (KAN-751): a page's title and the one macOS lists for its window may disagree for a while (a sign-in's
 redirects), and one such stretch must not keep the tile at 2 frames a second for the whole run. A try that fails
-falls back again; the tile keeps its last frame meanwhile. A tile whose extension is older than Apply
+falls back again; the tile keeps its last frame meanwhile. An extension from before KAN-717 sends `tile.shown`
+with no tab title, and a window can't be filmed without one: its tile takes the extension's frames at once, with no
+retries, and says so (UNTITLED, KAN-764). A tile whose extension is older than Apply
 says so (bridge.OUT_OF_DATE). A tile's clicks, keys, wheel, pastes, <select> picks and files go back as `tile.input`, replayed
 in the page as synthetic DOM events. No CDP anywhere.
 
@@ -37,6 +39,10 @@ from apply.plain.bridge import OUT_OF_DATE, Connection, PortError, PortTimeoutEr
 from apply.plain.page import POLL, PortPage, file_payloads
 
 FOREIGN = "This tile's browser connection isn't from this Worker's own Chrome, so the tile shows nothing from it."
+# A `tile.shown` with no `title`: the Worker's extension is from before KAN-717, and Apply films a window only by its tab's
+# title, so this tile can't be filmed till the Worker loads newer code (KAN-764).
+UNTITLED = ("Live tile at 2 frames a second: this Worker's extension is too old to film its window. Once no Worker "
+            "runs, run `uv run apply plain seed`: new Workers then load current code.")
 INPUT_WAIT = 5.0  # s a tile event may take on the page before the window gives up on it
 WATCH_EVERY = 0.5  # s between looks for Workers that connected or went away
 FIRST_FRAME = 3.0  # s a filmed tile may wait for its first frame before the extension's frames show
@@ -70,6 +76,7 @@ class PortFrames:
         self._notes: dict[int, str] = {}  # worker -> the tile's line about its capture
         self._filmed: dict[int, dict[str, float]] = {}  # worker -> when filming began, its last frame, last tile.shown
         self._retry: dict[int, tuple[float, float]] = {}  # worker, fallen back -> (when to film again, the wait after)
+        self._untitled: set[int] = set()  # Workers whose extension's `tile.shown` has no title: never filmed (KAN-764)
         self._settings = settings  # tile.start's: interval ms, quality, maxWidth, maxHeight
         self._frames: dict[int, tuple[bytes, int]] = {}  # worker -> (latest frame, its number)
         self._tabs: dict[int, int] = {}  # worker -> the tab its latest frame shows
@@ -233,6 +240,8 @@ class PortFrames:
         self._tabs[worker] = tab
         if worker in self._filmed:
             self._filmed[worker]["shown"] = time.monotonic()
+        if "title" not in message:
+            self._untitled.add(worker)  # from before KAN-717: _refilm gives its tile the extension's frames
         stream, window = self._streams.get(worker), message.get("window") or {}
         if stream and window.get("state") != "minimized" and message.get("viewport", {}).get("width"):
             stream.aim(window, message["viewport"], message.get("title") or "")
@@ -289,6 +298,8 @@ class PortFrames:
         """Why Worker `worker`'s filmed tile shows nothing and should take the extension's frames, or ""."""
         if not stream.alive:
             return "the helper ended"
+        if worker in self._untitled:
+            return "its worker extension sends no tab title (it is from before KAN-717), so its window can't be filmed"
         if "mismatch" in stream.status:  # no window of its Chrome shows its tab: never film another (KAN-717)
             return f"helper: {stream.status['mismatch']}"
         times, now = self._filmed.get(worker) or {}, time.monotonic()
@@ -328,6 +339,7 @@ class PortFrames:
             return
         self._unfilm(worker)
         self._retry.pop(worker, None)
+        self._untitled.discard(worker)
         self._notes.pop(worker, None)
         self._watched.pop(worker, None)
         self._choosers = {key: asked for key, asked in self._choosers.items() if key[0] != worker}
@@ -363,6 +375,11 @@ class PortFrames:
         if stream is not None:
             if why := self._blank(worker, stream):
                 self._unfilm(worker)  # the extension's frames, till the next try
+                if worker in self._untitled:  # no try could film it: none till a new Connection (KAN-764)
+                    self._notes[worker] = UNTITLED
+                    print(f"Plain Worker {worker + 1}'s tile: {why}; showing the extension's frames.", file=sys.stderr)
+                    connection.call("tile.start", timeout=5, **{**self._settings, "native": False})
+                    return
                 wait = self._retry.get(worker, (0.0, RETRY))[1]
                 if worker not in self._retry and why != "the helper ended":
                     print(f"Plain Worker {worker + 1}'s tile: {why}; showing the extension's frames, "

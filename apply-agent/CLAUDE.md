@@ -143,7 +143,9 @@ into it and the window shows "Sample data".
 - CI (the `apply` job in `../.github/workflows/ci.yml`) runs ruff and only
   a fixed list of fast test files: the files that need no browser, no
   network and no `claude` CLI. When you add a test file that needs none of
-  them, add it to that list. CI also installs Chrome for Testing and runs
+  them, add it to that list. Its test steps run in parallel
+  (`pytest -n auto`), so a new test there can't share a fixed port or
+  path with another. CI also installs Chrome for Testing and runs
   `test_plain_guards.py` and `test_plain_routing.py` on a real plain Worker.
   CI never runs the Filler tests (`test_*_filler.py`, `test_claude_fill.py`
   and the other files that open Chromium). Run the ones that your change
@@ -153,8 +155,11 @@ into it and the window shows "Sample data".
   code's Next, the profile click, the account click, Ask Claude's press,
   Fill again) against pages built to trick them. Every pair must send no
   application request. A new click path joins `PATHS`, and a new trick joins
-  `PAGES`, in the same PR. CI runs its no-browser, CDP and plain Worker
-  cases. A guard PR gets an adversarial review first (root `CLAUDE.md`).
+  `PAGES`, in the same PR. CI runs its no-browser cases, every page and
+  every path at least once on CDP (a diagonal), and every path against the
+  first page in `PAGES` on a plain Worker; the other pairs are marked
+  `nightly` and run in `apply-nightly.yml` (KAN-780). Mark a test `nightly` only when it is slow
+  and a faster PR case covers the same code. A guard PR gets an adversarial review first (root `CLAUDE.md`).
 - **No test reaches past loopback** (`tests/network_block.py`, KAN-662). A
   socket or name lookup to another host raises `NetworkBlocked`, Chrome
   started by a test resolves other hosts to nothing, and Playwright's own
