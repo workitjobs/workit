@@ -49,6 +49,14 @@ def slugs(link: str) -> list[tuple[str, str]]:
             ("lever", "eu/quantinuum"),
         ),
         ("https://jobs.lever.co/palantir/abc", ("lever", "palantir")),
+        (
+            "https://specialisterne.applytojob.com/apply/Vt3hev3H0E/Software-Engineer-Intern",
+            ("jazzhr", "specialisterne"),
+        ),
+        (
+            "https://acme.pinpointhq.com/postings/591998-software-engineering-intern",
+            ("pinpoint", "acme"),
+        ),
     ],
 )
 def test_an_apply_link_names_its_board(link: str, board: tuple[str, str]) -> None:
@@ -97,10 +105,6 @@ def test_unread_links_are_counted_by_host() -> None:
             "Greenhouse behind the company's site (--resolve)",
         ),
         ("https://johndeere.eightfold.ai/careers/job/137479374700", "Eightfold"),
-        (
-            "https://specialisterne.applytojob.com/apply/Vt3hev3H0E/Software-Engineer-Intern",
-            "JazzHR",
-        ),
     ],
 )
 def test_an_unread_link_is_counted_by_why(link: str, cause: str) -> None:

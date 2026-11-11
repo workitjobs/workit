@@ -18,7 +18,7 @@ that simply has nothing open right now, and must never be confused with a typo.
 
 Greenhouse, Workable, BambooHR, SmartRecruiters, Eightfold and Workday list a
 board without its descriptions, so a kept posting's own page is read once more
-(`describe`); Ashby, Lever and Recruitee send the descriptions with the list.
+(`describe`); Ashby, Lever, Recruitee and Pinpoint send the descriptions with the list.
 
 TikTok, iCIMS's Jibe sites (`jibe`) and SuccessFactors were added in KAN-369:
 TikTok and Jibe page their lists, descriptions included; SuccessFactors pages a
@@ -26,6 +26,9 @@ list of titles and reads each kept posting's page (docs/providers.md).
 SmartRecruiters pages its list 100 at a time; its robots.txt disallows all bots,
 so it sets ``skip_robots=True`` (accepted for this educational project).
 Eightfold pages 10 at a time; its robots.txt explicitly allows ``/api/pcsx``.
+Pinpoint returns every posting in one JSON response with descriptions.
+JazzHR lists titles and locations in HTML; each kept posting's JSON-LD has the
+description, date, pay and places.
 """
 
 from __future__ import annotations
@@ -54,9 +57,11 @@ from workit_scraper.providers.systems.ashby import ashby
 from workit_scraper.providers.systems.bamboohr import bamboohr, describe_bamboohr
 from workit_scraper.providers.systems.greenhouse import describe_greenhouse, greenhouse
 from workit_scraper.providers.systems.icims import describe_icims, icims
+from workit_scraper.providers.systems.jazzhr import describe_jazzhr, jazzhr
 from workit_scraper.providers.systems.jibe import jibe
 from workit_scraper.providers.systems.lever import lever
 from workit_scraper.providers.systems.oracle import describe_oracle, oracle
+from workit_scraper.providers.systems.pinpoint import pinpoint
 from workit_scraper.providers.systems.recruitee import recruitee
 from workit_scraper.providers.systems.rippling import describe_rippling, rippling
 from workit_scraper.providers.systems.eightfold import describe_eightfold, eightfold
@@ -86,6 +91,8 @@ PROVIDERS.update(
         "tiktok": systems.tiktok.PROVIDER,
         "jibe": systems.jibe.PROVIDER,
         "eightfold": systems.eightfold.PROVIDER,
+        "jazzhr": systems.jazzhr.PROVIDER,
+        "pinpoint": systems.pinpoint.PROVIDER,
         "smartrecruiters": systems.smartrecruiters.PROVIDER,
         "successfactors": systems.successfactors.PROVIDER,
     }
@@ -110,6 +117,7 @@ __all__ = [
     "describe_bamboohr",
     "describe_eightfold",
     "describe_greenhouse",
+    "describe_jazzhr",
     "describe_icims",
     "describe_oracle",
     "describe_rippling",
@@ -120,12 +128,14 @@ __all__ = [
     "eightfold",
     "greenhouse",
     "icims",
+    "jazzhr",
     "jibe",
     "job_url",
     "lever",
     "listing_url",
     "name_url",
     "oracle",
+    "pinpoint",
     "plain_lines",
     "plain_text",
     "recruitee",

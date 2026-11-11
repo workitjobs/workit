@@ -36,8 +36,9 @@ boards.csv ─▶ __main__ ─▶ polite.Robots ─▶ providers.PROVIDERS ─�
 
 Each module owns one stage (its docstring says which); every network read goes
 through `web.get` (or Workday's and TikTok's `web.post`) behind `polite.Robots`.
-Greenhouse, Lever, Ashby, Workable, Recruitee and BambooHR return a whole board in
-one request. Workday sends 20 postings a request, which changes how its boards are
+Greenhouse, Lever, Ashby, Workable, Recruitee, BambooHR and Pinpoint return a whole
+board in one request. JazzHR returns its list in one HTML page; each kept posting's
+detail page has JSON-LD. Workday sends 20 postings a request, which changes how its boards are
 read: `docs/workday.md`. Oracle, TikTok, Jibe, SmartRecruiters, SuccessFactors
 and Eightfold page as well (`Provider.paged`): `docs/providers.md`.
 
@@ -165,7 +166,7 @@ A posting's own text is one value, `providers.Page`: the description (its kept
 sections, cut to `DESCRIPTION_CHARS`), the card's `details.Facts`, and on Greenhouse
 its offices (on Workday, its places and requisition number). Lever, Ashby and
 Recruitee send it with the board's list. Greenhouse, Workable, BambooHR,
-Rippling, iCIMS, Oracle, SmartRecruiters, Eightfold and Workday do not (`Provider.job_url`): Greenhouse's `content=true`
+Rippling, iCIMS, Oracle, SmartRecruiters, Eightfold, JazzHR and Workday do not (`Provider.job_url`): Greenhouse's `content=true`
 would send hundreds of megabytes a run to describe the ~2% we keep, and
 Workday's list has no description, exact date or places. So
 `__main__.with_page` reads each *kept* posting's page once, through the same
@@ -215,7 +216,7 @@ robots and pacing.
 - **Bump `providers.PAGE_VERSION` whenever a `Page` starts holding something
   new, or a fact's pattern changes**, or stored postings never get it.
   `with_page` re-reads any page under an older version, once per kept
-  Greenhouse, Workable, BambooHR, Rippling, iCIMS, Oracle, SmartRecruiters, Eightfold and Workday posting.
+  Greenhouse, Workable, BambooHR, Rippling, iCIMS, Oracle, SmartRecruiters, Eightfold, JazzHR and Workday posting.
 - **Changing `DESCRIPTION_CHARS` does not re-cut stored Greenhouse
   descriptions.** Clear them so the next run fetches them again:
 
