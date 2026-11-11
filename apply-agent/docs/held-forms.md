@@ -357,12 +357,24 @@ don't prompt me for it").
   (`self.required`): an optional one is left blank and the form goes on.
 - Verifying (`verify._blanks`) notes an asked optional field that is still
   blank (`OPTIONAL_UNANSWERED`). The note holds nothing.
+- The tile (`dashboard.verdict`) makes only the required questions a Missing
+  fact. With only optional ones left, it says `OPTIONAL_ASK`, after any real
+  flag or check, and the item's `optional` list puts their answer boxes on
+  the card whatever its kind.
+- The card has a **Skip (leave blank)** button. It posts an empty answer to
+  `/answer`, which calls the window's `answer` with `""`. `cli._answering`
+  then saves the Skip as an empty answer in the profile's
+  `answered_questions` (`AnswersTab.save_skipped`). The engine leaves an
+  optional question of that wording blank from then on (`SKIPPED`). A
+  required one with that wording is still asked. The Answers tab shows the
+  Skip as an empty answer, which he may fill in later. An Essay fact or a
+  bare date is skipped on that form only.
 - An answer is saved as a Missing fact's answer is: on his click, to the
   profile, for every later form.
 
 **Tests.** `tests/test_optional_ask.py` (in CI): Tax District on a New York
 home (not asked) and an Ohio home (asked), a run that goes on, the note, the
-answer kept for the next form. The
+Skip and the answer kept for the next form, the tile, and `/answer`. The
 engine's `test/planner.spec.ts` has the planner's cases.
 
 ## An answer from the window, on a held form (`rehearsal._fill_answer`, KAN-686)

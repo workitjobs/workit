@@ -2,6 +2,8 @@
 asked when the known facts say it can't exist. JPMorgan's Oracle form (2026-11-10) left its optional Tax District
 blank and listed Address Line 2 and 3 as needing Lisul. No browser: the engine's plan, the window's routes and fakes."""
 
+import json
+import urllib.request
 from datetime import date
 from pathlib import Path
 
@@ -9,9 +11,10 @@ import yaml
 from conftest import FIXTURES
 from fakes import FakeClaude
 
-from apply import cli, verify, worker
+from apply import cli, dashboard, verify, worker
 from apply.answer_bank import AnswerBank
 from apply.answers_tab import AnswersTab
+from apply.dashboard import Dashboard, NoFrames
 from apply.model import Posting, Question
 from apply.profile import ApplicantProfile
 
@@ -74,6 +77,18 @@ def test_a_required_missing_fact_still_stops_a_run(tmp_path):
     assert result is not None and result.missing_fact == "Tax District"
 
 
+def test_his_skip_is_kept_so_the_next_form_leaves_it_blank_without_asking(tmp_path):
+    path = profile_at(tmp_path, **(HOME | {"city": "Columbus", "state": "OH"}))
+    tab = AnswersTab(AnswerBank(tmp_path / "answer-bank.yaml"), path)
+    answer = cli._answering(lambda: None, tab)
+
+    said = answer({"status": "ready to submit"}, "Tax District", "")
+    assert said.startswith("Skipped") and ApplicantProfile.load(path).get("answered_questions") == {"Tax District": ""}
+    form = planned(path, rehearse=True)
+    assert form.add([CITY, TAX]) is None and form.missing == ()
+    assert form.blanks == {"tax": "Optional, and you chose to leave it blank"}
+
+
 def test_his_answer_is_kept_so_the_next_form_fills_it(tmp_path):
     path = profile_at(tmp_path, **(HOME | {"city": "Columbus", "state": "OH"}))
     answer = cli._answering(lambda: None, AnswersTab(AnswerBank(tmp_path / "answer-bank.yaml"), path))
@@ -81,3 +96,29 @@ def test_his_answer_is_kept_so_the_next_form_fills_it(tmp_path):
     answer({"status": "ready to submit"}, "Tax District", "Columbus CSD")
     form = planned(path, rehearse=True)
     assert form.add([CITY, TAX]) is None and form.missing == () and form.answers["tax"] == "Columbus CSD"
+
+
+def test_an_optional_question_alone_asks_with_a_skip_and_is_not_a_missing_fact():
+    caption = {"status": "ready to submit", "missing": ["Tax District"], "required": {"Tax District": False}}
+    shown = dashboard.verdict(caption)
+    assert (shown["kind"], shown["do"], shown["why"], shown["optional"]) == \
+        ("missing fact", dashboard.OPTIONAL_ASK, "Tax District", ["Tax District"])
+
+    both = dashboard.verdict(caption | {"missing": ["Pronouns", "Tax District"],
+                                        "required": {"Pronouns": True, "Tax District": False}})
+    assert (both["do"], both["why"]) == ("Answer a question only you know", "Pronouns")
+
+
+def test_a_skip_from_the_window_reaches_the_save_and_leaves_needs_you():
+    saved = []
+    with Dashboard(1, NoFrames(), answer=lambda item, q, a: saved.append((q, a)) or "Skipped, and kept.") as board:
+        board.update(0, company="JPMorgan Chase", posting_url="https://j.example/1", status="ready to submit",
+                     missing=["Tax District"], required={"Tax District": False})
+        [item] = board.state()["items"]
+        assert item["questions"] == ["Tax District"]
+        body = json.dumps({"id": item["id"], "question": "Tax District", "answer": ""}).encode()
+        reply = json.loads(urllib.request.urlopen(urllib.request.Request(
+            board.url + "/answer", body, {"X-Apply-Token": board.token})).read())
+
+        assert reply["message"] == "Skipped, and kept." and saved == [("Tax District", "")]
+        assert board.state()["items"][0]["answered"] is True  # it waits on him no more
