@@ -346,7 +346,8 @@ open choices (Settled choices, near the end).
   control** (2026-11-11): a field's border turns brand with a 1px ring on it,
   one 2px edge (`FIELD_CONTROL`, the search field); a button, an icon button,
   a check box and a switch take a 2px ring (`globals.css` sets the vendored
-  check box's and switch's). A field shows focus on every click, and its 1px
+  check box's and switch's), and a slider's thumb a 2px ring 2px off its
+  brand edge (`globals.css` too: the focus is on the range input inside it). A field shows focus on every click, and its 1px
   border plus 3px ring read as a thick purple frame, beside 2px rings and
   shadcn's half-strength 3px ring on one screen. A sticky bar never
   covers a focused control (`scroll-mt-*`).
