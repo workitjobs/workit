@@ -4,6 +4,7 @@ import * as React from "react";
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 
 import { cn } from "@/lib/cn";
+import { Tip } from "@/components/ui/tip";
 import { Button } from "@/components/shadcn/button";
 import { XIcon } from "@phosphor-icons/react/ssr";
 
@@ -57,13 +58,17 @@ function DialogContent({
       >
         {children}
         {showCloseButton && (
-          <DialogPrimitive.Close
-            data-slot="dialog-close"
-            render={<Button variant="ghost" className="absolute top-2 right-2" size="icon-sm" />}
-          >
-            <XIcon aria-hidden />
-            <span className="sr-only">Close</span>
-          </DialogPrimitive.Close>
+          // Its name on hover too, as every icon-only control says
+          // (components/ui/tip.tsx, 2026-11-11).
+          <Tip label="Close">
+            <DialogPrimitive.Close
+              data-slot="dialog-close"
+              render={<Button variant="ghost" className="absolute top-2 right-2" size="icon-sm" />}
+            >
+              <XIcon aria-hidden />
+              <span className="sr-only">Close</span>
+            </DialogPrimitive.Close>
+          </Tip>
         )}
       </DialogPrimitive.Popup>
     </DialogPortal>

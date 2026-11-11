@@ -47,6 +47,7 @@ import { FormatOptions } from "./page-format";
 import { FoldButton, PHONE_FOLD } from "./bar-fold";
 import { boxKey, kindLabel } from "./pdf-pages";
 import { CutPicker, ExperiencesPicker } from "./experiences-picker";
+import { Tip } from "@/components/ui/tip";
 
 /**
  * The phone editor (KAN-219, the KAN-201 prototype's variant A). The page
@@ -231,16 +232,18 @@ export function PhoneEditor({
           buttons (surface-filled) do not vanish into them (KAN-258). */}
       <header className="bg-brand-tint/95 border-brand-pale flex flex-col gap-2 border-b px-4 pt-3 pb-2 backdrop-blur">
         <div className="flex items-center gap-2">
-          <Link
-            href={back.href}
-            aria-label={back.label}
-            onClick={back.onClick}
-            // A fill on the press (and under a pointer, or a keyboard's
-            // ring): the phone's back arrow gave no sign it was touched.
-            className="text-ink hover:bg-brand-pale/60 active:bg-brand-pale focus-visible:ring-brand-ring -ml-2 flex size-11 items-center justify-center rounded-full transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none"
-          >
-            <ArrowLeftIcon aria-hidden className="size-5" />
-          </Link>
+          <Tip label={back.label}>
+            <Link
+              href={back.href}
+              aria-label={back.label}
+              onClick={back.onClick}
+              // A fill on the press (and under a pointer, or a keyboard's
+              // ring): the phone's back arrow gave no sign it was touched.
+              className="text-ink hover:bg-brand-pale/60 active:bg-brand-pale focus-visible:ring-brand-ring -ml-2 flex size-11 items-center justify-center rounded-full transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none"
+            >
+              <ArrowLeftIcon aria-hidden className="size-5" />
+            </Link>
+          </Tip>
           {/* As on the desktop bar: the way in, or, over one page, the
               count joined to its fix (./fit-notice.tsx), short so it fits
               beside the back arrow; the toast spells it out (KAN-258). */}
@@ -274,24 +277,28 @@ export function PhoneEditor({
         </div>
         {/* One row at every width: the words fold (`PHONE_FOLD`) */}
         <div className={cn("@container/bar flex flex-nowrap items-center gap-2", TAP)}>
-          <Button
-            variant="secondary"
-            size="sm"
-            aria-label="Undo"
-            disabled={!history.canUndo}
-            onClick={history.onUndo}
-          >
-            <ArrowUUpLeftIcon aria-hidden />
-          </Button>
-          <Button
-            variant="secondary"
-            size="sm"
-            aria-label="Redo"
-            disabled={!history.canRedo}
-            onClick={history.onRedo}
-          >
-            <ArrowUUpRightIcon aria-hidden />
-          </Button>
+          <Tip label="Undo">
+            <Button
+              variant="secondary"
+              size="sm"
+              aria-label="Undo"
+              disabled={!history.canUndo}
+              onClick={history.onUndo}
+            >
+              <ArrowUUpLeftIcon aria-hidden />
+            </Button>
+          </Tip>
+          <Tip label="Redo">
+            <Button
+              variant="secondary"
+              size="sm"
+              aria-label="Redo"
+              disabled={!history.canRedo}
+              onClick={history.onRedo}
+            >
+              <ArrowUUpRightIcon aria-hidden />
+            </Button>
+          </Tip>
           <div className="ml-auto flex min-w-0 gap-2">
             <FoldButton
               label="Format"
@@ -401,27 +408,31 @@ export function PhoneEditor({
           onClose={() => onSelect(null)}
           title={
             <div className="flex min-w-0 items-center gap-1">
-              <Button
-                variant="secondary"
-                size="sm"
-                aria-label="Previous Line"
-                disabled={at <= 0}
-                onClick={() => onSelect(order[at - 1])}
-              >
-                <CaretLeftIcon aria-hidden />
-              </Button>
+              <Tip label="Previous Line">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  aria-label="Previous Line"
+                  disabled={at <= 0}
+                  onClick={() => onSelect(order[at - 1])}
+                >
+                  <CaretLeftIcon aria-hidden />
+                </Button>
+              </Tip>
               <span className="text-label text-ink-meta min-w-0 flex-1 truncate text-center font-semibold">
                 {kindLabel(box.kind)} · {lineName(line)}
               </span>
-              <Button
-                variant="secondary"
-                size="sm"
-                aria-label="Next Line"
-                disabled={at < 0 || at >= order.length - 1}
-                onClick={() => onSelect(order[at + 1])}
-              >
-                <CaretRightIcon aria-hidden />
-              </Button>
+              <Tip label="Next Line">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  aria-label="Next Line"
+                  disabled={at < 0 || at >= order.length - 1}
+                  onClick={() => onSelect(order[at + 1])}
+                >
+                  <CaretRightIcon aria-hidden />
+                </Button>
+              </Tip>
             </div>
           }
         >
@@ -539,9 +550,11 @@ function Sheet({
         <div className="text-label text-ink-meta min-w-0 flex-1 truncate font-semibold">
           {title}
         </div>
-        <Button variant="secondary" size="sm" aria-label="Close" onClick={onClose}>
-          <XIcon aria-hidden />
-        </Button>
+        <Tip label="Close">
+          <Button variant="secondary" size="sm" aria-label="Close" onClick={onClose}>
+            <XIcon aria-hidden />
+          </Button>
+        </Tip>
       </div>
       {fill ? (
         <div className="flex min-h-0 flex-1 flex-col pt-2">{children}</div>

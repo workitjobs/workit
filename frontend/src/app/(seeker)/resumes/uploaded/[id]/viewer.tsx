@@ -22,6 +22,7 @@ import { SLIM_BAR } from "../../[resumeId]/slim-bar";
 import { Zoom, zoomWidth } from "../../[resumeId]/zoom";
 import { RenameForm } from "../../built-resume-row";
 import { DeleteResumeConfirm } from "../../delete-confirm";
+import { Tip } from "@/components/ui/tip";
 
 /**
  * An uploaded resume's page (KAN-366): its name, then a sticky bar in the
@@ -137,26 +138,31 @@ export function UploadedViewer({ resume, pdf }: { resume: ResumeItem; pdf: strin
               </div>
             )}
             {!primary && (
-              <Button
-                variant="secondary"
-                size="sm"
-                title="Make Primary"
-                onClick={makePrimary}
-                disabled={saving}
-              >
-                <StarIcon aria-hidden className="size-4" />
-                <span className="@max-3xl/main:sr-only">Make Primary</span>
-              </Button>
+              <Tip label={"Make Primary"}>
+                <Button
+                  variant="secondary"
+                  size="sm"
+
+                  onClick={makePrimary}
+                  disabled={saving}
+                >
+                  <StarIcon aria-hidden className="size-4" />
+                  <span className="@max-3xl/main:sr-only">Make Primary</span>
+                </Button>
+              </Tip>
             )}
-            <Button variant="secondary" size="sm" title="Rename" onClick={() => setRenaming(true)}>
-              <PencilIcon className="size-4" />
-              <span className="@max-3xl/main:sr-only">Rename</span>
-            </Button>
+            <Tip label={"Rename"}>
+              <Button variant="secondary" size="sm" onClick={() => setRenaming(true)}>
+                <PencilIcon className="size-4" />
+                <span className="@max-3xl/main:sr-only">Rename</span>
+              </Button>
+            </Tip>
             <DeleteResumeConfirm
               busy={deleting}
               onDelete={remove}
+              tip="Delete"
               trigger={
-                <Button variant="secondary" size="sm" title="Delete" disabled={deleting}>
+                <Button variant="secondary" size="sm" disabled={deleting}>
                   <TrashIcon className="size-4" />
                   <span className="@max-3xl/main:sr-only">Delete</span>
                 </Button>

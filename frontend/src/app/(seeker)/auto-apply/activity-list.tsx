@@ -274,9 +274,11 @@ const COLUMNS: { id: string; label: string; sort?: Sort; hint?: string; width?: 
 
 export const TH = "px-4 text-note text-ink-meta font-medium";
 export const TD = "px-4 py-3 text-note text-ink";
-/** Every column but Role is centred, heading and cell (asked for
- *  2026-10-20): each holds one short value under its heading. */
-export const CENTER = "text-center";
+/** Every column is left-aligned, heading and cell, as the Tracker's are
+ *  (2026-11-10). Every column but Role was centred (asked for 2026-10-20):
+ *  on a wide window each short value floated far from the job it belongs
+ *  to, and beside the Tracker's table the two read as different apps. */
+export const ALIGN = "text-left";
 /** Role is frozen at the left while the rest scrolls, from 672px of page up,
  *  as on the Applications list (applications/list.tsx says why not below). */
 export const FROZEN =
@@ -289,7 +291,7 @@ export const FROZEN =
  * role over its company), Status, Match, Date Added and Date Applied. It
  * lists applied and skipped jobs only (History, archived for now:
  * ./(queue)/page.tsx); Up Next has its own table (./queue-table.tsx), which shares
- * this one's frame (TH, TD, CENTER, FROZEN).
+ * this one's frame (TH, TD, ALIGN, FROZEN).
  *
  * Every column but Role is centred. A row with an `href` (its job posting
  * is still open) opens it on a click anywhere (components/clickable-row.tsx);
@@ -327,7 +329,7 @@ export function ActivityTable({
                   aria-sort={
                     active ? (direction === "asc" ? "ascending" : "descending") : undefined
                   }
-                  className={cn(TH, column.width, column.id === "role" ? FROZEN : CENTER)}
+                  className={cn(TH, column.width, column.id === "role" ? FROZEN : ALIGN)}
                 >
                   {column.sort ? (
                     <SortButton
@@ -398,9 +400,9 @@ function Row({ item, index }: { item: ActivityItem; index: number }) {
         </div>
       </TableCell>
 
-      <TableCell className={cn(TD, CENTER, "overflow-hidden")}>
+      <TableCell className={cn(TD, ALIGN, "overflow-hidden")}>
         <>
-          <div className="flex items-center justify-center gap-2">
+          <div className="flex items-center gap-2">
             {IN_FLIGHT.includes(item.status) && (
               <span
                 aria-hidden="true"
@@ -424,7 +426,7 @@ function Row({ item, index }: { item: ActivityItem; index: number }) {
         </>
       </TableCell>
 
-      <TableCell className={cn(TD, CENTER)}>
+      <TableCell className={cn(TD, ALIGN)}>
         {item.match != null ? (
           <MatchBadge score={item.match} />
         ) : (
@@ -436,11 +438,11 @@ function Row({ item, index }: { item: ActivityItem; index: number }) {
         )}
       </TableCell>
 
-      <TableCell className={cn(TD, CENTER)}>
+      <TableCell className={cn(TD, ALIGN)}>
         <LocalDate at={item.addedAt} />
       </TableCell>
 
-      <TableCell className={cn(TD, CENTER, !item.appliedAt && "text-ink-meta")}>
+      <TableCell className={cn(TD, ALIGN, !item.appliedAt && "text-ink-meta")}>
         {item.appliedAt ? <LocalDate at={item.appliedAt} /> : "Not yet"}
       </TableCell>
     </>

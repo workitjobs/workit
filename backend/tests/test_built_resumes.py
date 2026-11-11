@@ -815,3 +815,120 @@ async def test_edited_at_is_created_at_until_the_resume_itself_changes(student):
 
     edited = (await client.get(f"{me}/built-resumes")).json()[0]
     assert _at(edited["edited_at"]) > _at(edited["created_at"])
+
+
+# Start From a Resume You Have (2026-11-11): the Resumes page's Generate
+# Resume dialog copies a built resume or starts one from an upload.
+
+
+async def _copy(client, me, **source) -> httpx.Response:
+    return await client.post(f"{me}/built-resumes/copy", json={k: str(v) for k, v in source.items()})
+
+
+async def test_a_copy_prints_as_its_source_and_owns_its_own_skill_and_wording(student, database):
+    client, me = student
+    await _fill_bank(client, me)
+    source = uuid.UUID(await _generate(client, me, "General SWE"))
+    applicant_id = uuid.UUID(me.rsplit("/", 1)[1])
+    bank = (await client.get(f"{me}/bank")).json()
+    intern = next(e for e in bank["entries"] if e["title"] == "Software Intern")
+    tutor = next(e for e in bank["entries"] if e["title"] == "Tutor")
+    bullet = uuid.UUID(intern["bullets"][0]["id"])
+    async with database() as session:
+        # What only the source owns: a Tailor skill and a typed wording.
+        skill = await session.scalar(
+            text("INSERT INTO bank_skills (applicant_id, name, built_resume_id) VALUES (:a, 'Kubernetes', :r) RETURNING id"),
+            {"a": applicant_id, "r": source},
+        )
+        await session.execute(
+            text("INSERT INTO built_resume_skills (built_resume_id, skill_id, shown, position) VALUES (:r, :s, true, 99)"),
+            {"r": source, "s": skill},
+        )
+        variant = await session.scalar(
+            text("INSERT INTO bank_bullet_variants (bullet_id, text, built_resume_id) VALUES (:b, 'Made pages load 30% faster', :r) RETURNING id"),
+            {"b": bullet, "r": source},
+        )
+        await session.execute(
+            text("UPDATE built_resume_bullets SET variant_id = :v WHERE built_resume_id = :r AND bullet_id = :b"),
+            {"v": variant, "r": source, "b": bullet},
+        )
+        # And a choice: one entry taken off.
+        await session.execute(
+            text("UPDATE built_resume_entries SET shown = false WHERE built_resume_id = :r AND entry_id = :e"),
+            {"r": source, "e": uuid.UUID(tutor["id"])},
+        )
+        await session.commit()
+    printed = _docx_lines((await client.get(f"{me}/built-resumes/{source}/docx")).content)
+    assert any("Made pages load 30% faster" in line for line in printed)
+    assert not any("Tutor" in line for line in printed)
+
+    res = await _copy(client, me, built_resume_id=source)
+    assert res.status_code == 201, res.text
+    copy = res.json()
+    assert (copy["name"], copy["job_posting_id"], copy["is_default"]) == ("General SWE (Copy)", None, False)
+    assert _docx_lines((await client.get(f"{me}/built-resumes/{copy['id']}/docx")).content) == printed
+
+    async with database() as session:
+        owned = (await session.execute(
+            text("SELECT (SELECT count(*) FROM bank_skills WHERE built_resume_id = :c),"
+                 " (SELECT count(*) FROM bank_bullet_variants WHERE built_resume_id = :c)"),
+            {"c": uuid.UUID(copy["id"])},
+        )).one()
+    assert tuple(owned) == (1, 1)  # its own rows, not the source's
+
+    # The source goes; the copy prints as it did.
+    assert (await client.delete(f"{me}/built-resumes/{source}")).status_code == 204
+    assert _docx_lines((await client.get(f"{me}/built-resumes/{copy['id']}/docx")).content) == printed
+
+
+async def test_a_copy_of_a_tailored_resume_leaves_its_posting_and_is_numbered(student, database):
+    client, me = student
+    tailored = await _tailored(database, me)
+    first = (await _copy(client, me, built_resume_id=tailored)).json()
+    second = (await _copy(client, me, built_resume_id=tailored)).json()
+    assert (first["name"], first["job_posting_id"]) == ("Tailored (Copy)", None)
+    assert second["name"] == "Tailored (Copy 2)"
+
+
+async def test_starting_from_an_upload_shows_only_that_uploads_entries(student, monkeypatch):
+    monkeypatch.setattr("app.routers.resumes.get_supabase", lambda: _FakeSupabase())
+    monkeypatch.setattr("app.routers.resumes._extract", _no_text)
+    client, me = student
+    uploads = []
+    for title in ("Data Intern", "Barista"):
+        upload = (await _upload(client, me)).json()["id"]
+        uploads.append(upload)
+        res = await client.post(
+            f"{me}/bank/entries?resume_id={upload}",
+            json={"section": "experience", "title": title, "organization": "Acme", "start_month": "2025-06",
+                  "end_month": "2025-08", "bullets": [f"Did {title} work"]},
+        )
+        assert res.status_code == 201, res.text
+
+    res = await _copy(client, me, uploaded_resume_id=uploads[0])
+    assert res.status_code == 201, res.text
+    made = res.json()
+    assert made["name"] == "resume (Copy)"  # the file's name, resume.pdf
+    lines = _docx_lines((await client.get(f"{me}/built-resumes/{made['id']}/docx")).content)
+    assert any("Data Intern" in line for line in lines)
+    assert not any("Barista" in line for line in lines)
+
+
+async def test_starting_from_an_empty_upload_is_refused(student, monkeypatch):
+    monkeypatch.setattr("app.routers.resumes.get_supabase", lambda: _FakeSupabase())
+    monkeypatch.setattr("app.routers.resumes._extract", _no_text)
+    client, me = student
+    upload = (await _upload(client, me)).json()["id"]
+    res = await _copy(client, me, uploaded_resume_id=upload)
+    assert res.status_code == 409
+    assert (await client.get(f"{me}/built-resumes")).json() == []
+
+
+async def test_starting_from_a_resume_needs_one_source_of_the_students_own(student):
+    client, me = student
+    mine = await _generate(client, me)
+    assert (await client.post(f"{me}/built-resumes/copy", json={})).status_code == 422
+    both = {"built_resume_id": mine, "uploaded_resume_id": str(uuid.uuid4())}
+    assert (await client.post(f"{me}/built-resumes/copy", json=both)).status_code == 422
+    assert (await _copy(client, me, built_resume_id=uuid.uuid4())).status_code == 404
+    assert (await _copy(client, me, uploaded_resume_id=uuid.uuid4())).status_code == 404

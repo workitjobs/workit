@@ -120,6 +120,27 @@ open choices (Settled choices, near the end).
 
 ### Components
 
+- **Reuse before drawing** (2026-11-11, the user's rule): before a screen
+  draws a banner, a toolbar control, a group heading or a panel, find the
+  one the app already draws for that job and use it; when it lives inside
+  one page, move it to `components/` and point both pages at it. A second
+  look for the same job is a break, even when it is close. The shared
+  parts so far: `ui/notice.tsx` (a notice over a table, below),
+  `components/filter-actions.tsx` (Clear, All Filters),
+  `components/all-filters-dialog.tsx` (All Filters' panel),
+  `components/table-settings.tsx` (Table Settings, Group By),
+  `components/table-group.tsx` (a group's heading row),
+  `components/fill-page.ts` (a table that scrolls inside itself),
+  `components/ui/option-row.tsx` (a row that is one way forward: Auto
+  Apply's setup, Generate Resume's ways to start),
+  `components/ui/or-divider.tsx` (the login card's "Or" rule),
+  `components/ui/tip.tsx` (a tooltip for any control), `components/side-nav.tsx`
+  (a page's menu of its parts: Settings, Application Info),
+  `profile/section-action.tsx` (a card's own action, a bare glyph with a
+  tooltip), `components/views.tsx`
+  and `PAGE_SEARCH`. Tailor's resume picker (`ResumeLists`) is the one way
+  to pick a resume, in any dialog. A fix to one page table is checked on every other: the
+  Tracker, Auto Apply's Up Next and Documents' resumes.
 - **Pick a component by its role, never by its look.** A look picked by eye
   drifts from screen to screen (GOV.UK Design System; Material 3). The roles
   are:
@@ -130,6 +151,29 @@ open choices (Settled choices, near the end).
     decline pair, `destructive` for a permanent delete. A link in running
     text is `TextLink`. Sizes: "Pick a button's size by where it sits",
     below.
+  - **Which button look, by what it does and where it sits** (2026-11-10,
+    the user asked for one rule): **filled** (`default`) for the one main
+    action of a view or dialog, at most one in sight; **bordered**
+    (`secondary`) for an action that starts something new or opens a flow,
+    standing on its own in a toolbar, at a section heading's end, in a
+    card or a dialog's footer (Add Jobs, Upload Resume, Create Event,
+    Write Answers, Cancel); **text** (`section`, `ghost`, `TextLink`) for an
+    action on what is already shown (View, Edit, Show, Hide, Remove All,
+    See More), in a heading line, a sentence or a row; **glyph**
+    (`IconButton`) for a repeated per-item action with a known icon (Save,
+    ⋯), always with a tooltip.
+  - **Every icon-only control shows a tooltip** (2026-11-11, the user's
+    rule): an `IconButton`, which always draws one (a menu's or popover's
+    trigger renders it: `render={<IconButton …/>}`), or `Tip`
+    (`components/ui/tip.tsx`) around a control that keeps another look: a
+    toolbar's ghost glyph, a link, a dialog's Close, the date picker's
+    arrows, the account photo. A `title` alone is not a tooltip (it shows
+    late and never to touch or a keyboard), nor an `aria-label` alone. The
+    job card's ⋯, Table Settings, the editor's bar, the dialogs' Close and
+    about 30 more had neither until then. Logos and the browser's own
+    search clear (×) are left as they are. **A table row holds no bordered or filled
+    button and no dashed pill**: its actions are text buttons, glyphs or a
+    stage's pill menu, so every row stays one height and one weight.
   - A button acts and a chip is a choice made in place: "A button is a
     rounded rectangle; a pill is a chip", below. A filter over a page's
     items is a `FieldFacet` dropdown. A choice of one among a few is a
@@ -267,6 +311,14 @@ open choices (Settled choices, near the end).
   filters at the left, and the view switcher (a segmented control) and the
   page's actions at the right. Narrow, the row wraps, filters first. The
   Applications Tracker and the Resumes page are the model.
+- **One name and one glyph per view** (`components/views.tsx`, 2026-11-11,
+  the user's rule): List View (rows, one item a line), Card View (wide
+  cards, one a row), Grid View (small cards, several a row) and Split View
+  (a list beside the open item, the Jobs page's). A view switch builds its
+  options there, whatever its page calls its items; the same layout never
+  gets a second name or glyph (the Tracker's "Table View" and the Jobs
+  page's "Cards View" went). A layout none of them is joins that file
+  first.
 - **Check each screen at 375, 768, 1024 and 1440px, with no sideways
   scroll.** Students use phones, tablets and laptops, and WCAG 2.2 SC 1.4.10
   asks for no two-way scroll down to 320px. Only a wide table scrolls
@@ -1109,6 +1161,25 @@ tab is 16px: the open one semibold in brand over a 3px underline, the
 others medium in `ink-meta` (2026-11-10). At 13px in ink with a 2px
 underline they read as small print beside the job bar's 36px buttons.
 
+**A table's cells are plain text** (2026-11-10, the Tracker, Documents and
+Auto Apply): the column's heading names a value, so a cell has no glyph of
+its own; a value a row does not have is a faint dash (`text-ink-faint`,
+its word for a screen reader), never "Not listed" in grey; a cell's
+control is a pill or a text button, never a bordered field or button that
+makes the row taller than its text; and a table wider than its card fades
+at the edge it runs on past. The cards keep their glyphs, where nothing
+else names a fact. **Alignment**: a column of text (a job, a status, a
+place, a date) is left-aligned with its heading; a column whose every cell
+is one control or one score (View, a match pill, ⋯) is centred, heading
+too. Centring every column floated each value far from its job on a wide
+window; left-aligning every one left View and the match pills hanging off
+their headings' left edges.
+
+**No scroll bounces, anywhere** (2026-11-02, widened 2026-11-10): the
+document and the page's scroller stop dead on y, and every scroll box
+inside a page (a table, a dialog's list) on both axes, by the classes that
+make a box scroll (`globals.css`), so a new one needs nothing.
+
 **A page's search is one width** (`PAGE_SEARCH` in
 `components/ui/search-field.tsx`, 2026-11-10): the Jobs page, Documents, the
 Tracker and Experiences fill their row below 512px of page and stop at
@@ -1189,6 +1260,46 @@ screen's own `<input>`, `<textarea>` or `FIELD_CONTROL` string:
   (onboarding's steps); a pill in a row is the Chip.
 - A filter over a table is `SearchField` and `FieldFacet` (above), the
   company tables' toolbar included.
+- **Every page table has one toolbar** (2026-11-11): the Tracker, Auto
+  Apply's Up Next and Documents' resumes, in two rows. Row one: the search
+  (`PAGE_SEARCH`) with the page's actions at its right, the main one filled
+  (Add Jobs, Generate Resume), then the view switch (Auto Apply's second
+  view is still open, so it has none yet). Row two: a
+  `FieldFacet` dropdown per filter, and at the row's right end Clear
+  (while anything is searched or picked), All Filters (a soft round icon
+  button, three lines, with a brand count of the picks) and Table
+  Settings (sliders), which holds Group By and any other setting of the
+  table. The dropdowns step out from the right as the row narrows; All
+  Filters holds them all and stays. The page's create actions never sit in
+  the filter row. A page table has no section heading of its own over the
+  toolbar: Auto Apply's "Up Next" went on 2026-11-11.
+- **A card's facts read their value first** (2026-11-11,
+  `profile/field-styles.ts`, My Profile and Application Info): the name
+  small and grey (`FACT_LABEL`), the value in ink under it (`FACT_VALUE`),
+  a missing one a faint dash (`components/ui/missing.tsx`, the Tracker's
+  too), and no glyph per field where its name already says it. A card's
+  own action is a 32px round glyph button (`HEADING_ACTION`) with a
+  tooltip, wherever a card has one.
+- **One glyph, one meaning.** A glyph the sidebar or another screen uses
+  for one thing is never drawn for another (the Tracker's checklist on
+  Application Info, until 2026-11-11). Check `seeker-sidebar.tsx` and a
+  grep for the icon before picking one.
+- **A table's column headings draw one rule under them** (2026-11-11): the
+  heading row has no border (`STICKY_HEAD`), each heading cell its inset
+  rule (`STICKY_TH`), and a frozen heading its rule and its edge together
+  (`STICKY_TH_FROZEN`), in `components/fill-page.ts`. A movable column's
+  heading fills grey under the pointer and drags from anywhere in it, as
+  Notion's do, on a track: its raised copy moves left and right along the
+  heading row only, never up or down the page.
+- **A grouped table draws the shared heading row** (`GroupHeadingRow`): a
+  fold, an optional glyph, the name in ink and its count on the row's
+  light band, and the group's own action at its right (Remove All on
+  Posting Closed).
+- **A notice over a table is `ui/notice.tsx`**: one amber band with a
+  glyph, one sentence and the actions that settle it, for something that
+  waits on the student (written questions, closed postings). The Tracker's
+  closed postings drew a white card with a black pill of their own until
+  2026-11-11.
 
 **Named exceptions**, each a control drawn for its place, not a form field:
 the resume editor's in-place lines, title rename, size stepper, phone sheet
