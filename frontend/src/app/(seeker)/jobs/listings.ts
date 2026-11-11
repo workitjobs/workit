@@ -25,7 +25,7 @@ import { JOBS_VIEW_COOKIE, type JobsView } from "./view";
  * imported job_postings rows (backend/app/routers/jobs.py). Mirrors
  * backend/app/schemas/jobs.py field for field. Read by /jobs, by /search (which
  * sends its words as `q`), and by their Load More (./actions) a page at a
- * time. Home's Strong Matches reads the Best Match scores here too.
+ * time. Home's Excellent Matches reads the Best Match scores here too.
  *
  * NOT IN ./data.ts, THOUGH THAT IS THE USUAL SEAM. Client components import
  * ./data's types (`filters.tsx`, `filter-query.ts`), and `apiGet` is
@@ -189,7 +189,7 @@ export type HomeMatches = {
   /** The best ones auto apply can fill: Top Matches' picking mode. */
   autoApply: JobListing[];
   /** When each job posting from the window that scores at least the floor
-   *  went up: Strong Matches counts them per range. */
+   *  went up: Excellent Matches counts them per range. */
   strongPosted: string[];
 };
 
@@ -200,7 +200,7 @@ export type HomeMatches = {
  * nothing to score against (the API's 404 for an empty bank, or 403 for a
  * company account); null when the API can't say.
  *
- * ONE CALL, NOT THREE. Top Matches, its picking mode and Strong Matches
+ * ONE CALL, NOT THREE. Top Matches, its picking mode and Excellent Matches
  * each asked GET /jobs/recommended, and each call scanned every job
  * posting's vector, so the three ran side by side on one Postgres (13 to
  * 23 s on 2026-10-28). The API scores once and keeps the result until the

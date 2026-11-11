@@ -16,7 +16,7 @@ import { Card } from "@/components/ui/card";
 /**
  * Top Matches, under the headline numbers (KAN-342): the seeker's best-scoring
  * open jobs, best first, as flat rows in one tile. The scores are Best
- * Match's (`getMatches`, ./data.ts), with no score floor, unlike the Strong Matches
+ * Match's (`getMatches`, ./data.ts), with no score floor, unlike the Excellent Matches
  * number above: a new seeker's thin experience bank can score every job a
  * Weak Match, and their best weak ones are still where to start.
  *
@@ -32,9 +32,9 @@ import { Card } from "@/components/ui/card";
  * loadTopMatches() before it awaits anything and hands the promise down. A
  * Suspense boundary only streams what is inside it; it does not start it
  * sooner. Started here, the two scoring calls waited for the page's own
- * reads (the Strong Matches count is a full scoring pass) and only then
+ * reads (the Excellent Matches count is a full scoring pass) and only then
  * began, so Top Matches came one whole scoring call late. Both lists and
- * the Strong Matches count now come from one call (getMatches, KAN-425),
+ * the Excellent Matches count now come from one call (getMatches, KAN-425),
  * which whichever starts first makes and the other shares.
  */
 

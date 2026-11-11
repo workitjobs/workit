@@ -350,7 +350,7 @@ async def recommended_jobs(
 @router.get("/recommended/{applicant_id}/home", response_model=HomeMatches)
 async def recommended_home(
     applicant_id: uuid.UUID,
-    # Strong Matches' window: Home sends its longest range's days.
+    # Excellent Matches' window: Home sends its longest range's days.
     posted_within: int = Query(ge=1, le=365),
     min_match: int = Query(ge=0, le=100),
     limit: int = Query(12, ge=1, le=50),

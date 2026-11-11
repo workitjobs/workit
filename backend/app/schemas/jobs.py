@@ -231,7 +231,7 @@ class HomeMatches(BaseModel):
     # Matches' picking mode.
     auto_apply: list[ScoredJob]
     # When each job posted within `posted_within` days that scores at least
-    # `min_match` went up: Strong Matches counts them per range.
+    # `min_match` went up: Excellent Matches counts them per range.
     strong_posted: list[str]
 
 

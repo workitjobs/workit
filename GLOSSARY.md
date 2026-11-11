@@ -197,7 +197,7 @@ A job posting that a student added by its link, because WorkIt does not list it:
 _Avoid_: unlisted job posting, external job, custom job, manual job
 
 **Match score**:
-How well one job posting fits a student, from 0 to 100, in bands named by their lowest score: Weak Match under 40, Fair Match from 40, Good Match from 65, Strong Match from 80 and Excellent Match from 90.
+How well one job posting fits a student, from 0 to 100, in four bands named by their lowest score: Weak Match under 40, Fair Match from 40, Good Match from 65 and Excellent Match from 80.
 _Avoid_: fit score, fit, match percentage
 
 **Application event**:
@@ -216,9 +216,9 @@ _Avoid_: update (for the email), unread, pending
 An application event the email tracker proposes from one email: what Needs Review holds.
 _Avoid_: notification, alert
 
-**Strong Match**:
-A job posting that scores 80 or more for a student, the Strong Match band and above. Home's first number, Strong Matches, counts them.
-_Avoid_: good match (for that number), new role, recommendation
+**Excellent Match**:
+A job posting that scores 80 or more for a student, the top band. Home's first number, Excellent Matches, counts them.
+_Avoid_: strong match (the band's name until 2026-11-10), good match (for that number), new role, recommendation
 
 **Top Match**:
 One of a student's highest-scoring open jobs, whatever its band. Home lists them under its numbers.

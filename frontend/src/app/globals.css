@@ -437,37 +437,40 @@
    * board card's match badge, the arc on a job's match rail, and the bar on
    * the company Dashboard's Recent applicants.
    *
-   * RED, YELLOW AND GREEN (KAN-518), so a score says good or bad with no
-   * legend. A magenta ramp held these tokens until then, to keep a score apart
-   * from the stages, and a weak match read as pink, which says nothing. The
-   * greens and the red are the status colours themselves, so a retone moves
-   * both. Yellow is its own: --color-warning-fill is 2:1 on white, and every
-   * darker warning step reads brown or orange.
+   * RED, ORANGE, YELLOW AND GREEN (KAN-518; four bands since 2026-11-10),
+   * so a score says good or bad with no legend, one step warmer to cooler
+   * per band. A magenta ramp held these tokens until KAN-518, to keep a
+   * score apart from the stages, and a weak match read as pink, which says
+   * nothing. The red is the danger colour itself, so a retone moves both.
+   * Yellow is its own and dark, an ochre: a yellow bright enough to read as
+   * plain yellow is under 2:1 on white (--color-warning-fill is 2:1), and
+   * the darkest yellow that still holds 3:1 is this one. ONE GREEN: Strong
+   * (80 to 89, #139564) and Excellent (90 up, a deeper green) merged into
+   * Excellent at 80 on 2026-11-10, since two greens a step apart read as
+   * one colour drawn twice.
    *
    * Each is a stroke or a bar, never text (the tier words are ink-muted), so
    * the floor is the 3:1 a graphic needs, measured on both grounds they are
    * drawn on: white (a board card) and --color-well (the rail, and the
    * Dashboard bar's track). --color-positive itself misses it, at 2.8:1, so
-   * Strong takes #139564, positive at 33% lightness. --chart-3 shares it.
+   * Excellent takes #139564, positive at 33% lightness. --chart-3 shares it.
    *
    * WEAK IS RED (KAN-518, back on 2026-11-03), BELOW 40 ONLY. KAN-569 drew
    * every weak score in neutral ink while the cut-offs in @/lib/match are
    * placeholders, and a black ring read as a fault, not as a score. With
    * Weak at 0 to 64 every card in the feed drew a red ring, so the whole
-   * list read as failing (2026-11-10). Fair (40 to 64) is a mid slate:
-   * grey enough to read as neither good nor bad, light enough not to read
-   * as the black ring.
+   * list read as failing (2026-11-10). Fair (40 to 64) is orange, between
+   * the red and the yellow: below Good, still worth a look. It was a slate
+   * grey for a day, which read as no score at all.
    *
    *                white   well
-   *   excellent    5.35    4.99
-   *   strong       3.81    3.56
+   *   excellent    3.81    3.56
    *   good         3.24    3.03
    *   fair         3.68    3.38
    *   weak         5.77    5.39 */
-  --color-match-excellent: var(--color-positive-ink);
-  --color-match-strong: #139564;
+  --color-match-excellent: #139564;
   --color-match-good: #b98600;
-  --color-match-fair: #7b8698;
+  --color-match-fair: #d9620d;
   --color-match-weak: var(--color-danger);
 
   /* Updates --------------------------------------------------------------
@@ -527,7 +530,7 @@
    * Both colours are new because the old ones failed on a lavender, where the
    * step bar these chips replaced was drawn: the app's pale greys vanish on it
    * (--color-inert-tint is 1.01:1 on the tint) and --color-positive is
-   * 2.38:1. The green is the hex --color-match-strong holds today; the roles
+   * 2.38:1. The green is the hex --color-match-excellent holds today; the roles
    * are unrelated and either may move. The ready dot wears it too. The
    * draft's "Ready to save" is words, so it takes --color-positive-ink, the
    * green made for text, as --color-brand-ink is the brand's.
@@ -1192,7 +1195,7 @@ body:has([data-skyline]) {
    *   normal vision   PASS   worst adjacent pair 17.7 (floor 15)
    *   contrast        WARN   --color-positive is 2.72:1, under the 3:1 mark floor
    *
-   * KAN-555 cleared that WARN: slot 3 is now --color-match-strong and slot 5 a
+   * KAN-555 cleared that WARN: slot 3 is now --color-match-excellent and slot 5 a
    * darker grey, so every mark clears 3:1 on white and on --color-app:
    *
    *                white   app
@@ -1216,7 +1219,7 @@ body:has([data-skyline]) {
    * word and a shape rather than beside red in a stack. */
   --chart-1: var(--color-brand); /* in flight, early — Screening */
   --chart-2: var(--color-advanced); /* in flight, late — Interview */
-  --chart-3: var(--color-match-strong); /* ended well — Offer */
+  --chart-3: var(--color-match-excellent); /* ended well — Offer */
   --chart-4: var(--color-danger); /* ended badly — Rejected */
 
   /* Slot 5 is deliberately NOT a fifth identity. It is the de-emphasis grey:

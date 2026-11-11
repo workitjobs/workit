@@ -69,8 +69,7 @@ window.WIA = window.WIA || {};
 
   // The Match score's bands, by their lowest score (frontend/src/lib/match.ts; GLOSSARY.md).
   const BANDS = [
-    [90, "Excellent Match"],
-    [80, "Strong Match"],
+    [80, "Excellent Match"],
     [65, "Good Match"],
     [40, "Fair Match"],
     [0, "Weak Match"],

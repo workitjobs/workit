@@ -1675,13 +1675,13 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   (`applications/email-kinds.tsx`). No sidebar badge: one was removed; Settings > Integrations is the
   design only until the Google sign-in is built (`docs/screens.md`). Home's four numbers are all live and all links
   (KAN-342), each a white tile with its glyph in a small chip of its own
-  colour (KAN-423): Strong Matches green, Saved grey, Applied violet,
+  colour (KAN-423): Excellent Matches green, Saved grey, Applied violet,
   Interviewing yellow, from the matched `--color-kpi-*` set (2026-11-09:
   the tiles were tinted with the stage tints, which read as four families
   with no shared shade; white tiles with chips were chosen over a matched
   set of tinted tiles, `globals.css`); a filled
   Activity day opens a table of that day's applications. Its
-  Strong Matches reads the Best Match scores
+  Excellent Matches reads the Best Match scores
   (`getMatches`, one read with Top Matches), and Top Matches under them lists the twelve
   best-scoring jobs as flat rows that scroll inside a tile, with no score
   floor; its Auto Apply button picks jobs for the queue
@@ -2086,7 +2086,7 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   the assistant two marks (`docs/design.md`, Brand and icons). Tailor My
   Resume on a job's card and page is the one exception (`TailorIcon`,
   KAN-518): beside Ask Scout, a second sparkle read as a second assistant.
-- **A match score is red, slate, yellow or green, only through `matchColor()`**
+- **A match score is red, orange, yellow or green, only through `matchColor()`**
   (`lib/match.ts`, KAN-518; `docs/design.md`, Colour): a magenta ramp said
   nothing about the fit, so the score now shares hues with the stages. The
   ramp's pink lives on as the marketing pages' `--color-updates`: a landing
@@ -2094,9 +2094,10 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   there when the bands changed. **Weak is red** (`--color-match-weak` is
   `--color-danger`): KAN-569 drew it in neutral ink while the cut-offs are
   placeholders, and the user brought the bands back on 2026-11-03, since a
-  black ring read as a fault. Since 2026-11-10 red is under 40 only, and
-  Fair (40 to 64) is a mid slate (`--color-match-fair`): with Weak at 0 to
-  64 every card in the feed drew red. Keep all five bands coloured.
+  black ring read as a fault. Since 2026-11-10 there are four bands: Weak
+  (under 40) red, Fair (40 to 64) orange, Good (65 to 79) yellow,
+  Excellent (80 up) one green; Strong merged into Excellent, and with Weak
+  at 0 to 64 every card in the feed drew red. Keep all four coloured.
 - **A button is a rounded rectangle; a pill is a chip** (`ui/chip.tsx`, KAN-251).
   Pick a button's size by where it sits (`docs/design.md`, Components). A
   `className` on a Button or Chip may place it or colour a state, never change

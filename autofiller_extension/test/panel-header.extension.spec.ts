@@ -61,7 +61,7 @@ test("a batch tab shows its job card with the Match score and no batch count abo
   await expect(card).toContainText("$45–$55 an hour");
   await expect(card.locator("img.job-logo")).toHaveAttribute("src", LOGO);
   await expect(card.locator(".match")).toContainText("86");
-  await expect(card.locator(".match")).toContainText("Strong Match");
+  await expect(card.locator(".match")).toContainText("Excellent Match");
 
   // A job with no score shows no ring.
   await expect(slotOf(arc, "job-card").locator(".job-title")).toHaveText("Platform Intern");

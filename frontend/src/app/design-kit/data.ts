@@ -173,25 +173,27 @@ export const COLOR_GROUPS: ColorGroup[] = [
     tokens: [
       { token: "--chart-1", role: "→ --color-brand · in flight, early (Screening)" },
       { token: "--chart-2", role: "→ --color-advanced · in flight, late (Interview)" },
-      { token: "--chart-3", role: "→ --color-match-strong · ended well (Offer) · 3.50:1 on app" },
+      {
+        token: "--chart-3",
+        role: "→ --color-match-excellent · ended well (Offer) · 3.50:1 on app",
+      },
       { token: "--chart-4", role: "→ --color-danger · ended badly (Rejected)" },
       { token: "--chart-5", role: "Slate grey · inert, Other, de-emphasis · 3.25:1 on app" },
     ],
   },
   {
     title: "Match",
-    note: "The bands a match score is read in, from @/lib/match: the ring on a board card's badge, the arc on a job's match rail, and the bar on the company Dashboard's Recent Applicants. Red, slate, yellow and green, so a score says good or bad with no legend; red only under 40. Strokes and bars only, never text: the tier's words stay ink-muted. Every step clears 3:1 on white and on --color-well.",
+    note: "The bands a match score is read in, from @/lib/match: the ring on a board card's badge, the arc on a job's match rail, and the bar on the company Dashboard's Recent Applicants. Red, orange, yellow and green, four bands, so a score says good or bad with no legend; red only under 40. Strokes and bars only, never text: the tier's words stay ink-muted. Every step clears 3:1 on white and on --color-well.",
     tokens: [
       {
         token: "--color-match-excellent",
-        role: "→ --color-positive-ink · Excellent Match, deep green · 5.35:1 on white",
+        role: "Excellent Match, 80 up, green · 3.81:1 on white",
       },
       {
-        token: "--color-match-strong",
-        role: "Strong Match, green · 3.81:1 on white",
+        token: "--color-match-good",
+        role: "Good Match, 65 to 79, dark yellow, the darkest that reads yellow at 3:1 · 3.24:1 on white",
       },
-      { token: "--color-match-good", role: "Good Match, yellow · 3.24:1 on white" },
-      { token: "--color-match-fair", role: "Fair Match, 40 to 64, slate grey · 3.68:1 on white" },
+      { token: "--color-match-fair", role: "Fair Match, 40 to 64, orange · 3.68:1 on white" },
       {
         token: "--color-match-weak",
         role: "→ --color-danger · Weak Match, under 40, red · 5.77:1 on white",

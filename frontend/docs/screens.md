@@ -690,7 +690,7 @@ how to bring them back. The notes below still describe them.
 the seeker's twelve best-scoring open jobs, best first, from the Best Match
 scores (`getMatches` in `home/data.ts`, `GET /jobs/recommended/{id}/home`),
 with no score floor. A new seeker's thin experience bank can score every job a Weak
-Match, and their best weak ones are still where to start; the Strong Matches
+Match, and their best weak ones are still where to start; the Excellent Matches
 number above counts only 80 and up. Each is a flat row in one tile: a well
 with the logo, the title (its link to the job posting page), the company
 and when it was posted on one line ("HP · 21 days ago", as the job cards'
@@ -739,11 +739,11 @@ return to Home is served from it in well under a second. It was three
 a full scan of the job postings' vectors, and took 13 to 23 s on
 2026-10-28. The tracker read here is `getTrackerUnscored`: Home shows no
 application's score. The page awaits
-only the account: the headline numbers (the Strong Matches count is a full
+only the account: the headline numbers (the Excellent Matches count is a full
 scoring pass), Top Matches and Activity each stream over a skeleton of their
 shape, and `home/loading.tsx` draws the same frame (`HomeFrame`),
 so a prefetched click shows it at once and the page replaces it in place. It replaced New Matches, the newest postings in posting order in
-the same scrolling frame, which went when Strong Matches replaced New Roles
+the same scrolling frame, which went when Excellent Matches replaced New Roles
 and came back ordered by fit at the user's ask. The notes below that name
 New Matches describe the archived three-column layout.
 
@@ -801,7 +801,7 @@ All the Agenda; Waiting's Follow Up opens the Applications list filtered to
 Applied. That is a placeholder: it helps nobody contact anyone, and KAN-174
 (still open) plans the real flow, a list of only what has waited two weeks,
 a Scout-drafted note, a recruiter search, then marking an application
-followed up or closed once the tracker has a backend. The headline numbers are Strong Matches, Saved, Applied and Interviewing
+followed up or closed once the tracker has a backend. The headline numbers are Excellent Matches, Saved, Applied and Interviewing
 (`getHeadline` in `home/data.ts`), all live (KAN-342). **The Tracker's
 tiles are named for its stages**, the Status filter each one opens: Applied
 was "Applications", the same word as the page it opened, and Interviewing
@@ -812,24 +812,24 @@ so the left half is what is left to do and the right half how it is going
 was Applications, New Roles, Interviews, Saved, which read out of sequence.
 **Each tile is tinted with its own colour, its glyph white in a solid disc
 of that colour** (KAN-423, `STAT_TONE` in `home/headline.tsx`). The user
-picked the colours: Strong Matches green, Saved grey, Applied violet,
+picked the colours: Excellent Matches green, Saved grey, Applied violet,
 Interviewing yellow. The grounds are the tints each colour already has
 (`--color-positive-tint`, and the stages' tints from `stage-colors.ts`,
 the board's panels); the ink-meta note holds 4.7:1 or better on each, the
-green or red change 4.5:1 or better. The discs: Strong Matches
+green or red change 4.5:1 or better. The discs: Excellent Matches
 `--color-positive-ink` (5.35:1 under the white glyph), Saved and Applied
 their stage fills, Interviewing `--color-warning-deep` (Tailwind's
 yellow-700, 4.92:1), more yellow than the stage's own orange-leaning
 amber. Strong
-Matches' green is Offer's stage hue, a known overlap. Strong Matches was
+Matches' green is Offer's stage hue, a known overlap. Excellent Matches was
 the one filled tile, in violet, until then, and Applied before it: violet
 is Applied's stage colour, so the loud tile and the Applied badges said
 two things in one colour. Tried and turned down on the way: the match
 ramp's magenta, a burnt amber, every tile filled with its solid colour,
 and plain white tiles with only the discs coloured. Applied
 counts the tracker's applications sent in the range, against the same
-length of days before it. Strong Matches counts the job postings from the
-range that score Strong Match (80) or better for this seeker (it was Good
+length of days before it. Excellent Matches counts the job postings from the
+range that score Excellent Match (80) or better for this seeker (it was Good
 Matches, counting from 65, until the user renamed it; the threshold moved
 with the name, so a 70% job never sits under a label its own Good Match
 badge contradicts), from the Best

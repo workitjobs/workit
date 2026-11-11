@@ -751,10 +751,14 @@ say the same thing about an application (the grid and list, and the board
 when it returns): its role, company, date and match
 score (KAN-256). There is no progress bar; it only restated the stage.
 
-A match score is red, slate, yellow or green (KAN-518): Weak (under 40)
-red, Fair (40 to 64) slate grey, Good yellow, Strong green and Excellent a
-deeper green, so it says good or bad with no legend. The five
-`--color-match-*` tokens in `globals.css` are read only
+A match score is red, orange, yellow or green (KAN-518), in four bands
+(2026-11-10): Weak (under 40) red, Fair (40 to 64) orange, Good (65 to 79)
+yellow and Excellent (80 up) green, so it says good or bad with no legend.
+The yellow is dark (`#b98600`): a yellow light enough to read as plain
+yellow is under 2:1 on white, and this is the darkest that still reads as
+yellow at 3:1. Strong (80 to 89) and Excellent (90 up) merged into
+Excellent at the user's call: two greens a step apart read as one colour
+drawn twice. The four `--color-match-*` tokens in `globals.css` are read only
 through `matchColor()` in `lib/match.ts`: the Applications match badge, the
 job page's match rail, Tailor's ring and the company Dashboard's match bar.
 They paint strokes and bars, never text; the tier words stay ink-muted, with
@@ -771,9 +775,9 @@ other's. The marketing pages' pink, which borrowed that ramp, is
 under 65 and all 50 drew a red ring. The user brought red back: a black ring
 read as a fault rather than a score. **Red is for under 40 only**
 (2026-11-10): with Weak at 0 to 64 the whole feed still drew red rings and
-read as failing, so Fair Match (40 to 64) came back as its own band, in a
-mid slate (`--color-match-fair`, 3.68:1), grey enough to read as neither
-good nor bad and light enough not to read as that black ring.
+read as failing, so Fair Match (40 to 64) came back as its own band, in
+orange (`--color-match-fair`, 3.68:1): below Good, still worth a look. It
+was a slate grey for a day, which read as no score.
 **One score display per context**: a posting's tile (the ring over its
 tier and reasons on a grey tile: a feed card, a job's panel), the compact
 card's 48px tile in the split list, and a ring pill in a table row (the
