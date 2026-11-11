@@ -34,16 +34,19 @@ import { APPLICATIONS_COLUMNS_KEY } from "@/lib/local-drafts";
  * stored string, so a read that finds the same string returns the same
  * object, and one that finds the key gone (Sign Out) returns the default.
  */
+/* Widths for the cells as plain text and the stage as a pill (2026-11-10):
+ * with a glyph in every cell and a 42px stage field they summed to 1672px,
+ * and a 1440px window's table ran 400px past its card with no sign of it. */
 export const COLUMNS = [
   { id: "role", label: "Job", width: 320 },
-  { id: "status", label: "Status", width: 184 },
-  { id: "applied", label: "Date Applied", width: 152 },
-  { id: "match", label: "Match", width: 128 },
-  { id: "track", label: "Job Type", width: 152 },
-  { id: "location", label: "Location", width: 208 },
-  { id: "workModel", label: "Work Model", width: 144 },
-  { id: "pay", label: "Pay Range", width: 184 },
-  { id: "resume", label: "Resume", width: 200 },
+  { id: "status", label: "Status", width: 160 },
+  { id: "applied", label: "Date Applied", width: 128 },
+  { id: "match", label: "Match", width: 104 },
+  { id: "track", label: "Job Type", width: 120 },
+  { id: "location", label: "Location", width: 200 },
+  { id: "workModel", label: "Work Model", width: 120 },
+  { id: "pay", label: "Pay Range", width: 152 },
+  { id: "resume", label: "Resume", width: 104 },
 ] as const;
 
 export type ColumnId = (typeof COLUMNS)[number]["id"];

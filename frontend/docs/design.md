@@ -1109,6 +1109,15 @@ tab is 16px: the open one semibold in brand over a 3px underline, the
 others medium in `ink-meta` (2026-11-10). At 13px in ink with a 2px
 underline they read as small print beside the job bar's 36px buttons.
 
+**A table's cells are plain text** (2026-11-10, the Tracker, Documents and
+Auto Apply): the column's heading names a value, so a cell has no glyph of
+its own; a value a row does not have is a faint dash (`text-ink-faint`,
+its word for a screen reader), never "Not listed" in grey; a cell's
+control is a pill or a text button, never a bordered field or button that
+makes the row taller than its text; every column is left-aligned with its
+heading; and a table wider than its card fades at the edge it runs on
+past. The cards keep their glyphs, where nothing else names a fact.
+
 **A page's search is one width** (`PAGE_SEARCH` in
 `components/ui/search-field.tsx`, 2026-11-10): the Jobs page, Documents, the
 Tracker and Experiences fill their row below 512px of page and stop at

@@ -18,23 +18,16 @@ import {
 } from "@tanstack/react-table";
 import Link from "next/link";
 import {
+  useEffect,
+  useRef,
   useState,
-  type ComponentType,
   type CSSProperties,
   type DragEvent,
   type KeyboardEvent,
   type ReactNode,
 } from "react";
 
-import {
-  BriefcaseIcon,
-  CalendarIcon,
-  CoinIcon,
-  FileIcon,
-  PinIcon,
-  SortIcon,
-  workStyleIcon,
-} from "@/components/icons";
+import { SortIcon, TailorIcon } from "@/components/icons";
 import {
   Table,
   TableBody,
@@ -48,8 +41,7 @@ import { MatchBadge } from "@/components/match-badge";
 import { Reflow } from "@/components/reflow";
 import { useShallowPush } from "@/components/shallow-routing";
 import { Card } from "@/components/ui/card";
-import { Fact } from "@/components/ui/fact";
-import { TailoredChip } from "@/components/tailored-chip";
+import { PlacesValue } from "@/components/places-value";
 import { cn } from "@/lib/cn";
 
 import { STAGE_ORDER } from "../stage-colors";
@@ -171,23 +163,39 @@ const SORT_COLUMN = Object.fromEntries(
 /** What a sort's heading says it sorts by, when that is not the heading. */
 const SORT_HINT: Partial<Record<Sort, string>> = { company: "Sort by company, A to Z" };
 
-/** A fact cell's value, or its missing word a step greyer. */
+/** A fact cell's value as plain text, or a faint dash where the job has
+ *  none, its word ("Not listed") for a screen reader (2026-11-10). Each
+ *  cell drew its column's glyph (a calendar, a pin, a briefcase) and
+ *  "Not yet", "Not listed", "Not scored", "Not sent" in about a fifth of
+ *  them: the column's heading already names it, and the words were noise.
+ *  The cards (./cards.tsx) keep the glyphs, where nothing else names a
+ *  fact. */
 function FactValue({
-  Icon,
   value,
   missing,
   title,
 }: {
-  Icon: ComponentType<{ className?: string }>;
   value: ReactNode;
   missing: string;
   title?: string;
 }) {
   const has = value != null && value !== "";
+  return has ? (
+    <span title={title} className="block truncate">
+      {value}
+    </span>
+  ) : (
+    <Missing word={missing} />
+  );
+}
+
+/** A cell with nothing to show: a faint dash, the word for a screen reader. */
+function Missing({ word }: { word: string }) {
   return (
-    <Fact Icon={Icon} title={title} className={cn(!has && "text-ink-meta")}>
-      {has ? value : missing}
-    </Fact>
+    <span className="text-ink-faint">
+      <span aria-hidden="true">—</span>
+      <span className="sr-only">{word}</span>
+    </span>
   );
 }
 
@@ -216,7 +224,15 @@ const CELL: Record<ColumnId, (app: Application) => ReactNode> = {
             {app.company}
           </p>
           {/* A resume made for this job, ready to send (KAN-217). */}
-          {app.tailored && <TailoredChip />}
+          {/* Tailored as a word beside the company, not a pill: the
+              pill stood 8px taller than the line, so a row with one was
+              taller than a row without (2026-11-10). */}
+          {app.tailored && (
+            <span className="text-note text-brand inline-flex shrink-0 items-center gap-1">
+              <TailorIcon className="size-3.5" />
+              Tailored
+            </span>
+          )}
         </div>
       </div>
     </div>
@@ -227,44 +243,32 @@ const CELL: Record<ColumnId, (app: Application) => ReactNode> = {
     isClosedSaved(app) ? (
       <ClosedSavedControl app={app} />
     ) : (
-      <StageMenu jobId={app.id} stage={app.stage} placeholder="Saved" className="w-full" />
+      <StageMenu jobId={app.id} stage={app.stage} placeholder="Saved" className="w-full" compact />
     ),
   applied: (app) => (
     <FactValue
-      Icon={CalendarIcon}
       value={app.appliedOn ? <LocalDate at={app.appliedOn} /> : null}
-      missing="Not yet"
+      missing="Not applied yet"
     />
   ),
   match: (app) =>
-    app.match != null ? (
-      <MatchBadge score={app.match} />
+    app.match != null ? <MatchBadge score={app.match} /> : <Missing word="Not scored" />,
+  track: (app) => <FactValue value={app.track} missing="Not listed" />,
+  // Several places: the first, then "+N more", which opens them all.
+  location: (app) =>
+    (app.places?.length ?? 0) > 1 ? (
+      <PlacesValue places={app.places ?? []} />
     ) : (
-      <span className="text-ink-meta">Not scored</span>
+      <FactValue value={app.location} missing="Not listed" title={app.location ?? undefined} />
     ),
-  track: (app) => <FactValue Icon={BriefcaseIcon} value={app.track} missing="Not listed" />,
-  location: (app) => (
-    <FactValue
-      Icon={PinIcon}
-      value={app.location}
-      missing="Not listed"
-      title={app.location ?? undefined}
-    />
-  ),
-  workModel: (app) => (
-    <FactValue
-      Icon={workStyleIcon(app.workModel ?? null)}
-      value={app.workModel}
-      missing="Not listed"
-    />
-  ),
-  pay: (app) => <FactValue Icon={CoinIcon} value={app.pay} missing="Not listed" />,
-  // View Resume (KAN-267): the button names the resume, filling the cell.
+  workModel: (app) => <FactValue value={app.workModel} missing="Not listed" />,
+  pay: (app) => <FactValue value={app.pay} missing="Not listed" />,
+  // View Resume (KAN-267), a quiet text button, as Auto Apply's is.
   resume: (app) =>
     app.sentResume ? (
-      <ViewResumeButton resume={app.sentResume} />
+      <ViewResumeButton resume={app.sentResume} quiet />
     ) : (
-      <FactValue Icon={FileIcon} value={null} missing="Not sent" />
+      <Missing word="Not sent" />
     ),
 };
 
@@ -314,7 +318,34 @@ const FROZEN_HOVER = "group-hover/row:bg-hover transition-colors";
 /** How far one arrow key press resizes a column. */
 const KEY_STEP = 16;
 
+/**
+ * Whether the table runs on past its card's right edge from where it is
+ * scrolled to: then a fade at the edge says there is more (2026-11-10). It
+ * ran 400px past a 1440px window's card, cut a heading mid-word ("Pay
+ * Ran…") and gave no sign it scrolled. Read again on a scroll and a resize.
+ */
+function useMoreToRight() {
+  const ref = useRef<HTMLElement>(null);
+  const [more, setMore] = useState(false);
+  useEffect(() => {
+    const box = ref.current?.querySelector<HTMLElement>('[data-slot="table-container"]');
+    if (!box) return;
+    const read = () => setMore(box.scrollLeft + box.clientWidth < box.scrollWidth - 1);
+    read();
+    box.addEventListener("scroll", read, { passive: true });
+    const observer = new ResizeObserver(read);
+    observer.observe(box);
+    if (box.firstElementChild) observer.observe(box.firstElementChild);
+    return () => {
+      box.removeEventListener("scroll", read);
+      observer.disconnect();
+    };
+  }, []);
+  return { ref, more };
+}
+
 export function ApplicationsList({ applications }: { applications: Application[] }) {
+  const { ref: edgeRef, more: moreToRight } = useMoreToRight();
   const query = useApplicationsQuery();
   const push = useShallowPush();
   const layout = useColumnLayout();
@@ -356,7 +387,14 @@ export function ApplicationsList({ applications }: { applications: Application[]
   }
 
   return (
-    <Card padding="none" className="mt-4 overflow-hidden">
+    <Card ref={edgeRef} padding="none" className="relative mt-4 overflow-hidden">
+      <span
+        aria-hidden="true"
+        className={cn(
+          "from-panel pointer-events-none absolute inset-y-0 right-0 z-3 w-12 bg-linear-to-l to-transparent transition-opacity duration-200",
+          moreToRight ? "opacity-100" : "opacity-0",
+        )}
+      />
       <Table
         className="table-fixed"
         // At least as wide as the card; past that, as wide as its columns.

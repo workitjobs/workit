@@ -9,7 +9,6 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { LightningRoundedIcon } from "@/components/custom-icons";
 import { Button } from "@/components/ui/button";
 import { SectionHeading } from "@/components/ui/section-heading";
-import { SectionLink } from "@/components/ui/section-link";
 import { useToast } from "@/components/ui/toast";
 import {
   closeRunTab,
@@ -92,7 +91,6 @@ export function UpNext({ items, saved }: { items: ActivityItem[]; saved: SavedJo
   });
   const checked = rows.filter((row) => picked.has(row.id));
   const openable = checked.filter(canOpen);
-  const toWrite = items.reduce((sum, item) => sum + (item.questions ?? 0), 0);
 
   // A tab that closed or sent its application: its stage may have moved, so read the queue again.
   const seen = useRef<ReadonlyMap<string, string>>(new Map());
@@ -188,7 +186,11 @@ export function UpNext({ items, saved }: { items: ActivityItem[]; saved: SavedJo
           {items.length > 0 && (
             <span className="text-body text-ink-meta">
               <QueueSummary
-                jobs={items.map((item) => ({ id: item.id, started: item.status === "failed" }))}
+                jobs={items.map((item) => ({
+                  id: item.id,
+                  started: item.status === "failed",
+                  closed: item.closed ?? false,
+                }))}
               />
             </span>
           )}
@@ -216,11 +218,8 @@ export function UpNext({ items, saved }: { items: ActivityItem[]; saved: SavedJo
           </div>
         ) : (
           <div className="flex flex-wrap items-center gap-4">
-            {toWrite > 0 && (
-              <SectionLink href="/auto-apply/answers">
-                Write {toWrite} {toWrite === 1 ? "Question" : "Questions"}
-              </SectionLink>
-            )}
+            {/* Written Answers' count is in the setup row above
+                (./setup-strip.tsx) since 2026-11-10. */}
             <Button variant="secondary" size="sm" onClick={() => setAdding(true)}>
               <PlusIcon className="size-4" />
               Add Jobs
@@ -237,6 +236,7 @@ export function UpNext({ items, saved }: { items: ActivityItem[]; saved: SavedJo
           onAction={act}
           onResume={setResumeFor}
           onRemove={(row) => remove([row])}
+          onRemoveAll={remove}
         />
       ) : (
         <EmptyState Icon={LightningRoundedIcon} title="Nothing Queued Yet" className="mt-3">
@@ -266,15 +266,19 @@ export function UpNext({ items, saved }: { items: ActivityItem[]; saved: SavedJo
  * live tabs too. Each part only when it counts something: "0 queued" read
  * as a fault.
  */
-function QueueSummary({ jobs }: { jobs: { id: string; started: boolean }[] }) {
+function QueueSummary({ jobs }: { jobs: { id: string; started: boolean; closed: boolean }[] }) {
   const tabs = useBrowserTabs();
   const closedTabs = useClosedTabs();
+  // A closed posting's job is counted on its own, as its group is
+  // (./queue-table.tsx, 2026-11-10): it never goes out.
+  const closed = jobs.filter((job) => job.closed).length;
   const started = jobs.filter(
-    (job) => job.started || tabs.has(job.id) || closedTabs.has(job.id),
+    (job) => !job.closed && (job.started || tabs.has(job.id) || closedTabs.has(job.id)),
   ).length;
-  const queued = jobs.length - started;
+  const queued = jobs.length - started - closed;
   return [
     ...(started ? [`${started} in progress`] : []),
     ...(queued ? [`${queued} queued`] : []),
+    ...(closed ? [`${closed} closed`] : []),
   ].join(" · ");
 }

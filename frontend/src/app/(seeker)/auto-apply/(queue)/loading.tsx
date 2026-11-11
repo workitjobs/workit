@@ -17,13 +17,29 @@ import { AutoApplyPanel } from "../auto-apply-panel";
  * so a click to either drew this page's skeleton first (KAN-561).
  *
  * The page's own frame: the width, then the page's panel
- * (./auto-apply-panel.tsx). Then Up Next's heading and Add Jobs as bars, and
- * the queue's card with rows in a row's shape.
+ * (./auto-apply-panel.tsx). Then the setup row's three cells
+ * (../setup-strip.tsx), Up Next's heading and Add Jobs as bars, and the
+ * queue's card with rows in a row's shape.
  */
 export default function AutoApplyLoading() {
   return (
     <div className={cn("max-w-dashboard mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
       <AutoApplyPanel>
+        <Card
+          padding="none"
+          aria-hidden="true"
+          className="divide-border-subtle grid divide-y overflow-hidden @3xl/main:grid-cols-3 @3xl/main:divide-x @3xl/main:divide-y-0"
+        >
+          {Array.from({ length: 3 }, (_, i) => (
+            <div key={i} className="flex items-center gap-3 px-4 py-3.5">
+              <Skeleton className="rounded-control size-10 shrink-0" />
+              <span className="flex min-w-0 flex-1 flex-col gap-1.5">
+                <Skeleton className="h-3.5 w-32" />
+                <Skeleton className="h-3 w-44 max-w-full" />
+              </span>
+            </div>
+          ))}
+        </Card>
         <section aria-label="Up Next" aria-busy="true" className="mt-8">
           <div className="flex flex-wrap items-end justify-between gap-3">
             <SectionHeadingSkeleton />

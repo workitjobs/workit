@@ -1016,7 +1016,23 @@ it in its status cards.
 **Job is one column holding the company too** (named Role until
 2026-11-10: a posting is a "job" on every screen): the company's logo, then
 the role (bold, the row's link, cut with the whole title on hover) over the
-company's name in meta grey. KAN-256 split them into two frozen columns,
+company's name in meta grey, with **Tailored** as a brand word and glyph
+after it (a pill until 2026-11-10, 8px taller than the line, so a row with
+one stood taller than a row without). **The other cells are plain text**
+(2026-11-10): no glyph per cell (a calendar, a briefcase, a pin, a
+building, a coin on every row, though the heading names the column), a
+faint dash for what a job does not have (its word for a screen reader:
+"Not applied yet", "Not listed", "Not scored", "Not sent", which filled
+about a fifth of the cells), and "+N more" on a posting in several places,
+which lists them (`PlacesValue`). **Status is a pill** in the stage's
+tint, 28px tall (`StageMenu`'s `compact`), the same menu; it was a 42px
+bordered field on every row, taller than the page's own buttons, and the
+table read as a form. A closed posting's cell is a grey Posting Closed
+pill of the same shape beside its trash. Resume's View is a text button.
+The columns are narrower to match (1420px together, from 1672), and **a
+fade at the card's right edge** shows while the table runs on past it
+(`useMoreToRight`): a 1440px window's table ran 400px past its card and
+cut "Pay Ran…" with no sign it scrolled. KAN-256 split them into two frozen columns,
 Company then Role; together they took about 500px, so few other columns
 showed, and KAN-282 stacked them again. The company is still its own field
 for the filters and the sort. **Job stays frozen** at the left
@@ -1506,46 +1522,48 @@ opened the page sees every own answer New.
 **Jobs lead the page** (KAN-359): the heading, with no button since
 2026-10-29, and under the title the queue in a line ("2 ready to apply
 · 1 needs you", each part only when it counts something); then the
-**setup strip**; then **Up Next**; then a row card linking to
-**Application Info** (`auto-apply/info-link.tsx`, KAN-550, below My Profile). It opened
+**setup row**; then **Up Next**. It opened
 with a "Resume List" table of every resume until KAN-359, then a line
 naming the default resume, which the user removed: each queued job now
 shows and changes its own resume. Manage Resumes and Add to Claude sat
 beside Start until KAN-424, three bordered buttons of one weight for a
 page with one action.
 
-- **The setup banner** (`auto-apply/setup-strip.tsx`, KAN-424): one card
-  under the heading, only while the Chrome extension is missing (asked of
-  the extension itself on load and when the tab comes back into focus; it
-  counts as installed until it answers, so the banner never flashes in).
-  For a student without the extension it opens, its row growing from
-  nothing over 300ms, so Up Next glides down rather than jumping
-  (2026-11-10); the gap under it is its own and closes with it.
-  Chrome's mark in a 40px bordered tile, "Add the Chrome Extension" over
-  one line on what it does, and **Add to Chrome**, which opens the
-  extension's Chrome Web Store page (`EXTENSION_INSTALL_URL` in
-  `lib/autofill-extension.ts`: `NEXT_PUBLIC_EXTENSION_INSTALL_URL`, else the
-  Store page for the extension's id, which is public). The whole card is
-  the link, its edge darkening under the pointer (2026-11-10): with the
-  variable unset, the card said its link was coming soon and could not be
-  clicked. Onboarding's extension step still waits for the variable
-  (`CAN_INSTALL`), so it skips itself while it is unset. **Only the required step**
-  (2026-10-29): it was "Set Up Auto Apply, 1 of 3 done" with a Configure
-  dialog that counted a default resume and the Claude MCP too, and students
-  read all three as required. Both are optional, so each shows where it
-  helps: a row with no resume says No Resume and its Resume cell picks one,
-  and a row's Questions to Write status opens its tab, where the student's
-  Claude writes them; Written Answers' heading offers **Connect Claude** (Claude's Add Custom Connector dialog,
-  and Up Next's Write N Questions links to Written Answers, whose
-  heading offers **Connect Claude** (Claude's Add Custom Connector dialog,
-  wearing Claude's spark, never `SparkleIcon`) in Write with Claude's place
-  while the student's Claude has no WorkIt connector (GET `.../connector`).
+- **The setup row** (`auto-apply/setup-strip.tsx`, `SetupRow`, 2026-11-10):
+  one white card at the top of the page, three cells side by side (stacked
+  below `@3xl/main`), each a glyph on a grey tile, its name, where it
+  stands, and an arrow where it is a link:
+  **Chrome Extension** ("Checking…" until the extension answers its
+  `ping`, on load and when the tab comes back into focus; "Added" with a
+  check; or **Add to Chrome**, which opens the extension's Chrome Web Store
+  page, `EXTENSION_INSTALL_URL` in `lib/autofill-extension.ts`:
+  `NEXT_PUBLIC_EXTENSION_INSTALL_URL`, else the Store page for the
+  extension's id, which is public), **Application Info** (what the
+  extension fills beyond the resume, `../info`) and **Written Answers**
+  ("5 questions to write" in amber, every row's count summed, queued rows'
+  too, or "None waiting"; `../answers`, the page's one way there for a
+  student without Claude, KAN-566). It replaced three pieces in three
+  styles around the queue, which the user found out of place: a banner on
+  top that showed only while the extension was missing (it said its link
+  was coming soon and could not be clicked, though the Store page is
+  public), Up Next's Write N Questions `SectionLink`, and an Application
+  Info row card under the queue (`info-link.tsx`, gone). Onboarding's
+  extension step still waits for the variable (`CAN_INSTALL`), so it skips
+  itself while it is unset. **No count of steps**: it was "Set Up Auto
+  Apply, 1 of 3 done" with a Configure dialog until 2026-10-29, and
+  students read all three as required; only the extension is. A row with
+  no resume says Choose Resume in its Resume cell, and a row's Questions to
+  Write status opens its tab, where the student's Claude writes them;
+  Written Answers' heading offers **Connect Claude** (Claude's Add Custom
+  Connector dialog, wearing Claude's spark, never `SparkleIcon`) while the
+  student's Claude has no WorkIt connector (GET `.../connector`).
   Disconnecting stays in Settings.
 
 - **Up Next** (`auto-apply/up-next.tsx`, its table `auto-apply/queue-table.tsx`;
   redesigned 2026-10-29): every queued job in one table, **grouped by whether
-  WorkIt has started it**, each group under a heading row (its name in a pill and its
-  count) that folds it, as the Resumes page groups its list. A line beside
+  WorkIt has started it**, each group under a quiet heading row (its name
+  in ink and its count, on the table's white; a grey band with the name in
+  a pill until 2026-11-10, as loud as the rows) that folds it. A line beside
   the count, and a line under each status restating its chip ("Filling the
   form"), were cut as noise (2026-10-29). The
   heading's button stays at the left while the table scrolls sideways.
@@ -1553,7 +1571,9 @@ page with one action.
     the status is the tab's own, read live from the extension
     (`useBrowserTabs`, which asks `run/status` every 4 seconds while the
     page shows): Filling (with a spinning ring, as Tailor's run loader),
-    Ready to Submit, Needs You, Fill Failed, Submitted. With its tab closed
+    Ready to Submit, Needs Your Input (with a tooltip: Auto Apply stopped at
+    a field it can't fill; the extension does not say which, so the label
+    cannot name it; "Needs You" until 2026-11-10), Fill Failed, Submitted. With its tab closed
     before WorkIt saw its submit, it is **Tab Closed, Not Submitted**
     (amber; KAN-512): the extension's `run/status` lists it in `closed`
     (`useClosedTabs`), its stage stays as its fill left it (never applied),
@@ -1566,6 +1586,11 @@ page with one action.
   - **Queued**: waiting, in the order the extension takes it; no status. A
     place ("#1 in Queue") was tried and cut: five fill at once, so it read
     as one at a time.
+  - **Posting Closed** (2026-11-10): a job whose posting closed, which can
+    never go out, with no status (the group says it) and **Remove All** at
+    the heading's right (with Undo, as Remove is). It sat in Queued with a
+    red Posting Closed status and read as waiting its turn. Up Next's line
+    counts it apart ("3 in progress · 2 queued · 2 closed").
   The first version had three groups the same day (In Your Tabs, Waiting,
   Unfinished, then In Progress, Queued, Incomplete): a started job whose
   tab closed sat in a group of its own at the bottom, apart from the same
@@ -1656,10 +1681,6 @@ page with one action.
   (`resolveResumeFile`, `autofiller_extension/src/background/api.js`), so
   a pick reaches the form only once the extension calls `POST
   .../applications/{job_id}/resume` for the job it fills.
-- **Write N Questions**, before Add Jobs while any row's written
-  questions wait, is a `SectionLink` to Written Answers (KAN-566), the
-  page's one way there for a student without Claude. It sums every row's
-  count, queued ones too, and hides while rows are picked.
 - **Add Jobs**, at Up Next's right, opens the seeker's saved jobs in a
   dialog (`auto-apply/add-jobs-dialog.tsx`). **The one place a seeker
   queues several jobs at once**: the Jobs page and Home keep one
@@ -1710,8 +1731,9 @@ one client step over the server's rows), in flight.
   an eye for Needs Review, a warning for Couldn't Finish, the Applied
   stage's briefcase, a skip for Skipped. The Status column is 192px, the
   longest badge's width with its glyph and ringing dot.
-  Every column but Role is centred, heading and cell (asked for
-  2026-10-20). Under 864px of table it scrolls sideways rather than
+  Every column is left-aligned, heading and cell, as the Tracker's are
+  (2026-11-10; every column but Role was centred from 2026-10-20, and on a
+  wide window each value floated far from its job). Under 864px of table it scrolls sideways rather than
   squeezing the role. A line under
   the status badge shows only where it says more than the badge: Couldn't
   Finish's "Finish it on the job's page", Working in Browser's "Open in a
@@ -2117,10 +2139,9 @@ shows initials.
 Everything the extension and the student's Claude fill into a form that is
 not on a resume, under the feature that uses it. The top bar reads
 "Application Info"; Back goes to Auto Apply. Reached from My Profile's
-Application Info card and from a row card after Auto Apply's Up Next
-(`auto-apply/info-link.tsx`): not a header button, since Auto Apply's header
-keeps its top right for a view switcher, and not the setup strip, which
-shows only while the extension is missing.
+Application Info card and from Auto Apply's setup row
+(`auto-apply/setup-strip.tsx`), not a header button, since Auto Apply's
+header keeps its top right for a view switcher.
 
 One white card each, in this order: Work Authorization, Voluntary
 Self-Identification, Application Answers, Transcript, Writing Samples,

@@ -62,7 +62,11 @@ export function ClosedSavedControl({
 
   return (
     <div className={cn("flex items-center justify-between gap-2", className)}>
-      <span className="text-note text-ink-meta">Posting closed</span>
+      {/* The stage pill's shape and size, in grey, so the Status column
+          keeps one shape down the table (2026-11-10). */}
+      <span className="bg-inert-tint text-ink-meta text-label rounded-full px-2.5 py-1 font-medium whitespace-nowrap">
+        Posting Closed
+      </span>
       <IconButton
         label={`Remove ${app.role} at ${app.company}, posting closed`}
         tooltip="Remove"

@@ -18,7 +18,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/shadcn/table";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import type { BatchTabState } from "@/lib/autofill-extension";
@@ -27,7 +26,7 @@ import type { TailorSource } from "@/lib/tailor-actions";
 
 import { ResumePreviewDialog } from "../jobs/[jobId]/tailor/resume-preview";
 import { LocalDate } from "../local-time";
-import { CENTER, TD, TH, type ActivityItem } from "./activity-list";
+import { ALIGN, TD, TH, type ActivityItem } from "./activity-list";
 import { RowMenu } from "./row-menu";
 
 /** Whether WorkIt has started an Up Next job: In Progress (opened in a
@@ -35,7 +34,7 @@ import { RowMenu } from "./row-menu";
  *  Two groups since 2026-10-29: a third, Incomplete, held started jobs
  *  whose tab was closed, and split one kind of job in two (it was named
  *  Unfinished, and In Your Tabs and Waiting were the others, before that). */
-export type QueueGroup = "progress" | "queued";
+export type QueueGroup = "progress" | "queued" | "closed";
 
 /** An Up Next row: the job, its batch tab's state (`tab`, null with no tab
  *  open), whether its tab was closed before its submit was seen
@@ -53,6 +52,10 @@ export function groupOf(
   tab: BatchTabState | null,
   tabClosed = false,
 ): QueueGroup {
+  // A closed posting can never go out, so it waits in a group of its own
+  // at the foot (2026-11-10), not in Queued, where it read as waiting its
+  // turn.
+  if (item.closed) return "closed";
   return tab || tabClosed || item.status === "failed" ? "progress" : "queued";
 }
 
@@ -67,6 +70,7 @@ export function canOpen(row: QueueRow): boolean {
 const GROUP_ORDER: { id: QueueGroup; label: string }[] = [
   { id: "progress", label: "In Progress" },
   { id: "queued", label: "Queued" },
+  { id: "closed", label: "Posting Closed" },
 ];
 
 /** A batch tab's state as the row's status: a word in its colour, with
@@ -75,7 +79,7 @@ const GROUP_ORDER: { id: QueueGroup; label: string }[] = [
 const TAB_STATUS: Record<BatchTabState, { label: string; ink: string; Icon: typeof CheckIcon }> = {
   filling: { label: "Filling", ink: "text-advanced", Icon: PencilLineIcon },
   ready: { label: "Ready to Submit", ink: "text-positive-ink", Icon: CheckIcon },
-  needs_you: { label: "Needs You", ink: "text-warning", Icon: WarningIcon },
+  needs_you: { label: "Needs Your Input", ink: "text-warning", Icon: WarningIcon },
   failed: { label: "Fill Failed", ink: "text-danger", Icon: WarningIcon },
   applied: { label: "Submitted", ink: "text-brand", Icon: CheckIcon },
 };
@@ -177,6 +181,7 @@ export function QueueTable({
   onAction,
   onResume,
   onRemove,
+  onRemoveAll,
 }: {
   rows: QueueRow[];
   picked: ReadonlySet<string>;
@@ -185,6 +190,9 @@ export function QueueTable({
   onAction: (row: QueueRow) => void;
   onResume: (row: QueueRow) => void;
   onRemove: (row: QueueRow) => void;
+  /** Every closed posting's job out of the queue at once, from its group's
+   *  heading (with Undo, as Remove is). */
+  onRemoveAll?: (rows: QueueRow[]) => void;
 }) {
   const [folded, setFolded] = useState<ReadonlySet<QueueGroup>>(new Set());
   const [clipped, tableRef] = useClipped();
@@ -213,7 +221,7 @@ export function QueueTable({
                 className={cn(
                   TH,
                   column.width,
-                  column.id === "role" ? ROLE_FROZEN : CENTER,
+                  column.id === "role" ? ROLE_FROZEN : ALIGN,
                   column.folds && FOLDS,
                   column.id === "menu" && STICKY_END,
                 )}
@@ -251,26 +259,36 @@ export function QueueTable({
             if (members.length === 0) return null;
             const open = !folded.has(id);
             return [
-              <TableRow key={id} className="bg-well hover:bg-well">
+              // A quiet heading (2026-11-10): the name in ink and its count, on
+              // the table's white. A grey band with a pill in it was as loud
+              // as the rows it heads.
+              <TableRow key={id} className="hover:bg-transparent">
                 {/* The heading spans every column, so it is the button that stays at the left while the
                     table scrolls sideways: a sticky cell this wide scrolled away with the rest. */}
-                <TableCell colSpan={COLUMNS.length} className="bg-well px-4 py-2">
-                  <button
-                    type="button"
-                    onClick={() => fold(id)}
-                    aria-expanded={open}
-                    className="group/fold focus-visible:ring-brand-ring sticky left-4 flex items-center gap-2 rounded-xs focus-visible:ring-2 focus-visible:outline-none"
-                  >
-                    <ChevronDownIcon
-                      className={cn(
-                        // Ink under the pointer: the fold had no hover.
-                        "text-ink-meta group-hover/fold:text-ink size-3.5 transition-[transform,color] duration-150",
-                        !open && "-rotate-90",
-                      )}
-                    />
-                    <Badge tone="neutral">{label}</Badge>
-                    <span className="text-note text-ink-meta tabular-nums">{members.length}</span>
-                  </button>
+                <TableCell colSpan={COLUMNS.length} className="px-4 pt-4 pb-1.5">
+                  <div className="flex items-center justify-between gap-3">
+                    <button
+                      type="button"
+                      onClick={() => fold(id)}
+                      aria-expanded={open}
+                      className="group/fold focus-visible:ring-brand-ring sticky left-4 flex items-center gap-2 rounded-xs focus-visible:ring-2 focus-visible:outline-none"
+                    >
+                      <ChevronDownIcon
+                        className={cn(
+                          // Ink under the pointer: the fold had no hover.
+                          "text-ink-meta group-hover/fold:text-ink size-3.5 transition-[transform,color] duration-150",
+                          !open && "-rotate-90",
+                        )}
+                      />
+                      <span className="text-label text-ink font-semibold">{label}</span>
+                      <span className="text-note text-ink-meta tabular-nums">{members.length}</span>
+                    </button>
+                    {id === "closed" && onRemoveAll && (
+                      <Button variant="section" onClick={() => onRemoveAll(members)}>
+                        Remove All
+                      </Button>
+                    )}
+                  </div>
                 </TableCell>
               </TableRow>,
               ...(open
@@ -363,11 +381,11 @@ function Row({
         </div>
       </TableCell>
 
-      <TableCell className={cn(TD, CENTER, "overflow-hidden")}>
+      <TableCell className={cn(TD, ALIGN, "overflow-hidden")}>
         <Status row={row} onAction={onAction} />
       </TableCell>
 
-      <TableCell className={cn(TD, CENTER, "overflow-hidden py-0")}>
+      <TableCell className={cn(TD, ALIGN, "overflow-hidden py-0")}>
         {/* View, as the Tracker's Resume column says it, not the resume's
             name: "Resume #6" on every row blended into one grey pill
             (2026-11-10). Change Resume is in the row's ⋯ menu. A button,
@@ -392,7 +410,7 @@ function Row({
         )}
       </TableCell>
 
-      <TableCell className={cn(TD, CENTER, FOLDS)}>
+      <TableCell className={cn(TD, ALIGN, FOLDS)}>
         <span className={FOLDED}>
           {row.match != null ? (
             <MatchBadge score={row.match} />
@@ -405,14 +423,14 @@ function Row({
         </span>
       </TableCell>
 
-      <TableCell className={cn(TD, CENTER, FOLDS)}>
+      <TableCell className={cn(TD, ALIGN, FOLDS)}>
         <span className={FOLDED}>
           <LocalDate at={row.addedAt} />
         </span>
       </TableCell>
 
       <TableCell
-        className={cn(TD, CENTER, STICKY_END, "py-0 transition-colors", stickyTint(picked))}
+        className={cn(TD, "text-center", STICKY_END, "py-0 transition-colors", stickyTint(picked))}
       >
         {row.tab !== "applied" && <RowMenu item={row} onResume={onResume} onRemove={onRemove} />}
       </TableCell>
@@ -477,14 +495,9 @@ function Row({
  * fill at once, so the order read as one at a time.
  */
 function Status({ row, onAction }: { row: QueueRow; onAction: (row: QueueRow) => void }) {
-  if (row.closed) {
-    return (
-      <span className="text-note text-danger inline-flex items-center gap-1.5 font-medium">
-        <WarningIcon aria-hidden className="size-3.5 shrink-0" />
-        Posting Closed
-      </span>
-    );
-  }
+  // Its group, Posting Closed, says it (2026-11-10), as Queued's name says
+  // a queued job's state.
+  if (row.closed) return null;
 
   let label: string;
   let ink: string;
@@ -516,7 +529,7 @@ function Status({ row, onAction }: { row: QueueRow; onAction: (row: QueueRow) =>
     ink = "text-warning";
     glyph = <WarningIcon aria-hidden className="size-3.5 shrink-0" />;
   } else if (row.group === "progress") {
-    label = "Needs You";
+    label = "Needs Your Input";
     ink = "text-warning";
     glyph = <WarningIcon aria-hidden className="size-3.5 shrink-0" />;
   } else {
@@ -528,7 +541,15 @@ function Status({ row, onAction }: { row: QueueRow; onAction: (row: QueueRow) =>
     <button
       type="button"
       onClick={() => onAction(row)}
-      title={row.tab ? "Go to its tab" : "Open it again"}
+      // What "Needs Your Input" asks for: the extension says only that the
+      // fill stopped, not at which field, so the label cannot name it.
+      title={
+        label === "Needs Your Input"
+          ? "Auto Apply stopped at a field it can't fill. Open the application to finish it."
+          : row.tab
+            ? "Go to its tab"
+            : "Open it again"
+      }
       className={cn(
         "text-note focus-visible:ring-brand-ring inline-flex items-center gap-1.5 rounded-sm font-medium underline-offset-2 hover:underline focus-visible:ring-2 focus-visible:outline-none",
         ink,
@@ -561,12 +582,14 @@ function ViewQueuedResume({ name, resumeKey }: { name: string; resumeKey: string
     kind === "built" ? { built_resume_id: id } : { uploaded_resume_id: id };
   return (
     <>
+      {/* Text, not a bordered button, as the Tracker's (2026-11-10). */}
       <Button
-        variant="secondary"
+        variant="ghost"
         size="sm"
         onClick={() => setOpen(true)}
         title={`View ${name}`}
         aria-label={`View resume ${name}`}
+        className="text-ink hover:text-brand"
       >
         <EyeIcon aria-hidden />
         View

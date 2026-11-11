@@ -9,7 +9,13 @@ import { getApplicantSession } from "@/lib/session";
 
 import type { AfterApplied } from "../auto-apply/actions";
 import { getApplications, type Application as Stored } from "../auto-apply/applications";
-import { formatJobType, formatPlaces, formatSalary, formatWorkStyle } from "../jobs/format";
+import {
+  formatJobType,
+  formatPlaces,
+  formatSalary,
+  formatWorkStyle,
+  placesOf,
+} from "../jobs/format";
 import { getTailoredJobIds, type JobListing, type ListingSalaryPeriod } from "../jobs/listings";
 import type { Application, ApplicationEvent } from "../tracker";
 import { jobLogo } from "@/lib/job-logo";
@@ -291,6 +297,7 @@ function toApplication(
     status: open ? undefined : "Posting Closed",
     open,
     location: placeOf(job),
+    places: placesOf(job.location_label ?? job.location),
     workModel: job.work_style ? formatWorkStyle(job.work_style) : null,
     track: job.job_type ? formatJobType(job.job_type) : null,
     source: sourceOf(job.apply_url),

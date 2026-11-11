@@ -13,9 +13,8 @@ import { activityOf } from "../activity-list";
 import { getApplications, getRunApplications } from "../applications";
 import { getWrittenQuestions } from "../answers/questions";
 import { AutoApplyPanel } from "../auto-apply-panel";
-import { InfoLink } from "../info-link";
 import type { SavedJob } from "../add-jobs-dialog";
-import { SetupStrip } from "../setup-strip";
+import { SetupRow } from "../setup-strip";
 import { UpNext } from "../up-next";
 import { jobLogo } from "@/lib/job-logo";
 
@@ -162,9 +161,8 @@ export default async function AutoApplyPage() {
           </EmptyState>
         ) : (
           <>
-            <SetupStrip />
+            <SetupRow toWrite={queue.reduce((sum, item) => sum + (item.questions ?? 0), 0)} />
             <UpNext items={queue} saved={savedJobs} />
-            <InfoLink />
           </>
         )}
       </AutoApplyPanel>
