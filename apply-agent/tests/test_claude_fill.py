@@ -1957,3 +1957,10 @@ def test_a_date_boxs_placeholder_format_is_added_to_its_label():
         "In what month and year did you (or do you expect to) graduate from your highest degree? (YYYY-MM)",
         "Please provide your Amazon Login ID (alias)",
     ]
+
+
+def test_the_fill_prompt_picks_a_date_its_box_did_not_take_from_its_calendar():
+    # amazon.jobs (live, KAN-716): typed YYYY-MM-DD dates never registered; dates picked with its calendar did, and a
+    # picked 21 read back as 20 on the Review page.
+    assert "calendar" in FILL and "date picker" in FILL and "read it back" in FILL
+    assert "never pick another day to make up for it" in FILL
