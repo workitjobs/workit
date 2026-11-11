@@ -259,6 +259,14 @@ PATHS = {"plain code's Next": plain_next, "the profile click": profile_click, "t
          "Ask Claude's press": ask_press, "Ask Claude's press of a listed step": ask_press_listed}
 
 
+def first_page_on_prs() -> list:
+    """PAGES for a plain-Worker matrix: PR CI runs every path against the first page, and the
+    nightly workflow (apply-nightly.yml) runs the rest, marked `nightly` (KAN-780: the whole
+    plain matrix took about 9 of the apply job's 20 minutes)."""
+    names = list(PAGES)
+    return names[:1] + [pytest.param(name, marks=pytest.mark.nightly) for name in names[1:]]
+
+
 def _settle(page, ms=3000) -> None:
     try:
         page.wait_for_timeout(ms)
@@ -539,7 +547,7 @@ def plain(pages: dict[str, str]):
 
 @pytest.mark.parametrize("path", ["plain code's Next", "the profile click", "the account click",
                                   "Ask Claude's press of a listed step"])
-@pytest.mark.parametrize("page_name", list(PAGES))
+@pytest.mark.parametrize("page_name", first_page_on_prs())
 def test_no_click_path_sends_a_hostile_page_on_a_plain_worker(page_name, path):
     with plain(PAGES[page_name]) as (page, drive, site):
         try:
@@ -552,7 +560,7 @@ def test_no_click_path_sends_a_hostile_page_on_a_plain_worker(page_name, path):
 
 
 @pytest.mark.parametrize("path", list(TYPING))
-@pytest.mark.parametrize("page_name", list(PAGES))
+@pytest.mark.parametrize("page_name", first_page_on_prs())
 def test_no_typing_path_sends_a_hostile_page_on_a_plain_worker(page_name, path):
     with plain(PAGES[page_name]) as (page, drive, site):
         try:
