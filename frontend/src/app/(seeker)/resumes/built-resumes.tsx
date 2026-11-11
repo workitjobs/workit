@@ -91,7 +91,7 @@ const readLists = () => Promise.all([listBuiltResumes(), listResumes()]);
 type Lists = Awaited<ReturnType<typeof readLists>>;
 
 /**
- * The Resumes view of Resumes & Experiences: its header, then one list of
+ * Documents' Resumes tab (KAN-766): its header, then one list of
  * every resume the student has (KAN-362), uploaded, generated (the base
  * resumes, KAN-207) and tailored (KAN-217), in the order the Sort dropdown
  * picks (`SortMenu`, KAN-366; newest first by default), each as its

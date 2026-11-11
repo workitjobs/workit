@@ -18,8 +18,8 @@ export const metadata: Metadata = {
 };
 
 /**
- * /resumes, the Resumes view of Resumes & Experiences (KAN-249; /experiences is
- * the other view, behind the header's switcher): the base resumes the bank
+ * /resumes, Documents' Resumes tab (KAN-766; /cover-letters is the other,
+ * and Experiences has its own page since then): the base resumes the bank
  * makes (KAN-207), the tailored ones and the student's uploads (My
  * Profile's until 2026-10-18), in one scrolling list with a Type filter
  * (KAN-362, ./built-resumes.tsx). The Sent list (KAN-208) sat

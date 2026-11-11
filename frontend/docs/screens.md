@@ -2180,26 +2180,30 @@ replaced or removed there, which the autofiller attaches to a form's
 transcript upload. Remove drops the file from the card and shows a toast
 with Undo; the file is deleted only once the toast closes (KAN-562).
 
-## Resumes & Experiences
+## Experiences and Documents
 
-One sidebar row, above My Profile, for one page in two views (KAN-249):
-**Resumes** (`/resumes`, the row's link) and **Experiences** (`/experiences`, the
-experience bank). Both draw one header (`resumes/header.tsx`; it stays
-beside the Resumes view though `/experiences` imports it too, since the two routes
-are one page's views, not two consumers), laid out as the Jobs page's and the
-Applications Tracker's top row is: the view's search on the left and the
-segmented switcher between the two views at the right, after Experiences'
+Two sidebar rows since KAN-766: **Experiences** (`/experiences`, the
+experience bank) and **Documents**, one page with two tabs, **Resumes**
+(`/resumes`, the row's link) and **Cover Letters** (`/cover-letters`).
+Experiences comes first, as the source every resume, match and written
+answer reads; Documents holds what is made from it. Both pages draw one
+header (`resumes/header.tsx`): on Documents a row of tabs (`ui/tabs.tsx`,
+`TabLinks`, ruled), Resumes then Cover Letters, over the view's search on
+the left and its actions on the right; on Experiences the search and its
 primary action, Fill With Scout, while it is offered (off since KAN-732,
-`FILL_WITH_SCOUT_LIVE`); on a phone the search takes its own line.
-The title is in the top bar. A shared "Resumes & Experiences" title on both views
-said less about where the student was. The views stay two routes, so every link to either still
-lands (the Jobs page's `/experiences?import=1` included), and the switcher is plain
-links, since each view reads its own data on the server; the sidebar row is
-lit on both (`also` in `app-sidebar.tsx`) and in the editor under
-`/resumes`. They were two pages and two rows, Experience Bank and My
-Resumes, each with a button pointing at the other; a student building a
-resume went back and forth between them. "Experiences" is the name students
-see for the experience bank; the glossary term stays.
+`FILL_WITH_SCOUT_LIVE`). On a phone the search takes its own line. The
+title is in the top bar: "Documents" on both tabs (and in the resume
+editor under `/resumes`), "Experiences" on the bank. The tabs are plain
+links between routes, since each reads its own data on the server; the
+Documents row is lit on both tabs (`also` in `app-sidebar.tsx`).
+**History:** they were two pages and two rows, Experience Bank and My
+Resumes, each with a button pointing at the other, until KAN-249 made them
+one row, Resumes & Experiences, with a switcher between two views. KAN-766
+split them again: Experiences is the source, not a kind of document, the
+switcher (for two looks of the same content) sat where a tab should, and
+cover letters needed a home beside the resumes. **Cover Letters** holds a
+placeholder ("Cover Letters Are Coming") until its design
+(`docs/cover_letters.md`) is reviewed and built.
 
 ## Experiences (`/experiences`)
 
@@ -2891,7 +2895,7 @@ with no proposals to accept and no Done (2026-10-25).
 
 ## Resumes (`/resumes`)
 
-`(seeker)/resumes` (KAN-249), the other view of Resumes & Experiences: the
+`(seeker)/resumes` (KAN-249), Documents' Resumes tab (KAN-766): the
 resumes the bank makes and the uploads, under the shared header. **One
 list holds every resume** (KAN-362, `built-resumes.tsx`), laid out as the
 Applications Tracker is: the search (names and postings) on its own row,

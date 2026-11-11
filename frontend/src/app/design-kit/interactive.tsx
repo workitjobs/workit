@@ -13,6 +13,8 @@ import { RemovableChip } from "@/components/ui/chip";
 import { RadioRow } from "@/components/ui/radio-row";
 import { SegmentedToggle } from "@/components/ui/segmented-control";
 import { StepsDialog } from "@/components/steps-dialog";
+import { useShallowParams } from "@/components/shallow-routing";
+import { TabLinks } from "@/components/ui/tabs";
 import {
   Dialog,
   DialogClose,
@@ -143,6 +145,35 @@ export function DropdownSpecimen() {
         <DropdownMenuItem>Reset to Default</DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+/** Tabs (KAN-766), in a bar and ruled under a page's top. They move in
+ *  place here (`shallow`), as the job page's do. */
+export function TabsSpecimen() {
+  const tab = useShallowParams().get("tab") === "company" ? "company" : "overview";
+  return (
+    <div className="flex w-full max-w-md flex-col gap-6">
+      <TabLinks
+        shallow
+        label="Job Tabs"
+        value={tab}
+        options={[
+          { value: "overview", label: "Overview", href: "/design-kit/forms" },
+          { value: "company", label: "Company", href: "/design-kit/forms?tab=company" },
+        ]}
+      />
+      <TabLinks
+        ruled
+        shallow
+        label="Documents"
+        value={tab === "company" ? "cover-letters" : "resumes"}
+        options={[
+          { value: "resumes", label: "Resumes", href: "/design-kit/forms" },
+          { value: "cover-letters", label: "Cover Letters", href: "/design-kit/forms?tab=company" },
+        ]}
+      />
+    </div>
   );
 }
 

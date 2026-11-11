@@ -7,7 +7,7 @@ import { RESUMES_SEARCH, ResumesHeader } from "../header";
 
 /**
  * Resumes while both resume lists load (KAN-561): the page's frame
- * (./page.tsx), the Resumes or Experiences switch live, then the search,
+ * (./page.tsx), Documents' tabs live, then the search,
  * the filter row and the list's card (../built-resumes.tsx) as bars: a
  * group's heading and its cards. In this route group so it never stands
  * in for the editor or an upload's page, which have their own. A card is

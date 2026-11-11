@@ -15,6 +15,7 @@ import {
   MonthFieldSpecimen,
   ResumeUploadSpecimen,
   SegmentedSpecimen,
+  TabsSpecimen,
   SelectFieldSpecimen,
 } from "../interactive";
 import { FieldFacetStates, MultiSelectSpecimen, SortMenuSpecimen } from "../parts";
@@ -61,9 +62,15 @@ export default function FormsPage() {
         </Row>
         <Row
           name="<SegmentedToggle> / <SegmentedLinks>"
-          role="One choice among a few, its thumb sliding to the pick: sm (36px) and lg (44px)"
+          role="One look of the same content among a few, its thumb sliding to the pick: sm (36px) and lg (44px)"
         >
           <SegmentedSpecimen />
+        </Row>
+        <Row
+          name="<TabLinks>"
+          role="Moves between different content on one subject: in a bar (a job's Overview and Company), and ruled under a page's top (Documents)"
+        >
+          <TabsSpecimen />
         </Row>
         <Row
           name="<Stepper>"
