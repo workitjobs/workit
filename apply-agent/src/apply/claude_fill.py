@@ -58,7 +58,14 @@ from urllib.parse import urlsplit
 
 from playwright.sync_api import Locator, Page
 
-from apply import captcha, description, fill_engine, on_page, provider_sign_in
+from apply import (
+    captcha,
+    description,
+    fill_engine,
+    on_page,
+    provider_sign_in,
+    upload_origin,
+)
 from apply.account_pages import FIELDS as ACCOUNT_FIELDS
 from apply.account_pages import PROMPT as ACCOUNT_PROMPT
 from apply.account_pages import SENDS, AccountPages
@@ -818,6 +825,8 @@ class ClaudeFill:
             blocked = []
         if any(b.endswith(captcha.SIGN_IN_CLICK) for b in blocked):  # Claude pressed it: nothing ran the captcha
             raise Handoff(captcha.SIGN_IN.format(urlsplit(page.url).hostname or "This site"))
+        if upload := next((b for b in blocked if b.startswith(upload_origin.BLOCKED)), None):  # KAN-795
+            raise upload_origin.Elsewhere(urlsplit(upload.removeprefix(upload_origin.BLOCKED).strip(" ()")).hostname or "")
         if blocked:
             raise Handoff(f"Apply blocked {blocked[0]} while Claude filled the form (a click that may send it, sign in, "
                           "pay, withdraw or opt in), so nothing it blocked was sent. Check the form and finish it yourself.")

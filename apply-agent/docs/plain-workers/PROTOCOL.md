@@ -165,7 +165,8 @@ Playwright's Python client builds them, so `internal:role=...`, `internal:text=.
 | `check` | `selector`, `checked` | `null` / `{"retry"}` |
 | `select` | `selector`, `options` (`[{value?, label?, index?}]`) | the selected values, or `{"retry"}` |
 | `focus` / `blur` / `hover` / `scroll` | `selector` | `null` / `{"retry"}` |
-| `files` | `selector`, `files` (`[{name, mimeType, base64}]`) | `null`; sets `input.files` through `DataTransfer`, fires `input` and `change` |
+| `files` | `selector`, `files` (`[{name, mimeType, base64}]`), `rule?` (`{hosts, pinned?}`) | `null`; sets `input.files` through `DataTransfer`, fires `input` and `change`. First, in the same task, the frame's own origin and its ancestors' (`location`) must pass `apply.upload_origin`'s rule with `hosts` (none: the top frame's site only), else `UploadElsewhere` (its message: the frame's origin); with `pinned`, the input must be the one `pin` kept under that token, else `UploadSwapped` (KAN-795) |
+| `pin` | `selector`, `token` | `null`; keeps the element (a label's control) under `token` in the isolated world, for `files`' `pinned` |
 | `mark` | `selector`, `token` | n; puts `data-apply-mark="<token>"` on each match (for `evaluate` on elements) |
 | `unmark` | `token` | `null` |
 | `aria` | `selector`, `{mode?}` | Playwright's `ariaSnapshot` text |
@@ -181,7 +182,7 @@ In `worker-extension/ops/tile.js` and `page/tile.js`; Apply's side is `apply.pla
 | `tile.input` | `tab?` (default: the shown tab), `event`, `width?`, `height?` | replays one tile event (below) as synthetic DOM events, its `text` and `key` events' text trusted as `dom`'s (KAN-716); `null`, `{"menu": {options: [{label, disabled}], selected}}` (a press on a `<select>`), `{"chooser": "selectSingle"\|"selectMultiple", tab, frame}` (a click asked for a file), or `{"text"}` (a copy) |
 | `chooser.watch` | `tab` | `null`; clears any file request and hooks every frame of the tab (below) |
 | `chooser.get` | `tab` | `{"mode", "frame"}` of the file input a page asked for since the last watch or set, or `null` |
-| `chooser.set` | `tab`, `frame?`, `files` (`[{name, mimeType, base64}]`; `[]` cancels) | `true` if the input was there; sets `input.files` through DataTransfer in the MAIN world, fires `input` and `change` (`cancel` for none) |
+| `chooser.set` | `tab`, `frame?`, `files` (`[{name, mimeType, base64}]`; `[]` cancels), `hosts?` | `true` if the input was there; sets `input.files` through DataTransfer in the MAIN world, fires `input` and `change` (`cancel` for none). With `hosts` (Apply's own set; none is Lisul's pick from the tile), the service worker first checks the frame's URL and its ancestors' (webNavigation) against `apply.upload_origin`'s rule, else `UploadElsewhere`, and sets on that one document (`documentIds`), so a frame that navigated meanwhile takes nothing (KAN-795) |
 
 `tile.input` events are the Apply window's (`dashboard.Frames.input`): `{"type": "down"|"up", x, y,
 button, clicks}`, `{"type": "move", x, y}`, `{"type": "wheel", x, y, dx, dy}`, `{"type": "key", key,
@@ -297,8 +298,11 @@ KAN-612. In `worker-extension/ops/claude.js`, with `page/modal.js`. They serve A
 dismissed unless `mcp.answer` said otherwise (as Playwright dismisses a dialog no one handles).
 A file input that would open its picker (a click on it or its label, `input.click()`, or
 `showPicker()`, also when S3's tile hook kept it) is recorded as the open chooser and marked
-`data-apply-mcp-chooser="<token>"`; `dom` `files` on `[data-apply-mcp-chooser="<token>"]` then sets
-its files, and the tile's chooser mark is cleared. It adds no events of its own.
+`data-apply-mcp-chooser="<token>"`. When Apply first sees a chooser, `dom` `pin` keeps that input in
+the isolated world; `dom` `files` on `[data-apply-mcp-chooser="<token>"]`, pinned to it, then sets
+its files, and the tile's chooser mark is cleared. A page can write the mark and `modal.js`'s state,
+so neither decides where a file goes: the pin and `files`' origin check do (KAN-795). It adds no
+events of its own.
 
 ### Apply's MCP server
 

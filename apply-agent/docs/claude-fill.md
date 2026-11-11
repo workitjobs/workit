@@ -151,6 +151,38 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
   `browser_click` refuses any button in such a dialog, and `browser_file_upload` tells Claude to stop when its
   file brought one on (`plain.tools.CONSENT`). `CONSENT` is a fixed function (`plain/fixed.py`): run `apply
   plain prepare` (or seed again) before a plain Worker uses it.
+- A file goes only to the form's own site (KAN-795, `apply.upload_origin`): the top frame, a frame of the top
+  frame's own origin, or a job system's embedded form (`JOB_SYSTEM_HOSTS`: Greenhouse's
+  `job-boards.greenhouse.io/embed/job_app`, an iCIMS careers frame, Ashby's embed), and every frame between it and
+  the top is the top's own origin. An adversarial review found that Claude's upload tool and plain code gave a file
+  to an input in any frame, so a hostile page's frame from another site could take the resume. PR 556's review then
+  found five more ways, each now a hostile page in `tests/test_upload_origin.py`: a job system's form inside another
+  site's frame (a free tenant's form), a dispatched click on a detached input, a closed shadow root's slotted
+  label, a scriptless sandboxed frame that a scripted parent reads, and a pop-up that another site's frame opens.
+  - Every place a file is set checks the frame where and as it sets: `upload_origin.give` on a CDP Worker (the
+    input's ElementHandle first, so a frame that navigated meanwhile fails the set; a pop-up whose opener page is of
+    another site is refused), page/dom.js's `files` and ops/tile.js's `chooser.set` on a plain Worker. Plain code
+    (`attach_resume`) skips such frames, and one whose only resume input is there raises `upload_origin.Elsewhere`.
+  - While a guard is on, a frame that may not take a file is closed to every press, so Claude (Playwright MCP's own
+    set is unchecked) gets no chooser there and opens nothing from there (PR 556's re-review: a declarative closed
+    shadow root, a pop-up chain, a pop-up with no opener, a sandbox flipped then un-fenced). Every click is
+    cancelled at the window and at each shadow root the page makes or reaches (`attachShadow`,
+    `ElementInternals.shadowRoot`); a script's `click()`, `showPicker()`, dispatched click, `window.open()` and form
+    submission are refused; every frame in it is `inert`. A frame that runs no script (a sandbox without
+    `allow-scripts`) runs no guard, so it is `inert` anywhere. A fenced frame stays `inert` until the hand-over,
+    whatever its attributes say later. A top frame whose opener is a frame is such a frame. The guard notes
+    `upload_origin.BLOCKED` for a picker and "a click in another site's frame" for any other press, and Claude fill
+    hands the form over. The cost: Claude can press nothing in another site's frame (a Google sign-in button's frame
+    too). The guard's block is off only on a page handed to Lisul (`lift()` with its note), never for the drive
+    guard's lifted copy at open.
+  - On a plain Worker, `browser_file_upload` also refuses such a frame and a tab of another origin than the drive's
+    own, and the input must be the one the chooser opened for: `plain.tools` pins it in the isolated world when a
+    tool's answer first shows the chooser, and a script's new input with the old one's mark gets nothing
+    (`SWAPPED`). Lisul's own pick from a tile goes where he picked it.
+  - `give` refuses a pop-up with a page of another origin anywhere up its chain of openers (Playwright knows the
+    opener even under COOP or `noopener`).
+  - What stays open: a job system's host serves every tenant's form, so a hostile top page could embed another
+    board's form (no worse than its own input).
 - Eightfold's dropdowns are toggles: a click on the option a list already holds (`aria-selected`) empties the
   field (KAN-767; Microsoft's "worked with Microsoft" and "subsidiary" went blank so in an Ask). On a plain Worker
   `browser_click` makes no click on an option its single-choice list holds already (`plain.tools.PICKED`) and

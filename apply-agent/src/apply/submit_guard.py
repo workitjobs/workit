@@ -54,6 +54,11 @@ A link's ping (hyperlink auditing, a POST no script sees) never leaves a
 guarded page: the guard takes it off as the link is clicked, and no script
 can set one back while the page is guarded.
 
+A file goes only to the form's own site (KAN-795, apply.upload_origin): in a frame of another site (not the top
+frame's origin, nor a job system's embedded form), a file input opens no picker while the guard is on, by a click on
+it or its label, or a script's click() or showPicker(), so Claude's upload tool has no chooser there; the guard notes
+it, and Claude fill hands the form over.
+
 Everything else goes through: résumé uploads, Ashby's per-answer saves,
 Lever's résumé parse, Workday's Save and Continue, a Next that saves its
 step, and another site's widget posting hidden fields into its own iframe
@@ -118,7 +123,7 @@ from contextlib import contextmanager
 
 from playwright.sync_api import Page, Route
 
-from apply import captcha, send_click
+from apply import captcha, send_click, upload_origin
 from apply.natives import NATIVES
 
 # The final requests the route stops, from the page or a worker: a path segment that names a
@@ -1401,6 +1406,134 @@ _TEMPLATE = r"""
     };
   }
 
+  // Uploads (KAN-795): a file goes only to the form's own site (apply.upload_origin). A frame that may not take one
+  // (another site's: an ad, a widget, a hostile page's trap, any frame under one, or a pop-up a frame opened) is
+  // closed to Claude and to page tricks alike while the guard is on (PR 556's reviews):
+  // - every click is cancelled at the window before the page hears it: the input behind a closed shadow root's
+  //   label, one in the page's HTML (declarative) too, then opens no picker, and nothing else there is pressed;
+  // - a script's click(), showPicker(), dispatched click, window.open() and form submission are refused, a detached
+  //   element's too: it opens no picker and no pop-up;
+  // - every frame in it is inert, and stays so until the page is handed to Lisul, whatever its attributes say later.
+  // In a frame that may take one, a file input's picker opens as ever, but a frame that runs no script (a sandbox
+  // without allow-scripts) runs no guard, so it is inert there too, and stays so. Each shadow root the page makes or
+  // reaches (attachShadow, ElementInternals.shadowRoot) is watched the same way.
+  // The frame's origin and its ancestors' are read once, as the document starts: they never change. A top frame whose
+  // opener is a frame, not a top frame, is a pop-up a frame opened.
+  const ancestorList = [];
+  { const found = location.ancestorOrigins; for (let i = 0; found && found[i] !== undefined; i++) push(ancestorList, found[i]); }
+  const uploadOrigin = location.protocol === 'about:' ? (ancestorList[0] || 'null') : location.origin;
+  let openedByFrame = false;
+  try { const by = W.opener; openedByFrame = !!by && by.top !== by; } catch (e) { openedByFrame = true; }
+  const frameUploads = !(ancestorList.length === 0 && openedByFrame) && (@UPLOAD_RULE@)(uploadOrigin, ancestorList, @UPLOAD_HOSTS@);
+  // Off only on a page handed to Lisul (lift() with its note): the drive guard's copy on_open puts on a live run's
+  // page starts lifted with no note, and a pop-up's stays so (no DriveGuard arms it), so that is no hand-over.
+  const handedOver = () => lifted() && S.note !== null;
+  const uploadsNow = () => handedOver() || frameUploads;
+  const closed = () => !uploadsNow();  // a frame closed to every press
+  const uploadFrom = uploadOrigin === 'null' ? 'another site' : uploadOrigin;
+  const isFile = (el) => tag(el) === 'INPUT' && lower(typeOf(el)) === 'file';
+  const labelControl = getter(HTMLLabelElement, 'control');  // composedPath and eventType: the ping section's
+  const picker = (el) => {
+    if (isFile(el)) return true;
+    const label = up(el, 'label');
+    const control = label && labelControl ? read([labelControl], label, null) : null;
+    return !!control && isFile(control);
+  };
+  const refusePicker = () => note(@UPLOAD_BLOCKED@ + ' (' + uploadFrom + ')');
+  const refusePress = (what) => note(what + " in another site's frame (" + uploadFrom + ')');
+  const pressIn = judged((event) => {
+    if (!closed()) return;
+    const path = composedPath(event), at = path.length ? path[0] : targetGet(event);
+    prevent(event);
+    stopNow(event);
+    if (picker(at)) refusePicker();
+    else if (user(event)) refusePress('a click');
+  });
+  on('click', pressIn);
+  on('submit', judged((event) => { if (closed()) { prevent(event); stopNow(event); refusePress('a form'); } }));
+  const nativeOpen = W.open;
+  if (typeof nativeOpen === 'function') defineProp(W, 'open', {value: function open(...args) {
+    if (closed()) { refusePress('a pop-up'); return null; }
+    return apply(nativeOpen, this, args);
+  }, writable: true, configurable: true});
+  const FP = HTMLFormElement.prototype;
+  for (const name of ['submit', 'requestSubmit']) {
+    const native = FP[name];
+    if (typeof native === 'function') defineProp(FP, name, {value: function (...args) {
+      if (closed()) { refusePress('a form'); return undefined; }
+      return apply(native, this, args);
+    }, writable: true, configurable: true});
+  }
+  // Every frame of a closed frame, and a frame that runs no script anywhere, is inert while the guard is on; once
+  // fenced, it stays so until the hand-over (a sandbox flipped to allow-scripts runs no script until it navigates).
+  const ALLOW_SCRIPTS = /(^|\s)allow-scripts(\s|$)/i, FRAMES = 'iframe, frame, object, embed, fencedframe';
+  const MO = MutationObserver, observe = fn(MO.prototype, 'observe');
+  const fenced = [];
+  const isFenced = (f) => any(fenced, (x) => x === f);
+  const scriptless = (f) => tag(f) === 'IFRAME' && hasAttr(f, 'sandbox') && !test(ALLOW_SCRIPTS, text(attr(f, 'sandbox')));
+  const fence = (f) => {
+    if (handedOver() || !isEl(f) || !matches(f, FRAMES)) return;
+    if (!isFenced(f) && !closed() && !scriptless(f)) return;
+    if (!isFenced(f)) push(fenced, f);
+    if (!hasAttr(f, 'inert')) setAttr(f, 'inert', '');
+  };
+  const fenceIn = (scope) => { const found = all(scope, FRAMES); for (let i = 0; i < found.length; i++) fence(found[i]); };
+  const fencer = new MO((records) => {
+    for (let i = 0; i < records.length; i++) {
+      const r = records[i];
+      fence(r.target);
+      const added = r.addedNodes;
+      for (let j = 0; added && j < nlLen(added); j++) {
+        const n = nlItem(added, j);
+        if (!isEl(n)) continue;
+        fence(n);
+        fenceIn(n);
+      }
+    }
+  });
+  const fenceWatch = (root) => observe(fencer, root, {childList: true, subtree: true, attributes: true, attributeFilter: ['sandbox', 'inert']});
+  fenceWatch(D);
+  const watched = [];
+  const watchRoot = (root) => {
+    if (!root || any(watched, (x) => x === root)) return;
+    push(watched, root);
+    listen(root, 'click', pressIn, true);
+    try { fenceWatch(root); fenceIn(root); } catch (e) {}
+  };
+  onControl[onControl.length] = () => {
+    if (!handedOver()) { fenceIn(D); for (let i = 0; i < watched.length; i++) { try { fenceIn(watched[i]); } catch (e) {} } return; }
+    for (let i = 0; i < fenced.length; i++) { try { removeAttr(fenced[i], 'inert'); } catch (e) {} }
+    fenced.length = 0;
+  };
+  const nativeAttach = EP.attachShadow;
+  if (typeof nativeAttach === 'function') defineProp(EP, 'attachShadow', {value: function attachShadow(...args) {
+    const root = apply(nativeAttach, this, args);
+    watchRoot(root);
+    return root;
+  }, writable: true, configurable: true});
+  const internalsRoot = W.ElementInternals ? gopd(ElementInternals.prototype, 'shadowRoot') : null;
+  if (internalsRoot && internalsRoot.get) defineProp(ElementInternals.prototype, 'shadowRoot', {...internalsRoot, get() {
+    const root = apply(internalsRoot.get, this, []);
+    watchRoot(root);
+    return root;
+  }});
+  const nativeClick = HP.click, nativePicker = HTMLInputElement.prototype.showPicker;
+  const nativeDispatch = EventTarget.prototype.dispatchEvent;
+  defineProp(HP, 'click', {value: function click() {
+    if (closed()) { if (isFile(this)) refusePicker(); return undefined; }
+    return apply(nativeClick, this, []);
+  }, writable: true, configurable: true});
+  if (typeof nativePicker === 'function') defineProp(HTMLInputElement.prototype, 'showPicker', {value: function showPicker() {
+    if (closed() && isFile(this)) { refusePicker(); throw new DOMExc('Blocked by the @NAME@', 'NotAllowedError'); }
+    return apply(nativePicker, this, []);
+  }, writable: true, configurable: true});
+  defineProp(EventTarget.prototype, 'dispatchEvent', {value: function dispatchEvent(event) {
+    let type = '';
+    try { type = eventType(event); } catch (e) {}
+    if (type === 'click' && isEl(this) && closed()) { if (picker(this)) refusePicker(); return false; }
+    return apply(nativeDispatch, this, [event]);
+  }, writable: true, configurable: true});
+
   // Workers (KAN-791): a worker runs none of this script, so its fetch, XHR and beacon go unjudged. While the guard is
   // on, the page makes none: a dedicated or shared worker (from any URL, blob: and data: too), a service worker's
   // registration and a worklet's module are refused, by every name the page could reach the browser's own by (its
@@ -1616,7 +1749,9 @@ def _script(key: str, name: str, extra: str = "", in_captcha: str = "", held: st
                                "@CAPTCHA_PATH_HOSTS@": json.dumps(captcha.PATH_HOSTS), "@CONTROL@": control_type(key),
                                "@TELL_TYPE@": TELL_TYPE, "@TELL_PREFIX@": TELL_PREFIX, "@TOUCH@": touch_type(key),
                                "@KEY@": key, "@NAME@": name, "@BOX@": box, "@MARK@": MARKS[key], "@LATE@": _js(late),
-                               "@AT_OPEN@": _js(at_open)}.items():
+                               "@AT_OPEN@": _js(at_open), "@UPLOAD_RULE@": upload_origin.RULE_JS,
+                               "@UPLOAD_HOSTS@": json.dumps(upload_origin.JOB_SYSTEM_HOSTS),
+                               "@UPLOAD_BLOCKED@": json.dumps(upload_origin.BLOCKED)}.items():
         script = script.replace(placeholder, value)
     return script
 

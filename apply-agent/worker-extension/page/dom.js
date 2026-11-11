@@ -515,8 +515,48 @@
     return answer;
   }
 
-  function files(selector, payloads) {
+  // Where a file may go (KAN-795): apply.upload_origin's RULE_JS, word for word (a test holds the copies the same).
+  // Read in this frame, from its own location, in the same task as the set: a frame that navigated elsewhere first
+  // is read as where it is now.
+  const mayUpload = (own, ancestors, hosts) => {
+    if (!ancestors.length) return true;  // the top frame: the form's own site, whatever its URL
+    const top = ancestors[ancestors.length - 1];
+    if (!own || own === 'null' || !top || top === 'null') return false;
+    // Every frame between this one and the top is the top's own site: a job system's form inside another site's
+    // frame is that site's to embed, and a frame under one is that site's to read (PR 556's review).
+    for (let i = 0; i < ancestors.length - 1; i++) if (ancestors[i] !== top) return false;
+    if (own === top) return true;
+    const host = own.replace(/^[a-z][a-z0-9+.-]*:\/\//i, '').replace(/:\d+$/, '').replace(/^\[|\]$/g, '').toLowerCase();
+    for (let i = 0; i < hosts.length; i++) {
+      const h = String(hosts[i]).toLowerCase();
+      if (host === h || (host.length > h.length && host.slice(-h.length - 1) === '.' + h)) return true;
+    }
+    return false;
+  };
+  const ancestorOrigins = () => {
+    const found = location.ancestorOrigins, out = [];
+    for (let i = 0; found && found[i] !== undefined; i++) out.push(found[i]);
+    return out;
+  };
+  // The input a chooser opened for, kept by its token as Apply first saw it (apply.plain.tools): never found again
+  // by an attribute a page can move, so an input a script put in its place gets no file.
+  const pins = new Map();
+  function pin(selector, token) {
+    pins.set(token, new WeakRef(pw.retarget(one(selector), "follow-label")));
+    return null;
+  }
+
+  // `rule`: {hosts: the job systems' hosts a frame may be on besides the top frame's own site; pinned: the token of
+  // the input it must be}. No hosts: the top frame's own site only.
+  function files(selector, payloads, rule = {}) {
     const element = pw.retarget(one(selector), "follow-label");
+    const own = location.protocol === "about:" ? (ancestorOrigins()[0] || "null") : location.origin;
+    if (!mayUpload(own, ancestorOrigins(), Array.isArray(rule?.hosts) ? rule.hosts : []))
+      throw fail("UploadElsewhere", own === "null" ? "another site" : own);
+    if (rule?.pinned !== undefined && rule?.pinned !== null) {
+      const kept = pins.get(rule.pinned)?.deref();
+      if (!kept || kept !== element || !kept.isConnected) throw fail("UploadSwapped", "the file input is not the one the chooser opened for");
+    }
     const answer = pw.setInputFiles(element, payloads.map((f) => ({ name: f.name, mimeType: f.mimeType, buffer: f.base64, lastModifiedMs: Date.now() })));
     if (typeof answer === "string") throw fail("Error", answer);
     return null;
@@ -611,6 +651,7 @@
       return null;
     },
     files,
+    pin,
     mark(selector, token) {
       const found = all(selector);
       for (const element of found) element.setAttribute("data-apply-mark", token);
