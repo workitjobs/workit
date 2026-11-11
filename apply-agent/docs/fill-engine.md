@@ -89,6 +89,12 @@ A required one stops a stepped form on its page with one ask
   Lisul changed from what the step showed at the pause
   (`WorkdayFiller.paused`) is his. An untouched box (read "No") or one
   the page pre-ticked stays on his list (`_Planned.keep`) and stops again.
+- A Workday date reads back what Workday holds (its hidden "current value is
+  06/2026" line), not what its boxes show. A typed date it doesn't hold is
+  picked from its Calendar and read back again (engine v0.3.38, KAN-716):
+  NVIDIA's typed 08/2026 showed and was held as nothing, and 01/2026 saved
+  as 12/2026. One still not held is a FillError naming the field, which
+  goes to the Rescue as any other.
 
 A Minor that the profile gives as none (`education.minors: []`) is the
 form's None or N/A in the engine's plan, or N/A typed, so a minor that an
