@@ -57,6 +57,7 @@ export async function JobPage({ jobId, listed = false }: { jobId: string; listed
           job={job}
           actions={<JobCardActions view={view} job={job} notInterested />}
           titleAs={listed ? "h2" : "h1"}
+          match={view.match}
         />
         <JobTabPanes
           overview={<JobViewBody view={view} job={job} />}

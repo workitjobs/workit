@@ -504,10 +504,12 @@ width only shows more columns. **Every other seeker page stops at
 left edge beside the rail (2026-10-27): at the old 1024px `max-w-app` they
 sat centred between wide empty margins once the rail freed the room, which
 the user found flawed. A block of prose keeps a readable measure, since text
-past about 90 characters a line is hard to follow. A job's page reaches it by
-being one 736px column at 16px (`max-w-job`, 2026-11-09), so its prose ends
-where its header and cards end; About the Role's own 46ch, beside blocks
-that ran the full width, read as cut short.
+past about 90 characters a line is hard to follow. A job's page reaches it
+with its card's shape (2026-11-10): the page is the Cards view's 944px, and
+the prose takes the header's facts column beside the match rail, about 88
+characters at 16px, so it ends where the facts end. It was one 736px column
+(`max-w-job`, 2026-11-09), narrower than the cards; About the Role's own
+46ch before that, beside blocks that ran the full width, read as cut short.
 **A `ch` cap goes on the element that has the text's own size** (KAN-569):
 `ch` is read from that element's font, and About the Role's 68ch sat on a
 16px wrapper over 14px text, so its lines ran about 107 characters. Inter

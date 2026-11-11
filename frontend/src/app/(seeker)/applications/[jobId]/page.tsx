@@ -162,6 +162,7 @@ export default async function ApplicationPage({ params }: PageProps<"/applicatio
         <JobViewHeader
           job={job}
           actions={actionable ? <JobCardActions view={view} job={job} /> : undefined}
+          match={view.match}
         />
       ) : (
         <JobDetailHeader

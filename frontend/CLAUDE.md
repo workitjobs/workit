@@ -1425,14 +1425,20 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   (1440px) inside `SEEKER_GUTTER`, so all start at Home's left edge; the
   Applications Tracker alone has no cap. At `max-w-app` (1024px) they sat
   centred between wide empty margins beside the rail. **A job's page is the
-  exception: one centred 800px column** (`max-w-job`, `JOB_PAGE_WIDTH` in
-  `jobs/[jobId]/job-view.tsx`, 2026-11-09), shared with the application's
-  own page, so the action bar, the header, Key Requirements and About the
-  Role all end on one edge (736px of content, the action bar's one row).
-  In the split view's pane the bar takes the pane and the content under it
-  stops at the same 736px (`JOB_COLUMN`). About the Role is 16px there,
-  about 90 characters a line; at 46ch of 14px (KAN-569) it ended halfway
-  across the full-width blocks above it and read as cut short.
+  exception: it takes the Cards view's column and its card's shape**
+  (`max-w-feed`, `JOB_PAGE_WIDTH` in `jobs/[jobId]/job-view.tsx`,
+  2026-11-10), shared with the application's own page: the action bar and
+  the header card take the whole 944px, the header's facts beside the
+  240px match rail the card shows (`GET /jobs/{id}/match`), and the body
+  under it (Key Requirements, About the Role) the facts' column
+  (`JOB_BODY`, 17.25rem short of the right edge: the rail, its gap and the
+  card's padding), so the description's 16px lines run about 88
+  characters and end where the facts end. It was one 800px column
+  (`max-w-job`, 2026-11-09), 208px narrower than the card the student had
+  just clicked, which the user found inconsistent. In the split view's
+  pane the bar takes the pane, the content under it stops at 736px
+  (`JOB_COLUMN`) and the rail is hidden, since the list card beside it
+  shows the score.
   The user found the floating panels wasted room, and the 256px panel that
   opened over the page on hover a flaw. A height worked out from the
   shell's chrome (the job rail's `100svh-4rem`) changes with it. A sidebar

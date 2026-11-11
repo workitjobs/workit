@@ -279,8 +279,7 @@
    * Role's 68ch), since text past about 80 characters a line is hard to
    * follow. */
   --container-dashboard: 90rem; /* 1440px */
-  --container-job: 50rem; /* 800px: a job's page, 736px of content inside the gutters, the action bar's one row (2026-11-09) */
-  --container-feed: 63rem; /* 1008px: the Jobs page's Cards view, a 944px card inside the gutters (2026-11-09): a 240px match rail, sized to its short labels, beside a 704px body, room for its six actions and the note at the row's left end ("Auto Apply ready") on one line */
+  --container-feed: 63rem; /* 1008px: the Jobs page's Cards view and a job's own page (2026-11-10), a 944px card inside the gutters (2026-11-09): a 240px match rail, sized to its short labels, beside a 704px body, room for its six actions and the note at the row's left end ("Auto Apply ready") on one line */
 
   /* The seeker Dashboard's tiles (KAN-173): white on the white page panel,
    * with no outline, set apart by a soft violet-tinted shadow alone. An

@@ -16,7 +16,9 @@ import type { ApplicationStage } from "../../auto-apply/actions";
 import { getApplicationStage } from "../../auto-apply/applications";
 import { placesOf } from "../format";
 import { listingFacts } from "../listing-card";
-import { getApplied, getJobListing, type JobListing } from "../listings";
+import type { Highlight } from "../data";
+import { getApplied, getJobListing, getJobMatch, type JobListing } from "../listings";
+import { MatchRail } from "../match-rail";
 import { NotInterestedButton } from "../not-interested-button";
 import { SaveJobButton } from "../save-job-button";
 import { factText, toPosting } from "../to-posting";
@@ -39,18 +41,29 @@ import { jobLogo } from "@/lib/job-logo";
  */
 export type JobView = Awaited<ReturnType<typeof loadJobView>>;
 
-/** A job's page width (2026-11-09): one centred column, `max-w-job` (800px
- *  with the gutters, 736px inside them), for the action bar, the header, the
- *  facts, Key Requirements and About the Role alike, so every block shares
- *  one right edge. It was the 1440px dashboard column, with About the Role
- *  alone held to 46ch, and the text read as cut short beside the full-width
- *  blocks above it. 736px is the action bar's one row (Back, the tabs, Auto
- *  Apply, Tailor, Apply Now). In the split view's pane the page takes the
- *  pane, so the bar's rule meets the list's edge, and JOB_COLUMN holds the
- *  content under the bar to the same 736px. The job page and the
- *  application's own page share it, so the two stay identical. */
+/** A job's page width (2026-11-10): the Jobs page Cards view's column,
+ *  `max-w-feed` (1008px with the gutters, 944px inside them), so the page
+ *  reads as the card it was opened from, with the same edges: the action bar
+ *  and the header card take the whole 944px, the header's facts beside its
+ *  240px match rail as the card's body beside its rail, and the body under
+ *  it (JOB_BODY) the facts' column. It was `max-w-job` (800px) from
+ *  2026-11-09 to keep the description's lines short, which left the page
+ *  208px narrower than the cards (the user's call to match them), and the
+ *  1440px dashboard column before that. In the split view's pane the page
+ *  takes the pane, so the bar's rule meets the list's edge, and JOB_COLUMN
+ *  holds the content under the bar to 736px. The job page and the
+ *  application's own page share it, so the two stay identical. A size
+ *  container (`job`), for JOB_BODY. */
 export const JOB_PAGE_WIDTH =
-  "max-w-job mx-auto w-full flex-1 py-6 in-data-split:@4xl/main:max-w-none in-data-split:@4xl/main:px-4!";
+  "@container/job max-w-feed mx-auto w-full flex-1 py-6 in-data-split:@4xl/main:max-w-none in-data-split:@4xl/main:px-4!";
+
+/** The body under the header (sent and applied notes, Key Requirements, the
+ *  description): the header's facts column, so its lines end where the facts
+ *  end, beside the match rail's 240px, the 16px gap and the card's 20px
+ *  padding (17.25rem). About 88 characters a line at 16px, where the page's
+ *  944px ran to 125. From a 768px page; narrower, and in the split view's
+ *  pane, it takes the column. */
+export const JOB_BODY = "@3xl/job:pr-[17.25rem] in-data-split:@4xl/main:pr-0";
 
 /** The job's content under its action bar: 736px in the split view's pane
  *  (see JOB_PAGE_WIDTH); on its own page the page is already that wide. */
@@ -89,17 +102,19 @@ export async function loadJobView(
     application,
   }: { descriptionOnly?: boolean; application?: Promise<KnownApplication> } = {},
 ) {
-  const [{ job, error }, resumes, sent, applied, stage, requirements, company] = await Promise.all([
-    getJobListing(jobId),
-    listBuiltResumes(),
-    listSentResumes(),
-    application
-      ? application.then((known) => known && { appliedAt: known.appliedAt })
-      : getApplied(jobId),
-    application ? application.then((known) => known?.stage ?? null) : getApplicationStage(jobId),
-    descriptionOnly ? NO_REQUIREMENTS : getRequirements(jobId),
-    descriptionOnly ? NO_COMPANY : getCompany(jobId),
-  ]);
+  const [{ job, error }, resumes, sent, applied, stage, requirements, company, match] =
+    await Promise.all([
+      getJobListing(jobId),
+      listBuiltResumes(),
+      listSentResumes(),
+      application
+        ? application.then((known) => known && { appliedAt: known.appliedAt })
+        : getApplied(jobId),
+      application ? application.then((known) => known?.stage ?? null) : getApplicationStage(jobId),
+      descriptionOnly ? NO_REQUIREMENTS : getRequirements(jobId),
+      descriptionOnly ? NO_COMPANY : getCompany(jobId),
+      getJobMatch(jobId),
+    ]);
   // The sent resumes linked to this posting, newest first, so the first is
   // the last one sent.
   const sentHere = (sent.data ?? []).filter((s) => s.job_posting_id === job?.id);
@@ -112,6 +127,7 @@ export async function loadJobView(
     tailored: resumes.data?.some((r) => r.job_posting_id === job?.id) ?? false,
     requirements,
     company,
+    match,
   };
 }
 
@@ -200,21 +216,39 @@ export function JobCardActions({
   );
 }
 
-/** Who is hiring, the title and the facts. No match rail: see ./page.tsx.
+/** Who is hiring, the title and the facts, and beside the facts the match
+ *  rail its card in the feed shows (`match`, 2026-11-10), at the card's
+ *  240px: the page reads as the card it was opened from. No rail without a
+ *  score (signed out, an empty bank), as the card then draws none either,
+ *  and none in the split view's pane (hidden by `in-data-split`, as the page
+ *  renders the same there), whose list card beside it shows it.
  *  `titleAs` is h2 beside the list on /jobs, where the bar's "Jobs" is the h1. */
 export function JobViewHeader({
   job,
   actions,
   titleAs,
+  match = null,
 }: {
   job: JobListing;
   actions?: ReactNode;
   titleAs?: "h1" | "h2";
+  match?: { score: number; highlights: Highlight[] } | null;
 }) {
   return (
     <JobDetailHeader
       posting={toPosting(job)}
       titleAs={titleAs}
+      rail={
+        match && (
+          <MatchRail
+            standalone
+            score={match.score}
+            highlights={match.highlights}
+            // Not in the split view's pane: the list card beside it shows it.
+            className="in-data-split:@4xl/main:hidden"
+          />
+        )
+      }
       // The employer's own logo, as on the card, at the header's 40px; its
       // initials when it has none.
       tile={
@@ -284,7 +318,7 @@ export function JobViewBody({
   const places = placesOf(job.location_label ?? job.location);
 
   return (
-    <>
+    <div className={JOB_BODY}>
       {!descriptionOnly && (
         <>
           {lastSent && <SentNote name={lastSent.name} at={lastSent.created_at} />}
@@ -317,6 +351,6 @@ export function JobViewBody({
           </p>
         )}
       </Section>
-    </>
+    </div>
   );
 }

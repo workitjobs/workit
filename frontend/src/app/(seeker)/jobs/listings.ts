@@ -379,6 +379,26 @@ export async function getJobListing(
   }
 }
 
+/** This job's match for the viewer (`GET /jobs/{id}/match`, 2026-11-10), the
+ *  score and reasons its card in the feed shows, for the match rail on its
+ *  own page. Asked apart from `getJobListing`, which is cached for everyone
+ *  and carries no token. `null` when there is no score: signed out, an empty
+ *  experience bank, a scoring failure or the API unreachable. */
+export async function getJobMatch(
+  id: string,
+): Promise<{ score: number; highlights: Highlight[] } | null> {
+  const token = await viewerToken();
+  if (!token || !UUID.test(id)) return null;
+  try {
+    const res = await apiGet(`/jobs/${encodeURIComponent(id)}/match`, token);
+    if (!res.ok) return null;
+    const body = (await res.json()) as { match: number | null; highlights: Highlight[] };
+    return body.match == null ? null : { score: body.match, highlights: body.highlights };
+  } catch {
+    return null;
+  }
+}
+
 /** Whether the viewer marked this job as applied (`GET /jobs/{id}/applied`),
  *  for the Applied button on its page: `appliedAt` is when, or null when they
  *  haven't. `null` overall when there is no button to show: signed out, a

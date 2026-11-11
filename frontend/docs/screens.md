@@ -343,9 +343,11 @@ It is the mock's `JobDetailHeader` with the card's own facts
 "About the Role": `[jobId]/description.tsx` reads the plain-text description's
 own shape (Title Case lines as subheadings, the short lines under one as a
 list), and a description the scraper cut at 8,000 characters (it ends " …")
-says so and links to the whole posting. It fills the job's one column at
-16px, about 90 characters a line (2026-11-09; `max-w-job`, 736px of
-content, the same edge as the header and Key Requirements). It stopped at
+says so and links to the whole posting. It fills the header's facts column
+at 16px, about 88 characters a line, beside the match rail's column, with
+Key Requirements over it on the same edge (2026-11-10; `JOB_BODY`: the page
+is the Cards view's 944px, as the card it was opened from; 736px of
+content, `max-w-job`, the day before). It stopped at
 46ch of 14px text from KAN-569 while the blocks above it ran the page's
 whole width, and read as cut short. Its paragraphs and list items are
 ink, the headings' colour, not body copy's lighter ink-muted: a posting is
