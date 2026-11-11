@@ -84,11 +84,16 @@ export function ApplyButton({
   applied = false,
   // showsSent: read only by Pick a Resume's Apply, hidden for now.
   onApplied,
+  variant = "default",
   className,
 }: {
   jobId: string;
   title: string;
   applyUrl: string;
+  /** Filled by default. Secondary in a list of jobs that each have one
+   *  (Home's Top Matches): a filled button on every row is a wall of
+   *  violet, and a view has one primary action (frontend/docs/design.md). */
+  variant?: "default" | "secondary";
   /** A signed-in applicant, who can mark a job applied. */
   canMarkApplied?: boolean;
   /** Marked applied already: the dialog never asks again. */
@@ -124,7 +129,7 @@ export function ApplyButton({
         href={applyUrl}
         target="_blank"
         rel="noopener noreferrer"
-        className={buttonClasses({ size: "sm", className })}
+        className={buttonClasses({ size: "sm", variant, className })}
         onClick={() => {
           if (canMarkApplied && !applied) setOpen(true);
         }}

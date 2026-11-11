@@ -17,11 +17,25 @@
     inset 0 1px 0 rgb(255 255 255 / 0.8),
     inset 0 0 0 1px color-mix(in oklab, var(--color-landing-brand-400) 50%, transparent);
 
-  /* The app's own face (Plus Jakarta Sans, globals.css), not the marketing
-   * site's Inter: the page and the app read as one product. */
+  /* The app's own face, Inter (globals.css), as the marketing site had it;
+   * the headlines take Plus Jakarta Sans (below). */
   font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
   color: var(--color-ink);
   background: white;
+}
+
+/* Headlines in Plus Jakarta Sans (app/fonts.ts, 2026-11-10), Jobright's
+ * split: a display face for the marketing pages' headings, Inter for
+ * everything else, the app included. Every h1 to h3 by this one rule, so a
+ * new section's heading cannot miss it; a display line that is no heading
+ * (the bridge's lines, the footer's tagline, a quote, a price) takes the
+ * `font-display` class, and a small heading that is a label (the footer's
+ * column titles) takes `font-sans` back. In the components layer, so those
+ * utilities win over it. */
+@layer components {
+  .landing :where(h1, h2, h3) {
+    font-family: var(--font-jakarta-sans), var(--font-sans), sans-serif;
+  }
 }
 
 /* See-through, so a line's highlight tints the letters of the line above

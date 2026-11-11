@@ -38,7 +38,7 @@ export function SortMenu<T extends string>({
         className={facetClasses(false, className ?? "min-w-36")}
       >
         <FacetLabel Icon={ArrowsDownUpIcon} label={current.label} active={false} count={0} />
-        <ChevronDownIcon className="text-muted-foreground size-4" />
+        <ChevronDownIcon className="text-ink-meta size-4" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-max min-w-(--anchor-width)">
         <DropdownMenuRadioGroup value={value} onValueChange={(next) => onChange(next as T)}>

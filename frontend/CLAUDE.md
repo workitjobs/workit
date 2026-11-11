@@ -247,10 +247,10 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
 - **The page at `/` is the landing page, `app/(landing)/`**, ported from
   the team's Astro marketing site (`WorkIt-Website`, kept outside this repo)
   in place of the old Job Seeker / Hiring chooser. Its components keep the
-  site's markup, classes and copy, with two deliberate changes, and set the
-  app's own face (`--font-sans`, Plus Jakarta Sans) instead of the site's
-  Inter, so the page and the app read as one product; Google Sans loads only
-  for the Google sign-in button.
+  site's markup, classes and copy, with two deliberate changes, and read in
+  the app's own face (`--font-sans`, Inter, as the site had it), with Plus
+  Jakarta Sans on the headlines (below, "Type on the marketing pages");
+  Google Sans loads only for the Google sign-in button.
   **Colour and logo:** the site's numbered blue scale became
   `landing-brand-50` to `950` in `globals.css`, the same steps in WorkIt
   violet, so a component copied from the site needs only `brand-N` renamed
@@ -1266,7 +1266,17 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   client navigation to a marketing page shows "Open WorkIt" until the
   probe answers. The hint is a guess for the header alone; nothing
   decides access by it.
-- **Type on the marketing pages.** Plus Jakarta Sans is 1.26em tall
+- **Type on the marketing pages.** **Headlines are Plus Jakarta Sans and
+  everything else is Inter** (2026-11-10, Jobright's split: a display face
+  on marketing headlines, Inter in the product). One rule in landing.css
+  gives every `h1` to `h3` under `.landing` the face, so a new section's
+  heading cannot miss it; a display line that is no heading (the bridge's
+  lines, the footer's tagline, the quote, a plan's price) takes the
+  `font-display` utility, and a heading that is a small label (the
+  footer's column titles) takes `font-sans` back. Mock app screens on the
+  page draw no `h1` to `h3`, so they stay Inter, as the app is. The face
+  loads from `app/fonts.ts`, only in this layout and the design kit's, so
+  an app page never downloads it. Plus Jakarta Sans is 1.26em tall
   (ascent 1.038, descent 0.222), taller than any display line, so a
   wrapped heading's lines overlap by a few pixels. The selection
   (`.landing ::selection`) is see-through, 14% of the brand violet, so a
@@ -1442,14 +1452,28 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   (1440px) inside `SEEKER_GUTTER`, so all start at Home's left edge; the
   Applications Tracker alone has no cap. At `max-w-app` (1024px) they sat
   centred between wide empty margins beside the rail. **A job's page is the
-  exception: one centred 800px column** (`max-w-job`, `JOB_PAGE_WIDTH` in
-  `jobs/[jobId]/job-view.tsx`, 2026-11-09), shared with the application's
-  own page, so the action bar, the header, Key Requirements and About the
-  Role all end on one edge (736px of content, the action bar's one row).
-  In the split view's pane the bar takes the pane and the content under it
-  stops at the same 736px (`JOB_COLUMN`). About the Role is 16px there,
-  about 90 characters a line; at 46ch of 14px (KAN-569) it ended halfway
-  across the full-width blocks above it and read as cut short.
+  exception: it takes the Cards view's column and its card's shape**
+  (`max-w-feed`, `JOB_PAGE_WIDTH` in `jobs/[jobId]/job-view.tsx`,
+  2026-11-10), shared with the application's own page: the action bar and
+  the job's panel take the whole 944px. **The posting is one white panel**
+  (`JobPanel`, 2026-11-10, after Jobright's): the header (company line with
+  Save and ⋮ at its end, title, facts) beside the match tile the card
+  shows (`GET /jobs/{id}/match`, the card's grey tile at its 240px,
+  stretched to the header's height), then under a rule across the panel
+  the open tab's pane: Key Requirements and About the Role as sections
+  with a rule between them, or the Company tab. It was three cards, and
+  the two under the header stopped 17.25rem short (`JOB_BODY`) where the
+  rail started, so an empty column ran down the right and a 150px hole sat
+  under the facts beside the taller rail; the user found the page not
+  thought out. It was one 800px column (`max-w-job`, 2026-11-09) before,
+  208px narrower than the card the student had just clicked. In the split
+  view's pane the panel is flat, the bar takes the pane, the content under
+  it stops at 736px (`JOB_COLUMN`), and the tile shows there too
+  (2026-11-10; it was hidden, since the list card beside it has a score,
+  but that small tile has no reasons and the open job read as unscored). Every page outside the Jobs page and a
+  posting's own page (Home, Tracker, Auto Apply, Documents, Experiences,
+  Profile, Tailor) is a workspace of tables, grids or columns and keeps
+  `max-w-dashboard`.
   The user found the floating panels wasted room, and the 256px panel that
   opened over the page on hover a flaw. A height worked out from the
   shell's chrome (the job rail's `100svh-4rem`) changes with it. A sidebar
@@ -1548,9 +1572,10 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   company bar's corner and the split view's list heading each crossed one
   until 2026-11-03. The seeker top bar's rule and the rail's edge are
   `border-surface`, as the cards are (2026-11-09); the company shell keeps its lavender
-  `rail-border`. A "·" between facts is round: the "Round Dot" face in
-  `globals.css` draws U+00B7 from Georgia, since Jakarta's is square; keep
-  typing "·" and never draw a dot in markup (`docs/design.md`, Components).
+  `rail-border`. A "·" between facts is round: Inter's own is (the "Round
+  Dot" face that borrowed Georgia's for Jakarta's square one went with the
+  switch, 2026-11-10); keep typing "·" and never draw a dot in markup
+  (`docs/design.md`, Components).
   Skeletons are `bg-ink/6`, so they show on white and on the ground.
 - **The sidebar's current fill never slides** (`components/app-sidebar.tsx`,
   2026-11-02): it lands on the row at once, because the slide read as
@@ -1680,13 +1705,13 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   (`applications/email-kinds.tsx`). No sidebar badge: one was removed; Settings > Integrations is the
   design only until the Google sign-in is built (`docs/screens.md`). Home's four numbers are all live and all links
   (KAN-342), each a white tile with its glyph in a small chip of its own
-  colour (KAN-423): Strong Matches green, Saved grey, Applied violet,
+  colour (KAN-423): Excellent Matches green, Saved grey, Applied violet,
   Interviewing yellow, from the matched `--color-kpi-*` set (2026-11-09:
   the tiles were tinted with the stage tints, which read as four families
   with no shared shade; white tiles with chips were chosen over a matched
   set of tinted tiles, `globals.css`); a filled
   Activity day opens a table of that day's applications. Its
-  Strong Matches reads the Best Match scores
+  Excellent Matches reads the Best Match scores
   (`getMatches`, one read with Top Matches), and Top Matches under them lists the twelve
   best-scoring jobs as flat rows that scroll inside a tile, with no score
   floor; its Auto Apply button picks jobs for the queue
@@ -1755,9 +1780,10 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   fact is for their Claude to quote, not the answer itself.
   Every resume dialog (Did You Apply?, Tailor's Pick a Resume, Up Next's
   Choose a Resume) picks through one list, `ResumeLists` in
-  `jobs/resume-picker.tsx` (KAN-360; grouped as the Resumes page since
-  KAN-406): change it there, never per dialog (`docs/screens.md`, Job
-  posting page).
+  `jobs/resume-picker.tsx` (KAN-360): change it there, never per dialog
+  (`docs/screens.md`, Job posting page). It is flat with a type badge on
+  each card, as the Resumes table is (2026-11-10; grouped by type with a
+  PDF mark on every card from KAN-406 until then).
   `docs/screens.md`, Applications, has the rest.
 - **Tailor is one step per view** (`(seeker)/jobs/[jobId]/tailor`,
   2026-10-26): every step opens with the same top row (`TailorBar`: Back,
@@ -2065,11 +2091,17 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   right (KAN-565). A disabled filled button is grey (`ui/button.tsx`,
   DISABLED_FILL), never a faded brand fill, and a lesser action beside a
   button is `variant="section"`, never brand text.
-- **Anything clicked or picked is medium (500)**: buttons, chips,
+- **Anything clicked or picked is medium (450, `--font-weight-medium`; 500
+  until 2026-11-10, which read thick beside Jobright's)**: buttons, chips,
   segmented controls, filter options, and shadcn's menu, select and
   combobox rows, which `globals.css` sets by `data-slot` since they set no
-  weight of their own (KAN-365). Regular text is 450, not 400
-  (`--font-weight-normal`): the face's 400 read thin in small grey text. The four weights and their jobs are in
+  weight of their own (KAN-365). One exception: a filter or sort trigger
+  (the row over the Jobs page, the Tracker's and the Resumes tab's) is
+  regular, 400, as Jobright's are (2026-11-10). `text-title` is 600; 700
+  names a page only. Regular text is 400
+  (`--font-weight-normal`, Inter's own, as Jobright's), and the page keeps
+  the Mac's own smoothing: no `antialiased`, which drew every word thinner
+  (2026-11-10). The four weights and their jobs are in
   `docs/design.md`, Type weights, and on `/design-kit/type`.
 - **Reading text is 12px or more** (KAN-554, `docs/design.md`, Type sizes):
   a sentence, hint, error, status or group name is `text-note` or larger;
@@ -2084,7 +2116,7 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   the assistant two marks (`docs/design.md`, Brand and icons). Tailor My
   Resume on a job's card and page is the one exception (`TailorIcon`,
   KAN-518): beside Ask Scout, a second sparkle read as a second assistant.
-- **A match score is red, yellow or green, only through `matchColor()`**
+- **A match score is red, orange, yellow or green, only through `matchColor()`**
   (`lib/match.ts`, KAN-518; `docs/design.md`, Colour): a magenta ramp said
   nothing about the fit, so the score now shares hues with the stages. The
   ramp's pink lives on as the marketing pages' `--color-updates`: a landing
@@ -2092,7 +2124,10 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   there when the bands changed. **Weak is red** (`--color-match-weak` is
   `--color-danger`): KAN-569 drew it in neutral ink while the cut-offs are
   placeholders, and the user brought the bands back on 2026-11-03, since a
-  black ring read as a fault. Keep all four bands coloured.
+  black ring read as a fault. Since 2026-11-10 there are four bands: Weak
+  (under 40) red, Fair (40 to 64) orange, Good (65 to 79) yellow,
+  Excellent (80 up) one green; Strong merged into Excellent, and with Weak
+  at 0 to 64 every card in the feed drew red. Keep all four coloured.
 - **A button is a rounded rectangle; a pill is a chip** (`ui/chip.tsx`, KAN-251).
   Pick a button's size by where it sits (`docs/design.md`, Components). A
   `className` on a Button or Chip may place it or colour a state, never change
@@ -2586,6 +2621,26 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   against "Oct 20" (a browser in the Americas) broke hydration with React
   error #418 (2026-10-22). `toLocaleDateString()` in render is safe only for
   data fetched in an effect.
+- **A value read from browser storage in a `useState` initializer is
+  false while hydrating** (`useHydrated` in `(seeker)/local-time.tsx`,
+  read in the same render): the server has no storage, so a client that
+  reads it during hydration draws other classes and React warns. The Jobs
+  feed's `fromSnapshot` did, on every hard load with a kept snapshot
+  (2026-11-10).
+- **A page drawn under a modal on a hard load comes hidden from the
+  server.** The Settings modal hides everything outside itself but live
+  regions (`[aria-live]`), and walks into each live region's ancestors to
+  hide their other children, so on a hard load it set `aria-hidden` inside
+  Home's streamed sections before they hydrated, and React warned of a
+  mismatch (2026-11-10). `settings/layout.tsx` wraps Home in
+  `aria-live="off" aria-hidden inert`: one kept region the modal never
+  walks into.
+- **A control inside a card with a click layer sits above the layer**
+  (`relative z-2`; the layer is `absolute inset-0 z-1`,
+  `components/job-posting-card.tsx`). `relative` alone is not enough: Save
+  on the job card had no z-index, sat under the layer, showed no hover and
+  opened the job when clicked (2026-11-10). Check a new control with
+  `document.elementFromPoint` at its centre.
 - **A relative time ("Posted 5 minutes ago") rendered in a client component
   sits in an element with `suppressHydrationWarning`**, as the job card's
   badge does. The clock moves between the server render and hydration, so
