@@ -1,6 +1,24 @@
 import type { NextConfig } from "next";
 
+import { ICON_WEIGHTS } from "./src/components/icon-weights";
+
 const nextConfig: NextConfig = {
+  // Phosphor's glyphs keep only the weights the app draws (KAN-782): each
+  // carried all six, copied into every route's server chunk that draws it,
+  // and the Worker's size is its cold start (CLAUDE.md, Deployment).
+  turbopack: {
+    rules: {
+      "*.es.js": {
+        condition: { path: /@phosphor-icons\/react\/dist\/defs\// },
+        loaders: [
+          {
+            loader: "./scripts/phosphor-weights-loader.cjs",
+            options: { keep: ICON_WEIGHTS },
+          },
+        ],
+      },
+    },
+  },
   // Resumes and profile photos are both capped at 5 MB (resumes.py,
   // services/avatar.py, src/lib/avatar-rules.ts); this must stay above that
   // plus multipart overhead, or Next rejects the upload before the action runs.

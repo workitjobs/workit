@@ -750,7 +750,10 @@ per-route `icons.tsx` is the same kind of wrapper.
   `weight="bold"` where Lucide's stroke was raised for a small check or
   cross. Never a `fill` prop or a `fill-*` or `stroke-*` class: a Phosphor
   glyph is filled shapes, so either one paints all of it. A white pointer
-  with a dark edge (the landing tour) is two glyphs stacked.
+  with a dark edge (the landing tour) is two glyphs stacked. A glyph drawn
+  at a weight other than regular is named for it in
+  `components/icon-weights.ts`, or it draws nothing: the bundle keeps only
+  those weights (`frontend/CLAUDE.md`, Icons; KAN-782).
 - **Pass `aria-hidden`** on a decorative icon: Phosphor does not add it, as
   Lucide did.
 - Draw no new glyph by hand while Phosphor has one. A glyph it lacks is drawn

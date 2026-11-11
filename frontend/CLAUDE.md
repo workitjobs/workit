@@ -89,10 +89,18 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   cost is the parse and the first request, not startup code); and a loop of
   `curl -so /dev/null -w '%{time_starttransfer}\n'
   https://workitjobs.ai/api/session`, a second apart, counts the cold
-  answers after a deploy. **Still open:** about 3.8 MB of the 9 MB of page
-  code are copies of shared modules that Turbopack puts in each route's
-  server chunk (Phosphor icons in 128 chunks), with no setting to share
-  them; and the Node proxy brings Next's server and `@vercel/og` with its
+  answers after a deploy. To see what fills the page code, read each
+  `.js` in `.next/server/chunks/` with its `.map` and add up the bytes per
+  source module. **Phosphor keeps only the weights the app draws**
+  (KAN-782, 2026-11-11): each glyph's table held all six weights, copied
+  into every route's server chunk that draws it, 1.78 MB of the 10.26 MB of
+  page code. A loader cuts each table to regular plus the weights
+  `components/icon-weights.ts` names for it (Icons, below), and Phosphor
+  fell to 0.45 MB: the upload went from 16,734 KiB (4,781 KiB gzip) to
+  15,470 KiB (4,463 KiB gzip) on `main`. **Still open:** about 4.1 MB of
+  the 9 MB of page code are copies of shared modules that Turbopack puts in
+  each route's server chunk (server actions, `custom-icons.tsx`, base-ui),
+  with no setting to share them; and the Node proxy brings Next's server and `@vercel/og` with its
   two WebAssembly files (3.2 MB and 1.4 MB) into the bundle, which only
   moving the proxy to the Edge runtime would drop (`src/proxy.ts`, below).
 - **`@opennextjs/cloudflare` is pinned exactly**: each release's peer range
@@ -2065,9 +2073,20 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   at `size-4`, not Phosphor's 1px: one rule in `globals.css` thickens them
   (KAN-365), and `custom-icons.tsx`'s `STROKE` matches it. A glyph
   Phosphor lacks goes in `components/custom-icons.tsx` with all its
-  weights (`docs/design.md`, Brand and icons). **The bundler takes
-  `icons.tsx` whole**, all six weights of every glyph in it (65 glyphs,
-  about 150 KB, 36 KB compressed, on 2026-11-03), however few a file
+  weights (`docs/design.md`, Brand and icons). **A Phosphor glyph ships
+  regular and only the weights `components/icon-weights.ts` names for it**
+  (KAN-782): `scripts/phosphor-weights-loader.cjs`, a Turbopack loader set
+  in `next.config.ts`, cuts the rest from Phosphor's table on the server
+  and in the browser, and light and thin are never kept. A glyph drawn at
+  a weight not listed draws nothing, so a new `weight=` (bold, fill or
+  duotone) adds its glyph there. `icon-weights.test.ts` reads every
+  `weight=` in `src/` and fails until it is listed, or when a listed one is
+  no longer drawn; a weight set on a variable (`const Icon = paused ?
+  PlayIcon : PauseIcon`) joins the test's `INDIRECT` with the glyphs it can
+  be. The loader stops the build if a new Phosphor release changes the
+  table's layout. **The bundler takes `icons.tsx` whole**, every glyph in
+  it (62 Phosphor glyphs, about 42 KB of table code, 9.5 KB compressed, a
+  fifth of what all six weights took, on 2026-11-11), however few a file
   imports, since its wrappers are one module. So a client component the
   root layout mounts, or one a marketing page draws, never imports from
   it: it draws Phosphor's glyph itself (`ui/toast.tsx`'s close button,
