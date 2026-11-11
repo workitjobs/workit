@@ -146,6 +146,12 @@ the engine's saved forms, so the job needs the fill-engine submodule: it
 needs `FILL_ENGINE_TOKEN` and is skipped without it. It runs only on a PR
 that touches `apply-agent/`, the engine pointer, `ci.yml` or
 `engine-token.yml` (the `changes` job).
+The job also runs `tests/test_submit_guard_hostile.py`'s CDP cases (every
+click path against every hostile page, each with a few seconds to settle) and
+`test_plain_focus.py`. On 2026-11-10 (KAN-710, PR 477) the hostile step
+reached 44% of its cases in 15 minutes and the job was cancelled at its
+20-minute limit, so the limit is 60. Each page added to `PAGES` costs about
+half a minute there; raise the limit again from a measured run, not a guess.
 **CI does not run the other 28 test files**, which hold the Filler tests
 (`test_*_filler.py`, `test_claude_fill.py`, `test_run.py`,
 `test_rehearse.py` and more). Most of them need Chromium or the macOS

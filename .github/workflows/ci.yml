@@ -168,7 +168,8 @@ jobs:
     needs: [changes, engine]
     if: needs.changes.outputs.apply == 'true' && needs.engine.outputs.set == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # The hostile pages' step alone took more than 30 minutes on 2026-11-10 (KAN-710): see .github/CLAUDE.md.
+    timeout-minutes: 60
     defaults:
       run:
         working-directory: apply-agent
