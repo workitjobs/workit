@@ -575,6 +575,21 @@ export function SectionsOutline({
     else next.add(id);
     setOpened(next);
   };
+  // One section open at a time, the Header among them (KAN-586, the user's
+  // call): each open section showed its whole list, and three open at once
+  // ran the panel to several screens. Opening one closes the other; the
+  // Header opening, here or from the page's header line, closes the section
+  const [openSection, setOpenSection] = useState<string | null>(null);
+  const showSection = (id: string | null) => {
+    setOpenSection(id);
+    if (id !== null && headerOpen) onHeaderOpen?.(false);
+  };
+  const toggleSection = (id: string) => showSection(openSection === id ? null : id);
+  const [headerWas, setHeaderWas] = useState(headerOpen);
+  if (headerWas !== headerOpen) {
+    setHeaderWas(headerOpen);
+    if (headerOpen) setOpenSection(null);
+  }
   const sections = printedSections(bank, choices, order);
   const skills = printedSkills(bank, choices);
   // Remove From This Resume: a hide, so Undo takes it back and the bank
@@ -649,13 +664,17 @@ export function SectionsOutline({
           ]);
         }}
         row={(section, handle) => {
-          const open = opened.has(section.id);
+          const open = openSection === section.id;
           const isSkills = section.id === "skills";
           return (
             <section className="py-1.5">
               <div className={LINE}>
                 {handle}
-                <button type="button" className={SECTION_NAME} onClick={() => toggle(section.id)}>
+                <button
+                  type="button"
+                  className={SECTION_NAME}
+                  onClick={() => toggleSection(section.id)}
+                >
                   {section.label}
                 </button>
                 <div className={ACTIONS}>
@@ -664,7 +683,7 @@ export function SectionsOutline({
                       label={`Add ${section.noun}`}
                       onClick={() => {
                         // The new entry shows in the open section
-                        if (!open) toggle(section.id);
+                        showSection(section.id);
                         onAddEntry(section.id, document.activeElement as HTMLElement);
                       }}
                     />
@@ -678,7 +697,11 @@ export function SectionsOutline({
                     }
                   />
                 </div>
-                <Fold open={open} label={section.label} onToggle={() => toggle(section.id)} />
+                <Fold
+                  open={open}
+                  label={section.label}
+                  onToggle={() => toggleSection(section.id)}
+                />
               </div>
               {open && isSkills && (
                 <SkillsOutline

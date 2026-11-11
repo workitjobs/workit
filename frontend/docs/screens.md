@@ -3732,7 +3732,10 @@ student who opened a resume from Experiences landed on another view.
   same form for a new entry saved onto this resume (not in a Lines section),
   and **"+" on a skill group's row** opens a field at the group's foot; a
   skill the bank already has goes on the resume in that group instead of a
-  second copy. A school's row shows its degree under its name. It replaced the bar's up and down buttons,
+  second copy. A school's row shows its degree under its name. **One
+  section opens at a time**, the Header among them (the user's call, for
+  the load of reading it): opening one closes the other, and the Header
+  opening from the page's header line closes the open section. It replaced the bar's up and down buttons,
   which moved one line one step and could not move a section. A phone keeps
   those buttons, since a drag there fights the scroll. The bar's Sections
   and Format Options (`PanelButton`) fold to glyphs with a tooltip, shown
