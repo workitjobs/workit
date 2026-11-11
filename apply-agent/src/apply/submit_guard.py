@@ -306,13 +306,11 @@ _TEMPLATE = r"""
     said += ']]';@TELL@
   };
   // A captcha's own frame is Lisul's to do (apply.captcha): nothing in it is the application. By its path alone
-  // (reCAPTCHA's /recaptcha/) only in a frame of another site than the one around it (KAN-791): the page's own frame
-  // at that path ran no guard, so the page posted the application through its fetch and its Worker.
+  // (reCAPTCHA's /recaptcha/) only on reCAPTCHA's own host (KAN-791): a page can serve that path from its own site or
+  // any other, and such a frame ran no guard, so it posted the application, or the page did through its fetch and Worker.
   const host = location.hostname, path = location.pathname;
-  const framedAway = (() => {
-    try { return W.parent !== W && W.parent.location.origin !== location.origin; } catch (e) { return true; }
-  })();
-  if (any(@CAPTCHA_HOSTS@, (h) => host === h || endsWith(host, '.' + h)) || (framedAway && any(@CAPTCHA_PATHS@, (p) => startsWith(path, p)))) {
+  const onHost = (hosts) => any(hosts, (h) => host === h || endsWith(host, '.' + h));
+  if (onHost(@CAPTCHA_HOSTS@) || (onHost(@CAPTCHA_PATH_HOSTS@) && any(@CAPTCHA_PATHS@, (p) => startsWith(path, p)))) {
 @CAPTCHA@
     return;
   }
@@ -1614,7 +1612,8 @@ def _script(key: str, name: str, extra: str = "", in_captcha: str = "", held: st
                                "@TELL@": "" if key != REHEARSAL else TELL_PORT if port else TELL_CDP, "@NOTE@": note or NO_NOTE,
                                "@EXTRA@": extra, "@CAPTCHA@": in_captcha, "@HELD@": held,
                                "@CAPTCHA_HOSTS@": json.dumps(captcha.HOSTS),
-                               "@CAPTCHA_PATHS@": json.dumps(captcha.PATHS), "@CONTROL@": control_type(key),
+                               "@CAPTCHA_PATHS@": json.dumps(captcha.PATHS),
+                               "@CAPTCHA_PATH_HOSTS@": json.dumps(captcha.PATH_HOSTS), "@CONTROL@": control_type(key),
                                "@TELL_TYPE@": TELL_TYPE, "@TELL_PREFIX@": TELL_PREFIX, "@TOUCH@": touch_type(key),
                                "@KEY@": key, "@NAME@": name, "@BOX@": box, "@MARK@": MARKS[key], "@LATE@": _js(late),
                                "@AT_OPEN@": _js(at_open)}.items():

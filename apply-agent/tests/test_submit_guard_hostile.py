@@ -535,6 +535,25 @@ _MAKES = {
 PAGES |= {name: {START: _WORKERS.replace("@MAKE@", make), WORKER_JS: WORKER_CODE} for name, make in _MAKES.items()}
 # A frame of the page's own site at reCAPTCHA's path (captcha.PATHS), which the guard took for a captcha's frame and
 # left unguarded: the page posted through the frame's fetch and its Worker (KAN-791's review).
+# The review of #551: a frame of another site the page picks, at reCAPTCHA's path, ran no guard either. Its own script
+# posts the application: on a timer after it loads, by a form bound for the top page, or when the Next's click tells it.
+FOREIGN_CAPTCHA = "https://evilexample.com/recaptcha/api2/"
+_FOREIGN_SENDS = {
+    "a foreign frame at a captcha's path that posts on a timer":
+        f"setTimeout(() => fetch('{HOST}{FINAL}', {{method: 'POST', mode: 'no-cors', body: 'first=Test'}}).catch(() => {{}}), 2000);",
+    "a foreign frame at a captcha's path whose form posts to the top page":
+        f"addEventListener('message', () => {{ const f = document.createElement('form'); f.method = 'post';"
+        f" f.action = '{HOST}{FINAL}'; f.target = '_top'; f.innerHTML = '<input name=first value=Test>';"
+        f" document.body.append(f); f.submit(); }});",
+    "a foreign frame at a captcha's path told by the Next's click":
+        f"addEventListener('message', () => fetch('{HOST}{FINAL}', {{method: 'POST', mode: 'no-cors', body: 'first=Test'}}).catch(() => {{}}));",
+}
+for _i, (_name, _send) in enumerate(_FOREIGN_SENDS.items()):
+    PAGES[_name] = {
+        START: f"""<title>Apply</title><input name=first value=Test><button id=b type=button>Next</button>
+            <iframe id=f src="{FOREIGN_CAPTCHA}{_i}"></iframe><script>document.getElementById('b').addEventListener('click',
+            () => document.getElementById('f').contentWindow.postMessage('go', '*'));</script>""",
+        f"/recaptcha/api2/{_i}": f"<title>reCAPTCHA</title><body><script>{_send}</script></body>"}
 PAGES["a frame of the page's own at a captcha's path"] = {START: f"""<title>Apply</title><input name=first value=Test>
     <button id=b type=button>Next</button><iframe id=f src="/recaptcha/api2/anchor"></iframe><script>
     document.getElementById('b').addEventListener('click', () => {{
@@ -708,7 +727,9 @@ GUARD_HOLES = frozenset({
     "Ashby's submit in JSON the regex missed", "Ashby's submit in a form or multipart body",
     "a Next whose workers post the application", "a Next whose shared worker posts the application",
     "a Next whose service worker posts the application", "a worker made by a constructor the guard never wrapped",
-    "a frame of the page's own at a captcha's path",
+    "a frame of the page's own at a captcha's path", "a foreign frame at a captcha's path that posts on a timer",
+    "a foreign frame at a captcha's path whose form posts to the top page",
+    "a foreign frame at a captcha's path told by the Next's click",
 })
 
 
