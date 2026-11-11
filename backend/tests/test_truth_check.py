@@ -138,3 +138,8 @@ def test_a_short_reply_that_opens_with_a_plain_word_has_no_name_claim():
     for reply in ("Sure, happy to relocate anywhere.", "Happy to relocate for this.", "Excited to apply here.",
                   "Either location works for me.", "Referral from a friend."):
         assert _found(reply) == [], reply
+
+
+def test_a_plain_noun_opening_a_sentence_is_no_name():
+    assert _found("Small robots that sort marbles.") == []
+    assert _found("Google taught me to test, and Stripe hired me.") == [("name", "Google"), ("name", "Stripe")]

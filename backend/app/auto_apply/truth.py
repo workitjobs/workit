@@ -15,9 +15,10 @@ pre-submit review). It looks for four kinds of claim:
 - **name**: a tool, employer, product or other name no source names: a run
   of capitalized words, a word with a capital inside it ("PyTorch"), an
   acronym ("CUDA"), or one capitalized word inside a sentence. The word
-  that opens a sentence of three words or more is one too ("Stripe hired
-  me") when no text uses it in lower case and it is no opener ("The",
-  "Working", "Recently"); a shorter answer ("Yes", "Chicago") has none.
+  that opens a sentence of three words or more is one too when a verb in
+  the past follows it ("Stripe hired me"), no text uses it in lower case
+  and it is no opener ("The", "Working", "Sure"); a shorter answer ("Yes",
+  "Chicago") has none.
 - **date**: a month or season with its year ("summer 2025") that no
   source's dates cover. A year no source holds is a number claim only.
 - **outcome**: an effect of the work ("went into use", "deployed", "won",
@@ -129,6 +130,8 @@ OPENERS = {"a", "an", "the", "in", "at", "on", "for", "with", "during", "after",
            "it", "we", "i", "if", "so", "but", "and", "also", "from", "by", "to", "of", "both", "each", "every", "one",
            "what", "why", "how", "dear", "sincerely", "best", "thanks", "thank", "yes", "no", "you", "your", "here",
            "today", "now", "once", "later", "first", "next", "finally", "outside", "beyond", "over", "through"}
+# A verb in the past, which makes the word before it someone who did something: "Stripe hired me".
+DID = re.compile(r"[a-z]+ed|gave|made|taught|built|sent|chose|paid|took|brought|ran|let|told|showed|offered|picked")
 # Plain words a short reply opens with, never read as a name there ("Sure, happy to relocate").
 PLAIN = {"sure", "happy", "glad", "excited", "eager", "either", "neither", "none", "not", "maybe", "perhaps",
          "please", "open", "available", "willing", "interested", "absolutely", "definitely", "certainly", "any",
@@ -152,8 +155,9 @@ def names(sentence: str, lower: Container[str] | None = None, heading: bool = Fa
     that opens the sentence (or follows a colon, a quote or a bullet) is
     capitalized either way: it is part of a name with a capital inside it,
     or, given `lower` (the words the texts use in lower case), in a sentence
-    of three words or more when it is none of them, no opener and no word
-    ending "-ing" or "-ly" ("Stripe hired me"). In a `heading` every
+    of three words or more when a verb in the past follows it (DID) and it
+    is none of them, no opener and no word ending "-ing" or "-ly" ("Stripe
+    hired me", not "Small robots sort marbles"). In a `heading` every
     capitalized word is part of a name ("Hitachi Rail: Software Intern")."""
     found: list[str] = []
     run: list[str] = []
@@ -179,8 +183,10 @@ def names(sentence: str, lower: Container[str] | None = None, heading: bool = Fa
         opens = i == 0 or re.search(r"[:;\"“(•*]|\s-\s", before) is not None
         if re.search(r"\S", before):
             close()  # punctuation between words ends a name: "Python, Kafka"
+        then = words[i + 1].group() if i + 1 < len(words) and sentence[m.end():words[i + 1].start()].isspace() else ""
         if word[:1].isupper() and word.casefold() not in OPENERS | COMMON and (heading or (
-                opens and long and word.casefold() not in lower and word.casefold() not in PLAIN and not re.search(r"(?:ing|ly)$", word))):
+                opens and long and DID.fullmatch(then) and word.casefold() not in lower
+                and word.casefold() not in PLAIN and not re.search(r"(?:ing|ly)$", word))):
             run.append(word)  # "Stripe hired me"
         elif _strong(word) or (word[:1].isupper() and not opens and word.casefold() not in COMMON) \
                 or (run and word.casefold() in {"of", "&"}):
