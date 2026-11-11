@@ -50,6 +50,9 @@ import {
   STICKY_HEAD,
   STICKY_TH,
   STICKY_TH_FROZEN,
+  FROZEN_EDGE,
+  frozenFill,
+  rowFill,
   TABLE_FILL,
   useFillPage,
 } from "@/components/fill-page";
@@ -364,12 +367,10 @@ const TD = "px-4 text-note text-ink";
 const FROZEN_CELL = "z-1 bg-panel sticky left-(--frozen-left)";
 /** The last frozen column draws the edge the scrolled cells pass under: a
  *  shadow, since a collapsed table's borders don't move with a sticky cell. */
-const FROZEN_EDGE = "shadow-[1px_0_0_var(--color-border-subtle)]";
 /** The Job column's width below 672px of page, over its kept width
  *  (`!`, since the kept width is an inline style): 208px leaves a phone's
  *  table room for most of Status beside it. */
 const PHONE_JOB = "@max-2xl/main:w-52!";
-const FROZEN_HOVER = "group-hover/row:bg-hover transition-colors";
 
 /** How far one arrow key press resizes a column. */
 const KEY_STEP = 16;
@@ -468,7 +469,7 @@ export function ApplicationsList({ applications }: { applications: Application[]
       <Reflow key={row.id}>
         <ClickableRow
           href={applicationHref(row.id)}
-          className={cn("animate-fade", isPicked ? "bg-brand-tint" : "hover:bg-hover")}
+          className={cn("animate-fade", rowFill(isPicked))}
           style={{ animationDelay: `${Math.min(i, 10) * 25}ms` }}
         >
           {row.getVisibleCells().map((cell) => {
@@ -492,7 +493,7 @@ export function ApplicationsList({ applications }: { applications: Application[]
                   CENTRED.includes(id) && "text-center",
                   id === "role" && "py-3",
                   frozenClasses(id),
-                  FROZEN.includes(id) && (isPicked ? "bg-brand-tint" : FROZEN_HOVER),
+                  FROZEN.includes(id) && cn("transition-colors", frozenFill(isPicked)),
                 )}
                 style={frozenStyle(id)}
               >

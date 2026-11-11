@@ -130,7 +130,11 @@ open choices (Settled choices, near the end).
   `components/all-filters-dialog.tsx` (All Filters' panel),
   `components/table-settings.tsx` (Table Settings, Group By),
   `components/table-group.tsx` (a group's heading row),
-  `components/fill-page.ts` (a table that scrolls inside itself),
+  `components/fill-page.ts` (a table that scrolls inside itself; every
+  table row's fill, `rowFill`, and a frozen cell's, `frozenFill`, so a
+  picked row stays purple under the pointer, frozen cell and all; and
+  `FROZEN_EDGE`, a frozen column's line in `--color-border-surface`, a
+  step darker than the row rules, after Notion's),
   `components/ui/option-row.tsx` (a row that is one way forward: Auto
   Apply's setup, Generate Resume's ways to start),
   `components/ui/or-divider.tsx` (the login card's "Or" rule),

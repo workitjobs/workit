@@ -37,6 +37,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/shadcn/dropdown-menu";
 import { ClickableRow } from "@/components/clickable-row";
+import { rowFill } from "@/components/fill-page";
 import { PickBox } from "@/components/selection-bar";
 import { Checkbox } from "@/components/shadcn/checkbox";
 import { CompanyLogo } from "@/components/company-logo";
@@ -263,10 +264,7 @@ export function ResumeCard({
     // 56px, so a row with a job's two lines and a row with a name alone
     // stand the same height. A picked row takes the brand tint, as Up
     // Next's does.
-    <ClickableRow
-      href={href}
-      className={cn("group h-14", pick?.checked ? "bg-brand-tint" : "hover:bg-hover")}
-    >
+    <ClickableRow href={href} className={cn("group h-14", rowFill(pick?.checked ?? false))}>
       <TableCell className={cn(RESUME_TD, "overflow-hidden py-2")}>
         <div className="flex min-w-0 items-center gap-2">
           {pick && <RowPickBox name={name} pick={pick} actions={actions} />}

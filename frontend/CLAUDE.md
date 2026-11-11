@@ -2888,7 +2888,14 @@ are in `docs/auth.md`.
   Tracker's list (`applications/pick.tsx`: Status, then Remove while
   every pick is a saved job). **Every page table picks the same way**: a
   new one takes `PickBox` in its first cell, Select All in that heading,
-  and `SelectionBar` over its filter row. Each row keeps its current
+  and `SelectionBar` over its filter row. **Every page table fills its
+  rows with `rowFill` and its frozen cells with `frozenFill`**
+  (`components/fill-page.ts`, 2026-11-11): the shadcn row's own grey hover
+  turned a picked row grey under the pointer while its frozen Job cell
+  stayed purple, and an open group heading grey while a folded one stayed
+  white; the base row now has only the app's hover grey. A frozen column
+  ends in `FROZEN_EDGE`, darker than the row rules, so it reads as
+  apart (after Notion's). Each row keeps its current
   actions with the page (`RowPick.register`), so the bar runs the very
   handlers ⋮ runs. Each row keeps ⋮ alone in a 48px column
   (`RESUME_ACTIONS_COL`) for one resume at a time. Hover icons came

@@ -3,7 +3,7 @@
 import { CopySimpleIcon, EnvelopeSimpleIcon } from "@phosphor-icons/react/ssr";
 import { useState, type MouseEvent } from "react";
 
-import { STICKY_HEAD, STICKY_TH, TABLE_FILL, useFillPage } from "@/components/fill-page";
+import { rowFill, STICKY_HEAD, STICKY_TH, TABLE_FILL, useFillPage } from "@/components/fill-page";
 import { SearchIcon } from "@/components/icons";
 import { matches, searchWords } from "@/components/resume-list";
 import {
@@ -167,7 +167,7 @@ function LetterRow({ letter, onOpen }: { letter: CoverLetter; onOpen: () => void
     </button>
   );
   return (
-    <TableRow onClick={open} className="group hover:bg-hover h-14 cursor-pointer">
+    <TableRow onClick={open} className={cn("group h-14 cursor-pointer", rowFill(false))}>
       <TableCell className={cn(RESUME_TD, "overflow-hidden py-2")}>
         <TargetJob
           role={role}
