@@ -250,7 +250,7 @@ def _planned(attest: Question) -> "worker._Planned":
     planned = worker._Planned.__new__(worker._Planned)
     planned.questions = [attest]
     planned.found, planned.fixes, planned.lisuls, planned.accepted = {}, {}, {}, {}
-    planned.attestations = {attest.name: attest.label}
+    planned.attestations, planned.attested = {attest.name: attest.label}, {}
     planned.missing, planned.written, planned._rehearse, planned._approved = (), [], True, None
     planned._on_missing, planned._on_files, planned._shown_files, planned._answers = (lambda *a: None), (lambda f: None), None, {}
     planned.profile, planned._bank, planned.posting, planned._today = DEFAULTS, AnswerBank(), POSTING, NOW.date()
