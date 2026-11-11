@@ -23,7 +23,16 @@ company_profiles  1 ──o{  company_memberships    a complete HR-user account
   `location` the autofiller reuses. `location` (KAN-372) is free text as
   forms ask it ("Stony Brook, NY"), where the student lives; the places
   they want jobs in are their preferences (`applicant_locations`), not
-  this.
+  this. Every resume header prints it (KAN-436). `resume_header_extra`
+  (KAN-436, 100 characters) is the header's Additional line: the
+  student's own text under the contact line ("Secret clearance | Open to
+  relocation"), set in the editor's Header panel and printed on every
+  resume that does not hide it. **It never goes to a model**: it can hold
+  personal data, and no model path reads the profile (Tailor reads the
+  view, Scout the bank; `tests/test_tailor.py` checks a Tailor prompt).
+  One line, not a list: more lines bloat the header, Fit to One Page cuts
+  none of the header, a hiring system's parser expects a short contact
+  block, and the autofiller has no field to put free lines in.
 - `company_memberships` — identity plus the company it belongs to and its role.
   Many memberships point at one company.
 - `company_profiles` — the employer. One identity for future jobs, HR users and

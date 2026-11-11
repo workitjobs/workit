@@ -75,6 +75,8 @@ def _header(identity: HeaderIdentity, marks: bool, printed: Printed, page: PageS
         contact.append(slot(
             "email", rf"\href{{mailto:{escape_url(identity.email)}}}{{\underline{{{email}}}}}", identity.email
         ))
+    if identity.location:
+        contact.append(slot("location", escape(identity.location), identity.location))
     contact += [
         slot(field, rf"\href{{{escape_url(u)}}}{{\underline{{{escape(link_text(u))}}}}}", link_text(u))
         for field, u in identity.links
@@ -90,6 +92,13 @@ def _header(identity: HeaderIdentity, marks: bool, printed: Printed, page: PageS
     lines = [rf"\begin{{{box}}}", rf"{name} \\ \vspace{{1pt}}"]
     if contact:
         lines.append(r"\small " + " $|$ ".join(contact))
+    # The Additional line, under the contact line in its type: the
+    # student's own words, never cut by Fit to One Page
+    if identity.extra:
+        extra = slot("resume_header_extra", escape(identity.extra), identity.extra)
+        if contact:
+            lines[-1] += r" \\"
+        lines.append(r"\small " + extra)
     lines.append(rf"\end{{{box}}}")
     return lines
 

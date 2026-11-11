@@ -155,24 +155,26 @@ export function ScoutPanel() {
             : "md:ease-exit md:translate-x-full md:opacity-0 md:duration-200",
         )}
       >
-        <header className="flex shrink-0 items-center gap-3 px-4 pt-4 pb-1">
-          {/* The mark beside every line the assistant says, so the panel and
-              its chat wear one (KAN-257); a brand-tint circle stood here. */}
-          {takeover?.mark ?? <ScoutMark />}
-          <div className="min-w-0">
-            <h2 className="text-subtitle text-ink font-semibold">{takeover?.title ?? "Scout"}</h2>
-            <p className="text-note text-ink-meta">
-              {takeover?.subtitle ?? "Your job search assistant"}
-            </p>
-          </div>
-          <IconButton
-            label={`Close ${takeover?.title ?? "Scout"}`}
-            className="hover:bg-hover ml-auto size-8 rounded-full after:hidden"
-            onClick={closeScout}
-          >
-            <CloseIcon className="size-4" />
-          </IconButton>
-        </header>
+        {!takeover?.bare && (
+          <header className="flex shrink-0 items-center gap-3 px-4 pt-4 pb-1">
+            {/* The mark beside every line the assistant says, so the panel and
+                its chat wear one (KAN-257); a brand-tint circle stood here. */}
+            {takeover?.mark ?? <ScoutMark />}
+            <div className="min-w-0">
+              <h2 className="text-subtitle text-ink font-semibold">{takeover?.title ?? "Scout"}</h2>
+              <p className="text-note text-ink-meta">
+                {takeover?.subtitle ?? "Your job search assistant"}
+              </p>
+            </div>
+            <IconButton
+              label={`Close ${takeover?.title ?? "Scout"}`}
+              className="hover:bg-hover ml-auto size-8 rounded-full after:hidden"
+              onClick={closeScout}
+            >
+              <CloseIcon className="size-4" />
+            </IconButton>
+          </header>
+        )}
 
         {/* A takeover's content; empty and hidden while Scout has the panel. */}
         <div id={SCOUT_SLOT_ID} className={takeover ? "flex min-h-0 flex-1 flex-col" : "hidden"} />

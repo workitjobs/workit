@@ -89,6 +89,7 @@ const KIND_LABELS: Record<string, string> = {
   github_url: "GitHub",
   portfolio_url: "Portfolio",
   other_url: "Link",
+  resume_header_extra: "Additional Line",
 };
 export const kindLabel = (kind: string) => KIND_LABELS[kind] ?? kind;
 
@@ -171,7 +172,6 @@ export function PdfPages({
   onDrawn,
   overlay,
   overlaid = [],
-  extra,
   shiftOf,
   swaps,
   gaps,
@@ -199,9 +199,6 @@ export function PdfPages({
    *  key: the text field for the selected line, typed text for others. */
   overlay?: (box: RenderBox) => ReactNode;
   overlaid?: string[];
-  /** A line the PDF does not print yet, with no height: a bullet being added,
-   *  drawn like any overlaid line, with the page under it moved by `shiftOf`. */
-  extra?: RenderBox;
   /** Points an overlaid line's text is taller (or, below 0, shorter) than
    *  its box on the PDF on screen: what the page under it moves by. */
   shiftOf?: (box: RenderBox) => number;
@@ -237,7 +234,7 @@ export function PdfPages({
   const closing = readOnly ? [] : closeUp(gaps?.(traded) ?? []);
   const shown = readOnly
     ? []
-    : [...traded, ...(extra ? [afterStrips(extra, strips)] : [])].flatMap((box) => {
+    : traded.flatMap((box) => {
         const kept = afterGaps(box, closing);
         return kept ? [kept] : [];
       });
@@ -252,7 +249,6 @@ export function PdfPages({
   // A target below an overlaid line moves with the page under it
   const moved = (box: RenderBox) =>
     lives.reduce(
-      // Never by itself: `extra` has no height, so it counts as under itself
       (by, l) =>
         l.page === box.page && l.y1 <= box.y0 && boxKey(l) !== boxKey(box) ? by + l.by : by,
       0,
@@ -337,7 +333,7 @@ export function PdfPages({
             }}
           />
           {shown
-            .filter((box) => box.page === i + 1 && box !== extra)
+            .filter((box) => box.page === i + 1)
             .map((box) => {
               const key = boxKey(box);
               const mark = marks?.get(key);

@@ -36,10 +36,17 @@ import { cn } from "@/lib/cn";
  * 20px, so the box is the same height at every width. `aria-invalid` turns the
  * outline red, and `disabled` fades it to half, the way the Select trigger and
  * Button fade themselves.
+ *
+ * **Focus is one 2px brand edge** (2026-11-11): the border turns brand and a
+ * 1px ring sits on it, so the two read as one line. A field shows its focus
+ * on every click, not only from the keyboard, so the 1px border plus a 3px
+ * ring it had read as a thick purple frame; 2px still holds 3:1 and more
+ * (docs/design.md, Accessibility). The hover grey stops at focus, or a
+ * field under the pointer showed a grey border inside its purple ring.
  */
 export const FIELD_CONTROL =
   "w-full rounded-control border-border-control bg-panel text-base/5 sm:text-body text-ink border " +
-  "placeholder:text-ink-meta enabled:hover:border-ink-meta focus-visible:border-brand focus-visible:ring-[3px] " +
+  "placeholder:text-ink-meta enabled:hover:not-focus-visible:border-ink-meta focus-visible:border-brand focus-visible:ring-1 " +
   "focus-visible:ring-brand-ring focus-visible:outline-none aria-invalid:border-danger " +
   "disabled:cursor-not-allowed disabled:opacity-50";
 
