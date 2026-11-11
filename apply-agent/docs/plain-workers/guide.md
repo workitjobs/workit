@@ -16,26 +16,30 @@ On a plain Worker's page (a PortPage, `apply-agent/docs/plain-workers/PROTOCOL.m
 - **Below them, declarativeNetRequest.** `guard` puts one session rule per final application
   URL (the guard script's FINAL_URLS, which cover ROUTED) on the tab, the tabs it opens and
   service workers. It blocks a non-GET before it leaves Chrome: page code from another realm,
-  a worker, a beacon, or a form's native POST. `lift` takes the rules off and `rearm` puts them
-  back.
+  a worker, a beacon, or a form's native POST. A second rule set (`WORKER_RULES`, KAN-791) blocks
+  a non-GET to Ashby's GraphQL from no tab alone (a service or shared worker): no rule reads a
+  body, and the guard script, which reads the page's, refuses the page any new worker. `lift`
+  takes both off and `rearm` puts them back.
 - **One rule set per Worker** (KAN-793). Chrome caps a profile's regex rules at about 1000. Each
   guarded tab had 7 rules of its own, and a closed tab's rules stayed until `guard.reset`, which
   comes only when no other form is open in the Worker. After about 142 guarded tabs (a long test
   run; a form held through many `--into` postings and Fill agains), every `guard()` failed with
-  "Session rule count for regex rules exceeded". Now the routes with the same regexes share one
-  rule per regex, on all of their tabs, so a Worker holds `len(RULES)` rules however many tabs it
-  guards. A closed tab leaves every route, and a route with no tab left goes. Its set's rules stay
-  on -1 (requests from no tab) until `guard.reset`: a service worker the page started outlives its
-  tab and could post (the review of #555). A pop-up the extension opens for a refused
-  `window.open` (`accounts.js`) opens blank and takes its opener's rules before its page loads; a
-  tab a guarded page opens joins them on `tabs.onCreated` or `webNavigation.onCreatedNavigationTarget`.
+  "Session rule count for regex rules exceeded". Now the routes with the same regexes (and the
+  same `workers`) share one rule per regex, on all of their tabs, so a Worker holds
+  `len(RULES) + len(WORKER_RULES)` rules however many tabs it guards. A closed tab leaves every
+  route, and a route with no tab left goes, as does a tab's `WORKER_RULES` route. Their sets'
+  rules stay on -1 (requests from no tab) until `guard.reset`: a service worker the page started
+  outlives its tab and could post (the review of #555). A pop-up the extension opens for a
+  refused `window.open` (`accounts.js`) opens blank and takes its opener's rules before its page
+  loads; a tab a guarded page opens joins them on `tabs.onCreated` or
+  `webNavigation.onCreatedNavigationTarget`.
 - **Fails closed.** When Chrome refuses an update, it keeps its rules as they were, the extension
   puts its memory back to match, and the op raises. `guard` and `rearm` put the page's own guard on
   before the rules, so the page is then Apply's and blocked, never lifted, and the error stops
   the caller (the hold ends; Resume raises). A page `guard` can't put rules on goes to
   about:blank first, so no worker it started is left to send. A tab that a guarded tab opens is
-  closed if its rules can't go on. `lift` takes the rules off before its note, so a refusal there leaves the page
-  guarded.
+  closed if its rules can't go on. `lift` takes the rules off before its note, so a refusal there
+  leaves the page guarded.
 - **The guards' state** (KAN-710) is set only by token-named control events the extension sends
   from its isolated world (`guard.control`, `guard.lift`, `guard.rearm`, `guard.applied`); no page sees
   or sends them. `guard.tokens` tells the extension the run's touch and tell events once.

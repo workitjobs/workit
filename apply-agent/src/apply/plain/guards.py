@@ -10,7 +10,9 @@ CSP forbids eval and in Chrome for Testing.
 Below the in-page guard, Playwright's route becomes declarativeNetRequest session rules on the
 guarded tab (and the tabs it opens, and requests from no tab: service workers): a non-GET
 request to any of the guard's final application URLs (its FINAL_URLS, which include ROUTED's) is
-blocked before it leaves Chrome, from page code, its workers, or a form's native POST. Unlike a
+blocked before it leaves Chrome, from page code, its workers, or a form's native POST. A service or
+shared worker's non-GET to Ashby's GraphQL is blocked too (WORKER_RULES, KAN-791): no rule reads a
+body, and the guard script, which reads the page's, refuses the page any new worker. Unlike a
 Playwright route, a rule needs no Python handler, so it blocks the page URLs too (Greenhouse's
 posting, Lever's /apply), a page Claude opens never waits on it, and GETs always go. Every guarded
 tab of a Worker shares one set of these rules (KAN-793), so their count stays at len(RULES).
@@ -51,6 +53,10 @@ FINAL_URLS = _final_urls()
 # takes any run of those characters there (only ever more blocked, never less).
 RULES = [r.replace("[0-9a-f-]{36}", "[0-9a-f-]+") for r in FINAL_URLS]
 PATTERN = re.compile("|".join(f"(?:{r})" for r in RULES), re.IGNORECASE)
+# What a service or shared worker may not send while the tab is guarded (KAN-791): any non-GET to Ashby's GraphQL,
+# whose submit is named only in its body, which no rule reads. The page's own saves come from the tab and go on; the
+# guard script refuses the page any new worker, so a worker's request to it is one made before the guard.
+WORKER_RULES = [r"^https?://[^/?#]*ashbyhq\.com/[^?#]*graphql"]
 
 
 def _sha(text: str) -> str:
@@ -150,13 +156,23 @@ def control(page, events: list, mark: str | None = None) -> str:
     return "frame" if "frame" in said else "heard" if "heard" in said else "unheard"
 
 
+def _workers_route(page, on: bool) -> None:
+    """WORKER_RULES on (or off) for this tab's guard: rules on requests from no tab alone."""
+    key = f"{page.tab}:workers"
+    if on:
+        page.worker.call("guard.route", key=key, tab=page.tab, regexes=WORKER_RULES, caseSensitive=False, workers=True)
+    else:
+        page.worker.call("guard.unroute", key=key)
+
+
 def guard(page, reload: bool = True) -> None:
-    """submit_guard.guard: the rules on this tab, the guard on every page from now, then a reload
-    (none from submit_guard.on_open, before the tab's first load)."""
+    """submit_guard.guard: the rules on this tab (and WORKER_RULES on its workers), the guard on every page from now,
+    then a reload (none from submit_guard.on_open, before the tab's first load)."""
     tokens(page.worker)
     page.context.add_init_script(submit_guard.SCRIPT)  # first: the page's own guard holds if Chrome refuses the rules
     try:
         page.route(PATTERN, submit_guard._refuse)
+        _workers_route(page, True)
     except Exception:
         # Refused: the page's own guard is no stop for a worker it started, so the page goes (the review of #555).
         try:
@@ -183,6 +199,7 @@ def lift(page, pressed=None, again=None, warning: str = "", wrong: bool = True, 
     if dismiss:
         page.expose_binding("__applyDismissHold", lambda source: dismiss())
     page.unroute(PATTERN, submit_guard._refuse)
+    _workers_route(page, False)
     _note(page, submit_guard._events({"lift": submit_guard.note(bool(again or bound), warning, wrong, held)}))
 
 
@@ -216,11 +233,12 @@ def applied_dismissed(page) -> None:
 
 
 def rearm(page) -> None:
-    """submit_guard.rearm: the page Apply's again, with no reload, then the rules back on. In that order: when Chrome
-    refuses the rules, the route raises with the page already guarded, never left lifted (KAN-793)."""
+    """submit_guard.rearm: the page Apply's again, with no reload, then the rules back on (WORKER_RULES too). In that
+    order: when Chrome refuses the rules, the route raises with the page already guarded, never left lifted (KAN-793)."""
     tokens(page.worker)
     page.worker.call("guard.rearm", tab=page.tab, events=submit_guard._events({"lift": None}))
     page.route(PATTERN, submit_guard._refuse)
+    _workers_route(page, True)
 
 
 def touch(page, by: str = "lisul", frame: int = 0) -> None:

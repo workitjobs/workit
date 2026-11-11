@@ -264,7 +264,7 @@ On the last step, name exactly the button that would send the application in `su
 {RULES}"""
 # Lisul's page gates (policies: page_gates, KAN-637): he checks these on each step before the form goes on.
 GATES = """
-Never tick an attestation, certification or agreement box ("I certify", "I acknowledge", "I agree", consent to terms, to a background check or to data processing), and never type an e-signature, a typed-name signature or a date of signature, even when <fields> gives an answer for it: leave each as it is for the person, and list it in `for_lisul`.
+Never tick an attestation, certification or agreement box ("I certify", "I acknowledge", "I agree", consent to terms, to a background check or to data processing), and never type an e-signature, a typed-name signature or a date of signature, even when <fields> gives an answer for it: leave each as it is for the person, and list it in `for_lisul`. The one exception is a field whose entry in <fields> has "attested": true: Apply's own rule found the person's facts settle it, so pick or tick its answer exactly as given, and list it in `for_lisul` as "<label>: attested from sources".
 Before you finish, read every field on this step back and check it against <fields>: fix any that shows something else, once.
 In `for_lisul`, list every field on this step that the person must check before the form goes on, one entry each, as "<label>: <what it shows now>" (or "<label>: left for you"): attestation, certification, signature or date-of-signature fields; terms, or consent to a background check or to data processing; self-identification (gender, race or ethnicity, veteran, disability); work authorization, citizenship, U.S. person, export control or sponsorship; non-compete or prior-employer agreements; relatives at the company, prior employment with it, conflicts of interest; criminal history; and any answer you aren't sure is right. An option that only spells out the answer's abbreviation (a state's "NY" as "New York", a country's "US" as "United States") is a sure match, not one to list. Empty when the step has none."""
 FILL_SCHEMA = {
@@ -379,6 +379,8 @@ class ClaudeFill:
         self._approved: set[str] = set()  # the steps he checked and resumed from
         self._tick_asked: set[str] = set()  # the attestations the form stopped on for Lisul, till his Resume (KAN-676)
         self._adds = 0  # the entries plain code added to work sections (_add_entry)
+        # The labels named as another section's on each step (its count of steps and of entries added), KAN-788.
+        self._sectioned: dict[tuple[int, int], set[str]] = {}
         self._history = history or {}
         self.extra_entries: list[str] = []  # entries a section still holds that the profile doesn't list (KAN-762)
         self._tick_his: set[str] = set()  # the attestations he resumed from a stop on: his own, as he left them
@@ -481,7 +483,10 @@ class ClaudeFill:
         kinds = {q.name: q.kind for q in questions}
         # Attestations and signatures (KAN-676): Lisul's own to tick or sign. Claude leaves each as it is and reads it
         # back, so a required one left unticked on this step stops the form here, before its Next.
-        attests = {name for name in fill_engine.attestations(questions) if name not in answers}
+        found = fill_engine.attestations(questions)
+        attests = {name for name in found if name not in answers}
+        # One the plan answered (attest_from_sources, KAN-761), or that Lisul ticked himself: its answer, as given.
+        settled = {name for name in found if name in answers}
         required = {q.name for q in questions if q.required}
         self._asked = (labels, answers)
         if self._waited_for_box and not captcha.shows(page):  # Lisul did the captcha on the filled form
@@ -508,8 +513,12 @@ class ClaudeFill:
             order = fill_engine.call_without_page("currentFirst", [{"name": n, "label": labels[n]} for n in todo], list(todo)) \
                 if todo else []
             fields = [{"field": name, "question": labels[name], "answer": value.name if isinstance(value, Path) else value}
-                      for name, value in ((n, todo[n]) for n in order)]
-            files = [value for value in todo.values() if isinstance(value, Path)]
+                      | ({"attested": True} if name in settled else {}) for name, value in ((n, todo[n]) for n in order)]
+            # Every file the plan gives the form, not only this round's: a slot an earlier round filled may need its own
+            # file again, and Claude's upload tool sees only the files passed here (KAN-789). Never the résumé plain code
+            # attached: Claude leaves that field, and with no copy it can't put the résumé in another slot.
+            files = list(dict.fromkeys(value for name, value in answers.items()
+                                       if isinstance(value, Path) and name not in self._attached))
             prompt = f"<fields>\n{json.dumps(fields, indent=0)}\n</fields>"
             if self._history and any(SECTION_COUNT.match(label.strip()) for label in labels.values()):
                 prompt = f"<entries>\n{json.dumps(self._history, indent=0, default=str)}\n</entries>\n" + prompt
@@ -554,7 +563,8 @@ class ClaudeFill:
             # A box whose words attest, which Claude didn't list (one that also says "not a robot"), is listed by plain
             # code: the plan names it as Lisul's, never answered.
             unlisted = _new_questions(page, questions, [*(done.get("unlisted") or []),
-                                                        *_unlisted_attestations(page, questions, done.get("unlisted") or [])])
+                                                        *_unlisted_attestations(page, questions, done.get("unlisted") or [])],
+                                      self._sectioned.setdefault((self._steps, self._adds), set()))
             if unlisted:
                 found = _with_formats(page, _with_sections(page, _with_options(page, self._questions(unlisted))))
                 self._found_at |= {q.name: self._steps for q in found}
@@ -1024,11 +1034,17 @@ SECTION_OF = """el => {
 }"""
 
 
-def _new_questions(page: Page, questions: QuestionSet, found: list[dict]) -> list[dict]:
+def _new_questions(page: Page, questions: QuestionSet, found: list[dict], sectioned: set[str] | None = None) -> list[dict]:
     """The questions Claude found on the step that Apply doesn't know yet. One is known by its label with or
     without its help text, as either session may give it, but a label the page shows on more fields than
     Apply knows (a campus address under a home one, Bank of America's, live) is a new question each time,
-    named with its section's heading: never merged with another section's (KAN-642)."""
+    named with its section's heading: never merged with another section's (KAN-642).
+
+    A radio or checkbox group is one field, however many of its options the page labels with the question
+    (`_labelled_fields`). And a label is named as another section's at most once on a step (`sectioned`, the
+    labels so named on it before): Claude lists a question it wasn't given to fill again in every round, so on
+    JPMorgan's Oracle form each round named Ethnicity and four more again, until the fill's cap (KAN-788)."""
+    sectioned = set() if sectioned is None else sectioned
     known: dict[str, int] = {}
     for q in questions:
         for k in {_key(q.label), _key(_bare(q.label))}:
@@ -1041,9 +1057,12 @@ def _new_questions(page: Page, questions: QuestionSet, found: list[dict]) -> lis
             new.append(q)
             continue
         have = max(known.get(k, 0) for k in keys)
-        fields = _labelled(page, _bare(label))
+        if keys & sectioned:
+            continue  # named as another section's on this step already
+        fields = _labelled_fields(page, _bare(label))
         if len(fields) <= have:
             continue  # the same question again
+        sectioned |= keys
         try:
             heading = str(fields[have].evaluate(SECTION_OF)).strip()
         except Exception:
@@ -1169,13 +1188,47 @@ def _unlisted_attestations(page: Page, questions: QuestionSet, listed: list[dict
     return [b for b, attests in zip(new, attest) if attests]
 
 
+def _label_pattern(label: str) -> re.Pattern:
+    """`label` whole, a trailing "*" aside, in any case."""
+    return re.compile(rf"^\s*{re.escape(label.strip().rstrip('*').strip())}\s*\*?\s*$", re.IGNORECASE)
+
+
 def _labelled(page: Page, label: str) -> list:
     """The visible fields the page labels `label` (a trailing "*" aside), in page order."""
-    pattern = re.compile(rf"^\s*{re.escape(label.strip().rstrip('*').strip())}\s*\*?\s*$", re.IGNORECASE)
     try:
-        return [f for f in page.get_by_label(pattern).all() if f.is_visible()]
+        return [f for f in page.get_by_label(_label_pattern(label)).all() if f.is_visible()]
     except Exception:
         return []
+
+
+# What makes a labelled element one field: a radio or checkbox is its group's (its group element, else its radio name,
+# else what labels it); any other element is its own.
+FIELD_OF = r"""(els) => {
+  const groups = [...document.querySelectorAll('[role=radiogroup], [role=group], fieldset')];
+  return els.map((el, i) => {
+    if (!el.matches('input[type=radio], input[type=checkbox], [role=radio], [role=checkbox]')) return `field ${i}`;
+    const group = el.closest('[role=radiogroup], [role=group], fieldset');
+    if (group) return `group ${groups.indexOf(group)}`;
+    if (el.name && el.type === 'radio') return `radio ${el.name}`;
+    const by = (el.getAttribute('aria-labelledby') || '').trim().split(/\s+/)[0];
+    return by ? `labelled ${by}` : `field ${i}`;
+  });
+}"""
+
+
+def _labelled_fields(page: Page, label: str) -> list:
+    """The visible fields the page labels `label`, a radio or checkbox group counted once, by its first visible
+    option (KAN-788): Oracle labels each option of Ethnicity, Gender and Veteran Status with the question."""
+    labelled = page.get_by_label(_label_pattern(label))
+    try:
+        every, keys = labelled.all(), labelled.evaluate_all(FIELD_OF)
+        first: dict[str, Locator] = {}
+        for field, key in zip(every, keys):
+            if key not in first and field.is_visible():
+                first[key] = field
+        return list(first.values())
+    except Exception:
+        return _labelled(page, label)
 
 
 REVIEW_PAGE = re.compile(r"\b(review (your|and submit|the) application|application (summary|review)|summary of your "

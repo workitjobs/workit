@@ -36,6 +36,7 @@ from apply.adapters import Claude, JobSite, UsageLimitHit
 from apply.answer_bank import LISUL, AnswerBank
 from apply.applicant import as_applicant
 from apply.fill_engine import (
+    attested_line,
     company_specific,
     context_free,
     left_blank,
@@ -76,8 +77,13 @@ SENT = HOME / "sent"
 
 def sent_folder(company: str, application_id: str, day: date) -> Path:
     """The Application's folder under SENT, where a copy of each file its form is given is kept."""
+    return SENT / day.isoformat() / _sent_name(company, application_id)
+
+
+def _sent_name(company: str, application_id: str) -> str:
+    """An Application's folder name under SENT's day folders: its company's slug, then its id."""
     slug = re.sub(r"[^a-z0-9]+", "-", company.lower()).strip("-") or "company"
-    return SENT / day.isoformat() / f"{slug}-{re.sub(r'[^A-Za-z0-9_-]+', '-', application_id)}"
+    return f"{slug}-{re.sub(r'[^A-Za-z0-9_-]+', '-', application_id)}"
 
 
 def sent_resume(application_id: str, name: str, sent: Path | None = None) -> str:
@@ -92,6 +98,16 @@ def sent_resume(application_id: str, name: str, sent: Path | None = None) -> str
         if found := next((f for f in named if f.is_file()), None):
             return str(found)
     return ""
+
+
+def sent_files(company: str, application_id: str, sent: Path | None = None) -> list[Path]:
+    """Every file kept for the Application's form under SENT (the resume, the cover letter Apply wrote for it, a
+    transcript), its newest folder's first (KAN-789). Only its own folder, by its whole name: a suffix match
+    (`*-<id>`) also took another Application's whose id ends in this one's ("acme-9-123" for id 123)."""
+    root, name = sent or SENT, _sent_name(company, application_id)
+    days = sorted((day for day in root.iterdir() if (day / name).is_dir()), reverse=True) if root.is_dir() else []
+    folders = [day / name for day in days]
+    return [f for folder in folders for f in sorted(folder.iterdir()) if f.is_file() and not f.name.startswith(".")]
 
 
 def keep_sent(folder: Path, path: Path) -> Path:
@@ -546,6 +562,7 @@ class _Planned:
         self.accepted: dict[str, tuple[str, ...]] = {}  # other wordings Lisul accepts for an answer, by Question name
         self.blanks: dict[str, str] = {}  # fields the engine's plan leaves blank on purpose, by name: why
         self.attestations: dict[str, str] = {}  # attestations and signatures, by name: their wording, Lisul's to tick
+        self.attested: dict[str, str] = {}  # attestations the plan answered from the profile's facts, by name: that fact
         self.filed: dict[str, str | None] = {}  # each bare date's Answer bank wording, by name (fill_engine.Plan.filed)
         self.sections: dict[str, str] = {}  # each bare date's section, by name (fill_engine.Plan.sections)
         self.fixes: dict[str, object] = {}  # the Pre-submit review's fixes, by name: no plan writes over them
@@ -580,8 +597,11 @@ class _Planned:
 
     @property
     def to_tick(self) -> list[str]:
-        """The Check before Submit lines for the attestations Lisul has not ticked on a paused step: "Yours to tick: ..."."""
-        return [to_tick(wording) for name, wording in self.attestations.items() if name not in self.lisuls]
+        """The Check before Submit lines for the attestations Lisul has not ticked on a paused step ("Yours to tick: ..."),
+        then each the plan answered from his facts under attest_from_sources ("Attested from sources: ...")."""
+        return [to_tick(wording) for name, wording in self.attestations.items() if name not in self.lisuls] + [
+            attested_line(q.label, self.attested[q.name]) for q in self.questions  # KAN-761: listed for his check
+            if q.name in self.attested and q.name in self._answers and q.name not in self.lisuls]
 
     def keep(self, values: dict, paused: dict | None = None) -> None:
         """Keep what Lisul put on a paused form before Resume (the Filler's
@@ -656,6 +676,7 @@ class _Planned:
         self.accepted = planned.accepted
         self.blanks = planned.blanks
         self.attestations = planned.attestations
+        self.attested = planned.attested
         self.filed, self.sections = planned.filed, planned.sections
         for q in self.questions:  # Lisul's answer to a bare date on this form, as he gave it
             if q.name in planned.filed and (given := self._answered.get(q.label.strip())) is not None:
@@ -811,7 +832,7 @@ class _Planned:
         for q in self.questions:
             answer = fixes.get(one_line(q.label))
             if (answer is None or q.name not in guessed | legal or q.kind in ("file", "multi_select") or q.name in self.lisuls
-                    or q.name in self.attestations
+                    or q.name in self.attestations or q.name in self.attested
                     or q.name in essays_asked or SECRET.search(q.label) or SECRET.search(q.name)
                     or (q.options and answer not in q.options) or shows(readback.get(q.name, ""), answer)):
                 continue

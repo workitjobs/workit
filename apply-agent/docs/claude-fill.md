@@ -156,6 +156,16 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
   `browser_click` makes no click on an option its single-choice list holds already (`plain.tools.PICKED`) and
   tells Claude so. The engine's Eightfold Filler leaves such a dropdown alone too. A CDP Worker's Playwright MCP has
   no such rule yet.
+- A label the page shows on more fields than Apply knows is another section's question (KAN-642), but a
+  radio or checkbox group is one field, however many of its options the page labels with the question
+  (`_labelled_fields`), and a label is named as another section's at most once on a step (`_sectioned`, by
+  step and entries added). Claude lists a question it wasn't given to fill again in every round. On
+  JPMorgan's Oracle form (2026-11-10), each round named Ethnicity, Gender, Veteran Status and the military
+  questions again under new names, about 45 times, till the fill's cap of 300 turns and 6,000,000 tokens
+  (KAN-788).
+- Each fill session gets every file the plan gives the form, not only that round's (KAN-789): a slot an earlier
+  round filled may need its file again, and Claude's upload tool sees only the files passed to it. The résumé that
+  plain code attached is never passed, so Claude can't put it in another slot.
 - Dropdowns that list their choices only once opened are read and picked
   by plain code (`_with_options`, `_pick_in_comboboxes`). Each one's name is
   read off the very element Playwright clicks (`_comboboxes`), never from a

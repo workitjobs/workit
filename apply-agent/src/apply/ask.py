@@ -152,6 +152,7 @@ A dialog that asks the applicant to accept a privacy or data notice (a "Data Pri
 In a dropdown list, never click the option the field already shows (marked selected): on some forms that click empties the field.
 A step's Next, Continue or Back, or a step's link in the form's list of steps (a Progress Tracker), that does nothing when you click it (a step that posts the page, which the guard blocks for you): don't click it again or try another way. Put its exact name in `press` (a list's link by the step's name as the list shows it), change nothing more and give your answer now: Apply presses it itself, checks it, and asks you to go on from the next step.
 When you are done, the form should show the step it showed when you started: if you went back, come forward again, but never past the step that sends.
+On Workday, a step you went back to keeps, once saved, only the entries (Work Experience, Education) whose fields changed on that visit, and drops the others. So when you change one entry on such a step, also clear and type again the Company (or School) of every other entry there, the same words, before you leave the step, and say so in `reply`.
 In <page>, a field with `hidden` is not on view now (another step, kept in the page).
 Then read back each field you changed: `shown` is exactly what it shows now, with nothing added; `step` names the step it is on ("" for the one shown at the start).
 Leave `press` "" when no step's button waits on Apply. `reply` is one to three short, plain sentences to the applicant: what you changed, and what you couldn't do. `couldnt` lists what you were asked and couldn't do, each with why. `waiting` lists what is the applicant's own to do now (a box to tick, a file to give).
@@ -324,7 +325,7 @@ def system_for(profile) -> str:
 def ask(claude: Claude, page, message: str, thread: list[dict], form: Form, given: str, system: str = SYSTEM,
         guard: DriveGuard | None = None, opt_ins: dict | None = None, files: list[Path] | None = None) -> Reply:
     """Claude acts on the open `page` as `message` asks, under the drive guard, and Apply reads it back.
-    `files` are the ones it may attach, as Claude fill's: the profile's resume (KAN-683)."""
+    `files` are the ones it may attach, as Claude fill's: every file Apply prepared for the form (KAN-683, KAN-789)."""
     guard = guard or DriveGuard(page, **(opt_ins or {}))
     before = state(page)
     tick = asks_a_tick(message)

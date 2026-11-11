@@ -394,6 +394,9 @@ def test_the_drive_guard_rests_and_arms_as_claude_fill_drives(page, site):
 # its own, and a closed tab's stayed until guard.reset, which comes only when no other form is open in the Worker.
 # About 142 guarded tabs later, every guard() failed with "Session rule count for regex rules exceeded".
 
+ONE_SET = len(guards.RULES) + len(guards.WORKER_RULES)  # a Worker's rules, however many tabs it guards
+
+
 def _all_rules(worker) -> int:
     return worker.call("guard.status")["rules"]
 
@@ -429,7 +432,7 @@ def test_many_guarded_tabs_in_one_worker_share_one_rule_set(worker, site):
             guards.lift(page)
             assert worker.call("guard.status", tab=page.tab)["rules"] == 0
             guards.rearm(page)
-        assert _all_rules(worker) == len(guards.RULES)
+        assert _all_rules(worker) == ONE_SET
         assert worker.call("guard.status", tab=page.tab)["rules"] == len(guards.RULES)
         worker.call("tabs.close", tab=page.tab)
     assert worker.call("guard.status", tab=held.tab)["rules"] == len(guards.RULES)
@@ -439,7 +442,7 @@ def test_many_guarded_tabs_in_one_worker_share_one_rule_set(worker, site):
         time.sleep(0.1)
     # No tab keeps them, but the set stays on -1 until guard.reset: a closed page's service worker lives on.
     assert worker.call("guard.status", tab=held.tab)["rules"] == 0
-    assert _all_rules(worker) == len(guards.RULES)
+    assert _all_rules(worker) == ONE_SET
 
 
 @live

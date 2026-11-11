@@ -74,7 +74,7 @@ export async function keepAcrossReload() {
     at: Date.now(), vendor: vendorSet(),
     scripts: await chrome.scripting.getRegisteredContentScripts(),
     userScripts: userScriptsOn() ? await chrome.userScripts.getScripts() : [],
-    routes: [...routes].map(([key, r]) => [key, { tab: r.tab, regexes: r.regexes, caseSensitive: r.caseSensitive, tabs: r.tabs && [...r.tabs] }]),
+    routes: [...routes].map(([key, r]) => [key, { tab: r.tab, regexes: r.regexes, caseSensitive: r.caseSensitive, workers: r.workers, tabs: r.tabs && [...r.tabs] }]),
     orphaned: [...orphaned],
     lifted: [...lifted], applied: [...applied], bindings: [...bindings].map(([where, names]) => [where, [...names]]),
     tokens,
@@ -180,7 +180,7 @@ async function inject({ tab, file, sha256: sha }) {
 
 // --- routes
 
-const setOf = (route) => JSON.stringify([route.regexes, route.caseSensitive]);
+const setOf = (route) => JSON.stringify([route.regexes, route.caseSensitive, Boolean(route.workers)]);
 
 // The rules of one rule set: each regex once, on every tab of the routes that share it (no tabIds
 // when one of them is every tab's), and on -1 for a set a closed tab left (orphaned). Neither: no rule.
@@ -226,13 +226,15 @@ async function changing(keys, change) {
   }
 }
 
-async function route({ key, tab = null, regexes, caseSensitive = false }) {
+// `workers`: the rules hold only for requests from no tab (a service or shared worker's), never the tab's own (KAN-791).
+async function route({ key, tab = null, regexes, caseSensitive = false, workers = false }) {
   for (const regex of regexes) {
     const answer = await chrome.declarativeNetRequest.isRegexSupported({ regex, isCaseSensitive: caseSensitive });
     if (!answer.isSupported) throw named("BadOp", `declarativeNetRequest can't take ${regex}: ${answer.reason}`);
   }
   const old = routes.get(key);
-  const entry = { tab, regexes, caseSensitive, tabs: tab === null ? null : new Set([tab, NO_TAB, ...(old?.tabs ?? [])]) };
+  // A workers route holds its tab only as its owner: its rules are on -1 alone, never the tab's own requests.
+  const entry = { tab, regexes, caseSensitive, workers, tabs: workers ? new Set([NO_TAB]) : tab === null ? null : new Set([tab, NO_TAB, ...(old?.tabs ?? [])]) };
   await changing([key], () => routes.set(key, entry));
   return { rules: regexes.length };
 }
@@ -380,10 +382,16 @@ chrome.tabs.onRemoved.addListener((tab) => {
   lifted.delete(tab);
   applied.delete(tab);
   bindings.delete(tab);
-  const keys = [...routes].filter(([, r]) => r.tabs?.has(tab)).map(([key]) => key);
+  // A workers route (KAN-791) goes with its owner tab, its set kept on -1 as any other's.
+  const keys = [...routes].filter(([, r]) => r.tabs?.has(tab) || (r.workers && r.tab === tab)).map(([key]) => key);
   if (!keys.length) return;
   ready.then(() => changing(keys, () => {
     for (const key of keys) {
+      if (routes.get(key).workers && routes.get(key).tab === tab) {
+        orphaned.add(setOf(routes.get(key)));
+        routes.delete(key);
+        continue;
+      }
       const tabs = new Set([...routes.get(key).tabs].filter((t) => t !== tab));
       if ([...tabs].some((t) => t !== NO_TAB)) routes.set(key, { ...routes.get(key), tabs });
       else {

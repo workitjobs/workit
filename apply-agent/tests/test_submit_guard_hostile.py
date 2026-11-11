@@ -3,7 +3,7 @@
 Each page is a fake job form whose application request is a POST to FINAL (or a known job system's final URL).
 Each click path is the real code that presses a button through the guards: plain code's Next (press_step), the
 profile pop-up's click, the account page's click, Ask Claude's press, the keep-alive's press of a session dialog's
-stay-signed-in button (KAN-776), and Fill again (a held page filled anew in a fresh guarded page). Every pair must leave the job system with no application request. The control tests show
+stay-signed-in button (KAN-776; on any site by the generic rules, KAN-779), and Fill again (a held page filled anew in a fresh guarded page). Every pair must leave the job system with no application request. The control tests show
 each page does send without the guard, so a pass means the guard stopped it.
 
 A new click path joins PATHS, and a new trick joins PAGES, in the same PR (the root CLAUDE.md's review rule).
@@ -13,7 +13,9 @@ Fill again's case (KAN-682) opens its page in a real Worker browser. Three group
 - plain: a plain Worker on Chrome for Testing, skipped where there is none (CI).
 """
 
+import dataclasses
 import http.server
+import json
 import re
 import sys
 import threading
@@ -468,6 +470,100 @@ PAGES |= {
         document.getElementById('b').addEventListener('click', () => {{ {_TWICE} }});</script>""",
         "/acme/jobs/123/step2": "<title>Two</title><input name=next>"},
 }
+# KAN-791: Ashby's submit, which the guard once found by one regex on the body's operationName. Each body here is a
+# submit Ashby's GraphQL server would run, or one the guard can't read (a duplicate key, a persisted query's hash
+# alone, text that is no JSON): the guard reads each as the server would, and any of them reaching Ashby is an
+# application (Site.applications).
+ASHBY_GQL = "https://jobs.ashbyhq.com/api/non-user-graphql"
+_ASHBY_SEND = """<script>const GQL = '@GQL@';
+const hide = (s) => s.replace(/submit/gi, (m) => '\\\\u00' + m.charCodeAt(0).toString(16) + m.slice(1));
+const post = (body, how) => {
+  if (how === 'xhr') { try { const x = new XMLHttpRequest(); x.open('POST', GQL); x.send(body); } catch (e) {} return; }
+  if (how === 'beacon') { try { navigator.sendBeacon(GQL, body); } catch (e) {} return; }
+  try { fetch(GQL, {method: 'POST', body}).catch(() => {}); } catch (e) {}
+};
+const SUBMIT = 'mutation { submitMultipleFormsAction(jobPostingId: "1") { __typename } }';
+document.getElementById('b').addEventListener('click', () => { @SENDS@ });</script>"""
+_ASHBY_JSON = """
+  post(JSON.stringify({query: 'mutation { submitSingleApplicationFormAction(formRenderIdentifier: "r") { __typename } }'}));
+  post(hide(JSON.stringify({operationName: 'ApiSubmitMultipleFormsAction', query: 'mutation ApiSubmitMultipleFormsAction { submitMultipleFormsAction { a } }'})));
+  post(JSON.stringify([{query: 'query A { jobPosting { title } }'}, {operationName: 'ApiSetFormValue', query: SUBMIT}]));
+  post(JSON.stringify({operationName: 'ApiSetFormValue', query: 'mutation ApiSetFormValue { ...F } fragment F on Mutation { submitMultipleFormsAction { a } }'}));
+  post(JSON.stringify({operationName: 'ApiSetFormValue', query: 'mutation ApiSetFormValue { # setFormValue\\n ... on Mutation @include(if: true) { setFormValue: submitSingleApplicationFormAction(note: "not a submit") { a } } }'}));
+  post('{"query": "' + SUBMIT.replace(/"/g, '\\\\"') + '", "query": "query { a }"}');
+  post(JSON.stringify({operationName: 'ApiSetFormValue', extensions: {persistedQuery: {version: 1, sha256Hash: 'ab12'}}}));
+  post(JSON.stringify({query: SUBMIT}), 'xhr');
+  post(new Blob([JSON.stringify({query: SUBMIT})], {type: 'application/json'}), 'beacon');"""
+_ASHBY_FORMS = """
+  post(new URLSearchParams({query: SUBMIT}));
+  post('operationName=ApiSetFormValue&query=' + encodeURIComponent(SUBMIT), 'xhr');
+  post(new URLSearchParams({query: SUBMIT}), 'beacon');
+  const multipart = () => { const f = new FormData(); f.append('operations', JSON.stringify({query: SUBMIT, variables: {file: null}}));
+    f.append('map', '{"0": ["variables.file"]}'); f.append('0', new Blob(['resume']), 'resume.pdf'); return f; };
+  post(multipart()); post(multipart(), 'xhr'); post(multipart(), 'beacon');
+  post(SUBMIT); post(SUBMIT, 'xhr');"""
+_ASHBY_NEXT = '<title>Apply</title><input name=first value=Test><button id=b type=button>Next</button>'
+PAGES |= {
+    "Ashby's submit in JSON the regex missed": {START: _ASHBY_NEXT + _ASHBY_SEND.replace("@GQL@", ASHBY_GQL).replace("@SENDS@", _ASHBY_JSON)},
+    "Ashby's submit in a form or multipart body": {START: _ASHBY_NEXT + _ASHBY_SEND.replace("@GQL@", ASHBY_GQL).replace("@SENDS@", _ASHBY_FORMS)},
+}
+# KAN-791: a worker runs none of the guard script, so its requests went unjudged. Each worker here posts the
+# application every way it can (fetch and XHR to the final URL and Greenhouse's, Ashby's submit by its body) as it
+# starts: a dedicated, shared or service worker, from the page's URL, a blob: or a data: script, and by constructors
+# the guard might not have wrapped. Each worker script is served from WORKER_JS.
+WORKER_JS = "/acme/worker.js"
+WORKER_CODE = f"""for (const u of ['{HOST}{FINAL}', '{GREENHOUSE}']) {{
+  fetch(u, {{method: 'POST', body: 'first=Test'}}).catch(() => {{}});
+  try {{ const x = new XMLHttpRequest(); x.open('POST', u); x.send('first=Test'); }} catch (e) {{}}
+}}
+fetch('{ASHBY_GQL}', {{method: 'POST', body: JSON.stringify({{query: 'mutation {{ submitMultipleFormsAction {{ a }} }}'}})}}).catch(() => {{}});
+self.onconnect = () => {{}};"""
+_WORKERS = f"""<title>Apply</title><input name=first value=Test><button id=b type=button>Next</button><script>
+const CODE = {json.dumps(WORKER_CODE)};
+const blob = () => URL.createObjectURL(new Blob([CODE], {{type: 'text/javascript'}}));
+const data = () => 'data:text/javascript,' + encodeURIComponent(CODE);
+const each = (fs) => {{ for (const f of fs) {{ try {{ f(); }} catch (e) {{}} }} }};
+document.getElementById('b').addEventListener('click', () => each(@MAKE@));</script>"""
+_MAKES = {
+    "a Next whose workers post the application": """[() => new Worker('/acme/worker.js'), () => new Worker(blob()),
+        () => new Worker(data()), () => new Worker('/acme/worker.js', {type: 'module'})]""",
+    "a Next whose shared worker posts the application": """[() => new SharedWorker('/acme/worker.js'),
+        () => new SharedWorker(blob(), 'b'), () => new SharedWorker(data(), 'd')]""",
+    "a Next whose service worker posts the application": """[() => navigator.serviceWorker.register('/acme/worker.js').catch(() => {})]""",
+    "a worker made by a constructor the guard never wrapped": """[() => new (Worker.prototype.constructor)(blob()),
+        () => new (SharedWorker.prototype.constructor)(blob(), 'c'), () => { class Mine extends Worker {} new Mine(blob()); },
+        () => { const i = document.createElement('iframe'); document.body.append(i); new i.contentWindow.Worker(blob()); },
+        () => Reflect.construct(Worker, [blob()]), () => Worker.call({}, blob())]""",
+}
+PAGES |= {name: {START: _WORKERS.replace("@MAKE@", make), WORKER_JS: WORKER_CODE} for name, make in _MAKES.items()}
+# A frame of the page's own site at reCAPTCHA's path (captcha.PATHS), which the guard took for a captcha's frame and
+# left unguarded: the page posted through the frame's fetch and its Worker (KAN-791's review).
+# The review of #551: a frame of another site the page picks, at reCAPTCHA's path, ran no guard either. Its own script
+# posts the application: on a timer after it loads, by a form bound for the top page, or when the Next's click tells it.
+FOREIGN_CAPTCHA = "https://evilexample.com/recaptcha/api2/"
+_FOREIGN_SENDS = {
+    "a foreign frame at a captcha's path that posts on a timer":
+        f"setTimeout(() => fetch('{HOST}{FINAL}', {{method: 'POST', mode: 'no-cors', body: 'first=Test'}}).catch(() => {{}}), 2000);",
+    "a foreign frame at a captcha's path whose form posts to the top page":
+        f"addEventListener('message', () => {{ const f = document.createElement('form'); f.method = 'post';"
+        f" f.action = '{HOST}{FINAL}'; f.target = '_top'; f.innerHTML = '<input name=first value=Test>';"
+        f" document.body.append(f); f.submit(); }});",
+    "a foreign frame at a captcha's path told by the Next's click":
+        f"addEventListener('message', () => fetch('{HOST}{FINAL}', {{method: 'POST', mode: 'no-cors', body: 'first=Test'}}).catch(() => {{}}));",
+}
+for _i, (_name, _send) in enumerate(_FOREIGN_SENDS.items()):
+    PAGES[_name] = {
+        START: f"""<title>Apply</title><input name=first value=Test><button id=b type=button>Next</button>
+            <iframe id=f src="{FOREIGN_CAPTCHA}{_i}"></iframe><script>document.getElementById('b').addEventListener('click',
+            () => document.getElementById('f').contentWindow.postMessage('go', '*'));</script>""",
+        f"/recaptcha/api2/{_i}": f"<title>reCAPTCHA</title><body><script>{_send}</script></body>"}
+PAGES["a frame of the page's own at a captcha's path"] = {START: f"""<title>Apply</title><input name=first value=Test>
+    <button id=b type=button>Next</button><iframe id=f src="/recaptcha/api2/anchor"></iframe><script>
+    document.getElementById('b').addEventListener('click', () => {{
+      const w = document.getElementById('f').contentWindow;
+      try {{ w.fetch('{FINAL}', {{method: 'POST', body: 'first=Test'}}).catch(() => {{}}); }} catch (e) {{}}
+      try {{ new w.Worker(URL.createObjectURL(new w.Blob([{json.dumps(WORKER_CODE)}]))); }} catch (e) {{}}
+    }});</script>"""}
 # KAN-776: a held page's session dialog, whose stay-signed-in button the keep-alive presses. Each sends the application.
 _SESSION = ("<title>Apply</title><form id=f method=post action='" + FINAL + "'><input name=first value=Test></form>"
             + SEND_ALL + "<div role=alertdialog aria-modal=true><p>Your session is about to expire. Do you want to "
@@ -513,14 +609,67 @@ SESSION_PAGES = {
         b.addEventListener('pointerdown', () => { b.textContent = 'Submit application'; }, true);
         b.addEventListener('click', () => { sendAll(); document.getElementById('f').submit(); });</script>"""},
 }
-MOVED = {"a session dialog whose Continue sends after the next mouse move"}
-PAGES |= SESSION_PAGES
+# KAN-779: the generic rules press a stay button on any site, by the words of the dialog it is in. Each trick here
+# sends the application by the button the generic press would find; the delayed ones are #541's review pages in
+# the generic words, for the hold that lasts until Dismiss on every site.
+_WARNING = "<p>Are you still there? You will be signed out in 2 minutes.</p>"
+_GENERIC = _SESSION.replace("Your session is about to expire. Do you want to continue?",
+                            "Are you still there? You will be signed out in 2 minutes.")
+_STILL = "<button type=button id=b>I'm still here</button>"
+GENERIC_SENDS_AFTER = {"a generic session dialog whose I'm still here sends after 3.5 s": 3500,
+                       "a generic session dialog whose I'm still here sends after 10 s": 10_000,
+                       "a generic session dialog whose I'm still here sends after 60 s": 60_000,
+                       "a generic session dialog whose page dismisses the hold itself": 8000}
+# #541's page that dismisses the hold itself, every way a script can, then sends: its script, on the generic dialog.
+_FREES = SESSION_PAGES["a session dialog whose page dismisses the hold itself"][START].split("</div>", 1)[1]
+GENERIC_SESSION_PAGES = {
+    # A real session dialog, by role and words; its Continue sends the application by script.
+    "a generic session dialog whose Continue submits": {START: _GENERIC % "<button type=button id=b>Continue</button>" + """<script>
+        document.getElementById('b').addEventListener('click', () => { sendAll(); document.getElementById('f').submit(); });</script>"""},
+    **{name: {START: _GENERIC % _STILL + _LATER % ms} for name, ms in GENERIC_SENDS_AFTER.items()
+       if name != "a generic session dialog whose page dismisses the hold itself"},
+    "a generic session dialog whose page dismisses the hold itself": {START: _GENERIC % _STILL + _FREES},
+    # Its I'm still here arms on the press, and sends 3.5 s after the next mouse move: the Keeper's own activity ping.
+    "a generic session dialog whose I'm still here sends after the next mouse move": {START: _GENERIC % _STILL
+        + """<script>let armed = false; document.getElementById('b').addEventListener('click', () => { armed = true; });
+        document.addEventListener('mousemove', () => { if (armed) { armed = false; setTimeout(() => { sendAll();
+          document.getElementById('f').submit(); }, 3500); } }, true);</script>"""},
+    # The warning dialog sits inside the application form: its Stay signed in is the form's own submit.
+    "a Stay signed in inside the application form": {START: f"""<title>Apply</title><form id=f method=post action="{FINAL}">
+        <input name=first value=Test><div role=alertdialog aria-modal=true>{_WARNING}<button id=b>Stay signed in</button>
+        </div></form>"""},
+    # The warning dialog holds the application's fields, and its Keep me signed in sends them.
+    "a session warning dialog that holds fields": {START: f"""<title>Apply</title>{SEND_ALL}<div role=dialog aria-modal=true>
+        {_WARNING}<label>First name <input name=first value=Test></label>
+        <button type=button id=b>Keep me signed in</button></div>
+        <script>document.getElementById('b').addEventListener('click', () => sendAll());</script>"""},
+    # The words alone, in a box with no dialog role: its Continue sends.
+    "session warning words with no dialog role": {START: f"""<title>Apply</title>{SEND_ALL}<div class=modal>{_WARNING}
+        <button type=button id=b>Continue</button></div>
+        <script>document.getElementById('b').addEventListener('click', () => sendAll());</script>"""},
+    # Its accessible name is I'm still here, its words are Submit application.
+    "a stay button whose words are a Submit": {START: f"""<title>Apply</title>{SEND_ALL}<div role=dialog aria-modal=true>
+        {_WARNING}<button type=button id=b aria-label="I'm still here">Submit application</button></div>
+        <script>document.getElementById('b').addEventListener('click', () => sendAll());</script>"""},
+}
+# The generic pages whose stay button passes the structure check: the guard, kept whole until Dismiss, stops them.
+GENERIC_PRESSED = {"a generic session dialog whose Continue submits", *GENERIC_SENDS_AFTER,
+                   "a generic session dialog whose I'm still here sends after the next mouse move"}
+DELAYS = SENDS_AFTER | GENERIC_SENDS_AFTER
+MOVED = {"a session dialog whose Continue sends after the next mouse move",
+         "a generic session dialog whose I'm still here sends after the next mouse move"}
+PAGES |= SESSION_PAGES | GENERIC_SESSION_PAGES
 BUTTON = {"an Amazon card whose Continue sends": "Continue", "a review page's Apply with its answers hidden": "Apply", "a page that vouches for its own Apply": "Apply", "a Submit in another language beside a Submit": "Envoyer ma candidature", "a Submit in a shadow root": "Submit application",
           "a profile pop-up that is the application": "Submit", "a profile pop-up that turns into the application": "Submit",
           "a one-page form in a modal": "Continue", "an application that makes an account": "Continue",
           "a button whose words change after the check": "Continue",
           "a session dialog whose stay button is the form's submit": "Stay signed in",
-          **{name: "Continue" for name in SESSION_PAGES if name != "a session dialog whose stay button is the form's submit"}}
+          **{name: "Continue" for name in SESSION_PAGES if name != "a session dialog whose stay button is the form's submit"},
+          "a generic session dialog whose Continue submits": "Continue",
+          **{name: "I'm still here" for name in GENERIC_PRESSED if name != "a generic session dialog whose Continue submits"},
+          "a Stay signed in inside the application form": "Stay signed in",
+          "a session warning dialog that holds fields": "Keep me signed in",
+          "session warning words with no dialog role": "Continue", "a stay button whose words are a Submit": "I'm still here"}
 
 
 def button(page_name: str) -> str:
@@ -547,8 +696,9 @@ class Site:
 
     def applications(self) -> list[str]:
         """The application requests that reached the job system: a final URL's (COMMIT's too, KAN-783), or SAVE's with
-        its Submit (submit=1)."""
-        return [p for p in self.sent if p in (FINAL, GREENHOUSE, COMMIT)] + [p for p, b in self.bodies if p == SAVE and "submit=1" in b]
+        its Submit (submit=1), or any post to Ashby's GraphQL (only the Ashby pages post there, KAN-791)."""
+        return [p for p in self.sent if p in (FINAL, GREENHOUSE, COMMIT) or p.startswith(ASHBY_GQL)] \
+            + [p for p, b in self.bodies if p == SAVE and "submit=1" in b]
 
 
 # --- the click paths, each the real code that presses through the guards
@@ -591,6 +741,11 @@ def stay_press(page, drive, name):
     """The keep-alive's press of a session dialog's stay-signed-in button (KAN-776), its allowlist at its worst: the
     page's own button named as the stay button, and any dialog's words taken as a session warning."""
     keepalive.press(page, keepalive.Site("Example", re.compile(r"example\.com$"), (name,), warns="."))
+
+
+def generic_stay_press(page, drive, name):
+    """The keep-alive's press on a site with no entry (KAN-779): the generic rules as they are, any stay name."""
+    keepalive.press(page, keepalive.ANY)
 
 
 # KAN-716: a plain Worker's two typing paths, each with every key that could send a form: Apply's own (fill, type,
@@ -660,7 +815,7 @@ def amazon_continue(page, drive, name):
 
 PATHS = {"plain code's Next": plain_next, "the Amazon Filler's Continue": amazon_continue, "the profile click": profile_click, "the account click": account_click,
          "Ask Claude's press": ask_press, "Ask Claude's press of a listed step": ask_press_listed,
-         "the keep-alive's stay press": stay_press}
+         "the keep-alive's stay press": stay_press, "the keep-alive's generic stay press": generic_stay_press}
 
 
 # PR 477's guard holes (KAN-710): each page a hole the guards had, so each runs on PRs, never only nightly. A page
@@ -685,6 +840,13 @@ GUARD_HOLES = frozenset({
     "a Submit whose own innerText throws", "a Submit whose value getter posts the form",
     "a Submit whose own getters and methods lie", "a Submit whose prototype is a Proxy", "prototype getters that lie",
     "prototype getters that throw", "built-ins the page replaced", "a request whose URL changes on a second read",
+    # KAN-791's: Ashby's submit the operationName regex missed, and the application posted from a worker.
+    "Ashby's submit in JSON the regex missed", "Ashby's submit in a form or multipart body",
+    "a Next whose workers post the application", "a Next whose shared worker posts the application",
+    "a Next whose service worker posts the application", "a worker made by a constructor the guard never wrapped",
+    "a frame of the page's own at a captcha's path", "a foreign frame at a captcha's path that posts on a timer",
+    "a foreign frame at a captcha's path whose form posts to the top page",
+    "a foreign frame at a captcha's path told by the Next's click",
 })
 
 
@@ -697,6 +859,9 @@ PLAIN_HOLES = frozenset({
     "a frame that forges the extension's touch", "a pointerdown handler that clicks the page's own button",
     "a page that vouches for its own Apply", "a page that lifts the guards by their install mark",
     "a page that hears the drive guard's control name", "requests sent around the guard",
+    # KAN-791's: a plain Worker's rules stand under the guard script for a worker's requests.
+    "a Next whose workers post the application", "a Next whose shared worker posts the application",
+    "a Next whose service worker posts the application", "a worker made by a constructor the guard never wrapped",
 })
 
 
@@ -776,13 +941,16 @@ def test_a_link_sent_in_never_joins_a_cdp_worker():
 def cdp(pages: dict[str, str], guarded: bool = True, first: bool = False):
     """The pages in Playwright's Chromium, guarded as a rehearsal guards them: after a first load, or with `first`
     before it (submit_guard.on_open, as a rehearsal opens each page: KAN-682), for a page that sends as it loads."""
+    from plain_fakes import https_fake
     from playwright.sync_api import sync_playwright
 
     site = Site(pages)
-    with sync_playwright() as playwright:
+    with sync_playwright() as playwright, https_fake(site.handle) as port:
         if not Path(playwright.chromium.executable_path).exists():
             pytest.skip("no Playwright Chromium here")
-        browser = playwright.chromium.launch()
+        # What Playwright never routes (a shared worker's requests, KAN-791) reaches the same Site on 127.0.0.1.
+        browser = playwright.chromium.launch(args=[f"--host-resolver-rules=MAP * 127.0.0.1:{port}",
+                                                   "--ignore-certificate-errors", "--disable-quic"])
         context = browser.new_context()
         context.route(lambda url: True, site.handle)  # every request: no real site is ever reached
         page = context.new_page()
@@ -831,8 +999,40 @@ def test_without_the_guard_each_hostile_page_sends(page_name):
         if page_name in MOVED:
             page.mouse.move(5, 5)
             page.mouse.move(9, 9)
-        _settle(page, max(3000, SENDS_AFTER.get(page_name, 0) + 1500, 5000 if page_name in MOVED else 0))
+        _settle(page, max(3000, DELAYS.get(page_name, 0) + 1500, 5000 if page_name in MOVED else 0))
     assert site.applications()
+
+
+# Ashby's own requests, which the guard must let through as it reads Ashby's bodies (KAN-791): its posting's query,
+# whose selections name a submit below the root, and each answer's and file's save, mutations whose root saves.
+ASHBY_OWN = {
+    "ApiOrganizationFromHostedJobsPageName": "query ApiOrganizationFromHostedJobsPageName($name: String!) { "
+        "organization: organizationFromHostedJobsPageName(organizationHostedJobsPageName: $name) { "
+        "theme { applicationSubmittedSuccessMessage } } }",
+    "ApiSetFormValue": "mutation ApiSetFormValue($id: String!, $path: String!, $value: JSON) { "
+        "setFormValue(formRenderIdentifier: $id, path: $path, value: $value) { id fieldEntries { submittedAt } } }",
+    "ApiSetFormValueToFile": "mutation ApiSetFormValueToFile($id: String!, $path: String!, $fileHandle: String!) { "
+        "setFormValueToFile(formRenderIdentifier: $id, path: $path, fileHandle: $fileHandle) { id } }",
+}
+
+
+def _ashby_own_page() -> dict[str, str]:
+    sends = "".join(f"fetch('{ASHBY_GQL}?op={op}', {{method: 'POST', headers: {{'Content-Type': 'application/json'}}, "
+                    f"body: JSON.stringify({{operationName: '{op}', variables: {{id: 'r', path: 'p'}}, query: {json.dumps(q)}}})}});"
+                    for op, q in ASHBY_OWN.items())
+    return {START: f"<title>Apply</title><button id=b type=button>Next</button><script>"
+                   f"document.getElementById('b').addEventListener('click', () => {{ {sends} }});</script>"}
+
+
+def _ashby_own_sent(page, site) -> list[str]:
+    page.click("#b")
+    _settle(page, 1500)
+    return sorted(p.split("op=")[-1] for p in site.sent if p.startswith(ASHBY_GQL))
+
+
+def test_ashbys_own_queries_and_saves_go_through():
+    with cdp(_ashby_own_page()) as (page, _, site):
+        assert _ashby_own_sent(page, site) == sorted(ASHBY_OWN)
 
 
 # Ask Claude's press of a listed step (KAN-692) against a TAL.net-like form, whose final Submit posts to the same
@@ -902,6 +1102,44 @@ HELD = {START: f"""<title>Apply</title><form id=f method=post action="{FINAL}"><
     setTimeout(() => {{ sendAll(); try {{ document.getElementById('f').submit(); }} catch (e) {{}} }}, 1500);</script>"""}
 
 
+# KAN-791: workers made while Lisul had the page (lifted, or paused mid-form), each waiting for a message to post the
+# application. Resume puts the guard back on (rearm): none of them may send after it.
+_ON_MESSAGE = "const send = () => {" + WORKER_CODE.replace("self.onconnect = () => {};", "") + "};" \
+    " self.onmessage = send; self.onconnect = (e) => { e.ports[0].onmessage = send; };"
+LIFTED_WORKERS = {START: f"""<title>Apply</title><input name=first value=Test><script>
+const CODE = {json.dumps(_ON_MESSAGE)};
+const blob = () => URL.createObjectURL(new Blob([CODE], {{type: 'text/javascript'}}));
+window.make = () => {{
+  window.w = new Worker(blob()); window.s = new SharedWorker(blob());
+  return navigator.serviceWorker.register('/acme/worker.js').then((r) => {{ window.reg = r; }}, () => {{}});
+}};
+window.go = () => {{
+  try {{ w.postMessage(1); }} catch (e) {{}}
+  try {{ s.port.postMessage(1); }} catch (e) {{}}
+  try {{ const sw = reg && (reg.active || reg.waiting || reg.installing); if (sw) sw.postMessage(1); }} catch (e) {{}}
+}};</script>""", WORKER_JS: _ON_MESSAGE}
+
+
+def _workers_after_rearm(page, site, rearmed: bool) -> list[str]:
+    lift(page)
+    page.evaluate("make()")
+    _settle(page, 1500)  # the service worker active
+    if rearmed:
+        submit_guard.rearm(page)
+    site.sent.clear()
+    site.bodies.clear()
+    page.evaluate("go()")
+    _settle(page, 2000)
+    return site.applications()
+
+
+@pytest.mark.parametrize("rearmed", [False, True])
+def test_a_worker_made_while_lifted_sends_nothing_once_rearmed(rearmed):
+    with cdp(LIFTED_WORKERS) as (page, _, site):
+        sent = _workers_after_rearm(page, site, rearmed)
+    assert (sent == []) == rearmed  # unrearmed, the page is Lisul's, and its workers send: the control
+
+
 def test_a_held_submit_stays_held_through_a_reload_and_a_script_that_sends_after_it():
     with cdp(HELD) as (page, _, site):
         lift(page, held="The legal name is wrong.")
@@ -959,7 +1197,7 @@ def _held_with_keeper(page, monkeypatch, name: str, seconds: float) -> keepalive
 
 
 def _held_seconds(page_name: str) -> float:
-    return max(7.0, SENDS_AFTER.get(page_name, 0) / 1000 + 6)
+    return max(7.0, DELAYS.get(page_name, 0) / 1000 + 6)
 
 
 @pytest.mark.parametrize("page_name", list(SESSION_PAGES))
@@ -982,6 +1220,51 @@ def test_the_stay_press_on_a_held_page_sends_nothing(page_name, monkeypatch):
 def test_the_stay_press_on_a_held_plain_page_sends_nothing(page_name, monkeypatch):
     with plain(PAGES[page_name]) as (page, _, site):
         keep = _held_with_keeper(page, monkeypatch, button(page_name), _held_seconds(page_name))
+        _settle(page, 1500)
+    assert site.applications() == []
+    assert "pressed the site's" in keep.line() and keep.holding()
+
+
+def _held_generically(page, monkeypatch, seconds: float) -> keepalive.Keeper:
+    """The page held by _Kept.hold for `seconds` on a site with no entry: the Keeper's generic rules as they are, with
+    a mouse move every second (no GET: the fake host is not on loopback)."""
+    from apply.rehearsal import _Kept
+
+    monkeypatch.setattr(keepalive, "LOOK_S", 0.25)
+    monkeypatch.setattr(keepalive, "PING_S", 1.0)
+    monkeypatch.setattr(keepalive, "ANY", dataclasses.replace(keepalive.ANY, ping=False))
+    keep = keepalive.Keeper("Acme", lambda why: None, sites=())
+    kept = _Kept(_OnePage(page), 0)
+    with kept.open(HOST + START):
+        release = threading.Event()
+        timer = threading.Timer(seconds, release.set)
+        timer.start()
+        try:
+            kept.hold(release, keep=keep)
+        finally:
+            timer.cancel()
+    return keep
+
+
+@pytest.mark.parametrize("page_name", list(GENERIC_SESSION_PAGES))
+def test_the_generic_stay_press_on_a_held_page_sends_nothing(page_name, monkeypatch):
+    """A site with no entry (KAN-779): the generic rules press only what passes STAY, with the guards back on, and
+    then hold Submit, the guard whole, however long the page waits to send, until Dismiss."""
+    with cdp(PAGES[page_name]) as (page, _, site):
+        keep = _held_generically(page, monkeypatch, _held_seconds(page_name))
+        _settle(page, 1500)
+    assert site.applications() == []
+    pressed = page_name in GENERIC_PRESSED  # the rest get no press at all
+    assert ("pressed the site's" in keep.line()) is pressed
+    assert bool(keep.holding()) is pressed  # still held: only Dismiss gives Submit back
+
+
+@pytest.mark.parametrize("page_name", ["a generic session dialog whose I'm still here sends after 3.5 s",
+                                       "a generic session dialog whose I'm still here sends after the next mouse move",
+                                       "a generic session dialog whose page dismisses the hold itself"])
+def test_the_generic_stay_press_on_a_held_plain_page_sends_nothing(page_name, monkeypatch):
+    with plain(PAGES[page_name]) as (page, _, site):
+        keep = _held_generically(page, monkeypatch, _held_seconds(page_name))
         _settle(page, 1500)
     assert site.applications() == []
     assert "pressed the site's" in keep.line() and keep.holding()
@@ -1085,7 +1368,7 @@ def plain(pages: dict[str, str]):
 
 
 PLAIN_PATHS = ["plain code's Next", "the Amazon Filler's Continue", "the profile click", "the account click", "Ask Claude's press of a listed step",
-               "the keep-alive's stay press"]
+               "the keep-alive's stay press", "the keep-alive's generic stay press"]
 
 
 @pytest.mark.parametrize(("page_name", "path"), plain_pairs_on_prs(PLAIN_PATHS))
@@ -1099,6 +1382,20 @@ def test_no_click_path_sends_a_hostile_page_on_a_plain_worker(page_name, path):
         _then(page, page_name)
         _settle(page)
     assert site.applications() == []
+
+
+@ONE_PLAIN_PROCESS
+def test_ashbys_own_queries_and_saves_go_through_on_a_plain_worker():
+    # The rule on workers' requests to Ashby's GraphQL (WORKER_RULES) holds no request of the tab's own.
+    with plain(_ashby_own_page()) as (page, _, site):
+        assert _ashby_own_sent(page, site) == sorted(ASHBY_OWN)
+
+
+@ONE_PLAIN_PROCESS
+def test_a_worker_made_while_lifted_sends_nothing_once_rearmed_on_a_plain_worker():
+    with plain(LIFTED_WORKERS) as (page, _, site):
+        sent = _workers_after_rearm(page, site, True)
+    assert sent == []
 
 
 @pytest.mark.parametrize("path", list(TYPING))
@@ -1122,8 +1419,10 @@ def test_no_typing_path_sends_a_hostile_page_on_a_plain_worker(page_name, path):
 SW = "/hostile-sw/sw.js"  # its own scope, so no other test's page is under it
 LATE_SW = {
     START: f"""<title>Apply</title><form><input name=first value=Test><button id=b type=button>Next</button></form>
-        <script>const reg = navigator.serviceWorker.register('{SW}');
-        document.getElementById('b').addEventListener('click', () => reg.then((r) => (r.active || r.waiting || r.installing).postMessage('go')));
+        <script>try {{ navigator.serviceWorker.register('{SW}').catch(() => {{}}); }} catch (e) {{}}
+        // Reached by its registration, which a guarded page still has (KAN-791's guard refuses only a new one).
+        document.getElementById('b').addEventListener('click', () => navigator.serviceWorker.getRegistration('{SW}')
+          .then((r) => (r.active || r.waiting || r.installing).postMessage('go')));
         </script>""",
     SW: f"""self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('message', (e) => e.waitUntil(new Promise((done) => setTimeout(() =>
@@ -1138,23 +1437,39 @@ POPUP_WORKER = {
 }
 
 
+def _fresh(page, url: str) -> None:
+    """No guard left in the run's one plain Worker (an earlier test's scripts, or a closed tab's rules on -1, would
+    stop a control), then the page."""
+    plain_guards.reset(page.worker)
+    page.goto(url)
+
+
+def _press(page, drive) -> None:
+    """The Next: plain code's on a guarded page, else a plain click (no drive guard to refuse the page's workers)."""
+    try:
+        plain_next(page, drive, "Next") if drive else page.get_by_role("button", name="Next").click()
+    except Handoff:
+        pass  # the step stays: its Next sends nothing the form shows
+
+
 def _late_sw(guarded: bool) -> list[str]:
     _plain_or_skip()
     from plain_fakes import fake_page
 
     site = Site(LATE_SW)
-    with fake_page(site.handle, url=HOST + START) as page:
+    with fake_page(site.handle) as page:
+        _fresh(page, HOST + START)
+        _settle(page, 1500)  # the service worker installed
         if guarded:
             guard(page)
-        _settle(page, 1500)  # the service worker installed
-        try:
-            plain_next(page, DriveGuard(page), "Next")
-        except Handoff:
-            pass  # the step stays: its Next sends nothing the form shows
+        _press(page, DriveGuard(page) if guarded else None)
+        worker = page.worker
         page.close()  # the last guarded tab: its worker lives on
     deadline = time.monotonic() + 8
     while not site.applications() and time.monotonic() < deadline:
         time.sleep(0.2)
+    if guarded:  # the set stays on -1 for it
+        assert worker.call("guard.status")["rules"] == len(plain_guards.RULES) + len(plain_guards.WORKER_RULES)
     return site.applications()
 
 
@@ -1163,15 +1478,18 @@ def _popup_worker(guarded: bool) -> list[str]:
     from plain_fakes import fake_page
 
     site = Site(POPUP_WORKER)
-    with fake_page(site.handle, url=HOST + START) as page:
+    with fake_page(site.handle) as page:
+        _fresh(page, HOST + START)
         if guarded:
             guard(page)
         page.on("request", lambda request: None)  # as Workday's _send listens on its account click
-        try:
-            plain_next(page, DriveGuard(page), "Next")
-        except Handoff:
-            pass  # the step stays: its Next sends nothing the form shows
+        before = {t["tab"] for t in page.worker.call("tabs.query")}
+        _press(page, DriveGuard(page) if guarded else None)
         _settle(page, 4000)
+        opened = [t["tab"] for t in page.worker.call("tabs.query") if t["tab"] not in before]
+        assert opened, "no pop-up opened"
+        if guarded:  # the opener's rules on it (the guard script, since KAN-791, refuses its worker too)
+            assert all(page.worker.call("guard.status", tab=t)["rules"] == len(plain_guards.RULES) for t in opened)
     return site.applications()
 
 
