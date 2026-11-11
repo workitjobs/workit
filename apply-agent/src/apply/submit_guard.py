@@ -135,19 +135,25 @@ _TEMPLATE = r"""
   };
   // Lisul's press on a lifted page was a sign-in, account or code step's, never the application's Submit (KAN-688,
   // KAN-781): Workday's Sign in with email names its button Submit, and Oracle's code step is a form of six digit
-  // boxes with a "Send New Code" button. Read from the page, never from the words alone:
-  // - a shown password or code box is in the button's own form (Oracle's steps are forms): a code box by its autocomplete,
-  //   name, id, class, label or placeholder (never a postal code), or a row of four or more one-digit boxes;
-  // - and either the page shows no answer field (a file, a long answer, a list, a choice), or the button's words
-  //   name that code or sign-in themselves ("Send New Code", "Verify"; Oracle's inline code step sits on the form).
-  // A press whose words name the application, or also say submit, finish or complete with an answer field shown,
-  // is always his Submit. A confirmation page after any press of his still ends Resume (rehearsal._Kept.hold).
-  const CODE_WORDS = /one[-_ ]?time|(^|[^a-z])otp([^a-z]|$)|passcode|pin[-_ ]?code|(verification|security|access|login|sign[-_ ]?in)[-_ ]?code/i;
-  const AUTH_WORDS = /\b(code|passcode|otp|pin|password|verify|verification|sign[- ]?in|log[- ]?in)\b/i;
-  const NOT_AUTH = /\b(submit|finish|complete|appl(?:y|ying|ication))\b/i;
+  // boxes (autocomplete off) with a "Send New Code" button. Read from the button's own form, never the words alone.
+  // A sign-in step's form holds nothing an application asks:
+  // - a login: password boxes, and at most one other box beside them (the email or username);
+  // - a code step: a one-time-code box (by its autocomplete) or a row of four or more one-digit boxes,
+  //   and no other box;
+  // and the page shows no answer field (a file, a long answer, a list, a choice). A box named for a code (an access,
+  // security or PIN code: an Indian address's postal code) is an application's box, never a sign-in's on its own.
+  // The one exception: a button whose words name the code ("Send New Code", "Verify"), and no submit, finish,
+  // complete or application, in a form with a one-time-code box or a row of digit boxes (Oracle's inline code step,
+  // on the application's own form). A press whose words name the application, or on no form, is always his Submit.
+  // A confirmation page after any press of his still ends Resume (rehearsal._Kept.hold).
+  const CODE_PRESS = /\b(code|passcode|otp|verify|verification)\b/i;
+  // Words that send the application: submit, finish, complete, apply, or a send that sends no code ("Verify and Send").
+  const NOT_AUTH = /\b(submit|finish|complete|appl(?:y|ying|ication))\b|\bsend\b(?!\s+(?:(?:me|a|an)\s+)*(?:new|another)?\s*(?:code|passcode|otp|verification))/i;
   const shownBox = (n) => n.type !== 'hidden' && (!n.checkVisibility || n.checkVisibility());
-  const codeBox = (n) => n.autocomplete === 'one-time-code' || CODE_WORDS.test([n.name, n.id, String(n.className || ''),
-    n.getAttribute('aria-label'), n.placeholder].filter(Boolean).join(' '));
+  const typedBox = (n) => !/^(hidden|checkbox|radio|submit|button|reset|image|file)$/.test(n.type);
+  // One box of a code's row: one character long, or numeric and named a digit (Oracle's has no maxlength).
+  const digitBox = (n) => n.maxLength === 1 || (n.inputMode === 'numeric'
+    && /digit|pin-code/i.test([n.id, String(n.className || ''), n.getAttribute('aria-label')].join(' ')));
   // A file box or a choice is often drawn hidden behind a styled control; a long answer or a list is counted only when
   // shown (a captcha's hidden response box is a textarea).
   const answerField = (n) => /^(file|radio)$/.test(n.type) || n.getAttribute('role') === 'radio' || shownBox(n);
@@ -156,13 +162,18 @@ _TEMPLATE = r"""
     if (/\bappl(?:y|ying|ication)\b/i.test(words)) return false;
     const form = el.form || (el.closest && el.closest('form'));
     if (!form) return false;  // a button on no form is the application's, as before (KAN-688)
-    const boxes = [...form.querySelectorAll('input')].filter(shownBox);
-    const marked = boxes.some((n) => n.type === 'password' || codeBox(n))
-      || boxes.filter((n) => n.maxLength === 1).length >= 4;
-    if (!marked) return false;
-    const answers = [...document.querySelectorAll('input[type=file], input[type=radio], [role=radio], textarea, select, '
-      + '[contenteditable]:not([contenteditable=false])')].some(answerField);
-    return !answers || (AUTH_WORDS.test(words) && !NOT_AUTH.test(words));
+    const boxes = [...form.querySelectorAll('input')].filter((n) => typedBox(n) && shownBox(n));
+    const codes = boxes.filter((n) => n.autocomplete === 'one-time-code');
+    const digits = boxes.filter(digitBox);
+    const row = digits.length >= 4 ? digits : [];
+    const code = codes.length > 0 || row.length > 0;
+    if (code && CODE_PRESS.test(words) && !NOT_AUTH.test(words)) return true;
+    if ([...document.querySelectorAll('input[type=file], input[type=radio], [role=radio], textarea, select, '
+      + '[contenteditable]:not([contenteditable=false])')].some(answerField)) return false;
+    const passwords = boxes.filter((n) => n.type === 'password');
+    const rest = boxes.filter((n) => n.type !== 'password' && !codes.includes(n) && !row.includes(n));
+    if (passwords.length) return rest.length <= 1;
+    return code && rest.length === 0;
   };
   // Plain code's click on the button of a profile step before the application (Microsoft's
   // "Create your profile" pop-up names its button Submit, live: KAN-647).

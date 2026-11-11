@@ -671,6 +671,8 @@ def test_a_second_form_sent_in_with_into_is_guarded_beside_a_held_one():
 # never pass the application's own final Submit off as one. Lifted, nothing stops the press: what is at stake is
 # whether Apply would fill a form he sent. Each page's #b is the application's final button, and it must be heard as
 # his Submit (account False); a confirmation page after it still ends Resume (rehearsal._Kept.hold).
+_CONTACT = "<label>First name <input name=first value=Test></label><label>Email <input type=email name=email></label>" \
+    "<label>Phone <input type=tel name=phone></label>"
 _ANSWERS = "<label>Resume <input type=file name=resume></label><textarea name=why>Because</textarea>"
 HIS_SUBMITS = {
     # A password box in the Submit's own form, the answers beside it on the page.
@@ -691,20 +693,40 @@ HIS_SUBMITS = {
     # A postal code is no sign-in code.
     "a final Submit beside a postal code box": """<form><label>Postal code <input name=postal_code placeholder="Zip code"></label>
         <button id=b type=button>Submit</button></form>""",
+    # The adversarial review of #545: a short application of text boxes beside one box that looks like a sign-in's.
+    "a final Submit beside an access code box": f"""<form>{_CONTACT}<label>Access code <input name=access_code></label>
+        <button id=b type=button>Submit</button></form>""",
+    "a final Submit beside an Indian address's PIN code": f"""<form>{_CONTACT}<label>PIN code <input name=pin_code></label>
+        <button id=b type=button>Submit</button></form>""",
+    "a final Submit beside a texted security code box": f"""<form>{_CONTACT}<input name=security_code
+        placeholder="Security code we texted you"><button id=b type=button>Submit</button></form>""",
+    "a final Submit beside four one-character boxes": f"""<form>{_CONTACT}{'<input maxlength=1>' * 4}
+        <button id=b type=button>Submit</button></form>""",
+    "a final Submit in an application that makes an account": f"""<form>{_CONTACT}<input type=password value=x>
+        <button id=b type=button>Submit</button></form>""",
+    "Verify and Send beside an answer and a password box": """<form><textarea name=why>Because</textarea>
+        <input type=password value=x><button id=b type=button>Verify and Send</button></form>""",
+    "Verify and Send beside a one-time code box": f"""<form>{_CONTACT}<input autocomplete=one-time-code>
+        <button id=b type=button>Verify and Send</button></form>""",
+    "a final Submit beside numeric boxes": f"""<form>{_CONTACT}{'<input inputmode=numeric>' * 4}
+        <button id=b type=button>Submit</button></form>""",
     # Answers drawn as a choice hidden behind styled labels, and a code box: still the application.
     "a final Send beside a code box and hidden choices": """<form><input type=radio name=auth style="opacity:0;position:absolute"
         hidden><input name=verification_code><button id=b type=button>Send</button></form>""",
 }
+# Oracle's code boxes as its Candidate Experience draws them: numeric, autocomplete off, no maxlength.
+_PIN = "".join(f'<input class="input-row__control pin-code-input__input" type=text inputmode=numeric autocomplete=off '
+               f'pattern="[0-9]*" id=pin-code-{n} aria-label="Enter verification code digit {n} of six.">' for n in range(1, 7))
 # Sign-in, account and code steps whose button says it sends: heard as such (account True), so Resume goes on.
 SIGN_INS = {
     "Workday's Sign in with email": """<form><input type=email value=t@example.com><input type=password value=x>
         <button id=b type=button>Submit</button></form>""",
-    "Oracle's code step's Send New Code": """<form class=pin-code-verification>""" + "".join(
-        f'<input class="pin-code-input__input" autocomplete=off maxlength=1 id=pin-code-{n}>' for n in range(1, 7))
+    "Oracle's code step's Send New Code": """<form class=pin-code-verification>""" + _PIN
         + """<button type=submit><span>Verify</span></button><button id=b type=button>Send New Code</button></form>""",
-    "Oracle's inline code step beside the answers": f"""<form>{_ANSWERS}</form><form class=pin-code-verification>"""
-        + "".join(f'<input class="pin-code-input__input" maxlength=1 aria-label="Verification code digit {n}.">' for n in range(1, 7))
-        + """<button id=b type=button>Send New Code</button></form>""",
+    "Oracle's code step's Submit": """<form class=pin-code-verification>""" + _PIN
+        + """<button id=b type=submit><span>Submit</span></button></form>""",
+    "Oracle's inline code step on the application's form": f"""<form>{_CONTACT}{_ANSWERS}<div class=pin-code-form>{_PIN}
+        <button id=b type=button>Send New Code</button></div></form>""",
     "a code form's Submit": """<form><input autocomplete=one-time-code><button id=b type=button>Submit</button></form>""",
 }
 

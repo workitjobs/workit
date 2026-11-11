@@ -961,7 +961,8 @@ ORACLE_PIN = """<form class="pin-code-verification" onsubmit="return false"><p>W
   <button type="submit" class="apply-flow-dialog__button" onclick="{verified}"><span class="button__label">Verify</span></button>
   <button class="pin-code-form__action-button" type="button">Send New Code</button></form>""".format(
     boxes="".join(f'<div class="pin-code-input__segment"><input class="input-row__control pin-code-input__input" type="text" '
-                  f'inputmode="numeric" autocomplete="off" maxlength="1" id="pin-code-{n}"></div>' for n in range(1, 7)),
+                  f'inputmode="numeric" autocomplete="off" pattern="[0-9]*" id="pin-code-{n}" '
+                  f'aria-label="Enter verification code digit {n} of six."></div>' for n in range(1, 7)),
     verified="document.body.innerHTML = T.form")
 ORACLE_FORM = """<h2>Contact Information</h2><form onsubmit="return false"><label>First Name <input></label>
   <label>Resume <input type="file"></label><textarea aria-label="Why us?"></textarea>
@@ -972,9 +973,10 @@ ORACLE = f"""<form onsubmit="return false"><h1>Enter your email to get started</
     onclick="document.body.innerHTML = T.pin"><span>Next</span></button></form>
   <template id="pin">{ORACLE_PIN}</template><template id="form">{ORACLE_FORM}</template>
   <script>const T = {{pin: pin.innerHTML, form: form.innerHTML}}; pin.remove(); form.remove();</script>"""
-# Oracle's inline code step: the code boxes on the application's own first section, beside its answers.
-ORACLE_INLINE = f"""<h2>Contact Information</h2><form onsubmit="return false"><label>Resume <input type="file"></label>
-  <textarea aria-label="Why us?"></textarea></form>{ORACLE_PIN.replace("onclick=", "data-x=")}"""
+# Oracle's inline code step: the code boxes inside the application's own first section, beside its answers.
+ORACLE_INLINE = """<h2>Contact Information</h2><form onsubmit="return false"><label>First Name <input></label>
+  <label>Resume <input type="file"></label><textarea aria-label="Why us?"></textarea>{}</form>""".format(
+    ORACLE_PIN.replace("onclick=", "data-x=").replace("<form", "<div").replace("</form>", "</div>"))
 
 
 def lisul_signs_in_to_oracle(monkeypatch, then: tuple[str, ...] = ()):

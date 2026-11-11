@@ -88,16 +88,22 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
   JPMorgan's Oracle, live (2026-11-10): Oracle's code step is a form of six
   one-digit boxes with `autocomplete=off`, and its "Send New Code" says send,
   so his sign-in there was taken for his Submit, and Resume was refused. The
-  check reads the page, never the words alone: a shown password or code box
-  in the button's own form (a button on no form is the application's; a code box by its name, id, class, label or
-  placeholder, never a postal code; or a row of four or more one-digit
-  boxes), and either no answer field on the page (a file, a long answer, a
-  list, a choice) or words that name the code or sign-in themselves ("Send
-  New Code", for Oracle's code boxes inline on the form). Words that name
-  the application, or also say submit, finish or complete beside an answer
-  field, are always his Submit. A confirmation page after any press of his
-  still ends Resume. Hostile pages (`test_submit_guard_hostile.py`,
-  `HIS_SUBMITS`) dress a final Submit as a sign-in; each must stay his Submit.
+  check reads the button's own form, never the words alone. A sign-in step's
+  form holds nothing an application asks: a login is password boxes and at
+  most one other box (the email or username); a code step is a
+  one-time-code box (by its autocomplete) or a row of four or more one-digit
+  boxes (Oracle's are numeric and named a digit, with no maxlength), and no
+  other box. The page must also show no answer field (a file, a long answer,
+  a list, a choice). A box named for a code is an application's box on its
+  own: an access code, a security code, or a PIN code (an Indian address's
+  postal code; the adversarial review of #545). One exception: a button
+  whose words name the code ("Send New Code", "Verify") and nothing that
+  sends the application, in a form with a code box or a row of digit boxes,
+  is a sign-in press beside answers too (Oracle's inline code step). Words
+  that name the application, and a button on no form, are always his
+  Submit. A confirmation page after any press of his still ends Resume.
+  Hostile pages (`test_submit_guard_hostile.py`, `HIS_SUBMITS`) dress a
+  final Submit as a sign-in; each must stay his Submit.
 - Apply asks a site for a verification code or link once per sign-in and
   never clicks Resend or Send New Code (`accounts.Accounts._wait`): a mail
   that hasn't come in about 2 minutes goes to Needs you ("Type the emailed
