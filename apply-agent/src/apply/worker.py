@@ -269,7 +269,12 @@ class ResumeCheck:
 
     def __init__(self, filler):
         self._blocked = getattr(filler, "resume_blocked", None)
-        self.signed_in = getattr(filler, "signed_in", None)
+        self._filler = filler
+
+    @property
+    def signed_in(self):
+        """Read at the pause, not before: Claude fill's check depends on where it stopped (KAN-763)."""
+        return getattr(self._filler, "signed_in", None)
 
     def __call__(self, page) -> str:
         return self._blocked(page) if self._blocked else ""

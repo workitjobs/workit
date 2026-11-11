@@ -91,10 +91,12 @@ class ApiError extends Error {
  * in this file, `.arrayBuffer()` for the one that returns a file
  * (getResumeFileBytes). Every call names the extension's version (the API
  * answers 426 below its minimum) and fails after `timeoutMs` (KAN-466).
+ * With `renew` false, a 401 is the caller's: no refresh, no retry (the Rules
+ * table's fetch, whose 401 is most often an expired site token, rules.js).
  * @param {string} path
- * @param {RequestInit & { timeoutMs?: number }} [options]
+ * @param {RequestInit & { timeoutMs?: number, renew?: boolean }} [options]
  */
-async function apiRequest(path, { timeoutMs = TIMEOUT_MS, ...init } = {}) {
+async function apiRequest(path, { timeoutMs = TIMEOUT_MS, renew = true, ...init } = {}) {
   const session = await getSession();
   if (!session) throw new ApiError(401, "Not signed in");
 
@@ -114,7 +116,7 @@ async function apiRequest(path, { timeoutMs = TIMEOUT_MS, ...init } = {}) {
   let response = await send(session.access_token);
   // A refused token (expired early, or revoked): the webapp refreshes the session once, forced since the
   // token may be far from its expiry (auth.js), then one retry.
-  if (response.status === 401) {
+  if (response.status === 401 && renew) {
     const renewed = await refreshSession(session, { force: true });
     if (!renewed) throw new ApiError(401, "Not signed in");
     if (renewed.access_token !== session.access_token) response = await send(renewed.access_token);
@@ -614,6 +616,28 @@ export async function sendFillReport(report) {
 /** POST /fill-events — one fill's numbers (KAN-476), as background/fill-events.js builds them. */
 export async function sendFillEvent(event) {
   return apiFetch("/fill-events", { method: "POST", body: JSON.stringify(event) });
+}
+
+// The Rules table's calls (KAN-756's contract, rules.js): never a fill's wait, so they give up sooner.
+const RULES_TIMEOUT_MS = 10_000;
+
+/**
+ * POST /extension/rules/token — a site token for the job system of the
+ * posting at `url`: `{ token, job_system, expires_at, expires_in }`.
+ * @param {string} url
+ */
+export async function rulesToken(url) {
+  return apiFetch("/extension/rules/token", { method: "POST", body: JSON.stringify({ url }), timeoutMs: RULES_TIMEOUT_MS });
+}
+
+/**
+ * GET /extension/rules — the Rules table for the site token's job system, as
+ * the engine's loadRules takes it. A 401 (the site token expired, or the
+ * session) is the caller's: it asks for a new token, which renews the session.
+ * @param {string} token
+ */
+export async function rulesTable(token) {
+  return apiFetch("/extension/rules", { headers: { "X-WorkIt-Site-Token": token }, timeoutMs: RULES_TIMEOUT_MS, renew: false });
 }
 
 /**

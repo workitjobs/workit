@@ -58,7 +58,7 @@ from urllib.parse import urlsplit
 
 from playwright.sync_api import Locator, Page
 
-from apply import captcha, description, fill_engine, on_page
+from apply import captcha, description, fill_engine, on_page, provider_sign_in
 from apply.account_pages import FIELDS as ACCOUNT_FIELDS
 from apply.account_pages import PROMPT as ACCOUNT_PROMPT
 from apply.account_pages import SENDS, AccountPages
@@ -331,7 +331,8 @@ class ClaudeFill:
         self._url = ""  # the Posting's, to go back to once a mailed link is opened
         self._resume = resume
         self._sign_in = sign_in
-        self.signed_in = signed_in  # whether a page is past `sign_in`'s sign-in (Oracle's), for a paused rehearsal
+        self._signed_in = signed_in  # whether a page is past `sign_in`'s sign-in (Oracle's), for a paused rehearsal
+        self._at_provider = False  # the last drive stopped at a provider sign-in (KAN-763), till the next drive
         self._opt_ins = {"sms_opt_in": sms_opt_in, "marketing_opt_in": marketing_opt_in}
         self._max_turns = max_turns
         self._max_steps = max_steps
@@ -396,6 +397,12 @@ class ClaudeFill:
         if found.get("page") == "not a job posting":
             raise NotAPosting(why or "the page is no one job posting")
         return questions
+
+    @property
+    def signed_in(self) -> Callable[[Page], bool] | None:
+        """A paused rehearsal's check that the page is past its sign-in, so it goes on by itself (KAN-670): the
+        provider sign-in's (apply.provider_sign_in) while the fill waits at one, else `sign_in`'s own, else None."""
+        return provider_sign_in.signed_in if self._at_provider else self._signed_in
 
     def resumed(self, page: Page) -> dict:
         """Lisul pressed Resume on the stop (the Worker calls this on his Resume alone, never on Fill again): the step
@@ -743,6 +750,7 @@ class ClaudeFill:
         and drives once more (`told`), and a second such stop is a Handoff, never a captcha wait (KAN-760)."""
         if self._guard is None:
             self._guard = DriveGuard(page, **self._opt_ins)
+        self._at_provider = False
         self._guard.arm()
         if not self._sessions and self._url and _unhashed(page.url) == _unhashed(self._url) and _opens_only(self._url):
             self._guard.let_start_click()  # the Posting's own page, untouched yet: its Apply may open the form (KAN-725)
@@ -782,6 +790,9 @@ class ClaudeFill:
             says = bool(captcha.SAYS_CAPTCHA.search(why))
             if captcha.shows(page) or (says and captcha.unsolved(page)):  # seen by code: Lisul does it; the Worker drives on
                 raise Captcha(f"Claude fill can't finish this form: {why}", page)
+            if providers := provider_sign_in.shows(page):  # Microsoft Careers' (KAN-763): the applicant's to sign in
+                self._at_provider = True
+                raise Handoff(provider_sign_in.handoff(providers, self.names[0] or urlsplit(page.url).hostname or "The site"))
             if says and not told:  # Claude's word alone: an invisible captcha's closed frame, say (JPMorgan's Oracle form)
                 print("Claude fill stopped for a captcha that shows to no one on the page; it goes on.", file=sys.stderr)
                 return self._drive(page, system, f"{NO_CAPTCHA}\n{prompt}", schema, files, told=True)

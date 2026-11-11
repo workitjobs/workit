@@ -28,6 +28,11 @@ window.WIA = window.WIA || {};
   if (fillOwns()) return;
   const where = await send({ type: "panel/where" });
   if (!where?.job || where.batch || fillOwns()) return;
+  // The job system's Rules table panel/where started fetching (background/rules.js): kept in this world's memory
+  // for the fill's injection, should Chrome stop the background before the student fills. Never waited for.
+  void send({ type: "rules/get" }).then((answer) => {
+    if (answer?.rules) window.WIA.rules = answer.rules;
+  });
   if (!window.WIA.panel && !(await send({ type: "panel/shell" }))?.loaded) return;
   const panel = window.WIA.panel;
   await panel.where(where);

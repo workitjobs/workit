@@ -2,7 +2,8 @@
 // to load, then for its form to show. Both watch events, never
 // requestAnimationFrame, which a hidden tab does not run.
 
-import { ENGINE_FILES } from "../shared/content-scripts.js";
+import { ENGINE_FILES, loadRulesIn } from "../shared/content-scripts.js";
+import { rulesFor } from "./rules.js";
 
 const LOAD_TIMEOUT_MS = 30_000;
 
@@ -134,6 +135,7 @@ export function waitForLoad(tabId) {
  */
 export async function forgetWorkableDraft(tabId, { onlyIfDraft = false } = {}) {
   await chrome.scripting.executeScript({ target: { tabId }, world: "MAIN", files: ENGINE_FILES });
+  await loadRulesIn({ tabId }, await rulesFor("workable", null).catch(() => null));
   const [{ result: draft }] = await chrome.scripting.executeScript({ target: { tabId }, world: "MAIN", args: [onlyIfDraft], func: (onlyIfDraft) => {
     const draft = globalThis.FillEngine.forgetDrafts("workable");
     // Workable may save the form again before the page goes (its draft of what it restored): forgotten then too.

@@ -17,6 +17,9 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
   more, and a second such stop is a Handoff (`UNSEEN_CAPTCHA`). The rules
   tell Claude that an invisible captcha's frame or its words in the
   snapshot ("Please try again", "Verify") don't stop it.
+- Claude's "blocked" on a page that shows a provider sign-in ("Sign in using Google" and the like) is
+  a Needs sign-in Handoff, read by plain code, never Claude's free-text reason (KAN-763,
+  `docs/sign-in.md`). Its pause goes on by itself once Lisul signs in.
 - Only what the drive guard blocked during that drive stops it. A block of
   an earlier drive was its Handoff already: after Lisul's Resume, the next
   read or fill goes on (LinkedIn's SmartRecruiters page posts a form of its
