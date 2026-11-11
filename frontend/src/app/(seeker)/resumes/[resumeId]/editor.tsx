@@ -213,7 +213,9 @@ const EXPERIENCES_MARK = (
  *  marks AI alone (`docs/design.md`, Brand and icons). */
 const SECTIONS_MARK = (
   <span className="bg-brand-tint text-brand rounded-control flex size-8 shrink-0 items-center justify-center">
-    <ListDashesIcon aria-hidden className="size-4.5" weight="duotone" />
+    {/* Regular, as on its toolbar button: the duotone fills a block behind
+        the lines that reads as a second shape over them */}
+    <ListDashesIcon aria-hidden className="size-4.5" />
   </span>
 );
 const FORMAT_MARK = (
