@@ -84,9 +84,9 @@ reads that run outside these built-ins (PROFILE_DIALOG, evaluated on its own by 
 Ask's read) go through apply.natives, the same kind of built-ins; the drive guard takes them for Ask as it starts,
 and an evaluation on its own takes them as it runs. Each form post is judged again as it leaves, with
 the URL and entries it really carries; URLs resolve against the document's base; a button that holds a frame is
-never pressed. The drive guard's init script goes on at on_open, before each page's first load, in a live run too,
-lifted and deaf to any lift until a DriveGuard arms it, in every page of the context (a pop-up opened before it too:
-PR 477's third review); a copy put into a page that skipped it, after its
+never pressed. The drive guard's init script goes on at on_open, before each page's first load, in a live run and a
+rehearsal (and before guard()'s reload), lifted and deaf to any lift until a DriveGuard arms it, in every page of the
+context (a pop-up opened before it too: PR 477's third review); a copy put into a page that skipped it, after its
 code, takes no lift or allowance (LATE). XHR's and the beacon's form data is read by its entries, and a body to Ashby
 that can't be read at once (a Blob, a document) is not sent. What no guard can tell: a page's plain fetch, or a form's own hidden field, to a URL that names no
 submit is a save to any guard (a CDP Worker routes only URLs that name a submit; a plain Worker's rules block the
@@ -1483,8 +1483,9 @@ def on_open(page: Page) -> None:
     """A JobSite calls this between making a page and its first navigation. Inside guarding_on_open, the guard
     goes on then; guard() later sees it and needs no reload. Outside it (a live run's page), the drive guard's init
     script goes on then, so it runs before the page's code (PR 477's second review)."""
+    _drive_at_open(page)
     if not getattr(_opening, "on", False):
-        return _drive_at_open(page)  # a live run's page: no rehearsal's guard holds it
+        return  # a live run's page: no rehearsal's guard holds it
     setattr(page, REHEARSAL_AT_OPEN, True)
     if _plain(page):
         _plain(page).guard(page, reload=False)
@@ -1504,6 +1505,7 @@ def guard(page: Page) -> None:
     if getattr(page, GUARDED, False) or (not _plain(page) and getattr(page.context, GUARDED, False)):
         return
     setattr(page, REHEARSAL_AT_OPEN, True)
+    _drive_at_open(page)  # loaded again under it too: a DriveGuard never puts its copy in after the page's code
     if _plain(page):
         return _plain(page).guard(page)
     page.context.route(ROUTED, _refuse)
@@ -1513,9 +1515,11 @@ def guard(page: Page) -> None:
 
 
 def _drive_at_open(page) -> None:
-    """The drive guard's init script on a live run's page's context, before its first load (on_open), so it runs
-    before each document's code (PR 477's second review). It starts lifted, as no guard: a DriveGuard arms it, with
-    Lisul's opt-ins, by the control in the open documents and an init script for each one after. A plain Worker whose drive guard is armed already keeps
+    """The drive guard's init script on a page's context, before its first load (on_open, and guard()'s reload), so
+    it runs before each document's code (PR 477's second review), in a rehearsal too: a DriveGuard never puts its full
+    copy in after a page's code, which could hear its control's name there and lift it in each later document (PR
+    477's third review). It starts lifted, as no guard: a DriveGuard arms it, with Lisul's opt-ins, by the control in
+    the open documents and an init script for each one after. A plain Worker whose drive guard is armed already keeps
     it: its one registration is every tab's, so on_open's lifted copy would lift another form's (PR 477's third
     review), and a new tab there starts armed."""
     context = page.context

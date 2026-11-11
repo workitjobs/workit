@@ -172,6 +172,11 @@ into it and the window shows "Sample data".
   goes through `judged` (a throw blocks). A request's URL, method and body
   are read once, and what was judged is what is sent: an XHR keeps what its
   `open()` took, and one opened by no `open()` of the guard's is not sent.
+  The drive guard's init script goes on every page before its code (at
+  `on_open`, or before `guard()`'s reload), in a rehearsal too, and a
+  `DriveGuard` arms it in every page of the context: a copy put in after a
+  page's code let the page hear its control's name, and a pop-up opened
+  before the arm stayed lifted (PR 477's third review, `docs/claude-fill.md`).
 - **No test reaches past loopback** (`tests/network_block.py`, KAN-662). A
   socket or name lookup to another host raises `NetworkBlocked`, Chrome
   started by a test resolves other hosts to nothing, and Playwright's own
