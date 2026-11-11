@@ -143,16 +143,27 @@ them. `apply.plain.tile.PortFrames` is their frame source for the same
   Apply prints one line saying why.
 - **Filmed again (KAN-751).** A fallback is not for the rest of the run. A
   page's title and the title macOS lists for its window can disagree for a
-  while: amazon.jobs' sign-in redirects showed "Log in or create account |
-  Amazon.jobs" in the tab and "Amazon IdPrism" in the window for more than 3 s,
-  so the helper refused the window (KAN-717) and the tile stayed at 2 fps. Now
-  Apply tries filming again `RETRY` (5 s) after a fallback: `tile.start` with
+  while (a sign-in's redirects), and then the helper refuses the window
+  (KAN-717). Apply tries filming again `RETRY` (5 s) after a fallback: `tile.start` with
   `native: true`, the extension's `tile.shown` aims a new helper, and a verified
   frame keeps the tile filmed ("filmed again"). A try that fails falls back the
   same way and doubles the wait, up to `RETRY_MOST` (60 s); a filmed frame
   resets it. The tile keeps its last frame while a try waits, so it never
   blanks, and each try checks the window as strictly as the first. Only the
-  first fallback prints. Tests: `tests/test_plain_tile_refilm.py`. Clicks map by the frame's own size
+  first fallback prints. Tests: `tests/test_plain_tile_refilm.py`.
+- **An extension too old to film (KAN-764).** Since KAN-717 Apply films a
+  window only by its tab's title, and an extension from before KAN-717 sends
+  `tile.shown` with no `title`. Its helper is never aimed, so before KAN-764
+  every try waited 3 s and fell back, all run, with only "helper: never
+  aimed" to say why. That was the cause on amazon.jobs and JPMorgan
+  (2026-11-10): their Workers loaded a shared seed folder's copy from
+  KAN-645, and the hello's `features` (3) can't tell it from newer code. Now
+  a `tile.shown` with no `title` gives that tile the extension's frames at
+  once, with no retries. The tile says why and how to fix it (`UNTITLED`:
+  once no Worker runs, `uv run apply plain seed`), and Apply prints one line.
+  A new Connection (the extension reloaded, or the Worker started again) is
+  tried from the start.
+  Clicks map by the frame's own size
   (`page/tile.js` scales by `width` x `height`), so a 2x filmed frame and a 1x
   extension frame both land on the element under the pointer.
 - **Only its own window and tab (KAN-717).** A tile shows its own Worker's
@@ -340,7 +351,8 @@ What changes on a plain Worker:
   on there. See "The seed's guided setup" below.
 - **`apply doctor`** checks the Workers `worker_mode` runs: the CDP Worker profiles for `cdp`, the
   "Plain seed" line for `plain` (the seed exists, Load unpacked registered the worker extension in it,
-  and Developer mode is on), and both for `protected`. With `plain_chrome: testing` the seed line is ok.
+  that folder holds this checkout's extension code (KAN-764), and Developer mode is on), and both for
+  `protected`. With `plain_chrome: testing` the seed line is ok.
 - **Held Submit and the already-applied note** (KAN-629, KAN-621) work on plain pages:
   `submit_guard.lift(held=, dismiss=)`, `renote(held=)`, `warn_applied` and `applied_dismissed`
   hand over to `apply.plain.guards` (`guard.lift`'s `held` and `onlyLifted`, `guard.applied`). A
@@ -402,6 +414,25 @@ differs from its Apply's crashed the page guard. So:
   before any engine check. If it still reads no sets and its guard files are another Apply's,
   `launch` stops it with `launcher.OutOfDate` (a SetupError: the rehearsal's line says how to fix
   it), never a crash. Its refusal for another engine names the folder to update.
+- **A folder of older code is never silent (KAN-764).** A seed copied from another profiles folder
+  registers that folder's copy, and nothing kept it current: on 2026-11-10 every new Worker of
+  `profiles-jpm` loaded `~/.config/apply/profiles/worker-extension` from 5 days before, with older
+  guard, tile and typing code, at the same feature level as current code. Now:
+  - Before a Worker starts, Apply brings the folder it will load up to its own code
+    (`extension.refresh`): only a copy `install` made (it has `.apply-code`; a checkout is never
+    replaced), and only while no running Chrome loads it (`extension.loaders`: each browser
+    process's `--load-extension`, or its `--user-data-dir` profile's registration), of any
+    profiles folder. It says so in one line. The profiles folder's own copy is replaced under the
+    same rule. A running Worker's code still never changes.
+  - At each hello the bridge hashes the folder that Worker loads (`Bridge.code`,
+    `extension.code_hash`, the same hash `refresh` uses). Other code than this Apply's makes the
+    Connection `stale`, whatever its feature level: the tile shows `OUT_OF_DATE` and Apply prints
+    one line with the folder and the fix (`bridge.STALE_FIX`). The hash is taken by Apply, not sent
+    in the hello: old code could never send a new field, and Apply reads the very folder Chrome's
+    preferences name.
+  - `apply doctor` fails "Plain seed" when the seed's folder holds other code than the checkout's
+    (`doctor.STALE_SEED`).
+  - Tests: `tests/test_plain_stale_extension.py` (in CI) and `tests/test_doctor.py`.
 - Rolling it out: no running Worker is touched. When no plain Worker runs, `uv run apply plain
   seed` once: it shows the copy to load and checks it. New Worker profiles copy that seed; an
   existing idle `plain-<k>` profile keeps its old registration until it is deleted.

@@ -72,11 +72,11 @@ def test_a_tile_that_fell_back_is_filmed_again_once_macos_lists_the_tabs_title(m
     worker = amazon()
     with PortFrames(1, [worker].__getitem__, capture="native", chrome={0: 1000}.get) as frames:
         before = seen(frames, 0, 1.5)  # macOS still says "Amazon IdPrism": the helper refuses the window
-        fell_back = dict(frames.native), worker.started[-1]["native"]
+        fell_back = [started["native"] for started in worker.started][:2]  # a retry may have begun since: not later
         macos(TAB_TITLE)  # the redirects are over
         after = seen(frames, 0, 3)
 
-    assert before == [EXTENSION] and fell_back == ({}, False)
+    assert before == [EXTENSION] and fell_back == [True, False]
     assert after[-1] == FILMED and worker.started[-1]["native"] is True
 
 
@@ -111,3 +111,39 @@ def test_tries_after_a_fallback_never_show_another_chromes_window(macos, monkeyp
 
     assert BOFA not in shown and shown == [EXTENSION]
     assert sum(1 for started in worker.started if started["native"]) >= 2  # it did try again
+
+
+class Untitled(Worker):
+    """A Worker whose extension is from before KAN-717 (KAN-645's, as the JPMorgan rehearsal's was): its `tile.shown`
+    has no `title`, so no window of its can be verified and filmed."""
+
+    def send(self, event, **message):
+        message.pop("title", None) if event == "tile.shown" else None
+        super().send(event, **message)
+
+
+def test_an_extension_that_sends_no_tab_title_gets_the_extensions_frames_at_once_and_says_why(macos):
+    macos(TAB_TITLE)  # its window is titled as its tab: only the missing title stops filming
+    worker = Untitled(101, TAB_TITLE, {5: EXTENSION}, tab=5)
+    with PortFrames(1, [worker].__getitem__, capture="native", chrome={0: 1000}.get) as frames:
+        first = seen(frames, 0, 2)  # before FIRST_FRAME: no wait on a helper that can't be aimed
+        later = seen(frames, 0, 3)  # RETRY is 0.5 s here: still no try
+
+        assert first == [EXTENSION] and later == [EXTENSION]
+        assert [started["native"] for started in worker.started] == [True, False]
+        assert frames.native == {} and frames.notice(0) == tile.UNTITLED
+
+
+def test_a_reloaded_extension_that_sends_the_title_is_filmed(macos):
+    macos(TAB_TITLE)
+    old = Untitled(101, TAB_TITLE, {5: EXTENSION}, tab=5)
+    new = Worker(101, TAB_TITLE, {5: EXTENSION}, tab=5)
+    connected = [old]
+    with PortFrames(1, lambda k: connected[0], capture="native", chrome={0: 1000}.get) as frames:
+        before = seen(frames, 0, 1.5)
+        old.closed.set()
+        connected[0] = new  # extension.reload: a new Connection, from newer code
+        after = seen(frames, 0, 2)
+
+        assert before == [EXTENSION] and after[-1] == FILMED
+        assert frames.native == {0: True} and frames.notice(0) == ""
