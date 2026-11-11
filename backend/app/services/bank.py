@@ -235,8 +235,16 @@ async def load_bank(
     resume's own, `built_resume_id`, docs/tailor_resume.md) are not in the
     bank: they are left out unless their resume is in `local_to`, so the
     Experiences view, Generate, Scout, the recommender and the rest never
-    see one. Only a reader of that one resume names it (`load_view`)."""
-    rows = list(await session.scalars(select(Bank_Entry).where(Bank_Entry.applicant_id == applicant_id)))
+    see one. Only a reader of that one resume names it (`load_view`).
+
+    Ties fall back to the id, entries and skills alike, so the order is the
+    same on every read (KAN-444): Generate shows the first copy of an entry
+    or of a skill two uploads hold (`built_resumes.base_choices`), and its
+    duplicate check compares ids, so with no tiebreaker a second read could
+    pick the other copy and miss a duplicate."""
+    rows = list(await session.scalars(
+        select(Bank_Entry).where(Bank_Entry.applicant_id == applicant_id).order_by(Bank_Entry.id)))
+    # A stable sort: the id order stays among entries that tie
     rows.sort(key=_newest_first)
     bullets = await _bullets_of(session, [r.id for r in rows]) if rows else {}
     local = list(local_to)
@@ -246,7 +254,7 @@ async def load_bank(
             Bank_Skill.applicant_id == applicant_id,
             or_(Bank_Skill.built_resume_id.is_(None), Bank_Skill.built_resume_id.in_(local)),
         )
-        .order_by(Bank_Skill.group.asc().nulls_last(), func.lower(Bank_Skill.name))
+        .order_by(Bank_Skill.group.asc().nulls_last(), func.lower(Bank_Skill.name), Bank_Skill.id)
     )
     sections = await session.scalars(
         select(Bank_Custom_Section)

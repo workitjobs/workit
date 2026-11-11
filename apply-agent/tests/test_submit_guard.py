@@ -1269,7 +1269,8 @@ def test_a_widget_loading_into_its_own_frame_goes_through_the_drive_guard(action
         blocked = drive.blocked()
         browser.close()
     assert posts == ([action] if through else [])
-    assert ('the "Submit application" click' in blocked) and (("a form submission" in blocked) is not through)
+    form_blocked = any(b.startswith("a form submission") for b in blocked)
+    assert ('the "Submit application" click' in blocked) and (form_blocked is not through)
 
 
 # A TAL.net-style Employment step (Bank of America's, live 2026-11-06, KAN-728): its "Add another" posts the page to add a
