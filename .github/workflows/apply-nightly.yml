@@ -32,7 +32,7 @@ jobs:
           submodules: true
           fetch-depth: 0
           token: ${{ secrets.FILL_ENGINE_TOKEN }}
-      # ci.yml's extension-store-build job has this same step's comment.
+      # .github/CLAUDE.md says why (the pinned fill-engine commit).
       - name: Pin fill-engine to the commit this branch actually records
         working-directory: .
         run: |

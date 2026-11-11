@@ -58,7 +58,7 @@ The build first runs `npm ci` in `store/` for esbuild, which minifies every
 packaged script (KAN-744).
 
 **Without `FILL_ENGINE_TOKEN`, the engine's tests are skipped, never green.**
-`ci.yml`, `extension-nightly.yml` and `live-canary.yml` each first call
+`ci.yml`, `extension-nightly.yml`, `apply-nightly.yml` and `live-canary.yml` each first call
 `workflows/engine-token.yml` (a reusable workflow, job `engine`), which
 answers whether the secret is set and, when it isn't, writes "SKIPPED: ..."
 to its job summary and a warning. A job that needs the engine depends on it
@@ -113,8 +113,8 @@ gitlink `git ls-tree HEAD` actually records, then `git -C
 autofiller_extension/fill-engine fetch --depth 1 origin <that SHA> &&
 checkout --detach <that SHA>`. This is the "Pin fill-engine to the commit
 this branch actually records" step in `ci.yml` (`extension-store-build`,
-`extension`, `apply`), `extension-nightly.yml`, `live-canary.yml` and
-`publish-extension.yml` — six places, one pattern. If `actions/checkout`
+`extension`, `apply`), `extension-nightly.yml`, `apply-nightly.yml`,
+`live-canary.yml` and `publish-extension.yml` — seven places, one pattern. If `actions/checkout`
 ever fixes this upstream, these steps are redundant but harmless; don't
 remove them without confirming a real run's build log prints the version
 `git ls-tree HEAD` actually names, not just that the step exists.
@@ -165,6 +165,16 @@ job if the browser is missing, since these tests skip without it.
 `security` tool. The full suite takes more than 20
 minutes. Run the files that a change touches on a Mac, with `-k`
 (`apply-agent/CLAUDE.md`, Testing).
+
+Each test step has its own `timeout-minutes` and skips tests marked
+`nightly` (KAN-780). The fast tests and the hostile pages run in parallel
+(`pytest -n auto`, pytest-xdist); the plain-Worker tests run in one
+process, since each parallel process paid a 40 s Worker start and the
+typing tests' timing slipped. Before KAN-780 the job took 16 to 20 minutes,
+10 to 15 of them in the hostile pages' matrix. PRs now run every hostile
+page and every path at least once; `workflows/apply-nightly.yml` (07:53
+UTC, or `gh workflow run apply-nightly.yml`) runs every `nightly` test. A
+test safe only on its own (a fixed port or path) can't join a parallel step.
 
 The frontend job runs `format:check`, so an unformatted file fails the PR.
 Run `npm run format` before pushing. Markdown docs are in
