@@ -33,6 +33,7 @@ from app.services.resume_render import (
     EDUCATION_FIRST,
     FONT_FAMILIES,
     FONT_SIZES,
+    HEADER_FIELDS,
     HEADING_SIZES,
     LINE_SPACINGS,
     MARGINS,
@@ -47,6 +48,7 @@ from app.services.resume_render import (
     escape,
     jakes_document,
     render,
+    shown_header,
 )
 from app.services.resume_render.fields import (
     dates,
@@ -360,6 +362,38 @@ def test_the_header_says_us_citizen_only_when_checked() -> None:
         "full_name", "phone_number", "email", "linkedin_url", "github_url"}
 
 
+def test_the_header_prints_the_location_after_the_email() -> None:
+    # KAN-436: U.S. Citizen | phone | email | location | links
+    identity = replace(IDENTITY, location="Stony Brook, NY")
+    assert r"\underline{jake@su.edu}} $|$ Stony Brook, NY $|$ \href{https://linkedin.com/in/jake}" in jakes_body(
+        VIEW, identity, marks=False)
+    _tectonic_or_skip()
+    rendered = render(VIEW, identity, "jakes")
+    box = next(b for b in rendered.boxes if b.item_id == "header" and b.kind == "location")
+    assert box.text == "Stony Brook, NY"
+
+
+def test_a_hidden_header_field_does_not_print_on_that_resume() -> None:
+    identity = replace(IDENTITY, location="Stony Brook, NY")
+    page = PageSettings(hidden_header=("location", "phone_number", "github_url"))
+    tex = jakes_body(VIEW, shown_header(identity, page), marks=False)
+    assert "Stony Brook" not in tex and "123-456-7890" not in tex and "github.com/jake" not in tex
+    assert "jake@su.edu" in tex and "linkedin.com/in/jake" in tex
+    # render() and latex() hide them with no help from the caller
+    assert "Stony Brook" not in resume_render.latex(VIEW, identity, "jakes", page)
+    assert "Stony Brook" in resume_render.latex(VIEW, identity, "jakes")
+
+
+def test_the_hidden_header_fields_are_kept_in_one_order_and_checked() -> None:
+    assert PageSettings(hidden_header=["github_url", "phone_number"]).hidden_header == ("phone_number", "github_url")
+    with pytest.raises(ValueError):
+        PageSettings(hidden_header=("full_name",))
+    fields = ApiPageSettings.model_fields
+    assert set(get_args(get_args(fields["hidden_header"].annotation)[0])) == set(HEADER_FIELDS)
+    with pytest.raises(ValueError):
+        ApiPageSettings(hidden_header=["us_citizen"])
+
+
 def test_a_wrapped_bullet_box_covers_both_lines() -> None:
     _tectonic_or_skip()
     long = ViewBullet(uuid.uuid4(), "Mentored twelve first-year students in data structures and algorithms each "
@@ -457,6 +491,20 @@ def test_the_word_file_says_us_citizen_when_checked() -> None:
     doc = Document(io.BytesIO(render_docx(VIEW, replace(IDENTITY, us_citizen=True))))
     assert doc.paragraphs[1].text == (
         "U.S. Citizen | 123-456-7890 | jake@su.edu | linkedin.com/in/jake | github.com/jake")
+
+
+def test_the_word_file_prints_the_location_and_leaves_out_hidden_fields() -> None:
+    from docx import Document
+
+    from app.services.resume_render.word import render_docx
+
+    identity = replace(IDENTITY, location="Stony Brook, NY")
+    doc = Document(io.BytesIO(render_docx(VIEW, identity)))
+    assert doc.paragraphs[1].text == (
+        "123-456-7890 | jake@su.edu | Stony Brook, NY | linkedin.com/in/jake | github.com/jake")
+    page = PageSettings(hidden_header=("email", "linkedin_url"))
+    doc = Document(io.BytesIO(render_docx(VIEW, identity, page)))
+    assert doc.paragraphs[1].text == "123-456-7890 | Stony Brook, NY | github.com/jake"
 
 
 def test_the_word_file_prints_a_projects_tools_under_its_heading() -> None:

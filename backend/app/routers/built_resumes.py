@@ -612,7 +612,7 @@ async def render_edit(
 
 
 def _parse(line) -> resume_lines.Line:
-    parsed = resume_lines.parse(line.kind, line.text)
+    parsed = resume_lines.parse(line.kind, line.text, header=line.item_id == HEADER)
     if (parsed.target == "header") != (line.item_id == HEADER):
         raise resume_lines.LineError("This line is not typed here.")
     return parsed
@@ -627,6 +627,8 @@ def _with_header(identity: HeaderIdentity, changes: dict) -> HeaderIdentity:
         return dataclasses.replace(identity, name=name_columns(value)["full_name"])
     if field == "phone_number":
         return dataclasses.replace(identity, phone=value)
+    if field == "location":
+        return dataclasses.replace(identity, location=value)
     links = dict(identity.links)
     links[field] = value
     order = ("linkedin_url", "github_url", "portfolio_url", "other_url")

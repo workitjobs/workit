@@ -82,8 +82,10 @@ resume; KAN-207 renders the bank and retired the proof endpoint.
   `honors`, and a project's `tools` line. `fields.heading_fields()` says
   which field each heading slot shows. The header's boxes have `item_id` `HEADER` ("header", not a
   bank id) and the profile column as `kind`: `full_name`, `phone_number`,
-  `email`, `linkedin_url`, `github_url`, `portfolio_url`, `other_url`, which
-  is why `HeaderIdentity.links` carries each link's column. The `email` box
+  `email`, `location`, `linkedin_url`, `github_url`, `portfolio_url`,
+  `other_url`, which is why `HeaderIdentity.links` carries each link's
+  column. `location` is also an entry field's kind, so the box's item id
+  decides which it is (`resume_lines.parse(..., header=)`, KAN-436). The `email` box
   prints the profile's `email_for_employers`: the contact email, else the
   sign-in email (KAN-262). The editor never types it; My Profile sets it.
   **"U.S. Citizen"** (`fields.US_CITIZEN`) leads the contact line, PDF,
@@ -91,9 +93,25 @@ resume; KAN-207 renders the bank and retired the proof endpoint.
   answer bank's `work_authorization_status` is `us_citizen` (My Profile's
   Application Questions, onboarding's Profile step). It has
   no box, since the editor types only fields it can save. The line's
-  order is U.S. Citizen, phone, email, LinkedIn, GitHub, portfolio, other. A sent resume's
-  hash and snapshot leave `us_citizen` out while it is false
-  (`sent_resumes._identity`), so a resume sent before it still repeats.
+  order is U.S. Citizen, phone, email, location, LinkedIn, GitHub,
+  portfolio, other. **The location is the profile's** (`location`, KAN-436,
+  asked in onboarding and on My Profile): Simplify's header prints it, and
+  until KAN-436 a resume left it out though the profile held it. A sent
+  resume's hash and snapshot leave `us_citizen` out while it is false and
+  `location` while it is empty (`sent_resumes._identity`), so a resume sent
+  before either still repeats.
+  **A resume can hide any header field but the name and "U.S. Citizen"**
+  (`PageSettings.hidden_header`, from `HEADER_FIELDS`, KAN-436; the
+  editor's Header panel): the value stays on the profile for every other
+  resume. `shown_header(identity, page)` takes the hidden ones out, and
+  `_document()` and `word.render_docx` call it themselves, so no caller
+  can print a hidden field. The render still answers the whole identity
+  (`RenderResponse.identity`), so the editor's copy keeps a hidden value
+  and showing it again needs no read. A sent resume hashes and keeps only
+  the shown header, and leaves `hidden_header` out of its page: hiding a
+  field with no value changes nothing, and a hidden value never sits in a
+  snapshot. The list is kept in `HEADER_FIELDS`' order, so two resumes
+  hiding the same fields hash the same.
   The name's box
   reaches `NAME_ASCENT`/`NAME_DESCENT`, since it prints `\Huge`. The editor
   types them into the profile. The render route sends them as `RenderResponse.boxes`

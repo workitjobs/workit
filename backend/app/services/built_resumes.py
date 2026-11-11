@@ -969,6 +969,7 @@ async def load_header_identity(session: AsyncSession, applicant_id: uuid.UUID) -
             if (url := getattr(profile, field))
         ),
         us_citizen=answers.work_authorization_status == "us_citizen",
+        location=profile.location,
     )
 
 

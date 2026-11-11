@@ -75,6 +75,8 @@ def _header(identity: HeaderIdentity, marks: bool, printed: Printed, page: PageS
         contact.append(slot(
             "email", rf"\href{{mailto:{escape_url(identity.email)}}}{{\underline{{{email}}}}}", identity.email
         ))
+    if identity.location:
+        contact.append(slot("location", escape(identity.location), identity.location))
     contact += [
         slot(field, rf"\href{{{escape_url(u)}}}{{\underline{{{escape(link_text(u))}}}}}", link_text(u))
         for field, u in identity.links

@@ -3537,7 +3537,7 @@ student who opened a resume from Experiences landed on another view.
   title, organization, location, GPA, coursework and honors and a
   project's tools line (KAN-738, box kind `tools`, typed as a comma list
   that the API splits) change the bank (user story 61), and the header's
-  name, phone and links change the profile. A tools line has no Show/Hide:
+  name, phone, location and links change the profile. A tools line has no Show/Hide:
   emptied, it clears the project's tools, so it leaves every resume that
   shows the project. It never wraps (a heading's row), so it types in a
   one-line field. `model.ts`'s codecs say how each field reads and saves; a
@@ -3545,8 +3545,10 @@ student who opened a resume from Experiences landed on another view.
   covers the whole line. Dates and the degree line are built from several
   fields, so they are not typed here: the bar links to Experiences.
   The email is the sign-in address and is not typed either. A contact the
-  profile lacks has no line to click, so selecting the header puts "Add
-  Phone" and the next missing link in the bar. Picking a wording (bar or
+  profile lacks, or one this resume hides, has no line to click, so
+  selecting the header puts Edit Header in the bar, which opens the Header
+  panel (below). The bar's "Add Phone" and next-link fields went with it
+  (KAN-436): the panel holds every field. Picking a wording (bar or
   assistant) drops the typed draft, so the field shows the picked text.
   Escape, Done or Enter clears the selection (Enter saves first), and so
   does a press outside the page, the bar and the assistant (in Scout's
@@ -3648,6 +3650,25 @@ student who opened a resume from Experiences landed on another view.
   page. Cut From Resume lists everything it cut: entries and bullets by
   section, and skills in a Skills group, a card a skill group, each with
   its own tick (`cutSkills`, `CutSkills`).
+ - **The Header panel** (`header-panel.tsx`, KAN-436), after Simplify's
+  Resume Header: a row per header field (Phone, Email, Location, LinkedIn,
+  GitHub, Portfolio, Other Link), each a check box, its glyph and label,
+  and its value, with the Name first and no check box, since it always
+  prints. **The check box is this resume's** (`hidden_header`, a page
+  setting, saved and rendered as one, with Undo); **the value is the
+  profile's**, so a change shows on every resume, which the panel says
+  once at its top. A value saves as the student leaves its field (Enter or
+  a click away), through the same typed-line path as the page
+  (`saveText(HEADER, ...)`), so it has Undo. The email is read only, with
+  a link to My Profile. Its fields are My Profile's and onboarding's own
+  (`TextField` with the glyph in its label, `profile/icons.tsx`): a link
+  is typed without "https://", which the API adds, as on My Profile;
+  Simplify's fixed "https://" prefix was not drawn, since no field in the
+  app has one. It opens from the header line's Edit Header (no toolbar
+  button: the bar's fold widths are measured for its present buttons), in
+  Scout's panel on the editor's page, beside the page on Tailor's review,
+  and as a sheet on a phone. Format Options' Reset Formatting leaves the
+  hidden fields, as it leaves the section order.
  - **Moving is the Sections panel** (`sections-panel.tsx`, KAN-435): an
   outline of what prints, as Jobright's, opened from the toolbar's end beside
   Format Options. Sections fold to their entries and entries to their bullets,

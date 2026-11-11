@@ -1,7 +1,7 @@
 """Request/response shapes for built resumes (KAN-207)."""
 
 import datetime
-from typing import Annotated, Literal
+from typing import Annotated, Literal, get_args
 from uuid import UUID
 
 from pydantic import (
@@ -136,9 +136,16 @@ class IdentityCopy(BaseModel):
     phone: str | None = None
     links: list[tuple[str, str]] = []
     us_citizen: bool = False
+    location: str | None = None
 
 
 SECTION_ORDER = ("education", "experience", "projects", "leadership", "awards", "certifications", "skills")
+
+
+HeaderField = Literal[
+    "phone_number", "email", "location", "linkedin_url", "github_url", "portfolio_url", "other_url",
+]
+HEADER_FIELD_NAMES = get_args(HeaderField)
 
 
 class PageSettings(BaseModel):
@@ -171,6 +178,9 @@ class PageSettings(BaseModel):
     body_size: Annotated[float, Field(ge=8, le=14, multiple_of=0.5)] | None = None
     date_format: Literal["short", "long", "year", "numeric"] = "short"
     education_first: Literal["school", "degree"] = "school"
+    # The header fields this resume leaves out (KAN-436, resume_render's
+    # HEADER_FIELDS): checked off in the editor's Header panel
+    hidden_header: list[HeaderField] = Field([], max_length=len(HEADER_FIELD_NAMES))
 
     @model_validator(mode="after")
     def _every_section_once(self) -> "PageSettings":

@@ -77,6 +77,7 @@ export const DEFAULT_PAGE: PageSettings = {
   body_size: null,
   date_format: "short",
   education_first: "school",
+  hidden_header: [],
 };
 
 /** The fonts a student can pick, serif then sans, each with the look it stands
@@ -451,8 +452,13 @@ export function FormatOptions({
   page: PageSettings;
   onChange: (next: PageSettings) => void;
 }) {
-  // The order is the Sections panel's: formatting's reset leaves it
-  const reset = { ...DEFAULT_PAGE, section_order: page.section_order };
+  // The order is the Sections panel's, and the hidden header fields the
+  // Header panel's: formatting's reset leaves both
+  const reset = {
+    ...DEFAULT_PAGE,
+    section_order: page.section_order,
+    hidden_header: page.hidden_header,
+  };
   const changed = JSON.stringify({ ...reset, ...page }) !== JSON.stringify(reset);
   return (
     <>

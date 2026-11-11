@@ -19,6 +19,7 @@ from app.services.resume_render import (
     HeaderIdentity,
     PageSettings,
     printed_order,
+    shown_header,
 )
 from app.services.resume_render.fields import (
     SECTION_LABELS,
@@ -97,6 +98,7 @@ def _entry(doc, entry: ViewEntry, page: PageSettings) -> None:
 
 
 def render_docx(view: ResumeView, identity: HeaderIdentity, page: PageSettings = DEFAULT_PAGE) -> bytes:
+    identity = shown_header(identity, page)
     doc = Document()
     section = doc.sections[0]
     section.page_width, section.page_height = PAGE_WIDTH, PAGE_HEIGHT
@@ -111,7 +113,7 @@ def render_docx(view: ResumeView, identity: HeaderIdentity, page: PageSettings =
     name.font.size = Pt(20)
     contact = (
         ([US_CITIZEN] if identity.us_citizen else [])
-        + [x for x in (identity.phone, identity.email) if x]
+        + [x for x in (identity.phone, identity.email, identity.location) if x]
         + [link_text(u) for _, u in identity.links]
     )
     if contact:

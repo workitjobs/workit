@@ -9,6 +9,7 @@ import {
   CloudSlashIcon,
   EyeIcon,
   EyeSlashIcon,
+  IdentificationCardIcon,
   LightbulbIcon,
   ListDashesIcon,
   ScissorsIcon,
@@ -126,6 +127,7 @@ import {
   type TextRole,
 } from "./page-format";
 import { PhoneEditor, usePhone } from "./phone";
+import { HeaderPanel } from "./header-panel";
 import { SectionsOutline } from "./sections-panel";
 import { SLIM_BAR } from "./slim-bar";
 import { FOLD, FoldButton } from "./bar-fold";
@@ -233,8 +235,10 @@ function typeOf(kind: string, section: string | null, page: PageSettings, degree
   if (kind === "organization") return { size, bold: false, italic: true };
   // A project's tools line (KAN-738) is \textit{\small ...}, the body's size
   if (kind === "tools") return { size, bold: false, italic: true };
-  // Education's location is the heading's right slot, upright
-  if (kind === "location") return { size, bold: false, italic: section !== "education" };
+  // Education's location is the heading's right slot, upright, and so is
+  // the header's (KAN-436), which has no section
+  if (kind === "location")
+    return { size, bold: false, italic: section !== null && section !== "education" };
   return { size, bold: false, italic: false };
 }
 
@@ -663,7 +667,7 @@ export function Editor({
   // goes back to the assistant, so the top bar's Scout always opens Scout
   const scoutOpen = useScout().open;
   const [panelView, setPanelView] = useState<
-    "scout" | "experiences" | "cut" | "format" | "sections"
+    "scout" | "experiences" | "cut" | "format" | "sections" | "header"
   >("scout");
   const [panelWasOpen, setPanelWasOpen] = useState(scoutOpen);
   if (panelWasOpen !== scoutOpen) {
@@ -671,7 +675,7 @@ export function Editor({
     if (!scoutOpen) setPanelView("scout");
   }
   const showScout = useCallback(() => setPanelView("scout"), []);
-  const showPanel = (view: "experiences" | "cut" | "format" | "sections") => {
+  const showPanel = (view: "experiences" | "cut" | "format" | "sections" | "header") => {
     if (scoutOpen && panelView === view) return setScoutOpen(false);
     setPanelView(view);
     setScoutOpen(true);
@@ -681,9 +685,10 @@ export function Editor({
   const [showMarks, setShowMarks] = useState(true);
   // The line whose popup the student closed, so it stays closed on that line
   const [closedPopup, setClosedPopup] = useState<string | null>(null);
-  /** Format Options or Sections: beside the page on Tailor's review, in
-   *  Scout's panel on the editor's own page, as the Experiences picker is. */
-  const togglePanel = (panel: "format" | "sections") => {
+  /** Format Options, Sections or Header: beside the page on Tailor's
+   *  review, in Scout's panel on the editor's own page, as the Experiences
+   *  picker is. */
+  const togglePanel = (panel: "format" | "sections" | "header") => {
     if (suggestions) return showSide(side === panel ? null : panel);
     showPanel(panel);
   };
@@ -1168,9 +1173,9 @@ export function Editor({
             before.choices,
             { item_id, kind },
             lastPdf.current?.boxes.find((b) => boxKey(b) === key)?.text,
-            item_id === HEADER && (LINK_FIELDS as readonly string[]).includes(kind)
-              ? (headerNow.current[kind as HeaderField] ?? null)
-              : undefined,
+            // A header field's stored value: a link prints without its
+            // "https://", and a field the resume hides prints nothing
+            item_id === HEADER ? (headerNow.current[kind as HeaderField] ?? null) : undefined,
           );
           step.before = before;
           step.pdfBefore = lastPdf.current;
@@ -1234,8 +1239,9 @@ export function Editor({
     ],
   );
 
-  /** Adds a header field the profile lacks, which has no line to click. */
-  const addContact = useCallback(
+  /** A header field typed in the Header panel (KAN-436): a line of the
+   *  header, saved and rendered as one typed on the page, so it has Undo. */
+  const saveHeader = useCallback(
     (field: HeaderField, text: string) => void saveText(HEADER, field, text),
     [saveText],
   );
@@ -2134,6 +2140,7 @@ export function Editor({
   const shownOriginal = side === "original" && original;
   const shownFormat = side === "format";
   const shownSections = side === "sections";
+  const shownHeader = side === "header";
   const shownCut = side === "cut";
   const cutOpen = suggestions ? shownCut : scoutOpen && panelView === "cut";
   const sectionsOutline = (
@@ -2145,6 +2152,34 @@ export function Editor({
       onApply={apply}
     />
   );
+  const headerPanel = (
+    <HeaderPanel
+      header={header}
+      email={rendered?.identity?.email ?? null}
+      hidden={page.hidden_header}
+      onSave={saveHeader}
+      onShow={(field, shown) =>
+        void applyPage({
+          ...page,
+          hidden_header: shown
+            ? page.hidden_header.filter((f) => f !== field)
+            : [...page.hidden_header, field],
+        })
+      }
+    />
+  );
+  // The header's line opens the Header panel: beside the page on the
+  // desktop, a sheet on a phone
+  const [headerSheet, setHeaderSheet] = useState(false);
+  const openHeader = () => {
+    // On a phone the line's sheet gives way to the panel's
+    if (phone) {
+      select(null);
+      return setHeaderSheet(true);
+    }
+    if (suggestions) return showSide("header");
+    if (!(scoutOpen && panelView === "header")) showPanel("header");
+  };
   const history: HistoryTools = {
     canUndo: steps.undo > 0 && !fittingNow,
     canRedo: steps.redo > 0 && !fittingNow,
@@ -2202,9 +2237,8 @@ export function Editor({
               <LineActions
                 line={line}
                 choices={choices}
-                header={header}
                 onApply={apply}
-                onSaveHeader={addContact}
+                onOpenHeader={openHeader}
                 onHide={hide}
                 up={move(bank, choices, line, -1)}
                 down={move(bank, choices, line, 1)}
@@ -2212,6 +2246,7 @@ export function Editor({
             )
           }
           assistant={assistant("h-full")}
+          header={{ open: headerSheet, onOpenChange: setHeaderSheet, panel: headerPanel }}
           onSelect={select}
           onType={(text) => selected && type(selected, text)}
           onFlush={() => flush()}
@@ -2230,14 +2265,13 @@ export function Editor({
       line={line}
       box={box}
       choices={choices}
-      header={header}
       rendered={rendered}
       saving={saving || fittingNow}
       fitting={fittingNow}
       elapsed={elapsed}
       download={download}
       onApply={apply}
-      onSaveHeader={addContact}
+      onOpenHeader={openHeader}
       composing={Boolean(adding && !adding.sent)}
       onAddBullet={() => line && startBullet(line)}
       moves={
@@ -2307,7 +2341,7 @@ export function Editor({
         "grid items-start gap-5",
         // The column docks beside the page from @6xl only; below it floats
         // over the page (`floating`)
-        (shownPanel || shownFormat || shownSections || shownCut) &&
+        (shownPanel || shownFormat || shownSections || shownHeader || shownCut) &&
           "@6xl/main:grid-cols-[minmax(0,1fr)_24rem]",
         // The two resumes at one width, so a line reads against its twin
         shownOriginal && "@4xl/main:grid-cols-2",
@@ -2413,7 +2447,9 @@ export function Editor({
                   ? "Format Options"
                   : panelView === "sections"
                     ? "Sections"
-                    : "Scout"
+                    : panelView === "header"
+                      ? "Header"
+                      : "Scout"
           }
           subtitle={
             panelView === "experiences"
@@ -2424,7 +2460,9 @@ export function Editor({
                   ? "Set how this page prints"
                   : panelView === "sections"
                     ? "Drag to change the order"
-                    : "Edits this resume as you talk"
+                    : panelView === "header"
+                      ? "Pick what this resume's header shows"
+                      : "Edits this resume as you talk"
           }
         >
           <div data-keeps-selection className="flex min-h-0 flex-1 flex-col">
@@ -2446,6 +2484,11 @@ export function Editor({
                 {sectionsOutline}
               </div>
             )}
+            {panelView === "header" && (
+              <div className="relative min-h-0 flex-1 overflow-y-auto overscroll-none px-4 pt-2 pb-4">
+                {headerPanel}
+              </div>
+            )}
             {panelView === "format" && (
               <div className="relative flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-none px-4 pt-2 pb-4">
                 <FormatOptions page={page} onChange={applyPage} />
@@ -2464,7 +2507,7 @@ export function Editor({
           Below @6xl it floats over the page's right side in the page's own
           cell (KAN-576), under the 44px bar, with `shadow-lift`: docked at
           1024, the 384px column left the resume about 480px wide */}
-      {(shownPanel || shownFormat || shownSections || shownCut) && (
+      {(shownPanel || shownFormat || shownSections || shownHeader || shownCut) && (
         <div
           data-keeps-selection
           ref={fitPanel}
@@ -2480,6 +2523,10 @@ export function Editor({
           ) : shownSections ? (
             <SidePanel title="Sections" onClose={() => showSide(null)}>
               {sectionsOutline}
+            </SidePanel>
+          ) : shownHeader ? (
+            <SidePanel title="Header" onClose={() => showSide(null)}>
+              {headerPanel}
             </SidePanel>
           ) : shownCut ? (
             <SidePanel title="Cut From Resume" onClose={() => showSide(null)}>
@@ -2600,14 +2647,13 @@ function Bar({
   line,
   box,
   choices,
-  header,
   rendered,
   saving,
   fitting,
   elapsed,
   download,
   onApply,
-  onSaveHeader,
+  onOpenHeader,
   composing,
   onAddBullet,
   moves,
@@ -2622,7 +2668,6 @@ function Bar({
   line: Line | null;
   box: RenderBox | undefined;
   choices: Choices;
-  header: Header;
   /** Null until the first render lands. */
   rendered: RenderedPdf | null;
   saving: boolean;
@@ -2631,7 +2676,8 @@ function Bar({
   elapsed: number | null;
   download: ResumeDownload;
   onApply: (changes: ChoicesUpdate) => void;
-  onSaveHeader: (field: HeaderField, text: string) => void;
+  /** Opens the Header panel, from a line of the header. */
+  onOpenHeader: () => void;
   /** A bullet is being added: its field is the open line. */
   composing: boolean;
   onAddBullet: () => void;
@@ -2695,9 +2741,8 @@ function Bar({
                 <LineActions
                   line={line}
                   choices={choices}
-                  header={header}
                   onApply={onApply}
-                  onSaveHeader={onSaveHeader}
+                  onOpenHeader={onOpenHeader}
                   onHide={(changes) => {
                     onApply(changes);
                     onClose();
@@ -2847,7 +2892,7 @@ type FormatTools = {
 };
 
 /** What sits beside the page on Tailor's review. */
-type Side = "suggestions" | "original" | "format" | "sections" | "cut" | null;
+type Side = "suggestions" | "original" | "format" | "sections" | "header" | "cut" | null;
 
 /** The slim bar's review tools: the changes left, and which column shows
  *  beside the page. */
@@ -3373,18 +3418,16 @@ function FitButton({
 function LineActions({
   line,
   choices,
-  header,
   onApply,
-  onSaveHeader,
+  onOpenHeader,
   onHide,
   up,
   down,
 }: {
   line: Line;
   choices: Choices;
-  header: Header;
   onApply: (changes: ChoicesUpdate) => void;
-  onSaveHeader: (field: HeaderField, text: string) => void;
+  onOpenHeader: () => void;
   onHide: (changes: ChoicesUpdate) => void;
   /** A phone's way to move a line; a desktop's bar has `MoveButtons`. */
   up?: ChoicesUpdate | null;
@@ -3418,23 +3461,19 @@ function LineActions({
   );
 
   if (line.kind === "header") {
-    // A contact the profile lacks has no line to click, so it is added
-    // here: the phone, and the next link, keeping the bar one row
-    const link = LINK_FIELDS.find((f) => !header[f]);
-    const missing = [
-      ...(header.phone_number ? [] : (["phone_number"] as const)),
-      ...(link ? [link] : []),
-    ];
+    // Every header field, and whether this resume prints it, is in the
+    // Header panel (KAN-436): a field the profile lacks, or one this resume
+    // hides, has no line to click
     return (
       <>
+        <Button variant="secondary" size="sm" className="shrink-0" onClick={onOpenHeader}>
+          <IdentificationCardIcon aria-hidden /> Edit Header
+        </Button>
         {line.field === "email" && (
           <span className="text-note text-ink-meta">
-            This is your sign-in email, so it changes with your account.
+            Set on My Profile, so it changes on every resume.
           </span>
         )}
-        {missing.map((f) => (
-          <AddContact key={f} field={f} onSave={onSaveHeader} />
-        ))}
       </>
     );
   }
@@ -3527,33 +3566,6 @@ function LineActions({
         </span>
       )}
     </>
-  );
-}
-
-/** A short field in the bar that adds a contact the header lacks; Enter or
- *  leaving it saves to the profile. */
-function AddContact({
-  field,
-  onSave,
-}: {
-  field: Exclude<HeaderField, "full_name" | "email">;
-  onSave: (field: HeaderField, text: string) => void;
-}) {
-  const label = `Add ${kindLabel(field)}`;
-  function save(element: HTMLInputElement) {
-    const text = element.value.trim();
-    if (!text) return;
-    onSave(field, text);
-    element.value = "";
-  }
-  return (
-    <input
-      aria-label={label}
-      placeholder={label}
-      onBlur={(e) => save(e.currentTarget)}
-      onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
-      className="text-note bg-panel text-ink ring-border-subtle focus:ring-brand rounded-control h-9 w-36 px-2 ring-1 outline-none focus:ring-2"
-    />
   );
 }
 

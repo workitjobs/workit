@@ -701,6 +701,48 @@ async def test_a_typed_header_field_with_a_copy_prints_at_once(student):
     assert render["identity"]["links"][0] == ["linkedin_url", "https://linkedin.com/in/sam"]
 
 
+async def test_a_typed_header_location_saves_to_the_profile_and_prints(student):
+    # KAN-436: the header's location is the profile's, not an entry's
+    _tectonic_or_skip()
+    client, me = student
+    await _fill_bank(client, me)
+    resume_id = await _generate(client, me)
+    copy = await _copy(client, me, resume_id)
+
+    res = await _type(client, me, resume_id, "header", "location", "Stony Brook, NY")
+    assert res.status_code == 200, res.text
+    assert res.json()["profile"]["location"] == "Stony Brook, NY"
+    res = await _render_line(client, me, resume_id, "header", "location", "Albany, NY", copy)
+    assert res.status_code == 200, res.text
+    render = res.json()["render"]
+    assert _box(render, "location", "header")["text"] == "Albany, NY"
+    assert render["identity"]["location"] == "Albany, NY"
+
+
+async def test_a_hidden_header_field_leaves_this_resume_only(student):
+    # KAN-436: the Header panel's check box is a page setting, so the copy
+    # keeps the value and only this page leaves it out
+    _tectonic_or_skip()
+    client, me = student
+    await _fill_bank(client, me)
+    resume_id = await _generate(client, me)
+    copy = await _copy(client, me, resume_id)
+    res = await client.post(f"{me}/built-resumes/{resume_id}/render",
+                            json={"source": copy, "page": {"hidden_header": ["phone_number"]}})
+    assert res.status_code == 200, res.text
+    render = res.json()["render"]
+    assert not [b for b in render["boxes"] if b["item_id"] == "header" and b["kind"] == "phone_number"]
+    assert render["identity"]["phone"] == "555-010-2030"
+    assert render["page_settings"]["hidden_header"] == ["phone_number"]
+    res = await client.put(f"{me}/built-resumes/{resume_id}/page-settings", json={"hidden_header": ["phone_number"]})
+    assert res.status_code == 204
+    saved = (await client.get(f"{me}/built-resumes/{resume_id}/render")).json()
+    assert not [b for b in saved["boxes"] if b["kind"] == "phone_number"]
+    other = await _generate(client, me)
+    assert [b for b in (await client.get(f"{me}/built-resumes/{other}/render")).json()["boxes"]
+            if b["kind"] == "phone_number"]
+
+
 async def test_moving_bullets_renders_from_the_copy(student):
     _tectonic_or_skip()
     client, me = student
@@ -890,7 +932,7 @@ async def test_a_render_takes_the_token_of_the_paths_applicant_only(student, dat
 SETTINGS = {"font_size": 12, "line_spacing": 1.15, "side_margin": 0.75, "top_margin": 0.75, "alignment": "justified", "section_spacing": 4, "entry_spacing": 2, "accent": "#14532D", "bullet": "dash", "show_divider": False, "header_alignment": "left",
             "section_order": ["skills", "education", "experience", "projects", "leadership", "awards", "certifications"],
             "font_family": "tinos", "name_size": 22, "heading_size": 13, "title_size": 11.5, "body_size": None,
-            "date_format": "year", "education_first": "degree"}
+            "date_format": "year", "education_first": "degree", "hidden_header": []}
 
 
 async def test_page_settings_render_from_the_copy_and_save_on_their_own(student):

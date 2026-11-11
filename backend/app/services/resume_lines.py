@@ -4,12 +4,14 @@ The editor sends the clicked box's `item_id` and `kind` with the text as the
 student typed it, and this decides what it means; the browser holds no copy
 of these rules. Pure: the route saves the change and renders.
 
-    parse(kind, text) -> Line   raises LineError, a 422 with its message
+    parse(kind, text, header=False) -> Line   raises LineError, a 422 with its message
 
 - **Where it goes:** a bullet becomes the resume's own wording (`BULLET`);
   an entry field changes the bank entry (`ENTRY_KINDS`), and so every
   resume that shows it; a header field changes the profile
-  (`HEADER_KINDS`). Every other kind (dates, the degree line, the email,
+  (`HEADER_KINDS`). `header` says the box is the header's (its item id is
+  `HEADER`): "location" is both an entry's field and the header's (the
+  profile's, KAN-436). Every other kind (dates, the degree line, the email,
   a skill) is not typed in the editor.
 - **What is typed is what prints**, except `**` and `*` around a bullet's
   words, which print them bold or italic (KAN-435, `resume_view.runs`), and
@@ -32,7 +34,7 @@ from decimal import Decimal, InvalidOperation
 BULLET = "bullet"
 ENTRY_KINDS = ("title", "organization", "location", "honors", "coursework", "gpa", "tools")
 LINK_KINDS = ("linkedin_url", "github_url", "portfolio_url", "other_url")
-HEADER_KINDS = ("full_name", "phone_number", *LINK_KINDS)
+HEADER_KINDS = ("full_name", "phone_number", "location", *LINK_KINDS)
 # The label each detail line prints before its value (fields.details)
 LABELS = {"gpa": "GPA", "coursework": "Relevant Coursework", "honors": "Honors"}
 REQUIRED = {
@@ -80,8 +82,10 @@ def _gpa(text: str) -> dict[str, object]:
     return {"gpa": score, "gpa_scale": scale}
 
 
-def parse(kind: str, text: str) -> Line:
+def parse(kind: str, text: str, header: bool = False) -> Line:
     text = text.strip()
+    if header:
+        return _header(kind, text)
     if kind in REQUIRED and not text:
         raise LineError(REQUIRED[kind])
     if kind == BULLET:
@@ -96,9 +100,17 @@ def parse(kind: str, text: str) -> Line:
         return Line("entry", {"tools": [t.strip() for t in _LIST_COMMA.split(text) if t.strip()]})
     if kind in ENTRY_KINDS:
         return Line("entry", {kind: text or None})
+    if kind in HEADER_KINDS:
+        return _header(kind, text)
+    raise LineError("This line is not typed here.")
+
+
+def _header(kind: str, text: str) -> Line:
+    if kind not in HEADER_KINDS:
+        raise LineError("This line is not typed here.")
+    if kind in REQUIRED and not text:
+        raise LineError(REQUIRED[kind])
     if kind in LINK_KINDS:
         url = text and (text if _SCHEME.match(text) else f"https://{text}")
         return Line("header", {kind: url or None})
-    if kind in HEADER_KINDS:
-        return Line("header", {kind: text or None})
-    raise LineError("This line is not typed here.")
+    return Line("header", {kind: text or None})

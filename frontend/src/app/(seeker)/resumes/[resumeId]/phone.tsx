@@ -138,6 +138,7 @@ export function PhoneEditor({
   suggestions,
   actions,
   assistant,
+  header,
   onSelect,
   onType,
   onFlush,
@@ -188,6 +189,9 @@ export function PhoneEditor({
   actions: ReactNode;
   /** The editor assistant (KAN-221), shown in a sheet when asked for. */
   assistant: ReactNode;
+  /** The Header panel (KAN-436), in a sheet the header line's Edit Header
+   *  opens. */
+  header: { open: boolean; onOpenChange: (open: boolean) => void; panel: ReactNode };
   onSelect: (key: string | null) => void;
   onType: (text: string) => void;
   onFlush: () => void;
@@ -492,6 +496,18 @@ export function PhoneEditor({
             <div className={TAP}>
               <CutPicker bank={bank} choices={choices} cuts={cuts} onApply={onApply} />
             </div>
+          </Sheet>
+        </>
+      )}
+
+      {header.open && (
+        <>
+          <div
+            className="absolute inset-0 z-30 bg-black/25"
+            onClick={() => header.onOpenChange(false)}
+          />
+          <Sheet onClose={() => header.onOpenChange(false)} title="Header">
+            <div className={TAP}>{header.panel}</div>
           </Sheet>
         </>
       )}

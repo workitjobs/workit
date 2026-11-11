@@ -19,6 +19,7 @@ export type HeaderField =
   | "full_name"
   | "phone_number"
   | "email"
+  | "location"
   | "linkedin_url"
   | "github_url"
   | "portfolio_url"
@@ -57,8 +58,9 @@ const TYPED_ENTRY = new Set([
 
 /** The header fields typed in place; they change the profile. The email is
  *  the profile's contact email, else the sign-in address, so it is set on
- *  My Profile, not typed here. */
-const TYPED_HEADER = new Set<string>(["full_name", "phone_number", ...LINK_FIELDS]);
+ *  My Profile, not typed here. The location is the profile's (KAN-436),
+ *  not an entry's, though both boxes are "location". */
+const TYPED_HEADER = new Set<string>(["full_name", "phone_number", "location", ...LINK_FIELDS]);
 
 /** True when the line's text is typed in place. */
 export function typed(line: Line) {

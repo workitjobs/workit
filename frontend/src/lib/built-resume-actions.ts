@@ -88,6 +88,8 @@ export type IdentityCopy = {
   phone: string | null;
   links: [string, string][];
   us_citizen: boolean;
+  /** The profile's location (KAN-436). */
+  location: string | null;
 };
 
 /** How a built resume's page is set (schemas `PageSettings`, KAN-435).
@@ -117,7 +119,21 @@ export type PageSettings = {
   date_format: "short" | "long" | "year" | "numeric";
   /** Which of an Education entry's two rows goes on top. */
   education_first: "school" | "degree";
+  /** The header fields this resume leaves out (KAN-436): the Header
+   *  panel's check boxes. The values stay on the profile. */
+  hidden_header: HideableField[];
 };
+
+/** The header fields a resume can leave out (the API's `HEADER_FIELDS`):
+ *  the name always prints. */
+export type HideableField =
+  | "phone_number"
+  | "email"
+  | "location"
+  | "linkedin_url"
+  | "github_url"
+  | "portfolio_url"
+  | "other_url";
 
 export type FontFamily =
   | "latin_modern"
