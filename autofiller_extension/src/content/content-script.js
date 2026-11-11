@@ -492,8 +492,8 @@
     // SmartRecruiters: its first page, then its screening questions (smartrecruiters.js presses Next, never Submit).
     if (prepared?.site === "smartrecruiters" && (await window.WIA.smartRecruitersNext?.(prepared))) prepared = (await fillShown()) ?? prepared;
     // A basic fill reads no job system's fields back (the engine has no data for it): the basic note keeps the tab the student's.
-    const full = prepared && !prepared.basic;
-    if (full) await flagEmptyRequired(prepared);
+    const readsBack = prepared && !prepared.basic;
+    if (readsBack) await flagEmptyRequired(prepared);
     if (prepared) window.WIA.failedCard.use(fixesOf(prepared));
     if (prepared) window.WIA.resumeCard?.use(fixesOf(prepared));
     overlay.mount(panel);
@@ -506,7 +506,7 @@
     if (prepared) writing.offer(prepared);
     if (prepared) offerSelfId(prepared);
     // Outside a batch too (KAN-396): the primary button turns Ready to submit once the student answered what was open.
-    if (full) watchEdits(prepared);
+    if (readsBack) watchEdits(prepared);
     answerTheWalk();
     return;
   }

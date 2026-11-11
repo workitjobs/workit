@@ -645,7 +645,9 @@ export async function planFill({ url, profile, bank = {}, today, call, fetchText
   const { site } = job;
   if (!job.onForm && !signInFirst(url)) return { covered: true, site, openForm: job.form };
   // No data for the job system (the Store package's engine with no Rules table from the API): a basic fill.
-  if (!engine.supported(site)) return planBasic({ job, url, profile, bank, today, call, fetchText, jobType, off });
+  // Asked of the page's engine, which fills: the background's may hold a table that came after the page's was loaded.
+  const hasData = await call("supported", site).catch(() => engine.supported(site));
+  if (!hasData) return planBasic({ job, url, profile, bank, today, call, fetchText, jobType, off });
   const fetchOnce = once(fetchText);
   // The job's names and text need no question: asked beside the questions, not after them.
   const reading = readNames(url, fetchOnce);

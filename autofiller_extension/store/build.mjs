@@ -34,13 +34,13 @@ const EXTENSION = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const PARTS = [["manifest.json"], ["icons"], ["fonts"], ["src"], ["fill-engine/dist/engine.store.js", "fill-engine/dist/engine.js"]];
 /** The full Rules table, outside the package: what `perSiteData` looks for in it. */
 const FULL_TABLE = join(EXTENSION, "fill-engine", "dist", "rules-table.json");
-/** Job systems' table values that are also the engine's own generic code: label patterns any form's
- *  labels may carry (a phone format "###-###-####", a label ending "(required)"). */
 /** The extension's own scripts that still carry a job system's table values (the stepped systems' walk:
  *  Workday, Oracle, iCIMS, SuccessFactors; Workable's and TikTok's checks in the background), by file:
  *  tolerated there only, until KAN-778 reads them from the served table. Any other is a leak. */
 const KNOWN = JSON.parse(readFileSync(join(EXTENSION, "store", "extension-site-data.json"), "utf8"));
-export const GENERIC = new Set([String.raw`(?:\(#{3}\) ?|#{3}[-. ]?)#{3}[-. ]?#{4}`, String.raw`\s*\(required\)$`]);
+/** Job systems' table values that are also the engine's own generic code: label patterns any form's
+ *  labels may carry (a phone format "###-###-####", a label ending "(required)"). */
+const GENERIC = new Set([String.raw`(?:\(#{3}\) ?|#{3}[-. ]?)#{3}[-. ]?#{4}`, String.raw`\s*\(required\)$`]);
 const DEV_ONLY = /localhost|vercel\.app/;
 /** What no packaged file may contain. "Prototype" as a word: the engine's Object.getPrototypeOf is fine. */
 export const FORBIDDEN = /localhost|vercel\.app|\bPrototype\b/;
