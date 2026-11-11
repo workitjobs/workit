@@ -109,6 +109,21 @@ for a home in no local tax district (the engine's `LOCAL_TAX` table: the US
 states with local income taxes, and for New York only New York City and
 Yonkers), else asked. A home outside the US, or with no state, is asked.
 
+A file, or a path on this Mac (`/Users/...`, `~/...`, `C:\...`), goes only into an upload. When the
+engine's plan gives one to any other field, `fill_engine.plan` leaves that field blank (`LOCAL_PATH` in
+`Plan.blanks`, KAN-785). On JPMorgan's Oracle form (2026-11-10), "Resume or Additional Documents Link
+1" got the resume's path, and "Resume or Additional Documents: Cover Letter" got the resume. The
+engine's resume rule matched the heading. From engine v0.3.43, that rule takes only an upload that no
+heading names as another document. A cover letter slot under any heading follows the `cover_letter`
+policy, and "Link N" is the Nth of the profile's links (the portfolio first), else blank. In the same
+version, a master's plan question ("For those of you pursuing a master's degree, do you plan to start
+...?") reads `education.plans_masters_after_bachelors`, never the degree: the form's N/A for one who
+plans none or is undecided (KAN-786). Address Line 1 under Claude fill's heading-and-help label
+("Address\n\nPlease enter your home address.: Address Line 1") is the home's line 1 (KAN-787).
+These were not regressions: engine v0.3.32, v0.3.35 and v0.3.42 planned these labels the same way.
+Each run's Claude fill words the labels in its own way. JPMorgan's "I understand that JPMorgan
+... will not provide any assistance ... OPT/CPT" is fe#126's (KAN-761).
+
 A phone type question (Workday's Phone Device Type, iCIMS's Phones: Type,
 "Type of phone", a "Mobile or landline?" choice) is the profile's
 `identity.phone_type` (`mobile`, `landline` or `work`) in the engine's

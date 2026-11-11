@@ -282,3 +282,13 @@ def test_a_file_or_a_path_on_this_mac_never_goes_into_a_field_that_is_no_upload(
     assert plan.answers == {"q3": fill_engine.Path("/Users/someone/Resume.pdf")}
     assert plan.blanks["q1"] == plan.blanks["q2"] == fill_engine.LOCAL_PATH
 
+
+def test_jpmorgans_documents_get_the_resume_only_in_its_slot_and_a_link_in_link_1():
+    # KAN-785, on the engine Apply loads: the cover letter slot is the cover_letter policy's, Link 1 the portfolio.
+    questions = [Question("r", "Resume or Additional Documents: Resume", "file", True),
+                 Question("c", "Resume or Additional Documents: Cover Letter", "file", False),
+                 Question("l", "Resume or Additional Documents Link 1", "text", False)]
+    plan = fill_engine.plan(questions, JPM, PROFILE)
+
+    assert isinstance(plan.answers["r"], fill_engine.Path)
+    assert "c" not in plan.answers and plan.answers["l"] == "https://test-person.example.com"
