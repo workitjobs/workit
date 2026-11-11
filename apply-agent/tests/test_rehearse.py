@@ -1717,3 +1717,23 @@ def test_a_held_form_is_on_the_open_forms_list_until_lisul_sends_it(monkeypatch,
         lisul_on_the_held_page(monkeypatch, lambda n: ["Submit application"])
         hold_until(fake, profile, lambda lines: "you submitted it" in lines[-1], submitted_to=InMemoryTracker())
     assert batch.forms(path) == []  # it went in: nothing to bring back
+
+
+class _Shows:
+    """A page at `url` that shows `text` (get_by_text(...).first.is_visible(), as the confirmation checks read)."""
+
+    def __init__(self, url: str, text: str = ""):
+        self.url, self.text = url, text
+
+    def get_by_text(self, pattern):
+        shown = bool(pattern.search(self.text))
+        return type("Found", (), {"first": type("First", (), {"is_visible": lambda self: shown})()})()
+
+
+def test_an_eightfold_page_claude_fill_filled_is_confirmed_by_eightfolds_own_check():
+    """Microsoft's form is Claude fill's ("other"), but its page is Eightfold's (KAN-771)."""
+    from apply.rehearsal import _confirmed, _eightfold
+    done = _Shows("https://apply.careers.microsoft.com/careers/job/1970393557037859", "Application Submitted Congrats!")
+    assert _eightfold(done) and _confirmed(done, "other")
+    assert not _confirmed(_Shows(done.url, "Submit application"), "other")
+    assert not _eightfold(_Shows("https://jobs.example.com/acme/1", "Application Submitted"))

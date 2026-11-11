@@ -296,6 +296,17 @@ fixes it live on that form.
 put back, the window's routes, `apply ask`, and the Record and Repair request.
 `tests/test_dashboard.py -k ask_claude_box` types in the tile's box in Chromium.
 
+## His own Submit on an Eightfold form (KAN-771)
+
+A held page on an Eightfold careers site (the engine's `jobOf`: Netflix, Lockheed Martin, and Microsoft, which
+Claude fill fills) is confirmed by Eightfold's own check (`eightfold.confirmed`, "Application Submitted"), whichever
+Filler filled it. A confirmation that shows after the hold began counts as his Submit even when his press was not
+heard (`_Kept.hold`'s `unheard`): Lisul's Submit on Microsoft 200061280 (2026-11-10) went in, and Apply recorded
+nothing. Then the Tracker row and the Record are written as for any job system. The engine's `submitResult` also
+reads Eightfold's `POST /api/application/v2/submit` answer (`data.success`), for the extension's watch.
+
+**Tests.** `tests/test_rehearse.py -k eightfolds_own_check`; the engine's `test/submit.spec.ts`.
+
 ## Page gates (KAN-637)
 
 Lisul checks each page that holds his legal or personal answers before the
