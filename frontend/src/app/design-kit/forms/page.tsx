@@ -1,4 +1,7 @@
+import { Suspense } from "react";
+
 import { ONBOARDING_STEPS } from "@/app/onboarding/applicant/steps";
+import { ShallowRouting } from "@/components/shallow-routing";
 import { Stepper } from "@/components/stepper";
 import { CheckRowBox, checkRowClasses } from "@/components/ui/check-row";
 import { LinkedInGlyph } from "@/app/(seeker)/profile/icons";
@@ -70,7 +73,14 @@ export default function FormsPage() {
           name="<TabLinks>"
           role="Moves between different content on one subject: in a bar (a job's Overview and Company), and ruled under a page's top (Documents)"
         >
-          <TabsSpecimen />
+          {/* It reads `?tab=`, which a static page must wait for under a
+              Suspense boundary or the build fails; ShallowRouting moves the
+              query in place, as on the motion page. */}
+          <Suspense>
+            <ShallowRouting>
+              <TabsSpecimen />
+            </ShallowRouting>
+          </Suspense>
         </Row>
         <Row
           name="<Stepper>"
