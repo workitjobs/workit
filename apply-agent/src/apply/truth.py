@@ -14,8 +14,10 @@ pre-submit review). It looks for four kinds of claim:
 - **number**: a number no source states ("40 tests"). A year counts.
 - **name**: a tool, employer, product or other name no source names: a run
   of capitalized words, a word with a capital inside it ("PyTorch"), an
-  acronym ("CUDA"), or one capitalized word inside a sentence. The first
-  word of a sentence alone is never one: it is capitalized either way.
+  acronym ("CUDA"), or one capitalized word inside a sentence. The word
+  that opens a sentence of three words or more is one too ("Stripe hired
+  me") when no text uses it in lower case and it is no opener ("The",
+  "Working", "Recently"); a shorter answer ("Yes", "Chicago") has none.
 - **date**: a month or season with its year ("summer 2025") that no
   source's dates cover. A year no source holds is a number claim only.
 - **outcome**: an effect of the work ("went into use", "deployed", "won",
@@ -39,7 +41,7 @@ compare the two). Change the backend's, then copy it to Apply.
 """
 
 import re
-from collections.abc import Iterable
+from collections.abc import Container, Iterable
 from dataclasses import dataclass
 
 KINDS = {"number": "a number", "name": "a name", "date": "a date", "outcome": "an outcome"}
@@ -73,12 +75,13 @@ def unsupported(answer: str, own: str | Iterable[str], others: str | Iterable[st
     held = "\n".join([theirs, *(s for s in ([others] if isinstance(others, str) else others) if s)])
     plain = _plain(held)
     known = {_normal(n) for n in _numbers(held)}
+    lower = {w.casefold() for w in re.findall(r"(?<![\w'’-])[a-z][\w'’-]*", f"{held}\n{answer}")}
     spans = [span for text in texts for line in text.splitlines() for span in _spans(line)]
     facts = _facts(texts) if any(said.search(answer) for said, _ in OUTCOMES) else []
     found: list[Claim] = []
     about: list[str] = []  # the project the last sentence that named one named
     for sentence in _sentences(answer):
-        named = names(sentence)
+        named = names(sentence, lower)
         found += [Claim("number", n, sentence) for n in _numbers(sentence) if _normal(n) not in known]
         found += [Claim("name", name, sentence) for name in named if not _held(name, plain)]
         for m in DATED.finditer(sentence):
@@ -136,15 +139,18 @@ EVERYDAY = {"AI", "ML", "API", "APIs", "UI", "UX", "CS", "US", "USA", "GPA", "Ph
             "QA", "PM", "SWE", "CEO", "CTO", "OK", "TA", "STEM", "FAQ", "PR", "PRs", "ETA", "U.S", "U.S.A", "U.K"}
 
 
-def names(sentence: str, heading: bool = False) -> list[str]:
+def names(sentence: str, lower: Container[str] | None = None) -> list[str]:
     """The names one sentence gives, each once: runs of capitalized words (a
     possessive's "'s" and the words that open or close them dropped), words
     with a capital inside ("PyTorch", "iOS") and acronyms ("CUDA"). A word
     that opens the sentence (or follows a colon, a quote or a bullet) is
-    part of a name only with a capital inside it: it is capitalized either
-    way. In a `heading` every capitalized word is."""
+    capitalized either way: it is part of a name with a capital inside it,
+    or, given `lower` (the words the texts use in lower case), in a sentence
+    of three words or more when it is none of them, no opener and no word
+    ending "-ing" or "-ly" ("Stripe hired me")."""
     found: list[str] = []
     run: list[str] = []
+    long = lower is not None and len(WORD.findall(sentence)) >= 3
 
     def close() -> None:
         while run and run[0].casefold() in OPENERS | {"of", "&"}:
@@ -165,8 +171,9 @@ def names(sentence: str, heading: bool = False) -> list[str]:
         opens = i == 0 or re.search(r"[:;\"“(•*]|\s-\s", before) is not None
         if re.search(r"\S", before):
             close()  # punctuation between words ends a name: "Python, Kafka"
-        if heading and word[:1].isupper() and word.casefold() not in OPENERS | COMMON:
-            run.append(word)  # "Hitachi Rail: Software Intern"
+        if opens and long and word[:1].isupper() and word.casefold() not in lower \
+                and word.casefold() not in OPENERS | COMMON and not re.search(r"(?:ing|ly)$", word):
+            run.append(word)  # "Stripe hired me"
         elif _strong(word) or (word[:1].isupper() and not opens and word.casefold() not in COMMON) \
                 or (run and word.casefold() in {"of", "&"}):
             run.append(word)
@@ -210,7 +217,7 @@ def _facts(texts: Iterable[str]) -> list[Fact]:
         heads: list[tuple[int, list[str]]] = []
         for line in text.splitlines():
             if m := HEADING.fullmatch(line):
-                heads = [h for h in heads if h[0] < len(m.group(1))] + [(len(m.group(1)), names(m.group(2), heading=True))]
+                heads = [h for h in heads if h[0] < len(m.group(1))] + [(len(m.group(1)), names(m.group(2), ()))]
             elif TAG.fullmatch(line):
                 heads = []
             facts.append(([n for _, given in heads for n in given], [n for s in _sentences(line) for n in names(s)], line))

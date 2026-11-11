@@ -78,6 +78,18 @@ def test_an_outcome_whose_project_no_sentence_tells_is_a_claim():
     assert _found_in("I deployed the dashboard.", own) == [("outcome", "deployed")]
 
 
+def test_a_name_that_opens_a_sentence_is_a_claim_unless_it_is_a_plain_word():
+    assert _found("Stripe hired me to build dashboards.") == [("name", "Stripe")]
+    assert _found("Hitachi Rail hired me to build a dispatch dashboard.") == []
+    assert _found("Building tools is fun. Recently I learned C++. Teamwork matters to me, and teamwork wins.") == []
+
+
+def test_a_short_answer_has_no_name_claim():
+    assert _found("Yes") == []
+    assert _found("Chicago") == []
+    assert _found("Remote, please.") == []
+
+
 def _found_in(answer: str, own: tuple[str, ...]) -> list[tuple[str, str]]:
     return [(c.kind, c.text) for c in unsupported(answer, own, POSTING)]
 
