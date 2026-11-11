@@ -1790,8 +1790,10 @@ for; a 401 for the table gets one new token and one more fetch.
 - **Any failure is the bundled table.** No answer, any 4xx or 5xx (a 500
   too), a token for another job system, or a table the engine refuses (a
   `RulesError`, checked in the background before it is held): the table
-  isn't held and the engine fills with its bundled one. A fill never waits
-  for the API: a table still on its way is the next fill's.
+  isn't held and the engine fills with its bundled one. With the full engine (the dev
+  extension's) a fill never waits for the API: a table still on its way is
+  the next fill's. The Store package's engine has no data of its own, so
+  there the fill waits a while and, with no table, is a basic one (below).
 - **As received.** The watermark is in the strings' order and spelling:
   nothing here sorts, dedupes or rewrites them.
 - Job systems the off switch turned off and signed-out pages ask for
@@ -1804,8 +1806,11 @@ for; a 401 for the table gets one new token and one more fetch.
   rules (names, email, phone, links, home, school, degree, major,
   graduation, work authorization, sponsorship, age). So every job system's
   selectors, patterns, kinds and timeouts come from this table. A fill whose
-  table is still on its way waits for it up to 5 s (`rulesFor`,
-  `TABLE_WAIT_MS`; only when the engine has no data of its own for the site).
+  table is still on its way, or failed as the posting opened, waits up to 5 s
+  for it, or for a new fetch for the page (`rulesFor`, `TABLE_WAIT_MS`; only
+  when the engine has no data of its own for the site). Whether the fill is
+  basic is the page's engine's to say (`supported`), not the background's,
+  which may hold a table that came after the page's engine was loaded.
   With none, **the fill is a basic one** (`engine.js` `planBasic`): the
   engine's `readBasic` reads the form's plain fields by their labels, the
   basic rules plan them, `fillBasic` types the text answers (no file, no
