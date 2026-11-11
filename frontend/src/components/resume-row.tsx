@@ -94,17 +94,16 @@ export const RESUME_TARGET_COL = "w-0 overflow-hidden p-0 @4xl:w-auto @4xl:px-4"
 /** The Type column, from `@2xl` of the table, folded as Target Job is. */
 export const RESUME_TYPE_COL = "w-0 overflow-hidden p-0 @2xl:w-32 @2xl:px-4";
 
-/** The Date Modified column: the day ("Nov 10"), and from `@2xl` room for
- *  the four hover icons that cover it under the pointer
- *  (`CardActionIcons`, 4 x 32px and 8px: 136px). At 128px they ran 8px
- *  into Type, and at the 96px below `@2xl` 40px into it (2026-11-11). */
-export const RESUME_DATE_COL = "w-24 @2xl:w-36";
+/** The Date Modified column: the day ("Nov 10"), nothing over it. */
+export const RESUME_DATE_COL = "w-24 @2xl:w-32";
 
-/** The actions column: ⋮ alone (2026-11-10). It was five icons wide, the
- *  four that show on hover and ⋮, so at rest a 150px empty column stood
- *  between the date and ⋮. The hover icons now cover the date, as
- *  Gmail's do. */
-export const RESUME_ACTIONS_COL = "w-12";
+/** The actions column: the four hover icons (4 x 32px) where they show,
+ *  under a mouse from `@2xl` of the table (`pointer-fine:@2xl`), else ⋮
+ *  alone: a touch screen has no hover, and a narrower table needs the room
+ *  for the name. They covered Date Modified, as Gmail's do, from
+ *  2026-11-10 until 2026-11-11: the user found them overlapping the row's
+ *  fields, with ⋮ beside them repeating the same four actions. */
+export const RESUME_ACTIONS_COL = "w-12 pointer-fine:@2xl:w-36";
 
 /** What a card's actions do, as its row hands them over. */
 export type CardActions = {
@@ -115,23 +114,23 @@ export type CardActions = {
   onDelete: () => Promise<void>;
 };
 
-/** The icons that wait for the pointer (Google Drive's rows): hidden until
- *  the card is hovered or holds the keyboard's focus, in place, so the row
- *  never shifts; on a touch screen, which has no hover, never, and ⋮ holds
- *  them. */
+/** The icons that wait for the pointer (Google Drive's rows): invisible
+ *  until the row is hovered or holds the keyboard's focus, in place, so
+ *  the row never shifts. */
 const ON_HOVER =
-  "opacity-0 transition-opacity duration-150 group-focus-within:opacity-100 group-hover:opacity-100 pointer-coarse:hidden";
+  "opacity-0 transition-opacity duration-150 group-focus-within:opacity-100 group-hover:opacity-100";
 
 /**
- * A row's actions (2026-11-10, after Google Drive): at rest only ⋮ (More
- * actions); on hover or focus, Make Primary (on a resume that is not the
- * primary), Rename, Download and Delete appear left of ⋮, over the Date
- * Modified cell, on the row's own hover fill, as Gmail's row actions take
- * the date's place. They took a column of their own, empty at rest. The primary says
- * so in a badge beside its name (`PrimaryBadge`, after Jobright's), not a
- * star here. ⋮ holds every action, worded (`RowMoreMenu` with `always`), so a
- * touch screen and a phone reach them all. Four icons on every card at all
- * times read busy to the user. Delete asks first, from either place.
+ * A row's actions (2026-11-10, after Google Drive), in a column of their
+ * own (`RESUME_ACTIONS_COL`). Under a mouse, from `@2xl` of the table
+ * (`pointer-fine:@2xl`): Make Primary (on a resume that is not the primary),
+ * Rename, Download and Delete, shown on hover or focus, and no ⋮, which
+ * held the same four. On a touch screen or a narrower table: ⋮ alone,
+ * every action worded (`RowMoreMenu` with `always`). Four icons on every
+ * row at all times read busy to the user, and the icons drawn over Date
+ * Modified hid the day (2026-11-11). The primary says so in a badge beside
+ * its name (`PrimaryBadge`, after Jobright's), so its row has no star.
+ * Delete asks first, from either place.
  */
 function CardActionIcons({
   name,
@@ -145,16 +144,7 @@ function CardActionIcons({
   const { primary, onMakePrimary, onRename, download, onDelete } = actions;
   return (
     <div className="relative z-10 flex items-center justify-end">
-      {/* Left of ⋮, over the date: the row's hover fill under it hides the
-          day; white while only the keyboard's focus shows it. Only from
-          `@2xl` of the table, where the date's cell is wide enough to hold
-          them (RESUME_DATE_COL); narrower, ⋮ holds them all. */}
-      <div
-        className={cn(
-          "bg-panel group-hover:bg-hover absolute top-1/2 right-full hidden -translate-y-1/2 items-center pl-2 @2xl:flex",
-          ON_HOVER,
-        )}
-      >
+      <div className={cn("hidden items-center pointer-fine:@2xl:flex", ON_HOVER)}>
         {!primary && <PrimaryStar name={name} primary={false} onMakePrimary={onMakePrimary} />}
         <IconButton
           label={`Rename ${name}`}
@@ -186,15 +176,17 @@ function CardActionIcons({
           }
         />
       </div>
-      <RowMoreMenu
-        always
-        name={name}
-        open={href}
-        onRename={onRename}
-        download={download}
-        onMakePrimary={primary ? undefined : onMakePrimary}
-        onDelete={onDelete}
-      />
+      <div className="pointer-fine:@2xl:hidden">
+        <RowMoreMenu
+          always
+          name={name}
+          open={href}
+          onRename={onRename}
+          download={download}
+          onMakePrimary={primary ? undefined : onMakePrimary}
+          onDelete={onDelete}
+        />
+      </div>
     </div>
   );
 }
@@ -207,9 +199,8 @@ function CardActionIcons({
  * badge on the primary), **Target Job** (a tailored resume's posting, as
  * the Tracker's Role cell draws a job: the company's logo, then the role
  * over the company; a faint dash for a resume made for no job), **Type**
- * (its grey glyph and word, `TypeLabel`), **Date Modified**, then ⋮ (the
- * other actions cover the date on hover)
- * (`CardActionIcons`). After Jobright's resume table, the name stands
+ * (its grey glyph and word, `TypeLabel`), **Date Modified**, then the
+ * actions (`CardActionIcons`). After Jobright's resume table, the name stands
  * alone, with no tile beside it: the Type column says what each resume is,
  * and the job has a column of its own, where the logos line up. The
  * headings name each column once: as cards, every resume said "Modified"

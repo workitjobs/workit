@@ -3179,16 +3179,18 @@ events: the last edit, or when it was made or uploaded, for a resume never
 edited, on the student's clock, the year only when it is not this one. It
 was two columns, Created and Last Edited, which the user condensed into
 one. **The actions wait for the pointer, as Google Drive's rows do**
-(`CardActionIcons`): at rest a row shows only ⋮ (More actions), the
-primary's badge sitting by its name; on hover, or with the keyboard's
-focus in the row, Make Primary, Rename, Download and Delete fade in left of
-⋮, over the Date Modified cell on the row's hover fill, as Gmail's row
-actions take the date's place (2026-11-10). They had a column of their own,
-kept for them so nothing moved, which stood empty at rest between the date
-and ⋮. ⋮ holds every action, worded:
-Open, Rename, Download PDF, Make Primary (on a resume that is not the
-primary), then Delete in red, which asks first (`RowMoreMenu` with
-`always`). A touch screen has no hover, so it shows ⋮ only. Four icons on every row at all times read busy to the user.
+(`CardActionIcons`), in a column of their own (`RESUME_ACTIONS_COL`):
+under a mouse, from `@2xl` of the table, Make Primary (on a resume that
+is not the primary), Rename, Download and Delete fade in on hover, or
+with the keyboard's focus in the row, and there is no ⋮. On a touch
+screen, which has no hover, or a narrower table, the row shows only ⋮
+(More actions), which holds every action, worded: Open, Rename, Download
+PDF, Make Primary, then Delete in red, which asks first (`RowMoreMenu`
+with `always`). Four icons on every row at all times read busy to the
+user. **History:** the icons covered the Date Modified cell, as Gmail's
+row actions take the date's place, beside an always-shown ⋮ (2026-11-10);
+on 2026-11-11 the user found them overlapping the row's fields and ⋮
+redundant beside them, so they got their column back, empty at rest.
 The date and the actions sit in fixed columns, so every card's date lines
 up. **The Grid view** (KAN-766, after Google Drive's and Simplify's): a List /
 Grid switch at the right end of the search's row, where the Jobs and

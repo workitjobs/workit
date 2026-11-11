@@ -7,7 +7,6 @@ import { STICKY_HEAD, STICKY_TH, TABLE_FILL, useFillPage } from "@/components/fi
 import { SearchIcon } from "@/components/icons";
 import { matches, searchWords } from "@/components/resume-list";
 import {
-  RESUME_ACTIONS_COL,
   RESUME_DATE_COL,
   RESUME_TD,
   RESUME_TH,
@@ -122,7 +121,9 @@ export function CoverLetters({ letters }: { letters: CoverLetter[] }) {
                   <span className="@2xl:hidden">Written</span>
                   <span className="hidden @2xl:inline">Date Written</span>
                 </TableHead>
-                <TableHead className={cn(STICKY_TH, RESUME_ACTIONS_COL)}>
+                {/* One icon, Copy, always shown: the Resumes table's actions column is
+                    wide enough for four. */}
+                <TableHead className={cn(STICKY_TH, "w-12")}>
                   <span className="sr-only">Actions</span>
                 </TableHead>
               </TableRow>

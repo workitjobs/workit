@@ -2863,7 +2863,7 @@ are in `docs/auth.md`.
   card, grey headings Name, Target Job, Type and Date Modified, rules
   between rows, a row that opens the resume on a click anywhere
   (`ClickableRow`), and the actions at the right (Make Primary, Rename,
-  Download, Delete on hover, ⋮ always; Delete asks in a popover under the
+  Download, Delete on hover under a mouse, ⋮ instead on touch or a narrow table; Delete asks in a popover under the
   trash, `DeleteResumeConfirm`, KAN-347). After Jobright's resume table,
   the name stands alone with a Primary badge on the primary, and a
   tailored resume's job has its own column, drawn as the Tracker's Role
@@ -2874,11 +2874,16 @@ are in `docs/auth.md`.
   do. **Name is two fifths of the table and Target Job takes the rest**
   (`RESUME_NAME_COL`, 2026-11-11): Name took all the room the fixed
   columns left, so a short name stood far from its job, which was cut at
-  256px. **The hover icons fit inside Date Modified** (`RESUME_DATE_COL`
-  144px from `@2xl`, 4 x 32px and 8px of icons), and below `@2xl` they
-  stay off and ⋮ holds them: at 128px and 96px they ran over Type and the
-  name. Cover Letters' table (`cover-letters/cover-letters.tsx`) uses the
-  same column constants, so a width change here changes both tabs.
+  256px. **The actions have a column of their own and never cover a
+  field** (`RESUME_ACTIONS_COL`, 2026-11-11): under a mouse from `@2xl` of
+  the table, the four icons (144px) on hover and no ⋮; on a touch screen
+  or a narrower table, ⋮ alone (48px). The icons covered Date Modified,
+  as Gmail's do, and ran over Type at narrow widths, with ⋮ beside them
+  repeating the same four; the user found both wrong. An empty 144px
+  column at rest is the price. Cover Letters' table
+  (`cover-letters/cover-letters.tsx`) uses the same column constants but
+  its own 48px actions column (Copy alone), so a width change here
+  changes both tabs.
   **Both layouts scroll with the page**, as the Tracker's table does
   (2026-11-10): the list, then the grid, scrolled inside their own box
   down to the page's foot from KAN-434 (`ResumeScroll`'s `fill`, which
