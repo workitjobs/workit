@@ -45,7 +45,7 @@ export const HEADING_ACTION = "hover:bg-hover size-8 rounded-full";
 
 /** The `soft` variant's classes. */
 const SOFT_BUTTON =
-  "border-border-surface bg-panel text-ink hover:bg-hover focus-visible:ring-brand-ring inline-flex items-center justify-center rounded-full border focus-visible:ring-[3px]";
+  "border-border-surface bg-panel text-ink hover:bg-hover focus-visible:ring-brand-ring inline-flex items-center justify-center rounded-full border focus-visible:ring-2";
 
 const VARIANTS = {
   /** Bare glyph: top-bar utilities and row actions. Centred in whatever box
@@ -67,7 +67,7 @@ const VARIANTS = {
    *  screen that needs a square edge. Size it at the call site (size-9, the
    *  `sm` button height). */
   outline:
-    "border-border-surface bg-panel text-ink hover:bg-hover focus-visible:ring-brand-ring rounded-control inline-flex items-center justify-center border focus-visible:ring-[3px]",
+    "border-border-surface bg-panel text-ink hover:bg-hover focus-visible:ring-brand-ring rounded-control inline-flex items-center justify-center border focus-visible:ring-2",
   /** A round icon button with a secondary Button's fill and edge (white,
    *  --color-border-surface, the hover fill), ONLY ON THE GREY PAGE GROUND
    *  (2026-11-09): the Jobs page's and the Tracker's Clear Filters and All

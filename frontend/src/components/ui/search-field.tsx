@@ -60,7 +60,7 @@ export function SearchField({ id, label, className, ...input }: SearchFieldProps
       <input
         id={id}
         type="search"
-        className="bg-panel border-border-control hover:border-ink-meta text-ink sm:text-body placeholder:text-ink-meta focus-visible:ring-brand-ring h-10 w-full rounded-full border pr-4 pl-10 text-base/5 transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none"
+        className="bg-panel border-border-control hover:not-focus-visible:border-ink-meta text-ink sm:text-body placeholder:text-ink-meta focus-visible:border-brand focus-visible:ring-brand-ring h-10 w-full rounded-full border pr-4 pl-10 text-base/5 transition-colors duration-150 focus-visible:ring-1 focus-visible:outline-none"
         {...input}
       />
     </div>

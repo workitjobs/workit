@@ -342,7 +342,13 @@ open choices (Settled choices, near the end).
 - **Focus is always visible.** A keyboard user must see where they are
   (WCAG 2.2 SC 2.4.7 and 2.4.11). Every control draws the solid
   `--color-brand-ring` ring on `focus-visible` (6.26:1 on white, 5.75:1 on
-  `app`); `outline-none` never comes without a ring. A sticky bar never
+  `app`); `outline-none` never comes without a ring. **It is 2px on every
+  control** (2026-11-11): a field's border turns brand with a 1px ring on it,
+  one 2px edge (`FIELD_CONTROL`, the search field); a button, an icon button,
+  a check box and a switch take a 2px ring (`globals.css` sets the vendored
+  check box's and switch's). A field shows focus on every click, and its 1px
+  border plus 3px ring read as a thick purple frame, beside 2px rings and
+  shadcn's half-strength 3px ring on one screen. A sticky bar never
   covers a focused control (`scroll-mt-*`).
 - **Every control has a name.** A screen reader reads the name, and a
   placeholder goes away while the student types (WCAG 2.2 SC 1.3.1, 2.5.3

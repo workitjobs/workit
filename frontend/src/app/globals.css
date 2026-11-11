@@ -1473,6 +1473,16 @@ body:has([data-skyline]) {
   }
 }
 
+/* FOCUS on the vendored checkbox and switch: the app's one 2px solid brand
+ * ring (docs/design.md, Accessibility), in place of shadcn's 3px ring at half
+ * strength, from outside so the vendored files stay as `shadcn add` wrote
+ * them. The doubled attribute out-specifies the `ring-3` utility. */
+@layer utilities {
+  :is([data-slot="checkbox"], [data-slot="switch"])[data-slot]:focus-visible {
+    --tw-ring-shadow: 0 0 0 2px var(--color-brand-ring);
+  }
+}
+
 /* The checkbox (a 16px box) and the switch (32 by 18px) each have a ::after
  * 24px wider and 16px taller than themselves; on touch, that or 44px,
  * whichever is larger (the switch keeps its 54px width). */

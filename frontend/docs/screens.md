@@ -3653,16 +3653,15 @@ student who opened a resume from Experiences landed on another view.
  - **The Header panel** (`header-panel.tsx`, KAN-436), after Simplify's
   Resume Header: a row per header field (Phone, Email, Location, LinkedIn,
   GitHub, Portfolio, Other Link, Additional Line), each a check box, its glyph and label,
-  and its value, with the Name first and no check box, since it always
-  prints. **The check box is this resume's** (`hidden_header`, a page
+  and its value. **The check box is this resume's** (`hidden_header`, a page
   setting, saved and rendered as one, with Undo); **the value is the
   profile's**, so a change shows on every resume. **Kept plain**
   (2026-11-11, the user's call): each field's label line is its check box,
   glyph and label, the field under it at the panel's left edge, and no
   sentence sits above the fields or under one (a line on what the boxes and
   values do, a note under the email and a hint under the Additional Line
-  read as clutter). The name has no box, only the box's room, so the labels
-  line up: a ticked box that did nothing read as one that works. A value saves as the student leaves its field (Enter or
+  read as clutter). The name is not in it: it always prints, so it needs
+  no box, and a click on it on the page types it like any line. A value saves as the student leaves its field (Enter or
   a click away), through the same typed-line path as the page
   (`saveText(HEADER, ...)`), so it has Undo. The email is read only (it is
   set on My Profile). Its fields are My Profile's and onboarding's own
