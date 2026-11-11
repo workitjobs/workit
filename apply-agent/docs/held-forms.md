@@ -55,6 +55,13 @@ reads: it does not click, type or submit.
   server, and NVIDIA's My Experience, filled again that way, answered
   Save and Continue with Workday's error page (2026-11-10, KAN-758). A
   reload that opens another step is followed by Back again.
+- A Workday fill deletes an entry panel only when the section shows more
+  panels than the plan's entries and the panel holds none of them by its
+  naming fields (`workdayEntries.naming`, sent with the count). When
+  every extra panel holds one of Lisul's entries, the fill stops for him
+  and deletes nothing. An engine without these calls (a plain Worker
+  seeded before v0.3.44) reads nothing from Review and deletes as
+  before: run `uv run apply plain seed` once no Worker runs.
 - A flag that `holds` goes in the reason as `Verify: <field>: <why>` and
   holds a live run (Needs you, kind `check`). Read-back and review flags
   hold already by their own reason. A blank optional field holds as a

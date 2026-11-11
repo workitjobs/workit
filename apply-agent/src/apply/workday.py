@@ -159,6 +159,17 @@ def next_step(page: Page, step: str) -> None:
         raise Handoff(f"{handoff}. Apply didn't click it: check the form and submit it yourself.") from None
 
 
+def _naming(page: Page, names: list[str]) -> list[str]:
+    """Which of `names` name an entry of a repeating section, by the engine (`workdayEntries.naming`); none on an engine
+    without the call (a plain Worker seeded before it), which deletes the last panels as it always did."""
+    try:
+        return fill_engine.call(page, "workdayEntries.naming", names) or []
+    except FillError as error:
+        if "has no function" not in str(error):
+            raise
+        return []
+
+
 def confirmed(page: Page) -> bool:
     """Whether Workday shows its notice of a submitted application: any of its
     words in sight, not only the first (a hidden live region can say them first)."""
@@ -233,8 +244,14 @@ class WorkdayFiller:
             if new:
                 raise MoreQuestions(new)
             kept = self._his[1] if shown["step"] == self._his[0] else set()
-            if sections := {name: answers[name] for name in shown["sections"] if name in answers and name not in kept}:
-                self._fill(page, sections)  # the step's new panels' fields are MoreQuestions
+            sections = {name: answers[name] for name in shown["sections"] if name in answers and name not in kept}
+            # Each entry's naming answers (company, title) go with the count, so a panel holding one is never deleted
+            # (KAN-775). One Lisul changed before Resume leaves the panels as he left them: his entry is told by none.
+            naming = _naming(page, [q.name for q in fields if q.name in answers]) if sections else []
+            if sections and not kept.intersection(naming):
+                self._fill(page, sections | {name: answers[name] for name in naming})  # new panels' fields: MoreQuestions
+                # Panels added for questions known already (a step filled again, KAN-775): their fields as shown now.
+                fields = self._shown(page)["questions"]
             for q in fields:
                 if q.name in answers and q.name not in sections and q.name not in kept:
                     self._put_or_rescue(page, q, None, answers[q.name])

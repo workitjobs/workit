@@ -459,6 +459,11 @@ class FakeWorkdayServer:
         tenant = self._tenant(host)
         return dict(tenant.saved.get((tenant.signed_in, tenant.posting), {}))
 
+    def save(self, host: str, **values) -> None:
+        """Change what the tenant at `host` holds of the application in progress, as another visit would have."""
+        tenant = self._tenant(host)
+        tenant.saved.setdefault((tenant.signed_in, tenant.posting), {}).update(values)
+
     def account(self, host: str, email: str) -> dict | None:
         return self._tenant(host).accounts.get(email)
 

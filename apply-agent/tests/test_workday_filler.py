@@ -315,6 +315,47 @@ def test_entries_filled_again_on_a_later_visit_are_kept():
     assert [job["companyName"] for job in sent.application["workExperience"]] == ["Hitachi Rail", "Cloud Data Pro"]
 
 
+def test_a_fill_again_over_entries_shown_with_an_extra_one_deletes_only_the_extra():
+    # A fill again over the applicant's entries, their dates set from Workday's Calendar (read back blank), and before
+    # them a panel holding none of them: only that panel goes, and each entry keeps what the plan doesn't answer.
+    keychain = InMemoryKeychain()
+    filler = WorkdayFiller(Accounts(keychain, FakeMailbox(), FakeClock(NOW), "test.person@example.com", "CACI"))
+    job = lambda title, company, about: {"jobTitle": title, "companyName": company, "location": "Remote",
+                                         "currentlyWorkHere": False, "startDate": "", "endDate": "", "roleDescription": about}
+
+    with FakeWorkdayServer(CACI_FORM, keychain=keychain, steps=EXPERIENCE_STEPS) as server, OnePage(server) as site:
+        questions = filler.question_set(CACI_URL, site)
+        with site.open(CACI_URL) as page:
+            questions, _, _ = fill_all(filler, page, questions, ANSWERS | EXPERIENCE)
+            server.save(CACI, workExperience=[job("Barista", "Corner Cafe", "Coffee."),
+                                              job(EXPERIENCE["Work Experience 1 / Job Title"], "Hitachi Rail", "Rail."),
+                                              job(EXPERIENCE["Work Experience 2 / Job Title"], "Cloud Data Pro", "Data.")])
+            page.goto(f"https://{CACI}/__fake__/apply/2")
+            fill_all(filler, page, questions, ANSWERS | EXPERIENCE)  # the third panel's fields: planned, none answered
+            filler.submit(page)
+
+    [sent] = server.submissions
+    assert [(j["companyName"], j["roleDescription"]) for j in sent.application["workExperience"]] == [
+        ("Hitachi Rail", "Rail."), ("Cloud Data Pro", "Data.")]
+
+
+def test_extra_panels_that_hold_the_applicants_entries_stop_the_fill_and_none_is_deleted():
+    keychain = InMemoryKeychain()
+    filler = WorkdayFiller(Accounts(keychain, FakeMailbox(), FakeClock(NOW), "test.person@example.com", "CACI"))
+    hitachi = {"jobTitle": "Intern", "companyName": "Hitachi Rail", "location": "Remote", "currentlyWorkHere": False,
+               "startDate": "06/2026", "endDate": "08/2026", "roleDescription": ""}
+
+    with FakeWorkdayServer(CACI_FORM, keychain=keychain, steps=EXPERIENCE_STEPS) as server, OnePage(server) as site:
+        questions = filler.question_set(CACI_URL, site)
+        with site.open(CACI_URL) as page:
+            questions, _, _ = fill_all(filler, page, questions, ANSWERS | EXPERIENCE)
+            server.save(CACI, workExperience=[hitachi, {**hitachi, "companyName": "Cloud Data Pro"}, hitachi])
+            page.goto(f"https://{CACI}/__fake__/apply/2")
+            with pytest.raises(Handoff, match="each holds one of yours"):
+                fill_all(filler, page, questions, ANSWERS | EXPERIENCE)
+            assert page.locator("[data-fake-section=workExperience] [data-fake-panel]").count() == 3
+
+
 def test_a_searched_major_is_the_tenants_own_computer_science_where_it_has_one():
     # Beside the wordings Lisul accepts where a tenant has none (AmFam's, live).
     majors = (*FIELDS_OF_STUDY, "Computer Science", "Computer Science and Engineering")
