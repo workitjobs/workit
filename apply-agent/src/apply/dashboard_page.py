@@ -195,6 +195,9 @@ setInterval(async () => {
     const capture = document.getElementById('capture-' + k);
     capture.hidden = !c.capture;
     capture.textContent = capture.title = c.capture || '';
+    const session = document.getElementById('session-' + k);  // a held form's job-site session (KAN-776)
+    session.hidden = !c.session;
+    session.textContent = session.title = c.session || '';
     const bar = document.getElementById('file-' + k);
     bar.hidden = !c.file;
     bar.querySelector('input').multiple = c.file === 'selectMultiple';
@@ -1396,6 +1399,7 @@ STYLE = r"""
   .banner.failed { background: var(--bad-tint); color: var(--bad); }
   .caption { padding: 6px 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 12px; color: var(--muted); }
   .sent { display: flex; flex-wrap: wrap; gap: 4px 12px; padding: 0 14px 6px; font-size: 12px; color: var(--muted); cursor: default; }
+  .session { padding: 0 14px 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 12px; color: var(--muted); cursor: default; }
   .capture { padding: 0 14px 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 12px; color: var(--needs); cursor: default; }
   .sent .doc { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
   .sent a, .sent button { height: auto; padding: 0; border: 0; border-radius: 0; background: none; font: 500 12px/1.4 var(--sans); color: var(--brand); }

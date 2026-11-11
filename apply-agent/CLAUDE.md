@@ -63,7 +63,7 @@ this folder's `CLAUDE.md` for its area.
 
 - `docs/fill-engine.md`: Apply's plan rules, `fill_engine.py`, `APPLY_FILL_ENGINE`, or what the plan answers from the Tracker, the Answer bank or a bare date.
 - `docs/workit.md`: a WorkIt call, `apply login`, `import-sheet`, `clean-tracker`, `sync-answers` (the Answer bank sync), a Tracker write, the already-applied check, the resume check, or the tailored resume.
-- `docs/held-forms.md`: verifying, a flag, Resume, Regenerate, Ask Claude, Fill again (`apply fill-again`), page gates, or how a question reaches Needs you.
+- `docs/held-forms.md`: verifying, a flag, Resume, Regenerate, Ask Claude, Fill again (`apply fill-again`), page gates, a held form's job-site session (`keepalive.py`), or how a question reaches Needs you.
 - `docs/prompts-and-gates.md`: a prompt, a length, cap or names gate, or the catch-all box rule.
 - `docs/claude-fill.md`: Claude fill, its Next and profile clicks, its dropdowns, or a Filler's `form_url`.
 - `docs/captchas-and-bot-blocks.md`: a captcha wait, a block's handoff, or `captcha.py`.
@@ -153,7 +153,8 @@ into it and the window shows "Sample data".
 - **The submit guard's hostile pages** (`tests/test_submit_guard_hostile.py`,
   KAN-666) run every click path that presses through the guards (plain
   code's Next, the profile click, the account click, Ask Claude's press,
-  Fill again) against pages built to trick them. Every pair must send no
+  the keep-alive's stay-signed-in press, Fill again) against pages built to
+  trick them. Every pair must send no
   application request. A new click path joins `PATHS`, and a new trick joins
   `PAGES`, in the same PR. CI runs its no-browser cases, every page and
   every path at least once on CDP (a diagonal), and every path against the

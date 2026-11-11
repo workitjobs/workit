@@ -483,6 +483,62 @@ fake Greenhouse, Go to question on a paused fake Workday step, finding a
 field by its label and panel, the rest rules, and the window's `/goto` and
 `typed` (opens Chromium).
 
+## A held form's job-site session (KAN-776)
+
+`src/apply/keepalive.py`. A held form waits on Lisul, but a job site signs a person out when a page sits idle.
+Live, 2026-11-10: JPMorgan's Oracle Recruiting form was held on its last step. When Lisul came to submit, Oracle
+said "For security reasons your session was ended due to inactivity" and went back to the job list, and the
+filled form was lost.
+
+- **The Keeper.** `_Kept.hold(keep=...)` runs a `keepalive.Keeper` on each turn of the hold loop, until Lisul
+  presses Submit (rehearsal `holds()` makes one per hold). It reads the page every `LOOK_S` (5 s).
+- **Only what the allowlist names.** `keepalive.SITES` lists Oracle Recruiting (`*.oraclecloud.com`), Workday
+  (`myworkdayjobs`, `myworkday`, `myworkdaysite`), amazon.jobs and Eightfold (Microsoft Careers too), by host.
+  On a listed site, and only while the page is on that host, it does three things: every `PING_S` (4 min), one
+  same-origin GET of the page's own URL with its cookies (a CDP page: the context's request API, so no page
+  code runs; a plain page: the extension's isolated world, `keepalive.PING`) and one `mousemove` dispatched on
+  the document (`ACTIVITY`: no field, no pointer); and, when the site's own dialog says the session is about to
+  end (`WARNS`), a press of ONLY its stay-signed-in button, by an exact name of the entry's `stay` (Continue,
+  Stay signed in, Extend session...). It never presses Sign out, never saves, never sends and never types.
+- **The stay press is a click path** (`keepalive.press`). Python refuses a name that sends
+  (`account_pages.SENDS`). `STAY` checks the real element (a fixed function, isolated world, on a plain page):
+  in a dialog whose words warn, no form's (nor `form=` or `formaction`), no input or link away, nothing inside
+  it, and a dialog with no form and no field. Then the press runs in `driving()`, the same context Ask Claude's
+  drive uses: both guards back on (`rearm`). After it (and `SETTLE_MS`, 3 s), the page is his again, but his
+  Submit is held (`Keeper.holding`, `keepalive.STAY_HELD`): `lift(held=...)`, under the red note with Dismiss,
+  where the in-page guard stays whole. Only his Dismiss on the note gives Submit back (`Keeper.dismiss`, with any
+  flag's hold). That Dismiss is the guard's own tell (PR 477's design: `submit_guard.TELLS`, from the guard's
+  closure, for a trusted press or the worker extension's marked one), so nothing the page can reach releases it:
+  not a call of `__applyDismissHold`, nor a script's click on the note's button, nor a console line that looks
+  like the tell (the re-review of #541). So a button that sends the form at any delay after the press sends nothing while the form is
+  held. A fixed 3 s of guard was not enough: in the adversarial review of #541, a Continue that sent 3.5 s later
+  went through. From the press on, the Keeper sends no more mouse moves on that page, since a page could arm on
+  the press and send on the next one; the GET, which the page's code never sees, goes on. It is in
+  `tests/test_submit_guard_hostile.py` (`PATHS`, the session dialogs in `SESSION_PAGES`, sending 1.5 s, 3.5 s,
+  10 s and 60 s after the press or after the next mouse move, or after dismissing the hold itself): a change here gets an adversarial review before
+  it merges (KAN-666).
+- **When a session ends anyway.** On every site, listed or not, the Keeper reads for `ENDED` (past tense only:
+  "was ended due to inactivity", "has expired"; never "will expire") showing anew, or, where the entry knows the
+  form's own pages (`form`: Oracle's `/apply/section/<n>`, Workday's `/apply`), the page leaving them. Words
+  shown from the first look (a sign-in page's) are no new end. Then, once (`rehearsal.session_lost`): the tile
+  goes to handoff with "<company>'s session ended; press Fill again after signing in", the phone push says the
+  same (`phone_push` on), Ask Claude stops (`askable` off), and the open-forms list notes `session ended`. The
+  page stays held: Fill again, from its note or the window (`refill` lets `POST /fill-again` take it), fills it anew.
+- **The tile's session line** (`session` in the caption, `.session`): "Held since 10:42; Apply keeps Oracle
+  Recruiting's session alive; its idle limit isn't known", then the last stay press, or "Session ended at 11:15".
+  `Site.minutes` is how long a site allows a page to sit idle, shown when it is known. None is yet.
+- **Still open.** The dialogs' names and words follow what the sites are reported to show, and none is verified
+  live. A rehearsal held past Oracle's limit on JPMorgan's posting is the live proof still to make; when a site's
+  idle limit or dialog is seen, put it in its entry.
+
+**Tests.** `tests/test_keepalive.py` (in CI; its browser cases skip there without Chromium): the allowlist, the
+ended words, the Keeper's turns on a fake page, a fake Oracle form whose session dialog gets only Continue, its
+expiry told through `_Kept.hold` with Fill again after, the ping on loopback with its cookie, and the same on a
+plain Worker, and his Submit held after a stay press until his Dismiss. `tests/test_into.py -k session`: Fill
+again on a form whose session ended.
+`tests/test_submit_guard_hostile.py -k "session or stay"`: the stay press against every hostile page, and on a
+held page through `_Kept.hold`.
+
 ## Fill again from outside the page: `POST /fill-again` and `apply fill-again` (KAN-672)
 
 Agents and Lisul can press Fill again without a click in the Worker's page:
