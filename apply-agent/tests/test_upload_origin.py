@@ -71,13 +71,56 @@ def _resume(folder: Path) -> Path:
     return path
 
 
-@pytest.fixture(scope="module")
-def site():
-    posted = []
+# PR 556's review: the adversarial reviewer's probes (KAN-666), each a page on {foreign}, a third origin (a second
+# server on 127.0.0.1), framed by the form's page on 127.0.0.1 as /tx/<name>.
+PROBES = {
+    # A detached input's click event, dispatched: it never reaches the window's listener.
+    "dispatch": """<!doctype html><button type=button id=up onclick="
+        const i = document.createElement('input'); i.type = 'file'; window.keep = i;
+        i.addEventListener('change', () => { window.got = i.files.length; });
+        i.dispatchEvent(new MouseEvent('click'));">Upload resume</button>""",
+    # Another realm's native click() (a fresh about:blank child's), on this frame's own input.
+    "realm": """<!doctype html><input type=file id=f style="display:none">
+        <button type=button id=up onclick="
+          const k = document.createElement('iframe'); document.body.appendChild(k);
+          k.contentWindow.HTMLElement.prototype.click.call(document.getElementById('f'));">Upload resume</button>
+        <script>document.getElementById('f').addEventListener('change', (e) => { window.got = e.target.files.length; });</script>""",
+    # An input in a closed shadow root, behind a label whose text is slotted from the light DOM.
+    "shadow": """<!doctype html><div id=host><span id=txt>Upload resume</span></div>
+        <script>
+          const root = document.getElementById('host').attachShadow({mode: 'closed'});
+          root.innerHTML = '<label style="display:inline-block;padding:20px;border:1px solid"><slot></slot><input type=file style="display:none"></label>';
+          const i = root.querySelector('input');
+          i.addEventListener('change', () => { window.got = i.files.length; });
+        </script>""",
+    # A plain input, pressed by keyboard.
+    "key": """<!doctype html><label>Resume <input type=file id=f></label>
+        <script>document.getElementById('f').addEventListener('change', (e) => { window.got = e.target.files.length; });</script>""",
+    # A pop-up the frame opens: a top frame, of the other site.
+    "opener": """<!doctype html><button type=button id=up onclick="window.open(location.origin + '/x/key', 'pop')">Upload resume</button>""",
+    # A script-less sandboxed child, same origin as this scripted parent, which reads the child's file.
+    "sbxparent": """<!doctype html><iframe id=c sandbox="allow-same-origin" src="/x/sbxchild" width=300 height=100></iframe>
+        <script>setInterval(() => { try { const f = document.getElementById('c').contentDocument.getElementById('f');
+          if (f && f.files.length) window.got = f.files[0].name; } catch (e) { window.err = String(e); } }, 50);</script>""",
+    "sbxchild": """<!doctype html><label>Resume <input type=file id=f></label>""",
+    # A job system's real form (Greenhouse's host, served by a route), inside another site's frame.
+    "gh": f'<!doctype html><p>Ad</p><iframe src="{GREENHOUSE_EMBED.replace("acme", "evilcorp")}" width=500 height=200></iframe>',
+    # The same on a plain Worker: localhost stands in for the job system's host.
+    "gh2": '<!doctype html><p>Ad</p><iframe src="http://localhost:{port}/own" width=500 height=200></iframe>',
+}
+for _name, _body in PROBES.items():
+    PAGES[f"/x/{_name}"] = _body
+    PAGES[f"/tx/{_name}"] = (f'<!doctype html><title>Apply</title><h1>Apply to Acme</h1>'
+                             f'<iframe id=w src="{{foreign}}/x/{_name}" width=500 height=250></iframe>')
+PAGES["/sandboxed"] = '<!doctype html><title>Apply</title><iframe id=w sandbox src="{foreign}/x/key" width=500 height=250></iframe>'
 
+
+def _serve(fill: dict, posted: list):
     class Pages(http.server.BaseHTTPRequestHandler):
         def do_GET(self):
-            body = PAGES.get(urlsplit(self.path).path, "<p>no").replace("{port}", str(self.server.server_address[1]))
+            body = PAGES.get(urlsplit(self.path).path, "<p>no")
+            for key, value in fill.items():
+                body = body.replace(key, value)
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.end_headers()
@@ -93,10 +136,20 @@ def site():
 
     server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Pages)
     threading.Thread(target=server.serve_forever, daemon=True).start()
+    return server
+
+
+@pytest.fixture(scope="module")
+def site():
+    posted, fill = [], {}
+    server, foreign = _serve(fill, posted), _serve(fill, posted)
     server.url = f"http://127.0.0.1:{server.server_address[1]}"
     server.other = f"http://localhost:{server.server_address[1]}"
+    server.foreign = f"http://127.0.0.1:{foreign.server_address[1]}"
+    fill.update({"{port}": str(server.server_address[1]), "{foreign}": server.foreign})
     yield server
     server.shutdown()
+    foreign.shutdown()
     assert not posted, "a fake form was sent"
 
 
@@ -165,7 +218,7 @@ def cdp_page(guarded: bool = False):
 
     with sync_playwright() as p:
         browser = p.chromium.launch()
-        page = browser.new_page()
+        page = browser.new_context().new_page()
         page.route(re.compile(r"^https://job-boards\.greenhouse\.io/"),
                    lambda route: route.fulfill(status=200, content_type="text/html", body=OWN))
         if guarded:
@@ -453,3 +506,156 @@ def test_plain_the_guard_opens_no_picker_in_another_sites_frame(plain, site, tmp
     assert any(b.startswith(upload_origin.BLOCKED) and "localhost" in b for b in guard.blocked())
     assert evil.evaluate("() => document.getElementById('f').files.length") == 0
     guard.lift()
+
+
+# --- PR 556's review: each bypass the reviewer found, as a hostile page that must now get no file
+
+
+def _mcp_try(page, frame, selector, resume, how="click") -> bool:
+    """Playwright MCP's upload on a CDP Worker: a click (or a key), the chooser it opens, and its own unchecked
+    set_files. False when no chooser opened or the set failed."""
+    from playwright.sync_api import Error
+
+    try:
+        with page.expect_file_chooser(timeout=2_000) as chosen:
+            if how == "click":
+                frame.locator(selector).click(timeout=2_000)
+            else:
+                frame.locator(selector).focus()
+                page.keyboard.press(how)
+        chosen.value.set_files(resume)
+        return True
+    except Error:
+        return False
+
+
+def _got(frame, wait_ms: int = 1_000):
+    for _ in range(wait_ms // 100):
+        if value := frame.evaluate("() => window.got"):
+            return value
+        frame.page.wait_for_timeout(100)
+    return None
+
+
+@needs_chromium
+@pytest.mark.parametrize("name, selector, how", [
+    ("dispatch", "#up", "click"),  # a detached input's dispatched click
+    ("realm", "#up", "click"),  # another realm's click()
+    ("shadow", "#txt", "click"),  # a closed shadow root's slotted label
+    ("key", "#f", "Space"),
+    ("key", "#f", "Enter"),
+])
+def test_cdp_claudes_upload_gets_no_file_into_another_sites_frame_by_any_click(site, tmp_path, name, selector, how):
+    with cdp_page(guarded=True) as (page, armed):
+        page.goto(f"{site.url}/tx/{name}")
+        guard = armed()
+        frame = _frame(page, f"{site.foreign}/x/{name}")
+        _mcp_try(page, frame, selector, _resume(tmp_path), how)
+        assert not _got(frame), "the other site's frame got the file"
+        if name in ("dispatch", "shadow"):
+            assert any(b.startswith(upload_origin.BLOCKED) for b in guard.blocked())
+
+
+@needs_chromium
+def test_cdp_a_pop_up_another_sites_frame_opens_takes_no_file(site, tmp_path):
+    with cdp_page(guarded=True) as (page, armed):
+        page.goto(f"{site.url}/tx/opener")
+        armed()
+        frame = _frame(page, f"{site.foreign}/x/opener")
+        with page.context.expect_page() as popped:
+            frame.locator("#up").click()
+        pop = popped.value
+        pop.wait_for_load_state("load")
+        assert not _mcp_try(pop, pop.main_frame, "#f", _resume(tmp_path))  # Claude's: no picker opens there
+        with pytest.raises(Elsewhere):  # plain code's
+            upload_origin.give(pop.locator("#f"), _resume(tmp_path))
+        assert not _got(pop.main_frame)
+
+
+@needs_chromium
+def test_cdp_a_scriptless_frame_under_another_site_gives_its_parent_no_file(site, tmp_path):
+    with cdp_page(guarded=True) as (page, armed):
+        page.goto(f"{site.url}/tx/sbxparent")
+        armed()
+        parent = _frame(page, f"{site.foreign}/x/sbxparent")
+        child = _frame(page, f"{site.foreign}/x/sbxchild")
+        _mcp_try(page, child, "#f", _resume(tmp_path))
+        assert not _got(parent)
+        assert child.evaluate("() => document.getElementById('f').files.length") == 0
+
+
+@needs_chromium
+def test_cdp_a_scriptless_sandboxed_frame_takes_no_file(site, tmp_path):
+    with cdp_page(guarded=True) as (page, armed):
+        page.goto(f"{site.url}/sandboxed")
+        armed()
+        frame = _frame(page, f"{site.foreign}/x/key")
+        _mcp_try(page, frame, "#f", _resume(tmp_path))
+        assert frame.evaluate("() => document.getElementById('f').files.length") == 0
+
+
+@needs_chromium
+def test_cdp_a_job_systems_form_inside_another_sites_frame_gets_no_file(site, tmp_path):
+    from apply.attach import attach_resume
+
+    with cdp_page(guarded=True) as (page, armed):
+        page.goto(f"{site.url}/tx/gh")
+        armed()
+        gh = _frame(page, "greenhouse.io")
+        with pytest.raises(Elsewhere):  # plain code
+            attach_resume(page, _resume(tmp_path))
+        _mcp_try(page, gh, "#f", _resume(tmp_path))  # Claude's upload
+        assert gh.evaluate("() => document.getElementById('f').files.length") == 0
+
+
+@needs_chrome
+@pytest.mark.parametrize("name", ["dispatch", "realm", "shadow"])
+def test_plain_claudes_upload_gets_no_file_into_another_sites_frame_by_any_click(plain, site, tmp_path, name):
+    from apply import submit_guard
+    from apply.submit_guard import DriveGuard
+
+    plain.goto("about:blank")
+    submit_guard.on_open(plain)
+    plain.goto(f"{site.url}/tx/{name}")
+    guard = DriveGuard(plain)
+    guard.arm()
+    frame = _port_frame(plain, f"{site.foreign}/x/{name}")
+    try:
+        with tools_on(plain, tmp_path) as tools:
+            snapshot = tools.tool("browser_snapshot")[0]
+            tools.tool("browser_click", target=_ref(snapshot, "Upload resume", f"/x/{name}"), element="Upload resume")
+            tools.tool("browser_file_upload", paths=[str(_resume(tmp_path))])
+        assert not frame.evaluate("() => window.got")
+    finally:
+        guard.lift()
+
+
+@needs_chrome
+def test_plain_a_pop_up_another_sites_frame_opens_takes_no_file(plain, site, tmp_path):
+    plain.goto(f"{site.url}/tx/opener")
+    # A plain Worker's click is untrusted, so Chrome blocks the frame's window.open: the tab it would open, made here.
+    plain.worker.call("tabs.create", active=False, url=f"{site.foreign}/x/key")
+    with tools_on(plain, tmp_path) as tools:
+        listed, _ = tools.tool("browser_tabs", action="list")
+        index = next(i for i, line in enumerate(line for line in listed.splitlines() if line.startswith("- ")) if "/x/key" in line)
+        tools.tool("browser_tabs", action="select", index=index)
+        snapshot = tools.tool("browser_snapshot")[0]
+        tools.tool("browser_click", target=_ref(snapshot, 'button "Resume"'), element="Resume")
+        said, error = tools.tool("browser_file_upload", paths=[str(_resume(tmp_path))])
+        assert error and "not on the form's own site" in said
+    pop = next(p for p in plain.context.pages if "/x/key" in p.url)
+    assert not pop.evaluate("() => window.got")
+    pop.close()
+
+
+@needs_chrome
+def test_plain_a_job_systems_form_inside_another_sites_frame_gets_no_file(plain, site, tmp_path, monkeypatch):
+    from apply.attach import attach_resume
+
+    monkeypatch.setattr(upload_origin, "JOB_SYSTEM_HOSTS", ("localhost",))  # localhost stands in for the job system
+    plain.goto(f"{site.url}/tx/gh2")
+    gh = _port_frame(plain, "/own")
+    gh.wait_for_function("() => document.readyState === 'complete'")
+    with pytest.raises(Elsewhere):
+        attach_resume(plain, _resume(tmp_path))
+    assert gh.evaluate("() => document.getElementById('f').files.length") == 0

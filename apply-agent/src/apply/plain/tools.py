@@ -35,6 +35,7 @@ import time
 import uuid
 from pathlib import Path
 from typing import Self
+from urllib.parse import urlsplit
 
 from apply import attach, captcha, send_click, upload_origin
 from apply.plain.bridge import PortError
@@ -95,6 +96,7 @@ class Tools:
         self._folder = folder.resolve()
         self._ask, self._message = send_click.flags_of(hook)
         self._pinned: set[str] = set()
+        self._home = page  # the drive's own tab: a pop-up of another site takes no file (PR 556's review)
         page.worker.call("mcp.arm", tab=page.tab)
 
     def _pin(self, frame_id: int, token: str) -> None:
@@ -306,6 +308,9 @@ class Tools:
         if not chooser:
             raise ToolError('The tool "browser_file_upload" can only be used when there is related modal state present.')
         frame_id, token = chooser
+        if self.page.tab != self._home.tab and upload_origin.origin(self.page.url) != upload_origin.origin(self._home.url):
+            self.page.worker.call("mcp.modal", tab=self.page.tab, clear=["chooser"])
+            raise ToolError(ELSEWHERE.format(host=urlsplit(self.page.url).hostname or "another site"))
         frame = self.page if frame_id == 0 else next((f for f in self.page.frames if f._frame == frame_id), None)
         if frame is None or not upload_origin.frame_may_upload(frame):  # read again as it sets, in the frame itself
             self.page.worker.call("mcp.modal", tab=self.page.tab, clear=["chooser"])

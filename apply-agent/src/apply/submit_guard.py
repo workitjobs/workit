@@ -1407,43 +1407,112 @@ _TEMPLATE = r"""
   }
 
   // Uploads (KAN-795): a file goes only to the form's own site (apply.upload_origin). In a frame that may not take one
-  // (another site's: an ad, a widget, a hostile page's trap), a file input opens no picker while the guard is on, so
-  // Claude's upload tool (Playwright MCP's, or a plain Worker's) has no chooser there. A click on the input or its
-  // label is cancelled at the window before the page hears it, and a script's click() or showPicker() on one is
-  // refused, a detached input's too. Read once, as the document starts: its origin and its ancestors' never change.
+  // (another site's: an ad, a widget, a hostile page's trap, or any frame under one), a file input opens no picker
+  // while the guard is on, so Claude's upload tool (Playwright MCP's, or a plain Worker's) has no chooser there:
+  // - a click on the input or its label is cancelled before the page hears it: at the window, and at each shadow root
+  //   the page makes (attachShadow, a closed one too), whose inside the window can't see (PR 556's review);
+  // - a script's click(), showPicker() or dispatchEvent() of a click on one is refused, a detached input's too.
+  // The frame's origin and its ancestors' are read once, as the document starts: they never change. A top frame that
+  // a frame opened (a pop-up whose opener is no top frame) takes no file: a frame of another site on the form's page
+  // could open one, and it would be a top frame (PR 556's review). Such a frame's links, forms and window.open keep
+  // their opener, so the pop-up knows it.
   const ancestorList = [];
   { const found = location.ancestorOrigins; for (let i = 0; found && found[i] !== undefined; i++) push(ancestorList, found[i]); }
   const uploadOrigin = location.protocol === 'about:' ? (ancestorList[0] || 'null') : location.origin;
-  const uploadsHere = (@UPLOAD_RULE@)(uploadOrigin, ancestorList, @UPLOAD_HOSTS@);
-  if (!uploadsHere) {
-    const uploadFrom = uploadOrigin === 'null' ? 'another site' : uploadOrigin;
-    const isFile = (el) => tag(el) === 'INPUT' && lower(typeOf(el)) === 'file';
-    const labelControl = getter(HTMLLabelElement, 'control'), composedPath = fn(EvP, 'composedPath');
-    const picker = (el) => {
-      if (isFile(el)) return true;
-      const label = up(el, 'label');
-      const control = label && labelControl ? read([labelControl], label, null) : null;
-      return !!control && isFile(control);
-    };
-    const refusePicker = () => note(@UPLOAD_BLOCKED@ + ' (' + uploadFrom + ')');
-    on('click', judged((event) => {
-      if (lifted()) return;
-      const path = composedPath(event);
-      if (!picker(path.length ? path[0] : targetGet(event))) return;
-      prevent(event);
-      stopNow(event);
-      refusePicker();
-    }));
-    const nativeClick = HP.click, nativePicker = HTMLInputElement.prototype.showPicker;
-    defineProp(HP, 'click', {value: function click() {
-      if (!lifted() && isFile(this)) { refusePicker(); return undefined; }
-      return apply(nativeClick, this, []);
-    }, writable: true, configurable: true});
-    if (typeof nativePicker === 'function') defineProp(HTMLInputElement.prototype, 'showPicker', {value: function showPicker() {
-      if (!lifted() && isFile(this)) { refusePicker(); throw new DOMExc('Blocked by the @NAME@', 'NotAllowedError'); }
-      return apply(nativePicker, this, []);
+  let openedByFrame = false;
+  try { const by = W.opener; openedByFrame = !!by && by.top !== by; } catch (e) { openedByFrame = true; }
+  const frameUploads = !(ancestorList.length === 0 && openedByFrame) && (@UPLOAD_RULE@)(uploadOrigin, ancestorList, @UPLOAD_HOSTS@);
+  // Off only on a page handed to Lisul (lift() with its note): the drive guard's copy on_open puts on a live run's
+  // page starts lifted with no note, and a pop-up's stays so (no DriveGuard arms it), so that is no hand-over.
+  const handedOver = () => lifted() && S.note !== null;
+  const uploadsNow = () => handedOver() || frameUploads;
+  const uploadFrom = uploadOrigin === 'null' ? 'another site' : uploadOrigin;
+  const isFile = (el) => tag(el) === 'INPUT' && lower(typeOf(el)) === 'file';
+  const labelControl = getter(HTMLLabelElement, 'control');  // composedPath and eventType: the ping section's
+  const picker = (el) => {
+    if (isFile(el)) return true;
+    const label = up(el, 'label');
+    const control = label && labelControl ? read([labelControl], label, null) : null;
+    return !!control && isFile(control);
+  };
+  const refusePicker = () => note(@UPLOAD_BLOCKED@ + ' (' + uploadFrom + ')');
+  const pickerClick = judged((event) => {
+    if (uploadsNow()) return;
+    const path = composedPath(event);
+    if (!picker(path.length ? path[0] : targetGet(event))) return;
+    prevent(event);
+    stopNow(event);
+    refusePicker();
+  });
+  on('click', pickerClick);
+  if (!frameUploads) {  // what this frame opens keeps its opener (Chrome drops it for target=_blank by default)
+    const keepOpener = judged((event) => {
+      const path = composedPath(event), at = up(path.length ? path[0] : targetGet(event), 'a[target], area[target], form[target]');
+      if (at && !handedOver()) setAttr(at, 'rel', 'opener');
+    });
+    on('click', keepOpener);
+    on('submit', keepOpener);
+    const nativeOpen = W.open, strReplace = fn(SP, 'replace');
+    if (typeof nativeOpen === 'function') defineProp(W, 'open', {value: function open(url, name, features) {
+      const kept = handedOver() ? features : strReplace(Str(features === undefined ? '' : features), /\bno(opener|referrer)\b/gi, 'x');
+      return apply(nativeOpen, this, arguments.length > 2 ? [url, name, kept] : arguments.length > 1 ? [url, name] : [url]);
     }, writable: true, configurable: true});
   }
+  const nativeAttach = EP.attachShadow;
+  if (typeof nativeAttach === 'function') defineProp(EP, 'attachShadow', {value: function attachShadow(...args) {
+    const root = apply(nativeAttach, this, args);
+    listen(root, 'click', pickerClick, true);
+    try { fenceWatch(root); } catch (e) {}
+    return root;
+  }, writable: true, configurable: true});
+  const nativeClick = HP.click, nativePicker = HTMLInputElement.prototype.showPicker;
+  const nativeDispatch = EventTarget.prototype.dispatchEvent;
+  defineProp(HP, 'click', {value: function click() {
+    if (!uploadsNow() && isFile(this)) { refusePicker(); return undefined; }
+    return apply(nativeClick, this, []);
+  }, writable: true, configurable: true});
+  if (typeof nativePicker === 'function') defineProp(HTMLInputElement.prototype, 'showPicker', {value: function showPicker() {
+    if (!uploadsNow() && isFile(this)) { refusePicker(); throw new DOMExc('Blocked by the @NAME@', 'NotAllowedError'); }
+    return apply(nativePicker, this, []);
+  }, writable: true, configurable: true});
+  // A frame that runs no script (a sandbox without allow-scripts) runs no guard either, so nothing in it would keep
+  // its picker shut, and a same-origin frame with scripts could read the file it took (PR 556's review). While the
+  // guard is on, such a frame is made inert: no click or key reaches it, Claude's included. Lifted, it is as it was.
+  const ALLOW_SCRIPTS = /(^|\s)allow-scripts(\s|$)/i;
+  const MO = MutationObserver, observe = fn(MO.prototype, 'observe'), fenced = [];
+  const scriptless = (f) => tag(f) === 'IFRAME' && hasAttr(f, 'sandbox') && !test(ALLOW_SCRIPTS, text(attr(f, 'sandbox')));
+  const fence = (f) => {
+    if (handedOver() || !scriptless(f) || hasAttr(f, 'inert')) return;
+    setAttr(f, 'inert', '');
+    push(fenced, f);
+  };
+  const fenceIn = (scope) => { const found = all(scope, 'iframe[sandbox]'); for (let i = 0; i < found.length; i++) fence(found[i]); };
+  const fencer = new MO((records) => {
+    for (let i = 0; i < records.length; i++) {
+      const r = records[i], t = r.target;
+      if (isEl(t) && tag(t) === 'IFRAME') fence(t);
+      const added = r.addedNodes;
+      for (let j = 0; added && j < nlLen(added); j++) {
+        const n = nlItem(added, j);
+        if (!isEl(n)) continue;
+        fence(n);
+        fenceIn(n);
+      }
+    }
+  });
+  const fenceWatch = (root) => observe(fencer, root, {childList: true, subtree: true, attributes: true, attributeFilter: ['sandbox', 'inert']});
+  fenceWatch(D);
+  onControl[onControl.length] = () => {
+    if (!handedOver()) { fenceIn(D); return; }
+    for (let i = 0; i < fenced.length; i++) { try { removeAttr(fenced[i], 'inert'); } catch (e) {} }
+    fenced.length = 0;
+  };
+  defineProp(EventTarget.prototype, 'dispatchEvent', {value: function dispatchEvent(event) {
+    let type = '';
+    try { type = eventType(event); } catch (e) {}
+    if (type === 'click' && isEl(this) && !uploadsNow() && picker(this)) { refusePicker(); return false; }
+    return apply(nativeDispatch, this, [event]);
+  }, writable: true, configurable: true});
 
   // Workers (KAN-791): a worker runs none of this script, so its fetch, XHR and beacon go unjudged. While the guard is
   // on, the page makes none: a dedicated or shared worker (from any URL, blob: and data: too), a service worker's

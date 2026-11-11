@@ -521,7 +521,10 @@
   const mayUpload = (own, ancestors, hosts) => {
     if (!ancestors.length) return true;  // the top frame: the form's own site, whatever its URL
     const top = ancestors[ancestors.length - 1];
-    if (!own || own === 'null') return false;
+    if (!own || own === 'null' || !top || top === 'null') return false;
+    // Every frame between this one and the top is the top's own site: a job system's form inside another site's
+    // frame is that site's to embed, and a frame under one is that site's to read (PR 556's review).
+    for (let i = 0; i < ancestors.length - 1; i++) if (ancestors[i] !== top) return false;
     if (own === top) return true;
     const host = own.replace(/^[a-z][a-z0-9+.-]*:\/\//i, '').replace(/:\d+$/, '').replace(/^\[|\]$/g, '').toLowerCase();
     for (let i = 0; i < hosts.length; i++) {

@@ -9,6 +9,13 @@ So a file goes only to a file input in:
 - a frame on a job system's own host (JOB_SYSTEM_HOSTS): the form a company page embeds, such as Greenhouse's
   job-boards.greenhouse.io/embed/job_app or an iCIMS careers frame.
 
+and every frame between it and the top is the top frame's own origin: a job system's form inside another site's frame
+is that site's to embed (a free tenant's form), and a frame under one is that site's to read (PR 556's review). A pop-up
+is a top frame, so one a frame of another site opens could take a file: `give` refuses a pop-up whose opener page is of
+another site, the guard keeps a picker shut in a top frame whose opener is a frame (not a top frame), and in a frame
+that may not take a file the guard keeps the opener on what that frame opens. On a plain Worker, Claude's upload goes
+only to the drive's own tab, or a tab of its origin.
+
 Any other frame gets no file, and Apply hands the field to the applicant (`Elsewhere`). Each place a file is set
 checks in the same step as the set, so a frame that navigates to another site between the choice and the set
 gets nothing:
@@ -22,11 +29,15 @@ gets nothing:
   top site only).
 - Claude's own upload (Playwright MCP's on a CDP Worker, apply.plain.tools on a plain one): while a guard is on,
   a file input in a frame that may not take a file opens no picker, so Claude has no chooser there
-  (submit_guard's `uploadsHere`). The guard notes BLOCKED, and Claude fill hands the form over.
+  (submit_guard's `uploadsNow`): a click on it or its label, at the window and at each shadow root the page makes, and
+  a script's click(), showPicker() or dispatched click. The guard notes BLOCKED, and Claude fill hands the form over.
 
-What stays open: a job system's host is any of its tenants. A hostile page could embed its own Greenhouse board's
+What stays open: a job system's host is any of its tenants. A hostile top page could embed its own Greenhouse board's
 form, and a file given there goes to that board. The page's own site could take the file anyway, so this is no
-worse than the page itself.
+worse than the page itself. A frame with scripts off runs no guard, so the guard
+around it makes it inert while it is on (submit_guard). A declarative shadow root (from the page's HTML, not
+attachShadow) that is closed is not watched: the window can't see into it. A tab opened with no opener by a top
+frame of another site is a top frame.
 """
 
 from urllib.parse import urlsplit
@@ -63,7 +74,10 @@ BLOCKED = "a file upload into another site's frame"
 RULE_JS = r"""(own, ancestors, hosts) => {
   if (!ancestors.length) return true;  // the top frame: the form's own site, whatever its URL
   const top = ancestors[ancestors.length - 1];
-  if (!own || own === 'null') return false;
+  if (!own || own === 'null' || !top || top === 'null') return false;
+  // Every frame between this one and the top is the top's own site: a job system's form inside another site's
+  // frame is that site's to embed, and a frame under one is that site's to read (PR 556's review).
+  for (let i = 0; i < ancestors.length - 1; i++) if (ancestors[i] !== top) return false;
   if (own === top) return true;
   const host = own.replace(/^[a-z][a-z0-9+.-]*:\/\//i, '').replace(/:\d+$/, '').replace(/^\[|\]$/g, '').toLowerCase();
   for (let i = 0; i < hosts.length; i++) {
@@ -104,7 +118,7 @@ def may_upload(own: str, ancestors: list[str] | tuple[str, ...] = (), hosts: tup
     ancestors = [origin(a) for a in ancestors]
     own = ancestors[0] if own.startswith("about:") else origin(own)
     top = ancestors[-1]
-    if not own or own == "null":
+    if not own or own == "null" or top == "null" or any(a != top for a in ancestors[:-1]):
         return False
     if own == top:
         return True
@@ -123,8 +137,21 @@ def chain(frame) -> tuple[str, list[str]]:
 
 
 def frame_may_upload(frame) -> bool:
+    """Whether a file may go into `frame` (a Playwright Frame or a plain PortFrame): the rule, on a page that is no
+    pop-up of another site (page_may_upload)."""
     own, ancestors = chain(frame)
-    return may_upload(own, ancestors)
+    return may_upload(own, ancestors) and page_may_upload(frame.page)
+
+
+def page_may_upload(page) -> bool:
+    """A pop-up takes a file only when it is of its opener's own site (PR 556's review): a frame of another site on the
+    form's page could open one, and a pop-up is a top frame, which the rule lets take a file."""
+    opener = getattr(page, "opener", None)
+    try:
+        opened_by = opener() if callable(opener) else None
+    except Exception:
+        return False
+    return opened_by is None or origin(page.url) == origin(opened_by.url)
 
 
 def host_of(frame) -> str:
