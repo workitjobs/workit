@@ -81,6 +81,23 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
   so `workday._send` sets `window.__applyAccountClick` for its own click.
   The guard then lets a click or submit in a form with a password box go
   through. No application's final button is in such a form.
+- **Lisul's own press on a sign-in step is never the application's Submit
+  (KAN-688, KAN-781).** On a held page, the guard script tells Apply of each
+  press whose words send. A sign-in, account or code step's press is marked
+  as such (`submit_guard`'s `signInStep`), and Resume still goes on after it.
+  JPMorgan's Oracle, live (2026-11-10): Oracle's code step is a form of six
+  one-digit boxes with `autocomplete=off`, and its "Send New Code" says send,
+  so his sign-in there was taken for his Submit, and Resume was refused. The
+  check reads the page, never the words alone: a shown password or code box
+  in the button's own form (a button on no form is the application's; a code box by its name, id, class, label or
+  placeholder, never a postal code; or a row of four or more one-digit
+  boxes), and either no answer field on the page (a file, a long answer, a
+  list, a choice) or words that name the code or sign-in themselves ("Send
+  New Code", for Oracle's code boxes inline on the form). Words that name
+  the application, or also say submit, finish or complete beside an answer
+  field, are always his Submit. A confirmation page after any press of his
+  still ends Resume. Hostile pages (`test_submit_guard_hostile.py`,
+  `HIS_SUBMITS`) dress a final Submit as a sign-in; each must stay his Submit.
 - Apply asks a site for a verification code or link once per sign-in and
   never clicks Resend or Send New Code (`accounts.Accounts._wait`): a mail
   that hasn't come in about 2 minutes goes to Needs you ("Type the emailed

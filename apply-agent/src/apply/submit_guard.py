@@ -133,10 +133,36 @@ _TEMPLATE = r"""
     const form = el.form || (el.closest && el.closest('form'));
     return !!form && !!form.querySelector('input[type=password]');
   };
-  // A verification code's form: one with a one-time-code box, which no application's final button is in either.
-  const codeForm = (el) => {
+  // Lisul's press on a lifted page was a sign-in, account or code step's, never the application's Submit (KAN-688,
+  // KAN-781): Workday's Sign in with email names its button Submit, and Oracle's code step is a form of six digit
+  // boxes with a "Send New Code" button. Read from the page, never from the words alone:
+  // - a shown password or code box is in the button's own form (Oracle's steps are forms): a code box by its autocomplete,
+  //   name, id, class, label or placeholder (never a postal code), or a row of four or more one-digit boxes;
+  // - and either the page shows no answer field (a file, a long answer, a list, a choice), or the button's words
+  //   name that code or sign-in themselves ("Send New Code", "Verify"; Oracle's inline code step sits on the form).
+  // A press whose words name the application, or also say submit, finish or complete with an answer field shown,
+  // is always his Submit. A confirmation page after any press of his still ends Resume (rehearsal._Kept.hold).
+  const CODE_WORDS = /one[-_ ]?time|(^|[^a-z])otp([^a-z]|$)|passcode|pin[-_ ]?code|(verification|security|access|login|sign[-_ ]?in)[-_ ]?code/i;
+  const AUTH_WORDS = /\b(code|passcode|otp|pin|password|verify|verification|sign[- ]?in|log[- ]?in)\b/i;
+  const NOT_AUTH = /\b(submit|finish|complete|appl(?:y|ying|ication))\b/i;
+  const shownBox = (n) => n.type !== 'hidden' && (!n.checkVisibility || n.checkVisibility());
+  const codeBox = (n) => n.autocomplete === 'one-time-code' || CODE_WORDS.test([n.name, n.id, String(n.className || ''),
+    n.getAttribute('aria-label'), n.placeholder].filter(Boolean).join(' '));
+  // A file box or a choice is often drawn hidden behind a styled control; a long answer or a list is counted only when
+  // shown (a captcha's hidden response box is a textarea).
+  const answerField = (n) => /^(file|radio)$/.test(n.type) || n.getAttribute('role') === 'radio' || shownBox(n);
+  const signInStep = (el) => {
+    const words = wordsOf(el);
+    if (/\bappl(?:y|ying|ication)\b/i.test(words)) return false;
     const form = el.form || (el.closest && el.closest('form'));
-    return !!form && !!form.querySelector('input[autocomplete=one-time-code]');
+    if (!form) return false;  // a button on no form is the application's, as before (KAN-688)
+    const boxes = [...form.querySelectorAll('input')].filter(shownBox);
+    const marked = boxes.some((n) => n.type === 'password' || codeBox(n))
+      || boxes.filter((n) => n.maxLength === 1).length >= 4;
+    if (!marked) return false;
+    const answers = [...document.querySelectorAll('input[type=file], input[type=radio], [role=radio], textarea, select, '
+      + '[contenteditable]:not([contenteditable=false])')].some(answerField);
+    return !answers || (AUTH_WORDS.test(words) && !NOT_AUTH.test(words));
   };
   // Plain code's click on the button of a profile step before the application (Microsoft's
   // "Create your profile" pop-up names its button Submit, live: KAN-647).
@@ -295,10 +321,10 @@ _TEMPLATE = r"""
       && event.target.closest('button, input[type=submit], input[type=button], [role=button], a');
     if (!target) return;
     if (lifted()) {  // Lisul's page: his click goes through, and Apply hears of one that sends
-      // Saying whether it was a sign-in, account or code form's (Workday's Sign in with email names its button
-      // Submit): that press sends no application, so Resume still goes on after it.
+      // Saying whether it was a sign-in, account or code step's (signInStep): that press sends no application, so
+      // Resume still goes on after it.
       if (sends(target) && window.__applyLisulPressed) window.__applyLisulPressed(wordsOf(target).trim().slice(0, 80),
-        accountForm(target) || codeForm(target));
+        signInStep(target));
       return;
     }
     if (opens(target)) {  // the Posting's Apply, once (KAN-725)
@@ -804,7 +830,7 @@ def lift(page: Page, pressed: Callable[[str], None] | None = None, again: Callab
     Claude drives it any more, so a Submit on it can only be his, and it goes
     through, on this page and every page he loads from it. `pressed` hears
     the words of each button he clicks that sends, with `account=True` when it is a sign-in, account
-    or verification code form's (it sends no application); `again`, when he presses
+    or verification code step's (the script's signInStep: it sends no application); `again`, when he presses
     the note's Fill again. Both are called on the page's own thread. A
     `warning` goes on the note, red when an answer is `wrong`, amber when
     it only names fields left blank. `bound`: the page was lifted before
