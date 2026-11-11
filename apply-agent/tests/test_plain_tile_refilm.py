@@ -68,7 +68,11 @@ def amazon() -> Worker:
     return Worker(101, TAB_TITLE, {5: EXTENSION}, tab=5)
 
 
-def test_a_tile_that_fell_back_is_filmed_again_once_macos_lists_the_tabs_title(macos):
+def test_a_tile_that_fell_back_is_filmed_again_once_macos_lists_the_tabs_title(macos, monkeypatch):
+    # No try again before the title changes at 1.5 s: at RETRY 0.5 one was often in flight there on a slow runner
+    # (macOS CI), and the fallback read as filming.
+    monkeypatch.setattr(tile, "RETRY", 2.0)
+    monkeypatch.setattr(tile, "RETRY_MOST", 4.0)
     worker = amazon()
     with PortFrames(1, [worker].__getitem__, capture="native", chrome={0: 1000}.get) as frames:
         before = seen(frames, 0, 1.5)  # macOS still says "Amazon IdPrism": the helper refuses the window

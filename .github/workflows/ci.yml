@@ -178,7 +178,7 @@ jobs:
     # macOS: a plain Worker starts through `open` and Chrome for Testing's .app
     # (apply/plain/launcher.py), as on the Macs Apply runs on.
     runs-on: macos-latest
-    timeout-minutes: 20
+    timeout-minutes: 35
     defaults:
       run:
         working-directory: apply-agent

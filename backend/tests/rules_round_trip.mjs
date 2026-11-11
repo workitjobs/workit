@@ -53,6 +53,6 @@ for (const table of tables) {
   }
   E.loadRules(table); // throws a RulesError on anything the engine refuses
   if (planAll() !== before) fail(`plans differ with the table for ${Object.keys(table.systems)}`);
-  E.loadRules({ version: 1 });
+  E.loadRules({ version: 2 });
 }
 console.log("ok");
