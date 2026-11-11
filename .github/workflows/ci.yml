@@ -237,6 +237,7 @@ jobs:
             tests/test_into.py \
             tests/test_plain_tile_identity.py \
             tests/test_plain_tile_refilm.py \
+            tests/test_plain_stale_extension.py \
             tests/test_plain_tile_fallback.py \
             tests/test_review_kan717_hostile.py \
             tests/test_left_behind.py \
@@ -251,6 +252,7 @@ jobs:
             tests/test_phone_push.py \
             tests/test_plain_bridge.py \
             tests/test_plain_seed_setup.py \
+            tests/test_plain_trusted_rules.py \
             tests/test_presubmit_check.py \
             tests/test_privacy_gate.py \
             tests/test_profile.py \
@@ -300,7 +302,8 @@ jobs:
         run: |
           uv run pytest -q -rs \
             tests/test_plain_guards.py \
-            tests/test_plain_routing.py
+            tests/test_plain_routing.py \
+            tests/test_plain_typing.py
 
   # The API's Cloudflare Worker (KAN-169): a type error here would otherwise
   # surface only when the deploy on main fails.

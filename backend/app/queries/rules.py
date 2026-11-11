@@ -11,9 +11,10 @@ import hashlib
 import secrets
 import uuid
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.daily_counts import Daily_Count
 from app.models.rules_access import Rules_Fetch, Rules_Token
 
 
@@ -50,3 +51,31 @@ async def fetched_by(db: AsyncSession, job_systems: list[str]) -> list[uuid.UUID
     return list((await db.scalars(
         select(Rules_Fetch.account_id).where(Rules_Fetch.job_system.in_(job_systems)).distinct()
     )).all())
+
+
+async def fetches_since(db: AsyncSession, since: datetime.datetime) -> list[tuple[uuid.UUID, str, datetime.datetime]]:
+    """Every fetch from `since` on as (account, job system, time), each account's in time order (the anomaly report)."""
+    return [tuple(row) for row in (await db.execute(
+        select(Rules_Fetch.account_id, Rules_Fetch.job_system, Rules_Fetch.created_at)
+        .where(Rules_Fetch.created_at >= since)
+        .order_by(Rules_Fetch.account_id, Rules_Fetch.created_at)
+    )).all()]
+
+
+async def daily_counts_since(db: AsyncSession, since: datetime.date, kinds: list[str]) -> list[tuple[uuid.UUID, str, datetime.date, int]]:
+    """The daily cap counts (services/daily_caps.py) of these kinds from `since` on, as (account, kind, day, count)."""
+    return [tuple(row) for row in (await db.execute(
+        select(Daily_Count.account_id, Daily_Count.kind, Daily_Count.day, Daily_Count.count)
+        .where(Daily_Count.day >= since, Daily_Count.kind.in_(kinds))
+    )).all()]
+
+
+async def fetch_history(db: AsyncSession, account_id: uuid.UUID) -> list[tuple[datetime.date, str, int]]:
+    """One account's fetches in the log (all 90 days) as (UTC day, job system, count), oldest first."""
+    day = func.date(func.timezone("UTC", Rules_Fetch.created_at))
+    return [tuple(row) for row in (await db.execute(
+        select(day, Rules_Fetch.job_system, func.count())
+        .where(Rules_Fetch.account_id == account_id)
+        .group_by(day, Rules_Fetch.job_system)
+        .order_by(day, Rules_Fetch.job_system)
+    )).all()]
