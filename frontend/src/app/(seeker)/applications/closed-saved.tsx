@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
@@ -13,12 +14,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/shadcn/dialog";
-import { Button } from "@/components/ui/button";
+import { Button, buttonClasses } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { IconButton } from "@/components/ui/icon-button";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/cn";
 
 import type { Application } from "../tracker";
+import { applicationsHref } from "./query";
+import { useApplicationsQuery } from "./view-switcher";
 import { unsaveJob } from "../jobs/actions";
 
 /**
@@ -95,5 +99,94 @@ export function ClosedSavedControl({
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+/**
+ * The saved jobs whose postings closed, as a notice over the table, only
+ * while there are any (2026-11-10): how many, **Show Them** (?closed=1, the
+ * table with those alone; Show All undoes it) and **Remove All**, which asks
+ * first, as one row's trash does, since a closed job cannot be saved again.
+ * They were scattered through the table, each found by its row, and taken
+ * out one at a time. A group pinned to the table's top or foot was weighed
+ * and left: it would fight the columns' sort.
+ */
+export function ClosedNotice({ apps }: { apps: Pick<Application, "id" | "role">[] }) {
+  const query = useApplicationsQuery();
+  const router = useRouter();
+  const toast = useToast();
+  const [asking, setAsking] = useState(false);
+  const [pending, start] = useTransition();
+  const count = apps.length;
+  const jobs = count === 1 ? "job" : "jobs";
+
+  function removeAll() {
+    setAsking(false);
+    start(async () => {
+      const results = await Promise.all(apps.map((app) => unsaveJob(app.id)));
+      const failed = results.filter((result) => result.error).length;
+      toast.show({
+        message:
+          failed === 0
+            ? `Removed ${count} closed ${jobs}.`
+            : `Removed ${count - failed}. ${failed} couldn't be removed.`,
+      });
+      router.push(applicationsHref(query, { closed: false }), { scroll: false });
+      router.refresh();
+    });
+  }
+
+  return (
+    <Card
+      padding="none"
+      role="status"
+      className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-2.5"
+    >
+      <span className="bg-ink text-on-inverse text-note shrink-0 rounded-full px-2 py-0.5 font-medium">
+        Posting Closed
+      </span>
+      <p className="text-body text-ink min-w-0 flex-1">
+        {query.closed
+          ? `Showing the ${count} saved ${jobs} whose posting closed.`
+          : count === 1
+            ? "The posting closed for 1 saved job. You can no longer apply to it."
+            : `Postings closed for ${count} saved jobs. You can no longer apply to them.`}
+      </p>
+      <div className="flex items-center gap-4">
+        <Link
+          href={applicationsHref(query, { closed: !query.closed })}
+          scroll={false}
+          className={buttonClasses({ variant: "section" })}
+        >
+          {query.closed ? "Show All" : "Show Them"}
+        </Link>
+        <Button
+          variant="section"
+          disabled={pending}
+          onClick={() => setAsking(true)}
+          className="hover:text-danger"
+        >
+          Remove All
+        </Button>
+      </div>
+      <Dialog open={asking} onOpenChange={setAsking}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-subtitle font-semibold">
+              Remove {count} closed {jobs}?
+            </DialogTitle>
+            <DialogDescription>
+              Their postings have closed, so you can&apos;t save them again.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <DialogClose render={<Button variant="secondary">Cancel</Button>} />
+            <Button variant="destructive" onClick={removeAll}>
+              Remove {count}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </Card>
   );
 }

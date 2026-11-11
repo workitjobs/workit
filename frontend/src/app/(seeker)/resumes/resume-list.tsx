@@ -1,3 +1,5 @@
+"use client";
+
 import type { ReactNode } from "react";
 
 import {
@@ -7,6 +9,7 @@ import {
   RESUME_TH,
   RESUME_TYPE_COL,
 } from "@/components/resume-row";
+import { STICKY_TH, TABLE_FILL, useFillPage } from "@/components/fill-page";
 import { Table, TableBody, TableHead, TableHeader, TableRow } from "@/components/shadcn/table";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/cn";
@@ -49,6 +52,7 @@ export function ResumeList({
   grid?: boolean;
   children: ReactNode;
 }) {
+  const fill = useFillPage(!grid);
   if (grid) {
     return (
       <section className="@container mt-4">
@@ -60,21 +64,29 @@ export function ResumeList({
   }
   return (
     <Card padding="none" className="@container mt-4 overflow-hidden">
-      <Table aria-label="Your Resumes" className="table-fixed">
+      {/* It scrolls inside its card, down to the page's foot, so the tabs,
+          the search and the filters above stay in view
+          (components/fill-page.ts). */}
+      <Table
+        aria-label="Your Resumes"
+        containerRef={fill}
+        containerClassName={TABLE_FILL}
+        className="table-fixed"
+      >
         <TableHeader>
           <TableRow className="hover:bg-transparent">
-            <TableHead className={RESUME_TH}>Name</TableHead>
-            <TableHead className={cn(RESUME_TH, RESUME_TARGET_COL)}>
+            <TableHead className={cn(RESUME_TH, STICKY_TH)}>Name</TableHead>
+            <TableHead className={cn(RESUME_TH, STICKY_TH, RESUME_TARGET_COL)}>
               <span className="hidden @4xl:inline">Target Job</span>
             </TableHead>
-            <TableHead className={cn(RESUME_TH, RESUME_TYPE_COL)}>
+            <TableHead className={cn(RESUME_TH, STICKY_TH, RESUME_TYPE_COL)}>
               <span className="hidden @2xl:inline">Type</span>
             </TableHead>
-            <TableHead className={cn(RESUME_TH, RESUME_DATE_COL)}>
+            <TableHead className={cn(RESUME_TH, STICKY_TH, RESUME_DATE_COL)}>
               <span className="@2xl:hidden">Modified</span>
               <span className="hidden @2xl:inline">Date Modified</span>
             </TableHead>
-            <TableHead className={RESUME_ACTIONS_COL}>
+            <TableHead className={cn(STICKY_TH, RESUME_ACTIONS_COL)}>
               <span className="sr-only">Actions</span>
             </TableHead>
           </TableRow>

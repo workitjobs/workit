@@ -3,13 +3,7 @@
 import { Combobox as ComboboxPrimitive } from "@base-ui/react/combobox";
 import { useRef, useState, type ReactNode } from "react";
 
-import {
-  BriefcaseIcon,
-  CompanyIcon,
-  ExternalLinkIcon,
-  SearchIcon,
-  workStyleIcon,
-} from "@/components/icons";
+import { BriefcaseIcon, CompanyIcon, SearchIcon, workStyleIcon } from "@/components/icons";
 import { facetClasses, FacetLabel, type FacetOption, type Glyph } from "@/components/field-facet";
 import { OptionChip as Chip, SearchPicker } from "@/components/filter-controls";
 import {
@@ -69,7 +63,6 @@ export const FIELD_ICON: Record<FilterKey, Glyph> = {
   company: CompanyIcon,
   track: BriefcaseIcon,
   workModel: workStyleIcon("On-Site"),
-  source: ExternalLinkIcon,
 };
 
 /** Status's options: each stage with its glyph in its own colour, as the
@@ -286,7 +279,6 @@ function PanelBody({
           {chipSection("track", "Job Type")}
           {chipSection("workModel", "Work Model")}
         </div>
-        {chipSection("source", "Source")}
       </div>
 
       <div className="border-border-subtle flex items-center justify-between gap-3 border-t px-5 py-3">

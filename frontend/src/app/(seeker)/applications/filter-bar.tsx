@@ -162,7 +162,6 @@ export function FilterBar({
         />
         {facet("track", "Job Type", "hidden min-w-36 @min-[46.5rem]:flex")}
         {facet("workModel", "Work Model", "hidden min-w-36 @min-[56rem]:flex")}
-        {facet("source", "Source", "hidden min-w-36 @min-[65.5rem]:flex")}
 
         {/* Every pick and the search off in one press, shown only while
             there is one: a round cross on a soft grey (2026-11-09), its name in the tooltip, as on
@@ -215,7 +214,13 @@ export function ClearFiltersLink({ className }: { className: string }) {
 
   return (
     <Link
-      href={applicationsHref(query, { stages: [], q: "", filters: NO_FILTERS, app: null })}
+      href={applicationsHref(query, {
+        stages: [],
+        q: "",
+        filters: NO_FILTERS,
+        app: null,
+        closed: false,
+      })}
       scroll={false}
       className={className}
     >

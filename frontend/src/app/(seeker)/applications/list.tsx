@@ -41,6 +41,7 @@ import { MatchBadge } from "@/components/match-badge";
 import { Reflow } from "@/components/reflow";
 import { useShallowPush } from "@/components/shallow-routing";
 import { Card } from "@/components/ui/card";
+import { STICKY_TH, TABLE_FILL, useFillPage } from "@/components/fill-page";
 import { PlacesValue } from "@/components/places-value";
 import { cn } from "@/lib/cn";
 
@@ -351,6 +352,9 @@ function useMoreToRight() {
 
 export function ApplicationsList({ applications }: { applications: Application[] }) {
   const { ref: edgeRef, more: moreToRight } = useMoreToRight();
+  // The table scrolls inside its card, down to the page's foot, so the
+  // search and the filters above stay in view (components/fill-page.ts).
+  const fill = useFillPage();
   const query = useApplicationsQuery();
   const push = useShallowPush();
   const layout = useColumnLayout();
@@ -401,6 +405,8 @@ export function ApplicationsList({ applications }: { applications: Application[]
         )}
       />
       <Table
+        containerRef={fill}
+        containerClassName={TABLE_FILL}
         className="table-fixed"
         // At least as wide as the card; past that, as wide as its columns.
         style={{ width: table.getTotalSize(), minWidth: "100%" }}
@@ -421,6 +427,9 @@ export function ApplicationsList({ applications }: { applications: Application[]
                   order={layout.order}
                   className={cn(
                     frozenClasses(header.column.id as ColumnId),
+                    // Sticky on both axes: over the scrolled cells and the
+                    // other headings.
+                    FROZEN.includes(header.column.id as ColumnId) && "z-3",
                     header.column.id === "role" && PHONE_JOB,
                   )}
                   style={frozenStyle(header.column.id as ColumnId)}
@@ -574,7 +583,9 @@ function HeadCell({
   return (
     <TableHead
       aria-sort={active ? (direction === "asc" ? "ascending" : "descending") : undefined}
-      className={cn(TH, "relative", className)}
+      // Held at the top of the table's scroll box (STICKY_TH, positioned,
+      // so the resize handle still sits on its edge).
+      className={cn(TH, STICKY_TH, className)}
       style={{ width, ...style }}
       onDragOver={(event) => {
         if (!drag || !movable) return;

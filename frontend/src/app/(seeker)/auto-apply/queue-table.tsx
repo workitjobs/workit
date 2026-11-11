@@ -18,6 +18,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/shadcn/table";
+import { STICKY_TH, TABLE_FILL, useFillPage } from "@/components/fill-page";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import type { BatchTabState } from "@/lib/autofill-extension";
@@ -201,6 +202,9 @@ export function QueueTable({
 }) {
   const [folded, setFolded] = useState<ReadonlySet<QueueGroup>>(new Set());
   const [clipped, tableRef] = useClipped();
+  // The queue scrolls inside its card, down to the page's foot, so the setup
+  // row and Up Next's heading stay in view (components/fill-page.ts).
+  const fill = useFillPage();
   const all = rows.length > 0 && rows.every((row) => picked.has(row.id));
   const some = rows.some((row) => picked.has(row.id));
 
@@ -217,7 +221,12 @@ export function QueueTable({
 
   return (
     <Card padding="none" className="mt-3 overflow-hidden" data-clipped={clipped || undefined}>
-      <Table ref={tableRef} className={cn(TABLE_WIDTH, "table-fixed")}>
+      <Table
+        ref={tableRef}
+        containerRef={fill}
+        containerClassName={TABLE_FILL}
+        className={cn(TABLE_WIDTH, "table-fixed")}
+      >
         <TableHeader>
           <TableRow className="hover:bg-transparent">
             {COLUMNS.map((column) => (
@@ -225,6 +234,7 @@ export function QueueTable({
                 key={column.id}
                 className={cn(
                   TH,
+                  STICKY_TH,
                   column.width,
                   column.id === "role"
                     ? ROLE_FROZEN
@@ -233,6 +243,8 @@ export function QueueTable({
                       : ALIGN,
                   column.folds && FOLDS,
                   column.id === "menu" && STICKY_END,
+                  // Sticky on both axes: over the rows and the other headings.
+                  (column.id === "role" || column.id === "menu") && "z-3",
                 )}
               >
                 {column.id === "role" ? (
