@@ -22,8 +22,9 @@ class FlaggedAccount(BaseModel):
     fetches: int
     job_systems: list[str]
     fills: int
-    first_fetch: datetime.datetime
-    last_fetch: datetime.datetime
+    # None for an account flagged only for minting tokens to the cap without fetching.
+    first_fetch: datetime.datetime | None
+    last_fetch: datetime.datetime | None
     flags: list[Flag]
 
 

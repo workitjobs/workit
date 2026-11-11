@@ -18,6 +18,7 @@ from app.config import Settings, get_settings
 from app.deps import get_current_account
 from app.main import app
 from app.schemas.auth import AccountType, AuthenticatedAccount
+from app.schemas.rules_anomalies import RulesAnomalies
 from app.scripts import rules_anomalies as anomalies_script
 from app.scripts import trace_rules_leak
 from app.services import rules_table
@@ -76,6 +77,9 @@ def test_fetches_on_a_timer_are_flagged_and_a_persons_scatter_is_not():
     assert _reasons(rows, fills) == {timer: ["regular_timing"]}
     # Too few gaps to say.
     assert _reasons(rows[:10], fills) == {}
+    # A burst in the same second (retries, tabs opened together) is no timer.
+    burst = [(timer, "greenhouse", T0) for _ in range(25)]
+    assert _reasons(burst, fills) == {}
 
 
 def test_reaching_the_daily_cap_on_several_days_is_flagged():
@@ -87,6 +91,10 @@ def test_reaching_the_daily_cap_on_several_days_is_flagged():
     twice = [*once, (capped, "rules_token", day - datetime.timedelta(days=1), 400)]
     found = flag(rows, twice, SETTINGS)
     assert [f.reason for f in found[0].flags] == ["capped"] and found[0].flags[0].detail == "at the daily cap on 2 days"
+    # Minting tokens to the cap without a fetch in the window is flagged as well.
+    [tokens_only] = flag([], twice, SETTINGS)
+    assert tokens_only.account_id == capped and tokens_only.fetches == 0 and tokens_only.last_fetch is None
+    assert "  -  " in table(RulesAnomalies(days=7, since=T0, accounts=[tokens_only]))
 
 
 def test_the_thresholds_come_from_the_settings():
@@ -154,7 +162,7 @@ async def test_the_report_is_for_admins_only_and_names_the_flagged_account(accou
         assert refused.status_code == 403
         accounts(1)
         got = await api.get("/admin/rules-anomalies?days=7")
-        assert (await api.get("/admin/rules-anomalies?days=91")).status_code == 422
+        assert (await api.get("/admin/rules-anomalies?days=31")).status_code == 422
     assert got.status_code == 200, got.text
     body = got.json()
     assert body["days"] == 7
@@ -172,7 +180,7 @@ async def test_the_report_is_for_admins_only_and_names_the_flagged_account(accou
 async def test_an_empty_log_reports_no_account(accounts):
     accounts(1)
     printed = table(await anomalies_script._report(3))
-    assert printed == "No account flagged in the last 3 days."
+    assert printed == "No account flagged in the last 3 UTC days."
 
 
 @pytest.mark.anyio

@@ -61,6 +61,9 @@ def _near_median(gaps: list[float], tolerance: float) -> tuple[int, float, float
     if not gaps:
         return 0, 0.0, 0.0
     median = statistics.median(gaps)
+    # Same-second fetches (a retry, two tabs) are a burst, not a timer: under a second's median no gap is near it.
+    if median < 1:
+        return len(gaps), 0.0, median
     return len(gaps), sum(abs(g - median) <= median * tolerance for g in gaps) / len(gaps), median
 
 
@@ -77,6 +80,10 @@ def flag(fetches: Iterable[Fetch], counts: Iterable[Count], settings: Settings) 
             fills[account_id] += count
         elif kind in caps and count >= caps[kind]:
             capped_days[account_id].add(day)
+
+    # An account minting tokens to the cap without fetching is flagged too.
+    for account_id in capped_days.keys() - by_account.keys():
+        by_account[account_id] = []
 
     flagged = []
     for account_id, mine in by_account.items():
@@ -100,27 +107,31 @@ def flag(fetches: Iterable[Fetch], counts: Iterable[Count], settings: Settings) 
         if flags:
             flagged.append(FlaggedAccount(
                 account_id=account_id, fetches=len(mine), job_systems=sorted({f[1] for f in mine}), fills=filled,
-                first_fetch=mine[0][2], last_fetch=mine[-1][2], flags=flags,
+                first_fetch=mine[0][2] if mine else None, last_fetch=mine[-1][2] if mine else None, flags=flags,
             ))
     return sorted(flagged, key=lambda a: (-len(a.flags), -a.fetches, str(a.account_id)))
 
 
 async def report(db: AsyncSession, days: int, now: datetime.datetime | None = None) -> RulesAnomalies:
-    """The flagged accounts over the last `days` days of the fetch log and the daily counts."""
-    now = now or datetime.datetime.now(datetime.UTC)
-    since = now - datetime.timedelta(days=days)
+    """
+    The flagged accounts over the fetch log and the daily counts of the last `days` UTC days, today
+    included. Whole days, since the counts are per day: fetches and fills then cover the same span.
+    """
+    today = (now or datetime.datetime.now(datetime.UTC)).astimezone(datetime.UTC).date()
+    first = today - datetime.timedelta(days=days - 1)
+    since = datetime.datetime.combine(first, datetime.time(), tzinfo=datetime.UTC)
     fetches = await fetches_since(db, since)
-    counts = await daily_counts_since(db, since.date(), [Capped.FILL_EVENT, Capped.RULES_TOKEN, Capped.RULES_FETCH])
+    counts = await daily_counts_since(db, first, [Capped.FILL_EVENT, Capped.RULES_TOKEN, Capped.RULES_FETCH])
     return RulesAnomalies(days=days, since=since, accounts=flag(fetches, counts, get_settings()))
 
 
 def table(found: RulesAnomalies) -> str:
     """The report as a plain-text table, one row per flagged account (app/scripts/rules_anomalies.py)."""
     if not found.accounts:
-        return f"No account flagged in the last {found.days} days."
+        return f"No account flagged in the last {found.days} UTC days."
     head = ("account", "fetches", "fills", "systems", "last fetch (UTC)", "flags")
     rows = [(str(a.account_id), str(a.fetches), str(a.fills), str(len(a.job_systems)),
-             a.last_fetch.astimezone(datetime.UTC).strftime("%Y-%m-%d %H:%M"),
+             a.last_fetch.astimezone(datetime.UTC).strftime("%Y-%m-%d %H:%M") if a.last_fetch else "-",
              "; ".join(f"{f.reason}: {f.detail}" for f in a.flags)) for a in found.accounts]
     widths = [max(len(r[i]) for r in [head, *rows]) for i in range(len(head) - 1)]
     lines = ["  ".join([*(c.ljust(w) for c, w in zip(r[:-1], widths)), r[-1]]).rstrip() for r in [head, *rows]]

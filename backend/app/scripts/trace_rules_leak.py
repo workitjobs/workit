@@ -30,7 +30,9 @@ async def identify(table: dict) -> tuple[Trace, History] | None:
     """The account the fetch log and the table's watermark name, with its fetch history; None if none fits."""
     async with get_sessionmaker()() as db:
         found = trace(table, await fetched_by(db, sorted(table.get("systems") or {})))
-        return found and (found, await fetch_history(db, found.account_id))
+        if found is None:
+            return None
+        return found, await fetch_history(db, found.account_id)
 
 
 def describe(found: Trace, history: History) -> str:
