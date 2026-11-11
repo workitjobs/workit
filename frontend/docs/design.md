@@ -1270,6 +1270,11 @@ screen's own `<input>`, `<textarea>` or `FIELD_CONTROL` string:
   Filters holds them all and stays. The page's create actions never sit in
   the filter row. A page table has no section heading of its own over the
   toolbar: Auto Apply's "Up Next" went on 2026-11-11.
+- **A table's column headings draw one rule under them** (2026-11-11): the
+  heading row has no border (`STICKY_HEAD`), each heading cell its inset
+  rule (`STICKY_TH`), and a frozen heading its rule and its edge together
+  (`STICKY_TH_FROZEN`), in `components/fill-page.ts`. A movable column's
+  heading fills grey under the pointer and drags anywhere, as Notion's do.
 - **A grouped table draws the shared heading row** (`GroupHeadingRow`): a
   fold, an optional glyph, the name in ink and its count on the row's
   light band, and the group's own action at its right (Remove All on

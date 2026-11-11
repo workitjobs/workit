@@ -26,7 +26,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/shadcn/table";
-import { STICKY_TH, TABLE_FILL, useFillPage } from "@/components/fill-page";
+import { STICKY_HEAD, STICKY_TH, TABLE_FILL, useFillPage } from "@/components/fill-page";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import type { BatchTabState } from "@/lib/autofill-extension";
@@ -155,6 +155,13 @@ const COLUMNS: { id: string; label: string; width?: string; folds?: boolean }[] 
 const ROLE_FROZEN =
   "z-1 bg-panel @3xl/main:sticky @3xl/main:left-0 @3xl/main:shadow-[1px_0_0_var(--color-border-subtle)]";
 
+/** The frozen Role heading's and the ⋯ heading's edges with the heading's
+ *  rule under them, as `STICKY_TH_FROZEN` draws a frozen heading's. */
+const ROLE_HEAD_EDGE =
+  "@3xl/main:shadow-[inset_0_-1px_0_var(--color-border-subtle),1px_0_0_var(--color-border-subtle)]";
+const MENU_HEAD_EDGE =
+  "in-data-clipped:shadow-[inset_0_-1px_0_var(--color-border-subtle),-1px_0_0_var(--color-border-subtle),-8px_0_12px_-4px_rgb(18_26_40/0.2)]";
+
 const TABLE_WIDTH = "min-w-[47rem] @xl/main:min-w-[60rem]";
 
 /** A folded column's cell: no padding while it is closed, its content hidden. */
@@ -265,7 +272,7 @@ export function QueueTable({
         containerClassName={TABLE_FILL}
         className={cn(TABLE_WIDTH, "table-fixed")}
       >
-        <TableHeader>
+        <TableHeader className={STICKY_HEAD}>
           <TableRow className="hover:bg-transparent">
             {COLUMNS.map((column) => (
               <TableHead
@@ -283,6 +290,10 @@ export function QueueTable({
                   column.id === "menu" && STICKY_END,
                   // Sticky on both axes: over the rows and the other headings.
                   (column.id === "role" || column.id === "menu") && "z-3",
+                  // Their edge and the heading's rule at once: one shadow
+                  // replaces another (components/fill-page.ts).
+                  column.id === "role" && ROLE_HEAD_EDGE,
+                  column.id === "menu" && MENU_HEAD_EDGE,
                 )}
               >
                 {column.id === "role" ? (

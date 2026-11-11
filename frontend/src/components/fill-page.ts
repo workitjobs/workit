@@ -59,3 +59,20 @@ export const TABLE_FILL =
  */
 export const STICKY_TH =
   "sticky top-0 z-2 bg-panel shadow-[inset_0_-1px_0_var(--color-border-subtle)]";
+
+/**
+ * The heading row of a table with `STICKY_TH` cells, on its `TableHeader`:
+ * no border of its own, so the cells' inset rule is the only one. With
+ * both, the row's border and the cells' rule drew a 2px grey bar under
+ * every heading but a frozen one, whose own edge shadow replaced the
+ * cell's rule (2026-11-11, the user's "weird horizontal gray bar"). The
+ * row's border also stays behind while the rows scroll; the cells' does
+ * not.
+ */
+export const STICKY_HEAD = "[&_tr]:border-b-0";
+
+/** A frozen heading's two edges at once: the heading's rule under it and
+ *  the frozen column's edge at its right. One `shadow` replaces another, so
+ *  a frozen heading that took only its edge lost its rule. */
+export const STICKY_TH_FROZEN =
+  "shadow-[inset_0_-1px_0_var(--color-border-subtle),1px_0_0_var(--color-border-subtle)]";

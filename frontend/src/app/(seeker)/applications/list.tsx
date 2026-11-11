@@ -43,7 +43,13 @@ import { Reflow } from "@/components/reflow";
 import { GroupHeadingRow, useFolds } from "@/components/table-group";
 import { useShallowPush } from "@/components/shallow-routing";
 import { Card } from "@/components/ui/card";
-import { STICKY_TH, TABLE_FILL, useFillPage } from "@/components/fill-page";
+import {
+  STICKY_HEAD,
+  STICKY_TH,
+  STICKY_TH_FROZEN,
+  TABLE_FILL,
+  useFillPage,
+} from "@/components/fill-page";
 import { PlacesValue } from "@/components/places-value";
 import { cn } from "@/lib/cn";
 
@@ -507,7 +513,7 @@ export function ApplicationsList({ applications }: { applications: Application[]
         // At least as wide as the card; past that, as wide as its columns.
         style={{ width: table.getTotalSize(), minWidth: "100%" }}
       >
-        <TableHeader>
+        <TableHeader className={STICKY_HEAD}>
           {table.getHeaderGroups().map((group) => (
             <TableRow key={group.id} className="hover:bg-transparent">
               {group.headers.map((header) => (
@@ -526,6 +532,8 @@ export function ApplicationsList({ applications }: { applications: Application[]
                     // Sticky on both axes: over the scrolled cells and the
                     // other headings.
                     FROZEN.includes(header.column.id as ColumnId) && "z-3",
+                    // Its rule under it and its edge beside it (STICKY_TH_FROZEN).
+                    header.column.id === lastFrozen && STICKY_TH_FROZEN,
                     header.column.id === "role" && PHONE_JOB,
                   )}
                   style={frozenStyle(header.column.id as ColumnId)}
@@ -534,7 +542,7 @@ export function ApplicationsList({ applications }: { applications: Application[]
               ))}
               {/* The rest of the card's width, so a resize never stretches
                   the other columns. */}
-              <TableHead aria-hidden />
+              <TableHead aria-hidden className={STICKY_TH} />
             </TableRow>
           ))}
         </TableHeader>
@@ -582,11 +590,19 @@ type Drag = { id: ColumnId; over: ColumnId | null } | null;
  * One column heading: its label (a sort button where the column sorts), a
  * drag to move it, and a resize handle on its right edge.
  *
- * DRAGGING IS THE BROWSER'S OWN (HTML drag and drop) on the label, not the
- * whole cell, so a press on the resize handle never starts a move. While a
- * heading is dragged over another, a brand bar marks the side it will land
- * on. Frozen columns neither drag nor take a drop. A drag needs a mouse;
- * a phone keeps the default order, which the Columns menu can reset to.
+ * THE WHOLE HEADING CELL MOVES ITS COLUMN (2026-11-11, after Notion's
+ * tables): a movable heading fills grey under the pointer with a grab
+ * cursor, the cue that it drags, and a drag anywhere in it moves the
+ * column (the browser's own drag and drop). Until then only the label
+ * dragged, with no cue, and Table Settings had Move Left and Move Right
+ * arrows per column, which the user found unneeded once the heading says
+ * it drags. A keyboard moves a column with Alt+Left and Alt+Right from its
+ * heading's sort button or resize handle. A press on the resize handle
+ * never starts a move: it starts the resize, and a move does not start
+ * while a column resizes (below). While a heading is dragged over another,
+ * a brand bar marks the side it will land on. Frozen columns neither drag
+ * nor take a drop. A drag needs a mouse; a phone keeps the default order,
+ * which Reset Columns goes back to.
  *
  * THE RESIZE HANDLE is 24px wide across the edge, a target the size the
  * rest of the table's controls are, with a 2px line (KAN-577; it was 8px).
@@ -638,6 +654,8 @@ function HeadCell({
   const side = over && order.indexOf(drag.id) < order.indexOf(id) ? "right" : "left";
 
   function onKeyDown(event: KeyboardEvent) {
+    // Alt+arrow moves the column (the heading's `onKeyDown`), not its width.
+    if (event.altKey) return;
     const step = event.key === "ArrowLeft" ? -KEY_STEP : event.key === "ArrowRight" ? KEY_STEP : 0;
     if (!step) return;
     event.preventDefault();
@@ -668,8 +686,30 @@ function HeadCell({
       aria-sort={active ? (direction === "asc" ? "ascending" : "descending") : undefined}
       // Held at the top of the table's scroll box (STICKY_TH, positioned,
       // so the resize handle still sits on its edge).
-      className={cn(TH, STICKY_TH, className)}
+      className={cn(
+        TH,
+        STICKY_TH,
+        className,
+        movable &&
+          "hover:bg-hover cursor-grab transition-colors duration-150 active:cursor-grabbing",
+        drag?.id === id && "opacity-50",
+      )}
       style={{ width, ...style }}
+      {...dragProps}
+      onKeyDown={(event) => {
+        // Alt+Left and Alt+Right: the keyboard's way to move the column.
+        if (!movable || !event.altKey) return;
+        const at = order.indexOf(id);
+        const target =
+          event.key === "ArrowLeft"
+            ? order[at - 1]
+            : event.key === "ArrowRight"
+              ? order[at + 1]
+              : null;
+        if (!target) return;
+        event.preventDefault();
+        onDrop(id, target);
+      }}
       onDragOver={(event) => {
         if (!drag || !movable) return;
         event.preventDefault();
@@ -683,15 +723,7 @@ function HeadCell({
         onDrag(null);
       }}
     >
-      <div
-        {...dragProps}
-        className={cn(
-          "flex min-w-0 items-center",
-          centred && "justify-center",
-          movable && "cursor-grab active:cursor-grabbing",
-          drag?.id === id && "opacity-50",
-        )}
-      >
+      <div className={cn("flex min-w-0 items-center", centred && "justify-center")}>
         {columnSort ? (
           <button
             type="button"

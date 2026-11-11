@@ -1130,15 +1130,22 @@ filtered.
   pay compare). A missing value goes last either way. A heading moves
   `?sort=` in place (shallow routing): the table sorts the rows it holds,
   with no round trip.
-- **Columns**: drag a heading by its label to a new place (a brand bar
-  marks the side it lands on), or use a column's Move Left and Move Right
-  arrows in the **Table Settings** menu (Columns until 2026-11-10), the way
-  without a drag (WCAG 2.5.7,
-  KAN-577); drag a heading's right edge to resize it (a 24px handle with a
-  2px line), double-click the edge to reset it, or focus the edge and use
-  the arrow keys; hide and show columns from the same menu, at the filter
+- **Columns** move as Notion's do (2026-11-11): a movable heading fills
+  grey under the pointer with a grab cursor, and a drag anywhere in it
+  moves the column (a brand bar marks the side it lands on); a keyboard
+  moves it with Alt+Left and Alt+Right from its sort button or resize
+  handle. Table Settings had Move Left and Move Right arrows per column
+  (KAN-577, WCAG 2.5.7's way without a drag) until the user dropped them
+  that day, once the heading showed it drags: a pointer that cannot drag
+  now has no way to reorder, a known gap. Drag a heading's right edge to
+  resize it (a 24px handle with a 2px line), double-click the edge to
+  reset it, or focus the edge and use the arrow keys; hide and show
+  columns from **Table Settings** (Columns until 2026-11-10), at the filter
   row's right end, which shows only in List View and also has Reset
-  Columns. A sort heading's button is 24px high. Role cannot move or hide. Each column has a fixed width
+  Columns. **One rule under the headings**: the heading row draws no
+  border of its own, only its cells' (`STICKY_HEAD`, `STICKY_TH`, and
+  `STICKY_TH_FROZEN` for the frozen Job heading in `components/fill-page.ts`);
+  both drew a 2px grey bar under every heading but Job until 2026-11-11. A sort heading's button is 24px high. Role cannot move or hide. Each column has a fixed width
   (a fixed table layout) and cuts what does not fit, with the whole value
   on hover; an empty last column takes the card's spare width, so a resize
   never stretches the others. A drag needs a mouse: a phone keeps the

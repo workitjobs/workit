@@ -9,7 +9,7 @@ import {
   RESUME_TH,
   RESUME_TYPE_COL,
 } from "@/components/resume-row";
-import { STICKY_TH, TABLE_FILL, useFillPage } from "@/components/fill-page";
+import { STICKY_HEAD, STICKY_TH, TABLE_FILL, useFillPage } from "@/components/fill-page";
 import { Table, TableBody, TableHead, TableHeader, TableRow } from "@/components/shadcn/table";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/cn";
@@ -74,7 +74,7 @@ export function ResumeList({
         containerClassName={TABLE_FILL}
         className="table-fixed"
       >
-        <TableHeader>
+        <TableHeader className={STICKY_HEAD}>
           <TableRow className="hover:bg-transparent">
             <TableHead className={cn(RESUME_TH, STICKY_TH)}>Name</TableHead>
             <TableHead className={cn(RESUME_TH, STICKY_TH, RESUME_TARGET_COL)}>
