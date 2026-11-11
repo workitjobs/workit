@@ -1624,7 +1624,7 @@ case is avoided rather than assumed safe.
 
 **The extension never rotates the token; the webapp does, on request
 (KAN-465).** Supabase rotates the refresh_token on each use. If this
-extension refreshed independently and the webapp's own `src/proxy.ts`
+extension refreshed independently and the webapp's own `src/middleware.ts`
 refreshed around the same time, one of the two would present an
 already-rotated refresh_token and fail, which could sign the student out
 of the webapp. So the extension never sends the refresh token anywhere.

@@ -142,7 +142,7 @@ Next.js 16 (App Router, Turbopack) · React 19 · TypeScript · Tailwind v4.
 | Dates | `date-fns`, `react-day-picker` | Composer/calendar UI |
 | Icons | `@phosphor-icons/react` | Every glyph, imported from its `/ssr` entry; wrappers in `src/components/icons.tsx` |
 | Server-only guard | `server-only` | Marks `src/lib/auth.ts` as never bundled to the client |
-| Auth session | `@supabase/ssr`, `@supabase/supabase-js` | `src/lib/supabase/server.ts`, `src/proxy.ts` — sign-in, cookies, refresh |
+| Auth session | `@supabase/ssr`, `@supabase/supabase-js` | `src/lib/supabase/server.ts`, `src/middleware.ts` — sign-in, cookies, refresh |
 
 ### How a screen gets its data today
 
@@ -204,7 +204,7 @@ Browser          Next server (:3000)             Supabase Auth          FastAPI 
 
 - Applicant accounts only end to end. Company signup round-trips to the same
   endpoint and shows whatever the API says back (currently `501`).
-- `src/proxy.ts` refreshes the Supabase session on every request; it is not
+- `src/middleware.ts` refreshes the Supabase session on every request; it is not
   an auth guard.
 - `signup-form.tsx` / `login-form.tsx` are Client Components (`useActionState`)
   so a rejected request shows inline instead of failing silently —

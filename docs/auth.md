@@ -39,7 +39,7 @@ reset    /login/reset-password ──resetPasswordForEmail──▶ Supabase Aut
          /auth/confirm ──verifyOtp(recovery)──▶ Supabase Auth (session set)
          /login/new-password ──updateUser({password})──▶ Supabase Auth
 
-request  Browser ──sb-* cookie──▶ Next (src/proxy.ts refreshes the session)
+request  Browser ──sb-* cookie──▶ Next (src/middleware.ts refreshes the session)
          Server code ──Authorization: Bearer <access token>──▶ FastAPI
 ```
 

@@ -14,7 +14,7 @@ import { needsRotation } from "@/lib/session-refresh";
  * extension's background calls this route with the cookie and reads the
  * cookie again. This site stays the only party that rotates the token.
  *
- * src/proxy.ts runs first, as on every app request, and refreshes an
+ * src/middleware.ts runs first, as on every app request, and refreshes an
  * expired token itself. This route also rotates one inside
  * ROTATE_WITHIN_S, the extension's window, and always with `?force=1`,
  * which the extension sends on its retry after the API answered 401 (a
@@ -31,7 +31,7 @@ import { needsRotation } from "@/lib/session-refresh";
  * Reusing it meant a rotation that succeeded in Supabase never reached the
  * browser -- this route answered `signed_in: true` while silently sending
  * no new cookie, so the extension re-read the same stale one and stayed
- * signed out. Mirrors src/proxy.ts's own pattern instead: collect the
+ * signed out. Mirrors src/middleware.ts's own pattern instead: collect the
  * cookie writes and apply them to the response this route actually
  * returns, the same way `NextResponse.next()` does there.
  *

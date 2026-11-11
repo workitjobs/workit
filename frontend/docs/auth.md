@@ -36,7 +36,7 @@ signup or OAuth path.
 - **A key the API's Pydantic schema doesn't declare is dropped silently**
   (the default `extra="ignore"`), not rejected. A field added to a request
   body here does nothing until `backend/app/schemas/` declares it too.
-- `src/proxy.ts` refreshes the session on every request. @supabase/ssr
+- `src/middleware.ts` refreshes the session on every request. @supabase/ssr
   requires it: Server Components cannot write cookies, so without it sessions
   die when the hour-long access token does. It does nothing when the Supabase
   variables are unset, which keeps a clone with no env file booting.

@@ -43,7 +43,7 @@ export async function createSupabaseServerClient() {
           }
         } catch {
           // A Server Component cannot write cookies. That is expected here:
-          // refreshing the session is src/proxy.ts's job, and Server Actions
+          // refreshing the session is src/middleware.ts's job, and Server Actions
           // (sign-in, sign-out) can write them. Swallowing this is the
           // documented Next.js pattern.
         }

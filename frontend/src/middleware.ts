@@ -24,8 +24,17 @@ import { sessionCookieWrites } from "@/lib/supabase/cookies";
  *
  * With no Supabase variables set this does nothing, so a clone with no env
  * file still boots and renders its fixtures.
+ *
+ * WHY middleware.ts, ON THE EDGE RUNTIME (KAN-782). Next 16 renamed this
+ * file to proxy.ts, and a proxy runs only on Node. On Cloudflare, OpenNext
+ * bundles a Node proxy with a second copy of Next's server and @vercel/og's
+ * two WebAssembly files: 4.6 MB of the Worker's script, which every new
+ * copy of the Worker loads before it answers (frontend/CLAUDE.md,
+ * Deployment). The deprecated middleware.ts still runs on the Edge runtime,
+ * which needs none of that. Keep this file Edge-safe: no Node built-ins and
+ * no module that imports them.
  */
-export async function proxy(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   // The business side is hidden until it ships (KAN-239): every business
   // path lands on /coming-soon. It runs before the env check so a clone with
   // no env file is gated too. Delete this block to bring the business side

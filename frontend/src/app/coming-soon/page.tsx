@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 
 /**
  * Where every business path lands while the business side is hidden
- * (KAN-239). src/proxy.ts sends /company and /onboarding/company here, so the
+ * (KAN-239). src/middleware.ts sends /company and /onboarding/company here, so the
  * root page's hiring card still shows and a click on it ends on this screen.
  * Delete this page together with that redirect when the business side ships.
  */

@@ -111,7 +111,7 @@ Inbox      [Status ▾]
 
 The Calendar page and Home's Next Up, Up Next and Waiting were
 hidden because the tracker stored no dated events (the sidebar's Calendar
-line is commented out, and `src/proxy.ts` sends `/calendar` to the
+line is commented out, and `src/middleware.ts` sends `/calendar` to the
 Home). Events typed by hand (flow 6) bring them back before Gmail
 does.
 

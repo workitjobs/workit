@@ -89,12 +89,17 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   cost is the parse and the first request, not startup code); and a loop of
   `curl -so /dev/null -w '%{time_starttransfer}\n'
   https://workitjobs.ai/api/session`, a second apart, counts the cold
-  answers after a deploy. **Still open:** about 3.8 MB of the 9 MB of page
-  code are copies of shared modules that Turbopack puts in each route's
-  server chunk (Phosphor icons in 128 chunks), with no setting to share
-  them; and the Node proxy brings Next's server and `@vercel/og` with its
-  two WebAssembly files (3.2 MB and 1.4 MB) into the bundle, which only
-  moving the proxy to the Edge runtime would drop (`src/proxy.ts`, below).
+  answers after a deploy. The middleware runs on the Edge runtime for the
+  same reason (below): as a Node proxy it brought a second copy of Next's
+  server and `@vercel/og`'s two WebAssembly files, 4.6 MB in all
+  (2026-11-11: 16.7 MB and 4.8 MB gzip before, 13.4 MB and 3.7 MB after).
+  Still about 1 request in 3 met a new copy on 2026-11-11, at 1 to 2 s.
+  **Still open:** about 4 MB of the 10 MB of page code are copies of
+  shared modules that Turbopack puts in each route's server chunk, with
+  no setting to share them. Phosphor icons are the largest: 2.5 MB, 1.7 MB
+  of it copies, since `components/icons.tsx` takes all six weights of each
+  glyph (below). To see the split, read the `.map` beside each file in
+  `.next/server/chunks/` after `cf:build`.
 - **`@opennextjs/cloudflare` is pinned exactly**: each release's peer range
   sets a floor on `next` (1.20.6 is the newest that takes `next` 16.3.3).
   Raise them together; a newer adapter on an older Next fails to install.
@@ -105,12 +110,23 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
 - **The build bakes `.env*` files into the Worker** as fallbacks under its
   vars (`.open-next/cloudflare/next-env.mjs`). Build for a deploy only where
   no `.env.local` exists (CI), or the local `API_URL` ships as a fallback.
-- **`src/proxy.ts` stays a Node proxy.** OpenNext 1.20 bundles Node
-  middleware with a warning ("experimental, not officially maintained"); the
-  redirects and the sign-in redirect worked under `wrangler dev` on
-  2026-10-20, with dummy Supabase vars; a real session refresh is untested.
-  If a later adapter rejects it, rename it back to `middleware.ts`
-  exporting `middleware` on the Edge runtime (ADR 0004).
+- **`src/middleware.ts` is Edge middleware, not a Next 16 proxy** (KAN-782,
+  2026-11-11). A `proxy.ts` runs only on Node, and OpenNext bundled it with
+  Next's server and `@vercel/og` (above). Next 16 still runs the deprecated
+  `middleware.ts` on the Edge runtime, and the build prints a deprecation
+  warning for it; leave it, and do not run the `middleware-to-proxy`
+  codemod. Keep the file Edge-safe: no Node built-ins and no module that
+  imports them. Under `cf:preview`, the redirects, the matcher's skips and
+  every signed-in page answered as before; a real session refresh is
+  untested, as it was on the Node proxy. If Next drops `middleware.ts`,
+  measure the bundle before going back to `proxy.ts`.
+- **`cf:preview` holds back a streamed page unless it runs with
+  `--local-upstream localhost:8787`** (2026-11-11). wrangler gives the
+  Worker the route's host, workitjobs.ai, so OpenNext's localhost fix
+  (`Content-Encoding: identity`) does not apply, and local wrangler sends
+  a compressed stream only when it ends: Home's skeletons arrived with its
+  content, 2.4 s in. Production streams (`npm run cf:preview -- --port 8787
+  --local-upstream localhost:8787`).
 - **`next/image` is unoptimized on Cloudflare** (`next.config.ts`): logos
   load from their own hosts. The optimizer is on only where `VERCEL` is set,
   which only the retired Vercel builds do and OpenNext's never does. The Cloudflare Images binding bills per unique transformation
@@ -215,7 +231,7 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   (`lib/connector-actions.ts`, `DELETE /applicants/{id}/connector`):
   it revokes every token the student's Claude holds, which removing the
   connector in Claude alone doesn't.
-- **The business side is hidden until it ships** (KAN-239). `src/proxy.ts`
+- **The business side is hidden until it ships** (KAN-239). `src/middleware.ts`
   redirects `/company` and `/onboarding/company` (and everything under them)
   to `/coming-soon`, "Waiting for Deployment", before its env check, so a
   clone with no env file is gated too. `components/account-type-switcher.tsx`
@@ -236,7 +252,7 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   replaces a parent's `openGraph` whole, so a page that sets its own spreads
   `SHARE_DEFAULTS`, or it loses the image. The image is a static file, not an
   `opengraph-image` route: a crawler gets it from the assets with no Worker or
-  proxy (`src/proxy.ts` skips `.jpg`), and it needs no image rendering on
+  proxy (`src/middleware.ts` skips `.jpg`), and it needs no image rendering on
   Cloudflare. It is the hero recomposed at 1200 x 630 (2x): the logo, the
   headline on its widest phrase and the city, taken when a strong match shows,
   since a red 67% was the wrong first impression. A change to the hero's look
@@ -1398,7 +1414,7 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   never a guess. A change to what WorkIt collects, shares or sends to a
   model updates `/privacy` in the same change, with `LEGAL_UPDATED`.
 - **The Calendar is back** (KAN-413): events added on an application's
-  page give it something to show, so `src/proxy.ts` no longer sends
+  page give it something to show, so `src/middleware.ts` no longer sends
   `/calendar` to Home and its sidebar row is restored. KAN-429 redid it
   after Google Calendar (Week as a time grid with a folding all-day row,
   Month and Agenda, a Type filter dropdown, the full page width, and a
@@ -1488,7 +1504,7 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   `data-state`, which a peek flips to expanded.
 - **The seeker's home is Home, at `/home`** (2026-10-27; it was the
   Dashboard at `/dashboard`, and the company side keeps its Dashboard).
-  `src/proxy.ts` moves `/dashboard` on to `/home` with its query, for old
+  `src/middleware.ts` moves `/dashboard` on to `/home` with its query, for old
   links and bookmarks. The route handler that sends each account to its
   own home moved from `/home` to `/go-home` to make room.
 - **The seeker layout has a `@modal` slot** (KAN-364): a route opened as a
@@ -2672,11 +2688,11 @@ are in `docs/auth.md`.
   applicant while the API is down, so Apply Now asks "Did You Apply?" and
   marking fails with its own error.
 - **Cookies are httpOnly, 7 days idle** (`lib/supabase/cookies.ts`, used by
-  both writers, `supabase/server.ts` and `src/proxy.ts`). Set `maxAge` in that
+  both writers, `supabase/server.ts` and `src/middleware.ts`). Set `maxAge` in that
   helper's `setAll` path, never through `createServerClient`'s
   `cookieOptions`: @supabase/ssr 0.12 overwrites it. httpOnly holds only while
   no `createBrowserClient()` exists.
-- **`src/proxy.ts` (Next 16's middleware) refreshes the session on every
+- **`src/middleware.ts` (the Edge middleware; Next 16 calls it the proxy) refreshes the session on every
   request that renders session-dependent content**, because Server Components
   cannot write cookies and sessions would die with the hour-long access token.
   Its matcher leaves out the static marketing pages (`/`, `/pricing`,

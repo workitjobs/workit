@@ -10,7 +10,7 @@ import { SESSION_COOKIE, SIGNED_IN_HINT, signedInHint } from "@/lib/supabase/coo
  *
  * It checks only that an sb-*-auth-token cookie exists (chunked as `.0`,
  * `.1` when large), never its value: no Supabase call, no token in the
- * answer. src/proxy.ts runs first and clears a cookie it cannot refresh, so a
+ * answer. src/middleware.ts runs first and clears a cookie it cannot refresh, so a
  * dead session answers false. A forged cookie gets an "Open WorkIt" link that
  * /go-home sends on to sign in.
  *

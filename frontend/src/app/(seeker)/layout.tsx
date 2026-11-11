@@ -68,7 +68,7 @@ import { Tip } from "@/components/ui/tip";
  * SIGNED OUT, NOTHING HERE RENDERS: the layout sends the visitor to /login
  * before drawing anything, because every screen behind it is someone's own
  * search. So the bar always has an account to show and the panel always
- * offers Sign Out. The proxy only refreshes sessions (see src/proxy.ts); the
+ * offers Sign Out. The proxy only refreshes sessions (see src/middleware.ts); the
  * API checks every token itself, so this is the shell's rule, not security. The logo moved into the panel's header, which
  * now owns the top-left corner; below md, where the panel is a sheet, the bar
  * shows the mark alone beside the toggle, to leave the title room. The bell is

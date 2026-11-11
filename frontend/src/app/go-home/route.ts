@@ -11,7 +11,7 @@ import { getCurrentAccount } from "@/lib/session";
  * waits for the click instead and lands here.
  *
  * The destination is homePath()'s, the same as a password sign-in's: the
- * business side for a company account (which src/proxy.ts sends on to
+ * business side for a company account (which src/middleware.ts sends on to
  * /coming-soon while KAN-239 hides it), onboarding for an applicant who has
  * not finished it, Home after. Anyone the API does not know, signed
  * out or with the API down, goes to /home, the seeker's Home;
