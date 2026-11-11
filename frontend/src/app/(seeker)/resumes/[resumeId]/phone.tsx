@@ -53,7 +53,7 @@ import {
 } from "./toolbar";
 import { FormatOptions } from "./page-format";
 import { FoldButton, PHONE_FOLD } from "./bar-fold";
-import { BAR_BUTTONS, SLIM_BAR } from "./slim-bar";
+import { BAR_BUTTONS, PRESSED_GLYPH, SLIM_BAR } from "./slim-bar";
 import { boxKey, kindLabel } from "./pdf-pages";
 import { CutPicker, ExperiencesPicker } from "./experiences-picker";
 import { Tip } from "@/components/ui/tip";
@@ -369,7 +369,7 @@ export function PhoneEditor({
                 size="icon-lg"
                 aria-label={zoom ? "Fit Width" : "Zoom In"}
                 aria-pressed={zoom}
-                className="aria-pressed:bg-brand-tint aria-pressed:text-brand"
+                className={PRESSED_GLYPH}
                 onClick={() => setZoom(!zoom)}
               >
                 {zoom ? (

@@ -2553,10 +2553,17 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   PDF's matches letter for letter: with Tinos a line sat 2px off the print over
   714px. **Format Options is grouped as Jobright's Style panel** (2026-11-11,
   `docs/screens.md`): white cards (`Group`, the app's `Card` with a
-  `SectionHeading` over a hairline) for Accent Color, Font, Content Style,
-  Layout and Spacing & Margin, then Reset Formatting, always there and off
-  while nothing is set. A new page setting joins the card it belongs to, and
-  only if a student expects it from a resume builder. **Every page setting
+  `SectionHeading` over a hairline) for Font, Content Style, Layout and
+  Spacing & Margin, then Reset Formatting, always there and off while
+  nothing is set. A new page setting joins the card it belongs to, and only
+  if a student expects it from a resume builder. **No Accent Color**
+  (KAN-586): the user found a coloured name and headings unprofessional and
+  took the swatches out. The API still prints `accent`, so a resume set to
+  a colour before keeps it until Reset Formatting sets black.
+  **A glyph button that stays pressed on the bar takes `PRESSED_GLYPH`**
+  (`slim-bar.ts`: the side panel's button, the phone's zoom): a ghost
+  button's 2px corner, meant for a ring around inline text, drew the
+  pressed tint as a square block against the bar's round end. **Every page setting
   compiles the PDF, so a control commits once per decision**: each spacing
   and margin is its own slider (`StopSlider`) that stops only at the API's
   values (`PageSettings`' Literals in `backend/app/schemas/built_resume.py`;

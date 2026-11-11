@@ -43,7 +43,7 @@ import { cn } from "@/lib/cn";
 
 import { FOLD, FoldButton } from "./bar-fold";
 import type { Line } from "./model";
-import { SLIM_BAR } from "./slim-bar";
+import { PRESSED_GLYPH, SLIM_BAR } from "./slim-bar";
 import { Zoom, ZoomSubmenu } from "./zoom";
 
 /** The editor's Undo and Redo (./history.ts), for the slim bar and the
@@ -762,7 +762,7 @@ export function PanelToggle({
             aria-label={label}
             aria-pressed={open}
             disabled={disabled}
-            className="aria-pressed:bg-brand-tint aria-pressed:text-brand shrink-0"
+            className={cn(PRESSED_GLYPH, "shrink-0")}
             onClick={onToggle}
           />
         }

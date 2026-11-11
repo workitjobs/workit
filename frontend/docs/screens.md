@@ -3783,9 +3783,7 @@ student who opened a resume from Experiences landed on another view.
   **Format Options is laid out as Jobright's Style panel** (2026-11-11), which
   the user found well organized and neither crowded nor cramped: a column of
   white cards, each a group titled over a hairline, whose controls show the
-  choice. **Accent Color** (five swatches, the picked one checked, and a line
-  saying it colours the name, the section headings and the lines under them);
-  **Font** (Font Family, a menu of nine, each drawn in itself with the look it
+  choice. **Font** (Font Family, a menu of nine, each drawn in itself with the look it
   stands for, the closed menu showing that look too; then a size per kind of
   text in a 2 by 2 grid, Section Headings among them, which have no line to
   click, each with a field to type the points in between - and +; the
@@ -3826,7 +3824,10 @@ student who opened a resume from Experiences landed on another view.
   way showed no choice picked; each setting is its own control now, so every
   resume shows as it prints. **Still to come, each needing renderer work:**
   a template choice, the page size (A4), the skills layout (Jobright's comma
-  lines, bullets or two columns), and a choice of what the accent colours. **Custom sections** (KAN-498) are the bank's, made on the
+  lines, bullets or two columns). **No Accent Color** (KAN-586): Jobright's
+  five swatches were here for a day, and the user took them out as
+  unprofessional for a student's resume; a resume set to a colour before
+  keeps it until Reset Formatting. **Custom sections** (KAN-498) are the bank's, made on the
   Experiences view, not here: the Experiences picker and Cut From Resume
   group their entries under each section's name (`groupsOf`), and the
   Sections panel lists them where they print (`printedOrder`, the backend's

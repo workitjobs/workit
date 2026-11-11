@@ -5,7 +5,7 @@ import { ToggleGroup } from "@base-ui/react/toggle-group";
 import { MinusIcon, PlusIcon } from "@phosphor-icons/react/ssr";
 import { useId, useState, type ReactNode } from "react";
 
-import { CheckIcon, ChevronDownIcon, CloseIcon, DetailsIcon } from "@/components/icons";
+import { ChevronDownIcon, CloseIcon, DetailsIcon } from "@/components/icons";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -39,13 +39,16 @@ import { Tip } from "@/components/ui/tip";
  * **It is laid out as Jobright's Style panel** (2026-11-11), which the user
  * found well organized and neither crowded nor cramped: a column of white
  * cards (`Group`), each titled over a hairline, whose controls show the
- * choice. Accent Color (the five swatches, and what they colour); Font (the
- * family, then a size per kind of text in a 2 by 2 grid, section headings
+ * choice. Font (the family, then a size per kind of text in a 2 by 2 grid, section headings
  * among them, which have no line to click); Content Style (Date Format, the
  * bullet as tiles that draw it, Section Lines); Layout (Header Alignment,
  * Education Order as tiles that draw the order); Spacing & Margin (a slider
  * per setting, and justified text as a switch); then Reset Formatting, always
- * there and off while nothing is set. Until then five smaller groups held
+ * there and off while nothing is set. **No Accent Color** (KAN-586): the user
+ * found a coloured name and headings unprofessional for a student's resume,
+ * and took Jobright's five swatches out. The API still prints a resume's
+ * `accent`, so one set to a colour before keeps it until Reset Formatting,
+ * which sets black. Until then five smaller groups held
  * Spacing as one three-way choice over line, section and entry spacing, and
  * Margins one over top and side, so a resume set any other way showed none
  * picked. Each setting is its own control now, so every resume shows as it
@@ -58,8 +61,7 @@ import { Tip } from "@/components/ui/tip";
  * pointer meanwhile, never once per stop it crosses; a typed size applies on
  * Enter or on leaving the field. The editor's `applyPage` also drops a
  * compile a newer setting replaced. **Not here yet, since each needs renderer
- * work:** a template choice, the page size (A4), the skills layout, and what
- * the accent colours.
+ * work:** a template choice, the page size (A4) and the skills layout.
  */
 export const DEFAULT_PAGE: PageSettings = {
   font_size: 11,
@@ -252,14 +254,6 @@ const DATE_FORMATS: Option<PageSettings["date_format"]>[] = [
   { value: "year", label: "Year Only", note: "2018" },
   { value: "numeric", label: "Numeric", note: "08/2018" },
 ];
-const ACCENTS = [
-  { value: "#000000", label: "Black" },
-  { value: "#1E3A5F", label: "Navy" },
-  { value: "#14532D", label: "Forest" },
-  { value: "#7F1D1D", label: "Burgundy" },
-  { value: "#4C1D95", label: "Plum" },
-] as const;
-
 /** Two bullet lines with this bullet before grey bars for the words. The
  *  bullet is drawn, not typed: Inter's "•" is a speck at any size that fits
  *  the tile. */
@@ -610,44 +604,6 @@ export function FormatOptions({
   const changed = JSON.stringify({ ...reset, ...page }) !== JSON.stringify(reset);
   return (
     <div className="flex shrink-0 flex-col gap-3">
-      <Group title="Accent Color">
-        <div className="flex flex-col gap-2.5">
-          <ToggleGroup
-            aria-label="Accent Color"
-            value={[page.accent]}
-            onValueChange={([next]) => {
-              if (next) onChange({ ...page, accent: next as PageSettings["accent"] });
-            }}
-            className="flex flex-wrap items-center gap-3"
-          >
-            {ACCENTS.map(({ value, label }) => (
-              <Tip key={value} label={label}>
-                <Toggle
-                  value={value}
-                  aria-label={label}
-                  style={{ backgroundColor: value }}
-                  className={cn(
-                    "focus-visible:ring-brand-ring ring-offset-panel text-on-brand flex size-8 items-center justify-center rounded-full ring-offset-2 transition-shadow focus-visible:ring-2 focus-visible:outline-none",
-                    // A grey ring under the pointer on a colour not picked:
-                    // the swatches had no hover (2026-11-10).
-                    page.accent === value
-                      ? "ring-brand ring-2"
-                      : "hover:ring-ink-faint hover:ring-2",
-                  )}
-                >
-                  {page.accent === value && <CheckIcon className="size-4" />}
-                </Toggle>
-              </Tip>
-            ))}
-          </ToggleGroup>
-          {/* What the accent colours (`resume_render`): it has no choice of
-              its own, as Jobright's "Applies to" has, until the renderer can
-              colour other parts */}
-          <span className="text-note text-ink-muted">
-            Colors your name, the section headings and the lines under them.
-          </span>
-        </div>
-      </Group>
       <Group title="Font">
         <Setting label="Font Family">
           <OptionMenu
