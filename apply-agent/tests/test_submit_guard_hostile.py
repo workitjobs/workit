@@ -113,6 +113,29 @@ PAGES = {
     "a review page's Apply with its answers hidden": {START: f"""<title>Review</title><form method=post action="{FINAL}">
         <input type=hidden name=__vxXSRF_Token value=t><input type=hidden name=first value=Test>
         <input type=submit id=b value=Apply></form>"""},
+    # KAN-716: a step's box inside the application's form, whose Enter would send it (implicit submission, its button).
+    "a box whose Enter would send the form": {START: f"""<title>Job-specific questions</title><form id=f method=post action="{FINAL}">
+        <label>School <input id=school name=school></label><textarea name=why></textarea>
+        <button id=b>Next</button></form>"""},
+    # KAN-716: as a key goes down in the box, the page moves the focus to its Submit, for the key's text or Space to press it.
+    "a box that hands its keys to the Submit": {START: f"""<title>Apply</title><form id=f method=post action="{FINAL}">
+        <label>School <input id=school name=school></label><button id=b>Next</button></form>{SEND_ALL}
+        <script>document.getElementById('school').addEventListener('keydown', () => document.getElementById('b').focus());
+        document.getElementById('b').addEventListener('click', () => sendAll());</script>"""},
+    # KAN-716: trusted clicks are for choices. A radio inside the Submit button, and a radio whose press moves the Submit
+    # under the pointer: neither may press it.
+    "a radio inside the Submit": {START: f"""<title>Apply</title><form id=f method=post action="{FINAL}">
+        <input name=first value=Test><button id=b><input type=radio name=agree value=yes aria-label="Agree"> Next</button>
+        </form>{SEND_ALL}<script>document.getElementById('b').addEventListener('click', () => sendAll());</script>"""},
+    "a radio that moves the Submit under the pointer": {START: f"""<title>Apply</title><form id=f method=post action="{FINAL}">
+        <input name=first value=Test><label><input type=radio id=r name=sponsor value=no> No</label>
+        <label><input type=checkbox id=c name=ok> Okay</label><button id=b>Next</button></form>{SEND_ALL}
+        <script>const b = document.getElementById('b');
+        for (const id of ['r', 'c']) for (const kind of ['pointermove', 'pointerdown']) document.getElementById(id).addEventListener(kind, (e) => {{
+          const box = e.target.getBoundingClientRect();
+          Object.assign(b.style, {{position: 'fixed', left: box.left - 30 + 'px', top: box.top - 30 + 'px', width: '90px', height: '70px', zIndex: 9}});
+        }}, true);
+        b.addEventListener('click', () => sendAll());</script>"""},
 }
 BUTTON = {"a review page's Apply with its answers hidden": "Apply", "a profile pop-up that is the application": "Submit", "a profile pop-up that turns into the application": "Submit",
           "a one-page form in a modal": "Continue", "an application that makes an account": "Continue",
@@ -177,6 +200,60 @@ def ask_press_listed(page, drive, name):
     """Ask Claude's press of a step in the form's list of steps (KAN-692): the name Claude gives, as ask.ask presses it."""
     press_step(page, drive, name, listed=True)
 
+
+# KAN-716: a plain Worker's two typing paths, each with every key that could send a form: Apply's own (fill, type,
+# keys) and Lisul's from the tile. Their text goes in trusted (worker-extension/ops/typing.js, chrome.debugger).
+FIELDS = "input:not([type=hidden]):not([type=file]):not([type=checkbox]):not([type=radio]):not([type=submit]), textarea"
+
+
+def _boxes(page):
+    boxes = page.locator(FIELDS)
+    return [boxes.nth(i) for i in range(boxes.count()) if boxes.nth(i).is_visible()]
+
+
+def apply_typing(page, drive, name):
+    for box in _boxes(page):
+        box.fill("Test")
+        box.press_sequentially("x ")
+        box.press("Enter")
+        page.keyboard.press("Backspace")
+        page.keyboard.insert_text("y")
+        page.keyboard.press("Enter")
+        # A line break as text: a lone "\n" by Input.insertText is an Enter to a one-line box (the review of #521).
+        box.fill("\n")
+        box.focus()
+        page.keyboard.insert_text("\n")
+        box.press_sequentially("a\nb")
+        page.keyboard.type("c\rd")
+
+
+def tile_typing(page, drive, name):
+    tile = lambda event: page.worker.call("tile.input", tab=page.tab, event=event, by="lisul")
+    for box in _boxes(page):
+        box.focus()
+        for event in ({"type": "text", "text": "T"}, {"type": "text", "text": "est"}, {"type": "key", "key": "Backspace"},
+                      {"type": "key", "key": "Enter"}, {"type": "text", "text": " "}, {"type": "key", "key": "Enter"},
+                      {"type": "text", "text": "\n"}, {"type": "text", "text": "\r"}, {"type": "text", "text": "a\nb"}):
+            tile(event)
+    page.get_by_role("button", name=name).first.focus()
+    tile({"type": "key", "key": "Enter"})  # Enter on a focused Submit presses nothing
+
+
+def choice_clicks(page, drive, name):
+    """Apply's click and check of every radio and checkbox: a trusted click (KAN-716)."""
+    choices = page.locator("input[type=radio], input[type=checkbox]")
+    for i in range(choices.count()):
+        try:
+            choices.nth(i).check(timeout=2000)
+        except Exception:
+            pass  # refused, or the page moved it: nothing pressed
+        try:
+            choices.nth(i).click(timeout=2000)
+        except Exception:
+            pass
+
+
+TYPING = {"Apply's typing": apply_typing, "the tile's typing": tile_typing, "Apply's choice clicks": choice_clicks}
 
 PATHS = {"plain code's Next": plain_next, "the profile click": profile_click, "the account click": account_click,
          "Ask Claude's press": ask_press, "Ask Claude's press of a listed step": ask_press_listed}
@@ -472,6 +549,99 @@ def test_no_click_path_sends_a_hostile_page_on_a_plain_worker(page_name, path):
         _then(page, page_name)
         _settle(page)
     assert site.applications() == []
+
+
+@pytest.mark.parametrize("path", list(TYPING))
+@pytest.mark.parametrize("page_name", list(PAGES))
+def test_no_typing_path_sends_a_hostile_page_on_a_plain_worker(page_name, path):
+    with plain(PAGES[page_name]) as (page, drive, site):
+        try:
+            TYPING[path](page, drive, button(page_name))
+        except Handoff:
+            pass
+        _then(page, page_name)
+        _settle(page, 1500)
+    assert site.applications() == []
+
+
+@pytest.mark.parametrize("path", list(TYPING))
+def test_an_enter_in_a_box_sends_nothing_even_on_a_lifted_page(path):
+    """KAN-716: on amazon.jobs a synthetic Enter in a box pressed the form's submit button. Lifted (a held page, a live
+    run's last step), no guard would stop it: the Enter itself must send nothing."""
+    with plain(PAGES["a box whose Enter would send the form"]) as (page, drive, site):
+        lift(page)
+        TYPING[path](page, drive, "Next")
+        _settle(page, 1500)
+    assert [p for p in site.sent if p.startswith("/")] == []  # nothing to the job system (Chrome's own calls aside)
+
+
+# KAN-716: pages built to steer a trusted choice click (the review of #521). Each counts the trusted presses its other
+# elements got (window.pressed, and an inner frame's by postMessage). Run lifted: no guard is behind, so what stops
+# them is the click's own checks (page/dom.js aim and onlyChoice, ops/typing.js fence, no move before the press).
+_COUNT = """<script>window.pressed = 0; window.sent = 0;
+addEventListener('message', (e) => { if (e.data === 'pressed') pressed++; });
+document.getElementById('f').addEventListener('submit', (e) => { e.preventDefault(); sent++; });
+const counted = (b) => b.addEventListener('click', (e) => { if (e.isTrusted) pressed++; });</script>"""
+INNER_BUTTON = """<!doctype html><style>body { margin: 0 }</style><button id=b type=button style="width: 300px; height: 200px">Confirm</button>
+<script>b.addEventListener('click', (e) => { if (e.isTrusted) parent.postMessage('pressed', '*'); });</script>"""
+_RADIO = '<label id=l style="display: inline-block; position: relative; padding: 20px"><input type=radio id=r name=agree value=yes> Yes</label>'
+_FRAME = '<iframe id=fr src="%s" style="position: fixed; left: -2000px; top: 0; width: 300px; height: 200px; border: 0"></iframe>'
+_UNDER = "const box = r.getBoundingClientRect(); Object.assign(fr.style, {left: box.left + box.width / 2 - 150 + 'px', top: box.top + box.height / 2 - 100 + 'px', zIndex: 9});"
+STEERS = {
+    "a button put inside the radio's label": f"""<form id=f method=post action="{FINAL}">{_RADIO}</form>{_COUNT}<script>
+        for (const kind of ['pointermove', 'pointerover', 'pointerdown', '__apply_touch']) (kind === '__apply_touch' ? window : r).addEventListener(kind, () => {{
+          if (document.getElementById('go')) return;
+          const b = document.createElement('button'); b.id = 'go'; b.textContent = 'Confirm'; counted(b);
+          b.style.cssText = 'position: absolute; inset: 0; z-index: 9'; l.appendChild(b); }}, true);</script>""",
+    "a button put inside an option": f"""<form id=f method=post action="{FINAL}"><div role=listbox><div role=option id=r aria-selected=false
+        style="position: relative; width: 200px; height: 60px">Yes</div></div></form>{_COUNT}<script>
+        for (const kind of ['pointermove', 'pointerover', 'pointerdown']) r.addEventListener(kind, () => {{
+          if (document.getElementById('go')) return;
+          const b = document.createElement('button'); b.id = 'go'; b.textContent = 'Confirm'; counted(b);
+          b.style.cssText = 'position: absolute; inset: 0; z-index: 9'; r.appendChild(b); }}, true);</script>""",
+    "a same-origin frame moved under the point": f"""<form id=f method=post action="{FINAL}">{_RADIO}</form>{_FRAME % '/inner'}{_COUNT}
+        <script>for (const kind of ['pointermove', 'pointerover']) r.addEventListener(kind, () => {{ {_UNDER} }}, true);
+        addEventListener('__apply_touch', () => setTimeout(() => {{ {_UNDER} }}, 0));</script>""",
+    "a cross-origin frame moved under the point": f"""<form id=f method=post action="{FINAL}">{_RADIO}</form>{_FRAME % 'https://other.example.org/inner'}{_COUNT}
+        <script>for (const kind of ['pointermove', 'pointerover']) r.addEventListener(kind, () => {{ {_UNDER} }}, true);
+        addEventListener('__apply_touch', () => setTimeout(() => {{ {_UNDER} }}, 0));</script>""",
+    "a listener that runs first and hides the press": f"""<form id=f method=post action="{FINAL}">{_RADIO}
+        <button id=go style="position: fixed; left: -500px; top: 0; width: 90px; height: 70px">Confirm</button></form>{_COUNT}<script>
+        counted(go);
+        for (const t of ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click'])
+          addEventListener(t, (e) => {{ if (e.isTrusted && e.target !== r) e.stopImmediatePropagation(); }}, true);
+        for (const kind of ['pointermove', 'pointerover', 'pointerdown']) r.addEventListener(kind, () => {{
+          const box = r.getBoundingClientRect(); Object.assign(go.style, {{left: box.left - 30 + 'px', top: box.top - 30 + 'px', zIndex: 9}}); }}, true);</script>""",
+}
+
+
+@pytest.mark.parametrize("page_name", list(STEERS))
+def test_a_trusted_choice_click_presses_nothing_else_on_a_lifted_page(page_name):
+    with plain({START: STEERS[page_name], "/inner": INNER_BUTTON, "https://other.example.org/inner": INNER_BUTTON}) as (page, _, site):
+        lift(page)
+        page.wait_for_timeout(800)  # the frame loaded
+        try:
+            page.locator("#r").click(timeout=3000)
+        except Exception:
+            pass  # refused or missed: an error for Apply, nothing pressed
+        _settle(page, 800)
+        pressed = page.evaluate("() => [window.pressed, window.sent]")
+    assert pressed == [0, 0]
+    assert [p for p in site.sent if p.startswith("/")] == []
+
+
+def test_a_trusted_click_that_misses_raises():
+    """The page puts its Submit over the radio as the press goes down: the click is cancelled, and Apply hears it."""
+    page_html = STEERS["a listener that runs first and hides the press"].replace(
+        "for (const t of ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click'])", "for (const t of [])")
+    from apply.plain.bridge import PortError
+    with plain({START: page_html}) as (page, _, _site):
+        lift(page)
+        with pytest.raises(PortError, match="KAN-716 trusted input"):
+            page.locator("#r").click(timeout=3000)
+        _settle(page, 500)
+        pressed = page.evaluate("() => [window.pressed, window.sent, r.checked]")
+    assert pressed == [0, 0, False]
 
 
 def test_a_second_form_sent_in_with_into_is_guarded_beside_a_held_one():
