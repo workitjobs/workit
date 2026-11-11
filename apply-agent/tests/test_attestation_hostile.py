@@ -316,3 +316,15 @@ def test_without_the_policy_the_same_box_is_left_and_nothing_is_sent(tmp_path):
     assert not driver.ticked and server.submissions == []
     assert "Attested from sources" not in row.reason
 
+
+@pytest.mark.parametrize("label", [
+    "I attest that I will not require sponsorship, so I commit to a two-year term",
+    "I certify that I am at least 18 years old (and a US citizen)",
+    "I certify that I am authorized to work in the United States with an active security clearance",
+])
+def test_a_second_claim_joined_by_another_word_is_never_attested(tmp_path, label):
+    # PR fe#126's second adversarial review: a clause must match a rule's wording whole.
+    path = profile_with(tmp_path, policies={"attest_from_sources": ["sponsorship", "work_authorization", "age_18"]})
+    q = Question("q1", label, "select", True, ("I Confirm", "I Do Not Confirm"))
+    planned = fill_engine.plan([q], POSTING, ApplicantProfile.load(path))
+    assert planned.answers == {} and planned.attested == {} and "q1" in planned.attestations

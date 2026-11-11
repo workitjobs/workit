@@ -72,10 +72,13 @@ rules are the engine's (`src/attest.ts`): `sponsorship`,
 `work_authorization`, `age_18`, and `truthful_information` only when
 listed by name. It picks the form's one affirmative option ("I Confirm",
 "Yes", "I Affirm"), and never signs, types a name, consents, opts in or
-answers a clause that no listed rule settles. Each clause is settled on
-its own: a clause that adds any other commitment ("... and accept an
-unpaid trial period", "I understand that I give permission to verify
-...") blocks the tick (PR fe#126's adversarial review). Each such answer is in
+answers a clause that no listed rule settles. Each clause, its lead-in
+("I certify that") left out, must match one of a rule's wordings whole,
+or an employer's notice whole: anything else in it, a second claim or
+commitment joined by "and", "&", "/", "or", "so", "with", a parenthesis
+or a comma ("I am at least 18 years old, a US citizen", "... and accept
+an unpaid trial period"), leaves the attestation to Lisul (PR fe#126's
+adversarial reviews). Each such answer is in
 `Plan.attested`, with its fact, and not in `Plan.attestations`. Apply puts
 it on the Check before Submit list as "Attested from sources: <fact>
 (<label>)" (`_Planned.to_tick`, `fill_engine.attested_line`), which holds a
