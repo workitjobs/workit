@@ -305,9 +305,14 @@ _TEMPLATE = r"""
     for (let i = 0; i < args.length; i++) said += (i ? ',' : '') + json(typeof args[i] === 'boolean' ? args[i] : Str(args[i]));
     said += ']]';@TELL@
   };
-  // A captcha's own frame is Lisul's to do (apply.captcha): nothing in it is the application.
+  // A captcha's own frame is Lisul's to do (apply.captcha): nothing in it is the application. By its path alone
+  // (reCAPTCHA's /recaptcha/) only in a frame of another site than the one around it (KAN-791): the page's own frame
+  // at that path ran no guard, so the page posted the application through its fetch and its Worker.
   const host = location.hostname, path = location.pathname;
-  if (any(@CAPTCHA_HOSTS@, (h) => host === h || endsWith(host, '.' + h)) || any(@CAPTCHA_PATHS@, (p) => startsWith(path, p))) {
+  const framedAway = (() => {
+    try { return W.parent !== W && W.parent.location.origin !== location.origin; } catch (e) { return true; }
+  })();
+  if (any(@CAPTCHA_HOSTS@, (h) => host === h || endsWith(host, '.' + h)) || (framedAway && any(@CAPTCHA_PATHS@, (p) => startsWith(path, p)))) {
 @CAPTCHA@
     return;
   }

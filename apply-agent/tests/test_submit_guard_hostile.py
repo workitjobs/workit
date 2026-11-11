@@ -533,6 +533,15 @@ _MAKES = {
         () => Reflect.construct(Worker, [blob()]), () => Worker.call({}, blob())]""",
 }
 PAGES |= {name: {START: _WORKERS.replace("@MAKE@", make), WORKER_JS: WORKER_CODE} for name, make in _MAKES.items()}
+# A frame of the page's own site at reCAPTCHA's path (captcha.PATHS), which the guard took for a captcha's frame and
+# left unguarded: the page posted through the frame's fetch and its Worker (KAN-791's review).
+PAGES["a frame of the page's own at a captcha's path"] = {START: f"""<title>Apply</title><input name=first value=Test>
+    <button id=b type=button>Next</button><iframe id=f src="/recaptcha/api2/anchor"></iframe><script>
+    document.getElementById('b').addEventListener('click', () => {{
+      const w = document.getElementById('f').contentWindow;
+      try {{ w.fetch('{FINAL}', {{method: 'POST', body: 'first=Test'}}).catch(() => {{}}); }} catch (e) {{}}
+      try {{ new w.Worker(URL.createObjectURL(new w.Blob([{json.dumps(WORKER_CODE)}]))); }} catch (e) {{}}
+    }});</script>"""}
 BUTTON = {"an Amazon card whose Continue sends": "Continue", "a review page's Apply with its answers hidden": "Apply", "a page that vouches for its own Apply": "Apply", "a Submit in another language beside a Submit": "Envoyer ma candidature", "a Submit in a shadow root": "Submit application",
           "a profile pop-up that is the application": "Submit", "a profile pop-up that turns into the application": "Submit",
           "a one-page form in a modal": "Continue", "an application that makes an account": "Continue",
@@ -699,6 +708,7 @@ GUARD_HOLES = frozenset({
     "Ashby's submit in JSON the regex missed", "Ashby's submit in a form or multipart body",
     "a Next whose workers post the application", "a Next whose shared worker posts the application",
     "a Next whose service worker posts the application", "a worker made by a constructor the guard never wrapped",
+    "a frame of the page's own at a captcha's path",
 })
 
 

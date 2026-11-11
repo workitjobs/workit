@@ -190,6 +190,11 @@ into it and the window shows "Sample data".
   routes no shared worker's request). On a plain Worker, the rules on
   -1 block the final URLs and Ashby's GraphQL from them. A new way to
   run code outside the page's realm needs the same three layers.
+- **A captcha's frame is known by its host, or by its path only in a
+  frame of another site** (KAN-791). The guard leaves a captcha's frame
+  alone, and it took any frame at `/recaptcha/` for one, so the page's
+  own frame at that path ran no guard and the page posted through its
+  `fetch` and `Worker`.
 - **No test reaches past loopback** (`tests/network_block.py`, KAN-662). A
   socket or name lookup to another host raises `NetworkBlocked`, Chrome
   started by a test resolves other hosts to nothing, and Playwright's own
