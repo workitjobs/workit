@@ -25,30 +25,22 @@
  * has to stay deep enough to carry a white label at AA.
  * ------------------------------------------------------------------------- */
 
-/* The middle dot (U+00B7) alone, from Georgia, before Plus Jakarta Sans in
- * --font-sans. Jakarta draws "·" as a square, the same as its full stop, and
- * the user found the square dots between a job's facts odd (2026-11-03).
- * Georgia's is round and sits at Jakarta's height (centre 217 against 219 of
- * 300 units, measured), and ships with macOS and Windows; Helvetica Neue's,
- * round too, covers iOS. Where neither is installed, Jakarta's square shows.
- * One rule rounds every "·" in the app, strings included, with no markup. */
-@font-face {
-  font-family: "Round Dot";
-  src: local("Georgia"), local("Helvetica Neue");
-  unicode-range: U+00B7;
-}
-
 @theme static {
-  /* Fonts — the faces themselves are loaded by next/font in app/layout.tsx,
-   * except "Round Dot", the middle dot alone (above). */
-  --font-sans: "Round Dot", var(--font-jakarta-sans);
+  /* Fonts — loaded by next/font: Inter and Geist Mono in app/layout.tsx.
+   * Inter since 2026-11-10 (Plus Jakarta Sans before, which now draws only
+   * the marketing pages' headlines: `font-display`, below the theme). Its
+   * "·" is round, so the "Round Dot" face that borrowed Georgia's for
+   * Jakarta's square one is gone. */
+  --font-sans: var(--font-inter);
   --font-mono: var(--font-geist-mono);
-  /* Regular is 450, not 400 (KAN-365). Plus Jakarta Sans's 400 is light, and
-   * small grey text at it (a job card's facts, dates, helper lines) read
-   * thin. next/font loads the face as a variable font, so any weight from
-   * 200 to 800 draws true. This sets `font-normal`, the body's default and
-   * --text-hero's weight; medium (500) stays a step above. */
-  --font-weight-normal: 450;
+  /* Regular is Inter's 400, as Jobright's (2026-11-10). It was 450 from
+   * KAN-365 to the switch to Inter, for Plus Jakarta Sans, whose 400 read
+   * thin in small grey text under `antialiased` smoothing. With Inter and
+   * the Mac's own smoothing (app/layout.tsx), 400 draws as solid as that
+   * 450 did; a separate token, so a weight never needs writing as a
+   * number. This sets `font-normal`, the body's default and --text-hero's
+   * weight; medium (500) stays a step above. */
+  --font-weight-normal: 400;
 
   /* Surfaces ------------------------------------------------------------
    * NEUTRALISED, the same way the app roles below were and for the same
@@ -1049,7 +1041,7 @@ body:has([data-skyline]) {
  *     --border below points back at it so both spellings agree.
  *
  *   --font-sans: var(--font-sans)  — self-referential, and redundant with the
- *     @theme static definition that already resolves to next/font's Geist.
+ *     @theme static definition that already resolves to next/font's Inter.
  *
  * Anything below whose comment says OPEN is a role WorkIt has never designed;
  * it holds shadcn's stock value until a designer supplies one.
@@ -1400,6 +1392,16 @@ body:has([data-skyline]) {
  * its presses. Hit areas of controls that touch overlap, and the later one
  * wins the overlap; rows that touch grow instead (the menu rows above, the
  * sidebar's sheet rows). */
+/* The marketing pages' headline face, Plus Jakarta Sans (app/fonts.ts):
+ * on their h1 to h3 by landing.css, and on a display line that is no
+ * heading by this class. The face's variable is set only on the layouts
+ * that load it (the marketing pages, the design kit), so it is read here,
+ * on the element, and not in @theme, where :root would resolve it to
+ * nothing; anywhere else it falls back to Inter. */
+@utility font-display {
+  font-family: var(--font-jakarta-sans, var(--font-sans)), system-ui, sans-serif;
+}
+
 @utility hit-area {
   &::after {
     content: "";

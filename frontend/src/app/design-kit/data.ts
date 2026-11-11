@@ -24,7 +24,7 @@ export const SECTIONS = {
   type: {
     slug: "type",
     title: "Type",
-    note: "One typeface, Plus Jakarta Sans, with Geist Mono for code. Weight and letter-spacing are baked into each token, so a caption cannot be used without its tracking. Two sizes are both 11px: caption carries uppercase tracking and weight 600, meta carries neither. shadcn's stock sizes resolve to this scale too. Four weights, each with one job (Weights), and icons drawn to sit beside medium text (Icons).",
+    note: "Inter for every word in the app, Plus Jakarta Sans for the marketing pages' headlines only, and Geist Mono for code. Weight and letter-spacing are baked into each token, so a caption cannot be used without its tracking. Two sizes are both 11px: caption carries uppercase tracking and weight 600, meta carries neither. shadcn's stock sizes resolve to this scale too. Four weights, each with one job (Weights), and icons drawn to sit beside medium text (Icons).",
   },
   shape: {
     slug: "shape",
@@ -319,9 +319,16 @@ export const TYPE_SCALE: { token: string; cls: string; role: string }[] = [
   { token: "--text-hero", cls: "text-hero", role: "Onboarding question from lg, 40px regular" },
 ];
 
-/** The faces themselves come from next/font in app/layout.tsx. */
+/** The faces themselves come from next/font: Inter and Geist Mono in
+ *  app/layout.tsx, Plus Jakarta Sans in app/fonts.ts (loaded by this kit's
+ *  layout and the marketing pages' only). */
 export const TYPEFACES: { token: string; cls: string; role: string }[] = [
-  { token: "--font-sans", cls: "font-sans", role: "Plus Jakarta Sans · every word in the app" },
+  { token: "--font-sans", cls: "font-sans", role: "Inter · every word in the app" },
+  {
+    token: "font-display",
+    cls: "font-display",
+    role: "Plus Jakarta Sans · the marketing pages' headlines (every h1 to h3 there), never the app",
+  },
   {
     token: "--font-mono",
     cls: "font-mono",
@@ -330,7 +337,7 @@ export const TYPEFACES: { token: string; cls: string; role: string }[] = [
   {
     token: "--font-heading",
     cls: "font-heading",
-    role: "→ --font-sans · shadcn's title face, so a dialog title is Plus Jakarta Sans too",
+    role: "→ --font-sans · shadcn's title face, so a dialog title is Inter too",
   },
 ];
 
@@ -343,7 +350,7 @@ export const TYPEFACES: { token: string; cls: string; role: string }[] = [
  */
 export const WEIGHTS: { token: string; cls: string; role: string }[] = [
   {
-    token: "450 · font-normal",
+    token: "400 · font-normal",
     cls: "font-normal",
     role: "Reading: body copy, helper text, typed values in inputs, descriptions",
   },

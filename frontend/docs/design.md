@@ -88,7 +88,7 @@ open choices (Settled choices, near the end).
   site sets no
   `leading-*` on token text. A prose block of three or more lines may open
   to `leading-5` on `text-note` or `leading-6` on `text-body`.
-- **Four weights, one job each** (450, 500, 600, 700): Type weights, below.
+- **Four weights, one job each** (400, 500, 600, 700): Type weights, below.
 
 ### Hierarchy
 
@@ -512,10 +512,12 @@ where its header and cards end; About the Role's own 46ch, beside blocks
 that ran the full width, read as cut short.
 **A `ch` cap goes on the element that has the text's own size** (KAN-569):
 `ch` is read from that element's font, and About the Role's 68ch sat on a
-16px wrapper over 14px text, so its lines ran about 107 characters. Plus
-Jakarta Sans draws "0", which `ch` measures, at 0.73em, wider than its
-average letter: at 14px, 46ch prints 64 to 71 characters a line and 60ch
-about 90. Measure a new cap in characters a line (45 to 75). On Applications and
+16px wrapper over 14px text, so its lines ran about 107 characters. Inter
+draws "0", which `ch` measures, at 0.64em (Plus Jakarta Sans, the face until
+2026-11-10, at 0.73em), wider than its average letter (0.47em): at 14px a
+68ch cap prints about 92 characters a line and 75ch about 102 (measured on
+a job description's sentence). Measure a new cap in characters a line (45
+to 75). On Applications and
 the Calendar the segmented control sits at the top right of the header
 wherever it fits beside the title, the title wrapping first (below
 `@3xl/main` the Calendar puts it at the start of its second row, KAN-578); Home's range
@@ -791,8 +793,23 @@ sizes (`frontend/CLAUDE.md`, the landing page).
 
 ## Type weights
 
+**Inter is the app's face; Plus Jakarta Sans draws only the marketing
+pages' headlines** (2026-11-10, after Jobright: Inter in the product, a
+display face on marketing headlines). Jakarta had been every word since
+KAN-173, chosen as rounder and warmer than Geist; its tall capitals (74.5%
+of the size, against Inter's 72.8%), short lowercase (72% of its capitals,
+against Inter's 75%) and round, wide letters read as marketing copy in
+tables, filters and job facts, and the user found the app unprofessional.
+It was not too light by weight: at 450 it laid down as much ink as Inter
+does. What thinned every word was `antialiased` on `<html>`, which turns off
+the Mac's own smoothing; Jobright sets it on no element. So the page keeps
+the Mac's smoothing, and regular text is Inter's 400, as Jobright's.
+Inter is built for screen text at 12 to 14px, where three quarters of the
+Jobs page's text sits. `font-display` is the headline face's utility; the
+app never uses it (`frontend/CLAUDE.md`, "Type on the marketing pages").
+
 Four weights, each with one job, shown on `/design-kit/type` (Weights):
-450 to read (body copy, helper text, typed values), 500 for anything a
+400 to read (body copy, helper text, typed values), 500 for anything a
 student clicks or picks (buttons, chips, segmented controls, menu rows,
 select and filter options, field labels), 600 to name a block (card and
 dialog titles, a job's title, captions), 700 to name a page. A token that
@@ -802,11 +819,13 @@ weight and drew at 400, so the account menu read thinner than the Jobs
 page's filters; `globals.css` sets them to 500 by `data-slot`, in base so a
 row that asks for another weight still gets it (KAN-365). The filters' own
 option rows (`filter-controls.tsx`) set theirs and are left alone: a nested
-option is regular under its medium parent. Regular is 450, not 400
-(`--font-weight-normal`, KAN-365): Plus Jakarta Sans loads as a variable
-font, and its 400 read thin in small grey text such as a job card's facts
-and dates. `font-normal`, the body's default and `--text-hero` all read it,
-so never write a literal 400.
+option is regular under its medium parent. Regular is
+`--font-weight-normal`, Inter's 400 (2026-11-10). It was 450 from KAN-365
+while the face was Plus Jakarta Sans, whose 400 read thin in small grey
+text such as a job card's facts and dates under `antialiased`; with Inter
+and the Mac's own smoothing, 400 draws as solid. `font-normal`, the body's
+default and `--text-hero` all read it, so never write the weight as a
+number.
 
 ## Components
 
@@ -891,13 +910,12 @@ frame matches the cards, the split panel and the buttons on it. The company
 shell keeps its lavender `rail-border`, since its docked panel is lavender;
 the phone's menu sheet keeps its light rule.
 
-**A separator dot is round** (2026-11-03). Plus Jakarta Sans draws "·"
+**A separator dot is round** (2026-11-03). Plus Jakarta Sans drew "·"
 (U+00B7) as a square, the same as its full stop, and the user found the
-square dots between a job's facts odd. `--font-sans` starts with "Round
-Dot", an `@font-face` in `globals.css` that takes U+00B7 alone from Georgia
-(or Helvetica Neue): round, and centred at Jakarta's height. Keep writing
-"·" in text; never draw a dot with markup or swap in "•", which is about
-three times the size.
+square dots between a job's facts odd, so a "Round Dot" face took U+00B7
+from Georgia. Inter's own "·" is round (2026-11-10), so that face is gone.
+Keep writing "·" in text; never draw a dot with markup or swap in "•",
+which is about three times the size.
 
 **The match score pill takes the button edge** (`border-surface`,
 2026-11-09): it opens a modal that explains the score, so `MatchBadge` is

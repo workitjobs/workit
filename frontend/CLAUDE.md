@@ -222,10 +222,10 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
 - **The page at `/` is the landing page, `app/(landing)/`**, ported from
   the team's Astro marketing site (`WorkIt-Website`, kept outside this repo)
   in place of the old Job Seeker / Hiring chooser. Its components keep the
-  site's markup, classes and copy, with two deliberate changes, and set the
-  app's own face (`--font-sans`, Plus Jakarta Sans) instead of the site's
-  Inter, so the page and the app read as one product; Google Sans loads only
-  for the Google sign-in button.
+  site's markup, classes and copy, with two deliberate changes, and read in
+  the app's own face (`--font-sans`, Inter, as the site had it), with Plus
+  Jakarta Sans on the headlines (below, "Type on the marketing pages");
+  Google Sans loads only for the Google sign-in button.
   **Colour and logo:** the site's numbered blue scale became
   `landing-brand-50` to `950` in `globals.css`, the same steps in WorkIt
   violet, so a component copied from the site needs only `brand-N` renamed
@@ -1241,7 +1241,17 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   client navigation to a marketing page shows "Open WorkIt" until the
   probe answers. The hint is a guess for the header alone; nothing
   decides access by it.
-- **Type on the marketing pages.** Plus Jakarta Sans is 1.26em tall
+- **Type on the marketing pages.** **Headlines are Plus Jakarta Sans and
+  everything else is Inter** (2026-11-10, Jobright's split: a display face
+  on marketing headlines, Inter in the product). One rule in landing.css
+  gives every `h1` to `h3` under `.landing` the face, so a new section's
+  heading cannot miss it; a display line that is no heading (the bridge's
+  lines, the footer's tagline, the quote, a plan's price) takes the
+  `font-display` utility, and a heading that is a small label (the
+  footer's column titles) takes `font-sans` back. Mock app screens on the
+  page draw no `h1` to `h3`, so they stay Inter, as the app is. The face
+  loads from `app/fonts.ts`, only in this layout and the design kit's, so
+  an app page never downloads it. Plus Jakarta Sans is 1.26em tall
   (ascent 1.038, descent 0.222), taller than any display line, so a
   wrapped heading's lines overlap by a few pixels. The selection
   (`.landing ::selection`) is see-through, 14% of the brand violet, so a
@@ -1521,9 +1531,10 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   company bar's corner and the split view's list heading each crossed one
   until 2026-11-03. The seeker top bar's rule and the rail's edge are
   `border-surface`, as the cards are (2026-11-09); the company shell keeps its lavender
-  `rail-border`. A "·" between facts is round: the "Round Dot" face in
-  `globals.css` draws U+00B7 from Georgia, since Jakarta's is square; keep
-  typing "·" and never draw a dot in markup (`docs/design.md`, Components).
+  `rail-border`. A "·" between facts is round: Inter's own is (the "Round
+  Dot" face that borrowed Georgia's for Jakarta's square one went with the
+  switch, 2026-11-10); keep typing "·" and never draw a dot in markup
+  (`docs/design.md`, Components).
   Skeletons are `bg-ink/6`, so they show on white and on the ground.
 - **The sidebar's current fill never slides** (`components/app-sidebar.tsx`,
   2026-11-02): it lands on the row at once, because the slide read as
@@ -2036,8 +2047,10 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
 - **Anything clicked or picked is medium (500)**: buttons, chips,
   segmented controls, filter options, and shadcn's menu, select and
   combobox rows, which `globals.css` sets by `data-slot` since they set no
-  weight of their own (KAN-365). Regular text is 450, not 400
-  (`--font-weight-normal`): the face's 400 read thin in small grey text. The four weights and their jobs are in
+  weight of their own (KAN-365). Regular text is 400
+  (`--font-weight-normal`, Inter's own, as Jobright's), and the page keeps
+  the Mac's own smoothing: no `antialiased`, which drew every word thinner
+  (2026-11-10). The four weights and their jobs are in
   `docs/design.md`, Type weights, and on `/design-kit/type`.
 - **Reading text is 12px or more** (KAN-554, `docs/design.md`, Type sizes):
   a sentence, hint, error, status or group name is `text-note` or larger;
