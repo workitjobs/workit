@@ -197,6 +197,20 @@ into it and the window shows "Sample data".
   for one. A page served that path from its own site or another one, and
   the frame posted the application, or the page did through its `fetch`
   and `Worker`.
+- **A pop-up is guarded as its opener is, and fails closed** (KAN-796). In a live
+  run a pop-up's drive guard stayed lifted, and Claude's press on its Submit sent:
+  Chrome runs no event listener in a pop-up's first document (window.open's
+  about:blank) while the init scripts run, so the control each init script
+  sends is lost there; a same-origin page then takes that window with no init
+  script run again; and the control reached only DriveGuard's own page. So a
+  copy that hears no event of its own starts armed, the guard reads the
+  window's current document (`doc()`, never one taken at start), its listeners
+  go back on after `document.open`/`write`, and DriveGuard arms every pop-up of
+  its page (`_pop_ups`, by opener; a plain Worker's `tabs.get` gives `opener`)
+  or raises a Handoff. `lift()` for Claude fill's submit click leaves the
+  pop-ups armed; `lift(pop_ups=True)` hands them back too. Never arm a pop-up
+  by an event sent from an init script, nor by a Python `page`/`popup`
+  handler: none runs while the Worker's thread waits on `claude -p`.
 - **No test reaches past loopback** (`tests/network_block.py`, KAN-662). A
   socket or name lookup to another host raises `NetworkBlocked`, Chrome
   started by a test resolves other hosts to nothing, and Playwright's own
