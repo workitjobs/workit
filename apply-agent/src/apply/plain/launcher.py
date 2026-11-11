@@ -142,6 +142,9 @@ class PlainWorkers:
         self.bridge.reloadable = lambda worker: developer_mode(self.profile(worker))
         self.extension_dir = extension_dir or extension.EXTENSION_DIR  # the code the copy is made from
         self.direct = extension_dir is not None
+        if not self.direct:  # a Worker whose folder holds other code is welcomed as out of date (KAN-764)
+            self.bridge.code = extension.code_hash(self.extension_dir)
+            self.bridge.loaded = self.loaded_folder
         self._told_shared = False
         if test_flags and self.kind != "testing":
             raise ValueError("test_flags are for Chrome for Testing in tests only")
@@ -205,9 +208,13 @@ class PlainWorkers:
         files = extension.generated(identity)
         if self.direct:
             extension.prepare(self.extension_dir / "vendor")
-        else:  # replaced only while none of this folder's Workers runs: a running one's code never changes
-            extension.install(self.copy, files, replace=self.idle(), source=self.extension_dir)
+        else:  # replaced only while no Worker loads it, of this folder or another: a running one's code never changes
+            extension.install(self.copy, files, replace=self.idle() and not extension.loaders(self.copy),
+                              source=self.extension_dir)
         loaded = self.loaded_folder(worker).resolve()
+        if not self.direct and loaded != self.copy.resolve() and extension.refresh(loaded, files, self.extension_dir):
+            print(f"Updated the worker extension in {loaded} to this Apply's code: no running Chrome loads it.",
+                  file=sys.stderr)  # a seed that registered another folder's copy (KAN-764)
         roots = {extension.vendor_set(loaded, files)}  # write-once: safe beside any Worker on that folder
         if loaded != self.copy.resolve() and not self.direct and not self._told_shared:
             self._told_shared = True

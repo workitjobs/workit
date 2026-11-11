@@ -337,6 +337,23 @@ differs from its Apply's crashed the page guard. So:
   before any engine check. If it still reads no sets and its guard files are another Apply's,
   `launch` stops it with `launcher.OutOfDate` (a SetupError: the rehearsal's line says how to fix
   it), never a crash. Its refusal for another engine names the folder to update.
+- **A folder of older code is never silent (KAN-764).** A seed copied from another profiles folder
+  registers that folder's copy, and nothing kept it current: on 2026-11-10 every new Worker of
+  `profiles-jpm` loaded `~/.config/apply/profiles/worker-extension` from 5 days before, with older
+  guard, tile and typing code, at the same feature level as current code. Now:
+  - Before a Worker starts, Apply brings the folder it will load up to its own code
+    (`extension.refresh`): only a copy `install` made (it has `.apply-code`; a checkout is never
+    replaced), and only while no running Chrome loads it (`extension.loaders`: each browser
+    process's `--load-extension`, or its `--user-data-dir` profile's registration), of any
+    profiles folder. It says so in one line. The profiles folder's own copy is replaced under the
+    same rule. A running Worker's code still never changes.
+  - At each hello the bridge hashes the folder that Worker loads (`Bridge.code`,
+    `extension.code_hash`, the same hash `refresh` uses). Other code than this Apply's makes the
+    Connection `stale`, whatever its feature level: the tile shows `OUT_OF_DATE` and Apply prints
+    one line with the folder and the fix (`bridge.STALE_FIX`). The hash is taken by Apply, not sent
+    in the hello: old code could never send a new field, and Apply reads the very folder Chrome's
+    preferences name.
+  - Tests: `tests/test_plain_stale_extension.py` (in CI).
 - Rolling it out: no running Worker is touched. When no plain Worker runs, `uv run apply plain
   seed` once: it shows the copy to load and checks it. New Worker profiles copy that seed; an
   existing idle `plain-<k>` profile keeps its old registration until it is deleted.
