@@ -22,7 +22,8 @@ and nowhere else:
 - **Order:** sections in `SECTIONS` order, then the sections the student
   named (KAN-498) in the bank's order, each entry by its choice's position
   within its section, each bullet by its position within its entry, skills
-  by position. Ties keep the bank's order. An empty section is dropped. The
+  by position, each under its choice's group when the resume has one
+  (KAN-586), else the bank's. Ties keep the bank's order. An empty section is dropped. The
   GPA and coursework toggles blank those fields. Where the page prints each
   section is the page's (`resume_render.printed_order`), not the view's.
 - **Custom sections group by name** (`custom_key`): two uploads that each
@@ -108,6 +109,8 @@ class BulletChoice:
 class SkillChoice:
     shown: bool = True
     position: int = 0
+    # The group on this resume (KAN-586): None the bank's, "" no group
+    group: str | None = None
 
 
 @dataclass(frozen=True)
@@ -184,6 +187,14 @@ def _ordered(items: Iterable[Any], key: Mapping[uuid.UUID, Any]) -> list[Any]:
     return sorted(chosen, key=lambda item: key[item.id].position)
 
 
+def _group(skill: Any, choice: SkillChoice) -> str | None:
+    '''The group a skill prints under on this resume: its choice's, when the
+    student moved it there (KAN-586; "" is no group), else the bank's.'''
+    if choice.group is None:
+        return skill.group
+    return choice.group or None
+
+
 def _bullet(bullet: Any, wording: str | None) -> ViewBullet:
     # Only the resume's own wording is read for markers: the bank's text is
     # what the student or an upload wrote, stars and all
@@ -242,7 +253,7 @@ def build_view(bank: Any, choices: Choices) -> ResumeView:
             ))
         if entries:
             sections.append(ViewSection(section, tuple(entries), label, layout))
-    skills = tuple(ViewSkill(s.id, s.name, s.group) for s in _ordered(bank.skills, choices.skills))
+    skills = tuple(ViewSkill(s.id, s.name, _group(s, choices.skills[s.id])) for s in _ordered(bank.skills, choices.skills))
     return ResumeView(tuple(sections), skills)
 
 

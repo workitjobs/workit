@@ -2561,7 +2561,11 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   save and the render go behind it, and the line stays open on it. The
   Sections panel reorders at once too, since it reads the same choices. It
   sends the line's typed text first (`flush`), so the move's render prints
-  it. A section moves only in the Sections panel.
+  it. A section, a skill group or a skill moves only in the Sections panel
+  (KAN-586, `docs/screens.md`). **A skill's move to another
+  group is this resume's** (its choice's `group`), and its Undo names the
+  bank's group rather than null (`reverseChoices`): a null field keeps its
+  value in a save, so a reverse of null undid nothing.
   **One bar, one height** (KAN-576): every button on it is 36px, text
   buttons `sm` and icon buttons `icon-lg` (the kit's `icon-sm` is 28px);
   `xs` and `icon-sm` there stood 26 and 28px beside 36px ones. An upload's

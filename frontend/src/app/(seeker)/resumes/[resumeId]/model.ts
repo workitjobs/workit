@@ -263,8 +263,72 @@ export function printedSections(bank: Bank, choices: Choices, order: string[]): 
   });
 }
 
+/** A skill group as the page prints it (KAN-586): `key` is the group's
+ *  name, "" for the skills with none, and `label` what the outline shows
+ *  ("Other" for those, as the page labels them beside named groups). */
+export type PrintedSkillGroup = {
+  key: string;
+  label: string;
+  skills: { id: string; name: string }[];
+};
+
+/** The group a skill prints under on this resume: its choice's when the
+ *  student moved it (KAN-586; "" no group), else the bank's. The backend's
+ *  `resume_view._group`; change both together. */
+export function skillGroupOf(skill: Skill, choices: Choices): string {
+  const choice = choices.skills.find((c) => c.skill_id === skill.id);
+  return choice?.group ?? skill.group ?? "";
+}
+
+/** The resume's skills by group, each group where its first skill prints
+ *  (`fields.skill_lines`), skills by position and then the bank's order. */
+export function printedSkills(bank: Bank, choices: Choices): PrintedSkillGroup[] {
+  const groups = new Map<string, PrintedSkillGroup>();
+  for (const skill of ordered(bank.skills, (id) => choices.skills.find((c) => c.skill_id === id))) {
+    const key = skillGroupOf(skill, choices);
+    if (!groups.has(key)) groups.set(key, { key, label: key || "Other", skills: [] });
+    groups.get(key)!.skills.push({ id: skill.id, name: skill.name });
+  }
+  return [...groups.values()];
+}
+
+/** The choice changes that print the skills as `groups` lays them out (a
+ *  drag in the Sections outline, KAN-586): every shown skill numbered from 0
+ *  group by group, so the groups print in this order too, and each skill
+ *  that changed group moved there on this resume alone. */
+export function arrangeSkills(
+  bank: Bank,
+  choices: Choices,
+  groups: PrintedSkillGroup[],
+): ChoicesUpdate {
+  const skill = new Map(bank.skills.map((s) => [s.id, s]));
+  let position = 0;
+  return {
+    skills: groups.flatMap((group) =>
+      group.skills.map(({ id }) => {
+        const moved = skillGroupOf(skill.get(id)!, choices) !== group.key;
+        return { skill_id: id, position: position++, ...(moved && { group: group.key }) };
+      }),
+    ),
+  };
+}
+
+/** `groups` with the skill at `from` (its group's index and its own)
+ *  moved to `to`, as a drop or an arrow key leaves them. */
+export function moveSkill(
+  groups: PrintedSkillGroup[],
+  from: { group: number; at: number },
+  to: { group: number; at: number },
+): PrintedSkillGroup[] {
+  const next = groups.map((g) => ({ ...g, skills: [...g.skills] }));
+  const [moved] = next[from.group].skills.splice(from.at, 1);
+  next[to.group].skills.splice(to.at, 0, moved);
+  // A group left empty prints nothing; the outline drops it too
+  return next.filter((g) => g.skills.length);
+}
+
 /** The choices with a change's plain fields (shown, position, the GPA
- *  and coursework toggles) set at once, for rows the resume already has
+ *  and coursework toggles, a skill's group) set at once, for rows the resume already has
  *  (KAN-391): a second move computes from the first, and the copy sent
  *  with the next request holds it. Wording and new rows wait for the
  *  render's answer, which replaces these. */
@@ -274,7 +338,8 @@ export function mergeChoices(choices: Choices, changes: ChoicesUpdate): Choices 
     ...Object.fromEntries(
       Object.entries(change).filter(
         ([k, v]) =>
-          v !== undefined && ["shown", "position", "show_gpa", "show_coursework"].includes(k),
+          v !== undefined &&
+          ["shown", "position", "show_gpa", "show_coursework", "group"].includes(k),
       ),
     ),
   });

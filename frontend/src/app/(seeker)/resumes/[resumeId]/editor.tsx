@@ -208,6 +208,20 @@ const EXPERIENCES_MARK = (
   </span>
 );
 
+/** The panel's marks for Sections and Format Options (KAN-586): the
+ *  toolbar button's glyph, as Experiences', never Scout's sparkle, which
+ *  marks AI alone (`docs/design.md`, Brand and icons). */
+const SECTIONS_MARK = (
+  <span className="bg-brand-tint text-brand rounded-control flex size-8 shrink-0 items-center justify-center">
+    <ListDashesIcon aria-hidden className="size-4.5" weight="duotone" />
+  </span>
+);
+const FORMAT_MARK = (
+  <span className="bg-brand-tint text-brand rounded-control flex size-8 shrink-0 items-center justify-center">
+    <SlidersHorizontalIcon aria-hidden className="size-4.5" weight="duotone" />
+  </span>
+);
+
 // Letter is 612 pt wide; field type is set in cqw of the page so it matches
 // the PDF's at any width.
 const PAGE_WIDTH = 612;
@@ -667,7 +681,7 @@ export function Editor({
   // goes back to the assistant, so the top bar's Scout always opens Scout
   const scoutOpen = useScout().open;
   const [panelView, setPanelView] = useState<
-    "scout" | "experiences" | "cut" | "format" | "sections" | "header"
+    "scout" | "experiences" | "cut" | "format" | "sections"
   >("scout");
   const [panelWasOpen, setPanelWasOpen] = useState(scoutOpen);
   if (panelWasOpen !== scoutOpen) {
@@ -675,7 +689,7 @@ export function Editor({
     if (!scoutOpen) setPanelView("scout");
   }
   const showScout = useCallback(() => setPanelView("scout"), []);
-  const showPanel = (view: "experiences" | "cut" | "format" | "sections" | "header") => {
+  const showPanel = (view: "experiences" | "cut" | "format" | "sections") => {
     if (scoutOpen && panelView === view) return setScoutOpen(false);
     setPanelView(view);
     setScoutOpen(true);
@@ -685,10 +699,9 @@ export function Editor({
   const [showMarks, setShowMarks] = useState(true);
   // The line whose popup the student closed, so it stays closed on that line
   const [closedPopup, setClosedPopup] = useState<string | null>(null);
-  /** Format Options, Sections or Header: beside the page on Tailor's
-   *  review, in Scout's panel on the editor's own page, as the Experiences
-   *  picker is. */
-  const togglePanel = (panel: "format" | "sections" | "header") => {
+  /** Format Options or Sections: beside the page on Tailor's review, in
+   *  Scout's panel on the editor's own page, as the Experiences picker is. */
+  const togglePanel = (panel: "format" | "sections") => {
     if (suggestions) return showSide(side === panel ? null : panel);
     showPanel(panel);
   };
@@ -2140,18 +2153,8 @@ export function Editor({
   const shownOriginal = side === "original" && original;
   const shownFormat = side === "format";
   const shownSections = side === "sections";
-  const shownHeader = side === "header";
   const shownCut = side === "cut";
   const cutOpen = suggestions ? shownCut : scoutOpen && panelView === "cut";
-  const sectionsOutline = (
-    <SectionsOutline
-      bank={bank}
-      choices={choices}
-      order={page.section_order}
-      onOrder={(section_order) => void applyPage({ ...page, section_order })}
-      onApply={apply}
-    />
-  );
   const headerPanel = (
     <HeaderPanel
       header={header}
@@ -2168,8 +2171,24 @@ export function Editor({
       }
     />
   );
-  // The header's line opens the Header panel: beside the page on the
-  // desktop, a sheet on a phone
+  // The Header is the outline's first row (KAN-586): it was a panel of its
+  // own beside Sections for a day. Open or closed is the editor's, since a
+  // click on the header's line on the page opens it
+  const [headerOpen, setHeaderOpen] = useState(false);
+  const sectionsOutline = (
+    <SectionsOutline
+      bank={bank}
+      choices={choices}
+      order={page.section_order}
+      onOrder={(section_order) => void applyPage({ ...page, section_order })}
+      onApply={apply}
+      header={headerPanel}
+      headerOpen={headerOpen}
+      onHeaderOpen={setHeaderOpen}
+    />
+  );
+  // The header's line opens the outline's Header row: beside the page on
+  // the desktop, a sheet on a phone
   const [headerSheet, setHeaderSheet] = useState(false);
   const openHeader = () => {
     // On a phone the line's sheet gives way to the panel's
@@ -2177,8 +2196,9 @@ export function Editor({
       select(null);
       return setHeaderSheet(true);
     }
-    if (suggestions) return showSide("header");
-    if (!(scoutOpen && panelView === "header")) showPanel("header");
+    setHeaderOpen(true);
+    if (suggestions) return showSide("sections");
+    if (!(scoutOpen && panelView === "sections")) showPanel("sections");
   };
   const history: HistoryTools = {
     canUndo: steps.undo > 0 && !fittingNow,
@@ -2341,7 +2361,7 @@ export function Editor({
         "grid items-start gap-5",
         // The column docks beside the page from @6xl only; below it floats
         // over the page (`floating`)
-        (shownPanel || shownFormat || shownSections || shownHeader || shownCut) &&
+        (shownPanel || shownFormat || shownSections || shownCut) &&
           "@6xl/main:grid-cols-[minmax(0,1fr)_24rem]",
         // The two resumes at one width, so a line reads against its twin
         shownOriginal && "@4xl/main:grid-cols-2",
@@ -2435,7 +2455,11 @@ export function Editor({
               ? EXPERIENCES_MARK
               : panelView === "cut"
                 ? CUT_MARK
-                : undefined
+                : panelView === "sections"
+                  ? SECTIONS_MARK
+                  : panelView === "format"
+                    ? FORMAT_MARK
+                    : undefined
           }
           away={panelView !== "scout" ? showScout : undefined}
           title={
@@ -2447,9 +2471,7 @@ export function Editor({
                   ? "Format Options"
                   : panelView === "sections"
                     ? "Sections"
-                    : panelView === "header"
-                      ? "Header"
-                      : "Scout"
+                    : "Scout"
           }
           subtitle={
             panelView === "experiences"
@@ -2460,9 +2482,7 @@ export function Editor({
                   ? "Set how this page prints"
                   : panelView === "sections"
                     ? "Drag to change the order"
-                    : panelView === "header"
-                      ? "Pick what this resume's header shows"
-                      : "Edits this resume as you talk"
+                    : "Edits this resume as you talk"
           }
         >
           <div data-keeps-selection className="flex min-h-0 flex-1 flex-col">
@@ -2484,11 +2504,6 @@ export function Editor({
                 {sectionsOutline}
               </div>
             )}
-            {panelView === "header" && (
-              <div className="relative min-h-0 flex-1 overflow-y-auto overscroll-none px-4 pt-2 pb-4">
-                {headerPanel}
-              </div>
-            )}
             {panelView === "format" && (
               <div className="relative flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-none px-4 pt-2 pb-4">
                 <FormatOptions page={page} onChange={applyPage} />
@@ -2507,7 +2522,7 @@ export function Editor({
           Below @6xl it floats over the page's right side in the page's own
           cell (KAN-576), under the 44px bar, with `shadow-lift`: docked at
           1024, the 384px column left the resume about 480px wide */}
-      {(shownPanel || shownFormat || shownSections || shownHeader || shownCut) && (
+      {(shownPanel || shownFormat || shownSections || shownCut) && (
         <div
           data-keeps-selection
           ref={fitPanel}
@@ -2523,10 +2538,6 @@ export function Editor({
           ) : shownSections ? (
             <SidePanel title="Sections" onClose={() => showSide(null)}>
               {sectionsOutline}
-            </SidePanel>
-          ) : shownHeader ? (
-            <SidePanel title="Header" onClose={() => showSide(null)}>
-              {headerPanel}
             </SidePanel>
           ) : shownCut ? (
             <SidePanel title="Cut From Resume" onClose={() => showSide(null)}>
@@ -2892,7 +2903,7 @@ type FormatTools = {
 };
 
 /** What sits beside the page on Tailor's review. */
-type Side = "suggestions" | "original" | "format" | "sections" | "header" | "cut" | null;
+type Side = "suggestions" | "original" | "format" | "sections" | "cut" | null;
 
 /** The slim bar's review tools: the changes left, and which column shows
  *  beside the page. */

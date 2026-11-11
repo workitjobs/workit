@@ -51,7 +51,7 @@ def from_copy(copy: ResumeCopy):
     choices = Choices(
         entries={e.entry_id: EntryChoice(e.shown, e.position, e.show_gpa, e.show_coursework) for e in c.entries},
         bullets={b.bullet_id: BulletChoice(b.shown, b.position, b.variant_id, b.text) for b in c.bullets},
-        skills={s.skill_id: SkillChoice(s.shown, s.position) for s in c.skills},
+        skills={s.skill_id: SkillChoice(s.shown, s.position, s.group) for s in c.skills},
     )
     i = copy.identity
     identity = HeaderIdentity(

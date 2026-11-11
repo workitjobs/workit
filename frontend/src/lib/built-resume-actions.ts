@@ -283,7 +283,14 @@ export type BulletChoice = {
   variant_id: string | null;
   text: string | null;
 };
-export type SkillChoice = { skill_id: string; shown: boolean; position: number };
+/** `group` is the group the skill prints under on this resume (KAN-586):
+ *  null the bank's, "" no group, any other text that group. */
+export type SkillChoice = {
+  skill_id: string;
+  shown: boolean;
+  position: number;
+  group?: string | null;
+};
 /** A wording a bullet can switch to: Tailor's, or this resume's own (`local`). */
 export type Variant = {
   id: string;

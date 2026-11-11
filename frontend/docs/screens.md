@@ -3664,10 +3664,12 @@ student who opened a resume from Experiences landed on another view.
   (`TextField` with the glyph in its label, `profile/icons.tsx`): a link
   is typed without "https://", which the API adds, as on My Profile;
   Simplify's fixed "https://" prefix was not drawn, since no field in the
-  app has one. It opens from the header line's Edit Header (no toolbar
-  button: the bar's fold widths are measured for its present buttons), in
-  Scout's panel on the editor's page, beside the page on Tailor's review,
-  and as a sheet on a phone. Format Options' Reset Formatting leaves the
+  app has one. **It is the Sections outline's first row** (KAN-586), the
+  Header, which never moves: the header line's Edit Header opens the
+  outline with that row open, in Scout's panel on the editor's page and
+  beside the page on Tailor's review, and a sheet on a phone. It was a side
+  panel of its own beside Sections for a day; two panels for one outline of
+  the resume was one too many. Format Options' Reset Formatting leaves the
   hidden fields, as it leaves the section order.
   **An upload fills the header's empty fields** (KAN-436, the backend's
   `services/header_fill.py`): the note under an upload (Resumes, intake's
@@ -3683,12 +3685,27 @@ student who opened a resume from Experiences landed on another view.
   such field; one line was chosen over unlimited custom lines, which bloat
   the header, which Fit to One Page cannot cut, and which neither a hiring
   system's parser nor the autofiller can read.
- - **Moving is the Sections panel** (`sections-panel.tsx`, KAN-435): an
-  outline of what prints, as Jobright's, opened from the toolbar's end beside
-  Format Options. Sections fold to their entries and entries to their bullets,
-  and each row drags by its handle, or moves with the arrow keys on it. A
-  section's order is a page setting (`section_order`), which Word follows too;
-  an entry's or bullet's is a choice. It replaced the bar's up and down buttons,
+ - **Moving is the Sections panel** (`sections-panel.tsx`, KAN-435, KAN-586):
+  an outline of what prints, top to bottom, as Jobright's, opened from the
+  toolbar's end beside Format Options. The Header comes first (above), then
+  the sections; sections fold to their entries and entries to their bullets,
+  and Technical Skills folds to its groups and each group to its skills. Each
+  row drags by its handle, or moves with the arrow keys on it. A section's
+  order is a page setting (`section_order`), which Word follows too; an
+  entry's, bullet's or skill's is a choice. **A skill moves within its group,
+  into another group, or with its whole group**, and a group prints where its
+  first skill does, so dragging a group renumbers its skills
+  (`arrangeSkills`). A move to another group is this resume's alone
+  (`built_resume_skills.group`: null the bank's, "" no group, else that
+  group), never the bank's; a skill dropped on a closed group goes to its
+  end, and a skill's arrow keys step past its group's edge into the next.
+  **Three levels, three looks**: a section's name semibold at the label size;
+  an entry, a group and the Header a medium note; a bullet or a skill a muted
+  note; each level below a section one step in on a guide line. Until KAN-586
+  an entry was as bold as its section at the same indent, which read as one
+  flat list, and Technical Skills was a row with nothing under it. The panel
+  wears the toolbar button's list glyph, and Format Options its sliders,
+  never Scout's sparkle, which marks AI alone. It replaced the bar's up and down buttons,
   which moved one line one step and could not move a section. A phone keeps
   those buttons, since a drag there fights the scroll. The bar's Sections
   and Format Options (`PanelButton`) fold to glyphs with a tooltip, shown

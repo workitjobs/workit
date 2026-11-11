@@ -294,9 +294,13 @@ class VariantResponse(BaseModel):
 
 
 class SkillChoiceResponse(BaseModel):
+    """`group` is the group the skill prints under on this resume
+    (KAN-586): null the bank's, "" no group, any other text that group."""
+
     skill_id: UUID
     shown: bool
     position: int
+    group: str | None = None
 
 
 class ChoicesResponse(BaseModel):
@@ -336,9 +340,13 @@ class BulletChoiceUpdate(BaseModel):
 
 
 class SkillChoiceUpdate(BaseModel):
+    """`group` moves the skill to that group on this resume alone (KAN-586):
+    "" is no group. Null keeps it; the bank's group never changes here."""
+
     skill_id: UUID
     shown: bool | None = None
     position: int | None = None
+    group: Annotated[str, StringConstraints(strip_whitespace=True, max_length=60)] | None = None
 
 
 class ChoicesUpdate(BaseModel):

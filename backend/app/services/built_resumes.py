@@ -321,7 +321,8 @@ async def write_choices(
         + [Built_Resume_Bullet(built_resume_id=resume_id, bullet_id=i, shown=c.shown, position=c.position,
                                variant_id=c.variant_id)
            for i, c in choices.bullets.items()]
-        + [Built_Resume_Skill(built_resume_id=resume_id, skill_id=i, shown=c.shown, position=c.position)
+        + [Built_Resume_Skill(built_resume_id=resume_id, skill_id=i, shown=c.shown, position=c.position,
+                              group=c.group)
            for i, c in choices.skills.items()]
     )
     await session.flush()
@@ -544,7 +545,7 @@ async def _choices_of(session: AsyncSession, resume_ids: list[uuid.UUID]) -> dic
     for r, wording in bullets:
         found[r.built_resume_id].bullets[r.bullet_id] = BulletChoice(r.shown, r.position, r.variant_id, wording)
     for r in skills:
-        found[r.built_resume_id].skills[r.skill_id] = SkillChoice(r.shown, r.position)
+        found[r.built_resume_id].skills[r.skill_id] = SkillChoice(r.shown, r.position, r.group)
     return found
 
 
@@ -661,7 +662,8 @@ WITH owner AS (
     SELECT * FROM jsonb_to_recordset(CAST(:bullets AS jsonb))
         AS c(bullet_id uuid, shown boolean, position integer, switch boolean, variant_id uuid)
 ), sc AS (
-    SELECT * FROM jsonb_to_recordset(CAST(:skills AS jsonb)) AS c(skill_id uuid, shown boolean, position integer)
+    SELECT * FROM jsonb_to_recordset(CAST(:skills AS jsonb))
+        AS c(skill_id uuid, shown boolean, position integer, "group" text)
 ), e AS (
     UPDATE built_resume_entries r SET
         shown = coalesce(c.shown, r.shown), position = coalesce(c.position, r.position),
@@ -682,7 +684,8 @@ WITH owner AS (
     RETURNING r.bullet_id
 ), s AS (
     UPDATE built_resume_skills r SET
-        shown = coalesce(c.shown, r.shown), position = coalesce(c.position, r.position)
+        shown = coalesce(c.shown, r.shown), position = coalesce(c.position, r.position),
+        "group" = coalesce(c."group", r."group")
     FROM sc c
     WHERE r.built_resume_id IN (SELECT id FROM owner) AND r.skill_id = c.skill_id
     RETURNING r.skill_id
@@ -1000,6 +1003,6 @@ def choices_out(choices: Choices, variants: list[VariantResponse]) -> ChoicesRes
         bullets=[BulletChoiceResponse(bullet_id=i, shown=c.shown, position=c.position, variant_id=c.variant_id,
                                       text=c.text)
                  for i, c in choices.bullets.items()],
-        skills=[SkillChoiceResponse(skill_id=i, shown=c.shown, position=c.position)
+        skills=[SkillChoiceResponse(skill_id=i, shown=c.shown, position=c.position, group=c.group)
                 for i, c in choices.skills.items()],
     )
