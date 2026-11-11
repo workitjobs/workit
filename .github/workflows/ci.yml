@@ -246,11 +246,6 @@ jobs:
             tests/test_gmail.py \
             tests/test_graduate_only.py \
             tests/test_into.py \
-            tests/test_plain_tile_identity.py \
-            tests/test_plain_tile_refilm.py \
-            tests/test_plain_stale_extension.py \
-            tests/test_plain_tile_fallback.py \
-            tests/test_review_kan717_hostile.py \
             tests/test_left_behind.py \
             tests/test_preflight.py \
             tests/test_keychain_contract.py \
@@ -292,6 +287,17 @@ jobs:
             tests/test_truth.py \
             tests/test_worker_date.py \
             tests/test_workit_login.py
+      # The tile's tests time frames and retries in real seconds: in one
+      # process, as beside other test processes they missed their timing (KAN-780).
+      - name: Tile tests
+        timeout-minutes: 3
+        run: |
+          uv run pytest -q --durations=10 -m "not nightly" \
+            tests/test_plain_tile_identity.py \
+            tests/test_plain_tile_refilm.py \
+            tests/test_plain_stale_extension.py \
+            tests/test_plain_tile_fallback.py \
+            tests/test_review_kan717_hostile.py
       # Playwright's Chromium and its Chrome for Testing follow the Playwright that uv.lock
       # pins. A miss costs one download. The plain-Worker tests skip without it, so the
       # check below makes a failed install fail the job instead.

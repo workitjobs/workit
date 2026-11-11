@@ -177,7 +177,8 @@ Each test step has its own `timeout-minutes` and skips tests marked
 (`pytest -n auto`, pytest-xdist), but plain-Worker cases always run one at
 a time in one process (the hostile pages' `xdist_group`, `--dist
 loadgroup`, and the plain-Worker step without `-n`): in parallel, plain
-Workers' trusted typing missed its field. Before KAN-780 the job took 16 to 20 minutes,
+Workers' trusted typing missed its field. The tile's tests, which time
+frames in real seconds, have their own one-process step too. Before KAN-780 the job took 16 to 20 minutes,
 10 to 15 of them in the hostile pages' matrix. PRs now run every hostile
 page and every path at least once; `workflows/apply-nightly.yml` (07:53
 UTC, or `gh workflow run apply-nightly.yml`) runs every `nightly` test. A
