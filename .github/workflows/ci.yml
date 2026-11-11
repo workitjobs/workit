@@ -199,14 +199,25 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      # uv's download cache, keyed on uv.lock (KAN-780).
       - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+          cache-dependency-glob: apply-agent/uv.lock
       - run: uv sync --locked
+        timeout-minutes: 3
       - run: uv run ruff check .
+        timeout-minutes: 2
       # The files that need no browser, network or `claude` CLI. A new test
-      # file that needs none of them joins the list.
+      # file that needs none of them joins the list. Each step runs its tests
+      # on the runner's cores with pytest-xdist (-n auto: each process has its
+      # own APPLY_HOME, fake servers on port 0 and its own plain Worker), and
+      # each has its own limit, so a hang fails that step, not the job at 20
+      # minutes (KAN-780). `nightly` tests run in apply-nightly.yml instead.
       - name: Fast tests
+        timeout-minutes: 5
         run: |
-          uv run pytest -q \
+          uv run pytest -q -n auto --durations=15 -m "not nightly" \
             tests/test_accounts.py \
             tests/test_accounts_tab.py \
             tests/test_answer_bank.py \
@@ -289,18 +300,24 @@ jobs:
           path: ~/Library/Caches/ms-playwright
           key: chrome-for-testing-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('apply-agent/uv.lock') }}
       - run: uv run playwright install chromium
+        timeout-minutes: 4
       - name: Chrome for Testing is installed
+        timeout-minutes: 1
         run: uv run python -c "from apply.plain.launcher import chrome_for_testing; print(chrome_for_testing())"
       # The submit guard's hostile pages (KAN-666): no-browser, CDP and plain Worker cases.
+      # On a plain Worker, every path against one page here; every page nightly.
       - name: Submit guard hostile pages
-        run: uv run pytest -q tests/test_submit_guard_hostile.py
+        timeout-minutes: 6
+        run: uv run pytest -q -n auto --durations=15 -m "not nightly" tests/test_submit_guard_hostile.py
       # The worker extension's page scripts in a window without focus (KAN-709).
       - name: Plain Worker focus
+        timeout-minutes: 2
         run: uv run pytest -q tests/test_plain_focus.py
       # A real plain Worker on a fake job system. A new suite this fast joins the list.
       - name: Plain-Worker tests
+        timeout-minutes: 4
         run: |
-          uv run pytest -q -rs \
+          uv run pytest -q -rs -n auto --durations=15 -m "not nightly" \
             tests/test_plain_guards.py \
             tests/test_plain_routing.py \
             tests/test_plain_typing.py
