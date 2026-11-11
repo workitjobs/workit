@@ -17,7 +17,7 @@ import { AllFiltersButton, ClearFiltersButton } from "@/components/filter-action
 import { matches, RESUME_TYPES, searchWords, type ResumeType } from "@/components/resume-list";
 import { RESUME_TYPE_ICON, type CardActions, type RowPick } from "@/components/resume-row";
 import { CompanyIcon, PencilIcon, SearchIcon, TrashIcon } from "@/components/icons";
-import { SelectionAction, SelectionBar } from "@/components/selection-bar";
+import { SELECTION_ROW, SelectionAction, SelectionBar } from "@/components/selection-bar";
 import { GroupHeadingRow, useFolds } from "@/components/table-group";
 import { GroupByOptions, TableSettingsMenu } from "@/components/table-settings";
 import { useShallowParams, useShallowPush } from "@/components/shallow-routing";
@@ -537,7 +537,7 @@ export function BuiltResumes({
           Settings take about 170px, so this row (its own @container) fits
           Type from 488px and Company from 640. */}
       <div className="mt-3 flex flex-col gap-3">
-        <div className="@container relative flex items-center gap-2">
+        <div className={cn("@container flex items-center gap-2", SELECTION_ROW)}>
           {/* The picked rows' actions, over the filters while any row is
               picked (components/selection-bar.tsx). */}
           {checked.length > 0 && (
@@ -573,6 +573,7 @@ export function BuiltResumes({
               />
               <SelectionAction
                 danger
+                iconOnly
                 label="Delete"
                 icon={<TrashIcon />}
                 onClick={() => setDeleting(true)}

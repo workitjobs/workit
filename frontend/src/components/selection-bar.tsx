@@ -2,21 +2,22 @@
 
 import { useEffect, type ComponentProps, type ReactNode } from "react";
 
-import { CloseIcon } from "@/components/icons";
-import { IconButton } from "@/components/ui/icon-button";
+import { Tip } from "@/components/ui/tip";
 import { cn } from "@/lib/cn";
 
 /**
  * What can be done to a table's picked rows (2026-11-11, after Notion's):
  * a small white bar that shows while at least one row is picked, over the
  * table's filter row, so the actions sit right above the rows they act on
- * and the page moves nothing. The count in brand ink first, then one
- * segment per action, a rule between each, then Clear. Escape clears the
- * pick too. The table's own select boxes pick (`PickBox` in each row,
- * Select All in its first heading).
+ * and the page moves nothing. "N selected" in brand ink first, then one
+ * segment per action, a rule between each: a glyph and its word
+ * (`SelectionAction`), or a glyph alone with a tooltip for a delete or
+ * remove (`iconOnly`), last. No close button: the user found a × beside
+ * the actions confusing (it read as one more action). Escape clears the
+ * pick, and so does the table's Select All box while any row is picked.
  *
- * The caller places it: `absolute` over the filter row, which is
- * `relative`. Its actions are `SelectionAction`s.
+ * The caller places it: `absolute` over the filter row, which takes
+ * `SELECTION_ROW`. Up Next's and Documents' resumes.
  */
 export function SelectionBar({
   count,
@@ -43,52 +44,58 @@ export function SelectionBar({
       role="toolbar"
       aria-label={`${count} selected`}
       className={cn(
-        "bg-panel border-border-subtle rounded-control shadow-lift animate-fade divide-border-subtle z-20 flex h-10 items-center divide-x overflow-hidden border",
+        "bg-panel border-border-surface rounded-control shadow-lift animate-fade divide-border-subtle z-20 flex h-10 items-stretch divide-x overflow-hidden border",
         className,
       )}
     >
-      <span className="text-note text-brand px-3 font-medium whitespace-nowrap tabular-nums">
+      <span className="text-body text-brand flex items-center px-4 whitespace-nowrap tabular-nums">
         {count} selected
       </span>
       {children}
-      <span className="flex h-full items-center px-1">
-        <IconButton label="Clear selection" tooltip="Clear (Esc)" onClick={onClear}>
-          <CloseIcon className="size-4" />
-        </IconButton>
-      </span>
     </div>
   );
 }
 
-/** One action in the bar: its glyph and word, the whole segment the
- *  target. Below `@lg` of the row the bar sits in (a phone's), the word
- *  folds away and stays as the button's name and tooltip, so the bar fits
- *  a 343px row. */
+/** The filter row the bar is laid over: `relative` for the bar, and while
+ *  it shows, the row's other controls hidden, so no half-covered dropdown
+ *  peeks out beside it. They come back with the pick's end. */
+export const SELECTION_ROW = "relative [&:has(>[role=toolbar])>*:not([role=toolbar])]:invisible";
+
+/**
+ * One action in the bar, the whole segment its target: a glyph and its
+ * word, or with `iconOnly` the glyph alone in a square segment, named by
+ * its tooltip (Delete, Remove). Below `@lg` of the row the bar sits in (a
+ * phone's) every word folds away and stays as the name and tooltip, so the
+ * bar fits a 343px row.
+ */
 export function SelectionAction({
   label,
   icon,
+  iconOnly = false,
   danger = false,
   className,
   ...button
-}: { label: string; icon: ReactNode; danger?: boolean } & Omit<
+}: { label: string; icon: ReactNode; iconOnly?: boolean; danger?: boolean } & Omit<
   ComponentProps<"button">,
   "children"
 >) {
   return (
-    <button
-      type="button"
-      aria-label={label}
-      title={label}
-      className={cn(
-        "text-note text-ink hover:bg-hover focus-visible:ring-brand-ring flex h-full items-center gap-1.5 px-3 font-medium whitespace-nowrap transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset disabled:pointer-events-none disabled:opacity-50 [&_svg]:size-4",
-        danger && "hover:text-danger",
-        className,
-      )}
-      {...button}
-    >
-      {icon}
-      <span className="hidden @lg:inline">{label}</span>
-    </button>
+    <Tip label={label}>
+      <button
+        type="button"
+        aria-label={label}
+        className={cn(
+          "text-body text-ink hover:bg-hover focus-visible:ring-brand-ring flex items-center justify-center gap-2 whitespace-nowrap transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset disabled:pointer-events-none disabled:opacity-50 [&_svg]:size-4 [&_svg]:shrink-0",
+          iconOnly ? "w-10" : "min-w-10 px-2 @lg:px-4",
+          danger && "hover:text-danger",
+          className,
+        )}
+        {...button}
+      >
+        {icon}
+        {!iconOnly && <span className="hidden @lg:inline">{label}</span>}
+      </button>
+    </Tip>
   );
 }
 

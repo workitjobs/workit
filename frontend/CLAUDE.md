@@ -2878,9 +2878,13 @@ are in `docs/auth.md`.
   (2026-11-11, after Notion's; `components/selection-bar.tsx`): a box
   starts each row's Name cell and Select All the Name heading, as Up
   Next's Role cell and heading do (the same `PickBox`); while any row is
-  picked, `SelectionBar` floats over the filter row with the count, Make
-  Primary and Rename (one pick only), Download, Delete (asks first, in
-  `DeleteDialog`) and Clear; Escape clears too. Each row keeps its current
+  picked, `SelectionBar` floats over the filter row, whose other controls
+  hide meanwhile (`SELECTION_ROW`), with the count, Make Primary and
+  Rename (one pick only), Download, then Delete as a glyph alone (asks
+  first, in `DeleteDialog`). **No close button**: a × beside the actions
+  confused the user; Escape, or Select All while any row is picked,
+  clears the pick. Up Next uses the same bar (Auto Apply, then Remove From
+  Queue as a trash glyph), and Add Jobs stays in its place. Each row keeps its current
   actions with the page (`RowPick.register`), so the bar runs the very
   handlers ⋮ runs. Each row keeps ⋮ alone in a 48px column
   (`RESUME_ACTIONS_COL`) for one resume at a time. Hover icons came

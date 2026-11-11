@@ -1635,8 +1635,11 @@ page with one action.
   toolbar, so the heading went and its name stays for a screen reader.
   Row one is the search over job and company with **Add Jobs** at its
   right, filled as the page's main action (as Generate Resume is on
-  Documents; it was bordered beside the heading), or, while rows are
-  picked, "N selected", Remove (a text button) and Auto Apply (filled).
+  Documents; it was bordered beside the heading). While rows are picked,
+  the selection bar (`components/selection-bar.tsx`, as Documents'
+  resumes) lies over row two: "N selected", Auto Apply, then Remove From
+  Queue as a trash glyph; Escape or Select All clears the pick. Until
+  2026-11-11 "N selected", Remove and Auto Apply took Add Jobs' place.
   Row two is **Status** (In Progress, Queued, Posting Closed), **Company**
   (with a search, as the Tracker's) and **Match** (Excellent to Weak in
   their colours, then Not Scored), then Clear, All Filters (the shared
@@ -3182,8 +3185,12 @@ one. **Rows are picked, as Up Next's are, and a bar acts on them**
 (2026-11-11, after Notion's): a select box starts each row and Select All
 the Name heading; while any row is picked, a small white bar
 (`components/selection-bar.tsx`) floats over the filter row with "N
-selected", Make Primary and Rename for a single pick, Download, Delete
-(asks first: "Delete N Resumes?"), and Clear; Escape clears too. A picked
+selected", Make Primary and Rename for a single pick, Download, then
+Delete as a trash glyph (asks first: "Delete N Resumes?"). The filter
+row's own controls hide while it shows. There is no close button (a ×
+beside the actions read as one more action); Escape, or Select All while
+any row is picked, clears the pick. Up Next's picked jobs use the same
+bar. A picked
 row takes the brand tint. Each row keeps ⋮ (More actions) for one resume:
 Open, Rename, Download PDF, Make Primary (on a resume that is not the
 primary), then Delete in red, which asks first (`RowMoreMenu` with

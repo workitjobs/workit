@@ -1,5 +1,6 @@
 "use client";
 
+import { SELECTION_ROW } from "@/components/selection-bar";
 import { ClockIcon, PencilLineIcon, ProhibitIcon } from "@phosphor-icons/react/ssr";
 import { useRef, useState, type ReactNode } from "react";
 
@@ -110,6 +111,7 @@ export function QueueToolbar({
   filters,
   onChange,
   actions,
+  selection,
 }: {
   /** Every row, filtered or not: the Company options and the panel's count. */
   rows: QueueRow[];
@@ -117,6 +119,9 @@ export function QueueToolbar({
   onChange: (filters: QueueFilters) => void;
   /** The search row's right end. */
   actions: ReactNode;
+  /** The picked rows' bar, laid over the filter row
+   *  (components/selection-bar.tsx). */
+  selection?: ReactNode;
 }) {
   const groupBy = useQueueGroupBy();
   const [allOpen, setAllOpen] = useState(false);
@@ -148,7 +153,8 @@ export function QueueToolbar({
           stays at every width. A phone's row is All Filters and Table
           Settings. */}
       {rows.length > 0 && (
-        <div className="@container mt-3 flex items-center gap-2">
+        <div className={cn("@container mt-3 flex items-center gap-2", SELECTION_ROW)}>
+          {selection}
           <FieldFacet
             label="Status"
             Icon={StatusIcon}

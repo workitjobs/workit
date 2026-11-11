@@ -139,8 +139,9 @@ open choices (Settled choices, near the end).
   `profile/section-action.tsx` (a card's own action, a bare glyph with a
   tooltip), `components/selection-bar.tsx` (a table's picked rows: the
   row's `PickBox` and the bar of actions over the filters, after
-  Notion's; Documents' resumes, while Up Next keeps its actions in its
-  toolbar), `components/views.tsx`
+  Notion's: "N selected" in brand ink, then a glyph and word per action,
+  then a delete or remove as a glyph alone, with no close button;
+  Documents' resumes and Up Next), `components/views.tsx`
   and `PAGE_SEARCH`. Tailor's resume picker (`ResumeLists`) is the one way
   to pick a resume, in any dialog. A fix to one page table is checked on every other: the
   Tracker, Auto Apply's Up Next and Documents' resumes.
