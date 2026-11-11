@@ -76,19 +76,29 @@ export const ROW_NAME = "min-w-1/2 flex-1";
 export const RESUME_TH = "px-4 text-note text-ink-meta font-medium";
 export const RESUME_TD = "px-4 text-note text-ink";
 
+/** The Name column: two fifths of the table from `@4xl`, where Target Job
+ *  shows, and the room the other columns leave below that. Name took all
+ *  the room the fixed columns left (710px of a 1270px table, 2026-11-11),
+ *  so a short name stood far from its job and the job's title was cut at
+ *  256px; the user found the two too far apart. */
+export const RESUME_NAME_COL = "@4xl:w-2/5";
+
 /** The Target Job column, from `@4xl` of the table (896px: a laptop's
- *  window; narrower, the name kept under 200px). Below that it keeps its
+ *  window; narrower, the name kept under 200px): the room Name and the
+ *  fixed columns leave. Below that it keeps its
  *  place with no width and no padding, rather than leaving the table: a
  *  rename's row spans every column, which a missing column would break.
  *  The job then reads under the name ("<role> at <company>"). */
-export const RESUME_TARGET_COL = "w-0 overflow-hidden p-0 @4xl:w-64 @4xl:px-4";
+export const RESUME_TARGET_COL = "w-0 overflow-hidden p-0 @4xl:w-auto @4xl:px-4";
 
 /** The Type column, from `@2xl` of the table, folded as Target Job is. */
 export const RESUME_TYPE_COL = "w-0 overflow-hidden p-0 @2xl:w-32 @2xl:px-4";
 
-/** The Date Modified column: the day ("Nov 10"), and room for the four
- *  hover icons that cover it under the pointer (`CardActionIcons`). */
-export const RESUME_DATE_COL = "w-24 @2xl:w-32";
+/** The Date Modified column: the day ("Nov 10"), and from `@2xl` room for
+ *  the four hover icons that cover it under the pointer
+ *  (`CardActionIcons`, 4 x 32px and 8px: 136px). At 128px they ran 8px
+ *  into Type, and at the 96px below `@2xl` 40px into it (2026-11-11). */
+export const RESUME_DATE_COL = "w-24 @2xl:w-36";
 
 /** The actions column: ⋮ alone (2026-11-10). It was five icons wide, the
  *  four that show on hover and ⋮, so at rest a 150px empty column stood
@@ -136,10 +146,12 @@ function CardActionIcons({
   return (
     <div className="relative z-10 flex items-center justify-end">
       {/* Left of ⋮, over the date: the row's hover fill under it hides the
-          day; white while only the keyboard's focus shows it. */}
+          day; white while only the keyboard's focus shows it. Only from
+          `@2xl` of the table, where the date's cell is wide enough to hold
+          them (RESUME_DATE_COL); narrower, ⋮ holds them all. */}
       <div
         className={cn(
-          "bg-panel group-hover:bg-hover absolute top-1/2 right-full flex -translate-y-1/2 items-center pl-2",
+          "bg-panel group-hover:bg-hover absolute top-1/2 right-full hidden -translate-y-1/2 items-center pl-2 @2xl:flex",
           ON_HOVER,
         )}
       >

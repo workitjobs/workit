@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import {
   RESUME_ACTIONS_COL,
   RESUME_DATE_COL,
+  RESUME_NAME_COL,
   RESUME_TARGET_COL,
   RESUME_TH,
   RESUME_TYPE_COL,
@@ -76,7 +77,7 @@ export function ResumeList({
       >
         <TableHeader className={STICKY_HEAD}>
           <TableRow className="hover:bg-transparent">
-            <TableHead className={cn(RESUME_TH, STICKY_TH)}>Name</TableHead>
+            <TableHead className={cn(RESUME_TH, STICKY_TH, RESUME_NAME_COL)}>Name</TableHead>
             <TableHead className={cn(RESUME_TH, STICKY_TH, RESUME_TARGET_COL)}>
               <span className="hidden @4xl:inline">Target Job</span>
             </TableHead>
