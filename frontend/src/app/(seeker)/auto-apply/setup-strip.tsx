@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckIcon, ListChecksIcon } from "@phosphor-icons/react/ssr";
+import { CheckIcon, NotepadIcon } from "@phosphor-icons/react/ssr";
 import { useEffect, useState } from "react";
 
 import { ChromeIcon } from "@/components/icons";
@@ -56,7 +56,7 @@ export function SetupRow() {
         }
       />
       <OptionRow
-        icon={<ListChecksIcon aria-hidden className="text-ink-meta size-5" />}
+        icon={<NotepadIcon aria-hidden className="text-ink-meta size-5" />}
         title="Application Info"
         href="/auto-apply/info"
         line={

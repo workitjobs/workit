@@ -24,7 +24,7 @@ export type SideNavItem = {
  * scrolls (`sticky`), so a menu never leaves the screen.
  *
  * `head` sits above the items in the column, in their look (Application
- * Info's "Auto Apply" way back).
+ * Info's "Auto Apply" way back); `foot` under them.
  */
 export function SideNav({
   label,
@@ -32,6 +32,7 @@ export function SideNav({
   active,
   onSelect,
   head,
+  foot,
   className,
 }: {
   /** The menu's name for a screen reader. */
@@ -42,6 +43,9 @@ export function SideNav({
    *  modified click still opens the address in a new tab. */
   onSelect?: (key: string) => void;
   head?: ReactNode;
+  /** Under the items: a line about the whole page (Application Info's
+   *  "Only you can see these"). */
+  foot?: ReactNode;
   className?: string;
 }) {
   const current = useRef<HTMLAnchorElement>(null);
@@ -83,6 +87,7 @@ export function SideNav({
           );
         })}
       </ul>
+      {foot}
     </nav>
   );
 }

@@ -75,6 +75,7 @@ import {
 import { applicationHref, applicationsHref, type Sort } from "./query";
 import { useApplicationsQuery } from "./view-switcher";
 import { ViewResumeButton } from "./view-resume";
+import { Missing } from "@/components/ui/missing";
 
 /**
  * The applications as a table, one row each, in the order job trackers read
@@ -197,16 +198,6 @@ function FactValue({
     </span>
   ) : (
     <Missing word={missing} />
-  );
-}
-
-/** A cell with nothing to show: a faint dash, the word for a screen reader. */
-function Missing({ word }: { word: string }) {
-  return (
-    <span className="text-ink-faint">
-      <span aria-hidden="true">—</span>
-      <span className="sr-only">{word}</span>
-    </span>
   );
 }
 

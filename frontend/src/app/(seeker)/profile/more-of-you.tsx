@@ -1,4 +1,4 @@
-import { BriefcaseIcon, FileTextIcon, ListChecksIcon } from "@phosphor-icons/react/ssr";
+import { BriefcaseIcon, FileTextIcon, NotepadIcon } from "@phosphor-icons/react/ssr";
 import { ArrowRightIcon } from "@/components/icons";
 import { Card } from "@/components/ui/card";
 
@@ -20,7 +20,7 @@ const PLACES = [
     href: "/auto-apply/info",
     title: "Application Info",
     line: "Work authorization, screening answers, your transcript and writing samples.",
-    Icon: ListChecksIcon,
+    Icon: NotepadIcon,
   },
 ];
 

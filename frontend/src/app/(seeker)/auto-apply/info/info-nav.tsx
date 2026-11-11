@@ -41,6 +41,15 @@ export function InfoNav() {
         href: infoHref(key),
       }))}
       active={active}
+      // What the whole page holds, once (2026-11-11): it opened every part
+      // over the card's own description, and Application Answers' card
+      // said "Only you can see them here" again.
+      foot={
+        <p className="text-note text-ink-meta mt-4 px-3 sm:max-w-52">
+          What WorkIt and your Claude fill into your applications, beyond your resume. Only you can
+          see these.
+        </p>
+      }
       head={
         <Link
           href={back.href}

@@ -10,9 +10,10 @@ import {
   YesNoChips,
 } from "@/components/answer-fields";
 import { DateField } from "@/components/date-field";
-import { ANSWER_GROUP_ICON, PencilIcon } from "@/components/icons";
+import { PencilIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Missing } from "@/components/ui/missing";
 import { Chip } from "@/components/ui/chip";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { TextField } from "@/components/ui/text-field";
@@ -31,11 +32,17 @@ import {
   type YesNo,
 } from "@/lib/autofill-answers";
 import { saveAutofillAnswers } from "@/lib/autofill-answers-actions";
-import { cn } from "@/lib/cn";
 import { schoolYear, type SchoolYear } from "@/lib/school-year";
 
-import { FIELD_GRID, FIELD_HEADING, SECTION_CARD, VALUE_INDENT } from "../../profile/field-styles";
+import {
+  FACT_LABEL,
+  FACT_VALUE,
+  FIELD_GRID,
+  GROUP_HEADING,
+  SECTION_CARD,
+} from "../../profile/field-styles";
 import { SectionAction } from "../../profile/section-action";
+import { AnsweredCount } from "./answered-count";
 
 /**
  * Application Answers (KAN-369): the facts screening questions ask, beside
@@ -78,6 +85,27 @@ export function ApplicationAnswers({
 
   const set = (change: Partial<AutofillAnswers>) => setDraft((d) => ({ ...d, ...change }));
   const year = schoolYear(education, new Date(), editing ? draft : answers);
+  // Which groups hold an answer, for the card's count (./answered-count.tsx).
+  // Languages counts once the student sets them, not while suggested; School
+  // Year is worked out, never asked, so it is not one of them.
+  const groups = [
+    AVAILABILITY.some((q) => answers[q.key] != null),
+    !!(answers.earliest_start || answers.latest_end || answers.available_terms?.length),
+    answers.willing_to_relocate != null ||
+      !!answers.location_preferences?.length ||
+      !!answers.internship_location,
+    !!(answers.address_line1 || answers.postal_code),
+    answers.languages != null,
+    answers.age_18_or_over != null ||
+      answers.expected_hourly_pay != null ||
+      answers.accept_posted_pay != null,
+    !!answers.role_interests?.length || !!answers.x_url || !!answers.citizenship_countries?.length,
+    answers.communities != null,
+    SCREENERS.some((sc) => {
+      const value = answers[sc.key];
+      return (Array.isArray(value) && value.length > 0) || screenerChoice(answers, sc.key) != null;
+    }),
+  ];
 
   function startEditing() {
     // The suggested language is in the draft, so a Save keeps it unless removed.
@@ -131,8 +159,9 @@ export function ApplicationAnswers({
         )}
       </div>
       <p className="text-body text-ink-meta mt-1">
-        The facts screening questions ask. WorkIt fills them in for you. Only you can see them here.
+        The facts screening questions ask. WorkIt fills them in for you.
       </p>
+      <AnsweredCount answered={groups.filter(Boolean).length} total={groups.length} />
 
       {editing ? (
         <form
@@ -146,7 +175,7 @@ export function ApplicationAnswers({
           }
         >
           <div className={FIELD_GRID}>
-            <Group icon="availability" title="Availability">
+            <Group title="Availability">
               {AVAILABILITY.map((q) => (
                 <Question key={q.key} id={`answers-${q.key}-label`} label={q.question}>
                   <YesNoChips
@@ -158,7 +187,7 @@ export function ApplicationAnswers({
               ))}
             </Group>
 
-            <Group icon="startWindow" title="Start Window">
+            <Group title="Start Window">
               <div className="grid gap-3">
                 {/* WorkIt's own date picker, never the browser's
                     (docs/design.md, Components). */}
@@ -186,7 +215,7 @@ export function ApplicationAnswers({
               </Question>
             </Group>
 
-            <Group icon="relocation" title="Relocation">
+            <Group title="Relocation">
               <Question id="answers-relocate-label" label="Are you willing to relocate?">
                 <YesNoChips
                   labelledBy="answers-relocate-label"
@@ -210,7 +239,7 @@ export function ApplicationAnswers({
               />
             </Group>
 
-            <Group icon="address" title="Address">
+            <Group title="Address">
               <TextField
                 id="answers-address_line1"
                 label="Street Address"
@@ -230,7 +259,7 @@ export function ApplicationAnswers({
               </Note>
             </Group>
 
-            <Group icon="languages" title="Languages">
+            <Group title="Languages">
               <ListField
                 id="answers-languages"
                 label="Languages You Speak and Write Fluently"
@@ -239,7 +268,7 @@ export function ApplicationAnswers({
               />
             </Group>
 
-            <Group icon="agePay" title="Age and Pay">
+            <Group title="Age and Pay">
               <Question id="answers-age-label" label="Are you 18 or older?">
                 <YesNoChips
                   labelledBy="answers-age-label"
@@ -268,7 +297,7 @@ export function ApplicationAnswers({
               <Note>WorkIt types pay only from your answers here, never a guess.</Note>
             </Group>
 
-            <Group icon="interests" title="More About You">
+            <Group title="More About You">
               <Question id="answers-interests-label" label="Kinds of work you want">
                 <div
                   role="group"
@@ -310,7 +339,7 @@ export function ApplicationAnswers({
               />
             </Group>
 
-            <Group icon="communities" title="Communities">
+            <Group title="Communities">
               <Question
                 id="answers-communities-label"
                 label="Communities you belong to (voluntary)"
@@ -353,7 +382,7 @@ export function ApplicationAnswers({
           </div>
 
           <div className="mt-6">
-            <Group icon="screeners" title="Screener Facts">
+            <Group title="Screener Facts">
               <ScreenerCard answers={draft} set={set} />
             </Group>
           </div>
@@ -379,12 +408,12 @@ export function ApplicationAnswers({
         </form>
       ) : (
         <div className={FIELD_GRID}>
-          <Group icon="availability" title="Availability">
+          <Group title="Availability">
             <Facts
               facts={AVAILABILITY.map((q) => ({ label: q.label, value: yesNo(answers[q.key]) }))}
             />
           </Group>
-          <Group icon="startWindow" title="Start Window">
+          <Group title="Start Window">
             <Facts
               facts={[
                 { label: "Earliest Start", value: day(answers.earliest_start) },
@@ -393,7 +422,7 @@ export function ApplicationAnswers({
               ]}
             />
           </Group>
-          <Group icon="relocation" title="Relocation">
+          <Group title="Relocation">
             <Facts
               facts={[
                 { label: "Willing to Relocate", value: yesNo(answers.willing_to_relocate) },
@@ -402,7 +431,7 @@ export function ApplicationAnswers({
               ]}
             />
           </Group>
-          <Group icon="address" title="Address">
+          <Group title="Address">
             <Facts
               facts={[
                 { label: "Street", value: answers.address_line1 },
@@ -410,13 +439,13 @@ export function ApplicationAnswers({
               ]}
             />
           </Group>
-          <Group icon="languages" title="Languages">
+          <Group title="Languages">
             <p className="text-body text-ink">
               {(answers.languages ?? SUGGESTED_LANGUAGES).join(", ")}
               {!answers.languages && <span className="text-ink-meta"> (suggested)</span>}
             </p>
           </Group>
-          <Group icon="agePay" title="Age and Pay">
+          <Group title="Age and Pay">
             <Facts
               facts={[
                 { label: "18 or Older", value: yesNo(answers.age_18_or_over) },
@@ -431,7 +460,7 @@ export function ApplicationAnswers({
               ]}
             />
           </Group>
-          <Group icon="interests" title="More About You">
+          <Group title="More About You">
             <Facts
               facts={[
                 {
@@ -445,14 +474,14 @@ export function ApplicationAnswers({
               ]}
             />
           </Group>
-          <Group icon="communities" title="Communities">
+          <Group title="Communities">
             {communitiesText(answers.communities) ? (
               <p className="text-body text-ink">{communitiesText(answers.communities)}</p>
             ) : (
               <NotAnswered />
             )}
           </Group>
-          <Group icon="screeners" title="Screener Facts">
+          <Group title="Screener Facts">
             <Facts
               facts={SCREENERS.map((s) => {
                 const value = answers[s.key];
@@ -477,41 +506,37 @@ export function ApplicationAnswers({
  *  the one line under it says where it comes from. */
 function SchoolYearGroup({ year }: { year: SchoolYear }) {
   return (
-    <Group icon="schoolYear" title="School Year">
+    <Group title="School Year">
       <dl className="grid gap-3">
         <Fact label="Class Year" value={year.classYear} empty="Unknown" />
         <Fact
           label="Back to School After the Internship"
           value={year.returnsToSchool == null ? null : year.returnsToSchool ? "Yes" : "No"}
-          empty={year.graduation ? "Add a start window" : undefined}
+          empty="Unknown"
         />
       </dl>
+      {/* Where the two come from, and what fills a gap, in the one note
+          line every group may end with. "Add a start window" sat in the
+          value's place, in ink, and read as a value. */}
       <Note>
-        {year.graduation
-          ? `From your education: graduating ${month(year.graduation)}.`
-          : "From your education: add your school's end date in Experiences to fill these in."}
+        {!year.graduation
+          ? "From your education. Add your school's end date in Experiences to fill these in."
+          : year.returnsToSchool == null
+            ? `From your education: graduating ${month(year.graduation)}. Add a start window to answer Back to School.`
+            : `From your education: graduating ${month(year.graduation)}.`}
       </Note>
     </Group>
   );
 }
 
-function Group({
-  icon,
-  title,
-  children,
-}: {
-  icon: keyof typeof ANSWER_GROUP_ICON;
-  title: string;
-  children: ReactNode;
-}) {
-  const Icon = ANSWER_GROUP_ICON[icon];
+/** A group of facts under its name (../../profile/field-styles.ts,
+ *  GROUP_HEADING), with no glyph since 2026-11-11: ten glyphs named what
+ *  the names already said. */
+function Group({ title, children }: { title: string; children: ReactNode }) {
   return (
     <div className="min-w-0">
-      <h3 className={FIELD_HEADING}>
-        <Icon aria-hidden className="text-ink-meta size-5 shrink-0" />
-        {title}
-      </h3>
-      <div className={cn("mt-2 grid gap-3", VALUE_INDENT)}>{children}</div>
+      <h3 className={GROUP_HEADING}>{title}</h3>
+      <div className="mt-1.5 grid gap-3">{children}</div>
     </div>
   );
 }
@@ -542,28 +567,31 @@ function Facts({ facts }: { facts: FactRow[] }) {
   );
 }
 
-/** A label over its value, apart in size and colour: on one line, at 13px
- *  against 14px in two greys, the two read as one phrase. */
+/** A fact's name over its value (../../profile/field-styles.ts): the value
+ *  in ink, a missing one a faint dash with its word for a screen reader. */
 function Fact({
   label,
   value,
   empty = "Not answered",
 }: FactRow & {
-  /** What an empty value says. */
+  /** What a screen reader hears for an empty value. */
   empty?: string;
 }) {
   return (
     <div className="min-w-0">
-      <dt className="text-note text-ink-meta">{label}</dt>
-      <dd className="text-body text-ink min-w-0">
-        {value || <span className="text-ink-meta">{empty}</span>}
-      </dd>
+      <dt className={FACT_LABEL}>{label}</dt>
+      <dd className={FACT_VALUE}>{value || <Missing word={empty} />}</dd>
     </div>
   );
 }
 
+/** A group with no value at all: one faint dash, not one per fact. */
 function NotAnswered() {
-  return <p className="text-body text-ink-meta">Not answered</p>;
+  return (
+    <p className="text-body">
+      <Missing word="Not answered" />
+    </p>
+  );
 }
 
 function Note({ children }: { children: ReactNode }) {

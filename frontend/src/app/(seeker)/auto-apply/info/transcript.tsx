@@ -1,11 +1,14 @@
 "use client";
 
+import { ScrollIcon } from "@phosphor-icons/react/ssr";
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 
 import { FileIcon, TrashIcon, UploadIcon } from "@/components/icons";
 import { RESUME_ACCEPT, resumeFileError } from "@/components/resume-upload";
 import { Skeleton } from "@/components/shadcn/skeleton";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { useToast } from "@/components/ui/toast";
 import {
@@ -131,6 +134,45 @@ export function Transcript() {
     toast.show({ message: `Your transcript wasn't removed. ${err}` });
   }
 
+  const input = (
+    <input ref={picker} type="file" accept={RESUME_ACCEPT} onChange={handleSelect} hidden />
+  );
+
+  // None yet: the app's empty state, its action a bordered button (it starts
+  // something), in place of the card (2026-11-11). It was a grey "No
+  // transcript yet." line under the card's description, with Upload as the
+  // heading's glyph.
+  if (status === "loaded" && !transcript) {
+    return (
+      <>
+        <EmptyState
+          Icon={ScrollIcon}
+          title="No Transcript Yet"
+          action={
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={uploading}
+              onClick={() => picker.current?.click()}
+            >
+              <UploadIcon className="size-4" />
+              {uploading ? "Uploading…" : "Upload Transcript"}
+            </Button>
+          }
+        >
+          Your unofficial transcript, as a PDF or DOCX file. Some applications require one, and the
+          autofiller attaches it for you.
+        </EmptyState>
+        {error && (
+          <p role="alert" className="text-note text-danger">
+            {error}
+          </p>
+        )}
+        {input}
+      </>
+    );
+  }
+
   return (
     <Card
       as="section"
@@ -141,16 +183,6 @@ export function Transcript() {
     >
       <div className="flex items-baseline justify-between gap-4">
         <SectionHeading id="transcript-heading">Transcript</SectionHeading>
-        {status === "loaded" && !transcript && (
-          <SectionAction
-            label="Upload Transcript"
-            disabled={uploading}
-            onClick={() => picker.current?.click()}
-            tooltip={uploading ? "Uploading…" : "Upload"}
-          >
-            <UploadIcon />
-          </SectionAction>
-        )}
       </div>
       <p className="text-body text-ink-meta mt-1">
         Your unofficial transcript, as a PDF or DOCX file. Some applications require one, and the
@@ -195,15 +227,12 @@ export function Transcript() {
           </SectionAction>
         </div>
       )}
-      {status === "loaded" && !transcript && (
-        <p className="text-body text-ink-meta mt-4">No transcript yet.</p>
-      )}
       {error && (
         <p role="alert" className="text-note text-danger mt-4">
           {error}
         </p>
       )}
-      <input ref={picker} type="file" accept={RESUME_ACCEPT} onChange={handleSelect} hidden />
+      {input}
     </Card>
   );
 }

@@ -2231,9 +2231,23 @@ in the items' look, with no button around it (a bordered "Back to Auto
 Apply" sat over the menu until then); it never leads to another part.
 `/auto-apply/info` opens the part an old address's hash names, else the
 first: the WorkIt Autofiller still opens `#writing-samples`, from the one
-page. Each card's actions (Edit, Show Answers, Upload, Add, Remove, Set
-Up) are bare glyphs with their word in a tooltip (`SectionAction`), as on
-My Profile. Workday Sign-Up's Set Up
+page. Each part's glyph is its own, drawn nowhere else (a stamp, a framed
+person, a speech bubble, a scroll, a pen nib, a key); the first set
+borrowed the Tracker's checklist, Tailored's pencil and the Student
+backpack. Each card's actions (Edit, Show Answers, Replace, Add, Remove)
+are glyphs with their word in a tooltip (`SectionAction`), in
+Experiences' heading action's 32px round look, as on My Profile.
+**A fact reads its value first** (2026-11-11, `profile/field-styles.ts`):
+its name small and grey, its answer in ink under it, a missing one a faint
+dash, with no glyph per field (14 named what the labels said, and each
+16px label outweighed its answer); Application Answers' groups are 13px
+semibold names over their facts, School Year among them, its source and
+any gap in one note line. Every answers card says how many are answered
+under its description. A part with nothing yet (Transcript, Writing
+Samples) is the app's empty state with a bordered action; Workday
+Sign-Up's Set Up in the Extension is a bordered button in its body, since
+it opens the extension's page. The parts are at most 48rem wide, and the
+page's one line ("Only you can see these") sits under the menu, once. Workday Sign-Up's Set Up
 opens the extension's own page for one Workday email and password, which
 stay in that browser; it sat in Settings' Sign-In & Security until KAN-571,
 among the sign-ins to WorkIt itself. The answer bank and the experience

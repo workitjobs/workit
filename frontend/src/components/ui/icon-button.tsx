@@ -34,6 +34,15 @@ import { cn } from "@/lib/cn";
 const GLYPH_BUTTON =
   "text-ink hover:text-brand hover:bg-hover data-popup-open:bg-hover data-popup-open:text-brand focus-visible:ring-brand-ring -m-1.5 inline-flex items-center justify-center rounded-full p-1.5 [--hit-grow:2px] focus-visible:ring-2";
 
+/** A card heading's icon action on IconButton's default look: a 32px round
+ *  target with a grey disc under the pointer, its glyph 20px (the caller's
+ *  `size-5`), as LinkedIn's. Experiences' section and entry headings, the
+ *  onboarding resume step, and every card's own action on My Profile and
+ *  Application Info (profile/section-action.tsx), one size wherever a card
+ *  has one (2026-11-11: Application Info's were 16px bare glyphs, smaller
+ *  than Experiences' Edit beside the same word). */
+export const HEADING_ACTION = "hover:bg-hover size-8 rounded-full";
+
 /** The `soft` variant's classes. */
 const SOFT_BUTTON =
   "border-border-surface bg-panel text-ink hover:bg-hover focus-visible:ring-brand-ring inline-flex items-center justify-center rounded-full border focus-visible:ring-[3px]";

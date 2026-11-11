@@ -26,13 +26,10 @@ export default function ApplicationInfoLayout({ children }: { children: ReactNod
     <div className={cn("max-w-dashboard mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
       <div className="grid gap-6 sm:grid-cols-[13rem_minmax(0,1fr)] sm:gap-8">
         <InfoNav />
-        <div className="flex min-w-0 flex-col gap-5">
-          <p className="text-body text-ink-meta">
-            What WorkIt and your Claude fill into your applications, beyond your resume. Only you
-            can see these.
-          </p>
-          {children}
-        </div>
+        {/* At most 48rem, design.md's settled form width (2026-11-11): at the
+            page's full width a card's two columns of facts sat far apart and
+            its description ran past 150 characters a line. */}
+        <div className="flex max-w-3xl min-w-0 flex-col gap-5">{children}</div>
       </div>
     </div>
   );

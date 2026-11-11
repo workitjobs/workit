@@ -1273,6 +1273,17 @@ screen's own `<input>`, `<textarea>` or `FIELD_CONTROL` string:
   Filters holds them all and stays. The page's create actions never sit in
   the filter row. A page table has no section heading of its own over the
   toolbar: Auto Apply's "Up Next" went on 2026-11-11.
+- **A card's facts read their value first** (2026-11-11,
+  `profile/field-styles.ts`, My Profile and Application Info): the name
+  small and grey (`FACT_LABEL`), the value in ink under it (`FACT_VALUE`),
+  a missing one a faint dash (`components/ui/missing.tsx`, the Tracker's
+  too), and no glyph per field where its name already says it. A card's
+  own action is a 32px round glyph button (`HEADING_ACTION`) with a
+  tooltip, wherever a card has one.
+- **One glyph, one meaning.** A glyph the sidebar or another screen uses
+  for one thing is never drawn for another (the Tracker's checklist on
+  Application Info, until 2026-11-11). Check `seeker-sidebar.tsx` and a
+  grep for the icon before picking one.
 - **A table's column headings draw one rule under them** (2026-11-11): the
   heading row has no border (`STICKY_HEAD`), each heading cell its inset
   rule (`STICKY_TH`), and a frozen heading its rule and its edge together
