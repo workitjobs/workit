@@ -26,6 +26,7 @@ import uuid
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 from playwright._impl._locator import (
     get_by_label_selector,
@@ -37,6 +38,7 @@ from playwright._impl._locator import (
 )
 from playwright._impl._str_utils import escape_for_text_selector
 
+from apply import upload_origin
 from apply.plain import fixed
 from apply.plain.bridge import Connection, PortError, PortTimeoutError
 from apply.plain.script import evaluate as evaluate_in
@@ -425,10 +427,18 @@ class PortLocator(_Queries):
             later("select_option(element=...)", "a later slice")
         return self._do("select_option", "select", options, {"force": force}, timeout=timeout)
 
-    def set_input_files(self, files, timeout: float | None = None, **_) -> None:
+    def set_input_files(self, files, timeout: float | None = None, pinned: str | None = None, **_) -> None:
         """Paths or {name, mimeType, buffer} payloads, set on the input through DataTransfer. The bytes
-        go down the port as base64; the bridge chunks a message over 512 KiB."""
-        self._do("set_input_files", "files", file_payloads(files), timeout=timeout)
+        go down the port as base64; the bridge chunks a message over 512 KiB. Only into a frame a file may go to
+        (apply.upload_origin, checked in the frame as it sets): else Elsewhere. `pinned`: the input must be the one
+        page/dom.js's pin kept under that token."""
+        rule = {"hosts": upload_origin.hosts(), "pinned": pinned}
+        try:
+            self._do("set_input_files", "files", file_payloads(files), rule, timeout=timeout)
+        except PortError as error:
+            if error.kind == "UploadElsewhere":
+                raise upload_origin.Elsewhere(urlsplit(str(error)).hostname or "") from None
+            raise
 
     def focus(self, timeout: float | None = None, **_) -> None:
         self._do("focus", "focus", timeout=timeout)

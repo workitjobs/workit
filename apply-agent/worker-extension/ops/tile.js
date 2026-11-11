@@ -184,6 +184,21 @@ async function hook(tab, frame, allFrames = false) {
   await chrome.scripting.executeScript({ target, world: "ISOLATED", func: watchClicks, injectImmediately: true }).catch(() => {});
 }
 
+// Where a file may go (KAN-795): apply.upload_origin's RULE_JS, word for word (a test holds the copies the same).
+const mayUpload = (own, ancestors, hosts) => {
+  if (!ancestors.length) return true;  // the top frame: the form's own site, whatever its URL
+  const top = ancestors[ancestors.length - 1];
+  if (!own || own === 'null') return false;
+  if (own === top) return true;
+  const host = own.replace(/^[a-z][a-z0-9+.-]*:\/\//i, '').replace(/:\d+$/, '').replace(/^\[|\]$/g, '').toLowerCase();
+  for (let i = 0; i < hosts.length; i++) {
+    const h = String(hosts[i]).toLowerCase();
+    if (host === h || (host.length > h.length && host.slice(-h.length - 1) === '.' + h)) return true;
+  }
+  return false;
+};
+const originOf = (url) => { try { return new URL(url).origin; } catch (error) { return "null"; } };
+
 // --- input
 
 async function replay(tab, frame, event) {
@@ -271,9 +286,23 @@ export const ops = {
     return null;
   },
   "chooser.get": asked,
-  "chooser.set": async ({ tab, frame = 0, files = [] }) => {
-    const [result] = await chrome.scripting.executeScript({ target: { tabId: tab, frameIds: [frame] }, world: "MAIN",
-                                                            func: giveFiles, args: [files], injectImmediately: true });
+  // `hosts` (KAN-795): Apply's own set, which goes only where apply.upload_origin lets a file go: checked here, out
+  // of the page's reach, on the frame's document as webNavigation knows it, and set on that one document
+  // (documentIds), so a frame that navigated meanwhile takes nothing. None: Lisul's own pick from the tile.
+  "chooser.set": async ({ tab, frame = 0, files = [], hosts = null }) => {
+    let target = { tabId: tab, frameIds: [frame] };
+    if (hosts !== null && files.length) {
+      const frames = (await chrome.webNavigation.getAllFrames({ tabId: tab })) ?? [];
+      const byId = new Map(frames.map((f) => [f.frameId, f]));
+      const own = byId.get(frame);
+      if (!own?.documentId) throw named("NotFound", "FileChooser.set_files: the frame is gone");
+      const ancestors = [];
+      for (let at = byId.get(own.parentFrameId); at; at = byId.get(at.parentFrameId)) ancestors.push(originOf(at.url));
+      const origin = own.url.startsWith("about:") ? (ancestors[0] || "null") : originOf(own.url);
+      if (!mayUpload(origin, ancestors, hosts)) throw named("UploadElsewhere", origin === "null" ? "another site" : origin);
+      target = { tabId: tab, documentIds: [own.documentId] };
+    }
+    const [result] = await chrome.scripting.executeScript({ target, world: "MAIN", func: giveFiles, args: [files], injectImmediately: true });
     return Boolean(result?.result);
   },
 };
