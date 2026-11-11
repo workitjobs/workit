@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
 
-import { BuiltPageTile, PostingLogoTile, ResumeCard } from "@/components/resume-row";
+import { BuiltPageTile, ResumeCard } from "@/components/resume-row";
 import { Button } from "@/components/ui/button";
 import { TextField } from "@/components/ui/text-field";
 import {
@@ -18,27 +18,20 @@ import { ResumeThumbnail } from "../jobs/[jobId]/tailor/resume-preview";
 import { DownloadNotes, useResumeDownload } from "./download-menu";
 
 /**
- * One built resume, drawn as an uploaded one's card is (`ResumeCard`,
- * 2026-11-10): the file tile, the name and what it was made from or for,
- * Created and Last Edited in columns, then the star, Rename, Download PDF
- * and Delete: the same four icons as an upload's card. Preview (an eye,
- * KAN-358, Tailor's `ResumePreviewDialog`) came off on 2026-11-10, the
- * user's call: the card opens the resume anyway, and four icons on every
- * card read as one list.
+ * One built resume, drawn as an upload is (`ResumeCard`): a row of the
+ * Resumes table, or a grid card. A tailored resume names the job posting
+ * it was made for in Target Job (the company's logo, the posting's title
+ * over the company), or under the name ("Software Engineer Intern at
+ * Matic") where the table has no room for that column, a link to the
+ * posting's page while the Jobs page lists it (a closed one's page is a
+ * 404, so it is plain text). It shows no Posting Closed badge (2026-11-10,
+ * the user's call): the resume opens and downloads either way, and only
+ * Tailor needs a live posting.
  * Download PDF is the editor's PDF download (`useResumeDownload`: it keeps
- * nothing, with the missing-character warning under the row), on the card
- * since KAN-268. A tailored resume takes the star too since then, and its
- * second line names the job posting it was made for ("Software Engineer
- * Intern at Matic", with no "For", which the briefcase already says), a
- * link to that posting's page while the Jobs page lists it (a closed one's
- * page is a 404, so its line is plain text). It shows no Posting Closed
- * badge (2026-11-10, the user's call): the resume opens and downloads
- * either way, and only Tailor needs a live posting. The whole card is
- * one target: the name's link stretches over it (`after:inset-0`), the
- * icons sit above that, and the card lifts under the pointer as every
- * whole-target card does (`docs/motion.md`). Below `@xl` of the row,
- * Rename, Download PDF and Delete sit in its More menu (`RowMoreMenu`,
- * KAN-575); the star and Preview stay.
+ * nothing, with the missing-character warning under the name), on the row
+ * since KAN-268, as Make Primary, Rename and Delete are, on hover and in ⋮.
+ * Preview (an eye, KAN-358, Tailor's `ResumePreviewDialog`) came off on
+ * 2026-11-10, the user's call: the row opens the resume anyway.
  */
 export function BuiltResumeRow({
   resume,
@@ -122,16 +115,10 @@ export function BuiltResumeRow({
       rename={renaming ? { saving, onSave: rename, onCancel: () => setRenaming(false) } : undefined}
       name={resume.name}
       href={`/resumes/${encodeURIComponent(resume.id)}`}
-      tile={
-        resume.job_posting_id ? (
-          <PostingLogoTile
-            company={resume.posting_company ?? resume.posting_title ?? resume.name}
-            logoUrl={resume.posting_logo_url}
-            domain={resume.posting_company_domain}
-          />
-        ) : (
-          <BuiltPageTile />
-        )
+      role={
+        resume.job_posting_id && resume.posting_title ? (
+          <PostingLink resume={resume} titleOnly />
+        ) : undefined
       }
       about={
         resume.job_posting_id && resume.posting_title ? <PostingLink resume={resume} /> : undefined
@@ -168,15 +155,19 @@ export function BuiltResumeRow({
  * stretched link, so a press on it opens the posting, not the editor. The
  * click makes the posting page's Back return here (rememberReturnTo).
  */
-function PostingLink({ resume }: { resume: BuiltResume }) {
-  const label = resume.posting_company
-    ? `${resume.posting_title} at ${resume.posting_company}`
-    : resume.posting_title;
+function PostingLink({ resume, titleOnly = false }: { resume: BuiltResume; titleOnly?: boolean }) {
+  // The title alone in Target Job, whose next line is the company; "<role>
+  // at <company>" under the name where the table has no Target Job.
+  const label =
+    resume.posting_company && !titleOnly
+      ? `${resume.posting_title} at ${resume.posting_company}`
+      : resume.posting_title;
   if (resume.posting_closed || !resume.job_posting_id) return <>{label}</>;
   return (
     <Link
       href={`/jobs/${encodeURIComponent(resume.job_posting_id)}`}
       onClick={() => rememberReturnTo("/resumes")}
+      title={label ?? undefined}
       className="text-brand hover:text-brand-hover relative z-10 underline-offset-2 hover:underline"
     >
       {label}

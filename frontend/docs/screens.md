@@ -2914,31 +2914,40 @@ pills, the shared `SortMenu`, which the Jobs page's filter row uses too.
 **The List is a table after the Tracker's** (2026-11-10, `ResumeList` in
 `resumes/resume-list.tsx`, rows by `ResumeCard` in
 `components/resume-row.tsx`): one white card with 12px grey headings and
-rules between the rows. **Name** holds a tile saying what the resume is
-and the name, with a tailored resume's posting under it ("<posting> at
-<company>", a link while the posting is open; no "For" and no Posting
-Closed badge, which the user found not needed); **Type** its badge
-(Uploaded, Generated, Tailored, as on a grid card); **Date Modified** the
-day and time; then the actions. A click anywhere on a row opens the
+rules between the rows, after Jobright's resume table. **Name** holds the
+name alone, with a Primary badge (a star and "Primary") on the primary;
+**Target Job** a tailored resume's posting as the Tracker's Role cell draws
+a job, the company's 32px logo, then the posting's title (a link while it
+is open) over the company, and nothing for a resume made for no job;
+**Type** its badge (Uploaded, Generated, Tailored, as on a grid card,
+each with the icon of the button that makes it: Upload Resume's arrow,
+Generate Resume's page, Tailor's pencil, so the three tell apart by more
+than colour);
+**Date Modified** the day and time; then the actions. No tile leads a row
+(each had one, with the logo on a tailored resume's, from earlier the same
+day): Type says what a resume is, and the logos line up in Target Job. No
+"For" and no Posting Closed badge, which the user found not needed. Every
+row is 56px, with a job's two lines or without. A click anywhere on a row opens the
 resume. The headings say once what every card said for itself: as wide
 white cards (earlier the same day) each resume labeled its own date
 "Modified" or "Created", which the user found repetitive. Below `@2xl` of
 the table, a phone's, the Type column folds away, the date keeps only its
-day, and the actions column holds only the star and ⋮. Rename turns the
+day, the Primary badge keeps only its star, and the actions column holds
+only ⋮. Below `@4xl` (896px) Target Job folds
+too, and the job reads under the name ("<posting> at <company>"). Rename turns the
 row into the name's field with Cancel and Save, at the row's height.
 **Date Modified** (2026-11-10, after Google Drive's) is the latest of two
 events: the last edit, or when it was made or uploaded, for a resume never
 edited, on the student's clock, the year only when it is not this one. It
 was two columns, Created and Last Edited, which the user condensed into
 one. **The actions wait for the pointer, as Google Drive's rows do**
-(`CardActionIcons`): at rest a row shows only ⋮ (More actions) and, on the
-primary resume, its filled star, a status; on hover, or with the keyboard's
-focus in the card, Make Primary, Rename, Download and Delete fade in left of
+(`CardActionIcons`): at rest a row shows only ⋮ (More actions), the
+primary's badge sitting by its name; on hover, or with the keyboard's
+focus in the row, Make Primary, Rename, Download and Delete fade in left of
 ⋮, in room kept for them, so nothing moves. ⋮ holds every action, worded:
 Open, Rename, Download PDF, Make Primary (on a resume that is not the
 primary), then Delete in red, which asks first (`RowMoreMenu` with
-`always`). A touch screen has no hover, so it shows ⋮ and the primary's
-star only. Four icons on every row at all times read busy to the user.
+`always`). A touch screen has no hover, so it shows ⋮ only. Four icons on every row at all times read busy to the user.
 The date and the actions sit in fixed columns, so every card's date lines
 up. **The Grid view** (KAN-766, after Google Drive's and Simplify's): a List /
 Grid switch at the right end of the search's row, where the Jobs and
@@ -2958,8 +2967,8 @@ name, lost the role that tells two apart), then the type as a status badge (Uplo
 grey, Generated in the brand, Tailored in blue), a tailored resume's
 company (logo and name, which never wraps and trails off when short of
 room) and, at the line's right, the Date Modified as the list says it
-("Modified" or "Created" and the day). A narrow card drops the date's
-word and keeps the day.
+("Modified" or "Created" and the day). A narrow card drops the badge's
+word and the date's, keeping the type's icon and the day.
 ⋮ holds every action (no hover icons, as on Drive's grid), and a filled
 star sits on the primary's page corner, as on Simplify's. No card shows
 a Posting Closed badge: as one more line it made some grid cards taller

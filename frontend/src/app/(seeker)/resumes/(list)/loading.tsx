@@ -65,8 +65,8 @@ export default async function ResumesLoading() {
             </div>
           </div>
         ) : (
-          // The table's card (../resume-list.tsx): its headings, then rows
-          // with rules between them, a tile, the name and its date.
+          // The table's card (../resume-list.tsx): its headings, then 56px
+          // rows with rules between them, the name and its date.
           <Card padding="none" aria-hidden="true" className="mt-4 overflow-hidden">
             <div className="border-border-subtle flex h-10 items-center gap-4 border-b px-4">
               <Skeleton className="h-3 w-12" />
@@ -76,9 +76,8 @@ export default async function ResumesLoading() {
             {Array.from({ length: 5 }, (_, i) => (
               <div
                 key={i}
-                className="border-border-subtle flex items-center gap-3 border-b px-4 py-3 last:border-b-0"
+                className="border-border-subtle flex h-14 items-center gap-3 border-b px-4 last:border-b-0"
               >
-                <Skeleton className="size-10 shrink-0" />
                 <Skeleton className="h-3.5 w-56 max-w-full" />
                 <Skeleton className="ml-auto h-3 w-24 shrink-0" />
                 <span className="w-24 shrink-0" />

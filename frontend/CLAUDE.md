@@ -2769,11 +2769,15 @@ are in `docs/auth.md`.
   newest first, as a List or a Grid (KAN-766). **The List is a table
   after the Tracker's** (`applications/list.tsx`; `ResumeList` in
   `resumes/resume-list.tsx`, rows by `ResumeCard`, 2026-11-10): one white
-  card, grey headings Name, Type and Date Modified, rules between rows, a
-  row that opens the resume on a click anywhere (`ClickableRow`), and the
-  actions at the right (star, Rename, Download, Delete on hover, ⋮ always;
-  Delete asks in a popover under the trash, `DeleteResumeConfirm`,
-  KAN-347). The headings name each column once: as cards, each resume
+  card, grey headings Name, Target Job, Type and Date Modified, rules
+  between rows, a row that opens the resume on a click anywhere
+  (`ClickableRow`), and the actions at the right (Make Primary, Rename,
+  Download, Delete on hover, ⋮ always; Delete asks in a popover under the
+  trash, `DeleteResumeConfirm`, KAN-347). After Jobright's resume table,
+  the name stands alone with a Primary badge on the primary, and a
+  tailored resume's job has its own column, drawn as the Tracker's Role
+  cell (logo, then the role over the company), empty for the rest; no
+  tile leads a row, since Type says what each resume is. The headings name each column once: as cards, each resume
   labeled its own date "Modified" or "Created", which the user found
   repetitive. Its columns do not move, resize or hide as the Tracker's
   do. **Both layouts scroll with the page**, as the Tracker's table does

@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import {
   RESUME_ACTIONS_COL,
   RESUME_DATE_COL,
+  RESUME_TARGET_COL,
   RESUME_TH,
   RESUME_TYPE_COL,
 } from "@/components/resume-row";
@@ -19,17 +20,20 @@ import { RESUME_GRID } from "./view";
  * headings since 2026-11-10.
  *
  * **The list is a table after the Tracker's** (`applications/list.tsx`,
- * 2026-11-10): one white card, 12px grey headings (Name, Type, Date
- * Modified, and the actions' column with no heading), rules between the
- * rows and no box around each. The page scrolls, as the Tracker's does.
+ * 2026-11-10): one white card, 12px grey headings (Name, Target Job, Type,
+ * Date Modified, and the actions' column with no heading), rules between
+ * the rows and no box around each, the name alone in its cell and the job
+ * a tailored resume was made for in a column of its own, after Jobright's
+ * resume table. The page scrolls, as the Tracker's does.
  * The headings name each column once; as wide cards on the page's ground,
  * each resume labeled its own date "Modified" or "Created", which the user
  * found repetitive. A table came once before, in KAN-362, and the user
  * found its columns useless beside cards that each said what they were;
  * the user asked for it back once the grid needed a list that read as the
  * Tracker's. Unlike the Tracker's, its columns do not move, resize or hide:
- * a resume has four facts, not twelve. Below `@2xl` of the table the Type
- * column folds to nothing and the date drops its time.
+ * a resume has five facts, not twelve. Below `@4xl` of the table Target
+ * Job folds to nothing and the job reads under the name; below `@2xl` the
+ * Type column folds too and the date drops its time.
  *
  * **The grid** is the tops of the resumes' first pages, four to a row (two
  * below `@3xl`, a phone's). **Both scroll with the page** (2026-11-10): the
@@ -60,10 +64,16 @@ export function ResumeList({
         <TableHeader>
           <TableRow className="hover:bg-transparent">
             <TableHead className={RESUME_TH}>Name</TableHead>
+            <TableHead className={cn(RESUME_TH, RESUME_TARGET_COL)}>
+              <span className="hidden @4xl:inline">Target Job</span>
+            </TableHead>
             <TableHead className={cn(RESUME_TH, RESUME_TYPE_COL)}>
               <span className="hidden @2xl:inline">Type</span>
             </TableHead>
-            <TableHead className={cn(RESUME_TH, RESUME_DATE_COL)}>Date Modified</TableHead>
+            <TableHead className={cn(RESUME_TH, RESUME_DATE_COL)}>
+              <span className="@2xl:hidden">Modified</span>
+              <span className="hidden @2xl:inline">Date Modified</span>
+            </TableHead>
             <TableHead className={RESUME_ACTIONS_COL}>
               <span className="sr-only">Actions</span>
             </TableHead>
