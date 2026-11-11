@@ -172,6 +172,31 @@ into it and the window shows "Sample data".
   goes through `judged` (a throw blocks). A request's URL, method and body
   are read once, and what was judged is what is sent: an XHR keeps what its
   `open()` took, and one opened by no `open()` of the guard's is not sent.
+- **A request body is read as its server reads it, never by a regex on
+  its text** (KAN-791). One regex on Ashby's `operationName` let through
+  escaped JSON, a submit named only in `query`, a batch, and form or
+  multipart bodies. The guard parses each body to Ashby (JSON with no
+  duplicate key, form fields, multipart `operations`), parses each
+  query as GraphQL, and blocks a mutation whose root field names a
+  submit. A body to Ashby's GraphQL that it can't read is blocked: when
+  the guard can't tell, it fails closed.
+- **A guarded page makes no worker** (KAN-791). A worker runs none of
+  the guard script, so a Web Worker, a shared or service worker, or a
+  blob: or data: worker script posted the application past both guards.
+  While a guard is on, the script refuses `Worker`, `SharedWorker`, a
+  service worker's `register` and a worklet's `addModule`, and ends a
+  dedicated worker made while the page was lifted when the guard comes
+  back on. On a CDP Worker, `_end_workers` closes the shared workers and
+  unregisters the service workers as the guard goes on (Playwright
+  routes no shared worker's request). On a plain Worker, the rules on
+  -1 block the final URLs and Ashby's GraphQL from them. A new way to
+  run code outside the page's realm needs the same three layers.
+- **A captcha's frame is known by its host, or by its path only on
+  reCAPTCHA's own host** (`captcha.PATH_HOSTS`, KAN-791). The guard
+  leaves a captcha's frame alone, and it took any frame at `/recaptcha/`
+  for one. A page served that path from its own site or another one, and
+  the frame posted the application, or the page did through its `fetch`
+  and `Worker`.
 - **No test reaches past loopback** (`tests/network_block.py`, KAN-662). A
   socket or name lookup to another host raises `NetworkBlocked`, Chrome
   started by a test resolves other hosts to nothing, and Playwright's own

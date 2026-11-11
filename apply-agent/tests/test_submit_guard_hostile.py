@@ -15,6 +15,7 @@ Fill again's case (KAN-682) opens its page in a real Worker browser. Three group
 
 import dataclasses
 import http.server
+import json
 import re
 import sys
 import threading
@@ -468,6 +469,100 @@ PAGES |= {
         document.getElementById('b').addEventListener('click', () => {{ {_TWICE} }});</script>""",
         "/acme/jobs/123/step2": "<title>Two</title><input name=next>"},
 }
+# KAN-791: Ashby's submit, which the guard once found by one regex on the body's operationName. Each body here is a
+# submit Ashby's GraphQL server would run, or one the guard can't read (a duplicate key, a persisted query's hash
+# alone, text that is no JSON): the guard reads each as the server would, and any of them reaching Ashby is an
+# application (Site.applications).
+ASHBY_GQL = "https://jobs.ashbyhq.com/api/non-user-graphql"
+_ASHBY_SEND = """<script>const GQL = '@GQL@';
+const hide = (s) => s.replace(/submit/gi, (m) => '\\\\u00' + m.charCodeAt(0).toString(16) + m.slice(1));
+const post = (body, how) => {
+  if (how === 'xhr') { try { const x = new XMLHttpRequest(); x.open('POST', GQL); x.send(body); } catch (e) {} return; }
+  if (how === 'beacon') { try { navigator.sendBeacon(GQL, body); } catch (e) {} return; }
+  try { fetch(GQL, {method: 'POST', body}).catch(() => {}); } catch (e) {}
+};
+const SUBMIT = 'mutation { submitMultipleFormsAction(jobPostingId: "1") { __typename } }';
+document.getElementById('b').addEventListener('click', () => { @SENDS@ });</script>"""
+_ASHBY_JSON = """
+  post(JSON.stringify({query: 'mutation { submitSingleApplicationFormAction(formRenderIdentifier: "r") { __typename } }'}));
+  post(hide(JSON.stringify({operationName: 'ApiSubmitMultipleFormsAction', query: 'mutation ApiSubmitMultipleFormsAction { submitMultipleFormsAction { a } }'})));
+  post(JSON.stringify([{query: 'query A { jobPosting { title } }'}, {operationName: 'ApiSetFormValue', query: SUBMIT}]));
+  post(JSON.stringify({operationName: 'ApiSetFormValue', query: 'mutation ApiSetFormValue { ...F } fragment F on Mutation { submitMultipleFormsAction { a } }'}));
+  post(JSON.stringify({operationName: 'ApiSetFormValue', query: 'mutation ApiSetFormValue { # setFormValue\\n ... on Mutation @include(if: true) { setFormValue: submitSingleApplicationFormAction(note: "not a submit") { a } } }'}));
+  post('{"query": "' + SUBMIT.replace(/"/g, '\\\\"') + '", "query": "query { a }"}');
+  post(JSON.stringify({operationName: 'ApiSetFormValue', extensions: {persistedQuery: {version: 1, sha256Hash: 'ab12'}}}));
+  post(JSON.stringify({query: SUBMIT}), 'xhr');
+  post(new Blob([JSON.stringify({query: SUBMIT})], {type: 'application/json'}), 'beacon');"""
+_ASHBY_FORMS = """
+  post(new URLSearchParams({query: SUBMIT}));
+  post('operationName=ApiSetFormValue&query=' + encodeURIComponent(SUBMIT), 'xhr');
+  post(new URLSearchParams({query: SUBMIT}), 'beacon');
+  const multipart = () => { const f = new FormData(); f.append('operations', JSON.stringify({query: SUBMIT, variables: {file: null}}));
+    f.append('map', '{"0": ["variables.file"]}'); f.append('0', new Blob(['resume']), 'resume.pdf'); return f; };
+  post(multipart()); post(multipart(), 'xhr'); post(multipart(), 'beacon');
+  post(SUBMIT); post(SUBMIT, 'xhr');"""
+_ASHBY_NEXT = '<title>Apply</title><input name=first value=Test><button id=b type=button>Next</button>'
+PAGES |= {
+    "Ashby's submit in JSON the regex missed": {START: _ASHBY_NEXT + _ASHBY_SEND.replace("@GQL@", ASHBY_GQL).replace("@SENDS@", _ASHBY_JSON)},
+    "Ashby's submit in a form or multipart body": {START: _ASHBY_NEXT + _ASHBY_SEND.replace("@GQL@", ASHBY_GQL).replace("@SENDS@", _ASHBY_FORMS)},
+}
+# KAN-791: a worker runs none of the guard script, so its requests went unjudged. Each worker here posts the
+# application every way it can (fetch and XHR to the final URL and Greenhouse's, Ashby's submit by its body) as it
+# starts: a dedicated, shared or service worker, from the page's URL, a blob: or a data: script, and by constructors
+# the guard might not have wrapped. Each worker script is served from WORKER_JS.
+WORKER_JS = "/acme/worker.js"
+WORKER_CODE = f"""for (const u of ['{HOST}{FINAL}', '{GREENHOUSE}']) {{
+  fetch(u, {{method: 'POST', body: 'first=Test'}}).catch(() => {{}});
+  try {{ const x = new XMLHttpRequest(); x.open('POST', u); x.send('first=Test'); }} catch (e) {{}}
+}}
+fetch('{ASHBY_GQL}', {{method: 'POST', body: JSON.stringify({{query: 'mutation {{ submitMultipleFormsAction {{ a }} }}'}})}}).catch(() => {{}});
+self.onconnect = () => {{}};"""
+_WORKERS = f"""<title>Apply</title><input name=first value=Test><button id=b type=button>Next</button><script>
+const CODE = {json.dumps(WORKER_CODE)};
+const blob = () => URL.createObjectURL(new Blob([CODE], {{type: 'text/javascript'}}));
+const data = () => 'data:text/javascript,' + encodeURIComponent(CODE);
+const each = (fs) => {{ for (const f of fs) {{ try {{ f(); }} catch (e) {{}} }} }};
+document.getElementById('b').addEventListener('click', () => each(@MAKE@));</script>"""
+_MAKES = {
+    "a Next whose workers post the application": """[() => new Worker('/acme/worker.js'), () => new Worker(blob()),
+        () => new Worker(data()), () => new Worker('/acme/worker.js', {type: 'module'})]""",
+    "a Next whose shared worker posts the application": """[() => new SharedWorker('/acme/worker.js'),
+        () => new SharedWorker(blob(), 'b'), () => new SharedWorker(data(), 'd')]""",
+    "a Next whose service worker posts the application": """[() => navigator.serviceWorker.register('/acme/worker.js').catch(() => {})]""",
+    "a worker made by a constructor the guard never wrapped": """[() => new (Worker.prototype.constructor)(blob()),
+        () => new (SharedWorker.prototype.constructor)(blob(), 'c'), () => { class Mine extends Worker {} new Mine(blob()); },
+        () => { const i = document.createElement('iframe'); document.body.append(i); new i.contentWindow.Worker(blob()); },
+        () => Reflect.construct(Worker, [blob()]), () => Worker.call({}, blob())]""",
+}
+PAGES |= {name: {START: _WORKERS.replace("@MAKE@", make), WORKER_JS: WORKER_CODE} for name, make in _MAKES.items()}
+# A frame of the page's own site at reCAPTCHA's path (captcha.PATHS), which the guard took for a captcha's frame and
+# left unguarded: the page posted through the frame's fetch and its Worker (KAN-791's review).
+# The review of #551: a frame of another site the page picks, at reCAPTCHA's path, ran no guard either. Its own script
+# posts the application: on a timer after it loads, by a form bound for the top page, or when the Next's click tells it.
+FOREIGN_CAPTCHA = "https://evilexample.com/recaptcha/api2/"
+_FOREIGN_SENDS = {
+    "a foreign frame at a captcha's path that posts on a timer":
+        f"setTimeout(() => fetch('{HOST}{FINAL}', {{method: 'POST', mode: 'no-cors', body: 'first=Test'}}).catch(() => {{}}), 2000);",
+    "a foreign frame at a captcha's path whose form posts to the top page":
+        f"addEventListener('message', () => {{ const f = document.createElement('form'); f.method = 'post';"
+        f" f.action = '{HOST}{FINAL}'; f.target = '_top'; f.innerHTML = '<input name=first value=Test>';"
+        f" document.body.append(f); f.submit(); }});",
+    "a foreign frame at a captcha's path told by the Next's click":
+        f"addEventListener('message', () => fetch('{HOST}{FINAL}', {{method: 'POST', mode: 'no-cors', body: 'first=Test'}}).catch(() => {{}}));",
+}
+for _i, (_name, _send) in enumerate(_FOREIGN_SENDS.items()):
+    PAGES[_name] = {
+        START: f"""<title>Apply</title><input name=first value=Test><button id=b type=button>Next</button>
+            <iframe id=f src="{FOREIGN_CAPTCHA}{_i}"></iframe><script>document.getElementById('b').addEventListener('click',
+            () => document.getElementById('f').contentWindow.postMessage('go', '*'));</script>""",
+        f"/recaptcha/api2/{_i}": f"<title>reCAPTCHA</title><body><script>{_send}</script></body>"}
+PAGES["a frame of the page's own at a captcha's path"] = {START: f"""<title>Apply</title><input name=first value=Test>
+    <button id=b type=button>Next</button><iframe id=f src="/recaptcha/api2/anchor"></iframe><script>
+    document.getElementById('b').addEventListener('click', () => {{
+      const w = document.getElementById('f').contentWindow;
+      try {{ w.fetch('{FINAL}', {{method: 'POST', body: 'first=Test'}}).catch(() => {{}}); }} catch (e) {{}}
+      try {{ new w.Worker(URL.createObjectURL(new w.Blob([{json.dumps(WORKER_CODE)}]))); }} catch (e) {{}}
+    }});</script>"""}
 # KAN-776: a held page's session dialog, whose stay-signed-in button the keep-alive presses. Each sends the application.
 _SESSION = ("<title>Apply</title><form id=f method=post action='" + FINAL + "'><input name=first value=Test></form>"
             + SEND_ALL + "<div role=alertdialog aria-modal=true><p>Your session is about to expire. Do you want to "
@@ -596,12 +691,13 @@ class Site:
             except Exception:
                 self.bodies.append((path, ""))
         body = self.pages.get(path, "<title>Thanks</title><p>Thank you for applying</p>")
-        route.fulfill(body=body, content_type="text/html")
+        route.fulfill(body=body, content_type="text/javascript" if path.endswith(".js") else "text/html")
 
     def applications(self) -> list[str]:
         """The application requests that reached the job system: a final URL's (COMMIT's too, KAN-783), or SAVE's with
-        its Submit (submit=1)."""
-        return [p for p in self.sent if p in (FINAL, GREENHOUSE, COMMIT)] + [p for p, b in self.bodies if p == SAVE and "submit=1" in b]
+        its Submit (submit=1), or any post to Ashby's GraphQL (only the Ashby pages post there, KAN-791)."""
+        return [p for p in self.sent if p in (FINAL, GREENHOUSE, COMMIT) or p.startswith(ASHBY_GQL)] \
+            + [p for p, b in self.bodies if p == SAVE and "submit=1" in b]
 
 
 # --- the click paths, each the real code that presses through the guards
@@ -743,6 +839,13 @@ GUARD_HOLES = frozenset({
     "a Submit whose own innerText throws", "a Submit whose value getter posts the form",
     "a Submit whose own getters and methods lie", "a Submit whose prototype is a Proxy", "prototype getters that lie",
     "prototype getters that throw", "built-ins the page replaced", "a request whose URL changes on a second read",
+    # KAN-791's: Ashby's submit the operationName regex missed, and the application posted from a worker.
+    "Ashby's submit in JSON the regex missed", "Ashby's submit in a form or multipart body",
+    "a Next whose workers post the application", "a Next whose shared worker posts the application",
+    "a Next whose service worker posts the application", "a worker made by a constructor the guard never wrapped",
+    "a frame of the page's own at a captcha's path", "a foreign frame at a captcha's path that posts on a timer",
+    "a foreign frame at a captcha's path whose form posts to the top page",
+    "a foreign frame at a captcha's path told by the Next's click",
 })
 
 
@@ -755,6 +858,9 @@ PLAIN_HOLES = frozenset({
     "a frame that forges the extension's touch", "a pointerdown handler that clicks the page's own button",
     "a page that vouches for its own Apply", "a page that lifts the guards by their install mark",
     "a page that hears the drive guard's control name", "requests sent around the guard",
+    # KAN-791's: a plain Worker's rules stand under the guard script for a worker's requests.
+    "a Next whose workers post the application", "a Next whose shared worker posts the application",
+    "a Next whose service worker posts the application", "a worker made by a constructor the guard never wrapped",
 })
 
 
@@ -834,13 +940,16 @@ def test_a_link_sent_in_never_joins_a_cdp_worker():
 def cdp(pages: dict[str, str], guarded: bool = True, first: bool = False):
     """The pages in Playwright's Chromium, guarded as a rehearsal guards them: after a first load, or with `first`
     before it (submit_guard.on_open, as a rehearsal opens each page: KAN-682), for a page that sends as it loads."""
+    from plain_fakes import https_fake
     from playwright.sync_api import sync_playwright
 
     site = Site(pages)
-    with sync_playwright() as playwright:
+    with sync_playwright() as playwright, https_fake(site.handle) as port:
         if not Path(playwright.chromium.executable_path).exists():
             pytest.skip("no Playwright Chromium here")
-        browser = playwright.chromium.launch()
+        # What Playwright never routes (a shared worker's requests, KAN-791) reaches the same Site on 127.0.0.1.
+        browser = playwright.chromium.launch(args=[f"--host-resolver-rules=MAP * 127.0.0.1:{port}",
+                                                   "--ignore-certificate-errors", "--disable-quic"])
         context = browser.new_context()
         context.route(lambda url: True, site.handle)  # every request: no real site is ever reached
         page = context.new_page()
@@ -891,6 +1000,38 @@ def test_without_the_guard_each_hostile_page_sends(page_name):
             page.mouse.move(9, 9)
         _settle(page, max(3000, DELAYS.get(page_name, 0) + 1500, 5000 if page_name in MOVED else 0))
     assert site.applications()
+
+
+# Ashby's own requests, which the guard must let through as it reads Ashby's bodies (KAN-791): its posting's query,
+# whose selections name a submit below the root, and each answer's and file's save, mutations whose root saves.
+ASHBY_OWN = {
+    "ApiOrganizationFromHostedJobsPageName": "query ApiOrganizationFromHostedJobsPageName($name: String!) { "
+        "organization: organizationFromHostedJobsPageName(organizationHostedJobsPageName: $name) { "
+        "theme { applicationSubmittedSuccessMessage } } }",
+    "ApiSetFormValue": "mutation ApiSetFormValue($id: String!, $path: String!, $value: JSON) { "
+        "setFormValue(formRenderIdentifier: $id, path: $path, value: $value) { id fieldEntries { submittedAt } } }",
+    "ApiSetFormValueToFile": "mutation ApiSetFormValueToFile($id: String!, $path: String!, $fileHandle: String!) { "
+        "setFormValueToFile(formRenderIdentifier: $id, path: $path, fileHandle: $fileHandle) { id } }",
+}
+
+
+def _ashby_own_page() -> dict[str, str]:
+    sends = "".join(f"fetch('{ASHBY_GQL}?op={op}', {{method: 'POST', headers: {{'Content-Type': 'application/json'}}, "
+                    f"body: JSON.stringify({{operationName: '{op}', variables: {{id: 'r', path: 'p'}}, query: {json.dumps(q)}}})}});"
+                    for op, q in ASHBY_OWN.items())
+    return {START: f"<title>Apply</title><button id=b type=button>Next</button><script>"
+                   f"document.getElementById('b').addEventListener('click', () => {{ {sends} }});</script>"}
+
+
+def _ashby_own_sent(page, site) -> list[str]:
+    page.click("#b")
+    _settle(page, 1500)
+    return sorted(p.split("op=")[-1] for p in site.sent if p.startswith(ASHBY_GQL))
+
+
+def test_ashbys_own_queries_and_saves_go_through():
+    with cdp(_ashby_own_page()) as (page, _, site):
+        assert _ashby_own_sent(page, site) == sorted(ASHBY_OWN)
 
 
 # Ask Claude's press of a listed step (KAN-692) against a TAL.net-like form, whose final Submit posts to the same
@@ -958,6 +1099,44 @@ HELD = {START: f"""<title>Apply</title><form id=f method=post action="{FINAL}"><
     <button id=b>Submit application</button></form>{SEND_ALL}
     <script>document.getElementById('b').addEventListener('click', () => sendAll());
     setTimeout(() => {{ sendAll(); try {{ document.getElementById('f').submit(); }} catch (e) {{}} }}, 1500);</script>"""}
+
+
+# KAN-791: workers made while Lisul had the page (lifted, or paused mid-form), each waiting for a message to post the
+# application. Resume puts the guard back on (rearm): none of them may send after it.
+_ON_MESSAGE = "const send = () => {" + WORKER_CODE.replace("self.onconnect = () => {};", "") + "};" \
+    " self.onmessage = send; self.onconnect = (e) => { e.ports[0].onmessage = send; };"
+LIFTED_WORKERS = {START: f"""<title>Apply</title><input name=first value=Test><script>
+const CODE = {json.dumps(_ON_MESSAGE)};
+const blob = () => URL.createObjectURL(new Blob([CODE], {{type: 'text/javascript'}}));
+window.make = () => {{
+  window.w = new Worker(blob()); window.s = new SharedWorker(blob());
+  return navigator.serviceWorker.register('/acme/worker.js').then((r) => {{ window.reg = r; }}, () => {{}});
+}};
+window.go = () => {{
+  try {{ w.postMessage(1); }} catch (e) {{}}
+  try {{ s.port.postMessage(1); }} catch (e) {{}}
+  try {{ const sw = reg && (reg.active || reg.waiting || reg.installing); if (sw) sw.postMessage(1); }} catch (e) {{}}
+}};</script>""", WORKER_JS: _ON_MESSAGE}
+
+
+def _workers_after_rearm(page, site, rearmed: bool) -> list[str]:
+    lift(page)
+    page.evaluate("make()")
+    _settle(page, 1500)  # the service worker active
+    if rearmed:
+        submit_guard.rearm(page)
+    site.sent.clear()
+    site.bodies.clear()
+    page.evaluate("go()")
+    _settle(page, 2000)
+    return site.applications()
+
+
+@pytest.mark.parametrize("rearmed", [False, True])
+def test_a_worker_made_while_lifted_sends_nothing_once_rearmed(rearmed):
+    with cdp(LIFTED_WORKERS) as (page, _, site):
+        sent = _workers_after_rearm(page, site, rearmed)
+    assert (sent == []) == rearmed  # unrearmed, the page is Lisul's, and its workers send: the control
 
 
 def test_a_held_submit_stays_held_through_a_reload_and_a_script_that_sends_after_it():
@@ -1202,6 +1381,20 @@ def test_no_click_path_sends_a_hostile_page_on_a_plain_worker(page_name, path):
         _then(page, page_name)
         _settle(page)
     assert site.applications() == []
+
+
+@ONE_PLAIN_PROCESS
+def test_ashbys_own_queries_and_saves_go_through_on_a_plain_worker():
+    # The rule on workers' requests to Ashby's GraphQL (WORKER_RULES) holds no request of the tab's own.
+    with plain(_ashby_own_page()) as (page, _, site):
+        assert _ashby_own_sent(page, site) == sorted(ASHBY_OWN)
+
+
+@ONE_PLAIN_PROCESS
+def test_a_worker_made_while_lifted_sends_nothing_once_rearmed_on_a_plain_worker():
+    with plain(LIFTED_WORKERS) as (page, _, site):
+        sent = _workers_after_rearm(page, site, True)
+    assert sent == []
 
 
 @pytest.mark.parametrize("path", list(TYPING))
