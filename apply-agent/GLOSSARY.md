@@ -133,7 +133,7 @@ The action that continues a paused Rehearsal on its open page. A Rehearsal pause
 _Avoid_: retry, restart, continue
 
 **Session keep-alive**:
-What Apply does to keep a job site's session open while a form is held for Lisul. It acts only on the sites in its allowlist. It sends a request for the page's own address and a mouse-move event to the page. When the site shows its own "session about to expire" dialog, Apply presses only that dialog's stay-signed-in button, with the guards on. Lisul's Submit then stays held until he presses Dismiss on the page. It never saves, never sends the Application and never changes a field. When a session ends, the tile and the phone push tell Lisul to press Fill again.
+What Apply does to keep a job site's session open while a form is held for the applicant. It acts on every job site, and its site table adds what is known of each system. It sends a request for the page's own address and a mouse-move event to the page. When the site shows a "session about to expire" dialog, Apply presses only that dialog's stay-signed-in button, with the guards on. The applicant's Submit then stays held until they press Dismiss on the page. It never saves, never sends the Application and never changes a field. When a session ends, the tile and the phone push say to press Fill again.
 _Avoid_: heartbeat, refresh, keep awake
 
 **Worker**:
