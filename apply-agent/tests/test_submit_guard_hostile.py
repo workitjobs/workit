@@ -477,14 +477,12 @@ TYPING = {"Apply's typing": apply_typing, "the tile's typing": tile_typing, "App
 def amazon_continue(page, drive, name):
     """The amazon.jobs Filler's step Continue (KAN-765): the Fill engine presses the open card's own Continue in the
     page, never Submit application. A page with no Amazon step has nothing it presses."""
-    from apply.plain.bridge import PortError
-
     try:
         amazon.next_step(page, "Job-specific questions")
     except FillError as refused:
         raise Handoff(str(refused)) from refused
-    except PortError as broke:  # the engine couldn't run on the page (one that poisons RegExp): nothing pressed
-        raise Handoff(str(broke)) from broke
+    except Exception as broke:  # the engine couldn't run on the page (one that poisons RegExp): what was sent is
+        raise Handoff(str(broke)) from broke  # checked all the same
 
 
 PATHS = {"plain code's Next": plain_next, "the Amazon Filler's Continue": amazon_continue, "the profile click": profile_click, "the account click": account_click,
