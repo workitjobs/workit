@@ -56,6 +56,7 @@ import json
 import re
 import time
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import TYPE_CHECKING
 from urllib.parse import urlsplit
 
@@ -114,6 +115,7 @@ UNVERIFIED = re.compile(r"verif", re.IGNORECASE)  # Workday's refusal of a sign-
 VERIFY_LOOKBACK = timedelta(days=1)
 # Each tenant's nested prompts as last read: "<tenant> / <label>" -> its categories and each choice's category.
 TREES = HOME / "workday-trees.json"
+ENTRIES = re.compile(r"\(entries\)\s*$")  # a repeating section's Question: "Work Experience (entries)", answered with how many
 
 
 def site_of(url: str) -> str:
@@ -157,6 +159,17 @@ def next_step(page: Page, step: str) -> None:
         if "would send the application" not in str(handoff):
             raise
         raise Handoff(f"{handoff}. Apply didn't click it: check the form and submit it yourself.") from None
+
+
+def _naming(page: Page, names: list[str]) -> list[str]:
+    """Which of `names` name an entry of a repeating section, by the engine (`workdayEntries.naming`); none on an engine
+    without the call (a plain Worker seeded before it), which deletes the last panels as it always did."""
+    try:
+        return fill_engine.call(page, "workdayEntries.naming", names) or []
+    except FillError as error:
+        if "has no function" not in str(error):
+            raise
+        return []
 
 
 def confirmed(page: Page) -> bool:
@@ -233,8 +246,14 @@ class WorkdayFiller:
             if new:
                 raise MoreQuestions(new)
             kept = self._his[1] if shown["step"] == self._his[0] else set()
-            if sections := {name: answers[name] for name in shown["sections"] if name in answers and name not in kept}:
-                self._fill(page, sections)  # the step's new panels' fields are MoreQuestions
+            sections = {name: answers[name] for name in shown["sections"] if name in answers and name not in kept}
+            # Each entry's naming answers (company, title) go with the count, so a panel holding one is never deleted
+            # (KAN-775). One Lisul changed before Resume leaves the panels as he left them: his entry is told by none.
+            naming = _naming(page, [q.name for q in fields if q.name in answers]) if sections else []
+            if sections and not kept.intersection(naming):
+                self._fill(page, sections | {name: answers[name] for name in naming})  # new panels' fields: MoreQuestions
+                # Panels added for questions known already (a step filled again, KAN-775): their fields as shown now.
+                fields = self._shown(page)["questions"]
             for q in fields:
                 if q.name in answers and q.name not in sections and q.name not in kept:
                     self._put_or_rescue(page, q, None, answers[q.name])
@@ -259,6 +278,8 @@ class WorkdayFiller:
                     raise
                 refilled.add(shown["step"])
                 page.wait_for_timeout(REFILL_WAIT)
+        if shown["review"]:
+            self._readback |= self._reviewed(page, questions, answers)
         return dict(self._readback)
 
     def _save_and_continue(self, page: Page, step: str, crashed: set[str]) -> None:
@@ -277,6 +298,23 @@ class WorkdayFiller:
             crashed.add(step)
             page.reload()
 
+    def _reviewed(self, page: Page, questions: QuestionSet, answers: Answers) -> Readback:
+        """Each repeating section's entries as Review shows them, read back under the plan's names (the engine's
+        `workdayEntries.reviewed`, KAN-775): the section's count, and an entry Review lacks as blank. NVIDIA's keeps only
+        the entries changed on a step's last visit, so an entry read back on My Experience can be gone by Review
+        (Ask changed one date there and saved, live 2026-11-10): verifying then holds the form, and the next fill
+        goes back to put it again (`_back_to_changed`). An engine without the call (a plain Worker seeded before it)
+        reads nothing here."""
+        if not any(ENTRIES.search(q.label) and q.name in answers for q in questions):
+            return {}
+        named = {name: answer for name, answer in answers.items() if not isinstance(answer, Path)}
+        try:
+            return fill_engine.call(page, "workdayEntries.reviewed", fill_engine.questions_arg(questions), named) or {}
+        except FillError as error:
+            if "has no function" not in str(error):
+                raise
+            return {}
+
     def _back_to_changed(self, page: Page, questions: QuestionSet, answers: Answers) -> None:
         """Back to the first step holding an answer other than the one the last fill was given there (the
         plan's answer replanned, or the Pre-submit review's fix), from the step the draft opens on (its Review,
@@ -284,6 +322,11 @@ class WorkdayFiller:
         again opens past them."""
         changed = [q for q in questions if q.name in answers and q.name in self._given and q.name in self._readback
                    and answers[q.name] != self._given[q.name]]
+        # A section Review showed with fewer entries than planned (`_reviewed`): its step is filled again, every entry
+        # typed anew, so Workday keeps them all (KAN-775).
+        short = [q for q in questions if ENTRIES.search(q.label) and q.name in answers and q.name in self._readback
+                 and str(self._readback[q.name]).strip() != str(answers[q.name]).strip()]
+        changed = short + changed
         self._given = dict(answers)
         if not changed:
             return

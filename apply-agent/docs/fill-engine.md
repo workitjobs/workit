@@ -50,7 +50,14 @@ warrant", "I acknowledge" or "I affirm" except to a privacy or data
 notice, "under penalty", an electronic or typed-name signature, its date
 (a bare "Date" beside one, Workday's `dateSignedOn`), any statement that
 the application is true, accurate or complete, even beside privacy words
-or an "I agree") is Lisul's alone (Lisul, 2026-11-05, KAN-676). The
+or an "I agree", any agreeing to the employer's terms, conditions, an
+agreement or a policy that is not a privacy one: T&Cs, terms of use, of
+service or of employment, the User Agreement, a EULA, "the statement
+above", and a box's own bare "I agree" or "Accept" that names no privacy
+notice, check or messages, KAN-775) is Lisul's
+alone (Lisul, 2026-11-05, KAN-676). NVIDIA's Workday box ("By selecting the
+checkbox, you agree to our Terms and Conditions and Applicant Privacy
+Policy.") was ticked under `tick_consent_when_true` before (2026-11-10). The
 engine reads it in the label, the help text and the options, with
 zero-width characters and lookalike letters made plain. The engine's plan
 never answers one, whatever a rule, `tick_consent_when_true`, the Answer
@@ -60,10 +67,19 @@ with its exact wording. Apply keeps it out of every answer
 stays blank and unticked, and the form holds with a "Yours to tick:
 <wording>" line on its Check before Submit list (`_Planned.to_tick`,
 dashboard `TO_CHECK`). The pattern is the engine's (`asksAttestation`,
-`src/holds.ts`): keep no copy in Apply. A privacy or data consent ("I
-agree to the privacy policy") still follows `tick_consent_when_true`, and
-a background-check consent `willing_to_undergo_checks`, unless it attests
-that the application is true.
+`src/holds.ts`): keep no copy in Apply. Only a box that is solely a privacy
+or data consent ("I agree to the privacy policy", the terms of a company's
+privacy notice) still follows `tick_consent_when_true`, and one solely a
+background-check consent `willing_to_undergo_checks`. Anything more beside
+it in its label or help text makes the whole box Lisul's: a second thing
+joined to it ("and the Code of Conduct"), arbitration, a jury waiver, a
+non-compete, a probation, relocating, Ts&Cs (PR 543's re-review, KAN-775).
+Each sentence of the label and help text is judged alone: it either
+agrees to that consent in its own words and nothing more, or binds Lisul
+to nothing. "; I agree to work weekends", "which forms part of my
+employment contract", "including sharing it with partner companies" and
+a help text "I accept the offer letter" under a "Privacy" label each make
+the box his. When unsure, the box is his.
 
 Under the `attest_from_sources` policy (a list of rule names, none by
 default: `policies.default.yaml` says each), the engine's plan answers an
