@@ -130,6 +130,19 @@ open choices (Settled choices, near the end).
     decline pair, `destructive` for a permanent delete. A link in running
     text is `TextLink`. Sizes: "Pick a button's size by where it sits",
     below.
+  - **Which button look, by what it does and where it sits** (2026-11-10,
+    the user asked for one rule): **filled** (`default`) for the one main
+    action of a view or dialog, at most one in sight; **bordered**
+    (`secondary`) for an action that starts something new or opens a flow,
+    standing on its own in a toolbar, at a section heading's end, in a
+    card or a dialog's footer (Add Jobs, Upload Resume, Create Event,
+    Write Answers, Cancel); **text** (`section`, `ghost`, `TextLink`) for an
+    action on what is already shown (View, Edit, Show, Hide, Remove All,
+    See More), in a heading line, a sentence or a row; **glyph**
+    (`IconButton`) for a repeated per-item action with a known icon (Save,
+    ⋯), always with a tooltip. **A table row holds no bordered or filled
+    button and no dashed pill**: its actions are text buttons, glyphs or a
+    stage's pill menu, so every row stays one height and one weight.
   - A button acts and a chip is a choice made in place: "A button is a
     rounded rectangle; a pill is a chip", below. A filter over a page's
     items is a `FieldFacet` dropdown. A choice of one among a few is a
