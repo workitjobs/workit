@@ -66,6 +66,19 @@ button that sends and the application request stay blocked. On a rehearsal's pag
 the rehearsal's guard blocked too, so a click Claude makes there that would
 send the form is the same Handoff, and still sends nothing.
 
+The page can't steer what the guards read (KAN-783). Their script reads the DOM and the built-ins only
+through apply.natives: getters and methods taken before any page code, so an element's or a prototype's
+getter of the page's (one that throws, lies or posts the form), a Proxy as a prototype, or a replaced
+`closest`, `RegExp.prototype.test` or `preventDefault` never runs in a check. Each listener that judges a
+press or a submission fails closed (`judged`): a throw while it judges blocks what it judged, and so does
+form.submit()'s. A request's URL, method and body are read once, and what was judged is what is sent:
+a `Symbol.toPrimitive` that says another URL on a second read, an init whose getter or Proxy says GET, a
+Request that `instanceof` can't see, or an XHR opened by another realm's open() sends nothing (as does
+one opened before a guard went on the open page and sent after: rare, and a Handoff at worst). A new
+read in the script goes through a `$` helper, never a property of the page's object. The drive guard
+put on a page after its code ran (DriveGuard on an open page) takes the natives as that page left them;
+the rehearsal's guard, and either guard on each page loaded later, takes them first.
+
 Once a rehearsed link has ended, its page is held open for Lisul and lift()
 takes both guards off: Apply no longer drives it, so his own Submit goes
 through, and a green note says so, with a Fill again button. The page tells
@@ -83,6 +96,7 @@ from contextlib import contextmanager
 from playwright.sync_api import Page, Route
 
 from apply import captcha, send_click
+from apply.natives import NATIVES
 
 # The final requests the route stops, from the page or a worker: a path segment that names a
 # submit (Jobvite's .../submitApplication among them), Ashby's ApiSubmit, BambooHR's and Workable's.
@@ -98,19 +112,22 @@ ROUTED = re.compile(
 # KAN-647), and nothing an application could be: titled as making or finishing a profile, with
 # nothing in it that only an application asks (a file, an essay, a box or a choice to tick, a
 # password), and no form field of the page's own behind it. Claude fill and the guards both use it.
-PROFILE_DIALOG = r"""(dialog) => {
-  const by = (dialog.getAttribute('aria-labelledby') || '').split(/\s+/).filter(Boolean)
-    .map(id => (document.getElementById(id) || {}).innerText || '').join(' ');
-  const heading = dialog.querySelector('h1, h2, h3, [role=heading]');
-  const title = (dialog.getAttribute('aria-label') || by || (heading && heading.innerText) || '').trim();
-  if (!/\b(?:create|complete|build|set\s*up|finish)\b[^.]{0,30}\bprofile\b/i.test(title)) return false;
-  if (/\b(?:appl(?:y|ying|ication)|job|position|role)\b/i.test(title)) return false;
-  if (dialog.querySelector('input[type=file], textarea, input[type=checkbox], [role=checkbox], input[type=radio], '
+PROFILE_BODY = r"""(dialog) => {
+  const ids = $words($attr(dialog, 'aria-labelledby'));
+  let by = '';
+  for (let i = 0; i < ids.length; i++) { const n = $byId(ids[i]); by += (i ? ' ' : '') + (n ? $text(n) : ''); }
+  const heading = $one(dialog, 'h1, h2, h3, [role=heading]');
+  const title = $trim($attr(dialog, 'aria-label') || by || (heading ? $text(heading) : ''));
+  if (!$re(/\b(?:create|complete|build|set\s*up|finish)\b[^.]{0,30}\bprofile\b/i, title)) return false;
+  if ($re(/\b(?:appl(?:y|ying|ication)|job|position|role)\b/i, title)) return false;
+  if ($one(dialog, 'input[type=file], textarea, input[type=checkbox], [role=checkbox], input[type=radio], '
     + '[role=radio], input[type=password]')) return false;
-  const shown = (n) => n.type !== 'hidden' && n.type !== 'search' && (!n.checkVisibility || n.checkVisibility());
-  return ![...document.querySelectorAll('input, select, textarea')].some((n) => !dialog.contains(n) && shown(n)
-    && !n.closest('[role=search], [role=dialog], [aria-modal=true], dialog'));
+  const shown = (n) => $type(n) !== 'hidden' && $type(n) !== 'search' && $shown(n);
+  return !$any($all(document, 'input, select, textarea'), (n) => !$contains(dialog, n) && shown(n)
+    && !$up(n, '[role=search], [role=dialog], [aria-modal=true], dialog'));
 }"""
+# Evaluated on its own (claude_fill): the natives taken as it runs. The guards use PROFILE_BODY with their own.
+PROFILE_DIALOG = "(dialog) => {" + NATIVES + "  return (" + PROFILE_BODY + ")(dialog);\n}"
 
 _TEMPLATE = r"""
 (() => {
@@ -122,6 +139,17 @@ _TEMPLATE = r"""
     return;
   }
   window.__@KEY@Guard = true;
+  // Every read below goes through the browser's own getters and methods, taken here before any page code
+  // (apply.natives, KAN-783): an element's or a prototype's getter of the page's never runs in a guard's check.
+@NATIVES@
+  // A listener that judges a press or a submission, failing closed (KAN-783): any throw while it judges (a page's
+  // getter, a node it can't read) blocks what it judged, as a press that may send.
+  const judged = (what, judge) => function (event) {
+    try { return judge(event); } catch (e) {
+      try { $stop(event); } catch (e2) {}
+      note(what + ' it could not read');
+    }
+  };
   // Lifted, Lisul's page lets everything through, unless Apply holds its Submit (a legal answer the review
   // found wrong): then a button or request that sends is blocked still, and the held note says why.
   const held = () => @HELD@;
@@ -130,21 +158,21 @@ _TEMPLATE = r"""
   const accountClick = () => window.__applyAccountClick === true;
   // A sign-in or new account's form: one with a password box, which no application's final button is in.
   const accountForm = (el) => {
-    const form = el.form || (el.closest && el.closest('form'));
-    return !!form && !!form.querySelector('input[type=password]');
+    const form = $form(el);
+    return !!form && !!$one(form, 'input[type=password]');
   };
   // A verification code's form: one with a one-time-code box, which no application's final button is in either.
   const codeForm = (el) => {
-    const form = el.form || (el.closest && el.closest('form'));
-    return !!form && !!form.querySelector('input[autocomplete=one-time-code]');
+    const form = $form(el);
+    return !!form && !!$one(form, 'input[autocomplete=one-time-code]');
   };
   // Plain code's click on the button of a profile step before the application (Microsoft's
   // "Create your profile" pop-up names its button Submit, live: KAN-647).
   const profileClick = () => window.__applyProfileClick === true;
   // Only a button that names no application, in a pop-up that is a profile step and no more.
   const profileStep = (el) => {
-    const dialog = el && el.closest && el.closest('[role=dialog], [aria-modal=true], dialog[open]');
-    return !!dialog && !/\bappl(?:y|ying|ication)\b/i.test(wordsOf(el)) && (@PROFILE_DIALOG@)(dialog);
+    const dialog = $up(el, '[role=dialog], [aria-modal=true], dialog[open]');
+    return !!dialog && !$re(/\bappl(?:y|ying|ication)\b/i, wordsOf(el)) && (@PROFILE_DIALOG@)(dialog);
   };
   const FINAL_URLS = [
     /^https?:\/\/[^\/]*greenhouse\.io\/(?:embed\/job_app|[^\/?#]+\/jobs\/\d+\/?(?:[?#].*)?$)/i,
@@ -164,59 +192,82 @@ _TEMPLATE = r"""
   const SENDS = /\b(submit|send|finish|complete)\b/i;
   const APPLY = /\bapply\b/i;
   const blocked = window.__@KEY@Blocked = [];
+  const $warn = console.warn, $console = console;
   let touched = false;  // a real click or key on the page: Apply's or Lisul's
   for (const kind of ['pointerdown', 'keydown']) addEventListener(kind, (event) => { if (event.isTrusted) touched = true; }, true);@PORT_TOUCH@
+  const $create = Document.prototype.createElement, $append = Node.prototype.appendChild;
+  const $setAttr = Element.prototype.setAttribute, $byIdNote = Document.prototype.getElementById;
+  const $textSet = $gopd(Node.prototype, 'textContent').set;
+  const $dispatch = EventTarget.prototype.dispatchEvent, $CustomEvent = CustomEvent;
+  const $root = $getter(Document.prototype, 'documentElement');
   const note = (what) => {
-    blocked.push(what);
+    try {
+      blocked[blocked.length] = what;
+    } catch (e) {}
     if (held()) {  // Lisul's own Submit on a held page: the held note says why, with its Dismiss button
-      console.warn('@NAME@ held ' + what);
+      $R($warn, $console, ['@NAME@ held ' + what]);
       if (window.__applyHeldBlocked) window.__applyHeldBlocked();
       return;
     }
-    console.warn('@NAME@ blocked ' + what);@PORT_SAID@
+    $R($warn, $console, ['@NAME@ blocked ' + what]);@PORT_SAID@
     // The page's own script, with no click or key on it yet (a cookie banner, analytics): blocked, unshown.
     if (!touched) return;
     try {
-      let box = document.getElementById('@BOX@');
+      let box = $R($byIdNote, document, ['@BOX@']);
       if (!box) {
-        box = document.createElement('div');
-        box.id = '@BOX@';
+        box = $R($create, document, ['div']);
+        $R($setAttr, box, ['id', '@BOX@']);
         // Under a captcha's challenge (reCAPTCHA's is z-index 2000000000), so its Verify stays pressable.
-        box.style.cssText = 'position:fixed;bottom:8px;right:8px;z-index:1999999999;padding:6px 10px;'
-          + 'background:#b00020;color:#fff;font:13px sans-serif;border-radius:4px;pointer-events:none';
-        (document.body || document.documentElement).appendChild(box);
+        $R($setAttr, box, ['style', 'position:fixed;bottom:8px;right:8px;z-index:1999999999;padding:6px 10px;'
+          + 'background:#b00020;color:#fff;font:13px sans-serif;border-radius:4px;pointer-events:none']);
+        $R($append, $body() || $root(document), [box]);
       }
-      box.textContent = '@NAME@: blocked ' + what + '. Nothing was sent.';
+      $R($textSet, box, ['@NAME@: blocked ' + what + '. Nothing was sent.']);
     } catch (e) {}
   };
-  const site = (host) => host.split('.').slice(-2).join('.');  // a host's site, near enough (more blocked, never less)
+  // A host's site, near enough (more blocked, never less): its last two labels.
+  const site = (host) => {
+    const i = $last(host, '.');
+    const j = i > 0 ? $last(host, '.', i - 1) : -1;
+    return i < 0 || j < 0 ? host : $cut(host, j + 1);
+  };
+  const anyRe = (list, s, upto) => {
+    for (let i = 0; i < (upto === undefined ? list.length : upto); i++) if ($re(list[i], s)) return true;
+    return false;
+  };
+  // A request's method and URL as the guard was given them: strings, read once.
   const isFinal = (method, url, body) => {
     if (lifted()) return false;
-    if (/^(GET|HEAD|OPTIONS)$/i.test(method || 'GET')) return false;
-    let href = String(url);
-    try { href = new URL(href, location.href).href; } catch (e) {}
+    if ($re(/^(GET|HEAD|OPTIONS)$/i, $txt(method) || 'GET')) return false;
+    let href = $txt(url);
+    try { href = $url(href, location.href).href; } catch (e) {}
     // The Posting's Apply went through: nothing else is posted to its own site from the page (KAN-725), its
     // other hosts included (an API on another subdomain).
-    if (starting) try { if (site(new URL(href).hostname) === site(location.hostname)) return true; } catch (e) { return true; }
-    if (NOT_FINAL.some(r => r.test(href))) return false;
-    return FINAL_URLS.some(r => r.test(href)) || (typeof body === 'string' && FINAL_BODIES.some(r => r.test(body)));
+    if (starting) try { if (site($url(href).hostname) === site(location.hostname)) return true; } catch (e) { return true; }
+    if (anyRe(NOT_FINAL, href)) return false;
+    return anyRe(FINAL_URLS, href) || (typeof body === 'string' && anyRe(FINAL_BODIES, body));
   };
 
-  const wordsOf = (el) => [el.innerText, el.value, el.getAttribute('aria-label')]
-    .filter(w => typeof w === 'string' && w.trim())[0] || '';
+  // A control's words: its text, its value, its aria-label, the first that has any.
+  const wordsOf = (el) => {
+    const said = [$text(el), $value(el), $attr(el, 'aria-label')];
+    for (let i = 0; i < 3; i++) if ($trim(said[i])) return said[i];
+    return '';
+  };
   // A button that sends: its words say so, or say apply on a form's button (a job page's Apply link is no form's;
   // a posting's Apply button that only opens the application goes through by opens, below).
   const sends = (el) => {
     const words = wordsOf(el);
-    return SENDS.test(words) || (APPLY.test(words) && !!(el.form || (el.closest && el.closest('form'))));
+    return $re(SENDS, words) || ($re(APPLY, words) && !!$form(el));
   };
   // A field holding an answer, as an application's would: shown, and typed in, ticked, chosen or given a file.
   const filled = (n) => {
-    if (/^(hidden|submit|button|reset|image)$/.test(n.type) || (n.checkVisibility && !n.checkVisibility())) return false;
-    if (n.type === 'checkbox' || n.type === 'radio') return n.checked;
-    if (n.type === 'file') return !!(n.files && n.files.length);
-    if (n.tagName === 'SELECT') return n.selectedIndex > 0;
-    return String(n.value || '').trim() !== '';
+    const type = $type(n);
+    if ($re(/^(hidden|submit|button|reset|image)$/, type) || !$shown(n)) return false;
+    if (type === 'checkbox' || type === 'radio') return $checked(n) === true;
+    if (type === 'file') return $fileCount(n) > 0;
+    if ($tag(n) === 'SELECT') return $selected(n) > 0;
+    return $trim($value(n)) !== '';
   };
   // Plain code's word that this document is the Posting's own page, open as Claude fill's first drive began
   // (DriveGuard.let_start_click, KAN-725). Anything done on it since takes the word back: a key, an input or
@@ -225,7 +276,7 @@ _TEMPLATE = r"""
   // Only on a job system whose posting's Apply is known to open the form alone (TAL.net's, live): elsewhere a
   // posting's Apply may apply at once from a profile the site holds, in any words.
   const START_HOSTS = [/(^|\.)tal\.net$/i];
-  const startClick = () => window.__applyStartClick === true && START_HOSTS.some((r) => r.test(location.hostname));
+  const startClick = () => window.__applyStartClick === true && anyRe(START_HOSTS, location.hostname);
   // In this frame and the page's top one: an answer typed in a frame of the page's own site takes it back too.
   const unvouch = () => {
     window.__applyStartClick = false;
@@ -233,25 +284,26 @@ _TEMPLATE = r"""
   };
   const COOKIES = /\b(accept|reject|decline|allow|deny|cookies?|consent|close|dismiss|got it|ok(ay)?)\b/i;
   const cookieButton = (el) => {
-    if (!el || !COOKIES.test(wordsOf(el))) return false;
-    for (let up = el.parentElement, i = 0; up && i < 5; up = up.parentElement, i++) {
-      const text = String(up.innerText || '');
+    if (!el || !$re(COOKIES, wordsOf(el))) return false;
+    for (let up = $parent(el), i = 0; up && i < 5; up = $parent(up), i++) {
+      const text = $text(up);
       if (text.length > 3000) return false;
-      if (/\bcookies?\b/i.test(text)) return true;
+      if ($re(/\bcookies?\b/i, text)) return true;
     }
     return false;
   };
   for (const kind of ['keydown', 'input', 'change', 'click']) addEventListener(kind, (event) => {
-    if (kind === 'click') {
-      const at = (event.composedPath && event.composedPath()[0]) || event.target;
-      const control = at && at.closest && at.closest('button, input, a, [role=button]');
-      if (control && (cookieButton(control) || opens(control))) return;
-    }
+    try {
+      if (kind === 'click') {
+        const control = $up($firstOnPath(event), 'button, input, a, [role=button]');
+        if (control && (cookieButton(control) || opens(control))) return;
+      }
+    } catch (e) {}  // unread: the word is taken back
     unvouch();
   }, true);
   for (const name of ['pushState', 'replaceState']) {
     const was = history[name];
-    history[name] = function (...args) { unvouch(); return was.apply(this, args); };
+    history[name] = function (...args) { unvouch(); return $R(was, this, args); };
   }
   for (const kind of ['popstate', 'hashchange']) addEventListener(kind, unvouch, true);
   // The Apply that went through, once: its form's submission opens the application, and until the next page
@@ -268,39 +320,43 @@ _TEMPLATE = r"""
   const DRAFT = /\b(review (and|&) (submit|apply)|review (your|my) (application|answers)|application (summary|preview)|your answers|(continue|resume|finish) (your|my) application|(saved|your|my) draft|draft application|declaration|signed in as|(apply|applying) with (your|my|a|the|saved) (saved )?(profile|resume|cv|details)|quick apply|one[- ]click apply|easy apply)\b/i;
   // The form, as it is now: a hidden token and buttons only, bound for the page's own site and no final URL.
   const tokenOnly = (form, by) => {
-    const own = [...Object.getOwnPropertyDescriptor(HTMLFormElement.prototype, 'elements').get.call(form)];
-    if (!own.every((n) => (n.type === 'hidden' && TOKEN.test(n.name)) || n.tagName === 'FIELDSET'
-      || /^(submit|button|reset)$/.test(n.type))) return false;
+    if (!$every($fields(form), (n) => ($type(n) === 'hidden' && $re(TOKEN, $attr(n, 'name'))) || $tag(n) === 'FIELDSET'
+      || $re(/^(submit|button|reset)$/, $type(n)))) return false;
     try {
-      const href = new URL(String(postTarget(form, by)), location.href);
-      return href.origin === location.origin && !FINAL_URLS.some(r => r.test(href.href));
+      const href = $url(postTarget(form, by), location.href);
+      return href.origin === location.origin && !anyRe(FINAL_URLS, href.href);
     } catch (e) { return false; }
   };
   // A heading that names an application, its review, summary or draft: no posting's (TAL.net's names the job).
   const HEADED = /\b(review|summary|draft|confirm\w*|(your|my) application|application (form|details))\b/i;
   const opens = (el) => {
-    const form = el.form || (el.closest && el.closest('form'));
+    const form = $form(el);
     const words = wordsOf(el);
-    if (!startClick() || window.top !== window || !form || SENDS.test(words) || !APPLY.test(words)) return false;
-    if (!tokenOnly(form, el) || DRAFT.test(String((document.body && document.body.innerText) || ''))) return false;
-    const heads = [...document.querySelectorAll('h1, h2, h3, h4, [role=heading], legend')].map((h) => h.innerText).join(' ');
-    if (HEADED.test(document.title + ' ' + heads)) return false;
-    return ![...document.querySelectorAll('input, select, textarea')].some(filled)
-      && ![...document.querySelectorAll('[contenteditable]:not([contenteditable=false])')].some((n) => n.innerText.trim());
+    if (!startClick() || window.top !== window || !form || $re(SENDS, words) || !$re(APPLY, words)) return false;
+    const body = $body();
+    if (!tokenOnly(form, el) || $re(DRAFT, body ? $text(body) : '')) return false;
+    const hs = $all(document, 'h1, h2, h3, h4, [role=heading], legend');
+    let heads = '';
+    for (let i = 0; i < hs.length; i++) heads += ' ' + $text(hs[i]);
+    if ($re(HEADED, $title() + heads)) return false;
+    return !$any($all(document, 'input, select, textarea'), filled)
+      && !$any($all(document, '[contenteditable]:not([contenteditable=false])'), (n) => !!$trim($text(n)));
   };
 
   // Clicks on a submit button, before any of the page's handlers.
-  window.addEventListener('click', (event) => {
-    const target = event.target && event.target.closest
-      && event.target.closest('button, input[type=submit], input[type=button], [role=button], a');
-    if (!target) return;
+  window.addEventListener('click', judged('a click', (event) => {
     if (lifted()) {  // Lisul's page: his click goes through, and Apply hears of one that sends
       // Saying whether it was a sign-in, account or code form's (Workday's Sign in with email names its button
       // Submit): that press sends no application, so Resume still goes on after it.
-      if (sends(target) && window.__applyLisulPressed) window.__applyLisulPressed(wordsOf(target).trim().slice(0, 80),
-        accountForm(target) || codeForm(target));
+      try {
+        const target = $up($target(event), 'button, input[type=submit], input[type=button], [role=button], a');
+        if (target && sends(target) && window.__applyLisulPressed) window.__applyLisulPressed(
+          $cut($trim(wordsOf(target)), 0, 80), accountForm(target) || codeForm(target));
+      } catch (e) {}  // his click goes on, unheard
       return;
     }
+    const target = $up($target(event), 'button, input[type=submit], input[type=button], [role=button], a');
+    if (!target) return;
     if (opens(target)) {  // the Posting's Apply, once (KAN-725)
       unvouch();
       starting = target;
@@ -312,16 +368,15 @@ _TEMPLATE = r"""
     if (accountClick() && accountForm(target)) return;
     if (profileClick() && profileStep(target)) return;
     const words = wordsOf(target);
-    event.preventDefault();
-    event.stopImmediatePropagation();
-    note('the "' + words.trim().slice(0, 40) + '" click');
-  }, true);
+    $stop(event);
+    note('the "' + $cut($trim(words), 0, 40) + '" click');
+  }), true);
 @EXTRA@
 
   // Native submission of a POST form.
   const posts = (form, submitter) => {
-    const method = (submitter && submitter.getAttribute && submitter.getAttribute('formmethod')) || form.getAttribute('method') || 'get';
-    return method.toLowerCase() === 'post';
+    const method = (submitter ? $attr(submitter, 'formmethod') : '') || $attr(form, 'method') || 'get';
+    return $lower(method) === 'post';
   };
   // A submit that would send the application (by its Submit/Send button, or with no
   // button, as a script's requestSubmit() or a page's own Enter key does, from a form
@@ -329,153 +384,200 @@ _TEMPLATE = r"""
   // A POST to a job system's final application URL (a CDP Worker routes none of those page URLs): never let
   // through by plain code's account, step or profile click (KAN-639, KAN-647), as a fetch to it never is.
   // Its target by attribute (a field named "action" shadows form.action), relative to the page as isFinal reads it.
-  const postTarget = (form, by) => (by && by.getAttribute && by.getAttribute('formaction'))
-    || HTMLFormElement.prototype.getAttribute.call(form, 'action') || location.href;
+  const postTarget = (form, by) => (by ? $attr(by, 'formaction') : '') || $attr(form, 'action') || location.href;
   // Any job system's final URL by its name alone (a path ending in /apply, the last of FINAL_URLS), not a known one.
   const byNameAlone = (form, by) => {
-    let href = String(postTarget(form, by));
-    try { href = new URL(href, location.href).href; } catch (e) {}
-    return !FINAL_URLS.slice(0, -1).some(r => r.test(href));
+    let href = postTarget(form, by);
+    try { href = $url(href, location.href).href; } catch (e) {}
+    return !anyRe(FINAL_URLS, href, FINAL_URLS.length - 1);
   };
   // The page itself says steps remain after this one ("Step 2 of 5", a step list past the current step), and
   // the form has no button that sends. Then a POST to a path ending in /apply is a step, not the last (KAN-656).
   // No page saying so, or "Step 5 of 5", stays blocked: a step's Next there hands off, and nothing is sent.
   const moreSteps = (form) => {
-    if ([...form.querySelectorAll('button, input[type=submit]')].some(sends)) return false;
-    const said = String((document.body && document.body.innerText) || '').match(/\bstep\s*(\d+)\s*(?:of|\/)\s*(\d+)\b/i);
-    if (said) return Number(said[1]) < Number(said[2]);
-    const at = document.querySelector('[aria-current=step]');
-    return !!at && !!(at.closest('li') || at).nextElementSibling;
+    if ($any($all(form, 'button, input[type=submit]'), sends)) return false;
+    const body = $body();
+    const said = $found(/\bstep\s*(\d+)\s*(?:of|\/)\s*(\d+)\b/i, body ? $text(body) : '');
+    if (said) return $Number(said[1]) < $Number(said[2]);
+    const at = $one(document, '[aria-current=step]');
+    return !!at && !!$next($up(at, 'li') || at);
   };
   const postsFinal = (form, by) => posts(form, by) && isFinal('POST', postTarget(form, by))
     && !(byNameAlone(form, by) && moreSteps(form));
   // A profile pop-up posting to its own page, on a URL final by its name alone: the pop-up is proven no application.
-  const profileOwnPage = (form, by) => !(by && by.getAttribute && by.getAttribute('formaction'))
-    && !HTMLFormElement.prototype.getAttribute.call(form, 'action') && byNameAlone(form, by);
+  const profileOwnPage = (form, by) => !(by && $attr(by, 'formaction')) && !$attr(form, 'action') && byNameAlone(form, by);
   // A sign-in relay's own post (an SSO, OIDC or SAML hand-off: Amazon's idp.federate "Signing you in...", live):
   // the page's script posts it before any click or key on the page, its fields are all hidden (a token, a
   // state), no button of it sends, and it is bound for no final URL. Nothing of an application is in it.
-  const fields = (form) => Object.getOwnPropertyDescriptor(HTMLFormElement.prototype, 'elements').get.call(form);
-  const hiddenOnly = (form) => [...fields(form)].some((n) => n.type === 'hidden')
-    && [...fields(form)].every((n) => n.type === 'hidden' || n.tagName === 'FIELDSET'
-      || (/^(submit|button|reset)$/.test(n.type) && !sends(n)));
+  const fields = (form) => $fields(form);
+  const hiddenOnly = (form) => $any(fields(form), (n) => $type(n) === 'hidden')
+    && $every(fields(form), (n) => $type(n) === 'hidden' || $tag(n) === 'FIELDSET'
+      || ($re(/^(submit|button|reset)$/, $type(n)) && !sends(n)));
   const relay = (form, by) => !touched && posts(form, by) && !postsFinal(form, by) && hiddenOnly(form);
   // Another site's widget loading itself into its own frame on the page, click or no click: LinkedIn's Apply
   // with LinkedIn on Microsoft's form (live, KAN-711) posts a form of hidden fields (its key, the job's code)
   // to linkedin.com into the iframe it just made, as the form loads. Bound for another site and no final URL,
   // into a frame of this page (its target names an iframe here), with nothing of the application in it.
   const frameLoad = (form, by) => {
-    const target = (by && by.getAttribute && by.getAttribute('formtarget'))
-      || HTMLFormElement.prototype.getAttribute.call(form, 'target') || '';
-    if (!target || target.startsWith('_') || !posts(form, by) || postsFinal(form, by) || !hiddenOnly(form)) return false;
+    const target = (by ? $attr(by, 'formtarget') : '') || $attr(form, 'target');
+    if (!target || target[0] === '_' || !posts(form, by) || postsFinal(form, by) || !hiddenOnly(form)) return false;
     let away = false;
-    try { away = new URL(postTarget(form, by), location.href).origin !== location.origin; } catch (e) {}
-    return away && [...document.getElementsByName(target)].some((n) => /^I?FRAME$/.test(n.tagName));
+    try { away = $url(postTarget(form, by), location.href).origin !== location.origin; } catch (e) {}
+    return away && $any($byName(target), (n) => $re(/^I?FRAME$/, $tag(n)));
   };
   // Plain code's résumé attach (apply.attach): the page's own script posting the file it was just given, as iCIMS
   // posts its résumé to be parsed by a native submission (KAN-691). Only a form that holds a chosen file, sent by no
   // button that sends, and never to a final URL; outside the attach's window it is blocked as ever.
   const uploadPost = (form, by) => window.__applyUploadPost === true && !(by && sends(by))
-    && [...form.querySelectorAll('input[type=file]')].some((input) => input.files && input.files.length > 0)
+    && $any($all(form, 'input[type=file]'), (input) => $fileCount(input) > 0)
     && !postsFinal(form, by);
   // A blocked form submission named by where it went, its frame target and what sent it (a button's
   // words, else a script), so a Handoff and the Trace tell a page's own post from the application.
   const formNamed = (form, by) => {
-    let href = String(postTarget(form, by));
-    try { href = new URL(href, location.href).href; } catch (e) {}
-    const target = String((by && by.getAttribute && by.getAttribute('formtarget'))
-      || HTMLFormElement.prototype.getAttribute.call(form, 'target') || '');
-    const words = by ? String(by.innerText || by.value || by.getAttribute('aria-label') || '').trim().slice(0, 40) : '';
-    return 'a form submission (POST ' + href.slice(0, 160) + (target ? ', into frame ' + target.slice(0, 60) : '')
+    let href = postTarget(form, by);
+    try { href = $url(href, location.href).href; } catch (e) {}
+    const target = (by ? $attr(by, 'formtarget') : '') || $attr(form, 'target');
+    const words = by ? $cut($trim(wordsOf(by)), 0, 40) : '';
+    return 'a form submission (POST ' + $cut(href, 0, 160) + (target ? ', into frame ' + $cut(target, 0, 60) : '')
       + ', by ' + (words ? 'the "' + words + '" button' : 'a script') + ')';
   };
-  window.addEventListener('submit', (event) => {
+  window.addEventListener('submit', judged('a form submission', (event) => {
     if (lifted()) return;
-    const form = event.target, by = event.submitter;
+    const form = $target(event), by = $submitter(event);
     // Only the Posting's Apply's own form, once, and only as it was when let through (no field or target added since).
     // Sent as Apply's own copy of it, its token and the button's name alone, so no handler of the page's can add
     // to it after this check.
-    if (starting && by === starting && !started && form === (by.form || by.closest('form')) && tokenOnly(form, by)) {
+    if (starting && by === starting && !started && form === $form(by) && tokenOnly(form, by)) {
       started = true;
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      const copy = document.createElement('form');
-      copy.method = 'post';
-      copy.action = new URL(String(postTarget(form, by)), location.href).href;
+      $stop(event);
+      const copy = $R($create, document, ['form']);
+      $R($setAttr, copy, ['method', 'post']);
+      $R($setAttr, copy, ['action', $url(postTarget(form, by), location.href).href]);
       const put = (name, value) => {
-        const input = document.createElement('input');
-        input.type = 'hidden'; input.name = name; input.value = value;
-        copy.appendChild(input);
+        const input = $R($create, document, ['input']);
+        $R($setAttr, input, ['type', 'hidden']);
+        $R($setAttr, input, ['name', name]);
+        $R($setAttr, input, ['value', value]);
+        $R($append, copy, [input]);
       };
-      for (const n of fields(form)) if (n.type === 'hidden' && n.name) put(n.name, n.value);
-      if (by.name) put(by.name, by.value);
-      copy.style.display = 'none';
-      (document.body || document.documentElement).appendChild(copy);
-      submit.call(copy);
+      const own = fields(form);
+      for (let i = 0; i < own.length; i++) if ($type(own[i]) === 'hidden' && $attr(own[i], 'name')) put($attr(own[i], 'name'), $value(own[i]));
+      if ($attr(by, 'name')) put($attr(by, 'name'), $value(by));
+      $R($setAttr, copy, ['style', 'display:none']);
+      $R($append, $body() || $root(document), [copy]);
+      $R(submit, copy, []);
       return;
     }
     if (relay(form, by) || frameLoad(form, by) || uploadPost(form, by)) return;
     // Plain code's sign-in, as above, but never a POST bound for the final URL: an application that makes an
     // account as it applies has a password box too (KAN-681).
-    if (accountClick() && form.querySelector('input[type=password]') && !postsFinal(form, by)) return;
+    if (accountClick() && $one(form, 'input[type=password]') && !postsFinal(form, by)) return;
     if (profileClick() && profileStep(by || form) && (!postsFinal(form, by) || profileOwnPage(form, by))) return;  // plain code's profile step, as above
-    const final = by ? sends(by)
-      : [...form.querySelectorAll('button, input[type=submit]')].some(sends);
+    const final = by ? sends(by) : $any($all(form, 'button, input[type=submit]'), sends);
     if (held() && !final) return;  // a held page is Lisul's but for its Submit: a Next goes on
-    if (final) event.stopImmediatePropagation();
+    if (final) $stopNowM(event);
     if (final || (posts(form, by) && (!accountClick() || postsFinal(form, by)))) {
-      event.preventDefault();
+      $stop(event);
       note(formNamed(form, by));
     }
-  }, true);
+  }), true);
   const submit = HTMLFormElement.prototype.submit;
   HTMLFormElement.prototype.submit = function () {
     // Under plain code's click, a page script may post a step's form, but never one with a button that sends
     // or one bound for the final URL (a Continue whose handler calls the application form's submit()).
-    const step = accountClick() && !postsFinal(this) && (!!this.querySelector('input[type=password]')
-      || ![...this.querySelectorAll('button, input[type=submit]')].some(sends));
-    if (!lifted() && !step && !relay(this, null) && !frameLoad(this, null) && !uploadPost(this) && posts(this)) return note(formNamed(this, null));
-    return submit.call(this);
+    // Anything unread here posts nothing (KAN-783).
+    let go = false;
+    try {
+      const step = accountClick() && !postsFinal(this) && (!!$one(this, 'input[type=password]')
+        || !$any($all(this, 'button, input[type=submit]'), sends));
+      go = lifted() || step || relay(this, null) || frameLoad(this, null) || uploadPost(this) || !posts(this);
+      if (!go) note(formNamed(this, null));
+    } catch (e) {
+      try { note('a form submission it could not read'); } catch (e2) {}
+    }
+    if (go) return $R(submit, this, []);
   };
 
-  // The final application request.
-  const fetch = window.fetch;
+  // The final application request. Each of its URL, method and body is read once, and that one read is both
+  // judged and sent (KAN-783): a URL whose toString or Symbol.toPrimitive says another on a second read, an init
+  // whose getter or Proxy says GET to the guard, or a Request that instanceof can't see, sends what was judged.
+  const $Blob = Blob.prototype, $USP = URLSearchParams.prototype;
+  const $reqUrl = $getter(Request.prototype, 'url'), $reqMethod = $getter(Request.prototype, 'method');
+  const $reqClone = $method(Request.prototype, 'clone'), $reqText = $method(Request.prototype, 'text');
+  const $blobSize = $getter($Blob, 'size'), $blobText = $method($Blob, 'text'), $uspText = $method($USP, 'toString');
+  const $fdHas = $method(FormData.prototype, 'has'), $abLen = $getter(ArrayBuffer.prototype, 'byteLength');
+  const $isView = ArrayBuffer.isView, $rsLocked = $getter(typeof ReadableStream === 'function' ? ReadableStream.prototype : null, 'locked');
+  const $then = Promise.prototype.then, $reject = Promise.reject.bind(Promise);
+  const brand = (f, o) => { try { f(o); return true; } catch (e) { return false; } };
+  const isRequest = (o) => brand($reqUrl, o);
+  const isBlob = (o) => brand($blobSize, o), isParams = (o) => brand($uspText, o);
+  // A body the browser sends as it is (a Blob, form data, bytes, a stream), or else as text: that text read once.
+  const bodyOnce = (body) => {
+    if (body === undefined || body === null || typeof body === 'string') return body;
+    if (typeof body !== 'object' && typeof body !== 'function') return $str(body);
+    if (isBlob(body) || isParams(body) || brand((o) => $fdHas(o, ''), body) || brand($abLen, body) || $isView(body)
+      || ($rsLocked && brand($rsLocked, body)) || ($isDoc(body))) return body;
+    return $str(body);
+  };
+  const bodyText = (body) => (typeof body === 'string' ? body : body && isParams(body) ? $uspText(body) : null);
+  const nativeFetch = window.fetch;
   // Named with its method and link, so a Handoff (and the Trace) says which request it was.
-  const named = (method, url) => 'the application request (' + String(method || 'POST').toUpperCase() + ' ' + String(url).slice(0, 160) + ')';
-  const refused = (method, url) => (note(named(method, url)), Promise.reject(new TypeError('Blocked by the @NAME@')));
+  const named = (method, url) => 'the application request (' + $upper($txt(method) || 'POST') + ' ' + $cut(url, 0, 160) + ')';
+  const refused = (method, url) => { try { note(named(method, url)); } catch (e) {} return $reject(new $TypeError('Blocked by the @NAME@')); };
+  const INIT = ['body', 'cache', 'credentials', 'duplex', 'headers', 'integrity', 'keepalive', 'method', 'mode',
+                'priority', 'redirect', 'referrer', 'referrerPolicy', 'signal', 'window'];
   window.fetch = function (input, init) {
-    const request = input instanceof Request ? input : null;
-    const url = request ? request.url : input;
-    const method = (init && init.method) || (request ? request.method : 'GET');
-    const body = init && init.body !== undefined && init.body !== null ? init.body : null;
-    if (isFinal(method, url, typeof body === 'string' ? body : body instanceof URLSearchParams ? String(body) : null)) {
-      return refused(method, url);
+    const request = isRequest(input) ? input : null;
+    const url = request ? $reqUrl(request) : $str(input);
+    let given = init;
+    if (init !== undefined && init !== null && (typeof init === 'object' || typeof init === 'function')) {
+      given = {__proto__: null};
+      for (let i = 0; i < INIT.length; i++) { const v = init[INIT[i]]; if (v !== undefined) given[INIT[i]] = v; }
+      if (given.method !== undefined) given.method = $str(given.method);
+      if (given.body !== undefined) given.body = bodyOnce(given.body);
     }
+    const method = (given && given.method) || (request ? $reqMethod(request) : 'GET');
+    const body = given && given.body !== undefined && given.body !== null ? given.body : null;
+    const args = given === undefined ? [request || url] : [request || url, given];
+    if (isFinal(method, url, bodyText(body))) return refused(method, url);
     // A body that isn't text yet (a Request's, a Blob) is read first: Ashby's submit is named only there.
-    if (!/^(GET|HEAD|OPTIONS)$/i.test(method) && (body ? body instanceof Blob : request)) {
-      const args = arguments, self = this;
-      return (body ? body.text() : request.clone().text()).catch(() => '')
-        .then(text => isFinal(method, url, text) ? refused(method, url) : fetch.apply(self, args));
+    if (!$re(/^(GET|HEAD|OPTIONS)$/i, method) && (body ? isBlob(body) : request)) {
+      const self = this;
+      const read = body ? $blobText(body) : $reqText($reqClone(request));
+      const go = (text) => (isFinal(method, url, text) ? refused(method, url) : $R(nativeFetch, self, args));
+      return $R($then, read, [go, () => go('')]);
     }
-    return fetch.apply(this, arguments);
+    return $R(nativeFetch, this, args);
   };
-  const open = XMLHttpRequest.prototype.open;
+  const open = XMLHttpRequest.prototype.open, send = XMLHttpRequest.prototype.send;
+  // Each request's method and URL as open() was given them, kept where the page can't rewrite them.
+  const opened = new WeakMap(), $wmGet = WeakMap.prototype.get, $wmSet = WeakMap.prototype.set;
   XMLHttpRequest.prototype.open = function (method, url) {
-    this.__applyRequest = [method, url];
-    return open.apply(this, arguments);
+    const args = $bare();
+    args[0] = $str(method);
+    args[1] = $str(url);
+    for (let i = 2; i < arguments.length; i++) args[i] = arguments[i];
+    const done = $R(open, this, args);
+    $R($wmSet, opened, [this, {__proto__: null, method: args[0], url: args[1]}]);
+    return done;
   };
-  const send = XMLHttpRequest.prototype.send;
   XMLHttpRequest.prototype.send = function (body) {
-    const [method, url] = this.__applyRequest || [];
-    if (isFinal(method, url, body)) {
-      note(named(method, url));
-      throw new DOMException('Blocked by the @NAME@', 'NetworkError');
+    const kept = $R($wmGet, opened, [this]);
+    const sent = bodyOnce(body);
+    // Opened by no open() of this guard's (another realm's): it can't be judged, so it isn't sent.
+    if (!kept || isFinal(kept.method, kept.url, bodyText(sent))) {
+      try { note(kept ? named(kept.method, kept.url) : 'a request it could not read'); } catch (e) {}
+      throw new $DOMException('Blocked by the @NAME@', 'NetworkError');
     }
-    return send.apply(this, arguments);
+    return $R(send, this, arguments.length ? [sent] : []);
   };
   if (navigator.sendBeacon) {
     const beacon = navigator.sendBeacon.bind(navigator);
-    navigator.sendBeacon = (url, data) => isFinal('POST', url, data) ? (note(named('POST', url)), false) : beacon(url, data);
+    navigator.sendBeacon = (url, data) => {
+      const href = $str(url), sent = bodyOnce(data);
+      if (isFinal('POST', href, bodyText(sent))) { try { note(named('POST', href)); } catch (e) {} return false; }
+      return data === undefined ? beacon(href) : beacon(href, sent);
+    };
   }
 })();
 """
@@ -499,92 +601,102 @@ _CONTROLS = r"""
     [/\bsms\b|text messages?|\btext me\b|whatsapp/i, @SMS_OPT_IN@],
     [/marketing|newsletter|job alerts|talent (?:community|network)|advertis|subscribe/i, @MARKETING_OPT_IN@],
   ].filter(([, yes]) => !yes).map(([words]) => words);
-  const optIn = (words) => OPT_INS.some(r => r.test(words));
+  const optIn = (words) => anyRe(OPT_INS, words);
   const BOX = 'input[type=checkbox], [role=checkbox], [role=switch]';
-  const boxWords = (el) => [...(el.labels || [])].map(l => l.innerText).join(' ').trim()
-    || el.getAttribute('aria-label') || ((el.closest('label') || el.parentElement || {}).innerText || '');
-  window.addEventListener('click', (event) => {
-    const el = event.target && event.target.closest
-      && event.target.closest(BOX + ', button, input[type=submit], input[type=button], [role=button], a');
-    if (!el || lifted()) return;
-    if (!accountClick() && !el.matches(BOX) && !el.matches('a:not([role=button])') && carriesCaptcha() && accountStep(el)) {
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      return note('the "' + wordsOf(el).trim().slice(0, 40) + '" click ' + SIGN_IN_CLICK);
+  const boxWords = (el) => {
+    const labels = $labels(el);
+    let said = '';
+    if (labels) for (let i = 0; i < labels.length; i++) said += (i ? ' ' : '') + $text(labels[i]);
+    const around = $up(el, 'label') || $parent(el);
+    return $trim(said) || $attr(el, 'aria-label') || (around ? $text(around) : '');
+  };
+  // A box's click has ticked it already when it is a checkbox; a role=checkbox's has yet to.
+  const ticks = (el) => ($type(el) === 'checkbox' ? $checked(el) === true : $attr(el, 'aria-checked') !== 'true');
+  window.addEventListener('click', judged('a click', (event) => {
+    if (lifted()) return;
+    const el = $up($target(event), BOX + ', button, input[type=submit], input[type=button], [role=button], a');
+    if (!el) return;
+    if (!accountClick() && !$is(el, BOX) && !$is(el, 'a:not([role=button])') && carriesCaptcha() && accountStep(el)) {
+      $stop(event);
+      return note('the "' + $cut($trim(wordsOf(el)), 0, 40) + '" click ' + SIGN_IN_CLICK);
     }
-    const box = el.matches(BOX);
+    const box = $is(el, BOX);
     const words = box ? boxWords(el) : wordsOf(el);
-    // A checkbox's click has ticked it already; a role=checkbox's has yet to.
-    const ticks = box && (el.type === 'checkbox' ? el.checked : el.getAttribute('aria-checked') !== 'true');
-    if (box ? !(ticks && optIn(words)) : !(CONTROLS.test(words) || (signsIn(el) && !accountClick()))) return;
-    event.preventDefault();
-    event.stopImmediatePropagation();
-    note('the "' + words.trim().slice(0, 40) + '" click');
-  }, true);
+    if (box ? !(ticks(el) && optIn(words)) : !($re(CONTROLS, words) || (signsIn(el) && !accountClick()))) return;
+    $stop(event);
+    note('the "' + $cut($trim(words), 0, 40) + '" click');
+  }), true);
   // A page that carries a captcha, its invisible kind too (apply.captcha.CARRIED), in this frame or a same-origin
   // one around it: an account step's button there runs the captcha, so it is Lisul's to press, never Claude's, and
   // plain code's account click never comes (apply.account_pages hands off first). AMD's iCIMS email step, KAN-703.
   const CAPTCHA_CARRIED = @CAPTCHA_CARRIED@, SIGN_IN_CLICK = @SIGN_IN_CLICK@;
+  const $parentWin = ($gopd(window, 'parent') || {}).get, $docOf = ($gopd(window, 'document') || {}).get;
   const carriesCaptcha = () => {
-    for (let w = window; ; w = w.parent) {
-      try { if (w.document.querySelector(CAPTCHA_CARRIED)) return true; } catch (e) { return false; }
-      if (w === w.parent) return false;
-    }
+    try {
+      for (let w = window; ;) {
+        if ($one($R($docOf, w, []), CAPTCHA_CARRIED)) return true;
+        const up = $R($parentWin, w, []);
+        if (up === w) return false;
+        w = up;
+      }
+    } catch (e) { return false; }  // another site's frame around this one
   };
   // An account step: a form with a password box, or one with an email or username box and few fields else (an
   // email step's Next): at most one more, or three on a page whose path signs in or makes an account.
   const ACCOUNT_PATH = /(?:^|[\/_.-])(?:log-?in|sign-?in|sign-?up|log-?on|register|registration|account)(?:$|[\/_.-])/i;
   const accountStep = (el) => {
-    const scope = el.form || (el.closest && el.closest('form')) || document;
-    if (scope.querySelector('input[type=password]')) return true;
-    const shown = [...scope.querySelectorAll('input, select, textarea')].filter((n) => !/^(hidden|submit|button|reset|image|checkbox|radio)$/.test(n.type)
-      && (!n.checkVisibility || n.checkVisibility()));
-    return shown.length <= (ACCOUNT_PATH.test(location.pathname) ? 4 : 2)
-      && shown.some((n) => n.type === 'email' || /e-?mail|user|login/i.test([n.name, n.id, n.autocomplete].join(' ')));
+    const scope = $form(el) || document;
+    if ($one(scope, 'input[type=password]')) return true;
+    const all = $all(scope, 'input, select, textarea'), shown = $bare();
+    for (let i = 0; i < all.length; i++) {
+      if (!$re(/^(hidden|submit|button|reset|image|checkbox|radio)$/, $type(all[i])) && $shown(all[i])) shown[shown.length] = all[i];
+    }
+    return shown.length <= ($re(ACCOUNT_PATH, location.pathname) ? 4 : 2)
+      && $any(shown, (n) => $type(n) === 'email'
+        || $re(/e-?mail|user|login/i, $attr(n, 'name') + ' ' + $attr(n, 'id') + ' ' + $attr(n, 'autocomplete')));
   };
   // A sign-in or new account's own button, or its form sent another way (Enter): plain code's alone.
   const signsIn = (el) => {
-    const form = el.form || (el.closest && el.closest('form'));
-    return !!form && !el.matches('a') && !!form.querySelector('input[type=password]');
+    const form = $form(el);
+    return !!form && !$is(el, 'a') && !!$one(form, 'input[type=password]');
   };
-  window.addEventListener('submit', (event) => {
+  window.addEventListener('submit', judged('a form submission', (event) => {
     if (lifted() || accountClick()) return;
-    if (carriesCaptcha() && accountStep(event.submitter || event.target)) {
-      event.preventDefault();
-      event.stopImmediatePropagation();
+    const form = $target(event);
+    if (carriesCaptcha() && accountStep($submitter(event) || form)) {
+      $stop(event);
       return note('a sign-in ' + SIGN_IN_CLICK);
     }
-    if (!event.target.querySelector('input[type=password]')) return;
-    event.preventDefault();
-    event.stopImmediatePropagation();
+    if (!$one(form, 'input[type=password]')) return;
+    $stop(event);
     note('a sign-in');
-  }, true);
+  }), true);
   // Ask Claude's drive (DriveGuard.asking): each trusted act judged on the real element, its text and attributes,
   // by send_click's words. The hook sees a snapshot's role and name only; this sees type=password and the rest.
   const askFacts = @ASK_ELEMENT@;
   const SECRET = new RegExp(@ASK_SECRET@, 'i'), ATTESTS = new RegExp(@ASK_ATTEST@, 'i'), RESEND = new RegExp(@ASK_RESEND@, 'i');
   const asking = (event) => window.__applyAsking === true && event.isTrusted && !lifted();
   const refuse = (event, what) => {
-    event.preventDefault();
-    event.stopImmediatePropagation();
+    $stop(event);
     note(what);
   };
-  window.addEventListener('beforeinput', (event) => {
+  // A field's words with - and _ read as spaces (name="otp_code").
+  const spaced = (s) => { let out = ''; for (let i = 0; i < s.length; i++) out += s[i] === '-' || s[i] === '_' ? ' ' : s[i]; return out; };
+  window.addEventListener('beforeinput', judged('typing', (event) => {
     if (!asking(event)) return;
-    const facts = askFacts(event.target);
-    if (facts.type === 'password' || SECRET.test((facts.text + ' ' + facts.attrs).replace(/[-_]+/g, ' '))) refuse(event, 'typing in a password or code field');
-    else if (ATTESTS.test(facts.text) && window.__applyAskTick !== true) refuse(event, 'typing in "' + facts.text.slice(0, 40) + '"');
-  }, true);
-  window.addEventListener('click', (event) => {
-    if (!asking(event) || !event.target || !event.target.closest) return;
-    const el = event.target.closest(BOX + ', button, input[type=submit], input[type=button], [role=button], a');
+    const facts = askFacts($target(event));
+    if (facts.type === 'password' || $re(SECRET, spaced(facts.text + ' ' + facts.attrs))) refuse(event, 'typing in a password or code field');
+    else if ($re(ATTESTS, facts.text) && window.__applyAskTick !== true) refuse(event, 'typing in "' + $cut(facts.text, 0, 40) + '"');
+  }), true);
+  window.addEventListener('click', judged('a click', (event) => {
+    if (!asking(event)) return;
+    const el = $up($target(event), BOX + ', button, input[type=submit], input[type=button], [role=button], a');
     if (!el) return;
     const words = askFacts(el).text;
-    if (el.matches(BOX)) {
-      const ticks = el.type === 'checkbox' ? el.checked : el.getAttribute('aria-checked') !== 'true';
-      if (ticks && ATTESTS.test(words) && window.__applyAskTick !== true) refuse(event, 'the "' + words.slice(0, 40) + '" tick');
-    } else if (RESEND.test(words)) refuse(event, 'the "' + words.slice(0, 40) + '" click');
-  }, true);
+    if ($is(el, BOX)) {
+      if (ticks(el) && $re(ATTESTS, words) && window.__applyAskTick !== true) refuse(event, 'the "' + $cut(words, 0, 40) + '" tick');
+    } else if ($re(RESEND, words)) refuse(event, 'the "' + $cut(words, 0, 40) + '" click');
+  }), true);
 """
 
 
@@ -622,7 +734,7 @@ def _script(key: str, name: str, lifted: str = "false", extra: str = "", in_capt
     script = _TEMPLATE
     for placeholder, value in {"@PORT_TOUCH@": PORT_TOUCH if port else "", "@PORT_SAID@": PORT_SAID if port else "",
                                "@KEY@": key, "@NAME@": name, "@BOX@": box, "@LIFTED@": lifted, "@HELD@": held,
-                               "@EXTRA@": extra, "@PROFILE_DIALOG@": PROFILE_DIALOG,
+                               "@EXTRA@": extra, "@PROFILE_DIALOG@": PROFILE_BODY, "@NATIVES@": NATIVES,
                                "@CAPTCHA@": in_captcha, "@CAPTCHA_HOSTS@": json.dumps(captcha.HOSTS),
                                "@CAPTCHA_PATHS@": json.dumps(captcha.PATHS)}.items():
         script = script.replace(placeholder, value)
@@ -632,7 +744,7 @@ def _script(key: str, name: str, lifted: str = "false", extra: str = "", in_capt
 # A plain Worker's additions (port=True): the worker extension dispatches `__apply_touch` on the
 # page before each press it makes (Apply's own, and Lisul's from the tile), and hears `__apply_said`.
 PORT_TOUCH = "\n  addEventListener('__apply_touch', () => { touched = true; }, true);"
-PORT_SAID = "\n    document.dispatchEvent(new CustomEvent('__apply_said', {detail: '@NAME@ blocked ' + what}));"
+PORT_SAID = "\n    try { $R($dispatch, document, [new $CustomEvent('__apply_said', {detail: '@NAME@ blocked ' + what})]); } catch (e) {}"
 
 
 # Lever's Apply with LinkedIn button never loads in a Worker's Chrome and spins on
@@ -658,7 +770,7 @@ def drive_script(sms_opt_in: bool = False, marketing_opt_in: bool = False, port:
     """The drive guard's script, letting through ticking an opt-in to texts or
     marketing that Lisul's policy says yes to (`port`: a plain Worker's copy)."""
     controls = _CONTROLS.replace("@SMS_OPT_IN@", _js(sms_opt_in)).replace("@MARKETING_OPT_IN@", _js(marketing_opt_in))
-    for name, value in {"@CAPTCHA_CARRIED@": json.dumps(captcha.CARRIED), "@SIGN_IN_CLICK@": json.dumps(captcha.SIGN_IN_CLICK),"@ASK_ELEMENT@": send_click.ELEMENT, "@ASK_SECRET@": json.dumps(send_click.SECRET.pattern),
+    for name, value in {"@CAPTCHA_CARRIED@": json.dumps(captcha.CARRIED), "@SIGN_IN_CLICK@": json.dumps(captcha.SIGN_IN_CLICK),"@ASK_ELEMENT@": send_click.ELEMENT_BODY, "@ASK_SECRET@": json.dumps(send_click.SECRET.pattern),
                         "@ASK_ATTEST@": json.dumps(send_click.ATTEST.pattern), "@ASK_RESEND@": json.dumps(send_click.RESEND.pattern)}.items():
         controls = controls.replace(name, value)
     return _script("applyDrive", "Apply drive guard", lifted="window.__applyDriveLifted === true", extra=controls,
