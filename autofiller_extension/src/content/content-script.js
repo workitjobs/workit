@@ -90,6 +90,11 @@
     } else note("_submit", "WorkIt couldn't mark it Applied", `Try again, or mark it Applied on WorkIt's Auto Apply page. (${answer?.error ?? "No answer"})`, true);
   }
   const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
+  /** The basic fill's row (KAN-777): why only the basics were filled, and what the student does. */
+  const BASIC = {
+    label: "Basic fill: WorkIt can't reach its server",
+    reason: "So it filled only what it can tell by the labels: your name, email, phone, links and a few common questions. Check every field and fill the rest yourself, or try Autofill again in a minute.",
+  };
   /** A row that is the overlay's message, not a field. `done`: news that asks nothing of the student. */
   function note(key, label, reason, failed = false, done = false) {
     status.register(key, label, failed, undefined, done ? "done" : "todo");
@@ -180,6 +185,11 @@
         note("_error", "Workday showed an error page", "Reload the page. WorkIt fills the step when it shows.", true);
         return null;
       }
+      // A basic fill (KAN-777): the Store package's engine without the API's Rules table. Said plainly, once.
+      if (prepared.basic && !shown.has("_basic")) {
+        shown.add("_basic");
+        note("_basic", BASIC.label, BASIC.reason);
+      }
       state = prepared.state;
       const { questions, answers, rows } = prepared;
       if (!extra.length) progress.found(questions.length);
@@ -233,7 +243,7 @@
         const events = progress.filling(Object.keys(left).length);
         window.WIA.report?.follow(events);
         const answer = await send({
-          type: "fill/page", site: prepared.site, questions, answers: left, accepted: prepared.plan.accepted, state, sections: prepared.step?.sections, events,
+          type: "fill/page", site: prepared.site, questions, answers: left, accepted: prepared.plan.accepted, state, sections: prepared.step?.sections, events, basic: prepared.basic,
         });
         if (!answer.ok) {
           window.WIA.report?.log("error", { message: answer.error });
@@ -327,7 +337,7 @@
       if (rowStatus(name) === "filled") continue;
       status.register(name, byName.get(name)?.label ?? name, byName.get(name)?.required ?? false, fresh.plan.sources?.[name] ?? "profile");
     }
-    const filled = await send({ type: "fill/page", site: fresh.site, questions: fresh.questions, answers, accepted: fresh.plan.accepted, state: fresh.state });
+    const filled = await send({ type: "fill/page", site: fresh.site, questions: fresh.questions, answers, accepted: fresh.plan.accepted, state: fresh.state, basic: fresh.basic });
     for (const [name, result] of Object.entries(filled.ok ? filled.results : {})) status.setStatus(name, result.status, result.reason, result.shows);
   }
 
@@ -449,7 +459,7 @@
     },
     async put(name) {
       const answer = await send({
-        type: "fill/page", site: prepared.site, questions: prepared.questions, answers: { [name]: prepared.answers[name] }, accepted: prepared.plan.accepted, state: prepared.state,
+        type: "fill/page", site: prepared.site, questions: prepared.questions, answers: { [name]: prepared.answers[name] }, accepted: prepared.plan.accepted, state: prepared.state, basic: prepared.basic,
       });
       return (answer.ok ? answer.results[name] : null) ?? { status: "failed", reason: answer.error ?? "WorkIt couldn't fill it." };
     },
@@ -481,7 +491,9 @@
     let prepared = await fillShown();
     // SmartRecruiters: its first page, then its screening questions (smartrecruiters.js presses Next, never Submit).
     if (prepared?.site === "smartrecruiters" && (await window.WIA.smartRecruitersNext?.(prepared))) prepared = (await fillShown()) ?? prepared;
-    if (prepared) await flagEmptyRequired(prepared);
+    // A basic fill reads no job system's fields back (the engine has no data for it): the basic note keeps the tab the student's.
+    const full = prepared && !prepared.basic;
+    if (full) await flagEmptyRequired(prepared);
     if (prepared) window.WIA.failedCard.use(fixesOf(prepared));
     if (prepared) window.WIA.resumeCard?.use(fixesOf(prepared));
     overlay.mount(panel);
@@ -494,7 +506,7 @@
     if (prepared) writing.offer(prepared);
     if (prepared) offerSelfId(prepared);
     // Outside a batch too (KAN-396): the primary button turns Ready to submit once the student answered what was open.
-    if (prepared) watchEdits(prepared);
+    if (full) watchEdits(prepared);
     answerTheWalk();
     return;
   }

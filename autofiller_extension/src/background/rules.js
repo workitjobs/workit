@@ -18,6 +18,10 @@
 // still on its way when the fill starts is the next fill's (on Workday, the
 // next step's, each a fill of its own).
 //
+// The Store package's engine ships no job system's data (fill-engine's engine.store.js, KAN-777): there a
+// fill whose table hasn't come yet waits for it a while (TABLE_WAIT_MS), and with none the fill is a basic
+// one (background/engine.js planBasic). The dev extension's engine bundles the full table, so it never waits.
+//
 // The strings are used as received: the API watermarks each account's copy
 // (selector order, a never-matching selector part, equivalent regex
 // spellings), so nothing here sorts, dedupes or rewrites them.
@@ -33,6 +37,8 @@ const engine = globalThis.FillEngine;
 const BUNDLED = { version: engine.RULES_VERSION };
 /** A site token this close to its expiry is not used: a new one is asked for. */
 const MARGIN_MS = 15_000;
+/** How long a fill waits for a table still on its way when the engine has no data of its own for the site. */
+const TABLE_WAIT_MS = 5_000;
 
 /** The account the tokens and tables are for: another sign-in drops them all. */
 let owner = null;
@@ -124,6 +130,10 @@ async function fetchTable(url, site, account) {
   }
 }
 
+/** The link the API names the job system from: a practice form (WorkIt's own, Lever's form) asks for Lever's table
+ * with a Lever link for its job, since the API knows no job system on WorkIt's site. */
+const tokenLink = (url, job) => (job.practice ? `https://jobs.lever.co/${job.company}/${job.job}/apply` : url);
+
 /** Fetches `site`'s table, checks the engine takes it, and holds it; null on any failure. */
 async function fetchRules(url, site, account) {
   try {
@@ -147,7 +157,7 @@ async function fetchRules(url, site, account) {
  */
 export async function prefetchRules(url) {
   const job = url ? jobOf(url) : null;
-  if (!job || job.practice) return null;
+  if (!job) return null;
   const { site } = job;
   try {
     if (await turnedOff(url)) return null;
@@ -159,7 +169,7 @@ export async function prefetchRules(url) {
     const kept = tables.get(site);
     if (fresh(kept)) return { owner: account, site, table: kept.table };
     if (!fetching.has(site)) {
-      const fetch = fetchRules(url, site, account).finally(() => fetching.get(site) === fetch && fetching.delete(site));
+      const fetch = fetchRules(tokenLink(url, job), site, account).finally(() => fetching.get(site) === fetch && fetching.delete(site));
       fetching.set(site, fetch);
     }
     const table = await fetching.get(site);
@@ -173,7 +183,8 @@ export async function prefetchRules(url) {
 /**
  * The table an injection of the engine loads for `site`: the one held here,
  * else the page's own copy (`page`, the launcher's, when Chrome stopped the
- * service worker since), else null, the bundled table. Never waits for a fetch.
+ * service worker since), else null, the bundled table. Waits for a fetch only when the engine has no
+ * data of its own for the site (the Store package), at most TABLE_WAIT_MS.
  * @param {string | null} site
  * @param {{ owner: string, site: string, table: object } | null | undefined} page
  */
@@ -186,7 +197,12 @@ export async function rulesFor(site, page) {
   const account = owner;
   const held = tables.get(site)?.table;
   if (held) return held;
-  if (page?.owner !== account || page.site !== site || !page.table) return null;
-  // The page's copy, held here again so the background's engine plans with it too.
-  return hold(site, { table: page.table, until: 0 }) ? page.table : null;
+  if (page?.owner === account && page.site === site && page.table) {
+    // The page's copy, held here again so the background's engine plans with it too.
+    if (hold(site, { table: page.table, until: 0 })) return page.table;
+  }
+  // An engine with no data of its own for the site (the Store package's) waits a while for one on its way.
+  if (engine.supported(site) || !fetching.has(site)) return null;
+  const late = new Promise((done) => setTimeout(() => done(null), TABLE_WAIT_MS));
+  return (await Promise.race([fetching.get(site), late])) ?? null;
 }

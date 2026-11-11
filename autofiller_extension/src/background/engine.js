@@ -644,6 +644,8 @@ export async function planFill({ url, profile, bank = {}, today, call, fetchText
   if (!job) return { covered: false };
   const { site } = job;
   if (!job.onForm && !signInFirst(url)) return { covered: true, site, openForm: job.form };
+  // No data for the job system (the Store package's engine with no Rules table from the API): a basic fill.
+  if (!engine.supported(site)) return planBasic({ job, url, profile, bank, today, call, fetchText, jobType, off });
   const fetchOnce = once(fetchText);
   // The job's names and text need no question: asked beside the questions, not after them.
   const reading = readNames(url, fetchOnce);
@@ -665,6 +667,27 @@ export async function planFill({ url, profile, bank = {}, today, call, fetchText
   // Demographics off: the form's self-identification is the student's, so WorkIt doesn't ask to save it either.
   const selfId = off.includes("demographics") ? null : selfIdAsked(questions, profile, plan, planFor);
   return { ...prepared, rows: planRows(prepared), selfId };
+}
+
+/**
+ * The basic fill's Plan (KAN-777): the Store package's engine ships no job
+ * system's data, so when the API's Rules table didn't come (background/rules.js)
+ * the form's plain fields are read by their labels (the engine's `readBasic`)
+ * and planned with the basic answer rules it ships: names, email, phone,
+ * links and the common questions. Text answers only: a basic fill attaches no
+ * file and ticks no list. `basic` tells the content script to say so, and
+ * fillPage to fill with `fillBasic`. A stepped job system's steps (Workday's)
+ * are custom widgets a label can't fill: the step is the student's.
+ */
+async function planBasic({ job, url, profile, bank, today, call, fetchText, jobType, off }) {
+  const { site } = job;
+  if (engine.stepped(site)) throw new Error("WorkIt can't reach its server, so it can't fill this step");
+  const questions = await call("readBasic");
+  const { posting, plan, planFor } = await planQuestions({ job, url, questions, profile, bank, today, fetchText: once(fetchText), jobType });
+  holdBack(plan, questions, off, (id) => planFor(profile, id));
+  const answers = Object.fromEntries(Object.entries(plan.answers).filter(([, answer]) => typeof answer === "string"));
+  const prepared = { covered: true, basic: true, site, posting, questions, plan, answers, applicantId: profile.id };
+  return { ...prepared, rows: planRows(prepared), selfId: null };
 }
 
 /**
@@ -809,8 +832,10 @@ const WRITTEN_LABEL_MAX = 2000;
  * @returns {Promise<{ results: Record<string, Result>, more?: object[], state?: object, stopped?: true }>}
  * @typedef {{ status: "filled", shows: string | string[] } | { status: "skipped" | "failed" | "left", reason: string }} Result
  */
-export async function fillPage({ call, site, questions, answers, accepted, state, sections, events }) {
+export async function fillPage({ call, site, questions, answers, accepted, state, sections, events, basic = false }) {
   try {
+    // A basic fill (planBasic): each text answer typed into the field its label named.
+    if (basic) return { results: (await call("fillBasic", questions, answers)).results, state };
     const filled = await call("fillEach", site, questions, answers, { accepted: accepted ?? {}, state, sections, ...(events ? { events } : {}) });
     return { results: filled.results, ...(filled.moreQuestions ? { more: filled.moreQuestions } : {}), state: filled.state ?? state, ...(filled.stopped ? { stopped: true } : {}) };
   } catch (error) {

@@ -115,7 +115,8 @@ test("a practice batch fills WorkIt's practice forms, and the student's Submit s
   const CHROMIUM = /(^|\.)(google\.com|googleapis\.com|gstatic\.com|gvt1\.com|gvt2\.com|googleusercontent\.com)$/;
   const hosts = new Set(loaded.asked.map((url) => new URL(url).host).filter((host) => !CHROMIUM.test(host)));
   expect([...hosts].sort()).toEqual(["localhost:3000", "localhost:8000"]);
-  expect(api.calls.filter((call) => !call.startsWith("GET "))).toEqual([]);
+  // The one POST: a site token for Lever's Rules table (the practice form is Lever's form, KAN-777), which changes nothing.
+  expect(api.calls.filter((call) => !call.startsWith("GET ") && call !== "POST /extension/rules/token")).toEqual([]);
 });
 
 test("a practice batch opens only WorkIt's practice forms on the asking page's own site", async () => {
