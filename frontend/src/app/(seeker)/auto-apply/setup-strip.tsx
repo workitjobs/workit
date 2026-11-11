@@ -5,11 +5,8 @@ import { useEffect, useState } from "react";
 import { ChromeIcon } from "@/components/icons";
 import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { extensionState } from "@/lib/autofill-extension";
+import { EXTENSION_INSTALL_URL, extensionState } from "@/lib/autofill-extension";
 import { cn } from "@/lib/cn";
-
-/** Where the student adds the extension (KAN-378): unset until its Chrome Web Store listing exists. */
-const INSTALL_URL = process.env.NEXT_PUBLIC_EXTENSION_INSTALL_URL;
 
 /**
  * Auto Apply's setup banner (KAN-424): shown only while the Chrome
@@ -27,6 +24,11 @@ const INSTALL_URL = process.env.NEXT_PUBLIC_EXTENSION_INSTALL_URL;
  * questions wait Up Next's Write N Questions links to Written Answers,
  * which offers Connect Claude while their Claude isn't connected
  * (./write-with-claude.tsx).
+ *
+ * ADD TO CHROME opens the extension's Chrome Web Store page
+ * (`EXTENSION_INSTALL_URL`), from the button or anywhere on the card. It had
+ * no link while `NEXT_PUBLIC_EXTENSION_INSTALL_URL` was unset, and said its
+ * link was coming soon though the Store page is public (2026-11-10).
  *
  * IT OPENS, IT DOES NOT POP IN (2026-11-10). The answer comes after the
  * page has drawn, so for a student without the extension the banner
@@ -65,7 +67,19 @@ export function SetupStrip() {
       )}
     >
       <div className="min-h-0 overflow-hidden">
-        <Card className="mb-8 flex flex-col gap-4 @2xl/main:flex-row @2xl/main:items-center">
+        {/* The whole card is the way to the Store, its edge darkening
+            under the pointer: it read as a card that should do something
+            and did nothing. The click layer is hidden from a keyboard and
+            a screen reader, which reach the button. */}
+        <Card className="hover:border-ink-meta relative mb-8 flex flex-col gap-4 transition-colors duration-150 @2xl/main:flex-row @2xl/main:items-center">
+          <a
+            href={EXTENSION_INSTALL_URL}
+            target="_blank"
+            rel="noreferrer"
+            tabIndex={-1}
+            aria-hidden="true"
+            className="rounded-card absolute inset-0 z-1"
+          />
           <span className="border-border-subtle bg-panel rounded-control flex size-10 shrink-0 items-center justify-center border">
             <ChromeIcon className="size-5" />
           </span>
@@ -73,14 +87,19 @@ export function SetupStrip() {
             <h2 className="text-label text-ink font-semibold">Add the Chrome Extension</h2>
             <p className="text-note text-ink-meta mt-0.5">
               Auto Apply fills each application in your own Chrome, and you press Submit.
-              {!INSTALL_URL && " Its install link is coming soon."}
             </p>
           </div>
-          {INSTALL_URL && (
-            <ButtonLink href={INSTALL_URL} target="_blank" rel="noreferrer" size="sm">
-              Install
-            </ButtonLink>
-          )}
+          <ButtonLink
+            href={EXTENSION_INSTALL_URL}
+            target="_blank"
+            rel="noreferrer"
+            size="sm"
+            className="z-2"
+          >
+            <ChromeIcon className="size-4" />
+            Add to Chrome
+            <span className="sr-only"> (opens the Chrome Web Store in a new tab)</span>
+          </ButtonLink>
         </Card>
       </div>
     </div>

@@ -1522,10 +1522,14 @@ page with one action.
   nothing over 300ms, so Up Next glides down rather than jumping
   (2026-11-10); the gap under it is its own and closes with it.
   Chrome's mark in a 40px bordered tile, "Add the Chrome Extension" over
-  one line on what it does, and Install while
-  `NEXT_PUBLIC_EXTENSION_INSTALL_URL` is set (while it isn't, the line says
-  the install link is coming soon; it asked the student to get the link
-  from the team until 2026-11-10, which read as an internal note). **Only the required step**
+  one line on what it does, and **Add to Chrome**, which opens the
+  extension's Chrome Web Store page (`EXTENSION_INSTALL_URL` in
+  `lib/autofill-extension.ts`: `NEXT_PUBLIC_EXTENSION_INSTALL_URL`, else the
+  Store page for the extension's id, which is public). The whole card is
+  the link, its edge darkening under the pointer (2026-11-10): with the
+  variable unset, the card said its link was coming soon and could not be
+  clicked. Onboarding's extension step still waits for the variable
+  (`CAN_INSTALL`), so it skips itself while it is unset. **Only the required step**
   (2026-10-29): it was "Set Up Auto Apply, 1 of 3 done" with a Configure
   dialog that counted a default resume and the Claude MCP too, and students
   read all three as required. Both are optional, so each shows where it
@@ -1632,11 +1636,11 @@ page with one action.
   Clear were there too and went the same day: Stop's square read as one
   more select box and Remove already closes the tab, and Select All
   clears a pick.
-- **The Resume cell is a button**, drawn today as a hand-built bordered
-  pill with a pencil. That breaks `design.md`'s rule that a button is a
-  rounded rectangle, and its 1.4:1 edge is the only cue that it acts, so
-  it becomes a `Button` (`outline`, `sm`); a pill that acts in a table is
-  not an exception (`design.md`, Still open). It opens the row's resume picker (`auto-apply/resume-dialog.tsx`), the
+- **The Resume cell says View** (2026-11-10), a secondary `sm` Button with
+  an eye, as the Tracker's Resume column does: it opens the resume in
+  Tailor's preview dialog, titled with its name. It showed the resume's
+  name in a bordered pill with a pencil ("Resume #6 ✎" on every row), and
+  the names blended together. **Change Resume is in the row's ⋯ menu**: it opens the row's resume picker (`auto-apply/resume-dialog.tsx`), the
   Apply dialog's own resume list (`jobs/resume-picker.tsx`, Job posting
   page), opened on the row's resume. It links nowhere else: Tailor for
   This Job and Build a New Resume links under it went (KAN-360), since

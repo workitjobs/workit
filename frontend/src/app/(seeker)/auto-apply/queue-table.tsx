@@ -1,12 +1,12 @@
 "use client";
 
-import { CheckIcon, PencilLineIcon, WarningIcon } from "@phosphor-icons/react/ssr";
+import { CheckIcon, EyeIcon, PencilLineIcon, WarningIcon } from "@phosphor-icons/react/ssr";
 import Link from "next/link";
 import { useCallback, useState, type ReactNode } from "react";
 
 import { ClickableRow } from "@/components/clickable-row";
 import { CompanyLogo } from "@/components/company-logo";
-import { ChevronDownIcon, PencilIcon, PlusIcon } from "@/components/icons";
+import { ChevronDownIcon, PlusIcon } from "@/components/icons";
 import { MatchBadge } from "@/components/match-badge";
 import { Reflow } from "@/components/reflow";
 import { Checkbox } from "@/components/shadcn/checkbox";
@@ -19,10 +19,13 @@ import {
   TableRow,
 } from "@/components/shadcn/table";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import type { BatchTabState } from "@/lib/autofill-extension";
 import { cn } from "@/lib/cn";
+import type { TailorSource } from "@/lib/tailor-actions";
 
+import { ResumePreviewDialog } from "../jobs/[jobId]/tailor/resume-preview";
 import { LocalDate } from "../local-time";
 import { CENTER, TD, TH, type ActivityItem } from "./activity-list";
 import { RowMenu } from "./row-menu";
@@ -365,27 +368,28 @@ function Row({
       </TableCell>
 
       <TableCell className={cn(TD, CENTER, "overflow-hidden py-0")}>
-        {/* A button, so the row's own click (it opens the job) leaves it alone (components/clickable-row.tsx). */}
-        <button
-          type="button"
-          onClick={() => onResume(row)}
-          title={row.resume ? `${row.resume}: change resume` : "Choose a resume"}
-          className={cn(
-            "text-note focus-visible:ring-brand-ring inline-flex max-w-full items-center gap-1.5 rounded-full border px-2.5 py-1 transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none",
-            // No resume is an empty slot (dashed, grey, a plus), never a warning: the job still fills,
-            // and amber is kept for what stopped. It was an amber pill, which read as a pair with
-            // the amber questions link beside it.
-            row.resume
-              ? "border-border-surface hover:text-brand hover:border-brand-ring"
-              : "border-border-surface text-ink-meta hover:text-brand hover:border-brand-ring border-dashed",
-          )}
-        >
-          {!row.resume && <PlusIcon aria-hidden className="size-3.5 shrink-0" />}
-          <span className={cn("truncate", row.resume && "text-ink")}>
-            {row.resume ?? "Choose Resume"}
-          </span>
-          {row.resume && <PencilIcon aria-hidden className="text-ink-meta size-3.5 shrink-0" />}
-        </button>
+        {/* View, as the Tracker's Resume column says it, not the resume's
+            name: "Resume #6" on every row blended into one grey pill
+            (2026-11-10). Change Resume is in the row's ⋯ menu. A button,
+            so the row's own click (it opens the job) leaves it alone
+            (components/clickable-row.tsx). */}
+        {row.resume && row.resumeKey ? (
+          <ViewQueuedResume name={row.resume} resumeKey={row.resumeKey} />
+        ) : (
+          <button
+            type="button"
+            onClick={() => onResume(row)}
+            title="Choose a resume"
+            // No resume is an empty slot (dashed, grey, a plus), never a
+            // warning: the job still fills, and amber is kept for what
+            // stopped. It was an amber pill, which read as a pair with the
+            // amber questions link beside it.
+            className="text-note border-border-surface text-ink-meta hover:text-brand hover:border-brand-ring focus-visible:ring-brand-ring inline-flex max-w-full items-center gap-1.5 rounded-full border border-dashed px-2.5 py-1 transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none"
+          >
+            <PlusIcon aria-hidden className="size-3.5 shrink-0" />
+            <span className="truncate">Choose Resume</span>
+          </button>
+        )}
       </TableCell>
 
       <TableCell className={cn(TD, CENTER, FOLDS)}>
@@ -544,5 +548,30 @@ function PickBox({ children }: { children: ReactNode }) {
     <span className="flex shrink-0 items-center" onClick={(event) => event.stopPropagation()}>
       {children}
     </span>
+  );
+}
+
+/** A queued job's resume behind View: the resume in Tailor's preview
+ *  dialog, titled with its name. The resume key is the picker's
+ *  ("built:<id>", "uploaded:<id>", ./(queue)/page.tsx). */
+function ViewQueuedResume({ name, resumeKey }: { name: string; resumeKey: string }) {
+  const [open, setOpen] = useState(false);
+  const [kind, id] = resumeKey.split(":");
+  const source: TailorSource =
+    kind === "built" ? { built_resume_id: id } : { uploaded_resume_id: id };
+  return (
+    <>
+      <Button
+        variant="secondary"
+        size="sm"
+        onClick={() => setOpen(true)}
+        title={`View ${name}`}
+        aria-label={`View resume ${name}`}
+      >
+        <EyeIcon aria-hidden />
+        View
+      </Button>
+      <ResumePreviewDialog open={open} onOpenChange={setOpen} label={name} source={source} />
+    </>
   );
 }
