@@ -605,9 +605,14 @@ def test_no_click_path_sends_a_hostile_page_on_cdp(page_name, path):
 
 @pytest.mark.parametrize("page_name", list(PAGES))
 def test_without_the_guard_each_hostile_page_sends(page_name):
-    """The control: a plain click on the same button, unguarded, sends the application."""
+    """The control: a plain click on the same button, unguarded, sends the application. A page whose timer posts
+    on its own keeps navigating unguarded, so on a slow runner the click may never land: it has sent all the same,
+    and the assertion is what counts (CI, 2026-11-11)."""
     with cdp(PAGES[page_name], guarded=False) as (page, _, site):
-        page.get_by_role("button", name=button(page_name)).click()
+        try:
+            page.get_by_role("button", name=button(page_name)).click(timeout=10_000)
+        except Exception:
+            pass  # the page navigated away under the click: whether it sent is asserted below
         _then(page, page_name)
         _settle(page)
     assert site.applications()
