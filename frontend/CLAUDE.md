@@ -2784,7 +2784,7 @@ are in `docs/auth.md`.
   Resume and Generate Resume at the right, both above the list, and `EmptyState` in the list's place
   when no card shows. Upload Resume and Generate Resume never sit in the
   shared header. A card says what it is in its own line ("Uploaded …",
-  "Last edited … · For <posting>"), so the list needs no Type or date
+  "<posting> at <company>"), so the list needs no Type or date
   column: two table versions came first in KAN-362, one with Type and
   Last Edited columns and sort headings, one with each row's icons in a
   `⋯` menu, and the user found the columns useless beside the cards and

@@ -2916,8 +2916,9 @@ Tracker's cards** (2026-11-10, `ResumeCard` in
 `components/resume-row.tsx`; the list is no card of its own): a tile
 saying what the resume is, the name, and a line with an icon saying it in
 words ("Uploaded
-PDF", "Made from your experiences", "For <posting> at <company>", with
-Posting Closed beside the name), then **Date Modified**, then its
+PDF", "Made from your experiences", "<posting> at <company>", with no
+"For", which the briefcase says, and no Posting Closed badge, which the
+user found not needed, 2026-11-10), then **Date Modified**, then its
 actions. **Date Modified** (2026-11-10, after Google Drive's) is the latest
 of two events, labeled with which: "Modified" over the last edit's date and
 time, or "Created" over when it was made or uploaded, for a resume never
@@ -2949,9 +2950,9 @@ room) and, at the line's right, the Date Modified as the list says it
 ("Modified" or "Created" and the day). A narrow card drops the date's
 word and keeps the day.
 ⋮ holds every action (no hover icons, as on Drive's grid), and a filled
-star sits on the primary's page corner, as on Simplify's. The list's
-Posting Closed badge is not on a grid card: as one more line it made some
-cards taller than their row. A New Resume tile led the grid until the
+star sits on the primary's page corner, as on Simplify's. No card shows
+a Posting Closed badge: as one more line it made some grid cards taller
+than their row. A New Resume tile led the grid until the
 same day; Generate Resume above does the same (2026-11-10). Rename edits the name under the
 page. The pages (`ResumeThumbnail` in `resume-preview.tsx`) are drawn in
 the browser from the preview the duplicate modal uses, asked for only once

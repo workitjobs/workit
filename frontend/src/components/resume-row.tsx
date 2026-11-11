@@ -181,7 +181,6 @@ export function ResumeCard({
   href,
   tile,
   about,
-  badge,
   created,
   edited,
   actions,
@@ -197,7 +196,6 @@ export function ResumeCard({
    *  `PostingLogoTile`. */
   tile: ReactNode;
   about: ReactNode;
-  badge?: ReactNode;
   created: string | null;
   edited: string | null;
   actions: CardActions;
@@ -238,16 +236,13 @@ export function ResumeCard({
         <div className="flex min-w-0 items-center gap-3">
           <span className="hidden shrink-0 @sm:block">{tile}</span>
           <div className="min-w-0">
-            <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-              <Link
-                href={href}
-                title={name}
-                className="text-subtitle text-ink after:rounded-card focus-visible:after:ring-brand-ring min-w-0 truncate leading-5 after:absolute after:inset-0 focus-visible:outline-none focus-visible:after:ring-2"
-              >
-                {name}
-              </Link>
-              {badge}
-            </div>
+            <Link
+              href={href}
+              title={name}
+              className="text-subtitle text-ink after:rounded-card focus-visible:after:ring-brand-ring block min-w-0 truncate leading-5 after:absolute after:inset-0 focus-visible:outline-none focus-visible:after:ring-2"
+            >
+              {name}
+            </Link>
             <div className="text-note text-ink-meta mt-1 flex min-w-0 items-center gap-1.5">
               {about}
             </div>
@@ -302,9 +297,9 @@ const TYPE_TONE: Record<ResumeType, BadgeTone> = {
  * day without its word ("Modified", "Created"), which comes back where
  * the line has room for it.
  *
- * The list card's Posting Closed badge is not here (2026-11-10): as one
- * more line it made some cards taller than the rest of their row, and the
- * user found it not needed in the grid.
+ * No card shows a Posting Closed badge (2026-11-10): as one more line it
+ * made some grid cards taller than the rest of their row, and the user
+ * found it not needed in either view.
  */
 function ResumeGridCard({
   name,

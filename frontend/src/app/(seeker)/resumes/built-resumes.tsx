@@ -102,7 +102,7 @@ type Lists = Awaited<ReturnType<typeof readLists>>;
  * card with its star, Rename, Download and Delete, in a card that scrolls
  * inside itself (./resume-list.tsx). Every card acts alike, so one list
  * holds them all; each says what it is in its own line ("Uploaded …",
- * "Last edited …", "For <posting>").
+ * "Made from your experiences", "<posting> at <company>").
  *
  * The list and the grid hold the same rows in the same order, the starred
  * resume first, with no groups (2026-11-10). The list was grouped by type

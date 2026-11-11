@@ -5,7 +5,6 @@ import { useState, type FormEvent } from "react";
 
 import { BriefcaseIcon, FileIcon } from "@/components/icons";
 import { BuiltPageTile, PostingLogoTile, ResumeCard } from "@/components/resume-row";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { TextField } from "@/components/ui/text-field";
 import {
@@ -30,8 +29,12 @@ import { DownloadNotes, useResumeDownload } from "./download-menu";
  * Download PDF is the editor's PDF download (`useResumeDownload`: it keeps
  * nothing, with the missing-character warning under the row), on the card
  * since KAN-268. A tailored resume takes the star too since then, and its
- * day line names the job posting it was made for, a link to that posting's
- * page while the Jobs page lists it (a closed one's page is a 404). The whole card is
+ * second line names the job posting it was made for ("Software Engineer
+ * Intern at Matic", with no "For", which the briefcase already says), a
+ * link to that posting's page while the Jobs page lists it (a closed one's
+ * page is a 404, so its line is plain text). It shows no Posting Closed
+ * badge (2026-11-10, the user's call): the resume opens and downloads
+ * either way, and only Tailor needs a live posting. The whole card is
  * one target: the name's link stretches over it (`after:inset-0`), the
  * icons sit above that, and the card lifts under the pointer as every
  * whole-target card does (`docs/motion.md`). Below `@xl` of the row,
@@ -127,7 +130,7 @@ export function BuiltResumeRow({
             <>
               <BriefcaseIcon className="size-3.5 shrink-0" />
               <span className="truncate">
-                For <PostingLink resume={resume} />
+                <PostingLink resume={resume} />
               </span>
             </>
           ) : (
@@ -137,9 +140,6 @@ export function BuiltResumeRow({
             </>
           )
         }
-        // The resume still opens and downloads; only Tailor needs a live
-        // posting.
-        badge={resume.posting_closed && <Badge tone="inert">Posting Closed</Badge>}
         created={resume.created_at}
         edited={edited ? resume.edited_at : null}
         actions={{
