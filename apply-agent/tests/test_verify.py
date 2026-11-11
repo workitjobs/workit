@@ -467,3 +467,19 @@ def test_a_capped_work_section_not_yet_full_still_holds(tmp_path):
     result = _work_form(tmp_path, 1, cap=("1", "2"))
 
     assert len([f for f in result.needs if f.kind == verify.HISTORY_KIND]) == 2
+
+
+# KAN-762: JPMorgan's Oracle (2026-11-10) kept a Princeton entry an old profile on the site carried over.
+def test_a_section_holding_more_entries_than_planned_holds(tmp_path):
+    person = ApplicantProfile({"experience_facts": {"employment_history": JOBS}}, tmp_path, {})
+    q = Question("n", "Work Experience (entries)", "select", False, ())
+    result = verify.check([q], {"n": "3"}, {"n": "4"}, person, POSTING, today=TODAY)
+    assert [f.why for f in result.needs if f.kind == verify.LEFTOVER] == [
+        "holds 4 entries, but your profile lists 3: remove each one it doesn't list"]
+
+
+def test_an_employer_apply_did_not_fill_that_the_profile_doesnt_list_holds(tmp_path):
+    person = ApplicantProfile({"experience_facts": {"employment_history": JOBS}}, tmp_path, {})
+    questions = [Question("c3", "Work Experience 3 / Company", "text", True), Question("c4", "Work Experience 4 / Company", "text", True)]
+    result = verify.check(questions, {}, {"c3": "Bus Co", "c4": "Princeton University"}, person, POSTING, today=TODAY)
+    assert [(f.field, f.kind) for f in result.needs if f.kind == verify.LEFTOVER] == [("Work Experience 4 / Company", verify.LEFTOVER)]

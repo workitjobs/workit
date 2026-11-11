@@ -43,6 +43,7 @@ from app.routers.pasted_answers import router as pasted_answers_router
 from app.routers.preferences import router as preferences_router
 from app.routers.profiles import router as profile_router
 from app.routers.resumes import router as resume_router
+from app.routers.rules_anomalies import router as rules_anomalies_router
 from app.routers.scout import router as scout_router
 from app.routers.sent_resumes import router as sent_resumes_router
 from app.routers.tailor import router as tailor_router
@@ -129,6 +130,7 @@ app.include_router(fill_events_router)
 app.include_router(job_system_requests_router)
 app.include_router(extension_config_router)
 app.include_router(extension_rules_router)
+app.include_router(rules_anomalies_router)
 app.include_router(tracker_router)
 app.include_router(uninstall_answers_router)
 # The connector's MCP server and its OAuth endpoints (app/connector/server.py).

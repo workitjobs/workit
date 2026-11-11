@@ -9,8 +9,8 @@ On a plain Worker's page (a PortPage, `apply-agent/docs/plain-workers/PROTOCOL.m
 `apply.plain.guards`. The CDP path is unchanged: its scripts are byte for byte the same.
 
 - **The same scripts, as files.** `apply plain prepare` writes `submit_guard`'s scripts into
-  `worker-extension/vendor/guards/` (the rehearsal guard, the four drive guards, LIFTED,
-  REARMED). The extension registers one as a MAIN-world content script at `document_start` in
+  `worker-extension/vendor/guards/` (the rehearsal guard and the four drive guards). Each
+  holds this run's tokens (KAN-710), so each Apply process writes a vendor set of its own. The extension registers one as a MAIN-world content script at `document_start` in
   every frame, so it runs before the page's code with no eval and no user scripts. It refuses
   a file whose sha256 is not Apply's: re-run `prepare` after changing `submit_guard.py`.
 - **Below them, declarativeNetRequest.** `guard` puts one session rule per final application
@@ -18,8 +18,11 @@ On a plain Worker's page (a PortPage, `apply-agent/docs/plain-workers/PROTOCOL.m
   service workers. It blocks a non-GET before it leaves Chrome: page code from another realm,
   a worker, a beacon, or a form's native POST. `lift` takes the rules off and `rearm` puts them
   back.
+- **The guards' state** (KAN-710) is set only by token-named control events the extension sends
+  from its isolated world (`guard.control`, `guard.lift`, `guard.rearm`, `guard.applied`); no page sees
+  or sends them. `guard.tokens` tells the extension the run's touch and tell events once.
 - **Presses are untrusted.** The plain copy of the guard script (`port=True`) counts as a touch
-  the `__apply_touch` the extension sends before each press: Apply's own (`page/dom.js`) and
+  the token-named touch the extension sends before each press (a page can't send one): Apply's own (`page/dom.js`) and
   Lisul's from the tile (`tile.input` calls `touch()` in `ops/guard.js`, which also sends `guard.touched`
   up the port). It also reports each block as a `guard.said` event, which `PlainDriveGuard.blocked()`
   reads, since no console reaches Apply.
@@ -32,6 +35,79 @@ On a plain Worker's page (a PortPage, `apply-agent/docs/plain-workers/PROTOCOL.m
   records every POST. A page that sends by script (fetch from a fresh realm, a worker, a beacon,
   requestSubmit, a native POST) sends nothing once guarded, and the rules alone stop it too.
   A tile press shows the blocked note, and a lifted page's Submit goes through and is heard.
+
+## Plain Workers: trusted text and choices (KAN-716)
+
+amazon.jobs's text boxes showed every answer a plain Worker typed and took none: Claude fill's
+fill, Ask, the tile's text and keys. "This field is required" stayed, the auto-save failed, and a
+reload emptied the box. Every path was a synthetic event or `execCommand("insertText")`, and
+neither fires what a keyboard fires: measured in Chromium, `execCommand` gives a trusted `input`
+but no `beforeinput` and no `textInput`; CDP's `Input.insertText` gives all three, trusted. So
+text goes in through the worker extension's own `chrome.debugger` (`ops/typing.js`, the `debugger`
+permission):
+
+- **What it sends, and nothing else.** `typing.send` refuses any other command, and any other
+  parameter, by exact list:
+  - `Input.insertText`: text at the caret of the focused field, never with a line break.
+  - `Input.dispatchKeyEvent` for Backspace and Delete only, with no text and no modifiers.
+  - `Input.dispatchMouseEvent`: one plain left press and release, for a choice (below).
+  - `Emulation.setFocusEmulationEnabled {enabled: true}`: the tab acts as focused while the
+    debugger is attached, as Playwright's CDP pages do, so the box hears its focus and blur.
+- **Never a line break** (the review of #521). `Input.insertText("\n")` into a one-line box is
+  an Enter to Blink, and submits its form. So a one-line box gets text without its line breaks,
+  a lone line break is the Enter key (which never sends a form), and a textarea or editable
+  content gets each line break untrusted between trusted runs (`lineBreak`).
+- **Choices: radios, checkboxes, options.** Live (2026-11-10), a reload of amazon.jobs showed blank
+  two radios an earlier synthetic click had set. So `dom` `click` and `check` of a radio, a
+  checkbox or an option (`CHOICE` in `page/dom.js`) is a trusted click at its centre, in the top
+  frame only, and only when the choice alone is under the point (`onlyChoice`: no button, link,
+  frame or other field between them). Never a button, a link or a choice inside one (`PRESSES`):
+  those stay synthetic, and the guards judge them as before. The click has no move before its
+  press, and sends no `__apply_touch` ahead of it (its own trusted pointerdown is its touch), so
+  a page has no signal to time a change by. The page is scrolled to it at once, never smoothly.
+  Lisul's tile clicks stay synthetic.
+- **Checked before, fenced during, verified after** (`finish`):
+  - Before: `aim` checks that the request is this frame's own, and still holds: the field has
+    the focus, or the choice alone is under the point. Else nothing is sent: a click is tried
+    again (`{retry}`), and text is an error.
+  - During: every other frame of the tab cancels trusted input (`fence`), so a page that moves
+    the focus or a frame under the point gets nothing there. In the frame itself, a trusted
+    `beforeinput`, press or click aimed at anything else is cancelled (`hear`). `hear` is one
+    layer, not the backstop: a page's own listener added before it can stop it.
+  - After: `landed` checks the effect: the text arrived; the click reached the choice and
+    changed it. A miss is an error for Apply (`KAN-716 trusted input: ...`), never a second
+    try. Only input the debugger couldn't send (no permission, a DevTools window on the tab, an
+    old extension) goes in untrusted, as before.
+  - The submit guard and its network rules stand behind all of it.
+- **Attached briefly.** The debugger is on a tab only while input goes in, and off 4 s after the
+  last. Workers start with `--silent-debugger-extension-api`, so Chrome shows no "started
+  debugging this browser" bar; that switch covers any extension's debugger in the Worker's
+  Chrome, never Lisul's own Chrome. No CDP port opens, `Runtime` is never on, and
+  `navigator.webdriver` stays false. A page can see `document.hasFocus()` true while attached,
+  and input in CDP's pattern (a press with no path of moves before it).
+- **The guards see it as a keyboard.** `PlainDriveGuard.asking` and its driving state now set
+  the drive guard's `asking`, `askTick` and `driving` by its control (`guard.control`, KAN-710: the
+  guard's own state, never a window flag a page could set), so the drive guard's Ask checks (no typing in a password, code or attestation box) and the captcha frame's
+  refusal act on a plain Worker's trusted input as on a CDP one.
+- **Where it applies.** Every `dom` text call (Claude fill and Ask through Apply's MCP server,
+  Fillers through PortPage) and the tile's `text` and `key` events: Lisul's typing on the tile
+  reaches Amazon's sign-in and its questions. Other clicks stay synthetic. The Fill engine's own
+  `type()` (MAIN world, in its job-system adapters) is unchanged; amazon.jobs has no adapter.
+- **Rolling it out.** The new manifest asks for `debugger`, and Workers need the new switch. A
+  running Worker keeps its old code and switches: Apply replaces a profiles folder's extension
+  copy only while none of its Workers runs (below, "The worker extension's copy"). With every
+  Worker of the folder stopped, the next Worker starts on the new copy and switch. For a branded
+  seed, run `uv run apply plain seed` once then; its real hello checks the copy loads.
+- Tests: `tests/test_plain_typing.py` (Chrome for Testing; in CI's plain-Worker step): a box that takes only a keyboard's
+  text, the old path's failure on it (the control, in Playwright's Chromium), fill, type,
+  insert_text, the tile's text and keys, Backspace and Delete, a cross-origin frame, Enter, a
+  page that moves the focus mid-key or into another frame, a radio that takes only a trusted click,
+  a Submit moved under the pointer, a smooth-scrolling page, and a reload that shows only what the
+  fake job system saved. `tests/test_submit_guard_hostile.py -k "typing or lifted or misses"` runs
+  both typing paths (line breaks included) and Apply's choice clicks on every hostile page, and,
+  lifted, on pages built to steer a trusted click (`STEERS`: a button put inside the label or an
+  option, a frame moved under the point, a listener that runs first). `tests/test_plain_trusted_rules.py`
+  (in CI) checks the source, and runs `send`'s allowlist in Node.
 
 ## Plain Workers' tiles and Fix from the window (KAN-609)
 
@@ -51,8 +127,8 @@ them. `apply.plain.tile.PortFrames` is their frame source for the same
   window's `/frames` (`FRAME_GAP` now allows about 60).
 - **Frames: without the permission.** The worker extension captures the shown
   tab with `captureVisibleTab`, at most every 500 ms (Chrome's quota is about
-  two a second per browser, and only the debugger API, never used here, gets
-  past it), JPEG quality 88, at the tab's CSS size, sent only when the picture
+  two a second per browser, and only the debugger API gets past it; a plain
+  Worker's debugger sends only text and choice clicks, "Trusted text and choices" above), JPEG quality 88, at the tab's CSS size, sent only when the picture
   changed: about 2 fps. The tile shows one line (`PortFrames.notice`, the
   caption's `capture`): "Live tile off: turn on <app> in System Settings >
   Privacy & Security > Screen & System Audio Recording, then quit and reopen
@@ -70,16 +146,27 @@ them. `apply.plain.tile.PortFrames` is their frame source for the same
   Apply prints one line saying why.
 - **Filmed again (KAN-751).** A fallback is not for the rest of the run. A
   page's title and the title macOS lists for its window can disagree for a
-  while: amazon.jobs' sign-in redirects showed "Log in or create account |
-  Amazon.jobs" in the tab and "Amazon IdPrism" in the window for more than 3 s,
-  so the helper refused the window (KAN-717) and the tile stayed at 2 fps. Now
-  Apply tries filming again `RETRY` (5 s) after a fallback: `tile.start` with
+  while (a sign-in's redirects), and then the helper refuses the window
+  (KAN-717). Apply tries filming again `RETRY` (5 s) after a fallback: `tile.start` with
   `native: true`, the extension's `tile.shown` aims a new helper, and a verified
   frame keeps the tile filmed ("filmed again"). A try that fails falls back the
   same way and doubles the wait, up to `RETRY_MOST` (60 s); a filmed frame
   resets it. The tile keeps its last frame while a try waits, so it never
   blanks, and each try checks the window as strictly as the first. Only the
-  first fallback prints. Tests: `tests/test_plain_tile_refilm.py`. Clicks map by the frame's own size
+  first fallback prints. Tests: `tests/test_plain_tile_refilm.py`.
+- **An extension too old to film (KAN-764).** Since KAN-717 Apply films a
+  window only by its tab's title, and an extension from before KAN-717 sends
+  `tile.shown` with no `title`. Its helper is never aimed, so before KAN-764
+  every try waited 3 s and fell back, all run, with only "helper: never
+  aimed" to say why. That was the cause on amazon.jobs and JPMorgan
+  (2026-11-10): their Workers loaded a shared seed folder's copy from
+  KAN-645, and the hello's `features` (3) can't tell it from newer code. Now
+  a `tile.shown` with no `title` gives that tile the extension's frames at
+  once, with no retries. The tile says why and how to fix it (`UNTITLED`:
+  once no Worker runs, `uv run apply plain seed`), and Apply prints one line.
+  A new Connection (the extension reloaded, or the Worker started again) is
+  tried from the start.
+  Clicks map by the frame's own size
   (`page/tile.js` scales by `width` x `height`), so a 2x filmed frame and a 1x
   extension frame both land on the element under the pointer.
 - **Only its own window and tab (KAN-717).** A tile shows its own Worker's
@@ -121,7 +208,10 @@ them. `apply.plain.tile.PortFrames` is their frame source for the same
   synthetic DOM events (`page/tile.js`). It handles press, release, move,
   wheel, keys, text, copy, and choosing from a `<select>` menu, and it
   reaches into iframes, cross-origin ones too. Keys reuse `page/dom.js`'s
-  `press`, which now moves the caret for Arrow, Home and End.
+  `press`, which now moves the caret for Arrow, Home and End. Enter never
+  sends a form, from a field or a focused submit button (KAN-716): Lisul
+  clicks the button himself. `tests/test_submit_guard_hostile.py -k lifted_page`
+  proves it on a lifted page, where no guard would stop it.
 - **Files.** An untrusted click opens no file picker. The extension marks
   the input a click asked for: an input or its label, or a page script's
   `input.click()` or `showPicker()`. The tile then asks Lisul for the file,
@@ -264,10 +354,12 @@ What changes on a plain Worker:
   on there. See "The seed's guided setup" below.
 - **`apply doctor`** checks the Workers `worker_mode` runs: the CDP Worker profiles for `cdp`, the
   "Plain seed" line for `plain` (the seed exists, Load unpacked registered the worker extension in it,
-  and Developer mode is on), and both for `protected`. With `plain_chrome: testing` the seed line is ok.
+  that folder holds this checkout's extension code (KAN-764), and Developer mode is on), and both for
+  `protected`. With `plain_chrome: testing` the seed line is ok.
 - **Held Submit and the already-applied note** (KAN-629, KAN-621) work on plain pages:
   `submit_guard.lift(held=, dismiss=)`, `renote(held=)`, `warn_applied` and `applied_dismissed`
-  hand over to `apply.plain.guards` (`guard.lift`'s `held` and `onlyLifted`, `guard.applied`). A
+  hand over to `apply.plain.guards` (`guard.lift`'s events and `onlyLifted`, `guard.applied`). The
+  bindings Lisul's presses call (`TELLS`) fire only on the guard's own tell, never on a page's call. A
   `renote` of a page still guarded leaves it guarded.
 - Tests: `tests/test_plain_routing.py`. Its live test rehearses the fake Greenhouse form twice in
   one reused plain Worker. `tests/test_plain_guards.py -k "held_submit or already_applied"`.
@@ -326,6 +418,25 @@ differs from its Apply's crashed the page guard. So:
   before any engine check. If it still reads no sets and its guard files are another Apply's,
   `launch` stops it with `launcher.OutOfDate` (a SetupError: the rehearsal's line says how to fix
   it), never a crash. Its refusal for another engine names the folder to update.
+- **A folder of older code is never silent (KAN-764).** A seed copied from another profiles folder
+  registers that folder's copy, and nothing kept it current: on 2026-11-10 every new Worker of
+  `profiles-jpm` loaded `~/.config/apply/profiles/worker-extension` from 5 days before, with older
+  guard, tile and typing code, at the same feature level as current code. Now:
+  - Before a Worker starts, Apply brings the folder it will load up to its own code
+    (`extension.refresh`): only a copy `install` made (it has `.apply-code`; a checkout is never
+    replaced), and only while no running Chrome loads it (`extension.loaders`: each browser
+    process's `--load-extension`, or its `--user-data-dir` profile's registration), of any
+    profiles folder. It says so in one line. The profiles folder's own copy is replaced under the
+    same rule. A running Worker's code still never changes.
+  - At each hello the bridge hashes the folder that Worker loads (`Bridge.code`,
+    `extension.code_hash`, the same hash `refresh` uses). Other code than this Apply's makes the
+    Connection `stale`, whatever its feature level: the tile shows `OUT_OF_DATE` and Apply prints
+    one line with the folder and the fix (`bridge.STALE_FIX`). The hash is taken by Apply, not sent
+    in the hello: old code could never send a new field, and Apply reads the very folder Chrome's
+    preferences name.
+  - `apply doctor` fails "Plain seed" when the seed's folder holds other code than the checkout's
+    (`doctor.STALE_SEED`).
+  - Tests: `tests/test_plain_stale_extension.py` (in CI) and `tests/test_doctor.py`.
 - Rolling it out: no running Worker is touched. When no plain Worker runs, `uv run apply plain
   seed` once: it shows the copy to load and checks it. New Worker profiles copy that seed; an
   existing idle `plain-<k>` profile keeps its old registration until it is deleted.

@@ -1,0 +1,60 @@
+name: Apply nightly
+
+# Apply's tests marked `nightly` (pytest -m nightly): slow browser cases the
+# `apply` job in ci.yml skips on PRs, for time (KAN-780). Today that is the
+# submit guard's plain-Worker matrix on every hostile page; PRs run every path
+# against one page, and each plain Worker's guard hole (PLAIN_HOLES, KAN-710) on one.
+on:
+  schedule:
+    - cron: "53 7 * * *"
+  workflow_dispatch:
+
+jobs:
+  # Whether FILL_ENGINE_TOKEN is set: without it the tests below are skipped, and this job's summary says SKIPPED.
+  engine:
+    uses: ./.github/workflows/engine-token.yml
+    with:
+      skipped: Apply's nightly tests
+    secrets: inherit
+
+  apply:
+    needs: engine
+    if: needs.engine.outputs.set == 'true'
+    # macOS, as ci.yml's apply job: a plain Worker starts through `open`.
+    runs-on: macos-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: apply-agent
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+          fetch-depth: 0
+          token: ${{ secrets.FILL_ENGINE_TOKEN }}
+      # .github/CLAUDE.md says why (the pinned fill-engine commit).
+      - name: Pin fill-engine to the commit this branch actually records
+        working-directory: .
+        run: |
+          PINNED=$(git ls-tree HEAD autofiller_extension/fill-engine | awk '{print $3}')
+          git -C autofiller_extension/fill-engine fetch --depth 1 origin "$PINNED"
+          git -C autofiller_extension/fill-engine checkout --detach "$PINNED"
+          echo "fill-engine pinned at: $(git -C autofiller_extension/fill-engine rev-parse HEAD)"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+          cache-dependency-glob: apply-agent/uv.lock
+      - run: uv sync --locked
+      - uses: actions/cache@v4
+        with:
+          path: ~/Library/Caches/ms-playwright
+          key: chrome-for-testing-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('apply-agent/uv.lock') }}
+      - run: uv run playwright install chromium
+      - name: Chrome for Testing is installed
+        run: uv run python -c "from apply.plain.launcher import chrome_for_testing; print(chrome_for_testing())"
+      - name: Nightly tests
+        timeout-minutes: 30
+        run: uv run pytest -q -rs -n auto --dist loadgroup --durations=15 -m nightly tests/

@@ -77,15 +77,33 @@ def in_frame(url: str) -> bool:
 WIDGETS = (
     ("iframe[src*='recaptcha/api2/anchor']:not([src*='size=invisible'])", "g-recaptcha-response"),
     ("iframe[src*='recaptcha/enterprise/anchor']:not([src*='size=invisible'])", "g-recaptcha-response"),
-    ("iframe[src*='hcaptcha.com'][src*='frame=checkbox']", "h-captcha-response"),
+    ("iframe[src*='hcaptcha.com'][src*='frame=checkbox']:not([src*='checkbox-invisible'])", "h-captcha-response"),
     ("iframe[src*='challenges.cloudflare.com']", "cf-turnstile-response"),
 )
+# Whether an element shows to a person: displayed, 10px or more each way, neither it nor a parent hidden or
+# see-through (opacity 0) or aria-hidden, and not parked off the page. An invisible captcha keeps its challenge's frame
+# in the page while it is closed, hidden that way (hCaptcha and reCAPTCHA park it at top:-10000px), and its words
+# ("Please try again", "Verify") still read in a snapshot: JPMorgan's Oracle form, 2026-11-10 (KAN-760).
+SHOWN_JS = """const shown = (el) => {
+    if (!el.checkVisibility({opacityProperty: true, visibilityProperty: true})) return false;
+    if (el.closest('[aria-hidden="true"]')) return false;
+    for (let up = el; up; up = up.parentElement) if (parseFloat(getComputedStyle(up).opacity) === 0) return false;
+    const box = el.getBoundingClientRect(), doc = document.documentElement;
+    if (box.width < 10 || box.height < 10) return false;
+    return box.right + scrollX > 0 && box.bottom + scrollY > 0
+      && box.left + scrollX < Math.max(doc.scrollWidth, innerWidth) && box.top + scrollY < Math.max(doc.scrollHeight, innerHeight);
+  };"""
+# Whether a frame shows a captcha's challenge (CHALLENGE) to a person.
+VISIBLE = """(selector) => {
+  """ + SHOWN_JS + """
+  return [...document.querySelectorAll(selector)].some(shown);
+}"""
 # Whether a frame shows one not done yet: its box on view, and no token in its field.
 UNSOLVED = """(widgets) => {
+  """ + SHOWN_JS + """
   for (const [selector, field] of widgets) {
     for (const frame of document.querySelectorAll(selector)) {
-      const box = frame.getBoundingClientRect();
-      if (!frame.checkVisibility() || box.width < 10 || box.height < 10) continue;
+      if (!shown(frame)) continue;
       const scope = frame.closest('form') || document;
       if (![...scope.querySelectorAll(`[name="${field}"]`)].some((el) => el.value)) return true;
     }
@@ -113,13 +131,18 @@ SAYS_BLOCKED = re.compile("|".join((*BLOCKS, r"access denied", r"unusual activit
 
 
 def shows(page: Page) -> bool:
-    """Whether the page shows a captcha's challenge now. A page that is gone
-    shows none, and a bot block (DataDome's, in the same frame) is none."""
-    try:
-        challenge = page.locator(CHALLENGE)
-        return any(challenge.nth(i).is_visible() for i in range(challenge.count())) and not blocks(page)
-    except Exception:
-        return False
+    """Whether the page shows a captcha's challenge to a person now, as Apply's own code reads it (VISIBLE), in any
+    of its frames: never Claude's word for it. A challenge's frame kept hidden, as an invisible captcha keeps one
+    while it is closed, is none. A page that is gone shows none, and a bot block (DataDome's, in the same frame) is none."""
+    for frame in getattr(page, "frames", ()):
+        if in_frame(frame.url):
+            continue  # a captcha's own frame: its insides are no challenge on the page
+        try:
+            if frame.evaluate(VISIBLE, CHALLENGE):
+                return not blocks(page)
+        except Exception:
+            continue  # a frame loading, or gone
+    return False
 
 
 def unsolved(page: Page) -> bool:
@@ -230,16 +253,16 @@ PUSH = "Do the captcha on {}. Apply goes on by itself once it's done."
 
 
 def wait(page: Page, pressed: Callable[[], bool], minutes: float, poll_ms: int = POLL_MS) -> bool:
-    """Wait on `page` for Lisul to do its captcha. True once the challenge
-    that showed is gone and its box is done, or he pressed Resume (`pressed()`); False after
-    `minutes`, or once the page is closed. It never touches the page."""
-    seen = pending(page)  # a challenge only Claude saw, perhaps in a frame no selector names: Resume alone ends it
+    """Wait on `page` for Lisul to do its captcha. True once Apply's own check sees no challenge showing and no
+    box left to do (`pending`), or he pressed Resume (`pressed()`); False after `minutes`, or once the page is
+    closed. A wait with nothing showing to a person ends at once (KAN-760): Claude's word alone never holds a
+    fill. It never touches the page."""
     deadline = time.monotonic() + minutes * 60
     while time.monotonic() < deadline:
         try:
             if page.is_closed():
                 return False
-            if pressed() or (seen and not pending(page)):
+            if pressed() or not pending(page):
                 try:
                     page.wait_for_load_state(timeout=15_000)  # a solved DataDome slider loads the page again
                 except Exception:

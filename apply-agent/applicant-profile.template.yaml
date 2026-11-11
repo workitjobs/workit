@@ -37,6 +37,8 @@ identity:
     # seen: he/him/his | she/her/hers | they/them/theirs | He/They | Other | I don't wish to answer | free text
   email:                       # freq 58
   phone:                       # freq 54 (E.164, e.g. +1XXXXXXXXXX)
+  phone_type:                  # mobile | landline | work (Workday "Phone Device Type", iCIMS "Phones: Type", "Mobile or landline?");
+                               # the engine picks the closest option (mobile: Mobile, Cell, Home Cellular; never Work Cellular)
   current_location:            # freq 33 ("City, ST"; Greenhouse also geocodes it to lat/long)
     city:
     state:

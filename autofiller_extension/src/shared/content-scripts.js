@@ -11,8 +11,36 @@
 // (background/engine.js). Content scripts can't be ES modules, so the order
 // here is what makes the globals exist.
 import { pageSystem } from "../background/site-access.js";
+import { rulesFor } from "../background/rules.js";
 
 export const ENGINE_FILES = ["fill-engine/dist/engine.js"];
+
+/**
+ * Loads `table` (background/rules.js, the Rules table fetched as the posting
+ * opened) into the engine just injected into `target`, or the bundled table
+ * when there is none or the engine refuses it. Each injection loads it: the
+ * engine holds a table in memory only. Never throws: the fill goes on with
+ * whatever the engine holds.
+ * @param {chrome.scripting.InjectionTarget} target
+ * @param {object | null} table
+ */
+export async function loadRulesIn(target, table) {
+  await chrome.scripting.executeScript({
+    target,
+    world: "MAIN",
+    func: (table) => {
+      const engine = globalThis.FillEngine;
+      const bundled = { version: engine.RULES_VERSION };
+      try {
+        engine.loadRules(table ?? bundled);
+      } catch (error) {
+        console.warn("[WorkIt] the Rules table was refused; the bundled one fills:", error.message);
+        engine.loadRules(bundled);
+      }
+    },
+    args: [table],
+  }).catch((error) => console.warn("[fill] the Rules table wasn't loaded:", error.message));
+}
 
 // The panel's shell, before any fill: what the launcher's panel/shell loads on a job page (launcher.js, KAN-749)
 // and the toolbar icon or Alt+W where no panel is yet (background.js openShell). The manifest loads only the
@@ -40,19 +68,21 @@ export async function injectFill(tabId, { batch = false, frameId = undefined } =
   // One fill per page, claimed in one step before anything is injected. A batch tab opened on a Workday step
   // is injected twice as its page loads (batch.js's startFill and background.js's per-page-load fill): run
   // side by side, the second's panel scripts replaced the first fill's panel, and no panel showed.
-  const [{ result: claimed }] = await chrome.scripting.executeScript({
+  // With the claim, the page's copy of the Rules table (the launcher's, background/rules.js).
+  const [{ result: claim }] = await chrome.scripting.executeScript({
     target,
     func: (batch, jobSystem) => {
-      if (window.WIA?.running) return false;
+      if (window.WIA?.running) return { claimed: false };
       window.WIA = { ...window.WIA, batch, running: true, jobSystem };
-      return true;
+      return { claimed: true, rules: window.WIA.rules ?? null };
     },
     args: [batch, jobSystem],
   });
-  if (!claimed) return;
+  if (!claim?.claimed) return;
   const release = () => chrome.scripting.executeScript({ target, func: () => void (window.WIA.running = false) }).catch(() => {});
   try {
     await chrome.scripting.executeScript({ target, world: "MAIN", files: ENGINE_FILES });
+    await loadRulesIn(target, await rulesFor(jobSystem, claim.rules, href).catch(() => null));
   } catch (error) {
     await release();
     throw error;

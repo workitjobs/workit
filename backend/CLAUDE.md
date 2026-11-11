@@ -90,7 +90,8 @@ uv run python -m app.scripts.intake_test_set   intake's fixed test set against t
 uv run python -m app.scripts.ship_check ...   the connector's blind read, KAN-386 (by hand, never CI; data outside the repo)
 uv run python -m app.scripts.clean_bank_entries  one-off: split "| C++, Go" off older bank titles, drop read skills the catalog lacks; --typed also drops Tailor-added degrees/"AI tools" (dry run unless --apply; local DB only)
 uv run python -m app.scripts.fill_report <id>   a fill report's fix brief + form fixture into fill-reports/ (--latest; reads DATABASE_URL, writes nothing)
-uv run python -m app.scripts.trace_rules_leak <table.json>  the account a leaked Rules table was served to, KAN-756 (reads DATABASE_URL, writes nothing)
+uv run python -m app.scripts.trace_rules_leak <table.json>  the account a leaked Rules table was served to and its fetch history, KAN-756/KAN-772 (reads DATABASE_URL, writes nothing)
+uv run python -m app.scripts.rules_anomalies [--days 7]  accounts whose Rules table fetches look like scraping, as a table, KAN-772 (reads DATABASE_URL, writes nothing)
 uv run python -m app.scripts.import_apply_profile <applicant_id> [<apply_dir>]  a student's Apply data folder ($APPLY_HOME, else ~/.config/apply) into WorkIt (--dry-run rolls back; local DB only; app/models/CLAUDE.md, "The Fill engine's profile")
 uv run python -m app.scripts.label_resume_headings  label data/resume_heading_candidates.txt's resume headings once with Groq into app/utils/learned_headings.json (--dry-run lists them; review the diff; app/utils/CLAUDE.md, Learned headings)
 uv run python -m app.scripts.purge_old_data  delete rows past app/services/retention.py's periods, KAN-482 (--dry-run counts, deletes nothing; daily in CI)
@@ -600,7 +601,11 @@ Find files with a directory listing; these are the rules for where code goes.
   same path; never a copy here, which would drift. Without the submodule the
   app starts and both routes answer 503. Nothing here names the table's
   version or fields beyond `answers` and `systems`, so the engine's next
-  schema version is a submodule bump. **Two steps**: `POST
+  schema version is a submodule bump. Since engine v0.3.35 (schema version 2,
+  KAN-755) a site's data also holds its field-kind maps (`kinds`) and
+  timeouts (`timeouts`), and the engine takes a served site only whole
+  (every name, or `{}`, which it then refuses to fill): the cut keeps the
+  site whole, and the watermark touches only strings and patterns. **Two steps**: `POST
   /extension/rules/token {"url"}` names the job system from the posting's
   link (`hosts.py` `job_system_of`; a host on none, or a system the table
   lacks, is 422) and answers a site token, kept only as its sha256 and good
@@ -616,13 +621,24 @@ Find files with a directory listing; these are the rules for where code goes.
   class), each chosen by a hash of the account id, so the engine fills the
   same. Only strings every part of which reads as a selector are touched,
   and the engine must use those only whole (a test reads its source for
-  that). `uv run python -m app.scripts.trace_rules_leak <table.json>` names
-  the account a leaked table was served to, from the fetch log's accounts.
+  that, and lists the engine's own whole-selector helpers: `$$`, `deep`,
+  `first`, Lever's `shown`; a new helper fails it until added there). `uv run python -m app.scripts.trace_rules_leak <table.json>` names
+  the account a leaked table was served to, from the fetch log's accounts,
+  and prints its fetch history (KAN-772).
+  **Anomaly report** (KAN-772, `services/rules_anomalies.py`, admins only:
+  `GET /admin/rules-anomalies?days=` and `app.scripts.rules_anomalies`):
+  flags accounts that fetch many job systems in a short window, fetch far
+  more than they fill (the account's `fill_event` daily counts, since
+  `fill_events` names no account), fetch at timer-like gaps, or reach the
+  daily cap on several days. Thresholds are the `RULES_ANOMALY_*` settings
+  in `app/config.py`. Whole UTC days, at most 30 (`daily_counts` is kept
+  30). A flag is a lead to read, never a block.
   **Plain data only**: never encrypted, encoded, step lists or expressions
   (the Chrome Web Store's line). Tokens are purged after a day, fetches
   after 90 (`services/retention.py`). Tests:
-  `tests/test_extension_rules.py`, `tests/test_rules_watermark.py` (the
-  engine's round trip on watermarked tables, with Node and the submodule).
+  `tests/test_extension_rules.py`, `tests/test_rules_anomalies.py`,
+  `tests/test_rules_watermark.py` (the engine's round trip on watermarked
+  tables, with Node and the submodule).
   **Save to WorkIt by a page's link** (KAN-401, `POST /jobs/saved-by-link`
   in `routers/applications.py`, `queries/applications.py`
   `listed_job_by_link`): the extension's toolbar popup on a site it can't
@@ -772,9 +788,13 @@ Find files with a directory listing; these are the rules for where code goes.
   `tests/test_truth_check.py`). It reads each saved answer in words,
   Claude's or a paste. It finds the claims that none of the student's facts
   hold: numbers, names of tools and employers, a month or season, and
-  outcomes such as "went into use". The student's facts are their bank,
-  profile and own answers. The posting, brief and question can also give a
-  number or a name. WorkIt saves such an answer as written and flags it in
+  outcomes such as "went into use". An outcome counts only from a fact
+  about the same project or role (KAN-750): the project the sentence (or
+  the one before it, or the plan's story) names. The bank goes in one
+  entry per text under a "## title, organization" heading
+  (`written.bank_facts`). The student's facts are their bank, profile and
+  own answers. The posting, brief and question can also give a number or
+  a name. WorkIt saves such an answer as written and flags it in
   the tab (`review.flag_claims`, kept as `answer_review.truth`). The flag
   names the claims and marks the first one's sentence. It holds until the
   answer changes or the student keeps it. The pre-submit review's own flag
@@ -1152,6 +1172,20 @@ Find files with a directory listing; these are the rules for where code goes.
   never commits. **A stored file is removed only when `file_in_use` says
   no row needs it**, and a snapshot only when no sent resume does
   (`delete_sent`; its foreign key is RESTRICT).
+- **Generate streams its steps** (KAN-444): `POST .../built-resumes/stream`
+  runs the JSON route's Generate (`built_resumes.generate_steps`, which
+  both read) as NDJSON, `checking` before the duplicate check and `saving`
+  before the writes, then `done` with the resume once committed, or
+  `error` with the JSON route's status and message (409 and the resume it
+  matches). Like Tailor's stream it opens its own session. Generate reads
+  the bank once, every resume's own skills included, and takes those out
+  for the new one, and a new resume's choice rows are not deleted or
+  touched first: 16 statements, from 25, each a round trip to Supabase.
+  **The bank's order breaks every tie by id** (`load_bank`): Generate shows
+  the first copy of a skill two uploads hold, and the duplicate check
+  compares ids, so with ties left to Postgres a second Generate could show
+  the other copy and pass as new (found on the test account, 2026-11-10).
+  Tests: `tests/test_built_resumes.py`.
 - **A duplicate resume is refused** (KAN-267, `../docs/sent_resume.md`),
   409 `{"detail": {"message": "Duplicate Resume found: <name>", ...}}`
   with nothing written. **Upload and Import Updated Resume** compare
@@ -1168,7 +1202,11 @@ Find files with a directory listing; these are the rules for where code goes.
   (`generate(..., refuse_duplicate=True)`, the route only; Tailor's own
   Generate never refuses) compares the new resume's view with every built
   resume's view built from today's bank (`same_resume`), before writing:
-  a resume's content changes with every edit, so no hash is stored. A
+  a resume's content changes with every edit, so no hash is stored. The
+  409 names the match (`name`), and **a student who confirms the copy
+  gets it**: the Resumes page asks "You Already Have This Resume" and
+  sends `allow_duplicate`, which skips the check (KAN-444). Uploads stay
+  refused: `resumes_text_hash_key` keeps one upload per text. A
   test that needs two resumes from one bank adds a skill between them
   (`tests/test_built_resumes.py`'s `_another`).
 - **The resume limit is 5 uploads** (`services/built_resumes.py`'s

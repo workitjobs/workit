@@ -182,6 +182,9 @@ SIGN_IN = ("sign in to Google by hand, in a Chrome started with --user-data-dir=
 
 
 PLAIN_SEED = "run `uv run apply plain seed` once no plain Worker runs, and follow its steps (docs/plain-workers/guide.md)"
+# A seed whose worker extension folder holds other code than this checkout's (KAN-764).
+STALE_SEED = ("once no Chrome loads that folder, start Apply (it updates the folder before a Worker starts), or run "
+              "`uv run apply plain seed` and follow its steps (docs/plain-workers/guide.md)")
 
 
 def _workers(machine: Machine) -> list[Check]:
@@ -202,6 +205,9 @@ def _plain_seed(machine: Machine) -> Check:
         return Check(name, FAIL, f"no seed profile at {seed}", PLAIN_SEED)
     if not (folder := worker_extension.loaded_folder(seed)):
         return Check(name, FAIL, f"the worker extension isn't installed in {seed}", PLAIN_SEED)
+    if worker_extension.code_hash(folder) != worker_extension.code_hash(worker_extension.EXTENSION_DIR):
+        return Check(name, FAIL, f"the seed's worker extension, in {folder}, holds other code than this checkout's, so "
+                                 "every new Worker misses the guard and fill fixes since then", STALE_SEED)
     if not developer_mode(seed):
         return Check(name, WARN, f"Developer mode is off in {seed}, so Chrome disables the worker extension "
                                  "when it reloads", PLAIN_SEED)
@@ -246,6 +252,10 @@ REQUIRED = [
     "work_authorization.authorized_to_work_us", "work_authorization.requires_sponsorship_now_or_future",
 ]
 
+# Facts some forms ask that the Fill engine otherwise guesses: blank, doctor warns but passes.
+# identity.phone_type (mobile, landline or work): Workday's Phone Device Type (KAN-757).
+OPTIONAL = ["identity.phone_type"]
+
 
 TEMPLATE = CODE / "applicant-profile.template.yaml"
 
@@ -262,6 +272,11 @@ def _facts(machine: Machine) -> Check:
     if blank:
         return Check("Applicant profile", FAIL, f"blank: {', '.join(blank)}",
                      f"fill them in the Applicant profile in {machine.profile.folder}")
+    unset = [key for key in OPTIONAL if machine.profile.get(key) in (None, "", [], {})]
+    if unset:
+        return Check("Applicant profile", WARN, f"all {len(REQUIRED)} required facts filled; optional blank: {', '.join(unset)}",
+                     f"fill them in the Applicant profile in {machine.profile.folder}, or forms guess them "
+                     "(identity.phone_type: mobile, landline or work)")
     return Check("Applicant profile", OK, f"all {len(REQUIRED)} required facts filled")
 
 

@@ -38,7 +38,7 @@ from apply.adapters import (
 from apply.answer_bank import Entry
 from apply.answer_bank import key as bank_key
 from apply.captcha import Waiter
-from apply.claude_fill import ClaudeFill, OnePage
+from apply.claude_fill import ClaudeFill, OnePage, entry_history
 from apply.feed import repost_keys
 from apply.fillers import FILLERS
 from apply.match_queue import match_queue, over_employer_limits
@@ -632,7 +632,7 @@ def by_filler(
                         marketing_opt_in=profile.policy("marketing_opt_in") is True,
                         accounts=signing_in, account_facts=account_facts(profile, agree),
                         page_gates=_page_gates(profile.policy("page_gates")),
-                        signed_in=oracle.signed_in if oracle_sign_in else None)
+                        signed_in=oracle.signed_in if oracle_sign_in else None, history=entry_history(profile))
     with OnePage(site) as page_site:
         result = apply(filler, page_site)
     result.reason = "; ".join(filter(None, [result.reason, filler.usage()]))

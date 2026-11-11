@@ -1,6 +1,7 @@
 // The Chrome Web Store package (KAN-463, store/build.mjs): what the Store gets, read back out of the zip itself.
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { appendFileSync, cpSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { runInNewContext } from "node:vm";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, test } from "@playwright/test";
@@ -83,4 +84,47 @@ test("the dev manifest is left as it is", () => {
   const manifest = JSON.parse(readFileSync(join(EXTENSION, "manifest.json"), "utf8"));
   expect(manifest.host_permissions).toContain("http://localhost:8000/*");
   expect(manifest.key).toBeTruthy();
+});
+
+/** store/build.mjs's perSiteData for the package at `dir`, run as the module it is (it uses import.meta). */
+const perSiteData = (dir: string): string[] => JSON.parse(execFileSync("node", ["--input-type=module", "-e",
+  `import { perSiteData } from ${JSON.stringify(join(EXTENSION, "store", "build.mjs"))}; console.log(JSON.stringify(perSiteData(process.argv[1])));`, dir], { encoding: "utf8" }));
+
+// The Store engine (KAN-777): no job system's data in the package, which the build itself checks (perSiteData).
+test("the packaged engine bundles no job system's data and only the basic answer rules", () => {
+  const scope: any = {};
+  runInNewContext(read("fill-engine/dist/engine.js"), scope);
+  const engine = scope.FillEngine;
+  const table = engine.bundledRules();
+  const full = JSON.parse(readFileSync(join(EXTENSION, "fill-engine", "dist", "rules-table.json"), "utf8"));
+  expect(Object.keys(table.systems).sort()).toEqual(Object.keys(full.systems).sort());
+  for (const site of Object.keys(full.systems)) {
+    expect(table.systems[site], site).toEqual({});
+    expect(engine.supported(site), site).toBe(false);
+  }
+  expect(table.answers.length).toBeGreaterThan(0);
+  expect(table.answers.length).toBeLessThan(full.answers.length);
+  expect(table.answers.every((rule: object) => engine.isBasicRule(rule))).toBe(true);
+  // The package's engine is not the full one.
+  expect(read("fill-engine/dist/engine.js")).not.toContain(full.systems.ashby.strings.SUBMIT);
+});
+
+test("the build's check finds a job system's selector in any packaged file", () => {
+  const copy = join(out, "leaky");
+  cpSync(join(out, "extension"), copy, { recursive: true });
+  expect(perSiteData(copy)).toEqual([]);
+  const full = JSON.parse(readFileSync(join(EXTENSION, "fill-engine", "dist", "rules-table.json"), "utf8"));
+  const selector = full.systems.ashby.strings.SUBMIT;
+  appendFileSync(join(copy, "src", "content", "overlay.js"), `\nconst x = ${JSON.stringify(selector)};\n`);
+  expect(perSiteData(copy)).toEqual([`src/content/overlay.js holds ashby SUBMIT: ${selector}`]);
+});
+
+test("the build's check finds a job system's field-kind map or timeout written out in a packaged file", () => {
+  const copy = join(out, "leaky-kinds");
+  cpSync(join(out, "extension"), copy, { recursive: true });
+  const full = JSON.parse(readFileSync(join(EXTENSION, "fill-engine", "dist", "rules-table.json"), "utf8"));
+  const [kindsName, kinds] = Object.entries(full.systems.workable.kinds)[0] as [string, Record<string, string>];
+  const [waitName, ms] = Object.entries(full.systems.greenhouse.timeouts)[0] as [string, number];
+  appendFileSync(join(copy, "src", "content", "overlay.js"), `\nconst k = ${JSON.stringify(kinds)};\nconst w = { ${waitName}: ${ms} };\n`);
+  expect(perSiteData(copy)).toEqual([`src/content/overlay.js holds workable kinds ${kindsName}`, `src/content/overlay.js holds greenhouse timeouts ${waitName}`]);
 });
