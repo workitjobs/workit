@@ -308,7 +308,7 @@ def answer(claude: Claude, posting: Posting, essays: list[Question], drafts: lis
         redone = {e.question: e for e in answer(claude, posting, list(again), [], profile, company, posting_text, again,
                                                 answered, planned, redo)[0]}
         result = [redone.get(e.question, e) for e in result]
-    return result, [_draft(q, drafted.get(key) or {}, prompt, profile) for key, q in short.items()]
+    return result, [_draft(q, drafted.get(key) or {}, prompt, profile, own) for key, q in short.items()]
 
 
 def _redo_block(redo: Mapping[Question, tuple[str, str]] | None, keys: Mapping[str, Question]) -> str:
@@ -925,10 +925,13 @@ def _draft_schema(q: Question) -> dict:
     }
 
 
-def _draft(q: Question, given: dict, prompt: str, profile: ApplicantProfile) -> Draft:
+def _draft(q: Question, given: dict, prompt: str, profile: ApplicantProfile, own: str) -> Draft:
     """Claude's draft, or one that needs Lisul: one Claude says it can't
     answer, an empty one, a choice that isn't among the options, or words
-    stating a number no source holds (a made-up fact shows most as a number)."""
+    the truth check (apply.truth, KAN-750) finds a claim in: a number or a
+    name nothing in the call (`prompt`) holds, or an outcome none of his
+    facts (`own`) states about its project. Not a date: the profile keeps
+    its dates as values ("2027-05-24"), not as "May 2027"."""
     answer = given.get("answer")
     choices = q.options if q.options and not _unread(q) else None
     if q.kind == "multi_select" and choices:
@@ -937,7 +940,8 @@ def _draft(q: Question, given: dict, prompt: str, profile: ApplicantProfile) -> 
         answer = picked
     else:
         answer = str(answer or "").strip()
-        usable = bool(answer) and (answer in choices if choices else not unsupported_numbers(answer, prompt))
+        usable = bool(answer) and (answer in choices if choices else not [
+            c for c in truth.unsupported(answer, own, prompt) if c.kind != "date"])
     if given.get("needs_lisul") is True or not usable:
         return Draft(q, "", needs_lisul=True)
     return Draft(q, answer, facts=_facts(given.get("facts"), profile))
