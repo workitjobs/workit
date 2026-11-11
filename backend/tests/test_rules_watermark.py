@@ -38,7 +38,7 @@ needs_engine = pytest.mark.skipif(
 
 # A table in the engine's shape, small enough to read.
 TABLE = {
-    "version": 1,
+    "version": 2,
     "answers": [
         {"pattern": {"source": "^first name$"}, "value": "fact", "args": ["identity.legal_first_name"]},
         {"pattern": {"source": r"available to (begin|start)\b.{0,60}\bbefore [a-z]+ \d{4}"}, "value": "fact", "args": ["x"]},
@@ -116,7 +116,7 @@ def test_wordings_and_single_selectors_and_v_flag_patterns_are_never_changed():
 
 def test_regex_classes_and_literal_braces_keep_their_spelling():
     for source in (r"a[]b c", r"a[^] c", "a{b [c d]} e", r"x{2} y{0,3}"):
-        table = {"version": 1, "answers": [{"pattern": {"source": source}, "value": "consent"}]}
+        table = {"version": 2, "answers": [{"pattern": {"source": source}, "value": "consent"}]}
         for _ in range(10):
             marked = watermark(table, uuid.uuid4())["answers"][0]["pattern"]["source"]
             plain = marked.replace("[ ]", " ")
@@ -148,7 +148,7 @@ def test_recovers_the_account_a_leaked_table_was_served_to():
 
 
 def test_recovers_it_from_the_regex_spellings_alone_once_the_decoy_and_order_are_stripped():
-    table = {"version": 1, "answers": [
+    table = {"version": 2, "answers": [
         {"pattern": {"source": f"question {i} about your work history and the start date you can do"}, "value": "consent"}
         for i in range(10)
     ]}
@@ -195,11 +195,11 @@ def test_the_engine_uses_every_marked_list_only_as_whole_selectors():
     a selector function, or puts it whole into a larger list. `${SEL.ITEM} input` would turn a list into
     another selector, and `.split(",")` or `.includes(SEL.X)` would read it as text. Each use of a list
     the watermark touches is one of: the selector argument of querySelector(All), closest, matches, or
-    the engine's own $$ and deep (each a querySelectorAll); or a template part `${SEL.X}` between the
+    the engine's own $$, deep, first and Lever's shown (each a querySelectorAll); or a template part `${SEL.X}` between the
     template's ends and commas. Comments are left out.
     """
     allowed = re.compile(
-        r"""(?:\b(?:querySelector|querySelectorAll|closest|matches)(?:<[^>]*>)?\(\s*|\$\$(?:<[^>]*>)?\(\s*|\bdeep(?:<[^>]*>)?\([^,()]+,\s*)SEL\.(\w+)\s*\)"""
+        r"""(?:\b(?:querySelector|querySelectorAll|closest|matches)(?:<[^>]*>)?\(\s*|\$\$(?:<[^>]*>)?\(\s*|\b(?:deep|first)(?:<[^>]*>)?\([^,()]+,\s*|\bshown\(\s*)SEL\.(\w+)\s*\)"""
         r"""|(?:`|,\s*)\$\{SEL\.(\w+)\}\s*(?=`|,)"""
     )
     for site in rules_table.sites():
