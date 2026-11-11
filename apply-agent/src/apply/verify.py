@@ -36,6 +36,8 @@ from apply.records import SECRET
 BLANK, READBACK, FILE, CHOICE, DATE, PAY, PRONOUN, NAME, COMPANY, REVIEW, GUESSED, HISTORY_KIND, LEFTOVER = (
     "blank", "readback", "file", "choice", "date", "pay", "pronoun", "name", "company", "review", "guessed", "history",
     "leftover")
+# Why an optional question Lisul is asked (no source of his holds it) shows blank: a note, never a hold (KAN-759).
+OPTIONAL_UNANSWERED = "optional, not answered yet: answer it in Needs you, or skip it"
 # Starts each flag's part of a held row's reason.
 PREFIX = "Verify: "
 # The flags Lisul dismissed, by Application ID: each Application's Record keeps them, past a reload or a new run.
@@ -269,7 +271,11 @@ def _blanks(questions, answers, readback, asked: set[str], left: set[str], plann
     flags = []
     answered = {_norm(q.label) for q in questions if q.name in answers}
     for q in questions:
-        if q.name in answers or not _blank(readback.get(q.name)) or q.name in left or q.label.strip() in asked:
+        if q.name in answers or not _blank(readback.get(q.name)) or q.name in left:
+            continue
+        if q.label.strip() in asked:  # a Missing fact Lisul is asked already: one optional is only noted (KAN-759)
+            if not q.required:
+                flags.append(Flag(one_line(q.label), OPTIONAL_UNANSWERED, BLANK, holds=False))
             continue
         if _norm(q.label) in answered:
             continue  # the other way to give the same thing (a resume pasted as text, when the file is attached)

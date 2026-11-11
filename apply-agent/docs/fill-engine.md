@@ -97,6 +97,18 @@ old profile on the job site carried over is replaced (Amazon's Education,
 holds the form if the field still shows a value (`docs/held-forms.md`).
 A profile with no `minors` key leaves it as before.
 
+An optional question whose rule reads a profile fact that the profile
+doesn't keep at all goes in `Plan.optional` (KAN-759). Apply asks it in
+Needs you with a Skip, and never holds the form for it
+(`docs/held-forms.md`). A fact the profile keeps empty is none: the field
+stays blank and is never asked. An empty answer in `answered_questions`
+is Lisul's Skip: an optional question of that wording stays blank. Address
+Line 2 and 3 are blank when the home address has a first line and no such
+line. Tax District is `identity.home_address.tax_district`, else blank
+for a home in no local tax district (the engine's `LOCAL_TAX` table: the US
+states with local income taxes, and for New York only New York City and
+Yonkers), else asked. A home outside the US, or with no state, is asked.
+
 An Answer bank entry with `answer: []` and `none: true` answers a
 multi-select with none of its options (Roblox's partner organizations):
 its boxes stay unticked, a blank on purpose in the plan.
