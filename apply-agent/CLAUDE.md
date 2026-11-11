@@ -155,6 +155,12 @@ into it and the window shows "Sample data".
   application request. A new click path joins `PATHS`, and a new trick joins
   `PAGES`, in the same PR. CI runs its no-browser, CDP and plain Worker
   cases. A guard PR gets an adversarial review first (root `CLAUDE.md`).
+- **The guards read the page only through `apply.natives`** (KAN-783): the
+  browser's own getters and methods, taken before any page code. A page's
+  getter that throws or lies, a Proxy prototype, or a replaced built-in
+  sent an application when the guard read `el.innerText` directly. A new
+  read in a guard script uses a `$` helper, and a new listener that judges
+  a press goes through `judged` (a throw blocks).
 - **No test reaches past loopback** (`tests/network_block.py`, KAN-662). A
   socket or name lookup to another host raises `NetworkBlocked`, Chrome
   started by a test resolves other hosts to nothing, and Playwright's own
