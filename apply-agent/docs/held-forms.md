@@ -507,12 +507,15 @@ filled form was lost.
   drive uses: both guards back on (`rearm`). After it (and `SETTLE_MS`, 3 s), the page is his again, but his
   Submit is held (`Keeper.holding`, `keepalive.STAY_HELD`): `lift(held=...)`, under the red note with Dismiss,
   where the in-page guard stays whole. Only his Dismiss on the note gives Submit back (`Keeper.dismiss`, with any
-  flag's hold). So a button that sends the form at any delay after the press sends nothing while the form is
+  flag's hold). That Dismiss is the guard's own tell (PR 477's design: `submit_guard.TELLS`, from the guard's
+  closure, for a trusted press or the worker extension's marked one), so nothing the page can reach releases it:
+  not a call of `__applyDismissHold`, nor a script's click on the note's button, nor a console line that looks
+  like the tell (the re-review of #541). So a button that sends the form at any delay after the press sends nothing while the form is
   held. A fixed 3 s of guard was not enough: in the adversarial review of #541, a Continue that sent 3.5 s later
   went through. From the press on, the Keeper sends no more mouse moves on that page, since a page could arm on
   the press and send on the next one; the GET, which the page's code never sees, goes on. It is in
   `tests/test_submit_guard_hostile.py` (`PATHS`, the session dialogs in `SESSION_PAGES`, sending 1.5 s, 3.5 s,
-  10 s and 60 s after the press or after the next mouse move): a change here gets an adversarial review before
+  10 s and 60 s after the press or after the next mouse move, or after dismissing the hold itself): a change here gets an adversarial review before
   it merges (KAN-666).
 - **When a session ends anyway.** On every site, listed or not, the Keeper reads for `ENDED` (past tense only:
   "was ended due to inactivity", "has expired"; never "will expire") showing anew, or, where the entry knows the

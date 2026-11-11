@@ -476,7 +476,8 @@ _LATER = """<script>document.getElementById('b').addEventListener('click', () =>
 # The adversarial review of #541: a press that re-armed the guard for 3 s let a Continue that sent 3.5 s later through.
 SENDS_AFTER = {"a session dialog whose Continue sends later": 1500, "a session dialog whose Continue sends after 3.5 s": 3500,
                "a session dialog whose Continue sends after 10 s": 10_000,
-               "a session dialog whose Continue sends after 60 s": 60_000}
+               "a session dialog whose Continue sends after 60 s": 60_000,
+               "a session dialog whose page dismisses the hold itself": 8000}
 SESSION_PAGES = {
     # Its Continue is no form's, but its script sends the application and posts the form.
     "a session dialog whose Continue sends": {START: _SESSION % "<button type=button id=b>Continue</button>" + """<script>
@@ -490,6 +491,21 @@ SESSION_PAGES = {
         + """<script>let armed = false; document.getElementById('b').addEventListener('click', () => { armed = true; });
         document.addEventListener('mousemove', () => { if (armed) { armed = false; setTimeout(() => { sendAll();
           document.getElementById('f').submit(); }, 3500); } }, true);</script>"""},
+    # The re-review of #541: after the press, the page dismisses the hold itself, every way a script can (the old
+    # page-visible binding, a script's click and a made-up click on the note's Dismiss, a console line that looks like
+    # the guard's tell), then sends. Only Lisul's own press on the note gives Submit back (PR 477's tells).
+    "a session dialog whose page dismisses the hold itself": {START: _SESSION % "<button type=button id=b>Continue</button>"
+        + """<script>const free = () => {
+          try { window.__applyDismissHold && window.__applyDismissHold(); } catch (e) {}
+          for (const d of document.querySelectorAll('button')) if (d.textContent.trim() === 'Dismiss') {
+            try { d.click(); } catch (e) {}
+            try { d.dispatchEvent(new MouseEvent('click', {bubbles: true, cancelable: true})); } catch (e) {}
+          }
+          try { console.log('__apply:' + '0'.repeat(32) + ':["__applyDismissHold",[]]'); } catch (e) {}
+        };
+        document.getElementById('b').addEventListener('click', () => { for (const ms of [1500, 4000, 7000]) {
+          setTimeout(free, ms);
+          setTimeout(() => { sendAll(); document.getElementById('f').submit(); }, ms + 1000); } });</script>"""},
     # Its Continue reads so when checked, and Submit application when pressed.
     "a session dialog whose Continue becomes a Submit": {START: _SESSION % "<button type=button id=b>Continue</button>" + """<script>
         const b = document.getElementById('b');
@@ -960,7 +976,8 @@ def test_the_stay_press_on_a_held_page_sends_nothing(page_name, monkeypatch):
 
 
 @pytest.mark.parametrize("page_name", ["a session dialog whose Continue sends after 3.5 s",
-                                       "a session dialog whose Continue sends after the next mouse move"])
+                                       "a session dialog whose Continue sends after the next mouse move",
+                                       "a session dialog whose page dismisses the hold itself"])
 def test_the_stay_press_on_a_held_plain_page_sends_nothing(page_name, monkeypatch):
     with plain(PAGES[page_name]) as (page, _, site):
         keep = _held_with_keeper(page, monkeypatch, button(page_name), _held_seconds(page_name))
