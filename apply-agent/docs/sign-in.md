@@ -78,7 +78,8 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
   `hides_errors` play these flows (`tests/test_employer_accounts.py`).
 - In its Sign in with email view, Workday names the auth button "Submit"
   (Sonos's, live). A rehearsal's guard blocks a button that says submit,
-  so `workday._send` sets `window.__applyAccountClick` for its own click.
+  so `workday._send` arms the account click for its own click
+  (`submit_guard.let_account_click`, the guards' own control: KAN-710).
   The guard then lets a click or submit in a form with a password box go
   through. No application's final button is in such a form.
 - **Lisul's own press on a sign-in step is never the application's Submit

@@ -1683,6 +1683,16 @@ def _profile_then_form_driver(page, schema: dict, prompt: str, files: list) -> d
             "submit_button": "Submit" if profile else "Submit application", "unlisted": unlisted}
 
 
+def _open_live(page, html: str) -> None:
+    """`html` as a live run's page, opened as a Worker opens it: submit_guard.on_open before its first load, so the
+    drive guard runs before its code (a page written by set_content gets only the drive guard's block-only copy)."""
+    from apply import submit_guard
+
+    page.route("https://jobs.example.com/apply-form", lambda route: route.fulfill(body=html, content_type="text/html"))
+    submit_guard.on_open(page)
+    page.goto("https://jobs.example.com/apply-form")
+
+
 def test_a_profile_pop_up_before_the_application_is_sent_on_and_only_the_forms_last_page_is_held(tmp_path):
     from playwright.sync_api import sync_playwright
 
@@ -1692,7 +1702,7 @@ def test_a_profile_pop_up_before_the_application_is_sent_on_and_only_the_forms_l
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch()
         page = browser.new_page()
-        page.set_content(PROFILE_THEN_FORM)
+        _open_live(page, PROFILE_THEN_FORM)
         with pytest.raises(MoreQuestions) as more:  # the application's own questions, once the profile is sent
             fill.fill(page, [Question("q1", "Preferred First name", "text", True)], {"q1": "Test"})
         [why] = more.value.questions
@@ -1715,7 +1725,7 @@ def test_a_submit_outside_a_profile_pop_up_stays_blocked_while_its_click_is_let_
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch()
         page = browser.new_page()
-        page.set_content(PROFILE_THEN_FORM.replace('<form id="application" hidden', '<form id="application" style="display:none"'))
+        _open_live(page, PROFILE_THEN_FORM.replace('<form id="application" hidden', '<form id="application" style="display:none"'))
         drive = DriveGuard(page)
         drive.let_profile_click()
         page.evaluate("document.getElementById('application').style.display = ''")  # shown, outside the pop-up

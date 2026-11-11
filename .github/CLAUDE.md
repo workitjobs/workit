@@ -179,7 +179,18 @@ Workers' trusted typing missed its field. The tile's tests, which time
 frames in real seconds, have their own one-process step too. Before KAN-780 the job took 16 to 20 minutes,
 10 to 15 of them in the hostile pages' matrix. PRs now run every hostile
 page and every path at least once; `workflows/apply-nightly.yml` (07:53
-UTC, or `gh workflow run apply-nightly.yml`) runs every `nightly` test. A
+UTC, or `gh workflow run apply-nightly.yml`) runs every `nightly` test.
+The pages of PR 477's guard holes (KAN-710: `GUARD_HOLES` in
+`test_submit_guard_hostile.py`, among them a page that sets the guards' old
+`window.__apply*` flags itself) are never only nightly: PRs run each one on
+every CDP path. The holes that hang on how a plain Worker carries the guards'
+state, touches, controls and network rules (`PLAIN_HOLES`) also run on one
+plain-Worker path; the rest of their plain-Worker pairs run nightly, since the
+guard script is the same on both kinds of Worker. A page added for a new
+guard hole joins `GUARD_HOLES`, and `PLAIN_HOLES` too when it is about a plain
+Worker. With all 38 on a plain Worker the hostile step took 551 s on CI
+(2026-11-11) and hit its limit, so only `PLAIN_HOLES` run there on PRs, and
+the step's limit stays 9 minutes, not 6. A
 test safe only on its own (a fixed port or path) can't join a parallel step.
 
 The frontend job runs `format:check`, so an unformatted file fails the PR.

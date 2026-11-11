@@ -178,6 +178,9 @@ def test_a_reused_plain_worker_rehearses_twice_with_its_guards_reset(monkeypatch
     with site.open(ARC_URL, worker=0) as page:  # reused again: nothing of the last guard is left
         assert page.url == ARC_URL
         status = connection.call("guard.status", tab=page.tab)
-        assert status["scripts"] == [] and status["rules"] == 0 and status["lifted"] is False
+        # Only what a live run's page gets at open (KAN-710, submit_guard.on_open): the drive guard, lifted until a
+        # DriveGuard arms it, and the relay it tells through. No rehearsal's guard and no rule.
+        assert sorted(status["scripts"]) == ["apply-init-drive", "apply-relay"]
+        assert status["rules"] == 0 and status["lifted"] is False
     assert [t["url"] for t in connection.call("tabs.query")] == ["about:blank"]  # its window stays, blank
     os.kill(pid, 0)  # still up until the site closes
