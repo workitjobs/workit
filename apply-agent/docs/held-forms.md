@@ -29,7 +29,12 @@ reads: it does not click, type or submit.
   profile on the job site carried it over (Amazon's Minor, KAN-754). A
   None or N/A that the plan picked and the page does not show is the
   read-back's flag. A field whose fact the profile only lacks is never a
-  leftover. Claude makes only the judgment checks, in
+  leftover. Entries an old profile on the job site carried over hold as
+  leftovers too (`verify._extra_entries`, KAN-762): a jobs or schools
+  section read back with more entries than the plan gave it (JPMorgan's
+  Oracle kept a Princeton entry the profile doesn't list), and an employer
+  field of a work entry Apply didn't fill that names no job on file.
+  Claude makes only the judgment checks, in
   the Pre-submit review call (`presubmit.SYSTEM`: contradictions, wrong
   answers); its findings join the flags. Its `<profile>` block holds
   the facts as the plan read them, the Tracker's past applications too
