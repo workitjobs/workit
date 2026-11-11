@@ -179,6 +179,17 @@ into it and the window shows "Sample data".
   query as GraphQL, and blocks a mutation whose root field names a
   submit. A body to Ashby's GraphQL that it can't read is blocked: when
   the guard can't tell, it fails closed.
+- **A guarded page makes no worker** (KAN-791). A worker runs none of
+  the guard script, so a Web Worker, a shared or service worker, or a
+  blob: or data: worker script posted the application past both guards.
+  While a guard is on, the script refuses `Worker`, `SharedWorker`, a
+  service worker's `register` and a worklet's `addModule`, and ends a
+  dedicated worker made while the page was lifted when the guard comes
+  back on. On a CDP Worker, `_end_workers` closes the shared workers and
+  unregisters the service workers as the guard goes on (Playwright
+  routes no shared worker's request). On a plain Worker, the rules on
+  -1 block the final URLs and Ashby's GraphQL from them. A new way to
+  run code outside the page's realm needs the same three layers.
 - **No test reaches past loopback** (`tests/network_block.py`, KAN-662). A
   socket or name lookup to another host raises `NetworkBlocked`, Chrome
   started by a test resolves other hosts to nothing, and Playwright's own

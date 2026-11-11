@@ -35,8 +35,15 @@ a page Claude drives. In each frame, before the page's own code, it blocks:
   has a segment that names a submit (`/submit/123` too).
 
 A worker (dedicated, shared or service) runs none of the page's script, so
-the route stops its requests: a non-GET whose URL names a submit (ROUTED) is
-aborted, from the page or any worker. Only those URLs are routed, matched
+while the guard is on the page makes none (KAN-791): a Worker or SharedWorker
+from any URL (blob: and data: too), a service worker's registration and a
+worklet's module are refused, and a dedicated worker made while the page was
+lifted ends as the guard comes back on. As the rehearsal's guard goes on a CDP
+Worker (guard, on_open, rearm), its context's shared workers are closed and its
+service workers unregistered (_end_workers). Under that, the route stops the
+requests of the page, its dedicated workers and its service workers (Playwright
+routes no shared worker's): a non-GET whose URL names a submit (ROUTED) is
+aborted. Only those URLs are routed, matched
 by Playwright itself, so every other request goes straight through even
 while the Worker's thread is in `claude -p`; one that matches waits there
 until the thread is back, unsent, then is aborted (a GET goes on then). A
@@ -105,6 +112,7 @@ import json
 import re
 import secrets
 import threading
+import time
 from collections.abc import Callable
 from contextlib import contextmanager
 
@@ -1389,6 +1397,48 @@ _TEMPLATE = r"""
       return apply(beacon, this, arguments.length > 1 ? [u, sent] : [u]);
     };
   }
+
+  // Workers (KAN-791): a worker runs none of this script, so its fetch, XHR and beacon go unjudged. While the guard is
+  // on, the page makes none: a dedicated or shared worker (from any URL, blob: and data: too), a service worker's
+  // registration and a worklet's module are refused, by every name the page could reach the browser's own by (its
+  // prototype's constructor too). A dedicated worker made while the page was lifted ends as the guard comes back on.
+  // Below this, a CDP Worker closes the shared and service workers as the guard goes on (submit_guard.guard, rearm),
+  // and a plain Worker's rules block the final URLs from every worker, and Ashby's GraphQL from a shared or service one.
+  const construct = Reflect.construct;
+  const refusedWorker = (what) => { note('a ' + what + ' while the page is guarded'); return new DOMExc('Blocked by the @NAME@', 'SecurityError'); };
+  const madeLifted = bag(), terminate = W.Worker ? fn(Worker.prototype, 'terminate') : null;
+  const wrapWorker = (name, what) => {
+    const Native = W[name];
+    if (typeof Native !== 'function') return;
+    const proto = Native.prototype;
+    const Guarded = function (...args) {
+      if (new.target === undefined) throw new TypeErr("Failed to construct '" + name + "': Please use the 'new' operator.");
+      if (!lifted()) throw refusedWorker(what);
+      const made = construct(Native, args, new.target === Guarded ? Native : new.target);
+      if (name === 'Worker') put(madeLifted, made);  // ended when the guard comes back on
+      return made;
+    };
+    defineProp(Guarded, 'prototype', {value: proto});
+    defineProp(proto, 'constructor', {value: Guarded, writable: true, configurable: true});
+    defineProp(W, name, {value: Guarded, writable: true, configurable: true});
+  };
+  wrapWorker('Worker', 'worker');
+  wrapWorker('SharedWorker', 'shared worker');
+  const refuseCall = (owner, name, what) => {
+    const native = owner && owner.prototype[name];
+    if (typeof native !== 'function') return;
+    defineProp(owner.prototype, name, {value: function (...args) {
+      if (!lifted()) return reject(refusedWorker(what));
+      return apply(native, this, args);
+    }, writable: true, configurable: true});
+  };
+  refuseCall(W.ServiceWorkerContainer, 'register', 'service worker');
+  refuseCall(W.Worklet, 'addModule', 'worklet');
+  onControl[onControl.length] = () => {
+    if (lifted()) return;
+    for (let i = 0; i < madeLifted.n; i++) { try { terminate(madeLifted[i]); } catch (e) {} }
+    madeLifted.n = 0;
+  };
 })();
 """
 
@@ -1763,6 +1813,7 @@ def on_open(page: Page) -> None:
             page.context.route(ROUTED, _refuse)
             page.context.add_init_script(SCRIPT)
             setattr(page.context, GUARDED, True)
+            _end_workers(page)
     setattr(page, GUARDED, True)
 
 
@@ -1778,8 +1829,41 @@ def guard(page: Page) -> None:
         return _plain(page).guard(page)
     page.context.route(ROUTED, _refuse)
     page.context.add_init_script(SCRIPT)
+    _end_workers(page)
     # Its document is enough: a page whose last tracker never loads (Scale AI's, Coinbase's, live) would time out.
     page.reload(wait_until="domcontentloaded")
+
+
+def _end_workers(page) -> None:
+    """As the rehearsal's guard goes on a CDP Worker's context (KAN-791): its shared workers closed and its service
+    workers unregistered and stopped. Neither runs the guard script, and Playwright routes no shared worker's request,
+    so one made before the guard (or while Lisul had the page) could post the application after it. The guard script
+    refuses new ones and ends the dedicated workers itself. A plain Worker's rules block what these would send."""
+    session = page.context.new_cdp_session(page)
+    try:
+        for target in session.send("Target.getTargets")["targetInfos"]:
+            if target["type"] == "shared_worker":
+                try:
+                    session.send("Target.closeTarget", {"targetId": target["targetId"]})
+                except Exception:
+                    pass  # it closed on its own meanwhile
+        heard: list[list[dict]] = []
+        session.on("ServiceWorker.workerRegistrationUpdated", lambda event: heard.append(event["registrations"]))
+        session.send("ServiceWorker.enable")
+        for _ in range(200):  # its first event lists every registration (an empty list too); each send hears events
+            if heard:
+                break
+            session.send("Target.getTargets")
+            time.sleep(0.01)
+        if not heard:
+            raise RuntimeError("the service workers never listed: the guard can't tell none is left")
+        for registration in heard[0]:
+            if not registration.get("isDeleted"):
+                session.send("ServiceWorker.unregister", {"scopeURL": registration["scopeURL"]})
+        session.send("ServiceWorker.stopAllWorkers")
+        session.send("ServiceWorker.disable")
+    finally:
+        session.detach()
 
 
 def _drive_at_open(page) -> None:
@@ -1989,6 +2073,7 @@ def rearm(page: Page) -> None:
     page.context.route(ROUTED, _refuse)
     _init(page, {"lift": None})
     control(page, {"lift": None})
+    _end_workers(page)
 
 
 def renote(page: Page, warning: str = "", wrong: bool = True, held: str = "") -> None:

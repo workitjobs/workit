@@ -16,8 +16,10 @@ On a plain Worker's page (a PortPage, `apply-agent/docs/plain-workers/PROTOCOL.m
 - **Below them, declarativeNetRequest.** `guard` puts one session rule per final application
   URL (the guard script's FINAL_URLS, which cover ROUTED) on the tab, the tabs it opens and
   service workers. It blocks a non-GET before it leaves Chrome: page code from another realm,
-  a worker, a beacon, or a form's native POST. `lift` takes the rules off and `rearm` puts them
-  back.
+  a worker, a beacon, or a form's native POST. A second rule set (`WORKER_RULES`, KAN-791) blocks
+  a non-GET to Ashby's GraphQL from no tab alone (a service or shared worker): no rule reads a
+  body, and the guard script, which reads the page's, refuses the page any new worker. `lift`
+  takes both off and `rearm` puts them back.
 - **The guards' state** (KAN-710) is set only by token-named control events the extension sends
   from its isolated world (`guard.control`, `guard.lift`, `guard.rearm`, `guard.applied`); no page sees
   or sends them. `guard.tokens` tells the extension the run's touch and tell events once.
