@@ -8,6 +8,7 @@ import type { Choices, ChoicesUpdate } from "@/lib/built-resume-actions";
 import { cn } from "@/lib/cn";
 
 import { moveItem, printedSections, type PrintedEntry } from "./model";
+import { Tip } from "@/components/ui/tip";
 
 /**
  * The resume's order as an outline (KAN-435), as Jobright keeps it: sections
@@ -90,28 +91,30 @@ function SortableList<T>({
         >
           {row(
             item,
-            <button
-              type="button"
-              draggable
-              aria-label={`Move ${labelOf(item)}`}
-              title="Drag to move, or use the arrow keys"
-              className="text-ink-meta hover:text-ink focus-visible:ring-brand-ring flex h-7 w-5 shrink-0 cursor-grab items-center justify-center rounded-xs focus-visible:ring-2 focus-visible:outline-none active:cursor-grabbing"
-              onDragStart={(event) => {
-                event.stopPropagation();
-                event.dataTransfer.effectAllowed = "move";
-                event.dataTransfer.setData("text/plain", labelOf(item));
-                const shown = event.currentTarget.closest("li");
-                if (shown) event.dataTransfer.setDragImage(shown, 12, 12);
-                setDragged(at);
-              }}
-              onDragEnd={() => {
-                setDragged(null);
-                setGap(null);
-              }}
-              onKeyDown={(event) => keys(event, at)}
-            >
-              <DotsSixVerticalIcon aria-hidden weight="bold" className="size-4" />
-            </button>,
+            <Tip label={"Drag to move, or use the arrow keys"}>
+              <button
+                type="button"
+                draggable
+                aria-label={`Move ${labelOf(item)}`}
+
+                className="text-ink-meta hover:text-ink focus-visible:ring-brand-ring flex h-7 w-5 shrink-0 cursor-grab items-center justify-center rounded-xs focus-visible:ring-2 focus-visible:outline-none active:cursor-grabbing"
+                onDragStart={(event) => {
+                  event.stopPropagation();
+                  event.dataTransfer.effectAllowed = "move";
+                  event.dataTransfer.setData("text/plain", labelOf(item));
+                  const shown = event.currentTarget.closest("li");
+                  if (shown) event.dataTransfer.setDragImage(shown, 12, 12);
+                  setDragged(at);
+                }}
+                onDragEnd={() => {
+                  setDragged(null);
+                  setGap(null);
+                }}
+                onKeyDown={(event) => keys(event, at)}
+              >
+                <DotsSixVerticalIcon aria-hidden weight="bold" className="size-4" />
+              </button>
+            </Tip>,
           )}
         </li>
       ))}
@@ -121,18 +124,20 @@ function SortableList<T>({
 
 function Fold({ open, label, onToggle }: { open: boolean; label: string; onToggle: () => void }) {
   return (
-    <button
-      type="button"
-      aria-expanded={open}
-      aria-label={`${open ? "Close" : "Open"} ${label}`}
-      className="text-ink-meta hover:bg-ink/5 hover:text-ink focus-visible:ring-brand-ring flex size-7 shrink-0 items-center justify-center rounded-full focus-visible:ring-2 focus-visible:outline-none"
-      onClick={onToggle}
-    >
-      <CaretDownIcon
-        aria-hidden
-        className={cn("size-4 transition-transform duration-150", open && "rotate-180")}
-      />
-    </button>
+    <Tip label={`${open ? "Close" : "Open"} ${label}`}>
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-label={`${open ? "Close" : "Open"} ${label}`}
+        className="text-ink-meta hover:bg-ink/5 hover:text-ink focus-visible:ring-brand-ring flex size-7 shrink-0 items-center justify-center rounded-full focus-visible:ring-2 focus-visible:outline-none"
+        onClick={onToggle}
+      >
+        <CaretDownIcon
+          aria-hidden
+          className={cn("size-4 transition-transform duration-150", open && "rotate-180")}
+        />
+      </button>
+    </Tip>
   );
 }
 

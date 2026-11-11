@@ -4,9 +4,24 @@ import * as React from "react";
 
 import { cn } from "@/lib/cn";
 
-function Table({ className, ...props }: React.ComponentProps<"table">) {
+// Forked (2026-11-10): `containerClassName` and `containerRef` reach the
+// scroll box around the table, so a page table can scroll inside itself
+// (components/fill-page.ts, TABLE_FILL). `shadcn add table` drops them.
+function Table({
+  className,
+  containerClassName,
+  containerRef,
+  ...props
+}: React.ComponentProps<"table"> & {
+  containerClassName?: string;
+  containerRef?: React.Ref<HTMLDivElement>;
+}) {
   return (
-    <div data-slot="table-container" className="relative w-full overflow-x-auto">
+    <div
+      ref={containerRef}
+      data-slot="table-container"
+      className={cn("relative w-full overflow-x-auto", containerClassName)}
+    >
       <table
         data-slot="table"
         className={cn("w-full caption-bottom text-sm", className)}

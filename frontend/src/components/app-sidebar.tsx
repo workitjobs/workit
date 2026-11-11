@@ -28,6 +28,7 @@ import {
   useSidebar,
 } from "@/components/shadcn/sidebar";
 import { cn } from "@/lib/cn";
+import { Tip } from "@/components/ui/tip";
 
 /**
  * The left panel both shells hang their sections off: shadcn's Sidebar, with
@@ -347,10 +348,12 @@ export function AppSidebar({
       <div className={cn("flex size-full min-h-0 flex-col", rail && "bg-panel")}>
         {isMobile && (
           <SidebarHeader className="border-rail-border h-16 shrink-0 flex-row items-center gap-3 border-b px-4 sm:px-8">
-            <SidebarTrigger
-              aria-label="Close Menu"
-              className="text-ink hover:text-brand shrink-0 hover:bg-transparent [&_svg]:size-4"
-            />
+            <Tip label="Close Menu">
+              <SidebarTrigger
+                aria-label="Close Menu"
+                className="text-ink hover:text-brand shrink-0 hover:bg-transparent [&_svg]:size-4"
+              />
+            </Tip>
             {rail ? <LogoLockup /> : <Logo size="bar" />}
           </SidebarHeader>
         )}

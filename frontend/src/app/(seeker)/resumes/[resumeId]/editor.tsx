@@ -147,6 +147,7 @@ import {
 } from "./tailor-review";
 import { CutPicker, ExperiencesPicker } from "./experiences-picker";
 import { keepFitCuts, readFitCuts } from "./fit-cuts";
+import { Tip } from "@/components/ui/tip";
 
 /**
  * The desktop editor (KAN-218): the built resume's own PDF, edited on the
@@ -2749,28 +2750,32 @@ function MarkTools() {
   };
   return (
     <div className="flex shrink-0 items-center gap-0.5">
-      <Button
-        variant="ghost"
-        size="icon-lg"
-        aria-label="Bold"
-        title="Bold"
-        aria-pressed={on.bold}
-        className={cn(on.bold && ON)}
-        onClick={() => press("bold")}
-      >
-        <TextBIcon aria-hidden />
-      </Button>
-      <Button
-        variant="ghost"
-        size="icon-lg"
-        aria-label="Italic"
-        title="Italic"
-        aria-pressed={on.italic}
-        className={cn(on.italic && ON)}
-        onClick={() => press("italic")}
-      >
-        <TextItalicIcon aria-hidden />
-      </Button>
+      <Tip label="Bold">
+        <Button
+          variant="ghost"
+          size="icon-lg"
+          aria-label="Bold"
+
+          aria-pressed={on.bold}
+          className={cn(on.bold && ON)}
+          onClick={() => press("bold")}
+        >
+          <TextBIcon aria-hidden />
+        </Button>
+      </Tip>
+      <Tip label="Italic">
+        <Button
+          variant="ghost"
+          size="icon-lg"
+          aria-label="Italic"
+
+          aria-pressed={on.italic}
+          className={cn(on.italic && ON)}
+          onClick={() => press("italic")}
+        >
+          <TextItalicIcon aria-hidden />
+        </Button>
+      </Tip>
     </div>
   );
 }
@@ -2788,26 +2793,30 @@ function MoveButtons({ moves }: { moves: MoveTools }) {
   return (
     <div className="flex shrink-0 items-center gap-0.5">
       <span aria-hidden className="bg-border-subtle mx-1 h-5 w-px" />
-      <Button
-        variant="ghost"
-        size="icon-lg"
-        aria-label="Move Up"
-        title="Move Up"
-        disabled={!moves.up}
-        onClick={() => moves.onMove(-1)}
-      >
-        <ArrowUpIcon aria-hidden />
-      </Button>
-      <Button
-        variant="ghost"
-        size="icon-lg"
-        aria-label="Move Down"
-        title="Move Down"
-        disabled={!moves.down}
-        onClick={() => moves.onMove(1)}
-      >
-        <ArrowDownIcon aria-hidden />
-      </Button>
+      <Tip label="Move Up">
+        <Button
+          variant="ghost"
+          size="icon-lg"
+          aria-label="Move Up"
+
+          disabled={!moves.up}
+          onClick={() => moves.onMove(-1)}
+        >
+          <ArrowUpIcon aria-hidden />
+        </Button>
+      </Tip>
+      <Tip label="Move Down">
+        <Button
+          variant="ghost"
+          size="icon-lg"
+          aria-label="Move Down"
+
+          disabled={!moves.down}
+          onClick={() => moves.onMove(1)}
+        >
+          <ArrowDownIcon aria-hidden />
+        </Button>
+      </Tip>
     </div>
   );
 }
@@ -2877,26 +2886,30 @@ export type HistoryTools = {
 function History({ tools }: { tools?: HistoryTools }) {
   return (
     <div className="flex shrink-0 items-center gap-0.5">
-      <Button
-        variant="ghost"
-        size="icon-lg"
-        aria-label="Undo"
-        title="Undo"
-        disabled={!tools?.canUndo}
-        onClick={tools?.onUndo}
-      >
-        <ArrowUUpLeftIcon aria-hidden />
-      </Button>
-      <Button
-        variant="ghost"
-        size="icon-lg"
-        aria-label="Redo"
-        title="Redo"
-        disabled={!tools?.canRedo}
-        onClick={tools?.onRedo}
-      >
-        <ArrowUUpRightIcon aria-hidden />
-      </Button>
+      <Tip label="Undo">
+        <Button
+          variant="ghost"
+          size="icon-lg"
+          aria-label="Undo"
+
+          disabled={!tools?.canUndo}
+          onClick={tools?.onUndo}
+        >
+          <ArrowUUpLeftIcon aria-hidden />
+        </Button>
+      </Tip>
+      <Tip label="Redo">
+        <Button
+          variant="ghost"
+          size="icon-lg"
+          aria-label="Redo"
+
+          disabled={!tools?.canRedo}
+          onClick={tools?.onRedo}
+        >
+          <ArrowUUpRightIcon aria-hidden />
+        </Button>
+      </Tip>
       <span aria-hidden className="bg-border-subtle mx-1 h-5 w-px" />
     </div>
   );
@@ -3379,24 +3392,28 @@ function LineActions({
 }) {
   const moves = up !== undefined && (
     <>
-      <Button
-        variant="secondary"
-        size="sm"
-        aria-label="Move Up"
-        disabled={!up}
-        onClick={() => up && onApply(up)}
-      >
-        <ArrowUpIcon aria-hidden />
-      </Button>
-      <Button
-        variant="secondary"
-        size="sm"
-        aria-label="Move Down"
-        disabled={!down}
-        onClick={() => down && onApply(down)}
-      >
-        <ArrowDownIcon aria-hidden />
-      </Button>
+      <Tip label="Move Up">
+        <Button
+          variant="secondary"
+          size="sm"
+          aria-label="Move Up"
+          disabled={!up}
+          onClick={() => up && onApply(up)}
+        >
+          <ArrowUpIcon aria-hidden />
+        </Button>
+      </Tip>
+      <Tip label="Move Down">
+        <Button
+          variant="secondary"
+          size="sm"
+          aria-label="Move Down"
+          disabled={!down}
+          onClick={() => down && onApply(down)}
+        >
+          <ArrowDownIcon aria-hidden />
+        </Button>
+      </Tip>
     </>
   );
 
