@@ -8,9 +8,11 @@
 //   page has had since the fill, so it climbs as the student answers them.
 //   Alt+N (the `next-thing` command, background.js) still runs Next Thing,
 //   the walk across the batch's tabs, amber rows too.
-// - Review and submit once nothing is red: it scrolls to the employer's
-//   Submit (the submit warning's rule: a control whose words start with
-//   "Submit") and rings it (marks.js). It never presses it.
+// - Review and submit once nothing is red: it opens Check before Submit
+//   (presubmit.js, KAN-747), the list of every answer on the page, flagged
+//   ones first. There the button reads Go to Submit: it scrolls to the
+//   employer's Submit (the submit warning's rule: a control whose words
+//   start with "Submit") and rings it (marks.js). It never presses it.
 // - On a Workday step that isn't the last, with nothing red: Go to Save and
 //   Continue, which rings Workday's own button; Fill to Review
 //   (workday-walk.js) is what presses it, and only when the student asks.
@@ -109,7 +111,8 @@ window.WIA = window.WIA || {};
       if (button) return ringControl(button);
       return say("WorkIt can't find Save and Continue on this step.", true);
     }
-    if (action === "submit") {
+    if (action === "review" && window.WIA.presubmit.open()) return say(null);
+    if (action === "submit" || action === "review") {
       const control = submitButton();
       if (!control) return say("WorkIt can't find this page's Submit button. Look for it on the page.", true);
       say("Check your answers, then press Submit yourself.");
@@ -133,18 +136,21 @@ window.WIA = window.WIA || {};
     render();
   }
 
+  /** With nothing red, off a Workday middle step: Review and submit opens Check before Submit first, and once it shows the button goes to Submit. */
+  const lastAction = () => (window.WIA.presubmit && !window.WIA.presubmit.isOpen() ? "review" : "submit");
+
   function render() {
     if (!parts) return;
     const filling = window.WIA.phase === "filling";
     const red = filling ? [] : redKeys();
     for (const key of red) seenRed.add(key);
-    action = filling ? "filling" : red.length ? "answer" : midWorkday() ? "continue" : "submit";
+    action = filling ? "filling" : red.length ? "answer" : midWorkday() ? "continue" : lastAction();
     const { button } = parts;
     button.disabled = filling;
     button.textContent =
       action === "answer"
         ? `Answer ${seenRed.size - red.length + 1} of ${seenRed.size}`
-        : { filling: "Filling…", continue: "Go to Save and Continue", submit: "Review and submit" }[action];
+        : { filling: "Filling…", continue: "Go to Save and Continue", review: "Review and submit", submit: "Go to Submit" }[action];
     if (action !== "answer" && parts.said.textContent.startsWith("WorkIt can't find this field")) say(null);
   }
 
@@ -183,11 +189,14 @@ window.WIA = window.WIA || {};
     // The question sits over the button it would change.
     made.button.before(confirm);
     parts = { ...made, confirm };
+    // Check before Submit (presubmit.js): its showing or going changes what the button does.
+    window.WIA.presubmit?.mount();
     unsubscribe = window.WIA.status.subscribe(render);
     render();
   }
 
   function unmount() {
+    window.WIA.presubmit?.unmount?.();
     unsubscribe?.();
     unsubscribe = null;
     style?.remove();

@@ -689,5 +689,5 @@ window.WIA = window.WIA || {};
   /** Draws the rows again, for a row card whose own state changed (row-card.js). */
   const refresh = () => render(window.WIA.status.summary());
 
-  window.WIA.overlay = { live, mount, unmount, open, state, promptForEssays, offerNext, setCurrent, refresh, addPart, askSelfId, offerClaude, askSamples, askWorkdayAccounts, offerApplySignIn, momentCard, startClaude, CLAUDE_TRIGGER };
+  window.WIA.overlay = { SOURCE_LABEL, live, mount, unmount, open, state, promptForEssays, offerNext, setCurrent, refresh, addPart, askSelfId, offerClaude, askSamples, askWorkdayAccounts, offerApplySignIn, momentCard, startClaude, CLAUDE_TRIGGER };
 })();

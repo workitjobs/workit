@@ -422,5 +422,5 @@ window.WIA = window.WIA || {};
     .group[data-group="not-asked"] .row .reason { color: var(--color-ink-meta); }
   `;
 
-  window.WIA.groups = { render, css, markOf, entryOf, planned };
+  window.WIA.groups = { render, css, markOf, entryOf, planned, inPageOrder };
 })();

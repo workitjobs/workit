@@ -109,6 +109,14 @@ for a home in no local tax district (the engine's `LOCAL_TAX` table: the US
 states with local income taxes, and for New York only New York City and
 Yonkers), else asked. A home outside the US, or with no state, is asked.
 
+A phone type question (Workday's Phone Device Type, iCIMS's Phones: Type,
+"Type of phone", a "Mobile or landline?" choice) is the profile's
+`identity.phone_type` (`mobile`, `landline` or `work`) in the engine's
+plan, as the form's closest option: a mobile is Mobile or Cell, else
+Workday's Home Cellular, and never a work mobile such as Work Cellular
+(NVIDIA's Workday, 2026-11-10, KAN-757). Doctor warns while it is blank;
+the plan then guesses Mobile on Workday's and iCIMS's wordings, as before.
+
 An Answer bank entry with `answer: []` and `none: true` answers a
 multi-select with none of its options (Roblox's partner organizations):
 its boxes stay unticked, a blank on purpose in the plan.

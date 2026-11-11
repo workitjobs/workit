@@ -269,7 +269,12 @@ class ResumeCheck:
 
     def __init__(self, filler):
         self._blocked = getattr(filler, "resume_blocked", None)
-        self.signed_in = getattr(filler, "signed_in", None)
+        self._filler = filler
+
+    @property
+    def signed_in(self):
+        """Read at the pause, not before: Claude fill's check depends on where it stopped (KAN-763)."""
+        return getattr(self._filler, "signed_in", None)
 
     def __call__(self, page) -> str:
         return self._blocked(page) if self._blocked else ""
@@ -374,7 +379,8 @@ def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fi
                 questions, answers, holds = planned.questions, planned.answers, list(planned.holds)
                 behind = _left_behind(filler)
                 holds = ([f"Not filled: {e}" for e in planned.unfilled] + holds
-                         + [f"Not filled: {label} ({LEFT_BEHIND})" for label, _ in behind] + planned.to_tick)
+                         + [f"Not filled: {label} ({LEFT_BEHIND})" for label, _ in behind] + planned.to_tick
+                         + [f"Verify: {EXTRA_ENTRY}: {entry}" for entry in getattr(filler, "extra_entries", None) or ()])
                 filled = Filled(questions, answers, readback, _screenshot(page), html=page_html(page))
                 problems = readback_problems(questions, answers, readback, planned.accepted)
                 if problems and not replanned and attempt < 2:
@@ -488,6 +494,10 @@ def _company(posting: Posting, filler) -> str:
 
 # Why a left-behind answer is not on the form (KAN-687).
 LEFT_BEHIND = "its answer came after the form saved its step without it"
+
+
+# An entry an old profile on the job site carried over that the fill couldn't delete (KAN-762): Lisul removes it.
+EXTRA_ENTRY = "Remove this entry, which your profile doesn't list"
 
 
 def _left_behind(filler) -> tuple[tuple[str, object], ...]:

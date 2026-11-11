@@ -74,6 +74,8 @@ WORK_ENTRY = re.compile(r"^work (?:experience|history)\b[^/]*\s\d+ / ", re.IGNOR
 WORK_SECTION = re.compile(r"\b(?:employment|work (?:experience|history))\b", re.IGNORECASE)
 EMPLOYER_FIELD = re.compile(r"\b(?:company|employer|organi[sz]ation)\b(?!.*\btype\b)", re.IGNORECASE)
 ENTRIES = re.compile(r"^work (?:experience|history)\b.*\(entries\)$", re.IGNORECASE)
+# A jobs or schools section's count of entries (KAN-762).
+SECTION_ENTRIES = re.compile(r"^(?:work (?:experience|history)|education)\b.*\(entries\)$", re.IGNORECASE)
 PAY_QUESTION = re.compile(r"salary|compensation|desired (?:pay|rate)|hourly rate|pay expectation|expected pay", re.IGNORECASE)
 YEAR = re.compile(r"\b(20\d\d)\b")
 MONEY = re.compile(r"\$?\s*(\d{1,3}(?:,\d{3})+|\d+(?:\.\d+)?)\s*(k\b)?", re.IGNORECASE)
@@ -202,6 +204,7 @@ def check(
         + _dates(questions, readback, profile, today)
         + _pay(questions, readback, profile, posting_text)
         + _work_history(questions, readback, profile)
+        + _extra_entries(questions, answers, readback, profile)
         + [f for name, text in essays.items() for f in _essay(labels.get(name, name), text, profile, posting,
                                                               f"{allowed}\n{posting_text}")]
         + [Flag(*_split(p), REVIEW) for p in review]
@@ -410,6 +413,33 @@ def _work_history(questions, readback, profile) -> list[Flag]:
                      f"{', '.join(missing)}. Check the choice", HISTORY_KIND, holds=False)]
     return [Flag("Work history", f"{j}, a job on your profile, is not on the form's work section", HISTORY_KIND)
             for j in missing]
+
+
+def _extra_entries(questions, answers, readback, profile) -> list[Flag]:
+    """Entries an old profile on the job site carried over that the profile doesn't list (KAN-762): a section that holds
+    more entries than the plan gave it ("Work Experience (entries)" read back as 4 where 3 were planned: JPMorgan's
+    Oracle kept a Princeton entry), and an employer field Apply didn't fill that names no job on file. Each holds."""
+    flags = []
+    for q in questions:
+        if not SECTION_ENTRIES.search(q.label.strip()):
+            continue
+        try:
+            held, planned = int(str(readback.get(q.name)).strip()), int(str(answers.get(q.name)).strip())
+        except ValueError:
+            continue
+        if held > planned:
+            flags.append(Flag(one_line(q.label), f"holds {held} entries, but your profile lists {planned}: remove each "
+                              "one it doesn't list", LEFTOVER))
+    jobs = [_norm(re.sub(r"\s*\(.*?\)", "", str(j.get("employer") or ""))) for j in profile.get("experience_facts.employment_history") or []
+            if isinstance(j, dict) and j.get("employer")]
+    for q in questions:
+        shown = readback.get(q.name)
+        if (q.name in answers or q.options or q.kind == "textarea" or not isinstance(shown, str) or _blank(shown)
+                or not EMPLOYER_FIELD.search(q.label.split(" / ")[-1]) or not WORK_ENTRY.search(q.label)):
+            continue
+        if not any(job and (job in _norm(shown) or _norm(shown) in job) for job in jobs):
+            flags.append(Flag(one_line(q.label), f"shows {shown!r}, a job your profile doesn't list: remove the entry", LEFTOVER))
+    return flags
 
 
 def _amounts(text: str) -> list[float]:

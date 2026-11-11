@@ -1,6 +1,6 @@
 # BuildKit reads this for backend/Dockerfile, whose context is the repo root
 # (a .dockerignore there would be root tooling). Only backend/, scout/ and
-# scraper/ go in.
+# scraper/ go in, and the Fill engine's Rules table (KAN-756).
 # It speeds up a local `docker build -f backend/Dockerfile` only: `wrangler
 # deploy` passes the Dockerfile on stdin, so BuildKit skips this file and the
 # Dockerfile's named COPYs are what keep .venv and vendor/ out.
@@ -8,6 +8,7 @@
 !backend
 !scout
 !scraper
+!autofiller_extension/fill-engine/dist/rules-table.json
 **/.venv
 **/__pycache__
 **/*.py[cod]

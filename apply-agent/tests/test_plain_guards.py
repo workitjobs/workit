@@ -2,7 +2,7 @@
 system on 127.0.0.1 that records every POST it gets. A guarded rehearsal page never sends, by a
 click, a form, or the page's own script (fetch from another realm, a worker, a beacon, a native
 POST); a press relayed from the tile counts as Lisul's; once lifted, his Submit goes through.
-Skips without Chrome for Testing (CI)."""
+Skips without Chrome for Testing; CI installs it."""
 
 import http.server
 import re
@@ -144,11 +144,14 @@ def _note(page) -> str:
 # --- without a browser
 
 def test_the_cdp_scripts_are_the_plain_ones_less_their_port_lines():
-    for cdp, plain in [(submit_guard.SCRIPT, submit_guard.rehearsal_script(port=True)),
-                       (submit_guard.drive_script(True, False), submit_guard.drive_script(True, False, port=True))]:
-        name = "Apply rehearsal" if cdp is submit_guard.SCRIPT else "Apply drive guard"
-        assert plain.replace(submit_guard.PORT_TOUCH, "").replace(submit_guard.PORT_SAID.replace("@NAME@", name), "") == cdp
-        assert "__apply_touch" in plain and "__apply_touch" not in cdp
+    g = submit_guard
+    tell_port, tell_cdp = g.TELL_PORT.replace("@TELL_TYPE@", g.TELL_TYPE), g.TELL_CDP.replace("@TELL_PREFIX@", g.TELL_PREFIX)
+    for cdp, plain, key in [(g.SCRIPT, g.rehearsal_script(port=True), g.REHEARSAL),
+                            (g.drive_script(True, False), g.drive_script(True, False, port=True), g.DRIVE)]:
+        name = "Apply rehearsal" if cdp is g.SCRIPT else "Apply drive guard"
+        less = plain.replace(g.PORT_TOUCH.replace("@TOUCH@", g.touch_type(key)), "")
+        assert less.replace(g.PORT_SAID.replace("@NAME@", name), "").replace(tell_port, tell_cdp) == cdp
+        assert g.touch_type(key) in plain and "__apply_touch" not in cdp
 
 
 def test_the_plain_rules_block_every_url_the_cdp_route_aborts():
@@ -249,7 +252,7 @@ def test_a_click_from_the_tile_counts_as_lisuls(page, site):
 def test_once_lifted_lisul_s_submit_goes_through_and_apply_hears_it(page, site):
     pressed, again = [], []
     guard(page)
-    lift(page, pressed=pressed.append, again=lambda: again.append(True), warning="Phone left blank", wrong=False)
+    lift(page, pressed=lambda words, account=False: pressed.append(words), again=lambda: again.append(True), warning="Phone left blank", wrong=False)
     assert page.worker.call("guard.status", tab=page.tab)["rules"] == 0
     assert _note(page).startswith("Apply rehearsal: check before you submit. Phone left blank")
     page.get_by_role("button", name="Fill again").click()
@@ -268,7 +271,7 @@ def test_a_held_submit_is_blocked_until_lisul_dismisses_it(page, site):
     """KAN-629 on a plain page: held, Submit blocked under the red note; Dismiss; then Submit goes."""
     dismissed, pressed = [], []
     guard(page)
-    lift(page, pressed=pressed.append, held="'Are you a US person?' reads No, but you are",
+    lift(page, pressed=lambda words, account=False: pressed.append(words), held="'Are you a US person?' reads No, but you are",
          dismiss=lambda: dismissed.append(True))
     assert _note(page).startswith("Apply rehearsal: Submit is held. Fix this answer, then press Dismiss: 'Are you")
     page.get_by_role("button", name="Next").click()  # a held page is his but for its Submit
@@ -343,6 +346,8 @@ def test_a_lifted_tab_stays_lisuls_on_reload_and_rearm_guards_it_again(page, sit
 
 @live
 def test_the_drive_guard_blocks_claudes_submit_until_lifted_for_its_own_click(page, site):
+    submit_guard.on_open(page)  # a live run's page, as a Worker opens it: the drive guard before the page's code
+    page.goto(f"{site.url}/form")
     drive = DriveGuard(page)
     assert isinstance(drive, guards.PlainDriveGuard)
     page.get_by_role("button", name="Submit application").click()
@@ -354,6 +359,17 @@ def test_the_drive_guard_blocks_claudes_submit_until_lifted_for_its_own_click(pa
     while not site.posts and time.monotonic() < deadline:
         time.sleep(0.1)
     assert site.posts == ["/acme/j/42/apply"]
+
+
+@live
+def test_a_drive_guard_put_in_after_the_pages_code_takes_no_lift(page, site):
+    # A page not opened through on_open: its drive guard came after the page's code, which may have heard the control
+    # event's name, so it only blocks (PR 477's second review).
+    drive = DriveGuard(page)
+    drive.lift()
+    page.get_by_role("button", name="Submit application").click()
+    _settle(page, 1)
+    assert drive.blocked() == ['the "Submit application" click'] and site.posts == []
 
 
 @live
@@ -432,7 +448,8 @@ def test_the_rules_alone_survive_a_reload(reloading, site):
     guard(page)
     connection = bridge.reload(0)
     page = _after_reload(page, connection)
-    connection.call("guard.flags", tab=page.tab, set={"__applyRehearsalLifted": True})  # the in-page guard off: the rule stops it
+    connection.call("guard.control", tab=page.tab,  # the in-page guard off: the rule stops it
+                    events=submit_guard._events({"lift": submit_guard.note(False, "", False, "")}))
     page.evaluate("() => fetch('/acme/job/9/submitApplication', {method: 'POST'}).catch(() => null)")
     _settle(page, 1)
     assert site.posts == []
