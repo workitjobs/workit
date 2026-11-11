@@ -443,7 +443,7 @@ async function handleMessage(message, sender) {
       // fetched while the page settles.
       if (job) {
         warmProfile();
-        void senderJobUrl(sender).then(prefetchRules);
+        senderJobUrl(sender).then(prefetchRules).catch((error) => console.warn("[rules] not fetched:", error.message));
       }
       return { job, jobSystem, batch: sender.tab ? await inBatch(sender.tab.id) : false, site: await panelSite(url), autoOpen: await autoOpen(), hiddenEverywhere: await hiddenEverywhere() };
     }

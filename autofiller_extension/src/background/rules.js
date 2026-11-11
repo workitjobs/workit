@@ -15,7 +15,8 @@
 // Any failure (no answer, a 4xx or 5xx, a table the engine refuses, another
 // job system than the page's) leaves the bundled table, which the engine
 // fills with when nothing is loaded. A fill never waits for the API: a table
-// still on its way when the fill starts is the next fill's.
+// still on its way when the fill starts is the next fill's (on Workday, the
+// next step's, each a fill of its own).
 //
 // The strings are used as received: the API watermarks each account's copy
 // (selector order, a never-matching selector part, equivalent regex
@@ -23,6 +24,7 @@
 
 import { ApiError, rulesTable, rulesToken } from "./api.js";
 import { getSession } from "./auth.js";
+import { readWebappSession } from "./webapp-session.js";
 import { jobOf } from "./engine.js";
 import { turnedOff } from "./remote-config.js";
 
@@ -36,10 +38,24 @@ const MARGIN_MS = 15_000;
 let owner = null;
 /** Each job system's site token: `{ token, until }` (ms). */
 const tokens = new Map();
-/** Each job system's table: `{ table, until }`, fetched while its token held until `until`. */
+/** Each job system's table: `{ table, until }`, fetched while its token held until `until`. In the order held:
+ * the background's engine takes the version and answer rules from the last (loadBackground). */
 const tables = new Map();
 /** The fetch under way for each job system: its callers share it. */
 const fetching = new Map();
+
+/** Whether a token or table held until `until` (ms) is still good for a while. */
+const fresh = (kept) => Boolean(kept) && kept.until - MARGIN_MS > Date.now();
+
+/** Holds `kept` as `site`'s table, last, if the background's engine takes it; else drops it. */
+function hold(site, kept) {
+  tables.delete(site);
+  tables.set(site, kept);
+  if (loadBackground()) return true;
+  tables.delete(site);
+  loadBackground();
+  return false;
+}
 
 /** Drops every token and table when `account` isn't the one they are for. */
 function ownedBy(account) {
@@ -76,11 +92,13 @@ function loadBackground() {
   }
 }
 
-/** A site token for `site` still good for a while, else a new one for the posting at `url`. */
-async function siteToken(url, site) {
+/** A site token for `site` still good for a while, else a new one for the posting at `url`, for `account`. */
+async function siteToken(url, site, account) {
   const kept = tokens.get(site);
-  if (kept && kept.until - MARGIN_MS > Date.now()) return kept;
+  if (fresh(kept)) return kept;
   const answer = await rulesToken(url);
+  // Another sign-in while it was asked: never kept for the next account.
+  if (owner !== account) throw new Error("another account signed in");
   if (answer?.job_system !== site) throw new Error(`the API named ${answer?.job_system} for a ${site} page`);
   const token = { token: answer.token, until: Date.now() + Number(answer.expires_in) * 1000 };
   tokens.set(site, token);
@@ -88,33 +106,32 @@ async function siteToken(url, site) {
 }
 
 /** The token's table; on its 401, one new token and one more fetch (the contract's retry). */
-async function fetchTable(url, site) {
-  const token = await siteToken(url, site);
+async function fetchTable(url, site, account) {
+  const token = await siteToken(url, site, account);
   try {
     return { table: await rulesTable(token.token), until: token.until };
   } catch (error) {
     if (!(error instanceof ApiError) || error.status !== 401) throw error;
     tokens.delete(site);
-    const renewed = await siteToken(url, site);
-    return { table: await rulesTable(renewed.token), until: renewed.until };
+    const renewed = await siteToken(url, site, account);
+    try {
+      return { table: await rulesTable(renewed.token), until: renewed.until };
+    } catch (again) {
+      // Refused too: the next posting asks for another, never this one again.
+      tokens.delete(site);
+      throw again;
+    }
   }
 }
 
 /** Fetches `site`'s table, checks the engine takes it, and holds it; null on any failure. */
 async function fetchRules(url, site, account) {
   try {
-    const kept = await fetchTable(url, site);
+    const kept = await fetchTable(url, site, account);
     if (owner !== account) return null;
     if (!kept.table || typeof kept.table !== "object") throw new Error("the API's answer is no table");
     // The engine checks the whole table before using any of it: one it refuses is never held.
-    tables.delete(site);
-    tables.set(site, kept);
-    if (!loadBackground()) {
-      tables.delete(site);
-      loadBackground();
-      return null;
-    }
-    return kept.table;
+    return hold(site, kept) ? kept.table : null;
   } catch (error) {
     console.warn(`[rules] ${site}'s Rules table wasn't fetched; the bundled one fills:`, error.message);
     return null;
@@ -135,12 +152,16 @@ export async function prefetchRules(url) {
   try {
     if (await turnedOff(url)) return null;
     const session = await getSession();
+    // Signed out: the last account's tables go.
+    ownedBy(session ? String(session.user_id) : null);
     if (!session) return null;
-    const account = String(session.user_id);
-    ownedBy(account);
+    const account = owner;
     const kept = tables.get(site);
-    if (kept && kept.until - MARGIN_MS > Date.now()) return { owner: account, site, table: kept.table };
-    if (!fetching.has(site)) fetching.set(site, fetchRules(url, site, account).finally(() => fetching.delete(site)));
+    if (fresh(kept)) return { owner: account, site, table: kept.table };
+    if (!fetching.has(site)) {
+      const fetch = fetchRules(url, site, account).finally(() => fetching.get(site) === fetch && fetching.delete(site));
+      fetching.set(site, fetch);
+    }
     const table = await fetching.get(site);
     return table ? { owner: account, site, table } : null;
   } catch (error) {
@@ -158,17 +179,14 @@ export async function prefetchRules(url) {
  */
 export async function rulesFor(site, page) {
   if (!site) return null;
-  const session = await getSession().catch(() => null);
+  // The cookie's account, with no refresh: the fill's own reads ask for the session.
+  const session = await readWebappSession().catch(() => null);
+  ownedBy(session ? String(session.user_id) : null);
   if (!session) return null;
-  const account = String(session.user_id);
-  ownedBy(account);
+  const account = owner;
   const held = tables.get(site)?.table;
   if (held) return held;
   if (page?.owner !== account || page.site !== site || !page.table) return null;
   // The page's copy, held here again so the background's engine plans with it too.
-  tables.set(site, { table: page.table, until: 0 });
-  if (loadBackground()) return page.table;
-  tables.delete(site);
-  loadBackground();
-  return null;
+  return hold(site, { table: page.table, until: 0 }) ? page.table : null;
 }
