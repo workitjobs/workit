@@ -600,7 +600,11 @@ Find files with a directory listing; these are the rules for where code goes.
   same path; never a copy here, which would drift. Without the submodule the
   app starts and both routes answer 503. Nothing here names the table's
   version or fields beyond `answers` and `systems`, so the engine's next
-  schema version is a submodule bump. **Two steps**: `POST
+  schema version is a submodule bump. Since engine v0.3.35 (schema version 2,
+  KAN-755) a site's data also holds its field-kind maps (`kinds`) and
+  timeouts (`timeouts`), and the engine takes a served site only whole
+  (every name, or `{}`, which it then refuses to fill): the cut keeps the
+  site whole, and the watermark touches only strings and patterns. **Two steps**: `POST
   /extension/rules/token {"url"}` names the job system from the posting's
   link (`hosts.py` `job_system_of`; a host on none, or a system the table
   lacks, is 422) and answers a site token, kept only as its sha256 and good
@@ -616,7 +620,8 @@ Find files with a directory listing; these are the rules for where code goes.
   class), each chosen by a hash of the account id, so the engine fills the
   same. Only strings every part of which reads as a selector are touched,
   and the engine must use those only whole (a test reads its source for
-  that). `uv run python -m app.scripts.trace_rules_leak <table.json>` names
+  that, and lists the engine's own whole-selector helpers: `$$`, `deep`,
+  `first`, Lever's `shown`; a new helper fails it until added there). `uv run python -m app.scripts.trace_rules_leak <table.json>` names
   the account a leaked table was served to, from the fetch log's accounts.
   **Plain data only**: never encrypted, encoded, step lists or expressions
   (the Chrome Web Store's line). Tokens are purged after a day, fetches
