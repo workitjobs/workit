@@ -117,8 +117,10 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
   had a Submit, are cancelled there. URLs resolve against the document's base; an empty action or formaction
   is the page's own URL. A sign-in relay is only the top page's own post into itself, once the page loaded.
   fetch makes its request once and sends that one. XHR's and the beacon's bodies are read too: a string,
-  URLSearchParams or bytes (an ArrayBuffer or a view of one); a Blob, which can't be read at once, is
-  refused in a non-GET to Ashby, whose submit is named only in its body (PR 477's second review). A form
+  URLSearchParams, bytes (an ArrayBuffer or a view of one) or form data's entries (PR 477's third review:
+  Ashby's multipart `operations` by XHR or beacon went unread); a Blob or a document, which can't be read
+  at once, is refused in a non-GET to Ashby, whose submit is named only in its body (PR 477's second
+  review). A form
   in another site's frame (a sandboxed one runs no guard) that posts into the top page is beyond the
   guard: the browser fires no `navigate` event for a navigation another site's document starts. A profile pop-up may post to its own page there. A known final URL
   (Lever's, Greenhouse's, a segment with `submit`) never goes, whatever the page says. TAL.net's

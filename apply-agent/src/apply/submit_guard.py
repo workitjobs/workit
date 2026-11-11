@@ -85,7 +85,9 @@ Ask's read) go through apply.natives, the same kind of built-ins; the drive guar
 and an evaluation on its own takes them as it runs. Each form post is judged again as it leaves, with
 the URL and entries it really carries; URLs resolve against the document's base; a button that holds a frame is
 never pressed. The drive guard's init script goes on at on_open, before each page's first load, in a live run too;
-a copy put into a page that skipped it, after its code, takes no lift or allowance (LATE). What no guard can tell: a page's plain fetch, or a form's own hidden field, to a URL that names no
+a copy put into a page that skipped it, after its
+code, takes no lift or allowance (LATE). XHR's and the beacon's form data is read by its entries, and a body to Ashby
+that can't be read at once (a Blob, a document) is not sent. What no guard can tell: a page's plain fetch, or a form's own hidden field, to a URL that names no
 submit is a save to any guard (a CDP Worker routes only URLs that name a submit; a plain Worker's rules block the
 final URLs); while plain code attaches the résumé, the form that holds it may post (iCIMS parses its whole profile
 form, Submit and all), and a frame with scripts off runs no guard.
@@ -1043,9 +1045,10 @@ _TEMPLATE = r"""
     }
     return apply(fetch, this, [request]);
   };
-  // A body as text, where it can be read at once: a string, URLSearchParams, or bytes (an ArrayBuffer or a view of one).
-  // A Blob can't be read at once, so a non-GET with one to Ashby, whose submit is named only in its body, is blocked
-  // (PR 477's second review: XHR's and the beacon's Blob and bytes bodies went unread).
+  // A body as text, where it can be read at once: a string, URLSearchParams, bytes (an ArrayBuffer or a view of one), or
+  // form data's entries (Ashby's multipart `operations`, PR 477's third review). A Blob or a document can't be read at
+  // once, so a non-GET with one to Ashby, whose submit is named only in its body, is blocked (PR 477's second review:
+  // XHR's and the beacon's Blob and bytes bodies went unread).
   const abLen = get(ArrayBuffer.prototype, 'byteLength'), isView = ArrayBuffer.isView;
   const decoder = new TextDecoder(), decode = fn(TextDecoder.prototype, 'decode');
   const isBytes = (x) => { try { abLen(x); return true; } catch (e) { return apply(isView, ArrayBuffer, [x]); } };
@@ -1054,6 +1057,7 @@ _TEMPLATE = r"""
     const p = paramsOf(b);
     if (p !== null) return p;
     try { if (isBytes(b)) return decode(decoder, b); } catch (e) {}
+    try { const e = entriesOf(b); let t = ''; for (let i = 0; i < e.length; i++) t += e[i] + '\n'; return t; } catch (e) {}
     return null;
   };
   // An XHR's or a beacon's body, read once (KAN-783): one the browser sends as it is (a Blob, bytes, form data,
@@ -1070,7 +1074,8 @@ _TEMPLATE = r"""
     return Str(b);
   };
   const ASHBY = /^https?:\/\/[^\/?#]*ashbyhq\.com\//i;
-  const unread = (method, url, b) => !test(READS, text(method) || 'GET') && isBlob(b) && test(ASHBY, resolve(text(url), base()) || '');
+  const unread = (method, url, b) => !test(READS, text(method) || 'GET') && b !== undefined && b !== null
+    && bodyText(b) === null && test(ASHBY, resolve(text(url), base()) || '');
   // What each XHR opened, kept where its page can't change it: only once the browser's open() took it, so an open()
   // that throws (a forbidden method, a bad URL) leaves the request and what is kept of it as they were (KAN-783).
   const opened = new WeakMap(), wmGet = fn(WeakMap.prototype, 'get'), wmSet = fn(WeakMap.prototype, 'set');

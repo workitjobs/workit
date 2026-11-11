@@ -467,6 +467,22 @@ PAGES |= {
         document.getElementById('b').addEventListener('click', () => {{ {_TWICE} }});</script>""",
         "/acme/jobs/123/step2": "<title>Two</title><input name=next>"},
 }
+
+# PR 477's third review (KAN-710): an XHR one realm opens and another sends, Ashby's submit in form data,.
+ASHBY_GQL = "https://jobs.ashbyhq.com/api/non-user-graphql"
+_NEXT_THEN = """<title>Apply</title><input name=first value=Test><button id=b type=button>Next</button>%s
+    <script>%s document.getElementById('b').addEventListener('click', () => { %s });</script>"""
+PAGES |= {
+    "an XHR one realm opens and another sends": {START: _NEXT_THEN % ("<iframe id=i></iframe>", "", f"""
+        const w = document.getElementById('i').contentWindow;
+        try {{ const x = new XMLHttpRequest(); w.XMLHttpRequest.prototype.open.call(x, 'POST', '{FINAL}'); x.send('first=Test'); }} catch (e) {{}}
+        try {{ const x = new XMLHttpRequest(); x.open('POST', '{FINAL}'); w.XMLHttpRequest.prototype.send.call(x, 'first=Test'); }} catch (e) {{}}""")},
+    "Ashby's submit in form data by XHR and beacon": {START: _NEXT_THEN % ("", "", f"""
+        const data = () => {{ const d = new FormData();
+          d.append('operations', JSON.stringify({{operationName: 'ApiSubmitSingleApplicationFormAction', variables: {{}}}})); return d; }};
+        try {{ const x = new XMLHttpRequest(); x.open('POST', '{ASHBY_GQL}'); x.send(data()); }} catch (e) {{}}
+        try {{ navigator.sendBeacon('{ASHBY_GQL}', data()); }} catch (e) {{}}""")},
+}
 # KAN-776: a held page's session dialog, whose stay-signed-in button the keep-alive presses. Each sends the application.
 _SESSION = ("<title>Apply</title><form id=f method=post action='" + FINAL + "'><input name=first value=Test></form>"
             + SEND_ALL + "<div role=alertdialog aria-modal=true><p>Your session is about to expire. Do you want to "
@@ -545,9 +561,10 @@ class Site:
         route.fulfill(body=body, content_type="text/html")
 
     def applications(self) -> list[str]:
-        """The application requests that reached the job system: a final URL's (COMMIT's too, KAN-783), or SAVE's with
-        its Submit (submit=1)."""
-        return [p for p in self.sent if p in (FINAL, GREENHOUSE, COMMIT)] + [p for p, b in self.bodies if p == SAVE and "submit=1" in b]
+        """The application requests that reached the job system: a final URL's (COMMIT's too, KAN-783), SAVE's with
+        its Submit (submit=1), or Ashby's GraphQL with its submit in the body."""
+        return [p for p in self.sent if p in (FINAL, GREENHOUSE, COMMIT)] + [p for p, b in self.bodies if p == SAVE and "submit=1" in b] \
+            + [p for p, b in self.bodies if p.startswith(ASHBY_GQL) and "ApiSubmit" in b]
 
 
 # --- the click paths, each the real code that presses through the guards
@@ -684,6 +701,8 @@ GUARD_HOLES = frozenset({
     "a Submit whose own innerText throws", "a Submit whose value getter posts the form",
     "a Submit whose own getters and methods lie", "a Submit whose prototype is a Proxy", "prototype getters that lie",
     "prototype getters that throw", "built-ins the page replaced", "a request whose URL changes on a second read",
+    # PR 477's third review.
+    "an XHR one realm opens and another sends", "Ashby's submit in form data by XHR and beacon",
 })
 
 
