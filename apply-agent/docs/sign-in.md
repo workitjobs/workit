@@ -33,6 +33,15 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
   which has no box to type in) is a Handoff at once too: "Google asked for
   more than an account pick (a passkey)". Apply never answers a challenge.
   The fake's `google="passkey"` plays it.
+- A provider sign-in in the way of a Claude fill form (KAN-763, `provider_sign_in.py`): Microsoft
+  Careers (apply.careers.microsoft.com, an Eightfold site) opens a window on Apply now that offers
+  "Sign in using Google", Microsoft, LinkedIn and Facebook. When Claude fill says it is blocked and the
+  page shows such a button (by its name, or Eightfold's `candidateAuth<Provider>LoginButton` class),
+  the Handoff is Needs sign-in and names the providers. Apply never presses a provider button, never
+  types into the sign-in and never sees a password: Lisul signs in on the page. Signed in means no
+  provider button shows and the account menu does (Eightfold's "Account manager for <name>", or a
+  Sign out); Microsoft's header shows a "Sign in" button until then. The pause then goes on by itself
+  (`docs/held-forms.md`). A site whose account menu has another name waits for Resume, as before.
 - Oracle's cookie banner covers the email step's Next button.
   `oracle.sign_in` declines the optional cookies first (`_decline_cookies`).
 - Workday's Create Account is a `POST <site>/register` that answers JSON

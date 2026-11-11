@@ -101,6 +101,8 @@ jobs:
               - backend/**
               - scout/**
               - scraper/**
+              # The Rules table the API serves (KAN-756) is the engine's
+              - autofiller_extension/fill-engine
               - .github/workflows/ci.yml
             extension:
               - autofiller_extension/**
@@ -166,14 +168,16 @@ jobs:
           path: autofiller_extension/test/test-results
           retention-days: 7
 
-  # Apply (apply-agent/, KAN-535): ruff and the fast tests, the files that need
-  # no browser, no network and no `claude` CLI (about 30 s on Linux). The tests
-  # read the engine's saved forms, so the job needs the fill-engine submodule
-  # and is skipped without FILL_ENGINE_TOKEN (the engine job).
+  # Apply (apply-agent/, KAN-535): ruff, the fast tests (the files that need no
+  # browser, no network and no `claude` CLI) and the plain-Worker tests (KAN-667).
+  # The tests read the engine's saved forms, so the job needs the fill-engine
+  # submodule and is skipped without FILL_ENGINE_TOKEN (the engine job).
   apply:
     needs: [changes, engine]
     if: needs.changes.outputs.apply == 'true' && needs.engine.outputs.set == 'true'
-    runs-on: ubuntu-latest
+    # macOS: a plain Worker starts through `open` and Chrome for Testing's .app
+    # (apply/plain/launcher.py), as on the Macs Apply runs on.
+    runs-on: macos-latest
     timeout-minutes: 20
     defaults:
       run:
@@ -233,6 +237,7 @@ jobs:
             tests/test_into.py \
             tests/test_plain_tile_identity.py \
             tests/test_plain_tile_refilm.py \
+            tests/test_plain_stale_extension.py \
             tests/test_plain_tile_fallback.py \
             tests/test_review_kan717_hostile.py \
             tests/test_left_behind.py \
@@ -247,6 +252,7 @@ jobs:
             tests/test_phone_push.py \
             tests/test_plain_bridge.py \
             tests/test_plain_seed_setup.py \
+            tests/test_plain_trusted_rules.py \
             tests/test_presubmit_check.py \
             tests/test_privacy_gate.py \
             tests/test_profile.py \
@@ -275,14 +281,29 @@ jobs:
             tests/test_truth.py \
             tests/test_worker_date.py \
             tests/test_workit_login.py
-      # The submit guard's hostile pages (KAN-666): their no-browser and CDP cases, on Playwright's
-      # Chromium. The plain Worker cases skip here (no Chrome for Testing on Linux).
-      - run: uv run playwright install --with-deps chromium
+      # Playwright's Chromium and its Chrome for Testing follow the Playwright that uv.lock
+      # pins. A miss costs one download. The plain-Worker tests skip without it, so the
+      # check below makes a failed install fail the job instead.
+      - uses: actions/cache@v4
+        with:
+          path: ~/Library/Caches/ms-playwright
+          key: chrome-for-testing-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('apply-agent/uv.lock') }}
+      - run: uv run playwright install chromium
+      - name: Chrome for Testing is installed
+        run: uv run python -c "from apply.plain.launcher import chrome_for_testing; print(chrome_for_testing())"
+      # The submit guard's hostile pages (KAN-666): no-browser, CDP and plain Worker cases.
       - name: Submit guard hostile pages
         run: uv run pytest -q tests/test_submit_guard_hostile.py
-      # The worker extension's page scripts in a window without focus (KAN-709), on Playwright's Chromium.
+      # The worker extension's page scripts in a window without focus (KAN-709).
       - name: Plain Worker focus
         run: uv run pytest -q tests/test_plain_focus.py
+      # A real plain Worker on a fake job system. A new suite this fast joins the list.
+      - name: Plain-Worker tests
+        run: |
+          uv run pytest -q -rs \
+            tests/test_plain_guards.py \
+            tests/test_plain_routing.py \
+            tests/test_plain_typing.py
 
   # The API's Cloudflare Worker (KAN-169): a type error here would otherwise
   # surface only when the deploy on main fails.
@@ -303,7 +324,7 @@ jobs:
   # changes job): 37 of the 40 PRs merged before 2026-11-04 touched neither, and each
   # waited about 7 minutes for it. A skipped job passes a required check.
   backend:
-    needs: changes
+    needs: [changes, engine]
     if: needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
     defaults:
@@ -327,7 +348,30 @@ jobs:
     env:
       TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:54330/postgres
     steps:
+      # The Rules table's tests (tests/test_rules_watermark.py, KAN-756) read
+      # the fill-engine submodule's table and run its round trip with Node;
+      # without FILL_ENGINE_TOKEN they skip and the rest runs.
       - uses: actions/checkout@v4
+        if: needs.engine.outputs.set == 'true'
+        with:
+          submodules: true
+          fetch-depth: 0
+          token: ${{ secrets.FILL_ENGINE_TOKEN }}
+      - name: Pin fill-engine to the commit this branch actually records
+        if: needs.engine.outputs.set == 'true'
+        working-directory: .
+        run: |
+          PINNED=$(git ls-tree HEAD autofiller_extension/fill-engine | awk '{print $3}')
+          git -C autofiller_extension/fill-engine fetch --depth 1 origin "$PINNED"
+          git -C autofiller_extension/fill-engine checkout --detach "$PINNED"
+          echo "fill-engine pinned at: $(git -C autofiller_extension/fill-engine rev-parse HEAD)"
+      - uses: actions/checkout@v4
+        if: needs.engine.outputs.set != 'true'
+      # Node 22 reads the engine's TypeScript fixtures as they are.
+      - uses: actions/setup-node@v4
+        if: needs.engine.outputs.set == 'true'
+        with:
+          node-version-file: .nvmrc
       - uses: astral-sh/setup-uv@v3
       - run: uv sync --locked
       - run: uv run ruff check .
