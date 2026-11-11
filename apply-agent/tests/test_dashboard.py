@@ -161,11 +161,11 @@ def test_captions_say_what_each_worker_is_on():
     assert kind == "application/json"
     tiles = json.loads(state)["tiles"]
     assert tiles == [
-        {"tone": "idle", "label": "Waiting for the next job", "detail": ""},
+        {"tone": "idle", "label": "Waiting for the next job", "detail": "", "thread": []},
         {"company": "Arc Boat Company", "role": "Software Engineering Intern", "job_system": "greenhouse",
          "status": "ready to submit", "line": "Arc Boat Company | ... | ready to submit",
          "tone": "ready", "label": READY, "detail": dashboard.verdict({"status": "ready to submit"})["detail"],
-         "kind": "ready to submit", "system": "Greenhouse"},
+         "kind": "ready to submit", "system": "Greenhouse", "thread": []},  # Ask Claude's thread (KAN-638), none yet
     ]
 
 
