@@ -2522,11 +2522,14 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   the wording into it and `readMarked` reads it back from each piece's computed
   style, so it does not matter which tags the browser wrote. Bold and italic
   are the browser's own (`document.execCommand`, deprecated with no
-  replacement, in every browser), which brings Ctrl or Cmd+B and I and text
-  undo. A textarea showing `**` until the line was left came first, and the
-  user wanted the look to change directly. Other lines stay plain fields, and
-  anything that lists a bullet as text (Sections, the Experiences picker) goes
-  through `unmarked`. Desktop only: the phone's sheet is still a textarea.
+  replacement, in every browser), set by Ctrl or Cmd+B and I, which
+  `richLine` catches itself (KAN-586): with the bar's Bold and Italic gone,
+  the keys are the only way, and the browser's own shortcut did nothing for
+  a key the Browser pane sent. Text undo is the browser's. A textarea showing
+  `**` until the line was left came first, and the user wanted the look to
+  change directly. Other lines stay plain fields, and anything that lists a
+  bullet as text (Sections, the Experiences picker) goes through
+  `unmarked`. The phone's line sheet uses the same rich field (KAN-799).
 - **A bullet being added has no box and no id until it is saved** (KAN-435,
   `add-bullet.ts`, `newLine` in the editor, `extra` on `PdfPages`). It is drawn
   as a box with no height under its anchor, so the live page moves the page
@@ -2536,12 +2539,13 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   a plain div drawn in its place took the same element and printed them twice.
   Enter and Esc finish the line themselves, and `finishing` keeps the blur that
   follows from saving it again: a blur alone never fires in an unfocused window.
-- **The toolbar holds what acts on the line clicked, Format Options what acts
-  on the whole resume** (`page-format.tsx`): font size beside bold, unnamed, read
-  as acting on the selection and changed the whole page, so the toolbar's size
-  names its kind of text (`RoleTools`, `textRoleOf`). `TEXT_ROLES` is the one list
-  of kinds, `sizeOf` what each prints at, read by the toolbar, the panel and the
-  open line's type (`typeOf`), so the three cannot disagree. A size is typed
+- **The toolbar holds the line's arrows, the Format tab what acts on the whole
+  resume** (`page-format.tsx`): font size beside bold, unnamed, read as acting
+  on the selection and changed the whole page; the toolbar's size then named
+  its kind of text (`RoleTools`), and since KAN-586 a size is the Format tab's
+  alone. `TEXT_ROLES` is the one list of kinds, `sizeOf` what each prints at,
+  read by the panel and the open line's type (`typeOf`, `textRoleOf`), so the
+  two cannot disagree. A size is typed
   or stepped (`SizeStepper`), and a typed one applies on Enter or on leaving the
   field, never per key, since each change compiles the PDF. Each role's `min`
   and `max` repeat `resume_render`'s scales. The bar's `onMouseDown` keeps the
@@ -2559,7 +2563,7 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   sheet too), so a real action there (`FitButton`, Download) carries
   `data-bar-action`, or a filled button reads grey on purple.
   **An open bullet or entry moves from the bar** (`lineTools`' Move Up and
-  Move Down, after bold and italic or an entry's size, and in the phone's
+  Move Down, the only tools an open line has, KAN-586, and in the phone's
   line sheet): a bullet within
   its entry, an entry within its section, through `move` and `apply`, so it
   trades places with its neighbour on the page at once (`swapsOf`; an entry
@@ -2596,16 +2600,26 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   column beside the page. Sections and Format Options were two toolbar
   buttons, each opening its own panel, until then. Only the middle changes when a line opens: idle, the
   page's tools (Add Experiences, Fit to One Page, Cut From Resume); open,
-  the line's size, a bullet's bold and italic, its tools (`lineTools`) and
-  **Done**, which saves and closes the line as Esc does. Until then the
-  panels, the zoom, Download and More left the bar when a line opened, Fit
-  moved, "Esc when done" stood as text where Done is, and the save status
-  sat in the bar and left it below 58rem. **The phone's line sheet draws
-  the same `lineTools`** in the same weights, after bold and italic: the
-  desktop had no Hide or Original for a bullet and no Hide for a skill, and
-  the phone no bold, italic or Add Bullet. A bullet's field in the sheet is
-  the desktop's rich one (`richLine`), and Add Bullet there opens a sheet
-  of its own (`newBullet`), since the phone's page draws no field.
+  **the line's two arrows and nothing else** (`lineTools`, KAN-586, the
+  user's call; `docs/screens.md` says where each dropped tool lives). A
+  line with no moves (a header field, a skill, a lone entry) keeps the bar
+  idle (`openLineOf` returns null). Until KAN-586 an open line also had its
+  size, bold, italic, Add Bullet, Hide, Original, the GPA and Coursework
+  switches, Edit Header and Done; until KAN-799 the panels, the zoom,
+  Download and More left the bar when a line opened. **The phone's line
+  sheet draws the same `lineTools`**, under the desktop's rich field
+  (`richLine`). **Add Bullet on the page has no way in** since its button
+  went (`startBullet`, the phone's `newBullet` sheet): a bullet is added in
+  the entry's form, and the in-place code waits to be removed or given a
+  new entry point.
+  **The phone editor has the desktop's two rows** (`phone.tsx`, KAN-586):
+  the title row (the editor's `heading`, so the name renames in place, the
+  save status and Download) over the toolbar in `SLIM_BAR`, with the shared
+  `FitButton`, `ReviewButtons` and `PanelToggle`; the side panel is a sheet
+  whose title is the Sections and Format tabs (`TabButtons`), and a tap on
+  the header line no longer opens anything but its field. It kept a
+  lavender bar, a bottom bar and its own Format and Header sheets until
+  then.
   **Show and Hide Suggestions is the Suggestions panel's own** (its eye
   icon, `marks` on `SuggestionsApi`): the toolbar's toggle beside the title
   row's Suggestions was two controls for one thing.
@@ -2618,8 +2632,8 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   the bar hides (each piece in a `data-fold` box, read on open). The steps
   are `FOLD.idle` and `FOLD.line`; a new control joins by naming its step on
   its box (`data-word-at`, `data-away-at`), with no width to measure.
-  Undo, Redo and Fit never leave; with a line open neither do the size,
-  bold, italic or Done. Fixed container-query widths came first (KAN-576),
+  Undo, Redo, Fit and the panel's button never leave. Fixed container-query
+  widths came first (KAN-576),
   measured on the editor's own page: they folded Tailor's bar early,
   needed measuring again for each button or word, and could not cover a
   line's tools, which differ by kind, so the bar wrapped with a line open
@@ -2628,12 +2642,17 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   nothing. Swept by script on 2026-11-11 from 300px to 1300px, idle (with
   and without Fit and Cut From Resume) and with a bullet, an entry, the
   header, a skill and a new bullet open: no overflow from 424px up, and the
-  narrowest desktop bar (a 641px window) is 596px. The phone editor's row
-  folds its words with fixed steps (`PHONE_FOLD`), which still fit at 320px.
-- **A bullet's one wording button is Original** (`lineTools`), on the
-  desktop bar and the phone's sheet, shown
-  only while the bullet shows another wording (Tailor's, or one typed on
-  this resume): it puts the bank's text back, and Undo takes that back.
+  narrowest desktop bar (a 641px window) is 596px. The phone editor's rows
+  fold their words with fixed steps (`PHONE_FOLD`): Add Experiences' and
+  Fit's in the toolbar, Download's in the title row.
+- **A bullet's one wording button was Original** (`lineTools`, until
+  KAN-586 cut the open line's tools to its arrows), on the desktop bar and
+  the phone's sheet, shown
+  only while the bullet showed another wording (Tailor's, or one typed on
+  this resume): it put the bank's text back, and Undo took that back. With
+  it gone, Undo and Tailor's panel take a wording back; KAN-800 ("Resume
+  edits stay on that resume") decides where a resume's own wording is
+  reset.
   The resume's own wording and Tailor's stay in `bank_bullet_variants`.
   A "Tailored N" button per Tailor wording came first, then This Resume's
   Wording beside Original; the user wanted Original alone (2026-10-29).

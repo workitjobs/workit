@@ -310,6 +310,7 @@ export function EntryPane({
   onCancel,
   remove,
   resumeMode = false,
+  resumeSwitches,
 }: {
   ref?: Ref<EntryPaneHandle>;
   title: string;
@@ -328,6 +329,9 @@ export function EntryPane({
   /** The resume editor's form (KAN-586): bullets reorder and tick on or off
    *  for that resume (`EntryEditor`'s `resumeMode`). */
   resumeMode?: boolean;
+  /** A school's GPA and coursework switches for that resume
+   *  (`EntryEditor`'s `resumeSwitches`). */
+  resumeSwitches?: Parameters<typeof EntryEditor>[0]["resumeSwitches"];
 }) {
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -427,6 +431,7 @@ export function EntryPane({
           initial={initial}
           lines={lines}
           resumeMode={resumeMode}
+          resumeSwitches={resumeSwitches}
           onChange={() => setDirty(true)}
           onSave={(draft) => submit(draft)}
           onSaveAsNew={(draft) => submit(draft, true)}

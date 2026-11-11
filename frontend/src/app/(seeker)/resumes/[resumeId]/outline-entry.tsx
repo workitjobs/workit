@@ -1,6 +1,6 @@
 "use client";
 
-import type { RefObject } from "react";
+import { useState, type RefObject } from "react";
 
 import { EntryDialog, type SaveOutcome } from "@/app/(seeker)/experiences/entry-dialog";
 import { editSteps } from "@/app/(seeker)/experiences/entry-save";
@@ -18,6 +18,8 @@ export type EntrySaved = {
   entryId: string | null;
   bankChanged: boolean;
   bullets?: { id?: string; text: string; off?: boolean }[];
+  /** A school's GPA and coursework switches for this resume. */
+  shows?: { gpa: boolean; coursework: boolean };
 };
 
 /**
@@ -66,6 +68,13 @@ export function OutlineEntryDialog({
       : NOUNS[section][0];
   const others = target ? usedIn(resumeId, target, bank.resumes ?? []) : [];
   const initial = target ? resumeDraft(target, choices) : emptyDraft(section, customSectionId);
+  // A school's two switches, this resume's (its choice row), saved with the
+  // bullets' order and boxes
+  const row = target && choices.entries.find((c) => c.entry_id === target.id);
+  const [shows, setShows] = useState({
+    gpa: row?.show_gpa ?? true,
+    coursework: row?.show_coursework ?? true,
+  });
 
   async function save(draft: EntryDraft, asNew: boolean): Promise<SaveOutcome> {
     if (!target) {
@@ -93,7 +102,7 @@ export function OutlineEntryDialog({
         return { error: `Some changes did not save: ${error}` };
       }
     }
-    await onSaved({ entryId: target.id, bankChanged, bullets: draft.bullets });
+    await onSaved({ entryId: target.id, bankChanged, bullets: draft.bullets, shows });
     return { saved: true };
   }
 
@@ -102,6 +111,11 @@ export function OutlineEntryDialog({
       title={`${target ? "Edit" : "Add"} ${noun}`}
       initial={initial}
       resumeMode={target !== null}
+      resumeSwitches={
+        target?.section === "education" && row
+          ? { gpa: shows.gpa, coursework: shows.coursework, onChange: setShows }
+          : undefined
+      }
       note={
         others.length > 0 && (
           <p className="rounded-control bg-well text-note text-ink-muted px-3 py-2">

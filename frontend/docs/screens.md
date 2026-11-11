@@ -3061,7 +3061,7 @@ with no proposals to accept and no Done (2026-10-25).
   KAN-499: the change is saved already, so Accept did nothing to the resume.
   Pointing at a row highlights its lines;
   only a click on its name scrolls the page to them. On a phone the panel is a sheet opened by
-  "Suggestions (n)". With no record (a new tab or device) the editor
+  the toolbar's Suggestions lightbulb, with the count on it. With no record (a new tab or device) the editor
   shows alone, with a line saying the suggestions live in the tab that ran
   Tailor. A before and after side by side came first (2026-10-26) and was
   replaced the same day: two full resumes and hover Revert controls showed
@@ -3545,12 +3545,13 @@ student who opened a resume from Experiences landed on another view.
   covers the whole line. Dates and the degree line are built from several
   fields, so they are not typed here: the bar links to Experiences.
   The email is the sign-in address and is not typed either. A contact the
-  profile lacks, or one this resume hides, has no line to click, so
-  selecting the header puts Edit Header in the bar, which opens the Header
-  panel (below). The bar's "Add Phone" and next-link fields went with it
-  (KAN-436): the panel holds every field. Picking a wording (bar or
-  assistant) drops the typed draft, so the field shows the picked text.
-  Escape, Done or Enter clears the selection (Enter saves first), and so
+  profile lacks, or one this resume hides, has no line to click: the
+  Header row, first in the side panel's Sections tab, holds every field
+  (below), and a header line leaves the bar idle. Edit Header in the bar
+  opened that row until KAN-586, and the bar's "Add Phone" and next-link
+  fields went before it (KAN-436). Picking a wording (the assistant) drops
+  the typed draft, so the field shows the picked text.
+  Escape or Enter clears the selection (Enter saves first), and so
   does a press outside the page, the bar and the assistant (in Scout's
   panel), which carry `data-keeps-selection` (the assistant acts on the selected line).
   The phone editor keeps its own sheet: Enter there only saves.
@@ -3577,23 +3578,32 @@ student who opened a resume from Experiences landed on another view.
   tools never cover nearby lines. It is a quiet white row
   (`--color-panel`) of editing tools only (KAN-799), in three groups that
   keep their places:
-  `Undo Redo | the middle ........ Sections  Format Options | Zoom (⋯)`.
+  `Undo Redo | the middle ........ Zoom (⋯) | Panel`.
   Every button on it is 36px: text buttons secondary `sm`, icon buttons
   ghost `icon-lg` (KAN-576). Idle, the middle is the page's tools: **Add
   Experiences** (this page only), **Fit to One Page** while the resume runs
   over a page (`FitButton`, its own glyph of lines pressed together, its
   tooltip saying by how much from the render's `lines_over`; it shared Cut's
   scissors until KAN-799), and **Cut From Resume** after a fit cut
-  something, amber with the scissors. With a line open only the middle
-  changes: the line's kind of text and its size (`SizeStepper`), a bullet's
-  **Bold** and **Italic**, then its tools (`lineTools`): a bullet's Move Up
-  and Move Down, **Add Bullet**, **Hide** and, while it shows another
-  wording, **Original**; an entry's moves, Add Bullet, Hide Entry,
-  Education's Show/Hide GPA and Coursework, and **Edit in Experiences** on a
-  field the page cannot type (dates, the degree line); the header's **Edit
-  Header** (its tooltip says the email is set on My Profile); a skill's
-  **Hide**. Then **Done**, which saves and closes the line, as Esc, Enter
-  or a click off the page do. Until KAN-799 the panels, the zoom, Download
+  something, amber with the scissors. **With a line open only the middle
+  changes, to the line's two arrows** (`lineTools`, KAN-586, the user's
+  call): a bullet's or an entry's **Move Up** and **Move Down**. A header
+  line, a skill and a lone entry have none, so the bar stays idle. Esc,
+  Enter or a click off the page saves and closes the line. Each tool the
+  bar dropped has a home that fits it better: a size changes every line of
+  its kind, so it is the Format tab's; Hide, Hide Entry and a bullet's
+  boxes are the Sections tab's Remove and the entry's form; a school's
+  Show GPA and Show Coursework are boxes in its form ("On this resume");
+  Add Bullet is the form's Add Bullet Point; Edit Header is the Sections
+  tab's Header row; bold and italic are Ctrl or Cmd+B and I in a bullet's
+  field. **Original** (the bank's wording back) went too: Undo takes back
+  a wording, and Tailor's panel each of its changes; "Resume edits stay on
+  that resume" (KAN-800) decides where a resume's own wording is undone.
+  Until KAN-586 the open line also had its kind of text and size
+  (`SizeStepper`), Bold, Italic, Add Bullet, Hide, Original, the GPA and
+  Coursework switches, Edit in Experiences, Edit Header and Done, which the
+  user found too many tools for one line, when the page formats groups of
+  text together. Until KAN-799 the panels, the zoom, Download
   and More left the bar when a line opened, Fit moved after the line's
   tools, "Esc when done" and "Change this in Experiences." stood as text
   among the buttons, a bullet had no Hide or Original and a skill no Hide
@@ -3608,7 +3618,7 @@ student who opened a resume from Experiences landed on another view.
   More (⋯), which lists only what left (`../../CLAUDE.md`, "One row, never
   two"). **Until KAN-411 this page had its own full bar**, brand-tinted, with
   the hint first, the page count and Fit to One Page as one amber group
-  (`fit-notice.tsx`'s `FitNotice`, now the phone's), a Done button, and
+  (`FitNotice`, the phone's until KAN-586, now removed), a Done button, and
   Download and Ask Scout in both states, while Tailor's review had the
   slim one: a student saw two editor designs.
 - **On Tailor's review step the editor takes a Suggestions panel**
@@ -3623,26 +3633,37 @@ student who opened a resume from Experiences landed on another view.
   bordered in `warning-strong`). There the page has no Experiences
   picker (a run's own removals have Undo), and the top bar's Scout
   stays the job search chat. The panel sits in the column beside the
-  page; on a phone it is a sheet from the bottom bar. Undo goes through the choices PATCH
+  page; on a phone it is a sheet from the toolbar's Suggestions button. Undo goes through the choices PATCH
   (the wording back to the source's, the old order, the skill hidden),
   and any later edit of a changed item drops that change's mark. The
   run's record is in sessionStorage (`tailorEditsKey`, under
   `lib/local-drafts.ts`'s prefix, so Sign Out clears it): a reload in the
   same tab keeps it, and a new tab or device opens with none. `phoneBar`
   is a row the phone layout's header shows, since that layout covers the
-  page: on the review always the job line, "Review Changes · Step 3 of 3"
-  and Finish, the step's one primary action, then the no-record line when
-  it shows (KAN-574). `phoneBack` sends the phone's arrow to the review's
+  page: on the review always "Review Changes · Step 3 of 3" and Finish,
+  the step's one primary action, then the no-record line when it shows
+  (KAN-574). The job line is under the name in the title row, which shows
+  the editor's `heading` (KAN-586), so the row no longer repeats it. `phoneBack` sends the phone's arrow to the review's
   Back target (`useTailorBack`, Choose Keywords, or Pick a Resume with no
   record), not to Resumes.
-- **The phone layout keeps its own bars** (`phone.tsx`): its top and
-  bottom bars take the brand tint and its sheets are white. Its tools wear
-  the desktop bar's weights (KAN-799): Undo, Redo and a line's moves are
-  ghost glyphs, muted as on the bar (`BAR_BUTTONS`), the rest secondary, and
-  Download is the one filled button; Ask Scout was filled too.
+- **The phone layout has the desktop's two rows** (`phone.tsx`, KAN-586):
+  on the page's ground, the title row (back arrow, the name renamed in
+  place, the save status and Download, the one filled button, its word
+  folded under 22rem), then the toolbar in the desktop's white box
+  (`SLIM_BAR`): Undo and Redo, Add Experiences, Fit to One Page (the
+  shared `FitButton`), Cut From Resume, and at its end Suggestions on
+  Tailor's review (`ReviewButtons`), the zoom toggle and the side panel's
+  button (`PanelToggle`), which opens the panel as a sheet with the
+  Sections and Format tabs as its title. Words fold by width
+  (`PHONE_FOLD`): Add Experiences' first, then Fit's. Until KAN-586 the
+  phone kept its old bars: a lavender top bar with the hint or the amber
+  "3 lines over · Fit" notice, Format and Zoom as worded buttons, a bottom
+  bar of Add Experiences and Cut From Resume, and separate Format and
+  Header sheets; the user found it all over the place beside the new
+  desktop design.
 - **A toast says it first** (`fit-notice.tsx`, KAN-258): when the editor
   opens on a resume over one page, or an edit pushes one over, a toast at
-  the bottom right (above the bottom bar on a phone) says by how much, with
+  the bottom right (across the foot on a phone) says by how much, with
   Fit to One Page and a cross. It closes on Fit, on the cross, once the
   resume fits, or after 10 seconds, since the bar's chip keeps the same
   fix. On a phone it does not show while a line's sheet is open, which it
@@ -3676,9 +3697,9 @@ student who opened a resume from Experiences landed on another view.
   is typed without "https://", which the API adds, as on My Profile;
   Simplify's fixed "https://" prefix was not drawn, since no field in the
   app has one. **It is the Sections outline's first row** (KAN-586), the
-  Header, which never moves: the header line's Edit Header opens the
-  outline with that row open, in Scout's panel on the editor's page and
-  beside the page on Tailor's review, and a sheet on a phone. It was a side
+  Header, which never moves, in the side panel's Sections tab: in Scout's
+  panel on the editor's page, beside the page on Tailor's review, and in
+  the panel's sheet on a phone. It was a side
   panel of its own beside Sections for a day; two panels for one outline of
   the resume was one too many. Format Options' Reset Formatting leaves the
   hidden fields, as it leaves the section order.
@@ -3750,17 +3771,15 @@ student who opened a resume from Experiences landed on another view.
   toolbar buttons that folded to glyphs and then into More until then.
 - **The toolbar holds what acts on the line clicked; Format Options holds what
   acts on the whole resume** (`page-format.tsx`, KAN-435). With a line open the
-  bar shows Undo, Redo, zoom, **that line's kind of text with its size** (Your
-  Name, Job & School Titles or Body Text, `RoleTools`), and on a bullet **Bold
-  and Italic**, lit while the selection has them (or Ctrl or Cmd+B and I), and
-  Add Bullet. The size is named because it changes every line of that kind:
-  font size beside bold, unnamed, looked as if it acted on the selection, so a
-  student pressed + on a word and the whole page changed. Bold and italic change
-  the words where they stand: a bullet's field is a rich one
-  (`contentEditable`), so no marker shows. Only a bullet takes them: a title or a
-  date is printed in Jake's type. Bold or italic makes the words the resume's own
-  wording, so Original takes it off too, and Word stays plain. A phone's sheet
-  still types plain text, with the markers showing, and has no buttons yet.
+  bar shows only the line's arrows (above, KAN-586); a size lives in the Format
+  tab alone, named by its kind of text, since it changes every line of that
+  kind: the bar's size beside bold, even named (`RoleTools`, until KAN-586),
+  read as acting on the selection. Bold and italic are Ctrl or Cmd+B and I in a
+  bullet's field (`richLine` sets them itself, since a browser's own shortcut is
+  not certain), and they change the words where they stand: the field is a rich
+  one (`contentEditable`), so no marker shows, on the phone's sheet too. Only a
+  bullet takes them: a title or a date is printed in Jake's type. Bold or italic
+  makes the words the resume's own wording, and Word stays plain.
   **Format Options runs in the order a student decides**: **Font** (a menu of
   nine, each drawn in itself with the look it stands for), **Text Sizes** (a row
   per kind of text, Section Headings among them, which have no line to click,
@@ -3797,8 +3816,12 @@ student who opened a resume from Experiences landed on another view.
   `printed_order`: a Summary first, the rest last until dragged; a drag
   writes their `custom:<name>` keys into `section_order`, and one that no
   longer prints leaves it).
-- **Add Bullet** (KAN-435, on the toolbar with a bullet or an entry's line
-  open): an empty line under the open bullet, or at the foot of the open
+- **Add Bullet on the page** (KAN-435) **has had no way in since KAN-586**:
+  its toolbar button went with the line's other tools, and a bullet is added
+  in the entry's form (Add Bullet Point). The code stays (`startBullet`,
+  `finishBullet`, `newLine`, `add-bullet.ts`, the phone's `newBullet` sheet)
+  until it is removed or given a new way in. It drew an empty line under the
+  open bullet, or at the foot of the open
   entry's, in place at once, its dot beside it and the page under it moved down
   (`newLine`, `extra` on `PdfPages`, a box with no height, so the live page's
   own move makes the room). The student types, with bold and italic, and Enter,
@@ -3808,8 +3831,7 @@ student who opened a resume from Experiences landed on another view.
   its place and any bold or italic (`bulletPlaced`, the choices PATCH), through
   the same save and render as any change, so Undo takes it off this resume and
   Redo puts it back. Undo hides it, so it stays in the bank, as the Experiences
-  picker shows. It shows on no other resume by itself. A phone has no Add Bullet
-  yet.
+  picker shows. It shows on no other resume by itself.
 - **The Experiences picker** (`experiences-picker.tsx`, KAN-440): the whole
   bank beside the PDF, where a student picks what the resume shows. The
   resume is the part of the bank that is on, so each entry, bullet and skill
@@ -3849,8 +3871,8 @@ student who opened a resume from Experiences landed on another view.
   One Page cut, in the Experiences picker's layout but amber, Fit's own
   color, with its scissors as the panel's mark. Its toolbar button sits
   beside Add Experiences and shows only while something a fit cut is still
-  off the page (or its panel is open); on a phone it is a sheet beside Add
-  Experiences. Tailor's page has no Add Experiences, so there it stands
+  off the page (or its panel is open); on a phone it is a scissors glyph in
+  the toolbar that opens a sheet. Tailor's page has no Add Experiences, so there it stands
   alone, and its list opens in the column beside the page, as Format
   Options does (KAN-524). Groups by section, all open, each "1 of 3 added back"; no
   resume or group filters, since a fit cuts a few items. **It shows only
@@ -3894,21 +3916,21 @@ student who opened a resume from Experiences landed on another view.
   (Apple's smallest touch target), and **previous and next arrows** that
   step through the boxes in page order (page, then top, then left), so a
   mis-tap on a 7 px line costs one press. **Zoom** draws the page at two
-  times the width, scrolled sideways; Fit Width undoes it. Download ends
-  the top bar's second row, after Format and Zoom (KAN-799; it sat between
-  them), and the save status ends its first. The line's sheet holds the
-  desktop bar's tools (`lineTools`): a bullet's Bold and Italic over a rich
-  field like the desktop's (a textarea showed the `**` markers), its moves,
-  Add Bullet, Hide and Original; Add Bullet opens a New Bullet sheet with
-  Bold, Italic and Done. Beside the back arrow the top bar says
-  "Tap a line to edit it.", or, over one page, the bar's amber group in its
-  place, short to fit there: "3 lines over" and "Fit" (named Fit to One
-  Page for a screen reader). The toast spells it out. The selected line
-  scrolls to the middle of the page area. The Experiences picker opens
-  from a bottom button in its own sheet (with a scrim). The layout is a fixed layer over
-  the seeker shell, bar included, **rendered in a portal to `<body>`**
-  (KAN-574): inside the shell's `@container/main` it was fixed to the page
-  area, so it sat 64px low and its bottom bar ended past the screen. It is
+  times the width, scrolled sideways; Fit Width undoes it. Its two rows are
+  the desktop's (above, "The phone layout has the desktop's two rows"). The
+  line's sheet holds the desktop bar's tools (`lineTools`), the two arrows,
+  under a rich field like the desktop's (a textarea showed the `**`
+  markers). Over one page the toolbar's Fit button and the toast say so;
+  the "Tap a line to edit it." hint went with the old top bar: the title
+  row has no room for it, and the desktop has none either.
+  **Still open:** whether a first-time phone user finds that a line opens
+  on a tap, with no hint and no pointer to light it. The selected line scrolls to the
+  middle of the page area. The Experiences picker opens from the
+  toolbar's stack glyph in its own sheet (with a scrim). The layout is a
+  fixed layer over the seeker shell, bar included, **rendered in a portal
+  to `<body>`** (KAN-574): inside the shell's `@container/main` it was
+  fixed to the page area, so it sat 64px low and the bottom bar it had
+  then ended past the screen. It is
   **sized to `window.visualViewport`** (height, moved down
   by its offset): the iOS keyboard covers the layout viewport instead of
   shrinking it, so a layout sized to the window would put the sheet behind
@@ -3932,8 +3954,9 @@ student who opened a resume from Experiences landed on another view.
   E); with Ask Scout gone from the bar, the top bar's Scout opened only
   the job chat, which left desktop no way to the assistant, so the panel
   took it in. Its root is a div: the panel or the phone's sheet holds
-  it, names it and draws its close button. On a phone, Ask Scout in the
-  bottom bar or in a line's sheet opens it in its own sheet. It stays
+  it, names it and draws its close button. On a phone, while
+  `ASK_SCOUT_LIVE`, Ask Scout in the toolbar or in a line's sheet opens it
+  in its own sheet. It stays
   mounted while closed, so closing it keeps the chat; nothing is
   stored. The look is intake's (variant G:
   lavender panel, Scout's mark) and the bubbles, dots and composer are

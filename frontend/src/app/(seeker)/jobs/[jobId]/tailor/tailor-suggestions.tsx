@@ -105,13 +105,13 @@ export function TailorReview({
   const back = useTailorBack(job.id, editor.resumeId);
   const step = TAILOR_STEPS.findIndex((s) => s.value === "review");
   // The phone editor covers the step's row (`TailorReviewBar`), so its
-  // header carries the job, the step and Finish, and its arrow goes to the
-  // step before (KAN-574).
+  // header carries the step and Finish (the job is under the name in its
+  // title row), and its arrow goes to the step before (KAN-574).
   const phoneBar = (
     <>
       <div className="flex items-center gap-2">
+        {/* The job is under the resume's name in the title row above */}
         <div className="min-w-0 flex-1">
-          <TailorJobLine job={job} />
           <p aria-current="step" className="text-note text-ink-meta truncate">
             {TAILOR_STEPS[step].label} · Step {step + 1} of {TAILOR_STEPS.length}
           </p>

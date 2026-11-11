@@ -23,7 +23,6 @@ import { Skeleton } from "@/components/shadcn/skeleton";
 import { buttonClasses } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { IconButton } from "@/components/ui/icon-button";
-import { TabButtons } from "@/components/ui/tabs";
 import {
   addBullet,
   addSkill,
@@ -111,6 +110,7 @@ import {
   type HistoryTools,
   type LineHandlers,
   type MoveTools,
+  PanelTabs,
   type PanelTab,
   type Side,
 } from "./toolbar";
@@ -189,43 +189,6 @@ const EXPERIENCES_MARK = (
     <StackIcon aria-hidden className="size-4.5" weight="duotone" />
   </span>
 );
-
-/** The side panel's top (KAN-586): its tabs, Sections and Format, on a
- *  rule, and its close. Its own header: the panel draws none (`bare`), so the
- *  tabs are its title, not a heading over a heading. */
-function PanelTabs({
-  tab,
-  onTab,
-  onClose,
-}: {
-  tab: PanelTab;
-  onTab: (tab: PanelTab) => void;
-  onClose: () => void;
-}) {
-  return (
-    <div className="flex items-end gap-2">
-      <TabButtons
-        label="Side Panel"
-        ruled
-        className="flex-1"
-        options={[
-          { value: "sections", label: "Sections" },
-          { value: "format", label: "Format" },
-        ]}
-        value={tab}
-        onChange={onTab}
-      />
-      <IconButton
-        label="Close Panel"
-        tooltip="Close"
-        className="hover:bg-hover mb-1 size-8 rounded-full"
-        onClick={onClose}
-      >
-        <CloseIcon className="size-4" />
-      </IconButton>
-    </div>
-  );
-}
 
 // Letter is 612 pt wide; field type is set in cqw of the page so it matches
 // the PDF's at any width.
@@ -550,10 +513,6 @@ export function Editor({
     },
     [keepPage],
   );
-  // The first render failed: the page area says so, and the phone's bar
-  // stops offering "Click a line", since there is no line to click.
-  const [firstFailed, setFirstFailed] = useState(false);
-  const fail = useCallback(() => setFirstFailed(true), []);
   // pdf.js downloads while the server compiles, not after.
   useEffect(() => {
     void loadPdfjs().catch(() => {});
@@ -1900,14 +1859,18 @@ export function Editor({
   /** A rich field, so bold and italic show in the words as they are set
    *  (KAN-435): a textarea showed their markers until the line was left. React
    *  holds no children here; `showMarked` keeps it to `value`, so a change from
-   *  elsewhere (Undo on its suggestion) still reaches it. The browser gives it
-   *  Ctrl or Cmd+B and I, and text undo. */
+   *  elsewhere (Undo on its suggestion) still reaches it. Ctrl or Cmd+B and I
+   *  set bold and italic here, since the bar's Bold and Italic went (KAN-586):
+   *  a browser's own shortcut is not certain in a contentEditable, and one
+   *  sent by a script (the Browser pane's) never ran. The browser gives it
+   *  text undo. */
   function richLine(
     value: string,
     onText: (text: string) => void,
     {
       attach,
       className,
+      onKeyDown,
       ...rest
     }: Omit<ComponentProps<"div">, "ref" | "onInput" | "onPaste" | "onDrop"> & {
       attach: (element: LineField | null) => (() => void) | undefined;
@@ -1930,6 +1893,16 @@ export function Editor({
         suppressContentEditableWarning
         className={cn(className, "min-h-lh break-words whitespace-pre-wrap")}
         onInput={(e) => onText(readMarked(e.currentTarget))}
+        onKeyDown={(e) => {
+          const mark = { b: "bold", i: "italic" }[e.key.toLowerCase()];
+          if (mark && (e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey) {
+            e.preventDefault();
+            // Fires an input event, which `onInput` above reads
+            document.execCommand(mark);
+            return;
+          }
+          onKeyDown?.(e);
+        }}
         // Plain words on one line only: a paste would bring its own fonts
         onPaste={(e) => {
           e.preventDefault();
@@ -2061,7 +2034,7 @@ export function Editor({
         fit();
       }}
       onClose={() => setToast(false)}
-      className={phone ? "inset-x-4 bottom-24" : "right-6 bottom-6 w-[22rem]"}
+      className={phone ? "inset-x-4 bottom-4" : "right-6 bottom-6 w-[22rem]"}
     />
   );
 
@@ -2073,7 +2046,7 @@ export function Editor({
       draw(rendered)
     ) : (
       <Suspense fallback={<PageSkeleton />}>
-        <FirstRenderPane initial={initial} onLoad={adopt} onFail={fail} resumeId={resumeId} />
+        <FirstRenderPane initial={initial} onLoad={adopt} resumeId={resumeId} />
       </Suspense>
     );
   // Tailor's review, on Tailor's page only (`suggestions`)
@@ -2278,10 +2251,24 @@ export function Editor({
           customSectionId={entryForm.customSectionId}
           returnTo={formOpener}
           onClose={() => setEntryForm(null)}
-          onSaved={async ({ entryId, bankChanged, bullets }) => {
+          onSaved={async ({ entryId, bankChanged, bullets, shows }) => {
             if (bankChanged) await reload(null);
             const entry = held.current.bank.entries.find((e) => e.id === entryId);
             if (!entry || !bullets) return;
+            // A school's switches join the same change, one Undo step
+            const choice = held.current.choices.entries.find((c) => c.entry_id === entry.id);
+            const entries =
+              shows &&
+              choice &&
+              (choice.show_gpa !== shows.gpa || choice.show_coursework !== shows.coursework)
+                ? [
+                    {
+                      entry_id: entry.id,
+                      show_gpa: shows.gpa,
+                      show_coursework: shows.coursework,
+                    },
+                  ]
+                : [];
             // This resume's order and boxes, as one choice change with Undo.
             // A new bullet has its id only once the bank is read again: the
             // new ones are the entry's bullets the form did not list, in the
@@ -2298,22 +2285,24 @@ export function Editor({
               const c = now.find((x) => x.bullet_id === r.bullet_id);
               return c && c.shown === r.shown && (!r.shown || c.position === r.position);
             });
-            if (!same) void apply({ bullets: rows });
+            if (!same || entries.length)
+              void apply({ ...(entries.length && { entries }), ...(!same && { bullets: rows }) });
           }}
         />
       )}
     </>
   );
   // The header's line opens the outline's Header row: beside the page on
-  // the desktop, a sheet on a phone
-  const [headerSheet, setHeaderSheet] = useState(false);
+  // the desktop, in the panel's sheet on a phone
+  const [phonePanel, setPhonePanel] = useState(false);
   const openHeader = () => {
+    setHeaderOpen(true);
     // On a phone the line's sheet gives way to the panel's
     if (phone) {
       select(null);
-      return setHeaderSheet(true);
+      setTab("sections");
+      return setPhonePanel(true);
     }
-    setHeaderOpen(true);
     if (suggestions) return showSide("sections");
     if (!(scoutOpen && panelView === "sections")) showPanel("sections");
   };
@@ -2370,7 +2359,7 @@ export function Editor({
       <>
         <PhoneEditor
           rendered={rendered}
-          hint={!(firstFailed && !rendered)}
+          title={<TitleHistoryContext value={titleHistory}>{heading}</TitleHistoryContext>}
           pages={pdfPane((pdf) => (
             <PdfPages
               pdf={pdf.pdf}
@@ -2439,7 +2428,13 @@ export function Editor({
           }
           handlers={handlers}
           assistant={assistant("h-full")}
-          header={{ open: headerSheet, onOpenChange: setHeaderSheet, panel: headerPanel }}
+          panel={{
+            open: phonePanel,
+            onOpenChange: setPhonePanel,
+            tab,
+            onTab: setTab,
+            sections: sectionsOutline,
+          }}
           onSelect={select}
           onType={(text) => selected && type(selected, text)}
           onFlush={() => flush()}
@@ -2459,7 +2454,6 @@ export function Editor({
       box={box}
       choices={choices}
       handlers={handlers}
-      onDone={composing ? () => void finishBullet(adding?.text ?? "") : () => select(null)}
       rendered={rendered}
       saving={saving || fittingNow}
       fitting={fittingNow}
@@ -2815,25 +2809,22 @@ const FLOATING = cn(
  * Where the first PDF is drawn, while the page's render is on its way: it
  * suspends on the render (the editor wraps it in a <Suspense> over a
  * PageSkeleton), then hands a PDF to the editor, which draws it from then
- * on, or shows why it did not come. The same skeleton stays up for the one
+ * on, or shows why it did not come (the page area says so). The same skeleton stays up for the one
  * frame before the editor takes it.
  */
 function FirstRenderPane({
   initial,
   onLoad,
-  onFail,
   resumeId,
 }: {
   initial: FirstRender;
   onLoad: (pdf: RenderedPdf) => void;
-  onFail: () => void;
   resumeId: string;
 }) {
   const { data, error } = use(initial);
   useEffect(() => {
     if (data) onLoad(data);
-    else onFail();
-  }, [data, onLoad, onFail]);
+  }, [data, onLoad]);
 
   if (data) return <PageSkeleton />;
   return (

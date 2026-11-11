@@ -1,22 +1,16 @@
 "use client";
 
 import {
-  ArrowCounterClockwiseIcon,
   ArrowDownIcon,
   ArrowsInLineVerticalIcon,
   ArrowUUpLeftIcon,
   ArrowUUpRightIcon,
   ArrowUpIcon,
   CircleNotchIcon,
-  EyeSlashIcon,
-  IdentificationCardIcon,
   LightbulbIcon,
-  PencilSimpleIcon,
   ScissorsIcon,
   SidebarSimpleIcon,
   StackIcon,
-  TextBIcon,
-  TextItalicIcon,
 } from "@phosphor-icons/react/ssr";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -30,7 +24,7 @@ import {
   type RefObject,
 } from "react";
 
-import { CheckIcon, EllipsisIcon, FileIcon, PlusIcon } from "@/components/icons";
+import { CheckIcon, CloseIcon, EllipsisIcon, FileIcon } from "@/components/icons";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -42,6 +36,7 @@ import { Skeleton } from "@/components/shadcn/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 import { Button, buttonClasses } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
+import { TabButtons } from "@/components/ui/tabs";
 import { Tip } from "@/components/ui/tip";
 import type {
   Choices,
@@ -53,10 +48,8 @@ import type {
 import { cn } from "@/lib/cn";
 
 import { FOLD, FoldButton } from "./bar-fold";
-import { typed, type Line } from "./model";
-import { degreeLeads, ON, SizeStepper, TEXT_ROLES, textRoleOf, type TextRole } from "./page-format";
+import type { Line } from "./model";
 import { SLIM_BAR } from "./slim-bar";
-import { unmarked } from "./text-marks";
 import { Zoom, ZoomSubmenu } from "./zoom";
 
 /** The editor's Undo and Redo (./history.ts), for the slim bar and the
@@ -194,150 +187,39 @@ export type LineHandlers = {
 };
 
 /**
- * The open line's tools, in order (KAN-799): a bullet's Move Up and Move
- * Down, Add Bullet, Hide and, while it shows another wording, Original; an
- * entry's moves, Add Bullet, Hide Entry, Education's GPA and Coursework, and
- * Edit in Experiences for a field the page cannot type; the header's Edit
- * Header; a skill's Hide. `onHide` also closes the line, which has left the
- * page.
+ * The open line's tools: Move Up and Move Down, and nothing else (KAN-586,
+ * the user's call). Everything else the bar showed for a line acts on more
+ * than the line, or has its home elsewhere now: a size changes every line of
+ * its kind (the Format tab); Hide, Hide Entry, Show GPA and Show Coursework
+ * are this resume's (the Sections tab's Remove, and the entry's form, which
+ * holds the bullets' boxes and the school's two switches); Add Bullet is the
+ * form's Add Bullet Point; Edit Header is the Sections tab's Header row; and
+ * Done is Esc or a click away. Bold and italic keep their keys (Cmd or Ctrl
+ * with B and I) in a bullet's field. A line with no moves (a header field, a
+ * skill, a lone entry) has no tools, so the bar stays as it is idle.
  */
-export function lineTools(
-  line: Line,
-  choices: Choices,
-  { moves, onApply, onHide, onAddBullet, onOpenHeader }: LineHandlers,
-): LineTool[] {
-  if (line.kind === "header") {
-    // Every header field, and whether this resume prints it, is in the
-    // Header panel (KAN-436): a field the profile lacks, or one this resume
-    // hides, has no line to click
-    return [
-      {
-        key: "header",
-        label: "Edit Header",
-        icon: <IdentificationCardIcon aria-hidden />,
-        hint:
-          line.field === "email"
-            ? "Your email is set on My Profile, so it changes on every resume"
-            : undefined,
-        onClick: onOpenHeader,
-        leaves: "main",
-      },
-    ];
-  }
-  if (line.kind === "skill") {
-    return [
-      {
-        key: "hide",
-        label: "Hide",
-        icon: <EyeSlashIcon aria-hidden />,
-        hint: "Take this skill off this resume",
-        onClick: () => onHide({ skills: [{ skill_id: line.skill.id, shown: false }] }),
-        leaves: "main",
-      },
-    ];
-  }
-  const tools: LineTool[] = [];
-  if (moves) {
-    tools.push(
-      {
-        key: "move-up",
-        label: "Move Up",
-        icon: <ArrowUpIcon aria-hidden />,
-        glyph: true,
-        disabled: !moves.up,
-        onClick: () => moves.onMove(-1),
-        leaves: "move",
-      },
-      {
-        key: "move-down",
-        label: "Move Down",
-        icon: <ArrowDownIcon aria-hidden />,
-        glyph: true,
-        disabled: !moves.down,
-        onClick: () => moves.onMove(1),
-        leaves: "move",
-      },
-    );
-  }
-  tools.push({
-    key: "add-bullet",
-    label: "Add Bullet",
-    icon: <PlusIcon />,
-    onClick: onAddBullet,
-    leaves: "main",
-  });
-  if (line.kind === "bullet") {
-    const id = line.bullet.id;
-    const row = choices.bullets.find((c) => c.bullet_id === id);
-    // One wording button, Original, shown while the bullet shows any other
-    // wording (Tailor's or one typed on this resume): it puts the bank's
-    // text back, and Undo takes it back. The resume's own wording stays
-    // stored. A "Tailored N" button per Tailor wording went first, then a
-    // This Resume's Wording button; the user wanted Original alone
-    // (2026-10-29)
-    const reworded = row?.variant_id != null || row?.text != null;
-    tools.push({
-      key: "hide",
-      label: "Hide",
-      icon: <EyeSlashIcon aria-hidden />,
-      hint: "Take this bullet off this resume",
-      onClick: () => onHide({ bullets: [{ bullet_id: id, shown: false }] }),
-      leaves: "main",
-    });
-    if (reworded) {
-      tools.push({
-        key: "original",
-        label: "Original",
-        icon: <ArrowCounterClockwiseIcon aria-hidden />,
-        hint: `Back to the wording in Experiences: ${unmarked(line.bullet.text)}`,
-        onClick: () => onApply({ bullets: [{ bullet_id: id, variant_id: null }] }),
-        leaves: "extra",
-      });
-    }
-    return tools;
-  }
-  const entry = line.entry;
-  const choice = choices.entries.find((c) => c.entry_id === entry.id);
-  tools.push({
-    key: "hide",
-    label: "Hide Entry",
-    icon: <EyeSlashIcon aria-hidden />,
-    hint: "Take this entry off this resume",
-    onClick: () => onHide({ entries: [{ entry_id: entry.id, shown: false }] }),
-    leaves: "main",
-  });
-  if (entry.section === "education" && choice) {
-    tools.push(
-      {
-        key: "gpa",
-        label: choice.show_gpa ? "Hide GPA" : "Show GPA",
-        onClick: () => onApply({ entries: [{ entry_id: entry.id, show_gpa: !choice.show_gpa }] }),
-        leaves: "extra",
-      },
-      {
-        key: "coursework",
-        label: choice.show_coursework ? "Hide Coursework" : "Show Coursework",
-        onClick: () =>
-          onApply({
-            entries: [{ entry_id: entry.id, show_coursework: !choice.show_coursework }],
-          }),
-        leaves: "extra",
-      },
-    );
-  }
-  if (!typed(line)) {
-    // A button, not a sentence among the buttons: "Change this in
-    // Experiences." sat in the bar as text until KAN-799
-    tools.push({
-      key: "experiences",
-      label: "Edit in Experiences",
-      icon: <PencilSimpleIcon aria-hidden />,
-      hint: "This field is not typed on the page",
-      href: "/experiences",
-      leaves: "extra",
-    });
-  }
-  return tools;
+export function lineTools(line: Line, _choices: Choices, { moves }: LineHandlers): LineTool[] {
+  if (line.kind === "header" || line.kind === "skill" || !moves) return [];
+  return [
+    {
+      key: "move-up",
+      label: "Move Up",
+      icon: <ArrowUpIcon aria-hidden />,
+      glyph: true,
+      disabled: !moves.up,
+      onClick: () => moves.onMove(-1),
+      leaves: "move",
+    },
+    {
+      key: "move-down",
+      label: "Move Down",
+      icon: <ArrowDownIcon aria-hidden />,
+      glyph: true,
+      disabled: !moves.down,
+      onClick: () => moves.onMove(1),
+      leaves: "move",
+    },
+  ];
 }
 
 /** A tool as the phone's line sheet draws it: the bar's own weights, a ghost
@@ -372,47 +254,27 @@ export function SheetTool({ tool }: { tool: LineTool }) {
   );
 }
 
-/** The bar above the page's state while a line is open: its kind of text,
- *  whether it takes bold and italic, its tools and the way out. */
-export type OpenLine = {
-  role: TextRole;
-  marks: boolean;
-  tools: LineTool[];
-  /** Done: saves the line and closes it, as Esc does. */
-  onDone: () => void;
-};
+/** The bar's middle while a line is open: the line's tools (`lineTools`),
+ *  its two arrows. Its size, bold, italic and Done stood here too until
+ *  KAN-586. */
+export type OpenLine = { tools: LineTool[] };
 
-/** The open line as the bar shows it, or null while no line is open. A
- *  bullet being added (`composing`) has its size, bold, italic and Done. */
+/** The open line as the bar shows it, or null while the bar is idle: no
+ *  line open, or one with no tools (`lineTools`), or a bullet being added,
+ *  whose field takes Enter and the keys. */
 export function openLineOf({
   line,
   box,
   composing,
-  page,
   tools,
-  onDone,
 }: {
   line: Line | null;
   box: RenderBox | undefined;
   composing: boolean;
-  page: PageSettings;
   tools: LineTool[];
-  onDone: () => void;
 }): OpenLine | null {
-  if (composing) return { role: TEXT_ROLES.body, marks: true, tools: [], onDone };
-  if (!line || !box) return null;
-  return {
-    // The size names its kind of text: an unnamed size looked as if it
-    // changed the selection, and it changes every line of that kind
-    role: textRoleOf(
-      box.kind,
-      "entry" in line ? line.entry.section : null,
-      "entry" in line && degreeLeads(line.entry, page),
-    ),
-    marks: line.kind === "bullet",
-    tools,
-    onDone,
-  };
+  if (composing || !line || !box || tools.length === 0) return null;
+  return { tools };
 }
 
 /** A thin rule between the bar's groups. */
@@ -447,7 +309,6 @@ export function Bar({
   box,
   choices,
   handlers,
-  onDone,
   rendered,
   saving,
   fitting,
@@ -463,9 +324,6 @@ export function Bar({
   box: RenderBox | undefined;
   choices: Choices;
   handlers: LineHandlers;
-  /** Done: saves the line and closes it, as Esc does; a bullet being added
-   *  is added, or dropped while empty. */
-  onDone: () => void;
   /** Null until the first render lands. */
   rendered: RenderedPdf | null;
   saving: boolean;
@@ -483,9 +341,7 @@ export function Bar({
     line,
     box,
     composing,
-    page: format.page,
     tools: line ? lineTools(line, choices, handlers) : [],
-    onDone,
   });
   const bar = useRef<HTMLDivElement>(null);
   const fits = !composing && rendered && rendered.page_count > 1;
@@ -493,13 +349,7 @@ export function Bar({
   useFoldToFit(
     bar,
     open
-      ? [
-          "line",
-          open.role.label,
-          open.marks,
-          ...open.tools.map((t) => `${t.key}:${t.label}`),
-          Boolean(rendered),
-        ].join("|")
+      ? ["line", ...open.tools.map((t) => `${t.key}:${t.label}`), Boolean(rendered)].join("|")
       : [
           "idle",
           Boolean(experiences?.picker),
@@ -526,7 +376,7 @@ export function Bar({
       <History tools={history} />
       <Divider />
       {open ? (
-        <LineGroup open={open} format={format} />
+        <LineGroup open={open} />
       ) : (
         <>
           {experiences?.picker && (
@@ -623,24 +473,7 @@ export function Bar({
             above where the panel opens: never folded away, since it is the
             only way back to a closed panel */}
         <Divider />
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <Button
-                variant="ghost"
-                size="icon-lg"
-                aria-label={format.panelOpen ? "Hide Panel" : "Show Panel"}
-                aria-pressed={format.panelOpen}
-                disabled={format.disabled}
-                className="aria-pressed:bg-brand-tint aria-pressed:text-brand shrink-0"
-                onClick={format.onPanel}
-              />
-            }
-          >
-            <SidebarSimpleIcon aria-hidden className="-scale-x-100" />
-          </TooltipTrigger>
-          <TooltipContent>{format.panelOpen ? "Hide Panel" : "Show Panel"}</TooltipContent>
-        </Tooltip>
+        <PanelToggle open={format.panelOpen} disabled={format.disabled} onToggle={format.onPanel} />
       </div>
     </div>
   );
@@ -701,26 +534,12 @@ function useFoldToFit(bar: RefObject<HTMLDivElement | null>, contents: string) {
   }, [bar]);
 }
 
-/** The bar's middle with a line open: its kind of text's size, a bullet's
- *  bold and italic, its tools, then Done. */
-function LineGroup({ open, format }: { open: OpenLine; format: FormatTools }) {
+/** The bar's middle with a line open: its tools, the two arrows. */
+function LineGroup({ open }: { open: OpenLine }) {
+  // The line's arrows only (`lineTools`): the size, bold, italic, its other
+  // tools and Done stood here until the user cut them (KAN-586)
   return (
     <>
-      <div role="group" aria-label={open.role.label} className="flex shrink-0 items-center gap-1">
-        <span data-word-at={FOLD.line.roleWordAt} className="flex">
-          <span className={cn("text-note text-ink-muted pl-1 font-medium", FOLD.word)}>
-            {open.role.label}
-          </span>
-        </span>
-        <SizeStepper
-          role={open.role}
-          page={format.page}
-          disabled={format.disabled}
-          onChange={format.onChange}
-        />
-      </div>
-      {open.marks && <MarkTools />}
-      {open.tools.length > 0 && <Divider />}
       {open.tools.map((tool) => (
         <span
           key={tool.key}
@@ -732,15 +551,6 @@ function LineGroup({ open, format }: { open: OpenLine; format: FormatTools }) {
           <BarTool tool={tool} />
         </span>
       ))}
-      <span data-word-at={FOLD.line.doneWordAt} className="flex shrink-0">
-        <FoldButton
-          label="Done"
-          hint="Or press Esc"
-          icon={<CheckIcon />}
-          fold={FOLD.word}
-          render={<Button variant="secondary" size="sm" onClick={open.onDone} />}
-        />
-      </span>
     </>
   );
 }
@@ -779,56 +589,6 @@ function BarTool({ tool }: { tool: LineTool }) {
         )
       }
     />
-  );
-}
-
-/** Bold and italic for the open bullet, lit while the selection has them,
- *  as Docs does. The bar keeps the focus in the field, so the browser acts on
- *  the selection and the field reports the change as typing. The phone's
- *  line sheet draws the same two (KAN-799). */
-export function MarkTools() {
-  const [on, setOn] = useState({ bold: false, italic: false });
-  useEffect(() => {
-    const read = () =>
-      setOn({
-        bold: document.queryCommandState("bold"),
-        italic: document.queryCommandState("italic"),
-      });
-    read();
-    document.addEventListener("selectionchange", read);
-    return () => document.removeEventListener("selectionchange", read);
-  }, []);
-  const press = (mark: "bold" | "italic") => {
-    document.execCommand(mark);
-    setOn((was) => ({ ...was, [mark]: document.queryCommandState(mark) }));
-  };
-  return (
-    <div className="flex shrink-0 items-center gap-0.5">
-      <Tip label="Bold">
-        <Button
-          variant="ghost"
-          size="icon-lg"
-          aria-label="Bold"
-          aria-pressed={on.bold}
-          className={cn(on.bold && ON)}
-          onClick={() => press("bold")}
-        >
-          <TextBIcon aria-hidden />
-        </Button>
-      </Tip>
-      <Tip label="Italic">
-        <Button
-          variant="ghost"
-          size="icon-lg"
-          aria-label="Italic"
-          aria-pressed={on.italic}
-          className={cn(on.italic && ON)}
-          onClick={() => press("italic")}
-        >
-          <TextItalicIcon aria-hidden />
-        </Button>
-      </Tip>
-    </div>
   );
 }
 
@@ -999,21 +759,96 @@ export function ReviewButtons({ review }: { review: ReviewTools }) {
   );
 }
 
+/** The side panel's button (KAN-586), the bar's last control on the desktop
+ *  and the phone alike: pressed while the panel is open. */
+export function PanelToggle({
+  open,
+  disabled,
+  onToggle,
+}: {
+  open: boolean;
+  disabled?: boolean;
+  onToggle: () => void;
+}) {
+  const label = open ? "Hide Panel" : "Show Panel";
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <Button
+            variant="ghost"
+            size="icon-lg"
+            aria-label={label}
+            aria-pressed={open}
+            disabled={disabled}
+            className="aria-pressed:bg-brand-tint aria-pressed:text-brand shrink-0"
+            onClick={onToggle}
+          />
+        }
+      >
+        <SidebarSimpleIcon aria-hidden className="-scale-x-100" />
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+/** The side panel's top (KAN-586): its tabs, Sections and Format, on a
+ *  rule, and its close. The panel draws no header of its own (`bare`), so
+ *  the tabs are its title; a phone's sheet draws the same. */
+export function PanelTabs({
+  tab,
+  onTab,
+  onClose,
+}: {
+  tab: PanelTab;
+  onTab: (tab: PanelTab) => void;
+  onClose: () => void;
+}) {
+  return (
+    <div className="flex items-end gap-2">
+      <TabButtons
+        label="Side Panel"
+        ruled
+        className="flex-1"
+        options={[
+          { value: "sections", label: "Sections" },
+          { value: "format", label: "Format" },
+        ]}
+        value={tab}
+        onChange={onTab}
+      />
+      <IconButton
+        label="Close Panel"
+        tooltip="Close"
+        className="hover:bg-hover mb-1 size-8 rounded-full"
+        onClick={onClose}
+      >
+        <CloseIcon className="size-4" />
+      </IconButton>
+    </div>
+  );
+}
+
 /** The way back to one page, on the idle bar only while the resume runs
  *  over it. It is the action itself: an amber "2 pages" chip with a caret
  *  came first, whose click opened a card holding this button (2026-11-01).
  *  The count and what it does are in its tooltip. Its own glyph, lines
  *  pressed together (KAN-799): it shared Cut From Resume's scissors. */
-function FitButton({
+export function FitButton({
   pages,
   linesOver,
   disabled,
   fitting,
   onFit,
+  fold = FOLD.word,
 }: {
   pages: number;
   linesOver: number;
   disabled: boolean;
+  /** When its word folds: the desktop bar's fold step, or the phone row's
+   *  width (`PHONE_FOLD`). */
+  fold?: string;
   /** While a fit runs it reads "Fitting…" with a spinner. Not a modal: the
    *  page stays in view, where each cycle's cuts close up as they come
    *  (KAN-584), the progress a modal would cover. */
@@ -1035,7 +870,7 @@ function FitButton({
           <ArrowsInLineVerticalIcon aria-hidden />
         )
       }
-      fold={FOLD.word}
+      fold={fold}
       disabled={disabled}
       render={
         <Button

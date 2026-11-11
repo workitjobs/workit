@@ -22,11 +22,10 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/too
  * never leave: the panel's button (KAN-586) is the only way back to a closed
  * panel, which holds Sections and Format as tabs.
  *
- * With a line open (`FOLD.line`): the size's name ("Body"), the line tools'
- * words; then the zoom, the line's lesser
- * tools (Original, GPA, Coursework, Edit in Experiences), its moves and its
- * main tools (Add Bullet, Hide, Edit Header) leave, and last Done's word
- * goes. Undo, Redo, the size, bold and italic never leave.
+ * With a line open (`FOLD.line`): the zoom leaves, then the line's two
+ * arrows. Until KAN-586 the open line also had its size, bold, italic, its
+ * other tools (Original, GPA, Coursework, Add Bullet, Hide, Edit Header) and
+ * Done, each with a step here.
  *
  * Fixed widths came first (KAN-576): container-query steps measured by hand
  * on the editor's own page, which folded Tailor's bar, with fewer buttons,
@@ -53,25 +52,25 @@ export const FOLD = {
     experiencesAt: 8,
   },
   line: {
-    roleWordAt: 1,
-    toolWordsAt: 3,
-    zoomAt: 4,
-    toolAt: { extra: 6, move: 7, main: 8 },
-    doneWordAt: 9,
+    toolWordsAt: 1,
+    zoomAt: 2,
+    toolAt: { extra: 3, move: 4, main: 5 },
   },
   /** The panels' skeletons, before the first render, on a narrow bar. */
   skeletonAway: "@max-[30rem]/bar:hidden",
 } as const;
 
-/** The phone editor's row (./phone.tsx) folds the same way, with nothing to
- *  move to More: Format's word first, then Zoom's, then Download's, so a
- *  390px phone keeps "Download" and a 375px one shows the three glyphs. It
- *  wrapped Format, Download and Zoom under Undo and Redo at 375px. Download
- *  ends the row (KAN-799), the page's one filled button. */
+/** The phone editor's two rows (./phone.tsx) fold the same way, with
+ *  nothing to move to More (KAN-586). The toolbar folds Add Experiences'
+ *  word first, then Fit's, so a 390px phone keeps "Fit" beside the stack
+ *  glyph; Cut, Zoom and the panel's button are glyphs at every width. The
+ *  title row folds Download's word under 22rem, to keep room for the name.
+ *  The phone kept Format and Zoom as worded buttons and Download at the
+ *  toolbar's end until the toolbar became the desktop's. */
 export const PHONE_FOLD = {
-  formatWord: "@max-[27.5rem]/bar:sr-only",
-  zoomWord: "@max-[24.5rem]/bar:sr-only",
-  downloadWord: "@max-[21.75rem]/bar:sr-only",
+  experiencesWord: "@max-[34rem]/bar:sr-only",
+  fitWord: "@max-[26rem]/bar:sr-only",
+  downloadWord: "@max-[22rem]/title:sr-only",
 } as const;
 
 /** `sr-only` draws the word 1px wide. */

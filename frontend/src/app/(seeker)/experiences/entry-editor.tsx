@@ -77,6 +77,7 @@ export function EntryEditor<S extends EntrySection = EntrySection>({
   framed = false,
   foot,
   resumeMode = false,
+  resumeSwitches,
 }: {
   initial: EntryDraft<S>;
   onSave: (draft: EntryDraft<S>) => void;
@@ -122,6 +123,14 @@ export function EntryEditor<S extends EntrySection = EntrySection>({
    *  and the boxes are that resume's; the Experiences page's form has
    *  neither. */
   resumeMode?: boolean;
+  /** A school in the resume editor's form (KAN-586): whether that resume
+   *  prints its GPA and its coursework. They were the toolbar's Hide GPA and
+   *  Hide Coursework on an open line until the line kept only its arrows. */
+  resumeSwitches?: {
+    gpa: boolean;
+    coursework: boolean;
+    onChange: (next: { gpa: boolean; coursework: boolean }) => void;
+  };
 }) {
   const [draft, setDraft] = useState(initial);
   const uid = useId();
@@ -303,6 +312,39 @@ export function EntryEditor<S extends EntrySection = EntrySection>({
                 onChange={(coursework) => set({ coursework })}
               />
             </div>
+            {resumeSwitches && (
+              <div
+                role="group"
+                aria-labelledby={field("on-resume")}
+                className="col-span-2 flex flex-wrap items-center gap-x-6 gap-y-2"
+              >
+                <span id={field("on-resume")} className={FIELD_LABEL}>
+                  On this resume
+                </span>
+                {(
+                  [
+                    ["gpa", "Show GPA"],
+                    ["coursework", "Show Coursework"],
+                  ] as const
+                ).map(([key, label]) => (
+                  <label key={key} className="text-body text-ink flex items-center gap-2">
+                    <Checkbox
+                      checked={resumeSwitches[key]}
+                      onCheckedChange={(on) => {
+                        resumeSwitches.onChange({
+                          gpa: resumeSwitches.gpa,
+                          coursework: resumeSwitches.coursework,
+                          [key]: on === true,
+                        });
+                        // Marks the form changed, so leaving it asks first
+                        onChange?.(draft);
+                      }}
+                    />
+                    {label}
+                  </label>
+                ))}
+              </div>
+            )}
             <div className="col-span-2">
               <TextField
                 id={field("honors")}
