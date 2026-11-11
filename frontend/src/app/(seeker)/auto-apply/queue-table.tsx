@@ -159,12 +159,11 @@ const COLUMNS: { id: string; label: string; width?: string; folds?: boolean }[] 
  *  the folded columns' width, and frozen it covered most of the card, so
  *  Status and Resume scrolled by behind it in a strip. */
 const ROLE_FROZEN =
-  "z-1 bg-panel @3xl/main:sticky @3xl/main:left-0 @3xl/main:shadow-[1px_0_0_var(--color-border-surface)]";
+  "z-1 bg-panel @3xl/main:sticky @3xl/main:left-0 @3xl/main:after:pointer-events-none @3xl/main:after:absolute @3xl/main:after:inset-y-0 @3xl/main:after:right-0 @3xl/main:after:w-px @3xl/main:after:bg-border-surface";
 
 /** The frozen Role heading's and the ⋯ heading's edges with the heading's
  *  rule under them, as `STICKY_TH_FROZEN` draws a frozen heading's. */
-const ROLE_HEAD_EDGE =
-  "@3xl/main:shadow-[inset_0_-1px_0_var(--color-border-subtle),1px_0_0_var(--color-border-surface)]";
+const ROLE_HEAD_EDGE = "@3xl/main:shadow-[inset_0_-1px_0_var(--color-border-subtle)]";
 const MENU_HEAD_EDGE =
   "in-data-clipped:shadow-[inset_0_-1px_0_var(--color-border-subtle),-1px_0_0_var(--color-border-subtle),-8px_0_12px_-4px_rgb(18_26_40/0.2)]";
 

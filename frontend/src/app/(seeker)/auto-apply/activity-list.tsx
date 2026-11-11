@@ -283,7 +283,7 @@ export const ALIGN = "text-left";
 /** Role is frozen at the left while the rest scrolls, from 672px of page up,
  *  as on the Applications list (applications/list.tsx says why not below). */
 export const FROZEN =
-  "z-1 bg-panel @2xl/main:sticky @2xl/main:left-0 @2xl/main:shadow-[1px_0_0_var(--color-border-surface)]";
+  "z-1 bg-panel @2xl/main:sticky @2xl/main:left-0 @2xl/main:after:pointer-events-none @2xl/main:after:absolute @2xl/main:after:inset-y-0 @2xl/main:after:right-0 @2xl/main:after:w-px @2xl/main:after:bg-border-surface";
 
 /**
  * Live Activity's table (KAN-285): one row per job posting, in one white

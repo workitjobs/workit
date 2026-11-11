@@ -75,14 +75,19 @@ export const STICKY_HEAD = "[&_tr]:border-b-0";
  *  the frozen column's edge at its right. One `shadow` replaces another, so
  *  a frozen heading that took only its edge lost its rule. */
 export const STICKY_TH_FROZEN =
-  "shadow-[inset_0_-1px_0_var(--color-border-subtle),1px_0_0_var(--color-border-surface)]";
+  "shadow-[inset_0_-1px_0_var(--color-border-subtle)] after:pointer-events-none after:absolute after:inset-y-0 after:right-0 after:w-px after:bg-border-surface";
 
 /** A frozen column's edge on its cells (2026-11-11, after Notion's): a
  *  line in `--color-border-surface`, a step darker than the rules between
  *  rows (`--color-border-subtle`), so the frozen column reads as apart
  *  from the ones that scroll under it. In the rules' grey it read as one
- *  more rule, and the user asked for a clear line. */
-export const FROZEN_EDGE = "shadow-[1px_0_0_var(--color-border-surface)]";
+ *  more rule, and the user asked for a clear line. It is a 1px element
+ *  inside the cell (the sticky cell is positioned), at its right edge:
+ *  as a `box-shadow` outside the cell, the browser painted it only as a
+ *  short tick in the middle of each row, and the user saw no line at
+ *  all. */
+export const FROZEN_EDGE =
+  "after:pointer-events-none after:absolute after:inset-y-0 after:right-0 after:w-px after:bg-border-surface";
 
 /**
  * A page table's row fill, one for every table (2026-11-11): the hover

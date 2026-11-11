@@ -2895,7 +2895,9 @@ are in `docs/auth.md`.
   stayed purple, and an open group heading grey while a folded one stayed
   white; the base row now has only the app's hover grey. A frozen column
   ends in `FROZEN_EDGE`, darker than the row rules, so it reads as
-  apart (after Notion's). Each row keeps its current
+  apart (after Notion's). **Draw that edge as a 1px `after:` line inside
+  the sticky cell, never a `box-shadow` outside it**: the shadow showed
+  only as a short tick mid-row, and the user saw no line. Each row keeps its current
   actions with the page (`RowPick.register`), so the bar runs the very
   handlers ⋮ runs. Each row keeps ⋮ alone in a 48px column
   (`RESUME_ACTIONS_COL`) for one resume at a time. Hover icons came
