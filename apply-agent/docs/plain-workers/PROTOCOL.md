@@ -5,7 +5,10 @@ is the source; change it in the PR that changes the protocol.
 
 Hard rule: never evade bot detection and never touch a captcha; hand those to
 the user. A plain Worker is a Chrome with no CDP, no automation flags and no
-headless mode.
+headless mode. No CDP client connects to it. Its extension's own `chrome.debugger`
+sends only trusted text, Backspace and Delete into the field Apply or Lisul's tile
+chose, and Apply's left click on a radio, checkbox or option in the top frame (KAN-716,
+`worker-extension/ops/typing.js`, guide "Trusted text and choices").
 
 ## Pieces
 
@@ -175,7 +178,7 @@ In `worker-extension/ops/tile.js` and `page/tile.js`; Apply's side is `apply.pla
 |---|---|---|
 | `tile.start` | `interval?` ms (500), `quality?` (88), `maxWidth?` (1280), `maxHeight?` (900), `native?` (false) | `null`; from now on the Worker sends `tile.frame` events of its shown tab (the active tab of the window last switched to), at most one per `interval`, only when the picture changed. With `native`, Apply films the window itself, and the Worker sends only `tile.shown` events, each time the shown window or tab changes. Calling it again restarts it with the new settings. |
 | `tile.stop` | | `null` |
-| `tile.input` | `tab?` (default: the shown tab), `event`, `width?`, `height?` | replays one tile event (below) as synthetic DOM events; `null`, `{"menu": {options: [{label, disabled}], selected}}` (a press on a `<select>`), `{"chooser": "selectSingle"\|"selectMultiple", tab, frame}` (a click asked for a file), or `{"text"}` (a copy) |
+| `tile.input` | `tab?` (default: the shown tab), `event`, `width?`, `height?` | replays one tile event (below) as synthetic DOM events, its `text` and `key` events' text trusted as `dom`'s (KAN-716); `null`, `{"menu": {options: [{label, disabled}], selected}}` (a press on a `<select>`), `{"chooser": "selectSingle"\|"selectMultiple", tab, frame}` (a click asked for a file), or `{"text"}` (a copy) |
 | `chooser.watch` | `tab` | `null`; clears any file request and hooks every frame of the tab (below) |
 | `chooser.get` | `tab` | `{"mode", "frame"}` of the file input a page asked for since the last watch or set, or `null` |
 | `chooser.set` | `tab`, `frame?`, `files` (`[{name, mimeType, base64}]`; `[]` cancels) | `true` if the input was there; sets `input.files` through DataTransfer in the MAIN world, fires `input` and `change` (`cancel` for none) |
@@ -230,7 +233,7 @@ A fresh service worker starts with no content scripts, rules or user scripts.
 | `guard.lift` | `tab`, `again`, `warning`, `wrong`, `held` (KAN-629: what holds Submit, `""` for nothing), `onlyLifted?`, `sha256` (of `lifted.js`) | `null`; `submit_guard.LIFTED` with those values in every frame now and in each document the tab (and a tab it opens) loads, until `guard.rearm`. A `held` page keeps its Submit blocked by the guard script under a red note whose Dismiss calls the `__applyDismissHold` binding. With `onlyLifted` (renote), a tab not lifted is left as it is: `false` |
 | `guard.applied` | `tab`, `day` (null: dismissed), `sha256` (of `applied.js`) | `null`; KAN-621's "You already applied on <day>" note (`submit_guard.APPLIED_NOTE`) in the top frame now and in each document the tab loads, the guard still on; its second Dismiss press calls `__applyDismissApplied`. `day: null` stops it and marks every frame dismissed |
 | `guard.rearm` | `tab`, `sha256` (of `rearmed.js`) | `null`; stops lifting the tab and runs `submit_guard.REARMED` in its frames |
-| `guard.flags` | `tab`, `set` (`{"__applyDriveLifted"|"__applyAccountClick"|"__applyRehearsalLifted": bool}`) | `null`; in every frame (DriveGuard's `lift`, `arm`, `let_account_click`) |
+| `guard.flags` | `tab`, `set` (`{"__applyDriveLifted"|"__applyAccountClick"|"__applyRehearsalLifted"|"__applyAsking"|"__applyAskTick"|"__applyDriving": bool}`) | `null`; in every frame (DriveGuard's `lift`, `arm`, `let_account_click`; `asking` and the driving state since KAN-716, for the checks on trusted input) |
 | `guard.touch` | `tab`, `frame?`, `by` (`lisul`/`apply`) | `null`; dispatches `__apply_touch` in the frame, which the guard counts as a touch; `by: "lisul"` also sends `guard.touched`. `tile.input` calls the exported `touch()` before each press it replays (`by` its own param: `lisul` from the tile, `apply` from `PortPage.mouse`) |
 | `guard.sync` | `tab`, `timeout?` ms | `null` once every frame's earlier `guard.said` messages have reached the service worker |
 | `guard.status` | `tab?` | `{"scripts": [ids], "rules": n, "lifted": bool}` |
@@ -384,11 +387,24 @@ and defaults (timeouts in ms, default 30000). Covered in S2:
 
 Auto-wait: actions poll their `dom` op every 100 ms while it answers `{"retry": ...}` or
 `NotFound`, until the timeout, then raise `PortTimeoutError` with Playwright's wording
-("Locator.click: Timeout 30000ms exceeded."). Events are synthetic (`isTrusted: false`):
-`fill` focuses, selects all and uses `execCommand("insertText")`, falling back to the
+("Locator.click: Timeout 30000ms exceeded."). Events are synthetic (`isTrusted: false`), except
+text (KAN-716): `fill`, `type`/`press_sequentially`, `keyboard.type`/`insert_text`, a character key
+and Backspace/Delete in a text field go in trusted through the extension's `chrome.debugger`
+(`Input.insertText`; `Input.dispatchKeyEvent` for Backspace and Delete only), with `dom` answering
+the service worker a request (`{__applyType, token}`, `{__applyKey, token}`, `{__applyKeys, chosen}`)
+with `aim` just before and `landed` after it; the op's answer to Apply stays `{"ok": null}`, or is an
+error (`KAN-716 trusted input: ...`) when the input missed. Text never goes in trusted with a line
+break: a lone `"\n"` is the Enter key. A `click` or `check` of a radio, checkbox or option in the top
+frame, with the choice alone under the point, is a trusted left press and release the same way
+(`{__applyClick}`, `Input.dispatchMouseEvent`); every other click is synthetic. Without the debugger they are
+as before: `fill` focuses, selects all and uses `execCommand("insertText")`, falling back to the
 native value setter plus `input`/`change`; a focus move (a click, Tab, `focus`, `blur`, `fill`) that the page didn't hear, as in a window without focus, dispatches `blur` and `focusout` on what it left (KAN-709); `press` emulates the default of Enter, Tab,
 Backspace, Delete, Space and (S3) the caret keys ArrowLeft/ArrowRight/Home/End (Shift extends); `click` dispatches pointer and mouse events
-at the element's centre on the hit target, then `click`.
+at the element's centre on the hit target, then `click`. **Enter never sends a form** (KAN-716): in a field it makes no
+implicit submission, and on a focused submit button (`button` with no type or `type=submit`, `input[type=submit]`) it
+presses nothing; the page still hears its keydown and keyup. Enter adds a line in a textarea or editable content, and still
+follows a focused link or presses a `type=button`, checkbox or radio. On amazon.jobs a synthetic Enter in a box pressed the
+form's submit button and went on to Review; on a lifted last step it would have sent the application.
 
 ## How a Filler calls it
 
