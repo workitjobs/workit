@@ -11,6 +11,7 @@ import { PAGE_SIZE } from "./filter-query";
 import type { ApplicationStage } from "../auto-apply/actions";
 import { CompactJobCard } from "./compact-job-card";
 import { ListingCard } from "./listing-card";
+import { useHydrated } from "../local-time";
 import { nextPage, type ListSource } from "./list-pages";
 import type { JobListing } from "./listings";
 import { readStageChanges, rememberList, subscribeStageChanges } from "./shown-list";
@@ -122,8 +123,14 @@ export function FeedList({
   const list = useRef<HTMLUListElement>(null);
   const tailoredIds = new Set(tailored);
   // Whether the fallback drew this list's cards from the snapshot: then they
-  // are already on screen, and rising in again would flicker. Read once.
-  const [fromSnapshot] = useState(() => readSnapshot()?.query === query);
+  // are already on screen, and rising in again would flicker. Read once,
+  // and never while hydrating a server render: the server has no snapshot,
+  // so the browser's first render must say false as well, or the cards'
+  // class and style differ and React warns of a hydration mismatch
+  // (2026-11-10). A fallback only draws from the snapshot on a client
+  // navigation, where `hydrated` is true at once.
+  const hydrated = useHydrated();
+  const [fromSnapshot] = useState(() => hydrated && readSnapshot()?.query === query);
 
   const firstIds = first.map((job) => job.id).join();
   useEffect(() => {

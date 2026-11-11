@@ -83,7 +83,7 @@ export function DayApplications({
           <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent">
-                <TableHead className={TH}>Role</TableHead>
+                <TableHead className={TH}>Job</TableHead>
                 <TableHead className={TH}>Applied</TableHead>
                 <TableHead className={TH}>Status</TableHead>
               </TableRow>

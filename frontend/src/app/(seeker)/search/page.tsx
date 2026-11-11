@@ -88,7 +88,7 @@ async function ResultCount({ count }: { count: Promise<number | null> }) {
 
   return (
     <Badge variant="tag" pill>
-      {formatCount(n)} {n === 1 ? "Role" : "Roles"}
+      {formatCount(n)} {n === 1 ? "Job" : "Jobs"}
     </Badge>
   );
 }

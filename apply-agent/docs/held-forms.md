@@ -29,7 +29,12 @@ reads: it does not click, type or submit.
   profile on the job site carried it over (Amazon's Minor, KAN-754). A
   None or N/A that the plan picked and the page does not show is the
   read-back's flag. A field whose fact the profile only lacks is never a
-  leftover. Claude makes only the judgment checks, in
+  leftover. Entries an old profile on the job site carried over hold as
+  leftovers too (`verify._extra_entries`, KAN-762): a jobs or schools
+  section read back with more entries than the plan gave it (JPMorgan's
+  Oracle kept a Princeton entry the profile doesn't list), and an employer
+  field of a work entry Apply didn't fill that names no job on file.
+  Claude makes only the judgment checks, in
   the Pre-submit review call (`presubmit.SYSTEM`: contradictions, wrong
   answers); its findings join the flags. Its `<profile>` block holds
   the facts as the plan read them, the Tracker's past applications too
@@ -358,6 +363,45 @@ through `worker._Planned._missing` first.
 
 **Tests.** `test_claude_answers.py -k already_holds` and
 `test_dashboard.py -k says_where_it_sits` (opens Chromium).
+
+## An optional question no source answers (KAN-759)
+
+Lisul answers optional questions too (Lisul, 2026-11-10: "if it's optional
+and i can provide it then it should prompt me for it"), but never one about
+a fact that can't exist for him ("if it's something that doesn't exist then
+don't prompt me for it").
+
+- The engine's plan lists each such question in `Plan.optional`: a rule's
+  profile fact that the profile doesn't keep at all. A fact the profile keeps
+  empty (`line2: ""`, `minors: []`) is none: blank, never asked. The rules
+  for Address Line 2 and 3 and for Tax District (its table of local taxes,
+  `src/local-tax.ts` in the engine) leave those blank where the home has none
+  (`docs/fill-engine.md`). A one-off question that Claude can't answer goes
+  to Lisul as before, marked Optional by the form's own flag.
+- `_Planned.add` passes `Plan.optional` to `_missing` with the Missing facts.
+  A rehearsal lists them all. A run stops only for a required one
+  (`self.required`): an optional one is left blank and the form goes on.
+- Verifying (`verify._blanks`) notes an asked optional field that is still
+  blank (`OPTIONAL_UNANSWERED`). The note holds nothing.
+- The tile (`dashboard.verdict`) makes only the required questions a Missing
+  fact. With only optional ones left, it says `OPTIONAL_ASK`, after any real
+  flag or check, and the item's `optional` list puts their answer boxes on
+  the card whatever its kind.
+- The card has a **Skip (leave blank)** button. It posts an empty answer to
+  `/answer`, which calls the window's `answer` with `""`. `cli._answering`
+  then saves the Skip as an empty answer in the profile's
+  `answered_questions` (`AnswersTab.save_skipped`). The engine leaves an
+  optional question of that wording blank from then on (`SKIPPED`). A
+  required one with that wording is still asked. The Answers tab shows the
+  Skip as an empty answer, which he may fill in later. An Essay fact or a
+  bare date is skipped on that form only.
+- An answer is saved as a Missing fact's answer is: on his click, to the
+  profile, for every later form.
+
+**Tests.** `tests/test_optional_ask.py` (in CI): Tax District on a New York
+home (not asked) and an Ohio home (asked), a run that goes on, the note, the
+Skip and the answer kept for the next form, the tile, and `/answer`. The
+engine's `test/planner.spec.ts` has the planner's cases.
 
 ## An answer from the window, on a held form (`rehearsal._fill_answer`, KAN-686)
 

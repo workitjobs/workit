@@ -21,7 +21,7 @@ from fakes import FakeClaude, FakeClock, FakeMailbox, RecordingBoard, ScriptedUs
 from test_matches import feed_record
 from test_run_answers import profile_with
 
-from apply import claude_fill
+from apply import claude_fill, fill_engine
 from apply.adapters import Adapters, UsageLimitHit
 from apply.claude_fill import FILL, ClaudeFill
 from apply.cli import main
@@ -2034,3 +2034,60 @@ def test_a_date_boxs_placeholder_format_is_added_to_its_label():
         "In what month and year did you (or do you expect to) graduate from your highest degree? (YYYY-MM)",
         "Please provide your Amazon Login ID (alias)",
     ]
+
+
+# --- KAN-762: entries an old profile on the job site carried over (JPMorgan's Oracle, 2026-11-10: a Princeton entry the
+# profile doesn't list was kept, and an old Cloud Data Pro entry's end refused a start typed after it).
+
+HISTORY_JOBS = [{"employer": "Acme Rail", "title": "Software Engineer Intern", "start": "2026-06", "end": "2026-08"},
+                {"employer": "Data Shop", "title": "Software Engineer (Part-Time)", "start": "2026-01", "end": None}]
+SECTION = {"label": "Work Experience (entries)", "kind": "select", "required": False, "options": []}
+
+
+class CarriedOverDriver(JobviteStepsDriver):
+    """Plays Haiku on a form whose work section holds an entry an old profile left, which it could not delete."""
+
+    def __init__(self):
+        super().__init__()
+        self.prompts: list[str] = []
+
+    def __call__(self, page, schema, prompt, files):
+        if "questions" in schema["properties"]:
+            return {"blocked": False, "why": "", "page": "application form", "questions": [*JOBVITE_QUESTIONS[1:], SECTION]}
+        said = super().__call__(page, schema, prompt, files)
+        self.prompts.append(prompt)
+        fields = json.loads(re.search(r"<fields>(.*?)</fields>", prompt, re.DOTALL)[1])
+        for field in fields:
+            if field["question"] == SECTION["label"]:
+                said["filled"].append({"field": field["field"], "shown": [field["answer"]]})
+                said["entries_kept"] = ["Princeton University - Undergraduate Researcher: its Delete is disabled"]
+        return said
+
+
+def test_claude_gets_the_profiles_entries_and_an_entry_it_could_not_delete_holds_the_form(tmp_path):
+    driver = CarriedOverDriver()
+    path = profile_with(tmp_path, **{"experience_facts.employment_history": HISTORY_JOBS})
+    with FakeJobviteServer(steps=JOBVITE_STEPS) as server:
+        [row] = run(server, path, tyler_match(), claude=FakeClaude(driver=driver))
+
+    entries = json.loads(re.search(r"<entries>(.*?)</entries>", driver.prompts[0], re.DOTALL)[1])
+    assert [job["employer"] for job in entries["jobs"]] == ["Acme Rail", "Data Shop"] and entries["jobs"][1]["end"] is None
+    assert "delete each entry whose employer" in FILL and "current-job box" in FILL
+    assert server.submissions == [], "an entry the profile doesn't list must hold a live run"
+    assert "Verify: Remove this entry, which your profile doesn't list: Princeton University" in row.reason, row.reason
+
+
+def test_an_entrys_current_job_box_goes_to_claude_before_its_dates():
+    order = fill_engine.call_without_page("currentFirst", [{"name": "a", "label": "Work Experience 1 / End Date"},
+                                                           {"name": "b", "label": "Work Experience 1 / Current Job"}], ["a", "b"])
+    assert order == ["b", "a"]
+
+
+def test_the_entries_claude_gets_are_the_profiles_jobs_and_school(tmp_path):
+    from apply.profile import ApplicantProfile
+
+    profile = ApplicantProfile.load(profile_with(tmp_path, **{"experience_facts.employment_history": HISTORY_JOBS,
+                                                             "education.school": "State University"}))
+    history = claude_fill.entry_history(profile)
+    assert [j["title"] for j in history["jobs"]] == ["Software Engineer Intern", "Software Engineer (Part-Time)"]
+    assert [s["school"] for s in history["schools"]] == ["State University"]

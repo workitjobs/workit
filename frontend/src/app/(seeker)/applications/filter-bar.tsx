@@ -9,7 +9,7 @@ import { FieldFacet } from "@/components/field-facet";
 import { CloseIcon, FilterIcon, workStyleIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
-import { SearchField } from "@/components/ui/search-field";
+import { PAGE_SEARCH, SearchField } from "@/components/ui/search-field";
 import { cn } from "@/lib/cn";
 
 import type { StageKey } from "../stage-colors";
@@ -109,7 +109,7 @@ export function FilterBar({
       {/* The switcher is two glyphs, so it fits beside the search at every
           width. */}
       <div className="flex items-center justify-between gap-3">
-        <Form action="/applications" className="min-w-0 flex-1 @lg/main:max-w-64">
+        <Form action="/applications" className={PAGE_SEARCH}>
           {query.view !== DEFAULT_VIEW && <input type="hidden" name="view" value={query.view} />}
           {picks.stages.length > 0 && (
             <input type="hidden" name="stage" value={picks.stages.join(",")} />
@@ -125,7 +125,7 @@ export function FilterBar({
             id="applications-search"
             label="Search Applications"
             name="q"
-            placeholder="Search role or company"
+            placeholder="Search job or company"
             defaultValue={query.q}
             enterKeyHint="search"
           />

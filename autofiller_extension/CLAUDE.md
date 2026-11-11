@@ -2501,8 +2501,8 @@ after panel.js everywhere panel.js is (`CONTENT_SCRIPT_FILES`,
   logo when the API has one (in a 40 px tile; gone if the page won't load
   it), the title on up to two lines, then one line of company, place (`location_label`) and pay ("$45–$55 an
   hour"), and the Match score as a small ring
-  (purple) with its band (Strong Match at 80,
-  as frontend/src/lib/match.ts), and "You applied on Oct 25" at the applied
+  (purple) with its band (four since 2026-11-10: Weak, Fair from 40, Good
+  from 65, Excellent from 80, as frontend/src/lib/match.ts; Store 1.0.7), and "You applied on Oct 25" at the applied
   stage. No application, or signed out: the engine's `jobNames` read gives
   title and company only. No score: no ring. **A job WorkIt has is a link**
   (KAN-424): the whole card (`.job[role=link]`, Enter too) opens its job

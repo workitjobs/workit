@@ -37,6 +37,13 @@ import { cn } from "@/lib/cn";
  * Escape-to-clear behaviour people expect, which matters more here than the
  * small cross-browser difference in how that button is drawn.
  */
+/** A page's search beside its controls, the same width on every page
+ * (2026-11-10): the Jobs page, Documents, the Tracker and Experiences. It
+ * fills its row below 512px of page and stops at 320px from there. The
+ * Jobs page's was 320px and the others 256px, so the bar changed length
+ * from one page to the next. */
+export const PAGE_SEARCH = "min-w-48 flex-1 @lg/main:max-w-80";
+
 type SearchFieldProps = {
   id: string;
   label: string;

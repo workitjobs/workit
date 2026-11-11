@@ -2,6 +2,8 @@ import { Google_Sans } from "next/font/google";
 
 import { cn } from "@/lib/cn";
 
+import { jakartaSans } from "../fonts";
+
 import { Footer } from "./footer";
 import { Header } from "./header";
 import "./landing.css";
@@ -20,11 +22,18 @@ const googleSans = Google_Sans({
  * the Resources pages and the legal pages.
  * No app bar or sidebar; every page in the group shares the floating
  * header and the footer, and renders its own `<main id="main">`, the skip
- * link's target. `.landing` scopes landing.css.
+ * link's target. `.landing` scopes landing.css. Its text is Inter, as the
+ * app's; its headlines are Plus Jakarta Sans (../fonts.ts, landing.css).
  */
 export default function LandingLayout({ children }: LayoutProps<"/">) {
   return (
-    <div className={cn("landing flex flex-1 flex-col overflow-x-clip", googleSans.variable)}>
+    <div
+      className={cn(
+        "landing flex flex-1 flex-col overflow-x-clip",
+        googleSans.variable,
+        jakartaSans.variable,
+      )}
+    >
       <SmoothScroll />
       {/* The first Tab stop, as on the app's shell ((seeker)/layout.tsx):
           without it six header links came before the page (KAN-580). The
