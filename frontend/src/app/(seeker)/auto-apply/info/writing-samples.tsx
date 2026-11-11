@@ -135,9 +135,8 @@ export function WritingSamples() {
       <div className="flex items-baseline justify-between gap-4">
         <SectionHeading id="writing-samples-heading">Writing Samples</SectionHeading>
         {room && !adding && (
-          <SectionAction aria-label="Add Writing Sample" onClick={startAdding}>
+          <SectionAction label="Add Writing Sample" onClick={startAdding} tooltip="Add">
             <PlusIcon />
-            Add
           </SectionAction>
         )}
       </div>
@@ -171,11 +170,11 @@ export function WritingSamples() {
                 {s.text}
               </p>
               <SectionAction
-                aria-label={`Remove Writing Sample ${n + 1}`}
+                label={`Remove Writing Sample ${n + 1}`}
                 onClick={() => remove(s)}
+                tooltip="Remove"
               >
                 <TrashIcon />
-                Remove
               </SectionAction>
             </li>
           ))}

@@ -125,9 +125,8 @@ export function ApplicationAnswers({
       <div className="flex items-baseline justify-between gap-4">
         <SectionHeading id="application-answers">Application Answers</SectionHeading>
         {!editing && (
-          <SectionAction aria-label="Edit Application Answers" onClick={startEditing}>
+          <SectionAction label="Edit Application Answers" onClick={startEditing} tooltip="Edit">
             <PencilIcon />
-            Edit
           </SectionAction>
         )}
       </div>

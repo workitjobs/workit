@@ -143,12 +143,12 @@ export function Transcript() {
         <SectionHeading id="transcript-heading">Transcript</SectionHeading>
         {status === "loaded" && !transcript && (
           <SectionAction
-            aria-label="Upload Transcript"
+            label="Upload Transcript"
             disabled={uploading}
             onClick={() => picker.current?.click()}
+            tooltip={uploading ? "Uploading…" : "Upload"}
           >
             <UploadIcon />
-            {uploading ? "Uploading…" : "Upload"}
           </SectionAction>
         )}
       </div>
@@ -178,16 +178,20 @@ export function Transcript() {
             {transcript.original_filename}
           </p>
           <SectionAction
-            aria-label="Replace Transcript"
+            label="Replace Transcript"
             disabled={uploading}
             onClick={() => picker.current?.click()}
+            tooltip={uploading ? "Saving…" : "Replace"}
           >
             <UploadIcon />
-            {uploading ? "Saving…" : "Replace"}
           </SectionAction>
-          <SectionAction aria-label="Remove Transcript" disabled={uploading} onClick={remove}>
+          <SectionAction
+            label="Remove Transcript"
+            disabled={uploading}
+            onClick={remove}
+            tooltip="Remove"
+          >
             <TrashIcon />
-            Remove
           </SectionAction>
         </div>
       )}

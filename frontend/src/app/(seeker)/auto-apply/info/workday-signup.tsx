@@ -38,9 +38,8 @@ export function WorkdaySignup() {
     >
       <div className="flex items-baseline justify-between gap-4">
         <SectionHeading id="workday-heading">Workday Sign-Up</SectionHeading>
-        <SectionAction aria-label="Set Up Workday Sign-Up" onClick={open}>
+        <SectionAction label="Set Up Workday Sign-Up" onClick={open} tooltip="Set Up">
           <ExternalLinkIcon />
-          Set Up
         </SectionAction>
       </div>
       <p className="text-body text-ink-meta mt-1">

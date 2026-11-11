@@ -130,18 +130,17 @@ export function ApplicationQuestions({
           <div className="flex shrink-0 items-baseline gap-4">
             {concealed && (
               <SectionAction
-                aria-label={`${shown ? "Hide" : "Show"} ${title} Answers`}
+                label={`${shown ? "Hide" : "Show"} ${title} Answers`}
                 aria-expanded={shown}
                 aria-controls={`${id}-answers`}
                 onClick={() => setShown((s) => !s)}
+                tooltip={shown ? "Hide Answers" : "Show Answers"}
               >
                 {shown ? <EyeSlashIcon /> : <EyeIcon />}
-                {shown ? "Hide Answers" : "Show Answers"}
               </SectionAction>
             )}
-            <SectionAction aria-label={`Edit ${title}`} onClick={startEditing}>
+            <SectionAction label={`Edit ${title}`} onClick={startEditing} tooltip="Edit">
               <PencilIcon />
-              Edit
             </SectionAction>
           </div>
         )}

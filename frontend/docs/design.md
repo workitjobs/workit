@@ -134,7 +134,10 @@ open choices (Settled choices, near the end).
   `components/ui/option-row.tsx` (a row that is one way forward: Auto
   Apply's setup, Generate Resume's ways to start),
   `components/ui/or-divider.tsx` (the login card's "Or" rule),
-  `components/ui/tip.tsx` (a tooltip for any control), `components/views.tsx`
+  `components/ui/tip.tsx` (a tooltip for any control), `components/side-nav.tsx`
+  (a page's menu of its parts: Settings, Application Info),
+  `profile/section-action.tsx` (a card's own action, a bare glyph with a
+  tooltip), `components/views.tsx`
   and `PAGE_SEARCH`. Tailor's resume picker (`ResumeLists`) is the one way
   to pick a resume, in any dialog. A fix to one page table is checked on every other: the
   Tracker, Auto Apply's Up Next and Documents' resumes.

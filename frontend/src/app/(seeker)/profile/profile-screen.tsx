@@ -98,7 +98,7 @@ export function ProfileScreen({ school, extras }: { school: ReactNode; extras: R
   // reads the hash once, as it mounts.
   useEffect(() => {
     if (window.location.hash === "#writing-samples") {
-      window.location.replace("/auto-apply/info#writing-samples");
+      window.location.replace("/auto-apply/info/writing-samples");
     }
   }, []);
 
@@ -466,9 +466,8 @@ function ContactSection({
       <div className="flex items-baseline justify-between gap-4">
         <SectionHeading id="contact">Contact &amp; Links</SectionHeading>
         {!editing && (
-          <SectionAction aria-label="Edit Contact & Links" onClick={startEditing}>
+          <SectionAction label="Edit Contact & Links" onClick={startEditing} tooltip="Edit">
             <PencilIcon />
-            Edit
           </SectionAction>
         )}
       </div>

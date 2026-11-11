@@ -2219,20 +2219,31 @@ Application Info card and from Auto Apply's setup row
 (`auto-apply/setup-strip.tsx`), not a header button, since Auto Apply's
 header keeps its top right for a view switcher.
 
-One white card each, in this order: Work Authorization, Voluntary
-Self-Identification, Application Answers, Transcript, Writing Samples,
-Workday Sign-Up (`(seeker)/auto-apply/info/`). Workday Sign-Up's Set Up
+**One part a page** (2026-11-11, the user's call: six cards down one
+page read as a long form): Work Authorization, Self-Identification,
+Application Answers, Transcript, Writing Samples and Workday Sign-Up, each
+at `/auto-apply/info/<part>` (`auto-apply/info/sections.ts`,
+`[section]/page.tsx`), beside a menu that stays in view: the shared side
+menu (`components/side-nav.tsx`), Settings' own, a glyph and a label per
+part with the open one in the brand tint, and on a phone a row that
+scrolls sideways above the part. Its head is the way back, "← Auto Apply"
+in the items' look, with no button around it (a bordered "Back to Auto
+Apply" sat over the menu until then); it never leads to another part.
+`/auto-apply/info` opens the part an old address's hash names, else the
+first: the WorkIt Autofiller still opens `#writing-samples`, from the one
+page. Each card's actions (Edit, Show Answers, Upload, Add, Remove, Set
+Up) are bare glyphs with their word in a tooltip (`SectionAction`), as on
+My Profile. Workday Sign-Up's Set Up
 opens the extension's own page for one Workday email and password, which
 stay in that browser; it sat in Settings' Sign-In & Security until KAN-571,
-among the sign-ins to WorkIt itself. From `@4xl/main` a nav of plain links to the
-cards sits on the left and stays in view; below it the cards stack with no
-nav. The answer bank and the experience bank (for School Year) are read on
-the server; a failed answer-bank read shows one notice, a failed
+among the sign-ins to WorkIt itself. The answer bank and the experience
+bank (for School Year) are read on the server by the parts that need them; a failed answer-bank read shows one notice, a failed
 experience-bank read leaves School Year unknown. Transcript and Writing
 Samples read their own, each over a skeleton line until it lands, so
 nothing below moves (KAN-561). The page has its own `loading.tsx`, and Up
 Next's sits in the `(queue)` route group, so it never stands in for this
-page or Written Answers on the way in.
+page or Written Answers on the way in. The layout reads nothing, so the
+menu stays live while a part loads.
 
 **Work Authorization and Voluntary Self-Identification (KAN-269)** are two
 cards drawn by one component (`application-questions.tsx`), the questions
