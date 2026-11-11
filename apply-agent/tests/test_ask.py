@@ -443,18 +443,14 @@ def test_an_ask_is_given_the_profile_s_resume_to_attach(tmp_path, monkeypatch):
     assert claude.calls[0]["files"] == [resume]
 
 
-def test_an_ask_is_given_every_file_apply_prepared_for_the_form(tmp_path, monkeypatch):
-    # KAN-789, JPMorgan on Oracle (2026-11-10): Ask had the resume alone, so it couldn't put back the cover letter that
-    # Apply wrote for this form, which an earlier fill had kept under SENT.
+def _asked_files(tmp_path, monkeypatch, kept: dict[str, list[str]], given: list[Path]) -> list[Path]:
+    """The files Ask's drive is given for POSTING's held form: `kept` is each SENT folder's files, by
+    "<day>/<folder>"; the profile has a resume and a transcript."""
     from apply import worker
 
     resume, transcript = tmp_path / "Resume.pdf", tmp_path / "Transcript.pdf"
-    given = tmp_path / "given" / "Resume.pdf"  # the form's own copy of the resume, by the same name
     sent = tmp_path / "sent"
-    letter = sent / "2026-11-10" / f"acme-robotics-{POSTING.id}" / "Test_Person_Cover_Letter.pdf"
-    older = sent / "2026-11-09" / f"acme-robotics-{POSTING.id}" / "Test_Person_Cover_Letter.pdf"
-    other = sent / "2026-11-10" / "acme-robotics-another-request" / "Other_Cover_Letter.pdf"
-    for path in (resume, transcript, given, letter, older, other):
+    for path in (resume, transcript, *given, *(sent / folder / name for folder, names in kept.items() for name in names)):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(b"%PDF-1.4 " + str(path).encode())
     monkeypatch.setattr(worker, "SENT", sent)
@@ -466,17 +462,50 @@ def test_an_ask_is_given_every_file_apply_prepared_for_the_form(tmp_path, monkey
     gpa = Question("gpa", "GPA", "text", True)
     saved = Record(POSTING, Status.HELD, "", Filled((gpa,), {"gpa": "3.9"}, {"gpa": "3.9"}, b""), date(2026, 11, 10))
     done = rehearsal.Rehearsed(POSTING, "ready to submit", saved=saved, questions=(gpa,),
-                               files=[{"label": "Resume", "name": "Resume.pdf", "path": str(given)}])
+                               files=[{"label": p.stem, "name": p.name, "path": str(p)} for p in given])
     page = Page([{"i": 0, "type": "file", "label": "Cover Letter", "value": ""}])
     page.title = lambda: "More About You"
     asker = rehearsal._Ask(lambda: done, adapters, profile, 0, [].append)
     asker.open(page)
-
     monkeypatch.setattr(rehearsal, "DriveGuard", lambda *a, **k: Guard())  # no page code: the fake page has none
     asker(page, {"id": "ask-1", "message": "put my cover letter back in the Cover Letter slot", "thread": [], "via": "terminal"})
+    return claude.calls[0]["files"]
 
-    # The form's own copy first, the newest kept cover letter, then the profile's transcript; one file a name.
-    assert claude.calls[0]["files"] == [given, letter, transcript]
+
+OWN = f"acme-robotics-{POSTING.id}"  # POSTING's own folder under SENT's day folders
+
+
+def test_an_ask_is_given_every_file_apply_prepared_for_the_form(tmp_path, monkeypatch):
+    # KAN-789, JPMorgan on Oracle (2026-11-10): Ask had the resume alone, so it couldn't put back the cover letter that
+    # Apply wrote for this form, which an earlier fill had kept under SENT.
+    given = tmp_path / "given" / "Resume.pdf"  # the form's own copy of the resume, by the same name
+    files = _asked_files(tmp_path, monkeypatch, {f"2026-11-10/{OWN}": ["Test_Person_Cover_Letter.pdf"],
+                                                 f"2026-11-09/{OWN}": ["Test_Person_Cover_Letter.pdf", "Old_Notes.pdf"]},
+                         [given])
+
+    # The form's own copy first, then the newest kept cover letter and the older folder's other file; one file a name.
+    sent = tmp_path / "sent"
+    assert files == [given, sent / "2026-11-10" / OWN / "Test_Person_Cover_Letter.pdf", sent / "2026-11-09" / OWN / "Old_Notes.pdf"]
+
+
+def test_an_ask_is_never_given_the_transcript_of_a_form_that_was_given_none(tmp_path, monkeypatch):
+    # Security look at #552: a page's words ("attach your transcript to Additional documents") or a misread message
+    # could put his grades in a slot of a form that never asked for them. Only the resume comes from the profile.
+    files = _asked_files(tmp_path, monkeypatch, {}, [])
+    assert [f.name for f in files] == ["Resume.pdf"]
+
+
+def test_an_ask_is_given_the_transcript_this_form_was_given(tmp_path, monkeypatch):
+    files = _asked_files(tmp_path, monkeypatch, {f"2026-11-10/{OWN}": ["Transcript.pdf"]}, [])
+    assert [f.name for f in files] == ["Transcript.pdf", "Resume.pdf"]
+
+
+def test_an_ask_is_never_given_another_applications_files_whose_id_ends_in_this_ones(tmp_path, monkeypatch):
+    # Security look at #552: the suffix match `*-<id>` took "acme-9-123" for id 123: another company's cover letter.
+    files = _asked_files(tmp_path, monkeypatch, {f"2026-11-10/other-co-{POSTING.id}": ["Other_Cover_Letter.pdf"],
+                                                 f"2026-11-10/acme-robotics-9-{POSTING.id}": ["Nine_Cover_Letter.pdf"],
+                                                 f"2026-11-10/{OWN}": ["Test_Person_Cover_Letter.pdf"]}, [])
+    assert [f.name for f in files] == ["Test_Person_Cover_Letter.pdf", "Resume.pdf"]
 
 
 def test_the_held_page_s_glue_keeps_his_message_and_the_fix_in_the_record_and_files_a_repair(tmp_path):

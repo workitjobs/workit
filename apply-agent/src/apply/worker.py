@@ -76,8 +76,13 @@ SENT = HOME / "sent"
 
 def sent_folder(company: str, application_id: str, day: date) -> Path:
     """The Application's folder under SENT, where a copy of each file its form is given is kept."""
+    return SENT / day.isoformat() / _sent_name(company, application_id)
+
+
+def _sent_name(company: str, application_id: str) -> str:
+    """An Application's folder name under SENT's day folders: its company's slug, then its id."""
     slug = re.sub(r"[^a-z0-9]+", "-", company.lower()).strip("-") or "company"
-    return SENT / day.isoformat() / f"{slug}-{re.sub(r'[^A-Za-z0-9_-]+', '-', application_id)}"
+    return f"{slug}-{re.sub(r'[^A-Za-z0-9_-]+', '-', application_id)}"
 
 
 def sent_resume(application_id: str, name: str, sent: Path | None = None) -> str:
@@ -94,12 +99,13 @@ def sent_resume(application_id: str, name: str, sent: Path | None = None) -> str
     return ""
 
 
-def sent_files(application_id: str, sent: Path | None = None) -> list[Path]:
+def sent_files(company: str, application_id: str, sent: Path | None = None) -> list[Path]:
     """Every file kept for the Application's form under SENT (the resume, the cover letter Apply wrote for it, a
-    transcript), its newest folder's first (KAN-789)."""
-    safe = re.sub(r"[^A-Za-z0-9_-]+", "-", application_id)
-    folders = sorted((f for f in (sent or SENT).glob(f"*/*-{safe}") if f.is_dir()), key=lambda f: f.parent.name,
-                     reverse=True)
+    transcript), its newest folder's first (KAN-789). Only its own folder, by its whole name: a suffix match
+    (`*-<id>`) also took another Application's whose id ends in this one's ("acme-9-123" for id 123)."""
+    root, name = sent or SENT, _sent_name(company, application_id)
+    days = sorted((day for day in root.iterdir() if (day / name).is_dir()), reverse=True) if root.is_dir() else []
+    folders = [day / name for day in days]
     return [f for folder in folders for f in sorted(folder.iterdir()) if f.is_file() and not f.name.startswith(".")]
 
 

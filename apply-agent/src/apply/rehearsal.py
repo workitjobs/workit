@@ -1030,14 +1030,16 @@ class _Ask:
 
     def _files(self, done: "Rehearsed") -> list[Path]:
         """Every file Apply prepared for this form, for Claude to attach to the slot his message names (KAN-683,
-        KAN-789): the files the form was given, then each kept for it under SENT (an earlier fill's cover letter
-        too), then the profile's resume and transcript. One file a name, the first found: Claude's upload folder
-        holds each by its name. Before, Ask had the resume alone, and couldn't put the form's cover letter back."""
+        KAN-789): the files the form was given, then each kept for its own Application under SENT (an earlier
+        fill's cover letter too), then the profile's resume. A transcript only when this form was given one: never
+        offered to a form that didn't ask, where a page's words or a misread message could attach his grades. One
+        file a name, the first found: Claude's upload folder holds each by its name. Before, Ask had the resume
+        alone, and couldn't put the form's cover letter back."""
         given = [Path(str(f["path"])) for f in done.files if f.get("path")]
-        profile = [Path(str(value)).expanduser() for key in ("files.resume_pdf", "files.unofficial_transcript_pdf")
-                   if (value := self._profile.get(key))]
+        resume = self._profile.get("files.resume_pdf")
+        profile = [Path(str(resume)).expanduser()] if resume else []
         by_name: dict[str, Path] = {}
-        for path in [*given, *sent_files(done.posting.id), *profile]:
+        for path in [*given, *sent_files(done.posting.company, done.posting.id), *profile]:
             if path.is_file() and path.name not in by_name:
                 by_name[path.name] = path
         return list(by_name.values())
