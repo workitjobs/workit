@@ -379,6 +379,27 @@ export function BuiltResumes({
             className={RESUMES_SEARCH}
           />
         }
+        // The layout at the right end of the search's row, as the Jobs
+        // and Applications pages place their view switch.
+        action={
+          <SegmentedToggle
+            label="Layout"
+            value={shownLayout}
+            onValueChange={(next) => pickLayout(next as ResumesLayout)}
+            options={[
+              {
+                value: "list",
+                label: "List View",
+                icon: <ListBulletsIcon aria-hidden className="size-4" />,
+              },
+              {
+                value: "grid",
+                label: "Grid View",
+                icon: <SquaresFourIcon aria-hidden className="size-4" />,
+              },
+            ]}
+          />
+        }
       />
 
       {/* The filters with the buttons at the right, above the card: the
@@ -398,23 +419,6 @@ export function BuiltResumes({
               className="min-w-36"
             />
             <SortMenu value={sort} options={SORTS} onChange={(next) => move({ sort: next })} />
-            <SegmentedToggle
-              label="Layout"
-              value={shownLayout}
-              onValueChange={(next) => pickLayout(next as ResumesLayout)}
-              options={[
-                {
-                  value: "list",
-                  label: "List View",
-                  icon: <ListBulletsIcon aria-hidden className="size-4" />,
-                },
-                {
-                  value: "grid",
-                  label: "Grid View",
-                  icon: <SquaresFourIcon aria-hidden className="size-4" />,
-                },
-              ]}
-            />
             <div className="col-span-2 grid grid-cols-2 gap-2 @2xl:ml-auto @2xl:flex">
               {upload.button}
               <Button size="sm" onClick={() => void generate()} disabled={generating !== null}>

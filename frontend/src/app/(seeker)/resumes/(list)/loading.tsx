@@ -7,9 +7,9 @@ import { RESUMES_SEARCH, ResumesHeader } from "../header";
 
 /**
  * Resumes while both resume lists load (KAN-561): the page's frame
- * (./page.tsx), Documents' tabs live, then the search,
- * the filter row and the list's card (../built-resumes.tsx) as bars: a
- * group's heading and its cards. In this route group so it never stands
+ * (./page.tsx), Documents' tabs live, then the search with the List /
+ * Grid switch at its right, the filter row and the list's card
+ * (../built-resumes.tsx) as bars: a group's heading and its cards. In this route group so it never stands
  * in for the editor or an upload's page, which have their own. A card is
  * `RESUME_ROW`'s box, written out: that module is a client one.
  */
@@ -19,6 +19,7 @@ export default function ResumesLoading() {
       <ResumesHeader
         view="resumes"
         search={<Skeleton aria-hidden="true" className={cn(RESUMES_SEARCH, "h-10 rounded-full")} />}
+        action={<Skeleton aria-hidden="true" className="h-9 w-17 rounded-full" />}
       />
       <div role="status">
         <span className="sr-only">Loading your resumes</span>

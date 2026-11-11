@@ -2933,8 +2933,9 @@ primary), then Delete in red, which asks first (`RowMoreMenu` with
 star only. Four icons on every card at all times read busy to the user.
 The date and the actions sit in fixed columns, so every card's date lines
 up. **The Grid view** (KAN-766, after Google Drive's and Simplify's): a List /
-Grid switch beside Sort (`SegmentedToggle` with icons: two looks of the
-same resumes, so a switcher, not tabs), kept in a cookie as the Jobs
+Grid switch at the right end of the search's row, where the Jobs and
+Applications pages put their view switch (`SegmentedToggle` with icons:
+two looks of the same resumes, so a switcher, not tabs), kept in a cookie as the Jobs
 page's view is (`resumes/view.ts`, `setResumesLayout`), so the server draws
 the chosen layout. The grid is one flat set of cards in the sort's order,
 the primary first, with no group headings (each card says what it is): a
