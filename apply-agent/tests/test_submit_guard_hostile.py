@@ -3,7 +3,7 @@
 Each page is a fake job form whose application request is a POST to FINAL (or a known job system's final URL).
 Each click path is the real code that presses a button through the guards: plain code's Next (press_step), the
 profile pop-up's click, the account page's click, Ask Claude's press, the keep-alive's press of a session dialog's
-stay-signed-in button (KAN-776), and Fill again (a held page filled anew in a fresh guarded page). Every pair must leave the job system with no application request. The control tests show
+stay-signed-in button (KAN-776; on any site by the generic rules, KAN-779), and Fill again (a held page filled anew in a fresh guarded page). Every pair must leave the job system with no application request. The control tests show
 each page does send without the guard, so a pass means the guard stopped it.
 
 A new click path joins PATHS, and a new trick joins PAGES, in the same PR (the root CLAUDE.md's review rule).
@@ -13,6 +13,7 @@ Fill again's case (KAN-682) opens its page in a real Worker browser. Three group
 - plain: a plain Worker on Chrome for Testing, skipped where there is none (CI).
 """
 
+import dataclasses
 import http.server
 import re
 import sys
@@ -512,14 +513,67 @@ SESSION_PAGES = {
         b.addEventListener('pointerdown', () => { b.textContent = 'Submit application'; }, true);
         b.addEventListener('click', () => { sendAll(); document.getElementById('f').submit(); });</script>"""},
 }
-MOVED = {"a session dialog whose Continue sends after the next mouse move"}
-PAGES |= SESSION_PAGES
+# KAN-779: the generic rules press a stay button on any site, by the words of the dialog it is in. Each trick here
+# sends the application by the button the generic press would find; the delayed ones are #541's review pages in
+# the generic words, for the hold that lasts until Dismiss on every site.
+_WARNING = "<p>Are you still there? You will be signed out in 2 minutes.</p>"
+_GENERIC = _SESSION.replace("Your session is about to expire. Do you want to continue?",
+                            "Are you still there? You will be signed out in 2 minutes.")
+_STILL = "<button type=button id=b>I'm still here</button>"
+GENERIC_SENDS_AFTER = {"a generic session dialog whose I'm still here sends after 3.5 s": 3500,
+                       "a generic session dialog whose I'm still here sends after 10 s": 10_000,
+                       "a generic session dialog whose I'm still here sends after 60 s": 60_000,
+                       "a generic session dialog whose page dismisses the hold itself": 8000}
+# #541's page that dismisses the hold itself, every way a script can, then sends: its script, on the generic dialog.
+_FREES = SESSION_PAGES["a session dialog whose page dismisses the hold itself"][START].split("</div>", 1)[1]
+GENERIC_SESSION_PAGES = {
+    # A real session dialog, by role and words; its Continue sends the application by script.
+    "a generic session dialog whose Continue submits": {START: _GENERIC % "<button type=button id=b>Continue</button>" + """<script>
+        document.getElementById('b').addEventListener('click', () => { sendAll(); document.getElementById('f').submit(); });</script>"""},
+    **{name: {START: _GENERIC % _STILL + _LATER % ms} for name, ms in GENERIC_SENDS_AFTER.items()
+       if name != "a generic session dialog whose page dismisses the hold itself"},
+    "a generic session dialog whose page dismisses the hold itself": {START: _GENERIC % _STILL + _FREES},
+    # Its I'm still here arms on the press, and sends 3.5 s after the next mouse move: the Keeper's own activity ping.
+    "a generic session dialog whose I'm still here sends after the next mouse move": {START: _GENERIC % _STILL
+        + """<script>let armed = false; document.getElementById('b').addEventListener('click', () => { armed = true; });
+        document.addEventListener('mousemove', () => { if (armed) { armed = false; setTimeout(() => { sendAll();
+          document.getElementById('f').submit(); }, 3500); } }, true);</script>"""},
+    # The warning dialog sits inside the application form: its Stay signed in is the form's own submit.
+    "a Stay signed in inside the application form": {START: f"""<title>Apply</title><form id=f method=post action="{FINAL}">
+        <input name=first value=Test><div role=alertdialog aria-modal=true>{_WARNING}<button id=b>Stay signed in</button>
+        </div></form>"""},
+    # The warning dialog holds the application's fields, and its Keep me signed in sends them.
+    "a session warning dialog that holds fields": {START: f"""<title>Apply</title>{SEND_ALL}<div role=dialog aria-modal=true>
+        {_WARNING}<label>First name <input name=first value=Test></label>
+        <button type=button id=b>Keep me signed in</button></div>
+        <script>document.getElementById('b').addEventListener('click', () => sendAll());</script>"""},
+    # The words alone, in a box with no dialog role: its Continue sends.
+    "session warning words with no dialog role": {START: f"""<title>Apply</title>{SEND_ALL}<div class=modal>{_WARNING}
+        <button type=button id=b>Continue</button></div>
+        <script>document.getElementById('b').addEventListener('click', () => sendAll());</script>"""},
+    # Its accessible name is I'm still here, its words are Submit application.
+    "a stay button whose words are a Submit": {START: f"""<title>Apply</title>{SEND_ALL}<div role=dialog aria-modal=true>
+        {_WARNING}<button type=button id=b aria-label="I'm still here">Submit application</button></div>
+        <script>document.getElementById('b').addEventListener('click', () => sendAll());</script>"""},
+}
+# The generic pages whose stay button passes the structure check: the guard, kept whole until Dismiss, stops them.
+GENERIC_PRESSED = {"a generic session dialog whose Continue submits", *GENERIC_SENDS_AFTER,
+                   "a generic session dialog whose I'm still here sends after the next mouse move"}
+DELAYS = SENDS_AFTER | GENERIC_SENDS_AFTER
+MOVED = {"a session dialog whose Continue sends after the next mouse move",
+         "a generic session dialog whose I'm still here sends after the next mouse move"}
+PAGES |= SESSION_PAGES | GENERIC_SESSION_PAGES
 BUTTON = {"an Amazon card whose Continue sends": "Continue", "a review page's Apply with its answers hidden": "Apply", "a page that vouches for its own Apply": "Apply", "a Submit in another language beside a Submit": "Envoyer ma candidature", "a Submit in a shadow root": "Submit application",
           "a profile pop-up that is the application": "Submit", "a profile pop-up that turns into the application": "Submit",
           "a one-page form in a modal": "Continue", "an application that makes an account": "Continue",
           "a button whose words change after the check": "Continue",
           "a session dialog whose stay button is the form's submit": "Stay signed in",
-          **{name: "Continue" for name in SESSION_PAGES if name != "a session dialog whose stay button is the form's submit"}}
+          **{name: "Continue" for name in SESSION_PAGES if name != "a session dialog whose stay button is the form's submit"},
+          "a generic session dialog whose Continue submits": "Continue",
+          **{name: "I'm still here" for name in GENERIC_PRESSED if name != "a generic session dialog whose Continue submits"},
+          "a Stay signed in inside the application form": "Stay signed in",
+          "a session warning dialog that holds fields": "Keep me signed in",
+          "session warning words with no dialog role": "Continue", "a stay button whose words are a Submit": "I'm still here"}
 
 
 def button(page_name: str) -> str:
@@ -592,6 +646,11 @@ def stay_press(page, drive, name):
     keepalive.press(page, keepalive.Site("Example", re.compile(r"example\.com$"), (name,), warns="."))
 
 
+def generic_stay_press(page, drive, name):
+    """The keep-alive's press on a site with no entry (KAN-779): the generic rules as they are, any stay name."""
+    keepalive.press(page, keepalive.ANY)
+
+
 # KAN-716: a plain Worker's two typing paths, each with every key that could send a form: Apply's own (fill, type,
 # keys) and Lisul's from the tile. Their text goes in trusted (worker-extension/ops/typing.js, chrome.debugger).
 FIELDS = "input:not([type=hidden]):not([type=file]):not([type=checkbox]):not([type=radio]):not([type=submit]), textarea"
@@ -659,7 +718,7 @@ def amazon_continue(page, drive, name):
 
 PATHS = {"plain code's Next": plain_next, "the Amazon Filler's Continue": amazon_continue, "the profile click": profile_click, "the account click": account_click,
          "Ask Claude's press": ask_press, "Ask Claude's press of a listed step": ask_press_listed,
-         "the keep-alive's stay press": stay_press}
+         "the keep-alive's stay press": stay_press, "the keep-alive's generic stay press": generic_stay_press}
 
 
 # PR 477's guard holes (KAN-710): each page a hole the guards had, so each runs on PRs, never only nightly. A page
@@ -830,7 +889,7 @@ def test_without_the_guard_each_hostile_page_sends(page_name):
         if page_name in MOVED:
             page.mouse.move(5, 5)
             page.mouse.move(9, 9)
-        _settle(page, max(3000, SENDS_AFTER.get(page_name, 0) + 1500, 5000 if page_name in MOVED else 0))
+        _settle(page, max(3000, DELAYS.get(page_name, 0) + 1500, 5000 if page_name in MOVED else 0))
     assert site.applications()
 
 
@@ -958,7 +1017,7 @@ def _held_with_keeper(page, monkeypatch, name: str, seconds: float) -> keepalive
 
 
 def _held_seconds(page_name: str) -> float:
-    return max(7.0, SENDS_AFTER.get(page_name, 0) / 1000 + 6)
+    return max(7.0, DELAYS.get(page_name, 0) / 1000 + 6)
 
 
 @pytest.mark.parametrize("page_name", list(SESSION_PAGES))
@@ -981,6 +1040,51 @@ def test_the_stay_press_on_a_held_page_sends_nothing(page_name, monkeypatch):
 def test_the_stay_press_on_a_held_plain_page_sends_nothing(page_name, monkeypatch):
     with plain(PAGES[page_name]) as (page, _, site):
         keep = _held_with_keeper(page, monkeypatch, button(page_name), _held_seconds(page_name))
+        _settle(page, 1500)
+    assert site.applications() == []
+    assert "pressed the site's" in keep.line() and keep.holding()
+
+
+def _held_generically(page, monkeypatch, seconds: float) -> keepalive.Keeper:
+    """The page held by _Kept.hold for `seconds` on a site with no entry: the Keeper's generic rules as they are, with
+    a mouse move every second (no GET: the fake host is not on loopback)."""
+    from apply.rehearsal import _Kept
+
+    monkeypatch.setattr(keepalive, "LOOK_S", 0.25)
+    monkeypatch.setattr(keepalive, "PING_S", 1.0)
+    monkeypatch.setattr(keepalive, "ANY", dataclasses.replace(keepalive.ANY, ping=False))
+    keep = keepalive.Keeper("Acme", lambda why: None, sites=())
+    kept = _Kept(_OnePage(page), 0)
+    with kept.open(HOST + START):
+        release = threading.Event()
+        timer = threading.Timer(seconds, release.set)
+        timer.start()
+        try:
+            kept.hold(release, keep=keep)
+        finally:
+            timer.cancel()
+    return keep
+
+
+@pytest.mark.parametrize("page_name", list(GENERIC_SESSION_PAGES))
+def test_the_generic_stay_press_on_a_held_page_sends_nothing(page_name, monkeypatch):
+    """A site with no entry (KAN-779): the generic rules press only what passes STAY, with the guards back on, and
+    then hold Submit, the guard whole, however long the page waits to send, until Dismiss."""
+    with cdp(PAGES[page_name]) as (page, _, site):
+        keep = _held_generically(page, monkeypatch, _held_seconds(page_name))
+        _settle(page, 1500)
+    assert site.applications() == []
+    pressed = page_name in GENERIC_PRESSED  # the rest get no press at all
+    assert ("pressed the site's" in keep.line()) is pressed
+    assert bool(keep.holding()) is pressed  # still held: only Dismiss gives Submit back
+
+
+@pytest.mark.parametrize("page_name", ["a generic session dialog whose I'm still here sends after 3.5 s",
+                                       "a generic session dialog whose I'm still here sends after the next mouse move",
+                                       "a generic session dialog whose page dismisses the hold itself"])
+def test_the_generic_stay_press_on_a_held_plain_page_sends_nothing(page_name, monkeypatch):
+    with plain(PAGES[page_name]) as (page, _, site):
+        keep = _held_generically(page, monkeypatch, _held_seconds(page_name))
         _settle(page, 1500)
     assert site.applications() == []
     assert "pressed the site's" in keep.line() and keep.holding()
@@ -1084,7 +1188,7 @@ def plain(pages: dict[str, str]):
 
 
 PLAIN_PATHS = ["plain code's Next", "the Amazon Filler's Continue", "the profile click", "the account click", "Ask Claude's press of a listed step",
-               "the keep-alive's stay press"]
+               "the keep-alive's stay press", "the keep-alive's generic stay press"]
 
 
 @pytest.mark.parametrize(("page_name", "path"), plain_pairs_on_prs(PLAIN_PATHS))
