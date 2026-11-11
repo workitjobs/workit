@@ -7,6 +7,7 @@ import io
 import json
 import os
 import plistlib
+import shutil
 import subprocess
 from dataclasses import replace
 from datetime import datetime
@@ -621,13 +622,17 @@ def test_an_apply_accounts_host_whose_wrapper_is_gone_warns(tmp_path):
     assert check(m, "Apply accounts host").level == doctor.WARN
 
 
-def plain_seed(profiles: Path, installed=True, developer=True) -> Path:
-    """A plain seed profile, its Preferences as Chrome writes them after Load unpacked of the worker extension."""
-    from apply.plain.extension import EXTENSION_ID
+def plain_seed(profiles: Path, installed=True, developer=True, current=True) -> Path:
+    """A plain seed profile, its Preferences as Chrome writes them after Load unpacked of the worker extension: a
+    folder of this checkout's extension code, or (`current` False) of older code."""
+    from apply.plain.extension import CODE_FILES, EXTENSION_DIR, EXTENSION_ID
 
     folder = profiles / "worker-extension"
     folder.mkdir(parents=True, exist_ok=True)
-    (folder / "manifest.json").write_text("{}")
+    for part in CODE_FILES:
+        (shutil.copytree if (EXTENSION_DIR / part).is_dir() else shutil.copy2)(EXTENSION_DIR / part, folder / part)
+    if not current:
+        (folder / "ops" / "tile.js").write_text("// KAN-645's tile.js: no title in tile.shown\n")
     prefs = {"extensions": {"ui": {"developer_mode": developer},
                             "settings": {EXTENSION_ID: {"path": str(folder)}} if installed else {}}}
     (profiles / "plain-seed" / "Default").mkdir(parents=True)
@@ -656,6 +661,16 @@ def test_a_plain_seed_without_the_worker_extension_fails_with_how_to_seed_it(tmp
 
     assert missing.level == bare.level == doctor.FAIL and "apply plain seed" in missing.fix
     assert "isn't installed" in bare.detail
+
+
+def test_a_plain_seed_whose_extension_holds_older_code_fails_with_how_to_update_it(tmp_path):
+    plain = profile(tmp_path, worker_mode="plain", plain_chrome="chrome")
+    m = machine(tmp_path, profile=plain, profiles=plain_seed(tmp_path / "profiles", current=False))
+
+    found = check(m, "Plain seed")
+
+    assert found.level == doctor.FAIL and "holds other code than this checkout's" in found.detail
+    assert found.fix == doctor.STALE_SEED and "start Apply" in found.fix and "apply plain seed" in found.fix
 
 
 def test_protected_worker_mode_checks_both_kinds_of_worker(tmp_path):
