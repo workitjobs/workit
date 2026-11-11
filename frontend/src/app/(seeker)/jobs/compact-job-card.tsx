@@ -96,7 +96,12 @@ export function CompactJobCard({
         <NotInterestedButton title={job.title} quiet />
         <SaveJobButton jobId={job.id} title={job.title} stage={stage} quiet />
       </div>
-      <p title={job.company} className="text-label text-ink col-start-2 col-end-4 truncate">
+      {/* Regular (2026-11-10): at the label's medium the company read as a
+          second bold line under the title. */}
+      <p
+        title={job.company}
+        className="text-label text-ink col-start-2 col-end-4 truncate font-normal"
+      >
         {job.company}
       </p>
       {/* From here every line sits in the text column, beside the logo's
@@ -104,7 +109,7 @@ export function CompactJobCard({
       {meta && (
         <p
           title={metaTitle}
-          className="text-label text-ink-muted col-start-2 col-end-4 mt-1.5 truncate"
+          className="text-label text-ink-muted col-start-2 col-end-4 mt-1.5 truncate font-normal"
         >
           {meta}
         </p>

@@ -239,6 +239,9 @@ class Plan:
     # Each attestation, certification or signature question, by name: its exact wording (KAN-676). Never answered,
     # by the plan, the Answer bank, Claude fill or the essay writer: Lisul ticks or signs it ("Yours to tick").
     attestations: dict[str, str] = field(default_factory=dict)
+    # Optional questions that ask a fact of Lisul's no source holds, which may exist for him (KAN-759): asked in Needs
+    # you with a Skip, never a Missing fact that stops the form. Each is in `blanks` too, until he answers it.
+    optional: list[Question] = field(default_factory=list)
 
 
 TO_TICK = "Yours to tick"  # starts each line of the Check before Submit list that names an attestation
@@ -332,6 +335,7 @@ def plan(questions: QuestionSet, posting: Posting, profile: ApplicantProfile, ba
         accepted=accepted, blanks=dict(result.get("blanks") or {}),
         sections=dict(result.get("sections") or {}), filed=dict(result.get("filed") or {}),
         waiting=dict(result.get("waiting") or {}), attestations=dict(result.get("attestations") or {}),
+        optional=list(result.get("optional") or []),
     )
 
 

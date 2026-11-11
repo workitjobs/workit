@@ -163,6 +163,16 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
   `docs/plain-workers/PROTOCOL.md` ("Ops (S6)"). Test with
   `tests/test_plain_claude.py`; its two real-Haiku tests run only with
   `APPLY_LIVE_CLAUDE=1`.
+- A section of jobs or schools is read as "Work Experience (entries)" or "Education (entries)", also one
+  that shows entries as cards an old profile on the job site left (Oracle's, Workday's My Experience,
+  Amazon's tabs, KAN-762). Its fill gets the profile's jobs and school in an `<entries>` block
+  (`entry_history`), and Claude deletes each entry no item names, sets the title and dates of each one an
+  item names, and for a job held now ticks its current-job box before the dates and leaves the end empty
+  (Oracle refused a start typed after an old end: "Enter a date that's on or before {END_DATE}"). Each
+  entry's current-job box comes before its dates in `<fields>` too (the engine's `currentFirst`). An entry
+  Claude couldn't delete (`entries_kept`) holds the form: "Verify: Remove this entry, which your profile
+  doesn't list: ..." (`ClaudeFill.extra_entries`, `worker.EXTRA_ENTRY`). Verifying holds a section read back
+  with more entries than planned too (`docs/held-forms.md`).
 
 ## Form pages
 

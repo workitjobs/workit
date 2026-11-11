@@ -56,7 +56,7 @@ export function Footer() {
             is still wide enough for "Application Tracker" on one line. */}
         <div className="mx-auto grid w-full max-w-6xl grid-cols-2 gap-x-6 gap-y-10 px-6 pt-16 pb-14 sm:px-10 md:grid-cols-3 lg:grid-cols-5 lg:px-8 xl:grid-cols-[2fr_repeat(5,1fr)]">
           <div className="col-span-2 max-w-sm md:col-span-3 lg:col-span-5 xl:col-span-1">
-            <p className="text-3xl leading-tight font-semibold tracking-tight text-balance sm:text-4xl">
+            <p className="font-display text-3xl leading-tight font-semibold tracking-tight text-balance sm:text-4xl">
               {site.tagline}
             </p>
             <Logo size="card" className="mt-10 brightness-0 invert" />
@@ -64,7 +64,7 @@ export function Footer() {
 
           {COLUMNS.map((column) => (
             <div key={column.title}>
-              <h2 className="text-sm font-semibold">{column.title}</h2>
+              <h2 className="font-sans text-sm font-semibold">{column.title}</h2>
               <ul className="mt-4 grid gap-3">
                 {column.links.map((link) => (
                   <li key={link.href}>

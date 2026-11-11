@@ -100,8 +100,11 @@ export function EntryRow({
         <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
           <span
             className={cn(
-              "text-body min-w-0 font-medium break-words",
+              "text-body min-w-0 font-medium break-words transition-colors duration-150",
               muted ? "text-ink-muted" : "text-ink",
+              // A row that opens says so under the pointer, as a link
+              // does: it had no hover at all (2026-11-10).
+              "group-hover/entry:text-brand",
             )}
           >
             {entry.title}
@@ -137,7 +140,7 @@ export function EntryRow({
             type="button"
             aria-expanded={shown}
             onClick={() => setOpened((was) => !was)}
-            className="focus-visible:ring-brand-ring flex min-w-0 flex-1 items-start gap-2 rounded-xs text-left outline-none focus-visible:ring-2"
+            className="group/entry focus-visible:ring-brand-ring flex min-w-0 flex-1 cursor-pointer items-start gap-2 rounded-xs text-left outline-none focus-visible:ring-2"
           >
             <ChevronDownIcon
               className={cn(
@@ -148,7 +151,14 @@ export function EntryRow({
             {heading}
           </button>
         ) : (
-          <div className="flex min-w-0 flex-1 items-start gap-2">{heading}</div>
+          <div className="flex min-w-0 flex-1 items-start gap-2">
+            {/* A closed row with nothing to open keeps the chevron's room,
+                so its title lines up with the rows above and below that
+                have one (2026-11-10: a school with no details sat 24px
+                left of the rest of Education). */}
+            {!open && <span aria-hidden="true" className="mt-1 size-4 shrink-0" />}
+            {heading}
+          </div>
         )}
         {actions}
       </div>

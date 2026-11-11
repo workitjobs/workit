@@ -44,6 +44,10 @@ type JobDetailHeaderProps = {
    *  beside a list whose page has the h1 (the split view on /jobs), and an h3
    *  in the design kit, under a group's h2. One h1 per view. */
   titleAs?: "h1" | "h2" | "h3";
+  /** The top of a seeker's job panel (`JobPanel`, app/(seeker)/jobs/[jobId]/
+   *  job-view.tsx), not a card of its own: the panel is the card, and the
+   *  rail stands beside the whole header, from the company line down. */
+  inPanel?: boolean;
 };
 
 /**
@@ -71,9 +75,8 @@ type JobDetailHeaderProps = {
  * The card is its own `@container` and breaks at `@xl` (576px of card), not
  * at a window breakpoint: the seeker shell's panel takes 256px of the window
  * and the company shell has no `@container/main` to measure. Narrower than
- * that, the actions drop to a full-width row of their own under the title,
- * and the rail stacks under the facts, so neither squeezes the title or the
- * facts into a sliver beside it. The row wraps rather than overflowing. The
+ * that, the rail stacks under the facts, so it never squeezes the facts into
+ * a sliver beside it. `actions` end the company line at every width. The
  * seeker page's buttons sit in the bar pinned above the card, since beside the
  * title they took the row's whole width, the title wrapped a word a line and
  * the posted date ran under the buttons (KAN-246).
@@ -89,6 +92,7 @@ export function JobDetailHeader({
   actions,
   rail,
   titleAs: Title = "h1",
+  inPanel = false,
 }: JobDetailHeaderProps) {
   const timing =
     showDeadline && posting.closesAt ? (
@@ -100,6 +104,85 @@ export function JobDetailHeader({
       "Post date not listed"
     );
 
+  const top = (
+    <div className="min-w-0">
+      <div className="flex items-center gap-3">
+        {/* Never narrower than itself: in a crowded row the mark was
+            squeezed to an empty sliver. */}
+        <span className="flex shrink-0">{tile}</span>
+
+        {/* Under 448px of card the timing takes its own line with no dot,
+            as on the feed card, rather than wrapping "ago" alone. The name
+            is a size up from the timing (KAN-279): at the timing's 13px
+            the employer read as small print under a 36px title. */}
+        <p className="text-label text-ink-muted min-w-0 flex-1 font-normal">
+          {companyHref ? (
+            // Ink, not brand: a name that turns brand on hover/focus
+            // rather than sitting violet at rest, the same call the feed
+            // card's own company name makes.
+            <Link
+              href={companyHref}
+              className="text-subtitle text-ink hover:text-brand focus-visible:ring-brand-ring rounded-xs transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none"
+            >
+              {posting.companyName}
+            </Link>
+          ) : (
+            <span className="text-subtitle text-ink">{posting.companyName}</span>
+          )}
+          <span aria-hidden="true" className="text-ink-faint mx-1.5 @max-md:hidden">
+            ·
+          </span>
+          <span className="whitespace-nowrap @max-md:block">{timing}</span>
+        </p>
+
+        {/* At the company line's right end, at every width (2026-11-10):
+            below 576px of card they took a row of their own under the
+            title. Beside the title they squeezed it to a word a line, and
+            a row of them ran under the company line (KAN-246). */}
+        {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
+      </div>
+
+      {/* The page's name, so `text-heading` (26px, 700), as every sub-page's
+          h1 is: `text-display` is for numbers (frontend/docs/design.md). */}
+      <Title className="text-heading text-ink mt-2">{posting.title}</Title>
+    </div>
+  );
+
+  const facts = (
+    <div className="min-w-0 flex-1">
+      <JobFacts posting={posting} />
+
+      {/* Fills the space the facts leave under themselves when the rail
+          beside them is taller — a line about who is hiring, not what
+          the role does (that's "About the Role", further down). Capped
+          at the same 68ch measure as About the Role, since with no rail
+          (an unscored job) it would otherwise run the card's width. */}
+      {/* A scraped job has no line about its employer apart from its
+          description, so it has none here. */}
+      {posting.companyAbout && (
+        <p className="text-note text-ink-meta mt-4 max-w-[68ch] leading-5">
+          {posting.companyAbout}
+        </p>
+      )}
+    </div>
+  );
+
+  // In a seeker's job panel the rail stands beside the whole header, the
+  // company line to the facts, and stretches to its height (2026-11-10):
+  // beside the facts alone, a 200px rail left a 150px hole under two rows
+  // of facts.
+  if (inPanel) {
+    return (
+      <header className="@container flex flex-col gap-4 @xl:flex-row @xl:items-stretch @xl:gap-6">
+        <div className="flex min-w-0 flex-1 flex-col gap-4">
+          {top}
+          <div className="border-border-subtle border-t pt-4">{facts}</div>
+        </div>
+        {rail}
+      </header>
+    );
+  }
+
   return (
     <Card
       as="header"
@@ -107,68 +190,9 @@ export function JobDetailHeader({
       elevated={false}
       className={cn("@container flex flex-col gap-4", JOB_CARD_IN_PANEL)}
     >
-      <div className="flex flex-col gap-3 @xl:flex-row @xl:items-start @xl:justify-between @xl:gap-4">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-3">
-            {/* Never narrower than itself: in a crowded row the mark was
-                squeezed to an empty sliver. */}
-            <span className="flex shrink-0">{tile}</span>
-
-            {/* Under 448px of card the timing takes its own line with no dot,
-                as on the feed card, rather than wrapping "ago" alone. The name
-                is a size up from the timing (KAN-279): at the timing's 13px
-                the employer read as small print under a 36px title. */}
-            <p className="text-label text-ink-muted min-w-0 font-normal">
-              {companyHref ? (
-                // Ink, not brand: a name that turns brand on hover/focus
-                // rather than sitting violet at rest, the same call the feed
-                // card's own company name makes.
-                <Link
-                  href={companyHref}
-                  className="text-subtitle text-ink hover:text-brand focus-visible:ring-brand-ring rounded-xs transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none"
-                >
-                  {posting.companyName}
-                </Link>
-              ) : (
-                <span className="text-subtitle text-ink">{posting.companyName}</span>
-              )}
-              <span aria-hidden="true" className="text-ink-faint mx-1.5 @max-md:hidden">
-                ·
-              </span>
-              <span className="whitespace-nowrap @max-md:block">{timing}</span>
-            </p>
-          </div>
-
-          <Title className="text-display text-ink mt-2">{posting.title}</Title>
-        </div>
-
-        {/* Wraps rather than overflows: a row wider than the card ran under
-            the company line and the posted date (KAN-246). */}
-        {actions && (
-          <div className="flex w-full flex-wrap items-center gap-2 @xl:w-auto @xl:shrink-0">
-            {actions}
-          </div>
-        )}
-      </div>
-
+      {top}
       <div className="border-border-subtle flex flex-col gap-4 border-t pt-4 @xl:flex-row @xl:items-start">
-        <div className="min-w-0 flex-1">
-          <JobFacts posting={posting} />
-
-          {/* Fills the space the facts leave under themselves when the rail
-              beside them is taller — a line about who is hiring, not what
-              the role does (that's "About the Role", further down). Capped
-              at the same 68ch measure as About the Role, since with no rail
-              (an unscored job) it would otherwise run the card's width. */}
-          {/* A scraped job has no line about its employer apart from its
-              description, so it has none here. */}
-          {posting.companyAbout && (
-            <p className="text-note text-ink-meta mt-4 max-w-[68ch] leading-5">
-              {posting.companyAbout}
-            </p>
-          )}
-        </div>
-
+        {facts}
         {rail}
       </div>
     </Card>

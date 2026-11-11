@@ -245,7 +245,7 @@ export function sortItems(items: ActivityItem[], sort: Sort) {
 
 /** The table's columns: a width each but Role, which takes the rest. */
 const COLUMNS: { id: string; label: string; sort?: Sort; hint?: string; width?: string }[] = [
-  { id: "role", label: "Role", sort: "company", hint: "Sort by company, A to Z" },
+  { id: "role", label: "Job", sort: "company", hint: "Sort by company, A to Z" },
   {
     id: "status",
     label: "Status",

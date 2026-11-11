@@ -13,6 +13,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Fact } from "@/components/ui/fact";
+import { PlacesValue } from "@/components/places-value";
 import { cn } from "@/lib/cn";
 import type { LogoSrc } from "@/lib/job-logo";
 
@@ -76,7 +77,8 @@ import type { LogoSrc } from "@/lib/job-logo";
  * only three and the grid's columns sat ~300px apart with nothing between
  * them; the fixed slots are what made the grid hold up with gaps in it.
  *
- * THE TITLE IS ONE LINE, trailing off with an ellipsis. Scraped titles run to
+ * THE TITLE IS ONE LINE, trailing off with an ellipsis, and two on a phone's
+ * card, where no card stands beside it (2026-11-10). Scraped titles run to
  * 113 characters ("… (Bangkok-based, Relocation Provided)"), and a title that
  * wrapped made its card taller than the ones around it (asked for
  * 2026-10-09; it was clamped at two lines before). The whole title is the
@@ -161,6 +163,9 @@ export type JobPostingCardData = {
    *  "Remote", and repeating it under the pin icon reads as two different
    *  facts agreeing by coincidence rather than as one fact. */
   location: string | null | NotListed;
+  /** Every place the posting lists, where `location` names the first and
+   *  "+N more": the fact then opens them all (`PlacesValue`). */
+  places?: string[];
   /** NOT_LISTED for a scraped role with no job type. An internship's is
    *  "Internship" ((seeker)/jobs/listing-card.tsx); where any other posting
    *  is silent, the scraper fills Full-Time only for a new-grad role, which
@@ -184,7 +189,7 @@ type Slot = readonly [FactName, ComponentType<{ className?: string }>, FactValue
 type FactValue = string | null | NotListed;
 
 /** The six facts a card prints, as JobFactGrid takes them. */
-export type JobFactData = Pick<JobPostingCardData, FactName>;
+export type JobFactData = Pick<JobPostingCardData, FactName | "places">;
 
 /** The six slots in reading order, three to a row from 448px of body. See
  *  "THE FACTS ARE TWO FIXED ROWS" above. */
@@ -214,12 +219,24 @@ function FactSlot({
   Icon,
   value,
   size,
+  places = [],
 }: {
   name: FactName;
   Icon: Slot[1];
   value: FactValue;
   size: "sm" | "md";
+  /** The location's places, when it has more than one. */
+  places?: string[];
 }) {
+  // Several places: the first, then "+N more", which opens them all. The
+  // hover title said "Novi, MI +1 more" again, under the card's click layer.
+  if (name === "location" && places.length > 1) {
+    return (
+      <Fact Icon={Icon} size={size}>
+        <PlacesValue places={places} />
+      </Fact>
+    );
+  }
   if (typeof value === "string") {
     return (
       <Fact Icon={Icon} title={value} size={size}>
@@ -260,7 +277,14 @@ export function JobFactGrid({
       )}
     >
       {slotsOf(job).map(([name, Icon, value]) => (
-        <FactSlot key={name} name={name} Icon={Icon} value={value} size={size} />
+        <FactSlot
+          key={name}
+          name={name}
+          Icon={Icon}
+          value={value}
+          size={size}
+          places={job.places}
+        />
       ))}
     </div>
   );
@@ -357,9 +381,13 @@ export function JobPostingCard({
               {/* p-0.5 inside -m-0.5: room for a link's focus ring, which
                   the clamp's overflow would otherwise cut, at no change of
                   place (mt-1 plus the padding is the 1.5 it was). */}
+              {/* Two lines on a phone's card (below 448px of body), one
+                  above: a phone's cards stack one to a row, so a taller one
+                  stands beside nothing, and one line cut every title to
+                  "Software Engine…" (2026-11-10). */}
               <h3
                 title={job.title}
-                className="text-title text-ink -mx-0.5 mt-1 -mb-0.5 truncate p-0.5"
+                className="text-title text-ink -mx-0.5 mt-1 -mb-0.5 truncate p-0.5 @max-md:line-clamp-2 @max-md:whitespace-normal"
               >
                 {job.titleHref ? (
                   <Link
@@ -373,7 +401,9 @@ export function JobPostingCard({
                 )}
               </h3>
 
-              <p className="text-note text-ink mt-0.5 font-semibold">
+              {/* 13px regular, as Jobright's (2026-11-10): it was 12px
+                  semibold, a second bold line under the title. */}
+              <p className="text-label text-ink mt-0.5 font-normal">
                 {job.companyHref ? (
                   <Link href={job.companyHref} className={cn(INK_LINK, "relative z-2")}>
                     {job.company}
@@ -384,7 +414,12 @@ export function JobPostingCard({
               </p>
             </div>
 
-            {headerAction}
+            {/* Over the card's click layer (z-1), as the title, the
+                company and the actions row are: a glyph with no z-index of
+                its own (Save) sat under the layer, so it had no hover and a
+                click on it opened the job instead of saving it
+                (2026-11-10). */}
+            {headerAction && <div className="relative z-2 flex shrink-0">{headerAction}</div>}
           </div>
 
           <JobFactGrid

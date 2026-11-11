@@ -26,6 +26,15 @@ export type TabLink = { value: string; label: string; href: string };
  * `before:`, since `hit-area` (the 24px, and on touch 44px, target) takes
  * `::after`.
  *
+ * DISTINCT BESIDE BUTTONS (2026-11-10). A tab is 16px (`text-subtitle`):
+ * the open one semibold in brand over a 3px brand underline, the others
+ * medium in `ink-meta`, ink with a grey underline under the pointer. At
+ * 13px in ink with a 2px underline they read as small print beside the
+ * bar's 36px buttons, which the user found overshadowed them. Brand is the
+ * colour of what is on or picked (frontend/docs/design.md, icon colour
+ * rule). Each label holds the semibold label's width in an invisible copy
+ * under it, so a tab never shifts the row when it opens.
+ *
  * `shallow` moves the query in place (components/shallow-routing.tsx), for
  * panes the page already drew, as `SegmentedLinks` does; without it the
  * tab is a link to another route that reads its own data. The tab clicked
@@ -63,7 +72,7 @@ export function TabLinks({
   return (
     <nav
       aria-label={label}
-      className={cn("flex items-center gap-6", ruled && "border-border-subtle border-b", className)}
+      className={cn("flex items-center gap-7", ruled && "border-border-subtle border-b", className)}
     >
       {options.map((option) => {
         const open = option.value === shown;
@@ -82,15 +91,21 @@ export function TabLinks({
               }
             }}
             className={cn(
-              "text-label hit-area focus-visible:ring-brand-ring relative rounded-xs py-2 font-medium whitespace-nowrap transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none",
+              "text-subtitle hit-area focus-visible:ring-brand-ring relative rounded-xs py-2 whitespace-nowrap transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none",
               ruled && "-mb-px",
-              "before:absolute before:inset-x-0 before:bottom-0 before:h-0.5 before:rounded-full before:transition-colors before:duration-150",
+              "before:absolute before:inset-x-0 before:bottom-0 before:h-[3px] before:rounded-full before:transition-colors before:duration-150",
               open
-                ? "text-ink before:bg-brand"
-                : "text-ink-meta hover:text-ink before:bg-transparent",
+                ? "text-brand before:bg-brand font-semibold"
+                : "text-ink-meta hover:text-ink hover:before:bg-border-strong font-medium before:bg-transparent",
             )}
           >
-            {option.label}
+            {/* The semibold label's width, held by an invisible copy. */}
+            <span className="grid">
+              <span aria-hidden="true" className="invisible col-start-1 row-start-1 font-semibold">
+                {option.label}
+              </span>
+              <span className="col-start-1 row-start-1 text-center">{option.label}</span>
+            </span>
           </Link>
         );
       })}
