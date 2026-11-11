@@ -1124,7 +1124,8 @@ def test_a_file_question_offers_this_mac_dropbox_and_google_drive_and_attaches_t
         window.wait_for_selector("text=Nothing needs you right now.", timeout=10_000)
         (question, attached), = board.answered(0)
 
-    assert offered == ["Attach from this Mac", "Dropbox", "Google Drive"]  # no Skip: the form requires it
+    # No Skip: the form requires it. Go to question (KAN-600): the form is still held open in its Worker.
+    assert offered == ["Attach from this Mac", "Dropbox", "Google Drive", "Go to question"]
     assert (question, attached.name, attached.read_bytes()) == ("Writing sample", "Writing Sample.pdf", b"%PDF-1.4 sample")
 
 
