@@ -21,6 +21,14 @@ POST   /applicants/{id}/built-resumes/stream       BuiltResumeCreate -> NDJSON
        (409 and the resume on a duplicate). With `allow_duplicate` there is
        no `checking` line. Lines mirror `GenerateStreamEvent` in
        frontend/src/lib/built-resume-actions.ts.
+POST   /applicants/{id}/built-resumes/copy         BuiltResumeCopy -> 201 BuiltResumeResponse
+       Start From a Resume You Have (2026-11-11), from the Resumes page's
+       Generate Resume dialog. With `built_resume_id`: a copy, "<name>
+       (Copy)", printing as the source does, with its own skills and typed
+       wordings copied, untailored. With `uploaded_resume_id`: a resume of
+       that upload's own entries and skills, "<file name> (Copy)". 404 for a
+       source not the applicant's; 409 for an upload whose import wrote
+       nothing; 422 unless exactly one source is named. No duplicate check.
 GET    /applicants/{id}/built-resumes              -> [BuiltResumeResponse], newest first
        `posting_closed` is true for a tailored resume whose posting the Jobs
        page no longer lists (story 90's "Posting closed"). `posting_title`
@@ -143,6 +151,7 @@ from app.models.jobs import Job_Post
 from app.models.profiles import Applicant_Profile
 from app.schemas.bank import EntryResponse
 from app.schemas.built_resume import (
+    BuiltResumeCopy,
     BuiltResumeCreate,
     BuiltResumeRename,
     BuiltResumeResponse,
@@ -249,6 +258,29 @@ async def generate(
         resume = await service.generate(session, applicant_id, body.name, refuse_duplicate=not body.allow_duplicate)
     except service.DuplicateResume as exc:
         raise HTTPException(409, {"message": str(exc), "built_resume_id": str(exc.resume.id), "name": exc.resume.name})
+    default_id = await service.default_built_id(session, applicant_id)
+    await _commit(session, "Failed to save the resume")
+    return _response(resume, default_id)
+
+
+@router.post("/copy", status_code=201, response_model=BuiltResumeResponse)
+async def start_from(
+    body: BuiltResumeCopy,
+    applicant_id: uuid.UUID = Depends(owned_applicant),
+    session: AsyncSession = Depends(get_session),
+) -> BuiltResumeResponse:
+    """Start From a Resume You Have: a new built resume copied from one of
+    the student's built resumes, or made of one upload's own entries. 404
+    for a source not theirs; 409 for an upload with nothing in it."""
+    try:
+        if body.built_resume_id is not None:
+            resume = await service.copy_resume(session, applicant_id, body.built_resume_id)
+        else:
+            resume = await service.from_upload(session, applicant_id, body.uploaded_resume_id)
+    except NotFound:
+        raise HTTPException(404, "Resume not found")
+    except service.EmptyUpload:
+        raise HTTPException(409, "That upload has no experiences to start from. Generate one from your bank instead.")
     default_id = await service.default_built_id(session, applicant_id)
     await _commit(session, "Failed to save the resume")
     return _response(resume, default_id)

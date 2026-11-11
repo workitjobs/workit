@@ -130,8 +130,13 @@ open choices (Settled choices, near the end).
   `components/all-filters-dialog.tsx` (All Filters' panel),
   `components/table-settings.tsx` (Table Settings, Group By),
   `components/table-group.tsx` (a group's heading row),
-  `components/fill-page.ts` (a table that scrolls inside itself) and
-  `PAGE_SEARCH`. A fix to one page table is checked on every other: the
+  `components/fill-page.ts` (a table that scrolls inside itself),
+  `components/ui/option-row.tsx` (a row that is one way forward: Auto
+  Apply's setup, Generate Resume's ways to start),
+  `components/ui/or-divider.tsx` (the login card's "Or" rule),
+  `components/ui/tip.tsx` (a tooltip for any control), `components/views.tsx`
+  and `PAGE_SEARCH`. Tailor's resume picker (`ResumeLists`) is the one way
+  to pick a resume, in any dialog. A fix to one page table is checked on every other: the
   Tracker, Auto Apply's Up Next and Documents' resumes.
 - **Pick a component by its role, never by its look.** A look picked by eye
   drifts from screen to screen (GOV.UK Design System; Material 3). The roles

@@ -190,8 +190,18 @@ export async function listBuiltResumes(): Promise<Result<BuiltResume[]>> {
   return call<BuiltResume[]>("");
 }
 
-/** Generate: a base resume with everything in the bank, "Resume #N" when
- *  no name is given. No limit: only uploads count toward the 5. */
+/** Copy a Resume You Have (2026-11-11, the Resumes page's Generate Resume
+ *  dialog): a new resume copied from one of the student's built resumes,
+ *  or made of one upload's own entries ("<name> (Copy)", POST
+ *  .../built-resumes/copy). */
+export async function startFromResume(
+  source: { built_resume_id: string } | { uploaded_resume_id: string },
+): Promise<Result<BuiltResume>> {
+  return revalidatingResumes(
+    call<BuiltResume>("/copy", { method: "POST", body: JSON.stringify(source) }),
+  );
+}
+
 /** A new name for the resume (KAN-258); its sent resumes keep theirs. */
 export async function renameBuiltResume(
   resumeId: string,

@@ -29,11 +29,13 @@ import { viewOption } from "@/components/views";
 import { readEvents } from "@/components/scout/stream";
 import {
   listBuiltResumes,
+  startFromResume,
   type BuiltResume,
   type GenerateStreamEvent,
 } from "@/lib/built-resume-actions";
 import { cn } from "@/lib/cn";
 import { listResumes, type ResumeItem } from "@/lib/resume-actions";
+import { MAX_UPLOADS } from "@/lib/resume-limits";
 import { markResumesStale, takeResumesStale } from "@/lib/resumes-stale";
 
 import { setResumesLayout } from "./actions";
@@ -49,6 +51,8 @@ import {
   useResumeGroupBy,
   type ResumePicks,
 } from "./resume-filters";
+import type { Choice } from "../jobs/resume-picker";
+import { NewResumeDialog } from "./new-resume-dialog";
 import { ResumeList } from "./resume-list";
 import { ShortLabel, UploadedRow, useResumeUpload } from "./upload-resume";
 import type { ResumesLayout } from "./view";
@@ -201,6 +205,8 @@ export function BuiltResumes({
   // button says "Checking…".
   const [showSteps, setShowSteps] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Generate Resume's dialog: the ways to start a resume.
+  const [creating, setCreating] = useState(false);
   // The resume a Generate or an upload would copy, while its modal is open.
   const [duplicate, setDuplicate] = useState<Duplicate | null>(null);
   const [query, setQuery] = useState("");
@@ -332,6 +338,22 @@ export function BuiltResumes({
     router.push(`/resumes/${encodeURIComponent(made.id)}`);
   }
 
+  /** Copy a Resume You Have (./new-resume-dialog.tsx): the copy, then the
+   *  editor, as Generate ends. Its error goes back to the dialog. */
+  async function copyResume(choice: Choice): Promise<string | null> {
+    const { data, error } = await startFromResume(
+      "builtResumeId" in choice.source
+        ? { built_resume_id: choice.source.builtResumeId }
+        : { uploaded_resume_id: choice.source.uploadedResumeId },
+    );
+    if (error || !data) return error ?? "Couldn't copy the resume. Try again.";
+    // A Back here reads the list again and finds the copy in view.
+    markResumesStale();
+    if (types.length > 0 && !types.includes("generated")) move({ types: [] });
+    router.push(`/resumes/${encodeURIComponent(data.id)}`);
+    return null;
+  }
+
   const rows: Row[] = [
     ...uploaded.map((r) => ({
       key: `uploaded:${r.id}`,
@@ -430,15 +452,19 @@ export function BuiltResumes({
             className={RESUMES_SEARCH}
           />
         }
-        // Upload and Generate, then the layout at the right end of the
-        // search's row, as the Jobs and Applications pages place their view
-        // switch. The two buttons sat at the right of the filter row until
-        // 2026-11-11, where the Tracker and Up Next end theirs with Clear,
-        // All Filters and Table Settings.
+        // Generate Resume, then the layout at the right end of the search's
+        // row, as the Jobs and Applications pages place their view switch.
+        // Generate opens the ways to start a resume (./new-resume-dialog.tsx),
+        // Upload among them: Upload Resume was a button of its own beside it
+        // until 2026-11-11.
         action={
           <>
-            {upload.button}
-            <Button size="sm" onClick={() => void generate()} disabled={generating !== null}>
+            {upload.input}
+            <Button
+              size="sm"
+              onClick={() => setCreating(true)}
+              disabled={generating !== null || upload.uploading}
+            >
               <FileTextIcon aria-hidden className="size-4" />
               {generating === null ? (
                 <ShortLabel verb="Generate" />
@@ -569,6 +595,20 @@ export function BuiltResumes({
             : shown.map(drawRow)}
         </ResumeList>
       )}
+      <NewResumeDialog
+        open={creating}
+        onOpenChange={setCreating}
+        built={resumes}
+        uploaded={uploaded}
+        onGenerate={() => void generate()}
+        onUpload={upload.pick}
+        uploadDisabled={
+          upload.full
+            ? `You can upload up to ${MAX_UPLOADS} resumes. Delete one to upload another.`
+            : null
+        }
+        onCopy={copyResume}
+      />
       <DuplicateResumeDialog
         duplicate={duplicate}
         onConfirm={() => {

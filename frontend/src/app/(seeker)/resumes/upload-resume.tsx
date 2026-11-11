@@ -3,10 +3,8 @@
 import Link from "next/link";
 import { useRef, useState, type ChangeEvent } from "react";
 
-import { UploadIcon } from "@/components/icons";
 import { PendingResumeCard, ResumeRow } from "@/components/resume-row";
 import { RESUME_ACCEPT, resumeFileError } from "@/components/resume-upload";
-import { Button } from "@/components/ui/button";
 import { type ImportResponse } from "@/lib/bank-actions";
 import { importSummary } from "@/lib/import-summary";
 import { MAX_UPLOADS } from "@/lib/resume-limits";
@@ -107,19 +105,13 @@ export function useResumeUpload({
   const shownImport =
     imported && uploaded.some((resume) => resume.id === imported.resume_id) ? imported : null;
 
-  const button = (
-    <>
-      <Button
-        variant="secondary"
-        size="sm"
-        disabled={uploading !== null}
-        onClick={() => inputRef.current?.click()}
-      >
-        <UploadIcon className="size-4" />
-        {uploading ? "Reading…" : <ShortLabel verb="Upload" />}
-      </Button>
-      <input ref={inputRef} type="file" accept={RESUME_ACCEPT} onChange={handleSelect} hidden />
-    </>
+  // The file picker, opened by Generate Resume's Upload a Resume
+  // (./new-resume-dialog.tsx). Upload Resume was its own button beside
+  // Generate until 2026-11-11. The input lives on the page, so it outlasts
+  // the dialog that opened it.
+  const pick = () => inputRef.current?.click();
+  const input = (
+    <input ref={inputRef} type="file" accept={RESUME_ACCEPT} onChange={handleSelect} hidden />
   );
 
   const notes = (uploadError || shownImport) && (
@@ -147,7 +139,14 @@ export function useResumeUpload({
     return layout === "list" ? card : <li>{card}</li>;
   };
 
-  return { button, notes, pending, uploading: uploading !== null };
+  return {
+    pick,
+    input,
+    notes,
+    pending,
+    uploading: uploading !== null,
+    full: uploaded.length >= MAX_RESUMES,
+  };
 }
 
 /**

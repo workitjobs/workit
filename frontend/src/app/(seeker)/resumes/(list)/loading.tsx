@@ -10,7 +10,7 @@ import { readResumesLayout, RESUME_GRID, RESUMES_LAYOUT_COOKIE, THUMBNAIL_RATIO 
 
 /**
  * Resumes while both resume lists load (KAN-561): the page's frame
- * (./page.tsx), Documents' tabs live, then the search with Upload, Generate
+ * (./page.tsx), Documents' tabs live, then the search with Generate Resume
  * and the List / Grid switch at its right, the filter row and the table
  * (../resume-list.tsx) as bars: its headings and its rows, or the grid's
  * cards, as the student's kept layout says (../view.ts): drawn as the
@@ -27,7 +27,6 @@ export default async function ResumesLoading() {
         search={<Skeleton aria-hidden="true" className={cn(RESUMES_SEARCH, "h-10 rounded-full")} />}
         action={
           <>
-            <Skeleton aria-hidden="true" className="h-9 w-24" />
             <Skeleton aria-hidden="true" className="h-9 w-28" />
             <Skeleton aria-hidden="true" className="h-9 w-17 rounded-full" />
           </>

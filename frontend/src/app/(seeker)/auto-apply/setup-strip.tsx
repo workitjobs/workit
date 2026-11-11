@@ -1,13 +1,12 @@
 "use client";
 
 import { CheckIcon, ListChecksIcon } from "@phosphor-icons/react/ssr";
-import Link from "next/link";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState } from "react";
 
-import { ArrowRightIcon, ChromeIcon } from "@/components/icons";
+import { ChromeIcon } from "@/components/icons";
 import { Card } from "@/components/ui/card";
+import { OptionRow } from "@/components/ui/option-row";
 import { EXTENSION_INSTALL_URL, extensionState } from "@/lib/autofill-extension";
-import { cn } from "@/lib/cn";
 
 /**
  * Auto Apply's setup, in one row at the top of the page (2026-11-10): the
@@ -38,12 +37,12 @@ export function SetupRow() {
       aria-label="Setup"
       className="divide-border-subtle grid divide-y overflow-hidden @3xl/main:grid-cols-2 @3xl/main:divide-x @3xl/main:divide-y-0"
     >
-      <SetupItem
+      <OptionRow
         icon={<ChromeIcon className="size-5" />}
         title="Chrome Extension"
         href={installed === false ? EXTENSION_INSTALL_URL : undefined}
         external
-        state={
+        line={
           installed === null ? (
             <span className="text-ink-meta">Checking…</span>
           ) : installed ? (
@@ -56,63 +55,15 @@ export function SetupRow() {
           )
         }
       />
-      <SetupItem
+      <OptionRow
         icon={<ListChecksIcon aria-hidden className="text-ink-meta size-5" />}
         title="Application Info"
         href="/auto-apply/info"
-        state={
+        line={
           <span className="text-ink-meta">Work authorization, screening answers, transcript</span>
         }
       />
     </Card>
-  );
-}
-
-/** One cell: a glyph on a grey tile, the name over where it stands, and an
- *  arrow where the cell is a link. The whole cell takes the click. */
-function SetupItem({
-  icon,
-  title,
-  state,
-  href,
-  external = false,
-}: {
-  icon: ReactNode;
-  title: string;
-  state: ReactNode;
-  href?: string;
-  /** Opens in a new tab: the Chrome Web Store. */
-  external?: boolean;
-}) {
-  const body = (
-    <>
-      <span className="bg-ink/5 rounded-control grid size-10 shrink-0 place-items-center">
-        {icon}
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="text-label text-ink block font-semibold">{title}</span>
-        <span className="text-note mt-0.5 block truncate">{state}</span>
-      </span>
-      {href && (
-        <ArrowRightIcon className="text-ink-meta group-hover/item:text-ink size-4 shrink-0 transition-[color,translate] duration-150 group-hover/item:translate-x-0.5" />
-      )}
-    </>
-  );
-  const cell = "group/item flex min-w-0 items-center gap-3 px-4 py-3.5";
-  if (!href) return <div className={cell}>{body}</div>;
-  const link = cn(
-    cell,
-    "hover:bg-hover focus-visible:ring-brand-ring transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset",
-  );
-  return external ? (
-    <a href={href} target="_blank" rel="noreferrer" className={link}>
-      {body}
-      <span className="sr-only"> (opens the Chrome Web Store in a new tab)</span>
-    </a>
-  ) : (
-    <Link href={href} className={link}>
-      {body}
-    </Link>
   );
 }
 

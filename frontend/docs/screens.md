@@ -3043,8 +3043,8 @@ resumes the bank makes and the uploads, under the shared header. **One
 list holds every resume** (KAN-362, `built-resumes.tsx`), laid out as the
 Applications Tracker is, with the toolbar every page table has
 (`frontend/docs/design.md`, 2026-11-11): the search (names and postings)
-with **Upload Resume**, **Generate Resume** and the List / Grid switch at
-its right, then the filter row: the **Type** filter (Uploaded, Generated,
+with **Generate Resume** and the List / Grid switch at its right, then the
+filter row: the **Type** filter (Uploaded, Generated,
 Tailored, each with its glyph, `RESUME_TYPE_ICON`; the Applications
 list's dropdown, `FieldFacet`), **Company** (the companies the tailored
 resumes were made for, with a search; `?company=`, repeated) and the
@@ -3058,7 +3058,23 @@ student who groups gets the shared quiet heading row
 step out of a narrow row from the right (Type from 488px of row, Company
 640); Sort stays. Upload and Generate sat at the right of the filter row
 until 2026-11-11, where the Tracker and Up Next end theirs with the table's
-controls. Then the list (below). Sort
+controls. Then the list (below).
+**Generate Resume opens the ways to start a resume** (`resumes/new-resume-dialog.tsx`,
+2026-11-11, after Simplify's "How would you like to create this
+resume?"; the user wanted one button named for the main way): **Start
+From Your Experiences** (Generate as it was: the duplicate check, the
+steps dialog, then the editor) and **Upload a Resume** (the page's file
+picker; off with the reason at five uploads) as the shared option rows
+(`components/ui/option-row.tsx`, Auto Apply's setup row), then "Or"
+(`components/ui/or-divider.tsx`, the login card's divider) and **Copy a
+Resume You Have**: Tailor's resume picker (`ResumeLists`: search, Type,
+a radio per card, the View eye), then **Copy This Resume** in the footer.
+A built resume's copy prints as its source does, its own skills and typed
+wordings copied with it, untailored; an upload's is a resume of that
+upload's own entries (`POST .../built-resumes/copy`, backend
+`copy_resume` and `from_upload`). Either is "<name> (Copy)" and opens in
+the editor. Upload Resume was its own button beside Generate until then.
+Sort
 (KAN-366) is one pick of four: Date Modified, newest first and the
 default ("Last Edited" until 2026-11-10, renamed with the cards' column);
 Recently Created, the newest made first whatever was edited since; Oldest
