@@ -16,13 +16,15 @@ to its own homepage (`bamboohr` turns that into the same answer). That is what
 makes `BoardNotFound` meaningful: a 200 carrying an empty list is a real board
 that simply has nothing open right now, and must never be confused with a typo.
 
-Greenhouse, Workable, BambooHR and Workday list a board without its
-descriptions, so a kept posting's own page is read once more (`describe`); Ashby,
-Lever and Recruitee send the descriptions with the list.
+Greenhouse, Workable, BambooHR, SmartRecruiters and Workday list a board without
+its descriptions, so a kept posting's own page is read once more (`describe`);
+Ashby, Lever and Recruitee send the descriptions with the list.
 
 TikTok, iCIMS's Jibe sites (`jibe`) and SuccessFactors were added in KAN-369:
 TikTok and Jibe page their lists, descriptions included; SuccessFactors pages a
 list of titles and reads each kept posting's page (docs/providers.md).
+SmartRecruiters pages its list 100 at a time; its robots.txt disallows all bots,
+so it sets ``skip_robots=True`` (accepted for this educational project).
 """
 
 from __future__ import annotations
@@ -56,6 +58,7 @@ from workit_scraper.providers.systems.lever import lever
 from workit_scraper.providers.systems.oracle import describe_oracle, oracle
 from workit_scraper.providers.systems.recruitee import recruitee
 from workit_scraper.providers.systems.rippling import describe_rippling, rippling
+from workit_scraper.providers.systems.smartrecruiters import describe_smartrecruiters, smartrecruiters
 from workit_scraper.providers.systems.successfactors import describe_successfactors, successfactors
 from workit_scraper.providers.systems.tiktok import tiktok
 from workit_scraper.providers.systems.workable import describe_workable, workable
@@ -80,6 +83,7 @@ PROVIDERS.update(
         # KAN-369's, after the rest.
         "tiktok": systems.tiktok.PROVIDER,
         "jibe": systems.jibe.PROVIDER,
+        "smartrecruiters": systems.smartrecruiters.PROVIDER,
         "successfactors": systems.successfactors.PROVIDER,
     }
 )
@@ -105,6 +109,7 @@ __all__ = [
     "describe_icims",
     "describe_oracle",
     "describe_rippling",
+    "describe_smartrecruiters",
     "describe_successfactors",
     "describe_workable",
     "describe_workday",
@@ -121,6 +126,7 @@ __all__ = [
     "recruitee",
     "rippling",
     "robots_urls",
+    "smartrecruiters",
     "successfactors",
     "tiktok",
     "workable",
