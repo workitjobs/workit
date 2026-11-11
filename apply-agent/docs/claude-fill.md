@@ -31,6 +31,19 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
   frames (after one click on its Apply button outside any form) and sends an
   embedded Greenhouse, Lever or Ashby form to that system's Filler. Claude
   fill is only the fallback.
+- A careers page that frames another known job system's form (ADP, UKG, Dayforce, Taleo, SuccessFactors, Phenom,
+  iCIMS, Workday, Jobvite, SmartRecruiters, Avature, BrassRing...) gets the frame's own URL as the Posting's link, with
+  its id, company and role kept (KAN-797, `embedded.framed`). The Worker opens it as its own top page, and Claude fill
+  fills it there, files and all. In the frame, PR 556's rule closed it to every press, so such a form was handed over.
+  The URL is opened only when it is the frame's as the browser loaded it (never an attribute the page wrote), https on
+  a known job system's host (`KNOWN_HOSTS`: `upload_origin.JOB_SYSTEM_HOSTS` and `FRAMED_HOSTS`; no user part, no
+  other port), with every frame above it of the top page's own origin, and the frame shows a field or an Apply
+  button. The Fill engine's `jobOf` is not used: it names `?ats=workday` on any host Workday's. A sign-in frame (a
+  sign-in word in its path or query, or a password box) is never opened: it stays the applicant's. Any other frame of
+  another site leaves the Posting as it is, and the fill hands it over as before. Each trick a page could use to steer
+  the opened URL is a case in `tests/test_embedded.py` (`HOSTILE`). What stays open: a job system's host serves every
+  tenant, so a hostile careers page can frame another tenant's posting, and Apply fills that one (as `upload_origin`
+  notes for files).
 - A profile pop-up before the application is never the form's last page
   (KAN-647). When the button Claude names as the one that sends sits in an
   open dialog that is a profile step and nothing more
@@ -173,7 +186,8 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
     whatever its attributes say later. A top frame whose opener is a frame is such a frame. The guard notes
     `upload_origin.BLOCKED` for a picker and "a click in another site's frame" for any other press, and Claude fill
     hands the form over. The cost: Claude can press nothing in another site's frame (a Google sign-in button's frame
-    too). The guard's block is off only on a page handed to Lisul (`lift()` with its note), never for the drive
+    too). A known job system's framed form is opened as its own page first (KAN-797, above), so this cost falls
+    only on an unknown site's frame. The guard's block is off only on a page handed to Lisul (`lift()` with its note), never for the drive
     guard's lifted copy at open.
   - On a plain Worker, `browser_file_upload` also refuses such a frame and a tab of another origin than the drive's
     own, and the input must be the one the chooser opened for: `plain.tools` pins it in the isolated world when a
