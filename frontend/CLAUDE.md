@@ -794,7 +794,7 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   resume and writes no answer to a new written question, and the student
   clicks Submit on each, so no page says WorkIt submits, sends or
   applies. Scout's page is about Fill With Scout, the one way into Scout
-  while Ask Scout is greyed out; bring the job questions back to it when
+  while Ask Scout is hidden; bring the job questions back to it when
   `ASK_SCOUT_LIVE` turns on. Fill With Scout is off in the app
   (`FILL_WITH_SCOUT_LIVE`, KAN-732) until it gets a new place, which is
   still open; **the site keeps Scout on purpose meanwhile** (settled
@@ -2254,14 +2254,15 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   The flag lives in its own module, not beside `ASK_SCOUT_LIVE`, because
   server components read it: a value a server component imports from a
   "use client" file arrives as a client reference, which is never false.
-  **Ask Scout is greyed out** (`ASK_SCOUT_LIVE` in
-  `components/scout/scout-buttons.tsx`, 2026-11-02, it does not work): every
-  job's button and the phone editor's two buttons stay in place, disabled,
-  the panel's hint is hidden, and the flag brings them back. A job's
-  button, and Not Interested, which stores nothing yet, are `soon` on
-  `IconButton` (KAN-569): faded and inert, but still hovered and focused,
-  so the tooltip says "Coming Soon". A disabled button shows no tooltip, so
-  nothing said why; a control that is not built takes `soon`. **While it
+  **Ask Scout is hidden** (`ASK_SCOUT_LIVE` in
+  `components/scout/scout-buttons.tsx`, 2026-11-02, it does not work): no
+  Scout button is drawn, neither a job's nor the phone editor's two, and the
+  panel's hint is hidden; the flag brings them all back. They were greyed out
+  in place until 2026-11-11, which the user found read as broken: **a Scout
+  control that does not work is not drawn, never greyed**. Not Interested,
+  which stores nothing yet, is `soon` on `IconButton` (KAN-569): faded and
+  inert, but still hovered and focused, so the tooltip says "Coming Soon". A
+  disabled button shows no tooltip, so nothing said why. **While it
   is off, Scout's chat and the editor's assistant cannot be reached at
   all** (2026-11-06): the panel shows only while a page holds it
   (`scout-panel.tsx` reads `open` as open and taken over), and the editor

@@ -398,10 +398,14 @@ export function PhoneEditor({
                 <ScissorsIcon aria-hidden /> Cut From Resume
               </Button>
             )}
-            {/* The primary action, filled as on the desktop bar. */}
-            <Button disabled={!ASK_SCOUT_LIVE || !rendered} onClick={() => setAsking(true)}>
-              <SparkleIcon /> Ask Scout
-            </Button>
+            {/* The primary action, filled as on the desktop bar. Not drawn at
+                all while Scout is off: a greyed Ask Scout read as broken (the
+                user's call, 2026-11-11) */}
+            {ASK_SCOUT_LIVE && (
+              <Button disabled={!rendered} onClick={() => setAsking(true)}>
+                <SparkleIcon /> Ask Scout
+              </Button>
+            )}
           </div>
         </div>
       )}
@@ -468,9 +472,11 @@ export function PhoneEditor({
             ))}
           <div className={cn("flex flex-wrap items-center gap-2", TAP)}>
             {actions}
-            <Button size="sm" disabled={!ASK_SCOUT_LIVE} onClick={() => setAsking(true)}>
-              <SparkleIcon /> Ask Scout About This Line
-            </Button>
+            {ASK_SCOUT_LIVE && (
+              <Button size="sm" onClick={() => setAsking(true)}>
+                <SparkleIcon /> Ask Scout About This Line
+              </Button>
+            )}
           </div>
         </Sheet>
       )}

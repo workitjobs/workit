@@ -3955,7 +3955,7 @@ room appears at once and the page settles into its new width, while the panel
 slides in from the window's edge (`docs/motion.md` has why). Escape or its X
 closes it and hands focus back to the bar's launcher, which shows pressed while
 the panel is open. The launcher is archived (`SCOUT_LAUNCHER_LIVE`, 2026-11-01),
-Ask Scout is greyed out (`ASK_SCOUT_LIVE`) and Fill With Scout is off
+Ask Scout is hidden (`ASK_SCOUT_LIVE`) and Fill With Scout is off
 (`FILL_WITH_SCOUT_LIVE`, KAN-732), so Scout has no way in for now. While Ask
 Scout is off the panel shows only for a page that holds it, so neither
 Scout's chat nor the editor assistant shows; the resume editor still takes
