@@ -2549,12 +2549,29 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   stays open behind it. `FONTS` is the
   list of families, whose `css` puts the open line in the system font the
   PDF's matches letter for letter: with Tinos a line sat 2px off the print over
-  714px. A new page setting joins the panel only if a student expects it from a resume
-  builder, and keeps one control per decision: Spacing and Margins stay one
-  choice each. Degree First moves the school to the degree's row, so
+  714px. **Format Options is grouped as Jobright's Style panel** (2026-11-11,
+  `docs/screens.md`): white cards (`Group`, the app's `Card` with a
+  `SectionHeading` over a hairline) for Accent Color, Font, Content Style,
+  Layout and Spacing & Margin, then Reset Formatting, always there and off
+  while nothing is set. A new page setting joins the card it belongs to, and
+  only if a student expects it from a resume builder. **Every page setting
+  compiles the PDF, so a control commits once per decision**: each spacing
+  and margin is its own slider (`StopSlider`) that stops only at the API's
+  values (`PageSettings`' Literals in `backend/app/schemas/built_resume.py`;
+  change both together) and commits on release or per arrow key, never per
+  stop crossed (`onValueCommitted`, not `onValueChange`, which only moves the
+  value shown). The slider is shadcn's, vendored as `shadcn add` wrote it and
+  set from `globals.css` by `data-slot` as the checkbox and switch are: Base
+  UI focuses a range input inside the thumb, so shadcn's own
+  `focus-visible` ring on the thumb never showed, and its well-grey track
+  vanished on a white card. Pass the vendored `Slider` an array `value`: given
+  a number, it draws two thumbs. Spacing and Margins were one three-way
+  choice each over several settings until then, and a resume set any other
+  way showed none picked. A choice that is a picture (the bullet, the
+  education order) is a tile that draws it (`Tiles`, on Base UI's
+  ToggleGroup), named on hover. Degree First moves the school to the degree's row, so
   `degreeLeads` swaps that line's type too (`textRoleOf`, `typeOf`) and must
-  agree with the API's `degree_leads`. The API keeps the settings the
-  panel dropped, so a resume set that way prints as it did. The bar mutes every
+  agree with the API's `degree_leads`. The bar mutes every
   button's words (`BAR_BUTTONS` in `slim-bar.ts`, on the phone's row and line
   sheet too), so a real action there (`FitButton`, Download) carries
   `data-bar-action`, or a filled button reads grey on purple.

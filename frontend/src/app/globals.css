@@ -1497,6 +1497,51 @@ body:has([data-skyline]) {
   }
 }
 
+/* THE VENDORED SLIDER (the resume editor's Format tab, 2026-11-11), set by
+ * data-slot as the checkbox and switch are, so `shadcn add slider` can
+ * regenerate its file. Base UI puts the focus on a range input inside the
+ * thumb, so shadcn's `focus-visible:ring-3` on the thumb itself never
+ * showed: the app's one 2px ring is drawn while the input has it, 2px off
+ * the thumb so it reads apart from the thumb's brand edge. The thumb is 16px
+ * with a 2px brand edge (shadcn's was 12px with 1px), and its half-strength
+ * halo on hover and press goes. The track's unfilled part is
+ * border-surface: shadcn's `bg-muted` is the well grey, 1.04:1 on a white
+ * card, so a slider at its first stop showed a lone dot. On touch the
+ * thumb's target is 44px. */
+[data-slot="slider-track"] {
+  background-color: var(--color-border-surface);
+}
+
+[data-slot="slider-thumb"] {
+  width: 1rem;
+  height: 1rem;
+  border-width: 2px;
+  border-color: var(--color-brand);
+  box-shadow: 0 1px 2px rgb(18 26 40 / 0.12);
+  cursor: grab;
+
+  &:active {
+    cursor: grabbing;
+  }
+
+  &:has(:focus-visible) {
+    box-shadow:
+      0 0 0 2px var(--color-panel),
+      0 0 0 4px var(--color-brand-ring);
+  }
+}
+
+@media (pointer: coarse) {
+  [data-slot="slider-thumb"]::after {
+    inset: auto;
+    top: 50%;
+    left: 50%;
+    width: 44px;
+    height: 44px;
+    translate: -50% -50%;
+  }
+}
+
 /* DIALOGS, by data-slot, so the vendored dialog stays as `shadcn add` wrote
  * it (KAN-563, docs/design.md, "Never a dialog over a dialog"). In the
  * utilities layer, where attribute plus a second selector out-specifies the

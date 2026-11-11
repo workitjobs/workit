@@ -3761,17 +3761,34 @@ student who opened a resume from Experiences landed on another view.
   date is printed in Jake's type. Bold or italic makes the words the resume's own
   wording, so Original takes it off too, and Word stays plain. A phone's sheet
   still types plain text, with the markers showing, and has no buttons yet.
-  **Format Options runs in the order a student decides**: **Font** (a menu of
-  nine, each drawn in itself with the look it stands for), **Text Sizes** (a row
-  per kind of text, Section Headings among them, which have no line to click,
-  each with a field to type the points in between - and +; the toolbar's size is
-  the same control), **Layout** (Spacing, Margins, Header Alignment, Text
-  Alignment), **Style** (Accent Color, Bullet Icon, Section Lines) and
-  **Content** (Date Format, a menu that shows how each reads, and Education
-  Order, School First or Degree First), then Reset Formatting once anything is set. A typed size
+  **Format Options is laid out as Jobright's Style panel** (2026-11-11), which
+  the user found well organized and neither crowded nor cramped: a column of
+  white cards, each a group titled over a hairline, whose controls show the
+  choice. **Accent Color** (five swatches, the picked one checked, and a line
+  saying it colours the name, the section headings and the lines under them);
+  **Font** (Font Family, a menu of nine, each drawn in itself with the look it
+  stands for, the closed menu showing that look too; then a size per kind of
+  text in a 2 by 2 grid, Section Headings among them, which have no line to
+  click, each with a field to type the points in between - and +; the
+  toolbar's size is the same control); **Content Style** (Date Format, a menu
+  that shows how each reads; Bullet Icon, two tiles that draw a dot and a dash
+  before grey lines; Section Lines, a switch); **Layout** (Header Alignment,
+  Left, Center or Right; Education Order, two tiles that draw the two rows in
+  their order, the school bold and the degree italic, as the page sets them);
+  **Spacing & Margin** (a slider each for Section Spacing, Entry Spacing,
+  Line Spacing, Top & Bottom Margin and Side Margins, with the value at the
+  right, an info button with what the first two space, and Align Text Left &
+  Right, a switch for justified text); then **Reset Formatting** across the
+  foot, always there and off while nothing is set. A typed size
   applies on Enter or on leaving the field, goes to the nearest half point inside
   its limits (Your Name 14 to 36, Section Headings 9 to 18, Job & School Titles 8
-  to 16, Body Text 8 to 14), and Escape or what is not a number puts it back. On
+  to 16, Body Text 8 to 14), and Escape or what is not a number puts it back.
+  **A slider stops only at the API's values** (Section Spacing 0, 4, 8 or 12
+  pt; Entry Spacing 0, 2, 4 or 6 pt; Line Spacing 1.0, 1.15 or 1.3; each
+  margin 0.5, 0.75 or 1 in) and **commits once, when it is let go**, or once
+  per arrow key: the value at its right follows the pointer meanwhile, but
+  each change compiles the PDF, so a compile per stop crossed would queue
+  them. On
   Tailor's review it opens
   in the Suggestions column, with the same X, and one column shows at a time. On
   the editor's own page it opens in Scout's panel, as the Experiences picker
@@ -3780,17 +3797,17 @@ student who opened a resume from Experiences landed on another view.
   left the resume 414px wide with about 4px text. On a phone a Format button opens it in a sheet, with no Undo there. Each
   pick shows on the page, saves on its own, and Undo takes it back. It held
   eleven controls in five groups until 2026-11-01, then five that left out the
-  font and a size per kind of text, which the user found missing. Spacing is one
-  choice (Compact, Regular, Relaxed) over line, section and entry spacing, and
-  Margins one over top and side. Text alignment, the bullet's shape and the
-  header's alignment left on 2026-11-01 and came back a day later with Date
-  Format and Education Order, once Jobright's panel showed they were missed. The
-  API still takes each spacing and margin on its own, so a resume already set
-  that way prints as it did, shows no choice picked, and Reset Formatting clears
-  it. A spacing is a segmented switch,
-  not Jobright's slider: each change compiles the PDF, so a slider would queue a
-  compile for every step it crossed. Still to come: skills layout and
-  templates. **Custom sections** (KAN-498) are the bank's, made on the
+  font and a size per kind of text, which the user found missing. Text
+  alignment, the bullet's shape and the header's alignment left on 2026-11-01
+  and came back a day later with Date Format and Education Order, once
+  Jobright's panel showed they were missed. Until 2026-11-11 the panel was
+  five small groups (Font, Text Sizes, Layout, Style, Content), with Spacing
+  one three-way choice (Compact, Regular, Relaxed) over line, section and
+  entry spacing and Margins one over top and side, so a resume set any other
+  way showed no choice picked; each setting is its own control now, so every
+  resume shows as it prints. **Still to come, each needing renderer work:**
+  a template choice, the page size (A4), the skills layout (Jobright's comma
+  lines, bullets or two columns), and a choice of what the accent colours. **Custom sections** (KAN-498) are the bank's, made on the
   Experiences view, not here: the Experiences picker and Cut From Resume
   group their entries under each section's name (`groupsOf`), and the
   Sections panel lists them where they print (`printedOrder`, the backend's
