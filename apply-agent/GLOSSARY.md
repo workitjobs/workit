@@ -211,7 +211,7 @@ A Posting that reappears in the Feed under a new identity but is the same role L
 _Avoid_: duplicate, relisting
 
 **Filler**:
-The fixed procedure that fills every form of one job system (Greenhouse, Ashby, Lever, Workday, Rippling, Workable, Eightfold) from the Applicant profile.
+The fixed procedure that fills every form of one job system (Greenhouse, Ashby, Lever, Workday, Rippling, Workable, Eightfold, amazon.jobs) from the Applicant profile.
 _Avoid_: autofill, script, bot
 
 **Fill engine**:
@@ -277,7 +277,7 @@ Claude's fix, live on a held form, of a problem Lisul tells it in his own words.
 _Avoid_: chat, assistant, live edit
 
 **Rescue**:
-Claude filling, live on the open form, one field a Filler's own code failed on (a FillError, or a click that timed out), so the Application goes on to the next step instead of failing. It runs under the drive guard, is read back and checked like any field, and leaves a Repair request so the Filler's code is fixed too. Workday's Filler has one.
+Claude filling, live on the open form, one field a Filler's own code failed on (a FillError, or a click that timed out), so the Application goes on to the next step instead of failing. It runs under the drive guard, is read back and checked like any field, and leaves a Repair request so the Filler's code is fixed too. Workday's and amazon.jobs's Fillers have one.
 _Avoid_: fallback, live repair, retry
 
 **Repair request**:
