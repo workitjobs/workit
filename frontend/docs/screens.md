@@ -459,7 +459,9 @@ since its brand colour against the ink text was the only cue (KAN-569). The appl
 after Save until KAN-519, when the team removed it. Below md the bar scrolls away and wraps.
 The header card below holds who is hiring, the title and facts; its logo never
 shrinks. Its facts use the card's `JobFacts`: two rows of three fixed slots,
-two columns under 448px, with unstated facts leaving their slots empty.
+two columns under 448px, with unstated facts leaving their slots empty, at
+the Jobs page card's size (14px values, 16px glyphs; 12px until 2026-11-10
+read as fine print beside the 16px description).
 Ask Scout, an icon beside Save (KAN-519), asks about the role; it is not
 drawn while `ASK_SCOUT_LIVE` is off (2026-11-09; it stood faded as "Coming
 Soon" until then), and Not Interested is not drawn while
