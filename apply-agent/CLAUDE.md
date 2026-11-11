@@ -199,8 +199,11 @@ into it and the window shows "Sample data".
   and `Worker`.
 - **A file goes only to the form's own site** (KAN-795, `apply.upload_origin`,
   `docs/claude-fill.md`): the top frame, a frame of its origin, or a job
-  system's embedded form. A hostile page's frame from another site could take
-  the resume when nothing checked where a file went. Every new way to set a
+  system's embedded form, with every frame between it and the top of the
+  top's own origin. A hostile page's frame from another site could take the
+  resume when nothing checked where a file went, and PR 556's review found
+  five more ways past the first fix (a form inside another site's frame, a
+  dispatched click, a closed shadow root, a scriptless frame, a pop-up). Every new way to set a
   file goes through `upload_origin.give` (CDP) or the worker extension's
   checked sets (plain), and each new trick joins `tests/test_upload_origin.py`
   on CDP and on a plain Worker. The rule's JS copies (page/dom.js,
