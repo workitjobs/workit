@@ -24,6 +24,10 @@ def _found(answer: str) -> list[tuple[str, str]]:
     return [(c.kind, c.text) for c in unsupported(answer, OWN, POSTING)]
 
 
+def _found_in(answer: str, own: tuple[str, ...]) -> list[tuple[str, str]]:
+    return [(c.kind, c.text) for c in unsupported(answer, own, POSTING)]
+
+
 def test_a_clean_answer_has_no_claims():
     assert unsupported(CLEAN, OWN, POSTING) == []
 
@@ -90,10 +94,6 @@ def test_a_short_answer_has_no_name_claim():
     assert _found("Remote, please.") == []
 
 
-def _found_in(answer: str, own: tuple[str, ...]) -> list[tuple[str, str]]:
-    return [(c.kind, c.text) for c in unsupported(answer, own, POSTING)]
-
-
 def test_everyday_capitals_and_sentence_openers_are_no_claim():
     assert _found("Building tools in Python is what I like. In English and in AI, I read a lot on Monday.") == []
 
@@ -116,3 +116,25 @@ def test_the_bank_gives_each_entry_its_own_heading_so_an_outcome_stays_with_its_
     assert own[0].startswith("## Software Intern, Hitachi Rail\n")
     assert _found_in("At Hitachi Rail my dashboard went into use.", own) == [("outcome", "went into use")]
     assert _found_in("As Micromouse captain I deployed the maze solver.", own) == []
+
+
+def test_a_tool_two_projects_share_tells_neither_project():
+    own = ("## Software Intern, Hitachi Rail\nBuilt a depot tracker in Python",
+           "## WorkIt\nDeployed the Python API to production")
+    assert _found_in("I used Python for the depot tracker, and it went into use.", own) == [
+        ("outcome", "went into use")]
+
+
+def test_the_plans_story_tells_the_project_when_no_sentence_names_one():
+    own = ("## Software Intern, Hitachi Rail\nBuilt a depot tracker that went into use at every depot",
+           "## WorkIt\nBuilt the job search")
+    answer = "I built a depot tracker. It went into use."
+    assert _found_in(answer, own) == [("outcome", "went into use")]
+    assert unsupported(answer, own, POSTING, story="Built a depot tracker that went into use at every depot") == []
+    assert unsupported(answer, own, POSTING, story="## WorkIt") != []
+
+
+def test_a_short_reply_that_opens_with_a_plain_word_has_no_name_claim():
+    for reply in ("Sure, happy to relocate anywhere.", "Happy to relocate for this.", "Excited to apply here.",
+                  "Either location works for me.", "Referral from a friend."):
+        assert _found(reply) == [], reply

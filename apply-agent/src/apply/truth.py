@@ -23,9 +23,11 @@ pre-submit review). It looks for four kinds of claim:
 - **outcome**: an effect of the work ("went into use", "deployed", "won",
   "cut the time") that no fact about the same project or role states
   (KAN-750). The project is the one the sentence names, else the one the
-  nearest sentence before it names: a section's heading ("## Hitachi Rail:
-  Software Intern", a bank entry or a Story bank section) or a name a fact
-  gives. A fact is about the headings it sits under and the names it gives.
+  nearest sentence before it names, else the answer's planned story: a
+  section's heading ("## Hitachi Rail: Software Intern", a bank entry or a
+  Story bank section), else a name a fact outside any section gives. A fact
+  in a section is about its headings only, so a tool two projects share
+  ("Python") tells neither; one outside any is about the names it gives.
   An outcome in a sentence whose project none of that tells is a claim.
 
 It leans toward passing: a source holds a name in any case, and an outcome
@@ -61,7 +63,7 @@ class Claim:
         return f'"{self.text}" ({KINDS[self.kind]})'
 
 
-def unsupported(answer: str, own: str | Iterable[str], others: str | Iterable[str] = ()) -> list[Claim]:
+def unsupported(answer: str, own: str | Iterable[str], others: str | Iterable[str] = (), story: str = "") -> list[Claim]:
     """Each claim in `answer` that no source holds, in the order the answer
     makes them, each once. `own` are the texts the student gave: their
     profile, resume or experience, answer bank and story bank. `others` are
@@ -69,7 +71,9 @@ def unsupported(answer: str, own: str | Iterable[str], others: str | Iterable[st
     checked facts, the question. A date or an outcome is the student's, so
     only `own` holds one: every posting says "deploy" and "ship". Either may
     be one text or several; an outcome stands only on a fact about its
-    project (_facts: give each project its own "## " heading)."""
+    project (_facts: give each project its own "## " heading). `story` is
+    the line or heading the answer's plan leads with: its project is the
+    answer's until a sentence names one."""
     texts = [s for s in ([own] if isinstance(own, str) else own) if s]
     theirs = "\n".join(texts)
     held = "\n".join([theirs, *(s for s in ([others] if isinstance(others, str) else others) if s)])
@@ -79,7 +83,7 @@ def unsupported(answer: str, own: str | Iterable[str], others: str | Iterable[st
     spans = [span for text in texts for line in text.splitlines() for span in _spans(line)]
     facts = _facts(texts) if any(said.search(answer) for said, _ in OUTCOMES) else []
     found: list[Claim] = []
-    about: list[str] = []  # the project the last sentence that named one named
+    about = _story(story, facts)  # the project the last sentence that named one named
     for sentence in _sentences(answer):
         named = names(sentence, lower)
         found += [Claim("number", n, sentence) for n in _numbers(sentence) if _normal(n) not in known]
@@ -89,10 +93,7 @@ def unsupported(answer: str, own: str | Iterable[str], others: str | Iterable[st
                 found.append(Claim("date", m.group(), sentence))
         about = _about(named, facts) or about
         for said, backed in OUTCOMES:
-            if (m := said.search(sentence)) and not any(
-                backed.search(line) and any(_same(a, n) for a in about for n in (*heads, *given))
-                for heads, given, line in facts
-            ):
+            if (m := said.search(sentence)) and not any(backed.search(f.line) and f.about(about) for f in facts):
                 found.append(Claim("outcome", m.group(), sentence))
     seen: set[tuple[str, str]] = set()
     return [c for c in found if (c.kind, c.text.casefold()) not in seen and not seen.add((c.kind, c.text.casefold()))]
@@ -128,6 +129,11 @@ OPENERS = {"a", "an", "the", "in", "at", "on", "for", "with", "during", "after",
            "it", "we", "i", "if", "so", "but", "and", "also", "from", "by", "to", "of", "both", "each", "every", "one",
            "what", "why", "how", "dear", "sincerely", "best", "thanks", "thank", "yes", "no", "you", "your", "here",
            "today", "now", "once", "later", "first", "next", "finally", "outside", "beyond", "over", "through"}
+# Plain words a short reply opens with, never read as a name there ("Sure, happy to relocate").
+PLAIN = {"sure", "happy", "glad", "excited", "eager", "either", "neither", "none", "not", "maybe", "perhaps",
+         "please", "open", "available", "willing", "interested", "absolutely", "definitely", "certainly", "any",
+         "anywhere", "referral", "friends", "friend", "family", "online", "currently", "however", "most", "some",
+         "many", "all", "just", "only", "still", "even", "although", "though", "where", "who", "which"}
 MONTHS = ("january", "february", "march", "april", "may", "june", "july", "august", "september", "october",
           "november", "december")
 SEASONS = {"spring": (3, 4, 5), "summer": (6, 7, 8), "fall": (9, 10, 11), "autumn": (9, 10, 11), "winter": (12, 1, 2)}
@@ -139,7 +145,7 @@ EVERYDAY = {"AI", "ML", "API", "APIs", "UI", "UX", "CS", "US", "USA", "GPA", "Ph
             "QA", "PM", "SWE", "CEO", "CTO", "OK", "TA", "STEM", "FAQ", "PR", "PRs", "ETA", "U.S", "U.S.A", "U.K"}
 
 
-def names(sentence: str, lower: Container[str] | None = None) -> list[str]:
+def names(sentence: str, lower: Container[str] | None = None, heading: bool = False) -> list[str]:
     """The names one sentence gives, each once: runs of capitalized words (a
     possessive's "'s" and the words that open or close them dropped), words
     with a capital inside ("PyTorch", "iOS") and acronyms ("CUDA"). A word
@@ -147,10 +153,12 @@ def names(sentence: str, lower: Container[str] | None = None) -> list[str]:
     capitalized either way: it is part of a name with a capital inside it,
     or, given `lower` (the words the texts use in lower case), in a sentence
     of three words or more when it is none of them, no opener and no word
-    ending "-ing" or "-ly" ("Stripe hired me")."""
+    ending "-ing" or "-ly" ("Stripe hired me"). In a `heading` every
+    capitalized word is part of a name ("Hitachi Rail: Software Intern")."""
     found: list[str] = []
     run: list[str] = []
     long = lower is not None and len(WORD.findall(sentence)) >= 3
+    lower = lower or ()
 
     def close() -> None:
         while run and run[0].casefold() in OPENERS | {"of", "&"}:
@@ -171,8 +179,8 @@ def names(sentence: str, lower: Container[str] | None = None) -> list[str]:
         opens = i == 0 or re.search(r"[:;\"“(•*]|\s-\s", before) is not None
         if re.search(r"\S", before):
             close()  # punctuation between words ends a name: "Python, Kafka"
-        if opens and long and word[:1].isupper() and word.casefold() not in lower \
-                and word.casefold() not in OPENERS | COMMON and not re.search(r"(?:ing|ly)$", word):
+        if word[:1].isupper() and word.casefold() not in OPENERS | COMMON and (heading or (
+                opens and long and word.casefold() not in lower and word.casefold() not in PLAIN and not re.search(r"(?:ing|ly)$", word))):
             run.append(word)  # "Stripe hired me"
         elif _strong(word) or (word[:1].isupper() and not opens and word.casefold() not in COMMON) \
                 or (run and word.casefold() in {"of", "&"}):
@@ -205,7 +213,21 @@ HEADING = re.compile(r"\s*(#{1,6})\s+(.*)")
 TAG = re.compile(r"\s*</?[\w-]+>\s*")  # "</story_bank>": the end of every section
 
 
-Fact = tuple[list[str], list[str], str]  # a line's headings' names, the names it gives, the line
+@dataclass(frozen=True)
+class Fact:
+    """One line of the student's texts: the names of the headings it sits
+    under, the names it gives, and the line."""
+
+    heads: tuple[str, ...]
+    given: tuple[str, ...]
+    line: str
+
+    def names(self) -> tuple[str, ...]:
+        """What it is about: its headings', or, outside any section, its own."""
+        return self.heads or self.given
+
+    def about(self, project: list[str]) -> bool:
+        return any(_same(p, n) for p in project for n in self.names())
 
 
 def _facts(texts: Iterable[str]) -> list[Fact]:
@@ -217,19 +239,25 @@ def _facts(texts: Iterable[str]) -> list[Fact]:
         heads: list[tuple[int, list[str]]] = []
         for line in text.splitlines():
             if m := HEADING.fullmatch(line):
-                heads = [h for h in heads if h[0] < len(m.group(1))] + [(len(m.group(1)), names(m.group(2), ()))]
+                heads = [h for h in heads if h[0] < len(m.group(1))] + [(len(m.group(1)), names(m.group(2), heading=True))]
             elif TAG.fullmatch(line):
                 heads = []
-            facts.append(([n for _, given in heads for n in given], [n for s in _sentences(line) for n in names(s)], line))
+            facts.append(Fact(tuple(n for _, given in heads for n in given),
+                              tuple(n for s in _sentences(line) for n in names(s)), line))
     return facts
 
 
 def _about(named: list[str], facts: list[Fact]) -> list[str]:
-    """The names in a sentence that tell its project: those a heading gives
-    (a project or role, not a tool it shares with others), else those a
-    fact gives."""
-    return [n for n in named if any(_same(n, h) for heads, _, _ in facts for h in heads)] \
-        or [n for n in named if any(_same(n, g) for _, given, _ in facts for g in given)]
+    """The names in a sentence that tell its project: those a heading gives,
+    else those a fact outside any section gives."""
+    return [n for n in named if any(_same(n, h) for f in facts for h in f.heads)] \
+        or [n for n in named if any(_same(n, f_name) for f in facts if not f.heads for f_name in f.given)]
+
+
+def _story(story: str, facts: list[Fact]) -> list[str]:
+    """The project of the fact a plan's story is: the heading or line it copies."""
+    said = _plain(story.lstrip("# "))
+    return list(dict.fromkeys(n for f in facts if said and said in _plain(f.line) for n in f.names())) if said else []
 
 
 def _same(a: str, b: str) -> bool:

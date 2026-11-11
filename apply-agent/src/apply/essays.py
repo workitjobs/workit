@@ -295,7 +295,8 @@ def answer(claude: Claude, posting: Posting, essays: list[Question], drafts: lis
     # The posting, the Company material and the question may give a number or a name; a cover letter's
     # template gives its salutation ("Recruiting Team").
     given = (company, description.block(posting, posting_text), cover_letter.TEMPLATE)
-    found = {key: truth.unsupported(texts[key], own, (*given, q.label, q.description)) for key, q in keys.items()}
+    found = {key: truth.unsupported(texts[key], own, (*given, q.label, q.description), plans[key].story if plans[key] else "")
+             for key, q in keys.items()}
     result = [Essay(q, texts[key], tuple(c.text for c in found[key] if c.kind == "number"),
                     (written.get(key) or {}).get("needs_lisul") is True, giveaways(texts[key]),
                     _named(written.get(key) or {}, plans[key], texts[key], company), plans[key],

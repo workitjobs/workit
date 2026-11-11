@@ -260,7 +260,9 @@ async def save_answers(
         from app.auto_apply import review
         own = await _own_facts(db, applicant_id, job_id)
         await review.flag_claims(db, applicant_id, job_id, {
-            name: (text, truth.unsupported(text, own, (*sources, questions[name].label))) for name, text in said.items()
+            name: (text, truth.unsupported(text, own, (*sources, questions[name].label),
+                                           planned[name].story if name in planned else ""))
+            for name, text in said.items()
         })
     await db.commit()
     return sum(1 for name, q in questions.items() if q.answer is None and name not in answers)
