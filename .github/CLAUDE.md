@@ -159,9 +159,11 @@ that touches `apply-agent/`, the engine pointer, `ci.yml` or
 `test_plain_routing.py`, the last two on a real plain Worker (KAN-667). macOS, because a
 plain Worker starts through `open` and the browser's `.app`; a step fails the
 job if the browser is missing, since these tests skip without it.
-**Its limit is 15 minutes** (KAN-780, 2026-11-10): the job took 16 to 20
-minutes once the hostile pages' plain-Worker cases ran there (it was raised
-to 35 for that), and about 6 after KAN-780 (below). Each step has its own
+**Its limit is 20 minutes** (KAN-780, 2026-11-10; raised from 15 on
+2026-11-11): the job took 16 to 20 minutes once the hostile pages'
+plain-Worker cases ran there (it was raised to 35 for that), about 6 after
+KAN-780 (below), and about 13 once the guard holes' pages ran on every CDP
+path (KAN-710, KAN-783). Each step has its own
 limit too, so a hang fails in that step.
 **CI does not run the other 28 test files**, which hold the Filler tests
 (`test_*_filler.py`, `test_claude_fill.py`, `test_run.py`,
@@ -189,8 +191,10 @@ plain-Worker path; the rest of their plain-Worker pairs run nightly, since the
 guard script is the same on both kinds of Worker. A page added for a new
 guard hole joins `GUARD_HOLES`, and `PLAIN_HOLES` too when it is about a plain
 Worker. With all 38 on a plain Worker the hostile step took 551 s on CI
-(2026-11-11) and hit its limit, so only `PLAIN_HOLES` run there on PRs, and
-the step's limit stays 9 minutes, not 6. A
+(2026-11-11) and hit its 9-minute limit, so only `PLAIN_HOLES` run there on
+PRs. Even then the step took 505 s for 350 cases, and 547 s for 398 once
+KAN-783's eight pages joined (about five times its time on a 14-core Mac),
+so its limit is 12 minutes. A
 test safe only on its own (a fixed port or path) can't join a parallel step.
 
 The frontend job runs `format:check`, so an unformatted file fails the PR.
