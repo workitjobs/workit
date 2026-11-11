@@ -2044,7 +2044,8 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   right (KAN-565). A disabled filled button is grey (`ui/button.tsx`,
   DISABLED_FILL), never a faded brand fill, and a lesser action beside a
   button is `variant="section"`, never brand text.
-- **Anything clicked or picked is medium (500)**: buttons, chips,
+- **Anything clicked or picked is medium (450, `--font-weight-medium`; 500
+  until 2026-11-10, which read thick beside Jobright's)**: buttons, chips,
   segmented controls, filter options, and shadcn's menu, select and
   combobox rows, which `globals.css` sets by `data-slot` since they set no
   weight of their own (KAN-365). One exception: a filter or sort trigger

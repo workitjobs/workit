@@ -39,8 +39,14 @@
    * the Mac's own smoothing (app/layout.tsx), 400 draws as solid as that
    * 450 did; a separate token, so a weight never needs writing as a
    * number. This sets `font-normal`, the body's default and --text-hero's
-   * weight; medium (500) stays a step above. */
+   * weight; medium (450, below) stays a step above. */
   --font-weight-normal: 400;
+  /* Medium is 450, not 500 (2026-11-10): with Inter and the Mac's own
+   * smoothing, a 500 nav item, button or chip read thick beside Jobright's
+   * (its sidebar items are 420). It sets `font-medium`, --text-label's
+   * weight and the menu rows' (below), so everything clicked or picked
+   * moves together; semibold (600) stays a clear step above. */
+  --font-weight-medium: 450;
 
   /* Surfaces ------------------------------------------------------------
    * NEUTRALISED, the same way the app roles below were and for the same
@@ -99,7 +105,7 @@
 
   --text-label: 0.8125rem; /* 13px — field labels, links, social buttons */
   --text-label--line-height: 1.125rem;
-  --text-label--font-weight: 500;
+  --text-label--font-weight: var(--font-weight-medium);
 
   --text-body: 0.875rem; /* 14px — body copy, inputs, primary button */
   --text-body--line-height: 1.25rem;
@@ -1323,7 +1329,7 @@ body:has([data-skyline]) {
     stroke-linejoin: round;
   }
 
-  /* A menu's, a select's or a combobox's rows are medium (500), as every
+  /* A menu's, a select's or a combobox's rows are medium, as every
    * control a student clicks or picks is: a button, a chip, a segmented
    * control, the filters' options. shadcn's rows set no weight, so they drew
    * at 400 and the account menu read thinner than the Jobs page's filters
@@ -1338,7 +1344,7 @@ body:has([data-skyline]) {
     [data-slot="select-item"],
     [data-slot="combobox-item"]
   ) {
-    font-weight: 500;
+    font-weight: var(--font-weight-medium);
   }
 
   /* On a touch screen those rows are 44px tall (KAN-557): a finger needs

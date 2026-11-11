@@ -359,7 +359,7 @@ export const WEIGHTS: { token: string; cls: string; role: string }[] = [
     role: "Reading: body copy, helper text, typed values in inputs, descriptions",
   },
   {
-    token: "500 · font-medium",
+    token: "450 · font-medium",
     cls: "font-medium",
     role: "Anything clicked or picked: buttons, chips, segmented controls, menu rows, select and filter options, field labels (--text-label). A filter or sort trigger is 400",
   },

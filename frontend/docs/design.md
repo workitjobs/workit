@@ -29,7 +29,7 @@ open choices (Settled choices, near the end).
   | `text-caption` | 11px, 600, capitals | A rule label ("OR CONTINUE WITH"). Never a sentence. |
   | `text-meta` | 11px | Meta: a date, a count, a file size, a caption. |
   | `text-note` | 12px | One secondary line: an employer, a pill, a status badge, a group name, a hint or an error under a field. |
-  | `text-label` | 13px, 500 | Field labels, buttons, links, menu rows. |
+  | `text-label` | 13px, medium (450) | Field labels, buttons, links, menu rows. |
   | `text-body` | 14px | Body copy, typed values, table cells, messages. |
   | `text-subtitle` | 16px, 600 | A block's name: a dialog title, a job's title, an empty state's title. |
   | `text-title` | 20px, 600 | A section's heading, a job card's title, a job description's section (bold there); the top bar title below md. |
@@ -88,7 +88,7 @@ open choices (Settled choices, near the end).
   site sets no
   `leading-*` on token text. A prose block of three or more lines may open
   to `leading-5` on `text-note` or `leading-6` on `text-body`.
-- **Four weights, one job each** (400, 500, 600, 700): Type weights, below.
+- **Four weights, one job each** (400, 450, 600, 700): Type weights, below.
 
 ### Hierarchy
 
@@ -806,8 +806,11 @@ Inter is built for screen text at 12 to 14px, where three quarters of the
 Jobs page's text sits. `font-display` is the headline face's utility; the
 app never uses it (`frontend/CLAUDE.md`, "Type on the marketing pages").
 
-Four weights, each with one job, shown on `/design-kit/type` (Weights):
-400 to read (body copy, helper text, typed values), 500 for anything a
+Four weights, each with one job, shown on `/design-kit/type` (Weights). Medium
+is 450 (`--font-weight-medium`, 2026-11-10): at 500, with Inter and the Mac's
+own smoothing, nav items, buttons and chips read thick beside Jobright's
+(its sidebar items are 420).
+400 to read (body copy, helper text, typed values), medium for anything a
 student clicks or picks (buttons, chips, segmented controls, menu rows,
 select and filter options, field labels), 600 to name a block (card and
 dialog titles, a job's title, captions, and `text-title`, 700 until
@@ -818,7 +821,7 @@ The options in its list stay 500. A token that
 carries a weight already sets it; a size with none of its own (body, note)
 takes the weight of its job. shadcn's menu, select and combobox rows set no
 weight and drew at 400, so the account menu read thinner than the Jobs
-page's filters; `globals.css` sets them to 500 by `data-slot`, in base so a
+page's filters; `globals.css` sets them to medium by `data-slot`, in base so a
 row that asks for another weight still gets it (KAN-365). The filters' own
 option rows (`filter-controls.tsx`) set theirs and are left alone: a nested
 option is regular under its medium parent. Regular is
