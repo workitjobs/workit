@@ -57,4 +57,4 @@ jobs:
         run: uv run python -c "from apply.plain.launcher import chrome_for_testing; print(chrome_for_testing())"
       - name: Nightly tests
         timeout-minutes: 30
-        run: uv run pytest -q -rs -n auto --durations=15 -m nightly tests/
+        run: uv run pytest -q -rs -n auto --dist loadgroup --durations=15 -m nightly tests/

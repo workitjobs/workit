@@ -174,9 +174,10 @@ minutes. Run the files that a change touches on a Mac, with `-k`
 
 Each test step has its own `timeout-minutes` and skips tests marked
 `nightly` (KAN-780). The fast tests and the hostile pages run in parallel
-(`pytest -n auto`, pytest-xdist); the plain-Worker tests run in one
-process, since each parallel process paid a 40 s Worker start and the
-typing tests' timing slipped. Before KAN-780 the job took 16 to 20 minutes,
+(`pytest -n auto`, pytest-xdist), but plain-Worker cases always run one at
+a time in one process (the hostile pages' `xdist_group`, `--dist
+loadgroup`, and the plain-Worker step without `-n`): in parallel, plain
+Workers' trusted typing missed its field. Before KAN-780 the job took 16 to 20 minutes,
 10 to 15 of them in the hostile pages' matrix. PRs now run every hostile
 page and every path at least once; `workflows/apply-nightly.yml` (07:53
 UTC, or `gh workflow run apply-nightly.yml`) runs every `nightly` test. A

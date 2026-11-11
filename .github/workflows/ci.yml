@@ -308,7 +308,7 @@ jobs:
       # On PRs every page and every path at least once; every pair nightly.
       - name: Submit guard hostile pages
         timeout-minutes: 6
-        run: uv run pytest -q -n auto --durations=15 -m "not nightly" tests/test_submit_guard_hostile.py
+        run: uv run pytest -q -n auto --dist loadgroup --durations=15 -m "not nightly" tests/test_submit_guard_hostile.py
       # The worker extension's page scripts in a window without focus (KAN-709).
       - name: Plain Worker focus
         timeout-minutes: 2

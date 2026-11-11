@@ -535,6 +535,11 @@ def test_fill_again_opens_the_form_guarded_before_its_first_load(tmp_path):
 
 # --- plain: a plain Worker on Chrome for Testing (no CDP), the same pages and paths
 
+# One test process takes every plain-Worker case, one at a time, beside the CDP cases in the others
+# (`pytest -n auto --dist loadgroup`): in parallel, plain Workers' trusted typing missed its field (KAN-780).
+ONE_PLAIN_PROCESS = pytest.mark.xdist_group("plain-worker")
+
+
 def _plain_or_skip():
     from plain_fakes import have_chrome_for_testing
     if not have_chrome_for_testing():
@@ -555,6 +560,7 @@ def plain(pages: dict[str, str]):
 @pytest.mark.parametrize("path", ["plain code's Next", "the profile click", "the account click",
                                   "Ask Claude's press of a listed step"])
 @pytest.mark.parametrize("page_name", first_page_on_prs())
+@ONE_PLAIN_PROCESS
 def test_no_click_path_sends_a_hostile_page_on_a_plain_worker(page_name, path):
     with plain(PAGES[page_name]) as (page, drive, site):
         try:
@@ -568,6 +574,7 @@ def test_no_click_path_sends_a_hostile_page_on_a_plain_worker(page_name, path):
 
 @pytest.mark.parametrize("path", list(TYPING))
 @pytest.mark.parametrize("page_name", first_page_on_prs())
+@ONE_PLAIN_PROCESS
 def test_no_typing_path_sends_a_hostile_page_on_a_plain_worker(page_name, path):
     with plain(PAGES[page_name]) as (page, drive, site):
         try:
@@ -580,6 +587,7 @@ def test_no_typing_path_sends_a_hostile_page_on_a_plain_worker(page_name, path):
 
 
 @pytest.mark.parametrize("path", list(TYPING))
+@ONE_PLAIN_PROCESS
 def test_an_enter_in_a_box_sends_nothing_even_on_a_lifted_page(path):
     """KAN-716: on amazon.jobs a synthetic Enter in a box pressed the form's submit button. Lifted (a held page, a live
     run's last step), no guard would stop it: the Enter itself must send nothing."""
@@ -631,6 +639,7 @@ STEERS = {
 
 
 @pytest.mark.parametrize("page_name", list(STEERS))
+@ONE_PLAIN_PROCESS
 def test_a_trusted_choice_click_presses_nothing_else_on_a_lifted_page(page_name):
     with plain({START: STEERS[page_name], "/inner": INNER_BUTTON, "https://other.example.org/inner": INNER_BUTTON}) as (page, _, site):
         lift(page)
@@ -645,6 +654,7 @@ def test_a_trusted_choice_click_presses_nothing_else_on_a_lifted_page(page_name)
     assert [p for p in site.sent if p.startswith("/")] == []
 
 
+@ONE_PLAIN_PROCESS
 def test_a_trusted_click_that_misses_raises():
     """The page puts its Submit over the radio as the press goes down: the click is cancelled, and Apply hears it."""
     page_html = STEERS["a listener that runs first and hides the press"].replace(
@@ -659,6 +669,7 @@ def test_a_trusted_click_that_misses_raises():
     assert pressed == [0, 0, False]
 
 
+@ONE_PLAIN_PROCESS
 def test_a_second_form_sent_in_with_into_is_guarded_beside_a_held_one():
     """`apply rehearse --into`: a new tab in the same plain Worker, while the first form is held (lifted) for Lisul."""
     _plain_or_skip()
