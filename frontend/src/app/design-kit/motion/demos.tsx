@@ -56,7 +56,7 @@ function Specimen({ cls, demo }: { cls: string; demo: Demo }) {
       return (
         <span
           className={cn(
-            "bg-panel border-border-control rounded-card shadow-panel block h-12 w-24 border",
+            "bg-panel border-border-surface rounded-card shadow-panel block h-12 w-24 border",
             cls,
           )}
         />

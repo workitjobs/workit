@@ -34,8 +34,8 @@ import { loadPdfjs, PageSkeleton, PdfPages } from "../../../resumes/[resumeId]/p
  * Each answer is kept by its source for the page's life (`answered`), so a
  * resume shows only its own answer, however late an older one arrives, and
  * a resume opened again shows at once. A caller that knows when the
- * resume last changed passes it as `version` (the Resumes page's eye,
- * KAN-358), so an answer from before an edit is not shown after it. A failed one says so in a line, with
+ * resume last changed passes it as `version` (the Resumes page's duplicate
+ * modal, KAN-444), so an answer from before an edit is not shown after it. A failed one says so in a line, with
  * Try Again. Step 1 held the preview as a column beside the list until the
  * list needed the width; a dialog also gives the page room to be read.
  */
@@ -183,6 +183,34 @@ export function ResumePreviewDialog({
  */
 export function OriginalResume({ source }: { source: TailorSource }) {
   return <PreviewPages source={source} label="Original Resume" enabled />;
+}
+
+/**
+ * A resume's first page, small and read-only, for the Resumes page's
+ * duplicate modal (KAN-444): "Resume #6 has the same content" was abstract,
+ * and the page shows which resume it is before the student confirms a copy.
+ * The frame is one Letter page tall, so only page 1 shows, and it costs one
+ * render (about half a second) the first time a resume is shown.
+ */
+export function ResumeFirstPage({
+  source,
+  label,
+  version,
+}: {
+  source: TailorSource;
+  label: string;
+  version?: string;
+}) {
+  return (
+    <div
+      aria-label={`First page of ${label}`}
+      role="figure"
+      className="border-border-subtle mx-auto w-56 overflow-hidden rounded-xs border shadow-sm"
+      style={{ aspectRatio: "8.5 / 11" }}
+    >
+      <PreviewPages source={source} label={label} enabled version={version} />
+    </div>
+  );
 }
 
 /** A DOCX upload: pdf.js cannot draw one, so its file downloads instead. */

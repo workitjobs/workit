@@ -169,7 +169,11 @@ async def test_only_experience_entries_count_toward_years(student, gemini, datab
     })
 
     (job,) = (await _recommended(client, me)).json()
-    assert {"text": "Asks for 3+ years experience", "met": False} in job["highlights"]
+    assert {
+        "text": "Asks for 3+ years",
+        "detail": "Asks for 3+ years experience",
+        "met": False,
+    } in job["highlights"]
 
 
 async def test_an_empty_bank_has_no_recommendations(student, gemini):

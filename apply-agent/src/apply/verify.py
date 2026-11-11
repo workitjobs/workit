@@ -33,8 +33,9 @@ from apply.records import SECRET
 # The kinds of flag. Each holds a live run (goes to Needs you), except a guess and a blank the engine's plan meant
 # and says why (notes). Any other blank optional field holds too: a blank optional is a bug (Lisul, 2026-11-02),
 # except an optional catch-all box ("Additional information") Apply had nothing new for: a note (Lisul, 2026-11-04).
-BLANK, READBACK, FILE, CHOICE, DATE, PAY, PRONOUN, NAME, COMPANY, REVIEW, GUESSED, HISTORY_KIND = (
-    "blank", "readback", "file", "choice", "date", "pay", "pronoun", "name", "company", "review", "guessed", "history")
+BLANK, READBACK, FILE, CHOICE, DATE, PAY, PRONOUN, NAME, COMPANY, REVIEW, GUESSED, HISTORY_KIND, LEFTOVER = (
+    "blank", "readback", "file", "choice", "date", "pay", "pronoun", "name", "company", "review", "guessed", "history",
+    "leftover")
 # Starts each flag's part of a held row's reason.
 PREFIX = "Verify: "
 # The flags Lisul dismissed, by Application ID: each Application's Record keeps them, past a reload or a new run.
@@ -192,6 +193,7 @@ def check(
     labels = {q.name: one_line(q.label) for q in questions}
     flags = (
         _blanks(questions, answers, readback, set(asked), set(left), blanks or {})
+        + _leftovers(questions, answers, readback, blanks or {})
         + [Flag(*_split(p), READBACK) for p in fill_engine.readback_problems(questions, answers, readback, accepted)]
         + _files(questions, answers, profile)
         + _choices(questions, readback)
@@ -283,6 +285,21 @@ def _blanks(questions, answers, readback, asked: set[str], left: set[str], plann
             continue
         # An optional one holds as a required one does, a self-ID one too: the profile answers it, a decline at least.
         flags.append(Flag(one_line(q.label), f"left blank ({'required' if q.required else 'optional'})", BLANK))
+    return flags
+
+
+def _leftovers(questions, answers, readback, planned: dict[str, str]) -> list[Flag]:
+    """Each field the engine's plan left blank because the profile has none of it (no minor) and it offers no None,
+    that still shows a value: one an old profile on the site carried over (Amazon's Minor, KAN-754). It holds.
+    A None the plan picked that the page doesn't show is the read-back's flag."""
+    flags = []
+    for q in questions:
+        shown = readback.get(q.name)
+        if q.name in answers or q.name not in planned or _blank(shown) or (q.kind == "select" and PLACEHOLDER.match(str(shown))):
+            continue
+        if fill_engine.left_as_none(planned[q.name]):
+            value = ", ".join(map(str, shown)) if isinstance(shown, list) else str(shown)
+            flags.append(Flag(one_line(q.label), f"shows {value!r}, but your profile has none: clear it", LEFTOVER))
     return flags
 
 

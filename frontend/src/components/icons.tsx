@@ -21,7 +21,7 @@ import {
   DotsThreeIcon as DotsThree,
   EnvelopeIcon as Envelope,
   FileTextIcon as FileText,
-  FunnelSimpleIcon as FunnelSimple,
+  SlidersHorizontalIcon as SlidersHorizontal,
   GearIcon as Gear,
   GiftIcon as Gift,
   GlobeIcon as Globe,
@@ -116,8 +116,12 @@ export function SearchIcon({ className }: IconProps) {
   return <MagnifyingGlass aria-hidden className={className} />;
 }
 
+/** All Filters and every filter button: sliders, equal lines with a knob
+ *  each (2026-11-09). It was FunnelSimple, three lines of falling length,
+ *  which the user found odd at 16px, the lines too unlike to read as one
+ *  mark. */
 export function FilterIcon({ className }: IconProps) {
-  return <FunnelSimple aria-hidden className={className} />;
+  return <SlidersHorizontal aria-hidden className={className} />;
 }
 
 /** A filter chip's trailing glyph while it is still a dropdown. */

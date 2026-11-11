@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import type { BankEntry } from "@/lib/bank-actions";
 import { cn } from "@/lib/cn";
 
-import { degreeLine, formatDates, neededFacts, type EntryDraft } from "./sections";
+import { degreeLine, formatDates, neededFacts, toolsLine, type EntryDraft } from "./sections";
 
 /**
  * Intake's draft as Scout's panel shows it (KAN-202): a read-only preview
@@ -39,8 +39,8 @@ import { degreeLine, formatDates, neededFacts, type EntryDraft } from "./section
  * THE DRAFT'S LINES (KAN-257) run from what matters most to least: the
  * title; what the entry is with, darker (a school's degree, a job's
  * company, a certification's issuer); when and where, in the meta grey; the
- * rest (a school's college, coursework, honors, a project's link); then two
- * bullets, two lines each. Every line under the title used to be the same
+ * rest (a school's college, coursework, honors, a project's tools and
+ * link); then two bullets, two lines each. Every line under the title used to be the same
  * small grey, so a school's degree read like its coursework, and the dates
  * floated right on the organization's line: alone at the edge of an empty
  * row when there was none, as an import's school always has.
@@ -167,7 +167,8 @@ function leadLine(draft: EntryDraft): string | null {
 }
 
 /** Whatever else the bank lists, under the dates: a school's college, an
- *  organization the lead line left out, coursework, honors, a link. */
+ *  organization the lead line left out, coursework, a project's tools,
+ *  honors, a link. */
 function extraLines(draft: EntryDraft): { label?: string; text: string }[] {
   const lead = leadLine(draft);
   const lines: { label?: string; text: string }[] = [];
@@ -178,6 +179,8 @@ function extraLines(draft: EntryDraft): { label?: string; text: string }[] {
   if (draft.coursework.length) {
     lines.push({ label: "Coursework", text: draft.coursework.join(", ") });
   }
+  const tools = toolsLine(draft);
+  if (tools) lines.push({ label: "Tools", text: tools });
   if (draft.honors) lines.push({ label: "Honors", text: draft.honors });
   if (draft.link) lines.push({ text: linkLabel(draft.link) });
   return lines;

@@ -17,7 +17,12 @@ import { ChoiceTile } from "@/components/ui/choice-tile";
 import { cn } from "@/lib/cn";
 import { updateProfile } from "@/lib/profile-actions";
 import { webLink } from "@/lib/profile-links";
-import { previewResume, uploadResume, type ResumePreview } from "@/lib/resume-actions";
+import {
+  previewResume,
+  uploadResume,
+  type PreviewEntry,
+  type ResumePreview,
+} from "@/lib/resume-actions";
 import { showRunTab, startPractice } from "@/lib/autofill-extension";
 import { PRACTICE_JOBS, practiceFormUrl } from "@/lib/practice-form";
 
@@ -59,10 +64,12 @@ import { StoryPanel } from "./story-panel";
  * the feed within days.
  *
  * STEP 2 IS THE RESUME, CHECKED BEFORE IT IS SAVED (KAN-372, ADR 0006;
- * ./resume-step). Read Resume shows what the parser found and saves nothing;
- * Save Resume uploads the file with `replace=matching`, so a second resume
- * replaces the first one's copies of the same entries instead of adding
- * them again. The upload saves at once, before onboarding is done; Skip goes
+ * ./resume-step). Read Resume shows what WorkIt read (AI first, the parser
+ * behind it, KAN-732) and saves nothing; Save Resume uploads the file with
+ * `replace=matching` and that reading, so the save keeps what the student
+ * checked without a second AI reading, and a second resume replaces the
+ * first one's copies of the same entries instead of adding them again. The
+ * upload saves at once, before onboarding is done; Skip goes
  * on without one. It replaced intake's chat (KAN-275 put the resume last).
  *
  * STEP 3 IS WHAT EVERY APPLICATION ASKS (KAN-283), right after the resume
@@ -126,67 +133,44 @@ import { StoryPanel } from "./story-panel";
  * seeker who comes back edits them rather than starting over.
  */
 
-/** Each step's question, and the tip Scout types in its bubble below it: a
- *  tip, not the question again, which is what made the two hard to tell
- *  apart (KAN-259). */
-const STEPS: { question: ReactNode; line: string }[] = [
-  {
-    question: (
-      <>
-        To get started, <strong>what type of role</strong> are you looking for?
-      </>
-    ),
-    line: "Hi, I'm Scout. Pick everything that fits, and I'll do the digging.",
-  },
-  {
-    question: (
-      <>
-        Next, <strong>upload your resume</strong> and check what I read.
-      </>
-    ),
-    line: "Nothing is saved until you say so. No resume yet? Skip it.",
-  },
-  {
-    question: (
-      <>
-        Then, the questions <strong>every application asks</strong>.
-      </>
-    ),
-    line: "All optional. Answer once, and I'll keep them ready for your applications.",
-  },
-  {
-    question: (
-      <>
-        Next, <strong>when you can work</strong>, and a few screening facts.
-      </>
-    ),
-    line: "All optional. Skip it, and fill the rest in on your Profile later.",
-  },
-  {
-    question: (
-      <>
-        Now, <strong>add the WorkIt extension</strong> to Chrome.
-      </>
-    ),
-    line: "It fills each form in its own tab. Pin it, so it's one click away.",
-  },
-  {
-    question: (
-      <>
-        Then, let <strong>your Claude write your answers</strong>, if you want.
-      </>
-    ),
-    line: "Optional. WorkIt never runs a model: your own Claude writes them.",
-  },
-  {
-    question: (
-      <>
-        Last, try a <strong>practice batch</strong> before a real one.
-      </>
-    ),
-    line: "These forms are WorkIt's own. Nothing you submit reaches an employer.",
-  },
+/** Each step's question, the left half's heading (./story-panel). It speaks
+ *  as the page, never as "I" (KAN-732): Scout's bubble, which said "Hi, I'm
+ *  Scout", is gone, and "check what I read" then had no speaker. */
+const STEPS: ReactNode[] = [
+  <>
+    To get started, <strong>what type of role</strong> are you looking for?
+  </>,
+  // While the student picks a file; `REVIEW` once its reading is on screen.
+  <>
+    Next, <strong>upload your resume</strong> for WorkIt to read.
+  </>,
+  <>
+    Then, the questions <strong>every application asks</strong>.
+  </>,
+  <>
+    Next, <strong>when you can work</strong>, and a few screening facts.
+  </>,
+  <>
+    Now, <strong>add the WorkIt extension</strong> to Chrome.
+  </>,
+  <>
+    Then, let <strong>your Claude write your answers</strong>, if you want.
+  </>,
+  <>
+    Last, try a <strong>practice batch</strong> before a real one.
+  </>,
 ];
+
+/** The resume step's second question, once "What WorkIt Found" is on screen
+ *  (KAN-732): the step is two moments, reading the file and checking the
+ *  reading before Save Resume. Not for "Already Uploaded", which has nothing
+ *  to save, so its step keeps the first question. Says "WorkIt", never "AI":
+ *  the parser reads when the student has no AI reading left. */
+const REVIEW = (
+  <>
+    Now, <strong>check what WorkIt found</strong>, then save it.
+  </>
+);
 
 /** The wizard's pages by name (./steps.ts WIZARD_PAGES). */
 const ROLE = WIZARD_PAGES.indexOf("Role");
@@ -253,10 +237,12 @@ export function OnboardingForm({
   const [preview, setPreview] = useState<ResumePreview | null>(null);
   /** The reading's skills the student took out (×, KAN-369); cleared with the file. */
   const [removedSkills, setRemovedSkills] = useState<string[]>([]);
+  /** The reading's entry open in the editor, by its place (KAN-732); cleared with the file. */
+  const [editingEntry, setEditingEntry] = useState<number | null>(null);
   /** The file name this visit saved, for the resume step's "Saved" line. */
   const [savedResume, setSavedResume] = useState<string | null>(null);
-  // What is in flight. "reading" alone shows on the dropzone, so it never
-  // says "Uploading…" for a save.
+  // What is in flight. "reading" alone shows on the dropzone ("Reading your
+  // resume…"): a save sends the reading back and reads nothing.
   const [busy, setBusy] = useState<"reading" | "saving" | null>(null);
   const saving = busy != null;
   const [error, setError] = useState<string | null>(null);
@@ -276,23 +262,28 @@ export function OnboardingForm({
     answers.jobTypes.length === 0 && "a job type",
     answers.workStyles.length === 0 && "a workplace",
   ].filter((m) => m !== false);
+  // Save Resume waits while an entry is open in the editor: saving then would
+  // drop what the student typed into it, since only Save keeps it.
   const canNext =
     step === ROLE
       ? missing.length === 0
       : step === RESUME
-        ? resume != null || savedResume != null
+        ? (resume != null || savedResume != null) && editingEntry === null
         : step === EXTENSION
           ? extension?.installed === true
           : step === CLAUDE
             ? claude === true
             : true;
 
+  // The resume step asks its second question once a reading is on screen.
+  const reviewing = step === RESUME && preview != null && !preview.duplicate_of;
+
   // EACH NEW QUESTION TAKES FOCUS, so a screen reader reads it out. Focus used
   // to stay on the footer's button, which only changed its label, and the new
-  // question went unannounced.
+  // question went unannounced. The resume step's second question counts.
   useEffect(() => {
     if (moved.current) heading.current?.focus({ preventScroll: true });
-  }, [step]);
+  }, [step, reviewing]);
 
   function goTo(next: number) {
     moved.current = true;
@@ -306,7 +297,15 @@ export function OnboardingForm({
     setResume(file);
     setPreview(null);
     setRemovedSkills([]);
+    setEditingEntry(null);
     setError(null);
+  }
+
+  /** Done in the editor, or Leave Out: the reading the save will send back
+   *  changes, and nothing is written until Save Resume (KAN-732). */
+  function changeEntries(change: (entries: PreviewEntry[]) => PreviewEntry[]) {
+    setPreview((reading) => reading && { ...reading, entries: change(reading.entries) });
+    setEditingEntry(null);
   }
 
   function resumeForm() {
@@ -337,8 +336,11 @@ export function OnboardingForm({
       const form = resumeForm();
       // Not saved, and no later reading adds them again (KAN-369).
       for (const name of removedSkills) form.append("removed_skills", name);
+      // The reading the student checked, so the save asks AI for nothing
+      // more (KAN-732): one AI reading per resume.
       const { error: uploadError, duplicateOf } = await uploadResume(form, {
         replaceMatching: true,
+        reading: preview ?? undefined,
       });
       // A duplicate is already uploaded (KAN-267): an upload that reached
       // the API before a dropped connection, sent again on retry. Not a
@@ -367,7 +369,7 @@ export function OnboardingForm({
 
   const resumeLabel =
     busy === "reading"
-      ? "Reading…"
+      ? "Reading Resume…"
       : preview
         ? preview.duplicate_of
           ? "Next"
@@ -491,7 +493,9 @@ export function OnboardingForm({
       : step === ROLE
         ? `Pick ${andList(missing)} to continue.`
         : step === RESUME
-          ? "Choose a resume file to read it, or skip this step."
+          ? editingEntry !== null
+            ? "Press Save or Cancel in the entry you are editing to save your resume."
+            : "Choose a resume file to read it, or skip this step."
           : step === EXTENSION
             ? "Add the WorkIt extension to continue, or skip setup."
             : null;
@@ -509,9 +513,8 @@ export function OnboardingForm({
   return (
     <main className="flex min-h-svh flex-1 flex-col lg:h-svh lg:flex-none lg:flex-row">
       <StoryPanel
-        step={step}
-        question={STEPS[step].question}
-        line={STEPS[step].line}
+        questionKey={reviewing ? `${step}-review` : String(step)}
+        question={reviewing ? REVIEW : STEPS[step]}
         headingRef={heading}
       />
 
@@ -546,6 +549,12 @@ export function OnboardingForm({
               preview={preview}
               removedSkills={removedSkills}
               onRemoveSkill={(name) => setRemovedSkills((all) => [...all, name])}
+              editing={editingEntry}
+              onEditEntry={setEditingEntry}
+              onSaveEntry={(index, entry) =>
+                changeEntries((all) => all.map((e, i) => (i === index ? entry : e)))
+              }
+              onLeaveOutEntry={(index) => changeEntries((all) => all.filter((_, i) => i !== index))}
               savedName={savedResume}
             />
           )}

@@ -53,8 +53,11 @@ resume; KAN-207 renders the bank and retired the proof endpoint.
 - **`PageSettings` is how a resume's page is set** (KAN-435): font size,
   line spacing, side and top margins, alignment, section and entry spacing,
   accent color, bullet, the rule under section titles, header alignment and
-  section order (`section_order`, every section once, which `jakes.body` and
-  the Word file both follow),
+  section order (`section_order`, every fixed section once, then any
+  custom section the student moved as its `resume_view.custom_key`, each
+  once: `valid_order`; `jakes.body` and the Word file both print by
+  `printed_order`, which puts a custom section the order does not name
+  first when its name reads as a summary, else last; KAN-498),
   each from a fixed list at the top of `__init__.py`, stored on
   `built_resumes.page_settings`. Section and entry spacing, the accent, the
   bullet and the rule are preamble lines; the accent on the name and the
@@ -76,8 +79,8 @@ resume; KAN-207 renders the bank and retired the proof endpoint.
   bank id (the entry's for its fields), and `kind` is `bullet`, `skill` or
   the field: `title`, `organization`, `location`, `dates`, `degree`
   (Education's subtitle, which also names the school), `gpa`, `coursework`,
-  `honors`. `fields.heading_fields()` says which field each heading slot
-  shows. The header's boxes have `item_id` `HEADER` ("header", not a
+  `honors`, and a project's `tools` line. `fields.heading_fields()` says
+  which field each heading slot shows. The header's boxes have `item_id` `HEADER` ("header", not a
   bank id) and the profile column as `kind`: `full_name`, `phone_number`,
   `email`, `linkedin_url`, `github_url`, `portfolio_url`, `other_url`, which
   is why `HeaderIdentity.links` carries each link's column. The `email` box
@@ -192,6 +195,31 @@ resume; KAN-207 renders the bank and retired the proof endpoint.
   cache failed "couldn't get it from the internet" (2026-11-05).
 - **An empty itemize is a LaTeX error**, so a bullet list opens only around
   bullets.
+- **A project's tools print on a line of their own** (KAN-738), under the
+  heading's first line, in the italic `\small` of `\resumeSubheading`'s
+  second row, as a student's own resume printed them; `fields.heading`
+  puts them in a one-row section's `subtitle`, and the Word file adds an
+  italic row. Jake's `\resumeProjectHeading` has one row and `jakes.tex`
+  stays byte for byte, so `jakes._entry` writes that heading's tabular
+  itself with the second row; a project with no tools still uses the
+  macro, so its page is as before. The heading's first line keeps the
+  organization and link after the bar: Jake's sample puts the stack
+  there, but WorkIt already prints those, and the student chose the
+  second line (2026-11-09). Its box's kind is `tools`, which the editor
+  types as a list split at commas (`../resume_lines.py`). There is no
+  toggle on a built resume: emptying the project's tools takes the line
+  off every resume that shows it. Fit to One Page never cuts the line; it
+  is part of its entry's height.
+- **A custom section prints its own name** (`ViewSection.label`, KAN-498,
+  `../../../../docs/custom_sections.md`), escaped as any applicant text.
+  Its Entries print as a project's (`fields.heading`'s one-row branch).
+  **A Lines section prints its entries' bullets as plain lines**
+  (`jakes._lines`): no heading, no dot, each a `\resumeItem` with
+  `\ignorespaces` in the list the skills sit in (`label={}`), each with its
+  bullet box, and no section when it has no line. The Word file prints them
+  as plain paragraphs under the heading. A fixed section's `label` and
+  `layout` are None, and `sent_resumes.content_hash` leaves them out, so a
+  resume with no custom section hashes as before.
 - **Every `\resumeItem` argument ends in `\ignorespaces`** (KAN-391). Jake's
   macro puts a space after its argument (`{#1 \vspace{-2pt}}`); when a
   bullet's last line was full, TeX broke at that space and printed an

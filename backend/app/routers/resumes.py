@@ -1,28 +1,31 @@
 """Resumes under /applicants/{applicant_id}/resumes: upload, list, delete.
 
 Upload (POST) extracts text from a PDF or DOCX into `raw_text`, always from
-the file (the client never sends parsed content), reads it with the
-heuristic parser and writes what it read into the experience bank with
+the file, reads it (`services/resume_reading.py`: the model first while the
+student has an AI reading left today, the heuristic parser behind it;
+KAN-732, ADR 0007) and writes what it read into the experience bank with
 `services/bank.py`'s `import_upload`, as entries and skills the upload owns
-(ADR 0005), in the same transaction as the row. The response's `bank` says what it wrote (`ImportResult`); the
-parser's reading is not kept anywhere else. The model never reads an upload
-by itself: the student asks for that through Import Again
-(`POST /applicants/{id}/bank/import`). `GET .../{resume_id}` returns one
+(ADR 0005), in the same transaction as the row and the AI use. The response's `bank` says what it wrote and who read it (`ImportResult`); the
+reading is not kept anywhere else. `GET .../{resume_id}` returns one
 resume as the list does.
 **The parse preview** (KAN-372, ADR 0006): `POST .../preview` takes a file
-as upload does and answers what the parser reads in it (`ResumePreview`),
-saving nothing: each entry and skill lists the other uploads' rows a
-confirm would replace, and `duplicate_of` names an upload with the same
-text. The student confirms by uploading the same file with
-`?replace=matching`, which also deletes those rows in the upload's
-transaction (`bank.import_upload`). The skills the student took out of the
+as upload does and answers what the reading finds in it (`ResumePreview`,
+with `read_by`), saving nothing but the AI use: each entry and skill lists
+the other uploads' rows a confirm would replace, and `duplicate_of` names
+an upload with the same text. The student confirms by uploading the same
+file with `?replace=matching`, which also deletes those rows in the
+upload's transaction (`bank.import_upload`), and sends the preview's
+reading back as the form field `reading` (`ConfirmedReading`): the confirm
+saves that, checked as an Add is, without reading the file again, so one
+resume costs one AI reading. The skills the student took out of the
 preview (× on a tag) come as form fields `removed_skills`: they are not
 saved and are remembered as removed (KAN-369). A preview never lists a
 skill the student removed.
 **Duplicates** (KAN-267): an upload whose text matches one of the student's
 uploads (`text_hash`, which says what "matches" means) answers 409
-`{"detail": {"message": "Duplicate Resume found: <name>", "resume_id"}}`
-before anything is stored; Import Updated Resume checks the student's other
+`{"detail": {"message": "Duplicate Resume found: <name>", "resume_id",
+"name"}}` before anything is stored (`name` for the Resumes page's
+duplicate modal to name the upload it matches); Import Updated Resume checks the student's other
 uploads. Checked before the 5-upload limit, so a student at the limit still
 learns the file is already there.
 `PUT .../{resume_id}` (a file, as upload takes it) is Import Updated Resume:
@@ -68,9 +71,11 @@ from pathlib import PurePosixPath
 from typing import Literal
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Query, Response, UploadFile
+from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
+from workit_scout.llm import LLM
 
 from app.db import get_session, get_supabase
 from app.deps import assert_applicant_owns, get_current_account
@@ -79,6 +84,7 @@ from app.models.profiles import Applicant_Profile
 from app.models.resume import Resume
 from app.schemas.auth import AuthenticatedAccount
 from app.schemas.bank import (
+    ConfirmedReading,
     ImportResult,
     PreviewDuplicate,
     PreviewEntry,
@@ -95,6 +101,8 @@ from app.services import (
     skill_catalog,
     stored_files,
 )
+from app.services.models import get_llm
+from app.services.resume_reading import read_upload
 from app.services.stored_files import BUCKET
 from app.services.text_extraction import UploadRejected
 from app.services.text_extraction import extract as _extract
@@ -137,10 +145,13 @@ async def _duplicate_of(
 
 def _duplicate(resume: Resume) -> HTTPException:
     # A dict detail: the message to show, and which resume it is, for a
-    # screen that selects it (docs/sent_resume.md, flow 1).
+    # screen that selects it (docs/sent_resume.md, flow 1), and its name for
+    # one that says it in its own words (the Resumes page's modal).
+    name = resume.original_filename or "Uploaded resume"
     return HTTPException(409, {
-        "message": f"Duplicate Resume found: {resume.original_filename or 'Uploaded resume'}",
+        "message": f"Duplicate Resume found: {name}",
         "resume_id": str(resume.id),
+        "name": name,
     })
 
 
@@ -149,30 +160,53 @@ async def preview_resume(
     applicant_id: uuid.UUID,
     file: UploadFile,
     account: AuthenticatedAccount = Depends(get_current_account),
+    llm: LLM = Depends(get_llm),
     session: AsyncSession = Depends(get_session),
 ):
     """The parse preview (KAN-372, ADR 0006): the file read as an upload
-    reads it, with nothing saved: no Storage file, no row, no bank write. The
-    student confirms by uploading the same file with `?replace=matching`."""
+    reads it, with nothing saved but the AI use: no Storage file, no row, no
+    bank write. The student confirms by uploading the same file with
+    `?replace=matching` and this reading as `reading`."""
     assert_applicant_owns(account, applicant_id)
     try:
         contents, ext, _ = await _read_upload(file)
     except UploadRejected as exc:
         raise HTTPException(exc.status, str(exc)) from exc
     raw_text = await _extract(contents, ext)
-    entries, skills = bank_import.read(raw_text)
+    reading, _ = await read_upload(session, applicant_id, account, raw_text, llm)
+    entries, skills = reading.entries, reading.skills
     # A skill the student removed is no longer offered (KAN-369).
     removed = await bank.removed_skills(session, applicant_id)
     skills = [(name, group) for name, group in skills if skill_catalog.key(name) not in removed]
     same = await _duplicate_of(session, applicant_id, text_hash(raw_text))
     matches = await bank.upload_matches(session, applicant_id, entries, skills)
-    return ResumePreview(
+    preview = ResumePreview(
         entries=[PreviewEntry(**e.model_dump(), replaces=ids) for e, ids in zip(entries, matches.entries)],
         skills=[PreviewSkill(name=name, group=group, replaces=ids)
                 for (name, group), ids in zip(skills, matches.skills)],
         duplicate_of=None if same is None else PreviewDuplicate(
             resume_id=same.id, name=same.original_filename or "Uploaded resume"),
+        read_by=reading.read_by,
     )
+    if reading.read_by == "model":
+        # The AI reading is spent whether or not the student confirms.
+        try:
+            await session.commit()
+        except SQLAlchemyError:
+            await session.rollback()
+            logger.exception("Failed to count a preview's AI reading")
+    return preview
+
+
+def _confirmed(reading: str) -> bank_import.Reading:
+    """The preview's reading a confirm sends back (`ConfirmedReading`),
+    checked as an Add is: 422 when it is not one."""
+    try:
+        confirmed = ConfirmedReading.model_validate_json(reading)
+    except ValidationError as exc:
+        raise HTTPException(422, "The confirmed reading is not a valid reading") from exc
+    skills = bank_import.skill_pairs([(s.name, s.group) for s in confirmed.skills])
+    return bank_import.Reading(confirmed.entries, skills, confirmed.read_by)
 
 
 # Depends grabs get_session before function runs and passes the session into function.
@@ -188,10 +222,15 @@ async def upload_resume(
     # The skills the student took out of the parse preview (× on a tag,
     # KAN-369): not saved, and remembered as removed.
     removed_skills: list[str] = Form([]),
+    # The preview's reading, which a confirm saves in place of reading the
+    # file again (KAN-732): JSON, `ConfirmedReading`.
+    reading: str | None = Form(None),
     account: AuthenticatedAccount = Depends(get_current_account),
+    llm: LLM = Depends(get_llm),
     session: AsyncSession = Depends(get_session)
 ):
     assert_applicant_owns(account, applicant_id)
+    confirmed = None if reading is None else _confirmed(reading)
 
     try:
         contents, ext, mime = await _read_upload(file)
@@ -208,6 +247,13 @@ async def upload_resume(
         await built_resumes.check_room(session, applicant_id)
     except built_resumes.ResumeLimitReached as exc:
         raise HTTPException(409, str(exc))
+    # Before the Storage upload too: a reading that fails leaves no file, and
+    # a failed Storage upload rolls the AI use back with everything else.
+    if confirmed is not None:
+        read, left = confirmed, await uses_left(session, applicant_id, Feature.PARSING)
+    else:
+        read, left = await read_upload(session, applicant_id, account, raw_text, llm)
+    entries, skills = read.entries, read.skills
 
     resume_id = uuid.uuid4()
     storage_path = f"{applicant_id}/{resume_id}{ext}"
@@ -226,9 +272,6 @@ async def upload_resume(
         logger.exception("Storage upload failed",
                          extra={"storage_path": storage_path})
         raise HTTPException(502, "File upload failed")
-
-
-    entries, skills = bank_import.read(raw_text)
 
     # Resume ORM object
     resume = Resume(
@@ -251,7 +294,6 @@ async def upload_resume(
         await bank.remember_removed(session, applicant_id, removed_skills)
         imported = await bank.import_upload(
             session, applicant_id, resume.id, entries, skills, replace_matching=replace == "matching")
-        left = await uses_left(session, applicant_id, Feature.PARSING)
         await built_resumes.default_if_only(session, applicant_id)
         default_id = await _default_id(session, applicant_id)
         await session.commit()
@@ -262,7 +304,7 @@ async def upload_resume(
         await _raise_if_raced(session, exc, applicant_id, digest)
         raise HTTPException(500, "Failed to save resume record")
 
-    return _imported(resume, resume.id == default_id, entries, skills, imported, left)
+    return _imported(resume, resume.id == default_id, read, imported, left)
 
 
 async def _raise_if_raced(
@@ -283,6 +325,7 @@ async def replace_resume(
     resume_id: uuid.UUID,
     file: UploadFile,
     account: AuthenticatedAccount = Depends(get_current_account),
+    llm: LLM = Depends(get_llm),
     session: AsyncSession = Depends(get_session),
 ):
     """Import Updated Resume: a newer version of the file on this row, read
@@ -299,6 +342,9 @@ async def replace_resume(
     digest = text_hash(raw_text)
     if (same := await _duplicate_of(session, applicant_id, digest, besides=resume.id)) is not None:
         raise _duplicate(same)
+    # Read before anything is written or stored, as upload does.
+    read, left = await read_upload(session, applicant_id, account, raw_text, llm)
+    entries, skills = read.entries, read.skills
     # The old file's sent resumes become a snapshot of its text (KAN-267),
     # read while the row still holds that text; it commits with the
     # replacement, and the old file then goes as nothing uses it.
@@ -326,8 +372,6 @@ async def replace_resume(
         logger.exception("Storage upload failed", extra={"storage_path": storage_path})
         raise HTTPException(502, "File upload failed")
 
-    entries, skills = bank_import.read(raw_text)
-
     resume.original_filename = file.filename
     resume.raw_text = raw_text
     resume.text_hash = digest
@@ -339,7 +383,6 @@ async def replace_resume(
     try:
         # A newer file: its reading replaces what the old one held (ADR 0005).
         imported = await bank.import_upload(session, applicant_id, resume.id, entries, skills)
-        left = await uses_left(session, applicant_id, Feature.PARSING)
         default_id = await _default_id(session, applicant_id)
         await session.commit()
     except Exception as exc:
@@ -351,10 +394,10 @@ async def replace_resume(
     if old_path and not await sent_resumes.file_in_use(session, old_path):
         await stored_files.remove(get_supabase, old_path, "Failed to remove replaced resume file from Storage")
 
-    return _imported(resume, resume.id == default_id, entries, skills, imported, left)
+    return _imported(resume, resume.id == default_id, read, imported, left)
 
 
-def _imported(resume: Resume, is_default: bool, entries, skills, imported, left: int) -> dict:
+def _imported(resume: Resume, is_default: bool, read: bank_import.Reading, imported, left: int) -> dict:
     """An uploaded file's row and what its reading wrote into the bank."""
     return {
         "id": str(resume.id),
@@ -366,11 +409,12 @@ def _imported(resume: Resume, is_default: bool, entries, skills, imported, left:
         "is_default": is_default,
         "created_at": resume.created_at.isoformat() if resume.created_at else None,
         "bank": ImportResult(
-            found=len(entries) + len(skills),
+            found=len(read.entries) + len(read.skills),
             entries_added=imported.entries_added,
             skills_added=imported.skills_added,
             entries_replaced=imported.entries_replaced,
             skills_replaced=imported.skills_replaced,
+            read_by=read.read_by,
             uses_left=left,
         ).model_dump(),
     }

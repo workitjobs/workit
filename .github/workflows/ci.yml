@@ -44,7 +44,20 @@ jobs:
         if: needs.engine.outputs.set == 'true'
         with:
           submodules: true
+          fetch-depth: 0
           token: ${{ secrets.FILL_ENGINE_TOKEN }}
+      # actions/checkout's own submodule handling has been seen landing on
+      # fill-engine's current branch tip instead of the commit actually
+      # recorded here, even with fetch-depth: 0 (KAN-447, 2026-11-09: a
+      # run pinning fill-engine@0.3.26 built and tested 0.3.30). Force it.
+      - name: Pin fill-engine to the commit this branch actually records
+        if: needs.engine.outputs.set == 'true'
+        working-directory: .
+        run: |
+          PINNED=$(git ls-tree HEAD autofiller_extension/fill-engine | awk '{print $3}')
+          git -C autofiller_extension/fill-engine fetch --depth 1 origin "$PINNED"
+          git -C autofiller_extension/fill-engine checkout --detach "$PINNED"
+          echo "fill-engine pinned at: $(git -C autofiller_extension/fill-engine rev-parse HEAD)"
       - uses: actions/checkout@v4
         if: needs.engine.outputs.set != 'true'
       - uses: actions/setup-node@v4
@@ -54,6 +67,10 @@ jobs:
         working-directory: autofiller_extension/test
       - run: npx playwright test extension-id.spec.ts --project=page
         working-directory: autofiller_extension/test
+      # esbuild, which minifies what the package ships (KAN-744).
+      - run: npm ci
+        if: needs.engine.outputs.set == 'true'
+        working-directory: autofiller_extension/store
       - name: Build the Store package
         if: needs.engine.outputs.set == 'true'
         run: node store/build.mjs
@@ -84,6 +101,8 @@ jobs:
               - backend/**
               - scout/**
               - scraper/**
+              # The Rules table the API serves (KAN-756) is the engine's
+              - autofiller_extension/fill-engine
               - .github/workflows/ci.yml
             extension:
               - autofiller_extension/**
@@ -93,12 +112,15 @@ jobs:
             apply:
               - apply-agent/**
               - autofiller_extension/fill-engine
+              # Apply's truth check is a copy of this file; its test compares them
+              - backend/app/auto_apply/truth.py
               - .github/workflows/ci.yml
               - .github/workflows/engine-token.yml
 
-  # The extension's Playwright suite, headless, on the engine the submodule
-  # pins (KAN-464). The slow speed harness runs nightly instead
-  # (extension-nightly.yml). Skipped without FILL_ENGINE_TOKEN (the engine job).
+  # The extension's smoke specs (autofiller_extension/test/ci-smoke.txt),
+  # headless, on the engine the submodule pins (KAN-464). The whole suite, 40
+  # minutes on one worker, runs nightly instead (extension-nightly.yml).
+  # Skipped without FILL_ENGINE_TOKEN (the engine job).
   extension:
     needs: [changes, engine]
     if: needs.changes.outputs.extension == 'true' && needs.engine.outputs.set == 'true'
@@ -106,7 +128,7 @@ jobs:
     # accounts.google.com on its own and scrolls and focuses differently, so
     # a few specs fail there only. Free on a public repo.
     runs-on: macos-latest
-    timeout-minutes: 30
+    timeout-minutes: 8
     defaults:
       run:
         working-directory: autofiller_extension/test
@@ -114,7 +136,16 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: true
+          fetch-depth: 0
           token: ${{ secrets.FILL_ENGINE_TOKEN }}
+      # See the same step's comment in extension-store-build, above.
+      - name: Pin fill-engine to the commit this branch actually records
+        working-directory: .
+        run: |
+          PINNED=$(git ls-tree HEAD autofiller_extension/fill-engine | awk '{print $3}')
+          git -C autofiller_extension/fill-engine fetch --depth 1 origin "$PINNED"
+          git -C autofiller_extension/fill-engine checkout --detach "$PINNED"
+          echo "fill-engine pinned at: $(git -C autofiller_extension/fill-engine rev-parse HEAD)"
       - uses: ./.github/actions/extension-setup
       # The extension loads the engine's committed dist/; it must be what the
       # pinned src/ builds to.
@@ -127,7 +158,9 @@ jobs:
             echo "::error::The pinned fill-engine commit's dist/ is stale."
             exit 1
           }
-      - run: npx playwright test $(ls *.spec.ts | grep -vx speed.extension.spec.ts)
+      - name: Smoke specs
+        timeout-minutes: 6
+        run: npx playwright test --grep-invert @nightly --workers=2 $(grep -v '^#' ci-smoke.txt)
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
@@ -135,15 +168,17 @@ jobs:
           path: autofiller_extension/test/test-results
           retention-days: 7
 
-  # Apply (apply-agent/, KAN-535): ruff and the fast tests, the files that need
-  # no browser, no network and no `claude` CLI (about 30 s on Linux). The tests
-  # read the engine's saved forms, so the job needs the fill-engine submodule
-  # and is skipped without FILL_ENGINE_TOKEN (the engine job).
+  # Apply (apply-agent/, KAN-535): ruff, the fast tests (the files that need no
+  # browser, no network and no `claude` CLI) and the plain-Worker tests (KAN-667).
+  # The tests read the engine's saved forms, so the job needs the fill-engine
+  # submodule and is skipped without FILL_ENGINE_TOKEN (the engine job).
   apply:
     needs: [changes, engine]
     if: needs.changes.outputs.apply == 'true' && needs.engine.outputs.set == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # macOS: a plain Worker starts through `open` and Chrome for Testing's .app
+    # (apply/plain/launcher.py), as on the Macs Apply runs on.
+    runs-on: macos-latest
+    timeout-minutes: 35
     defaults:
       run:
         working-directory: apply-agent
@@ -151,7 +186,16 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: true
+          fetch-depth: 0
           token: ${{ secrets.FILL_ENGINE_TOKEN }}
+      # See the same step's comment in extension-store-build, above.
+      - name: Pin fill-engine to the commit this branch actually records
+        working-directory: .
+        run: |
+          PINNED=$(git ls-tree HEAD autofiller_extension/fill-engine | awk '{print $3}')
+          git -C autofiller_extension/fill-engine fetch --depth 1 origin "$PINNED"
+          git -C autofiller_extension/fill-engine checkout --detach "$PINNED"
+          echo "fill-engine pinned at: $(git -C autofiller_extension/fill-engine rev-parse HEAD)"
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -166,6 +210,7 @@ jobs:
             tests/test_accounts.py \
             tests/test_accounts_tab.py \
             tests/test_answer_bank.py \
+            tests/test_answer_sync.py \
             tests/test_answering.py \
             tests/test_applicant_name.py \
             tests/test_ask.py \
@@ -192,6 +237,9 @@ jobs:
             tests/test_ask_model.py \
             tests/test_into.py \
             tests/test_plain_tile_identity.py \
+            tests/test_plain_tile_refilm.py \
+            tests/test_plain_stale_extension.py \
+            tests/test_plain_tile_fallback.py \
             tests/test_review_kan717_hostile.py \
             tests/test_left_behind.py \
             tests/test_preflight.py \
@@ -205,6 +253,7 @@ jobs:
             tests/test_phone_push.py \
             tests/test_plain_bridge.py \
             tests/test_plain_seed_setup.py \
+            tests/test_plain_trusted_rules.py \
             tests/test_presubmit_check.py \
             tests/test_privacy_gate.py \
             tests/test_profile.py \
@@ -230,16 +279,32 @@ jobs:
             tests/test_already_applied.py \
             tests/test_tracker_contract.py \
             tests/test_tracker_record.py \
+            tests/test_truth.py \
             tests/test_worker_date.py \
             tests/test_workit_login.py
-      # The submit guard's hostile pages (KAN-666): their no-browser and CDP cases, on Playwright's
-      # Chromium. The plain Worker cases skip here (no Chrome for Testing on Linux).
-      - run: uv run playwright install --with-deps chromium
+      # Playwright's Chromium and its Chrome for Testing follow the Playwright that uv.lock
+      # pins. A miss costs one download. The plain-Worker tests skip without it, so the
+      # check below makes a failed install fail the job instead.
+      - uses: actions/cache@v4
+        with:
+          path: ~/Library/Caches/ms-playwright
+          key: chrome-for-testing-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('apply-agent/uv.lock') }}
+      - run: uv run playwright install chromium
+      - name: Chrome for Testing is installed
+        run: uv run python -c "from apply.plain.launcher import chrome_for_testing; print(chrome_for_testing())"
+      # The submit guard's hostile pages (KAN-666): no-browser, CDP and plain Worker cases.
       - name: Submit guard hostile pages
         run: uv run pytest -q tests/test_submit_guard_hostile.py
-      # The worker extension's page scripts in a window without focus (KAN-709), on Playwright's Chromium.
+      # The worker extension's page scripts in a window without focus (KAN-709).
       - name: Plain Worker focus
         run: uv run pytest -q tests/test_plain_focus.py
+      # A real plain Worker on a fake job system. A new suite this fast joins the list.
+      - name: Plain-Worker tests
+        run: |
+          uv run pytest -q -rs \
+            tests/test_plain_guards.py \
+            tests/test_plain_routing.py \
+            tests/test_plain_typing.py
 
   # The API's Cloudflare Worker (KAN-169): a type error here would otherwise
   # surface only when the deploy on main fails.
@@ -260,7 +325,7 @@ jobs:
   # changes job): 37 of the 40 PRs merged before 2026-11-04 touched neither, and each
   # waited about 7 minutes for it. A skipped job passes a required check.
   backend:
-    needs: changes
+    needs: [changes, engine]
     if: needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
     defaults:
@@ -284,7 +349,30 @@ jobs:
     env:
       TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:54330/postgres
     steps:
+      # The Rules table's tests (tests/test_rules_watermark.py, KAN-756) read
+      # the fill-engine submodule's table and run its round trip with Node;
+      # without FILL_ENGINE_TOKEN they skip and the rest runs.
       - uses: actions/checkout@v4
+        if: needs.engine.outputs.set == 'true'
+        with:
+          submodules: true
+          fetch-depth: 0
+          token: ${{ secrets.FILL_ENGINE_TOKEN }}
+      - name: Pin fill-engine to the commit this branch actually records
+        if: needs.engine.outputs.set == 'true'
+        working-directory: .
+        run: |
+          PINNED=$(git ls-tree HEAD autofiller_extension/fill-engine | awk '{print $3}')
+          git -C autofiller_extension/fill-engine fetch --depth 1 origin "$PINNED"
+          git -C autofiller_extension/fill-engine checkout --detach "$PINNED"
+          echo "fill-engine pinned at: $(git -C autofiller_extension/fill-engine rev-parse HEAD)"
+      - uses: actions/checkout@v4
+        if: needs.engine.outputs.set != 'true'
+      # Node 22 reads the engine's TypeScript fixtures as they are.
+      - uses: actions/setup-node@v4
+        if: needs.engine.outputs.set == 'true'
+        with:
+          node-version-file: .nvmrc
       - uses: astral-sh/setup-uv@v3
       - run: uv sync --locked
       - run: uv run ruff check .

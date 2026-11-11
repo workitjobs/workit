@@ -165,6 +165,19 @@ def test_a_required_essay_is_written_by_claude_and_sent_with_the_form(monkeypatc
     assert essay == MICROMOUSE
 
 
+def test_an_essay_with_a_made_up_number_and_outcome_is_held_with_each_named_and_never_sent(monkeypatch):
+    # The truth check (apply.truth, KAN-748): the Story bank never says 47 clubs, nor that any adopted it.
+    form = ResearchForm("Northwood Space")
+    made_up = "I captained our Micromouse team at MIT. 47 other clubs adopted its firmware."
+
+    row = run(monkeypatch, form, FakeClaude(essays={PROJECT: made_up}))
+
+    assert row.status == "held"
+    assert "states 47, which no source backs" in row.reason
+    assert 'claims what no source backs: "adopted" (an outcome)' in row.reason
+    assert form.submitted == []
+
+
 POSTING_PAGE = "https://jobs.example.com/example/1"  # the one Match's link in `run`
 PORTAL = "Interns work on Portal, our network of phased-array ground stations tracking 1,200 satellites."
 
@@ -202,7 +215,7 @@ def test_an_essay_stating_his_zip_code_is_not_held_for_an_unsupported_number(mon
 
 
 def test_an_essay_may_state_a_number_the_companys_material_states(monkeypatch):
-    essay = "Portal tracks 1,200 satellites. My GTFS adapters at Hitachi Rail tracked live buses."
+    essay = "Portal tracks 1,200 satellites. My adapters at Hitachi Rail tracked live buses."
 
     row = run(monkeypatch, ResearchForm("Northwood Space"), FakeClaude(essays={PROJECT: essay}),
               site=Browser({POSTING_PAGE: f"<p>{PORTAL}</p>"}))

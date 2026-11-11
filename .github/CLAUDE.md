@@ -19,11 +19,17 @@ there, a test database that cannot be reached fails the job instead of
 skipping the tests.
 
 **The backend job runs only on a PR that touches `backend/`, `scout/`,
-`scraper/` or `ci.yml`** (the `changes` job's `backend` filter). The API
+`scraper/`, the fill-engine submodule's pin or `ci.yml`** (the `changes` job's `backend` filter). The API
 installs both packages (`workit-scout` and `workit-scraper`, path
 dependencies in `backend/pyproject.toml`), and its tests read no other
 folder: the root `.env` is absent in CI, and the Fill engine test skips
-without the submodule. A new path dependency joins the filter too. Only 3 of the 40 PRs merged before
+without the submodule. A new path dependency joins the filter too.
+**The backend job checks out the fill-engine submodule when
+`FILL_ENGINE_TOKEN` is set** (KAN-756), pinned as the other engine jobs
+pin it, and sets up Node 22: the Rules table's tests read the engine's
+`dist/rules-table.json` and run its round trip on the built engine
+(`backend/tests/test_rules_watermark.py`). Without the token those tests
+skip and the rest of the job runs. Only 3 of the 40 PRs merged before
 2026-11-04 touched either folder; the rest waited about 7 minutes for a
 job their change could not fail. A skipped job passes a required check. A
 new backend test that reads a file outside those folders adds that folder
@@ -48,6 +54,8 @@ localhost, vercel.app or "Prototype", and runs `store-build.spec.ts` and
 which the default token can't read, so the build steps run only once a
 `FILL_ENGINE_TOKEN` secret (read access to workitjobs/fill-engine) is set;
 without it they show as skipped and the job checks the extension ID only.
+The build first runs `npm ci` in `store/` for esbuild, which minifies every
+packaged script (KAN-744).
 
 **Without `FILL_ENGINE_TOKEN`, the engine's tests are skipped, never green.**
 `ci.yml`, `extension-nightly.yml` and `live-canary.yml` each first call
@@ -60,14 +68,15 @@ checkout (Node, `autofiller_extension/test`'s `npm ci`, Playwright's
 Chromium) in the composite action `actions/extension-setup`; the checkout
 stays in each job, since a local action can't check out its own repo.
 
-The `extension` job (KAN-464) runs the extension's Playwright suite headless
-(`autofiller_extension/test`, both projects) on the engine the submodule
-pins, and first fails if that engine commit's committed `dist/` differs from
+The `extension` job (KAN-464) runs the smoke specs listed in
+`autofiller_extension/test/ci-smoke.txt` headless (both projects) on the
+engine the submodule pins, and first fails if that engine commit's committed `dist/` differs from
 what its `src/` builds. It runs only on a PR touching `autofiller_extension/`
 (the engine pointer included) or `ci.yml`: the `changes` job
-(`dorny/paths-filter`) decides, and a skipped job counts as passed. It leaves
-out `speed.extension.spec.ts`, the timing harness (about 7 minutes alone),
-which `workflows/extension-nightly.yml` runs with the rest every night at
+(`dorny/paths-filter`) decides, and a skipped job counts as passed. The whole
+suite is about 40 minutes on the runner's one worker, so PRs get the smoke
+set (an 8-minute limit, KAN-736) and `workflows/extension-nightly.yml` runs
+every spec, the `speed.extension.spec.ts` timing harness too, every night at
 07:41 UTC (and by hand: `gh workflow run extension-nightly.yml`). Both need
 `FILL_ENGINE_TOKEN`, as `extension-store-build` does, and are skipped
 without it. Both run on `macos-latest` (free on a public repo): on Linux, Chromium
@@ -75,11 +84,68 @@ asks `accounts.google.com` on its own (which `practice.extension.spec.ts`'s
 request list catches) and a field a panel row scrolls to doesn't come into
 view (`panel-reopen`, `workday-show`), found in the Playwright image
 2026-10-31. On CI each spec gets two retries; a broken one fails all three.
+
+**`timeout-minutes` on this job was never validated against a real run
+until 2026-11-03** (KAN-447): every PR before that one shows the job as
+skipped (no `FILL_ENGINE_TOKEN` yet), so the original 30-minute figure
+was a guess, never measured. The first real run reached 329 of 388 tests
+at the 30-minute mark and was cancelled; raised to 45, which is what
+showed the full suite needs about 40 minutes on one worker — the measurement
+KAN-736 then acted on by moving PRs to the smoke set above, at an 8-minute
+limit. Raise that 8 if the smoke set itself ever gets close, rather than
+guessing a second time.
+
+**`actions/checkout@v4`'s own submodule handling can silently land `fill-engine`
+on the wrong commit, and `fetch-depth: 0` alone does not fix it** (found
+2026-11-08, revised 2026-11-09): without `fetch-depth: 0`, the submodule
+fetch is shallow too, and when the pinned commit isn't on the default
+branch's shallow history (true as soon as `main` moves past it, which it
+usually has) it silently checks out the submodule's current branch tip
+instead — no error, no warning. A run pinning `fill-engine@0.3.26` built
+and tested `0.3.30` instead. Adding `fetch-depth: 0` to the checkout
+**did not stop this from recurring** on a later run, for a reason not yet
+root-caused (a plain local `git clone` + `git submodule update --init`
+reaches the pinned commit fine, so it isn't simply "the commit is
+unreachable" — something in `actions/checkout`'s own submodule step
+behaves differently). Rather than keep chasing that action's internals,
+every job now forces it explicitly right after the checkout: read the
+gitlink `git ls-tree HEAD` actually records, then `git -C
+autofiller_extension/fill-engine fetch --depth 1 origin <that SHA> &&
+checkout --detach <that SHA>`. This is the "Pin fill-engine to the commit
+this branch actually records" step in `ci.yml` (`extension-store-build`,
+`extension`, `apply`), `extension-nightly.yml`, `live-canary.yml` and
+`publish-extension.yml` — six places, one pattern. If `actions/checkout`
+ever fixes this upstream, these steps are redundant but harmless; don't
+remove them without confirming a real run's build log prints the version
+`git ls-tree HEAD` actually names, not just that the step exists.
+A plain local `git submodule update --init` was never affected (no
+`--depth` flag, so it always resolves the real pinned commit) — this was
+CI-only, and the most serious place it bit was `publish-extension.yml`,
+which could have shipped students an unreviewed engine build with no
+record of having done so.
+
+**The pin step's paths are repo-root-relative; a job's `defaults.run.working-directory`
+breaks it silently** (found 2026-11-09, fixed 2026-11-10): `extension-store-build`,
+`extension` (both files) and `apply` each set a job-wide working directory
+(`autofiller_extension`, `autofiller_extension/test`, `apply-agent`), and the
+pin step's `git ls-tree HEAD autofiller_extension/fill-engine` and `git -C
+autofiller_extension/fill-engine ...` resolve those paths against *that*
+directory, not the repo root — so in `autofiller_extension/test` it looked
+for `autofiller_extension/test/autofiller_extension/fill-engine`, found
+nothing, and failed every run with "fatal: cannot change to
+'autofiller_extension/fill-engine': No such file or directory" right after a
+successful submodule checkout. Fixed by adding `working-directory: .` on the
+pin step itself in every job that sets a non-root default (five of the six:
+all but `publish-extension.yml`, which sets no job-wide default and was
+never affected). A step's own `working-directory:` is always resolved from
+`$GITHUB_WORKSPACE`, never nested inside the job's default, so this is safe
+to copy into a sixth place if one is ever added.
+
 The fill-engine repo has its own CI (its `.github/workflows/ci.yml`):
 typecheck, the same stale-`dist/` check, and its tests, on every PR.
 
 The `apply` job (KAN-535) lints and tests Apply (`apply-agent/`) on
-Ubuntu: `uv sync --locked`, `uv run ruff check .` and a fixed list of test
+macOS: `uv sync --locked`, `uv run ruff check .` and a fixed list of test
 files. The list holds only the 44 files that need no browser, no network
 and no `claude` CLI: about 770 tests (28 skipped), 10 s of pytest and 14 s
 with `uv sync --locked` and ruff, timed in a Linux container
@@ -87,7 +153,18 @@ with `uv sync --locked` and ruff, timed in a Linux container
 the engine's saved forms, so the job needs the fill-engine submodule: it
 needs `FILL_ENGINE_TOKEN` and is skipped without it. It runs only on a PR
 that touches `apply-agent/`, the engine pointer, `ci.yml` or
-`engine-token.yml` (the `changes` job).
+`engine-token.yml` (the `changes` job). It then installs Chrome for Testing
+(cached by `uv.lock`) and runs `test_submit_guard_hostile.py`,
+`test_plain_focus.py`, `test_plain_guards.py` and
+`test_plain_routing.py`, the last two on a real plain Worker (KAN-667). macOS, because a
+plain Worker starts through `open` and the browser's `.app`; a step fails the
+job if the browser is missing, since these tests skip without it.
+**Its limit is 35 minutes, not 20** (2026-11-10): on the macOS runner the
+whole job took 16 to 20 minutes once the hostile pages' plain-Worker cases
+ran there. That step alone took 10 to 15 minutes, and a passing run (#521)
+finished 12 s under the old 20-minute limit. A run that hit the limit was
+cancelled in the Plain-Worker tests step, with nothing failed. Raise it again
+before it gets close, rather than splitting the job blind.
 **CI does not run the other 28 test files**, which hold the Filler tests
 (`test_*_filler.py`, `test_claude_fill.py`, `test_run.py`,
 `test_rehearse.py` and more). Most of them need Chromium or the macOS
@@ -112,6 +189,10 @@ concurrency group (`deploy-cloudflare`), whatever its ref: a group per ref let
 a branch run and a push to `main` deploy at once, so the app could end up on
 one's code and the API on the other's.
 
+- **The API job checks out the fill-engine submodule** with
+  `FILL_ENGINE_TOKEN`, pinned to the commit `main` records, because the image
+  copies the engine's Rules table from it (`backend/Dockerfile`, KAN-756). A
+  missing table fails the image build, never a deploy without it.
 - **Secrets:** `CLOUDFLARE_API_TOKEN` (account token from the "Edit Cloudflare
   Workers" template, scoped to the WorkIt account and the `workitjobs.ai`
   zone) and `CLOUDFLARE_ACCOUNT_ID`, which wrangler reads from the env.
@@ -456,3 +537,27 @@ not a re-run.
 - **Still open:** no notification when a submitted version clears (or
   fails) Google's review — that's checked by hand in the Dashboard for
   now.
+
+## Company websites from Wikidata (`workflows/company-domains.yml`)
+
+Runs `scraper/domain_pr.py --publish` daily at 07:29 UTC on `ubuntu-latest`.
+It downloads the newest scheduled scrape's `metrics.json` artifact (hence
+`actions: read`), looks up on Wikidata up to 150 of the companies whose jobs
+have no `company_domain`, and adds the websites that pass its rules to
+`scraper/checked_websites.csv` on one rolling PR from a
+`codex/company-domains-after-<n>` branch, with `scraper/company-domains.json`
+recording every board looked up. It never pushes to main and never merges.
+A person checks each row's note (the Wikidata item and its description) and
+removes the wrong ones before merging; the rules and why are in
+`scraper/docs/logos.md`, "Wikidata proposals".
+
+- **Like discovery, it needs "Allow GitHub Actions to create and approve pull
+  requests"**, and its PR, opened with `github.token`, starts no CI until a
+  person pushes to the branch.
+- **A PR closed without merging pauses it**: its ledger never reached main, so
+  every board in it would be proposed again. Reopen it, remove the rows you
+  reject and merge it, ledger included.
+- **It needs a scheduled scrape from the last week**, whose artifact it reads;
+  with none it fails and says so.
+- **It stops silently after 60 days without a commit** to `main`, like every
+  schedule here (`gh workflow enable company-domains.yml`).

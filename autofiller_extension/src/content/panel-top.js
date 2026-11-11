@@ -9,7 +9,7 @@
 //   with its Match score as a ring and its band, and "You applied on Oct 25"
 //   when WorkIt has the application as applied (background panel-top.js).
 //
-// Loaded after panel.js by the static launcher and by every fill; the first
+// Loaded after panel.js by the launcher's panel/shell and by every fill; the first
 // copy draws, once the shell exists.
 window.WIA = window.WIA || {};
 

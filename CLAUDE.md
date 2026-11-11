@@ -34,7 +34,8 @@ none.
   touches the database; runs with `python3 -m workit_scraper`, tests under
   `uvx pytest`.
 - `autofiller_extension/` — the ATS autofiller (KAN-164): a Manifest V3
-  Chrome extension, no build step, no dependency manifest. It fills through
+  Chrome extension, no build step, no dependency manifest (the Store
+  package's build minifies a copy). It fills through
   the Fill engine, the git submodule `autofiller_extension/fill-engine`
   pinned to a commit on its `main` (`git submodule update --init` once per
   checkout). Batch
@@ -177,8 +178,8 @@ with the failure it prevents.
   the sent resume it went out with (`job_applications.sent_resume_id`); a
   sent resume is an uploaded resume's file (frozen as parsed JSON once the
   upload is replaced or deleted) or a gzipped snapshot of a built resume,
-  rendered again on view; downloads keep nothing; uploads and Generate
-  refuse duplicates. Read it before changing sent resumes, applications,
+  rendered again on view; downloads keep nothing; uploads refuse
+  duplicates, and Generate asks before it makes one (KAN-444). Read it before changing sent resumes, applications,
   resume upload or delete, Generate or the editor's Download.
 - `docs/bank_by_resume.md` — KAN-343's design, built, as revised by ADR
   0005: each upload owns its own entries and skills (no merge, no
@@ -203,6 +204,12 @@ with the failure it prevents.
   the page fits; by the posting's rank on a
   resume with a job posting and by position on one without. Read it
   before changing Fit to One Page.
+- `docs/custom_sections.md` — custom sections, built (KAN-498): a section
+  the student names, Entries or Lines, five per owner, owned as entries are;
+  import keeps each heading the bank has no section for as a Lines section;
+  it prints last (a Summary first), Fit cuts it first and Tailor reads it as
+  any entry. Read it before changing the bank's sections, a resume's
+  section order or import's headings.
 - `docs/live_page.md` — the editor's live page (KAN-391), step 1 partly
   built: each edit renders from the editor's copy with no database read
   while its save writes beside it, and the page below a typed line
@@ -248,6 +255,15 @@ with the failure it prevents.
   clearing it. Holds the computer's setup and the cutover order. Read it
   before changing the scrape workflow, the embedding provider or how a
   bank is embedded.
+- `docs/auto_apply_in_jobs.md` — a plan, superseded the same day
+  (2026-11-09) by a 1024px Cards column and a queue count on the sidebar's
+  Auto Apply row, which stays; kept for its reasons. It proposed: the
+  Auto Apply queue becomes a tab of the Jobs page (`/jobs/queue`, with a
+  redirect from `/auto-apply`), the Jobs page gets a 960px column and a
+  right column, and the sidebar loses its Auto Apply row. Application
+  Info and Written Answers keep their addresses and never go back to
+  Profile (KAN-550). Read it before changing the seeker sidebar, the
+  Jobs page's layout or any `/auto-apply` address.
 - `docs/search.md` — how the Jobs page's search reads a query.
 - `docs/architecture.md` — how the halves fit together, for a reader new to
   the repo.

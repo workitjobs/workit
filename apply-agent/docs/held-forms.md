@@ -22,9 +22,18 @@ reads: it does not click, type or submit.
   posting's range (else off `compensation.fallback_hourly`), and in each
   essay a wrong pronoun or name for the applicant and another company's
   name (`verify.COMPANIES` and the policies' companies, less any that the
-  sources or the posting name). Claude makes only the judgment checks, in
+  sources or the posting name). A field that the engine's plan left blank
+  because the profile has none of it (no minor: `education.minors: []`)
+  and that offers no None, but that still shows a value, holds as a
+  leftover (`verify._leftovers`, `fill_engine.left_as_none`): an old
+  profile on the job site carried it over (Amazon's Minor, KAN-754). A
+  None or N/A that the plan picked and the page does not show is the
+  read-back's flag. A field whose fact the profile only lacks is never a
+  leftover. Claude makes only the judgment checks, in
   the Pre-submit review call (`presubmit.SYSTEM`: contradictions, wrong
-  answers); its findings join the flags.
+  answers); its findings join the flags. Its `<profile>` block holds
+  the facts as the plan read them, the Tracker's past applications too
+  (`docs/fill-engine.md`, KAN-753).
 - A review finding can name the right answer when the sources give it
   (`presubmit.Found.fixes`: an internship start in a school's From).
   Apply fills that answer in place of the wrong one (`_Planned.fix`). It
@@ -97,11 +106,21 @@ goes on from the step that the page shows.
 - **Signing in carries on by itself (KAN-670).** A form paused at a sign-in goes on with no Resume
   and no Fill again once Lisul has signed in on the page. The check is the Filler's `signed_in(page)`,
   the one its own sign-in makes, so the fill from there signs in no more: Workday's `_on_step`, and
-  Oracle's `oracle.signed_in` (Claude fill's `signed_in`). `worker.ResumeCheck` carries it with
-  `resume_blocked`. It goes on only when the page showed a sign-in first and `resume_blocked` is "".
+  Oracle's `oracle.signed_in` (Claude fill's `signed_in`), and a provider sign-in's
+  `provider_sign_in.signed_in` (below). `worker.ResumeCheck` carries it with
+  `resume_blocked`, and reads it at the pause, since Claude fill's depends on where it stopped. It goes on only when the page showed a sign-in first and `resume_blocked` is "".
   It never types into a sign-in page. A Filler with no `signed_in` waits for Resume, as before.
   A captcha on the page (`captcha.pending`) stops it for the rest of the pause: the tile says
   `rehearsal.CAPTCHA_SHOWED`, and Resume is his. The history says "Went on by itself".
+- **A provider sign-in carries on by itself too (KAN-763).** Microsoft Careers' Apply now opens a
+  window that offers "Sign in using Google" (Microsoft, LinkedIn, Facebook). Claude fill only said it
+  was blocked, so the pause was a plain handoff, and Lisul had to press Resume after he signed in
+  (live, 2026-11-10). Now plain code reads the page when Claude fill says blocked: a visible provider
+  button there makes the Handoff a Needs sign-in pause (`claude_fill._drive`, `docs/sign-in.md`). Until
+  the next drive, Claude fill's `signed_in` is `provider_sign_in.signed_in`: no provider button shows,
+  and the site's account menu does. Then the pause goes on, and Claude fill reads the same page
+  again; on the posting page it presses Apply now itself, under the drive guard. Any other Claude fill
+  pause keeps `signed_in` None (or Oracle's), so a page gate's pause never goes on by itself.
 - A tab that closed, or a rehearsal that ended, makes `resume={"ok": False,
   "why": ...}` (`rehearsal.TAB_CLOSED`, `ENDED`). The button stays, turned
   off, and says why. Fill again still fills the form anew.
@@ -119,7 +138,9 @@ goes on from the step that the page shows.
 Degree; Lisul picks it on the page, presses Resume, and the form goes to
 Review with no submit. Also a closed tab, the `/resume` route, and the
 window's card and tile. `-k by_itself`: Lisul signs in to Google on the paused page and the fill goes
-on with no Resume; a captcha there stops that. Run it with `-k`; it opens Chromium.
+on with no Resume; a captcha there stops that. Run it with `-k`; it opens Chromium. `tests/test_provider_sign_in.py`:
+the fake Microsoft Careers (`tests/fake_microsoft.py`) pauses at its sign-in window, Lisul signs in,
+and the form fills to its last page with no Resume, no provider button pressed and nothing sent.
 
 ## Resume while a rehearsal fills (KAN-594)
 
@@ -199,8 +220,8 @@ writes that one answer again.
 - **What stays off the form.** An answer over the form's cap
   (`gates.over_cap`), or with a name or number no source holds
   (`regenerate.INVENTED`), is not put on the form. The old answer stays and
-  the note says why. Other gate and verifier flags (`verify.essay`) go on
-  the note beside the field.
+  the note says why. Other gate and verifier flags (`verify.essay`), and
+  the truth check's claims (`Essay.claims`), go on the note beside the field.
 - **After.** Plain code sets the field with the page's own input events and
   reads it back (`regenerate.done`). The field is editable again. The
   Record is saved again: `answers.json`, `essays.md` and a history line

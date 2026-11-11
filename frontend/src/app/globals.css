@@ -69,9 +69,10 @@
   --color-surface-tint: #f1f7fa; /* logo tile, subtle tinted fills */
 
   /* Borders ------------------------------------------------------------- */
-  --color-border: #e8e8e8; /* a hairline: Simplify's neutral grey (2026-11-03); a card's outline is --color-border-control */
-  --color-border-subtle: #e8e8e8; /* rules and boxes inside a card; never a control's or a card's outer edge (those are --color-border-control) */
-  --color-border-control: #878c97; /* the edge of a control or a state: 3.37:1 on panel, 3.29:1 on the app ground, 3.09:1 on well (WCAG 1.4.11; #8a8f9a was 2.97:1 on the old #f5f5f5 ground) */
+  --color-border: #e8e8e8; /* a hairline: Simplify's neutral grey (2026-11-03); a card's outline is --color-border-surface */
+  --color-border-subtle: #e8e8e8; /* rules and boxes inside a card; never a control's edge (--color-border-control) or a card's outer edge (--color-border-surface) */
+  --color-border-surface: #d9d9d9; /* the outer edge of a card, a page-level box and the shell's rules (2026-11-09): 1.4:1 on panel, softer than a control's edge; the user found #878c97 on every card too dark and busy */
+  --color-border-control: #929292; /* the edge of a field or a state: 3.11:1 on panel, 3.03:1 on the app ground, 2.85:1 on well (WCAG 1.4.11). Neutral and the lightest grey that holds 3:1 on white and the ground (2026-11-09); it was #878c97 (3.37:1), which the user found too strong */
 
   /* Ink ----------------------------------------------------------------- */
   --color-ink: #121a28; /* headings, secondary-button labels */
@@ -171,7 +172,7 @@
    * The page is near white (#fcfcfc), as Simplify's is (2026-11-03). It was
    * #f5f5f5 so a white card had an edge to sit on, and the whole signed-in
    * app read as muted: white cards and light edges blended into the grey. A
-   * card now stands on its --color-border-control edge (ui/card.tsx), and the
+   * card now stands on its --color-border-surface edge (ui/card.tsx), and the
    * well is the old page grey, kept for fills inside a white surface. */
   --color-app: #fcfcfc; /* page ground behind the cards, near white as Simplify's (2026-11-03); never a fill inside a white surface (that is --color-well) */
   --color-panel: #ffffff; /* top bar, cards and secondary buttons */
@@ -277,6 +278,8 @@
    * Role's 68ch), since text past about 80 characters a line is hard to
    * follow. */
   --container-dashboard: 90rem; /* 1440px */
+  --container-job: 50rem; /* 800px: a job's page, 736px of content inside the gutters, the action bar's one row (2026-11-09) */
+  --container-feed: 63rem; /* 1008px: the Jobs page's Cards view, a 944px card inside the gutters (2026-11-09): a 240px match rail, sized to its short labels, beside a 704px body, room for its six actions and the note at the row's left end ("Auto Apply ready") on one line */
 
   /* The seeker Dashboard's tiles (KAN-173): white on the white page panel,
    * with no outline, set apart by a soft violet-tinted shadow alone. An
@@ -321,6 +324,23 @@
    * brand once it is in flight, positive once there is an offer. */
   --color-brand-pale: #ddd2ff; /* accent on a saved, not-yet-applied card */
   --color-positive: #17b076; /* offer accent: strokes and fills, never under a word */
+  /* Home's four number tiles (2026-11-09): white tiles, each with a small
+   * tinted chip and its glyph in that chip's own colour, as Linear and Stripe
+   * draw a dashboard. Every chip at OKLCH lightness 0.94 and chroma 0.045
+   * (Saved 0.012, a clean grey), every glyph at about 0.53 in its chip's hue.
+   * The tinted tiles they replaced read as four families: they differed in
+   * lightness (Saved the darkest, a dull blue-grey) and strength, and green and
+   * amber each had a disc of another hue. Each glyph is 3.97:1 or better on
+   * its chip. Home only: the Applications board keeps its stage colours
+   * (stage-colors.ts). */
+  --color-kpi-match-chip: #d3f5e0;
+  --color-kpi-match: #1a7f51;
+  --color-kpi-saved-chip: #e6ecf3;
+  --color-kpi-saved: #626d7a;
+  --color-kpi-applied-chip: #ebe8ff;
+  --color-kpi-applied: #7152c4;
+  --color-kpi-interviewing-chip: #ffe7cb;
+  --color-kpi-interviewing: #9f6703;
   --color-positive-tint: #e3f7f0; /* the offer card's company tile */
   /* The green button fills with --color-positive-ink (white on it is 5.35:1);
    * white on --color-positive was 2.80:1 (KAN-555). These are its hover and

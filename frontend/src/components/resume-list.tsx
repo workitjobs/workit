@@ -130,12 +130,16 @@ export function ResumeGroup({
   count,
   open,
   onToggle,
+  ground = false,
   children,
 }: {
   label: string;
   count: number;
   open: boolean;
   onToggle: () => void;
+  /** On the page's ground, not in a white card (the Resumes page since
+   *  2026-11-10): the sticky heading takes the ground's fill. */
+  ground?: boolean;
   children: ReactNode;
 }) {
   const id = useId();
@@ -146,7 +150,10 @@ export function ResumeGroup({
         aria-expanded={open}
         aria-controls={id}
         onClick={onToggle}
-        className="bg-panel text-note text-ink-meta hover:text-ink focus-visible:ring-brand-ring sticky top-0 z-20 flex w-full items-center gap-2 rounded-xs pt-3 pb-1 text-left transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none"
+        className={cn(
+          ground ? "bg-app" : "bg-panel",
+          "text-note text-ink-meta hover:text-ink focus-visible:ring-brand-ring sticky top-0 z-20 flex w-full items-center gap-2 rounded-xs pt-3 pb-1 text-left transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none",
+        )}
       >
         <ChevronDownIcon
           className={cn("size-3.5 transition-transform duration-150", !open && "-rotate-90")}

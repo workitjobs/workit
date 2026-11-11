@@ -51,7 +51,7 @@ from apply.fill_engine import (
     trap_handoff,
 )
 from apply.fillers import Filler, Handoff, MoreQuestions
-from apply.gates import UNTRACED_NUMBER
+from apply.gates import UNTRACED_NAME, UNTRACED_NUMBER
 from apply.home import HOME
 from apply.model import (
     NOT_A_POSTING,
@@ -269,7 +269,12 @@ class ResumeCheck:
 
     def __init__(self, filler):
         self._blocked = getattr(filler, "resume_blocked", None)
-        self.signed_in = getattr(filler, "signed_in", None)
+        self._filler = filler
+
+    @property
+    def signed_in(self):
+        """Read at the pause, not before: Claude fill's check depends on where it stopped (KAN-763)."""
+        return getattr(self._filler, "signed_in", None)
 
     def __call__(self, page) -> str:
         return self._blocked(page) if self._blocked else ""
@@ -404,9 +409,10 @@ def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fi
                     # Every answer is checked against his profile: a fact a rule answered from it (Sinhala,
                     # spoken: "Other" on Point72's list) is no fact "no source" holds.
                     drafted = bool(planned.drafted or planned.unbanked or planned.banked)
+                    # His facts as the plan read them: a past application the Tracker holds is no wrong Yes (KAN-753).
                     sources = essays.sources(profile, planned.known(), facts=True,
-                                              types=[e.plan.type for e in planned.written if e.plan]) \
-                        if planned.written or drafted else essays.profile_block(profile)
+                                              types=[e.plan.type for e in planned.written if e.plan], posting=posting) \
+                        if planned.written or drafted else essays.profile_block(profile, posting)
                     found = review(as_applicant(claude, profile), posting, questions, readback, sources, planned.text,
                                    planned.own())  # its reasons say the applicant's own pronouns
                     if not fixed and attempt < 2 and planned.fix(found.fixes, readback):
@@ -914,12 +920,16 @@ class _Planned:
             holds.append(f"'{one_line(q.label)}' needs your input beyond the Story bank")
         if essay.unsupported:
             holds.append(f"'{one_line(q.label)}' states {', '.join(essay.unsupported)}, which no source backs")
+        if essay.claims:  # the truth check: held for Lisul to read, never cut or rewritten here
+            holds.append(f"'{one_line(q.label)}' claims what no source backs: {'; '.join(essay.claims)}")
         if essay.giveaways:
             said = ", ".join(f"'{words}'" for words in essay.giveaways)
             holds.append(f"'{one_line(q.label)}' gives away how it was written ({said}), even drafted again")
-        # A number no source backs is said once, above, not again as a failed gate.
+        # A number or a name no source backs is said once, above, not again as a failed gate.
+        named = " ".join(essay.claims)
         if failed := [f for f in essay.failed
-                      if not (f.startswith(UNTRACED_NUMBER) and f.removeprefix(UNTRACED_NUMBER) in essay.unsupported)]:
+                      if not (f.startswith(UNTRACED_NUMBER) and f.removeprefix(UNTRACED_NUMBER) in essay.unsupported)
+                      and not (f.startswith(UNTRACED_NAME) and f'"{f.removeprefix(UNTRACED_NAME)}"' in named)]:
             holds.append(f"'{one_line(q.label)}' fails its checks: {'; '.join(failed)}")
         return holds
 

@@ -1,0 +1,16 @@
+EDUCATION
+Illinois State University - B.S. Computer Science, minor in Mathematics - May 2028 - GPA 3.7/4.0
+
+EXPERIENCE
+Example Logistics - Software Engineering Intern - Jun-Aug 2026
+- Built a Python service that flags late deliveries so dispatchers call customers first.
+- Cut the weekly late-delivery report from about 4 minutes to about 20 seconds in PostgreSQL.
+Illinois State University Library - Student Developer - Sep 2025-present
+- Built a Flask shelf scanner that shows checked-out books within minutes.
+
+PROJECTS
+Robotics Club - Software Lead - Aug 2024-present
+- Fixed the robot’s drift by checking both wheel encoders; 3rd of 12 at the 2025 regional contest.
+
+SKILLS
+Python, Java, C++, SQL, JavaScript, React, Flask, PostgreSQL, Git, Docker
