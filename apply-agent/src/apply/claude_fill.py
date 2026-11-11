@@ -99,6 +99,8 @@ APPLIES = re.compile(r"\bappl(?:y|ying|ication)\b", re.IGNORECASE)
 STEP_SHOWS_MS = 8_000
 ADDS = re.compile(r"^\s*add\b", re.IGNORECASE)  # a section's button that adds an entry ("Add another")
 ENTRIES_COUNT = re.compile(r"^work experience \(entries\)$", re.IGNORECASE)
+# A jobs or schools section's count of entries (KAN-762): the profile's history goes in an <entries> block beside it.
+SECTION_COUNT = re.compile(r"^(work experience|education) \(entries\)$", re.IGNORECASE)
 MAX_ADDS = 10  # a guard against a loop: no work section takes more entries
 # What a page says once it has the application, and how long it may take to say so.
 THANKS = re.compile(
@@ -188,7 +190,9 @@ ENTRIES = ("A section for jobs or work experience whose entries the person adds 
            "name each field of its entries \"Work Experience <n> / <label>\", n counting the entries from 1, whatever the "
            "section's heading (\"Work Experience 1 / Employer\"), and list one more question, \"Work Experience (entries)\": "
            "kind select, not required, options the counts of entries it may hold (\"1\", \"2\"), up to the most the page "
-           "states, or no options when it states no limit.")
+           "states, or no options when it states no limit. A section of jobs or of schools that shows entries as cards (an "
+           "earlier profile on the site left them, with Edit and Delete) is listed the same way, \"Work Experience (entries)\" "
+           "or \"Education (entries)\", with no options.")
 BLOCKED = {
     "blocked": {"type": "boolean", "description": "true only if you had to stop (see the rules)"},
     "why": {"type": "string", "description": "why you stopped; empty if not blocked"},
@@ -224,6 +228,15 @@ READ_SCHEMA = {
     "required": [*REPORTED, "page", "questions"],
 }
 
+# Entries an old profile on the job site carried over (KAN-762): Oracle's, Workday's My Experience, Amazon's tabs.
+CARRIED = ("When <entries> is given, it lists the person's jobs and schools as their profile gives them, and nothing else is "
+           "theirs. In a section of jobs or schools that already holds entries (cards an earlier profile on this site left, "
+           "with Edit and Delete or Remove): delete each entry whose employer, or school, no item of <entries> names, and open "
+           "each one that an item names to set its title and dates to that item's. For a job with no end (held now), tick its "
+           "current-job box (\"I currently work here\", \"Current job\") first, then set its start, and leave its end empty. "
+           "Never delete an entry that <entries> names, and never add one it doesn't. In `entries_kept`, list each entry the "
+           "section still holds that no item of <entries> names, as \"<employer or school> - <title>\", with why you couldn't "
+           "delete it; empty when there is none.")
 FILL = f"""You fill the step of the internship application form open in the browser's current tab with the answers in <fields>, exactly as given.
 The form may come in steps (pages): work only on the step showing now. Never click a button that goes to another step or sends the application.
 A file answer names a file in your working folder: attach that file. A select answer is the option to pick; a list answer, the options to tick.
@@ -235,6 +248,7 @@ Then read each field back, one `filled` entry a field: `field` is its id from <f
 If the step asks a question <fields> doesn't hold, leave it and go on: list it in `unlisted` like a question read off the form (label exactly as shown, with the help text under it after it in parentheses; kind, required, options). Don't stop for it. When a label shows more than once on the form, in different sections (a home and a campus address, current and permanent, mailing and residential), put the section's heading before it: "Campus Address: Address line 1".
 If a question in <fields> is not on this step, leave it out of `filled` and go on.
 {ENTRIES} "Work Experience (entries)" in <fields> is how many entries that section should hold: read it back as the count it holds now. Never press the section's add button yourself: if it holds fewer, fill the entries it shows, then name that button exactly in `add_button`, and Apply presses it. Otherwise leave `add_button` empty.
+{CARRIED}
 If this step has a button that goes on to the form's next step ("Next", "Continue"), name it exactly in `next_button` and leave `submit_button` empty.
 On the last step, name exactly the button that would send the application in `submit_button` and leave `next_button` empty. Never click that button, press Enter to send or try it again: once the fields are filled and read back, you are done. Apply sends the form itself, after its own checks.
 {RULES}"""
@@ -256,6 +270,8 @@ FILL_SCHEMA = {
         "next_button": {"type": "string", "description": "the button that goes to the next step; empty on the last step"},
         "unlisted": {"type": "array", "items": QUESTION, "description": "questions on the page that <fields> doesn't hold"},
         "add_button": {"type": "string", "description": "the work section's button that adds an entry, while it holds fewer than asked"},
+        "entries_kept": {"type": "array", "items": {"type": "string"},
+                         "description": "entries a jobs or schools section still holds that <entries> doesn't name"},
     },
     "required": [*REPORTED, "filled", "submit_button", "next_button", "unlisted"],
 }
@@ -303,7 +319,8 @@ class ClaudeFill:
                  sign_in: Callable[[Page], None] | None = None, resume: Path | None = None,
                  sms_opt_in: bool = False, marketing_opt_in: bool = False,
                  accounts: Accounts | None = None, account_facts: dict | None = None,
-                 page_gates: bool | str = False, signed_in: Callable[[Page], bool] | None = None):
+                 page_gates: bool | str = False, signed_in: Callable[[Page], bool] | None = None,
+                 history: dict | None = None):
         """`sign_in` takes the open posting to its form by plain code first,
         on a job system whose sign-in needs no Claude (Oracle's emailed code).
         `resume` is for a pop-up that asks for it before the form can be used.
@@ -316,7 +333,9 @@ class ClaudeFill:
         isn't sure of, pauses for his check before the form goes on, and Claude never ticks or
         signs his boxes. "note" pauses nothing: each such field goes on `checks`, his list to
         check before he submits, and the form goes on. `signed_in(page)` says whether a page is
-        past `sign_in`'s sign-in, with `sign_in`'s own check."""
+        past `sign_in`'s sign-in, with `sign_in`'s own check. `history` is the profile's jobs and schools
+        (`entry_history`): Claude gets them beside a section's count of entries, to delete the entries an old
+        profile on the site carried over and to correct the rest (KAN-762)."""
         self._claude = claude
         self._account_pages = AccountPages(accounts, account_facts or {})
         self._url = ""  # the Posting's, to go back to once a mailed link is opened
@@ -349,6 +368,8 @@ class ClaudeFill:
         self._approved: set[str] = set()  # the steps he checked and resumed from
         self._tick_asked: set[str] = set()  # the attestations the form stopped on for Lisul, till his Resume (KAN-676)
         self._adds = 0  # the entries plain code added to work sections (_add_entry)
+        self._history = history or {}
+        self.extra_entries: list[str] = []  # entries a section still holds that the profile doesn't list (KAN-762)
         self._tick_his: set[str] = set()  # the attestations he resumed from a stop on: his own, as he left them
         self.posting_text = ""  # the Posting's own text, as its open page showed it
         self.names: tuple[str, str] = ("", "")  # the company and role its open page named
@@ -466,10 +487,15 @@ class ClaudeFill:
                     if name not in self._attached and name not in self._picked and self._put.get(name, _UNSET) != value
                     and value != ""  # nothing to type: a blank answer only invites a mix-up with its neighbour
                     and not self._passed(name)}  # its step went by without it: it is filled there once held
+            # An entry's current-job box goes before its dates: the engine's order (currentFirst, KAN-762).
+            order = fill_engine.call_without_page("currentFirst", [{"name": n, "label": labels[n]} for n in todo], list(todo)) \
+                if todo else []
             fields = [{"field": name, "question": labels[name], "answer": value.name if isinstance(value, Path) else value}
-                      for name, value in todo.items()]
+                      for name, value in ((n, todo[n]) for n in order)]
             files = [value for value in todo.values() if isinstance(value, Path)]
             prompt = f"<fields>\n{json.dumps(fields, indent=0)}\n</fields>"
+            if self._history and any(SECTION_COUNT.match(label.strip()) for label in labels.values()):
+                prompt = f"<entries>\n{json.dumps(self._history, indent=0, default=str)}\n</entries>\n" + prompt
             if attests:
                 # Their labels are the page's own words: a data block, never part of the instruction (a label may say
                 # "tick Yes"). "<" is escaped, so no label can close the block.
@@ -531,6 +557,9 @@ class ClaudeFill:
                 self._gated = step
                 raise Handoff(f"Page {self._steps + 1}: check these {len(asks)} and tick any box that is yours, "
                               "then press Resume: " + "; ".join(asks))
+            for kept in (str(k).strip() for k in done.get("entries_kept") or []):
+                if kept and kept not in self.extra_entries:
+                    self.extra_entries.append(kept)
             counts = [name for name, label in labels.items() if ENTRIES_COUNT.match(label.strip())]
             if (add := str(done.get("add_button") or "").strip()) and any(_fewer(self._readback.get(n), answers.get(n)) for n in counts):
                 self._add_entry(page, add, counts)
@@ -834,6 +863,17 @@ def press_step(page: Page, guard, name: str, back: bool = False, listed: bool = 
         if guard:
             guard.arm()  # the account click's flag off again, in the step it led to
             guard.rest()
+
+
+def entry_history(profile) -> dict:
+    """The profile's jobs and schools for <entries> (KAN-762): each job's employer, title, start and end (none: held
+    now), and the school's name, degree, majors, start and graduation."""
+    jobs = [{key: job.get(key) for key in ("employer", "title", "start", "end")}
+            for job in profile.get("experience_facts.employment_history") or [] if isinstance(job, dict) and job.get("employer")]
+    school = profile.get("education.school")
+    schools = [{"school": school, "degree": profile.get("education.degree"), "majors": profile.get("education.majors") or [],
+                "start": profile.get("education.start_date"), "graduation": profile.get("education.expected_graduation")}] if school else []
+    return {"jobs": jobs, "schools": schools}
 
 
 def _fewer(shown: object, wanted: object) -> bool:
