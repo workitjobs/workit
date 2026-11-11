@@ -192,7 +192,7 @@ const KEEPS_SELECTION = "data-keeps-selection";
 
 /** The panel's mark while it shows Cut From Resume: Fit's scissors, amber. */
 const CUT_MARK = (
-  <span className="bg-warning-tint text-warning flex size-8 shrink-0 items-center justify-center rounded-2xl">
+  <span className="bg-warning-tint text-warning rounded-control flex size-8 shrink-0 items-center justify-center">
     <ScissorsIcon aria-hidden className="size-4.5" weight="duotone" />
   </span>
 );
@@ -200,7 +200,7 @@ const CUT_MARK = (
 /** The panel's mark while it shows the Experiences picker: the toolbar
  *  button's glyph, so what opened it is what it wears, and not Scout's. */
 const EXPERIENCES_MARK = (
-  <span className="bg-brand-tint text-brand flex size-8 shrink-0 items-center justify-center rounded-2xl">
+  <span className="bg-brand-tint text-brand rounded-control flex size-8 shrink-0 items-center justify-center">
     <StackIcon aria-hidden className="size-4.5" weight="duotone" />
   </span>
 );
@@ -2586,7 +2586,7 @@ function useFitToWindow(foot = 24) {
  *  over the page, below the 44px bar (`DOCS_BAR`) at rest and when stuck.
  *  From @6xl it docks in the grid's second column, level with the bar. */
 const FLOATING = cn(
-  "@4xl/main:col-start-1 @4xl/main:row-start-1 @4xl/main:z-30 @4xl/main:mt-13 @4xl/main:top-15 @4xl/main:w-96 @4xl/main:justify-self-end @4xl/main:rounded-2xl @4xl/main:shadow-lift",
+  "@4xl/main:col-start-1 @4xl/main:row-start-1 @4xl/main:z-30 @4xl/main:mt-13 @4xl/main:top-15 @4xl/main:w-96 @4xl/main:justify-self-end @4xl/main:rounded-card @4xl/main:shadow-lift",
   "@6xl/main:col-start-2 @6xl/main:z-auto @6xl/main:mt-0 @6xl/main:top-2 @6xl/main:w-auto @6xl/main:justify-self-stretch @6xl/main:shadow-none",
 );
 
@@ -3288,7 +3288,7 @@ function ReviewButtons({ review }: { review: ReviewTools }) {
       >
         <Icon aria-hidden className="size-5.5" />
         {count > 0 && (
-          <span className="bg-brand text-on-brand absolute -top-0.5 -right-0.5 flex h-4.5 min-w-4.5 items-center justify-center rounded-full px-1 text-xs font-semibold tabular-nums">
+          <span className="bg-brand text-on-brand text-note absolute -top-0.5 -right-0.5 flex h-4.5 min-w-4.5 items-center justify-center rounded-full px-1 font-semibold tabular-nums">
             {count}
           </span>
         )}
@@ -3535,7 +3535,7 @@ function AddContact({
       placeholder={label}
       onBlur={(e) => save(e.currentTarget)}
       onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
-      className="text-note bg-panel text-ink ring-border-subtle focus:ring-brand h-9 w-36 rounded-lg px-2 ring-1 outline-none focus:ring-2"
+      className="text-note bg-panel text-ink ring-border-subtle focus:ring-brand rounded-control h-9 w-36 px-2 ring-1 outline-none focus:ring-2"
     />
   );
 }

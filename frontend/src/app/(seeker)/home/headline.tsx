@@ -31,7 +31,7 @@ const STAT_ICONS: Record<StatKey, ComponentType<{ className?: string }>> = {
 };
 
 /**
- * Each tile's colours (KAN-423), as the user picked them: Strong Matches
+ * Each tile's colours (KAN-423), as the user picked them: Excellent Matches
  * green, Saved grey, Applied violet, Interviewing yellow. Since 2026-11-09
  * the tile is white and the colour is only a small tinted chip at its top
  * right, with the glyph in that chip's own colour (the --color-kpi-* set in
@@ -62,7 +62,7 @@ const STAT_TONE: Record<StatKey, string> = {
  *
  * Every tile is white and wears its glyph in a small chip tinted with its
  * own colour at the top right (STAT_TONE), so the four stand apart at a
- * glance without four loud blocks. Strong Matches was the one filled tile, in violet, until then:
+ * glance without four loud blocks. Excellent Matches was the one filled tile, in violet, until then:
  * violet is Applied's stage colour, so the filled tile and the Applied
  * badges said two things in one colour.
  *

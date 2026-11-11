@@ -353,7 +353,7 @@ export function PanelButton({
 
 function Group({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="bg-panel max-sm:bg-app flex shrink-0 flex-col gap-3 rounded-xl p-3">
+    <section className="bg-panel max-sm:bg-app rounded-card flex shrink-0 flex-col gap-3 p-3">
       <h3 className="text-label text-ink font-semibold">{title}</h3>
       {children}
     </section>
@@ -487,7 +487,9 @@ export function FormatOptions({
                 style={{ backgroundColor: value }}
                 className={cn(
                   "focus-visible:ring-brand-ring ring-offset-panel size-7 rounded-full ring-offset-2 transition-shadow focus-visible:ring-2 focus-visible:outline-none",
-                  page.accent === value && "ring-brand ring-2",
+                  // A grey ring under the pointer on a colour not picked:
+                  // the swatches had no hover (2026-11-10).
+                  page.accent === value ? "ring-brand ring-2" : "hover:ring-ink-faint hover:ring-2",
                 )}
                 onClick={() => onChange({ ...page, accent: value })}
               />
@@ -542,7 +544,7 @@ export function SidePanel({
   return (
     <section
       aria-label={title}
-      className="sm:bg-brand-tint sm:ring-brand-pale flex min-h-0 flex-col gap-2 sm:rounded-2xl sm:p-3 sm:ring-1"
+      className="sm:bg-brand-tint sm:ring-brand-pale sm:rounded-card flex min-h-0 flex-col gap-2 sm:p-3 sm:ring-1"
     >
       <div className="flex min-h-9 shrink-0 items-center justify-between gap-2">
         <h2 className="text-subtitle text-ink font-semibold">{title}</h2>

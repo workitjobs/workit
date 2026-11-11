@@ -23,6 +23,12 @@ import { cn } from "@/lib/cn";
  * <button> — rather than a wrapper around one, so there is no extra element in
  * the flex rows these sit in. TooltipProvider is in the root layout.
  */
+/** The `glyph` variant's classes, for a control drawn without IconButton
+ *  (the job's ⋮ menu trigger, app/(seeker)/jobs/job-more-menu.tsx). An open
+ *  menu keeps the hover look on its trigger (`data-popup-open`). */
+export const GLYPH_BUTTON =
+  "text-ink hover:text-brand hover:bg-hover data-popup-open:bg-hover data-popup-open:text-brand focus-visible:ring-brand-ring -m-1.5 inline-flex items-center justify-center rounded-full p-1.5 [--hit-grow:2px] focus-visible:ring-2";
+
 const VARIANTS = {
   /** Bare glyph: top-bar utilities and row actions. Centred in whatever box
    *  the call site sizes it to, and the hit area reaches 8px past the box,
@@ -30,6 +36,14 @@ const VARIANTS = {
    *  touch) without moving anything around it. */
   quiet:
     "text-ink hover:text-brand focus-visible:ring-brand-ring inline-flex items-center justify-center rounded-xs [--hit-grow:8px] focus-visible:ring-2",
+  /** A bare glyph among a card's or a panel's own actions (Save, Not
+   *  Interested, Ask Scout; the ⋮ menu draws the same look, `GLYPH_BUTTON`):
+   *  ink at rest and, under the pointer, brand on a 28px hover disc. The
+   *  box is padded out by a negative margin, so the glyph sits where an
+   *  unsized quiet one did, and the disc plus `--hit-grow` is the 32px
+   *  target. Brand alone on a 16px glyph read as no hover at all
+   *  (2026-11-10). */
+  glyph: GLYPH_BUTTON,
   /** Bordered and square. No screen uses it since 2026-11-09, when every
    *  icon button among buttons went `soft`; kept for the design kit and a
    *  screen that needs a square edge. Size it at the call site (size-9, the

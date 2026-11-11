@@ -39,7 +39,7 @@ import { cn } from "@/lib/cn";
  */
 export const FIELD_CONTROL =
   "w-full rounded-control border-border-control bg-panel text-base/5 sm:text-body text-ink border " +
-  "placeholder:text-ink-meta focus-visible:border-brand focus-visible:ring-[3px] " +
+  "placeholder:text-ink-meta enabled:hover:border-ink-meta focus-visible:border-brand focus-visible:ring-[3px] " +
   "focus-visible:ring-brand-ring focus-visible:outline-none aria-invalid:border-danger " +
   "disabled:cursor-not-allowed disabled:opacity-50";
 

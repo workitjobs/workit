@@ -22,6 +22,7 @@ import {
   JobViewActions,
   JobViewBody,
   JobCardActions,
+  JobPanel,
   JobViewHeader,
   loadJobView,
   type KnownApplication,
@@ -159,9 +160,14 @@ export default async function ApplicationPage({ params }: PageProps<"/applicatio
       </JobActionBar>
 
       {job ? (
-        <JobViewHeader
-          job={job}
-          actions={actionable ? <JobCardActions view={view} job={job} /> : undefined}
+        <JobPanel
+          header={
+            <JobViewHeader
+              job={job}
+              actions={actionable ? <JobCardActions view={view} job={job} /> : undefined}
+              match={view.match}
+            />
+          }
         />
       ) : (
         <JobDetailHeader
@@ -180,7 +186,15 @@ export default async function ApplicationPage({ params }: PageProps<"/applicatio
 
       {/* Both panes, drawn once; the tab shows one (./tab-panes.tsx). */}
       <TabPanes
-        application={<YourApplication app={app} job={job} sent={view.sent} now={getNow()} />}
+        application={
+          <YourApplication
+            app={app}
+            job={job}
+            sent={view.sent}
+            now={getNow()}
+            matchAbove={job != null && view.match != null}
+          />
+        }
         emails={
           INBOX_LIVE && (
             <EmailsTab
@@ -198,7 +212,9 @@ export default async function ApplicationPage({ params }: PageProps<"/applicatio
         }
         job={
           job ? (
-            <JobViewBody view={view} job={job} descriptionOnly />
+            <JobPanel className="mt-6">
+              <JobViewBody view={view} job={job} descriptionOnly />
+            </JobPanel>
           ) : (
             <Section title="About the Role">
               <p className="text-body text-ink-meta mt-3">

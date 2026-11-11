@@ -398,7 +398,7 @@ function PlanHeader({
       <p className={cn("mt-1.5 text-sm xl:min-h-15", meta)}>{plan.pitch}</p>
 
       <p className="mt-5 flex flex-wrap items-baseline gap-x-2">
-        <span className="text-4xl font-semibold tracking-tight">
+        <span className="font-display text-4xl font-semibold tracking-tight">
           <span className={ON_MONTHLY}>${plan.price.monthly}</span>
           <span className={ON_QUARTERLY}>${plan.price.quarterly}</span>
         </span>

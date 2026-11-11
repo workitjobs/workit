@@ -1286,9 +1286,10 @@ def test_a_form_sent_with_questions_open_shows_as_sent_and_leaves_needs_you(answ
     assert late.value.code == 404
 
 
-def test_an_optional_question_saved_blank_is_skipped_and_a_file_is_attached_but_neither_kept_as_a_fact():
+def test_an_optional_question_saved_blank_is_skipped_and_kept_and_a_file_is_attached_but_not_kept_as_a_fact():
+    # His Skip goes to the save as an empty answer (KAN-759): kept, so no later form asks it again.
     saved = []
-    with Dashboard(1, FakeFrames({}), answer=lambda item, q, a: saved.append(q) or "Saved.") as board:
+    with Dashboard(1, FakeFrames({}), answer=lambda item, q, a: saved.append((q, a)) or "Skipped, and kept.") as board:
         board.update(0, company="Appian", posting_url="https://a.example/1", status=rehearsal.READY,
                      missing=["Certifications", "Writing sample", "Pronouns"],
                      required={"Certifications": False, "Writing sample": True, "Pronouns": True},
@@ -1302,8 +1303,8 @@ def test_an_optional_question_saved_blank_is_skipped_and_a_file_is_attached_but_
         with pytest.raises(urllib.error.HTTPError) as blank:
             post_answer(board, item, "Pronouns", "")  # a required one can't be skipped
 
-        assert skipped["message"].startswith("Skipped") and attached["message"].endswith("essay.pdf on the open form now.")
-        assert blank.value.code == 400 and saved == []
+        assert skipped["message"] == "Skipped, and kept." and attached["message"].endswith("essay.pdf on the open form now.")
+        assert blank.value.code == 400 and saved == [("Certifications", "")]
         (q1, none), (q2, file) = board.answered(0)
         assert (q1, none, q2, file.name, file.read_bytes()) == ("Certifications", None, "Writing sample", "essay.pdf", b"%PDF-1.4 essay")
         assert board.state()["items"][0]["questions"] == ["Pronouns"]

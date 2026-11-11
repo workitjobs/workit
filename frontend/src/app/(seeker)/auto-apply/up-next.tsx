@@ -180,7 +180,19 @@ export function UpNext({ items, saved }: { items: ActivityItem[]; saved: SavedJo
   return (
     <section aria-labelledby="up-next" className="mt-8">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <SectionHeading id="up-next">Up Next</SectionHeading>
+        {/* The queue in a line beside the heading ("1 in progress · 2
+            queued"). It sat alone above the setup strip, under the page
+            title, until 2026-11-10, where it read as a stray line. */}
+        <div className="flex flex-wrap items-baseline gap-x-3">
+          <SectionHeading id="up-next">Up Next</SectionHeading>
+          {items.length > 0 && (
+            <span className="text-body text-ink-meta">
+              <QueueSummary
+                jobs={items.map((item) => ({ id: item.id, started: item.status === "failed" }))}
+              />
+            </span>
+          )}
+        </div>
         {checked.length > 0 ? (
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-note text-ink tabular-nums">{checked.length} selected</span>
@@ -249,12 +261,12 @@ export function UpNext({ items, saved }: { items: ActivityItem[]; saved: SavedJo
 }
 
 /**
- * The Auto Apply header's line (./(queue)/page.tsx): how many jobs are In Progress
+ * Up Next's line beside its heading: how many jobs are In Progress
  * and how many Queued, by Up Next's own rule (`groupOf`), so it reads the
  * live tabs too. Each part only when it counts something: "0 queued" read
  * as a fault.
  */
-export function QueueSummary({ jobs }: { jobs: { id: string; started: boolean }[] }) {
+function QueueSummary({ jobs }: { jobs: { id: string; started: boolean }[] }) {
   const tabs = useBrowserTabs();
   const closedTabs = useClosedTabs();
   const started = jobs.filter(

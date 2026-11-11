@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { EllipsisIcon } from "@/components/icons";
+import { GLYPH_BUTTON } from "@/components/ui/icon-button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,6 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/shadcn/dropdown-menu";
 import { useToast } from "@/components/ui/toast";
+import { cn } from "@/lib/cn";
 
 import { ApplyDialog } from "./apply-button";
 
@@ -31,9 +33,10 @@ import { ApplyDialog } from "./apply-button";
  * Not Interested being stored (NOT_INTERESTED_LIVE). A menu row that does
  * nothing is a dead button.
  *
- * The trigger is a bare glyph (IconButton's `quiet` look, drawn here because
- * a menu trigger renders its own button): it sits on a white card or
- * header, and a circle with an edge is only for the grey ground.
+ * The trigger is a bare glyph (IconButton's `glyph` look, `GLYPH_BUTTON`,
+ * drawn here because a menu trigger renders its own button): it sits on a
+ * white card or header, and a circle with an edge is only for the grey
+ * ground. Its hover disc stays while the menu is open.
  */
 export function JobMoreMenu({
   jobId,
@@ -86,7 +89,10 @@ export function JobMoreMenu({
       <DropdownMenu>
         <DropdownMenuTrigger
           aria-label={`More for ${title}`}
-          className="hit-area text-ink hover:text-brand focus-visible:ring-brand-ring relative z-2 inline-flex shrink-0 items-center justify-center rounded-xs [--hit-grow:8px] focus-visible:ring-2 focus-visible:outline-none"
+          className={cn(
+            "hit-area relative z-2 shrink-0 transition-[color,background-color] duration-150 ease-out focus-visible:outline-none",
+            GLYPH_BUTTON,
+          )}
         >
           <EllipsisIcon className="size-4" />
         </DropdownMenuTrigger>

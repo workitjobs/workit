@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 
 import { TabLinks } from "@/components/ui/tabs";
+import { PAGE_SEARCH } from "@/components/ui/search-field";
 
 export type ResumesView = "resumes" | "cover-letters" | "experiences";
 
@@ -54,6 +55,5 @@ export function ResumesHeader({
   );
 }
 
-/** The width of a search in this header: the Tracker's, down to where it
- *  takes its own line. */
-export const RESUMES_SEARCH = "min-w-48 flex-1 @lg/main:max-w-64";
+/** The width of a search in this header: every page's (`PAGE_SEARCH`). */
+export const RESUMES_SEARCH = PAGE_SEARCH;

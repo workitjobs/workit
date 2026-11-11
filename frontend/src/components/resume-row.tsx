@@ -10,7 +10,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState, type FormEvent, type ReactNode } from "react";
 
-import { LocalDate, LocalDateTime } from "@/app/(seeker)/local-time";
+import { LocalDate } from "@/app/(seeker)/local-time";
 import { ResumeThumbnail } from "@/app/(seeker)/jobs/[jobId]/tailor/resume-preview";
 import { THUMBNAIL_RATIO } from "@/app/(seeker)/resumes/view";
 import { DeleteResumeConfirm } from "@/app/(seeker)/resumes/delete-confirm";
@@ -86,14 +86,15 @@ export const RESUME_TARGET_COL = "w-0 overflow-hidden p-0 @4xl:w-64 @4xl:px-4";
 /** The Type column, from `@2xl` of the table, folded as Target Job is. */
 export const RESUME_TYPE_COL = "w-0 overflow-hidden p-0 @2xl:w-32 @2xl:px-4";
 
-/** The Date Modified column: the day on a phone, under "Modified", the day
- *  and time wider. */
-export const RESUME_DATE_COL = "w-24 @2xl:w-44";
+/** The Date Modified column: the day ("Nov 10"), and room for the four
+ *  hover icons that cover it under the pointer (`CardActionIcons`). */
+export const RESUME_DATE_COL = "w-24 @2xl:w-32";
 
-/** The actions column: five icons wide (the four that show on hover and
- *  ⋮), so nothing moves when the icons appear; on a touch screen, which
- *  shows only ⋮, one, so a phone's names keep the room. */
-export const RESUME_ACTIONS_COL = "w-44 pointer-coarse:w-12";
+/** The actions column: ⋮ alone (2026-11-10). It was five icons wide, the
+ *  four that show on hover and ⋮, so at rest a 150px empty column stood
+ *  between the date and ⋮. The hover icons now cover the date, as
+ *  Gmail's do. */
+export const RESUME_ACTIONS_COL = "w-12";
 
 /** What a card's actions do, as its row hands them over. */
 export type CardActions = {
@@ -114,7 +115,9 @@ const ON_HOVER =
 /**
  * A row's actions (2026-11-10, after Google Drive): at rest only ⋮ (More
  * actions); on hover or focus, Make Primary (on a resume that is not the
- * primary), Rename, Download and Delete appear left of ⋮. The primary says
+ * primary), Rename, Download and Delete appear left of ⋮, over the Date
+ * Modified cell, on the row's own hover fill, as Gmail's row actions take
+ * the date's place. They took a column of their own, empty at rest. The primary says
  * so in a badge beside its name (`PrimaryBadge`, after Jobright's), not a
  * star here. ⋮ holds every action, worded (`RowMoreMenu` with `always`), so a
  * touch screen and a phone reach them all. Four icons on every card at all
@@ -132,12 +135,15 @@ function CardActionIcons({
   const { primary, onMakePrimary, onRename, download, onDelete } = actions;
   return (
     <div className="relative z-10 flex items-center justify-end">
-      {!primary && (
-        <span className={ON_HOVER}>
-          <PrimaryStar name={name} primary={false} onMakePrimary={onMakePrimary} />
-        </span>
-      )}
-      <div className={cn("flex items-center", ON_HOVER)}>
+      {/* Left of ⋮, over the date: the row's hover fill under it hides the
+          day; white while only the keyboard's focus shows it. */}
+      <div
+        className={cn(
+          "bg-panel group-hover:bg-hover absolute top-1/2 right-full flex -translate-y-1/2 items-center pl-2",
+          ON_HOVER,
+        )}
+      >
+        {!primary && <PrimaryStar name={name} primary={false} onMakePrimary={onMakePrimary} />}
         <IconButton
           label={`Rename ${name}`}
           tooltip="Rename"
@@ -188,8 +194,9 @@ function CardActionIcons({
  * rows (`resumes/resume-list.tsx`): **Name** (the name, with a Primary
  * badge on the primary), **Target Job** (a tailored resume's posting, as
  * the Tracker's Role cell draws a job: the company's logo, then the role
- * over the company; empty for a resume made for no job), **Type** (its
- * badge, `TypeBadge`), **Date Modified**, then the actions
+ * over the company; a faint dash for a resume made for no job), **Type**
+ * (its grey glyph and word, `TypeLabel`), **Date Modified**, then ⋮ (the
+ * other actions cover the date on hover)
  * (`CardActionIcons`). After Jobright's resume table, the name stands
  * alone, with no tile beside it: the Type column says what each resume is,
  * and the job has a column of its own, where the logos line up. The
@@ -280,7 +287,10 @@ export function ResumeCard({
           <Link
             href={href}
             title={name}
-            className="text-label text-ink hover:text-brand focus-visible:ring-brand-ring -my-1 min-w-0 truncate rounded-xs py-1 font-semibold transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none"
+            // Medium, not semibold (2026-11-10): a tailored resume's name
+            // runs to a sentence, and a column of them in semibold was the
+            // heaviest thing on the page.
+            className="text-label text-ink hover:text-brand focus-visible:ring-brand-ring -my-1 min-w-0 truncate rounded-xs py-1 font-medium transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none"
           >
             {name}
           </Link>
@@ -290,6 +300,16 @@ export function ResumeCard({
         {notes && <div className="whitespace-normal">{notes}</div>}
       </TableCell>
       <TableCell className={cn(RESUME_TD, RESUME_TARGET_COL)}>
+        {/* A faint dash where the resume was made for no job: a blank in
+            most rows read as a column that failed to load. */}
+        {!role && (
+          <span className="hidden @4xl:inline">
+            <span aria-hidden="true" className="text-ink-faint">
+              —
+            </span>
+            <span className="sr-only">No target job</span>
+          </span>
+        )}
         {role && (
           <div className="hidden min-w-0 items-center gap-3 @4xl:flex">
             {company && (
@@ -313,21 +333,14 @@ export function ResumeCard({
       <TableCell className={cn(RESUME_TD, RESUME_TYPE_COL)}>
         {type && (
           <span className="hidden @2xl:inline-flex">
-            <TypeBadge type={type} />
+            <TypeLabel type={type} />
           </span>
         )}
       </TableCell>
+      {/* The day, as a file list says it (2026-11-10): "Nov 10, 6:42 PM" in
+          every row was a column of noise, and the list is in order anyway. */}
       <TableCell className={cn(RESUME_TD, "overflow-hidden")}>
-        {modified && (
-          <>
-            <span className="@2xl:hidden">
-              <LocalDate at={modified} />
-            </span>
-            <span className="hidden @2xl:inline">
-              <LocalDateTime at={modified} />
-            </span>
-          </>
-        )}
+        {modified && <LocalDate at={modified} />}
       </TableCell>
       <TableCell className="pr-2 pl-0">
         <CardActionIcons name={name} href={href} actions={actions} />
@@ -350,12 +363,43 @@ function PrimaryBadge() {
   );
 }
 
-/** A resume's type as its badge, in the table's Type column and on a grid
- *  card: its colour and its icon, each the glyph of the button that makes
- *  that kind (2026-11-10, so the three tell apart at a glance and not by
- *  colour alone): Upload Resume's arrow, Generate Resume's page, and
- *  Tailor's pencil, which the Tracker's Tailored chip wears too. */
-function TypeBadge({ type, narrow = false }: { type: ResumeType; narrow?: boolean }) {
+/** A resume's type in the table's Type column: its glyph in grey and its
+ *  word, with no pill (2026-11-10). A tinted pill on every row, in three
+ *  colours beside the Primary pill, was the loudest thing in the table and
+ *  read as statuses; the glyph alone tells the three apart. */
+function TypeLabel({ type }: { type: ResumeType }) {
+  const icon = "text-ink-meta size-4 shrink-0";
+  return (
+    <span className="text-ink-muted flex items-center gap-1.5">
+      {type === "uploaded" ? (
+        <UploadIcon className={icon} />
+      ) : type === "generated" ? (
+        <FileTextIcon aria-hidden className={icon} />
+      ) : (
+        <TailorIcon className={icon} />
+      )}
+      {RESUME_TYPES.find((t) => t.value === type)?.label}
+    </span>
+  );
+}
+
+/** A resume's type as its badge, on a grid card and in a resume picker: its
+ *  colour and its icon, each the glyph of the button that makes that kind
+ *  (2026-11-10, so the three tell apart at a glance and not by colour
+ *  alone): Upload Resume's arrow, Generate Resume's page, and Tailor's
+ *  pencil, which the Tracker's Tailored chip wears too. The table draws the
+ *  quieter `TypeLabel`. */
+export function TypeBadge({
+  type,
+  narrow = false,
+  wordClassName,
+}: {
+  type: ResumeType;
+  narrow?: boolean;
+  /** Where the word shows, in place of `narrow`'s rule: a resume picker's
+   *  card drops it below its own `@md` (app/(seeker)/jobs/resume-picker.tsx). */
+  wordClassName?: string;
+}) {
   const icon = "size-3.5 shrink-0";
   return (
     <Badge tone={TYPE_TONE[type]}>
@@ -370,7 +414,7 @@ function TypeBadge({ type, narrow = false }: { type: ResumeType; narrow?: boolea
         {/* `narrow`: the icon alone below a 12rem line (a grid card two or
             four to a row on a phone or tablet), where the word left the
             date no room; a screen reader still hears it. */}
-        <span className={cn(narrow && "sr-only @min-[12rem]:not-sr-only")}>
+        <span className={wordClassName ?? cn(narrow && "sr-only @min-[12rem]:not-sr-only")}>
           {RESUME_TYPES.find((t) => t.value === type)?.label}
         </span>
       </span>
@@ -382,13 +426,14 @@ function TypeBadge({ type, narrow = false }: { type: ResumeType; narrow?: boolea
  *  card's logo sources (`jobLogo`). */
 export type GridCompany = { name: string; logoUrl: string | null; domain: string | null };
 
-/** Each type's badge colour: a different kind of resume, a different tone.
- *  An upload is a file the student brought (grey), a generated resume is
- *  WorkIt's (brand), a tailored one is WorkIt's for one posting (blue). */
+/** Each type's badge colour: grey for all three (2026-11-10), the glyph
+ *  telling them apart. Three tints (grey, blue, brand) on every card and
+ *  every picker row read as statuses and made the lists loud; the user
+ *  found them in their face. The Primary badge is then the one tint. */
 const TYPE_TONE: Record<ResumeType, BadgeTone> = {
   uploaded: "inert",
-  generated: "brand",
-  tailored: "advanced",
+  generated: "inert",
+  tailored: "inert",
 };
 
 /**

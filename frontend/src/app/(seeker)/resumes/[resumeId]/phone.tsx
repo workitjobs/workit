@@ -74,7 +74,7 @@ const PHONE_QUERY = "(max-width: 40rem)";
 const TAP = "[&_button]:min-h-11 [&_button]:min-w-11";
 /** 16 px: below this, iOS Safari zooms the page when the field gets focus. */
 const FIELD =
-  "bg-panel text-ink ring-border-subtle focus:ring-brand w-full resize-none rounded-xl px-3 py-2.5 text-[16px] leading-6 ring-1 outline-none focus:ring-2";
+  "bg-panel text-ink ring-border-subtle focus:ring-brand w-full resize-none rounded-control px-3 py-2.5 text-base ring-1 outline-none focus:ring-2";
 
 function subscribeQuery(onChange: () => void) {
   const query = window.matchMedia(PHONE_QUERY);
@@ -235,7 +235,9 @@ export function PhoneEditor({
             href={back.href}
             aria-label={back.label}
             onClick={back.onClick}
-            className="text-ink -ml-2 flex size-11 items-center justify-center rounded-full"
+            // A fill on the press (and under a pointer, or a keyboard's
+            // ring): the phone's back arrow gave no sign it was touched.
+            className="text-ink hover:bg-brand-pale/60 active:bg-brand-pale focus-visible:ring-brand-ring -ml-2 flex size-11 items-center justify-center rounded-full transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none"
           >
             <ArrowLeftIcon aria-hidden className="size-5" />
           </Link>

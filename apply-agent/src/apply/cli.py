@@ -827,8 +827,15 @@ def _answering(tracker: Callable[[], object], tab: AnswersTab) -> Callable[[dict
     rehearsal's into his Applicant profile, for every form after, or, for
     what an essay asked him, into the Story bank, for every essay after. A
     bare date (From, To) is that form's alone: never saved by its label.
-    The same for his answer typed on the held form itself (Board.typed)."""
+    The same for his answer typed on the held form itself (Board.typed).
+    An empty answer is his Skip of an optional question (KAN-759): kept as
+    an empty answer in his profile, so no later form asks it again."""
     def answer(item: dict, question: str, text: str) -> str:
+        if not text.strip():
+            if question.startswith(essays.ASK) or on_page.bare(question):
+                return "Skipped: it's optional, so this form leaves it blank."
+            tab.save_skipped(question)
+            return "Skipped: the form leaves it blank, and Apply won't ask it again."
         if item.get("status") == "missing fact" and item.get("application_id"):
             tracker().answer(item["application_id"], text)
             return f"Saved your answer for {item.get('company') or 'it'}: it goes on at the next check."
