@@ -108,7 +108,7 @@ def test_the_thresholds_come_from_the_settings():
 
 ADMIN = "dev@example.com"
 TABLE = {
-    "version": 1,
+    "version": 2,
     "answers": [{"pattern": {"source": "^first name$"}, "value": "fact", "args": ["identity.legal_first_name"]}],
     "systems": {"workday": {"strings": {"INTRO": "h3, h4, h5, [data-automation-id=richText], p"}}},
 }
