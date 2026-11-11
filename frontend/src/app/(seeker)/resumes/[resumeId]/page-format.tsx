@@ -16,10 +16,8 @@ import {
 import { Slider } from "@/components/shadcn/slider";
 import { Switch } from "@/components/shadcn/switch";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { FIELD_CONTROL, FIELD_LABEL } from "@/components/ui/text-field";
 import { IconButton } from "@/components/ui/icon-button";
-import { SectionHeading } from "@/components/ui/section-heading";
 import { SegmentedToggle } from "@/components/ui/segmented-control";
 import type { BankEntry } from "@/lib/bank-actions";
 import type { FontFamily, PageSettings } from "@/lib/built-resume-actions";
@@ -37,9 +35,11 @@ import { Tip } from "@/components/ui/tip";
  * editor's side panel, and a sheet on a phone.
  *
  * **It is laid out as Jobright's Style panel** (2026-11-11), which the user
- * found well organized and neither crowded nor cramped: a column of white
- * cards (`Group`), each titled over a hairline, whose controls show the
- * choice. Font (the family, then a size per kind of text in a 2 by 2 grid, section headings
+ * found well organized and neither crowded nor cramped, drawn in WorkIt's
+ * own style: flat groups (`Group`), each a name over its settings, with a
+ * hairline between groups as the Sections tab has, all open (the user's
+ * call: settings are scanned and changed across groups, so folding would
+ * cost a click per change), whose controls show the choice. Font (the family, then a size per kind of text in a 2 by 2 grid, section headings
  * among them, which have no line to click); Content Style (Date Format, the
  * bullet as tiles that draw it, Section Lines); Layout (Header Alignment,
  * Education Order as tiles that draw the order); Spacing & Margin (a slider
@@ -386,18 +386,22 @@ export function SizeStepper({
   );
 }
 
-/** One group of the panel, as Jobright's are: a white card, its title over a
- *  hairline across it, its settings roomy under that. No shadow: it sits on
- *  the panel, not the page. */
+/** One group of the tab: its name over its settings, flat on the panel,
+ *  with a hairline between groups (the tab's `divide-y`), as the Sections
+ *  tab's rows have. The name is a Sections row's type, 13px semibold ink,
+ *  over the settings' 13px grey labels, so both tabs read at one scale.
+ *  Each group was a white card with its 20px title over a hairline until
+ *  2026-11-11: no other card in the app rules off its heading, and boxed
+ *  cards in the panel beside the flat Sections list read as two designs. */
 function Group({ title, children }: { title: string; children: ReactNode }) {
   const id = useId();
   return (
-    <Card as="section" padding="none" elevated={false} aria-labelledby={id} className="shrink-0">
-      <SectionHeading as="h3" id={id} className="border-border-subtle border-b px-4 py-3">
+    <section aria-labelledby={id} className="flex shrink-0 flex-col gap-4 py-5 first:pt-1">
+      <h3 id={id} className="text-label text-ink font-semibold">
         {title}
-      </SectionHeading>
-      <div className="flex flex-col gap-5 p-4">{children}</div>
-    </Card>
+      </h3>
+      <div className="flex flex-col gap-5">{children}</div>
+    </section>
   );
 }
 
@@ -603,7 +607,7 @@ export function FormatOptions({
   };
   const changed = JSON.stringify({ ...reset, ...page }) !== JSON.stringify(reset);
   return (
-    <div className="flex shrink-0 flex-col gap-3">
+    <div className="divide-border-subtle flex shrink-0 flex-col divide-y">
       <Group title="Font">
         <Setting label="Font Family">
           <OptionMenu
@@ -677,14 +681,16 @@ export function FormatOptions({
         />
       </Group>
       {/* Always there, as Jobright's is; off while nothing is set */}
-      <Button
-        variant="secondary"
-        className="w-full"
-        disabled={!changed}
-        onClick={() => onChange(reset)}
-      >
-        Reset Formatting
-      </Button>
+      <div className="pt-5">
+        <Button
+          variant="secondary"
+          className="w-full"
+          disabled={!changed}
+          onClick={() => onChange(reset)}
+        >
+          Reset Formatting
+        </Button>
+      </div>
     </div>
   );
 }

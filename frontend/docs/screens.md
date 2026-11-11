@@ -3781,9 +3781,15 @@ student who opened a resume from Experiences landed on another view.
   bullet takes them: a title or a date is printed in Jake's type. Bold or italic
   makes the words the resume's own wording, and Word stays plain.
   **Format Options is laid out as Jobright's Style panel** (2026-11-11), which
-  the user found well organized and neither crowded nor cramped: a column of
-  white cards, each a group titled over a hairline, whose controls show the
-  choice. **Font** (Font Family, a menu of nine, each drawn in itself with the look it
+  the user found well organized and neither crowded nor cramped, in WorkIt's
+  own style: **flat groups, not cards** (2026-11-11), each a name in a
+  Sections row's type (13px semibold ink) over its settings' 13px grey
+  labels, with a hairline between groups as the Sections tab has, and every
+  group open (settings are scanned and changed across groups, so folding
+  would cost a click per change), whose controls show the choice. Jobright's
+  white cards, each titled over a hairline, came first and went the same
+  day: no other card in the app rules off its heading, and boxed cards
+  beside the flat Sections list read as two designs. **Font** (Font Family, a menu of nine, each drawn in itself with the look it
   stands for, the closed menu showing that look too; then a size per kind of
   text in a 2 by 2 grid, Section Headings among them, which have no line to
   click, each with a field to type the points in between - and +; the

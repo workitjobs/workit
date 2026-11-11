@@ -2552,10 +2552,13 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   list of families, whose `css` puts the open line in the system font the
   PDF's matches letter for letter: with Tinos a line sat 2px off the print over
   714px. **Format Options is grouped as Jobright's Style panel** (2026-11-11,
-  `docs/screens.md`): white cards (`Group`, the app's `Card` with a
-  `SectionHeading` over a hairline) for Font, Content Style, Layout and
-  Spacing & Margin, then Reset Formatting, always there and off while
-  nothing is set. A new page setting joins the card it belongs to, and only
+  `docs/screens.md`) in WorkIt's own style: flat groups (`Group`) for Font,
+  Content Style, Layout and Spacing & Margin, each a 13px semibold name over
+  its settings, a hairline between groups (`divide-y`, as the Sections tab's
+  rows), all open, then Reset Formatting, always there and off while
+  nothing is set. Each group was a white card with a 20px title ruled off
+  under it for a day: no other card in the app rules off its heading, and
+  boxed cards beside the flat Sections list read as two designs. A new page setting joins the card it belongs to, and only
   if a student expects it from a resume builder. **No Accent Color**
   (KAN-586): the user found a coloured name and headings unprofessional and
   took the swatches out. The API still prints `accent`, so a resume set to
