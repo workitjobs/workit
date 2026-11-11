@@ -626,12 +626,14 @@ Find files with a directory listing; these are the rules for where code goes.
   more than they fill (the account's `fill_event` daily counts, since
   `fill_events` names no account), fetch at timer-like gaps, or reach the
   daily cap on several days. Thresholds are the `RULES_ANOMALY_*` settings
-  in `app/config.py`. A flag is a lead to read, never a block.
+  in `app/config.py`. Whole UTC days, at most 30 (`daily_counts` is kept
+  30). A flag is a lead to read, never a block.
   **Plain data only**: never encrypted, encoded, step lists or expressions
   (the Chrome Web Store's line). Tokens are purged after a day, fetches
   after 90 (`services/retention.py`). Tests:
-  `tests/test_extension_rules.py`, `tests/test_rules_anomalies.py`, `tests/test_rules_watermark.py` (the
-  engine's round trip on watermarked tables, with Node and the submodule).
+  `tests/test_extension_rules.py`, `tests/test_rules_anomalies.py`,
+  `tests/test_rules_watermark.py` (the engine's round trip on watermarked
+  tables, with Node and the submodule).
   **Save to WorkIt by a page's link** (KAN-401, `POST /jobs/saved-by-link`
   in `routers/applications.py`, `queries/applications.py`
   `listed_job_by_link`): the extension's toolbar popup on a site it can't
