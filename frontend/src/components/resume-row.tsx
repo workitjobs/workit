@@ -7,6 +7,7 @@ import { useRef, useState, type FormEvent, type ReactNode } from "react";
 
 import { LocalDate, LocalDateTime } from "@/app/(seeker)/local-time";
 import { ResumeThumbnail } from "@/app/(seeker)/jobs/[jobId]/tailor/resume-preview";
+import { THUMBNAIL_RATIO } from "@/app/(seeker)/resumes/view";
 import { DeleteResumeConfirm } from "@/app/(seeker)/resumes/delete-confirm";
 import { EllipsisIcon, PdfIcon, PencilIcon, TrashIcon } from "@/components/icons";
 import {
@@ -377,15 +378,19 @@ function ResumeGridCard({
         // ⋮ shares the name's line only, so the line under it has the
         // card's whole width.
         <div className="@container p-3">
-          <div className="flex items-center gap-1">
+          <div className="flex items-start gap-1">
+            {/* Two lines, always two lines tall (`min-h-9`, the label's
+                18px line twice), so a row's cards keep their lines level.
+                Cut at one line, Tailor's names lost what tells them apart:
+                they open with the student's name and end with the role. */}
             <Link
               href={href}
               title={name}
-              className="text-label text-ink after:rounded-card focus-visible:after:ring-brand-ring min-w-0 flex-1 truncate font-medium after:absolute after:inset-0 focus-visible:outline-none focus-visible:after:ring-2"
+              className="text-label text-ink after:rounded-card focus-visible:after:ring-brand-ring line-clamp-2 min-h-9 min-w-0 flex-1 font-medium break-words after:absolute after:inset-0 focus-visible:outline-none focus-visible:after:ring-2"
             >
               {name}
             </Link>
-            <div className="relative z-10 -my-1 -mr-1">
+            <div className="relative z-10 -mt-1.5 -mr-1">
               <RowMoreMenu
                 always
                 name={name}
@@ -606,11 +611,13 @@ export function PendingResumeCard({
     return (
       <Card padding="none" className="h-full overflow-hidden">
         <div className="border-border-subtle border-b">
-          <div className="bg-well w-full animate-pulse" style={{ aspectRatio: "8.5 / 11" }} />
+          <div className="bg-well w-full animate-pulse" style={{ aspectRatio: THUMBNAIL_RATIO }} />
         </div>
         <div className="p-3">
-          <div className="text-label text-ink truncate font-medium">{name}</div>
-          <div className="text-note text-ink-meta">{note}</div>
+          <div className="text-label text-ink line-clamp-2 min-h-9 font-medium break-words">
+            {name}
+          </div>
+          <div className="text-note text-ink-meta mt-2">{note}</div>
         </div>
       </Card>
     );

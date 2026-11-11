@@ -2948,8 +2948,13 @@ page's view is (`resumes/view.ts`, `setResumesLayout`), so the server draws
 the chosen layout. The grid, as the list is since the same day, is one
 flat set of cards in the sort's order, the primary first, with no group
 headings (each card says what it is; the Type filter finds one type):
-each resume's first page over two lines every card has, so a row's cards
-line up: the name with ⋮, then the type as a status badge (Uploaded in
+the top of each resume's first page (4:3, `THUMBNAIL_RATIO` in
+`resumes/view.ts`: the name, contact line and first section; the whole
+page took 83% of a card and 1.5 rows filled a laptop screen, and resumes
+from one bank look alike below their first section), over lines every card
+has, so a row's cards line up: the name with ⋮, on two lines and always
+two lines tall (cut at one, Tailor's names, which open with the student's
+name, lost the role that tells two apart), then the type as a status badge (Uploaded in
 grey, Generated in the brand, Tailored in blue), a tailored resume's
 company (logo and name, which never wraps and trails off when short of
 room) and, at the line's right, the Date Modified as the list says it
@@ -2965,7 +2970,8 @@ the browser from the preview the duplicate modal uses, asked for only once
 a card comes within a screen of view and at most two at a time (`inTurn`),
 and kept for the visit: an upload's file costs nothing, and a built
 resume's is one PDF render on the API. A DOCX shows its type. Four to
-a row, two on a phone (below the list's `@3xl`), the user's call.
+a row, two on a phone (below the list's `@3xl`), the user's call. The
+grid scrolls with the page, as the table does.
 **The tile**
 (2026-11-10): an upload's file type ("PDF", "DOCX") on a neutral tile; a
 generated resume's small page in the brand tint, the drawing Generate's

@@ -12,7 +12,7 @@ import { listResumes } from "@/lib/resume-actions";
 import { SEEKER_GUTTER } from "../../gutter";
 import { BuiltResumes } from "../built-resumes";
 import { ResumesHeader } from "../header";
-import { RESUMES_LAYOUT_COOKIE, type ResumesLayout } from "../view";
+import { readResumesLayout, RESUMES_LAYOUT_COOKIE } from "../view";
 
 export const metadata: Metadata = {
   title: "Resumes",
@@ -38,7 +38,7 @@ export default async function ResumesPage() {
     listResumes(),
     cookies(),
   ]);
-  const layout: ResumesLayout = jar.get(RESUMES_LAYOUT_COOKIE)?.value === "grid" ? "grid" : "list";
+  const layout = readResumesLayout(jar.get(RESUMES_LAYOUT_COOKIE)?.value);
 
   return (
     <div className={cn("max-w-dashboard mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>

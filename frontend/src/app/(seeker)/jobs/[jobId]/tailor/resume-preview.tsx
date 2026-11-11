@@ -16,6 +16,7 @@ import { openDownload } from "@/lib/save-file";
 import type { TailorSource } from "@/lib/tailor-actions";
 
 import { loadPdfjs, PageSkeleton, PdfPages } from "../../../resumes/[resumeId]/pdf-pages";
+import { THUMBNAIL_RATIO } from "../../../resumes/view";
 
 /**
  * A resume shown read-only: in a dialog for Tailor's step 1, which opens
@@ -234,8 +235,13 @@ export function ResumeFirstPage({
 
 /**
  * A resume's first page as a grid card's picture (KAN-766): the card's full
- * width, one Letter page tall, asked for only once the card is near the
+ * width and the top of the page (`THUMBNAIL_RATIO`, its name, contact line
+ * and first section), drawn whole at the page's own shape and cut at the
+ * box's foot, asked for only once the card is near the
  * screen (`useNear`) and then in turn (`inTurn`), and kept for the visit.
+ * The whole page took 83% of a card and 1.5 rows of cards filled a laptop
+ * screen; resumes from one bank look alike below their first section
+ * anyway (2026-11-10).
  * Read-only and deaf to the pointer, so a press opens the card. A file
  * pdf.js cannot draw (a DOCX) shows `fallback`, its type, not the preview's
  * Download note; a failed one shows "No Preview".
@@ -256,22 +262,26 @@ export function ResumeThumbnail({
       ref={ref}
       aria-hidden
       className="bg-panel pointer-events-none relative w-full overflow-hidden"
-      style={{ aspectRatio: "8.5 / 11" }}
+      style={{ aspectRatio: THUMBNAIL_RATIO }}
     >
-      {!preview ? (
-        <PageSkeleton />
-      ) : preview.pdf ? (
-        <PdfPages
-          key={key}
-          pdf={preview.pdf}
-          boxes={[]}
-          selected={null}
-          onSelect={() => {}}
-          placeholder={<PageSkeleton />}
-        />
-      ) : (
+      {preview && !preview.pdf ? (
         <div className="flex h-full items-center justify-center">
           {preview.error ? <span className="text-note text-ink-meta">No Preview</span> : fallback}
+        </div>
+      ) : (
+        <div className="w-full" style={{ aspectRatio: "8.5 / 11" }}>
+          {preview?.pdf ? (
+            <PdfPages
+              key={key}
+              pdf={preview.pdf}
+              boxes={[]}
+              selected={null}
+              onSelect={() => {}}
+              placeholder={<PageSkeleton />}
+            />
+          ) : (
+            <PageSkeleton />
+          )}
         </div>
       )}
     </div>

@@ -57,15 +57,11 @@ export function ResumeScroll({
   label,
   fill = false,
   below = 0,
-  grid = false,
   children,
 }: {
   label?: string;
   fill?: boolean;
   below?: number;
-  /** The Resumes tab's grid (KAN-766): cards in columns by the list's own
-   *  width (it sits in an `@container`), not one under another. */
-  grid?: boolean;
   children: ReactNode;
 }) {
   const fit = useFillPage(fill, below);
@@ -77,11 +73,7 @@ export function ResumeScroll({
       ref={fill ? fit : undefined}
       role="list"
       aria-label={label}
-      className={cn(
-        fill ? FILL_PAGE : FIVE_ROWS,
-        "overflow-y-auto px-3 pb-3",
-        grid ? "grid grid-cols-2 content-start gap-4 pt-3 @3xl:grid-cols-4" : "flex flex-col",
-      )}
+      className={cn(fill ? FILL_PAGE : FIVE_ROWS, "flex flex-col overflow-y-auto px-3 pb-3")}
     >
       {children}
     </ul>

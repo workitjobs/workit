@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
 
-import { ResumeScroll } from "@/components/resume-list";
 import {
   RESUME_ACTIONS_COL,
   RESUME_DATE_COL,
@@ -10,6 +9,8 @@ import {
 import { Table, TableBody, TableHead, TableHeader, TableRow } from "@/components/shadcn/table";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/cn";
+
+import { RESUME_GRID } from "./view";
 
 /**
  * The Resumes page's resumes (KAN-362), in the layout the student picked
@@ -30,11 +31,11 @@ import { cn } from "@/lib/cn";
  * a resume has four facts, not twelve. Below `@2xl` of the table the Type
  * column folds to nothing and the date drops its time.
  *
- * **The grid** is the resumes' first pages, in a card-free scroll that runs
- * down to the foot of the page (`ResumeScroll`'s `fill`, KAN-434), so the
- * search and the buttons above stay in view. The scroll's own inset (its
- * px-3, the room a card's shadow needs) is taken back with -mx-3, so the
- * cards line up with the search and the buttons above.
+ * **The grid** is the tops of the resumes' first pages, four to a row (two
+ * below `@3xl`, a phone's). **Both scroll with the page** (2026-11-10): the
+ * grid scrolled inside its own box down to the page's foot, as the list
+ * did from KAN-434 to keep the search in view, so a switch of layout also
+ * switched how the page scrolled.
  */
 export function ResumeList({
   grid = false,
@@ -46,10 +47,10 @@ export function ResumeList({
 }) {
   if (grid) {
     return (
-      <section aria-label="Your Resumes" className="@container -mx-3 mt-1">
-        <ResumeScroll fill grid>
+      <section className="@container mt-4">
+        <ul role="list" aria-label="Your Resumes" className={RESUME_GRID}>
           {children}
-        </ResumeScroll>
+        </ul>
       </section>
     );
   }
