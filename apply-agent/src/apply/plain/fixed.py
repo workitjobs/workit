@@ -21,7 +21,7 @@ from functools import cache
 @cache
 def functions() -> dict[str, tuple[str, str, str]]:
     # Imported here: these modules import much of Apply, and PortPage imports this one.
-    from apply import ask, email_code, on_page, regenerate, send_click, stuck
+    from apply import ask, attach, email_code, on_page, regenerate, send_click, stuck
     from apply.plain import page, tools
 
     statements = lambda code: "() => { " + code + "; }"
@@ -44,7 +44,8 @@ def functions() -> dict[str, tuple[str, str, str]]:
         ask.UNDO: ("askUndo", "MAIN", ask.UNDO),
         send_click.ELEMENT: ("askElement", "ISOLATED", send_click.ELEMENT),
         send_click.FOCUSED: ("askFocused", "ISOLATED", send_click.FOCUSED),
-        # Whether a click would land on the option its list holds already (KAN-767).
+        # An upload's consent dialog (KAN-768): read on the page, or for the element a click would reach.
+        attach.CONSENT: ("consentDialog", "ISOLATED", attach.CONSENT),
         tools.PICKED: ("pickedOption", "ISOLATED", tools.PICKED),
     }
 

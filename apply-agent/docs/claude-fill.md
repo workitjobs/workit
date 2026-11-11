@@ -75,6 +75,16 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
   answer came after the form saved its step without it"). A rehearsal lists it as left blank and,
   once held, fills it on its own step through the window's in-place fill (`docs/held-forms.md`,
   KAN-686). A question the read pass listed has no step of its own and is carried on as before.
+- A file that brings on a consent dialog (Microsoft's Eightfold "Data Privacy Notice": I understand /
+  Cancel) is the applicant's to let go (KAN-768). Plain code (`attach.attach_resume`, `attach.CONSENT`) gives
+  the file, sees the dialog, presses none of its buttons (Cancel drops the file, and Claude's Cancel left the
+  Resume empty on 2026-11-10), and raises `attach.Consent`, a Handoff: 'Press "I understand" on the "Data
+  Privacy Notice" dialog yourself ..., then press Resume'. On Resume the fill attaches again, and finds the file
+  his press let through. A dialog still open is never given another file, and the pop-up clearer
+  (`clear_pop_up`) never closes one. A cookie banner is no such dialog. On a plain Worker, Claude's
+  `browser_click` refuses any button in such a dialog, and `browser_file_upload` tells Claude to stop when its
+  file brought one on (`plain.tools.CONSENT`). `CONSENT` is a fixed function (`plain/fixed.py`): run `apply
+  plain prepare` (or seed again) before a plain Worker uses it.
 - Eightfold's dropdowns are toggles: a click on the option a list already holds (`aria-selected`) empties the
   field (KAN-767; Microsoft's "worked with Microsoft" and "subsidiary" went blank so in an Ask). On a plain Worker
   `browser_click` makes no click on an option its single-choice list holds already (`plain.tools.PICKED`) and

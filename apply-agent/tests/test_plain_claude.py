@@ -446,3 +446,45 @@ def test_a_click_on_the_option_a_list_holds_already_is_not_made(page, site, tmp_
         said, error = tools.tool("browser_click", target=ref(tools.tool("browser_snapshot")[0], 'option "Yes"'), element="Yes")
         assert not error
     assert page.evaluate("() => document.getElementById('worked').value") == "Yes"  # an option not held is clicked
+
+
+@needs_chrome
+def test_an_uploads_consent_dialog_stops_claude_and_none_of_its_buttons_is_pressed(page, site, tmp_path):
+    """Microsoft's Data Privacy Notice (KAN-768, KAN-769): the upload's result tells Claude to stop, and its Cancel and
+    I understand are refused; the file waits on the applicant's own press."""
+    page.goto(f"{site.url}/eightfold")
+    (tmp_path / "Test_Person_Resume.pdf").write_bytes(b"%PDF-1.4 test")
+    with tools_on(page, tmp_path) as tools:
+        upload = ref(tools.tool("browser_snapshot")[0], 'button "Select file - Upload resume"')
+        tools.tool("browser_click", target=upload, element="Select file")
+        said, error = tools.tool("browser_file_upload", paths=[str(tmp_path / "Test_Person_Resume.pdf")])
+        assert not error and "### Stop" in said and '"Data Privacy Notice"' in said
+        snapshot = tools.tool("browser_snapshot")[0]
+        for button in ('button "Cancel"', 'button "I understand"'):
+            said, error = tools.tool("browser_click", target=ref(snapshot, button), element=button)
+            assert error and "consent that is the applicant" in said
+    assert page.evaluate("() => window.cancelled") is None
+    assert page.evaluate("() => document.getElementById('dpn').hidden") is False
+
+
+@needs_chrome
+def test_plain_code_hands_the_consent_to_him_and_attaches_after_his_press(page, site, tmp_path):
+    """attach_resume gives the file, sees the consent dialog it brought on, and raises Consent naming its button and
+    title, pressing nothing; once he presses I understand, the next attach finds the file attached (KAN-768)."""
+    from apply.attach import Consent, attach_resume, clear_pop_up
+    page.goto(f"{site.url}/eightfold")
+    resume = tmp_path / "Test_Person_Resume.pdf"
+    resume.write_bytes(b"%PDF-1.4 test")
+
+    with pytest.raises(Consent) as stop:
+        attach_resume(page, resume)
+    assert str(stop.value) == ('Press "I understand" on the "Data Privacy Notice" dialog yourself (a consent: Apply never '
+                               "gives it), then press Resume: Apply attaches your resume then.")
+    with pytest.raises(Consent):
+        attach_resume(page, resume)  # still open: his, and no file is given over it
+    with pytest.raises(Consent):
+        clear_pop_up(page, resume)  # never closed as a pop-up either
+    assert page.evaluate("() => window.cancelled") is None
+
+    page.evaluate("() => upload()")  # his own press of I understand
+    assert attach_resume(page, resume) is True
