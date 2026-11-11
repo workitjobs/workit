@@ -55,7 +55,7 @@ def read_board(board: Board, robots: Robots) -> BoardRead:
         return BoardRead(ReadStatus.SKIPPED, reason="no reader")
     try:
         urls = providers.robots_urls(board.ats, board.token)
-        if not all(robots.allows(url) for url in urls):
+        if not provider.skip_robots and not all(robots.allows(url) for url in urls):
             return BoardRead(ReadStatus.SKIPPED, reason="robots.txt")
         robots.pace(urls[0])
         kwargs = {"pace": robots.pace} if provider.paged else {}

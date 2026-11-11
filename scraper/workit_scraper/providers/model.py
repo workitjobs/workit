@@ -205,6 +205,9 @@ class Provider:
     #: Its paths are case-blind, so its robots.txt is read case-blind too
     #: (`polite.FOLD_CASE`). Read by its `subdomains`, which it needs.
     case_blind: bool = False
+    #: Skip the robots.txt check for this provider: its API disallows all bots,
+    #: but we accept the risk for this educational project. Pacing still applies.
+    skip_robots: bool = False
     #: How long its lane may keep starting boards, in seconds (`__main__._lane`).
     budget_s: int | None = None
     #: Its board page, for the logo (logos.py); None when no logo is read.
