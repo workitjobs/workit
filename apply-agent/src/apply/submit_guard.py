@@ -95,7 +95,10 @@ Ask's read) go through apply.natives, the same kind of built-ins; the drive guar
 and an evaluation on its own takes them as it runs. Each form post is judged again as it leaves, with
 the URL and entries it really carries; URLs resolve against the document's base; a button that holds a frame is
 never pressed. The drive guard's init script goes on at on_open, before each page's first load, in a live run too;
-a copy put into a page that skipped it, after its code, takes no lift or allowance (LATE). What no guard can tell: a page's plain fetch, or a form's own hidden field, to a URL that names no
+a copy put into a page that skipped it, after its code, takes no lift or allowance (LATE). A pop-up's copy (KAN-796) starts
+armed where no control can reach it (a pop-up's first document hears no event while the init scripts run), reads the
+document its window holds now, and puts its listeners back after a document.open or write; DriveGuard arms its page's
+pop-ups too, and a pop-up that won't hear it is a Handoff. Claude fill's own submit click lifts its page alone. What no guard can tell: a page's plain fetch, or a form's own hidden field, to a URL that names no
 submit is a save to any guard (a CDP Worker routes only URLs that name a submit; a plain Worker's rules block the
 final URLs); while plain code attaches the résumé, the form that holds it may post (iCIMS parses its whole profile
 form, Submit and all), and a frame with scripts off runs no guard.
@@ -115,10 +118,12 @@ import threading
 import time
 from collections.abc import Callable
 from contextlib import contextmanager
+from urllib.parse import urlsplit
 
 from playwright.sync_api import Page, Route
 
 from apply import captcha, send_click
+from apply.model import Handoff
 from apply.natives import NATIVES
 
 # The final requests the route stops, from the page or a worker: a path segment that names a
@@ -2195,11 +2200,56 @@ class DriveGuard:
         if not getattr(page, DRIVE_AT_OPEN, False):
             self._late(sms_opt_in, marketing_opt_in, getattr(page, REHEARSAL_AT_OPEN, False))
         control(page, {"lift": None, **opts}, (DRIVE,))
+        self._arm_pop_ups({"lift": None, **opts})
 
-    def _late(self, sms_opt_in: bool, marketing_opt_in: bool, held: bool) -> None:
-        """The copy for the open document's frames: under the rehearsal's guard, which ran before the page's code and
-        blocks every send itself, the full one, as before; else the block-only one (LATE)."""
-        self._in_frames(drive_script(sms_opt_in, marketing_opt_in, late=not held))
+    def _late(self, sms_opt_in: bool, marketing_opt_in: bool, held: bool, page=None) -> None:
+        """The copy for the open document's frames (of `page`, else the guard's own): under the rehearsal's guard,
+        which ran before the page's code and blocks every send itself, the full one, as before; else the block-only
+        one (LATE)."""
+        self._in_frames(drive_script(sms_opt_in, marketing_opt_in, late=not held), page)
+
+    def _pop_ups(self) -> list:
+        """Every open page the guard's page opened, and each one those opened (KAN-796). The control reaches only the
+        page it is sent to, so a pop-up open before the guard armed (on_open's copy, lifted until a DriveGuard arms
+        it) stayed lifted, and Claude could press its Submit."""
+        try:
+            pages = list(self._page.context.pages)
+        except Exception:
+            return []
+        mine, found, grew = {id(self._page)}, [], True
+        while grew:
+            grew = False
+            for other in pages:
+                if id(other) in mine:
+                    continue
+                try:
+                    opener = other.opener()
+                    closed = other.is_closed()
+                except Exception:
+                    continue  # a page going away
+                if opener is not None and id(opener) in mine and not closed:
+                    mine.add(id(other))
+                    found.append(other)
+                    grew = True
+        return found
+
+    def _arm_pop_ups(self, cmd: dict) -> None:
+        """`cmd` (one that arms) in each pop-up of the page too, or a Handoff: a pop-up whose drive guard won't hear
+        it, even with the block-only copy put in, is one Claude could press a Submit in, so Apply doesn't drive
+        (KAN-796: it fails closed)."""
+        for pop_up in self._pop_ups():
+            if control(pop_up, cmd, (DRIVE,)) == "heard":
+                continue
+            self._late(False, False, False, pop_up)
+            if control(pop_up, cmd, (DRIVE,)) != "heard":
+                raise Handoff(f"A pop-up of the form ({urlsplit(pop_up.url).hostname or pop_up.url}) runs no guard "
+                              "Apply can turn on, so Apply doesn't drive the form. Close the pop-up, or finish the "
+                              "form yourself.")
+
+    def _to_pop_ups(self, cmd: dict, keys=(DRIVE,)) -> None:
+        """`cmd` in each pop-up of the page, as far as it reaches (one that lifts or rests: nothing to fail closed)."""
+        for pop_up in self._pop_ups():
+            control(pop_up, cmd, keys)
 
     def blocked(self) -> list[str]:
         """What it, or a rehearsal's guard on the page, has blocked so far, as
@@ -2214,8 +2264,12 @@ class DriveGuard:
         """Clear what it has blocked so far, once Claude fill has made sense of it."""
         self._blocked.clear()
 
-    def lift(self) -> None:
+    def lift(self, pop_ups: bool = False) -> None:
+        """Off on the page: for Claude fill's own submit click there, where its pop-ups stay guarded (KAN-796), or,
+        with `pop_ups`, the page and its pop-ups Lisul's (or a Filler's) again."""
         control(self._page, {"lift": {}}, (DRIVE,))
+        if pop_ups:
+            self._to_pop_ups({"lift": {}})
         self.rest()
 
     def rest(self) -> None:
@@ -2258,8 +2312,11 @@ class DriveGuard:
         control(self._page, {"start": True})
 
     def arm(self) -> None:
+        """On before Claude drives, on the page and every pop-up of it (KAN-796), with no allowance left."""
         control(self._page, {"lift": None, "account": False, "profile": False, "upload": False, "start": False}, (DRIVE,))
         control(self._page, {"account": False, "profile": False, "upload": False, "start": False}, (REHEARSAL,))
+        self._arm_pop_ups({"lift": None, "account": False, "profile": False, "upload": False, "start": False})
+        self._to_pop_ups({"account": False, "profile": False, "upload": False, "start": False}, (REHEARSAL,))
         self._set_driving(True)
 
     def asking(self, on: bool, may_tick: bool = False) -> None:
@@ -2269,6 +2326,7 @@ class DriveGuard:
         cmd = {"asking": on, "askTick": may_tick}
         _init(self._page, cmd, (DRIVE,))
         control(self._page, cmd, (DRIVE,))
+        self._to_pop_ups(cmd)
 
     def _set_driving(self, driving: bool) -> None:
         """Claude drives now, or not: so a captcha's frame refuses every click
@@ -2279,6 +2337,7 @@ class DriveGuard:
         self._driving = driving
         _init(self._page, {"driving": driving}, (DRIVE,))
         control(self._page, {"driving": driving}, (DRIVE,))
+        self._to_pop_ups({"driving": driving})
 
     def _heard(self, message) -> None:
         for said in HEARD:
@@ -2286,8 +2345,8 @@ class DriveGuard:
                 self._blocked.append(message.text.removeprefix(said))
                 return
 
-    def _in_frames(self, script: str) -> None:
-        for frame in self._page.frames:
+    def _in_frames(self, script: str, page=None) -> None:
+        for frame in (page or self._page).frames:
             try:
                 frame.evaluate(script)
             except Exception:

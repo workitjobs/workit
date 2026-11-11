@@ -914,6 +914,12 @@ class PortPage(PortFrame):
             time.sleep(POLL)
         self.wait_for_load_state(wait_until or "load", timeout=max(1, (deadline - time.monotonic()) * 1000))
 
+    def opener(self) -> "PortPage | None":
+        """The tab that opened this one (Chrome's openerTabId), as Playwright's page.opener(); None for none, or
+        from an older worker extension, whose tabs.get doesn't say."""
+        opener = self.worker.call("tabs.get", tab=self.tab).get("opener")
+        return self.context.page(opener) if isinstance(opener, int) else None
+
     def is_closed(self) -> bool:
         if self._closed or self.worker.closed.is_set():
             return True

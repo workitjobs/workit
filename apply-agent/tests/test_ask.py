@@ -174,7 +174,7 @@ class Guard:
     def arm(self):
         self.done.append("arm")
 
-    def lift(self):
+    def lift(self, pop_ups=False):
         self.done.append("lift")
 
     def asking(self, on, may_tick=False):

@@ -1749,6 +1749,136 @@ def test_a_final_submit_dressed_as_a_sign_in_is_still_his_submit_on_a_plain_work
     assert heard == {False}
 
 
+# --- KAN-796: a live run's pop-ups. No rehearsal guard: only the drive guard stands between Claude's press and the
+# application. Claude presses through Playwright MCP, a trusted click or key on whatever tab it picks (browser_tabs),
+# so each press below is one. A pop-up opened before the drive guard armed (by a Filler's plain click), and one opened
+# during the drive (by Claude's own Next), must send nothing; the form's own page sends once Claude fill lifts it for
+# its submit click, its pop-ups still guarded.
+
+@contextmanager
+def live_cdp(pages: dict[str, str], guarded: bool = True):
+    """The pages in Playwright's Chromium as a live run opens them: on_open's lifted drive guard, no rehearsal's
+    guard (`guarded=False`: no guard at all, the control)."""
+    from plain_fakes import https_fake
+    from playwright.sync_api import sync_playwright
+
+    site = Site(pages)
+    with sync_playwright() as playwright, https_fake(site.handle) as port:
+        if not Path(playwright.chromium.executable_path).exists():
+            pytest.skip("no Playwright Chromium here")
+        browser = playwright.chromium.launch(args=[f"--host-resolver-rules=MAP * 127.0.0.1:{port}",
+                                                   "--ignore-certificate-errors", "--disable-quic"])
+        context = browser.new_context()
+        context.route(lambda url: True, site.handle)
+        page = context.new_page()
+        if guarded:
+            submit_guard.on_open(page)  # outside guarding_on_open: a live run's page
+        page.goto(HOST + START)
+        try:
+            yield page, site
+        finally:
+            browser.close()
+
+
+def _open_pop_up(page):
+    """The pop-up the Next opens, by a trusted click: a Filler's before the guard arms, Claude's during the drive."""
+    with page.context.expect_page(timeout=10_000) as opened:
+        page.locator("#b").click()
+    pop_up = opened.value
+    pop_up.wait_for_selector("#s", timeout=10_000)
+    return pop_up
+
+
+def _claudes_presses(pop_up) -> None:
+    """Every press Claude could make on the pop-up's form: its Submit, its Next, and Enter in its field."""
+    for press in (lambda: pop_up.locator("#s").click(timeout=3000), lambda: pop_up.locator("#n").click(timeout=3000),
+                  lambda: pop_up.locator("#first").press("Enter", timeout=3000)):
+        try:
+            press()
+        except Exception:
+            pass  # refused, or the pop-up went on: what was sent is asserted
+    _settle(pop_up, 1500)
+
+
+@pytest.mark.parametrize("opened", ["before the drive guard armed", "during the drive"])
+@pytest.mark.parametrize("page_name", list(LIVE_POP_UPS))
+def test_claudes_press_in_a_pop_up_sends_nothing_in_a_live_run(page_name, opened):
+    with live_cdp(LIVE_POP_UPS[page_name]) as (page, site):
+        drive = None
+        if opened == "during the drive":
+            drive = DriveGuard(page)
+            drive.arm()
+        pop_up = _open_pop_up(page)
+        if drive is None:
+            drive = DriveGuard(page)
+            drive.arm()
+        _claudes_presses(pop_up)
+        assert drive.blocked(), "the drive guard heard no block"
+    assert site.applications() == []
+
+
+@pytest.mark.parametrize("page_name", list(LIVE_POP_UPS))
+def test_without_the_guard_a_pop_ups_submit_sends(page_name):
+    with live_cdp(LIVE_POP_UPS[page_name], guarded=False) as (page, site):
+        _claudes_presses(_open_pop_up(page))
+    assert site.applications()
+
+
+def test_a_pop_ups_submit_stays_blocked_while_the_forms_own_page_is_lifted_for_its_submit():
+    """Claude fill's own submit click lifts its page alone: the form's own Submit sends, a pop-up's stays blocked."""
+    own = {START: f"""<title>Apply</title><form method=post action="{FINAL}"><input name=first value=Test>
+        <button id=own>Submit application</button></form><button id=b type=button>Next</button>
+        <script>document.getElementById('b').addEventListener('click', () => window.open('{POP_UP}'));</script>""",
+           POP_UP: _POP_UP_FORM.replace(FINAL, GREENHOUSE)}
+    with live_cdp(own) as (page, site):
+        drive = DriveGuard(page)
+        drive.arm()
+        pop_up = _open_pop_up(page)
+        drive.lift()  # ClaudeFill.submit: for its click on the page's own Submit alone
+        _claudes_presses(pop_up)
+        assert site.applications() == []
+        page.locator("#own").click()
+        _settle(page, 1500)
+    assert site.applications() == [FINAL]
+
+
+def test_a_pop_up_no_guard_can_reach_hands_the_form_off(monkeypatch):
+    """A pop-up whose drive guard won't hear the arm, even with the block-only copy put in: Claude doesn't drive."""
+    with live_cdp(LIVE_POP_UPS["a Next that opens the form in a pop-up"]) as (page, _site):
+        drive = DriveGuard(page)
+        _open_pop_up(page)
+        real = submit_guard.control
+        monkeypatch.setattr(submit_guard, "control", lambda target, cmd, keys=submit_guard.BOTH, element=None:
+                            real(target, cmd, keys, element) if target is page else "unheard")
+        with pytest.raises(Handoff, match="pop-up"):
+            drive.arm()
+
+
+@ONE_PLAIN_PROCESS
+def test_claudes_press_in_a_pop_up_opened_before_the_drive_guard_sends_nothing_on_a_plain_worker():
+    _plain_or_skip()
+    from plain_fakes import fake_page
+
+    site = Site(LIVE_POP_UPS["a Next that opens the form in a pop-up"])
+    with fake_page(site.handle) as page:
+        _fresh(page, "about:blank")
+        submit_guard.on_open(page)  # a live run's page: on_open's lifted drive guard
+        page.goto(HOST + START)
+        page.on("request", lambda request: None)  # a listener: the extension opens the window.open Chrome refused
+        before = {t["tab"] for t in page.worker.call("tabs.query")}
+        page.locator("#b").click()
+        _settle(page, 2000)
+        opened = [t["tab"] for t in page.worker.call("tabs.query") if t["tab"] not in before]
+        assert opened, "no pop-up opened"
+        pop_up = page.context.page(opened[0])
+        assert pop_up.opener() is page
+        drive = DriveGuard(page)
+        drive.arm()
+        _claudes_presses(pop_up)
+        assert drive.blocked(), "the drive guard heard no block"
+    assert site.applications() == []
+
+
 def test_every_guard_hole_is_a_hostile_page():
     # A name in GUARD_HOLES that is no page would leave that hole to the nightly run alone.
     assert GUARD_HOLES <= set(PAGES)

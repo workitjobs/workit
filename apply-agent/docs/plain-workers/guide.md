@@ -33,6 +33,9 @@ On a plain Worker's page (a PortPage, `apply-agent/docs/plain-workers/PROTOCOL.m
   refused `window.open` (`accounts.js`) opens blank and takes its opener's rules before its page
   loads; a tab a guarded page opens joins them on `tabs.onCreated` or
   `webNavigation.onCreatedNavigationTarget`.
+  PlainDriveGuard arms the drive guard in each tab its page opened too, found by
+  `tabs.get`'s `opener` (Chrome's `openerTabId`), and raises a Handoff for one that
+  won't hear it (KAN-796: a pop-up open before the arm kept on_open's lifted copy).
 - **Fails closed.** When Chrome refuses an update, it keeps its rules as they were, the extension
   puts its memory back to match, and the op raises. `guard` and `rearm` put the page's own guard on
   before the rules, so the page is then Apply's and blocked, never lifted, and the error stops

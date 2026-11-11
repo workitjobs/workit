@@ -91,7 +91,7 @@ class Rescue:
                                        max_turns=max(self._max_turns, MAX_TURNS_ELSEWHERE) if elsewhere else self._max_turns,
                                        max_tokens=self._max_tokens)
         finally:
-            self._guard.lift()  # the Filler's own clicks go through again
+            self._guard.lift(pop_ups=True)  # the Filler's own clicks go through again
         # A click or key Claude tried in a captcha was refused there, untouched: no Handoff of its own.
         if blocked := [b for b in self._guard.blocked()[was_blocked:] if b != CAPTCHA_TRY]:
             raise Handoff(f"Apply blocked {blocked[0]} while Claude filled {label!r}, so nothing it blocked was sent. "

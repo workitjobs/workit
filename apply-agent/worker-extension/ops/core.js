@@ -4,7 +4,7 @@ import { keepAcrossReload } from "./guard.js";
 import { named, target, untilNavigated, useVendor, userScriptsOn } from "./shared.js";
 
 function tabInfo(tab) {
-  return { tab: tab.id, url: tab.url || tab.pendingUrl || "", title: tab.title || "", status: tab.status, active: tab.active, window: tab.windowId };
+  return { tab: tab.id, url: tab.url || tab.pendingUrl || "", title: tab.title || "", status: tab.status, active: tab.active, window: tab.windowId, opener: tab.openerTabId ?? null };
 }
 
 // `code` is one expression (Apply wraps the caller's code so it returns {ok} or {err}).

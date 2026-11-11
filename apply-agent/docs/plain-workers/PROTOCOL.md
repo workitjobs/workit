@@ -132,9 +132,9 @@ Targets: `tab` is a Chrome tab id; `frame` is a webNavigation frame id (0 = top,
 | Op | Params | Value |
 |---|---|---|
 | `ping` | | `{"pong": true, "userScripts": bool, "webdriver": bool, "tabs": n}` |
-| `tabs.query` | | `[{"tab", "url", "title", "status", "active", "window"}]` |
+| `tabs.query` | | `[{"tab", "url", "title", "status", "active", "window", "opener"}]`: `opener` is the tab that opened it (Chrome's `openerTabId`), or `null` (KAN-796: the drive guard arms a page's pop-ups too) |
 | `tabs.create` | `url?`, `active?` | that tab's info |
-| `tabs.get` | `tab` | `{"tab", "url", "title", "status"}` |
+| `tabs.get` | `tab` | `{"tab", "url", "title", "status", "opener"}` |
 | `tabs.close` | `tab` | `null` |
 | `extension.reload` | | `null`; then `chrome.runtime.reload()`: the extension loads its files again from its folder, this port closes, and the new code says hello. Its guards come back first: registered scripts, session rules, lifts, held notes and bindings (`keepAcrossReload`, KAN-657). Web tabs, their pages and cookies stay; registered guards and scripts go (KAN-643: Apply calls it only before the welcome, or `Bridge.reload`). |
 | `tabs.goto` | `tab`, `url`, `waitUntil` (`load`/`domcontentloaded`/`commit`), `timeout` ms | `{"url", "title"}` |
