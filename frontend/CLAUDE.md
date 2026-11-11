@@ -2530,15 +2530,13 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   change directly. Other lines stay plain fields, and anything that lists a
   bullet as text (Sections, the Experiences picker) goes through
   `unmarked`. The phone's line sheet uses the same rich field (KAN-799).
-- **A bullet being added has no box and no id until it is saved** (KAN-435,
-  `add-bullet.ts`, `newLine` in the editor, `extra` on `PdfPages`). It is drawn
-  as a box with no height under its anchor, so the live page moves the page
-  under it, and `moved` skips a box's own move: with no height it counts as
-  under itself, which drew the field a line too low, over the next bullet.
-  **A rich field needs its own React `key`**: its words are the browser's, so
-  a plain div drawn in its place took the same element and printed them twice.
-  Enter and Esc finish the line themselves, and `finishing` keeps the blur that
-  follows from saving it again: a blur alone never fires in an unfocused window.
+- **A rich field needs its own React `key`** (`richLine`): its words are the
+  browser's, so a plain div drawn in its place took the same element and
+  printed them twice. Found on Add Bullet on the page (KAN-435), which drew a
+  new bullet's field in place under the open line; it was removed in KAN-586
+  once its toolbar button went, and a bullet is added in the entry's form.
+  It is in git history (`add-bullet.ts`, `newLine`, `extra` on `PdfPages`)
+  if an in-place add is wanted again.
 - **The toolbar holds the line's arrows, the Format tab what acts on the whole
   resume** (`page-format.tsx`): font size beside bold, unnamed, read as acting
   on the selection and changed the whole page; the toolbar's size then named
@@ -2625,10 +2623,9 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   switches, Edit Header and Done; until KAN-799 the panels, the zoom,
   Download and More left the bar when a line opened. **The phone's line
   sheet draws the same `lineTools`**, under the desktop's rich field
-  (`richLine`). **Add Bullet on the page has no way in** since its button
-  went (`startBullet`, the phone's `newBullet` sheet): a bullet is added in
-  the entry's form, and the in-place code waits to be removed or given a
-  new entry point.
+  (`richLine`). **Add Bullet on the page is removed** (the user's call):
+  a bullet is added in the entry's form (Add Bullet Point), which places it
+  on this resume where the form lists it.
   **The phone editor has the desktop's two rows** (`phone.tsx`, KAN-586):
   the title row (the editor's `heading`, so the name renames in place, the
   save status and Download) over the toolbar in `SLIM_BAR`, with the shared

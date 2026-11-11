@@ -2,7 +2,6 @@
 
 import { Toggle } from "@base-ui/react/toggle";
 import { ToggleGroup } from "@base-ui/react/toggle-group";
-import type { Icon as PhosphorIcon } from "@phosphor-icons/react";
 import { MinusIcon, PlusIcon } from "@phosphor-icons/react/ssr";
 import { useId, useState, type ReactNode } from "react";
 
@@ -26,15 +25,14 @@ import type { BankEntry } from "@/lib/bank-actions";
 import type { FontFamily, PageSettings } from "@/lib/built-resume-actions";
 import { cn } from "@/lib/cn";
 
-import { FoldButton } from "./bar-fold";
 import { Tip } from "@/components/ui/tip";
 
 /**
- * How the resume looks (KAN-435). **The toolbar holds what acts on the line
- * clicked, this panel what acts on the whole resume.** The toolbar names the
- * kind of text it changes (`SizeStepper` under "Body Text"), since a size acts on
- * every line of that kind: an unnamed size beside bold and italic looked as if
- * it acted on the selection, and changed the page. Each pick shows on the
+ * How the resume looks (KAN-435). **The toolbar holds the open line's arrows,
+ * this panel what acts on the whole resume** (KAN-586). Each size names the
+ * kind of text it changes (`SizeStepper` under "Body Text"), since a size acts
+ * on every line of that kind: the toolbar's size beside bold and italic, even
+ * named, looked as if it acted on the selection, and changed the page. Each pick shows on the
  * page, saves on its own, and Undo takes it back. It is the Format tab of the
  * editor's side panel, and a sheet on a phone.
  *
@@ -314,11 +312,8 @@ const EDUCATION_ORDERS: Tile<PageSettings["education_first"]>[] = [
   { value: "degree", label: "Degree First", preview: educationRows("Degree") },
 ];
 
-/** A toolbar control that is on. */
-export const ON = "bg-brand/10 text-brand hover:bg-brand/10 hover:text-brand";
-
-/** A kind of text's size, typed or a step at a time, on the toolbar and in the
- *  panel alike. A typed size applies on Enter or on leaving the field, never on
+/** A kind of text's size, typed or a step at a time, in the panel (the
+ *  toolbar had one too until KAN-586). A typed size applies on Enter or on leaving the field, never on
  *  each key, since each change compiles the PDF. It goes to the nearest half
  *  point inside the role's limits; what is not a number, or Escape, puts the
  *  size back. A size that follows `font_size` (10.95) shows rounded and steps to
@@ -394,48 +389,6 @@ export function SizeStepper({
         </Button>
       </Tip>
     </div>
-  );
-}
-
-/** A toolbar button that opens a panel beside the page, tinted while it
- *  is open: Sections, Format Options. `sm`, as every text button on the bar
- *  is (KAN-576): at `xs` it stood 26px with 12px type beside 36px ones. Its
- *  word folds away as the bar narrows (`fold`, ./bar-fold.tsx), leaving the
- *  glyph named by a tooltip; the button's own `hit-area` keeps it 44px on
- *  touch. */
-export function PanelButton({
-  label,
-  Icon,
-  fold,
-  open,
-  disabled,
-  onToggle,
-}: {
-  label: string;
-  Icon: PhosphorIcon;
-  /** The class that folds the word away (`FOLD.word`, ./bar-fold.tsx). */
-  fold: string;
-  open: boolean;
-  disabled: boolean;
-  onToggle: () => void;
-}) {
-  return (
-    <FoldButton
-      label={label}
-      icon={<Icon aria-hidden />}
-      fold={fold}
-      disabled={disabled}
-      render={
-        <Button
-          variant="ghost"
-          size="sm"
-          aria-pressed={open}
-          disabled={disabled}
-          className={cn("shrink-0", open && ON)}
-          onClick={onToggle}
-        />
-      }
-    />
   );
 }
 

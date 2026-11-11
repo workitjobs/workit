@@ -24,7 +24,6 @@ import { buttonClasses } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { IconButton } from "@/components/ui/icon-button";
 import {
-  addBullet,
   addSkill,
   getBank,
   type Bank,
@@ -54,7 +53,6 @@ import { cn } from "@/lib/cn";
 import { markResumesStale } from "@/lib/resumes-stale";
 
 import { DownloadMenu, DownloadNotes, useResumeDownload } from "../download-menu";
-import { bulletPlaced, NEW_BULLET } from "./add-bullet";
 import { Assistant } from "./assistant";
 import { FitToast } from "./fit-notice";
 import { useZoom, zoomWidth } from "./zoom";
@@ -69,7 +67,6 @@ import {
   NO_CUTS,
   mergeChoices,
   move,
-  shownBullets,
   withWording,
   swapsOf,
   typed,
@@ -114,7 +111,7 @@ import {
   type PanelTab,
   type Side,
 } from "./toolbar";
-import { readMarked, runs, showMarked, unmarked } from "./text-marks";
+import { readMarked, runs, showMarked } from "./text-marks";
 import {
   cardsOf,
   editKey,
@@ -229,10 +226,6 @@ function typeOf(kind: string, section: string | null, page: PageSettings, degree
 // em content area. A box's top is its first baseline less ASCENT (the API's
 // resume_render), more for the name.
 const LINE_HEIGHT = 1.2;
-// A box's height for one line (`boxAscent`'s 8 pt over a baseline and the
-// API's 3 pt under it), and how far left of a bullet's text its dot sits
-const BOX_HEIGHT = 11;
-const DOT_GAP = 8.5;
 const fieldBaseline = (lineHeight: number) => 1.127 - (1.417 - lineHeight) / 2;
 const boxAscent = (kind: string) => (kind === "full_name" ? 21 : 8);
 
@@ -244,19 +237,6 @@ type LineField = HTMLInputElement | HTMLTextAreaElement | HTMLDivElement;
  *  over the page's fine type. */
 const FIELD_RING =
   "ring-brand resize-none overflow-hidden rounded-[2px] ring-[1.5px] outline-none field-sizing-content";
-
-/** A bullet being added (`startBullet`): which entry it joins, the shown
- *  bullet it follows (none: it goes last), the box it is drawn under, and
- *  where its text starts. `sent` once it left the field; `id` once saved. */
-type Adding = {
-  entry: string;
-  after: string | null;
-  anchor: string;
-  x0: number;
-  text: string;
-  sent: boolean;
-  id: string | null;
-};
 
 /** Lines that wrap: typed in a field as wide as the text column. A
  *  project's tools line does not: it is a heading's row, a tabular's `l`
@@ -569,8 +549,6 @@ export function Editor({
   // left before the PDF that prints it has painted. The page draws it over
   // the line until then, so leaving a line never shows its old text.
   const [drafts, setDrafts] = useState<Record<string, string>>({});
-  const [adding, setAdding] = useState<Adding | null>(null);
-  const finishing = useRef(false);
   // How many lines each wrapping draft shows, for the live page's shift
   const [draftLines, setDraftLines] = useState<Record<string, number>>({});
   // What is on its way, by line key or change id, counted: a line's draft
@@ -1431,69 +1409,6 @@ export function Editor({
     pending.current = { key, text };
   }
 
-  /** Add Bullet: an empty line under the open bullet, or at the foot of the
-   *  open entry's, in place at once, with the page under it moved down. Nothing
-   *  is written until it has words, so a line left empty leaves no trace in the
-   *  bank: a saved placeholder would stay there if the tab closed. */
-  function startBullet(open: Line) {
-    if (adding || !rendered || (open.kind !== "bullet" && open.kind !== "entry")) return;
-    const after =
-      open.kind === "bullet" ? open.bullet.id : (shownBullets(open.entry, choices).at(-1) ?? null);
-    const anchor = after
-      ? `${after}.bullet`
-      : `${open.entry.id}.${rendered.boxes.findLast((b) => b.item_id === open.entry.id)?.kind}`;
-    const anchorBox = rendered.boxes.find((b) => boxKey(b) === anchor);
-    if (!anchorBox) return;
-    // An entry with no bullets yet takes the column the page's bullets use
-    const column = rendered.boxes.find((b) => b.kind === "bullet")?.x0 ?? anchorBox.x0 + 18;
-    select(null);
-    finishing.current = false;
-    setAdding({
-      entry: open.entry.id,
-      after,
-      anchor,
-      x0: after ? anchorBox.x0 : column,
-      text: "",
-      sent: false,
-      id: null,
-    });
-  }
-
-  /** The new bullet leaves its field. Empty, it was never there. Otherwise the
-   *  bank takes its plain words, this resume its place and any bold or italic,
-   *  and its text stays drawn until the PDF prints it (`drawn`). */
-  async function finishBullet(typed: string) {
-    // Once: the field's blur follows Enter as it goes
-    if (!adding || finishing.current) return;
-    finishing.current = true;
-    const text = typed.trim();
-    const plain = unmarked(text).trim();
-    if (!plain) return setAdding(null);
-    setAdding({ ...adding, text, sent: true });
-    const { data, error } = await addBullet(adding.entry, plain);
-    if (!data) {
-      setAdding(null);
-      return setError(error);
-    }
-    setAdding((now) => now && { ...now, id: data.id });
-    const entries = held.current.bank.entries.map((e) =>
-      e.id === adding.entry ? { ...e, bullets: [...e.bullets, data] } : e,
-    );
-    held.current.bank = { ...held.current.bank, entries };
-    setBank(held.current.bank);
-    const entry = entries.find((e) => e.id === adding.entry);
-    await apply(
-      bulletPlaced(
-        // Without the new bullet, which has no row yet
-        entry ? shownBullets(entry, held.current.choices) : [],
-        data.id,
-        adding.after,
-        text === plain ? undefined : text,
-      ),
-    );
-    if (!lastPdf.current?.boxes.some((b) => b.item_id === data.id)) setAdding(null);
-  }
-
   /**
    * Fit to One Page from the page on screen (KAN-584): the copy and the PDF
    * it printed go to `POST .../fit/plan`, which compiles nothing and answers
@@ -1611,20 +1526,6 @@ export function Editor({
 
   const box = rendered?.boxes.find((b) => boxKey(b) === selected);
   const line = box ? lineOf(bank, box) : null;
-  // A bullet being added has no box yet: it is drawn under its anchor, with no
-  // height of its own, so everything below the anchor moves
-  const anchorBox = adding && rendered?.boxes.findLast((b) => boxKey(b) === adding.anchor);
-  const newBox: RenderBox | undefined =
-    adding && anchorBox
-      ? {
-          ...anchorBox,
-          item_id: NEW_BULLET.item_id,
-          kind: NEW_BULLET.kind,
-          x0: adding.x0,
-          y0: anchorBox.y1,
-          text: "",
-        }
-      : undefined;
   // The live page (KAN-391): while a wrapping line's typed text differs from
   // what the PDF prints, the page under it moves by the lines it gained or
   // lost. When the next PDF lands with that text, the shift is 0 again;
@@ -1632,15 +1533,11 @@ export function Editor({
   const overlaid = [
     ...(line && typed(line) && selected ? [selected] : []),
     ...Object.keys(drafts).filter((k) => k !== selected),
-    ...(newBox ? [NEW_BULLET.key] : []),
   ];
   // What the page under an overlaid line moves by, against the box of the
   // PDF on screen: the lines its typed text gained or lost, 0 once that PDF
   // prints the text
   const shiftOf = (target: RenderBox) => {
-    if (boxKey(target) === NEW_BULLET.key) {
-      return (draftLines[NEW_BULLET.key] ?? 1) * (rendered?.wrapped_line ?? DEFAULT_WRAPPED_LINE);
-    }
     const text = drafts[boxKey(target)];
     const lines = draftLines[boxKey(target)];
     if (text === undefined || !lines || !WRAPS.has(target.kind) || text.trim() === target.text) {
@@ -1776,7 +1673,6 @@ export function Editor({
    *  or a line's typed text while the PDF that prints it is on its way. */
   function overlay(target: RenderBox) {
     const key = boxKey(target);
-    if (key === NEW_BULLET.key) return newLine(target);
     if (key === selected) return field(target);
     const text = drafts[key];
     if (text === undefined) return null;
@@ -1804,56 +1700,6 @@ export function Editor({
         {run.text}
       </span>
     ));
-  }
-
-  /** The bullet being added: its field, then its words until the PDF prints
-   *  them, one line under its anchor, with the dot the page gives a bullet. */
-  function newLine(target: RenderBox) {
-    if (!adding) return null;
-    const look = lineLook(target);
-    const step = rendered?.wrapped_line ?? DEFAULT_WRAPPED_LINE;
-    const settings = rendered?.page_settings ?? DEFAULT_PAGE;
-    return (
-      <div className="relative" style={{ paddingTop: pt(step - BOX_HEIGHT) }}>
-        <span
-          aria-hidden
-          className={cn(latinModern.className, "text-ink absolute")}
-          style={{ ...look.style, left: pt(-DOT_GAP), width: undefined, textAlign: undefined }}
-        >
-          {settings.bullet === "dash" ? "–" : "•"}
-        </span>
-        {adding.sent ? (
-          <div
-            aria-hidden
-            className={cn(look.className, "break-words whitespace-pre-wrap")}
-            style={look.style}
-          >
-            {wordsOf(adding.text)}
-          </div>
-        ) : (
-          richLine(adding.text, (text) => setAdding((now) => now && { ...now, text }), {
-            "aria-label": "New Bullet",
-            attach: (element) => {
-              focusAt(NEW_BULLET.key, element);
-              return measure(NEW_BULLET.key, NEW_BULLET.kind, element);
-            },
-            onBlur: (e) => void finishBullet(readMarked(e.currentTarget)),
-            // Either key saves it, or drops it while empty
-            onKeyDown: (e) => {
-              if (e.key !== "Enter" && e.key !== "Escape") return;
-              e.preventDefault();
-              void finishBullet(readMarked(e.currentTarget));
-            },
-            className: cn(
-              look.className,
-              FIELD_RING,
-              "before:text-ink-meta empty:before:content-['New_Bullet']",
-            ),
-            style: look.style,
-          })
-        )}
-      </div>
-    );
   }
 
   /** A rich field, so bold and italic show in the words as they are set
@@ -1993,8 +1839,6 @@ export function Editor({
       const kept = h.filter((x) => onTheirWay.current.has(x.id));
       return kept.length === h.length ? h : kept;
     });
-    // The page prints the new bullet now, so its drawn text goes
-    setAdding((now) => (now?.id && rendered?.boxes.some((b) => b.item_id === now.id) ? null : now));
     refresh();
     // The edit-to-PDF round trip, from the send to the paint, as a
     // performance measure: the open production check reads it in the
@@ -2292,20 +2136,8 @@ export function Editor({
       )}
     </>
   );
-  // The header's line opens the outline's Header row: beside the page on
-  // the desktop, in the panel's sheet on a phone
+  // The side panel's sheet on a phone (KAN-586), opened by its toolbar button
   const [phonePanel, setPhonePanel] = useState(false);
-  const openHeader = () => {
-    setHeaderOpen(true);
-    // On a phone the line's sheet gives way to the panel's
-    if (phone) {
-      select(null);
-      setTab("sections");
-      return setPhonePanel(true);
-    }
-    if (suggestions) return showSide("sections");
-    if (!(scoutOpen && panelView === "sections")) showPanel("sections");
-  };
   const history: HistoryTools = {
     canUndo: steps.undo > 0 && !fittingNow,
     canRedo: steps.redo > 0 && !fittingNow,
@@ -2327,14 +2159,7 @@ export function Editor({
         }
       : null;
   // What the open line's tools act through, on both layouts (KAN-799)
-  const handlers: LineHandlers = {
-    moves,
-    onApply: apply,
-    onHide: hide,
-    onAddBullet: () => line && startBullet(line),
-    onOpenHeader: openHeader,
-  };
-  const composing = Boolean(adding && !adding.sent);
+  const handlers: LineHandlers = { moves };
   if (phone) {
     const start = line && box && startText(line, box);
     // A bullet's field is a rich one, as on the desktop, so the sheet's bold
@@ -2383,33 +2208,6 @@ export function Editor({
           box={box}
           text={start == null ? null : (drafts[selected!] ?? start)}
           bulletField={bulletField}
-          newBullet={
-            // Add Bullet's line, in its own sheet: the phone's page draws no
-            // field. Enter, Done or a tap away adds it, or drops it empty
-            adding && !adding.sent
-              ? {
-                  field: () =>
-                    richLine(adding.text, (text) => setAdding((now) => now && { ...now, text }), {
-                      "aria-label": "New Bullet",
-                      attach: (element) => {
-                        focusAt(NEW_BULLET.key, element);
-                        return undefined;
-                      },
-                      onBlur: (e) => void finishBullet(readMarked(e.currentTarget)),
-                      onKeyDown: (e) => {
-                        if (e.key !== "Enter") return;
-                        e.preventDefault();
-                        void finishBullet(readMarked(e.currentTarget));
-                      },
-                      className: cn(
-                        PHONE_FIELD,
-                        "before:text-ink-meta min-h-24 empty:before:content-['New_Bullet']",
-                      ),
-                    }),
-                  onDone: () => void finishBullet(adding.text),
-                }
-              : null
-          }
           saving={saving || fittingNow}
           fitting={fittingNow}
           error={error}
@@ -2457,7 +2255,6 @@ export function Editor({
       rendered={rendered}
       saving={saving || fittingNow}
       fitting={fittingNow}
-      composing={composing}
       onFit={fit}
       experiences={
         // They wait for the first render, since a pick renders again
@@ -2559,7 +2356,6 @@ export function Editor({
               onSelect={onLine}
               overlay={overlay}
               overlaid={overlaid}
-              extra={newBox}
               shiftOf={shiftOf}
               swaps={swapsOn}
               gaps={gapsOn}

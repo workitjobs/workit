@@ -38,13 +38,7 @@ import { Button, buttonClasses } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
 import { TabButtons } from "@/components/ui/tabs";
 import { Tip } from "@/components/ui/tip";
-import type {
-  Choices,
-  ChoicesUpdate,
-  PageSettings,
-  RenderBox,
-  RenderedPdf,
-} from "@/lib/built-resume-actions";
+import type { Choices, PageSettings, RenderBox, RenderedPdf } from "@/lib/built-resume-actions";
 import { cn } from "@/lib/cn";
 
 import { FOLD, FoldButton } from "./bar-fold";
@@ -178,12 +172,6 @@ export type LineHandlers = {
   /** The open bullet's or entry's Move Up and Move Down; null for any other
    *  line. */
   moves: MoveTools | null;
-  onApply: (changes: ChoicesUpdate) => void;
-  /** Applies a hide and closes the line, which has left the page. */
-  onHide: (changes: ChoicesUpdate) => void;
-  onAddBullet: () => void;
-  /** Opens the outline's Header row, from a line of the header. */
-  onOpenHeader: () => void;
 };
 
 /**
@@ -260,20 +248,17 @@ export function SheetTool({ tool }: { tool: LineTool }) {
 export type OpenLine = { tools: LineTool[] };
 
 /** The open line as the bar shows it, or null while the bar is idle: no
- *  line open, or one with no tools (`lineTools`), or a bullet being added,
- *  whose field takes Enter and the keys. */
+ *  line open, or one with no tools (`lineTools`). */
 export function openLineOf({
   line,
   box,
-  composing,
   tools,
 }: {
   line: Line | null;
   box: RenderBox | undefined;
-  composing: boolean;
   tools: LineTool[];
 }): OpenLine | null {
-  if (composing || !line || !box || tools.length === 0) return null;
+  if (!line || !box || tools.length === 0) return null;
   return { tools };
 }
 
@@ -312,7 +297,6 @@ export function Bar({
   rendered,
   saving,
   fitting,
-  composing,
   onFit,
   experiences,
   format,
@@ -329,8 +313,6 @@ export function Bar({
   saving: boolean;
   /** A Fit to One Page is under way. */
   fitting: boolean;
-  /** A bullet is being added: Fit would read a resume without it. */
-  composing: boolean;
   onFit: () => void;
   experiences: ExperiencesTools | null;
   format: FormatTools;
@@ -340,11 +322,10 @@ export function Bar({
   const open = openLineOf({
     line,
     box,
-    composing,
     tools: line ? lineTools(line, choices, handlers) : [],
   });
   const bar = useRef<HTMLDivElement>(null);
-  const fits = !composing && rendered && rendered.page_count > 1;
+  const fits = rendered && rendered.page_count > 1;
   // The fold measures again whenever what the row holds changes
   useFoldToFit(
     bar,

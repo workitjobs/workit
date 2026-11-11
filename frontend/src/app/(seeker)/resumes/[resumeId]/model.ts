@@ -172,12 +172,6 @@ function ordered<T extends { id: string }>(
     .map((x) => x.item);
 }
 
-/** An entry's bullets that print on this resume, in order. */
-export function shownBullets(entry: BankEntry, choices: Choices) {
-  const row = new Map(choices.bullets.map((c) => [c.bullet_id, c]));
-  return ordered(entry.bullets, (id) => row.get(id)).map((b) => b.id);
-}
-
 /** The PATCH that moves a line one place up (-1) or down (1) among its
  *  shown siblings, renumbering them all so ties can never stall a move; null
  *  at either end. Entries move within their section, bullets within their

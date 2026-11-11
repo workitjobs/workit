@@ -21,7 +21,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 
-import { CheckIcon, SparkleIcon } from "@/components/icons";
+import { SparkleIcon } from "@/components/icons";
 import { ASK_SCOUT_LIVE } from "@/components/scout/scout-buttons";
 import { Button } from "@/components/ui/button";
 import { TabButtons } from "@/components/ui/tabs";
@@ -139,7 +139,6 @@ export function PhoneEditor({
   box,
   text,
   bulletField,
-  newBullet,
   saving,
   fitting,
   error,
@@ -179,9 +178,6 @@ export function PhoneEditor({
   /** A bullet's own field, the desktop's rich one, so bold and italic show
    *  in its words (KAN-799); null for any other line. */
   bulletField: (() => ReactNode) | null;
-  /** Add Bullet's new line, in a sheet of its own: its field, and Done,
-   *  which adds it or drops it while empty. */
-  newBullet: { field: () => ReactNode; onDone: () => void } | null;
   saving: boolean;
   /** A Fit to One Page is under way, as on the desktop bar. */
   fitting: boolean;
@@ -403,7 +399,7 @@ export function PhoneEditor({
         ref={scroller}
         className={cn(
           "min-h-0 flex-1 overflow-auto overscroll-none p-4",
-          selected || newBullet || suggestions?.open || panel.open ? "pb-[70vh]" : "pb-6",
+          selected || suggestions?.open || panel.open ? "pb-[70vh]" : "pb-6",
         )}
       >
         <div className={zoom ? "w-[200%]" : "w-full"}>{pages}</div>
@@ -469,17 +465,6 @@ export function PhoneEditor({
                 <SparkleIcon /> Ask Scout About This Line
               </Button>
             )}
-          </div>
-        </Sheet>
-      )}
-
-      {newBullet && !selected && (
-        <Sheet onClose={newBullet.onDone} title="New Bullet">
-          {newBullet.field()}
-          <div className={cn("flex flex-wrap items-center gap-2", TAP, BAR_BUTTONS)}>
-            <Button variant="secondary" size="sm" className="ml-auto" onClick={newBullet.onDone}>
-              <CheckIcon /> Done
-            </Button>
           </div>
         </Sheet>
       )}

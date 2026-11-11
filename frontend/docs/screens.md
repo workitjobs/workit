@@ -3833,22 +3833,14 @@ student who opened a resume from Experiences landed on another view.
   `printed_order`: a Summary first, the rest last until dragged; a drag
   writes their `custom:<name>` keys into `section_order`, and one that no
   longer prints leaves it).
-- **Add Bullet on the page** (KAN-435) **has had no way in since KAN-586**:
-  its toolbar button went with the line's other tools, and a bullet is added
-  in the entry's form (Add Bullet Point). The code stays (`startBullet`,
-  `finishBullet`, `newLine`, `add-bullet.ts`, the phone's `newBullet` sheet)
-  until it is removed or given a new way in. It drew an empty line under the
-  open bullet, or at the foot of the open
-  entry's, in place at once, its dot beside it and the page under it moved down
-  (`newLine`, `extra` on `PdfPages`, a box with no height, so the live page's
-  own move makes the room). The student types, with bold and italic, and Enter,
-  Esc or a click away keeps it. **Nothing is written until it has words**, so an
-  empty line leaves no trace: a saved placeholder would stay in the bank if the
-  tab closed. Then the bank takes the plain words (`addBullet`), and this resume
-  its place and any bold or italic (`bulletPlaced`, the choices PATCH), through
-  the same save and render as any change, so Undo takes it off this resume and
-  Redo puts it back. Undo hides it, so it stays in the bank, as the Experiences
-  picker shows. It shows on no other resume by itself.
+- **Add Bullet on the page was removed** (KAN-586, the user's call). From
+  KAN-435 it drew an empty line under the open bullet, or at the foot of the
+  open entry's, typed in place, and saved nothing until it had words. Once
+  the toolbar's Add Bullet went with the line's other tools it had no way
+  in, and the entry's form already adds a bullet (Add Bullet Point) and
+  places it on this resume where the form lists it, so two ways to do one
+  thing went down to one. Its code is in git history (`add-bullet.ts`,
+  `newLine`, `startBullet`) if a quicker in-place add is wanted again.
 - **The Experiences picker** (`experiences-picker.tsx`, KAN-440): the whole
   bank beside the PDF, where a student picks what the resume shows. The
   resume is the part of the bank that is on, so each entry, bullet and skill
