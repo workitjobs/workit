@@ -236,6 +236,21 @@ resume; KAN-207 renders the bank and retired the proof endpoint.
   toggle on a built resume: emptying the project's tools takes the line
   off every resume that shows it. Fit to One Page never cuts the line; it
   is part of its entry's height.
+- **A two-row heading with nothing at the left of its second row prints
+  as one row** (KAN-503, `fields.one_row`): a school with no degree line,
+  a job or club role with no organization. Drawn as two rows, the second
+  row's place or dates sat alone on a line of their own, which read as a
+  stray blank line (an upload that read a lab as a school showed it most).
+  The one row is the title, then at the right the place and the dates
+  joined by Jake's `$|$`, the place first, so the dates keep the right
+  edge every other entry's dates sit on. Each value keeps the look its
+  row gave it (the second row's italic `\small`), so a school's place
+  stays upright and its dates italic, and the editor's field over each
+  still matches (`typeOf` in the editor). `jakes._entry` writes the
+  tabular itself, since `jakes.tex` stays byte for byte; the Word file
+  joins the two with " | " on the title's row. A second row with words at
+  its left keeps Jake's `\resumeSubheading`, so those pages are as
+  before.
 - **A custom section prints its own name** (`ViewSection.label`, KAN-498,
   `../../../../docs/custom_sections.md`), escaped as any applicant text.
   Its Entries print as a project's (`fields.heading`'s one-row branch).

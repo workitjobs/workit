@@ -33,6 +33,7 @@ from app.services.resume_render.fields import (
     heading,
     heading_fields,
     link_text,
+    one_row,
     skill_lines,
 )
 from app.services.resume_view import ResumeView, ViewEntry, ViewSection, runs
@@ -111,7 +112,23 @@ def _entry(entry: ViewEntry, marks: bool, printed: Printed, page: PageSettings) 
         text = getattr(h, name)
         return _marked(entry.id, kinds[name], escape(text), text, marks, printed)
 
-    if entry.section in TWO_ROW:
+    if entry.section in TWO_ROW and (rights := one_row(h, kinds)) is not None:
+        # One row (KAN-503): \resumeSubheading's first row and nothing under
+        # it. Each value keeps its own look from the two rows (the second
+        # row's italic \small), so the editor's field over it still matches.
+        # Written out here, since jakes.tex stays byte for byte.
+        styled = {
+            "right": lambda: slot("right"),
+            "subright": lambda: rf"\textit{{\small {slot('subright')}}}",
+        }
+        right = " $|$ ".join(styled[name]() for name in rights)
+        line = "\n".join((
+            r"\vspace{-2pt}\item",
+            r"\begin{tabular*}{0.97\textwidth}[t]{l@{\extracolsep{\fill}}r}",
+            rf"\textbf{{{slot('title')}}} & {right} \\",
+            r"\end{tabular*}\vspace{-7pt}",
+        ))
+    elif entry.section in TWO_ROW:
         line = rf"\resumeSubheading{{{slot('title')}}}{{{slot('right')}}}{{{slot('subtitle')}}}{{{slot('subright')}}}"
     else:
         left = rf"\textbf{{{slot('title')}}}" + (rf" $|$ \emph{{{slot('tag')}}}" if h.tag else "")

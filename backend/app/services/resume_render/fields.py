@@ -120,6 +120,20 @@ def heading(entry: ViewEntry, date_format: str = "short", education_first: str =
     return Heading(entry.title, when, tag=tag, subtitle=tools(entry))
 
 
+def one_row(h: Heading, kinds: dict[str, str]) -> list[str] | None:
+    '''A two-row heading with nothing at the left of its second row (a school
+    with no degree line, a job with no organization) prints as one row
+    (KAN-503): drawn as two, the second row's place or dates sat alone on a
+    line of their own. Answers the right slots that row shows, the place
+    first and then the dates, so the dates keep the right edge every other
+    entry's dates sit on; each slot only when it has text. None while the
+    second row has words at its left, so the heading stays two rows.'''
+    if h.subtitle:
+        return None
+    names = sorted(("right", "subright"), key=lambda name: kinds[name] != "location")
+    return [name for name in names if getattr(h, name)]
+
+
 def tools(entry: ViewEntry) -> str:
     '''A project's tools line, "Next.js, TypeScript", or "".'''
     return ", ".join(entry.tools)
