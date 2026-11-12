@@ -149,6 +149,8 @@ class ViewEntry:
     tools: tuple[str, ...] = ()  # a project's stack (KAN-738)
     issuer: str | None = None
     award_date: datetime.date | None = None
+    # The dates given as a year alone (KAN-808), printed as the year
+    year_only: tuple[str, ...] = ()
     bullets: tuple[ViewBullet, ...] = ()
 
 
@@ -286,6 +288,8 @@ def build_view(bank: Any, choices: Choices) -> ResumeView:
                 tools=tuple(row.tools or ()),
                 issuer=row.issuer,
                 award_date=row.award_date,
+                # A row from before the column, or a test's, reads as none
+                year_only=tuple(getattr(row, "year_only", None) or ()),
                 bullets=tuple(_bullet(b, choices.bullets[b.id].text) for b in bullets),
             ))
         if entries:
@@ -328,8 +332,9 @@ def view_from_json(data: Mapping[str, Any]) -> ResumeView:
             **{k: datetime.date.fromisoformat(e[k]) if e[k] else None for k in _DATES},
             **{k: Decimal(e[k]) if e[k] is not None else None for k in _DECIMALS},
             "coursework": tuple(e["coursework"]),
-            # A snapshot kept before KAN-738 has no "tools"
+            # A snapshot kept before KAN-738 has no "tools", one before KAN-808 no "year_only"
             "tools": tuple(e.get("tools", ())),
+            "year_only": tuple(e.get("year_only", ())),
             # A snapshot kept before KAN-435 has no "marked"
             "bullets": tuple(ViewBullet(uuid.UUID(b["id"]), b["text"], b.get("marked")) for b in e["bullets"]),
         })
@@ -370,7 +375,7 @@ def view_from_reading(entries: Iterable[Any], skills: Iterable[tuple[str, str | 
             gpa=None if d.gpa is None else Decimal(str(d.gpa)),
             gpa_scale=None if d.gpa_scale is None else Decimal(str(d.gpa_scale)),
             coursework=tuple(d.coursework), honors=d.honors, link=d.link, tools=tuple(d.tools), issuer=d.issuer,
-            award_date=d.award_date,
+            award_date=d.award_date, year_only=tuple(d.year_only),
             bullets=tuple(ViewBullet(next(ids), text) for text in d.bullets),
         ))
     return ResumeView(

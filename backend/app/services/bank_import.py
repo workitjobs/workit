@@ -27,7 +27,7 @@ from workit_scout.identity import PLACEHOLDERS, Identity, placeholders_in
 from workit_scout.llm import LLM
 
 from app.models.dto import Experience, ParsedResume, bank_section, entry_end_kind
-from app.schemas.bank import SECTION_FIELDS, DraftEntry, ModelReading
+from app.schemas.bank import SECTION_FIELDS, YEAR_DATES, DraftEntry, ModelReading
 from app.services import skill_catalog
 from app.utils.resume_parser import (
     DEGREE_HONOR_RE,
@@ -100,11 +100,21 @@ def _tools(items: list[str]) -> list[str]:
     return out[:30]
 
 
-def _span(start: datetime.date | None, end: datetime.date | None) -> dict:
+# The parser's names for a year-alone date (`dto` "start_date", "end_date",
+# an award's "date") as the bank's (KAN-808)
+_YEAR_FIELDS = {"start_date": "start_month", "end_date": "end_month", "date": "award_date"}
+
+
+def _years(year_only: list[str]) -> list[str]:
+    return [_YEAR_FIELDS[f] for f in year_only if f in _YEAR_FIELDS]
+
+
+def _span(start: datetime.date | None, end: datetime.date | None, year_only: list[str] = ()) -> dict:
     """An ongoing role (a start, no end) runs to Present."""
+    years = {"year_only": _years(list(year_only))}
     if end is not None:
-        return {"start_month": start, "end_month": end, "end_kind": entry_end_kind.month}
-    return {"start_month": start, "end_month": None, "end_kind": entry_end_kind.present if start else None}
+        return {"start_month": start, "end_month": end, "end_kind": entry_end_kind.month, **years}
+    return {"start_month": start, "end_month": None, "end_kind": entry_end_kind.present if start else None, **years}
 
 
 def _role(section: bank_section, role: Experience) -> dict:
@@ -115,7 +125,7 @@ def _role(section: bank_section, role: Experience) -> dict:
         "title": title,
         "organization": organization if organization != title else None,
         "location": _clip(role.location),
-        **_span(role.start_date, role.end_date),
+        **_span(role.start_date, role.end_date, role.year_only),
         "bullets": _bullets(role.description),
     }
 
@@ -171,6 +181,7 @@ def _raw_drafts(parsed: ParsedResume, today: datetime.date) -> list[dict]:
             "end_month": end,
             # A graduation still to come is an expected one.
             "end_kind": None if end is None else entry_end_kind.expected if end > today else entry_end_kind.month,
+            "year_only": _years(school.year_only),
             "bullets": bullets,
         })
     drafts += [_role(bank_section.experience, job) for job in parsed.experience]
@@ -180,7 +191,7 @@ def _raw_drafts(parsed: ParsedResume, today: datetime.date) -> list[dict]:
             "title": _clip(project.project_name),
             "link": _clip(project.url, _LONG),
             "tools": _tools(project.technologies),
-            **_span(project.start_date, project.end_date),
+            **_span(project.start_date, project.end_date, project.year_only),
             "bullets": _bullets(project.description),
         })
     drafts += [_role(bank_section.leadership, role) for role in parsed.leadership]
@@ -190,6 +201,7 @@ def _raw_drafts(parsed: ParsedResume, today: datetime.date) -> list[dict]:
             "title": _clip(award.title),
             "organization": _clip(award.issuer),
             "award_date": award.date,
+            "year_only": _years(award.year_only),
         })
     for cert in parsed.certifications:
         drafts.append({
@@ -399,9 +411,12 @@ def model_drafts(reading: ModelReading, text: str | None = None) -> list[DraftEn
         # "2022 - current": the model sends the year alone, which is no
         # "YYYY-MM", so the entry lost its dates (an award lost itself).
         # A year alone is January of it, as the parser reads it.
+        raw["year_only"] = []
         for field in ("start_month", "end_month", "award_date"):
             if isinstance(raw[field], str) and _YEAR_ALONE_RE.fullmatch(raw[field].strip()):
                 raw[field] = f"{raw[field].strip()}-01"
+                # and it prints as the year, not as January of it (KAN-808)
+                raw["year_only"].append(field)
         if raw["section"] is bank_section.education:
             raw["bullets"] = _gpa_kept(raw["bullets"])
             # "Honors" alone, or "magna cum laude", is the degree's: it goes
@@ -711,6 +726,10 @@ def _fill_blanks(twin: DraftEntry, entry: DraftEntry) -> None:
             fill.update(start_month=entry.start_month, end_month=entry.end_month, end_kind=entry.end_kind)
     elif twin.start_month is None and entry.start_month and twin.end_month == entry.end_month:
         fill["start_month"] = entry.start_month
+    # A date filled from the parser keeps its year-alone mark (KAN-808)
+    if dated := {f for f in YEAR_DATES if f in fill}:
+        fill["year_only"] = [f for f in YEAR_DATES
+                             if f in (entry.year_only if f in dated else twin.year_only)]
     # A twin in another section takes only the fields its section holds.
     foreign = _SECTION_ONLY - set(SECTION_FIELDS.get(twin.section, ()))
     fill = {f: v for f, v in fill.items() if f not in foreign}

@@ -504,6 +504,23 @@ def _parse_date_range(text: str) -> tuple[date | None, date | None]:
     return start, _to_date(m.group(5), m.group(4))
 
 
+def _years_only(text: str) -> list[str]:
+    """Which dates `_parse_date_range` reads from `text` name a year alone,
+    as "start_date" and "end_date" (KAN-808): "2019 – 2023" reads as
+    January of each, which a resume printed as "Jan. 2019"."""
+    m = EXPECTED_RE.search(text)
+    if m:
+        return [] if m.group(1) else ["end_date"]
+    m = DATE_RANGE_RE.search(text)
+    if not m:
+        b = BARE_DATE_RE.search(text)
+        return ["end_date"] if b and not b.group(1) else []
+    years = [] if m.group(1) else ["start_date"]
+    if m.group(3).lower() not in ("present", "current", "now") and not m.group(4):
+        years.append("end_date")
+    return years
+
+
 def _extract_location(text: str) -> tuple[str | None, str]:
     """Extract 'City, ST' from the end of a line. Returns (location, remainder).
     Tries multi-space separator first (common in PDF extraction), then falls
@@ -766,9 +783,13 @@ def _parse_education(text: str) -> list[Education]:
         # Dates: the start too, which was dropped, so "Aug 2023 - May 2027"
         # printed "May 2027" alone
         start, end = _parse_date_range(all_text)
+        years = _years_only(all_text)
         if end is None:
             # "... - May 2028 - GPA 3.7": a dash field, not a line's end
-            end = next((e for f in dash_fields if (e := _parse_date_range(f.strip())[1])), None)
+            dated = next((f.strip() for f in dash_fields if _parse_date_range(f.strip())[1]), None)
+            if dated is not None:
+                end = _parse_date_range(dated)[1]
+                years = [y for y in years if y != "end_date"] + [y for y in _years_only(dated) if y == "end_date"]
 
         # GPA: the cumulative one; a major's stays a line, as written
         gpas = gpa_matches(all_text)
@@ -838,7 +859,7 @@ def _parse_education(text: str) -> list[Education]:
 
         results.append(Education(
             institution=inst, degree=degree, field_of_study=field, location=location,
-            gpa=gpa, gpa_scale=gpa_scale, start_date=start, end_date=end, description=desc,
+            gpa=gpa, gpa_scale=gpa_scale, start_date=start, end_date=end, year_only=years, description=desc,
         ))
     return results
 
@@ -863,6 +884,7 @@ def _parse_experience(text: str) -> list[Experience]:
 
         date_line = lines[date_idx]
         start, end = _parse_date_range(date_line)
+        years = _years_only(date_line)
 
         # Detect layout: if the line AFTER the date has a role keyword,
         # then date_line = company, next line = title + location.
@@ -941,7 +963,7 @@ def _parse_experience(text: str) -> list[Experience]:
 
         results.append(Experience(
             company_name=company, title=title, location=location,
-            start_date=start, end_date=end, description=desc, technologies=technologies,
+            start_date=start, end_date=end, year_only=years, description=desc, technologies=technologies,
         ))
     return results
 
@@ -1021,6 +1043,7 @@ def _parse_projects(text: str) -> list[Project]:
         # First line has project name + optional tech parens + date
         first = lines[0]
         start, end = _parse_date_range(first)
+        years = _years_only(first)
         name = BARE_DATE_RE.sub("", DATE_RANGE_RE.sub("", first)).strip().rstrip(",").rstrip("–—-").strip()
         technologies: list[str] = []
         name, technologies = split_tools(name)
@@ -1054,7 +1077,7 @@ def _parse_projects(text: str) -> list[Project]:
 
         results.append(Project(
             project_name=name, url=url, technologies=technologies,
-            start_date=start, end_date=end, description=desc,
+            start_date=start, end_date=end, year_only=years, description=desc,
         ))
     return results
 
@@ -1093,13 +1116,15 @@ def _parse_publications(text: str) -> list[Project]:
         url_m = URL_RE.search(item)
         name = URL_RE.sub("", item).strip().rstrip(",").strip()
         _, when = _parse_date_range(name)
+        years = [y for y in _years_only(name) if y == "end_date"]
         year = CITATION_YEAR_RE.search(name)
         if when is None and year:
-            when = date(int(year.group(1)), 1, 1)
+            when, years = date(int(year.group(1)), 1, 1), ["end_date"]
         # "Paper, Venue  May 2025": the month is the end, not the name
         name = _strip_dates(name) or name
         if name:
-            results.append(Project(project_name=name, url=url_m.group(0) if url_m else None, end_date=when))
+            results.append(Project(project_name=name, url=url_m.group(0) if url_m else None, end_date=when,
+                                   year_only=years))
     return results
 
 
@@ -1133,15 +1158,17 @@ def _parse_awards(text: str) -> list[Award]:
         if not line:
             continue
         _, when = _parse_date_range(line)
+        years = ["date"] if "end_date" in _years_only(line) else []
         rest = _strip_dates(line)
         year = YEAR_ONLY_RE.search(rest)
         if when is None and year:
-            when = date(int(year.group(1)), 1, 1)
+            when, years = date(int(year.group(1)), 1, 1), ["date"]
         if year:
             rest = rest[:year.start()].strip().rstrip(",|–—-").strip()
         parts = [p.strip() for p in re.split(r'\s*[|–—]\s*|\s+-\s+', rest, maxsplit=1)]
         if parts[0]:
-            results.append(Award(title=parts[0], issuer=parts[1] if len(parts) > 1 and parts[1] else None, date=when))
+            results.append(Award(title=parts[0], issuer=parts[1] if len(parts) > 1 and parts[1] else None, date=when,
+                                 year_only=years))
     return results
 
 

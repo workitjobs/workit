@@ -326,6 +326,9 @@ resume; KAN-207 renders the bank and retired the proof endpoint.
   "+1 646-555-0142" however it was typed; any other as typed. The profile
   keeps what was typed, and the resume printed it bare ("16465550142"). PDF,
   LaTeX and Word alike; the box's text is the printed form.
+- **A date given as a year alone prints as the year** (`dates`, the
+  entry's `year_only`, KAN-808): "2019 – 2023", "Expected 2027", never
+  "Jan. 2019". The Experiences view's `formatDates` shows it the same way.
 - **Numbers and dates print once and whole** (2026-11-12): a GPA keeps a
   whole number's zeros ("90/100"; `_number` stripped them, so it printed
   "9/100") and prints one of ten or more with no decimals ("85/100", not

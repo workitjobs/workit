@@ -295,6 +295,15 @@ change here must keep:
   them again. The student adding one by hand (POST .../experiences/skills) takes
   it off the list. The clean-up script's deletes are not the student's and
   are not remembered.
+- **`year_only` names the dates given as a year alone** (KAN-808,
+  `e6b2d4f8a120`): a `text[]` of `start_month`, `end_month` and
+  `award_date` (a CHECK), `'{}'` by default. A date is the first day of
+  its month, so "2019 – 2023" was January of each and printed "Jan.
+  2019"; marked, it prints as the year. **A date the edit changes loses
+  its mark** unless the edit names `year_only` (`bank.with_years`); a
+  date sent again unchanged keeps it, since the edit form sends every
+  field on every save. Apply the migration before the deploy: the model
+  maps it, so every read of an entry fails without it.
 - **Section fields are plain nullable columns on `bank_entries`**, not a
   JSONB blob, so later queries (graduation date, Tailor's text search) read
   them directly. `schemas/bank.py`'s `SECTION_FIELDS` says which section

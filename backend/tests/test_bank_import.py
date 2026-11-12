@@ -1795,6 +1795,19 @@ def test_the_models_major_gpa_is_no_gpa_and_stays_a_line():
     assert school.gpa is None and school.bullets == ["Major GPA: 3.95/4.00"]
 
 
+def test_a_year_alone_is_marked_in_both_readings():
+    # KAN-808: the year alone was January of it, and every resume printed "Jan."
+    from app.schemas.bank import ModelReading
+    from app.services.bank_import import model_drafts
+
+    entries, _ = read("EDUCATION\nHillcrest State University  2019 – 2023\nB.S. in Biology\n")
+    assert entries[0].year_only == ["start_month", "end_month"]
+    reading = ModelReading.model_validate({"entries": [
+        {"section": "awards", "title": "Dean's List", "award_date": "2024"},
+    ]})
+    assert model_drafts(reading)[0].year_only == ["award_date"]
+
+
 # --- a project's tools (KAN-738) -------------------------------------------------
 #
 # A project keeps the stack the resume names for it, in the resume's spelling

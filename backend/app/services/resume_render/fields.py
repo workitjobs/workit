@@ -48,15 +48,21 @@ def month(day: datetime.date, date_format: str = "short") -> str:
 def dates(entry: ViewEntry, date_format: str = "short") -> str:
     '''"Aug. 2018 – May 2021", "June 2020 – Present", "Expected May 2027",
     or "" when the entry has no dates.'''
+    def when(field: str) -> str:
+        # A date given as a year alone prints as the year (KAN-808): it is
+        # January of it, which printed "Jan. 2019 – Jan. 2023" for "2019 – 2023"
+        day = getattr(entry, field)
+        return "" if day is None else str(day.year) if field in entry.year_only else month(day, date_format)
+
     if entry.section == "awards":
-        return month(entry.award_date, date_format) if entry.award_date else ""
+        return when("award_date")
     if entry.end_kind == "present":
         end = "Present"
     elif entry.end_month:
-        end = ("Expected " if entry.end_kind == "expected" else "") + month(entry.end_month, date_format)
+        end = ("Expected " if entry.end_kind == "expected" else "") + when("end_month")
     else:
         end = ""
-    start = month(entry.start_month, date_format) if entry.start_month else ""
+    start = when("start_month")
     # One month, or one year in the year format, names it once: "June 2024
     # – June 2024" and "2020 – 2020" read as a slip
     if start and end in (start, f"Expected {start}"):

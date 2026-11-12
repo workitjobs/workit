@@ -1090,3 +1090,15 @@ def test_a_heading_that_fits_keeps_jake_s_own_table():
     assert second.y0 - first.y0 < 15
     assert r"\else" + "\n" + r"\vspace{-2pt}\item" in jakes_body(
         ResumeView((ViewSection("education", schools),), ()), IDENTITY, marks=False)
+
+
+def test_a_date_given_as_a_year_alone_prints_as_the_year():
+    # KAN-808: it is January of the year, and printed "Jan. 2019 – Jan. 2023"
+    entry = ViewEntry(uuid.uuid4(), "education", "Hillcrest State University",
+                      start_month=datetime.date(2019, 1, 1), end_month=datetime.date(2023, 1, 1),
+                      end_kind="month", year_only=("start_month", "end_month"))
+    assert dates(entry) == "2019 – 2023"
+    assert dates(replace(entry, end_kind="expected", year_only=("end_month",))) == "Jan. 2019 – Expected 2023"
+    award = ViewEntry(uuid.uuid4(), "awards", "Dean's List", award_date=datetime.date(2024, 1, 1),
+                      year_only=("award_date",))
+    assert dates(award) == "2024"

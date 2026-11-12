@@ -514,6 +514,11 @@ Rules:
     `"2022"`, which is no `YYYY-MM`, so the entry lost its dates; an award
     dated "2024" lost itself, since `_valid`'s undated retry left
     `award_date` in place. Both now read as this parser reads them.
+    **And it is marked** (KAN-808): the entry's `year_only` names each
+    date given as a year alone, from this parser (`_years_only`, the
+    DTOs' `year_only`) and from the model (`model_drafts`), and keeps
+    its mark when the merge fills it (`_fill_blanks`), so it prints as
+    the year, not "Jan.".
   - **The two readings are combined, entry by entry**
     (`with_parsers_reading`). Both run on every upload, and the model's
     reading is the base: it reads layouts this parser has no rule for.

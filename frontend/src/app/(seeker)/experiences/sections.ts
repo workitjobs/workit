@@ -210,14 +210,19 @@ export function formatMonth(month: string): string {
 
 /** The dates line an entry shows: "Jun 2025 – Present", "Expected May 2027". */
 export function formatDates(entry: EntryFields): string | null {
-  if (entry.section === "awards") return entry.award_date ? formatMonth(entry.award_date) : null;
+  // A date given as a year alone shows as the year, as the resume prints it
+  // (KAN-808): it is January of it
+  const when = (field: "start_month" | "end_month" | "award_date", month: string) =>
+    entry.year_only?.includes(field) ? month.slice(0, 4) : formatMonth(month);
+  if (entry.section === "awards")
+    return entry.award_date ? when("award_date", entry.award_date) : null;
   const end =
     entry.end_kind === "present"
       ? "Present"
       : entry.end_month
-        ? `${entry.end_kind === "expected" ? "Expected " : ""}${formatMonth(entry.end_month)}`
+        ? `${entry.end_kind === "expected" ? "Expected " : ""}${when("end_month", entry.end_month)}`
         : null;
-  const start = entry.start_month ? formatMonth(entry.start_month) : null;
+  const start = entry.start_month ? when("start_month", entry.start_month) : null;
   if (start && end) return `${start} – ${end}`;
   return start ?? end;
 }

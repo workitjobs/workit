@@ -745,3 +745,18 @@ def test_a_major_gpa_alone_never_fills_the_gpa():
 def test_gpa_matches_name_a_major_s_gpa_as_written():
     found = resume_parser.gpa_matches("GPA: 3.72/4.0, In-Major GPA: 3.9")
     assert [line for _, line in found] == [None, "In-Major GPA: 3.9"]
+
+
+def test_a_date_given_as_a_year_alone_is_marked():
+    # KAN-808: "2019 – 2023" read as January of each, and printed "Jan. 2019"
+    parsed = parse_resume("EDUCATION\nHillcrest State University  2019 – 2023\nB.S. in Biology\n"
+                          "EXPERIENCE\nAcme Analytics  2022 – Present\nData Analyst\n• Cleaned rows\n"
+                          "AWARDS\nDean's List  2024\n")
+    assert parsed.education[0].year_only == ["start_date", "end_date"]
+    assert parsed.experience[0].year_only == ["start_date"]
+    assert parsed.awards[0].year_only == ["date"]
+
+
+def test_a_date_with_its_month_is_not_marked():
+    parsed = parse_resume("EXPERIENCE\nAcme Analytics  May 2024 – Aug 2024\nData Analyst\n• Cleaned rows\n")
+    assert parsed.experience[0].year_only == []
