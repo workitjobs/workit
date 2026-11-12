@@ -1652,7 +1652,10 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   (`paramsOf`), not from the saved filters: `RememberFeed`, `ScrollMemory`
   and Load More's kept pages key on the address, so a drifted one loses the
   list on Back or a reload, and a saved `pay_per` of `hour` with no range
-  reads back as `year`. Never bring `redirect()` back: the Jobs link paid two
+  reads back as `year`. For the same reason the no-results state's Clear
+  Filters (`ClearFeedFilters` in `jobs/filters.tsx`, KAN-823) replaces the
+  address with `sortHref(sort, NO_FILTERS)`, exactly what the row's Clear
+  builds on /jobs (`?sort=` and nothing else). Never bring `redirect()` back: the Jobs link paid two
   round trips with a blank panel between. **Still open:** the bar shows bare
   `/jobs` for about 0.4 s (until page-enter ends, `docs/motion.md`), and a
   filter pick in that window builds its URL from the bare address.
@@ -2355,6 +2358,15 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   share the Applications list's frame and its promoted pieces
   (`components/clickable-row.tsx`, `match-badge.tsx`, `reflow.tsx`,
   `field-facet.tsx`); a new seeker table starts from those, not a copy.
+  **The Jobs page's filters are built from the same parts** (KAN-823):
+  `FieldFacet` for Workplace and Job Type, the Tracker's `SearchFacet`
+  (`applications/field-filters.tsx`, with `labelOf` for the roles' slugs)
+  for Role, `facetClasses`, `FacetLabel` and `ui/check-row.tsx` for
+  Location's two-panel popover, and `components/all-filters-dialog.tsx`
+  for All Filters, with `AllFiltersSkeleton` while its places and roles
+  load. Until then `jobs/` drew its own copies of the button, the rows and
+  the panel's frame, which drifted from the Tracker's. Change a filter's
+  look in the shared part, never in `jobs/`.
 - **How many rows a table or list shows depends on where it sits.** A
   full-page table (the Applications list, Up Next) shows every row and the
   page scrolls. A list or table inside a dialog or a tile scrolls inside

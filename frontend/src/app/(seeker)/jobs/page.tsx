@@ -14,7 +14,7 @@ import { FeedHeader } from "./feed-header";
 import { FeedFallback } from "./feed-fallback";
 import { FeedList } from "./feed-list";
 import { FeedTransition, PendingFeed } from "./feed-transition";
-import { JobFilters } from "./filters";
+import { ClearFeedFilters, JobFilters } from "./filters";
 import { JobsTopRow } from "./jobs-top-row";
 import { ListingsError } from "./listing-card";
 import {
@@ -47,7 +47,7 @@ import { getApplicationStages } from "../auto-apply/applications";
 
 export const metadata: Metadata = {
   title: "Jobs",
-  description: "Roles matched to your profile.",
+  description: "Jobs matched to your profile.",
 };
 
 /* Built without a mockup, from the layout described in ./data. The feed is
@@ -140,6 +140,7 @@ async function Feed({
     <Results
       page={page}
       filters={filters}
+      sort={sort}
       query={query}
       retryHref={sortHref(sort, filters)}
       stages={byJob}
@@ -189,7 +190,7 @@ async function SplitFeed({
           {error != null ? (
             <ListingsError error={error} retryHref={sortHref(sort, filters)} />
           ) : (
-            <NoRoles filters={filters} />
+            <NoJobs filters={filters} sort={sort} />
           )}
         </div>
       )}
@@ -197,15 +198,21 @@ async function SplitFeed({
   );
 }
 
-/** What a list shows with no roles to show. */
-function NoRoles({ filters }: { filters: FeedFilters }) {
+/** What a list shows with no jobs to show. Filtered, it offers Clear
+ *  Filters, as Up Next's and Documents' do (KAN-823). */
+function NoJobs({ filters, sort }: { filters: FeedFilters; sort: Sort }) {
   return isFiltered(filters) ? (
-    <EmptyState Icon={BriefcaseIcon} title="No Roles Match These Filters" className="mt-4">
+    <EmptyState
+      Icon={BriefcaseIcon}
+      title="No Jobs Match These Filters"
+      className="mt-4"
+      action={<ClearFeedFilters sort={sort} />}
+    >
       Nothing in the feed fits every filter you picked. Loosen one, or clear them all.
     </EmptyState>
   ) : (
-    <EmptyState Icon={BriefcaseIcon} title="No Roles Yet" className="mt-4">
-      New internship and new-grad roles land here as companies post them. Check back tomorrow
+    <EmptyState Icon={BriefcaseIcon} title="No Jobs Yet" className="mt-4">
+      New internship and new-grad jobs land here as companies post them. Check back tomorrow
       morning.
     </EmptyState>
   );
@@ -214,6 +221,7 @@ function NoRoles({ filters }: { filters: FeedFilters }) {
 function Results({
   page,
   filters,
+  sort,
   query,
   retryHref,
   stages,
@@ -223,6 +231,7 @@ function Results({
 }: {
   page: FeedPage;
   filters: FeedFilters;
+  sort: Sort;
   query: string;
   retryHref: string;
   stages: Record<string, ApplicationStage>;
@@ -235,7 +244,7 @@ function Results({
 
   if (error != null) return <ListingsError error={error} retryHref={retryHref} />;
 
-  if (jobs.length === 0) return <NoRoles filters={filters} />;
+  if (jobs.length === 0) return <NoJobs filters={filters} sort={sort} />;
 
   return (
     <>

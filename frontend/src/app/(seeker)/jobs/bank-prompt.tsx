@@ -34,7 +34,7 @@ export async function BankPrompt() {
         {hasUpload ? "Import Your Resume" : "Add Your Experiences"}
       </SectionHeading>
       <p className="text-body text-ink-meta mt-1">
-        You have no experiences yet, so WorkIt cannot match roles to you.{" "}
+        You have no experiences yet, so WorkIt cannot match jobs to you.{" "}
         {hasUpload
           ? "Import your uploaded resume in one click, then fix any entry in Experiences."
           : "Upload a resume to fill them in, or tell WorkIt about one thing you did."}

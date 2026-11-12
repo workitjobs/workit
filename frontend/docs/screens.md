@@ -23,7 +23,12 @@ preferences apply on a fresh visit only**: a bare /jobs visit draws Best
 Match with the saved filters in the same response, where the row shows them
 checked, then writes that exact address into the address bar in place (a
 shallow replace, `jobs/canonical-url.tsx`; KAN-368). From then on the URL is
-the truth, so Clear All clears rather than bringing the saved ones back. A
+the truth, so Clear All clears rather than bringing the saved ones back.
+**A filtered list with no jobs offers Clear Filters** (KAN-823), as Up
+Next's and Documents' empty states do: "No Jobs Match These Filters" said
+"clear them all" with no button. It lands where the row's Clear does,
+`sortHref(sort, NO_FILTERS)`, replacing the address in the feed's
+transition (`ClearFeedFilters` in jobs/filters.tsx). A
 `redirect()` here made the sidebar's Jobs link pay two round trips with a
 blank panel between; do not bring it back. Load More pages whichever order drew the list (`FeedList`'s
 `source`).
@@ -86,7 +91,14 @@ gutters (SEEKER_BLEED in gutter.ts); as wide as the cards only, their shadow
 showed beside it as two thin vertical lines while they scrolled under.
 
 jobs/filters.tsx draws the row (KAN-170); every facet filters, and Industry is
-gone (no data). As the row narrows its facets step out one at a time, least used
+gone (no data). **It is built from the filter parts every page table shares**
+(KAN-823), so it looks and acts as the Tracker's row does: Workplace and Job
+Type are `FieldFacet` (components/field-facet.tsx), a menu of check rows;
+Role is the Tracker's `SearchFacet` (applications/field-filters.tsx); and
+Location's two-panel popover opens from the same button (`facetClasses`,
+`FacetLabel`) over the same check rows (ui/check-row.tsx). Until then the row
+drew its own copy of the button, Workplace and Job Type were Selects, and
+Location's rows were drawn by hand, so each list looked a little different. As the row narrows its facets step out one at a time, least used
 first, Visa is never in the row (All Filters only, asked for 2026-10-10), and
 All Filters stays at every width, a 36px icon button named by its tooltip
 (KAN-519); never stretch it across the row. **It counts the facets with a
@@ -113,7 +125,11 @@ row's Role waits on them behind a disabled button as Location waits on its
 places. filter-query.ts checks a ?role= by shape only, like a place, so an old
 KAN-172 link's "data_ai/ml" is dropped, not sent.
 
-All Filters opens one panel (jobs/all-filters.tsx) with every facet's options in
+All Filters opens one panel (jobs/all-filters.tsx) on the frame every page's
+panel shares (components/all-filters-dialog.tsx, KAN-823: `AllFiltersDialog`,
+`AllFiltersBody`, `FilterSection`), and while the places and roles load it
+shows `AllFiltersSkeleton`, its sections as bars, where it said "Loading the
+filters…". It holds every facet's options in
 view as chips, or a search picker for the long lists, and no facet popups inside
 it (they landed left or right of their button by the room). Its last section,
 Auto Apply (the Zap glyph a job's Auto Apply button wears), has one chip,
@@ -132,12 +148,12 @@ is the start date; Role, which the card doesn't print, a person in a suit and
 tie, drawn for it since no icon set has one, KAN-252), and inside a popup only
 Workplace's options carry glyphs, the card's own three, as their chips do in
 the panel, where Experience Level's do too (levelIcon: steps, a
-check badge; KAN-252, asked for 2026-10-17). Options are medium weight, as the
-facet buttons are; at body weight they read thin beside the row. A facet's popup is as
+check badge; KAN-252, asked for 2026-10-17). Options are medium weight (the
+check row's); at body weight they read thin beside the row. A facet's popup is as
 wide as its longest option, never narrower than its button and never wider than
-the screen (FacetPopup, KAN-252): the vendored Select is only the button's
-width, which wrapped Role's options onto up to four lines and cut off
-Infrastructure Engineer's checkbox. Salary is a range, "$ 30 /hr – $ 50 /hr", either end open,
+the screen (the shared lists' width, KAN-252): a list the button's width
+wrapped Role's options onto up to four lines and cut off Infrastructure
+Engineer's checkbox. Salary is a range, "$ 30 /hr – $ 50 /hr", either end open,
 with presets (hourly when only internships are picked, yearly when none are, `payUnits`) that fill the
 minimum; a posting matches when its own range overlaps it, compared as yearly
 figures in USD.
@@ -153,8 +169,10 @@ Escape closing only the list), picks shown below as pills with a cross, and
 nothing pre-picked. Clear All remounts the pickers so typed text clears too. The
 row's Role is a checklist dropdown with a search field at its top (KAN-252,
 asked for 2026-10-17: forty-odd roles were too many to scroll), Workplace's rows
-under the panel picker's field. It is Base UI's Combobox, not a Select, since a
-Select whose rows come and go undoes an untick (below). A pick keeps the typed
+under the panel picker's field. It is the Tracker's `SearchFacet` (KAN-823),
+a Base UI Combobox, not a Select, since a Select whose rows come and go
+undoes an untick (below); `labelOf` gives it the roles' names for their
+slugs, and the search matches the names. A pick keeps the typed
 search, as the panel's picker does, and each open starts empty. A picked state narrows its country, in the panel as in the row. Start
 Date offers seasons (Summer 2027), grouped by the API from the terms postings
 use; Visa offers Sponsors Visas alone (Hide Jobs That Rule Me Out went in
@@ -162,7 +180,9 @@ KAN-275, as two visa filters read as one). No option shows
 a job count, in the row or the panel (removed 2026-10-17, KAN-252, as clutter);
 the panel's Show N Jobs is the one count. GET /jobs/facets still sends them.
 Location, fed by GET /jobs/locations, is a Popover of two
-panels, not a Select: countries left, the ticked country's states right. A
+panels, not a Select or a `FieldFacet`: countries left, the ticked country's
+states right, each row the shared check row as a checkbox button (its box
+answers to `data-checked`, as a menu row's does). A
 country alone is all of it, with states ticked just those (ticksFrom/placesFrom
 there). Don't move it back into a Select with rows that come and go: a multiple
 Select whose item list shrinks (Base UI 1.7) re-applies the value from before

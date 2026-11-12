@@ -138,7 +138,8 @@ open choices (Settled choices, near the end).
   look for the same job is a break, even when it is close. The shared
   parts so far: `ui/notice.tsx` (a notice over a table, below),
   `components/filter-actions.tsx` (Clear, All Filters),
-  `components/all-filters-dialog.tsx` (All Filters' panel),
+  `components/all-filters-dialog.tsx` (All Filters' panel, the Jobs page's
+  too since KAN-823, with `AllFiltersSkeleton` while its options load),
   `components/table-settings.tsx` (Table Settings, Group By),
   `components/table-group.tsx` (a group's heading row),
   `components/fill-page.ts` (a table that scrolls inside itself; every
@@ -992,7 +993,7 @@ student clicks or picks (buttons, chips, segmented controls, menu rows,
 select and filter options, field labels), 600 to name a block (card and
 dialog titles, a job's title, captions, and `text-title`, 700 until
 2026-11-10), 700 to name a page. **A filter or sort trigger is 400**, not
-500 (`facetClasses`, `facetTriggerClasses`; 2026-11-10, as Jobright's
+500 (`facetClasses`, which the Jobs page's row shares since KAN-823; 2026-11-10, as Jobright's
 are): a row of medium filters read heavier than the job cards under it.
 The options in its list stay 500. A token that
 carries a weight already sets it; a size with none of its own (body, note)
@@ -1597,7 +1598,9 @@ secondary buttons on white (a card, a sheet, the editor's slim bar on
 `FieldFacet`): a small secondary button with the field's glyph and name,
 tinted while it holds a pick, over checkbox rows, each option in its own
 glyph and colour where it has one, and a cross beside the row to clear it.
-None picked shows everything. The Applications Tracker's filter row, the
+None picked shows everything. The Jobs page's row (KAN-823: Workplace and
+Job Type, with Role as the Tracker's `SearchFacet` and Location's popover on
+the same button and rows), the Applications Tracker's filter row, the
 Inbox's Status, Live Activity's Status and the Calendar's Type all draw it,
 so filtering looks and works the same on every page. Never a row of chips
 for this: the Calendar drew one for a draft (KAN-429) and the Inbox before

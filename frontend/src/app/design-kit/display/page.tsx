@@ -251,10 +251,10 @@ export default function DisplayPage() {
           <Card padding="none" className="w-full max-w-md">
             <EmptyState
               Icon={BriefcaseIcon}
-              title="No Roles Yet"
+              title="No Jobs Yet"
               action={<Button variant="secondary">Refresh</Button>}
             >
-              New roles show up here as soon as they&apos;re posted.
+              New jobs show up here as soon as they&apos;re posted.
             </EmptyState>
           </Card>
         </Row>
