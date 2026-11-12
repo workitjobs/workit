@@ -1326,8 +1326,13 @@ screen's own `<input>`, `<textarea>` or `FIELD_CONTROL` string:
   Settings).
 - **One glyph, one meaning.** A glyph the sidebar or another screen uses
   for one thing is never drawn for another (the Tracker's checklist on
-  Application Info, until 2026-11-11). Check `seeker-sidebar.tsx` and a
-  grep for the icon before picking one.
+  Application Info, until 2026-11-11), and one thing is never drawn with
+  two glyphs. **`/design-kit/icons` lists every glyph the app draws with
+  its one meaning** (2026-11-12): look there before picking a glyph, and
+  add the new use to its group in the same change. The page flags a glyph
+  with two meanings, or a meaning with two glyphs, by itself (its To Fix
+  group); on 2026-11-12 it flagged twelve and five, Briefcase alone carrying
+  seven meanings, which were written down to be fixed.
 - **A table's column headings draw one rule under them** (2026-11-11): the
   heading row has no border (`STICKY_HEAD`), each heading cell its inset
   rule (`STICKY_TH`), and a frozen heading its rule and its edge together
