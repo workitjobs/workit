@@ -5,7 +5,14 @@ import type { Bank } from "@/lib/bank-actions";
 import type { Choices } from "@/lib/built-resume-actions";
 
 import { reverseChoices } from "./history.ts";
-import { arrangeSkills, mergeChoices, moveSkill, printedSkills } from "./model.ts";
+import {
+  arrangeSkills,
+  groupKey,
+  groupLabel,
+  mergeChoices,
+  moveSkill,
+  printedSkills,
+} from "./model.ts";
 
 // KAN-586: the Sections outline's skill groups, moves and Undo
 const skill = (id: string, name: string, group: string | null) => ({
@@ -136,4 +143,50 @@ test("Undo of a second move puts back the group this resume had", () => {
     reverseChoices(bank, moved, { skills: [{ skill_id: "re", group: "Languages" }] }),
     { skills: [{ skill_id: "re", group: "Tools" }] },
   );
+});
+
+// KAN-810: names that differ only in case or "&" printed as two groups
+const mixed = {
+  entries: [],
+  sections: [],
+  skills: [
+    skill("re", "React", "frameworks"),
+    skill("dj", "Django", "Frameworks"),
+    skill("gi", "Git", "tools and platforms"),
+    skill("do", "Docker", "Tools & Platforms"),
+    skill("fi", "Figma", "other"),
+    skill("ex", "Excel", null),
+  ],
+} as unknown as Bank;
+const allShown: Choices = {
+  entries: [],
+  bullets: [],
+  variants: [],
+  skills: mixed.skills.map((s, i) => ({ skill_id: s.id, shown: true, position: i, group: null })),
+};
+
+test("groups that differ only in case or & are one, as the page prints them", () => {
+  assert.deepEqual(
+    printedSkills(mixed, allShown).map((g) => [g.key, g.label, g.skills.map((s) => s.name)]),
+    [
+      ["Frameworks", "Frameworks", ["React", "Django"]],
+      ["Tools & Platforms", "Tools & Platforms", ["Git", "Docker"]],
+      ["", "Other", ["Figma", "Excel"]],
+    ],
+  );
+});
+
+test("a skill already in its merged group is no move", () => {
+  const update = arrangeSkills(mixed, allShown, printedSkills(mixed, allShown));
+  assert.deepEqual(
+    update.skills!.filter((s) => "group" in s),
+    [],
+  );
+});
+
+test("a group name's key and label match the backend's", () => {
+  assert.equal(groupKey("  Tools &  Platforms "), "tools and platforms");
+  assert.equal(groupKey("Other"), "");
+  assert.equal(groupLabel(["cloud and devops"]), "Cloud and Devops");
+  assert.equal(groupLabel(["frameworks", "Frameworks"]), "Frameworks");
 });

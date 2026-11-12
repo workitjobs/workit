@@ -9,7 +9,7 @@ import re
 from dataclasses import dataclass
 from decimal import Decimal
 
-from app.services.resume_view import ViewEntry
+from app.services.resume_view import ViewEntry, grouped_skills
 
 SECTION_LABELS = {
     "education": "Education",
@@ -195,13 +195,12 @@ def details(entry: ViewEntry) -> list[tuple[str, str]]:
 def skill_lines(skills) -> list[tuple[str, tuple]]:
     '''(label, skills) per group, in the order groups first appear; a layout
     joins the names with ", ". Ungrouped skills are "Other" beside groups,
-    or unlabeled ("") alone.'''
-    groups: dict[str | None, list] = {}
-    for skill in skills:
-        groups.setdefault(skill.group, []).append(skill)
-    if list(groups) == [None]:
-        return [("", tuple(groups[None]))]
-    return [(group or "Other", tuple(members)) for group, members in groups.items()]
+    or unlabeled ("") alone. Names that differ only in case or "&" are one
+    group (`resume_view.grouped_skills`, KAN-810).'''
+    groups = grouped_skills(skills)
+    if [label for label, _ in groups] == [None]:
+        return [("", tuple(groups[0][1]))]
+    return [(label or "Other", tuple(members)) for label, members in groups]
 
 
 def phone_text(phone: str) -> str:

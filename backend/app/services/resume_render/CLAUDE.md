@@ -21,6 +21,14 @@ resume; KAN-207 renders the bank and retired the proof endpoint.
 - **`fields.py` is how a field reads as text** (dates, GPA, headings, skill
   groups), shared by the PDF and the Word file so the two never disagree.
   Change wording there, not in a layout.
+- **Group names that differ only in case or "&" print as one line**
+  (`resume_view.grouped_skills`, `group_key`, KAN-810): "Frameworks" and
+  "frameworks", "Tools & Platforms" and "tools and platforms", and a group
+  named "other" with the skills that have none. The line takes the first
+  name with a capital letter, else the first in title case (`group_label`).
+  Tailor's prompt (`tailor.skill_groups`), Fit to One Page and the
+  editor's outline (`printedSkills`, `groupKey`) group the same way;
+  change them together.
 - **The font and a size per kind of text are page settings too** (KAN-435):
   `font_family` from `FONT_FAMILIES`, and `name_size`, `heading_size`,
   `title_size` and `body_size`, each null until set, which follows `font_size`

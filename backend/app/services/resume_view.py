@@ -169,6 +169,43 @@ class ViewSkill:
     group: str | None = None
 
 
+_GROUP_SMALL = frozenset({"a", "an", "and", "for", "in", "of", "on", "or", "the", "to", "with", "&"})
+
+
+def group_key(name: str | None) -> str:
+    '''Which printed group a skill's group name is: case, spacing and "&"
+    for "and" aside, and "Other" is the skills with no group, which print
+    as "Other" beside named groups (KAN-810). "Frameworks" and "frameworks",
+    "Tools & Platforms" and "tools and platforms" printed as two lines, and
+    an upload's lowercase "other" group beside the real "Other". The
+    editor's outline has the same rule (`groupKey` in the editor's
+    model.ts); change both together.'''
+    key = " ".join((name or "").lower().replace("&", " and ").split())
+    return "" if key == "other" else key
+
+
+def group_label(names: Iterable[str | None]) -> str | None:
+    '''A printed group's name: the first of its names with a capital letter
+    ("Frameworks" over "frameworks"), else the first in title case, small
+    words aside; None for the skills with no group (`groupLabel`).'''
+    named = [n for n in names if n and group_key(n)]
+    if not named:
+        return None
+    if cased := next((n for n in named if n != n.lower()), None):
+        return " ".join(cased.split())
+    words = named[0].split()
+    return " ".join(w if i and w in _GROUP_SMALL else w[:1].upper() + w[1:] for i, w in enumerate(words))
+
+
+def grouped_skills(skills: Iterable[ViewSkill]) -> list[tuple[str | None, list[ViewSkill]]]:
+    '''The skills by printed group, each group where its first skill
+    prints: (its label, its skills), None for those with no group.'''
+    groups: dict[str, list[ViewSkill]] = {}
+    for skill in skills:
+        groups.setdefault(group_key(skill.group), []).append(skill)
+    return [(group_label(s.group for s in members) if key else None, members) for key, members in groups.items()]
+
+
 @dataclass(frozen=True)
 class ResumeView:
     sections: tuple[ViewSection, ...] = ()

@@ -67,6 +67,7 @@ from app.services.resume_view import (
     ViewEntry,
     ViewSkill,
     all_chosen,
+    grouped_skills,
 )
 from app.services.truth_rule import invented
 
@@ -229,11 +230,8 @@ def prompt(
 
 def skill_groups(view: ResumeView) -> list[tuple[str | None, list[ViewSkill]]]:
     """The resume's skills by group, each group where it first shows: the
-    lines the renderer draws."""
-    groups: dict[str | None, list[ViewSkill]] = {}
-    for skill in view.skills:
-        groups.setdefault(skill.group, []).append(skill)
-    return list(groups.items())
+    lines the renderer draws (`grouped_skills`)."""
+    return grouped_skills(view.skills)
 
 
 def skill_numbers(view: ResumeView) -> dict[int, ViewSkill]:

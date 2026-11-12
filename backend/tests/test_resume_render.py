@@ -60,10 +60,17 @@ from app.services.resume_render.fields import (
     heading_fields,
     one_row,
     phone_text,
+    skill_lines,
 )
 from app.services.resume_render.jakes import body as jakes_body
 from app.services.resume_render.sample import IDENTITY, VIEW
-from app.services.resume_view import ResumeView, ViewBullet, ViewEntry, ViewSection
+from app.services.resume_view import (
+    ResumeView,
+    ViewBullet,
+    ViewEntry,
+    ViewSection,
+    ViewSkill,
+)
 
 # jakes.tex from the KAN-176 prototype, byte for byte. A change here is a
 # change to Jake's template itself: don't
@@ -1002,3 +1009,28 @@ def test_a_projects_link_prints_short_and_clicks_through():
     rendered = render(view, IDENTITY, "jakes")
     assert any(t.startswith("Maze Robot | HackSBU | github.com/jd/maze-robot") for t, _, _ in _text_lines(rendered.pdf))
     assert "https://github.com/jd/maze-robot" in _link_targets(rendered.pdf)
+
+
+def _skills(*pairs: tuple[str, str | None]) -> list[ViewSkill]:
+    return [ViewSkill(uuid.uuid4(), name, group) for name, group in pairs]
+
+
+def test_groups_that_differ_only_in_case_or_and_print_as_one_line():
+    # KAN-810: "Frameworks" and "frameworks" printed as two lines, and an
+    # upload's lowercase "other" beside the real "Other"
+    skills = _skills(("React", "Frameworks"), ("Python", "Languages"), ("Django", "frameworks"),
+                     ("Git", "tools and platforms"), ("Docker", "Tools & Platforms"), ("Figma", "other"),
+                     ("Excel", None))
+    assert [(label, [s.name for s in members]) for label, members in skill_lines(skills)] == [
+        ("Frameworks", ["React", "Django"]), ("Languages", ["Python"]),
+        ("Tools & Platforms", ["Git", "Docker"]), ("Other", ["Figma", "Excel"])]
+
+
+def test_a_group_named_only_in_lower_case_prints_in_title_case():
+    skills = _skills(("AWS", "cloud and devops"), ("Python", "Languages"))
+    assert [label for label, _ in skill_lines(skills)] == ["Cloud and Devops", "Languages"]
+
+
+def test_a_lone_group_named_other_prints_unlabeled():
+    skills = _skills(("Excel", "other"), ("Word", None))
+    assert skill_lines(skills) == [("", tuple(skills))]
