@@ -1,5 +1,4 @@
 import { ChatTextIcon } from "@phosphor-icons/react/ssr";
-import type { ReactNode } from "react";
 
 import { FileIcon } from "@/components/icons";
 import { Card } from "@/components/ui/card";
@@ -10,7 +9,7 @@ import type { SentResume } from "@/lib/sent-resume-actions";
 import type { JobListing } from "../../jobs/listings";
 import { MatchRail } from "../../jobs/match-rail";
 import { LocalDate } from "../../local-time";
-import { STAGE_COLOR, STAGE_ICON, STAGE_LABEL, type StageKey } from "../../stage-colors";
+import { STAGE_COLOR, STAGE_LABEL, type StageKey } from "../../stage-colors";
 import {
   eventsOf,
   isUpcoming,
@@ -22,6 +21,7 @@ import {
 import { Timeline } from "../timeline";
 import { SentResumeRow } from "../view-resume";
 import { ApplyBy } from "./apply-by";
+import { EmptySlot } from "./empty-slot";
 import { StageMenu, TrackerEvents } from "./tracker-controls";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -116,8 +116,6 @@ export function YourApplication({
       value: days,
     });
   }
-  const StageIcon = STAGE_ICON[app.stage];
-
   return (
     <>
       {/* ONE TINTED CARD for the seeker's record, holding rounded white
@@ -141,28 +139,12 @@ export function YourApplication({
             left side, so it never stops short and leaves an empty corner. */}
         <div className="flex flex-col gap-4 @xl:flex-row">
           <div className="min-w-0 flex-1">
-            {/* The stage as the board's column headers drew it: its glyph on
-                a solid disc, then its name. A badge's fill is the card's own
-                tint, so a badge vanished into it. */}
-            <div className="flex flex-wrap items-center gap-2">
-              <span
-                aria-hidden="true"
-                className={cn(
-                  "flex size-6 shrink-0 items-center justify-center rounded-full text-white",
-                  STAGE_COLOR[app.stage].fill,
-                )}
-              >
-                <StageIcon className="size-3.5" />
-              </span>
-              <span className={cn("text-label font-semibold", STAGE_COLOR[app.stage].onTint)}>
-                {STAGE_LABEL[app.stage]}
-              </span>
-              {/* The stage menu (KAN-413): the student says where it
-                  stands once the employer answers. */}
-              <span className="ml-auto">
-                <StageMenu jobId={app.id} stage={app.stage} />
-              </span>
-            </div>
+            {/* The stage, once, in the stage menu (KAN-413): its glyph and
+                name, and the student says where it stands once the
+                employer answers. A saved job's reads Saved, as the
+                Tracker's rows do. A disc and the stage's name sat before
+                it until KAN-824, so the card said the stage twice. */}
+            <StageMenu jobId={app.id} stage={app.stage} placeholder={STAGE_LABEL.saved} />
             <h2 className="text-title text-ink mt-3">{HEADLINE[app.stage]}</h2>
             {/* No applied date here: the days-since card and the timeline
                 both carry it. */}
@@ -232,13 +214,14 @@ export function YourApplication({
 
       {/* WHAT YOU SENT (KAN-317): the resume as the Resumes view draws its
           rows, then the answers the application asked for, in one white
-          card under the heading, as Interviews & Dates above it is.
+          card under the heading, built as Interviews & Dates above it is
+          (KAN-824: `Section`, an elevated `Card`, `EmptySlot`).
           Answers are not stored yet; the empty line holds their place so
           the section's shape does not change when they arrive. The empty
           slots were the upload dropzone's dashed outline on the grey
           ground until 2026-11-10, and read as places to drop a file. */}
       <Section title="What You Sent">
-        <Card padding="lg" elevated={false} className="mt-3">
+        <Card padding="lg" className="mt-3">
           <h3 className="text-label text-ink font-semibold">Resume</h3>
           {sent.length > 0 ? (
             <ul>
@@ -251,30 +234,21 @@ export function YourApplication({
               ))}
             </ul>
           ) : (
-            <EmptySlot icon={<FileIcon className="text-ink-meta size-5" />}>
+            <EmptySlot icon={<FileIcon className="text-ink-meta size-5" />} className="mt-2">
               No resume sent yet
             </EmptySlot>
           )}
 
           <h3 className="text-label text-ink mt-5 font-semibold">Answers</h3>
-          <EmptySlot icon={<ChatTextIcon aria-hidden className="text-ink-meta size-5" />}>
+          <EmptySlot
+            icon={<ChatTextIcon aria-hidden className="text-ink-meta size-5" />}
+            className="mt-2"
+          >
             Your answers to this application&apos;s questions will show here.
           </EmptySlot>
         </Card>
       </Section>
     </>
-  );
-}
-
-/** An empty slot: the place a sent resume or the answers fill, as one
- *  quiet line with its glyph, the height of a resume row so nothing jumps
- *  when one arrives. */
-function EmptySlot({ icon, children }: { icon: ReactNode; children: ReactNode }) {
-  return (
-    <div className="mt-2 flex min-h-13 items-center gap-2">
-      {icon}
-      <p className="text-body text-ink-meta">{children}</p>
-    </div>
   );
 }
 

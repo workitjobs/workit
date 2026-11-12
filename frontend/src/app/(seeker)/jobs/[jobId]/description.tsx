@@ -49,7 +49,7 @@
  * the job's Company tab** where the page has one (`companyFromPosting`,
  * ./company-tab.tsx; `companyElsewhere` leaves it out here, 2026-11-10): at the
  * foot of the Overview it sat under the job, a tab away from where a student
- * looks for the company. The application page's Job Description tab has no
+ * looks for the company. The application page's Overview tab has no
  * Company tab, so it keeps it in the fold. Before, they were left out,
  * and with them what an employer wrote about the job under a perks heading.
  * Only the job's sections make a description "sectioned": a description stored

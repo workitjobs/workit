@@ -1285,9 +1285,11 @@ the server and the browser print the same.
 content looks, or one setting; **tabs** (`ui/tabs.tsx`, `TabLinks`) move
 between different content on one subject. Material Design and Nielsen
 Norman Group draw the line the same way. Tabs: a job's Overview and
-Company, an application's Your Application and Job Description, and
+Company, an application's Your Application and Overview, and
 Documents' Resumes and Cover Letters, each a link kept in the URL, drawn as
 text with a brand underline on the open one, never the switcher's pill. A
+job's tabs and an application's sit in the same place, beside Back in the
+action bar, and the posting's tab has one name on both, Overview (KAN-824). A
 tab is 16px: the open one semibold in brand over a 3px underline, the
 others medium in `ink-meta` (2026-11-10). At 13px in ink with a 2px
 underline they read as small print beside the job bar's 36px buttons.

@@ -487,7 +487,7 @@ checked facts by category, each with its source, after the posting's own
 About the Company section under "From the Job Posting" (`companyFromPosting`
 in `[jobId]/description.tsx`, 2026-11-10): it sat folded at the foot of the
 Overview, a tab away from where a student looks for the company, and the
-Overview now leaves it out. The application page's Job Description tab,
+Overview now leaves it out. The application page's Overview tab,
 which has no Company tab, keeps it in its fold. A brief exists only once a
 student's Claude has researched the company, so most jobs show the website
 and the posting's words, or "WorkIt has no notes on … yet" when the posting
@@ -1266,7 +1266,7 @@ one link: its role, stretched over it; a row opens on a click anywhere
 **An application has its own page, `/applications/[jobId]`** (KAN-256),
 which replaced the side panel: the panel had room for a timeline but not
 for the job. **Its job half is the job page itself**: the pinned action bar,
-the header and the Job Description tab are the parts `/jobs/[jobId]` draws
+the header and the Overview tab are the parts `/jobs/[jobId]` draws
 (`jobs/[jobId]/job-view.tsx`: `loadJobView`, `JobViewActions`,
 `JobViewHeader`, `JobViewBody`), so the two pages look the same and cannot
 drift apart. They share the job page's width too (`JOB_PAGE_WIDTH`, 1120px,
@@ -1274,11 +1274,13 @@ KAN-279). Only Back differs (to the page that opened it, else the
 tracker, `JobActionBar`'s `back` slot; `(seeker)/back-link.tsx`). No match rail, as on the job page: an earlier draft added the
 Jobs card's ring, which made the same job look different by how it was
 opened. Analytics and explanations go on the Your Application tab only.
-**The bar holds the tabs once there is nothing to do**: an applied job, or a
-closed posting, has no use for Apply, Tailor, Save or Ask Scout, so the bar
-shows the tabs beside Back instead, and its card has no glyphs. A saved job with
-an open posting keeps the job page's actions and its card's Ask Scout and Save,
-and its tabs sit under the header. Three tabs, each a
+**The tabs sit beside Back, as the job page's do, for every stage**
+(KAN-824): they moved by stage until then, into the bar's right end for an
+applied job and under the header for a saved one. A saved job with an open
+posting keeps the job page's actions at the bar's right end and its card's
+Ask Scout and Save; an applied job, or a closed posting, has no use for
+Apply, Tailor, Save or Ask Scout, so that end is empty and its card has no
+glyphs. Three tabs, each a
 URL (`?tab=emails`, `?tab=job`; **Emails**, KAN-413, lists the job's
 emails as the Inbox does, `[jobId]/emails-tab.tsx`, each opening in the
 Inbox) that moves in place (KAN-368,
@@ -1292,12 +1294,13 @@ tracker row, and the tab title comes from the posting's own read:
   (`STAGE_COLOR[stage].panel`: violet for Applied, grey for Saved, amber,
   green and red for the three after), so it
   reads as the seeker's record rather than a second white card under the
-  job's header. On the tint: the stage as its glyph on a solid disc and its
-  name (the board's column headers; a badge's fill is the tint itself),
-  and at the row's right the **stage menu** (KAN-413, `StageMenu` in
-  `[jobId]/tracker-controls.tsx`): Applied, Interviewing, Offer or Rejected,
-  any way, "Move To…" on a saved job, since saved is a bookmark it never
-  goes back to. A pick says so in a toast ("Moved to Offer.") whose Undo
+  job's header. On the tint: the stage, once, in the **stage menu**
+  (KAN-413, `StageMenu` in `[jobId]/tracker-controls.tsx`), its glyph and
+  name: Applied, Interviewing, Offer or Rejected, any way, and "Saved" on a
+  saved job, as the Tracker's rows read, though Saved is no pick, since
+  saved is a bookmark it never goes back to. The stage's glyph on a solid
+  disc and its name sat before the menu until KAN-824, so the card said the
+  stage twice. A pick says so in a toast ("Moved to Offer.") whose Undo
   puts the stage before it back (KAN-577, `[jobId]/undo.ts`); a saved job's
   pick asks first in a dialog instead, since the API never moves a job back
   to Saved, and the menu is off while its write runs; then a one-line status per stage (`HEADLINE`: "Waiting to
@@ -1327,7 +1330,11 @@ tracker row, and the tab title comes from the posting's own read:
   would fit, but no hiring system WorkIt reads publishes one; a count of
   WorkIt's own applicants is possible from `job_applications` and would
   need a field on the tracker's response. **Interviews & Dates** sits
-  under the card (KAN-413, `TrackerEvents`): every event, soonest first,
+  under the card (KAN-413, `TrackerEvents`), built as What You Sent is
+  (KAN-824): a `Section` with Create Event at its heading's end, over an
+  elevated `Card`, and with no events one quiet line with its glyph in that
+  card (`[jobId]/empty-slot.tsx`, shared with What You Sent), where a bare
+  line sat on the grey ground. In the card: every event, soonest first,
   each with its kind's stage glyph, its day in the viewer's zone, Join
   Meeting for its link, its note and a Delete (the stage stays; its
   toast's Undo adds the same event back, KAN-577), and **Add
@@ -1355,15 +1362,18 @@ tracker row, and the tab title comes from the posting's own read:
   list's own, not a green Applied With). The whole row opens
   View Resume's dialog (`useResumeViewer`, shared with the list's button).
   It was a bare View Resume button with loose tags until KAN-317, unlike a
-  resume anywhere else. Resume and Answers sit in one white card under the
-  heading, as Interviews & Dates does. With none sent, one quiet line with
+  resume anywhere else. Resume and Answers sit in one elevated white card
+  under the heading, as Interviews & Dates' events do (a flat card until
+  KAN-824). With none sent, one quiet line with
   its glyph says "No resume sent yet", a resume row's height. Answers is
   that same line for now: neither Apply nor auto apply keeps the answers
   typed into the employer's form yet, and the line holds their place so
   the section keeps its shape when they arrive. Both were dashed boxes, the
   upload dropzone's outline on the grey ground, until 2026-11-10, and read
   as places to drop a file.
-- **Job Description**: About the Role alone (`JobViewBody`'s
+- **Overview**, the job page's name for the posting's tab, for an open
+  and a closed posting alike (KAN-824: it was Job Description, and its
+  closed pane About the Role): About the Role alone (`JobViewBody`'s
   `descriptionOnly`). The job page's sent and applied notes and its
   Key Requirements card stay off: they pushed the description down and are
   the application's record, which the first tab already holds.

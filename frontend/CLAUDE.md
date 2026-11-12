@@ -1693,7 +1693,14 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   the dialog in `applications/create-event.tsx`, which the Calendar's toolbar opens too,
   over `applications/actions.ts`), and the tracker's read joins the events
   from `GET .../events` (`applications/tracked.ts`); a failed read of
-  either shows an error, never stand-in cards. **Each tracker write offers
+  either shows an error, never stand-in cards. **The application's page
+  matches the job page and itself** (KAN-824): its tabs sit beside Back in
+  the action bar for every stage, where the job page's do, and the
+  posting's tab is Overview, the job page's name, open or closed; the stage
+  shows once, in the stage menu (a saved job's reads Saved); Interviews &
+  Dates and What You Sent are each a `Section` over an elevated `Card`,
+  with the same empty row (`applications/[jobId]/empty-slot.tsx`). The tabs
+  moved by stage and had three names until then. **Each tracker write offers
   Undo or asks first** (KAN-577): a stage pick and an event's Delete say so
   in a toast whose Undo writes the reverse (`applications/[jobId]/undo.ts`,
   tested), and a saved job's stage pick asks in a dialog, since the API

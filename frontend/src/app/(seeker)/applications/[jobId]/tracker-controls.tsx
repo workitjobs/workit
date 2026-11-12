@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useId, useState, useTransition } from "react";
 
-import { ExternalLinkIcon, TrashIcon } from "@/components/icons";
+import { CalendarIcon, ExternalLinkIcon, TrashIcon } from "@/components/icons";
 import {
   Dialog,
   DialogClose,
@@ -15,7 +15,7 @@ import {
 } from "@/components/shadcn/dialog";
 import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
-import { SectionHeading } from "@/components/ui/section-heading";
+import { Section } from "@/components/ui/section";
 import { SelectField } from "@/components/ui/select-field";
 import { useToast } from "@/components/ui/toast";
 import { Card } from "@/components/ui/card";
@@ -39,6 +39,7 @@ import {
 } from "../actions";
 import { CreateEventDialog } from "../create-event";
 
+import { EmptySlot } from "./empty-slot";
 import { asksFirst, readdEvent, undoStage } from "./undo";
 
 /**
@@ -68,8 +69,9 @@ const PICKABLE: PickableStage[] = ["applied", "interviewing", "offer", "rejected
  * while a write runs.
  *
  * The Tracker's list rows and cards carry it too, so a stage changes where
- * the application is seen; there a saved job's menu reads "Saved"
- * (`placeholder`), its stage, rather than the page's "Move To…". Its id is
+ * the application is seen. Every caller passes "Saved" (`placeholder`), so
+ * a saved job's menu names its stage: the application page's did too once
+ * it became the card's only mark of the stage (KAN-824). Its id is
  * its own (`useId`): the list and the cards are both on the page at once.
  */
 export function StageMenu({
@@ -194,14 +196,15 @@ export function StageMenu({
  * rejection moves the stage forward as Create Event does). Only an event
  * the student added has Delete: one read from an email stays, as every
  * email stays in the Inbox as a record (the API refuses its delete too).
+ *
+ * Built as What You Sent under it is (KAN-824): a `Section` with Create
+ * Event at its heading's end, an elevated `Card`, and with no events the
+ * same quiet empty row in that card (./empty-slot.tsx). It had its own
+ * heading row and a bare line on the grey ground until then.
  */
 export function TrackerEvents({ jobId, events }: { jobId: string; events: ApplicationEvent[] }) {
   return (
-    <section className="mt-5">
-      <div className="flex items-center justify-between gap-3">
-        <SectionHeading>Interviews &amp; Dates</SectionHeading>
-        <CreateEventDialog jobId={jobId} />
-      </div>
+    <Section title="Interviews & Dates" action={<CreateEventDialog jobId={jobId} />}>
       {events.length > 0 ? (
         <Card as="ul" padding="none" className="divide-border-subtle mt-3 divide-y">
           {events.map((event) => (
@@ -209,12 +212,14 @@ export function TrackerEvents({ jobId, events }: { jobId: string; events: Applic
           ))}
         </Card>
       ) : (
-        <p className="text-body text-ink-meta mt-3">
-          Add interviews, assessments, offers and replies here. They show on your timeline and your
-          Calendar.
-        </p>
+        <Card padding="lg" className="mt-3">
+          <EmptySlot icon={<CalendarIcon className="text-ink-meta size-5" />}>
+            Add interviews, assessments, offers and replies here. They show on your timeline and
+            your Calendar.
+          </EmptySlot>
+        </Card>
       )}
-    </section>
+    </Section>
   );
 }
 
