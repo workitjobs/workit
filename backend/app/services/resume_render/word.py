@@ -26,9 +26,12 @@ from app.services.resume_render.fields import (
     SKILLS_LABEL,
     TWO_ROW,
     US_CITIZEN,
+    degree_leads,
     details,
     heading,
+    heading_fields,
     link_text,
+    one_row,
     phone_text,
     skill_lines,
 )
@@ -83,10 +86,13 @@ def _section_heading(doc, label: str) -> None:
 
 def _entry(doc, entry: ViewEntry, page: PageSettings) -> None:
     h = heading(entry, page.date_format, page.education_first)
-    if entry.section in TWO_ROW:
+    kinds = heading_fields(entry.section, degree_leads(entry, page.education_first))
+    if entry.section in TWO_ROW and (rights := one_row(h, kinds)) is not None:
+        # One row, as the PDF prints it (KAN-503): the place, then the dates
+        _row(doc, h.title, " | ".join(getattr(h, name) for name in rights), bold=True)
+    elif entry.section in TWO_ROW:
         _row(doc, h.title, h.right, bold=True)
-        if h.subtitle or h.subright:
-            _row(doc, h.subtitle, h.subright, italic=True)
+        _row(doc, h.subtitle, h.subright, italic=True)
     else:
         _row(doc, h.title, h.right, bold=True, tag=h.tag)
         if h.subtitle:

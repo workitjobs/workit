@@ -86,15 +86,15 @@ export function JobMoreMenu({
   return (
     <>
       <DropdownMenu>
-        {/* An IconButton, so the ⋯ says what it is on hover, as every icon
-            button does (2026-11-11; it had a name for a screen reader only).
-            z-2: over a card's click layer (components/job-posting-card.tsx). */}
+        {/* An IconButton with no tooltip: "⋯" reads as more on sight
+            (components/ui/tip.tsx, 2026-11-12). z-2: over a card's click
+            layer (components/job-posting-card.tsx). */}
         <DropdownMenuTrigger
           render={
             <IconButton
               variant="glyph"
               label={`More for ${title}`}
-              tooltip="More actions"
+              tooltip={false}
               className="z-2 shrink-0"
             >
               <EllipsisIcon className="size-4" />

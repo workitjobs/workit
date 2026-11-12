@@ -713,8 +713,8 @@ export function SidePanel({
     >
       <div className="flex min-h-9 shrink-0 items-center justify-between gap-2">
         <h2 className="text-subtitle text-ink font-semibold">{title}</h2>
-        <IconButton label={`Close ${title}`} tooltip="Close" className="size-9" onClick={onClose}>
-          <CloseIcon className="size-4.5" />
+        <IconButton place="row" label={`Close ${title}`} tooltip={false} onClick={onClose}>
+          <CloseIcon />
         </IconButton>
       </div>
       <div className="relative -mr-1.5 flex min-h-0 flex-col gap-2 overflow-y-auto overscroll-none pr-1.5">

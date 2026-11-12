@@ -534,13 +534,14 @@ export function EntryEditor<S extends EntrySection = EntrySection>({
                 </span>
               ) : (
                 <IconButton
+                  place="row"
                   label={`Remove ${noun}`}
-                  tooltip={`Remove this ${noun.toLowerCase()}`}
+                  tooltip={false}
                   // Centred on the box's first line, beside the mark.
-                  className="mt-1.25 size-8"
+                  className="mt-1.25"
                   onClick={() => set({ bullets: draft.bullets.filter((_, j) => j !== i) })}
                 >
-                  <XIcon aria-hidden className="size-4" />
+                  <XIcon aria-hidden />
                 </IconButton>
               )}
             </div>

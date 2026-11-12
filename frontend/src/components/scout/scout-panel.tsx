@@ -48,9 +48,9 @@ import type { ScoutMessage } from "./stream";
  * NO RULED LINES. The header and the composer used to be fenced off with
  * hairlines; the header is now the panel's own top, and the conversation
  * fades out under it and above the composer instead, so it reads as one
- * surface. Every icon-only control carries a tooltip (ui/icon-button.tsx),
- * Send included: it is aria-disabled rather than disabled while there is
- * nothing to send, so its tooltip can still say why.
+ * surface. Send is aria-disabled rather than disabled while there is
+ * nothing to send, so its tooltip can say why; it shows none while it
+ * works (components/ui/tip.tsx, 2026-11-12).
  *
  * A PAGE CAN TAKE THE PANEL OVER (scout-takeover.tsx): the Experience Bank
  * puts intake here. Its content renders into the slot below in place of the
@@ -167,11 +167,13 @@ export function ScoutPanel() {
               </p>
             </div>
             <IconButton
+              place="row"
+              tooltip={false}
               label={`Close ${takeover?.title ?? "Scout"}`}
-              className="hover:bg-hover ml-auto size-8 rounded-full after:hidden"
+              className="ml-auto after:hidden"
               onClick={closeScout}
             >
-              <CloseIcon className="size-4" />
+              <CloseIcon />
             </IconButton>
           </header>
         )}

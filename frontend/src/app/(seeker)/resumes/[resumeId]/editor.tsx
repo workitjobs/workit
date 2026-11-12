@@ -2503,12 +2503,13 @@ export function Editor({
           <div className="flex min-h-9 items-center justify-between">
             <h2 className={compareHeading}>Original Resume</h2>
             <IconButton
+              place="row"
               label="Close Comparison"
-              tooltip="Close"
-              className="size-9"
+              tooltip={false}
+
               onClick={() => showSide(null)}
             >
-              <CloseIcon className="size-4.5" />
+              <CloseIcon />
             </IconButton>
           </div>
           {shownOriginal}
