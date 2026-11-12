@@ -15,6 +15,7 @@ import tempfile
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
+from decimal import Decimal
 from pathlib import Path
 from typing import get_args
 
@@ -54,9 +55,11 @@ from app.services.resume_render import (
 from app.services.resume_render.fields import (
     dates,
     degree_leads,
+    gpa,
     heading,
     heading_fields,
     one_row,
+    phone_text,
 )
 from app.services.resume_render.jakes import body as jakes_body
 from app.services.resume_render.sample import IDENTITY, VIEW
@@ -420,7 +423,7 @@ def test_the_header_gives_a_box_for_each_profile_field() -> None:
 def test_the_header_says_us_citizen_only_when_checked() -> None:
     assert "U.S. Citizen" not in jakes_body(VIEW, IDENTITY)
     # First on the contact line, before the phone
-    assert r"\small U.S. Citizen $|$ 123-456-7890 $|$ " in jakes_body(
+    assert r"\small U.S. Citizen $|$ +1 123-456-7890 $|$ " in jakes_body(
         VIEW, replace(IDENTITY, us_citizen=True), marks=False)
     _tectonic_or_skip()
     rendered = render(VIEW, replace(IDENTITY, us_citizen=True), "jakes")
@@ -578,7 +581,7 @@ def test_the_word_file_says_us_citizen_when_checked() -> None:
 
     doc = Document(io.BytesIO(render_docx(VIEW, replace(IDENTITY, us_citizen=True))))
     assert doc.paragraphs[1].text == (
-        "U.S. Citizen | 123-456-7890 | jake@su.edu | linkedin.com/in/jake | github.com/jake")
+        "U.S. Citizen | +1 123-456-7890 | jake@su.edu | linkedin.com/in/jake | github.com/jake")
 
 
 def test_the_word_file_prints_the_location_and_leaves_out_hidden_fields() -> None:
@@ -589,10 +592,10 @@ def test_the_word_file_prints_the_location_and_leaves_out_hidden_fields() -> Non
     identity = replace(IDENTITY, location="Stony Brook, NY")
     doc = Document(io.BytesIO(render_docx(VIEW, identity)))
     assert doc.paragraphs[1].text == (
-        "123-456-7890 | jake@su.edu | Stony Brook, NY | linkedin.com/in/jake | github.com/jake")
+        "+1 123-456-7890 | jake@su.edu | Stony Brook, NY | linkedin.com/in/jake | github.com/jake")
     page = PageSettings(hidden_header=("email", "linkedin_url"))
     doc = Document(io.BytesIO(render_docx(VIEW, identity, page)))
-    assert doc.paragraphs[1].text == "123-456-7890 | Stony Brook, NY | github.com/jake"
+    assert doc.paragraphs[1].text == "+1 123-456-7890 | Stony Brook, NY | github.com/jake"
     doc = Document(io.BytesIO(render_docx(VIEW, replace(identity, extra="Open to relocation"))))
     assert doc.paragraphs[2].text == "Open to relocation"
     page = PageSettings(hidden_header=("resume_header_extra",))
@@ -899,7 +902,8 @@ def test_a_date_format_reads_as_it_says(date_format, expected) -> None:
 def test_year_only_prints_one_year_once() -> None:
     entry = replace(_education(), end_month=_education().start_month)
     assert dates(entry, "year") == "2018"
-    assert dates(entry, "short") == "Aug. 2018 – Aug. 2018"
+    # one month in any format prints once
+    assert dates(entry, "short") == "Aug. 2018"
 
 
 def test_degree_first_swaps_educations_rows_and_their_click_targets() -> None:
@@ -939,3 +943,59 @@ def test_the_word_file_follows_the_date_format_and_the_education_order() -> None
     school = next(i for i, row in enumerate(rows) if row.startswith(_education().title))
     assert heading(_education()).subtitle in rows[school - 1]
     assert rows[school].endswith("2018 – 2021")
+
+
+# --- Text the PDF printed wrong (2026-11-12 audit) ---------------------------
+
+@pytest.mark.parametrize(("typed", "printed"), [
+    ("16465550142", "+1 646-555-0142"),
+    ("1234567890", "+1 123-456-7890"),
+    ("(516)-555-0187", "+1 516-555-0187"),
+    ("+44 7911 123456", "+44 7911 123456"),
+    ("555-0100 ext 12", "555-0100 ext 12"),
+])
+def test_a_phone_prints_as_the_profile_shows_it(typed, printed):
+    # The resume printed the saved value bare ("16465550142")
+    assert phone_text(typed) == printed
+
+
+@pytest.mark.parametrize(("score", "scale", "printed"), [
+    ("90", "100", "GPA: 90/100"),
+    ("85.0", "100.0", "GPA: 85/100"),
+    ("3.80", "4.00", "GPA: 3.8/4.0"),
+    ("4", "4", "GPA: 4.0/4.0"),
+    ("3.81", "4", "GPA: 3.81/4.00"),
+])
+def test_a_gpa_keeps_its_zeros(score, scale, printed):
+    # "90/100" printed "9/100": zeros came off a number with no decimal point
+    entry = ViewEntry(uuid.uuid4(), "education", "Riverside State University",
+                      gpa=Decimal(score), gpa_scale=Decimal(scale))
+    assert gpa(entry) == printed
+
+
+def test_a_field_the_degree_names_prints_once():
+    entry = ViewEntry(uuid.uuid4(), "education", "Riverside State University",
+                      degree="B.S. in Computer Science", field_of_study="Computer Science")
+    assert heading(entry).subtitle == "B.S. in Computer Science"
+
+
+def test_typed_quotes_dashes_and_backticks_print_as_typed():
+    # TeX's ligatures made "--dry-run" print "–dry-run", "reviews!`" print
+    # "reviews¡", and both ends of "smart" closing quotes
+    _tectonic_or_skip()
+    bullet = 'Ran "smart" --dry-run checks with `git bisect`; reviews!` came back'
+    view = _with_entries(VIEW, ViewEntry(uuid.uuid4(), "leadership", "Tutor", organization="Learning Center",
+                                         bullets=(ViewBullet(uuid.uuid4(), bullet),)))
+    rendered = render(view, IDENTITY, "jakes")
+    assert "Ran “smart” --dry-run checks with `git bisect`; reviews!` came back" in _text(rendered.pdf).replace("\n", " ")
+    assert rendered.missing_characters == ()
+
+
+def test_a_projects_link_prints_short_and_clicks_through():
+    _tectonic_or_skip()
+    project = ViewEntry(uuid.uuid4(), "projects", "Maze Robot", organization="HackSBU",
+                        link="https://github.com/jd/maze-robot")
+    view = _with_entries(VIEW, project)
+    rendered = render(view, IDENTITY, "jakes")
+    assert any(t.startswith("Maze Robot | HackSBU | github.com/jd/maze-robot") for t, _, _ in _text_lines(rendered.pdf))
+    assert "https://github.com/jd/maze-robot" in _link_targets(rendered.pdf)

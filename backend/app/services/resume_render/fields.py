@@ -5,6 +5,7 @@ escapes or styles it itself. Stdlib only, like the rest of this package.
 '''
 
 import datetime
+import re
 from dataclasses import dataclass
 from decimal import Decimal
 
@@ -56,15 +57,26 @@ def dates(entry: ViewEntry, date_format: str = "short") -> str:
     else:
         end = ""
     start = month(entry.start_month, date_format) if entry.start_month else ""
-    # Year only can make the two ends one: "2020 – 2020" reads as a slip
-    if date_format == "year" and start == end:
-        return start
+    # One month, or one year in the year format, names it once: "June 2024
+    # – June 2024" and "2020 – 2020" read as a slip
+    if start and end in (start, f"Expected {start}"):
+        return end
     return f"{start} – {end}" if start and end else start or end
 
 
 def _number(value: Decimal) -> str:
-    # 3.80 -> "3.8", 4.00 -> "4.0", 3.85 -> "3.85"
-    text = f"{value:f}".rstrip("0")
+    # 3.80 -> "3.8", 4.00 -> "4.0", 3.85 -> "3.85"; a whole number of ten or
+    # more as written: 90 -> "90" and 100 -> "100". Zeros came off the end
+    # of a number with no decimal point too, so "GPA: 90/100" printed
+    # "GPA: 9/100", and 85.0 from the database printed "85.0/100.0"
+    # a float from the editor's copy reads as the decimal it was typed as
+    value = value if isinstance(value, Decimal) else Decimal(str(value))
+    if value == value.to_integral_value() and value >= 10:
+        return f"{value:.0f}"
+    text = f"{value:f}"
+    if "." not in text:
+        return text + ".0"
+    text = text.rstrip("0")
     return text + "0" if text.endswith(".") else text
 
 
@@ -95,7 +107,13 @@ class Heading:
 
 
 def _degree_line(entry: ViewEntry) -> str:
-    degree = " in ".join(x for x in (entry.degree, entry.field_of_study) if x)
+    # A field the degree already names prints once: "B.S. in Computer
+    # Science" with "Computer Science" read "in Computer Science in Computer
+    # Science"
+    field = entry.field_of_study
+    if field and entry.degree and field.lower() in entry.degree.lower():
+        field = None
+    degree = " in ".join(x for x in (entry.degree, field) if x)
     return ", ".join(x for x in (degree, entry.organization) if x)
 
 
@@ -116,7 +134,9 @@ def heading(entry: ViewEntry, date_format: str = "short", education_first: str =
     if entry.section == "certifications":
         tag = entry.issuer or entry.organization or ""
     else:  # projects, awards, and a custom section's entries (KAN-498)
-        tag = " | ".join(x for x in (entry.organization, entry.link) if x)
+        # the link as the header prints one ("github.com/jd/robot"), not its
+        # whole address; the PDF makes it clickable (`jakes._entry`)
+        tag = " | ".join(x for x in (entry.organization, entry.link and link_text(entry.link)) if x)
     return Heading(entry.title, when, tag=tag, subtitle=tools(entry))
 
 
@@ -175,6 +195,19 @@ def skill_lines(skills) -> list[tuple[str, tuple]]:
     if list(groups) == [None]:
         return [("", tuple(groups[None]))]
     return [(group or "Other", tuple(members)) for group, members in groups.items()]
+
+
+def phone_text(phone: str) -> str:
+    '''How a phone number prints, as the Profile shows it (the web app's
+    `phoneText`, frontend/src/lib/profile-links.ts): a U.S. number of 10
+    digits, or 11 starting with 1, as "+1 646-555-0142" however it was
+    typed; any other as typed. The profile keeps what was typed, and the
+    resume printed it bare ("16465550142"), unlike the profile beside it.'''
+    digits = re.sub(r"\D", "", phone)
+    us = digits[1:] if len(digits) == 11 and digits.startswith("1") else digits
+    if len(us) != 10 or re.search(r"[^\d\s()+.-]", phone):
+        return phone
+    return f"+1 {us[:3]}-{us[3:6]}-{us[6:]}"
 
 
 def link_text(url: str) -> str:

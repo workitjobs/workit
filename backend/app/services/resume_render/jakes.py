@@ -34,6 +34,7 @@ from app.services.resume_render.fields import (
     heading_fields,
     link_text,
     one_row,
+    phone_text,
     skill_lines,
 )
 from app.services.resume_view import ResumeView, ViewEntry, ViewSection, runs
@@ -70,7 +71,8 @@ def _header(identity: HeaderIdentity, marks: bool, printed: Printed, page: PageS
     # fields it can save, and this one is Application Questions' answer
     contact = [US_CITIZEN] if identity.us_citizen else []
     if identity.phone:
-        contact.append(slot("phone_number", escape(identity.phone), identity.phone))
+        phone = phone_text(identity.phone)
+        contact.append(slot("phone_number", escape(phone), phone))
     if identity.email:
         email = escape(identity.email)
         contact.append(slot(
@@ -110,7 +112,13 @@ def _entry(entry: ViewEntry, marks: bool, printed: Printed, page: PageSettings) 
 
     def slot(name: str) -> str:
         text = getattr(h, name)
-        return _marked(entry.id, kinds[name], escape(text), text, marks, printed)
+        latex = escape(text)
+        # A project's link is clickable, as the header's are
+        if name == "tag" and entry.link and entry.section not in TWO_ROW and entry.section != "certifications":
+            shown = link_text(entry.link)
+            org = escape(entry.organization) + r" $|$ " if entry.organization else ""
+            latex = org + rf"\href{{{escape_url(entry.link)}}}{{\underline{{{escape(shown)}}}}}"
+        return _marked(entry.id, kinds[name], latex, text, marks, printed)
 
     if entry.section in TWO_ROW and (rights := one_row(h, kinds)) is not None:
         # One row (KAN-503): \resumeSubheading's first row and nothing under

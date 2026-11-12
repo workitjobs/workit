@@ -514,13 +514,26 @@ def pdf_title(text: str) -> str:
     return rf"\special{{pdf:docinfo<</Title<{hex_text}>>>}}"
 
 
+# A straight double quote that opens a quotation: at the start, after a
+# space or an opening bracket or dash
+_OPEN_QUOTE_RE = re.compile(r'(?<![^\s(\[{–—-])"')
+
+
 def escape(text: str) -> str:
     '''
     Applicant text as LaTeX that prints it, character for character. Every
     newline becomes a space: a blank line is a paragraph break, which ends a
     command's argument early and fails the compile.
+
+    The font's TeX ligatures stay off what a student types: "--dry-run"
+    printed "–dry-run", "reviews!`" printed "reviews¡" and a backtick a
+    curly quote. A straight double quote prints as an opening or closing
+    curly quote by its place, as an apostrophe already prints curly: TeX
+    made both ends of "smart" closing ones.
     '''
-    return text.replace("\r\n", " ").translate(_TABLE)
+    out = text.replace("\r\n", " ").translate(_TABLE)
+    out = _OPEN_QUOTE_RE.sub("“", out).replace('"', "”").replace("`", r"\textasciigrave{}")
+    return re.sub(r"-(?=-)", "-{}", out)
 
 
 # In a link target hyperref turns \textasciitilde{} into "~{}", which breaks

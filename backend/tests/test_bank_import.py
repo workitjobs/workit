@@ -210,7 +210,7 @@ async def test_an_upload_writes_its_reading_into_the_bank(student, upload):
     ]
     education, job, project, club, award, cert = saved["entries"]
 
-    assert (education["degree"], education["field_of_study"], education["gpa"]) == ("B.S", "Mechanical Engineering", 3.62)
+    assert (education["degree"], education["field_of_study"], education["gpa"]) == ("B.S.", "Mechanical Engineering", 3.62)
     assert education["coursework"] == ["Thermodynamics", "Fluid Mechanics", "Statics"]
     assert (education["end_month"], education["end_kind"]) == ("2099-05", "expected")
     assert education["bullets"] == []
@@ -1569,6 +1569,42 @@ def test_a_minor_the_model_copied_as_written_reads_as_the_parser_writes_it():
             {"section": "education", "title": "Riverside State University", "field_of_study": field},
         ]})
         assert model_drafts(reading, text)[0].field_of_study == "Biology, minor in Writing & Rhetoric"
+
+
+def test_a_minor_in_a_phrase_of_its_own_is_kept_as_written():
+    # "with a Minor in" became "with a, minor in" (2026-11-12 audit)
+    from app.schemas.bank import ModelReading
+    from app.services.bank_import import model_drafts
+
+    for field in ("Biology with a Minor in Chemistry", "Biology (Minor in Chemistry)", "Biology, Double Minor in Art and Music"):
+        text = f"Education\nRiverside State University\nB.S. in {field}\n"
+        reading = ModelReading.model_validate({"entries": [
+            {"section": "education", "title": "Riverside State University", "degree": "B.S.", "field_of_study": field},
+        ]})
+        assert model_drafts(reading, text)[0].field_of_study == field
+
+
+def test_the_models_degree_stays_only_as_the_resume_writes_it():
+    # "Bachelor's" for "Bachelor of Science" passed the word check ("bachelor"
+    # and "s" are on most resumes), and the resume printed "Bachelor's"
+    from app.schemas.bank import ModelReading
+    from app.services.bank_import import model_drafts
+
+    text = "Education\nRiverside State University\nBachelor of Science in Biology  May 2027\n• Led the company's lab\n"
+    for degree, kept in [("Bachelor's", None), ("BS", None), ("Bachelor of Science", "Bachelor of Science"),
+                         ("bachelor of  science", "bachelor of science")]:
+        reading = ModelReading.model_validate({"entries": [
+            {"section": "education", "title": "Riverside State University", "degree": degree, "field_of_study": "Biology"},
+        ]})
+        assert model_drafts(reading, text)[0].degree == kept
+
+
+def test_both_readings_space_a_bar_and_keep_a_repeated_entry_once():
+    # A PDF editor left a resume's whole text in it twice, and every entry
+    # was saved twice; "thinkwell (Pulp) |AI Platform" kept its glued bar
+    text = "PROJECTS\nThinkpad (Lab) |AI Notes Platform  Apr 2026 – Jul 2026\n• Built the editor\n"
+    entries, _ = read(text + text.removeprefix("PROJECTS\n"))
+    assert [e.title for e in entries] == ["Thinkpad (Lab) | AI Notes Platform"]
 
 
 # --- a project's tools (KAN-738) -------------------------------------------------

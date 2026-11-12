@@ -25,7 +25,7 @@ EXPECTED = {
     "google_docs_single_column.txt": {
         "education": [
             # the minor follows the major: an entry has no field of its own for it
-            ("Stony Brook University", "B.S", "Computer Science, minor in Writing & Rhetoric", None, "2026-12-01"),
+            ("Stony Brook University", "B.S.", "Computer Science, minor in Writing & Rhetoric", None, "2026-12-01"),
         ],
         "experience": [
             ("Pulp Internet Corporation (Seed-Stage AI Startup)", "Product Designer & Engineer",
@@ -43,7 +43,7 @@ EXPECTED = {
     # Company+Dates / Title+Location; "Intern Brooklyn, NY" must not become the location
     "react_pdf_single_column.txt": {
         "education": [
-            ("Stony Brook University", "B.S", "Computer Science Honors", 3.86, "2027-05-01"),
+            ("Stony Brook University", "B.S.", "Computer Science Honors", 3.86, "2027-05-01"),
         ],
         "experience": [
             ("Washington University Summer Engineering Fellowship (WUSEF) – CyanoAgent",
@@ -73,7 +73,7 @@ EXPECTED = {
     # Title | Company / Location | Dates, and everything on one line
     "word_pipe_layout.txt": {
         "education": [
-            ("Stony Brook University", "B.S", "Computer Science Honors", 3.86, "2027-05-01"),
+            ("Stony Brook University", "B.S.", "Computer Science Honors", 3.86, "2027-05-01"),
         ],
         "experience": [
             ("Washington University Summer Engineering Fellowship", "AI Researcher", "St. Louis, MO",
@@ -109,7 +109,7 @@ EXPECTED = {
     # Awards one per line as "Award – Issuer  Date", one with a year only
     "leadership_and_awards_single_column.txt": {
         "education": [
-            ("Riverside State University", "B.S", "Mechanical Engineering", 3.62, "2027-05-01"),
+            ("Riverside State University", "B.S.", "Mechanical Engineering", 3.62, "2027-05-01"),
         ],
         "experience": [
             ("Harbor Robotics", "Mechanical Engineering Intern", "Portland, OR", "2026-06-01", "2026-08-01", 2),
@@ -163,7 +163,7 @@ EXPECTED = {
     # projects, one per citation, wrapped lines and all
     "research_and_publications.txt": {
         "education": [
-            ("Hillcrest State University", "B.S", "Computer Science", 3.71, "2027-05-01"),
+            ("Hillcrest State University", "B.S.", "Computer Science", 3.71, "2027-05-01"),
         ],
         "experience": [
             ("Northwind Analytics", "Data Science Intern", "Boston, MA", "2025-06-01", "2025-08-01", 1),
@@ -183,7 +183,7 @@ EXPECTED = {
     # company, and the school had no graduation date.
     "dash_separated_one_line.txt": {
         "education": [
-            ("Illinois State University", "B.S", None, 3.7, "2028-05-01"),
+            ("Illinois State University", "B.S.", "Computer Science, minor in Mathematics", 3.7, "2028-05-01"),
         ],
         "experience": [
             ("Example Logistics", "Software Engineering Intern", None, "2026-06-01", "2026-08-01", 2),
@@ -246,7 +246,8 @@ def test_jakes_layout_details():
     ]
     # a PDF gap after a bold phrase is one space; a missing-glyph tilde is "~"
     assert parsed.projects[0].description.splitlines()[0].startswith("Programmed a Raspberry Pi to")
-    assert "from~90ms" in parsed.projects[2].description
+    # set apart from the word before it, as the PDF shows it (math spacing)
+    assert "from ~90ms" in parsed.projects[2].description
     # the wrapped "Concepts" line keeps its group
     assert [(s.skill_name, s.category) for s in parsed.skills[-2:]] == [
         ("Machine Learning", "Concepts"), ("Agile", "Concepts"),
@@ -547,3 +548,148 @@ def test_a_bullet_with_commas_is_not_a_tools_line():
 def test_a_minor_follows_the_major():
     parsed = parse_resume("EDUCATION\nHillcrest State University  May 2027\nB.S. in Biology, Minor: Chemistry\n")
     assert parsed.education[0].field_of_study == "Biology, minor in Chemistry"
+
+
+# --- Text the parser read wrong in real uploads (2026-11-12 audit) ----------
+# Each layout below is a real resume's, retyped with made-up names.
+
+@pytest.mark.parametrize("degree", ["B.S.", "M.S.", "B.A.", "Ph.D.", "B.Sc.", "M.Eng.", "MBA"])
+def test_an_abbreviated_degree_keeps_its_last_period(degree):
+    # "B.S." was saved as "B.S": a word boundary cannot follow "."
+    parsed = parse_resume(f"EDUCATION\nHillcrest State University  May 2027\n{degree} in Biology\n")
+    assert (parsed.education[0].degree, parsed.education[0].field_of_study) == (degree, "Biology")
+
+
+@pytest.mark.parametrize(("line", "degree", "field"), [
+    ("B.S. Computer Science, Honors", "B.S.", "Computer Science"),
+    ("Bachelor's in Computer Science", "Bachelor's", "Computer Science"),
+    ("Bachelor's degree in Economics", "Bachelor's", "Economics"),
+    ("Bachelor of Business Administration in Finance", "Bachelor of Business Administration", "Finance"),
+    ("Bachelor of Computer Science", "Bachelor of Computer Science", None),
+    ("Associate of Arts in Liberal Studies", "Associate of Arts", "Liberal Studies"),
+    ("B.S. in Computer Science, Specialization in Artificial Intelligence",
+     "B.S.", "Computer Science, specialization in Artificial Intelligence"),
+])
+def test_the_major_is_kept_in_every_degree_form(line, degree, field):
+    parsed = parse_resume(f"EDUCATION\nHillcrest State University  Expected May 2027\n{line}\n")
+    assert (parsed.education[0].degree, parsed.education[0].field_of_study) == (degree, field)
+
+
+def test_a_state_code_is_no_degree():
+    # "Boston, MA" read as a master's degree
+    parsed = parse_resume("EDUCATION\nNortheast Tech University  Boston, MA\n"
+                          "Bachelor of Science in Computer Science  May 2027\n")
+    school = parsed.education[0]
+    assert (school.institution, school.location, school.degree) == (
+        "Northeast Tech University", "Boston, MA", "Bachelor of Science")
+
+
+@pytest.mark.parametrize("line", ["Hillcrest State University  Hillcrest, NY", "Hillcrest State University | Hillcrest, NY"])
+def test_a_schools_place_comes_off_its_name(line):
+    parsed = parse_resume(f"EDUCATION\n{line}\nB.S. in Biology  Expected May 2027\n")
+    assert (parsed.education[0].institution, parsed.education[0].location) == ("Hillcrest State University", "Hillcrest, NY")
+
+
+def test_a_second_degree_at_one_school_is_that_school():
+    # The B.S. line became a school named "B.S. in Computer Science Honors"
+    parsed = parse_resume(
+        "EDUCATION\nHillcrest State University  Hillcrest, NY\n"
+        "M.S. in Computer Science (Accelerated BS/MS)  Expected May 2028\n"
+        "B.S. in Computer Science  Expected May 2027\nGPA: 3.90/4.00\n"
+    )
+    assert [(e.institution, e.location, e.degree, e.gpa) for e in parsed.education] == [
+        ("Hillcrest State University", "Hillcrest, NY", "M.S.", None),
+        ("Hillcrest State University", "Hillcrest, NY", "B.S.", 3.9),
+    ]
+
+
+def test_a_school_named_on_its_date_line_keeps_its_name_and_gives_back_the_lines_above():
+    # "Intelligence Honors: Dean's List" became the second school's name, the
+    # first school's course list stopped at "Artificial", and the second
+    # school's own name was lost
+    parsed = parse_resume(
+        "EDUCATION\nHillcrest State University  Expected Graduation: May 2027\n"
+        "Bachelor of Science in Computer Science  GPA: 3.40 / 4.00\n"
+        "Relevant Coursework: Machine Learning, Systems Programming, Software Development, Artificial\n"
+        "Intelligence Honors: Dean’s List (All Semesters)\n"
+        "Lakeside Global Campus  February 2026 – June 2026\n"
+        "Bachelor of Science in Computer Science\nRelevant Coursework: Computer Vision\n"
+    )
+    first, second = parsed.education
+    assert second.institution == "Lakeside Global Campus"
+    assert first.description.splitlines() == [
+        "Relevant Coursework: Machine Learning, Systems Programming, Software Development, Artificial Intelligence",
+        "Honors: Dean's List (All Semesters)",
+    ]
+
+
+@pytest.mark.parametrize(("line", "start", "end"), [
+    # how WorkIt's own PDF writes a month: "Acme Corp Aug." was the company
+    ("Acme Corp  Aug. 2024 – May 2025", "2024-08-01", "2025-05-01"),
+    ("Acme Corp  May 2024 to Aug 2024", "2024-05-01", "2024-08-01"),
+    ("Acme Corp  06/2024 - 08/2024", "2024-06-01", "2024-08-01"),
+    ("Acme Corp  Summer 2024 – Fall 2024", "2024-06-01", "2024-12-01"),
+])
+def test_a_job_reads_every_common_date_form(line, start, end):
+    parsed = parse_resume(f"EXPERIENCE\n{line}\nData Analyst Intern\n• Cleaned survey data\n")
+    job = parsed.experience[0]
+    assert (job.company_name, _iso(job.start_date), _iso(job.end_date)) == ("Acme Corp", start, end)
+
+
+def test_a_season_is_read_only_where_a_date_goes():
+    parsed = parse_resume(
+        "LEADERSHIP\nChess Club – Treasurer  Spring 2024 – Present\n"
+        "• Ran the club's budget; in Fall 2026, picked 13 of 101 applicants\n"
+    )
+    club = parsed.leadership[0]
+    assert "Spring" not in club.title and "Spring" not in club.company_name
+    assert _iso(club.start_date) == "2024-01-01"
+    assert "in Fall 2026, picked 13 of 101 applicants" in club.description
+
+
+@pytest.mark.parametrize(("place", "kept"), [
+    ("Hillcrest, New York", "Hillcrest, New York"),
+    ("Toronto, ON", "Toronto, ON"),
+    ("Incheon, South Korea", "Incheon, South Korea"),
+])
+def test_a_written_out_place_after_a_gap_is_the_location(place, kept):
+    parsed = parse_resume(f"EXPERIENCE\nSignal Lab  {place}\nResearch Intern  Jan 2025 – May 2025\n• Built a model\n")
+    job = parsed.experience[0]
+    assert (job.company_name, job.location) == ("Signal Lab", kept)
+
+
+def test_a_ring_after_a_number_is_a_degree_sign_and_a_math_tilde_keeps_its_space():
+    # "2.75° to 1.01°" printed "2.75 • to 1.01 •"
+    assert resume_parser.fix_symbols("error 2.75◦ to 1.01◦; latency to∼40 ms") == "error 2.75° to 1.01°; latency to ~40 ms"
+
+
+@pytest.mark.parametrize("marker", ["➢", "►", "", "*"])
+def test_more_bullet_glyphs_are_bullets(marker):
+    parsed = parse_resume(f"EXPERIENCE\nAcme Corp  Jan 2025 – May 2025\nAnalyst\n{marker} Built a dashboard\n{marker} Cut costs 10%\n")
+    assert parsed.experience[0].description.splitlines() == ["Built a dashboard", "Cut costs 10%"]
+
+
+@pytest.mark.parametrize(("line", "names"), [
+    ("Languages: Python | Java | C++", ["Python", "Java", "C++"]),
+    ("Python; Java; C++", ["Python", "Java", "C++"]),
+    ("Frameworks: React (Next.js, Redux), Django", ["React", "Next.js", "Redux", "Django"]),
+    ("Languages – Python, Java", ["Python", "Java"]),
+    ("Certificates: Lean Six Sigma (Green Belt), CompTIA A+", ["Lean Six Sigma (Green Belt)", "CompTIA A+"]),
+])
+def test_a_skills_line_splits_at_every_common_separator(line, names):
+    parsed = parse_resume(f"SKILLS\n{line}\n")
+    assert [s.skill_name for s in parsed.skills] == names
+
+
+def test_a_school_keeps_its_start_date():
+    # "Aug 2023 - May 2027" printed "May 2027" alone
+    parsed = parse_resume("EDUCATION\nHillcrest State University  Aug 2023 – May 2027\nB.S. in Biology\n")
+    school = parsed.education[0]
+    assert (_iso(school.start_date), _iso(school.end_date)) == ("2023-08-01", "2027-05-01")
+
+
+@pytest.mark.parametrize("role", ["Treasurer", "Team Captain", "Founder", "Volunteer"])
+def test_a_club_and_its_role_on_one_dashed_line_split(role):
+    parsed = parse_resume(f"LEADERSHIP\nChess Club – {role}  Jan 2024 – Present\n• Ran the budget\n")
+    club = parsed.leadership[0]
+    assert (club.company_name, club.title) == ("Chess Club", role)

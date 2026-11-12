@@ -25,6 +25,8 @@ class ResumeStatus(str, enum.Enum):
 class Education(PydanticBase):
     institution: str
     degree: str | None = None
+    # "Stony Brook, NY" after the school's name (it stayed in the name)
+    location: str | None = None
     field_of_study: str | None = None
     gpa: float | None = None
     # the "4.00" of "GPA: 3.81/4.00"
