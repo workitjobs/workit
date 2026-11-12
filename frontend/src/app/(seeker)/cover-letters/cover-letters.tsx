@@ -11,7 +11,6 @@ import {
   RESUME_TD,
   RESUME_TH,
   RESUME_TYPE_COL,
-  ROW_ACTION,
   TargetJob,
 } from "@/components/resume-row";
 import {
@@ -226,12 +225,12 @@ function CopyButton({ text, name }: { text: string; name: string }) {
   }
   return (
     <IconButton
+      place="row"
       label={`Copy the cover letter for ${name}`}
       tooltip={said ?? "Copy"}
-      className={ROW_ACTION}
       onClick={copy}
     >
-      <CopySimpleIcon aria-hidden className="size-4" />
+      <CopySimpleIcon aria-hidden />
     </IconButton>
   );
 }

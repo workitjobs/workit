@@ -76,7 +76,6 @@ const LEAF = "text-note text-ink-muted min-w-0 flex-1";
 // A drop line above or below a row while one is dragged over it
 const LINE_ABOVE = "before:bg-brand before:absolute before:inset-x-0 before:-top-px before:h-0.5";
 const LINE_BELOW = "after:bg-brand after:absolute after:inset-x-0 after:-bottom-px after:h-0.5";
-const HINT = "Drag to move, or use the arrow keys";
 
 function Handle({
   label,
@@ -93,27 +92,25 @@ function Handle({
   data?: string;
 }) {
   return (
-    <Tip label={HINT}>
-      <button
-        type="button"
-        draggable
-        aria-label={`Move ${label}`}
-        data-outline-handle={data}
-        className="text-ink-meta hover:text-ink focus-visible:ring-brand-ring flex h-7 w-5 shrink-0 cursor-grab items-center justify-center rounded-xs focus-visible:ring-2 focus-visible:outline-none active:cursor-grabbing"
-        onDragStart={(event) => {
-          event.stopPropagation();
-          event.dataTransfer.effectAllowed = "move";
-          event.dataTransfer.setData("text/plain", label);
-          const shown = event.currentTarget.closest("li");
-          if (shown) event.dataTransfer.setDragImage(shown, 12, 12);
-          onDragStart(event);
-        }}
-        onDragEnd={onDragEnd}
-        onKeyDown={onKeyDown}
-      >
-        <DotsSixVerticalIcon aria-hidden weight="bold" className="size-4" />
-      </button>
-    </Tip>
+    <button
+      type="button"
+      draggable
+      aria-label={`Move ${label}`}
+      data-outline-handle={data}
+      className="text-ink-meta hover:text-ink focus-visible:ring-brand-ring flex h-7 w-5 shrink-0 cursor-grab items-center justify-center rounded-xs focus-visible:ring-2 focus-visible:outline-none active:cursor-grabbing"
+      onDragStart={(event) => {
+        event.stopPropagation();
+        event.dataTransfer.effectAllowed = "move";
+        event.dataTransfer.setData("text/plain", label);
+        const shown = event.currentTarget.closest("li");
+        if (shown) event.dataTransfer.setDragImage(shown, 12, 12);
+        onDragStart(event);
+      }}
+      onDragEnd={onDragEnd}
+      onKeyDown={onKeyDown}
+    >
+      <DotsSixVerticalIcon aria-hidden weight="bold" className="size-4" />
+    </button>
   );
 }
 
@@ -235,7 +232,7 @@ function Action({
   children: ReactNode;
 }) {
   return (
-    <IconButton label={label} tooltip={tooltip} className="size-7" onClick={onClick}>
+    <IconButton place="row" label={label} tooltip={tooltip} onClick={onClick}>
       {children}
     </IconButton>
   );

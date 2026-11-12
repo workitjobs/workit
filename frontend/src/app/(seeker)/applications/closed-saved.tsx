@@ -77,12 +77,13 @@ export function ClosedSavedControl({
         Posting Closed
       </span>
       <IconButton
+        place="row"
         label={`Remove ${app.role} at ${app.company}, posting closed`}
-        tooltip="Remove"
+        tooltip={false}
         disabled={pending}
         onClick={() => setAsking(true)}
       >
-        <TrashIcon className="size-4" />
+        <TrashIcon />
       </IconButton>
       <Dialog open={asking} onOpenChange={setAsking}>
         <DialogContent className="sm:max-w-md">

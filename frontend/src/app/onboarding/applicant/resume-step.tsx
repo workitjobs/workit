@@ -13,7 +13,7 @@ import { ResumeUpload } from "@/components/resume-upload";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { HEADING_ACTION, IconButton } from "@/components/ui/icon-button";
+import { IconButton } from "@/components/ui/icon-button";
 import type { Section } from "@/lib/bank-actions";
 import type { PreviewEntry, ResumePreview } from "@/lib/resume-actions";
 
@@ -255,12 +255,13 @@ function Reading({
                         warn
                         actions={
                           <IconButton
+                            place="row"
                             id={editId(index)}
                             label={`Edit ${entry.title}`}
                             tooltip="Edit this entry"
                             onClick={() => edit(index)}
                           >
-                            <PencilSimpleIcon aria-hidden className="size-4" />
+                            <PencilSimpleIcon aria-hidden />
                           </IconButton>
                         }
                         badges={
@@ -314,16 +315,16 @@ function Reading({
                 </Button>
               ) : (
                 <IconButton
+                  place="heading"
                   id={SKILLS_EDIT}
                   label="Edit Skills"
                   tooltip="Edit this section"
-                  className={HEADING_ACTION}
                   onClick={() => {
                     setEditingSkills(true);
                     focusOn(SKILLS_DONE);
                   }}
                 >
-                  <PencilSimpleIcon aria-hidden className="size-5" />
+                  <PencilSimpleIcon aria-hidden />
                 </IconButton>
               ),
             )}

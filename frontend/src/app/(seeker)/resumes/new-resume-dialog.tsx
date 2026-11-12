@@ -29,7 +29,7 @@ import {
 } from "@/components/shadcn/table";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { HEADING_ACTION, IconButton } from "@/components/ui/icon-button";
+import { IconButton } from "@/components/ui/icon-button";
 import { Missing } from "@/components/ui/missing";
 import { STICKY_HEAD, STICKY_TH } from "@/components/fill-page";
 import { OptionRow } from "@/components/ui/option-row";
@@ -219,12 +219,12 @@ function Body({
         // The resume, with the way back to the list in the title's place.
         <DialogHeader className="border-border-subtle flex-row items-center gap-2 border-b px-6 pt-5 pr-12 pb-4">
           <IconButton
+            place="row"
             label="Back to your resumes"
-            tooltip="Back"
-            className={HEADING_ACTION}
+            tooltip={false}
             onClick={() => setViewing(null)}
           >
-            <ArrowLeftIcon className="size-5" />
+            <ArrowLeftIcon />
           </IconButton>
           <DialogTitle className="text-subtitle min-w-0 truncate font-semibold">
             {viewing.name}

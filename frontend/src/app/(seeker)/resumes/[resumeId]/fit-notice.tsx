@@ -60,8 +60,8 @@ export function FitToast({
           <ScissorsIcon aria-hidden /> Fit to One Page
         </Button>
       </div>
-      <IconButton label="Dismiss" onClick={onClose}>
-        <XIcon aria-hidden className="size-4" />
+      <IconButton place="row" tooltip={false} label="Dismiss" onClick={onClose}>
+        <XIcon aria-hidden />
       </IconButton>
     </div>
   );

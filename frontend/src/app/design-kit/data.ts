@@ -36,6 +36,11 @@ export const SECTIONS = {
     title: "Motion",
     note: "Three curves, the animations built on them, and the view transitions pages and views change through. Every specimen replays on demand. Under reduced motion all of it completes at once, so the replays land instantly.",
   },
+  icons: {
+    slug: "icons",
+    title: "Icons",
+    note: "Every glyph the app draws, and the one thing it means. One glyph, one meaning: a glyph that means two things, or a meaning drawn with two glyphs, is flagged where it is listed and gathered under To Fix. Grouped by where the glyph is read; a glyph read in two places is listed in both. Before picking a glyph for something new, find it here.",
+  },
   buttons: {
     slug: "buttons",
     title: "Buttons",
@@ -68,6 +73,7 @@ export const SECTION_ORDER = [
   SECTIONS.type,
   SECTIONS.shape,
   SECTIONS.motion,
+  SECTIONS.icons,
   SECTIONS.buttons,
   SECTIONS.forms,
   SECTIONS.display,

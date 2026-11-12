@@ -271,11 +271,13 @@ function CreateEventForm({
           {/* Back to the form, once it has an application to go back to. */}
           {choosing && picked && (
             <IconButton
+              place="row"
+              tooltip={false}
               label="Back to the event"
-              className="-ml-1.5 size-8"
+              className="-ml-1.5"
               onClick={() => setChoosing(false)}
             >
-              <ArrowLeftIcon className="size-4" />
+              <ArrowLeftIcon />
             </IconButton>
           )}
           <DialogTitle className="text-subtitle font-semibold">

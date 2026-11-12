@@ -27,7 +27,7 @@ import { Button } from "@/components/ui/button";
 import { SearchField } from "@/components/ui/search-field";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/cn";
-import { HEADING_ACTION, IconButton } from "@/components/ui/icon-button";
+import { IconButton } from "@/components/ui/icon-button";
 import { TextField } from "@/components/ui/text-field";
 import {
   addSkill,
@@ -1165,27 +1165,23 @@ function CardActions({
   return (
     <div className="flex items-center gap-3">
       <IconButton
+        place="heading"
         id={`${id}-add`}
         label={add.label}
         tooltip={add.tooltip}
-        className={HEADING_ACTION}
         onClick={add.onAdd}
       >
-        {add.pencil ? (
-          <PencilSimpleIcon aria-hidden className="size-5" />
-        ) : (
-          <PlusIcon aria-hidden className="size-5" />
-        )}
+        {add.pencil ? <PencilSimpleIcon aria-hidden /> : <PlusIcon aria-hidden />}
       </IconButton>
       {onList && (
         <IconButton
+          place="heading"
           id={editId}
           label={`Edit ${name}`}
           tooltip="Edit this section"
-          className={HEADING_ACTION}
           onClick={onList}
         >
-          <PencilSimpleIcon aria-hidden className="size-5" />
+          <PencilSimpleIcon aria-hidden />
         </IconButton>
       )}
       {(onClear || more.length > 0) && (
@@ -1193,12 +1189,12 @@ function CardActions({
           <DropdownMenuTrigger
             render={
               <IconButton
+                place="heading"
                 id={`${id}-more`}
                 label={`More actions for ${name}`}
-                tooltip="More actions"
-                className={HEADING_ACTION}
+                tooltip={false}
               >
-                <EllipsisIcon className="size-5" />
+                <EllipsisIcon />
               </IconButton>
             }
           />
@@ -1236,16 +1232,16 @@ function CardActions({
           </Button>
         ) : (
           <IconButton
+            place="heading"
             id={editId}
             label={`Edit ${name}`}
             tooltip="Edit this section"
-            className={HEADING_ACTION}
             onClick={() => {
               edit.onEdit();
               focusSoon(doneId);
             }}
           >
-            <PencilSimpleIcon aria-hidden className="size-5" />
+            <PencilSimpleIcon aria-hidden />
           </IconButton>
         ))}
     </div>
@@ -1285,12 +1281,13 @@ function EntryView({
       actions={
         pencil && (
           <IconButton
+            place="row"
             id={pencil.id}
             label={`Edit ${entry.title}`}
             tooltip="Edit this entry"
             onClick={pencil.onEdit}
           >
-            <PencilSimpleIcon aria-hidden className="size-4" />
+            <PencilSimpleIcon aria-hidden />
           </IconButton>
         )
       }

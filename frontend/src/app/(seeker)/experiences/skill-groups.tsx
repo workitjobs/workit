@@ -72,7 +72,7 @@ export function SkillGroups<T extends ListedSkill>({
                     )}
                     <IconButton
                       label={`Remove ${skill.name}`}
-                      tooltip="Remove this skill"
+                      tooltip={false}
                       onClick={() => onRemove(skill)}
                     >
                       <XIcon aria-hidden className="size-3" />

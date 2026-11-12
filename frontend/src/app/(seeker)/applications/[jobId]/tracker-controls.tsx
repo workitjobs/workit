@@ -260,8 +260,9 @@ function EventRow({ jobId, event }: { jobId: string; event: ApplicationEvent }) 
       </div>
       {event.id && event.source !== "gmail" && (
         <IconButton
+          place="row"
           label={`Delete ${event.title}`}
-          tooltip="Delete"
+          tooltip={false}
           disabled={pending}
           onClick={() =>
             start(async () => {
@@ -288,7 +289,7 @@ function EventRow({ jobId, event }: { jobId: string; event: ApplicationEvent }) 
             })
           }
         >
-          <TrashIcon className="size-4" />
+          <TrashIcon />
         </IconButton>
       )}
     </li>

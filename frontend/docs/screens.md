@@ -3434,7 +3434,7 @@ upload's page.
   closes the name stays as plain text, since that page is a 404.
 - **Each built resume is a row drawn as an upload's is**
   (KAN-258, `resumes/built-resume-row.tsx`), from `components/resume-row.tsx`'s box (`RESUME_ROW`), star
-  (`PrimaryStar`) and icon buttons (`ROW_ACTION`), so the two lists cannot
+  (`PrimaryStar`) and icon buttons (`place="row"`), so the two lists cannot
   drift apart: the PDF mark, the name, one line with one day, then the
   star, Rename, **Download PDF** and Delete, the same four icons as an
   upload's card. Preview (an eye, KAN-358) opened the resume read-only in
