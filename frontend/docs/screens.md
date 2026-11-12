@@ -912,6 +912,20 @@ empty year with a line saying the applications aren't loading.
 
 ## Applications (the Applications Tracker)
 
+**The list's rows are picked, as Documents' and Up Next's are**
+(2026-11-11, `applications/pick.tsx`): a select box starts each Job cell
+and Select All the Job heading; a picked row takes the brand tint, its
+frozen Job cell too. While any shown row is picked, the selection bar
+(`components/selection-bar.tsx`) lies over the filter row, whose own
+controls hide: "N selected", **Status** (a menu of Applied, Interviewing,
+Offer and Rejected, as each row's stage menu; a saved job among the picks
+asks first, since it cannot go back to Saved; the toast's Undo moves each
+back to its own stage), then **Remove** as a trash glyph while every pick
+is a saved job (it unsaves them; the API keeps an application). Escape or
+Select All clears the pick. The pick is shared through
+`TrackerPickProvider` around the filter bar and the list, which are
+siblings on the page. The grid (Cards) has no boxes.
+
 **Its name on screen is Tracker** (2026-11-05): in the panel, the bar's
 title, the browser tab, and "Back to Tracker" on an application's page
 when the tracker opened it (its Back names the page that did, KAN-363). It
@@ -1635,8 +1649,11 @@ page with one action.
   toolbar, so the heading went and its name stays for a screen reader.
   Row one is the search over job and company with **Add Jobs** at its
   right, filled as the page's main action (as Generate Resume is on
-  Documents; it was bordered beside the heading), or, while rows are
-  picked, "N selected", Remove (a text button) and Auto Apply (filled).
+  Documents; it was bordered beside the heading). While rows are picked,
+  the selection bar (`components/selection-bar.tsx`, as Documents'
+  resumes) lies over row two: "N selected", Auto Apply, then Remove From
+  Queue as a trash glyph; Escape or Select All clears the pick. Until
+  2026-11-11 "N selected", Remove and Auto Apply took Add Jobs' place.
   Row two is **Status** (In Progress, Queued, Posting Closed), **Company**
   (with a search, as the Tracker's) and **Match** (Excellent to Weak in
   their colours, then Not Scored), then Clear, All Filters (the shared
@@ -2381,9 +2398,15 @@ Resumes, each with a button pointing at the other, until KAN-249 made them
 one row, Resumes & Experiences, with a switcher between two views. KAN-766
 split them again: Experiences is the source, not a kind of document, the
 switcher (for two looks of the same content) sat where a tab should, and
-cover letters needed a home beside the resumes. **Cover Letters** holds a
-placeholder ("Cover Letters Are Coming") until its design
-(`docs/cover_letters.md`) is reviewed and built.
+cover letters needed a home beside the resumes. **Cover Letters**
+(`cover-letters/cover-letters.tsx`, step 1 of `docs/cover_letters.md`)
+lists every cover letter WorkIt wrote as a written answer, in the
+Resumes table's card, headings and column widths: Job (logo, role over
+company), Status (the stage badge), Date Written and Copy, under a search
+over the job and the text. A row opens the letter read-only in a dialog
+with Copy and Open Application. With none it says "No Cover Letters
+Yet". Uploads, the letter each application sent and writing one in
+WorkIt wait on the design's review.
 
 ## Experiences (`/experiences`)
 
@@ -3171,17 +3194,24 @@ row into the name's field with Cancel and Save, at the row's height.
 events: the last edit, or when it was made or uploaded, for a resume never
 edited, on the student's clock, the year only when it is not this one. It
 was two columns, Created and Last Edited, which the user condensed into
-one. **The actions wait for the pointer, as Google Drive's rows do**
-(`CardActionIcons`): at rest a row shows only ⋮ (More actions), the
-primary's badge sitting by its name; on hover, or with the keyboard's
-focus in the row, Make Primary, Rename, Download and Delete fade in left of
-⋮, over the Date Modified cell on the row's hover fill, as Gmail's row
-actions take the date's place (2026-11-10). They had a column of their own,
-kept for them so nothing moved, which stood empty at rest between the date
-and ⋮. ⋮ holds every action, worded:
+one. **Rows are picked, as Up Next's are, and a bar acts on them**
+(2026-11-11, after Notion's): a select box starts each row and Select All
+the Name heading; while any row is picked, a small white bar
+(`components/selection-bar.tsx`) floats over the filter row with "N
+selected", Make Primary and Rename for a single pick, Download, then
+Delete as a trash glyph (asks first: "Delete N Resumes?"). The filter
+row's own controls hide while it shows. There is no close button (a ×
+beside the actions read as one more action); Escape, or Select All while
+any row is picked, clears the pick. Up Next's picked jobs use the same
+bar. A picked
+row takes the brand tint. Each row keeps ⋮ (More actions) for one resume:
 Open, Rename, Download PDF, Make Primary (on a resume that is not the
 primary), then Delete in red, which asks first (`RowMoreMenu` with
-`always`). A touch screen has no hover, so it shows ⋮ only. Four icons on every row at all times read busy to the user.
+`always`). **History:** Make Primary, Rename, Download and Delete showed
+as icons on hover, first over the Date Modified cell, as Gmail's row
+actions take the date's place (2026-11-10), then in a column of their
+own; the user found them covering the row's fields and ⋮ redundant beside
+them. The grid has no select boxes.
 The date and the actions sit in fixed columns, so every card's date lines
 up. **The Grid view** (KAN-766, after Google Drive's and Simplify's): a List /
 Grid switch at the right end of the search's row, where the Jobs and

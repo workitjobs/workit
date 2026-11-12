@@ -130,14 +130,22 @@ open choices (Settled choices, near the end).
   `components/all-filters-dialog.tsx` (All Filters' panel),
   `components/table-settings.tsx` (Table Settings, Group By),
   `components/table-group.tsx` (a group's heading row),
-  `components/fill-page.ts` (a table that scrolls inside itself),
+  `components/fill-page.ts` (a table that scrolls inside itself; every
+  table row's fill, `rowFill`, and a frozen cell's, `frozenFill`, so a
+  picked row stays purple under the pointer, frozen cell and all; and
+  `FROZEN_EDGE`, a frozen column's line in `--color-border-surface`, a
+  step darker than the row rules, after Notion's),
   `components/ui/option-row.tsx` (a row that is one way forward: Auto
   Apply's setup, Generate Resume's ways to start),
   `components/ui/or-divider.tsx` (the login card's "Or" rule),
   `components/ui/tip.tsx` (a tooltip for any control), `components/side-nav.tsx`
   (a page's menu of its parts: Settings, Application Info),
   `profile/section-action.tsx` (a card's own action, a bare glyph with a
-  tooltip), `components/views.tsx`
+  tooltip), `components/selection-bar.tsx` (a table's picked rows: the
+  row's `PickBox` and the bar of actions over the filters, after
+  Notion's: "N selected" in brand ink, then a glyph and word per action,
+  then a delete or remove as a glyph alone, with no close button;
+  Documents' resumes, Up Next and the Tracker's list), `components/views.tsx`
   and `PAGE_SEARCH`. Tailor's resume picker (`ResumeLists`) is the one way
   to pick a resume, in any dialog. A fix to one page table is checked on every other: the
   Tracker, Auto Apply's Up Next and Documents' resumes.
