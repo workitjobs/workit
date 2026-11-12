@@ -591,28 +591,24 @@ function History({ tools }: { tools: HistoryTools }) {
 export function HistoryButtons({ tools }: { tools: HistoryTools }) {
   return (
     <>
-      <Tip label="Undo">
-        <Button
-          variant="ghost"
-          size="icon-lg"
-          aria-label="Undo"
-          disabled={!tools.canUndo}
-          onClick={tools.onUndo}
-        >
-          <ArrowUUpLeftIcon aria-hidden />
-        </Button>
-      </Tip>
-      <Tip label="Redo">
-        <Button
-          variant="ghost"
-          size="icon-lg"
-          aria-label="Redo"
-          disabled={!tools.canRedo}
-          onClick={tools.onRedo}
-        >
-          <ArrowUUpRightIcon aria-hidden />
-        </Button>
-      </Tip>
+      <Button
+        variant="ghost"
+        size="icon-lg"
+        aria-label="Undo"
+        disabled={!tools.canUndo}
+        onClick={tools.onUndo}
+      >
+        <ArrowUUpLeftIcon aria-hidden />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon-lg"
+        aria-label="Redo"
+        disabled={!tools.canRedo}
+        onClick={tools.onRedo}
+      >
+        <ArrowUUpRightIcon aria-hidden />
+      </Button>
     </>
   );
 }
@@ -800,12 +796,13 @@ export function PanelTabs({
         onChange={onTab}
       />
       <IconButton
+        place="row"
         label="Close Panel"
         tooltip="Close"
-        className="hover:bg-hover mb-1 size-8 rounded-full"
+        className="mb-1"
         onClick={onClose}
       >
-        <CloseIcon className="size-4" />
+        <CloseIcon />
       </IconButton>
     </div>
   );

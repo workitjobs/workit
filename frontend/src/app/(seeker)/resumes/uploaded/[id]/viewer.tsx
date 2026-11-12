@@ -142,12 +142,10 @@ export function UploadedViewer({ resume, pdf }: { resume: ResumeItem; pdf: strin
               </Button>
             </Tip>
           )}
-          <Tip label="Rename">
-            <Button variant="secondary" size="sm" onClick={() => setRenaming(true)}>
-              <PencilIcon className="size-4" />
-              <span className="@max-3xl/main:sr-only">Rename</span>
-            </Button>
-          </Tip>
+          <Button variant="secondary" size="sm" onClick={() => setRenaming(true)}>
+            <PencilIcon className="size-4" />
+            <span className="@max-3xl/main:sr-only">Rename</span>
+          </Button>
           <DeleteResumeConfirm
             busy={deleting}
             onDelete={remove}
@@ -159,12 +157,10 @@ export function UploadedViewer({ resume, pdf }: { resume: ResumeItem; pdf: strin
               </Button>
             }
           />
-          <Tip label="Download">
-            <Button size="sm" onClick={download}>
-              <FileArrowDownIcon aria-hidden className="size-4" />
-              <span className="@max-md/main:sr-only">Download</span>
-            </Button>
-          </Tip>
+          <Button size="sm" onClick={download}>
+            <FileArrowDownIcon aria-hidden className="size-4" />
+            <span className="@max-md/main:sr-only">Download</span>
+          </Button>
         </div>
       </div>
 

@@ -12,7 +12,7 @@ import {
   searchWords,
   type ResumeType,
 } from "@/components/resume-list";
-import { PrimaryStar, RESUME_ROW, ROW_ACTION, TypeBadge } from "@/components/resume-row";
+import { PrimaryStar, RESUME_ROW, TypeBadge } from "@/components/resume-row";
 import { RESUME_ACCEPT, resumeFileError } from "@/components/resume-upload";
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { Button } from "@/components/ui/button";
@@ -374,10 +374,10 @@ function PickCard({
         // Inside the card's label, so the click must not reach the radio:
         // a preview never moves the pick.
         <IconButton
+          place="row"
           label={`Preview ${c.label}`}
           tooltip="Preview"
           className={cn(
-            ROW_ACTION,
             "relative z-10 shrink-0 opacity-0 transition-opacity duration-150 group-focus-within:opacity-100 group-hover:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100",
           )}
           onClick={(event) => {
@@ -385,7 +385,7 @@ function PickCard({
             onPreview(c);
           }}
         >
-          <EyeIcon aria-hidden className="size-4" />
+          <EyeIcon aria-hidden />
         </IconButton>
       )}
     </label>

@@ -10,7 +10,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/shadcn/dropdown-menu";
-import { HEADING_ACTION, IconButton } from "@/components/ui/icon-button";
+import { IconButton } from "@/components/ui/icon-button";
 import type { BankEntry } from "@/lib/bank-actions";
 
 import {
@@ -195,25 +195,25 @@ export function SectionDialog({
           actions={
             <>
               <IconButton
+                place="heading"
                 id={ADD_ID}
                 label={`Add ${noun[0]}`}
                 tooltip={`Add ${noun[0].toLowerCase() === "entry" ? "an entry" : `a ${noun[0].toLowerCase()}`}`}
-                className={HEADING_ACTION}
                 onClick={() => setStep({ kind: "entry", entry: null, near: null })}
               >
-                <PlusIcon aria-hidden className="size-5" />
+                <PlusIcon aria-hidden />
               </IconButton>
               {(actions.length > 0 || rename) && (
                 <DropdownMenu>
                   <DropdownMenuTrigger
                     render={
                       <IconButton
+                        place="heading"
                         id={MORE_ID}
                         label={`More actions for ${name}`}
-                        tooltip="More actions"
-                        className={HEADING_ACTION}
+                        tooltip={false}
                       >
-                        <EllipsisIcon className="size-5" />
+                        <EllipsisIcon />
                       </IconButton>
                     }
                   />

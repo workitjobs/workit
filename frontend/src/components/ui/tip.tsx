@@ -10,11 +10,13 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/too
  * glyph), a dialog's close, a menu item. `children` is the control itself,
  * which the tooltip's trigger renders, so no wrapper element joins the row.
  *
- * EVERY ICON-ONLY CONTROL SAYS WHAT IT IS ON HOVER (2026-11-11, the user's
- * rule): an `IconButton`, which always draws its tooltip, or this. A
- * `title` alone does not count (it shows late, and never to touch or a
- * keyboard), nor does an `aria-label` alone. The control keeps its own
- * accessible name: the tooltip is visual only.
+ * AN ICON-ONLY CONTROL SAYS WHAT IT IS ON HOVER UNLESS ITS GLYPH IS READ ON
+ * SIGHT (2026-11-12, the user's rule; docs/design.md, Components, lists
+ * both kinds): Close, Back, ⋯, Undo, a Previous arrow and the like get no
+ * tooltip, since on every icon they flickered across close rows. A `title`
+ * alone does not count (it shows late, and never to touch or a keyboard).
+ * The control keeps its own accessible name either way: the tooltip is
+ * visual only.
  *
  * `disabled` stops the tooltip only, for a control that is off.
  */

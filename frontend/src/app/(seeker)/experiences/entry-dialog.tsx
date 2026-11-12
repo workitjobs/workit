@@ -148,8 +148,8 @@ export function DialogHead({
   return (
     <div className="border-border-subtle flex shrink-0 items-center gap-2 border-b py-3 pr-3 pl-4 sm:pl-6">
       {onBack && (
-        <IconButton label="Back" className="-ml-1.5 size-8" onClick={onBack}>
-          <ArrowLeftIcon className="size-4" />
+        <IconButton place="row" tooltip={false} label="Back" className="-ml-1.5" onClick={onBack}>
+          <ArrowLeftIcon />
         </IconButton>
       )}
       <div className="min-w-0 flex-1">
@@ -163,8 +163,8 @@ export function DialogHead({
       {actions}
       <DialogClose
         render={
-          <IconButton label="Close" className="hover:bg-hover size-8 rounded-full">
-            <XIcon aria-hidden className="size-5" />
+          <IconButton place="row" tooltip={false} label="Close">
+            <XIcon aria-hidden />
           </IconButton>
         }
       />

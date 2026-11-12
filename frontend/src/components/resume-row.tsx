@@ -61,9 +61,6 @@ import type { ResumeItem } from "@/lib/resume-actions";
 export const RESUME_ROW =
   "border-border-subtle bg-well rounded-control @container mt-2 flex items-center gap-3 border p-2";
 
-/** A row's icon actions: 32px boxes. */
-export const ROW_ACTION = "rounded-control hover:bg-hover size-8";
-
 /** The row's icons, side by side with no gap: each is a 32px box already.
  *  On touch they stand 12px apart (KAN-575), so each icon's hit area
  *  (`IconButton`'s, 8px past its box) is 44px and no neighbour's covers
@@ -795,12 +792,12 @@ export function PrimaryStar({
   if (!onMakePrimary) return null;
   return (
     <IconButton
+      place="row"
       label={`Make ${name} your primary resume`}
       tooltip="Make primary"
-      className={ROW_ACTION}
       onClick={onMakePrimary}
     >
-      <StarIcon aria-hidden className="size-4" />
+      <StarIcon aria-hidden />
     </IconButton>
   );
 }
@@ -853,13 +850,8 @@ export function RowMoreMenu({
       >
         <DropdownMenuTrigger
           render={
-            <IconButton
-              ref={button}
-              label={`More actions for ${name}`}
-              tooltip="More actions"
-              className={ROW_ACTION}
-            >
-              <EllipsisIcon className="size-4" />
+            <IconButton place="row" ref={button} label={`More actions for ${name}`} tooltip={false}>
+              <EllipsisIcon />
             </IconButton>
           }
         />
@@ -982,23 +974,13 @@ export function ResumeRow({
       <PrimaryStar name={name} primary={resume.is_default} onMakePrimary={onMakePrimary} />
       <div className={ROW_WIDE}>
         {onRename && (
-          <IconButton
-            label={`Rename ${name}`}
-            tooltip="Rename"
-            className={ROW_ACTION}
-            onClick={onRename}
-          >
-            <PencilIcon className="size-4" />
+          <IconButton place="row" label={`Rename ${name}`} tooltip={false} onClick={onRename}>
+            <PencilIcon />
           </IconButton>
         )}
         {onDownload && (
-          <IconButton
-            label={`Download ${name}`}
-            tooltip={downloadLabel}
-            className={ROW_ACTION}
-            onClick={onDownload}
-          >
-            <FileArrowDownIcon aria-hidden className="size-4" />
+          <IconButton place="row" label={`Download ${name}`} tooltip={false} onClick={onDownload}>
+            <FileArrowDownIcon aria-hidden />
           </IconButton>
         )}
         {onDelete && (
@@ -1006,11 +988,12 @@ export function ResumeRow({
             onDelete={onDelete}
             trigger={
               <IconButton
+                place="row"
                 label={`Delete ${name}`}
-                tooltip="Delete"
-                className={cn(ROW_ACTION, "hover:text-danger")}
+                tooltip={false}
+                className={cn("hover:text-danger")}
               >
-                <TrashIcon className="size-4" />
+                <TrashIcon />
               </IconButton>
             }
           />

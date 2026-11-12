@@ -16,7 +16,6 @@ import {
 } from "@/components/shadcn/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { EDITOR_ZOOM_KEY, readLocalDraft, writeLocalDraft } from "@/lib/local-drafts";
-import { Tip } from "@/components/ui/tip";
 
 /** The zoom steps, in percent of the page's printed size: 100% is 8.5in
  *  at 96 CSS px an inch (816px), as a browser's PDF viewer draws it. The
@@ -65,17 +64,15 @@ export function Zoom({ zoom, onZoom }: { zoom: number; onZoom: (zoom: number) =>
   const at = ZOOMS.indexOf(zoom);
   return (
     <div className="flex shrink-0 items-center gap-0.5">
-      <Tip label="Zoom Out">
-        <Button
-          variant="ghost"
-          size="icon-lg"
-          aria-label="Zoom Out"
-          disabled={at <= 0}
-          onClick={() => onZoom(ZOOMS[at - 1])}
-        >
-          <MagnifyingGlassMinusIcon aria-hidden />
-        </Button>
-      </Tip>
+      <Button
+        variant="ghost"
+        size="icon-lg"
+        aria-label="Zoom Out"
+        disabled={at <= 0}
+        onClick={() => onZoom(ZOOMS[at - 1])}
+      >
+        <MagnifyingGlassMinusIcon aria-hidden />
+      </Button>
       <DropdownMenu>
         <DropdownMenuTrigger
           aria-label={`Zoom, ${zoom}%`}
@@ -94,17 +91,15 @@ export function Zoom({ zoom, onZoom }: { zoom: number; onZoom: (zoom: number) =>
           </DropdownMenuRadioGroup>
         </DropdownMenuContent>
       </DropdownMenu>
-      <Tip label="Zoom In">
-        <Button
-          variant="ghost"
-          size="icon-lg"
-          aria-label="Zoom In"
-          disabled={at >= ZOOMS.length - 1}
-          onClick={() => onZoom(ZOOMS[at + 1])}
-        >
-          <MagnifyingGlassPlusIcon aria-hidden />
-        </Button>
-      </Tip>
+      <Button
+        variant="ghost"
+        size="icon-lg"
+        aria-label="Zoom In"
+        disabled={at >= ZOOMS.length - 1}
+        onClick={() => onZoom(ZOOMS[at + 1])}
+      >
+        <MagnifyingGlassPlusIcon aria-hidden />
+      </Button>
     </div>
   );
 }

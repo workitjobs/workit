@@ -287,38 +287,37 @@ function SuggestionsPanel({
               row's Suggestions until KAN-799, two controls for one thing */}
           {changes.length > 0 && (
             <IconButton
+              place="row"
               label={marks.shown ? "Hide Marks on the Page" : "Show Marks on the Page"}
               variant="quiet"
-              className="size-9 shrink-0"
+              className="shrink-0"
               onClick={marks.onToggle}
             >
-              {marks.shown ? (
-                <EyeSlashIcon aria-hidden className="size-4" />
-              ) : (
-                <EyeIcon aria-hidden className="size-4" />
-              )}
+              {marks.shown ? <EyeSlashIcon aria-hidden /> : <EyeIcon aria-hidden />}
             </IconButton>
           )}
           {/* Every change at once, an icon beside the filter so it stays in
               sight: a full-width button under the list took a row from it */}
           {changes.length > 0 && (
             <IconButton
+              place="row"
               label="Undo All"
               variant="quiet"
-              className="size-9 shrink-0"
+              className="shrink-0"
               onClick={undoAll}
             >
-              <ArrowUUpLeftIcon aria-hidden className="size-4" />
+              <ArrowUUpLeftIcon aria-hidden />
             </IconButton>
           )}
           {/* A phone's sheet has its own X */}
           <IconButton
+            place="row"
             label="Close Suggestions"
-            tooltip="Close"
-            className="size-9 shrink-0 max-sm:hidden"
+            tooltip={false}
+            className="shrink-0 max-sm:hidden"
             onClick={close}
           >
-            <CloseIcon className="size-4.5" />
+            <CloseIcon />
           </IconButton>
         </div>
       </div>
@@ -554,12 +553,13 @@ function Suggestion({
         </button>
         <span className="shrink-0 pt-2">
           <IconButton
+            place="row"
             label={`Undo: ${title(change)}`}
-            tooltip="Undo"
-            className="size-7"
+            tooltip={false}
+
             onClick={onUndo}
           >
-            <ArrowUUpLeftIcon aria-hidden className="size-4.5" />
+            <ArrowUUpLeftIcon aria-hidden />
           </IconButton>
         </span>
       </div>
@@ -583,15 +583,16 @@ function SuggestionPopup({ edit, bank, choices, undo, close }: SuggestionPopupAp
           {title(change)}
         </span>
         <IconButton
+          place="row"
           label={`Undo: ${title(change)}`}
-          tooltip="Undo"
-          className="size-6 shrink-0"
+          tooltip={false}
+          className="shrink-0"
           onClick={undo}
         >
-          <ArrowUUpLeftIcon aria-hidden className="size-4.5" />
+          <ArrowUUpLeftIcon aria-hidden />
         </IconButton>
-        <IconButton label="Close" className="size-6 shrink-0" onClick={close}>
-          <CloseIcon className="size-4" />
+        <IconButton place="row" tooltip={false} label="Close" className="shrink-0" onClick={close}>
+          <CloseIcon />
         </IconButton>
       </div>
       <div className="max-h-48 overflow-y-auto overscroll-none">
