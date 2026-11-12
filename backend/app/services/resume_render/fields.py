@@ -80,16 +80,23 @@ def _number(value: Decimal) -> str:
     return text + "0" if text.endswith(".") else text
 
 
+def _grade(value: Decimal) -> str:
+    # Under ten, two decimals: "3.80", "4.00", "8.50"; ten or more as
+    # `_number` reads it: "90", "92.5"
+    value = value if isinstance(value, Decimal) else Decimal(str(value))
+    return f"{value:.2f}" if value < 10 else _number(value)
+
+
 def gpa(entry: ViewEntry) -> str | None:
+    '''"GPA: 3.80/4.00": a GPA under ten with two decimals, as career
+    centers ask ("to two decimal points") and a transcript prints it, and a
+    scale under ten the same; "90/100" and "8.50/10" stay whole. The
+    database keeps two decimals and nothing of how many were typed, so
+    "3.80/4.00" printed "3.8/4.0" until KAN-813.'''
     if entry.gpa is None:
         return None
-    score = _number(entry.gpa)
-    scale = ""
-    if entry.gpa_scale is not None:
-        # the scale as precise as the GPA: "3.81/4.00", "3.8/4.0"
-        places = len(score.partition(".")[2])
-        scale = "/" + max(_number(entry.gpa_scale), f"{entry.gpa_scale:.{places}f}", key=len)
-    return f"GPA: {score}{scale}"
+    scale = f"/{_grade(entry.gpa_scale)}" if entry.gpa_scale is not None else ""
+    return f"GPA: {_grade(entry.gpa)}{scale}"
 
 
 @dataclass(frozen=True)

@@ -1607,6 +1607,59 @@ def test_both_readings_space_a_bar_and_keep_a_repeated_entry_once():
     assert [e.title for e in entries] == ["Thinkpad (Lab) | AI Notes Platform"]
 
 
+def test_the_import_keeps_a_major_gpa_line_and_drops_the_gpa_it_prints():
+    # KAN-813: a line of GPAs went whole, so a major's on it was lost
+    entries, _ = read("Education\nRiverside State University  May 2027\nB.S. in Biology\n"
+                      "• GPA: 3.72/4.00 | Major GPA: 3.95/4.00\n")
+    [school] = entries
+    assert (float(school.gpa), school.bullets) == (3.72, ["Major GPA: 3.95/4.00"])
+
+
+def test_the_models_expected_stays_only_on_a_school_or_where_the_resume_writes_it():
+    # KAN-813: "Expected Aug 2025" printed on a finished internship
+    from app.models.dto import entry_end_kind
+    from app.schemas.bank import ModelReading
+    from app.services.bank_import import model_drafts
+
+    text = ("Experience\nAcme Analytics  May 2025 – Aug 2025\nData Analyst Intern\n• Cleaned survey rows\n"
+            "Projects\nMaze Robot  Sep 2026 – Expected Dec 2026\n• Built a planner\n")
+    reading = ModelReading.model_validate({"entries": [
+        {"section": "experience", "title": "Data Analyst Intern", "organization": "Acme Analytics",
+         "start_month": "2025-05", "end_month": "2025-08", "end_kind": "expected"},
+        {"section": "projects", "title": "Maze Robot", "start_month": "2026-09", "end_month": "2026-12",
+         "end_kind": "expected"},
+    ]})
+    job, project = model_drafts(reading, text)
+    assert (job.end_kind, project.end_kind) == (entry_end_kind.month, entry_end_kind.expected)
+
+
+def test_the_models_degree_honors_go_after_the_major():
+    from app.schemas.bank import ModelReading
+    from app.services.bank_import import model_drafts
+
+    text = "Education\nRiverside State University  May 2027\nB.S. in Biology, magna cum laude\n"
+    reading = ModelReading.model_validate({"entries": [
+        {"section": "education", "title": "Riverside State University", "degree": "B.S.",
+         "field_of_study": "Biology", "honors": "magna cum laude"},
+    ]})
+    [school] = model_drafts(reading, text)
+    assert (school.field_of_study, school.honors) == ("Biology, magna cum laude", None)
+
+
+def test_the_models_major_gpa_is_no_gpa_and_stays_a_line():
+    from app.schemas.bank import ModelReading
+    from app.services.bank_import import model_drafts
+
+    text = ("Education\nRiverside State University  May 2027\nB.S. in Biology\n"
+            "• Major GPA: 3.95/4.00\n• Cumulative GPA: 3.72/4.00\n")
+    reading = ModelReading.model_validate({"entries": [
+        {"section": "education", "title": "Riverside State University", "degree": "B.S.", "field_of_study": "Biology",
+         "gpa": 3.95, "gpa_scale": 4.0, "bullets": ["Major GPA: 3.95/4.00", "Cumulative GPA: 3.72/4.00"]},
+    ]})
+    [school] = model_drafts(reading, text)
+    assert school.gpa is None and school.bullets == ["Major GPA: 3.95/4.00"]
+
+
 # --- a project's tools (KAN-738) -------------------------------------------------
 #
 # A project keeps the stack the resume names for it, in the resume's spelling

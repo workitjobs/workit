@@ -308,7 +308,13 @@ resume; KAN-207 renders the bank and retired the proof endpoint.
 - **Numbers and dates print once and whole** (2026-11-12): a GPA keeps a
   whole number's zeros ("90/100"; `_number` stripped them, so it printed
   "9/100") and prints one of ten or more with no decimals ("85/100", not
-  "85.0/100.0"); one month, or one year in the year format, names it once
+  "85.0/100.0"). **A GPA or scale under ten prints two decimals**
+  (`_grade`: "3.80/4.00", "8.50/10"), as career centers ask ("to two
+  decimal points", Concordia University Wisconsin's resume rubric) and a
+  transcript prints it: the database keeps two decimals and nothing of how
+  many were typed (the editor sends a number), so "3.80/4.00" printed
+  "3.8/4.0" until KAN-813. Printing each GPA as typed would need the typed
+  text kept: a migration, and the editor sending it as text; one month, or one year in the year format, names it once
   ("June 2024", never "June 2024 – June 2024"); a field the degree already
   names prints once (`_degree_line`).
 - **A project's link prints as the header's do** (`fields.heading`'s tag):

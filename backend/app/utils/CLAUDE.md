@@ -314,6 +314,17 @@ would read "Marketing - May 2026" as a range.
 - **A specialization follows the major** as a minor does (`SPECIALIZATION_RE`:
   Specialization, Concentration or Emphasis, "in" or ":"): "Computer
   Science, specialization in Artificial Intelligence".
+- **Honors written after the major stay in it** (`DEGREE_HONOR_RE`):
+  "Computer Science, Honors", "Biology, magna cum laude". The comma ended
+  the field, and they were dropped (KAN-813). "Honors:" starts a label
+  line instead, never part of the major.
+- **The GPA is the cumulative one** (`gpa_matches`): a major's GPA ("Major
+  GPA: 3.95/4.00", "GPA: 3.95/4.00 (Major)") stays a line of its own, as
+  written, and never fills the GPA, which a form's "GPA" asks for. The
+  first GPA found filled it until KAN-813, so "Major GPA: 3.95 | Cumulative
+  GPA: 3.72" saved 3.95. The import drops a line of GPAs from the bullets,
+  since the GPA prints from its field, but keeps any major GPA on it
+  (`bank_import._gpa_kept`).
 - **The school's place comes off its name** (`Education.location`, saved as
   the entry's `location`): after a gap, or as its own "|" field. It stayed
   in the name ("Stony Brook University Stony Brook, NY") or was lost.
@@ -471,7 +482,12 @@ Rules:
   are on most resumes) and "BS" for "B.S."; dropped, the parser's reading
   fills it (2026-11-12 audit). **A minor in a phrase of its own stays as
   written** ("with a Minor in", "(Minor in", "Double Minor"): joined, it
-  read "with a, minor in". An organization that only repeats
+  read "with a, minor in". **"Expected" is a school's word**: any other
+  entry keeps it only where the resume writes Expected before that date
+  (`_says_expected`), since "Expected Aug 2025" printed on a finished
+  internship. A degree's honors the model put in `honors` ("magna cum
+  laude") go after the major, and a GPA the text shows only as a major's
+  is dropped so the parser's cumulative one fills it (KAN-813). An organization that only repeats
   the title is left out, as this parser leaves it out: the model sometimes
   sent the school as its own organization (a real resume, 2026-11-09).
 - **It never sees links or the contact block.** URLs reach the model as

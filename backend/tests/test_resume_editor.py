@@ -134,13 +134,13 @@ async def test_gpa_and_coursework_toggles_hide_those_lines(student):
     await client.patch(f"{me}/built-resumes/{resume_id}/choices",
                        json={"entries": [{"entry_id": school, "show_gpa": False}]})
     lines = await _lines(client, me, resume_id)
-    assert "GPA: 3.8/4.0" not in lines
+    assert "GPA: 3.80/4.00" not in lines
     assert "Relevant Coursework: Data Structures, Algorithms" in lines
 
     await client.patch(f"{me}/built-resumes/{resume_id}/choices",
                        json={"entries": [{"entry_id": school, "show_gpa": True, "show_coursework": False}]})
     lines = await _lines(client, me, resume_id)
-    assert "GPA: 3.8/4.0" in lines
+    assert "GPA: 3.80/4.00" in lines
     assert "Relevant Coursework: Data Structures, Algorithms" not in lines
 
 
@@ -422,7 +422,7 @@ async def test_every_box_carries_the_words_it_prints(student):
     school = _entry(await _bank(client, me), "Stony Brook University")["id"]
 
     render = (await client.get(f"{me}/built-resumes/{resume_id}/render")).json()
-    assert _box(render, "gpa", school)["text"] == "GPA: 3.8/4.0"
+    assert _box(render, "gpa", school)["text"] == "GPA: 3.80/4.00"
     assert _box(render, "coursework", school)["text"] == "Relevant Coursework: Data Structures, Algorithms"
     assert _box(render, "dates", school)["text"] == "Aug. 2023 – Expected May 2027"
     assert _box(render, "full_name")["text"] == "Sam Seeker"
@@ -454,7 +454,7 @@ async def test_a_typed_gpa_renders_with_the_entry_it_makes(student):
     assert res.status_code == 200, res.text
     body = res.json()
     assert (body["entry"]["gpa"], body["entry"]["gpa_scale"]) == (3.9, 4.0)
-    assert _box(body["render"], "gpa", school)["text"] == "GPA: 3.9/4.0"
+    assert _box(body["render"], "gpa", school)["text"] == "GPA: 3.90/4.00"
 
 
 async def test_text_the_api_cannot_save_answers_422_and_changes_nothing(student):

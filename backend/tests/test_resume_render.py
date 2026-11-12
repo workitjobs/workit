@@ -111,7 +111,7 @@ def test_jakes_sample_renders_as_one_page_with_its_text() -> None:
         "Southwestern University",
         "Bachelor of Arts in Computer Science, Minor in Business",
         "Aug. 2018 – May 2021",
-        "GPA: 3.8/4.0",
+        "GPA: 3.80/4.00",
         "Undergraduate Research Assistant",
         "June 2020 – Present",
         "Texas A&M University",
@@ -962,8 +962,11 @@ def test_a_phone_prints_as_the_profile_shows_it(typed, printed):
 @pytest.mark.parametrize(("score", "scale", "printed"), [
     ("90", "100", "GPA: 90/100"),
     ("85.0", "100.0", "GPA: 85/100"),
-    ("3.80", "4.00", "GPA: 3.8/4.0"),
-    ("4", "4", "GPA: 4.0/4.0"),
+    ("3.80", "4.00", "GPA: 3.80/4.00"),
+    ("3.8", "4.0", "GPA: 3.80/4.00"),
+    ("4", "4", "GPA: 4.00/4.00"),
+    ("8.5", "10", "GPA: 8.50/10"),
+    ("92.5", "100", "GPA: 92.5/100"),
     ("3.81", "4", "GPA: 3.81/4.00"),
 ])
 def test_a_gpa_keeps_its_zeros(score, scale, printed):

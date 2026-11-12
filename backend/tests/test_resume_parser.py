@@ -561,7 +561,7 @@ def test_an_abbreviated_degree_keeps_its_last_period(degree):
 
 
 @pytest.mark.parametrize(("line", "degree", "field"), [
-    ("B.S. Computer Science, Honors", "B.S.", "Computer Science"),
+    ("B.S. Computer Science, Honors", "B.S.", "Computer Science, Honors"),
     ("Bachelor's in Computer Science", "Bachelor's", "Computer Science"),
     ("Bachelor's degree in Economics", "Bachelor's", "Economics"),
     ("Bachelor of Business Administration in Finance", "Bachelor of Business Administration", "Finance"),
@@ -707,3 +707,41 @@ def test_a_degree_named_only_by_its_level_is_a_level(degree):
 @pytest.mark.parametrize("degree", ["Bachelor of Science", "B.S.", "BS", "Master of Arts", "MBA", "PhD", "", None])
 def test_a_degree_s_own_name_is_no_level(degree):
     assert not resume_parser.is_degree_level(degree)
+
+
+@pytest.mark.parametrize(("line", "field"), [
+    ("B.S. in Biology, magna cum laude", "Biology, magna cum laude"),
+    ("B.A. in History, with Honors", "History, with Honors"),
+    ("B.S. in Physics, Honors Program", "Physics, Honors Program"),
+])
+def test_honors_after_the_major_stay_as_written(line, field):
+    # KAN-813: the comma ended the field, and the honors were dropped
+    parsed = parse_resume(f"EDUCATION\nHillcrest State University  Expected May 2027\n{line}\n")
+    assert parsed.education[0].field_of_study == field
+
+
+def test_an_honors_label_after_the_major_is_no_part_of_it():
+    parsed = parse_resume("EDUCATION\nHillcrest State University  Expected May 2027\n"
+                          "B.S. in Biology, Honors: Dean's List\n")
+    assert parsed.education[0].field_of_study == "Biology"
+
+
+def test_the_cumulative_gpa_is_the_gpa_and_a_major_s_stays_a_line():
+    # KAN-813: the first GPA found filled the GPA, a major's included
+    parsed = parse_resume("EDUCATION\nHillcrest State University  Expected May 2027\n"
+                          "B.S. in Biology\nMajor GPA: 3.95/4.00 | Cumulative GPA: 3.72/4.00\n")
+    school = parsed.education[0]
+    assert (school.gpa, school.gpa_scale) == (3.72, 4.0)
+    assert "Major GPA: 3.95/4.00" in school.description
+
+
+def test_a_major_gpa_alone_never_fills_the_gpa():
+    parsed = parse_resume("EDUCATION\nHillcrest State University  Expected May 2027\n"
+                          "B.S. in Biology\nGPA: 3.95/4.00 (Major)\n")
+    school = parsed.education[0]
+    assert school.gpa is None and "GPA: 3.95/4.00 (Major)" in school.description
+
+
+def test_gpa_matches_name_a_major_s_gpa_as_written():
+    found = resume_parser.gpa_matches("GPA: 3.72/4.0, In-Major GPA: 3.9")
+    assert [line for _, line in found] == [None, "In-Major GPA: 3.9"]

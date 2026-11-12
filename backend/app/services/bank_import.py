@@ -14,6 +14,7 @@ one.
 """
 
 import asyncio
+import calendar
 import datetime
 import logging
 import re
@@ -29,8 +30,11 @@ from app.models.dto import Experience, ParsedResume, bank_section, entry_end_kin
 from app.schemas.bank import SECTION_FIELDS, DraftEntry, ModelReading
 from app.services import skill_catalog
 from app.utils.resume_parser import (
+    DEGREE_HONOR_RE,
     fix_symbols,
+    gpa_matches,
     is_tools_line,
+    major_gpas,
     parse_resume,
     section_of,
     split_tools,
@@ -39,7 +43,8 @@ from app.utils.resume_parser import (
 
 _SHORT, _LONG, _NAME = 200, 500, 60
 _COURSEWORK_RE = re.compile(r"^(?:Relevant\s+)?(?:Coursework|Courses)\s*:?\s*", re.IGNORECASE)
-_GPA_LINE_RE = re.compile(r"^GPA\b", re.IGNORECASE)
+# A line of GPAs ("GPA: 3.72", "Cumulative GPA: 3.72 | Major GPA: 3.95")
+_GPA_LINE_RE = re.compile(r"^(?:(?:cumulative|overall|major|in-major|departmental)\s+)?GPA\b", re.IGNORECASE)
 _YEAR_ALONE_RE = re.compile(r"\d{4}")
 _LINK_TAIL_RE = re.compile(r"[\s,;:|–—-]*\[link\]\s*$")
 _MINOR_JOIN_RE = re.compile(r"\s*[|;,–—-]?\s*\b(minors?)\s*(?:in\b|:)\s*", re.IGNORECASE)
@@ -115,6 +120,33 @@ def _role(section: bank_section, role: Experience) -> dict:
     }
 
 
+def _gpa_kept(lines: list[str], kept: list[str] | None = None) -> list[str]:
+    """An education entry's lines less its GPA, which prints from the GPA
+    field: a line of GPAs keeps only a major's, as written ("Major GPA:
+    3.95/4.00"). Until KAN-813 a GPA line went whole, so a major GPA on one
+    was lost, and one written "Cumulative GPA: ..." printed twice."""
+    out: list[str] = []
+    for line in lines:
+        if not _GPA_LINE_RE.match(line):
+            out.append(line)
+            continue
+        out += [m for m in major_gpas(line) if m not in out and m not in (kept or [])]
+    return out
+
+
+# "Expected" is a graduation's word. The model also gave it to jobs and
+# projects, and "Expected May 2025" printed on a finished internship
+# (KAN-813): any other entry keeps it only where the resume writes it
+# before that date.
+def _says_expected(text: str, month: str) -> bool:
+    if not re.fullmatch(r"\d{4}-\d{2}", month):
+        return False
+    year, number = month[:4], int(month[5:7])
+    name = calendar.month_abbr[number]
+    return re.search(rf"\b(?:expected|anticipated)\b\W{{0,3}}(?:{name}[a-z]*\.?\s+|0?{number}/)?{year}\b",
+                     text, re.IGNORECASE) is not None
+
+
 def _raw_drafts(parsed: ParsedResume, today: datetime.date) -> list[dict]:
     drafts: list[dict] = []
     for school in parsed.education:
@@ -123,8 +155,8 @@ def _raw_drafts(parsed: ParsedResume, today: datetime.date) -> list[dict]:
         for line in _bullets(school.description):
             if _COURSEWORK_RE.match(line):
                 coursework += [c for c in (_clip(x) for x in _COURSEWORK_RE.sub("", line).split(",")) if c]
-            elif not _GPA_LINE_RE.match(line):
-                bullets.append(line)
+            else:
+                bullets += _gpa_kept([line], bullets)
         end = school.end_date
         drafts.append({
             "section": bank_section.education,
@@ -290,11 +322,14 @@ A publication or paper is "projects", with its whole citation as the title.
 organization: the company or group, and for an award the group that gives \
 it. Education: the school is the title.
 - Months are "YYYY-MM". end_kind is "month" (ended), "present" (still going, \
-no end_month) or "expected" (an expected end, such as graduation).
+no end_month) or "expected" (an expected end, such as graduation). Only a \
+school's end is "expected", unless the resume writes Expected before the date.
 - bullets: the resume's bullet lines for that entry, one per item, unchanged.
 - Education only: degree, field_of_study, gpa, gpa_scale, coursework, honors. \
 field_of_study is the major, with any minor after it as the resume writes it \
-("Computer Science, minor in Writing & Rhetoric"). \
+("Computer Science, minor in Writing & Rhetoric"), and honors written after \
+the major stay in it as written ("Computer Science, Honors"). gpa and \
+gpa_scale are the overall GPA; a major's GPA stays a bullet as written. \
 Projects only: tools, the list of tools the resume names for the project, \
 after its name, in parentheses or on a line of their own under it \
 ("Next.js, TypeScript, FastAPI"), each as written. A line that only lists \
@@ -367,6 +402,25 @@ def model_drafts(reading: ModelReading, text: str | None = None) -> list[DraftEn
         for field in ("start_month", "end_month", "award_date"):
             if isinstance(raw[field], str) and _YEAR_ALONE_RE.fullmatch(raw[field].strip()):
                 raw[field] = f"{raw[field].strip()}-01"
+        if raw["section"] is bank_section.education:
+            raw["bullets"] = _gpa_kept(raw["bullets"])
+            # "Honors" alone, or "magna cum laude", is the degree's: it goes
+            # after the major as the resume writes it, not under "Honors:"
+            honor = (raw["honors"] or "").strip()
+            if raw["field_of_study"] and DEGREE_HONOR_RE.fullmatch(honor):
+                if honor.casefold() not in raw["field_of_study"].casefold():
+                    raw["field_of_study"] = f"{raw['field_of_study']}, {honor}"
+                raw["honors"] = None
+            # A major's GPA is no GPA: the parser's cumulative one fills it
+            if text and raw["gpa"] is not None:
+                found = gpa_matches(text)
+                majors = {float(m.group(1)) for m, line in found if line}
+                overall = {float(m.group(1)) for m, line in found if not line}
+                if raw["gpa"] in majors and raw["gpa"] not in overall:
+                    raw.update(gpa=None, gpa_scale=None)
+        elif raw["end_kind"] == entry_end_kind.expected and not (
+                text and raw["end_month"] and _says_expected(text, raw["end_month"])):
+            raw["end_kind"] = entry_end_kind.month
         if words is not None:
             raw = _backed_fields(raw, words)
         # A degree only as the resume writes it: "Bachelor's" for "Bachelor

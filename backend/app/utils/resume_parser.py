@@ -100,6 +100,43 @@ _SPACED_RE = re.compile(r'[A-Za-z](?: [A-Za-z&])+(?:\s{2,}[A-Za-z](?: [A-Za-z&])
 
 # "GPA: 3.81/4.00" gives the scale too
 GPA_RE = re.compile(r'GPA[:\s]*(\d+(?:\.\d+)?)(?:\s*/\s*(\d+(?:\.\d+)?))?', re.IGNORECASE)
+# "Major GPA: 3.95/4.00", "GPA: 3.95/4.00 (Major)": the major's GPA alone
+_MAJOR_BEFORE_RE = re.compile(r"\b(?:major|in-major|departmental|department)(?:'s)?[\s-]*$", re.IGNORECASE)
+_MAJOR_AFTER_RE = re.compile(r"\s*\(\s*(?:in\s+)?(?:the\s+)?major\s*\)", re.IGNORECASE)
+
+
+def gpa_matches(text: str) -> list[tuple[re.Match[str], str | None]]:
+    """Each GPA in `text`, with its line as written when it is a major's GPA
+    ("Major GPA: 3.95/4.00"), else None. The entry's GPA is the cumulative
+    one, which a form's "GPA" asks for; a major's stays a line of its own and
+    never fills it. The first GPA found filled it until KAN-813, so "Major
+    GPA: 3.95 | Cumulative GPA: 3.72" saved 3.95 and lost the other."""
+    out: list[tuple[re.Match[str], str | None]] = []
+    for m in GPA_RE.finditer(text):
+        label = _MAJOR_BEFORE_RE.search(text, max(0, m.start() - 20), m.start())
+        after = _MAJOR_AFTER_RE.match(text, m.end())
+        if label or after:
+            start, end = label.start() if label else m.start(), after.end() if after else m.end()
+            out.append((m, " ".join(text[start:end].split())))
+        else:
+            out.append((m, None))
+    return out
+
+
+def major_gpas(text: str) -> list[str]:
+    """The major GPAs in `text`, each as written."""
+    return [line for _, line in gpa_matches(text) if line]
+
+
+# Honors a degree carries, written after the major: "Computer Science,
+# Honors", "..., magna cum laude"
+DEGREE_HONOR_RE = re.compile(
+    r"(?:with\s+)?(?:(?:highest|high)\s+)?hono(?:u)?rs(?:\s+program)?|(?:(?:summa|magna)\s+)?cum\s+laude",
+    re.IGNORECASE,
+)
+_HONOR_AFTER_FIELD_RE = re.compile(rf",\s*({DEGREE_HONOR_RE.pattern})\b(?!\s*:)", re.IGNORECASE)
+
+
 # A degree said only by its level ("Bachelor's", "a master's degree"): it
 # names no subject (Bachelor of Science, of Arts), so no resume prints it as
 # the degree. The Apply import leaves such a degree empty, and intake asks
@@ -733,8 +770,9 @@ def _parse_education(text: str) -> list[Education]:
             # "... - May 2028 - GPA 3.7": a dash field, not a line's end
             end = next((e for f in dash_fields if (e := _parse_date_range(f.strip())[1])), None)
 
-        # GPA
-        gpa_m = GPA_RE.search(all_text)
+        # GPA: the cumulative one; a major's stays a line, as written
+        gpas = gpa_matches(all_text)
+        gpa_m = next((m for m, major in gpas if major is None), None)
         gpa = float(gpa_m.group(1)) if gpa_m else None
         gpa_scale = float(gpa_m.group(2)) if gpa_m and gpa_m.group(2) else None
 
@@ -760,6 +798,10 @@ def _parse_education(text: str) -> list[Education]:
                 field = re.split(r'\s{2,}|\s*\bGPA\b', m.group("field").strip(), flags=re.IGNORECASE)[0].strip()
                 # nor a date: "B.S. Expected May 2027" names no field
                 field = _strip_dates(EXPECTED_RE.sub("", field)) or None
+                # "Computer Science, Honors", "..., magna cum laude": the comma
+                # ended the field, and the honors were dropped (KAN-813)
+                if field and (honor := _HONOR_AFTER_FIELD_RE.match(degree_text, m.end("field"))):
+                    field = f"{field}, {honor.group(1)}"
         # "B.S. in Computer Science | Minor in Writing & Rhetoric": the minor goes
         # after the major, since an entry has no field of its own for it, and it
         # was dropped
@@ -789,6 +831,9 @@ def _parse_education(text: str) -> list[Education]:
                 desc_parts[-1] += " " + stripped
         # "Honors:" wrapped onto a course list's last line starts its own line
         desc_parts = [part for d in desc_parts for part in _EDUCATION_LABEL_RE.split(d)]
+        # A major's GPA from anywhere in the entry is a line of its own
+        desc_parts += [line for _, line in gpas
+                       if line and not any(line.casefold() in " ".join(d.split()).casefold() for d in desc_parts)]
         desc = "\n".join(re.sub(r'\s{2,}', ' ', d) for d in desc_parts) if desc_parts else None
 
         results.append(Education(
