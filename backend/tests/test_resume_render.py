@@ -6,6 +6,7 @@ warning. CI installs Tectonic, and where `CI` is set these tests fail rather tha
 skip when it is missing.
 '''
 
+import datetime
 import hashlib
 import io
 import os
@@ -55,6 +56,7 @@ from app.services.resume_render.fields import (
     degree_leads,
     heading,
     heading_fields,
+    one_row,
 )
 from app.services.resume_render.jakes import body as jakes_body
 from app.services.resume_render.sample import IDENTITY, VIEW
@@ -225,7 +227,73 @@ def _tools_view() -> ResumeView:
     return replace(VIEW, sections=sections)
 
 
-@pytest.mark.parametrize("view", [VIEW, _long_view(), _tools_view()], ids=["one page", "two pages", "tools"])
+def _one_row_view() -> ResumeView:
+    '''Jake's sample with a school that has no degree line and a job with no
+    organization (KAN-503): each heading has nothing at the left of its
+    second row.'''
+    lab = ViewEntry(uuid.uuid4(), "education", "Signal Processing Lab", location="Hillcrest, NY",
+                    end_month=datetime.date(2025, 5, 1), end_kind="month",
+                    bullets=(ViewBullet(uuid.uuid4(), "Built a search index for lab notes"),))
+    job = ViewEntry(uuid.uuid4(), "experience", "Freelance Web Developer", location="Remote",
+                    start_month=datetime.date(2024, 6, 1), end_kind="present",
+                    bullets=(ViewBullet(uuid.uuid4(), "Built sites for three local businesses"),))
+    sections = tuple(
+        replace(s, entries=(lab, *s.entries)) if s.section == "education"
+        else replace(s, entries=(job, *s.entries)) if s.section == "experience"
+        else s
+        for s in VIEW.sections)
+    return replace(VIEW, sections=sections)
+
+
+def test_a_heading_with_an_empty_second_row_is_one_row_place_then_dates() -> None:
+    # KAN-503: the second row's right side sat alone on a line. One row
+    # shows the place, then the dates, whichever row each came from
+    lab, job = (s.entries[0] for s in _one_row_view().sections[:2])
+    for entry in (lab, job):
+        h = heading(entry)
+        rights = one_row(h, heading_fields(entry.section))
+        assert [heading_fields(entry.section)[name] for name in rights] == ["location", "dates"]
+    # With no place, the dates alone
+    bare = replace(lab, location=None)
+    assert one_row(heading(bare), heading_fields("education")) == ["subright"]
+    # A second row with words at its left stays two rows
+    school = VIEW.sections[0].entries[0]
+    assert one_row(heading(school), heading_fields("education")) is None
+
+
+def test_a_school_with_no_degree_prints_its_heading_on_one_row() -> None:
+    _tectonic_or_skip()
+    view = _one_row_view()
+    rendered = render(view, IDENTITY, "jakes")
+    boxes = {(b.item_id, b.kind): b for b in rendered.boxes}
+    for entry in (view.sections[0].entries[0], view.sections[1].entries[0]):
+        title, place, when = (boxes[(str(entry.id), kind)] for kind in ("title", "location", "dates"))
+        # One row: the place and the dates sit on the title's line, the
+        # dates at the right edge, after the place
+        assert abs(place.y1 - title.y1) < 2 and abs(when.y1 - title.y1) < 2
+        assert title.x1 < place.x0 < place.x1 < when.x0
+        # and the first bullet follows at once, with no line between
+        bullet = boxes[(str(entry.bullets[0].id), "bullet")]
+        assert 0 <= bullet.y0 - title.y1 < 8
+    assert (str(view.sections[0].entries[0].id), "degree") not in boxes
+    lines = _text_lines(rendered.pdf)
+    assert any("Hillcrest, NY | May 2025" in t for t, _, _ in lines)
+
+
+def test_the_word_file_prints_an_empty_second_row_heading_on_one_row() -> None:
+    from docx import Document
+
+    from app.services.resume_render.word import render_docx
+
+    texts = [p.text for p in Document(io.BytesIO(render_docx(_one_row_view(), IDENTITY))).paragraphs]
+    at = texts.index("Signal Processing Lab\tHillcrest, NY | May 2025")
+    assert texts[at + 1] == "Built a search index for lab notes"
+    at = texts.index("Freelance Web Developer\tRemote | June 2024 – Present")
+    assert texts[at + 1] == "Built sites for three local businesses"
+
+
+@pytest.mark.parametrize("view", [VIEW, _long_view(), _tools_view(), _one_row_view()],
+                         ids=["one page", "two pages", "tools", "one row"])
 def test_position_markers_leave_the_page_unchanged(view) -> None:
     # The preview must be the file that downloads (ADR 0002): the markers
     # that place the editor's click targets may not move one glyph
