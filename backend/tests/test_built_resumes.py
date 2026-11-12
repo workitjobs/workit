@@ -142,7 +142,7 @@ async def test_the_word_file_has_every_entry_in_section_order_newest_first(stude
     assert res.headers["content-disposition"] == 'attachment; filename="General SWE.docx"'
     assert _docx_lines(res.content) == [
         "Sam Seeker",
-        f"555-010-2030 | sam{me.split('/')[2].replace('-', '')[:6]}@example.com | github.com/samseeker",
+        f"+1 555-010-2030 | sam{me.split('/')[2].replace('-', '')[:6]}@example.com | github.com/samseeker",
         "EDUCATION",
         "Stony Brook University\tStony Brook, NY",
         "Bachelor of Science in Computer Science\tAug. 2023 – Expected May 2027",

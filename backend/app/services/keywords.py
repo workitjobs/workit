@@ -29,6 +29,7 @@ from workit_scout.llm import LLM
 
 from app.models.jobs import Job_Post
 from app.schemas.keywords import Keyword, KeywordReading
+from app.services import skill_catalog
 from app.services.matching.embeddings import job_part
 from app.services.resume_view import ResumeView
 
@@ -59,8 +60,8 @@ soft skills ("team player"),no degree names, no benefits, no company names, and 
 # ponytail: a list, so an acronym it lacks reads "Xyz"; the model's own casing
 # covers every posting read from now on.
 _CASED = {word.lower(): word for word in (
-    ".NET", "2D", "3D", "AI", "API", "APIs", "AR", "AWS", "B2B", "B2C", "BI", "CAD", "CD", "CI", "CMS", "CRM", "CSS",
-    "DevOps", "ERP", "ETL", "FastAPI", "GCP", "GitHub", "GitLab", "GraphQL", "HTML", "HTTP", "IoT", "JSON", "JUnit",
+    ".NET", "2D", "3D", "AI", "API", "APIs", "AR", "AWS", "B2B", "B2C", "BI", "CAD", "CD", "CI", "CMS", "CPU", "CRM", "CSS",
+    "DevOps", "ERP", "ETL", "FastAPI", "GCP", "GPU", "GitHub", "GitLab", "GraphQL", "HTML", "HTTP", "IoT", "JSON", "JUnit",
     "JavaScript", "KPI", "KPIs", "LLM", "LLMs", "ML", "MongoDB", "MySQL", "NLP", "NoSQL", "OOP", "PHP", "PostgreSQL",
     "PowerPoint", "PyTorch", "QA", "R&D", "REST", "SAP", "SDK", "SEO", "SQL", "SaaS", "TensorFlow", "TypeScript", "UI",
     "UML", "UX", "VR", "XML", "YAML", "iOS", "macOS",
@@ -71,16 +72,22 @@ _WORD = re.compile(r"[^\s/,()-]+")
 
 def resume_case(keyword: str) -> str:
     """A keyword as a resume prints it: "user research" to "User Research",
-    "sql" to "SQL". Only a word wholly in lower case changes, so a posting's
-    own "iOS" stays. The match ignores case, so it never changes what matches,
-    and a picked keyword joins the resume's skills as this."""
+    "sql" to "SQL", and a skill the catalog spells ("numpy" to "NumPy",
+    "html5" to "HTML5", "grpc" to "gRPC") as it spells it. Only a word wholly
+    in lower case changes, so a posting's own "iOS" stays. The match ignores
+    case, so it never changes what matches, and a picked keyword joins the
+    resume's skills as this. Without the catalog, "Numpy", "Html5" and
+    "Matlab" printed on tailored resumes."""
+    if keyword == keyword.lower() and (whole := skill_catalog.spelled(keyword)):
+        return whole
+
     def cased(match: re.Match[str]) -> str:
         word = match[0]
         if word != word.lower():
             return word
         if word in _SMALL and match.start() > 0:
             return word
-        return _CASED.get(word, word[0].upper() + word[1:])
+        return _CASED.get(word) or skill_catalog.spelled(word) or word[0].upper() + word[1:]
 
     return _WORD.sub(cased, keyword)
 

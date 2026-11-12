@@ -275,9 +275,31 @@ resume; KAN-207 renders the bank and retired the proof endpoint.
   only `word.py` may use a dependency. `python3 -I -c "import sys;
   sys.path.insert(0, '.'); import app.services.resume_render.sample"` from
   `backend/` checks it.
-- **TeX's font mapping still applies to escaped text**: `'` prints as `’`,
-  `--` as `–`, ``` `` ``` as `“`. Harmless for a resume; a text test expects
-  the curly form.
+- **TeX's ligatures stay off typed text, but for quotes** (`escape()`,
+  2026-11-12): `--` prints as typed (`-{}-`), a backtick as a backtick
+  (`\textasciigrave{}`, which also breaks "!`" and "?`" from printing
+  "¡" and "¿"), and a straight `"` as an opening or closing curly quote by
+  its place (`_OPEN_QUOTE_RE`), as `'` prints `’`. TeX's mapping had printed
+  "--dry-run" as "–dry-run", "reviews!`" as "reviews¡", and both ends of
+  "smart" as closing quotes, which the Word file never did. A text test
+  expects the curly apostrophe. Tested in a real render: `-{}-` keeps two
+  hyphens under XeTeX's TeX mapping, and an empty group alone does not
+  stop a backtick from curling.
+- **A phone prints as the Profile shows it** (`fields.phone_text`, the web
+  app's `phoneText`): a U.S. number of 10 digits, or 11 starting with 1, as
+  "+1 646-555-0142" however it was typed; any other as typed. The profile
+  keeps what was typed, and the resume printed it bare ("16465550142"). PDF,
+  LaTeX and Word alike; the box's text is the printed form.
+- **Numbers and dates print once and whole** (2026-11-12): a GPA keeps a
+  whole number's zeros ("90/100"; `_number` stripped them, so it printed
+  "9/100") and prints one of ten or more with no decimals ("85/100", not
+  "85.0/100.0"); one month, or one year in the year format, names it once
+  ("June 2024", never "June 2024 – June 2024"); a field the degree already
+  names prints once (`_degree_line`).
+- **A project's link prints as the header's do** (`fields.heading`'s tag):
+  `link_text` ("github.com/jd/robot"), not the whole address, and the PDF
+  makes it clickable (`\href` in `jakes._entry`'s tag slot, one marker
+  around the organization and the link, kind `organization` as before).
 - **Read the PDF in plain mode** (pdfminer `extract_text`, pypdf plain). The
   PDF is untagged, and LaTeX places words rather than writing spaces. pdfminer
   reads the right-hand column (places, dates) as its own block, so the text

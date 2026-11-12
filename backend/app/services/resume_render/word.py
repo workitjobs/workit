@@ -29,6 +29,7 @@ from app.services.resume_render.fields import (
     details,
     heading,
     link_text,
+    phone_text,
     skill_lines,
 )
 from app.services.resume_view import ResumeView, ViewEntry
@@ -113,7 +114,7 @@ def render_docx(view: ResumeView, identity: HeaderIdentity, page: PageSettings =
     name.font.size = Pt(20)
     contact = (
         ([US_CITIZEN] if identity.us_citizen else [])
-        + [x for x in (identity.phone, identity.email, identity.location) if x]
+        + [x for x in (identity.phone and phone_text(identity.phone), identity.email, identity.location) if x]
         + [link_text(u) for _, u in identity.links]
     )
     if contact:

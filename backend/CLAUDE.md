@@ -1361,6 +1361,10 @@ Find files with a directory listing; these are the rules for where code goes.
   `cached` and `_cleaned`): postings read before the prompt asked for it hold
   lower case, which showed on the Tailor screen and printed in the resume's
   skills. Only a word wholly in lower case changes, and the match ignores case.
+  **A skill the catalog spells keeps its spelling** (`skill_catalog.spelled`,
+  the same name with the catalog's case, never another name for it):
+  "numpy" is "NumPy" and "grpc" "gRPC"; title case had printed "Numpy",
+  "Html5" and "Matlab" on tailored resumes (2026-11-12).
 - **The keyword match** (KAN-215) is `GET .../built-resumes/{rid}/keyword-match`
   over `services/keywords.py`: a job posting's keywords, extracted once by
   the model and cached on the posting with a hash of its title and the
