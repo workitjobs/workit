@@ -131,7 +131,7 @@ the job card draws for its fact (Date Posted a clock, since the card's calendar
 is the start date; Role, which the card doesn't print, a person in a suit and
 tie, drawn for it since no icon set has one, KAN-252), and inside a popup only
 Workplace's options carry glyphs, the card's own three, as their chips do in
-the panel, where Experience Level's do too (levelIcon: the mortarboard, a
+the panel, where Experience Level's do too (levelIcon: steps, a
 check badge; KAN-252, asked for 2026-10-17). Options are medium weight, as the
 facet buttons are; at body weight they read thin beside the row. A facet's popup is as
 wide as its longest option, never narrower than its button and never wider than
@@ -1822,7 +1822,7 @@ one client step over the server's rows), in flight.
   as well as colour (2026-10-20): a clock for Queued, a window for Working
   in Browser, the AI sparkle for Tailoring Resume, a pen for Autofilling,
   an eye for Needs Review, a warning for Couldn't Finish, the Applied
-  stage's briefcase, a skip for Skipped. The Status column is 192px, the
+  stage's paper plane, a skip for Skipped. The Status column is 192px, the
   longest badge's width with its glyph and ringing dot.
   Every column is left-aligned, heading and cell, as the Tracker's are
   (2026-11-10; every column but Role was centred from 2026-10-20, and on a
@@ -1861,7 +1861,7 @@ one client step over the server's rows), in flight.
   groups, each with its glyph in its badges' colour, as the Applications
   Status options lead with their stage's glyph: Queued (a clock), In
   Progress (Auto Apply's bolt), Needs You (a warning), Applied (the
-  briefcase), Skipped (a skip).
+  paper plane), Skipped (a skip).
   Any of the picks shows. While a status is picked, Clear Filters is an
   outlined cross beside it, handing focus to the dropdown; a filter that
   hides every row shows "No Jobs With That Status" with Clear Filters,

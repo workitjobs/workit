@@ -4,7 +4,7 @@ import { Combobox as ComboboxPrimitive } from "@base-ui/react/combobox";
 import { useRef, useState } from "react";
 
 import { AllFiltersBody, AllFiltersDialog, FilterSection } from "@/components/all-filters-dialog";
-import { BriefcaseIcon, CompanyIcon, SearchIcon, workStyleIcon } from "@/components/icons";
+import { JobTypeIcon, CompanyIcon, SearchIcon, workStyleIcon } from "@/components/icons";
 import { facetClasses, FacetLabel, type FacetOption, type Glyph } from "@/components/field-facet";
 import { OptionChip as Chip, SearchPicker } from "@/components/filter-controls";
 import {
@@ -59,7 +59,7 @@ export type Picks = { stages: StageKey[]; filters: Filters };
  *  Jobs page's Workplace glyph. */
 export const FIELD_ICON: Record<FilterKey, Glyph> = {
   company: CompanyIcon,
-  track: BriefcaseIcon,
+  track: JobTypeIcon,
   workModel: workStyleIcon("On-Site"),
 };
 
