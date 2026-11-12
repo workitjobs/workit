@@ -22,6 +22,7 @@ import {
 } from "@/components/shadcn/table";
 import { Badge } from "@/components/ui/badge";
 import { SearchField } from "@/components/ui/search-field";
+import { NoMatches } from "@/components/ui/no-matches";
 
 import { STAGE_COLOR, STAGE_LABEL } from "../stage-colors";
 import type { Application } from "../tracker";
@@ -119,7 +120,7 @@ export function ApplicationTable({
 
       <div className="border-border-surface rounded-card min-h-0 flex-1 overflow-y-auto border">
         {shown.length === 0 ? (
-          <p className="text-body text-ink-meta p-6">No applications match.</p>
+          <NoMatches className="px-4">No applications match.</NoMatches>
         ) : (
           <Table>
             <TableHeader>

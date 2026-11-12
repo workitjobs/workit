@@ -912,8 +912,9 @@ It ignores `?range=`, since a streak is every day. It is live (KAN-342):
 `getAppliedApplications()` in `data.ts` hands it each sent application's
 `appliedOn` instant, and the streak counts each on its UTC day until
 hydration, then on the viewer's own (`localDay`), by the same
-`useSyncExternalStore` swap as `today`. A failed tracker read draws the
-empty year with a line saying the applications aren't loading.
+`useSyncExternalStore` swap as `today`. A failed tracker read draws no
+year: the card shows the failed read (`StreakFailed`, `LoadFailed` with Try
+Again, KAN-819), never an empty year that reads as no applications.
 
 ## Applications (the Applications Tracker)
 
@@ -2326,9 +2327,9 @@ answers.
   (`lib/autofill-answers.ts`) and save through one server action
   (`lib/autofill-answers-actions.ts`), and the API merges only the answers
   sent, so neither screen erases what the other saved.
-- **Shown only once loaded.** A failed read of the answer bank shows one
-  notice in place of the cards, never "Not answered" lines that would pass
-  for real answers.
+- **Shown only once loaded.** A failed read of the answer bank shows the
+  failed read's card with Try Again (`LoadFailed`, KAN-819) in place of the
+  cards, never "Not answered" lines that would pass for real answers.
 - **Save sends what changed since Edit was clicked**, compared with the
   answers the edit started from, never the latest ones: a return visit
   shows the cached answers and refetches, and a refetch landing mid-edit

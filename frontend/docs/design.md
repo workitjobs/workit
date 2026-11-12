@@ -235,9 +235,11 @@ open choices (Settled choices, near the end).
     second click.
   - Empty: `ui/empty-state.tsx`, a title that names what will fill the space
     and an action where there is one.
-  - Error: a failed load is `EmptyState`; a field error is `danger` text
-    under the field, with `aria-invalid` and `aria-describedby`. A toast
-    never carries an error that a form can show beside its field.
+  - Error: a failed load is `LoadFailed` (`EmptyState` with Try Again); a
+    field error is `danger` text under the field, with `aria-invalid` and
+    `aria-describedby`. A toast never carries an error that a form can show
+    beside its field. Where each kind goes: "An error shows where the
+    student acted", below.
 - **Every route group has `loading.tsx`, `error.tsx` and `not-found.tsx`.**
   A route with none shows nothing while it reads, and a failure falls to
   the root's page, out of its shell. A child page whose shape differs from
@@ -250,7 +252,42 @@ open choices (Settled choices, near the end).
   as the only thing done: "A skeleton shows no heading or line of text the
   page replaces" (`frontend/CLAUDE.md`). Skeletons are `bg-ink/6` at the
   height of what replaces them, and copy the real layout: a list loads as
-  skeleton rows, never as a "Loading…" line.
+  skeleton rows, never as a "Loading…" line. A dialog that reads its
+  content draws the content's frame as a bar (View Resume's page).
+- **An error shows where the student acted** (KAN-819). The eye stays on
+  the control just used, so an error far from it goes unseen: Tailor's
+  "Tailor can't reach WorkIt's AI right now" sat at the foot of a page of
+  resumes while Next was in the bar at the top. Each kind has one place:
+  - **A read that failed** is `LoadFailed` (`ui/load-failed.tsx`) in the
+    place of what did not load: a page's content area, or inside the card,
+    tile or dialog whose part failed (`compact`: no card of its own, a
+    smaller glyph, a 14px title under the card's own heading). Its title
+    names what did not load ("Your Answers Aren't Loading Right Now"), its
+    line says to try again in a few minutes, and it always has **Try
+    Again**: never "Refresh the page" with no button, a grey line or a
+    banner. Try Again reads the page again on the server
+    (`router.refresh()`), or runs the part's own read in the browser
+    (`onRetry`), and reads "Loading…" while it works. The pages built
+    before it (Resumes, Experiences, Cover Letters, the job feed, the
+    editor, an uploaded resume, Tailor's page) draw the same card with Try
+    Again as a link that reloads the page.
+  - **A field's error** sits under its field (Components, "A field's error
+    sits under its field").
+  - **A button's error** (a run, a read or a write the button started) sits
+    under or beside that button, `danger` text in a `role="alert"` region:
+    Tailor's Next and Tailor Resume show theirs in the step bar under the
+    button (`TailorBar`'s `error`).
+  - **A form's error that is no one field's** (the API's answer) sits at
+    the form's foot, above its buttons; a wizard's above its footer.
+  - **A toast** carries a write's result the page does not show by itself,
+    or an error with nothing left on screen to sit beside (the row a
+    refresh removed), with Retry or Undo where it applies. Never an error a
+    field, a button or a card can show.
+- **A picker's "no matches" line is `NoMatches`** (`ui/no-matches.tsx`,
+  KAN-819): 14px in the meta grey, 12px above and below, `role="status"`,
+  when a picker's search or filters leave no row (the resume pickers, Pick
+  an Application, the editor's Experiences picker). The four had four sizes.
+  A page or list with nothing at all to show is an `EmptyState`.
 - **Every write asks first or offers Undo** (KAN-818). A
   student who slips must be able to recover (NN/g, "Preventing user
   errors"; GOV.UK, "Warning text"). A delete of the student's own content

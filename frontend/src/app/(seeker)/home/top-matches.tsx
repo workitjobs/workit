@@ -1,6 +1,7 @@
 import { ArrowRightIcon } from "@/components/icons";
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { ButtonLink } from "@/components/ui/button";
+import { LoadFailed } from "@/components/ui/load-failed";
 import { TextLink } from "@/components/ui/text-link";
 import { cn } from "@/lib/cn";
 
@@ -81,19 +82,23 @@ export async function TopMatches({
         className={className}
       >
         <StaticHeading />
-        <p className="text-body text-ink-meta mt-3">
-          {top === "empty" ? (
-            <>
-              Add what you have done to your{" "}
-              <TextLink href="/experiences">experience bank</TextLink>, and your best-fitting jobs
-              show up here.
-            </>
-          ) : top === null ? (
-            "Your matches aren't loading right now. Check back in a few minutes."
-          ) : (
-            "No open jobs to match yet. They show up here as companies post them."
-          )}
-        </p>
+        {top === null ? (
+          <LoadFailed compact title="Your Matches Aren't Loading Right Now" className="mt-3">
+            We couldn&apos;t score your jobs. Try again in a few minutes.
+          </LoadFailed>
+        ) : (
+          <p className="text-body text-ink-meta mt-3">
+            {top === "empty" ? (
+              <>
+                Add what you have done to your{" "}
+                <TextLink href="/experiences">experience bank</TextLink>, and your best-fitting jobs
+                show up here.
+              </>
+            ) : (
+              "No open jobs to match yet. They show up here as companies post them."
+            )}
+          </p>
+        )}
       </Card>
     );
   }

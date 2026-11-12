@@ -9,6 +9,7 @@ import { PencilIcon } from "@/components/icons";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { LoadFailed } from "@/components/ui/load-failed";
 import { SectionHeading, SectionHeadingSkeleton } from "@/components/ui/section-heading";
 import type { Bank } from "@/lib/bank-actions";
 import type { Result } from "@/lib/applicant-call";
@@ -257,9 +258,9 @@ function TopSkills({ skills, failed }: { skills: string[] | null; failed: boolea
         )}
       </div>
       {failed ? (
-        <p className="text-body text-ink-meta mt-4">
-          Your skills didn&apos;t load. Refresh the page to try again.
-        </p>
+        <LoadFailed compact title="Your Skills Aren't Loading Right Now" className="mt-4">
+          We couldn&apos;t reach your experience bank. Try again in a few minutes.
+        </LoadFailed>
       ) : shown.length > 0 ? (
         <ul className="mt-4 flex flex-wrap gap-2">
           {shown.map((skill) => (

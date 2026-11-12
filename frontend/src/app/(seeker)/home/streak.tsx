@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { SegmentedToggle } from "@/components/ui/segmented-control";
 import { cn } from "@/lib/cn";
 import { Card } from "@/components/ui/card";
+import { LoadFailed } from "@/components/ui/load-failed";
 
 import { localDay } from "../tracker";
 import type { AppliedApplication } from "./data";
@@ -51,8 +52,9 @@ import {
  * company/jobs/jobs-table.tsx. Each application's day is the viewer's too, by
  * the same swap: it gets the instant it was sent (`applied`, from the live
  * tracker) and counts it on its UTC day until hydration, then on the
- * browser's own (KAN-342). A failed read draws the empty year with a line
- * that says so, never stand-in days.
+ * browser's own (KAN-342). A failed read draws no year at all: the page
+ * shows `StreakFailed` instead, the card with Try Again (KAN-819), never
+ * stand-in days or an empty year under a line that says so.
  *
  * Adapted from the Contribution Skyline component on 21st.dev.
  */
@@ -117,15 +119,16 @@ export function Streak({
   applied,
   className,
 }: {
-  /** Each sent application; null when the tracker can't be read. */
-  applied: AppliedApplication[] | null;
+  /** Each sent application (`StreakFailed` stands in when the tracker
+   *  can't be read). */
+  applied: AppliedApplication[];
   className?: string;
 }) {
   const today = useSyncExternalStore(noSubscription, localToday, utcToday);
   const local = useSyncExternalStore(noSubscription, inBrowser, onServer);
   const days = useMemo<AppliedDay[]>(
     () =>
-      (applied ?? []).map((app) => ({
+      applied.map((app) => ({
         date: local ? localDay(app.appliedOn) : app.appliedOn.slice(0, 10),
         count: 1,
       })),
@@ -157,7 +160,7 @@ export function Streak({
   const dayApplications = useMemo(
     () =>
       day
-        ? (applied ?? [])
+        ? applied
             .filter((app) => localDay(app.appliedOn) === day.date)
             .sort((a, b) => Date.parse(a.appliedOn) - Date.parse(b.appliedOn))
         : [],
@@ -259,16 +262,9 @@ export function Streak({
       className={cn("@container/streak", className)}
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 id="streak" className="text-subtitle text-ink">
-            Activity
-          </h2>
-          {applied === null && (
-            <p className="text-note text-ink-meta mt-1">
-              Your applications aren&apos;t loading right now.
-            </p>
-          )}
-        </div>
+        <h2 id="streak" className="text-subtitle text-ink">
+          Activity
+        </h2>
         <SegmentedToggle
           label="Chart View"
           options={VIEW_OPTIONS}
@@ -355,6 +351,25 @@ export function Streak({
           onClose={() => setDay({ ...day, open: false })}
         />
       )}
+    </Card>
+  );
+}
+
+/**
+ * Activity when the tracker can't be read (KAN-819): the card and its
+ * heading over the failed read's compact card, with Try Again, which reads
+ * the page again. A separate part, not a state of `Streak`, so a read that
+ * works on Try Again mounts the canvas fresh: `Streak` mounts it once.
+ */
+export function StreakFailed({ className }: { className?: string }) {
+  return (
+    <Card as="section" tone="tile" padding="lg" aria-labelledby="streak" className={className}>
+      <h2 id="streak" className="text-subtitle text-ink">
+        Activity
+      </h2>
+      <LoadFailed compact title="Your Applications Aren't Loading Right Now" className="mt-3">
+        We couldn&apos;t reach your tracker. Try again in a few minutes.
+      </LoadFailed>
     </Card>
   );
 }

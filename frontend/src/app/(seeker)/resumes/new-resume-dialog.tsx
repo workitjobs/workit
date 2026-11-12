@@ -36,6 +36,7 @@ import { OptionRow } from "@/components/ui/option-row";
 import { OrDivider } from "@/components/ui/or-divider";
 import { Radio } from "@/components/ui/radio-row";
 import { SearchField } from "@/components/ui/search-field";
+import { NoMatches } from "@/components/ui/no-matches";
 import { cn } from "@/lib/cn";
 import type { BuiltResume } from "@/lib/built-resume-actions";
 import type { ResumeItem } from "@/lib/resume-actions";
@@ -309,7 +310,7 @@ function Body({
                 onChange={(event) => setQuery(event.target.value)}
               />
               {shown.length === 0 ? (
-                <p className="text-note text-ink-meta py-2">None of your resumes match.</p>
+                <NoMatches>None of your resumes match.</NoMatches>
               ) : (
                 <StartTable rows={shown} picked={picked} onPick={setPicked} onView={setViewing} />
               )}

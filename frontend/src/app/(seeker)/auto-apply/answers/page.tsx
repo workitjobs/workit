@@ -1,10 +1,11 @@
-import { CheckCircleIcon, CloudSlashIcon } from "@phosphor-icons/react/ssr";
+import { CheckCircleIcon } from "@phosphor-icons/react/ssr";
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { LoadFailed } from "@/components/ui/load-failed";
 import { TextLink } from "@/components/ui/text-link";
 import { claudeConnectorLink } from "@/lib/claude-connector";
 import { cn } from "@/lib/cn";
@@ -98,14 +99,13 @@ export default async function WrittenAnswersPage() {
       </div>
 
       {error != null ? (
-        <EmptyState
-          Icon={CloudSlashIcon}
-          title="Your Questions Aren't Loading"
+        <LoadFailed
+          title="Your Questions Aren't Loading Right Now"
           className="mt-8"
           detail={process.env.NODE_ENV === "development" ? error : undefined}
         >
-          We couldn&apos;t reach your applications. Refresh the page in a few minutes.
-        </EmptyState>
+          We couldn&apos;t reach your applications. Try again in a few minutes.
+        </LoadFailed>
       ) : !postings || postings.length === 0 ? (
         <EmptyState Icon={CheckCircleIcon} title="Nothing Left to Write" className="mt-8">
           When an open application asks a written question, it shows up here.

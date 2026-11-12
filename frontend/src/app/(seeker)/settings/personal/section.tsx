@@ -1,4 +1,5 @@
 import { Card } from "@/components/ui/card";
+import { LoadFailed } from "@/components/ui/load-failed";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { getAvatar } from "@/lib/avatar-actions";
 import { getProfile } from "@/lib/profile-actions";
@@ -22,9 +23,9 @@ export async function PersonalSection() {
       {profile ? (
         <PersonalDetails profile={profile} avatarUrl={avatar.url} />
       ) : (
-        <p role="status" className="text-body text-ink-meta">
-          Your details didn&apos;t load. Refresh the page to try again.
-        </p>
+        <LoadFailed compact title="Your Details Aren't Loading Right Now">
+          We couldn&apos;t reach your profile. Try again in a few minutes.
+        </LoadFailed>
       )}
     </Card>
   );

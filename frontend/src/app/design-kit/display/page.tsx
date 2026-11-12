@@ -27,6 +27,8 @@ import { CompanyTile } from "@/components/ui/company-tile";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Fact } from "@/components/ui/fact";
 import { IconButton } from "@/components/ui/icon-button";
+import { LoadFailed } from "@/components/ui/load-failed";
+import { NoMatches } from "@/components/ui/no-matches";
 import { Points, Section } from "@/components/ui/section";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { TextLink } from "@/components/ui/text-link";
@@ -254,6 +256,33 @@ export default function DisplayPage() {
             >
               New roles show up here as soon as they&apos;re posted.
             </EmptyState>
+          </Card>
+        </Row>
+        <Row
+          name="<LoadFailed>"
+          role="A read that failed: what did not load, then Try Again (ui/load-failed.tsx, KAN-819)"
+        >
+          <LoadFailed
+            title="Your Applications Aren't Loading Right Now"
+            className="w-full max-w-md"
+          >
+            We couldn&apos;t reach your applications. Try again in a few minutes.
+          </LoadFailed>
+        </Row>
+        <Row
+          name="<LoadFailed compact>"
+          role="The same inside a card, a tile or a dialog that has its own heading"
+        >
+          <Card className="w-full max-w-md">
+            <SectionHeading as="h3">Transcript</SectionHeading>
+            <LoadFailed compact title="Your Transcript Isn't Loading Right Now" className="mt-3">
+              We couldn&apos;t reach your file. Try again in a few minutes.
+            </LoadFailed>
+          </Card>
+        </Row>
+        <Row name="<NoMatches>" role="A picker's search or filters left no row (ui/no-matches.tsx)">
+          <Card className="w-full max-w-md">
+            <NoMatches>None of your resumes match these filters.</NoMatches>
           </Card>
         </Row>
         <Row name="<Section> and <Points>" role="A job's long-form copy, on its detail page">

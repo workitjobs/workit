@@ -1605,7 +1605,17 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   Up Next's skeleton showed on the way to Application Info. The company side
   follows the same rules, with its own `error.tsx` and `not-found.tsx`. A
   client-side read draws a skeleton line in its place too (Transcript, the
-  resume pickers' `ResumeListsSkeleton`), never a "Loading…" line. **A
+  resume pickers' `ResumeListsSkeleton`), never a "Loading…" line. **Every
+  failed read is `LoadFailed`** (`components/ui/load-failed.tsx`, KAN-819):
+  `EmptyState` with Try Again, `compact` inside a card, tile or dialog.
+  Without `onRetry`, Try Again is `router.refresh()`, not a full reload:
+  in Settings' modal a reload of `/settings/<section>` would draw the modal
+  over Home (a hard load does) and drop the page behind it; the refresh
+  keeps the modal and the page as they are. A part that reads in the browser
+  passes its read as `onRetry`; one that mounts a canvas once (Home's
+  Activity) draws its failed state as a separate part (`StreakFailed`), so
+  a read that works on Try Again mounts it fresh. Where every other error
+  goes is `docs/design.md`, "An error shows where the student acted". **A
   part that draws only once it hydrates (a canvas) keeps a skeleton in its
   own place until its first frame** (Home's Activity map, `drawn` in
   `home/streak.tsx`): the section's Suspense fallback ends when the

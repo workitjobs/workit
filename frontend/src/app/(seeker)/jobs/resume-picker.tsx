@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
 import { Radio } from "@/components/ui/radio-row";
 import { SearchField } from "@/components/ui/search-field";
+import { NoMatches } from "@/components/ui/no-matches";
 import { cn } from "@/lib/cn";
 import { headerSummary } from "@/lib/import-summary";
 import { listBuiltResumes, type BuiltResume } from "@/lib/built-resume-actions";
@@ -270,7 +271,7 @@ export function ResumeLists({
       {choices.length === 0 ? (
         <p className="text-note text-ink-meta py-2">{empty}</p>
       ) : shown.length === 0 ? (
-        <p className="text-note text-ink-meta py-2">None of your resumes match these filters.</p>
+        <NoMatches>None of your resumes match these filters.</NoMatches>
       ) : (
         // Its own scroll, so the dialog's footer stays put under a long list,
         // or, on a page, so the search above it stays in view.

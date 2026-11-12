@@ -1,11 +1,10 @@
-import { CloudSlashIcon } from "@phosphor-icons/react/ssr";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { CompanyLogo } from "@/components/company-logo";
 import type { JobPosting } from "@/components/job-detail/data";
 import { JobDetailHeader } from "@/components/job-detail/job-detail-header";
-import { EmptyState } from "@/components/ui/empty-state";
+import { LoadFailed } from "@/components/ui/load-failed";
 import { Section } from "@/components/ui/section";
 import { apiGet } from "@/lib/api";
 import { cn } from "@/lib/cn";
@@ -134,13 +133,12 @@ export default async function ApplicationPage({ params }: PageProps<"/applicatio
     return (
       <div className={cn(JOB_PAGE_WIDTH, SEEKER_GUTTER)}>
         <BackToApplications />
-        <EmptyState
-          Icon={CloudSlashIcon}
-          title="This Application Isn't Loading"
+        <LoadFailed
+          title="This Application Isn't Loading Right Now"
           detail={process.env.NODE_ENV === "development" ? error : undefined}
         >
-          We couldn&apos;t reach your saved and applied jobs. Refresh the page in a few minutes.
-        </EmptyState>
+          We couldn&apos;t reach your saved and applied jobs. Try again in a few minutes.
+        </LoadFailed>
       </div>
     );
   }

@@ -1,7 +1,7 @@
 "use client";
 
 import { PenNibIcon } from "@phosphor-icons/react/ssr";
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 
 import { PlusIcon, TrashIcon } from "@/components/icons";
 import { Skeleton } from "@/components/shadcn/skeleton";
@@ -9,6 +9,7 @@ import { TextAreaField } from "@/components/text-area-field";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { LoadFailed } from "@/components/ui/load-failed";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { useToast } from "@/components/ui/toast";
 import {
@@ -58,18 +59,23 @@ export function WritingSamples() {
   const box = useRef<HTMLTextAreaElement>(null);
   const toast = useToast();
 
+  const read = useCallback(
+    () =>
+      getWritingSamples()
+        .then(({ samples: s, error: err }) => {
+          if (err) setLoadError(err);
+          else setSamples(s);
+          // The extension's ask lands here: open the box the student came for.
+          if (s && s.length < MAX_SAMPLES && window.location.hash === `#${WRITING_SAMPLES_ID}`) {
+            setAdding(true);
+          }
+        })
+        .catch(() => setLoadError("Could not reach the server.")),
+    [],
+  );
   useEffect(() => {
-    getWritingSamples()
-      .then(({ samples: s, error: err }) => {
-        if (err) setLoadError(err);
-        else setSamples(s);
-        // The extension's ask lands here: open the box the student came for.
-        if (s && s.length < MAX_SAMPLES && window.location.hash === `#${WRITING_SAMPLES_ID}`) {
-          setAdding(true);
-        }
-      })
-      .catch(() => setLoadError("Could not reach the server."));
-  }, []);
+    void read();
+  }, [read]);
 
   useEffect(() => {
     if (adding) box.current?.focus();
@@ -185,9 +191,18 @@ export function WritingSamples() {
         </div>
       )}
       {loadError && (
-        <p role="status" className="text-note text-ink-meta mt-4">
-          Your writing samples didn&apos;t load. Refresh the page to try again.
-        </p>
+        <LoadFailed
+          compact
+          title="Your Writing Samples Aren't Loading Right Now"
+          onRetry={() => {
+            setLoadError(null);
+            return read();
+          }}
+          className="mt-4"
+          detail={process.env.NODE_ENV === "development" ? loadError : undefined}
+        >
+          We couldn&apos;t reach your samples. Try again in a few minutes.
+        </LoadFailed>
       )}
 
       {samples && samples.length > 0 && (
