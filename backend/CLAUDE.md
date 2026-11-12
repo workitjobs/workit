@@ -1287,7 +1287,11 @@ Find files with a directory listing; these are the rules for where code goes.
   so a live model asked a finished project for its team. It also writes
   bullets from the first answer that says what the student did, rather
   than asking for one. Education's include the GPA, so a school imported without one gets asked
-  for it. The GPA is optional (`_OPTIONAL`): a card without one still counts
+  for it. A degree said only by its level ("bachelor's") is listed as still
+  missing, with a note to ask once which one (Bachelor of Science or of
+  Arts) and keep it if the student does not know; `_has` still counts it,
+  so the `READY` guard below ends the visit rather than asking again
+  (KAN-812). The GPA is optional (`_OPTIONAL`): a card without one still counts
   as complete, so after the student declines it the `READY` guard below
   ends the visit instead of asking again. Two code
   guards back the prompt, each with a test, because the local 4B model

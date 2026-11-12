@@ -73,6 +73,7 @@ from app.schemas.profile import ApplicantProfileUpdate
 from app.scripts import import_apply_writing
 from app.services import apply_answers, bank, local_files
 from app.services.names import join_name
+from app.utils.resume_parser import is_degree_level
 
 PROFILE, POLICIES, ANSWERS = "applicant-profile.yaml", "policies.yaml", "answer-bank.yaml"
 # The policies the Fill engine reads (fill-engine src/rules.ts, planner.ts).
@@ -168,6 +169,20 @@ async def _set_fields(profile: Applicant_Profile, facts: dict, report: Report) -
             report.fields.append("name")
 
 
+def _degree(school: dict, report: Report) -> str | None:
+    """The school's degree as a resume prints it: Apply's `degree_type`
+    ("Bachelor of Science"), else its `degree`, but never one that names only
+    its level ("Bachelor's degree", Apply's form value). With only a level the
+    degree stays empty and the report says so: the import's fallback to
+    `degree` printed "Bachelor's degree" on generated resumes (KAN-812)."""
+    said = [str(school.get(key) or "").strip() for key in ("degree_type", "degree")]
+    if named := next((d for d in said if d and not is_degree_level(d)), None):
+        return named
+    if level := next((d for d in said if d), None):
+        report.notes.append(f"degree left empty: {PROFILE} names only its level ({level})")
+    return None
+
+
 async def _set_education(session: AsyncSession, applicant_id: uuid.UUID, facts: dict, report: Report) -> None:
     school = facts.get("education") or {}
     title = str(school.get("school") or "").strip()
@@ -177,7 +192,7 @@ async def _set_education(session: AsyncSession, applicant_id: uuid.UUID, facts: 
     end = _month(school.get("expected_graduation"))
     changes = {
         "section": bank_section.education, "title": title,
-        "degree": school.get("degree_type") or school.get("degree"),
+        "degree": _degree(school, report),
         "field_of_study": majors[0] if majors else None,
         "gpa": school.get("gpa_cumulative"), "gpa_scale": school.get("gpa_scale"),
         "start_month": _month(school.get("start_date")), "end_month": end,

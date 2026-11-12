@@ -291,6 +291,11 @@ would read "Marketing - May 2026" as a range.
 
 ### Education fields
 
+- **A degree said only by its level is no degree name** (`is_degree_level`:
+  "Bachelor's", "a master's degree", "Doctorate"). It names no subject, so
+  the Apply import leaves such a degree empty and intake asks once which
+  one it is: "Bachelor's" alone printed as the degree on generated
+  resumes (KAN-812).
 - The degree keeps its full name ("Bachelor of Science", not "Bachelor"),
   up to three capitalized words after "of" ("Bachelor of Computer Science",
   "Associate of Arts"), and an abbreviation keeps its last period ("B.S.").

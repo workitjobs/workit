@@ -862,6 +862,11 @@ so WorkIt fills forms as completely as Apply does.
   import reads the folder that Apply reads: `$APPLY_HOME`, else
   `~/.config/apply` (`import_apply_writing.apply_home`). The profile, policies,
   answer bank, story bank, voice and company briefs are directly in it.
+- **The degree is Apply's `degree_type`** ("Bachelor of Science"), else its
+  `degree` unless that names only its level ("Bachelor's degree", the
+  form value Apply keeps there): then the degree stays empty and the
+  report says so. The fallback printed "Bachelor's degree" on generated
+  resumes (KAN-812, `resume_parser.is_degree_level`).
 - **A `files:` path is read as Apply reads it.** A relative path starts at
   the data folder, `~` is expanded, and an absolute path is kept. Apply's own
   rule is in `apply-agent`'s `profile.py` (`get`). If you change one, change

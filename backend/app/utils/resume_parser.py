@@ -100,6 +100,24 @@ _SPACED_RE = re.compile(r'[A-Za-z](?: [A-Za-z&])+(?:\s{2,}[A-Za-z](?: [A-Za-z&])
 
 # "GPA: 3.81/4.00" gives the scale too
 GPA_RE = re.compile(r'GPA[:\s]*(\d+(?:\.\d+)?)(?:\s*/\s*(\d+(?:\.\d+)?))?', re.IGNORECASE)
+# A degree said only by its level ("Bachelor's", "a master's degree"): it
+# names no subject (Bachelor of Science, of Arts), so no resume prints it as
+# the degree. The Apply import leaves such a degree empty, and intake asks
+# which one it is (KAN-812).
+_DEGREE_LEVEL_RE = re.compile(
+    r"(?:an?\s+)?(?:bachelor|master|associate|doctorate|doctoral|undergraduate|graduate)(?:'s|’s|s)?(?:\s+degree)?",
+    re.IGNORECASE,
+)
+
+
+def is_degree_level(text: str | None) -> bool:
+    """Whether a degree names only its level ("Bachelor's", "a master's
+    degree", "Doctorate"), not the degree ("Bachelor of Science", "B.S.")."""
+    if not text:
+        return False
+    return _DEGREE_LEVEL_RE.fullmatch(" ".join(text.split()).rstrip(".")) is not None
+
+
 DEGREE_RE = re.compile(
     # A.A./A.S. need the dot, or the word "as" would count as a degree
     r'\b(B\.?S\.?|B\.?A\.?|M\.?S\.?|M\.?A\.?|A\.A\.?|A\.S\.?|Ph\.?D\.?|'

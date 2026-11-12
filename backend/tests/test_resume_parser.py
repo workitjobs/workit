@@ -693,3 +693,17 @@ def test_a_club_and_its_role_on_one_dashed_line_split(role):
     parsed = parse_resume(f"LEADERSHIP\nChess Club – {role}  Jan 2024 – Present\n• Ran the budget\n")
     club = parsed.leadership[0]
     assert (club.company_name, club.title) == ("Chess Club", role)
+
+
+@pytest.mark.parametrize("degree", [
+    "Bachelor's", "bachelors", "Bachelor's degree", "a bachelor’s degree", "Master's", "masters degree",
+    "Associate degree", "Doctorate", "Undergraduate", "Bachelor's.",
+])
+def test_a_degree_named_only_by_its_level_is_a_level(degree):
+    # KAN-812: "Bachelor's" alone printed as the degree on generated resumes
+    assert resume_parser.is_degree_level(degree)
+
+
+@pytest.mark.parametrize("degree", ["Bachelor of Science", "B.S.", "BS", "Master of Arts", "MBA", "PhD", "", None])
+def test_a_degree_s_own_name_is_no_level(degree):
+    assert not resume_parser.is_degree_level(degree)
