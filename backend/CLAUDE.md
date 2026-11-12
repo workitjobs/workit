@@ -1365,6 +1365,13 @@ Find files with a directory listing; these are the rules for where code goes.
   the same name with the catalog's case, never another name for it):
   "numpy" is "NumPy" and "grpc" "gRPC"; title case had printed "Numpy",
   "Html5" and "Matlab" on tailored resumes (2026-11-12).
+- **A degree is never a keyword** (`keywords.is_degree`, in `_cleaned` and
+  `match`): "Bachelor's Degree", "BS/MS in Computer Science" and "PhD" are
+  requirements, not skills. The prompt asked for no degree names, but
+  keywords read before it stay cached, and Tailor saved a picked
+  "Bachelor's Degree" as a resume skill (KAN-811). Bare "Master" stays a
+  skill ("Scrum Master", "Master Data Management"), and so does
+  "360-degree".
 - **The keyword match** (KAN-215) is `GET .../built-resumes/{rid}/keyword-match`
   over `services/keywords.py`: a job posting's keywords, extracted once by
   the model and cached on the posting with a hash of its title and the

@@ -254,10 +254,34 @@ class Placed:
     group: str | None
 
 
+_GROUP_WORD = re.compile(r"[^\W_]+")
+
+
+def _group_words(name: str) -> frozenset[str]:
+    """A group name's words in lower case, plurals and "and" aside, so
+    "Frameworks & Libraries" and "framework and library" are the same."""
+    return frozenset(w[:-1] if len(w) > 3 and w.endswith("s") else w
+                     for w in _GROUP_WORD.findall(name.casefold()) if w != "and")
+
+
+def _near_group(name: str, groups: Sequence[str]) -> str | None:
+    """The one group whose words hold the name's or are held in them:
+    "Languages" for "Programming Languages", "Cloud & DevOps" for "Cloud".
+    None when no group matches, or two do."""
+    words = _group_words(name)
+    hits = [g for g in groups if words and (gw := _group_words(g)) and (gw <= words or words <= gw)]
+    return hits[0] if len(hits) == 1 else None
+
+
 def _group(said: str | None, known: Mapping[str, str | None], made: list[str]) -> str | None:
-    """The group a placement names: the resume's own (any case), no group
-    for "Other", or a new one if it is short, holds no identity placeholder
-    and the run has made fewer than `MAX_NEW_GROUPS`; else no group."""
+    """The group a placement names: the resume's own (any case, or a near
+    name of one), no group for "Other", or a new one if it is short, holds
+    no identity placeholder and the run has made fewer than
+    `MAX_NEW_GROUPS`; else no group. A new group's words in lower case are
+    written as a resume writes them ("cloud & devops" to "Cloud & DevOps").
+    Before KAN-811 a near name made a second group beside the resume's, or
+    put the skill under "Other" once two were made, and a lowercase name
+    printed lowercase."""
     name = " ".join((said or "").split())
     if not name or name.casefold() == OTHER.casefold() and name.casefold() not in known:
         return None
@@ -265,8 +289,13 @@ def _group(said: str | None, known: Mapping[str, str | None], made: list[str]) -
         return known[name.casefold()]
     if hit := next((g for g in made if g.casefold() == name.casefold()), None):
         return hit
-    if len(name) > MAX_GROUP or placeholders_in(name) or len(made) >= MAX_NEW_GROUPS:
+    if placeholders_in(name):
         return None
+    if near := _near_group(name, [g for g in known.values() if g] + made):
+        return near
+    if len(name) > MAX_GROUP or len(made) >= MAX_NEW_GROUPS:
+        return None
+    name = kw.resume_case(name)
     made.append(name)
     return name
 
@@ -411,6 +440,18 @@ def _same_word(a: str, b: str) -> bool:
     return short == long or (len(short) >= 4 and long.startswith(short))
 
 
+# Words, numbers and the symbols that change what a line says ("C++", "50%")
+_TOKEN = re.compile(r"[^\W_]+|[+#%$]")
+
+
+def same_words(text: str, before: str) -> bool:
+    """Whether a rewording only changes case, spacing or punctuation ("Built
+    X." for "built X"): the same words, numbers and symbols in the same
+    order. Such a rewording is no change: before KAN-811 a period or a
+    capital letter alone was marked as Tailor's rewrite."""
+    return _TOKEN.findall(text.casefold()) == _TOKEN.findall(before.casefold())
+
+
 def keeps_its_bullet(text: str, original: str) -> bool:
     """Whether a rewording still says what its bullet says: at least a third
     of the original's words (three letters or more) are in it, a shared start
@@ -470,7 +511,7 @@ def propose(
         if bullet_id not in originals or bullet_id in reworded:
             continue
         text = _clean(item.text)
-        if not text or text.casefold() == showing[bullet_id].casefold():
+        if not text or same_words(text, showing[bullet_id]):
             continue
         if check_wording(bank, bullet_id, text, skills, keywords) or not keeps_its_bullet(text, originals[bullet_id]):
             dropped += 1
