@@ -1,6 +1,6 @@
 "use client";
 
-import { CopySimpleIcon, EnvelopeSimpleIcon } from "@phosphor-icons/react/ssr";
+import { CopySimpleIcon, SignatureIcon } from "@phosphor-icons/react/ssr";
 import { useState, type MouseEvent } from "react";
 
 import { rowFill, STICKY_HEAD, STICKY_TH, TABLE_FILL, useFillPage } from "@/components/fill-page";
@@ -86,7 +86,9 @@ export function CoverLetters({ letters }: { letters: CoverLetter[] }) {
         }
       />
       {letters.length === 0 ? (
-        <EmptyState Icon={EnvelopeSimpleIcon} title="No Cover Letters Yet" className="mt-4">
+        // A signed letter, not the envelope: that is Email's (the design
+        // kit's Icons page, KAN-826).
+        <EmptyState Icon={SignatureIcon} title="No Cover Letters Yet" className="mt-4">
           When a job form asks for a cover letter, WorkIt writes it with your answers, and it shows
           here with the job it went to.
         </EmptyState>

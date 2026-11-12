@@ -1,6 +1,6 @@
 "use client";
 
-import { GearIcon, QuestionIcon } from "@phosphor-icons/react/ssr";
+import { GearIcon } from "@phosphor-icons/react/ssr";
 import { useEffect, useState } from "react";
 
 import { AccountMenu, type AccountMenuItem } from "@/components/account-menu";
@@ -391,9 +391,10 @@ export function ResumeUploadSpecimen() {
   );
 }
 
+/** The seeker menu's rows as the app draws them: Help is hidden until its
+ *  page exists (`HELP_LIVE` in (seeker)/account-status.tsx). */
 const ACCOUNT_ROWS: AccountMenuItem[] = [
   { href: "/settings", label: "Settings", icon: <GearIcon aria-hidden className="size-4" /> },
-  { href: "/help", label: "Help", icon: <QuestionIcon aria-hidden className="size-4" /> },
 ];
 
 /** Signing out from the kit would end a real session, so its row does nothing. */

@@ -513,6 +513,12 @@ open choices (Settled choices, near the end).
   "role", tooltips and counts included. Labels are Title Case, tooltips
   too, in US spelling. A public page that looks like the app (a marketing
   card, a coming-soon page) follows the same copy rules.
+- **Say only what stays true** (KAN-826). Never list by hand what a
+  feature covers: Add Jobs said "It fills Greenhouse jobs only, for now"
+  after Auto Apply filled 13 hiring systems; let each row say whether it
+  can, from the API. Name a page only while it is live (`CALENDAR_LIVE`,
+  `INBOX_LIVE`), and count in the right number ("Your 1 Best Match
+  Today", never "1 Best Matches").
 
 ### Settled choices
 
@@ -694,8 +700,9 @@ and email beside it from lg, at 40px like the bar's bare ink bell
 (`(seeker)/bar.ts`); it reads `getCurrentAccount()` in
 `lib/session.ts`, cached per render. The whole block is the trigger of
 `components/account-menu.tsx`, passed in as its `children`, and opens
-Settings, Help and Sign Out (with the account header only below lg, where the
-block shows just the photo). A "N New Roles Since Yesterday" pill used to sit
+Settings and Sign Out (with the account header only below lg, where the
+block shows just the photo). Help joins them once its page has guides
+(`HELP_LIVE`, KAN-826). A "N New Roles Since Yesterday" pill used to sit
 beside it from xl; it was removed as a distraction, along with the
 `/jobs?limit=500` fetch it made on every page.
 The greeting is Home's heading, and the resume nudge is the profile
@@ -705,8 +712,8 @@ the bar — deadlines go first once the tracker has a backend, and not before.
 The seeker panel holds only the search (Home, Jobs, Auto Apply,
 Tracker, Experiences, Documents (KAN-766), Inbox, Calendar, Profile:
 the tools for applying, then what comes back, KAN-426; the Inbox is
-archived for now, KAN-428), with no caption over it. Settings, Help and Sign Out, once its General
-group, live in the bar's account menu and nowhere else. The
+archived for now, KAN-428), with no caption over it. Settings and Sign Out (and Help, hidden
+until its page has guides), once its General group, live in the bar's account menu and nowhere else. The
 seeker layout redirects to /login when `getSessionUser()` finds no session,
 so the shell never draws a signed-out state and the bar's account block is
 always filled (from the session's email if /auth/me is down). The company panel keeps

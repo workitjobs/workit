@@ -27,6 +27,7 @@ import { SelectField } from "@/components/ui/select-field";
 import { FIELD_LABEL, RequiredMark, TextField } from "@/components/ui/text-field";
 import { cn } from "@/lib/cn";
 
+import { CALENDAR_LIVE } from "../calendar/live";
 import { KIND_ICON, KIND_STAGE, STAGE_COLOR } from "../stage-colors";
 import type { EventKind } from "../tracker";
 
@@ -288,7 +289,8 @@ function CreateEventForm({
             ? "Pick the application this event is for."
             : empty
               ? "Save a job first: every event belongs to one of your applications."
-              : (MOVES[kind] ?? "It shows on the application's timeline and your Calendar.")}
+              : (MOVES[kind] ??
+                `It shows on the application's timeline${CALENDAR_LIVE ? " and your Calendar" : ""}.`)}
         </DialogDescription>
       </DialogHeader>
       {choosing && (

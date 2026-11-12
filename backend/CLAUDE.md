@@ -1620,6 +1620,9 @@ Find files with a directory listing; these are the rules for where code goes.
   (`models/CLAUDE.md`, "notifications") and sends one email through
   `services/email.py`'s `send_email` (AWS SES, the one place a provider
   swap would touch) from the same computed list — never scored twice.
+  The bell's title, the email's heading and its subject count the jobs
+  in one word form (`_title`): one job is "Your 1 Best Match Today",
+  never "1 Best Matches" (KAN-826).
   **Authenticates via the EC2 instance's IAM role, never a stored key**:
   `aws_region`/`ses_from_email` in `config.py` are the only settings, both
   plain values, nothing to rotate — a run from anywhere without that role

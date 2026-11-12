@@ -35,7 +35,8 @@ export type SavedJob = {
   place: string | null;
   logoUrl: LogoSrc;
   match: number | null;
-  /** Its hiring system is one auto apply can fill (Greenhouse for now). */
+  /** Its hiring system is one auto apply can fill (the API's
+   *  `auto_apply`, from backend/app/auto_apply/hosts.py). */
   autoApply: boolean;
 };
 
@@ -49,9 +50,12 @@ export type SavedJob = {
  *
  * A row's checkbox, or a click on the row but its title (the job's link),
  * picks it; Select All picks every job auto apply can fill. One it can't
- * (not Greenhouse, for now) can't be picked and says why, on a line of its
- * own outside the dimmed row. Each row's second line is the company and the
- * place, so two saved jobs with one title at one company read apart. "Add N
+ * (its hiring system is not in the API's list) can't be picked and says
+ * why, on a line of its own outside the dimmed row. No line here names the
+ * hiring systems: the list grows in the API, and a sentence that named
+ * them ("Greenhouse jobs only") stayed after it did (KAN-826). Each row's
+ * second line is the company and the place, so two saved jobs with one
+ * title at one company read apart. "Add N
  * to Queue" queues each pick through the same call as a job's own Auto Apply
  * button (queueJob), in the list's order, then asks the extension to open the
  * oldest queued job (openNextApplication), says how many went in with a
@@ -123,9 +127,7 @@ export function AddJobsDialog({
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Add Jobs to the Queue</DialogTitle>
-          <DialogDescription>
-            Pick saved jobs for Auto Apply to fill. It fills Greenhouse jobs only, for now.
-          </DialogDescription>
+          <DialogDescription>Pick saved jobs for Auto Apply to fill.</DialogDescription>
         </DialogHeader>
 
         <DialogBody>
@@ -153,7 +155,7 @@ export function AddJobsDialog({
                 />
                 <span className="text-note text-ink-meta">
                   {pickable.length === 0
-                    ? "None of your saved jobs are on Greenhouse yet."
+                    ? "Auto Apply can't fill any of your saved jobs yet."
                     : `${pickable.length} of ${jobs.length} saved jobs can be auto applied to`}
                 </span>
               </div>

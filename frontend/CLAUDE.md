@@ -2377,10 +2377,15 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   Experiences, then the Jobs page, showed Scout's chat, and then the editor
   showed its assistant, both working; the editor's toolbar views can still
   leave the panel open. **The
-  Calendar has no sidebar row** (`CALENDAR_LIVE` in `seeker-sidebar.tsx`,
+  Calendar has no sidebar row** (`CALENDAR_LIVE` in `(seeker)/calendar/live.ts`,
   2026-11-09; greyed out with `disabled` from 2026-11-02): /calendar still
-  answers, and Home's Up Next links to it. Set the flag to bring the row back. The landing page still describes
-  it.
+  answers, and Home's Up Next links to it. Off, no line sends a student to
+  it either: Interviews & Dates and Create Event say an event shows on the
+  timeline, and add "and your Calendar" only while it is live (KAN-826).
+  Set the flag to bring the row and those words back. The landing page
+  still describes it. **Help has no row in the account menu** either
+  (`HELP_LIVE` in `(seeker)/account-status.tsx`, KAN-826): its page is a
+  placeholder, so the row waits for guides; /help still answers.
 - **The company table (`app/company/table.tsx`) and the Applications list
   (`(seeker)/applications/list.tsx`, KAN-282) are TanStack Table v9**, and
   every shadcn data-table example in circulation is v8. Read the guides in

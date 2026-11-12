@@ -87,6 +87,7 @@ import {
   SealCheckIcon,
   ShieldCheckIcon,
   SidebarSimpleIcon,
+  SignatureIcon,
   SignOutIcon,
   SlidersHorizontalIcon,
   StackIcon,
@@ -488,6 +489,24 @@ const GROUPS: { title: string; note: string; entries: Entry[] }[] = [
         glyph: "ListNumbers",
         meaning: "How to apply",
         where: "A posting's page",
+      },
+    ],
+  },
+  {
+    title: "Documents",
+    note: "Documents' two tabs, each drawn in its empty state: a resume, and a signed letter for a cover letter, never Email's envelope.",
+    entries: [
+      {
+        Icon: FileTextIcon,
+        glyph: "FileText",
+        meaning: "Documents and resumes",
+        where: "Resumes' empty state",
+      },
+      {
+        Icon: SignatureIcon,
+        glyph: "Signature",
+        meaning: "Cover letters",
+        where: "Cover Letters' empty state",
       },
     ],
   },

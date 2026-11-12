@@ -1839,10 +1839,13 @@ page with one action.
   queues several jobs at once**: the Jobs page and Home keep one
   click per job, and the Applications Tracker is the record. A row's
   checkbox, or a click on the row but its title, picks it; Select All picks
-  every job auto apply can fill. One it can't fill (not Greenhouse, for
-  now) can't be picked and is dimmed, and says why on a line of its own
+  every job auto apply can fill. One it can't fill (its hiring system is
+  not in `backend/app/auto_apply/hosts.py`) can't be picked and is dimmed,
+  and says why on a line of its own
   in `ink-meta`, outside the dimmed block (KAN-568: dimmed with it, the
-  reason fell to about 2.9:1). Each row's second line is the company and
+  reason fell to about 2.9:1). No line names the hiring systems (KAN-826):
+  "It fills Greenhouse jobs only, for now" stayed after the API's list
+  grew. Each row's second line is the company and
   the place ("Stripe · New York, NY"), so two saved jobs with one title at
   one company read apart. "Add N to Queue" queues each pick
   through `queueJob` in the list's order, asks the extension to open the

@@ -21,6 +21,7 @@ import { useToast } from "@/components/ui/toast";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/cn";
 
+import { CALENDAR_LIVE } from "../../calendar/live";
 import { When } from "../../local-time";
 import {
   KIND_ICON,
@@ -59,7 +60,7 @@ const PICKABLE: PickableStage[] = ["applied", "interviewing", "offer", "rejected
 /**
  * The stage menu: Applied, Interviewing, Offer or Rejected, any way, each
  * in its glyph and colour as the Tracker's Status filter draws it. A saved
- * job has no pick yet ("Move To…"), since saved is a bookmark the menu never
+ * job has no pick yet ("Move to…"), since saved is a bookmark the menu never
  * goes back to. An interview, offer or rejection added below moves the stage
  * forward by itself; this is for everything else.
  *
@@ -77,7 +78,7 @@ const PICKABLE: PickableStage[] = ["applied", "interviewing", "offer", "rejected
 export function StageMenu({
   jobId,
   stage,
-  placeholder = "Move To…",
+  placeholder = "Move to…",
   className = "w-40",
   compact = false,
 }: {
@@ -214,8 +215,8 @@ export function TrackerEvents({ jobId, events }: { jobId: string; events: Applic
       ) : (
         <Card padding="lg" className="mt-3">
           <EmptySlot icon={<CalendarIcon className="text-ink-meta size-5" />}>
-            Add interviews, assessments, offers and replies here. They show on your timeline and
-            your Calendar.
+            Add interviews, assessments, offers and replies here. They show on your timeline
+            {CALENDAR_LIVE && " and your Calendar"}.
           </EmptySlot>
         </Card>
       )}
