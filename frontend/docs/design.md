@@ -1331,8 +1331,12 @@ screen's own `<input>`, `<textarea>` or `FIELD_CONTROL` string:
   its one meaning** (2026-11-12): look there before picking a glyph, and
   add the new use to its group in the same change. The page flags a glyph
   with two meanings, or a meaning with two glyphs, by itself (its To Fix
-  group); on 2026-11-12 it flagged twelve and five, Briefcase alone carrying
-  seven meanings, which were written down to be fixed.
+  group). On 2026-11-12 it flagged twelve and five, Briefcase alone carrying
+  seven meanings, and all were fixed the same day: each sidebar section and
+  each Experiences page group kept its glyph, and every other use moved to
+  a glyph nothing else draws (Applied a paper plane, Remote a laptop, Job
+  type a clock with a person, Visa a stamp, Experience level steps, and so
+  on; the page lists them). Scout's intake draws the Experiences page's set.
 - **A table's column headings draw one rule under them** (2026-11-11): the
   heading row has no border (`STICKY_HEAD`), each heading cell its inset
   rule (`STICKY_TH`), and a frozen heading its rule and its edge together

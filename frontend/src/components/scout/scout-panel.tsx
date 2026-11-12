@@ -1,6 +1,6 @@
 "use client";
 
-import { ChatCircleIcon, SlidersHorizontalIcon, StarIcon } from "@phosphor-icons/react/ssr";
+import { ChatCircleIcon, ListMagnifyingGlassIcon, TargetIcon } from "@phosphor-icons/react/ssr";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { ArrowRightIcon, CloseIcon } from "@/components/icons";
@@ -234,7 +234,10 @@ function Bubble({ children }: { children: ReactNode }) {
 }
 
 /** The two questions Scout answers from here, as rows to press, and a tip
- *  for the third thing it does, which starts from a job's own card. The tip
+ *  for the third thing it does, which starts from a job's own card. Each row
+ *  wears its meaning's glyph (design-kit/icons): Job preferences' list with a
+ *  magnifier and Match's target, not Table settings' sliders and the primary
+ *  resume's star (until 2026-11-12). The tip
  *  is a line of text, not a row: drawn as a row it looked as pressable as
  *  the two above it and did nothing. */
 function Suggestions({ onPick, disabled }: { onPick: (text: string) => void; disabled: boolean }) {
@@ -242,14 +245,14 @@ function Suggestions({ onPick, disabled }: { onPick: (text: string) => void; dis
     <div className="bg-surface rounded-card p-2">
       <p className="text-label text-ink px-2 pt-1 pb-1.5 font-semibold">Tasks I can help with</p>
       <Suggestion
-        icon={<SlidersHorizontalIcon aria-hidden className="size-4" />}
+        icon={<ListMagnifyingGlassIcon aria-hidden className="size-4" />}
         title="Adjust current preference"
         description="Fine-tune your job search criteria."
         disabled={disabled}
         onClick={() => onPick("Help me adjust my job search preferences.")}
       />
       <Suggestion
-        icon={<StarIcon aria-hidden className="size-4" />}
+        icon={<TargetIcon aria-hidden className="size-4" />}
         title="Top Match jobs"
         description="Explore jobs where you shine as a top candidate."
         disabled={disabled}

@@ -14,7 +14,7 @@ import {
 } from "react";
 
 import {
-  BriefcaseIcon,
+  JobTypeIcon,
   CheckIcon,
   ChevronDownIcon,
   PinIcon,
@@ -673,7 +673,7 @@ export function JobFilters({
     ),
     jobType: (className: string) => (
       <Facet
-        Icon={BriefcaseIcon}
+        Icon={JobTypeIcon}
         label="Job Type"
         options={optionsOf(JOB_TYPE_OPTIONS)}
         values={shown.jobTypes}
