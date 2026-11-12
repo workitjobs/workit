@@ -1051,7 +1051,8 @@ does, rather than dropping columns as the page narrows. In the order job
 trackers read: what and who (Role, with its company), where it stands (Status, Date
 Applied), how good it is (Match), the job's facts (Job Type, as the Jobs
 page names it, though the code and `?track=` keep the older name Track;
-Location; Work Model; Pay Range), and what was sent (Resume). Source (the hiring system the posting is on,
+Location; Workplace; Salary, the Jobs page's names for them since KAN-827,
+where they were Work Model and Pay Range), and what was sent (Resume). Source (the hiring system the posting is on,
 named from its apply link in `applications/tracked.ts`, "Company Site" for
 any other host) and Notes / Next Step left the table on 2026-11-05 as more
 than a row needs: Source shows on the application's page ("Posted on
@@ -1124,7 +1125,7 @@ with Show Original Text for the file's own words. A Word file cannot be
 shown in a browser, so it points to Resumes & Experiences instead.
 Nothing downloads here. A Card View card with a sent resume carries the same
 button above its footer, on a strip that sits over the card's stretched
-link, so the strip's gap is no misclick either. Location and Pay print as the Jobs page's card does
+link, so the strip's gap is no misclick either. Location and Salary print as the Jobs page's card does
 (`jobs/format.ts`). The cells are drawn as the job cards draw their facts
 (`ui/fact.tsx`): a grey glyph, then the value in ink, and a missing value
 in meta grey; Status, Match and Posting are pills (Posting `positive` Open
@@ -1144,20 +1145,24 @@ filtered.
   `filter-bar.tsx`; a plain dropdown is `components/field-facet.tsx`, which
   Auto Apply's and Documents' filters share): the toolbar every page table
   has (`frontend/docs/design.md`, "Every page table has one toolbar").
-  Under the search, a row with a dropdown for Status
-  and one per field (Company, Job Type, Work Model), each the Jobs
+  Under the search, a row with **Sort first** (KAN-827, `SortMenu`, as
+  on the Jobs page and every page table: Date Applied, Best Match,
+  Status, Highest Salary, Company (A to Z), the headings' own orders in
+  the same `?sort=`), then a dropdown for Status
+  and one per field (Company, Job Type, Workplace), each the Jobs
   page facet's look (glyph, label, chevron, brand tint while it holds a
   pick) over checkbox rows. Status lists the four stages, each with its
   stage's glyph in its colour; the fields list every value the tracked
   applications hold. **Company has a search field** at the top of its
   list, as the Jobs page's Role dropdown does, since the list grows with
   every application; a pick keeps the search. The dropdowns step out one
-  at a time from the right as the row narrows (Status from 440px of row,
-  Company 592, Job Type 744, Work Model 896); at
+  at a time from the right as the row narrows (Status from 488px of row,
+  Company 640, Job Type 792, Workplace 944: Sort holds the first place,
+  up to 180px with Company (A to Z)); at
   the right end, Clear (a text button with a cross, shown while anything
   is picked or searched; it hands focus to All Filters), All Filters, and
-  Table Settings in List View. A phone's row is All Filters and Table
-  Settings. Source left the filters on 2026-11-10: students do not need it.
+  Table Settings in List View. A phone's row is Sort, All Filters and
+  Table Settings. Source left the filters on 2026-11-10: students do not need it.
   Status was a row of stage chips with counts (KAN-256), and an earlier
   draft had one Filter button with every field in its menu; both became
   dropdowns after the Jobs page on the user's ask (2026-10-19). The
@@ -1165,7 +1170,7 @@ filtered.
 - **All Filters** is a panel with every field, in the frame every page
   table's panel shares (`components/all-filters-dialog.tsx`): Status
   (with the stages' glyphs), Company (a search
-  picker, since the list grows), then Job Type and Work Model as
+  picker, since the list grows), then Job Type and Workplace as
   option chips. Its picks are a draft until "Show 3 Applications", which
   counts the draft in the browser (the page hands the bar what each
   tracked application is filtered on); closing it drops the draft.
@@ -1177,11 +1182,15 @@ filtered.
 - **Sort**: five headings sort, each one way, the way it is read: Role by
   its company A to Z, then by role, so a company's roles sit together
   (`?sort=company`; the heading's tooltip says so), Status furthest along first, Date Applied latest first, Match
-  best first, Pay Range best first (the top of the range as a yearly
+  best first, Salary best first (the top of the range as a yearly
   figure, `payPerYear` in `applications/tracked.ts`, so hourly and yearly
   pay compare). A missing value goes last either way. A heading moves
   `?sort=` in place (shallow routing): the table sorts the rows it holds,
-  with no round trip.
+  with no round trip. The filter row's Sort moves the same `?sort=`, and
+  Card View sorts its cards by it too (`sortApplications` in
+  `applications/query.ts`, which the table's own sort shares its values
+  with), so a switch of layout keeps the order; until KAN-827 the cards
+  kept the server's order whatever the headings said.
 - **Columns** move as Notion's do (2026-11-11): a movable heading fills
   grey under the pointer with a grab cursor, and a drag anywhere in it
   moves the column **along the heading row only**: a raised copy of the
@@ -1712,13 +1721,17 @@ page with one action.
   resumes) lies over row two: "N selected", Auto Apply, then Remove From
   Queue as a trash glyph; Escape or Select All clears the pick. Until
   2026-11-11 "N selected", Remove and Auto Apply took Add Jobs' place.
-  Row two is **Status** (In Progress, Queued, Posting Closed), **Company**
+  Row two is **Sort** first (KAN-827: Queue Order, the default and the
+  order the extension takes the jobs; Best Match; Company (A to Z); the
+  page's own, as the filters are, and kept by Clear), sorting the rows
+  under each heading for the table alone, so Auto Apply still opens the
+  picked jobs in the queue's order; then **Status** (In Progress, Queued, Posting Closed), **Company**
   (with a search, as the Tracker's) and **Match** (Excellent to Weak in
   their colours, then Not Scored), then Clear, All Filters (the shared
   panel) and **Table Settings** with Group By: Status (the default, the
   groups above), Match, or None (a preference of this browser,
   `auto-apply/queue-layout.ts`). The dropdowns step out from the right at
-  the Tracker's widths (Status from 440px of row, Company 592, Match 744).
+  the Tracker's widths (Status from 488px of row, Company 640, Match 792).
   The notices sit under the filters and over the table, as the Tracker's
   closed notice does. Auto Apply has no view switch yet, the one page table
   without one: its second view is still open. The filtering is the
@@ -3308,6 +3321,8 @@ upload, a built resume from its last edit. It is drawn as the Type filter is, bu
 never takes the filter's brand tint, since an order is always in force;
 it is a dropdown because the header already holds the Resumes or Experiences
 pills, the shared `SortMenu`, which the Jobs page's filter row uses too.
+It sits first in the filter row, before Type and Company (KAN-827), as on
+every page toolbar; it sat after them until then.
 **The List is a table after the Tracker's** (2026-11-10, `ResumeList` in
 `resumes/resume-list.tsx`, rows by `ResumeCard` in
 `components/resume-row.tsx`): one white card with 12px grey headings and

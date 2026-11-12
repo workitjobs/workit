@@ -166,7 +166,7 @@ export function RoleStep({
       </Field>
       {/* Pay is part of the role (KAN-283): its units follow the job types
           picked above. */}
-      <Field dense={dense} Icon={CoinIcon} label="Salary Range">
+      <Field dense={dense} Icon={CoinIcon} label="Salary">
         <SalaryPicker
           size={size}
           units={payUnits(answers.jobTypes)}

@@ -1404,14 +1404,28 @@ screen's own `<input>`, `<textarea>` or `FIELD_CONTROL` string:
   Apply's Up Next and Documents' resumes, in two rows. Row one: the search
   (`PAGE_SEARCH`) with the page's actions at its right, the main one filled
   (Add Jobs, Generate Resume), then the view switch (Auto Apply's second
-  view is still open, so it has none yet). Row two: a
-  `FieldFacet` dropdown per filter, and at the row's right end Clear
+  view is still open, so it has none yet). Row two: **Sort first**
+  (`SortMenu`, 2026-11-12, KAN-827), then a `FieldFacet` dropdown per
+  filter, and at the row's right end Clear
   (while anything is searched or picked), All Filters (a soft round icon
   button, three lines, with a brand count of the picks) and Table
   Settings (sliders), which holds Group By and any other setting of the
-  table. The dropdowns step out from the right as the row narrows; All
-  Filters holds them all and stays. The page's create actions never sit in
-  the filter row. A page table has no section heading of its own over the
+  table. The dropdowns step out from the right as the row narrows; Sort
+  and All Filters, which holds them all, stay. The page's create actions
+  never sit in the filter row. **Sort is in that one place on every page
+  toolbar, the Jobs page's included**, and sorts every layout the page
+  has (the Tracker's cards too); a table's sortable headings move the
+  same order as well. It sat first on the Jobs page, last on Documents and
+  only in the Tracker's headings (Up Next had none) until KAN-827, so a
+  student looked for it in three places. Clear never resets it: an order
+  is not a filter.
+- **A field has one name wherever a student reads it**: its filter, its
+  column, its Group By, its All Filters section, its Settings question
+  and its Profile fact (2026-11-12, KAN-827). **Workplace**, never Work
+  Model (the Tracker's word until then); **Salary**, never Salary Range
+  (Settings) or Pay (the Tracker's Pay Range column, Profile's fact).
+  The code's own names (`workModel`, `?work=`, `pay`) stay. A posting
+  page's Pay section is the posting's own heading and stays. A page table has no section heading of its own over the
   toolbar: Auto Apply's "Up Next" went on 2026-11-11.
 - **A card's facts read their value first** (2026-11-11,
   `profile/field-styles.ts`, My Profile and Application Info): the name

@@ -3135,9 +3135,10 @@ are in `docs/auth.md`.
   frame draws the layout the cookie names ((list)/loading.tsx), or the
   page jumped from a table to the grid as it loaded. **It is laid
   out as the Applications Tracker is**, so keep the two alike: the search
-  on its own row, then the Type filter (`FieldFacet`, the Applications
-  list's dropdown, in `?type=`) and the Sort dropdown (Last Edited, the
-  default; Oldest First; Name, A to Z; in `?sort=`, KAN-366) with Upload
+  on its own row, then the Sort dropdown first (Date Modified, the
+  default, and the rest in `?sort=`, KAN-366; first in the row since
+  KAN-827, as on every page toolbar) and the Type filter (`FieldFacet`,
+  the Applications list's dropdown, in `?type=`) with Upload
   Resume and Generate Resume at the right, both above the list, and `EmptyState` in the list's place
   when no card shows. Upload Resume and Generate Resume never sit in the
   shared header. Two table versions came first in KAN-362, one with Type

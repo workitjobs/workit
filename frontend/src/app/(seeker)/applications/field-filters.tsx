@@ -55,7 +55,7 @@ import {
 
 export type Picks = { stages: StageKey[]; filters: Filters };
 
-/** Each field's glyph: the one its list cell draws. Work Model's is the
+/** Each field's glyph: the one its list cell draws. Workplace's is the
  *  Jobs page's Workplace glyph. */
 export const FIELD_ICON: Record<FilterKey, Glyph> = {
   company: CompanyIcon,
@@ -277,7 +277,7 @@ function PanelBody({
 
       <div className="grid gap-x-6 sm:grid-cols-2">
         {chipSection("track", "Job Type")}
-        {chipSection("workModel", "Work Model")}
+        {chipSection("workModel", "Workplace")}
       </div>
     </AllFiltersBody>
   );

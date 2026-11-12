@@ -178,7 +178,7 @@ function JobPreferences({
         },
         { label: "Locations", value: saved.places.map((place) => name(options.places, place)) },
         { label: "Start", value: saved.startTerms.map(seasonLabel) },
-        { label: "Pay", value: payRange(saved) },
+        { label: "Salary", value: payRange(saved) },
       ].filter((row) => row.value.length > 0)
     : [];
 

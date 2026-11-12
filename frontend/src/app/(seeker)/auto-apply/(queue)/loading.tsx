@@ -42,16 +42,17 @@ export default function AutoApplyLoading() {
         </Card>
         <section aria-label="Up Next" aria-busy="true" className="mt-6">
           {/* The toolbar (../queue-filters.tsx): the search with Add Jobs
-              at its right, then Status, Company and Match with All Filters
-              and Table Settings at the right. */}
+              at its right, then Sort, Status, Company and Match with All
+              Filters and Table Settings at the right. */}
           <div aria-hidden="true" className="flex flex-wrap items-center gap-3">
             <Skeleton className={cn("h-10 rounded-full", PAGE_SEARCH)} />
             <Skeleton className="ml-auto h-9 w-28" />
           </div>
           <div aria-hidden="true" className="@container mt-3 flex items-center gap-2">
-            <Skeleton className="hidden h-9 w-36 @min-[27.5rem]:block" />
-            <Skeleton className="hidden h-9 w-36 @min-[37rem]:block" />
-            <Skeleton className="hidden h-9 w-36 @min-[46.5rem]:block" />
+            <Skeleton className="h-9 w-36 shrink-0" />
+            <Skeleton className="hidden h-9 w-36 @min-[30.5rem]:block" />
+            <Skeleton className="hidden h-9 w-36 @min-[40rem]:block" />
+            <Skeleton className="hidden h-9 w-36 @min-[49.5rem]:block" />
             <Skeleton className="ml-auto size-9 shrink-0 rounded-full" />
             <Skeleton className="size-9 shrink-0 rounded-full" />
           </div>

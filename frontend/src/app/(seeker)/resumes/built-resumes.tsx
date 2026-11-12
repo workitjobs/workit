@@ -530,8 +530,8 @@ export function BuiltResumes({
       />
 
       {/* The filter row, as the Tracker's and Up Next's (applications/
-          filter-bar.tsx): the dropdowns, then at the right Clear (while
-          anything is picked), All Filters and, with the list, Table
+          filter-bar.tsx): Sort first, then the dropdowns, then at the right
+          Clear (while anything is picked), All Filters and, with the list, Table
           Settings. THE DROPDOWNS STEP OUT from the right, as theirs do: Sort
           stays, about 150px, and Clear's room, All Filters and Table
           Settings take about 170px, so this row (its own @container) fits
@@ -580,6 +580,7 @@ export function BuiltResumes({
               />
             </SelectionBar>
           )}
+          <SortMenu value={sort} options={SORTS} onChange={(next) => move({ sort: next })} />
           <FieldFacet
             label="Type"
             Icon={TagIcon}
@@ -598,7 +599,6 @@ export function BuiltResumes({
             onChange={(values) => move({ companies: values })}
             className="hidden min-w-36 @min-[40rem]:flex"
           />
-          <SortMenu value={sort} options={SORTS} onChange={(next) => move({ sort: next })} />
           {filtered && (
             <ClearFiltersButton
               className="animate-fade ml-auto shrink-0"

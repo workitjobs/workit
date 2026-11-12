@@ -24,7 +24,14 @@ import { REMOVE_FROM_QUEUE } from "./auto-apply-button";
 import type { ActivityItem } from "./activity-list";
 import { AddJobsDialog, type SavedJob } from "./add-jobs-dialog";
 import { openedNote } from "./opened-note";
-import { filterQueue, NO_QUEUE_FILTERS, QueueToolbar, type QueueFilters } from "./queue-filters";
+import {
+  filterQueue,
+  NO_QUEUE_FILTERS,
+  QueueToolbar,
+  sortQueue,
+  type QueueFilters,
+  type QueueSort,
+} from "./queue-filters";
 import { useQueueGroupBy } from "./queue-layout";
 import { canOpen, groupOf, QueueTable, type QueueRow } from "./queue-table";
 import { ResumeDialog } from "./resume-dialog";
@@ -92,6 +99,7 @@ export function UpNext({ items, saved }: { items: ActivityItem[]; saved: SavedJo
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
   const clearPick = () => setPicked(new Set());
   const [filters, setFilters] = useState<QueueFilters>(NO_QUEUE_FILTERS);
+  const [sort, setSort] = useState<QueueSort>("queue");
   const groupBy = useQueueGroupBy();
   const [pending, start] = useTransition();
   // One action at a time: `pending` lands a render late, and a fast double press sent two requests.
@@ -201,6 +209,8 @@ export function UpNext({ items, saved }: { items: ActivityItem[]; saved: SavedJo
         rows={rows}
         filters={filters}
         onChange={setFilters}
+        sort={sort}
+        onSort={setSort}
         // The picked rows' actions, over the filter row while any row is
         // picked (components/selection-bar.tsx), as Documents' resumes.
         // They replaced Add Jobs at the search row's end until 2026-11-11.
@@ -270,7 +280,9 @@ export function UpNext({ items, saved }: { items: ActivityItem[]; saved: SavedJo
         </EmptyState>
       ) : rows.length > 0 ? (
         <QueueTable
-          rows={shown}
+          // Sorted for the table alone: Auto Apply opens the picked jobs
+          // in the queue's order, whatever the table shows.
+          rows={sortQueue(shown, sort)}
           groupBy={groupBy}
           picked={picked}
           onPick={(ids) => setPicked(new Set(ids))}

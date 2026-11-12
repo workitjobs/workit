@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 
 import { MatchBadge } from "@/components/match-badge";
@@ -9,10 +11,11 @@ import { isClosedSaved, type Application } from "../tracker";
 import { StageMenu } from "./[jobId]/tracker-controls";
 import { ApplicationTile } from "./application-tile";
 import { ClosedSavedControl } from "./closed-saved";
-import { applicationHref } from "./query";
+import { applicationHref, sortApplications } from "./query";
 import { StageSteps } from "./stage-steps";
 import { TailoredChip } from "@/components/tailored-chip";
 import { ViewResumeButton } from "./view-resume";
+import { useApplicationsQuery } from "./view-switcher";
 
 /**
  * The applications as a list of wide cards, one per row, after Simplify's
@@ -134,10 +137,14 @@ function ApplicationCard({
   );
 }
 
+/** The cards in the list's order (KAN-827): the filter row's Sort moves
+ *  ?sort= in place, so they sort here, as the list does, with no round trip.
+ *  A client component for that alone. */
 export function ApplicationsCards({ applications }: { applications: Application[] }) {
+  const { sort } = useApplicationsQuery();
   return (
     <ul className="mt-4 flex flex-col gap-4">
-      {applications.map((item, i) => (
+      {sortApplications(applications, sort).map((item, i) => (
         <Reflow key={item.id}>
           <ApplicationCard
             item={item}
