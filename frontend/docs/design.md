@@ -150,6 +150,9 @@ open choices (Settled choices, near the end).
   `components/ui/option-row.tsx` (a row that is one way forward: Auto
   Apply's setup, Generate Resume's ways to start),
   `components/ui/or-divider.tsx` (the login card's "Or" rule),
+  `components/stat-tile.tsx` (a number with its label and a line under it:
+  Home's numbers, Activity's and an application's Open and Days Since;
+  `on` sets only its fill, by what it stands on, KAN-828),
   `components/ui/tip.tsx` (a tooltip for any control), `components/side-nav.tsx`
   (a page's menu of its parts: Settings, Application Info),
   `profile/section-action.tsx` (a card's own action, a bare glyph with a
@@ -358,7 +361,8 @@ open choices (Settled choices, near the end).
 - **The layout values are tokens too.** A page is `max-w-dashboard` with
   one top padding (`py-6`), never `max-w-app`. Prose is `--measure-prose`
   and a form `--measure-form`, never `max-w-[68ch]` or another arbitrary
-  width. A list or table in a dialog or a tile is `--spacing-scroll-box`.
+  width. A list or table in a dialog is `--spacing-scroll-box`; a list in
+  a tile on a page shows a fixed number of rows and See More (KAN-828).
   The second arbitrary value of one kind is a new token.
 
 ### Layout and spacing
@@ -548,9 +552,9 @@ audits (`design-audit/`, one report per area) add to this list.
 - `ink-faint` carries words: onboarding's Role step prints "Optional" in it
   (3.11:1), and the Calendar's Month prints the days outside the month in it
   (`calendar/month.tsx`). Both need `ink-meta`.
-- `ink-subtle` (2.95:1, under 3:1) on glyphs that inform: the stat tile's
-  icon (`components/stat-tile.tsx`) and the company range picker's chevron.
-  The icon rule makes them `ink-meta`.
+- `ink-subtle` (2.95:1, under 3:1) on a glyph that informs: the company
+  range picker's chevron. The icon rule makes it `ink-meta`. (The stat
+  tile's grey glyph went with KAN-828: a tile's glyph is in its chip.)
 - Text under 11px: the score in onboarding's showcase ring is `text-[10px]`
   (`onboarding/applicant/showcase.tsx`).
 - `text-area-field.tsx` prints its hint, which can be a sentence, at
@@ -769,9 +773,21 @@ marking; each shell passes its own groups and its bar's height as the offset),
 `account-menu.tsx` (a name and email header, the shell's rows, then Sign Out;
 Sign In without `onSignOut`).
 
-`components/stat-tile.tsx` is shared by both dashboards, and both use its
-`plain` variant; its card form has no caller today; the seeker Home
-draws its own numbers (`home/headline.tsx`).
+**One stat tile** (`components/stat-tile.tsx`, KAN-828): a label in 14px
+medium ink, the figure in `--text-figure` with its unit beside it, then a
+line under it that is always drawn (a note, a date pill, or a change as a
+boxed figure and "vs last week"), so a row keeps one height. `on` sets
+only the fill, by what the tile stands on: `page` is Home's raised tile
+(`Card tone="tile"`), `card` a grey well inside a white card (Activity),
+and `tint` a white box with a hairline inside a tinted card (an
+application's Open and Days Since, drawn as the match box beside them).
+`href` makes the whole tile a link that lifts, and `Icon` with a
+`--color-kpi-*` `tone` puts the glyph in a chip that turns into an arrow
+under the pointer. `StatTileSkeleton` is its loading shape. Until KAN-828
+the three were three looks: white tiles with a chip, grey wells with a
+meta-grey label and a smaller figure, and white cards with the figure over
+its words in a third size. The company Overview keeps the tile's `plain`
+row.
 
 **One card on seeker pages** (KAN-558): every white block on a seeker page
 is `ui/card.tsx`, 16px from the next, titled with `SectionHeading` (16px at

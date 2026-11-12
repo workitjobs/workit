@@ -722,10 +722,15 @@ Match, and their best weak ones are still where to start; the Excellent Matches
 number above counts only 80 and up. Each is a flat row in one tile: a well
 with the logo, the title (its link to the job posting page), the company
 and when it was posted on one line ("HP · 21 days ago", as the job cards'
-meta line; the company truncates first), the match ring, then Save and
-Apply Now (the same dialog as everywhere, KAN-290), a secondary button here
-(2026-11-10): filled on every row, five violet buttons stacked into a wall
-on a phone, and a view has one primary action. From `@4xl/main` the
+meta line; the company truncates first), the match ring, then **the job
+card's own Save and Apply** (KAN-828): Save as the card's bare bookmark
+(`SaveJobButton quiet`), and Apply as the card's, the Auto Apply split
+button on a job auto apply can fill (`jobs/apply-split-button.tsx`) and
+Apply Now on any other (the same dialog as everywhere, KAN-290). The rows
+had a bordered Save square and a bordered Apply Now on every job (Apply
+Now was made secondary on 2026-11-10, since five filled buttons stacked
+into a wall on a phone), so Home offered less than the card for the same
+job; the card's look won, filled Apply and all. From `@4xl/main` the
 ring is a column of its own against Save, so the scores line up down the
 list (KAN-423); below it, it leads the buttons' row (in picking mode,
 which has no buttons, it ends the company's line), since on the company's
@@ -744,17 +749,31 @@ row toggles it, and its buttons step aside; a row that already has a stage
 through `queueJob`, the job's own Auto Apply button's call, then asks the
 extension to open the oldest queued job (`openNextApplication`), and a toast
 says how many went in, with View Queue. The seeker picks every job, so auto
-apply still never queues a saved job on its own. The button is off when no
-match can be auto applied to. The checkbox takes `border-ink-meta`, as
+apply still never queues a saved job on its own. **Picking several jobs
+in place is an open question** (KAN-828): the rules say only the Auto Apply
+page's Add Jobs queues several jobs at once, so either Top Matches' Auto
+Apply opens Add Jobs, or the exception is recorded; until the user decides,
+it picks in place. Add N to Queue calls `rememberStage` for each job, and
+the rows lay the seeker's stage changes since `drawnAt` over their own
+(`jobs/feed-stages.ts`, as the feed does), so a row queued from its Apply
+or saved keeps that stage when picking mode draws it again. The button is
+off when no match can be picked, and says why in a tooltip ("None of your
+matches can be auto applied to right now."): it is `aria-disabled`, not
+`disabled`, so the tooltip shows, as Scout's Send does; a `title` reached
+neither touch nor a keyboard. Picking mode's Cancel is bordered
+(`secondary`), as every other Cancel is. The checkbox takes `border-ink-meta`, as
 CheckRowBox does: the vendored hairline drew the empty box at 1.19:1. See More Matches, a text link at the heading's
 right (`SectionLink`, as Up Next's and Waiting's View All; a bordered button
-until KAN-821), opens Best Match. From `@4xl/main` the list scrolls inside the tile at
-`h-scroll-box` (320px, the token every scroll box in a dialog or tile
-shares), about four and a half rows, with a quiet bar along the tile's edge
-and a fade at its foot; below it the list shows five rows and does not
-scroll (a box that scrolls inside a scrolling page traps the swipe), and
-below `@xl/main` Save and Apply Now take their own full-width line, since
-beside the text they squeezed the title to two words a line. The Jobs page's own cards
+until KAN-821), opens Best Match. **The list never scrolls inside the tile**
+(KAN-828): it shows five rows at every width (`SHOWN`,
+`home/top-matches-frame.ts`), and See More, a `section` button under a rule
+across the tile's foot as Experiences' Show All sits, shows the rest of the
+twelve in place, then reads See Less. From `@4xl/main` it scrolled at
+`h-scroll-box`, and with the pointer over it the mouse wheel moved the list
+and not the page; a box that scrolls inside a scrolling page traps the
+swipe too. Below `@xl/main` Save and Apply take their own full-width line,
+Apply growing to fill it, since beside the text they squeezed the title to
+two words a line. The Jobs page's own cards
 were tried here first and were too tall for a glance: three filled the
 screen. With an empty bank it asks for the bank. It streams in its own
 `<Suspense>` with a skeleton in the same frame, so the numbers never wait on
@@ -913,7 +932,9 @@ a weekly pace chart: the past year of applications per day as a heat map that
 folds into a 3D skyline, adapted from 21st.dev's Contribution Skyline. Its
 heading is Activity; its files and tokens say streak. It opens on the 2D heat
 map, and its four numbers (Past Year, Busiest Day, the two streaks) show only
-there, each in a grey well (`--color-well`) with its dates in a tag pill, as
+there, each the app's one stat tile on `card` (`components/stat-tile.tsx`,
+KAN-828: a grey well, the label in 14px medium ink and the figure in
+`--text-figure`, as Home's numbers) with its dates in a tag pill, as
 Home draws every date; as open text in ink-muted under each figure
 they read as loose lines (KAN-342). A number with nothing to date says so in
 its pill ("None yet", "Apply today"), so the four keep one shape. Label,
@@ -1321,7 +1342,12 @@ tracker row, and the tab title comes from the posting's own read:
   scrolls it; each dot wears its stage's glyph, not a check, KAN-317), and
   two cards of facts (KAN-286): whether the posting is
   Open or Closed, then the days since the seeker applied (for a saved job,
-  the days since the posting went up). The status line drops the applied
+  the days since the posting went up). Each is the app's one stat tile on
+  `tint` (KAN-828: a white box with a hairline, as the match box beside
+  it): Posting over Open and its sentence ("Still taking applications"),
+  and Since You Applied over the days and "Applied Nov 3" (Since It Was
+  Posted and "Posted Oct 28" for a saved job). They were white cards with
+  the figure over its words in a size of their own. The status line drops the applied
   date, which the card and the timeline already carry. **What one action
   wrote is one step** (KAN-317): Apply saves, sends the resume and applies
   within a second, in no fixed order, and sorted by the millisecond the

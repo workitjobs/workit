@@ -1732,7 +1732,10 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   of the list (`docs/screens.md`, Inbox). One pill per email kind
   (`applications/email-kinds.tsx`). No sidebar badge: one was removed; Settings > Integrations is the
   design only until the Google sign-in is built (`docs/screens.md`). Home's four numbers are all live and all links
-  (KAN-342), each a white tile with its glyph in a small chip of its own
+  (KAN-342), each the app's one stat tile (`components/stat-tile.tsx`,
+  KAN-828: Home's numbers, Activity's and an application's Open and Days
+  Since were three looks until then; `on` picks only the fill, by what
+  the tile stands on) with its glyph in a small chip of its own
   colour (KAN-423): Excellent Matches green, Saved grey, Applied violet,
   Interviewing yellow, from the matched `--color-kpi-*` set (2026-11-09:
   the tiles were tinted with the stage tints, which read as four families
@@ -1741,8 +1744,10 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   Activity day opens a table of that day's applications. Its
   Excellent Matches reads the Best Match scores
   (`getMatches`, one read with Top Matches), and Top Matches under them lists the twelve
-  best-scoring jobs as flat rows that scroll inside a tile, with no score
-  floor; its Auto Apply button picks jobs for the queue
+  best-scoring jobs as flat rows, five and then See More (KAN-828: the list
+  scrolled inside its tile and took the mouse wheel from the page), with no
+  score floor, each with the job card's own Save and Apply (the Auto Apply
+  split button where auto apply can fill the form); its Auto Apply button picks jobs for the queue
   from the best matches auto apply can fill, each one chosen by the seeker. A job's application
   stage (`saved`, `queued`...) reaches its Save and Auto Apply buttons from
   one read per page. Auto Apply never picks a saved job for a batch; only
@@ -1867,13 +1872,15 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   a page Next kept shows it gone, and an unsave on the tracker brings it back
   on the next render. **Every button that changes a stage calls
   `rememberStage`**: Save and its Undo, Did You Apply?'s Yes, Auto Apply and
-  its dequeue, and the dequeue's Undo. One that skips it leaves the job on the rail and its other
+  its dequeue, the dequeue's Undo, and Top Matches' Add N to Queue. One that skips it leaves the job on the rail and its other
   buttons stale. Save says where the job went: "Saved to your Tracker."
   with View and Undo, two buttons side by side (the toast's
   `actions`). **A toast is the inverted surface** (`bg-inverse` and
   `text-on-inverse`, its buttons and cross the `inverse` variants) and stays
   8 seconds when it has an action, 5 without (`docs/design.md`, toasts). Home's Top Matches leaves saved jobs out on
-  its next read, but a row saved there stays until then.
+  its next read, but a row saved there stays until then; its rows lay the
+  changes since `drawnAt` over their stages as the feed does (KAN-828), so
+  a row queued or saved keeps that stage when picking mode draws it again.
 - **A seeker page's title is in the top bar, and it has no description**
   (2026-11-02, `(seeker)/bar-title.tsx`). The bar reads the title from the
   address, so it shows before the page streams in; a new section joins `TITLES`
@@ -2406,10 +2413,15 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   look in the shared part, never in `jobs/`.
 - **How many rows a table or list shows depends on where it sits.** A
   full-page table (the Applications list, Up Next) shows every row and the
-  page scrolls. A list or table inside a dialog or a tile scrolls inside
+  page scrolls. A list or table inside a dialog scrolls inside
   itself at one height, the `--spacing-scroll-box` token (`max-h-scroll-box`
-  or `h-scroll-box`, 320px): Add Jobs and Top Matches. Each picked its
-  own height before, and Add Jobs grew to 90% of the window. The grouped
+  or `h-scroll-box`, 320px): Add Jobs. Each picked its
+  own height before, and Add Jobs grew to 90% of the window. **A list in a
+  tile on a page never scrolls inside it** (KAN-828): it shows a fixed
+  number of rows and See More, which shows the rest in place (Home's Top
+  Matches, `SHOWN` in `home/top-matches-frame.ts`). Top Matches scrolled at
+  `h-scroll-box`, and with the pointer over it the mouse wheel moved the
+  list and not the page. The grouped
   resume list is the one exception: five cards under a group heading in
   every resume picker (`ResumeScroll`, `components/resume-list.tsx`),
   since 320px showed three and a half, and on a page (the Resumes page,

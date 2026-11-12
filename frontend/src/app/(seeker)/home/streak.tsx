@@ -3,6 +3,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
 import { Skeleton } from "@/components/shadcn/skeleton";
+import { StatTile, StatTileSkeleton } from "@/components/stat-tile";
 import { Badge } from "@/components/ui/badge";
 import { SegmentedToggle } from "@/components/ui/segmented-control";
 import { cn } from "@/lib/cn";
@@ -229,25 +230,25 @@ export function Streak({
   const blocks: StatBlock[] = [
     {
       label: "Past Year",
-      value: NUMBER.format(stats.total),
+      value: stats.total,
       unit: applications(stats.total),
       sub: stats.first ? `Since ${MONTH_YEAR.format(dayMs(stats.first))}` : "None yet",
     },
     {
       label: "Busiest Day",
-      value: NUMBER.format(stats.busiest.count),
+      value: stats.busiest.count,
       unit: applications(stats.busiest.count),
       sub: stats.busiest.date ? DAY.format(dayMs(stats.busiest.date)) : "None yet",
     },
     {
       label: "Longest Streak",
-      value: NUMBER.format(stats.longest.days),
+      value: stats.longest.days,
       unit: daysWord(stats.longest.days),
       sub: stats.longest.days ? span(stats.longest.start, stats.longest.end) : "None yet",
     },
     {
       label: "Current Streak",
-      value: NUMBER.format(stats.current.days),
+      value: stats.current.days,
       unit: daysWord(stats.current.days),
       sub: stats.current.days ? span(stats.current.start, stats.current.end) : "Apply today",
     },
@@ -295,8 +296,21 @@ export function Streak({
             transitionDelay: showRow ? `${MORPH_MS - 300}ms` : "0ms",
           }}
         >
-          {blocks.map((block) => (
-            <Stat key={block.label} {...block} />
+          {blocks.map(({ label, value, unit, sub }) => (
+            // The app's one stat tile (components/stat-tile.tsx, KAN-828),
+            // as a grey well inside this card, its dates in a tag pill.
+            <StatTile
+              key={label}
+              on="card"
+              label={label}
+              value={value}
+              unit={unit}
+              note={
+                <Badge variant="tag" pill>
+                  {sub}
+                </Badge>
+              }
+            />
           ))}
         </div>
 
@@ -363,9 +377,7 @@ export function Streak({
 export function StreakFailed({ className }: { className?: string }) {
   return (
     <Card as="section" tone="tile" padding="lg" aria-labelledby="streak" className={className}>
-      <h2 id="streak" className="text-subtitle text-ink">
-        Activity
-      </h2>
+      <SectionHeader id="streak" title="Activity" />
       <LoadFailed compact title="Your Applications Aren't Loading Right Now" className="mt-3">
         We couldn&apos;t reach your tracker. Try again in a few minutes.
       </LoadFailed>
@@ -373,42 +385,29 @@ export function StreakFailed({ className }: { className?: string }) {
   );
 }
 
-type StatBlock = { label: string; value: string; unit: string; sub: string };
+type StatBlock = { label: string; value: number; unit: string; sub: string };
 
-/**
- * One number in the row under the heat map, in a recessed well
- * (--color-well) like the match rail's: its label over it, its unit beside
- * it, and its dates in a pill under it, each on a line of its own, so the
- * four wells keep one shape whatever their words. Home draws every
- * date in a pill (docs/screens.md). The pill sat on the label's line for a
- * while, to save height, and wrapped under "Current Streak" alone, which
- * made that well taller than its three siblings. They were open text in ink-muted under the figure, which
- * read as loose lines rather than four readings of one chart. A block with
- * nothing to date says so in the pill ("None yet", "Apply today"), so the
- * four keep one shape.
+/*
+ * Each number under the heat map is the app's one stat tile
+ * (components/stat-tile.tsx, KAN-828) on `card`: a grey well, its label
+ * over the figure, its unit beside it, and its dates in a pill under it,
+ * each on a line of its own, so the four keep one shape whatever their
+ * words. Home draws every date in a pill (docs/screens.md). The pill sat
+ * on the label's line for a while, to save height, and wrapped under
+ * "Current Streak" alone, which made that well taller than its three
+ * siblings. A block with nothing to date says so in the pill ("None yet",
+ * "Apply today"). Until KAN-828 the wells drew their label in meta grey
+ * and the figure at --text-display, a third look beside Home's tiles and
+ * an application's.
  */
-function Stat({ label, value, unit, sub }: StatBlock) {
-  return (
-    <div className="bg-well rounded-card flex min-w-0 flex-col items-start gap-1.5 px-4 py-3">
-      <p className="text-note text-ink-meta">{label}</p>
-      <p className="flex items-baseline gap-1.5">
-        <span className="text-display text-ink">{value}</span>
-        <span className="text-body text-ink-muted">{unit}</span>
-      </p>
-      <Badge variant="tag" pill>
-        {sub}
-      </Badge>
-    </div>
-  );
-}
 
 /**
  * Activity while the tracker loads (Home streams it in its own
  * <Suspense>, and its loading.tsx draws it too): the heading as a bar, the
  * view switch's pill, the heat map's room at its default 150px (--streak-h2's
  * fallback, which the canvas resets to the map's own height on mount) and
- * the four wells, each with its label, figure and dates pill as bars of
- * those lines' heights. The section is the page's last, so a map a few
+ * the four wells, each the stat tile's own skeleton (StatTileSkeleton).
+ * The section is the page's last, so a map a few
  * pixels taller than 150 moves nothing under it.
  */
 export function StreakSkeleton({ className }: { className?: string }) {
@@ -429,14 +428,7 @@ export function StreakSkeleton({ className }: { className?: string }) {
         <Skeleton className="h-[150px] w-full" />
         <div className="grid grid-cols-2 gap-3 pt-3 @2xl/streak:grid-cols-4">
           {Array.from({ length: 4 }, (_, i) => (
-            <div
-              key={i}
-              className="bg-well rounded-card flex flex-col items-start gap-1.5 px-4 py-3"
-            >
-              <Skeleton className="bg-panel h-4 w-20" />
-              <Skeleton className="bg-panel h-8 w-14" />
-              <Skeleton className="bg-panel h-5 w-24 rounded-full" />
-            </div>
+            <StatTileSkeleton key={i} on="card" />
           ))}
         </div>
       </div>

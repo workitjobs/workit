@@ -1,6 +1,8 @@
 import { ChatTextIcon } from "@phosphor-icons/react/ssr";
+import type { ReactNode } from "react";
 
 import { FileIcon } from "@/components/icons";
+import { StatTile } from "@/components/stat-tile";
 import { Card } from "@/components/ui/card";
 import { Section } from "@/components/ui/section";
 import { cn } from "@/lib/cn";
@@ -64,6 +66,8 @@ function daysBetween(from: string, to: string | Date) {
  * request's time (`getNow`). First whether the posting is still open, then
  * how long: since the seeker applied, or, for a saved job, since the
  * posting went up (the sooner they apply, the fewer applicants are ahead).
+ * Each is the app's one stat tile (components/stat-tile.tsx, KAN-828), on
+ * the tinted card: its label, its figure, then a line under it.
  * They replaced counts that read 0 for every Apply ("save to apply": Apply
  * saves and applies at once) or told the student only about the past
  * ("posted before you applied"). A suggested follow-up day was tried and
@@ -88,32 +92,44 @@ export function YourApplication({
    *  and the score shows here. */
   matchAbove?: boolean;
 }) {
-  const cards: { label: string; value: string | number }[] = [];
+  const cards: { label: string; value: string | number; unit?: string; note?: ReactNode }[] = [];
   // Every live application has `open`; the type leaves it optional.
   if (app.open != null) {
-    cards.push(
-      app.open
-        ? {
-            label: app.appliedOn ? "Still taking applications" : "Apply while it's open",
-            value: "Open",
-          }
-        : {
-            label: app.appliedOn ? "No longer taking applications" : "You can no longer apply",
-            value: "Closed",
-          },
-    );
+    cards.push({
+      label: "Posting",
+      value: app.open ? "Open" : "Closed",
+      note: app.open
+        ? app.appliedOn
+          ? "Still taking applications"
+          : "Apply while it's open"
+        : app.appliedOn
+          ? "No longer taking applications"
+          : "You can no longer apply",
+    });
   }
   if (app.appliedOn) {
     const days = daysBetween(app.appliedOn, now);
     cards.push({
-      label: days === 1 ? "Day since you applied" : "Days since you applied",
+      label: "Since You Applied",
       value: days,
+      unit: days === 1 ? "day" : "days",
+      note: (
+        <>
+          Applied <LocalDate at={app.appliedOn} />
+        </>
+      ),
     });
   } else if (job?.posted_at) {
     const days = daysBetween(job.posted_at, now);
     cards.push({
-      label: days === 1 ? "Day since it was posted" : "Days since it was posted",
+      label: "Since It Was Posted",
       value: days,
+      unit: days === 1 ? "day" : "days",
+      note: (
+        <>
+          Posted <LocalDate at={job.posted_at} />
+        </>
+      ),
     });
   }
   return (
@@ -173,25 +189,14 @@ export function YourApplication({
 
             <Timeline steps={timeline(app, sent, now)} horizontal className="mt-5" />
 
-            {/* The cards: a figure over its words, a rounded white
-                box each. justify-end puts the figure at the top (the column
-                is reversed), so the figures line up when one label wraps.
-                A closed posting says so here only, not in a badge too. */}
-            <dl className={cn("mt-5 grid gap-3", COLUMNS[cards.length])}>
-              {cards.map(({ label, value }) => (
-                // The figure first to the eye, the words first to a screen
-                // reader (a <dt> leads its <dd>).
-                <Card
-                  key={label}
-                  padding="md"
-                  elevated={false}
-                  className="flex flex-col-reverse justify-end"
-                >
-                  <dt className="text-note text-ink-meta mt-0.5">{label}</dt>
-                  <dd className="text-title text-ink font-bold tabular-nums">{value}</dd>
-                </Card>
+            {/* The cards: the app's one stat tile on this tinted card, a
+                white box with a hairline as the match box beside it is. A
+                closed posting says so here only, not in a badge too. */}
+            <div className={cn("mt-5 grid gap-3", COLUMNS[cards.length])}>
+              {cards.map((card) => (
+                <StatTile key={card.label} on="tint" {...card} />
               ))}
-            </dl>
+            </div>
           </div>
 
           {app.match != null && !matchAbove && (
