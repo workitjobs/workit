@@ -2794,14 +2794,26 @@ in Docs (suggested answers in the chat, not a banner).
   Its mark and × stay on the first line. A bullet is one line on the
   resume, so it never holds a line break: Enter goes to the next box (from
   the last, it adds one, as Add Bullet Point does), and a pasted break
-  becomes a space.
+  becomes a space. **A bullet moves by its handle** (KAN-815), left of its
+  box: drag it, or focus it and press the up and down arrows, as in the
+  resume editor's form (KAN-586), the same handle in the same place. The
+  two forms differ only in the check boxes, which stay in the resume
+  editor: there the order is that resume's, and here it is the bank's,
+  which every new resume starts in. Until KAN-815 the Experiences form had
+  no handle, so a bank's order was the order the bullets were typed or
+  imported in.
 - **A duplicate warns and never blocks.** When a new entry matches one in
   the bank (section, title and organization, ignoring case), the editor
   says "This looks like …" and its save button becomes Save as New; Cancel
   closes it. Two real roles may share a title.
 - **Editing an entry** sends its fields in one PATCH, then its bullets as the
-  adds, edits and deletes that turn the saved list into the draft's
-  (`entry-save.ts`'s `editSteps`, shared with intake's entry visits).
+  adds, edits and deletes that turn the saved list into the draft's, then
+  the moves that put the bank's bullets in the draft's order
+  (`entry-save.ts`'s `editSteps`, shared with intake's entry visits). The
+  API adds a bullet last and moves one at a time (`PATCH /bullets/{id}`
+  with `position`), so `bullet-order.ts` finds the fewest moves it can: one
+  call for one bullet dragged up or down. The resume editor's form skips
+  the moves (`order: false`), since its order is that resume's.
 - **Delete asks once**, across the form's foot, with the count above.
 - **Skills are a plain list** with an optional group, one row per group.
   A name appears once, ignoring case; the API answers 409 otherwise. The

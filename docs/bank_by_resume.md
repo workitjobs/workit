@@ -151,6 +151,9 @@ created_at, and `edited_at` for the resume list's date, KAN-361).
     out of every view, as 96 entries of 8 students did on 2026-10-24. All
     Experiences holds them now. A copy no resume holds, with bullets the row
     does not show, stays a row of its own, so it cannot hide behind its twin.
+    Bullets compare in any order (KAN-815): a copy whose bullets the row
+    shows in another order hides nothing, and compared in order, a reorder
+    on the entry's form brought such a copy back as a second row.
   - **The rule is exact.** A copy with a month missing is a separate row
     (two "Stony Brook University" rows, one with no start date).
   - It replaced a dropdown (2026-10-24) that put uploads, built resumes and
