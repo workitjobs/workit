@@ -1793,9 +1793,13 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   come from any AI, and never send it to the extension; the open tab fills
   it on its own poll. A failed check is the warning amber under its box,
   never the danger red (the student fixes it; nothing broke).
-  **Its one way in is Up Next's Write N Questions** (KAN-566): a row's
-  questions chip goes to the tab, and for a while no link reached the
-  page, so a student without Claude could not answer. Keep a link there.
+  **Its lasting way in is the setup row's Written Answers cell**
+  (KAN-822, `auto-apply/setup-strip.tsx`); Up Next's questions notice
+  links it too while questions wait. A row's questions chip goes to the
+  tab, and for a while no link reached the page, so a student without
+  Claude could not answer (KAN-566); then only the notice did, so with
+  nothing waiting the saved answers and their Delete were out of reach.
+  Keep the lasting link.
   never the danger red (the student fixes it; nothing broke). Each box's
   save is `secondary` until the box has text (KAN-568): a card holds
   several questions, and a brand Save under each put five on one screen.
@@ -1813,7 +1817,9 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   `docs/screens.md`, Applications, has the rest.
 - **Tailor is one step per view** (`(seeker)/jobs/[jobId]/tailor`,
   2026-10-26): every step opens with the same top row (`TailorBar`: Back,
-  the step, its way on). `TailorHeader` (each step's own title and the job as one line,
+  the step, its way on). Pick a Resume's Back is `BackLink`, the job's
+  page on a direct visit; Choose Keywords' is `TailorStepBack`, drawn as
+  `TailorBack` but changing the step in place (KAN-822). `TailorHeader` (each step's own title and the job as one line,
   `TailorJobLine`) follows it on the pick steps, and
   the review names the job the same way under the resume's name; the tailored resume's page has the slim
   `TailorReviewBar` instead (Back to Choose Keywords, `TailorBack`, the
@@ -1862,7 +1868,9 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   (2026-11-02, `(seeker)/bar-title.tsx`). The bar reads the title from the
   address, so it shows before the page streams in; a new section joins `TITLES`
   there. It is the page's h1 on a section's own page, and a plain line on a page
-  under it (a job, a resume, an application), which has its own h1. Home's title
+  under it (a job, a resume, an application), which has its own h1.
+  Application Info's parts are one page's parts, so its title is the h1 on
+  each (`isInfoPart`, KAN-822), its cards h2s. Home's title
   is the greeting, which the layout reads with the account. **One h1 per view**
   (KAN-560): a job drawn beside the list on /jobs (the split view) titles itself
   h2 (`JobDetailHeader`'s `titleAs`), and a 404 under a section is the h1
@@ -1944,7 +1952,10 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
 - **Every other seeker Back goes to the page that opened it**
   (`(seeker)/back-link.tsx`, KAN-363): `BackLink`, or `useBack` for a
   control drawn its own way (the editor's phone arrow), given the page's
-  parent for a direct visit. The scroll memory records each page's opener
+  parent for a direct visit. A page whose parts are pages passes
+  `within` (Application Info, `/auto-apply/info`): its Back goes to what
+  opened the page, never a part. Without it, Application Info's Back went
+  to Auto Apply even from My Profile, since a part was always the opener. The scroll memory records each page's opener
   (`openerOf`, sessionStorage, the last 50 pages) on every forward arrival
   and never on a return, so a detour and the browser's Back keep it. A
   new Back control uses them, never a fixed `href`; a new seeker page a
@@ -1954,7 +1965,9 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   (`BackToJobs` skips the rail's job-to-job clicks to the list), a 404's
   or placeholder's way out (no page to go back to), or a step form's
   Back (the step before): Tailor's review passes its step before to the
-  phone arrow (`phoneBack`, `useTailorBack`; KAN-574).
+  phone arrow (`phoneBack`, `useTailorBack`; KAN-574), and Choose
+  Keywords' Back is Pick a Resume. Tailor's first Back is `BackLink`, not
+  `BackToJobs`: Tailor opens from the job's page (KAN-822).
 - **A job posting's page has a rail of jobs beside it** (KAN-297), drawn by
   `(seeker)/jobs/layout.tsx` so it survives job-to-job navigation. It reads
   the list `FeedList` last showed (`jobs/shown-list.ts`); a new list screen

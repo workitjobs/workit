@@ -1561,7 +1561,10 @@ every status does, not here. A card over Up Next, "N Written Questions
 Waiting", linked here until KAN-424 (it counted the questions without
 saying whose); then the setup strip's Or Write Them Yourself did, until
 the strip came to show only the extension, which left no link here until
-KAN-566. **Write with Claude** (`auto-apply/write-with-claude.tsx`,
+KAN-566. **Its lasting way in is the setup row's Written Answers cell**
+(KAN-822): the questions notice shows only while questions wait, so a
+student with none waiting could not reach their saved answers or delete
+one. **Write with Claude** (`auto-apply/write-with-claude.tsx`,
 beside Written Answers' heading while a question waits) is a
 secondary button with the sparkle: it opens a new claude.ai chat in a new
 tab with "Write my WorkIt answers" in its box, not sent, and copies the
@@ -1604,7 +1607,7 @@ beside Start until KAN-424, three bordered buttons of one weight for a
 page with one action.
 
 - **The setup row** (`auto-apply/setup-strip.tsx`, `SetupRow`, 2026-11-10):
-  one white card at the top of the page, two cells side by side (stacked
+  one white card at the top of the page, three cells side by side (stacked
   below `@3xl/main`), what every application needs, each a glyph on a grey tile, its name, where it
   stands, and an arrow where it is a link:
   **Chrome Extension** ("Checking…" until the extension answers its
@@ -1613,9 +1616,12 @@ page with one action.
   page, `EXTENSION_INSTALL_URL` in `lib/autofill-extension.ts`:
   `NEXT_PUBLIC_EXTENSION_INSTALL_URL`, else the Store page for the
   extension's id, which is public) and **Application Info** (what the
-  extension fills beyond the resume, `../info`). Written Answers sat here
-  as a third cell for a day and left for the questions notice over Up
-  Next, since it is work a job asks for, not setup. It replaced three pieces in three
+  extension fills beyond the resume, `../info`) and **Written Answers**
+  (questions to write and the answers given, `../answers`). Written
+  Answers sat here for a day and left for the questions notice over Up
+  Next, since it is work a job asks for, not setup; it came back for good
+  (KAN-822), since with no question waiting nothing else reached the page.
+  It replaced three pieces in three
   styles around the queue, which the user found out of place: a banner on
   top that showed only while the extension was missing (it said its link
   was coming soon and could not be clicked, though the Store page is
@@ -2257,7 +2263,8 @@ shows initials.
 
 Everything the extension and the student's Claude fill into a form that is
 not on a resume, under the feature that uses it. The top bar reads
-"Application Info"; Back goes to Auto Apply. Reached from My Profile's
+"Application Info", the h1 on every part (each part's card is an h2
+under it, KAN-822); Back goes to the page that opened it. Reached from My Profile's
 Application Info card and from Auto Apply's setup row
 (`auto-apply/setup-strip.tsx`), not a header button, since Auto Apply's
 header keeps its top right for a view switcher.
@@ -2269,9 +2276,12 @@ at `/auto-apply/info/<part>` (`auto-apply/info/sections.ts`,
 `[section]/page.tsx`), beside a menu that stays in view: the shared side
 menu (`components/side-nav.tsx`), Settings' own, a glyph and a label per
 part with the open one in the brand tint, and on a phone a row that
-scrolls sideways above the part. Its head is the way back, "← Auto Apply"
-in the items' look, with no button around it (a bordered "Back to Auto
-Apply" sat over the menu until then); it never leads to another part.
+scrolls sideways above the part. Its head is the way back, the app's
+`BackLink` named as Written Answers' is ("Back to Auto Apply", or "Back
+to Profile"), so Auto Apply's two pages go back alike (KAN-822; from
+2026-11-11 it was for a day a row in the items' look that read only "Auto
+Apply"). It never leads to another part (`useBack`'s `within`), and a
+student who came from My Profile goes back there.
 `/auto-apply/info` opens the part an old address's hash names, else the
 first: the WorkIt Autofiller still opens `#writing-samples`, from the one
 page. Each part's glyph is its own, drawn nowhere else (a stamp, a framed
@@ -3030,7 +3040,11 @@ with no proposals to accept and no Done (2026-10-25).
 - **One step at a time** (2026-10-26), each under the same top row in the
   brand tint (`TailorBar`): Back, the step on one line ("Pick a Resume ·
   Step 1 of 3"), and the step's way on, Next, Tailor Resume or
-  Finish. Then the step's title and its job line (`TailorHeader`), then the step's own view (`TailorScreen` keeps the step in state; a
+  Finish. Pick a Resume's Back goes to the page that opened Tailor
+  (`BackLink`, the job's page on a direct visit): it went to the Jobs page
+  until KAN-822, though Tailor opens from the job's page. Choose
+  Keywords' Back returns to Pick a Resume in place (`TailorStepBack`,
+  drawn as `TailorBack`). Then the step's title and its job line (`TailorHeader`), then the step's own view (`TailorScreen` keeps the step in state; a
   reload starts at the pick). The keyword match appeared under the picker
   on one page before, so the student scrolled past the list to read it.
   Pick a Resume shows the list across the full width, running down to the

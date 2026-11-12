@@ -347,7 +347,9 @@ function ClosedQueueNotice({
  * Written questions waiting, as a notice over the queue, only while any
  * job has them (2026-11-10): how many, for how many jobs, and Write
  * Answers (Written Answers, ../answers). It is work a job asks for, not
- * setup, so it left the setup row (./setup-strip.tsx) after a day there;
+ * setup, so it left the setup row (./setup-strip.tsx) after a day there
+ * (the row links the page again, for good, since KAN-822: this says how
+ * many wait);
  * as "Write 5 Questions →" in Up Next's heading before that, it read as a
  * stray link. Each job's own count stays in its Status cell.
  */

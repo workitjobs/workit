@@ -3,13 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
-import {
-  ArrowLeftIcon,
-  ArrowRightIcon,
-  CheckIcon,
-  PlusIcon,
-  SparkleIcon,
-} from "@/components/icons";
+import { ArrowRightIcon, CheckIcon, PlusIcon, SparkleIcon } from "@/components/icons";
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { readEvents } from "@/components/scout/stream";
 import { Badge } from "@/components/ui/badge";
@@ -34,8 +28,9 @@ import {
 import type { MatchShift, TailorReviewRecord } from "../../../resumes/[resumeId]/tailor-review";
 import { loadChoices, ResumeLists, ResumeListsSkeleton, type Choice } from "../../resume-picker";
 import { ResumePreviewDialog } from "./resume-preview";
-import { BackToJobs } from "../page-actions";
 import type { JobListing } from "../../listings";
+import { BackLink } from "../../../back-link";
+import { TailorStepBack } from "./tailor-back";
 import { TailorBar, TailorHeader } from "./tailor-header";
 import { TailorRunning, type Phase } from "./tailor-running";
 import { type TailorStep } from "./tailor-steps";
@@ -253,19 +248,19 @@ export function TailorScreen({
         step={step}
         back={
           step === "pick" ? (
-            <BackToJobs className="group/back" />
+            // To the page that opened Tailor, the job's page for a direct visit.
+            <BackLink
+              parent={{ href: `/jobs/${encodeURIComponent(jobId)}`, name: "Job Posting" }}
+              className="group/back"
+            />
           ) : (
-            <Button
-              variant="secondary"
-              size="sm"
+            <TailorStepBack
               disabled={running}
               onClick={() => {
                 setError(null);
                 setStep("pick");
               }}
-            >
-              <ArrowLeftIcon /> Back
-            </Button>
+            />
           )
         }
         next={

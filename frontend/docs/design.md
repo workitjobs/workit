@@ -96,7 +96,9 @@ open choices (Settled choices, near the end).
   (WCAG 2.2 SC 1.3.1 and 2.4.6; GOV.UK, "Headings"). On a section's page the
   h1 is the top bar title (`(seeker)/bar-title.tsx`); on a page under a
   section (a job, a resume, an application) the page draws its own h1 and the
-  bar shows a plain line. A job or a resume drawn beside its list (the Jobs
+  bar shows a plain line. A page split into parts by its own menu
+  (Application Info) keeps the bar title as the h1 on every part, each
+  part's card an h2 (KAN-822). A job or a resume drawn beside its list (the Jobs
   page's Split view) is an h2 under the list's h1. A modal never changes the
   bar title: the bar names the page behind it, and the dialog's title names
   the dialog, as its h2, with its cards' titles as h3. An h1 never
