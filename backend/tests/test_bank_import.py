@@ -1523,6 +1523,77 @@ async def test_a_citation_ending_in_its_link_keeps_its_title_and_takes_the_parse
     assert paper.link == "https://arxiv.org/abs/2409.01234"
 
 
+def test_a_job_at_a_school_is_never_the_school_s_own_entry():
+    # KAN-805: the TA job shared the school's three name words, matched the
+    # model's education entry, and was lost
+    from app.schemas.bank import DraftEntry
+    from app.services.bank_import import with_parsers_reading
+
+    model = [DraftEntry(section="education", title="Hillcrest State University", degree="B.S.")]
+    parsed = [DraftEntry(section="experience", title="Teaching Assistant", organization="Hillcrest State University",
+                         bullets=["Graded 120 lab reports a week"])]
+    merged = with_parsers_reading(model, parsed)
+    assert [(d.section.value, d.title) for d in merged] == [
+        ("education", "Hillcrest State University"), ("experience", "Teaching Assistant")]
+    assert merged[0].bullets == []
+
+
+def test_two_roles_at_one_organization_stay_two():
+    # KAN-805: with the model's Teaching Assistant left out, the parser's
+    # matched the model's Research Assistant and was lost into it
+    from app.schemas.bank import DraftEntry
+    from app.services.bank_import import with_parsers_reading
+
+    model = [DraftEntry(section="experience", title="Research Assistant", organization="Hillcrest State University",
+                        bullets=["Ran 300 experiments"])]
+    parsed = [DraftEntry(section="experience", title="Teaching Assistant", organization="Hillcrest State University",
+                         bullets=["Graded 120 lab reports a week"])]
+    merged = with_parsers_reading(model, parsed)
+    assert [(d.title, d.bullets) for d in merged] == [
+        ("Research Assistant", ["Ran 300 experiments"]), ("Teaching Assistant", ["Graded 120 lab reports a week"])]
+
+
+def test_one_role_filed_in_two_sections_is_still_one():
+    from app.schemas.bank import DraftEntry
+    from app.services.bank_import import with_parsers_reading
+
+    model = [DraftEntry(section="leadership", title="Resident Assistant", organization="Campus Residences",
+                        bullets=["Ran 12 floor events"])]
+    parsed = [DraftEntry(section="experience", title="Resident Assistant",
+                         organization="Hillcrest State University Campus Residences",
+                         bullets=["Ran 12 floor events", "Mediated roommate conflicts"])]
+    merged = with_parsers_reading(model, parsed)
+    assert [(d.title, d.bullets) for d in merged] == [
+        ("Resident Assistant", ["Ran 12 floor events", "Mediated roommate conflicts"])]
+
+
+def test_an_entry_s_line_the_parser_read_as_a_bullet_is_not_added():
+    # KAN-805: the next job's line, with its place and dates, joined the
+    # job above as a bullet
+    from app.schemas.bank import DraftEntry
+    from app.services.bank_import import with_parsers_reading
+
+    model = [
+        DraftEntry(section="experience", title="Research Intern", organization="Signal Processing Lab",
+                   bullets=["Cut the spin error"]),
+        DraftEntry(section="experience", title="Software Engineer Intern", organization="Acme Robotics",
+                   location="Boston, MA", bullets=["Built a deploy script"]),
+    ]
+    parsed = [DraftEntry(section="experience", title="Research Intern", organization="Signal Processing Lab",
+                         bullets=["Cut the spin error", "Acme Robotics  Boston, Massachusetts  June 2024 – Aug 2024"])]
+    assert with_parsers_reading(model, parsed)[0].bullets == ["Cut the spin error"]
+
+
+def test_a_word_the_pdf_broke_in_two_is_the_same_bullet():
+    # KAN-805: "De- signed" read as two words, and the bullet printed twice
+    from app.schemas.bank import DraftEntry
+    from app.services.bank_import import with_parsers_reading
+
+    model = [DraftEntry(section="projects", title="Maze Robot", bullets=["Designed the robot's logo"])]
+    parsed = [DraftEntry(section="projects", title="Maze Robot", bullets=["De- signed the robot's logo"])]
+    assert with_parsers_reading(model, parsed)[0].bullets == ["Designed the robot's logo"]
+
+
 async def test_a_line_the_parser_misread_as_a_bullet_is_not_added():
     # The model reads "Stony Brook University" as the project's organization;
     # the parser saved it as the project's bullet.

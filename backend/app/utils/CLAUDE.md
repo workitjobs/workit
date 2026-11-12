@@ -522,6 +522,14 @@ Rules:
     shared, three in four of the shorter one's, in any section, since the
     two file a Resident Assistant differently; "Sales Associate, Target"
     and "Sales Associate, Walmart" share one word and stay two jobs).
+    **A twin is the same kind of entry and the same role** (KAN-805): a
+    role (experience, leadership, project) never twins a school or an
+    award (`_KINDS`), and one side's title words, its organization's
+    aside, must be three in four in the other's name (`_one_role`;
+    "Engineer" counts for "Engineering"). A TA job twinned the school it
+    shared three name words with, and "Teaching Assistant" twinned the
+    model's "Research Assistant" at one university, so the job was lost
+    and its bullets joined the other entry.
     - **No twin: the entry is added whole.** The model left out both papers
       under "Publications"; the prompt names where a paper goes too.
     - **A twin: the parser fills only its empty fields** (`_fill_blanks`):
@@ -531,7 +539,11 @@ Rules:
       four of its words), except a line that only lists tools and one that
       repeats an entry's name (this parser saved a project's "Stony Brook
       University" line as its bullet; the model read it as the
-      organization). **The
+      organization), or its name and place with dates aside (`_is_header`:
+      the next job's "Acme Robotics  Boston, MA  June 2024 – Aug 2024"
+      joined the job above, KAN-805). A word the PDF broke at a line's end
+      ("De- signed") reads as one (`_BROKEN_RE`), or the bullet printed
+      twice beside the model's "Designed". **The
       model's value wins wherever both have one**, and the title and
       organization are never filled: on a layout this parser misreads, they
       are where its mistakes are, so it must not judge the model there.

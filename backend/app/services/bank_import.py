@@ -583,6 +583,7 @@ def with_parsers_reading(drafts: list[DraftEntry], parsed: list[DraftEntry]) -> 
     # name, since the parser saves a line it misreads ("Stony Brook
     # University" under a project) as a bullet.
     held = [_bullet_words(b) for d in drafts for b in d.bullets] + [_name_words(d) for d in drafts]
+    headers = [_header_words(d) for d in drafts]
     for entry in parsed:
         twin = _twin(entry, drafts)
         if twin is None:
@@ -596,19 +597,66 @@ def with_parsers_reading(drafts: list[DraftEntry], parsed: list[DraftEntry]) -> 
             # model rightly leaves it out, and it reaches the skills instead.
             if not words or is_tools_line(bullet) or len(twin.bullets) >= 30:
                 continue
-            if any(len(words & theirs) * 4 >= len(words) * 3 for theirs in held):
+            if any(len(words & theirs) * 4 >= len(words) * 3 for theirs in held) or _is_header(bullet, headers):
                 continue
             twin.bullets.append(bullet)
             held.append(words)
     return out
 
 
+# "De- signed": a word the PDF broke at a line's end, read as two, so the
+# parser's bullet missed the model's "Designed" and printed twice (KAN-805)
+_BROKEN_RE = re.compile(r"(?<=\w)-\s+(?=[a-z])")
+
+
 def _bullet_words(text: str) -> set[str]:
-    return set(_words(text)) - _COMMON
+    return set(_words(_BROKEN_RE.sub("", text))) - _COMMON
+
+
+_DATE_WORDS = frozenset(
+    {m.lower() for m in (*calendar.month_name[1:], *calendar.month_abbr[1:])}
+    | {"sept", "present", "current", "now", "expected", "anticipated"})
+
+
+def _header_words(entry: DraftEntry) -> set[str]:
+    return set(_words(f"{entry.title} {entry.organization or ''} {entry.location or ''}")) - _COMMON
+
+
+def _is_header(bullet: str, headers: list[set[str]]) -> bool:
+    """Whether a parser bullet is an entry's own line it misread: its
+    words, dates aside, are three in four a model entry's name and place
+    ("Acme Robotics  Boston, MA  May 2024 – Aug 2024"). Checked against
+    the names alone, the place and dates kept it a bullet (KAN-805)."""
+    words = {w for w in _bullet_words(bullet) if w not in _DATE_WORDS and not (w.isdigit() and len(w) == 4)}
+    return not words or any(len(words & h) * 4 >= len(words) * 3 for h in headers)
 
 
 def _name_words(entry: DraftEntry) -> set[str]:
     return set(_words(f"{entry.title} {entry.organization or ''}")) - _COMMON
+
+
+# What an entry is, whatever its section: one role may be filed in two
+# sections (a Resident Assistant), but a role is never a school or an award
+_KINDS = {bank_section.experience: "role", bank_section.leadership: "role", bank_section.projects: "role",
+          bank_section.education: "school", bank_section.awards: "honor", bank_section.certifications: "honor"}
+
+
+def _role_words(entry: DraftEntry) -> set[str]:
+    return set(_words(entry.title)) - set(_words(entry.organization or "")) - _COMMON
+
+
+def _same_word(a: str, b: str) -> bool:
+    short, long = sorted((a, b), key=len)
+    return short == long or (len(short) >= 4 and long.startswith(short))
+
+
+def _one_role(entry: DraftEntry, own: set[str], draft: DraftEntry, theirs: set[str]) -> bool:
+    """Whether the two name one role, not two at one organization: one
+    side's title words, its organization's aside, are three in four in the
+    other's name ("Engineer" counts for "Engineering")."""
+    pairs = [(role, other) for role, other in ((_role_words(entry), theirs), (_role_words(draft), own)) if role]
+    return not pairs or any(
+        sum(any(_same_word(w, t) for t in other) for w in role) * 4 >= len(role) * 3 for role, other in pairs)
 
 
 def _twin(entry: DraftEntry, drafts: list[DraftEntry]) -> DraftEntry | None:
@@ -618,14 +666,19 @@ def _twin(entry: DraftEntry, drafts: list[DraftEntry]) -> DraftEntry | None:
     line on a layout it misreads ("Robotics Club - Software Lead" is the
     model's "Robotics Club"). "Cashier, Target" and "Cashier, Walmart" share
     one word, and are two jobs. The most words shared wins, then the same
-    section."""
+    section. Never an entry of another kind (`_KINDS`), and never another
+    role at the same organization (`_one_role`): a TA job matched the school
+    it shared three name words with, and "Teaching Assistant" the model's
+    "Research Assistant" at one university, and the job was lost (KAN-805)."""
     own = _name_words(entry)
     best: tuple[int, bool] = (0, False)
     twin = None
     for draft in drafts:
+        if _KINDS.get(draft.section, draft.section) != _KINDS.get(entry.section, entry.section):
+            continue
         theirs = _name_words(draft)
         shared = len(own & theirs)
-        if shared < 2 or shared * 4 < min(len(own), len(theirs)) * 3:
+        if shared < 2 or shared * 4 < min(len(own), len(theirs)) * 3 or not _one_role(entry, own, draft, theirs):
             continue
         score = (shared, draft.section is entry.section)
         if score > best:
