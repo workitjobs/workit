@@ -3172,9 +3172,26 @@ are in `docs/auth.md`.
   resume's delete can move the star). Clear All, Delete Entry and the
   upload page's Delete still wait for the API behind a busy button: they
   confirm a count or leave the page.
+- **Every section always has its card on Experiences** (KAN-814, which
+  reverses KAN-440's quiet line, `../docs/bank_by_resume.md`): Education,
+  Work Experience, Projects, Leadership & Activities, Awards,
+  Certifications, Skills, then the student's own. An empty one is a short
+  card with its usual + and pencil and one line from `emptyLine` and
+  `WHAT_GOES_HERE` (`(seeker)/experiences/sections.ts`); only a search hides
+  a card. Never move empty sections back to one line under the page: at
+  the foot, in small grey type, students missed that the sections existed.
+  Add a Section is a text button under the last card, never a filled one.
+  The section is **"Work Experience" on every screen** (`SECTIONS`'
+  label), since "Experience 14" beside the page's name read as a count for
+  the whole page; a printed resume and the editor's Sections outline of it
+  keep "Experience" (`SECTION_LABELS` in `resumes/[resumeId]/model.ts`,
+  mirroring the API's `fields.py`), and its entries stay a "Job". Its mark
+  is Phosphor `Path` in `section-icons.tsx` and `intake-steps.tsx`, which
+  change together.
 - **The Experiences view has a section nav** (KAN-349,
-  `(seeker)/experiences/section-nav.tsx`): one sticky row of links to the seven
-  section cards, each with its count under the current pick, the one in
+  `(seeker)/experiences/section-nav.tsx`): one sticky row of links to every
+  section card, each with its count under the current pick (an empty
+  section's glyph and 0 muted to `ink-meta`, KAN-814), the one in
   view lit. It is one row at every width, scrolling sideways where it does
   not fit, so its height never changes; every section card's `scroll-mt-16`
   is room for it, and a card added to the page needs that margin and an

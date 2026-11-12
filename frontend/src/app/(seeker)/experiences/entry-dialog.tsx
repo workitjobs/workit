@@ -452,7 +452,7 @@ export function EntryPane({
 }
 
 /**
- * The entry form on its own: a card's +, a quiet-line word, or a Lines
+ * The entry form on its own: a card's + (an empty card's too), or a Lines
  * section's pencil, on the page.
  * Escape, the × and a press outside leave through the form's guard
  * (`EntryPaneHandle`), so typing is never dropped without a question.

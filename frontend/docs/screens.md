@@ -2425,7 +2425,7 @@ built resumes a save changes too (KAN-363); a name in it shows that resume
 here. While the bank loads, `experiences/loading.tsx` draws this layout as
 bars, with the switcher live (KAN-561).
 The section nav (KAN-349) is a row of links, one per card with its count
-under the current pick, held at the top of the page while the cards scroll
+under the current pick (a muted 0 for an empty one, KAN-814), held at the top of the page while the cards scroll
 under it: a click glides to that card, and the card in view is lit, so a
 long bank is one click from end to end. The page is the filled-out bank itself.
 The resumes it makes moved out in KAN-249 (Resumes, below). At the foot of
@@ -2448,14 +2448,33 @@ grey before.
 project's tools and the bullets included, or a skill by its name or group;
 every word must match. It opens what it finds, since a word may be in a
 bullet, and turns Clear All off, which would still take the rows a search
-hides. **A group with nothing in it is one
-quiet line** under the page, each word adding to its group, and leaves the
-section nav: three "Nothing here yet" cards pushed Skills off the screen.
+hides, and hides a card it finds nothing in. **Every section shows, empty
+too** (KAN-814): an empty section is a short card, its heading with its +
+and pencil and one line on what goes there ("No awards yet. Add
+scholarships, honors and prizes."; "No awards on this resume." under a
+pick; `emptyLine` and `WHAT_GOES_HERE` in `sections.ts`), and its link in
+the section nav shows a muted 0. Its pencil opens its list, which says the
+same line. KAN-440 had put every empty group on one quiet line under the
+page ("Nothing yet in Awards + Certifications +"), since three "Nothing
+here yet" cards pushed Skills off the screen; at the foot, in small grey
+type, students missed it, and a short card is little taller than the line.
+
+**Work Experience** is the section's name on every screen (KAN-814): the
+section nav, its card and list, the resume editor's Experiences picker,
+Scout's intake and onboarding's resume preview (`SECTIONS` in
+`sections.ts`). It was "Experience", one letter from the page's name, so
+"Experience 14" in the section nav read as a count for the whole page. Its
+entries are still a "Job" ("Add Job", "Edit Job"), and a printed resume,
+like the editor's Sections outline of it, keeps the heading "Experience"
+(`SECTION_LABELS` in `resumes/[resumeId]/model.ts`). Its mark is a path
+(Phosphor `Path`), not the desk it had for a day, which read as a table.
 
 **Sections the student names** (KAN-498, `../../docs/custom_sections.md`)
-follow the fixed cards, each with the one mark every custom section wears
+follow Skills (KAN-814), each with the one mark every custom section wears
 (`SECTION_ICONS.custom`) and a link in the section nav. **Add a Section**
-ends the quiet line under the cards; its card (`custom-sections.tsx`)
+is a text button under the last card, never a filled one: a section of the
+student's own is rare, and a filled button there would outweigh every
+card's +. Its card (`custom-sections.tsx`)
 takes a name, offers Summary, Volunteering, Languages, Interests and
 Publications (each setting the layout it usually takes), and asks how it
 prints: **Entries** (title, organization, dates and bullets, no location)
@@ -2623,8 +2642,10 @@ in Docs (suggested answers in the chat, not a banner).
   beside the control and leaves the screen as it was. A skill's × is the
   one exception (KAN-388): the skill leaves at once, and a failed delete
   puts it back with the message under the card.
-- **One card per section**, in the fixed order (Education, Experience,
-  Projects, Leadership & Activities, Awards, Certifications), then Skills.
+- **One card per section, always**, in the fixed order (Education, Work
+  Experience, Projects, Leadership & Activities, Awards, Certifications),
+  then Skills, then the student's own sections; an empty one is a short
+  card (KAN-814, above).
   Entries come back from the API ongoing first, then newest; the screen
   never sorts. After every change it reads the whole bank again, so the
   order shown is always the API's; a skill's × only drops that skill,
@@ -2684,9 +2705,8 @@ in Docs (suggested answers in the chat, not a banner).
   controls in one corner, and a student could not tell which acted on the
   section and which on the entry (KAN-363). Save and Cancel give the focus
   back to the pencil, and Delete to the pencil of the entry beside, else
-  the list's +. A word on the quiet line opens
-  its section's form ("Add Award"), and the card comes back with the
-  saved entry. The form is modal, so one editor at a time (KAN-732) holds
+  the list's +. An empty card's + opens its section's form ("Add Award"),
+  and the card fills with the saved entry. The form is modal, so one editor at a time (KAN-732) holds
   by itself.
 - **An entry's dates sit under its title below `@xl/main`**, beside the
   pencil above it. Beside them on a phone, the dates never
@@ -2694,8 +2714,9 @@ in Docs (suggested answers in the chat, not a banner).
   An import draft does the same below `@sm` of its own width (each draft is
   a container, since Scout's panel is not).
 - **An entry warns what a resume would miss** (`sections.ts`'s
-  `missingFacts`, story 17): for Education and Experience no start and end
-  (or "present"), and for Experience and Leadership no organization. A
+  `missingFacts`, story 17): for Education and Work Experience no start
+  and end (or "present"), and for Work Experience and Leadership no
+  organization. A
   project, role or award has no dates warning: no application form asks for
   them (Greenhouse, Lever, Ashby, Workday; settled 2026-10-14). A job,
   project or role with no bullets is flagged too (KAN-740), since a resume
@@ -2815,7 +2836,7 @@ in Docs (suggested answers in the chat, not a banner).
   never sees it. The chat is never stored anywhere.
 - **Intake's step bar** (`intake-steps.tsx`, KAN-214): one step per
   section in the order intake walks (Education, Projects, Leadership &
-  Activities, Experience, Awards, Certifications: user story 41, not the
+  Activities, Work Experience, Awards, Certifications: user story 41, not the
   bank's order), Back on the left, Skip on the right (in Scout's panel, the
   steps alone inside the stage card, as above). A step jumps to its
   section; the steps are disabled while Scout answers or a save runs, so

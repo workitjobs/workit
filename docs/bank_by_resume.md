@@ -160,8 +160,25 @@ created_at, and `edited_at` for the resume list's date, KAN-361).
     page's far edge and Not From an Upload as a link under it; it looked
     like no resume anywhere else in the app (KAN-363, 2026-10-24).
 - **The section nav** (KAN-349) sits under the Showing card: a sticky row
-  of links to the seven section cards, each with its count under the
+  of links to every section card, each with its count under the
   pick, the card in view lit. A click glides to that card.
+- **Every section shows under every pick, empty too** (KAN-814), in one
+  order: Education, Work Experience, Projects, Leadership & Activities,
+  Awards, Certifications, Skills, then the student's own sections. An empty
+  section is a short card, its heading, + and pencil and one line on what
+  goes there: "No awards yet. Add scholarships, honors and prizes.", or
+  "No awards on this resume." under a pick. Its link in the section nav
+  shows a muted 0. A search still hides a card it finds nothing in.
+  - **This reverses KAN-440's quiet line.** KAN-440 put every empty
+    section on one line under the cards ("Nothing yet in Awards +
+    Certifications +"), since three "Nothing here yet" cards pushed Skills
+    off the screen. In small grey type at the page's foot, it went unseen,
+    so a student with no awards could not tell the bank had an Awards
+    section. A short card keeps the page compact and in view.
+  - **The section is "Work Experience" on every screen** (KAN-814): beside
+    the page's name, "Experience 14" in the section nav read as a count for
+    the whole Experiences page. A printed resume keeps the heading
+    "Experience"; its entries are still a "Job" ("Add Job").
 - **The page opens on the primary resume**, else the newest of any kind.
   A `?resume=` that names no listed resume (a deleted one) opens on All
   Experiences. With no

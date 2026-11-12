@@ -5,9 +5,9 @@ import {
   CaretLeftIcon,
   CertificateIcon,
   CheckIcon,
-  DeskIcon,
   GraduationCapIcon,
   MinusIcon,
+  PathIcon,
   RocketLaunchIcon,
   TrophyIcon,
   UsersThreeIcon,
@@ -58,7 +58,7 @@ import { sectionOf } from "./sections";
  * "Your Sections" and how many are done.
  */
 
-/** The order intake walks: not the bank's, which puts Experience second. */
+/** The order intake walks: not the bank's, which puts Work Experience second. */
 export const WALK: readonly Section[] = [
   "education",
   "projects",
@@ -75,7 +75,7 @@ export const WALK: readonly Section[] = [
  *  seal for Certifications) until 2026-11-12. Change both together. */
 export const ICONS: Record<Section, PhosphorIcon> = {
   education: GraduationCapIcon,
-  experience: DeskIcon,
+  experience: PathIcon,
   projects: RocketLaunchIcon,
   leadership: UsersThreeIcon,
   awards: TrophyIcon,
