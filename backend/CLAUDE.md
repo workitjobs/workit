@@ -978,8 +978,16 @@ Find files with a directory listing; these are the rules for where code goes.
 - **Import Again** is `POST /applicants/{id}/bank/import`: the same read on
   a stored upload, replacing what it owns, from intake's Use One I
   Uploaded, the Jobs page's empty-bank card and the Experiences view's
-  prompt for an upload that owns nothing. It re-reads `raw_text`, so a
-  resume uploaded before a parser fix gets the fix.
+  prompt for an upload that owns nothing. **It reads the upload's file
+  again** (`_text_again`: `stored_files.read`, then `text_extraction.extract`),
+  so a resume uploaded before a fix to extraction or the parser gets the
+  fix, and keeps that text with its hash (KAN-809). It re-read `raw_text`
+  until then, so an upload from before KAN-303's `pdf_spaces` (2026-11-05)
+  kept its glued words for good. The hash stays empty when another upload
+  of the student holds it (the hash is unique per student), and the
+  stored text stands when Storage fails or the file is gone: Import Again
+  never fails over Storage. Tests reach no bucket (conftest's
+  `_storage_down`).
 - **Import Updated Resume** is `PUT /applicants/{id}/resumes/{resume_id}`
   with a file, from an upload's row on the Resumes view: a newer version replaces the row's
   file and is read as an upload is, replacing what the upload owned. The row keeps its id and

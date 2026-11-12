@@ -147,6 +147,9 @@ class _Bucket:
     def remove(self, paths):
         self.removed.extend(paths)
 
+    def download(self, path):
+        return self.files[path]
+
 
 @pytest.fixture
 def upload(monkeypatch):
@@ -518,6 +521,67 @@ async def test_import_again_writes_into_the_bank_and_replaces_on_a_second_run(st
     assert (len(saved["entries"]), len(saved["skills"])) == (6, 2)
     # New rows: the second reading replaced the first.
     assert first.isdisjoint(e["id"] for e in saved["entries"])
+
+
+GLUED = "Projects\nWorkIt  Jan 2026 - Present\n• Builtthe editor\n"
+SPACED = "Projects\nWorkIt  Jan 2026 - Present\n• Built the editor\n"
+
+
+def _file_says(monkeypatch, applicant_id, resume_id, said: str) -> None:
+    bucket = _Bucket()
+    bucket.files[f"{applicant_id}/{resume_id}.pdf"] = b"%PDF-1.4"
+    monkeypatch.setattr("app.routers.bank.get_supabase", lambda: bucket)
+
+    async def extract(contents, ext):
+        assert (contents, ext) == (b"%PDF-1.4", ".pdf")
+        return said
+
+    monkeypatch.setattr("app.routers.bank.extract", extract)
+
+
+async def _stored(database, resume_id):
+    async with database() as session:
+        return (await session.execute(
+            text("SELECT raw_text, text_hash FROM resumes WHERE id = :id"), {"id": resume_id})).one()
+
+
+async def test_import_again_reads_the_file_again_not_its_old_text(student, database, monkeypatch):
+    # KAN-809: an upload from before a fix to text extraction kept its old
+    # text, words glued together, and Import Again read that again
+    from app.routers.resumes import text_hash
+
+    client, applicant_id, bank = student
+    resume_id = await _seed_resume(database, applicant_id, GLUED, digest=text_hash(GLUED))
+    _file_says(monkeypatch, applicant_id, resume_id, SPACED)
+
+    assert (await client.post(f"{bank}/import", json={"resume_id": str(resume_id)})).status_code == 200
+    [project] = (await client.get(bank)).json()["entries"]
+    assert [b["text"] for b in project["bullets"]] == ["Built the editor"]
+    assert tuple(await _stored(database, resume_id)) == (SPACED, text_hash(SPACED))
+
+
+async def test_import_again_reads_the_stored_text_when_storage_fails(student, database):
+    # conftest's `_storage_down`: the stored text stands, and nothing fails
+    client, applicant_id, bank = student
+    resume_id = await _seed_resume(database, applicant_id, GLUED)
+
+    assert (await client.post(f"{bank}/import", json={"resume_id": str(resume_id)})).status_code == 200
+    [project] = (await client.get(bank)).json()["entries"]
+    assert [b["text"] for b in project["bullets"]] == ["Builtthe editor"]
+    assert tuple(await _stored(database, resume_id)) == (GLUED, None)
+
+
+async def test_a_text_read_again_that_another_upload_has_keeps_no_hash(student, database, monkeypatch):
+    # The hash is unique per student: the two uploads are one resume
+    from app.routers.resumes import text_hash
+
+    client, applicant_id, bank = student
+    await _seed_resume(database, applicant_id, SPACED, digest=text_hash(SPACED), minutes_ago=5)
+    resume_id = await _seed_resume(database, applicant_id, GLUED, digest=text_hash(GLUED))
+    _file_says(monkeypatch, applicant_id, resume_id, SPACED)
+
+    assert (await client.post(f"{bank}/import", json={"resume_id": str(resume_id)})).status_code == 200
+    assert tuple(await _stored(database, resume_id)) == (SPACED, None)
 
 
 async def test_without_a_resume_id_import_reads_the_default_resume_else_the_newest(student, database):
