@@ -106,6 +106,15 @@ open choices (Settled choices, near the end).
   level skipped, so the outline is true. Pick the level by the outline and
   the size by the role: `SectionHeading`'s `as` changes the level, never the
   size.
+- **A section heading is `SectionHeading`, at 600, with a grey glyph**
+  (KAN-821). A card's or a section's title draws through
+  `ui/section-heading.tsx` (Home's cards through `home/section-header.tsx`,
+  which adds the link), never by copying its classes, which about a dozen
+  screens did. It is never bold: 700 names a page only (`globals.css`), and
+  the job page's sections and the application page's status line were
+  700. The job page's sections keep their 20px (`text-title`, Jobright's
+  size, 2026-11-10) at the same 600. A glyph beside a heading only informs,
+  so it is `ink-meta`, never `brand` (the job page's were purple).
 - **One primary action per view.** Two filled buttons make the student
   choose which one matters (Material 3, "Buttons": one high-emphasis
   action; Refactoring UI, "Not every button needs a background"). A view (a
@@ -368,8 +377,12 @@ open choices (Settled choices, near the end).
 - **Every seeker page has one frame.** Pages then start at the same left
   edge beside the rail. The frame is `SEEKER_GUTTER` (16px, 24px from sm,
   32px from lg), `max-w-dashboard` (1440px; the Applications Tracker has no
-  cap) and 24px under the bar (`py-6`). A page breaks on its own width
-  (`@container/main`, `@3xl/main:`), never the window's (`md:`).
+  cap) and 24px under the bar (`py-6`), its groups 24px apart (`gap-6`). A
+  page's `loading.tsx` uses the same width, or the frame jumps as the page
+  lands. Home was the last at 20px under the bar, 20px and 16px between its
+  groups, and Written Answers' skeleton was `max-w-app` (KAN-821). A page
+  breaks on its own width (`@container/main`, `@3xl/main:`), never the
+  window's (`md:`).
 - **Space shows what belongs together.** More space between groups than
   inside them (Gestalt proximity; Refactoring UI, "Start with too much white
   space"). Cards in a group sit 16px apart (`gap-4`, Settled choices) on
@@ -505,7 +518,8 @@ rules here follow them; change one only with the user.
 
 - **Cards in a group are 16px apart** (`gap-4`), not 20px: the existing
   spacing rule, Home's gap, and a step of the 4px grid that matches the
-  `gap-6` between groups. My Profile's and Auto Apply's `gap-5` moves to it.
+  `gap-6` between groups. Auto Apply's sub-pages and the Tracker's Card
+  View moved to it in KAN-821.
 - **The prose measure is 68ch**, as `--measure-prose`, with
   `--measure-form` at 48rem (`max-w-3xl`'s width) for a single-column form.
   68ch is About the Role's measure today and sits inside Baymard's 50 to 75.

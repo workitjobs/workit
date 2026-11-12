@@ -163,7 +163,7 @@ export function YourApplication({
                 <StageMenu jobId={app.id} stage={app.stage} />
               </span>
             </div>
-            <h2 className="text-title text-ink mt-3 font-bold">{HEADLINE[app.stage]}</h2>
+            <h2 className="text-title text-ink mt-3">{HEADLINE[app.stage]}</h2>
             {/* No applied date here: the days-since card and the timeline
                 both carry it. */}
             <p className="text-body text-ink-meta mt-1">

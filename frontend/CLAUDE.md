@@ -2218,7 +2218,12 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   `<Badge variant="tag" pill>`, and the title is `SectionHeading` (16px at
   600, company pages included). Three hand-built card kinds drifted apart in
   corner, edge, shadow, title and gap before; never build one from raw
-  classes (`docs/design.md`, The two shells).
+  classes (`docs/design.md`, The two shells). **No section heading copies
+  `SectionHeading`'s classes or is bold, and its glyph is `ink-meta`**
+  (KAN-821, `docs/design.md`, Hierarchy): about a dozen copies, the job
+  page's 700 headings and their purple glyphs drifted apart. Page spacing
+  is one rule too: `py-6` under the bar, `gap-6` between groups, `gap-4`
+  between cards, and a `loading.tsx` at its page's width.
 - **Build class strings with `cn()` from `@/lib/cn`.** Plain interpolation
   leaves both conflicting utilities in the attribute and the stylesheet's
   emit order picks the winner. `cn()` cannot merge across groups (`border` and

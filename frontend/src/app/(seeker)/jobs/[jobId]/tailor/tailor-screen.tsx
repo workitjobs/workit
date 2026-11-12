@@ -17,6 +17,7 @@ import { Button, ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
 import { LoadFailed } from "@/components/ui/load-failed";
+import { SectionHeading } from "@/components/ui/section-heading";
 import { tailorEditsKey, writeSessionDraft } from "@/lib/local-drafts";
 import type { ResumeItem } from "@/lib/resume-actions";
 import { matchColor } from "@/lib/match";
@@ -412,9 +413,9 @@ function KeywordCard({
             <span className="bg-positive-tint text-positive-ink flex size-10 items-center justify-center rounded-full">
               <CheckIcon aria-hidden className="size-5" />
             </span>
-            <h2 className="text-subtitle text-ink mt-3">
+            <SectionHeading className="mt-3">
               {total > 0 ? "Every Keyword Is on This Resume" : "This Posting Names No Keywords"}
-            </h2>
+            </SectionHeading>
             <p className="text-body text-ink-meta mt-1">
               Tailor Resume still rewords your bullets for this job.
             </p>
@@ -499,7 +500,7 @@ function MatchPanel({
           </p>
         </div>
         <div className="min-w-0">
-          <h2 className="text-subtitle text-ink">Keyword Match</h2>
+          <SectionHeading>Keyword Match</SectionHeading>
           <p className="text-note text-ink-muted mt-0.5">
             {matched.length} of {total} keywords
           </p>

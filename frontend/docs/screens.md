@@ -359,12 +359,13 @@ whole width, and read as cut short. Its paragraphs and list items are
 ink, the headings' colour, not body copy's lighter ink-muted: a posting is
 long reading, and the grey was hard to read (2026-10-17). Each of KAN-229's
 fixed section headings (Overview, Responsibilities, Requirements, Preferred
-Qualifications, Pay, Details) draws an icon beside it in brand purple
-(`SECTION_ICONS`; Pay reuses the salary fact's coin). All Filters' section
-icons stay grey: there they label controls, here they mark where to read.
-Section titles are 20px bold with a 24px icon, as Jobright's (2026-11-10):
-at 16px bold over the 16px body they read as bold body text, which the
-user found too small. "About the Role" above them is for screen readers
+Qualifications, Pay, Details) draws an icon beside it in grey (`ink-meta`,
+`SECTION_ICONS`; Pay reuses the salary fact's coin): the glyph only
+informs, and brand purple, which it was until KAN-821, means on or
+selected. Section titles are 20px with a 24px icon, as Jobright's
+(2026-11-10): at 16px over the 16px body they read as body text, which the
+user found too small. They are 600, every section heading's weight, not
+bold (KAN-821), as are Key Requirements and the Company tab's title. "About the Role" above them is for screen readers
 only when there is a description: the Overview
 tab names it, and at 16px it would rank under its own sections. An
 employer's subheading is 16px semibold. List bullets are ink, like
@@ -470,8 +471,8 @@ Overview now leaves it out. The application page's Job Description tab,
 which has no Company tab, keeps it in its fold. A brief exists only once a
 student's Claude has researched the company, so most jobs show the website
 and the posting's words, or "WorkIt has no notes on … yet" when the posting
-has none. Its title is drawn as the Overview's sections' are (20px bold
-beside the building glyph), since both sit in the job's one panel. Each fact's Source link is underlined,
+has none. Its title is drawn as the Overview's sections' are (20px at 600
+beside the grey building glyph), since both sit in the job's one panel. Each fact's Source link is underlined,
 since its brand colour against the ink text was the only cue (KAN-569). The application page draws no tabs. A "…" menu of Copy Link and an inert Report sat
 after Save until KAN-519, when the team removed it. Below md the bar scrolls away and wraps.
 The panel's header holds who is hiring, the title (`text-heading`, as every
@@ -711,7 +712,7 @@ second pill column until 2026-11-10: two pills in fixed columns floated in
 the middle of the row, apart from both the title and the buttons. Tailor My Resume sat between them and was
 taken out at the user's ask: the list is for choosing what to apply to. The
 title's link (`top-match-link.tsx`) makes the job page's Back return to the
-Home. **Auto Apply**, at the heading's right beside See More Matches,
+Home. **Auto Apply**, at the heading's right before See More Matches,
 turns the list into a picker (`top-matches-list.tsx`) of the seeker's best
 matches that auto apply can fill (the same call's `auto_apply` list, each
 as `?auto_apply=true` lists it): the top list may hold none, since auto apply
@@ -723,8 +724,9 @@ extension to open the oldest queued job (`openNextApplication`), and a toast
 says how many went in, with View Queue. The seeker picks every job, so auto
 apply still never queues a saved job on its own. The button is off when no
 match can be auto applied to. The checkbox takes `border-ink-meta`, as
-CheckRowBox does: the vendored hairline drew the empty box at 1.19:1. See More Matches, a secondary button at the heading's
-right, opens Best Match. From `@4xl/main` the list scrolls inside the tile at
+CheckRowBox does: the vendored hairline drew the empty box at 1.19:1. See More Matches, a text link at the heading's
+right (`SectionLink`, as Up Next's and Waiting's View All; a bordered button
+until KAN-821), opens Best Match. From `@4xl/main` the list scrolls inside the tile at
 `h-scroll-box` (320px, the token every scroll box in a dialog or tile
 shares), about four and a half rows, with a quiet bar along the tile's edge
 and a fade at its foot; below it the list shows five rows and does not
@@ -761,7 +763,11 @@ shell's white panels; keep both off. Headings are `SectionHeading`, at
 600 as every card title (KAN-558), figures medium weight, figures in
 `--text-figure` (36px), and actions are the app's rectangular buttons (they
 were pills, `shape="pill"`, until KAN-251 made every pill a chip). It
-is capped at `max-w-dashboard` (1440px), as every seeker page now is.
+is capped at `max-w-dashboard` (1440px), as every seeker page now is, 24px
+under the bar with 24px between its groups (`py-6`, `gap-6` in
+`home/frame.tsx`; 20px, 20px and 16px until KAN-821, so Home sat higher
+than the pages beside it in the sidebar). Every card titles itself with
+`SectionHeader` (`home/section-header.tsx`).
 From `@4xl/main` (896px, not `@5xl`'s 1024: a 13-inch laptop at 100% zoom
 gives the page about 1010px and fell back to two columns of oversized
 tiles) the four numbers run across the top in a grid of their own
@@ -996,6 +1002,10 @@ and how it is worked; the stages as a line of steps (Saved, Applied,
 Interviewing, then Offer or Rejected, each with the day it was reached,
 `applications/stage-steps.tsx`); the match score, right after the role;
 View Resume where a resume was sent; and the stage menu. Simplify's heart has no WorkIt counterpart.
+Its controls are List View's (KAN-821): View is a text button and the
+stage menu the compact pill in the stage's tint, where a bordered View and
+a 42px field made the card heavier than the row for the same actions. The
+cards sit 16px apart, as cards in a group do on every page.
 By the card's own width: one row from 1152px, with the steps and controls
 in fixed columns so the steps line up from card to card; from 576px the
 role and controls share a line with the steps under them; narrower, it
@@ -1522,7 +1532,9 @@ posting, oldest application first, each question with a box for their own
 draft or text pasted from any AI (`auto-apply/answers/answer-box.tsx`).
 The page stops at `max-w-dashboard` as every seeker page does, and the
 questions and answers inside each card keep the 68ch measure (KAN-568: at
-`max-w-app` its left edge sat 184px right of its siblings' at 1440).
+`max-w-app` its left edge sat 184px right of its siblings' at 1440); its
+skeleton is the same width, and its cards sit 16px apart (KAN-821: the
+skeleton stayed at `max-w-app` and the frame jumped wider on load).
 **Check and Save** sends it through the connector's own save, so WorkIt's
 checks run on it as on Claude's (machine-made words, numbers the student's
 experience and the posting don't hold, another employer's name, the form's
@@ -2381,13 +2393,16 @@ reads them.
 - **Add, in place.** Add (the section's action, gone at three) opens a text
   box with Cancel and Save; Escape cancels. The API refuses an empty one or
   one over 10,000 characters, with its reason under the box.
-- **Each sample is its first three lines, with Remove.** A sample is
+- **Each sample is its first three lines, with Remove**, in rows ruled
+  apart inside the card, not a bordered box each (KAN-821: a card holds no
+  second card). A sample is
   replaced by removing it and adding the new one: changing a sample drops
   the style card either way, and Claude builds a new one next time.
   Remove deletes at once; its toast's Undo adds the same text again, last.
 
 **The Transcript (KAN-369)** is a card: one file, PDF or DOCX, uploaded,
-replaced or removed there, which the autofiller attaches to a form's
+replaced or removed there (a plain row in the card, not a box of its own,
+KAN-821), which the autofiller attaches to a form's
 transcript upload. Remove drops the file from the card and shows a toast
 with Undo; the file is deleted only once the toast closes (KAN-562).
 

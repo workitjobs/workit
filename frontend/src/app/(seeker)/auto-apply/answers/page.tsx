@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { LoadFailed } from "@/components/ui/load-failed";
+import { SectionHeading } from "@/components/ui/section-heading";
 import { TextLink } from "@/components/ui/text-link";
 import { claudeConnectorLink } from "@/lib/claude-connector";
 import { cn } from "@/lib/cn";
@@ -111,12 +112,10 @@ export default async function WrittenAnswersPage() {
           When an open application asks a written question, it shows up here.
         </EmptyState>
       ) : (
-        <div className="mt-6 flex flex-col gap-5">
+        <div className="mt-6 flex flex-col gap-4">
           {postings.map((posting) => (
             <Card as="section" padding="lg" key={posting.job_id} aria-labelledby={posting.job_id}>
-              <h2 id={posting.job_id} className="text-subtitle text-ink">
-                {posting.title ?? "Untitled Job"}
-              </h2>
+              <SectionHeading id={posting.job_id}>{posting.title ?? "Untitled Job"}</SectionHeading>
               {posting.company && <p className="text-body text-ink-meta">{posting.company}</p>}
               <div className="mt-4 flex max-w-[68ch] flex-col gap-6">
                 {posting.questions.map((question) => (
@@ -147,10 +146,10 @@ export default async function WrittenAnswersPage() {
             What your applications were given, with the company fact each answer uses. Read up on it
             before an interview.
           </p>
-          <div className="mt-4 flex flex-col gap-5">
+          <div className="mt-4 flex flex-col gap-4">
             {answered.map((posting) => (
               <Card as="article" padding="lg" key={posting.job_id}>
-                <h3 className="text-subtitle text-ink">{posting.title ?? "Untitled Job"}</h3>
+                <SectionHeading as="h3">{posting.title ?? "Untitled Job"}</SectionHeading>
                 {posting.company && <p className="text-body text-ink-meta">{posting.company}</p>}
                 <dl className="mt-4 flex max-w-[68ch] flex-col gap-5">
                   {posting.questions.map((question) => (

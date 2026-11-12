@@ -205,13 +205,12 @@ export function WritingSamples() {
         </LoadFailed>
       )}
 
+      {/* Rows ruled apart, as Settings' are, not a bordered box each: a
+          card holds no second card (docs/design.md, KAN-821). */}
       {samples && samples.length > 0 && (
-        <ul className="mt-5 flex flex-col gap-3">
+        <ul className="divide-border-subtle mt-4 flex flex-col divide-y">
           {samples.map((s, n) => (
-            <li
-              key={s.id}
-              className="bg-panel border-border-surface rounded-card flex items-start gap-4 border p-4"
-            >
+            <li key={s.id} className="flex items-start gap-4 py-3 first:pt-0 last:pb-0">
               <p className="text-body text-ink-muted line-clamp-3 min-w-0 flex-1 whitespace-pre-line">
                 {s.text}
               </p>

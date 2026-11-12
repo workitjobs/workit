@@ -1,6 +1,4 @@
-import { ArrowRightIcon } from "@/components/icons";
 import { Skeleton } from "@/components/shadcn/skeleton";
-import { ButtonLink } from "@/components/ui/button";
 import { LoadFailed } from "@/components/ui/load-failed";
 import { TextLink } from "@/components/ui/text-link";
 import { cn } from "@/lib/cn";
@@ -9,6 +7,7 @@ import { getApplicationStages } from "../auto-apply/applications";
 import { formatPosted } from "../jobs/format";
 import { isApplicant, type JobListing } from "../jobs/listings";
 import { getMatches } from "./data";
+import { SectionHeader } from "./section-header";
 import { LIST } from "./top-matches-frame";
 import { TopMatchesList, type TopMatchRow } from "./top-matches-list";
 import { jobLogo } from "@/lib/job-logo";
@@ -130,17 +129,13 @@ export async function TopMatches({
  *  the empty and failed states. */
 function StaticHeading() {
   return (
-    <div className="flex flex-wrap items-start justify-between gap-3">
-      <div>
-        <h2 id="top-matches" className="text-subtitle text-ink">
-          Top Matches
-        </h2>
-        <p className="text-body text-ink-meta mt-1">Your highest-scoring jobs right now.</p>
-      </div>
-      <ButtonLink href="/jobs?sort=match" variant="secondary" size="sm">
-        See More Matches
-        <ArrowRightIcon className="size-4" />
-      </ButtonLink>
+    <div>
+      <SectionHeader
+        id="top-matches"
+        title="Top Matches"
+        link={{ href: "/jobs?sort=match", text: "See More Matches" }}
+      />
+      <p className="text-body text-ink-meta mt-1">Your highest-scoring jobs right now.</p>
     </div>
   );
 }
@@ -162,7 +157,7 @@ export function TopMatchesSkeleton({ className }: { className?: string }) {
       aria-busy="true"
       className={className}
     >
-      {/* StaticHeading's lines and its button, each a bar. */}
+      {/* The heading's lines, Auto Apply and See More Matches, each a bar. */}
       <div aria-hidden="true" className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="flex h-[22px] items-center">
@@ -172,7 +167,10 @@ export function TopMatchesSkeleton({ className }: { className?: string }) {
             <Skeleton className="h-3.5 w-60 max-w-full" />
           </div>
         </div>
-        <Skeleton className="h-9 w-44" />
+        <div className="flex items-center gap-4">
+          <Skeleton className="h-9 w-32" />
+          <Skeleton className="h-3.5 w-36" />
+        </div>
       </div>
       <ul aria-hidden="true" className={cn(LIST, "@4xl/main:overflow-hidden")}>
         {Array.from({ length: 6 }, (_, i) => (

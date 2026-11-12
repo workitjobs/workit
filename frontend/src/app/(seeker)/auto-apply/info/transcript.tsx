@@ -214,8 +214,10 @@ export function Transcript() {
         </LoadFailed>
       )}
 
+      {/* A plain row under the line, not a bordered box: a card holds no
+          second card (docs/design.md, KAN-821). */}
       {transcript && (
-        <div className="bg-panel border-border-surface rounded-card mt-5 flex items-center gap-4 border p-4">
+        <div className="mt-4 flex items-center gap-4">
           <FileIcon className="text-ink-meta size-5 shrink-0" />
           <p className="text-body text-ink min-w-0 flex-1 truncate">
             {transcript.original_filename}

@@ -12,6 +12,7 @@ import { LoadFailed } from "@/components/ui/load-failed";
 import { localDay } from "../tracker";
 import type { AppliedApplication } from "./data";
 import { DayApplications } from "./day-applications";
+import { SectionHeader } from "./section-header";
 import { MORPH_MS, mountSkyline, type Skyline, type SkylineState } from "./streak-canvas";
 import {
   buildGrid,
@@ -262,9 +263,7 @@ export function Streak({
       className={cn("@container/streak", className)}
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 id="streak" className="text-subtitle text-ink">
-          Activity
-        </h2>
+        <SectionHeader id="streak" title="Activity" />
         <SegmentedToggle
           label="Chart View"
           options={VIEW_OPTIONS}

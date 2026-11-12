@@ -30,6 +30,9 @@ import { ViewResumeButton } from "./view-resume";
  * THE STAGE MENU CHANGES THE STAGE HERE (../[jobId]/tracker-controls.tsx's
  * StageMenu, the same one as on the application's page), so a student moves
  * an application without opening it. A saved job's menu reads "Saved".
+ * Its controls are the list's (KAN-821): the compact stage pill and a text
+ * View, since a bordered View and a 42px stage field made Card View heavier
+ * than List View for the same two actions. Cards sit 16px apart (`gap-4`).
  *
  * Like a list row, the whole card opens the application's own page
  * (./[jobId]): the role is the link, stretched over the card. View Resume
@@ -113,7 +116,7 @@ function ApplicationCard({
         />
 
         <div className="relative z-10 flex flex-wrap items-center gap-2 @xl:col-start-2 @xl:row-start-1 @xl:justify-end @6xl:col-start-3 @6xl:flex-nowrap">
-          {item.sentResume && <ViewResumeButton resume={item.sentResume} />}
+          {item.sentResume && <ViewResumeButton resume={item.sentResume} quiet />}
           {closed ? (
             <ClosedSavedControl app={item} className="w-40 shrink-0" />
           ) : (
@@ -121,7 +124,8 @@ function ApplicationCard({
               jobId={item.id}
               stage={item.stage}
               placeholder="Saved"
-              className="w-40 shrink-0"
+              className="shrink-0"
+              compact
             />
           )}
         </div>
@@ -132,7 +136,7 @@ function ApplicationCard({
 
 export function ApplicationsCards({ applications }: { applications: Application[] }) {
   return (
-    <ul className="mt-4 flex flex-col gap-3">
+    <ul className="mt-4 flex flex-col gap-4">
       {applications.map((item, i) => (
         <Reflow key={item.id}>
           <ApplicationCard

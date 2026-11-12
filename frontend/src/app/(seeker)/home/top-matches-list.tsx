@@ -5,10 +5,11 @@ import { useState, useTransition } from "react";
 
 import { CompanyLogo } from "@/components/company-logo";
 import { LightningRoundedIcon } from "@/components/custom-icons";
-import { ArrowRightIcon } from "@/components/icons";
 import { MatchBadge } from "@/components/match-badge";
 import { Checkbox } from "@/components/shadcn/checkbox";
-import { Button, ButtonLink } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
+import { SectionHeading } from "@/components/ui/section-heading";
+import { SectionLink } from "@/components/ui/section-link";
 import { useToast } from "@/components/ui/toast";
 import { openNextApplication } from "@/lib/autofill-extension";
 import { cn } from "@/lib/cn";
@@ -156,9 +157,7 @@ export function TopMatchesList({
     <>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 id="top-matches" className="text-subtitle text-ink">
-            Top Matches
-          </h2>
+          <SectionHeading id="top-matches">Top Matches</SectionHeading>
           <p className="text-body text-ink-meta mt-1">
             {picking
               ? "Your best matches that Auto Apply can fill. Pick the ones to queue."
@@ -180,7 +179,10 @@ export function TopMatchesList({
             </Button>
           </div>
         ) : (
-          <div className="flex flex-wrap items-center gap-2">
+          // See More Matches is a text link, as every Home card's way onward
+          // is (SectionLink, KAN-821): a bordered button beside Auto Apply
+          // drew two actions of one weight.
+          <div className="flex flex-wrap items-center gap-4">
             <Button
               variant="secondary"
               size="sm"
@@ -195,10 +197,7 @@ export function TopMatchesList({
               <LightningRoundedIcon aria-hidden className="size-4" />
               Auto Apply
             </Button>
-            <ButtonLink href="/jobs?sort=match" variant="secondary" size="sm">
-              See More Matches
-              <ArrowRightIcon className="size-4" />
-            </ButtonLink>
+            <SectionLink href="/jobs?sort=match">See More Matches</SectionLink>
           </div>
         )}
       </div>

@@ -13,7 +13,6 @@ import {
 import { PencilIcon, PlusIcon, TrashIcon, UserIcon } from "@/components/icons";
 import { Handle, LINE_ABOVE, LINE_BELOW, SortableList } from "@/components/sortable-list";
 import { IconButton } from "@/components/ui/icon-button";
-import { Tip } from "@/components/ui/tip";
 import type { Bank } from "@/lib/bank-actions";
 import type { Choices, ChoicesUpdate } from "@/lib/built-resume-actions";
 import { cn } from "@/lib/cn";
@@ -75,22 +74,25 @@ const SECTION_NAME =
 const ITEM_NAME =
   "text-note text-ink group-hover/row:text-brand block truncate font-medium transition-colors duration-150";
 const LEAF = "text-note text-ink-muted min-w-0 flex-1";
+
+/** A group's fold: `IconButton` at a row's place (KAN-821), with its
+ *  tooltip, since the editor's folded tools keep one. It was a 28px button
+ *  of its own in grey, which the icon rule keeps for a glyph that only
+ *  informs. */
 function Fold({ open, label, onToggle }: { open: boolean; label: string; onToggle: () => void }) {
   return (
-    <Tip label={`${open ? "Close" : "Open"} ${label}`}>
-      <button
-        type="button"
-        aria-expanded={open}
-        aria-label={`${open ? "Close" : "Open"} ${label}`}
-        className="text-ink-meta hover:bg-ink/5 hover:text-ink focus-visible:ring-brand-ring flex size-7 shrink-0 items-center justify-center rounded-full focus-visible:ring-2 focus-visible:outline-none"
-        onClick={onToggle}
-      >
-        <CaretDownIcon
-          aria-hidden
-          className={cn("size-4 transition-transform duration-150", open && "rotate-180")}
-        />
-      </button>
-    </Tip>
+    <IconButton
+      place="row"
+      label={`${open ? "Close" : "Open"} ${label}`}
+      aria-expanded={open}
+      className="shrink-0"
+      onClick={onToggle}
+    >
+      <CaretDownIcon
+        aria-hidden
+        className={cn("transition-transform duration-150", open && "rotate-180")}
+      />
+    </IconButton>
   );
 }
 

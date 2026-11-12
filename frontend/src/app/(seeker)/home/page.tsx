@@ -129,13 +129,13 @@ export default async function HomePage() {
         </Suspense>
       }
       topMatches={
-        <Suspense fallback={<TopMatchesSkeleton className="mt-4" />}>
-          <TopMatches data={topMatches} className="mt-4" />
+        <Suspense fallback={<TopMatchesSkeleton />}>
+          <TopMatches data={topMatches} />
         </Suspense>
       }
       activity={
-        <Suspense fallback={<StreakSkeleton className="mt-4" />}>
-          <Activity applied={applied} className="mt-4" />
+        <Suspense fallback={<StreakSkeleton />}>
+          <Activity applied={applied} />
         </Suspense>
       }
     />

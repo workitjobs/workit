@@ -18,6 +18,7 @@ import { SearchField } from "@/components/ui/search-field";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/cn";
 import { IconButton } from "@/components/ui/icon-button";
+import { SectionHeading } from "@/components/ui/section-heading";
 import {
   createEntry,
   deleteEntries,
@@ -689,13 +690,10 @@ export function BankScreen({
                   }}
                 />
               ) : (
-                <h2
-                  id={`bank-${card}`}
-                  className="text-subtitle text-ink flex min-w-0 items-center gap-2.5"
-                >
+                <SectionHeading id={`bank-${card}`} className="flex min-w-0 items-center gap-2.5">
                   <SectionMark id="custom" />
                   {name}
-                </h2>
+                </SectionHeading>
               )}
               {renaming !== section.id && (
                 <CardActions
@@ -907,12 +905,9 @@ function EntriesCard({
       className="scroll-mt-16 transition-colors duration-200"
     >
       <div className="flex items-center justify-between gap-3">
-        <h2
-          id={`bank-${card}`}
-          className="text-subtitle text-ink flex min-w-0 items-center gap-2.5"
-        >
+        <SectionHeading id={`bank-${card}`} className="flex min-w-0 items-center gap-2.5">
           {heading}
-        </h2>
+        </SectionHeading>
         <CardActions
           id={`bank-${card}`}
           name={name}
@@ -1303,10 +1298,10 @@ function SkillsCard({
   return (
     <Card as="section" id="section-skills" aria-labelledby="bank-skills" className="scroll-mt-16">
       <div className="flex items-center justify-between gap-3">
-        <h2 id="bank-skills" className="text-subtitle text-ink flex min-w-0 items-center gap-2.5">
+        <SectionHeading id="bank-skills" className="flex min-w-0 items-center gap-2.5">
           <SectionMark id="skills" />
           Skills
-        </h2>
+        </SectionHeading>
         <CardActions
           id="bank-skills"
           name="Skills"
