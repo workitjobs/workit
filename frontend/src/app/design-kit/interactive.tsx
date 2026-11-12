@@ -9,6 +9,7 @@ import { DateField } from "@/components/date-field";
 import { MonthField } from "@/components/month-field";
 import { ResumeUpload } from "@/components/resume-upload";
 import { ChoiceTile } from "@/components/ui/choice-tile";
+import { ConfirmButtons } from "@/components/ui/confirm-buttons";
 import { RemovableChip } from "@/components/ui/chip";
 import { RadioRow } from "@/components/ui/radio-row";
 import { SegmentedToggle } from "@/components/ui/segmented-control";
@@ -17,7 +18,6 @@ import { useShallowParams } from "@/components/shallow-routing";
 import { TabLinks } from "@/components/ui/tabs";
 import {
   Dialog,
-  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -55,8 +55,9 @@ import { STAGE_COLOR, STAGE_ICON, STAGE_LABEL } from "@/app/(seeker)/stage-color
  */
 
 export function DialogSpecimen() {
+  const [open, setOpen] = useState(false);
   return (
-    <Dialog>
+    <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger render={<Button variant="secondary">Withdraw Application</Button>} />
       <DialogContent>
         <DialogHeader>
@@ -68,8 +69,11 @@ export function DialogSpecimen() {
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
-          <DialogClose render={<Button variant="secondary">Keep It</Button>} />
-          <DialogClose render={<Button variant="destructive">Withdraw</Button>} />
+          <ConfirmButtons
+            act="Withdraw"
+            onKeep={() => setOpen(false)}
+            onAct={() => setOpen(false)}
+          />
         </DialogFooter>
       </DialogContent>
     </Dialog>

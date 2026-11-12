@@ -1558,8 +1558,8 @@ read up on it before an interview. Every answer has a muted **Delete**
 under it (KAN-369): the student's own (a Looks right or Save for next time
 in a batch tab), one saved here with Check and Save, and their Claude's;
 not own limits reuse, not removal. It asks first on that line ("Delete
-this answer? Later forms won't fill it.", the red Delete Answer and Keep
-It, as on Resumes), then calls `DELETE
+this answer? Later forms won't fill it.", Keep It and the red Delete
+Answer, as on Resumes), then calls `DELETE
 .../applications/{job_id}/answers?name=&own_only=false` and refreshes the
 list; a question an open tab still asks shows above again, unanswered. A
 failed delete keeps the answer and says why in red under it. The list is left out when nothing is answered or it doesn't load.
@@ -3385,9 +3385,10 @@ upload's page.
   name repeated. Generate has no limit (KAN-268); a failed one shows its
   message as Generated Resumes' error. **A Generate that would make a
   resume the student already has asks first** (KAN-267, KAN-444): a modal
-  says "You Already Have This Resume. Resume #3 has the same content.
-  Confirm to make a copy anyway." with Cancel and Confirm
-  (`resumes/duplicate-resume-dialog.tsx`). Cancel makes nothing; Confirm
+  says "You Already Have This Resume. Resume #3 has the same content. You
+  can still make a copy." with Close and Make a Copy
+  (`resumes/duplicate-resume-dialog.tsx`; Cancel and Confirm until
+  KAN-817, which named nothing). Close makes nothing; Make a Copy
   runs Generate again with `allow_duplicate` and opens the copy. Under the
   sentence it shows the resume it matches: a card with its name and when it
   was created and last edited, and its first page (`ResumeFirstPage`, one
@@ -3407,7 +3408,7 @@ upload's page.
   `/api/resume-generate`), never a timer; the first runs until the first
   line, the last while the editor loads, as a Tailor run ends. The dialog
   opens only once the API says `saving` (its duplicate check passed), with
-  the first two steps ticked, or at once after a Confirm: a copy is asked
+  the first two steps ticked, or at once after Make a Copy: a copy is asked
   about first. The student
   reviews the new resume there: left on this list, it was one more row to
   find and open (the user's call, 2026-11-10). It is the steps dialog
@@ -3421,7 +3422,7 @@ upload's page.
   refused** (KAN-267): nothing is kept, whenever and however the file was
   exported again, and the same modal opens: "You Already Have This
   Resume. Your upload <name> has the same text." with the upload's card,
-  its first page and OK
+  its first page and Close (OK until KAN-817)
   (`resumes/duplicate-resume-dialog.tsx`). An upload is never confirmed:
   the database keeps one upload per text, and a copy would take one of
   the 5 slots.
@@ -3554,8 +3555,9 @@ upload's page.
   went out under.
 - **Delete asks first**, on every resume, in a popover hung from the
   trash that opened it (KAN-347, `DeleteResumeConfirm` in
-  `delete-confirm.tsx`): the question, then Delete Resume and Keep It, the
-  bank entry's words and buttons. Escape or a click outside keeps the
+  `delete-confirm.tsx`): the question, then Keep It and Delete Resume, in
+  the order every delete's question has them (`ConfirmButtons`, KAN-817),
+  as the dialog for several picked resumes does. Escape or a click outside keeps the
   resume. It opened under the card until KAN-347, below the row's notes
   and away from the icon, and pushed the cards under it down. Both went at
   one click until KAN-258. Deleting a resume keeps the files already sent
@@ -4484,7 +4486,9 @@ not it scrolls.
   students look for it (it sat under Personal Details until KAN-364): a
   red button opens a step whose Delete Account stays locked until the
   student types their sign-in email (one click on a red button is too easy
-  to make by mistake); on success the action signs out and opens the
+  to make by mistake), with Keep It before it, as every delete's question
+  has them (`ConfirmButtons`, KAN-817; it said Keep My Account, after
+  the red button); on success the action signs out and opens the
   landing page, on failure the step stays open with the error.
 - **Notifications** (`/settings/notifications`): the design only. A row
   per alert the bell promises (New Matches, Employer Replies), each with a

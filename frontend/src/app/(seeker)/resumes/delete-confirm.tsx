@@ -4,7 +4,6 @@ import { useState, type ReactElement, type ReactNode, type RefObject } from "rea
 
 import {
   Dialog,
-  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -12,20 +11,21 @@ import {
   DialogTitle,
 } from "@/components/shadcn/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/shadcn/popover";
-import { Button } from "@/components/ui/button";
+import { ConfirmButtons } from "@/components/ui/confirm-buttons";
 import { Tip } from "@/components/ui/tip";
 
 /**
  * A delete's question on a line under what it deletes: what goes and what
- * stays, then the red Delete and Keep It. The answer bank's Delete asks here
+ * stays, then Keep It and the red Delete (`ConfirmButtons`, KAN-817, the
+ * pair every delete's question draws). The answer bank's Delete asks here
  * (`auto-apply/answers/delete-answer.tsx`). The bank's entries and Clear All
  * asked here too, until KAN-732 moved them into `DeleteDialog`, below. A
  * resume asks in `DeleteResumeConfirm`, below, with the same words and
  * buttons.
  *
- * The two buttons wrap as one group: wrapped one by one, Keep It sat alone
- * on a line under Delete Resume. `busy` holds Delete while the request runs,
- * so a second press cannot send a second delete.
+ * The two buttons wrap as one group: wrapped one by one, one sat alone on a
+ * line under the other. `busy` holds both while the request runs, so a
+ * second press cannot send a second delete.
  */
 export function DeleteConfirm({
   label,
@@ -45,14 +45,7 @@ export function DeleteConfirm({
   return (
     <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2">
       <span className="text-note text-ink-muted">{children}</span>
-      <div className="flex gap-2">
-        <Button size="sm" variant="destructive" onClick={onDelete} disabled={busy}>
-          {label}
-        </Button>
-        <Button size="sm" variant="secondary" onClick={onKeep}>
-          Keep It
-        </Button>
-      </div>
+      <ConfirmButtons size="sm" act={label} busy={busy} onKeep={onKeep} onAct={onDelete} />
     </div>
   );
 }
@@ -68,7 +61,7 @@ export function DeleteConfirm({
  * view, which took no focus and which a screen reader never heard. Drawn as
  * the app's other questions are (`company/jobs/close-job-dialog.tsx`): the
  * question names what goes, the line under it what goes with it and what
- * stays, then Keep It and the red button.
+ * stays, then Keep It and the red button (`ConfirmButtons`).
  *
  * Open while mounted: the caller mounts it to ask and unmounts it on Keep It
  * or once the delete is done. Escape, a press outside and the × are Keep It,
@@ -115,10 +108,7 @@ export function DeleteDialog({
           </p>
         )}
         <DialogFooter>
-          <DialogClose render={<Button variant="secondary">Keep It</Button>} />
-          <Button variant="destructive" onClick={onDelete} disabled={busy}>
-            {label}
-          </Button>
+          <ConfirmButtons act={label} busy={busy} onKeep={onKeep} onAct={onDelete} />
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -128,7 +118,10 @@ export function DeleteDialog({
 /**
  * Delete's confirm on a resume (KAN-347): a popover hung from the control
  * that opened it, a card's trash or the upload page's Delete, so the
- * question sits where the student clicked. Under the card it opened below
+ * question sits where the student clicked. Keep It comes first and Delete
+ * Resume last, as in the dialog that deletes several (`ConfirmButtons`,
+ * KAN-817): the popover had Delete first, so the red button changed sides
+ * on one page. Under the card it opened below
  * the row's notes, away from the icon, and pushed the rows under it down.
  * Every resume's Delete asks here, so the cards and the upload page stay
  * alike. Escape or a click outside is Keep It. It stays open while the
@@ -188,14 +181,13 @@ export function DeleteResumeConfirm({
         <p className="text-note text-ink-muted text-pretty">
           Delete this resume? Files you already sent are kept.
         </p>
-        <div className="flex gap-2">
-          <Button size="sm" variant="destructive" onClick={remove} disabled={busy}>
-            Delete Resume
-          </Button>
-          <Button size="sm" variant="secondary" onClick={() => setOpen(false)}>
-            Keep It
-          </Button>
-        </div>
+        <ConfirmButtons
+          size="sm"
+          act="Delete Resume"
+          busy={busy}
+          onKeep={() => setOpen(false)}
+          onAct={remove}
+        />
       </PopoverContent>
     </Popover>
   );

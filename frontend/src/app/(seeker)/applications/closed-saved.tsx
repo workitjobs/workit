@@ -8,7 +8,6 @@ import { useState, useTransition } from "react";
 import { TrashIcon } from "@/components/icons";
 import {
   Dialog,
-  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -16,6 +15,7 @@ import {
   DialogTitle,
 } from "@/components/shadcn/dialog";
 import { Button, buttonClasses } from "@/components/ui/button";
+import { ConfirmButtons } from "@/components/ui/confirm-buttons";
 import { IconButton } from "@/components/ui/icon-button";
 import { Notice } from "@/components/ui/notice";
 import { useToast } from "@/components/ui/toast";
@@ -94,10 +94,7 @@ export function ClosedSavedControl({
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <DialogClose render={<Button variant="secondary">Cancel</Button>} />
-            <Button variant="destructive" onClick={remove}>
-              Remove
-            </Button>
+            <ConfirmButtons act="Remove" onKeep={() => setAsking(false)} onAct={remove} />
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -158,10 +155,11 @@ export function RemoveClosedButton({ apps }: { apps: Pick<Application, "id" | "r
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <DialogClose render={<Button variant="secondary">Cancel</Button>} />
-            <Button variant="destructive" onClick={removeAll}>
-              Remove {count}
-            </Button>
+            <ConfirmButtons
+              act={`Remove ${count}`}
+              onKeep={() => setAsking(false)}
+              onAct={removeAll}
+            />
           </DialogFooter>
         </DialogContent>
       </Dialog>

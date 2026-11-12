@@ -24,6 +24,7 @@ import {
   DialogTitle,
 } from "@/components/shadcn/dialog";
 import { Button } from "@/components/ui/button";
+import { ConfirmButtons } from "@/components/ui/confirm-buttons";
 import { useToast } from "@/components/ui/toast";
 
 import { STAGE_COLOR, STAGE_ICON, STAGE_LABEL } from "../stage-colors";
@@ -215,10 +216,11 @@ export function TrackerSelectionBar() {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <DialogClose render={<Button variant="secondary">Cancel</Button>} />
-            <Button variant="destructive" onClick={remove}>
-              Remove {rows.length}
-            </Button>
+            <ConfirmButtons
+              act={`Remove ${rows.length}`}
+              onKeep={() => setRemoving(false)}
+              onAct={remove}
+            />
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -158,7 +158,8 @@ open choices (Settled choices, near the end).
     `secondary` for the others beside it, `outline` for an action inside a
     recessed area, `ghost` for an inline text action, `section` for a
     section heading's action, `positive` and `decline` for an accept and
-    decline pair, `destructive` for a permanent delete. A link in running
+    decline pair, `destructive` for a permanent delete (drawn by
+    `ConfirmButtons` where it answers a question). A link in running
     text is `TextLink`. Sizes: "Pick a button's size by where it sits",
     below.
   - **Which button look, by what it does and where it sits** (2026-11-10,
@@ -253,7 +254,8 @@ open choices (Settled choices, near the end).
 - **A write that cannot be taken back asks first or offers Undo.** A
   student who slips must be able to recover (NN/g, "Preventing user
   errors"; GOV.UK, "Warning text"). A delete of the student's own content
-  asks first (`DeleteResumeConfirm`), or acts at once with Undo in its
+  asks first, answered by `ConfirmButtons` (Keep It, then the red act,
+  "A question before a delete", below), or acts at once with Undo in its
   toast (`useToast().show({ action })`, as Up Next's Remove does). A
   result the page does not show by itself is a toast, with Retry where it
   failed. A field error sits under its field, and the submit moves focus
@@ -428,7 +430,8 @@ open choices (Settled choices, near the end).
   `frontend/CLAUDE.md`, which lists what takes which.
 - **Plain words.** Students scan; they do not read every word (NN/g, "How
   users read on the web"; GOV.UK, "Writing for user interfaces"). A button
-  names its action with a verb ("Save Entry", never "OK" or "Submit"). An
+  names its action with a verb ("Save Entry", never "OK" or "Submit";
+  the duplicate resume's dialog says Make a Copy and Close, KAN-817). An
   error says what went wrong and what to do next. Put the key word first.
   Use the job terms from the root `CLAUDE.md` (a hiring system, never an
   ATS) and one name for one thing on every screen.
@@ -1131,6 +1134,27 @@ rules, each with its own reason, and every form follows one of them:
   why Next is off goes above it, full width, as the sign-in pages' error
   banner.
 
+**A question before a delete answers with one pair, `ConfirmButtons`**
+(`components/ui/confirm-buttons.tsx`, KAN-817): **Keep It** first, the red
+button last, in every shape the question takes. A dialog (`DeleteDialog`,
+the Tracker's Remove), a popover (`DeleteResumeConfirm`), a bar across a
+dialog's foot (`ConfirmBar`, Settings' `DiscardBar`), a line under the
+thing (`DeleteConfirm`) and Settings' Delete Account step all draw their
+buttons with it; Delete Account keeps it left, as a Settings form, but in
+this order, not the primary first. The way out always says Keep It, never
+Cancel, OK or a name of its own ("Keep My Account"); only Discard Your
+Changes? says Keep Editing, since nothing is deleted yet and "Keep It"
+would not say what is kept (the prop's type allows nothing else). The red
+button names what it does to what ("Delete Resume", "Remove 3"), and while
+the delete runs both buttons hold and the red one says "Deleting…". So a
+dialog's first focus lands on Keep It, never on the delete. Until then the
+question came in four shapes and the red button moved: first in the
+popover, the line and Delete Account, last in the dialogs and the bars, so
+on Resumes deleting one resume and deleting several put Delete on opposite
+sides, and the way out said Keep It, Cancel or Keep My Account. A new
+delete question draws its buttons with the pair, never two Buttons of its
+own; the design kit's Buttons page shows it ("Before a Delete").
+
 Nielsen Norman Group's finding is that either order works and mixing them on
 like screens costs the user, so a new form takes its kind's rule. **A
 disabled Save is grey** (`ui/button.tsx`, DISABLED_FILL): a faded brand fill
@@ -1400,7 +1424,9 @@ Account) takes the section's place as a card with Back beside its title
 (`(seeker)/settings/settings-step.tsx`); Back, Cancel, Escape or the nav
 return to the section, with its scroll and focus as they were, and the
 section stays mounted under the step. The form's buttons follow a
-Settings form's rule (left, the primary first). **The one thing that may
+Settings form's rule (left, the primary first), except Delete Account's,
+which are every delete's (`ConfirmButtons`: Keep It, then Delete Account).
+**The one thing that may
 sit inside a dialog is a one-line confirm, and it is a bar, not a
 dialog**: Settings' "Discard Your Changes?" runs across the modal's foot
 with Keep Editing (which takes the focus) and Discard Changes, and Escape

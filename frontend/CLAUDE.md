@@ -2109,6 +2109,14 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   right (KAN-565). A disabled filled button is grey (`ui/button.tsx`,
   DISABLED_FILL), never a faded brand fill, and a lesser action beside a
   button is `variant="section"`, never brand text.
+- **A delete's question answers with `ConfirmButtons`**
+  (`components/ui/confirm-buttons.tsx`, KAN-817; `docs/design.md`, "A
+  question before a delete"): Keep It first, the red act last, in a dialog,
+  a popover, a bar across a dialog's foot, a line or a Settings step. The
+  way out always says Keep It; Discard Your Changes? alone says Keep
+  Editing. The red button sat first in some shapes and last in others, so
+  on Resumes it changed sides between deleting one resume and several.
+  Never draw a delete's two buttons by hand.
 - **Anything clicked or picked is medium (450, `--font-weight-medium`; 500
   until 2026-11-10, which read thick beside Jobright's)**: buttons, chips,
   segmented controls, filter options, and shadcn's menu, select and
