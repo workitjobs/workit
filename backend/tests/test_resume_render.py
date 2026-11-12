@@ -1034,3 +1034,59 @@ def test_a_group_named_only_in_lower_case_prints_in_title_case():
 def test_a_lone_group_named_other_prints_unlabeled():
     skills = _skills(("Excel", "other"), ("Word", None))
     assert skill_lines(skills) == [("", tuple(skills))]
+
+
+# --- A long heading wraps before its dates (KAN-807) ---------------------------
+
+def _long_heading_view() -> ResumeView:
+    month = datetime.date
+    return ResumeView(sections=(
+        ViewSection("education", (
+            ViewEntry(uuid.uuid4(), "education", "Lakeside Global Campus Signal Processing and Machine Learning Program",
+                      location="Lakeside, NY", end_month=month(2025, 8, 1), end_kind="month"),
+        )),
+        ViewSection("experience", (
+            ViewEntry(uuid.uuid4(), "experience",
+                      "Undergraduate Research Assistant, Autonomous Systems and Robotics Laboratory",
+                      organization="Hillcrest State University", location="Hillcrest, NY",
+                      start_month=month(2024, 9, 1), end_kind="present",
+                      bullets=(ViewBullet(uuid.uuid4(), "Tuned the PD loop"),)),
+        )),
+        ViewSection("projects", (
+            ViewEntry(uuid.uuid4(), "projects", "Maze Robot: Autonomous Navigation with A* Planning and Sensor Fusion",
+                      organization="IEEE Student Branch", start_month=month(2025, 1, 1),
+                      end_month=month(2025, 4, 1), end_kind="month"),
+        )),
+    ), skills=())
+
+
+def test_a_long_heading_wraps_before_its_dates_and_stays_on_the_page():
+    # KAN-807: Jake's `l` column never breaks, so a long title ran under the
+    # dates and past the margin ("Present" and "Apr. 2025" were cut off)
+    _tectonic_or_skip()
+    rendered = render(_long_heading_view(), IDENTITY, "jakes")
+    edge = 576  # Jake's text area ends half an inch in from the letter page's 612 pt
+    for entry_id in {b.item_id for b in rendered.boxes if b.kind == "title"}:
+        boxes = {b.kind: b for b in rendered.boxes if b.item_id == entry_id}
+        title = boxes["title"]
+        right = min((b for b in boxes.values() if b.x0 > title.x0 and abs(b.y0 - title.y0) < 1), key=lambda b: b.x0)
+        # Its words stop short of the right side on the title's first line,
+        # and the right side ends inside the text area
+        assert title.x1 < right.x0 and right.x1 <= edge + 1
+    assert all(t.rstrip() for t, _, _ in _text_lines(rendered.pdf))
+    titles = [b for b in rendered.boxes if b.kind == "title"]
+    assert sum(1 for b in titles if b.y1 - b.y0 > 20) == 2  # two titles wrap; the project's tag does
+
+
+def test_a_heading_that_fits_keeps_jake_s_own_table():
+    # Only a heading wider than its row wraps: set with a wrapping column,
+    # two one-row headings in a row stood 13.5 pt further apart
+    _tectonic_or_skip()
+    month = datetime.date
+    schools = tuple(ViewEntry(uuid.uuid4(), "education", f"Program {n}", location="Lakeside, NY",
+                              end_month=month(2025, 8, 1), end_kind="month") for n in (1, 2))
+    rendered = render(ResumeView((ViewSection("education", schools),), ()), IDENTITY, "jakes")
+    first, second = sorted((b for b in rendered.boxes if b.kind == "title"), key=lambda b: b.y0)
+    assert second.y0 - first.y0 < 15
+    assert r"\else" + "\n" + r"\vspace{-2pt}\item" in jakes_body(
+        ResumeView((ViewSection("education", schools),), ()), IDENTITY, marks=False)

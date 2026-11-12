@@ -29,6 +29,19 @@ resume; KAN-207 renders the bank and retired the proof endpoint.
   Tailor's prompt (`tailor.skill_groups`), Fit to One Page and the
   editor's outline (`printedSkills`, `groupKey`) group the same way;
   change them together.
+- **A heading wraps only when it is wider than its row leaves** (KAN-807,
+  `jakes.FIT`, `_fitted`): Jake's `l` column never breaks, so a long title
+  or organization ran under the dates and off the page. `\wifit` measures
+  each left side against what the right side leaves; a heading that fits
+  keeps Jake's own table (no fitting page moved: every box of a page with
+  each heading kind matched main, and Jake's sample pixel for pixel), and
+  one that does not puts its left sides in a `\parbox` 1em short of the
+  right side. Two traps, each found by a test: `\wiw` is a `\newdimen`,
+  since a `\newlength` glue assignment looks ahead for "plus" and ran the
+  next `\ifdim` early; and the `\wifit` line ends in `%`, since its line end
+  read as a space set two one-row headings 13.5 pt apart. A box over two
+  lines stops 4 pt short of its own item's next box on its first line
+  (`_short_of_beside`), so a wrapped title's box never covers its dates.
 - **The font and a size per kind of text are page settings too** (KAN-435):
   `font_family` from `FONT_FAMILIES`, and `name_size`, `heading_size`,
   `title_size` and `body_size`, each null until set, which follows `font_size`
