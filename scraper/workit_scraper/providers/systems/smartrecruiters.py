@@ -16,12 +16,15 @@ from dataclasses import replace
 from workit_scraper import details
 from workit_scraper.providers import fetch
 from workit_scraper.providers.fetch import _iso
-from workit_scraper.providers.model import Job, Provider
+from workit_scraper.providers.model import Incomplete, Job, Provider, TooLarge
 from workit_scraper.providers.registry import job_url, listing_url
 from workit_scraper.providers.text import _described, _page, _work_style
 
 #: Postings per SmartRecruiters request (API's max).
 SR_PAGE = 100
+
+#: Largest board we read whole. 5,000 at 100 per page is 50 requests.
+SR_MAX = 5000
 
 #: SmartRecruiters' ``period`` values mapped to `details._INTERVAL`'s keys.
 _SR_PERIOD = {
@@ -35,7 +38,11 @@ _SR_PERIOD = {
 def smartrecruiters(
     token: str, company: str, *, pace: Callable[[str], None] = lambda url: None
 ) -> list[Job]:
-    """Every posting on a SmartRecruiters board, paged 100 at a time."""
+    """Every posting on a SmartRecruiters board, paged 100 at a time.
+
+    # ponytail: cannot distinguish invalid slug from empty board;
+    # SmartRecruiters sends 200 with totalFound: 0 for all slugs.
+    """
     jobs: list[Job] = []
     offset = 0
     first = True
@@ -47,6 +54,8 @@ def smartrecruiters(
         payload = fetch._get_json(url)
         assert isinstance(payload, dict)
         total = int(payload.get("totalFound") or 0)
+        if first and total > SR_MAX:
+            raise TooLarge(f"{token}: {total} postings")
         content = payload.get("content") or []
         for row in content:
             loc = row.get("location") or {}
@@ -74,6 +83,8 @@ def smartrecruiters(
         if not content or offset + len(content) >= total:
             break
         offset += SR_PAGE
+    if jobs and len(jobs) < total:
+        raise Incomplete(f"{token}: got {len(jobs)} of {total}")
     return jobs
 
 
