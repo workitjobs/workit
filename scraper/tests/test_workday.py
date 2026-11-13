@@ -455,6 +455,53 @@ class TestCappedBoards:
         queried_dims = {dim for key, _ in asked for dim, _ in key}
         assert "location" not in queried_dims
 
+    def test_zero_total_slice_is_skipped(self, monkeypatch) -> None:
+        """A facet value whose filtered query returns total=0 is skipped."""
+        monkeypatch.setattr(providers.systems.workday, "WORKDAY_CAP", 3)
+        facets = [
+            {"facetParameter": "dim", "values": [
+                {"id": "a", "count": 2}, {"id": "b", "count": 1}, {"id": "c", "count": 0}]},
+            {"facetParameter": "dim2", "values": [
+                {"id": "x", "count": 2}, {"id": "y", "count": 1}]},
+        ]  # fmt: skip
+        board_pages(
+            monkeypatch,
+            {
+                ((), 0): {"total": 3, "facets": facets, "jobPostings": []},
+                ((("dim", "a"),), 0): {"total": 2, "jobPostings": AXOS_ROWS[:2]},
+                ((("dim", "b"),), 0): {"total": 1, "jobPostings": AXOS_ROWS[2:]},
+                ((("dim", "c"),), 0): {"total": 0, "jobPostings": []},
+            },
+        )
+        jobs = providers.workday(AXOS, "Axos", pace=lambda url: None)
+        assert len(jobs) == 3
+
+    def test_no_usable_dimension_mid_recursion_raises_too_large(self, monkeypatch) -> None:
+        """When the first level splits but a still-capped slice has no unused
+        dimension with sum >= cap, TooLarge is raised from depth 1."""
+        monkeypatch.setattr(providers.systems.workday, "WORKDAY_CAP", 2)
+        # Level 0: dimA splits the board. Value "a1" stays capped.
+        facets_l0 = [
+            {"facetParameter": "dimA", "values": [
+                {"id": "a1", "count": 2}, {"id": "a2", "count": 1}]},
+            {"facetParameter": "dimB", "values": [
+                {"id": "b1", "count": 2}, {"id": "b2", "count": 1}]},
+        ]  # fmt: skip
+        # Level 1 (a1): dimA is used, dimB sums to 1 (below cap) — no pick.
+        facets_l1 = [
+            {"facetParameter": "dimA", "values": [{"id": "a1", "count": 2}]},
+            {"facetParameter": "dimB", "values": [{"id": "b1", "count": 1}]},
+        ]  # fmt: skip
+        board_pages(
+            monkeypatch,
+            {
+                ((), 0): {"total": 2, "facets": facets_l0, "jobPostings": []},
+                ((("dimA", "a1"),), 0): {"total": 2, "facets": facets_l1, "jobPostings": []},
+            },
+        )
+        with pytest.raises(TooLarge, match="no usable dimension at depth 1"):
+            providers.workday(AXOS, "Axos", pace=lambda url: None)
+
 
 class TestPostedOn:
     @pytest.mark.parametrize(

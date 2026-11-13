@@ -68,7 +68,8 @@ def workday(
             raise BoardNotFound(url) from error
         raise
     size = int(first.get("total") or 0)
-    if size == WORKDAY_CAP:
+    is_capped = size == WORKDAY_CAP
+    if is_capped:
         size = _real_size(first)
         if size is None:
             raise TooLarge(
@@ -78,7 +79,7 @@ def workday(
         raise TooLarge(f"{size:,} postings")
 
     rows: dict[str, dict] = {}
-    if int(first.get("total") or 0) == WORKDAY_CAP:
+    if is_capped:
         _split_capped(url, pace, first, {}, set(), 0, rows)
     else:
         _page_slice(url, pace, {}, first, rows)
@@ -120,7 +121,8 @@ def _flat_facets(page: dict) -> dict[str, list[dict]]:
     return {
         facet.get("facetParameter"): values
         for facet in page.get("facets") or []
-        if (values := facet.get("values"))
+        if facet.get("facetParameter")
+        and (values := facet.get("values"))
         and all(isinstance(v.get("count"), int) and v.get("id") for v in values)
     }
 
