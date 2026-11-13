@@ -11,7 +11,7 @@ from datetime import UTC, datetime
 
 from workit_scraper.providers import fetch
 from workit_scraper.providers.fetch import _iso
-from workit_scraper.providers.model import Incomplete, Job, Provider
+from workit_scraper.providers.model import BoardNotFound, Incomplete, Job, Provider
 from workit_scraper.providers.registry import job_url, listing_url
 from workit_scraper.providers.text import _described, _page
 
@@ -29,11 +29,17 @@ def successfactors(
         url = listing_url("successfactors", token).replace("startrow=0", f"startrow={len(rows)}")
         if rows:
             pace(url)
-        text = fetch._get_text(url)
+        try:
+            text = fetch._get_text(url)
+        except BoardNotFound as error:
+            if not rows:
+                raise
+            raise Incomplete(f"no page at offset {len(rows):,}") from error
         total = re.search(r"paginationLabel[^>]*>.*?of\s*<b>([\d,]+)</b>", text, re.S)
         expected = int(total[1].replace(",", "")) if total else 0 if expected is None else expected
         page = _successfactors_rows(text)
         served += len(page)
+        previous_count = len(rows)
         for row in page:
             rows.setdefault(row[0], row)
         if not page:
@@ -43,6 +49,9 @@ def successfactors(
             # (Sonepar: 938 of 938 read, some twice).
             ended = True
             break
+        if len(rows) == previous_count:
+            # Offsets use distinct rows; another request would repeat this URL.
+            raise Incomplete(f"no new postings at offset {previous_count:,}")
     if len(rows) != expected and (served != len(rows) or len(rows) > expected or not ended):
         raise Incomplete(f"read {len(rows):,} distinct postings of {expected:,}")
     return [

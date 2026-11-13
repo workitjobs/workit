@@ -1,0 +1,9 @@
+{
+  "status": "OK",
+  "data": {
+    "jobDescription": "<p>Join our team for a 12-week summer internship working on real projects with experienced engineers.</p><h3>Requirements</h3><ul><li>Currently pursuing a BS or MS in Computer Science</li><li>Experience with Python or Java</li></ul><h3>Benefits</h3><p>Competitive pay and housing stipend.</p>",
+    "workLocationOption": "hybrid",
+    "locations": ["Boise, ID, US"],
+    "department": "Engineering"
+  }
+}
