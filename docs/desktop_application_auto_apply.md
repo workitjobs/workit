@@ -87,7 +87,7 @@ builds it.
 | D1 | **Every model call goes through WorkIt's Model route.** No `claude -p`, no local model and no student key in the app (2026-11-10; ADR 0005) | A product may not offer a student's Claude login; a local model is too weak and too heavy for a laptop; a key in the app is a key for everyone | W1 |
 | D2 | **The app does no research.** It reads each company's brief from WorkIt | Research is the most expensive call, and a brief holds no student data, so WorkIt can make one per company for every student | W9, F2 |
 | D3 | **The Fill engine is downloaded only, never shipped in the app.** Signed, encrypted, unlocked by a per-launch key, kept only in memory | A copy in the download is a copy for everyone; the app needs WorkIt to run anyway | W7 |
-| D4 | **The Worker extension goes on the Chrome Web Store, unlisted, from WorkIt's existing developer account.** Its code runs in pages through the Debugger API, not `userScripts`, and holds no engine. A spike decides it first; if it fails, v1 keeps the extension off the store | One click for the student; the store allows outside code only through the Debugger or User Scripts API, and User Scripts is only for the user's own code; the existing account costs no new fee and has a trust history | W6 |
+| D4 | **The Worker extension goes on the Chrome Web Store, unlisted, from WorkIt's existing developer account.** Apply's page code and the Fill engine reach pages through the Debugger API, not `userScripts`; the guards and the fixed page functions are packaged in it, since only a content script reaches a pop-up (measured); it holds no engine. A spike decides it (KAN-839, started); if it fails, v1 keeps the extension off the store | One click for the student; the store allows outside code only through the Debugger or User Scripts API, and User Scripts is only for the user's own code; the existing account costs no new fee and has a trust history | W6 |
 | D5 | **The Model route is a thin proxy for v1.** The app sends the call; WorkIt adds the key, runs the provider chain and counts tokens. The prompts stay in the app | Fastest path; writing on WorkIt's server can come later (F6) | W1 |
 | D6 | **A free beta with a Usage cap of 3,000,000 tokens per student per calendar month**, reset on the 1st (UTC), always shown in the app. WorkIt can change it without an app update | High enough for testing; the number is checked after W13 measures one Application | W1 |
 | D7 | **The beta uses the providers' free tiers.** Paid tiers come later (F3) | No paid keys for now | W1, F3 |
@@ -345,12 +345,15 @@ guards run unchanged. Today the Worker extension (about 3,000 lines in
 
 - its own packaged ops (`ops/*.js`, `page/*.js`): tabs, clicks, tiles,
   typing;
-- the Fill engine, which Apply writes into the extension's folder as
-  `vendor/engine.js` before each launch, injected as a file
-  (`ops/engine.js`);
-- Apply's page code (each `page.evaluate`) through `userScripts.execute`
-  (`ops/core.js`), and the guards' early scripts through
-  `userScripts.register` (`ops/guard.js`).
+- files that `apply plain prepare` writes into the extension's `vendor/`
+  folder before each launch: the Fill engine (`vendor/engine.js`,
+  injected as a file, `ops/engine.js`), the guard scripts (registered as
+  content scripts in every frame at `document_start`, `ops/guard.js`),
+  `fixed.js` (the page functions a held page runs on each turn) and
+  `injected.js` (Playwright's injected script);
+- Apply's other page code (each `page.evaluate` with no fixed copy)
+  through `userScripts.execute` (`ops/core.js`), or through `eval` where
+  user scripts are off and the page's CSP allows it.
 
 It types through its own `chrome.debugger`, attached only while text goes
 in (`ops/typing.js`); Workers start with `--silent-debugger-extension-api`,
@@ -727,20 +730,26 @@ Store, under the store's rules (D4).
 **Why the change.** The store allows code from outside the extension's
 package only through the Debugger API or the User Scripts API, each for
 its stated purpose; the User Scripts API is for code the user writes.
-Today the extension runs Apply's code through `userScripts` and loads the
-engine from a file Apply writes into its folder, and a store
-extension's folder belongs to Chrome. The store also forbids obfuscated
-code, including code the extension runs; minified code is allowed.
+Today the extension runs Apply's page code (the `eval` op) through
+`userScripts.execute`, and loads files that `apply plain prepare` writes
+into its `vendor/` folder: the engine, the guard scripts, `fixed.js` (the
+fixed page functions) and `injected.js` (Playwright's injected script). A
+store extension's folder belongs to Chrome, so Apply can't write there.
+The store also forbids obfuscated code, including code the extension
+runs; minified code is allowed.
 
-**The change: the debugger replaces `userScripts`.**
+**The change: the debugger carries what changes; the rest is packaged.**
 
-| Today | With the debugger |
+| Today | In the store copy |
 |---|---|
-| `vendor/engine.js` written into the extension's folder, injected as a file | Apply sends the engine's text over native messaging (it goes in pieces: Apply splits any message over 512 KiB). The extension runs it with `Runtime.evaluate`. No engine file on disk |
-| `userScripts.execute` for Apply's page code (`ops/core.js`) | `Runtime.evaluate`, with `Runtime` never turned on |
-| `userScripts.register` for the guards' early scripts (`ops/guard.js`) | `Page.addScriptToEvaluateOnNewDocument`, in every frame's session |
-| Tiles through `captureVisibleTab`, about 2 a second; Swift for smooth tiles | `Page.startScreencast` |
+| `vendor/engine.js` written into the extension's folder, injected as a file | Apply sends the engine's text over native messaging once per connection (`cdp.keep`, checked by its sha256; Apply splits any message over 512 KiB); the extension holds it in memory and runs it through the debugger (`cdp.load`). No engine file on disk |
+| `userScripts.execute` for Apply's page code that has no fixed copy (`ops/core.js`) | `cdp.eval` through the debugger, with `Runtime` never turned on |
+| The guard scripts, `fixed.js`, `injected.js` and `page/relay.js` as `vendor/` files Apply writes, registered as content scripts | The same files packaged in the extension at its build, each checked against Apply's sha256. Chrome puts a registered content script in every tab and frame itself, pop-ups included; the debugger can't (measured) |
+| Tiles through `captureVisibleTab`, about 2 a second; Swift for smooth tiles | `Page.startScreencast` (not built yet) |
 | Packaged ops (tabs, clicks, typing) | Unchanged |
+
+A guard change then needs a store release before the app that expects
+it: Apply already refuses a guard file whose sha256 isn't its own.
 
 The `userScripts` permission goes, so the student never turns on Allow
 User Scripts and needs no Developer mode. The extension keeps
@@ -751,20 +760,39 @@ with Enhanced Safe Browsing on may also see "Proceed with caution" for a
 developer without a trust history. Workers start with
 `--silent-debugger-extension-api`, so no debugging bar shows.
 
-**The spike, first.** Prove on real postings, with the form held on its
-last page:
+**The spike (KAN-839, started 2026-11-13).** Built behind
+`APPLY_PLAIN_EXEC=debugger`, off by default: `ops/cdp.js` and
+`ops/debug.js` in the extension, `apply.plain.script` in Apply, and
+`tests/test_plain_debugger.py` (`apply-agent/docs/plain-workers/guide.md`,
+"Page code through the debugger"). Measured on Chrome for Testing 158 with
+user scripts off:
 
-1. **Frames from other sites:** a Greenhouse form embedded in a careers
-   page sits in a frame Chrome runs in its own process. The debugger
-   must reach it and run the engine there, without turning `Runtime` on.
-2. **The guard in every frame before the page's code**, as each new frame
-   appears. This is guard code: adversarial review and hostile-page
-   cases.
-3. **Bot signals:** the debugger stays attached for the whole form, not
-   only while typing. Rehearse Lever, SmartRecruiters and Workable, and
-   compare with today's plain Workers on the same postings.
-4. **A whole form:** fill, read-back, Next and file upload, compared with
-   today's plain Worker.
+1. **Frames from other sites: passed.** Page code and the engine reach the
+   MAIN world of the top frame, a same-site frame and a frame from another
+   site (its own process), on a page whose CSP forbids eval, where today's
+   `eval` op fails. `Runtime` is never turned on: a page that watches for
+   it sees nothing.
+2. **Early scripts: passed for the tab, failed for pop-ups.** With
+   `Page.enable`, an early script runs before the page's code in every
+   frame of the tab, but never in a pop-up the page opens, a new tab
+   outside the tab's debugger session. So the guards stay registered
+   content scripts, packaged (the table above); no guard code moved.
+3. **Bot signals: no change on three live postings.** The debugger stays
+   attached for the whole form, not only while typing. One Lever, one
+   Workable and one SmartRecruiters posting, rehearsed as Test Person in
+   Chrome for Testing on both paths, ended the same way each (Lever held
+   and verified; Workable failed on its Filler's Apply button; SmartRecruiters
+   handed off when the guard refused a page worker), and no Trace held a
+   captcha or a block. Still to check: branded Chrome on a real seed, and
+   more postings.
+4. **A whole form: passed on one saved form.** `lever-immuta` through
+   `apply plain fill` gives the same read-back on both paths (13 of 13
+   answers shown). Next and file upload on a multi-step form are still to
+   test.
+
+Left after the spike: item 3 in branded Chrome; the packaged files and a store build of the
+extension; turning the switch on by default and removing the
+`userScripts` path; the tile's screencast.
 
 **If the spike passes:** list "WorkIt Auto Apply Worker", unlisted, from
 WorkIt's existing developer account: a privacy policy link, one stated
@@ -781,10 +809,11 @@ run guides the student through Developer mode, Load unpacked and Allow
 User Scripts (`plain/seed_setup.py` does this today), and the engine
 still reaches the Worker in memory, not in a file.
 
-**Touches.** `apply-agent/worker-extension/` (`ops/core.js`,
-`ops/guard.js`, `ops/engine.js`, `ops/tile.js`, `background.js`,
-`manifest.json`), `apply/plain/` (`bridge`, `launcher`, `seed_setup`,
-`tile`), `docs/plain-workers/PROTOCOL.md` and `guide.md`.
+**Touches.** `apply-agent/worker-extension/` (`ops/cdp.js`, `ops/debug.js`,
+`ops/core.js`, `ops/guard.js`, `ops/engine.js`, `ops/tile.js`,
+`background.js`, `manifest.json`), `apply/plain/` (`script`, `page`,
+`bridge`, `extension`, `launcher`, `seed_setup`, `tile`),
+`docs/plain-workers/PROTOCOL.md` and `guide.md`.
 
 ### W7. The engine download and its protection
 

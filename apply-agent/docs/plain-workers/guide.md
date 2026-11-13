@@ -106,7 +106,8 @@ permission):
     old extension) goes in untrusted, as before.
   - The submit guard and its network rules stand behind all of it.
 - **Attached briefly.** The debugger is on a tab only while input goes in, and off 4 s after the
-  last. Workers start with `--silent-debugger-extension-api`, so Chrome shows no "started
+  last, unless `ops/cdp.js` keeps the tab for its early scripts (KAN-839; the one attachment per
+  tab is `ops/debug.js`'s, shared by both). Workers start with `--silent-debugger-extension-api`, so Chrome shows no "started
   debugging this browser" bar; that switch covers any extension's debugger in the Worker's
   Chrome, never Lisul's own Chrome. No CDP port opens, `Runtime` is never on, and
   `navigator.webdriver` stays false. A page can see `document.hasFocus()` true while attached,
@@ -134,6 +135,59 @@ permission):
   lifted, on pages built to steer a trusted click (`STEERS`: a button put inside the label or an
   option, a frame moved under the point, a listener that runs first). `tests/test_plain_trusted_rules.py`
   (in CI) checks the source, and runs `send`'s allowlist in Node.
+
+## Plain Workers: page code through the debugger (KAN-839, a spike)
+
+WorkIt Auto Apply puts the worker extension on the Chrome Web Store
+(`../../../docs/desktop_application_auto_apply.md`, D4 and W6). A store copy may run code that
+isn't in its package only through the Debugger API or the User Scripts API, and the User Scripts
+API is for the user's own code. Today the extension runs Apply's page code (`eval`) through
+`chrome.userScripts`, and loads files Apply writes into its folder (`vendor/`), which a store
+install's folder doesn't allow. `ops/cdp.js` (PROTOCOL.md, "Ops (the debugger)") runs both
+through the debugger instead.
+
+**Off by default.** `APPLY_PLAIN_EXEC=debugger` turns it on for a process: `PortPage`'s
+`evaluate` sends `cdp.eval` in place of `eval`, and each connection hands the Fill engine to the
+extension's memory once (`cdp.keep`, with its sha256), so `engine.load` runs it through the
+debugger with no `vendor/engine.js`. Every other op is unchanged.
+
+**What the spike measured** (`tests/test_plain_debugger.py`, Chrome for Testing 158 with user
+scripts off, 2026-11-13):
+
+| Check | Result |
+|---|---|
+| The `eval` op on a page whose CSP forbids eval | Fails (`UserScriptsOff`): the problem |
+| `cdp.eval` there: the top frame, a same-site frame, a frame from another site (its own process) | Each frame's MAIN world, under the CSP |
+| Runtime on? A page that watches for it (a getter DevTools would read off a console call's argument) | Never seen, after page code and early scripts |
+| The Fill engine (590 KB) through native messaging, then the debugger | 0.14 s in the top frame; loads in every frame |
+| An early script (`cdp.script`, with `Page.enable`) | Runs before the page's own code in every frame of the tab |
+| An early script in a pop-up the page opens | **Never**: a pop-up is a new tab, outside the tab's debugger session |
+| `lever-immuta`, a saved form, through `apply plain fill` | The same read-back as through user scripts (13 of 13 answers shown) |
+
+**Three live postings, both paths** (`apply rehearse` as Test Person in a scratch data folder,
+plain Workers in Chrome for Testing, `plain_chrome: testing`; 2026-11-13). Each posting ended the
+same way on both paths, and no Trace held a captcha, a challenge or a block:
+
+| Posting | Both paths |
+|---|---|
+| Lever: `jobs.lever.co/xcimer/fee9965c-…` (a Summer 2027 internship) | Held on its last page and verified; the same fields, every planned value on the page. Only the essay's wording differed, as the model writes it fresh |
+| Workable: `apply.workable.com/perryhomes/j/D894A62691` | Failed before the form: the Workable Filler waits for `button[data-ui=apply-button]`, which the page (no challenge) never showed. A Filler fix, not the debugger |
+| SmartRecruiters: `jobs.smartrecruiters.com/BoschGroup/744000159649749-…` (an engineering internship) | Handoff: the guard refused a worker the page made while Claude filled it (KAN-791) |
+
+**So the guards stay registered content scripts.** Chrome puts them in every tab and frame
+itself, pop-ups included, and the debugger can't. For a store copy they are packaged files, not
+`vendor/` files that Apply writes: the guard scripts, `fixed.js`, `injected.js` (Playwright's
+injected script) and `page/relay.js`, each checked against Apply's sha256 as `guard.script`
+checks a guard file now. A guard change then needs a store release before the app that expects
+it. The debugger carries only what may change between store releases: the Fill engine and the
+page code that has no fixed copy.
+
+**Still open** (W6): the bot signals in branded Chrome on a real seed, with more postings than one
+per job system (the run above is Chrome for Testing, Test Person, one posting each); the packaged
+files above and the store build; turning the switch on by default and removing the
+`userScripts` path. Early in the spike, three runs of `apply plain fill lever-immuta` failed on
+`engine.call` against an `about:blank` frame, one of them on the user-scripts path; 26 later runs
+on both paths and the original code did not repeat it.
 
 ## Plain Workers' tiles and Fix from the window (KAN-609)
 

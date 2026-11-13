@@ -83,7 +83,8 @@ extension joins them before handling. The extension never needs to chunk.
    An extension at features 3 or more that gets a `vendor` set is never refused for its engine:
    the set holds Apply's own.
    `features` (KAN-643) is what the extension's code can do: 2 is `tile.shown` and
-   `extension.reload`; 3 is the welcome's vendor set and `vendor.use` (KAN-645); none (an
+   `extension.reload`; 3 is the welcome's vendor set and `vendor.use` (KAN-645); 4 is
+   `cdp.eval`, `cdp.load`, `cdp.keep` and `cdp.script` (KAN-839); none (an
    extension from before KAN-643) counts as 1. Raise
    `FEATURES` in `background.js` and `bridge.FEATURES` together with each new op or event.
    Chrome keeps running the code it loaded, so a Worker can be older than Apply. An older
@@ -282,6 +283,33 @@ to 256 K characters); `{"event": "requestfailed", ..., "error"}`; `{"event": "po
 A script call (`eval`, `dom`, `fixed.call`, any `inPage`) whose frame commits a new document before it
 answers fails as `Navigated` ("Execution context was destroyed..."), and as `NoTab` if its tab closes:
 Chrome never settles such a call by itself.
+
+## Ops (the debugger: page code with no user scripts; KAN-839)
+
+In `worker-extension/ops/cdp.js`, over the one debugger attachment per tab that it shares with
+`ops/typing.js` (`ops/debug.js`). For a Chrome Web Store copy of the extension, which may run code
+that isn't in its package only through the Debugger API (the User Scripts API is for the user's
+own code). Apply uses them only with `APPLY_PLAIN_EXEC=debugger` (`apply.plain.script`); the
+guide's "Page code through the debugger" has what was measured.
+
+| Op | Params | Value |
+|---|---|---|
+| `cdp.eval` | `tab`, `frame` (default 0), `code` (one expression), `gesture` (tests only) | The expression's value in the frame's MAIN world, as `eval` gives it |
+| `cdp.load` | `tab`, `frame`, `source` or `name` (a script `cdp.keep` holds) | `{"loaded": true}`; the whole script ran in the frame's MAIN world |
+| `cdp.keep` | `name`, `source`, `sha256` | `{"name", "bytes"}`; the script is held in the service worker's memory, never on disk. Refused when `sha256` isn't the source's. Held as `engine`, it is what `engine.load` runs |
+| `cdp.script` | `tab`, `id`, `source` | `{"id", "frames"}`; an early script in every frame of the tab, and in each frame from another site as it starts, until `cdp.unscript` |
+| `cdp.unscript` | `tab`, `id` | `null` |
+| `cdp.status` | `tab` | `{"attached", "scripts", "children"}`: the frames from another site attached now |
+
+How each reaches a frame: the top frame takes `Runtime.evaluate`; a frame from another site (its
+own process) is a child session attached as it starts (`Target.setAutoAttach`, flat, frames
+only, each held until its early scripts are in); a same-site frame takes
+`Runtime.callFunctionOn` on its document, which `DOM.getFrameOwner`, `DOM.describeNode` and
+`DOM.resolveNode` give in the frame's main world. A frame is named by its webNavigation id and
+found in the debugger's frame tree by its URL and its parent's; two same-URL siblings answer
+`Ambiguous`. `cdp.js` sends only the commands on its list, and never `Runtime.enable`,
+`Debugger.enable` or `Console.enable`. `Page.enable` is on while a tab holds early scripts,
+since `Page.addScriptToEvaluateOnNewDocument` does nothing without it.
 
 ## Ops (S6: Claude fill and Rescue)
 
