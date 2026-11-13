@@ -166,7 +166,7 @@ A posting's own text is one value, `providers.Page`: the description (its kept
 sections, cut to `DESCRIPTION_CHARS`), the card's `details.Facts`, and on Greenhouse
 its offices (on Workday, its places and requisition number). Lever, Ashby and
 Recruitee send it with the board's list. Greenhouse, Workable, BambooHR,
-Rippling, iCIMS, Oracle, SmartRecruiters, Eightfold, JazzHR and Workday do not (`Provider.job_url`): Greenhouse's `content=true`
+Rippling, iCIMS, Oracle, SmartRecruiters, Eightfold, JazzHR, Jobvite and Workday do not (`Provider.job_url`): Greenhouse's `content=true`
 would send hundreds of megabytes a run to describe the ~2% we keep, and
 Workday's list has no description, exact date or places. So
 `__main__.with_page` reads each *kept* posting's page once, through the same

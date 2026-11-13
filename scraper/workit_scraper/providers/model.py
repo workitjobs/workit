@@ -24,7 +24,8 @@ from workit_scraper import details
 #: says and less job text hidden, and the learned headings (`docs/sections.md`).
 # 16: lower-bound salary annotations and implicitly closed HTML lists.
 # 17: preserve explicit requirements that mention benefits products.
-PAGE_VERSION = 17
+# 18: SmartRecruiters, Eightfold, JazzHR and Jobvite describe functions added.
+PAGE_VERSION = 18
 
 
 class BoardNotFound(Exception):
