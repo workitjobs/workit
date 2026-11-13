@@ -63,7 +63,8 @@ def jazzhr(token: str, company: str) -> list[Job]:
         # Title is in the <a> tag's text: find the closing </a>.
         title_start = text.find(">", match.start()) + 1
         title_end = text.find("</a>", title_start)
-        title = html.unescape(text[title_start:title_end]).strip() if title_end > title_start else ""
+        raw = text[title_start:title_end] if title_end > title_start else ""
+        title = html.unescape(raw).strip()
         jobs[job_id] = Job(
             ats="jazzhr",
             token=token,

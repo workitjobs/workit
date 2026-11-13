@@ -40,7 +40,8 @@ def pinpoint(token: str, company: str) -> list[Job]:
         title = (row.get("title") or "").strip()
         loc = row.get("location") or {}
         location = loc.get("name") if isinstance(loc, dict) else None
-        dept = row.get("job", {}).get("department") or {} if isinstance(row.get("job"), dict) else {}
+        job_obj = row.get("job")
+        dept = job_obj.get("department") or {} if isinstance(job_obj, dict) else {}
         dept_name = dept.get("name") if isinstance(dept, dict) else None
 
         # Pay: structured fields when visible.

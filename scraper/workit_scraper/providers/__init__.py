@@ -57,6 +57,7 @@ from workit_scraper.providers.registry import (
 )
 from workit_scraper.providers.systems.ashby import ashby
 from workit_scraper.providers.systems.bamboohr import bamboohr, describe_bamboohr
+from workit_scraper.providers.systems.eightfold import describe_eightfold, eightfold
 from workit_scraper.providers.systems.greenhouse import describe_greenhouse, greenhouse
 from workit_scraper.providers.systems.icims import describe_icims, icims
 from workit_scraper.providers.systems.jazzhr import describe_jazzhr, jazzhr
@@ -67,8 +68,10 @@ from workit_scraper.providers.systems.oracle import describe_oracle, oracle
 from workit_scraper.providers.systems.pinpoint import pinpoint
 from workit_scraper.providers.systems.recruitee import recruitee
 from workit_scraper.providers.systems.rippling import describe_rippling, rippling
-from workit_scraper.providers.systems.eightfold import describe_eightfold, eightfold
-from workit_scraper.providers.systems.smartrecruiters import describe_smartrecruiters, smartrecruiters
+from workit_scraper.providers.systems.smartrecruiters import (
+    describe_smartrecruiters,
+    smartrecruiters,
+)
 from workit_scraper.providers.systems.successfactors import describe_successfactors, successfactors
 from workit_scraper.providers.systems.tiktok import tiktok
 from workit_scraper.providers.systems.workable import describe_workable, workable
