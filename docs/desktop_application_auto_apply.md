@@ -1,8 +1,8 @@
 # Desktop application for auto apply (KAN-723)
 
 **Status (2026-11-10):** plan, mostly not built. Built: Apply's Workers
-default to `worker_mode: protected`, and `ask` can run on Groq
-(`ask_model: groq`). Everything else here is a plan; section 10 lists the
+default to `worker_mode: protected`, and `ask` runs on Groq with Gemini as
+backup by default (`ask_model: [groq, gemini]`). Everything else here is a plan; section 10 lists the
 work. Apply's own folder is `apply-agent/`; its rules are in
 `apply-agent/CLAUDE.md`, and its terms are in `apply-agent/GLOSSARY.md`.
 
@@ -42,9 +42,14 @@ tasks. Each covers both the desktop app's own code and the Fill engine.
 1. **A model that works with no student in the loop.** Claude on the
    developer's own login (`claude -p`) cannot ship (section 8). The app
    needs a model it may call on its own schedule, at a cost WorkIt can
-   carry, and no connector. First an API model on Groq (gpt-oss), called
-   through WorkIt so the key never ships; later a local model behind the
-   same adapter (§3.2, section 8).
+   carry, and no connector. **The launched app is API-only (decided
+   2026-11-10):** hosted models (Groq's gpt-oss, with Gemini as backup)
+   for every model call, through a WorkIt route that holds the keys, so no
+   key ships and the student sets none up. No `claude -p` and no local
+   model in the app; `claude -p` stays a developer's setting (section 8).
+   **The app does no research (decided 2026-11-13):** it reads each
+   company's brief from WorkIt, which a WorkIt pipeline keeps for every
+   student (§8.1). The app's model calls only answer and write.
 2. **Code that cannot be stolen.** The desktop app's Python is compiled
    to machine code; the Fill engine is the hard part, because its in-page
    part must run as JavaScript in the job site's page (§7.4).
@@ -791,12 +796,19 @@ before relying on it).**
 - No other major company has a known program that lets a third-party app
   spend a user's chat subscription. Anthropic's rule is above.
 
-Direction (2026-11-09): no API keys, as too costly, and no connector on
+Direction (2026-11-09): no paid API keys for now, and no connector on
 the desktop path. The team judges approval from an AI company to use a
-student's subscription very unlikely. So the working answer is a local
-model behind `Adapters.claude` (Ollama, with JSON-schema output), and
-Chrome's built-in model for the closed questions where the computer can
-run it. `claude -p` stays as developer mode.
+student's subscription very unlikely.
+
+**Decision (2026-11-10): the launched desktop app is API-only.** Every
+model call (answers, essays, checks, Claude fill's and Rescue's
+successors) goes to hosted models (company briefs come from WorkIt, §8.1), Groq's gpt-oss with Gemini as
+backup, through a WorkIt route that holds the keys and sets each
+student's quota. No local model, and no `claude -p`, in the app. In the
+checkout, `ask_model: [groq, gemini]` is already the default for `ask`,
+with the team's keys from the root `.env`; a developer sets `ask_model:
+claude` to use their own Claude login (`apply-agent/docs/ask-model.md`).
+The local-model notes below and in §3.2 stay for the record.
 
 What a local model must do, by call kind:
 
@@ -819,13 +831,13 @@ API model is the fastest way to replace Claude end to end and measure
 quality and cost; a local model can take its place later behind the same
 adapter. **Built for `ask` (2026-11-10):** `ask_model: [groq, gemini]`,
 with Gemini as Groq's backup and lean essay prompts that fit Groq's free
-tier (`apply-agent/docs/ask-model.md`); `research` and `drive` are next
-(section 10). Groq's catalog (https://console.groq.com/docs/models, read
+tier (`apply-agent/docs/ask-model.md`); `drive` is next (section 10), and
+`research` moves out of the app to a WorkIt pipeline (§8.1). Groq's catalog (https://console.groq.com/docs/models, read
 2026-11-10):
 
 | Model | Status | Price per 1M tokens (in / out) | Use in Apply |
 |---|---|---|---|
-| `openai/gpt-oss-120b` | Production | $0.15 / $0.60 | Essays, one-off answers, company briefs (Groq's built-in browser search), `drive` |
+| `openai/gpt-oss-120b` | Production | $0.15 / $0.60 | Essay plans and essays, one-off answers, `drive`; the brief pipeline's read step is a candidate (§8.1) |
 | `openai/gpt-oss-20b` | Production | $0.075 / $0.30 | Closed fill questions, Rescue's picks, the Pre-submit review |
 | `qwen/qwen3.8-27b` | Preview | $0.80 / $4.00 | Not for production: preview models are for evaluation and can go at short notice |
 | `llama-3.3-70b-versatile`, `llama-3.1-8b-instant` | Contact sales | — | No: reported retired for most plans on 2026-08-16 |
@@ -864,6 +876,122 @@ through a WorkIt API route that holds the key and sets each student's
 quota (option C). Check Groq's terms for a paid product and for the
 student's personal data in prompts before launch.
 
+### 8.1 Company briefs: a WorkIt pipeline (decided 2026-11-13)
+
+**The app does no research.** It reads each company's brief from WorkIt,
+and its model calls only answer and write. Research is Apply's most
+expensive call: Sonnet with web search and fetch, up to 25 turns, for each
+company on each student's own login (`apply-agent/src/apply/brief.py`). A
+brief holds no student data: its research gets only the company, the team
+and the form's question labels. So WorkIt makes one brief per company for
+every student, and its cost goes with the number of companies, not the
+number of applications.
+
+**WorkIt already keeps a shared brief** (`company_briefs`, KAN-382,
+`backend/app/auto_apply/briefs.py`): one per company, and one per team a
+posting names. Today a student's Claude researches it through the
+connector on the extension path (`get_research_task`,
+`save_company_brief`). WorkIt calls no model for it. It keeps a fact only
+when the quote is on its page, the page is on the company's own site or a
+news site, and every number in the fact is in the quote. It keeps a brief
+only when it scores higher than the kept one (`score`: categories
+covered, facts, facts under a year old). The job page's Company tab
+already shows it (`GET /jobs/{job_id}/company`).
+
+**The pipeline (proposed).** A scheduled job fills the briefs that no
+student has researched, and refreshes the stale and weak ones:
+
+1. **Pick** the companies: those of open postings and of students'
+   queues whose brief is missing, older than `FRESH_DAYS` or under
+   `STRONG` (the rules `research_task` uses today).
+2. **Gather in code, free sources first:**
+   - the posting's own text (its "About us");
+   - the company's intro text on its Greenhouse job board (the scraper
+     already reads `boards-api.greenhouse.io/v1/boards/{token}` for the
+     company's name);
+   - the company's own about, values, careers and team pages;
+   - its blog or newsroom feed (RSS or Atom, linked from its homepage);
+   - its GitHub organization, through the GitHub API;
+   - press news from GDELT's DOC 2.0 API (free, no key; its article lists
+     cover about the last 3 months).
+3. **Search with Tavily** for what those miss: engineering blog posts,
+   recent launches, the mission and values, the team. `topic: news` with
+   `time_range: year` gives recent news; `include_raw_content` returns
+   each result's page text.
+4. **Read.** One model call turns the gathered text into facts: each with
+   a quote copied from its page, the page's link and month, a category and
+   problem tags; and the mission and values word for word. It is a plain
+   `ask` call with no tool loop. It runs once per company, so it can use a
+   bigger model on WorkIt's key. The team computer's local Qwen (KAN-726)
+   is a free option, not yet tested on exact quotes.
+5. **Check and save** with `briefs.py` as it is: each quote confirmed on
+   its page as WorkIt fetches it, and the brief kept only when it scores
+   higher.
+
+**Which model, where:**
+
+| Step | Runs | Model |
+|---|---|---|
+| Gather and search | Once per company | None: code and Tavily |
+| Read the pages into facts | Once per company | Bigger; the check in code catches a made-up fact |
+| Plan: the one fact that fits the student's story and the role | Once per essay | Bigger: this is the judgment of what is relevant |
+| Write the essay from the plan's slots | Once per essay | Smaller (`gpt-oss-20b`, for example); test the quality first |
+
+Matching a fact to the student's background is the plan's job
+(`essays.py` matches a fact's tags to the story's problem kinds), never
+research's. That is why one brief serves every student.
+
+**Tavily, not our own search.** Tavily is a search API for AI agents
+(https://docs.tavily.com/documentation/api-credits, read 2026-11-13):
+
+| Tavily call | Credits |
+|---|---|
+| Search, basic / advanced | 1 / 2 per query, up to 20 results |
+| Extract page text, basic | 1 per 5 pages |
+| Research (Tavily's own agent) | 4 to 250 per request |
+
+- The free plan has 1,000 credits a month; after that, a credit costs
+  $0.008.
+- A credit is one search, not an answer. The read step still writes the
+  facts, and the check still confirms them.
+- A brief needs about 3 to 6 basic searches, so about 4 to 8 credits (an
+  estimate, to measure). That is 125 to 250 briefs a month on the free
+  plan, then about 3 to 6 cents a brief.
+- Our own search would need a web index (a crawl of the web), or the
+  scraped results of a search engine, which break its terms and get
+  blocked. Pages at known addresses need neither, so step 2 stays ours
+  and saves credits.
+
+**Better than each student's Claude research:**
+
+- Every brief passes the same check and score, and is refreshed on a
+  schedule.
+- Every student gets it at once, on both paths. The connector hands Claude
+  the kept brief and asks for research only when it is missing or weak,
+  which becomes rare.
+- A student's Claude can still save a brief: the score keeps the better
+  one. Claude follows leads over many turns, and the pipeline can't, so
+  the score shows which briefs stay weak.
+
+**Work it needs:**
+
+- A save with no student. `save_brief` takes a student and refuses a
+  company they don't apply to (`NotApplying`).
+- One brief format. Apply's own brief (`brief.py`) has a type and problem
+  tags on each fact, the mission, the values, and the extra research a
+  form's questions ask for (values, stated problems, teams). The shared
+  brief has four categories (products, launches, engineering, team) and
+  none of the rest. Apply's plan matches a fact by its tags, so the shared
+  brief needs the tags, the mission and the values.
+- Apply reads the brief through `apply/workit.py`, in place of
+  `brief.research`.
+- A place to run the job: the team computer after the scrape (KAN-726;
+  it does not deploy on merge), or the API's container.
+
+**Privacy.** A Tavily query holds the company, the team and words such as
+"engineering blog". It holds no student data. Read Tavily's terms for a
+paid product before launch.
+
 ## 9. WorkIt as the source of the data
 
 Apply already calls WorkIt through one client, `apply-agent/src/apply/workit.py`
@@ -880,7 +1008,7 @@ What would move from the data folder to WorkIt:
 | `answer-bank.yaml` | Batch apply's answer bank (KAN-369) and `written_answers` | Being redesigned by a teammate |
 | `story-bank.md`, `story-map.yaml` | The experience bank, by resume (`docs/bank_by_resume.md`) | Map entries to stories |
 | `voice.md` | None | New |
-| `company-briefs/` | None | New, or keep local |
+| `company-briefs/` | `company_briefs` (KAN-382), shared by every student; filled today by students' Claude through the connector | Read it from WorkIt; a WorkIt pipeline fills it; one brief format (§8.1) |
 | The resume PDF | Uploads and built resumes; sent resumes | Partly built (tailored resume) |
 | `tracker.json` | The Applications Tracker | Built: Apply already writes it |
 
@@ -909,14 +1037,14 @@ mean one short trip per new label. That choice is open (section 11).
 ## 10. The work list
 
 Every piece of work this note plans, in order inside each group. "Owner"
-is KAN-723's owner unless it names teammates. Status as of 2026-11-10.
+is KAN-723's owner unless it names teammates. Status as of 2026-11-13.
 
 **Done**
 
 | # | Work | Where |
 |---|---|---|
 | 1 | `worker_mode: protected` as the default | Section 6 |
-| 2 | `ask` on hosted models: `ask_model: [groq, gemini]` in `policies.yaml` sends every answer, essay and check to Groq's gpt-oss, with Gemini taking what Groq can't (too large, rate-limited, down), on lean essay prompts that fit Groq's free tier (`apply/ask_model.py`); `claude -p` stays the default; doctor checks the keys | Section 8; `apply-agent/docs/ask-model.md` |
+| 2 | `ask` on hosted models: `ask_model: [groq, gemini]` in `policies.yaml` sends every answer, essay and check to Groq's gpt-oss, with Gemini taking what Groq can't (too large, rate-limited, down), on lean essay prompts that fit Groq's free tier (`apply/ask_model.py`); the default since 2026-11-10, and a developer sets `ask_model: claude` for `claude -p`; doctor checks the keys | Section 8; `apply-agent/docs/ask-model.md` |
 
 **Task 1: a model that works with no student in the loop (section 8)**
 
@@ -924,12 +1052,12 @@ is KAN-723's owner unless it names teammates. Status as of 2026-11-10.
 |---|---|---|---|
 | 3 | Rehearse the same postings with `ask_model: claude` and `[groq, gemini]`; compare the answers and essays | KAN-723's owner | Started 2026-11-10 on Test Person's data, outside a rehearsal: `[groq, gemini]` wrote both essays and the one-off answers in 39 s; plainer than Claude's, one held by the length gate (`apply-agent/docs/ask-model.md`). Next: a real rehearsal |
 | 4 | Measure one Application's model use (calls and tokens by call kind) on about 20 rehearsals across hiring systems: the cost per Application on Groq | KAN-723's owner | Not started |
-| 5 | `research` on Groq: gpt-oss-120b with Groq's built-in browser search, for company briefs | KAN-723's owner | Not started |
-| 6 | `drive` on Groq: Apply's own tool loop over `apply/plain/mcp_tools.json`, run through Playwright (CDP) or `apply/plain/tools.py` (plain), a `finish` tool for the answer, a trimmed snapshot per turn, the caps, the send-click hook and the captcha refusal | KAN-723's owner | Not started |
+| 5 | Company briefs from a WorkIt pipeline, so the app does no research (§8.1). In order: a prototype on one company (the free sources, Tavily, one read call, `briefs.py`'s check, the credits counted); a save with no student; one brief format with tags, the mission and the values; the scheduled job; Apply reads the brief from WorkIt in place of `research`. Needed before launch (API-only) | KAN-723's owner | Designed 2026-11-13 |
+| 6 | `drive` on hosted models, needed before launch (API-only): Apply's own tool loop over `apply/plain/mcp_tools.json`, run through Playwright (CDP) or `apply/plain/tools.py` (plain), a `finish` tool for the answer, a trimmed snapshot per turn, the caps, the send-click hook and the captcha refusal | KAN-723's owner | Not started |
 | 7 | The generic Filler with narrow tools (§3.2), tested on saved forms and long-tail rehearsals against Claude fill | KAN-723's owner | Not started |
-| 8 | A WorkIt API route that holds the Groq key and sets each student's quota; the app calls the model only through it. Before any student build | KAN-723's owner | Not started |
-| 9 | Read Groq's terms for a paid product and for students' personal data in prompts | KAN-723's owner | Not started |
-| 10 | Later: a local model behind the same adapter, where the student's computer can run it | KAN-723's owner | Later |
+| 8 | A WorkIt API route that holds the Groq and Gemini keys and sets each student's quota; the app calls every model only through it, so no key ships and the student sets none up. Before any student build | KAN-723's owner | Not started |
+| 9 | Read Groq's and Gemini's terms for a paid product and for students' personal data in prompts: Gemini's free tier may use prompts to improve Google's products, and Apply's prompts carry the profile; use terms that don't train, or remove identity data, before students' data goes there | KAN-723's owner | Not started |
+| 10 | A local model in the app | KAN-723's owner | Dropped 2026-11-10: the app is API-only |
 
 **Task 2: code that cannot be stolen (§7.4)**
 
@@ -968,8 +1096,11 @@ is KAN-723's owner unless it names teammates. Status as of 2026-11-10.
 ## 11. Open questions
 
 - Whether gpt-oss-120b's essays and `drive` are good enough (section 8),
-  and the cost per Application on Groq; later, which local model, and
-  whether student laptops can run it.
+  and the cost per Application on Groq and Gemini once the free tiers
+  are outgrown.
+- The brief pipeline (§8.1): which model reads the pages, where the job
+  runs, how often it refreshes, the credits a brief really uses, and
+  Tavily's terms for a paid product.
 - Rules in the app (no trips, readable) or on WorkIt's server with the
   label cache (§7.4, section 9).
 - Whether a built copy of the private Fill engine may ship in a public
