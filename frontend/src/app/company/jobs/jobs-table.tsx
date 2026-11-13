@@ -215,11 +215,12 @@ function RowActions({ posting }: { posting: Posting }) {
         <DropdownMenuTrigger
           render={
             <IconButton
+              place="row"
               label={`Actions for ${posting.role}`}
-              tooltip="More actions"
-              className="z-10 size-8"
+              tooltip={false}
+              className="z-10"
             >
-              <EllipsisIcon className="size-4" />
+              <EllipsisIcon />
             </IconButton>
           }
         />

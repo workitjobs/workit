@@ -494,6 +494,9 @@ async def test_the_prompt_has_the_posting_and_bank_without_links_or_identity_dat
         bullets=["Built it in Python; see https://samseeker.dev or mail sam@example.com"],
     )
     await signed_in.skill("Docker")
+    # The resume header's own lines (KAN-436): the profile's, never the model's
+    header = {"location": "Hauppauge, NY", "resume_header_extra": "TS/SCI clearance | Open to relocation"}
+    assert (await signed_in.client.patch(f"{signed_in.me}/profile", json=header)).status_code == 200
     base = await signed_in.generate()
     posting = await _seed_posting(database)
     fake = use_model(reply())
@@ -502,7 +505,8 @@ async def test_the_prompt_has_the_posting_and_bank_without_links_or_identity_dat
 
     sent = "\n".join(m["content"] for m in fake.prompts[0])
     assert "Portfolio Site" in sent and "Docker" in sent and "Kubernetes" in sent and DESCRIPTION in sent
-    for secret in ("github.com/samseeker", "samseeker.dev", "sam@example.com", "Sam Seeker", "linkedin"):
+    for secret in ("github.com/samseeker", "samseeker.dev", "sam@example.com", "Sam Seeker", "linkedin",
+                   "Hauppauge", "clearance", "relocation"):
         assert secret not in sent
 
 

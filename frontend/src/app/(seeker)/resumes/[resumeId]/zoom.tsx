@@ -16,7 +16,6 @@ import {
 } from "@/components/shadcn/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { EDITOR_ZOOM_KEY, readLocalDraft, writeLocalDraft } from "@/lib/local-drafts";
-import { Tip } from "@/components/ui/tip";
 
 /** The zoom steps, in percent of the page's printed size: 100% is 8.5in
  *  at 96 CSS px an inch (816px), as a browser's PDF viewer draws it. The
@@ -56,26 +55,24 @@ export function useZoom() {
   return [zoom, set] as const;
 }
 
-/** Zoom out, the zoom as a menu of its steps, and zoom in, as a PDF
- *  viewer has them. After KAN-421 widened every seeker page to 1440px,
+/** Zoom Out, the zoom as a menu of its steps, and Zoom In, as a PDF
+ *  viewer has them, at the slim bar's end (the bar draws the rule before
+ *  it). After KAN-421 widened every seeker page to 1440px,
  *  the page filled its column and took most of the screen; it now opens
  *  at 125% and the student picks. */
 export function Zoom({ zoom, onZoom }: { zoom: number; onZoom: (zoom: number) => void }) {
   const at = ZOOMS.indexOf(zoom);
   return (
     <div className="flex shrink-0 items-center gap-0.5">
-      <Tip label="Zoom out">
-        <Button
-          variant="ghost"
-          size="icon-lg"
-          aria-label="Zoom out"
-
-          disabled={at <= 0}
-          onClick={() => onZoom(ZOOMS[at - 1])}
-        >
-          <MagnifyingGlassMinusIcon aria-hidden />
-        </Button>
-      </Tip>
+      <Button
+        variant="ghost"
+        size="icon-lg"
+        aria-label="Zoom Out"
+        disabled={at <= 0}
+        onClick={() => onZoom(ZOOMS[at - 1])}
+      >
+        <MagnifyingGlassMinusIcon aria-hidden />
+      </Button>
       <DropdownMenu>
         <DropdownMenuTrigger
           aria-label={`Zoom, ${zoom}%`}
@@ -94,19 +91,15 @@ export function Zoom({ zoom, onZoom }: { zoom: number; onZoom: (zoom: number) =>
           </DropdownMenuRadioGroup>
         </DropdownMenuContent>
       </DropdownMenu>
-      <Tip label="Zoom in">
-        <Button
-          variant="ghost"
-          size="icon-lg"
-          aria-label="Zoom in"
-
-          disabled={at >= ZOOMS.length - 1}
-          onClick={() => onZoom(ZOOMS[at + 1])}
-        >
-          <MagnifyingGlassPlusIcon aria-hidden />
-        </Button>
-      </Tip>
-      <span aria-hidden className="bg-border-subtle mx-1 h-5 w-px" />
+      <Button
+        variant="ghost"
+        size="icon-lg"
+        aria-label="Zoom In"
+        disabled={at >= ZOOMS.length - 1}
+        onClick={() => onZoom(ZOOMS[at + 1])}
+      >
+        <MagnifyingGlassPlusIcon aria-hidden />
+      </Button>
     </div>
   );
 }

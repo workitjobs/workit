@@ -4,9 +4,9 @@ import Link from "next/link";
 import type { ComponentType } from "react";
 
 import {
+  AppliedIcon,
   BookmarkIcon,
-  BriefcaseIcon,
-  CalendarIcon,
+  InterviewIcon,
   ArrowRightIcon,
   MatchIcon,
   TrendIcon,
@@ -26,8 +26,8 @@ import { useRange } from "./range-switch";
 const STAT_ICONS: Record<StatKey, ComponentType<{ className?: string }>> = {
   strongMatches: MatchIcon,
   saved: BookmarkIcon,
-  applied: BriefcaseIcon,
-  interviewing: CalendarIcon,
+  applied: AppliedIcon,
+  interviewing: InterviewIcon,
 };
 
 /**

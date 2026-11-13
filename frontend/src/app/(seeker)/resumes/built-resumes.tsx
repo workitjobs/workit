@@ -1,6 +1,6 @@
 "use client";
 
-import { FileTextIcon, TagIcon } from "@phosphor-icons/react/ssr";
+import { FileArrowDownIcon, FileTextIcon, StarIcon, TagIcon } from "@phosphor-icons/react/ssr";
 import { useRouter } from "next/navigation";
 import {
   startTransition,
@@ -15,8 +15,9 @@ import {
 import { FieldFacet, type FacetOption } from "@/components/field-facet";
 import { AllFiltersButton, ClearFiltersButton } from "@/components/filter-actions";
 import { matches, RESUME_TYPES, searchWords, type ResumeType } from "@/components/resume-list";
-import { RESUME_TYPE_ICON } from "@/components/resume-row";
-import { CompanyIcon, SearchIcon } from "@/components/icons";
+import { RESUME_TYPE_ICON, type CardActions, type RowPick } from "@/components/resume-row";
+import { CompanyIcon, PencilIcon, SearchIcon, TrashIcon } from "@/components/icons";
+import { SELECTION_ROW, SelectionAction, SelectionBar } from "@/components/selection-bar";
 import { GroupHeadingRow, useFolds } from "@/components/table-group";
 import { GroupByOptions, TableSettingsMenu } from "@/components/table-settings";
 import { useShallowParams, useShallowPush } from "@/components/shallow-routing";
@@ -40,6 +41,7 @@ import { markResumesStale, takeResumesStale } from "@/lib/resumes-stale";
 
 import { setResumesLayout } from "./actions";
 import { BuiltResumeRow } from "./built-resume-row";
+import { DeleteDialog } from "./delete-confirm";
 import { DuplicateResumeDialog, type Duplicate } from "./duplicate-resume-dialog";
 import { GenerateRunning, type GenerateStep } from "./generate-running";
 import { SearchFacet } from "../applications/field-filters";
@@ -210,6 +212,11 @@ export function BuiltResumes({
   // The resume a Generate or an upload would copy, while its modal is open.
   const [duplicate, setDuplicate] = useState<Duplicate | null>(null);
   const [query, setQuery] = useState("");
+  // The picked rows, by key (2026-11-11, as Up Next's), and each row's
+  // current actions, which the rows keep here for the bar to run.
+  const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
+  const rowActions = useRef(new Map<string, CardActions>());
+  const [deleting, setDeleting] = useState(false);
   const params = useShallowParams();
   const push = useShallowPush();
   const types = parseTypes(params.get("type"));
@@ -419,6 +426,42 @@ export function BuiltResumes({
           ...type,
           rows: shown.filter((row) => row.type === type.value),
         })).filter((group) => group.rows.length > 0);
+  // The list's picks: the grid has no select boxes. A pick the filters
+  // hide is left out of the count and the actions.
+  const checked = grid ? [] : shown.filter((row) => picked.has(row.key));
+  const clearPick = () => setPicked(new Set());
+  function pickOf(row: Row): RowPick | undefined {
+    if (grid) return undefined;
+    return {
+      checked: picked.has(row.key),
+      onChange: (on) =>
+        setPicked((keys) => {
+          const next = new Set(keys);
+          if (on) next.add(row.key);
+          else next.delete(row.key);
+          return next;
+        }),
+      register: (actions) => {
+        if (actions) rowActions.current.set(row.key, actions);
+        else rowActions.current.delete(row.key);
+      },
+    };
+  }
+  const actionsOf = (row: Row) => rowActions.current.get(row.key);
+  // Rename and Make Primary act on one resume, so they show for one pick.
+  const one = checked.length === 1 ? checked[0] : undefined;
+  function downloadPicked() {
+    // Each row makes its own file (a built resume's PDF on the API first)
+    // and shows its own warning or error under its name.
+    for (const row of checked) actionsOf(row)?.download.onPick();
+  }
+  async function deletePicked() {
+    const rows = checked;
+    setDeleting(false);
+    clearPick();
+    for (const row of rows) await actionsOf(row)?.onDelete();
+  }
+
   const drawRow = (row: Row) =>
     row.type === "uploaded" ? (
       <UploadedRow
@@ -426,6 +469,7 @@ export function BuiltResumes({
         layout={shownLayout}
         resume={row.upload}
         reload={reload}
+        pick={pickOf(row)}
         onDelete={(send) => remove(row.key, send)}
       />
     ) : (
@@ -434,6 +478,7 @@ export function BuiltResumes({
         layout={shownLayout}
         resume={row.built}
         reload={reload}
+        pick={pickOf(row)}
         onDelete={(send) => remove(row.key, send)}
       />
     );
@@ -492,7 +537,49 @@ export function BuiltResumes({
           Settings take about 170px, so this row (its own @container) fits
           Type from 488px and Company from 640. */}
       <div className="mt-3 flex flex-col gap-3">
-        <div className="@container flex items-center gap-2">
+        <div className={cn("@container flex items-center gap-2", SELECTION_ROW)}>
+          {/* The picked rows' actions, over the filters while any row is
+              picked (components/selection-bar.tsx). */}
+          {checked.length > 0 && (
+            <SelectionBar
+              count={checked.length}
+              onClear={clearPick}
+              className="absolute top-1/2 left-0 -translate-y-1/2"
+            >
+              {one && !one.primary && (
+                <SelectionAction
+                  label="Make Primary"
+                  icon={<StarIcon aria-hidden />}
+                  onClick={() => {
+                    actionsOf(one)?.onMakePrimary();
+                    clearPick();
+                  }}
+                />
+              )}
+              {one && (
+                <SelectionAction
+                  label="Rename"
+                  icon={<PencilIcon />}
+                  onClick={() => {
+                    actionsOf(one)?.onRename();
+                    clearPick();
+                  }}
+                />
+              )}
+              <SelectionAction
+                label="Download"
+                icon={<FileArrowDownIcon aria-hidden />}
+                onClick={downloadPicked}
+              />
+              <SelectionAction
+                danger
+                iconOnly
+                label="Delete"
+                icon={<TrashIcon />}
+                onClick={() => setDeleting(true)}
+              />
+            </SelectionBar>
+          )}
           <FieldFacet
             label="Type"
             Icon={TagIcon}
@@ -573,7 +660,16 @@ export function BuiltResumes({
         // each card says what it is, as Google Drive's and Simplify's do.
         // Generate Resume above makes a new one; a New Resume tile first in
         // the grid did the same and came off on 2026-11-10.
-        <ResumeList grid={grid}>
+        <ResumeList
+          grid={grid}
+          selectAll={{
+            all: shown.length > 0 && checked.length === shown.length,
+            some: checked.length > 0,
+            // As Up Next's: picks every shown row, or unpicks while any is.
+            onToggle: () =>
+              setPicked(new Set(checked.length > 0 ? [] : shown.map((row) => row.key))),
+          }}
+        >
           {upload.pending(shownLayout)}
           {groups
             ? groups.flatMap((group) => {
@@ -618,6 +714,20 @@ export function BuiltResumes({
         onClose={() => setDuplicate(null)}
       />
       <GenerateRunning step={showSteps ? generating : null} />
+      {deleting && (
+        <DeleteDialog
+          title={
+            checked.length === 1
+              ? `Delete ${checked[0].name}?`
+              : `Delete ${checked.length} Resumes?`
+          }
+          label={checked.length === 1 ? "Delete Resume" : "Delete Resumes"}
+          onDelete={() => void deletePicked()}
+          onKeep={() => setDeleting(false)}
+        >
+          Files you already sent are kept.
+        </DeleteDialog>
+      )}
       <ResumeAllFilters
         open={allOpen}
         onOpenChange={setAllOpen}

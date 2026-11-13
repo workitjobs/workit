@@ -18,7 +18,6 @@ import { cn } from "@/lib/cn";
 import { useAutoApply } from "../auto-apply/auto-apply-button";
 import type { ApplicationStage } from "../auto-apply/actions";
 import { ApplyDialog } from "./apply-button";
-import { Tip } from "@/components/ui/tip";
 
 /**
  * One Apply for a job Auto Apply can fill (2026-11-09, after Simplify's):
@@ -119,27 +118,25 @@ export function ApplySplitButton({
       <div className={cn("inline-flex shrink-0", className)}>
         {main}
         <DropdownMenu>
-          <Tip label="Ways to apply">
-            <DropdownMenuTrigger
-              aria-label="Ways to apply"
-              render={
-                <Button
-                  variant={variant}
-                  size="sm"
-                  segment="end"
-                  className={cn(
-                    // A hairline between the two parts: white on the brand
-                    // fill, the edge's own grey on the secondary look.
-                    acting
-                      ? "shadow-[inset_1px_0_0_rgb(255_255_255/0.3)]"
-                      : "shadow-[inset_1px_0_0_var(--color-border-surface)]",
-                  )}
-                />
-              }
-            >
-              <ChevronDownIcon className="size-4" />
-            </DropdownMenuTrigger>
-          </Tip>
+          <DropdownMenuTrigger
+            aria-label="Ways to apply"
+            render={
+              <Button
+                variant={variant}
+                size="sm"
+                segment="end"
+                className={cn(
+                  // A hairline between the two parts: white on the brand
+                  // fill, the edge's own grey on the secondary look.
+                  acting
+                    ? "shadow-[inset_1px_0_0_rgb(255_255_255/0.3)]"
+                    : "shadow-[inset_1px_0_0_var(--color-border-surface)]",
+                )}
+              />
+            }
+          >
+            <ChevronDownIcon className="size-4" />
+          </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-80 p-1.5">
             {!auto.done && (
               <DropdownMenuItem

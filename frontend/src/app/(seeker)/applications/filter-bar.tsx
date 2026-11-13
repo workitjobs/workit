@@ -8,6 +8,7 @@ import { startTransition, useOptimistic, useRef, useState } from "react";
 import { FieldFacet } from "@/components/field-facet";
 import { AllFiltersButton, ClearFiltersButton } from "@/components/filter-actions";
 import { workStyleIcon } from "@/components/icons";
+import { SELECTION_ROW } from "@/components/selection-bar";
 import { PAGE_SEARCH, SearchField } from "@/components/ui/search-field";
 import { cn } from "@/lib/cn";
 
@@ -20,6 +21,7 @@ import {
   type Picks,
 } from "./field-filters";
 import { StatusIcon } from "./icons";
+import { TrackerSelectionBar } from "./pick";
 import { TableSettingsMenu } from "./list-controls";
 import { ViewSwitcher } from "./view-switcher";
 import {
@@ -140,7 +142,10 @@ export function FilterBar({
           592, Job Type from 744, Work Model from 896 and Source from 1048. A
           phone's row is All Filters and Columns. The cross's room is kept
           whether or not it shows, so a pick never pushes a dropdown out. */}
-      <div className="@container flex items-center gap-2">
+      <div className={cn("@container flex items-center gap-2", SELECTION_ROW)}>
+        {/* The picked rows' bar, over this row while any is picked
+            (./pick.tsx); the list's alone, as the grid has no boxes. */}
+        {query.view === "list" && <TrackerSelectionBar />}
         <FieldFacet
           label="Status"
           Icon={StatusIcon}

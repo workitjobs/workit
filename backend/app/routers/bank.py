@@ -105,7 +105,7 @@ from app.schemas.bank import (
     SkillUpdate,
 )
 from app.services import bank as service
-from app.services import built_resumes
+from app.services import built_resumes, header_fill
 from app.services.bank import bank_response, entry_response
 from app.services.models import get_llm
 from app.services.resume_reading import read_upload
@@ -401,6 +401,9 @@ async def import_resume(
     reading, left = await read_upload(session, applicant_id, account, resume.raw_text, llm)
     async with _writing(session):
         imported = await service.import_upload(session, applicant_id, resume.id, reading.entries, reading.skills)
+        # Import Again reads the header too (KAN-436), filling only the
+        # profile's empty fields, as an upload does
+        header = await header_fill.fill_from_header(session, applicant_id, resume.raw_text)
     return ImportResponse(
         resume_id=resume.id,
         filename=resume.original_filename,
@@ -409,5 +412,6 @@ async def import_resume(
         skills_added=imported.skills_added,
         read_by=reading.read_by,
         uses_left=left,
+        header=header,
     )
 

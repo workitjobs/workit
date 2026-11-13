@@ -114,9 +114,16 @@ ASCENT, DESCENT = 8.0, 3.0
 # The name prints \Huge, so its box reaches further each way
 NAME_ASCENT, NAME_DESCENT = 21.0, 5.0
 # The item id of the header's boxes, whose kinds are the profile columns
-# they show: full_name, phone_number, email, linkedin_url, github_url,
-# portfolio_url, other_url
+# they show: full_name, phone_number, email, location, linkedin_url,
+# github_url, portfolio_url, other_url
 HEADER = "header"
+# The header fields a resume can hide (`PageSettings.hidden_header`, KAN-436),
+# each its box's kind. The name always prints, and "U.S. Citizen" is
+# Application Questions' answer, so neither is here.
+HEADER_FIELDS = (
+    "phone_number", "email", "location", "linkedin_url", "github_url", "portfolio_url", "other_url",
+    "resume_header_extra",
+)
 # The distance between a wrapped line's baselines in Jake's bullets, in
 # points; `PageSettings.wrapped_line` on any other page
 WRAPPED_LINE = 12.0
@@ -256,11 +263,17 @@ class PageSettings:
     body_size: float | None = None
     date_format: str = "short"
     education_first: str = "school"
+    # The header fields this resume leaves out (KAN-436), in HEADER_FIELDS'
+    # order: the values stay on the profile, for every other resume
+    hidden_header: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
-        # Stored as a JSON list, and frozen here
+        # Stored as JSON lists, and frozen here; the hidden fields in one
+        # order, so two resumes hiding the same ones hash the same
         object.__setattr__(self, "section_order", tuple(self.section_order))
-        if not valid_order(self.section_order):
+        hidden = set(self.hidden_header)
+        object.__setattr__(self, "hidden_header", tuple(f for f in HEADER_FIELDS if f in hidden))
+        if not valid_order(self.section_order) or len(self.hidden_header) != len(hidden):
             raise ValueError(f"unknown page settings {self!r}")
         allowed = (
             (self.font_size, FONT_SIZES), (self.line_spacing, LINE_SPACINGS), (self.side_margin, MARGINS),
@@ -301,8 +314,33 @@ class HeaderIdentity:
     email: str | None = None
     phone: str | None = None
     links: tuple[tuple[str, str], ...] = ()
-    # Prints "U.S. Citizen" after the links (My Profile's check box)
+    # Prints "U.S. Citizen" first on the contact line (Application Questions'
+    # citizenship answer)
     us_citizen: bool = False
+    # Where the student lives, "Stony Brook, NY" (the profile's `location`,
+    # KAN-436): after the email
+    location: str | None = None
+    # The Additional line (the profile's `resume_header_extra`, KAN-436): the
+    # student's own text, on a line of its own under the contact line
+    extra: str | None = None
+
+
+def shown_header(identity: HeaderIdentity, page: PageSettings) -> HeaderIdentity:
+    '''The header this page prints: the identity less the fields the
+    resume hides (`PageSettings.hidden_header`, KAN-436). Every renderer and
+    the sent resume's hash read it, so a hidden field neither prints nor
+    counts.'''
+    hidden = set(page.hidden_header)
+    if not hidden:
+        return identity
+    return replace(
+        identity,
+        phone=None if "phone_number" in hidden else identity.phone,
+        email=None if "email" in hidden else identity.email,
+        location=None if "location" in hidden else identity.location,
+        extra=None if "resume_header_extra" in hidden else identity.extra,
+        links=tuple((field, url) for field, url in identity.links if field not in hidden),
+    )
 
 
 @dataclass(frozen=True)
@@ -441,6 +479,7 @@ def _document(
     # Imported here: the template modules import escape() from this one
     from app.services.resume_render import jakes
 
+    identity = shown_header(identity, page)
     # The Title goes in a compiled PDF only: the Overleaf source leaves it
     # out, since pdfLaTeX (Overleaf's default) ignores an xdvipdfmx special
     # and warns about it.
@@ -475,13 +514,26 @@ def pdf_title(text: str) -> str:
     return rf"\special{{pdf:docinfo<</Title<{hex_text}>>>}}"
 
 
+# A straight double quote that opens a quotation: at the start, after a
+# space or an opening bracket or dash
+_OPEN_QUOTE_RE = re.compile(r'(?<![^\s(\[{–—-])"')
+
+
 def escape(text: str) -> str:
     '''
     Applicant text as LaTeX that prints it, character for character. Every
     newline becomes a space: a blank line is a paragraph break, which ends a
     command's argument early and fails the compile.
+
+    The font's TeX ligatures stay off what a student types: "--dry-run"
+    printed "–dry-run", "reviews!`" printed "reviews¡" and a backtick a
+    curly quote. A straight double quote prints as an opening or closing
+    curly quote by its place, as an apostrophe already prints curly: TeX
+    made both ends of "smart" closing ones.
     '''
-    return text.replace("\r\n", " ").translate(_TABLE)
+    out = text.replace("\r\n", " ").translate(_TABLE)
+    out = _OPEN_QUOTE_RE.sub("“", out).replace('"', "”").replace("`", r"\textasciigrave{}")
+    return re.sub(r"-(?=-)", "-{}", out)
 
 
 # In a link target hyperref turns \textasciitilde{} into "~{}", which breaks

@@ -1,6 +1,6 @@
 "use client";
 
-import { ChatCircleIcon, SlidersHorizontalIcon, StarIcon } from "@phosphor-icons/react/ssr";
+import { ChatCircleIcon, ListMagnifyingGlassIcon, TargetIcon } from "@phosphor-icons/react/ssr";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { ArrowRightIcon, CloseIcon } from "@/components/icons";
@@ -48,9 +48,9 @@ import type { ScoutMessage } from "./stream";
  * NO RULED LINES. The header and the composer used to be fenced off with
  * hairlines; the header is now the panel's own top, and the conversation
  * fades out under it and above the composer instead, so it reads as one
- * surface. Every icon-only control carries a tooltip (ui/icon-button.tsx),
- * Send included: it is aria-disabled rather than disabled while there is
- * nothing to send, so its tooltip can still say why.
+ * surface. Send is aria-disabled rather than disabled while there is
+ * nothing to send, so its tooltip can say why; it shows none while it
+ * works (components/ui/tip.tsx, 2026-11-12).
  *
  * A PAGE CAN TAKE THE PANEL OVER (scout-takeover.tsx): the Experience Bank
  * puts intake here. Its content renders into the slot below in place of the
@@ -155,24 +155,28 @@ export function ScoutPanel() {
             : "md:ease-exit md:translate-x-full md:opacity-0 md:duration-200",
         )}
       >
-        <header className="flex shrink-0 items-center gap-3 px-4 pt-4 pb-1">
-          {/* The mark beside every line the assistant says, so the panel and
-              its chat wear one (KAN-257); a brand-tint circle stood here. */}
-          {takeover?.mark ?? <ScoutMark />}
-          <div className="min-w-0">
-            <h2 className="text-subtitle text-ink font-semibold">{takeover?.title ?? "Scout"}</h2>
-            <p className="text-note text-ink-meta">
-              {takeover?.subtitle ?? "Your job search assistant"}
-            </p>
-          </div>
-          <IconButton
-            label={`Close ${takeover?.title ?? "Scout"}`}
-            className="hover:bg-hover ml-auto size-8 rounded-full after:hidden"
-            onClick={closeScout}
-          >
-            <CloseIcon className="size-4" />
-          </IconButton>
-        </header>
+        {!takeover?.bare && (
+          <header className="flex shrink-0 items-center gap-3 px-4 pt-4 pb-1">
+            {/* The mark beside every line the assistant says, so the panel and
+                its chat wear one (KAN-257); a brand-tint circle stood here. */}
+            {takeover?.mark ?? <ScoutMark />}
+            <div className="min-w-0">
+              <h2 className="text-subtitle text-ink font-semibold">{takeover?.title ?? "Scout"}</h2>
+              <p className="text-note text-ink-meta">
+                {takeover?.subtitle ?? "Your job search assistant"}
+              </p>
+            </div>
+            <IconButton
+              place="row"
+              tooltip={false}
+              label={`Close ${takeover?.title ?? "Scout"}`}
+              className="ml-auto after:hidden"
+              onClick={closeScout}
+            >
+              <CloseIcon />
+            </IconButton>
+          </header>
+        )}
 
         {/* A takeover's content; empty and hidden while Scout has the panel. */}
         <div id={SCOUT_SLOT_ID} className={takeover ? "flex min-h-0 flex-1 flex-col" : "hidden"} />
@@ -230,7 +234,10 @@ function Bubble({ children }: { children: ReactNode }) {
 }
 
 /** The two questions Scout answers from here, as rows to press, and a tip
- *  for the third thing it does, which starts from a job's own card. The tip
+ *  for the third thing it does, which starts from a job's own card. Each row
+ *  wears its meaning's glyph (design-kit/icons): Job preferences' list with a
+ *  magnifier and Match's target, not Table settings' sliders and the primary
+ *  resume's star (until 2026-11-12). The tip
  *  is a line of text, not a row: drawn as a row it looked as pressable as
  *  the two above it and did nothing. */
 function Suggestions({ onPick, disabled }: { onPick: (text: string) => void; disabled: boolean }) {
@@ -238,14 +245,14 @@ function Suggestions({ onPick, disabled }: { onPick: (text: string) => void; dis
     <div className="bg-surface rounded-card p-2">
       <p className="text-label text-ink px-2 pt-1 pb-1.5 font-semibold">Tasks I can help with</p>
       <Suggestion
-        icon={<SlidersHorizontalIcon aria-hidden className="size-4" />}
+        icon={<ListMagnifyingGlassIcon aria-hidden className="size-4" />}
         title="Adjust current preference"
         description="Fine-tune your job search criteria."
         disabled={disabled}
         onClick={() => onPick("Help me adjust my job search preferences.")}
       />
       <Suggestion
-        icon={<StarIcon aria-hidden className="size-4" />}
+        icon={<TargetIcon aria-hidden className="size-4" />}
         title="Top Match jobs"
         description="Explore jobs where you shine as a top candidate."
         disabled={disabled}

@@ -130,14 +130,22 @@ open choices (Settled choices, near the end).
   `components/all-filters-dialog.tsx` (All Filters' panel),
   `components/table-settings.tsx` (Table Settings, Group By),
   `components/table-group.tsx` (a group's heading row),
-  `components/fill-page.ts` (a table that scrolls inside itself),
+  `components/fill-page.ts` (a table that scrolls inside itself; every
+  table row's fill, `rowFill`, and a frozen cell's, `frozenFill`, so a
+  picked row stays purple under the pointer, frozen cell and all; and
+  `FROZEN_EDGE`, a frozen column's line in `--color-border-surface`, a
+  step darker than the row rules, after Notion's),
   `components/ui/option-row.tsx` (a row that is one way forward: Auto
   Apply's setup, Generate Resume's ways to start),
   `components/ui/or-divider.tsx` (the login card's "Or" rule),
   `components/ui/tip.tsx` (a tooltip for any control), `components/side-nav.tsx`
   (a page's menu of its parts: Settings, Application Info),
   `profile/section-action.tsx` (a card's own action, a bare glyph with a
-  tooltip), `components/views.tsx`
+  tooltip), `components/selection-bar.tsx` (a table's picked rows: the
+  row's `PickBox` and the bar of actions over the filters, after
+  Notion's: "N selected" in brand ink, then a glyph and word per action,
+  then a delete or remove as a glyph alone, with no close button;
+  Documents' resumes, Up Next and the Tracker's list), `components/views.tsx`
   and `PAGE_SEARCH`. Tailor's resume picker (`ResumeLists`) is the one way
   to pick a resume, in any dialog. A fix to one page table is checked on every other: the
   Tracker, Auto Apply's Up Next and Documents' resumes.
@@ -161,17 +169,28 @@ open choices (Settled choices, near the end).
     action on what is already shown (View, Edit, Show, Hide, Remove All,
     See More), in a heading line, a sentence or a row; **glyph**
     (`IconButton`) for a repeated per-item action with a known icon (Save,
-    ⋯), always with a tooltip.
-  - **Every icon-only control shows a tooltip** (2026-11-11, the user's
-    rule): an `IconButton`, which always draws one (a menu's or popover's
-    trigger renders it: `render={<IconButton …/>}`), or `Tip`
-    (`components/ui/tip.tsx`) around a control that keeps another look: a
-    toolbar's ghost glyph, a link, a dialog's Close, the date picker's
-    arrows, the account photo. A `title` alone is not a tooltip (it shows
-    late and never to touch or a keyboard), nor an `aria-label` alone. The
-    job card's ⋯, Table Settings, the editor's bar, the dialogs' Close and
-    about 30 more had neither until then. Logos and the browser's own
-    search clear (×) are left as they are. **A table row holds no bordered or filled
+    ⋯).
+  - **An icon-only control shows a tooltip unless its glyph is read on
+    sight** (2026-11-12, the user's rule, which narrowed 2026-11-11's
+    "every one"). No tooltip, `tooltip={false}` on an `IconButton` and no
+    `Tip`, for: Close (×) and a chip's remove, Back, the bell, the account
+    photo, the menu's open and close, ⋯, Undo and Redo, Zoom In and Out,
+    Send and Dictate, Download, Rename, Remove and Delete, a Previous or
+    Next arrow, a drag handle, the split button's arrow, and a job card's
+    Save. A tooltip stays where the glyph alone could mean two things: the
+    Cards and Split view toggle, All Filters, the editor's panel buttons
+    and folded tools, Make Primary, Select By, column and table settings,
+    Not Interested, Ask Scout, and every "Coming Soon" button (its tooltip
+    is the only thing that says why it does nothing; `IconButton` keeps it
+    even with `tooltip={false}`). A disabled Send keeps one to say why.
+    Tooltips that showed on everything flickered across rows of close
+    icons, and one opened under the pointer mid-scroll on the Jobs page
+    and rode up over the sticky filter bar. **Tooltips open after 600ms**
+    (`TooltipProvider` in `shadcn/tooltip.tsx`, Base UI's own default;
+    it was 0), so a pass over a row or a scroll opens none; once one is
+    open, the next opens at once (the provider's group). The `aria-label`
+    stays on every icon-only control either way. A `title` alone is not
+    a tooltip (it shows late and never to touch or a keyboard). **A table row holds no bordered or filled
     button and no dashed pill**: its actions are text buttons, glyphs or a
     stage's pill menu, so every row stays one height and one weight.
   - A button acts and a chip is a choice made in place: "A button is a
@@ -342,7 +361,14 @@ open choices (Settled choices, near the end).
 - **Focus is always visible.** A keyboard user must see where they are
   (WCAG 2.2 SC 2.4.7 and 2.4.11). Every control draws the solid
   `--color-brand-ring` ring on `focus-visible` (6.26:1 on white, 5.75:1 on
-  `app`); `outline-none` never comes without a ring. A sticky bar never
+  `app`); `outline-none` never comes without a ring. **It is 2px on every
+  control** (2026-11-11): a field's border turns brand with a 1px ring on it,
+  one 2px edge (`FIELD_CONTROL`, the search field); a button, an icon button,
+  a check box and a switch take a 2px ring (`globals.css` sets the vendored
+  check box's and switch's), and a slider's thumb a 2px ring 2px off its
+  brand edge (`globals.css` too: the focus is on the range input inside it). A field shows focus on every click, and its 1px
+  border plus 3px ring read as a thick purple frame, beside 2px rings and
+  shadcn's half-strength 3px ring on one screen. A sticky bar never
   covers a focused control (`scroll-mt-*`).
 - **Every control has a name.** A screen reader reads the name, and a
   placeholder goes away while the student types (WCAG 2.2 SC 1.3.1, 2.5.3
@@ -1278,12 +1304,39 @@ screen's own `<input>`, `<textarea>` or `FIELD_CONTROL` string:
   small and grey (`FACT_LABEL`), the value in ink under it (`FACT_VALUE`),
   a missing one a faint dash (`components/ui/missing.tsx`, the Tracker's
   too), and no glyph per field where its name already says it. A card's
-  own action is a 32px round glyph button (`HEADING_ACTION`) with a
-  tooltip, wherever a card has one.
+  own action is `IconButton place="heading"` (next rule) with a tooltip,
+  wherever a card has one, never a glyph with a word: Job Preferences'
+  "Edit in Settings" was the one card on My Profile whose Edit had a word
+  until 2026-11-12 (`profile/section-action-link.tsx` for an Edit that
+  opens another page).
+- **Where a bare glyph button sits sets its size** (2026-11-12,
+  `IconButton`'s `place`, shown on `/design-kit/buttons`): `heading`, a
+  card's or section's own action at its heading's end, 32px round with a
+  20px glyph (Experiences' look); `row`, everything else (a row's actions,
+  a panel's or dialog's Close and Back, Undo, a filter's Clear), 32px round
+  with a 16px glyph. Both draw the grey disc on hover. Never a size class
+  at the call site: Close was 24, 28, 32 and 36px, ⋯ came in four looks
+  (a round 32px, a square 32px, a 28px disc, a bare glyph) and Tailor's
+  Undo in three sizes in one panel. The dialogs' and sheets' Close is
+  `place="row"` too (shadcn's 28px square ghost Button until then). Kept
+  apart on purpose: the job card's Save and ⋯ (`glyph`, which sit where a
+  bare glyph did), a chip's own small glyphs, the top bar's bell, Scout's
+  composer, the editor's toolbar (ghost Buttons beside worded ones) and
+  the ground's `soft` buttons (Clear Filters, All Filters, Table
+  Settings).
 - **One glyph, one meaning.** A glyph the sidebar or another screen uses
   for one thing is never drawn for another (the Tracker's checklist on
-  Application Info, until 2026-11-11). Check `seeker-sidebar.tsx` and a
-  grep for the icon before picking one.
+  Application Info, until 2026-11-11), and one thing is never drawn with
+  two glyphs. **`/design-kit/icons` lists every glyph the app draws with
+  its one meaning** (2026-11-12): look there before picking a glyph, and
+  add the new use to its group in the same change. The page flags a glyph
+  with two meanings, or a meaning with two glyphs, by itself (its To Fix
+  group). On 2026-11-12 it flagged twelve and five, Briefcase alone carrying
+  seven meanings, and all were fixed the same day: each sidebar section and
+  each Experiences page group kept its glyph, and every other use moved to
+  a glyph nothing else draws (Applied a paper plane, Remote a laptop, Job
+  type a clock with a person, Visa a stamp, Experience level steps, and so
+  on; the page lists them). Scout's intake draws the Experiences page's set.
 - **A table's column headings draw one rule under them** (2026-11-11): the
   heading row has no border (`STICKY_HEAD`), each heading cell its inset
   rule (`STICKY_TH`), and a frozen heading its rule and its edge together

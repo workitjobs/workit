@@ -39,6 +39,8 @@ import {
   TableRow,
 } from "@/components/shadcn/table";
 import { ClickableRow } from "@/components/clickable-row";
+import { PickBox } from "@/components/selection-bar";
+import { Checkbox } from "@/components/shadcn/checkbox";
 import { MatchBadge } from "@/components/match-badge";
 import { Reflow } from "@/components/reflow";
 import { GroupHeadingRow, useFolds } from "@/components/table-group";
@@ -48,6 +50,9 @@ import {
   STICKY_HEAD,
   STICKY_TH,
   STICKY_TH_FROZEN,
+  FROZEN_EDGE,
+  frozenFill,
+  rowFill,
   TABLE_FILL,
   useFillPage,
 } from "@/components/fill-page";
@@ -56,6 +61,7 @@ import { cn } from "@/lib/cn";
 
 import { STAGE_COLOR, STAGE_ICON, STAGE_LABEL, STAGE_ORDER, type StageKey } from "../stage-colors";
 import { StageMenu } from "./[jobId]/tracker-controls";
+import { useTrackerPick } from "./pick";
 import { ClosedSavedControl, RemoveClosedButton } from "./closed-saved";
 import { LocalDate } from "../local-time";
 import { isClosedSaved, sortKey, type Application } from "../tracker";
@@ -361,12 +367,10 @@ const TD = "px-4 text-note text-ink";
 const FROZEN_CELL = "z-1 bg-panel sticky left-(--frozen-left)";
 /** The last frozen column draws the edge the scrolled cells pass under: a
  *  shadow, since a collapsed table's borders don't move with a sticky cell. */
-const FROZEN_EDGE = "shadow-[1px_0_0_var(--color-border-subtle)]";
 /** The Job column's width below 672px of page, over its kept width
  *  (`!`, since the kept width is an inline style): 208px leaves a phone's
  *  table room for most of Status beside it. */
 const PHONE_JOB = "@max-2xl/main:w-52!";
-const FROZEN_HOVER = "group-hover/row:bg-hover transition-colors";
 
 /** How far one arrow key press resizes a column. */
 const KEY_STEP = 16;
@@ -448,46 +452,76 @@ export function ApplicationsList({ applications }: { applications: Application[]
   const span = table.getVisibleLeafColumns().length + 1;
   const [folded, fold] = useFolds();
 
-  const drawRow = (row: (typeof rows)[number], i: number) => (
-    <Reflow key={row.id}>
-      <ClickableRow
-        href={applicationHref(row.id)}
-        className="hover:bg-hover animate-fade"
-        style={{ animationDelay: `${Math.min(i, 10) * 25}ms` }}
-      >
-        {row.getVisibleCells().map((cell) => {
-          const id = cell.column.id as ColumnId;
-          return (
-            <TableCell
-              key={cell.id}
-              // A click in the resume cell around View Resume is a
-              // near miss, not a wish to open the application:
-              // ClickableRow leaves a prevented click alone.
-              // The stage menu's cell too: its options open in a
-              // popup, whose clicks still reach the row in React.
-              onClick={
-                id === "status" || (id === "resume" && row.original.sentResume)
-                  ? (event) => event.preventDefault()
-                  : undefined
-              }
-              className={cn(
-                TD,
-                "overflow-hidden",
-                CENTRED.includes(id) && "text-center",
-                id === "role" && "py-3",
-                frozenClasses(id),
-                FROZEN.includes(id) && FROZEN_HOVER,
-              )}
-              style={frozenStyle(id)}
-            >
-              {CELL[id](row.original)}
-            </TableCell>
-          );
-        })}
-        <TableCell aria-hidden />
-      </ClickableRow>
-    </Reflow>
-  );
+  // The picked rows (./pick.tsx): kept within the rows shown, which the
+  // bar over the filter row reads.
+  const { picked, setPicked, setShown } = useTrackerPick();
+  useEffect(() => {
+    setShown(applications.map(({ id, role, stage }) => ({ id, role, stage })));
+  }, [applications, setShown]);
+  const shownPicked = rows.filter((row) => picked.has(row.id)).length;
+  function pick(id: string, on: boolean) {
+    setPicked(on ? [...picked, id] : [...picked].filter((other) => other !== id));
+  }
+
+  const drawRow = (row: (typeof rows)[number], i: number) => {
+    const isPicked = picked.has(row.id);
+    return (
+      <Reflow key={row.id}>
+        <ClickableRow
+          href={applicationHref(row.id)}
+          className={cn("animate-fade", rowFill(isPicked))}
+          style={{ animationDelay: `${Math.min(i, 10) * 25}ms` }}
+        >
+          {row.getVisibleCells().map((cell) => {
+            const id = cell.column.id as ColumnId;
+            return (
+              <TableCell
+                key={cell.id}
+                // A click in the resume cell around View Resume is a
+                // near miss, not a wish to open the application:
+                // ClickableRow leaves a prevented click alone.
+                // The stage menu's cell too: its options open in a
+                // popup, whose clicks still reach the row in React.
+                onClick={
+                  id === "status" || (id === "resume" && row.original.sentResume)
+                    ? (event) => event.preventDefault()
+                    : undefined
+                }
+                className={cn(
+                  TD,
+                  "overflow-hidden",
+                  CENTRED.includes(id) && "text-center",
+                  id === "role" && "py-3",
+                  frozenClasses(id),
+                  FROZEN.includes(id) && cn("transition-colors", frozenFill(isPicked)),
+                )}
+                style={frozenStyle(id)}
+              >
+                {id === "role" ? (
+                  // Job starts with the row's select box, as Up Next's Job
+                  // and Documents' Name do (components/selection-bar.tsx).
+                  <div className="flex min-w-0 items-center gap-3">
+                    <PickBox>
+                      <Checkbox
+                        className="border-ink-meta"
+                        checked={isPicked}
+                        onCheckedChange={(on) => pick(row.id, on === true)}
+                        aria-label={`Select ${row.original.role} at ${row.original.company}`}
+                      />
+                    </PickBox>
+                    <div className="min-w-0 flex-1">{CELL[id](row.original)}</div>
+                  </div>
+                ) : (
+                  CELL[id](row.original)
+                )}
+              </TableCell>
+            );
+          })}
+          <TableCell aria-hidden />
+        </ClickableRow>
+      </Reflow>
+    );
+  };
 
   return (
     <Card ref={edgeRef} padding="none" className="relative mt-4 overflow-hidden">
@@ -530,6 +564,23 @@ export function ApplicationsList({ applications }: { applications: Application[]
                   )}
                   style={frozenStyle(header.column.id as ColumnId)}
                   centred={CENTRED.includes(header.column.id as ColumnId)}
+                  lead={
+                    header.column.id === "role" && (
+                      <PickBox>
+                        <Checkbox
+                          className="border-ink-meta"
+                          checked={rows.length > 0 && shownPicked === rows.length}
+                          indeterminate={shownPicked > 0 && shownPicked < rows.length}
+                          // As Up Next's: picks every shown row, or unpicks
+                          // while any is picked.
+                          onCheckedChange={() =>
+                            setPicked(shownPicked > 0 ? [] : rows.map((row) => row.id))
+                          }
+                          aria-label={shownPicked > 0 ? "Unselect All" : "Select All"}
+                        />
+                      </PickBox>
+                    )
+                  }
                 />
               ))}
               {/* The rest of the card's width, so a resize never stretches
@@ -662,9 +713,12 @@ function HeadCell({
   className,
   style,
   centred = false,
+  lead,
 }: {
   header: Header<typeof FEATURES, Application, unknown>;
   label: string;
+  /** Before the label: Job's Select All box. */
+  lead?: ReactNode;
   sort: Sort;
   onSort: (sort: Sort) => void;
   drag: Drag;
@@ -816,7 +870,10 @@ function HeadCell({
         onDrop(id, target);
       }}
     >
-      <div className={cn("flex min-w-0 items-center", centred && "justify-center")}>
+      <div
+        className={cn("flex min-w-0 items-center", centred && "justify-center", lead && "gap-3")}
+      >
+        {lead}
         {columnSort ? (
           <button
             type="button"

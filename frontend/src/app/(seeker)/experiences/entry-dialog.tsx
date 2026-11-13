@@ -148,8 +148,8 @@ export function DialogHead({
   return (
     <div className="border-border-subtle flex shrink-0 items-center gap-2 border-b py-3 pr-3 pl-4 sm:pl-6">
       {onBack && (
-        <IconButton label="Back" className="-ml-1.5 size-8" onClick={onBack}>
-          <ArrowLeftIcon className="size-4" />
+        <IconButton place="row" tooltip={false} label="Back" className="-ml-1.5" onClick={onBack}>
+          <ArrowLeftIcon />
         </IconButton>
       )}
       <div className="min-w-0 flex-1">
@@ -163,8 +163,8 @@ export function DialogHead({
       {actions}
       <DialogClose
         render={
-          <IconButton label="Close" className="hover:bg-hover size-8 rounded-full">
-            <XIcon aria-hidden className="size-5" />
+          <IconButton place="row" tooltip={false} label="Close">
+            <XIcon aria-hidden />
           </IconButton>
         }
       />
@@ -309,6 +309,8 @@ export function EntryPane({
   onSaved,
   onCancel,
   remove,
+  resumeMode = false,
+  resumeSwitches,
 }: {
   ref?: Ref<EntryPaneHandle>;
   title: string;
@@ -324,6 +326,12 @@ export function EntryPane({
   onCancel: () => void;
   /** An entry already kept: Delete, on the foot's left. */
   remove?: EntryRemoval;
+  /** The resume editor's form (KAN-586): bullets reorder and tick on or off
+   *  for that resume (`EntryEditor`'s `resumeMode`). */
+  resumeMode?: boolean;
+  /** A school's GPA and coursework switches for that resume
+   *  (`EntryEditor`'s `resumeSwitches`). */
+  resumeSwitches?: Parameters<typeof EntryEditor>[0]["resumeSwitches"];
 }) {
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -422,6 +430,8 @@ export function EntryPane({
           framed
           initial={initial}
           lines={lines}
+          resumeMode={resumeMode}
+          resumeSwitches={resumeSwitches}
           onChange={() => setDirty(true)}
           onSave={(draft) => submit(draft)}
           onSaveAsNew={(draft) => submit(draft, true)}

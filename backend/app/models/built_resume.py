@@ -6,7 +6,7 @@ and in what order. A bank item with no choice row is not on the resume.
 '''
 import uuid as _uuid
 
-from sqlalchemy import ForeignKey, UniqueConstraint, text
+from sqlalchemy import ForeignKey, String, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -72,7 +72,10 @@ class Built_Resume_Bullet(BaseModel):
 
 
 class Built_Resume_Skill(BaseModel):
-    '''Whether a skill shows and its place in the skills list.'''
+    '''Whether a skill shows, its place in the skills list, and the group it
+    prints under on this resume (KAN-586): null is the bank's group, "" no
+    group ("Other"), any other text that group. A move in the editor sets it
+    on this resume alone; the bank's group never changes here.'''
     __tablename__ = "built_resume_skills"
 
     built_resume_id: Mapped[_uuid.UUID] = mapped_column(
@@ -81,3 +84,4 @@ class Built_Resume_Skill(BaseModel):
         ForeignKey("bank_skills.id", ondelete="CASCADE"), primary_key=True, index=True)
     shown: Mapped[bool] = mapped_column(server_default=text("true"))
     position: Mapped[int]
+    group: Mapped[str | None] = mapped_column(String(60))

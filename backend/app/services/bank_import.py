@@ -29,6 +29,7 @@ from app.models.dto import Experience, ParsedResume, bank_section, entry_end_kin
 from app.schemas.bank import SECTION_FIELDS, DraftEntry, ModelReading
 from app.services import skill_catalog
 from app.utils.resume_parser import (
+    fix_symbols,
     is_tools_line,
     parse_resume,
     section_of,
@@ -41,7 +42,14 @@ _COURSEWORK_RE = re.compile(r"^(?:Relevant\s+)?(?:Coursework|Courses)\s*:?\s*", 
 _GPA_LINE_RE = re.compile(r"^GPA\b", re.IGNORECASE)
 _YEAR_ALONE_RE = re.compile(r"\d{4}")
 _LINK_TAIL_RE = re.compile(r"[\s,;:|–—-]*\[link\]\s*$")
-_MINOR_JOIN_RE = re.compile(r"\s*[|;,–—-]?\s*\bminors?\s*(?:in\b|:)\s*", re.IGNORECASE)
+_MINOR_JOIN_RE = re.compile(r"\s*[|;,–—-]?\s*\b(minors?)\s*(?:in\b|:)\s*", re.IGNORECASE)
+# A minor in a phrase of its own, kept as written: "with a Minor in X",
+# "(Minor in X)", "Double Minor in X". Joined, they read "with a, minor in"
+_MINOR_AS_WRITTEN_RE = re.compile(r"\b(?:with|plus|and)\s+(?:an?\s+)?(?:double\s+)?minors?\b|\(\s*minors?\b|"
+                                  r"\bdouble\s+minors?\b", re.IGNORECASE)
+# How a degree is compared with the resume's text: case, spacing and the
+# apostrophe's form aside
+_DEGREE_FORM_RE = re.compile(r"\s+")
 # Not a skill: a name still holding a "|" (a title's tail glued on), a
 # qualification ("Computer Science degree", "Bachelor's in ...", "GPA 3.8",
 # "3+ years of Java", a citizenship or clearance), or a generic phrase that
@@ -121,6 +129,7 @@ def _raw_drafts(parsed: ParsedResume, today: datetime.date) -> list[dict]:
         drafts.append({
             "section": bank_section.education,
             "title": _clip(school.institution),
+            "location": _clip(school.location),
             "degree": _clip(school.degree),
             "field_of_study": _clip(school.field_of_study),
             "gpa": school.gpa,
@@ -232,7 +241,30 @@ def read(raw_text: str | None) -> tuple[list[DraftEntry], list[tuple[str, str | 
         parsed = None
     if parsed is None:
         return [], []
-    return draft_entries(parsed), skill_pairs(parsed_skills(parsed))
+    return tidy_drafts(draft_entries(parsed)), skill_pairs(parsed_skills(parsed))
+
+
+_BAR_RE = re.compile(r"\s*\|\s*")
+
+
+def tidy_drafts(drafts: list[DraftEntry]) -> list[DraftEntry]:
+    """Both readings' last step: a "|" in a title or organization spaced on
+    both sides ("thinkwell (Pulp) |AI Communications Platform"), as the
+    resume beside it writes it, and an entry the reading holds twice word
+    for word kept once (a PDF editor left a resume's whole text in it
+    twice, and every entry was saved twice)."""
+    kept: list[DraftEntry] = []
+    seen: set[str] = set()
+    for draft in drafts:
+        for field in ("title", "organization"):
+            value = getattr(draft, field)
+            if value and "|" in value:
+                setattr(draft, field, _BAR_RE.sub(" | ", value).strip())
+        key = draft.model_dump_json()
+        if key not in seen:
+            seen.add(key)
+            kept.append(draft)
+    return kept
 
 
 # --- Model parsing (KAN-222) ---------------------------------------------------
@@ -317,8 +349,8 @@ def model_drafts(reading: ModelReading, text: str | None = None) -> list[DraftEn
             raw["organization"] = None
         # "Computer Science | Minor in Writing & Rhetoric", copied as written,
         # reads as the parser writes it: "Computer Science, minor in ...".
-        if raw["field_of_study"]:
-            raw["field_of_study"] = _MINOR_JOIN_RE.sub(", minor in ", raw["field_of_study"])
+        if raw["field_of_study"] and not _MINOR_AS_WRITTEN_RE.search(raw["field_of_study"]):
+            raw["field_of_study"] = _MINOR_JOIN_RE.sub(lambda m: f", {m[1].lower()} in ", raw["field_of_study"], count=1)
         raw["honors"] = _clip(raw["honors"], _LONG)
         raw["coursework"] = [c for c in (_clip(x) for x in raw["coursework"] if not _withheld(x)) if c][:40]
         # Only a project holds tools (KAN-738): a role's would fail the
@@ -337,6 +369,12 @@ def model_drafts(reading: ModelReading, text: str | None = None) -> list[DraftEn
                 raw[field] = f"{raw[field].strip()}-01"
         if words is not None:
             raw = _backed_fields(raw, words)
+        # A degree only as the resume writes it: "Bachelor's" for "Bachelor
+        # of Science" passed the word check ("bachelor" and "s" are both on
+        # most resumes), and "B.S." became "BS". Dropped, the parser's
+        # reading of it fills the field, word for word.
+        if text is not None and raw["degree"] and _degree_key(raw["degree"]) not in _degree_key(text):
+            raw["degree"] = None
         if draft := _valid(raw):
             drafts.append(draft)
     return drafts
@@ -403,7 +441,7 @@ async def read_resume(raw_text: str | None, llm: LLM | None = None, identity: Id
         return parsed
     # "Chick-ﬁl-A": the PDF's ligatures and other compatibility characters,
     # which the parser's clean-up fixes, would be copied by the model as is.
-    text = unicodedata.normalize("NFKC", raw_text)
+    text = unicodedata.normalize("NFKC", fix_symbols(raw_text))
     try:
         async with asyncio.timeout(MODEL_WAIT_SECONDS):
             reading = await read_with_model(_from_first_heading(text), llm, identity=identity)
@@ -422,7 +460,7 @@ async def read_resume(raw_text: str | None, llm: LLM | None = None, identity: Id
     # a skill the model left out is kept.
     beside = tools + [tool for draft in drafts for tool in draft.tools] + role_tools(reading, text)
     found = model_skills(reading, text) + [(tool, None) for tool in beside] + skills
-    return Reading(drafts, skill_pairs(found), "model")
+    return Reading(tidy_drafts(drafts), skill_pairs(found), "model")
 
 
 def with_tools_split(drafts: list[DraftEntry]) -> tuple[list[DraftEntry], list[str]]:
@@ -651,6 +689,10 @@ def _backed_fields(raw: dict, words: set[str]) -> dict:
     if raw["gpa"] is not None and not _number_backed(raw["gpa"], words):
         raw.update(gpa=None, gpa_scale=None)
     return raw
+
+
+def _degree_key(value: str) -> str:
+    return _DEGREE_FORM_RE.sub(" ", value.replace("’", "'")).strip().lower()
 
 
 def _title_key(title: str) -> str:

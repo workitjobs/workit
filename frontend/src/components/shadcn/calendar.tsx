@@ -4,7 +4,6 @@ import * as React from "react";
 import { DayPicker, getDefaultClassNames, type DayButton, type Locale } from "react-day-picker";
 
 import { cn } from "@/lib/cn";
-import { Tip } from "@/components/ui/tip";
 import { Button, buttonVariants } from "@/components/shadcn/button";
 import { CaretDownIcon, CaretLeftIcon, CaretRightIcon } from "@phosphor-icons/react/ssr";
 
@@ -129,18 +128,6 @@ function Calendar({
           return <CaretDownIcon aria-hidden className={cn("size-4", className)} {...props} />;
         },
         DayButton: ({ ...props }) => <CalendarDayButton locale={locale} {...props} />,
-        // The month arrows say what they do on hover, as every icon-only
-        // control does (components/ui/tip.tsx, 2026-11-11).
-        PreviousMonthButton: (props) => (
-          <Tip label="Previous Month">
-            <button {...props} />
-          </Tip>
-        ),
-        NextMonthButton: (props) => (
-          <Tip label="Next Month">
-            <button {...props} />
-          </Tip>
-        ),
         WeekNumber: ({ children, ...props }) => {
           return (
             <td {...props}>

@@ -5,11 +5,14 @@ import type { ReactNode } from "react";
 import {
   RESUME_ACTIONS_COL,
   RESUME_DATE_COL,
+  RESUME_NAME_COL,
   RESUME_TARGET_COL,
   RESUME_TH,
   RESUME_TYPE_COL,
 } from "@/components/resume-row";
 import { STICKY_HEAD, STICKY_TH, TABLE_FILL, useFillPage } from "@/components/fill-page";
+import { PickBox } from "@/components/selection-bar";
+import { Checkbox } from "@/components/shadcn/checkbox";
 import { Table, TableBody, TableHead, TableHeader, TableRow } from "@/components/shadcn/table";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/cn";
@@ -47,10 +50,15 @@ import { RESUME_GRID } from "./view";
  */
 export function ResumeList({
   grid = false,
+  selectAll,
   children,
 }: {
   /** The grid of first pages (KAN-766), not the table. */
   grid?: boolean;
+  /** The Name heading's select box (2026-11-11, as Up Next's Role
+   *  heading's): checked while every shown row is picked, a dash while
+   *  some are; a click picks every row, or unpicks while any is picked. */
+  selectAll?: { all: boolean; some: boolean; onToggle: () => void };
   children: ReactNode;
 }) {
   const fill = useFillPage(!grid);
@@ -76,7 +84,24 @@ export function ResumeList({
       >
         <TableHeader className={STICKY_HEAD}>
           <TableRow className="hover:bg-transparent">
-            <TableHead className={cn(RESUME_TH, STICKY_TH)}>Name</TableHead>
+            <TableHead className={cn(RESUME_TH, STICKY_TH, RESUME_NAME_COL)}>
+              {selectAll ? (
+                <span className="flex items-center gap-2">
+                  <PickBox>
+                    <Checkbox
+                      className="border-ink-meta"
+                      checked={selectAll.all}
+                      indeterminate={selectAll.some && !selectAll.all}
+                      onCheckedChange={selectAll.onToggle}
+                      aria-label={selectAll.some ? "Unselect All" : "Select All"}
+                    />
+                  </PickBox>
+                  Name
+                </span>
+              ) : (
+                "Name"
+              )}
+            </TableHead>
             <TableHead className={cn(RESUME_TH, STICKY_TH, RESUME_TARGET_COL)}>
               <span className="hidden @4xl:inline">Target Job</span>
             </TableHead>

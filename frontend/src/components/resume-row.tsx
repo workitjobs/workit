@@ -8,7 +8,14 @@ import {
 } from "@phosphor-icons/react/ssr";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useRef, useState, type ComponentType, type FormEvent, type ReactNode } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ComponentType,
+  type FormEvent,
+  type ReactNode,
+} from "react";
 
 import { LocalDate } from "@/app/(seeker)/local-time";
 import { ResumeThumbnail } from "@/app/(seeker)/jobs/[jobId]/tailor/resume-preview";
@@ -30,6 +37,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/shadcn/dropdown-menu";
 import { ClickableRow } from "@/components/clickable-row";
+import { rowFill } from "@/components/fill-page";
+import { PickBox } from "@/components/selection-bar";
+import { Checkbox } from "@/components/shadcn/checkbox";
 import { CompanyLogo } from "@/components/company-logo";
 import { RESUME_TYPES, type ResumeType } from "@/components/resume-list";
 import { TableCell, TableRow } from "@/components/shadcn/table";
@@ -50,9 +60,6 @@ import type { ResumeItem } from "@/lib/resume-actions";
  *  phone's row is about 317px, and from a 768px window it is 606px. */
 export const RESUME_ROW =
   "border-border-subtle bg-well rounded-control @container mt-2 flex items-center gap-3 border p-2";
-
-/** A row's icon actions: 32px boxes. */
-export const ROW_ACTION = "rounded-control hover:bg-hover size-8";
 
 /** The row's icons, side by side with no gap: each is a 32px box already.
  *  On touch they stand 12px apart (KAN-575), so each icon's hit area
@@ -76,24 +83,32 @@ export const ROW_NAME = "min-w-1/2 flex-1";
 export const RESUME_TH = "px-4 text-note text-ink-meta font-medium";
 export const RESUME_TD = "px-4 text-note text-ink";
 
+/** The Name column: two fifths of the table from `@4xl`, where Target Job
+ *  shows, and the room the other columns leave below that. Name took all
+ *  the room the fixed columns left (710px of a 1270px table, 2026-11-11),
+ *  so a short name stood far from its job and the job's title was cut at
+ *  256px; the user found the two too far apart. */
+export const RESUME_NAME_COL = "@4xl:w-2/5";
+
 /** The Target Job column, from `@4xl` of the table (896px: a laptop's
- *  window; narrower, the name kept under 200px). Below that it keeps its
+ *  window; narrower, the name kept under 200px): the room Name and the
+ *  fixed columns leave. Below that it keeps its
  *  place with no width and no padding, rather than leaving the table: a
  *  rename's row spans every column, which a missing column would break.
  *  The job then reads under the name ("<role> at <company>"). */
-export const RESUME_TARGET_COL = "w-0 overflow-hidden p-0 @4xl:w-64 @4xl:px-4";
+export const RESUME_TARGET_COL = "w-0 overflow-hidden p-0 @4xl:w-auto @4xl:px-4";
 
 /** The Type column, from `@2xl` of the table, folded as Target Job is. */
 export const RESUME_TYPE_COL = "w-0 overflow-hidden p-0 @2xl:w-32 @2xl:px-4";
 
-/** The Date Modified column: the day ("Nov 10"), and room for the four
- *  hover icons that cover it under the pointer (`CardActionIcons`). */
+/** The Date Modified column: the day ("Nov 10"), nothing over it. */
 export const RESUME_DATE_COL = "w-24 @2xl:w-32";
 
-/** The actions column: ⋮ alone (2026-11-10). It was five icons wide, the
- *  four that show on hover and ⋮, so at rest a 150px empty column stood
- *  between the date and ⋮. The hover icons now cover the date, as
- *  Gmail's do. */
+/** The actions column: ⋮ alone (2026-11-11). The picked rows' actions
+ *  are in the bar over the table (components/selection-bar.tsx). Four
+ *  icons on hover came before: over Date Modified, which they hid, then
+ *  in a 144px column of their own, empty at rest, with ⋮ beside them
+ *  holding the same four; the user found both wrong. */
 export const RESUME_ACTIONS_COL = "w-12";
 
 /** What a card's actions do, as its row hands them over. */
@@ -105,23 +120,24 @@ export type CardActions = {
   onDelete: () => Promise<void>;
 };
 
-/** The icons that wait for the pointer (Google Drive's rows): hidden until
- *  the card is hovered or holds the keyboard's focus, in place, so the row
- *  never shifts; on a touch screen, which has no hover, never, and ⋮ holds
- *  them. */
-const ON_HOVER =
-  "opacity-0 transition-opacity duration-150 group-focus-within:opacity-100 group-hover:opacity-100 pointer-coarse:hidden";
+/** A row's pick (2026-11-11, as Up Next's): its select box, and its
+ *  actions handed to the page, which the bar over the table runs for the
+ *  picked rows (components/selection-bar.tsx). */
+export type RowPick = {
+  checked: boolean;
+  onChange: (on: boolean) => void;
+  /** Keeps the row's current actions for the bar; null when it leaves. */
+  register: (actions: CardActions | null) => void;
+};
 
 /**
- * A row's actions (2026-11-10, after Google Drive): at rest only ⋮ (More
- * actions); on hover or focus, Make Primary (on a resume that is not the
- * primary), Rename, Download and Delete appear left of ⋮, over the Date
- * Modified cell, on the row's own hover fill, as Gmail's row actions take
- * the date's place. They took a column of their own, empty at rest. The primary says
- * so in a badge beside its name (`PrimaryBadge`, after Jobright's), not a
- * star here. ⋮ holds every action, worded (`RowMoreMenu` with `always`), so a
- * touch screen and a phone reach them all. Four icons on every card at all
- * times read busy to the user. Delete asks first, from either place.
+ * A row's actions: ⋮ (More actions) alone, every action worded (Open,
+ * Rename, Download PDF, Make Primary on a resume that is not the primary,
+ * then Delete in red, which asks first; `RowMoreMenu` with `always`), for
+ * one resume at a time. Several at once are picked with the select boxes,
+ * and the bar over the table acts on them (2026-11-11, after Notion's).
+ * Make Primary, Rename, Download and Delete showed as icons on hover until
+ * then. The primary says so in a badge beside its name (`PrimaryBadge`).
  */
 function CardActionIcons({
   name,
@@ -135,45 +151,6 @@ function CardActionIcons({
   const { primary, onMakePrimary, onRename, download, onDelete } = actions;
   return (
     <div className="relative z-10 flex items-center justify-end">
-      {/* Left of ⋮, over the date: the row's hover fill under it hides the
-          day; white while only the keyboard's focus shows it. */}
-      <div
-        className={cn(
-          "bg-panel group-hover:bg-hover absolute top-1/2 right-full flex -translate-y-1/2 items-center pl-2",
-          ON_HOVER,
-        )}
-      >
-        {!primary && <PrimaryStar name={name} primary={false} onMakePrimary={onMakePrimary} />}
-        <IconButton
-          label={`Rename ${name}`}
-          tooltip="Rename"
-          className={ROW_ACTION}
-          onClick={onRename}
-        >
-          <PencilIcon className="size-4" />
-        </IconButton>
-        <IconButton
-          label={`Download ${name}`}
-          tooltip={download.label}
-          className={ROW_ACTION}
-          disabled={download.busy}
-          onClick={download.onPick}
-        >
-          <FileArrowDownIcon aria-hidden className="size-4" />
-        </IconButton>
-        <DeleteResumeConfirm
-          onDelete={onDelete}
-          trigger={
-            <IconButton
-              label={`Delete ${name}`}
-              tooltip="Delete"
-              className={cn(ROW_ACTION, "hover:text-danger")}
-            >
-              <TrashIcon className="size-4" />
-            </IconButton>
-          }
-        />
-      </div>
       <RowMoreMenu
         always
         name={name}
@@ -195,9 +172,8 @@ function CardActionIcons({
  * badge on the primary), **Target Job** (a tailored resume's posting, as
  * the Tracker's Role cell draws a job: the company's logo, then the role
  * over the company; a faint dash for a resume made for no job), **Type**
- * (its grey glyph and word, `TypeLabel`), **Date Modified**, then ⋮ (the
- * other actions cover the date on hover)
- * (`CardActionIcons`). After Jobright's resume table, the name stands
+ * (its grey glyph and word, `TypeLabel`), **Date Modified**, then the
+ * actions (`CardActionIcons`). After Jobright's resume table, the name stands
  * alone, with no tile beside it: the Type column says what each resume is,
  * and the job has a column of its own, where the logos line up. The
  * headings name each column once: as cards, every resume said "Modified"
@@ -235,9 +211,12 @@ export function ResumeCard({
   thumbnail,
   type,
   company,
+  pick,
 }: {
   name: string;
   href: string;
+  /** The row's select box and its actions for the bar (the list only). */
+  pick?: RowPick;
   /** A tailored resume's posting title, a link to it while it is open:
    *  the Target Job column's first line. */
   role?: ReactNode;
@@ -280,10 +259,12 @@ export function ResumeCard({
   const modified = edited ?? created;
   return (
     // 56px, so a row with a job's two lines and a row with a name alone
-    // stand the same height.
-    <ClickableRow href={href} className="group hover:bg-hover h-14">
+    // stand the same height. A picked row takes the brand tint, as Up
+    // Next's does.
+    <ClickableRow href={href} className={cn("group h-14", rowFill(pick?.checked ?? false))}>
       <TableCell className={cn(RESUME_TD, "overflow-hidden py-2")}>
         <div className="flex min-w-0 items-center gap-2">
+          {pick && <RowPickBox name={name} pick={pick} actions={actions} />}
           <Link
             href={href}
             title={name}
@@ -296,8 +277,10 @@ export function ResumeCard({
           </Link>
           {actions.primary && <PrimaryBadge />}
         </div>
-        {about && <p className="text-note text-ink-meta truncate @4xl:hidden">{about}</p>}
-        {notes && <div className="whitespace-normal">{notes}</div>}
+        <div className={cn(pick && "pl-6")}>
+          {about && <p className="text-note text-ink-meta truncate @4xl:hidden">{about}</p>}
+          {notes && <div className="whitespace-normal">{notes}</div>}
+        </div>
       </TableCell>
       <TableCell className={cn(RESUME_TD, RESUME_TARGET_COL)}>
         {/* A faint dash where the resume was made for no job: a blank in
@@ -328,6 +311,34 @@ export function ResumeCard({
         <CardActionIcons name={name} href={href} actions={actions} />
       </TableCell>
     </ClickableRow>
+  );
+}
+
+/** A row's select box (`PickBox`), which also keeps the row's current
+ *  actions with the page for the bar, and drops them when the row leaves. */
+function RowPickBox({
+  name,
+  pick,
+  actions,
+}: {
+  name: string;
+  pick: RowPick;
+  actions: CardActions;
+}) {
+  const { register } = pick;
+  useEffect(() => {
+    register(actions);
+  });
+  useEffect(() => () => register(null), [register]);
+  return (
+    <PickBox>
+      <Checkbox
+        className="border-ink-meta"
+        checked={pick.checked}
+        onCheckedChange={(on) => pick.onChange(on === true)}
+        aria-label={`Select ${name}`}
+      />
+    </PickBox>
   );
 }
 
@@ -781,12 +792,12 @@ export function PrimaryStar({
   if (!onMakePrimary) return null;
   return (
     <IconButton
+      place="row"
       label={`Make ${name} your primary resume`}
       tooltip="Make primary"
-      className={ROW_ACTION}
       onClick={onMakePrimary}
     >
-      <StarIcon aria-hidden className="size-4" />
+      <StarIcon aria-hidden />
     </IconButton>
   );
 }
@@ -839,13 +850,8 @@ export function RowMoreMenu({
       >
         <DropdownMenuTrigger
           render={
-            <IconButton
-              ref={button}
-              label={`More actions for ${name}`}
-              tooltip="More actions"
-              className={ROW_ACTION}
-            >
-              <EllipsisIcon className="size-4" />
+            <IconButton place="row" ref={button} label={`More actions for ${name}`} tooltip={false}>
+              <EllipsisIcon />
             </IconButton>
           }
         />
@@ -937,6 +943,8 @@ type ResumeRowProps = {
   layout?: "list" | "grid";
   /** A table row's messages under the name (`ResumeCard`'s `notes`). */
   notes?: ReactNode;
+  /** The page row's select box (`ResumeCard`'s `pick`). */
+  pick?: RowPick;
   onMakePrimary?: () => void;
   onRename?: () => void;
   onDownload?: () => void;
@@ -951,6 +959,7 @@ export function ResumeRow({
   rename,
   layout = "list",
   notes,
+  pick,
   onMakePrimary,
   onRename,
   onDownload,
@@ -965,23 +974,13 @@ export function ResumeRow({
       <PrimaryStar name={name} primary={resume.is_default} onMakePrimary={onMakePrimary} />
       <div className={ROW_WIDE}>
         {onRename && (
-          <IconButton
-            label={`Rename ${name}`}
-            tooltip="Rename"
-            className={ROW_ACTION}
-            onClick={onRename}
-          >
-            <PencilIcon className="size-4" />
+          <IconButton place="row" label={`Rename ${name}`} tooltip={false} onClick={onRename}>
+            <PencilIcon />
           </IconButton>
         )}
         {onDownload && (
-          <IconButton
-            label={`Download ${name}`}
-            tooltip={downloadLabel}
-            className={ROW_ACTION}
-            onClick={onDownload}
-          >
-            <FileArrowDownIcon aria-hidden className="size-4" />
+          <IconButton place="row" label={`Download ${name}`} tooltip={false} onClick={onDownload}>
+            <FileArrowDownIcon aria-hidden />
           </IconButton>
         )}
         {onDelete && (
@@ -989,11 +988,12 @@ export function ResumeRow({
             onDelete={onDelete}
             trigger={
               <IconButton
+                place="row"
                 label={`Delete ${name}`}
-                tooltip="Delete"
-                className={cn(ROW_ACTION, "hover:text-danger")}
+                tooltip={false}
+                className={cn("hover:text-danger")}
               >
-                <TrashIcon className="size-4" />
+                <TrashIcon />
               </IconButton>
             }
           />
@@ -1034,6 +1034,7 @@ export function ResumeRow({
           onDelete,
         }}
         rename={rename}
+        pick={pick}
       />
     );
   }

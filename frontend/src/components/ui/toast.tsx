@@ -245,7 +245,7 @@ function ToastCard({
       <IconButton
         label="Close"
         variant="inverse"
-        tooltip="Close"
+        tooltip={false}
         className="size-7 shrink-0"
         onClick={() => dismiss(id)}
       >

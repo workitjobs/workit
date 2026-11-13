@@ -87,12 +87,13 @@ export function RowMenu<T extends ActivityItem>({
       <DropdownMenuTrigger
         render={
           <IconButton
+            place="row"
             label={`More actions for ${item.role}`}
-            tooltip="More actions"
-            className="size-8"
+            tooltip={false}
+
             disabled={pending}
           >
-            <EllipsisIcon className="size-4" />
+            <EllipsisIcon />
           </IconButton>
         }
       />

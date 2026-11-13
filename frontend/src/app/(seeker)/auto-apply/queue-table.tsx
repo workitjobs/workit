@@ -16,6 +16,7 @@ import { PlusIcon } from "@/components/icons";
 import { MatchBadge } from "@/components/match-badge";
 import { Reflow } from "@/components/reflow";
 import { GroupHeadingRow, useFolds } from "@/components/table-group";
+import { PickBox } from "@/components/selection-bar";
 import { Checkbox } from "@/components/shadcn/checkbox";
 import {
   Table,
@@ -25,7 +26,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/shadcn/table";
-import { STICKY_HEAD, STICKY_TH, TABLE_FILL, useFillPage } from "@/components/fill-page";
+import {
+  frozenFill,
+  rowFill,
+  STICKY_HEAD,
+  STICKY_TH,
+  TABLE_FILL,
+  useFillPage,
+} from "@/components/fill-page";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import type { BatchTabState } from "@/lib/autofill-extension";
@@ -151,12 +159,11 @@ const COLUMNS: { id: string; label: string; width?: string; folds?: boolean }[] 
  *  the folded columns' width, and frozen it covered most of the card, so
  *  Status and Resume scrolled by behind it in a strip. */
 const ROLE_FROZEN =
-  "z-1 bg-panel @3xl/main:sticky @3xl/main:left-0 @3xl/main:shadow-[1px_0_0_var(--color-border-subtle)]";
+  "z-1 bg-panel @3xl/main:sticky @3xl/main:left-0 @3xl/main:after:pointer-events-none @3xl/main:after:absolute @3xl/main:after:inset-y-0 @3xl/main:after:right-0 @3xl/main:after:w-px @3xl/main:after:bg-border-surface";
 
 /** The frozen Role heading's and the ⋯ heading's edges with the heading's
  *  rule under them, as `STICKY_TH_FROZEN` draws a frozen heading's. */
-const ROLE_HEAD_EDGE =
-  "@3xl/main:shadow-[inset_0_-1px_0_var(--color-border-subtle),1px_0_0_var(--color-border-subtle)]";
+const ROLE_HEAD_EDGE = "@3xl/main:shadow-[inset_0_-1px_0_var(--color-border-subtle)]";
 const MENU_HEAD_EDGE =
   "in-data-clipped:shadow-[inset_0_-1px_0_var(--color-border-subtle),-1px_0_0_var(--color-border-subtle),-8px_0_12px_-4px_rgb(18_26_40/0.2)]";
 
@@ -172,16 +179,6 @@ const FOLDED = "hidden @3xl/main:inline";
  *  `useClipped`) it draws an edge shadow, the cue that the table scrolls. */
 const STICKY_END =
   "sticky right-0 z-1 bg-panel in-data-clipped:shadow-[-1px_0_0_var(--color-border-subtle),-8px_0_12px_-4px_rgb(18_26_40/0.2)]";
-
-/** A sticky cell paints the row's own background so scrolled cells don't
- *  show through it, so it follows the row's tint: picked, hovered, or with
- *  its ⋯ menu open (`data-popup-open` on the trigger: the pointer leaves for
- *  the menu, and a sticky cell alone kept its hover tint). */
-function stickyTint(picked: boolean) {
-  return picked
-    ? "bg-brand-tint"
-    : "group-hover/row:bg-hover [tr:has([data-popup-open])_&]:bg-hover";
-}
 
 /** Whether the table hides columns past its right edge, kept current as it
  *  scrolls and resizes. Returns the flag and the ref for the `<table>`; its
@@ -392,7 +389,7 @@ function Row({
 }) {
   const cells: ReactNode = (
     <>
-      <TableCell className={cn(TD, ROLE_FROZEN, "transition-colors", stickyTint(picked))}>
+      <TableCell className={cn(TD, ROLE_FROZEN, "transition-colors", frozenFill(picked))}>
         <div className="flex min-w-0 items-center gap-3">
           <PickBox>
             <Checkbox
@@ -483,7 +480,7 @@ function Row({
       </TableCell>
 
       <TableCell
-        className={cn(TD, "text-center", STICKY_END, "py-0 transition-colors", stickyTint(picked))}
+        className={cn(TD, "text-center", STICKY_END, "py-0 transition-colors", frozenFill(picked))}
       >
         {row.tab !== "applied" && <RowMenu item={row} onResume={onResume} onRemove={onRemove} />}
       </TableCell>
@@ -493,16 +490,7 @@ function Row({
   // Fades in down the table on arrival, 25ms apart, as the Applications list's rows do.
   const style = { animationDelay: `${Math.min(index, 10) * 25}ms` };
   return row.href ? (
-    <ClickableRow
-      href={row.href}
-      className={cn(
-        "animate-fade",
-        picked
-          ? "bg-brand-tint hover:bg-brand-tint"
-          : "hover:bg-hover has-[[data-popup-open]]:bg-hover",
-      )}
-      style={style}
-    >
+    <ClickableRow href={row.href} className={cn("animate-fade", rowFill(picked))} style={style}>
       {cells}
     </ClickableRow>
   ) : (
@@ -636,17 +624,6 @@ function PlainStatus({ Icon, label, ink }: { Icon: typeof CheckIcon; label: stri
     <span className={cn("text-note inline-flex items-center gap-1.5 font-medium", ink)}>
       <Icon aria-hidden className="size-3.5 shrink-0" />
       {label}
-    </span>
-  );
-}
-
-/** A select box's square in the Role cell. Its clicks stop here: the row's
- *  own click opens the job posting (components/clickable-row.tsx), and a
- *  pick should not. */
-function PickBox({ children }: { children: ReactNode }) {
-  return (
-    <span className="flex shrink-0 items-center" onClick={(event) => event.stopPropagation()}>
-      {children}
     </span>
   );
 }

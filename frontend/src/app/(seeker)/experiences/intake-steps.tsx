@@ -2,15 +2,15 @@
 
 import type { Icon as PhosphorIcon } from "@phosphor-icons/react";
 import {
-  BriefcaseMetalIcon,
   CaretLeftIcon,
+  CertificateIcon,
   CheckIcon,
+  DeskIcon,
   GraduationCapIcon,
-  LightbulbIcon,
   MinusIcon,
-  SealCheckIcon,
+  RocketLaunchIcon,
   TrophyIcon,
-  UsersIcon,
+  UsersThreeIcon,
 } from "@phosphor-icons/react/ssr";
 import type { CSSProperties } from "react";
 
@@ -20,7 +20,6 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 
 import { sectionOf } from "./sections";
-import { Tip } from "@/components/ui/tip";
 
 /**
  * Intake's step bar (KAN-214), in the order intake leads a student through
@@ -70,14 +69,17 @@ export const WALK: readonly Section[] = [
 ];
 
 /** Each section's glyph: its step chip, the chat's chapter line, the draft
- *  form's header and the sections Scout offers to start. */
+ *  form's header and the sections Scout offers to start. The same glyphs as
+ *  the Experiences page's (section-icons.tsx), so a section wears one mark
+ *  everywhere: the intake drew its own set (a lightbulb for Projects, a
+ *  seal for Certifications) until 2026-11-12. Change both together. */
 export const ICONS: Record<Section, PhosphorIcon> = {
   education: GraduationCapIcon,
-  experience: BriefcaseMetalIcon,
-  projects: LightbulbIcon,
-  leadership: UsersIcon,
+  experience: DeskIcon,
+  projects: RocketLaunchIcon,
+  leadership: UsersThreeIcon,
   awards: TrophyIcon,
-  certifications: SealCheckIcon,
+  certifications: CertificateIcon,
 };
 
 const HEAD_START = 25;
@@ -194,17 +196,15 @@ export function StepBar({
     <div className="flex flex-col gap-1">
       {/* Back and Skip are 36px; up 2px, they centre on the 32px chips. */}
       <div className="flex items-start gap-2">
-        <Tip label={previous ? `Back to ${sectionOf(previous).label}` : "Back"}>
-          <button
-            type="button"
-            aria-label={previous ? `Back to ${sectionOf(previous).label}` : "Back"}
-            disabled={!previous || busy}
-            onClick={() => previous && onJump(previous)}
-            className="text-brand hover:bg-brand-tint disabled:text-brand-pale focus-visible:ring-brand-ring -mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-full transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:hover:bg-transparent"
-          >
-            <CaretLeftIcon aria-hidden className="size-5" weight="bold" />
-          </button>
-        </Tip>
+        <button
+          type="button"
+          aria-label={previous ? `Back to ${sectionOf(previous).label}` : "Back"}
+          disabled={!previous || busy}
+          onClick={() => previous && onJump(previous)}
+          className="text-brand hover:bg-brand-tint disabled:text-brand-pale focus-visible:ring-brand-ring -mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-full transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:hover:bg-transparent"
+        >
+          <CaretLeftIcon aria-hidden className="size-5" weight="bold" />
+        </button>
 
         <div className="min-w-0 flex-1">{chips}</div>
 

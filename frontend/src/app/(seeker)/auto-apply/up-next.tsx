@@ -1,7 +1,8 @@
 "use client";
 
-import { PlusIcon, SearchIcon } from "@/components/icons";
-import { PencilLineIcon, ProhibitIcon, XIcon } from "@phosphor-icons/react/ssr";
+import { PlusIcon, SearchIcon, TrashIcon } from "@/components/icons";
+import { SelectionAction, SelectionBar } from "@/components/selection-bar";
+import { PencilLineIcon, ProhibitIcon } from "@phosphor-icons/react/ssr";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 
@@ -46,9 +47,11 @@ import { ResumeDialog } from "./resume-dialog";
  * (./resume-dialog.tsx); the cell shows that pick, else the rule's
  * (./(queue)/page.tsx), and an empty Choose Resume slot when there is none.
  *
- * **Rows are picked with select boxes.** While any is picked, the heading's
- * right end shows the count and the two things to do to them, in place of
- * Add Jobs; Select All unpicks them (./queue-table.tsx):
+ * **Rows are picked with select boxes.** While any is picked, the bar over
+ * the filter row (components/selection-bar.tsx, as Documents' resumes)
+ * shows the count and the two things to do to them; Escape or Select All
+ * unpicks them (./queue-table.tsx). They replaced Add Jobs at the search
+ * row's end until 2026-11-11:
  *
  *   Remove       `remove`, as the row menu's Remove From Queue.
  *   Auto Apply   opens the picked jobs with no tab open (queued, or started with its tab closed)
@@ -84,6 +87,7 @@ export function UpNext({ items, saved }: { items: ActivityItem[]; saved: SavedJo
   const [adding, setAdding] = useState(false);
   const [resumeFor, setResumeFor] = useState<ActivityItem | null>(null);
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
+  const clearPick = () => setPicked(new Set());
   const [filters, setFilters] = useState<QueueFilters>(NO_QUEUE_FILTERS);
   const groupBy = useQueueGroupBy();
   const [pending, start] = useTransition();
@@ -194,34 +198,42 @@ export function UpNext({ items, saved }: { items: ActivityItem[]; saved: SavedJo
         rows={rows}
         filters={filters}
         onChange={setFilters}
-        actions={
-          checked.length > 0 ? (
-            <>
-              <span className="text-note text-ink tabular-nums">{checked.length} selected</span>
-              {/* Text: it acts on the picked rows (frontend/docs/design.md,
-                  which button look). Auto Apply is the view's one main
-                  action while rows are picked, so it alone is filled. */}
-              <Button variant="ghost" size="sm" disabled={pending} onClick={() => remove(checked)}>
-                <XIcon aria-hidden className="size-4" />
-                Remove
-              </Button>
-              <Button
-                size="sm"
+        // The picked rows' actions, over the filter row while any row is
+        // picked (components/selection-bar.tsx), as Documents' resumes.
+        // They replaced Add Jobs at the search row's end until 2026-11-11.
+        selection={
+          checked.length > 0 && (
+            <SelectionBar
+              count={checked.length}
+              onClear={clearPick}
+              className="absolute top-1/2 left-0 -translate-y-1/2"
+            >
+              {/* Auto Apply is what a pick is for, so it leads; Remove
+                  goes last as a glyph, as a delete does. */}
+              <SelectionAction
+                label="Auto Apply"
+                icon={<LightningRoundedIcon aria-hidden />}
                 disabled={openable.length === 0 || pending}
                 onClick={() => apply(openable)}
-              >
-                <LightningRoundedIcon aria-hidden />
-                Auto Apply
-              </Button>
-            </>
-          ) : (
-            // Filled: the page's main action, as Generate Resume is on
-            // Documents. It was bordered beside the old heading.
-            <Button size="sm" onClick={() => setAdding(true)}>
-              <PlusIcon className="size-4" />
-              Add Jobs
-            </Button>
+              />
+              <SelectionAction
+                danger
+                iconOnly
+                label="Remove From Queue"
+                icon={<TrashIcon />}
+                disabled={pending}
+                onClick={() => remove(checked)}
+              />
+            </SelectionBar>
           )
+        }
+        actions={
+          // Filled: the page's main action, as Generate Resume is on
+          // Documents.
+          <Button size="sm" onClick={() => setAdding(true)}>
+            <PlusIcon className="size-4" />
+            Add Jobs
+          </Button>
         }
       />
 

@@ -2,8 +2,9 @@ import {
   AirplaneTiltIcon as AirplaneTilt,
   ArrowLeftIcon as ArrowLeft,
   ArrowRightIcon as ArrowRight,
-  ArrowSquareOutIcon as ArrowSquareOut,
   ArrowsLeftRightIcon as ArrowsLeftRight,
+  ArrowSquareOutIcon as ArrowSquareOut,
+  ArticleIcon as Article,
   BackpackIcon as Backpack,
   BellIcon as Bell,
   BookmarkSimpleIcon as BookmarkSimple,
@@ -16,26 +17,30 @@ import {
   CaretRightIcon as CaretRight,
   CaretUpDownIcon as CaretUpDown,
   CaretUpIcon as CaretUp,
+  ChatCircleDotsIcon as ChatCircleDots,
+  ChatCircleTextIcon as ChatCircleText,
+  ChatsIcon as Chats,
   CheckIcon as Check,
   ClockIcon as Clock,
+  ClockUserIcon as ClockUser,
+  CompassIcon as Compass,
+  CurrencyDollarIcon as CurrencyDollar,
   DotsThreeIcon as DotsThree,
   EnvelopeIcon as Envelope,
   FileTextIcon as FileText,
-  SlidersHorizontalIcon as SlidersHorizontal,
   GearIcon as Gear,
+  GenderIntersexIcon as GenderIntersex,
   GiftIcon as Gift,
-  GlobeIcon as Globe,
-  GraduationCapIcon as GraduationCap,
-  CurrencyDollarIcon as CurrencyDollar,
-  CompassIcon as Compass,
-  ChatCircleTextIcon as ChatCircleText,
-  HouseIcon as House,
+  HandHeartIcon as HandHeart,
   IdentificationBadgeIcon as IdentificationBadge,
   IdentificationCardIcon as IdentificationCard,
   InfoIcon as Info,
-  ListChecksIcon as ListChecks,
+  LaptopIcon as Laptop,
+  ListDashesIcon as ListDashes,
+  ListNumbersIcon as ListNumbers,
   LockIcon as Lock,
   MagnifyingGlassIcon as MagnifyingGlass,
+  MailboxIcon as Mailbox,
   MapPinIcon as MapPin,
   MedalIcon as Medal,
   MedalMilitaryIcon as MedalMilitary,
@@ -50,16 +55,20 @@ import {
   SealCheckIcon as SealCheck,
   ShieldCheckIcon as ShieldCheck,
   SignOutIcon as SignOut,
-  StarIcon as Star,
+  SlidersHorizontalIcon as SlidersHorizontal,
+  StampIcon as Stamp,
+  StepsIcon as Steps,
+  StudentIcon as Student,
   TargetIcon as Target,
+  ThumbsUpIcon as ThumbsUp,
   TranslateIcon as Translate,
   TrashIcon as Trash,
   TrendDownIcon as TrendDown,
   TrendUpIcon as TrendUp,
   UploadSimpleIcon as UploadSimple,
-  UserCircleIcon as UserCircle,
   UserIcon as User,
-  UsersThreeIcon as UsersThree,
+  UserListIcon as UserList,
+  XCircleIcon as XCircle,
   XIcon as X,
 } from "@phosphor-icons/react/ssr";
 import {
@@ -275,10 +284,11 @@ export function AwardIcon({ className }: IconProps) {
   return <Medal aria-hidden className={className} />;
 }
 
-/** Experience level: a mortarboard, which reads for "Internship" as well as
- *  "Senior", where the Offer stage's prize rosette did not. */
+/** Experience level: steps, a level up (2026-11-12). It was a mortarboard,
+ *  which is Education's (experiences/section-icons.tsx); one glyph, one
+ *  meaning (design-kit/icons). */
 export function LevelIcon({ className }: IconProps) {
-  return <GraduationCap aria-hidden className={className} />;
+  return <Steps aria-hidden className={className} />;
 }
 
 export function StudentIcon({ className }: IconProps) {
@@ -313,8 +323,9 @@ export function OnSiteIcon({ className }: IconProps) {
   return <BuildingOffice aria-hidden className={className} />;
 }
 
+/** Remote: a laptop, work from anywhere. Not House, the sidebar's Home. */
 export function RemoteIcon({ className }: IconProps) {
-  return <House aria-hidden className={className} />;
+  return <Laptop aria-hidden className={className} />;
 }
 
 export function HybridIcon({ className }: IconProps) {
@@ -332,7 +343,7 @@ const WORK_STYLE_ICON = {
 } as const;
 
 /**
- * Work style's glyph, picked by its display label: a building, a house, or two
+ * Work style's glyph, picked by its display label: a building, a laptop, or two
  * arrows for a week split between them. A function returning the icon rather
  * than an icon taking `workStyle`, because <Fact> and the facts tables take an
  * icon component. An unknown or missing label falls back to the building.
@@ -342,10 +353,36 @@ export function workStyleIcon(workStyle: string | null) {
   return WORK_STYLE_ICON[key as keyof typeof WORK_STYLE_ICON] ?? OnSiteIcon;
 }
 
-/** Visa sponsorship: a globe, the job open to someone from anywhere. The
- *  Visa filter's, and the job card's once it shows sponsorship (KAN-168). */
+/** Visa sponsorship: a visa stamp. The Visa filter's, the job card's once it
+ *  shows sponsorship (KAN-168), and the sponsorship question's. It was a
+ *  globe, which is a profile's Website. */
 export function VisaIcon({ className }: IconProps) {
-  return <Globe aria-hidden className={className} />;
+  return <Stamp aria-hidden className={className} />;
+}
+
+/** A job's type (internship, full-time, part-time): a clock with a person,
+ *  how much of your time. Briefcase is the sidebar's Jobs. */
+export function JobTypeIcon({ className }: IconProps) {
+  return <ClockUser aria-hidden className={className} />;
+}
+
+/* The stages that had a glyph meaning something else (2026-11-12): Applied
+ * drew the sidebar's Jobs briefcase, Interviewing a plain date and Rejected
+ * Close's cross. Read through (seeker)/stage-colors.ts. */
+
+/** The Applied stage: the application is sent. */
+export function AppliedIcon({ className }: IconProps) {
+  return <PaperPlaneTilt aria-hidden className={className} />;
+}
+
+/** The Interviewing stage and an interview: a conversation. */
+export function InterviewIcon({ className }: IconProps) {
+  return <Chats aria-hidden className={className} />;
+}
+
+/** The Rejected stage: a cross in a circle, apart from Close's bare cross. */
+export function RejectedIcon({ className }: IconProps) {
+  return <XCircle aria-hidden className={className} />;
 }
 
 /** A role, the job a person does: someone in a suit and tie (KAN-252; it
@@ -364,8 +401,9 @@ export function BenefitsIcon({ className }: IconProps) {
   return <Gift aria-hidden className={className} />;
 }
 
+/** How to Apply: numbered steps. The paper plane is the Applied stage's. */
 export function ApplyIcon({ className }: IconProps) {
-  return <PaperPlaneTilt aria-hidden className={className} />;
+  return <ListNumbers aria-hidden className={className} />;
 }
 
 /** A plain building, not On-Site's BuildingOffice, so the two never read as one fact. */
@@ -373,20 +411,23 @@ export function CompanyIcon({ className }: IconProps) {
   return <Building aria-hidden className={className} />;
 }
 
+/** Overview: a block of text. FileText is the sidebar's Documents. */
 export function OverviewIcon({ className }: IconProps) {
-  return <FileText aria-hidden className={className} />;
+  return <Article aria-hidden className={className} />;
 }
 
+/** Responsibilities: a plain list. ListChecks is the sidebar's Tracker. */
 export function ResponsibilitiesIcon({ className }: IconProps) {
-  return <ListChecks aria-hidden className={className} />;
+  return <ListDashes aria-hidden className={className} />;
 }
 
 export function RequirementsIcon({ className }: IconProps) {
   return <ClipboardCheck aria-hidden className={className} />;
 }
 
+/** Preferred qualifications: nice to have. Star is the primary resume's. */
 export function PreferredIcon({ className }: IconProps) {
-  return <Star aria-hidden className={className} />;
+  return <ThumbsUp aria-hidden className={className} />;
 }
 
 export function DetailsIcon({ className }: IconProps) {
@@ -622,9 +663,9 @@ export function ClearanceIcon({ className }: IconProps) {
   return <ShieldCheck aria-hidden className={className} />;
 }
 
-/** Gender: a person. */
+/** Gender: the gender mark. UserCircle is the sidebar's Profile. */
 export function GenderIcon({ className }: IconProps) {
-  return <UserCircle aria-hidden className={className} />;
+  return <GenderIntersex aria-hidden className={className} />;
 }
 
 /** Hispanic or Latino: a contact card. */
@@ -632,9 +673,9 @@ export function HispanicLatinoIcon({ className }: IconProps) {
   return <IdentificationBadge aria-hidden className={className} />;
 }
 
-/** Race/Ethnicity: a group of people. */
+/** Race/Ethnicity: a person and a list. UsersThree is Leadership's. */
 export function RaceIcon({ className }: IconProps) {
-  return <UsersThree aria-hidden className={className} />;
+  return <UserList aria-hidden className={className} />;
 }
 
 /** Veteran status: a medal. */
@@ -676,13 +717,13 @@ export const ANSWER_GROUP_ICON = {
   availability: ({ className }: IconProps) => <Clock aria-hidden className={className} />,
   startWindow: ({ className }: IconProps) => <CalendarBlank aria-hidden className={className} />,
   relocation: ({ className }: IconProps) => <AirplaneTilt aria-hidden className={className} />,
-  address: ({ className }: IconProps) => <House aria-hidden className={className} />,
+  address: ({ className }: IconProps) => <Mailbox aria-hidden className={className} />,
   languages: ({ className }: IconProps) => <Translate aria-hidden className={className} />,
-  screeners: ({ className }: IconProps) => <ListChecks aria-hidden className={className} />,
-  schoolYear: ({ className }: IconProps) => <GraduationCap aria-hidden className={className} />,
+  screeners: ({ className }: IconProps) => <ChatCircleDots aria-hidden className={className} />,
+  schoolYear: ({ className }: IconProps) => <Student aria-hidden className={className} />,
   agePay: ({ className }: IconProps) => <CurrencyDollar aria-hidden className={className} />,
   interests: ({ className }: IconProps) => <Compass aria-hidden className={className} />,
-  communities: ({ className }: IconProps) => <UsersThree aria-hidden className={className} />,
+  communities: ({ className }: IconProps) => <HandHeart aria-hidden className={className} />,
 };
 
 /** Pinning the WorkIt extension to Chrome's toolbar (KAN-378, onboarding's

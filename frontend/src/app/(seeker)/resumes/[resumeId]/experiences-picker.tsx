@@ -152,11 +152,12 @@ export function ExperiencesPicker({
         </Button>
         {resume !== ALL && (
           <IconButton
+            place="row"
             label="Show All Experiences"
-            className="size-8 shrink-0"
+            className="shrink-0"
             onClick={() => setResume(ALL)}
           >
-            <CloseIcon className="size-4" />
+            <CloseIcon />
           </IconButton>
         )}
         <FieldFacet

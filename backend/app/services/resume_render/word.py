@@ -19,15 +19,20 @@ from app.services.resume_render import (
     HeaderIdentity,
     PageSettings,
     printed_order,
+    shown_header,
 )
 from app.services.resume_render.fields import (
     SECTION_LABELS,
     SKILLS_LABEL,
     TWO_ROW,
     US_CITIZEN,
+    degree_leads,
     details,
     heading,
+    heading_fields,
     link_text,
+    one_row,
+    phone_text,
     skill_lines,
 )
 from app.services.resume_view import ResumeView, ViewEntry
@@ -81,10 +86,13 @@ def _section_heading(doc, label: str) -> None:
 
 def _entry(doc, entry: ViewEntry, page: PageSettings) -> None:
     h = heading(entry, page.date_format, page.education_first)
-    if entry.section in TWO_ROW:
+    kinds = heading_fields(entry.section, degree_leads(entry, page.education_first))
+    if entry.section in TWO_ROW and (rights := one_row(h, kinds)) is not None:
+        # One row, as the PDF prints it (KAN-503): the place, then the dates
+        _row(doc, h.title, " | ".join(getattr(h, name) for name in rights), bold=True)
+    elif entry.section in TWO_ROW:
         _row(doc, h.title, h.right, bold=True)
-        if h.subtitle or h.subright:
-            _row(doc, h.subtitle, h.subright, italic=True)
+        _row(doc, h.subtitle, h.subright, italic=True)
     else:
         _row(doc, h.title, h.right, bold=True, tag=h.tag)
         if h.subtitle:
@@ -97,6 +105,7 @@ def _entry(doc, entry: ViewEntry, page: PageSettings) -> None:
 
 
 def render_docx(view: ResumeView, identity: HeaderIdentity, page: PageSettings = DEFAULT_PAGE) -> bytes:
+    identity = shown_header(identity, page)
     doc = Document()
     section = doc.sections[0]
     section.page_width, section.page_height = PAGE_WIDTH, PAGE_HEIGHT
@@ -111,11 +120,13 @@ def render_docx(view: ResumeView, identity: HeaderIdentity, page: PageSettings =
     name.font.size = Pt(20)
     contact = (
         ([US_CITIZEN] if identity.us_citizen else [])
-        + [x for x in (identity.phone, identity.email) if x]
+        + [x for x in (identity.phone and phone_text(identity.phone), identity.email, identity.location) if x]
         + [link_text(u) for _, u in identity.links]
     )
     if contact:
         _paragraph(doc, space_after=4, align=WD_ALIGN_PARAGRAPH.CENTER).add_run(" | ".join(contact))
+    if identity.extra:
+        _paragraph(doc, space_after=4, align=WD_ALIGN_PARAGRAPH.CENTER).add_run(identity.extra)
 
     by_name = {section.section: section for section in view.sections}
     for name in printed_order(page.section_order, view.sections):

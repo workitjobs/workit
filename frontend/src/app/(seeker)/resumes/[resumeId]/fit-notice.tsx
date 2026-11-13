@@ -1,66 +1,17 @@
 "use client";
 
-import { CircleNotchIcon, ScissorsIcon, WarningIcon, XIcon } from "@phosphor-icons/react/ssr";
+import { ScissorsIcon, WarningIcon, XIcon } from "@phosphor-icons/react/ssr";
 
 import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
 import { cn } from "@/lib/cn";
 
 /**
- * A resume over one page, said once as a toast and kept in the bar as one
- * group (KAN-258). Apart, the bar's amber count and outline Fit to One Page
- * read as two unrelated things, and the small count was easy to miss.
+ * A resume over one page, said once as a toast (KAN-258), with the bar's
+ * Fit to One Page (`FitButton`) keeping the fix. `FitNotice`, the count and
+ * Fit as one amber group, was the phone's top bar's until KAN-586 gave the
+ * phone the desktop's toolbar.
  */
-
-/**
- * The count and its fix as one amber group: the warning glyph and count,
- * a hairline, then Fit to One Page in the same amber. The bar shows the
- * full count; the phone's top bar, short of room, a short one and "Fit".
- */
-export function FitNotice({
-  label,
-  fitLabel = "Fit to One Page",
-  onFit,
-  disabled,
-  fitting = false,
-}: {
-  label: string;
-  fitLabel?: string;
-  onFit: () => void;
-  disabled: boolean;
-  /** A fit is under way: a spinner, and "Fitting…" for the full label. */
-  fitting?: boolean;
-}) {
-  return (
-    <div className="bg-warning-tint text-warning rounded-control inline-flex items-center">
-      <span className="text-label flex items-center gap-1.5 pr-2 pl-3 font-medium">
-        <WarningIcon aria-hidden className="size-4 shrink-0" />
-        {label}
-      </span>
-      <span aria-hidden className="bg-warning/25 h-5 w-px" />
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={onFit}
-        disabled={disabled}
-        aria-label={fitLabel === "Fit to One Page" ? undefined : "Fit to One Page"}
-        className="text-warning hover:text-warning hover:bg-warning/10"
-      >
-        {fitting ? (
-          <>
-            <CircleNotchIcon aria-hidden className="animate-spin motion-reduce:animate-none" />
-            {/* The phone's short "Fit" keeps its width: the spinner says it */}
-            {fitLabel === "Fit to One Page" ? "Fitting…" : fitLabel}
-          </>
-        ) : (
-          <>
-            <ScissorsIcon aria-hidden /> {fitLabel}
-          </>
-        )}
-      </Button>
-    </div>
-  );
-}
 
 /**
  * The toast: when the editor opens on a resume over one page, or an edit
@@ -109,8 +60,8 @@ export function FitToast({
           <ScissorsIcon aria-hidden /> Fit to One Page
         </Button>
       </div>
-      <IconButton label="Dismiss" onClick={onClose}>
-        <XIcon aria-hidden className="size-4" />
+      <IconButton place="row" tooltip={false} label="Dismiss" onClick={onClose}>
+        <XIcon aria-hidden />
       </IconButton>
     </div>
   );

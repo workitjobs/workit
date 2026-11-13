@@ -265,7 +265,29 @@ export type ImportResult = {
   read_by: "parser" | "model";
   /** AI readings the student has left today. */
   uses_left: number;
+  /** What the resume's header filled on the profile (KAN-436). Absent
+   *  from an API a deploy behind. */
+  header?: HeaderFill;
 };
+
+/** A resume header's effect on the profile (the API's `HeaderFill`,
+ *  KAN-436): each empty field it filled, with the value; a value that
+ *  differs from the profile's, offered with Use This; and whether it held
+ *  more free text than the Additional line takes. It never overwrites. */
+export type HeaderFill = {
+  added: Partial<Record<HeaderFillField, string>>;
+  offers: { field: HeaderFillField; value: string }[];
+  overflow: boolean;
+};
+export type HeaderFillField =
+  | "contact_email"
+  | "phone_number"
+  | "location"
+  | "linkedin_url"
+  | "github_url"
+  | "portfolio_url"
+  | "other_url"
+  | "resume_header_extra";
 export type ImportResponse = ImportResult & { resume_id: string; filename: string | null };
 
 /** Import Again: reads an uploaded resume (`resumeId`, else the default one,

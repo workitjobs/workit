@@ -3,7 +3,7 @@ import type { ComponentType, ReactNode } from "react";
 
 import { CompanyLogo } from "@/components/company-logo";
 import {
-  BriefcaseIcon,
+  JobTypeIcon,
   CalendarIcon,
   CoinIcon,
   LevelIcon,
@@ -52,9 +52,9 @@ import type { LogoSrc } from "@/lib/job-logo";
  * glyph to stand for both.
  *
  * EACH GLYPH SAYS WHAT ITS FACT SAYS. Work style picks its icon by value, a
- * building for On-Site, a house for Remote and two arrows for Hybrid, where
+ * building for On-Site, a laptop for Remote and two arrows for Hybrid, where
  * one desktop screen used to sit beside "On-Site" on most of the feed. The
- * level is a mortarboard, not a prize rosette beside "Internship". The
+ * level is steps, not a prize rosette beside "Internship". The
  * choices live in components/icons.tsx (workStyleIcon, LevelIcon), not here,
  * so the job page can draw the same glyph for the same fact as this card.
  *
@@ -197,7 +197,7 @@ function slotsOf(job: JobFactData): Slot[] {
   const workStyle = isNotListed(job.workStyle) ? null : job.workStyle;
   return [
     ["location", PinIcon, job.location],
-    ["jobType", BriefcaseIcon, job.jobType],
+    ["jobType", JobTypeIcon, job.jobType],
     ["salary", CoinIcon, job.salary],
     ["workStyle", workStyleIcon(workStyle), job.workStyle],
     ["experienceLevel", LevelIcon, job.experienceLevel],

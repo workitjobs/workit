@@ -33,6 +33,8 @@ from app.services.resume_render.fields import (
     heading,
     heading_fields,
     link_text,
+    one_row,
+    phone_text,
     skill_lines,
 )
 from app.services.resume_view import ResumeView, ViewEntry, ViewSection, runs
@@ -69,12 +71,15 @@ def _header(identity: HeaderIdentity, marks: bool, printed: Printed, page: PageS
     # fields it can save, and this one is Application Questions' answer
     contact = [US_CITIZEN] if identity.us_citizen else []
     if identity.phone:
-        contact.append(slot("phone_number", escape(identity.phone), identity.phone))
+        phone = phone_text(identity.phone)
+        contact.append(slot("phone_number", escape(phone), phone))
     if identity.email:
         email = escape(identity.email)
         contact.append(slot(
             "email", rf"\href{{mailto:{escape_url(identity.email)}}}{{\underline{{{email}}}}}", identity.email
         ))
+    if identity.location:
+        contact.append(slot("location", escape(identity.location), identity.location))
     contact += [
         slot(field, rf"\href{{{escape_url(u)}}}{{\underline{{{escape(link_text(u))}}}}}", link_text(u))
         for field, u in identity.links
@@ -90,6 +95,13 @@ def _header(identity: HeaderIdentity, marks: bool, printed: Printed, page: PageS
     lines = [rf"\begin{{{box}}}", rf"{name} \\ \vspace{{1pt}}"]
     if contact:
         lines.append(r"\small " + " $|$ ".join(contact))
+    # The Additional line, under the contact line in its type: the
+    # student's own words, never cut by Fit to One Page
+    if identity.extra:
+        extra = slot("resume_header_extra", escape(identity.extra), identity.extra)
+        if contact:
+            lines[-1] += r" \\"
+        lines.append(r"\small " + extra)
     lines.append(rf"\end{{{box}}}")
     return lines
 
@@ -100,9 +112,31 @@ def _entry(entry: ViewEntry, marks: bool, printed: Printed, page: PageSettings) 
 
     def slot(name: str) -> str:
         text = getattr(h, name)
-        return _marked(entry.id, kinds[name], escape(text), text, marks, printed)
+        latex = escape(text)
+        # A project's link is clickable, as the header's are
+        if name == "tag" and entry.link and entry.section not in TWO_ROW and entry.section != "certifications":
+            shown = link_text(entry.link)
+            org = escape(entry.organization) + r" $|$ " if entry.organization else ""
+            latex = org + rf"\href{{{escape_url(entry.link)}}}{{\underline{{{escape(shown)}}}}}"
+        return _marked(entry.id, kinds[name], latex, text, marks, printed)
 
-    if entry.section in TWO_ROW:
+    if entry.section in TWO_ROW and (rights := one_row(h, kinds)) is not None:
+        # One row (KAN-503): \resumeSubheading's first row and nothing under
+        # it. Each value keeps its own look from the two rows (the second
+        # row's italic \small), so the editor's field over it still matches.
+        # Written out here, since jakes.tex stays byte for byte.
+        styled = {
+            "right": lambda: slot("right"),
+            "subright": lambda: rf"\textit{{\small {slot('subright')}}}",
+        }
+        right = " $|$ ".join(styled[name]() for name in rights)
+        line = "\n".join((
+            r"\vspace{-2pt}\item",
+            r"\begin{tabular*}{0.97\textwidth}[t]{l@{\extracolsep{\fill}}r}",
+            rf"\textbf{{{slot('title')}}} & {right} \\",
+            r"\end{tabular*}\vspace{-7pt}",
+        ))
+    elif entry.section in TWO_ROW:
         line = rf"\resumeSubheading{{{slot('title')}}}{{{slot('right')}}}{{{slot('subtitle')}}}{{{slot('subright')}}}"
     else:
         left = rf"\textbf{{{slot('title')}}}" + (rf" $|$ \emph{{{slot('tag')}}}" if h.tag else "")

@@ -5,9 +5,10 @@ import { differenceInCalendarDays, parseISO } from "date-fns";
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
 
+import { ListChecksIcon } from "@phosphor-icons/react/ssr";
+
 import {
   ArrowRightIcon,
-  BriefcaseIcon,
   ClockIcon,
   CloseIcon,
   ExternalLinkIcon,
@@ -158,8 +159,14 @@ function EventCard({
           </PopoverPrimitive.Title>
           <p className={cn("text-note font-medium", look.onTint)}>{whatOf(event)}</p>
         </div>
-        <IconButton label="Close" className="-mt-1 -mr-1 size-8" onClick={close}>
-          <CloseIcon className="size-4" />
+        <IconButton
+          place="row"
+          tooltip={false}
+          label="Close"
+          className="-mt-1 -mr-1"
+          onClick={close}
+        >
+          <CloseIcon />
         </IconButton>
       </div>
 
@@ -171,7 +178,7 @@ function EventCard({
             {due && ` · ${due}`}
           </span>
         </Row>
-        <Row label="Application" Icon={BriefcaseIcon}>
+        <Row label="Application" Icon={ListChecksIcon}>
           <span className="text-ink block truncate">{event.role}</span>
           <span className="block truncate">{event.company}</span>
         </Row>

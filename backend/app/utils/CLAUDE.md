@@ -82,6 +82,57 @@ Papers, Presentations and Patents are publications.
   `section_of` too, so a header word also changes which PDF extraction mode
   wins: run the fixtures.
 
+### The header (`read_header`, KAN-436)
+
+`_split_sections` drops every line above the first heading. `read_header`
+reads those lines, by these rules alone and never by a model (ADR 0007,
+"The contact block stays home"), so upload can fill the profile's empty
+fields (`services/header_fill.py`, below).
+
+- **Only a header near the top**: the lines above the first heading when
+  that heading is in the first `HEADER_LINES` (12) lines; none otherwise,
+  since a resume that opens with paragraphs has no contact block to read.
+- **A line splits into pieces** at "|", "•", "·", a tab, a PDF gap (two
+  spaces or more) and a spaced dash; a label ("Email:", "LinkedIn:") comes
+  off. In each piece the email, links and phone are taken out by pattern,
+  and what is left is a "City, ST" place (a US code; a street before it is
+  dropped, never kept) or free text.
+- **The first line is the name** and is skipped, unless it holds a contact
+  detail ("Jane Doe | jane@x.com": then only the name piece is skipped).
+- **Links**: linkedin.com is LinkedIn, github.com is GitHub (github.io is a
+  site), any other is `links`, in order. A bare host counts with a path or
+  on a usual site ending (.com, .dev, .io and the like).
+- **Free text is a short phrase, never a sentence**: 8 words and 60
+  characters at most, and not ending in a full stop (an abbreviation such
+  as "U.S." is no sentence end). An objective written above the first
+  heading is a sentence, so it is never taken. "U.S. Citizen" is never
+  taken either: Application Questions owns it and the header prints it.
+- **Known ceilings**: US places only, as `_extract_location`; a headline
+  under the name ("Computer Science Student") reads as free text.
+
+### Upload fills the profile (`services/header_fill.py`, KAN-436)
+
+Every upload (POST and PUT `/resumes`, onboarding's Save Resume included)
+and Import Again plans from `read_header` and writes in the same commit:
+
+- **Only an empty field is filled. A value is never overwritten.** One that
+  differs (a phone compared by its last ten digits, a link without its
+  scheme, "www." or trailing slash, the rest in any case) is an offer, which
+  the upload's note shows with Use This.
+- **The email fills `contact_email`**, unless it is the sign-in email,
+  which an empty contact email already means.
+- **A link that is neither LinkedIn nor GitHub** takes Portfolio, then
+  Other Link; one with no free field joins the Additional line.
+- **Free text goes to the Additional line** (`resume_header_extra`), its
+  phrases joined with " | ", only when the line is empty and the text fits
+  (100 characters); text over that sets `overflow`, and the note says to
+  add it in the Header panel.
+- Every value passes My Profile's own check (`ApplicantProfileUpdate`)
+  first, so a link that is no web address is left out.
+- The answer is `ImportResult.header` (`HeaderFill`: `added`, `offers`,
+  `overflow`). Tests: `tests/test_resume_header.py` (pure), and the upload
+  and Import Again tests in `tests/test_bank_import.py`.
+
 ### Learned headings (KAN-348)
 
 A heading the rules miss is looked up in `learned_headings.json`: labels a
@@ -143,7 +194,10 @@ first one's company as "a second role at the previous company"
 (`dash_separated_one_line.txt`, Apply's sample resume, 2026-11-08).
 
 `ROLE_KEYWORDS` is the set of common job title words (Engineer, Manager, Intern,
-etc.) used to tell title from company when both are plain text.
+etc.) used to tell title from company when both are plain text. A club's
+roles are in it too (Treasurer, Captain, Founder, Volunteer and the like,
+2026-11-12), so "Chess Club – Treasurer" splits as the dash layout does; it
+stayed one title, with no organization.
 
 ### Location detection (`_extract_location`)
 
@@ -152,10 +206,18 @@ from `US_STATES`. Two passes: first looks for a multi-space gap (PDF extraction
 preserves these), then falls back to a 1-2 word city regex. "Remote" or "Hybrid" after a multi-space gap
 is the location too ("Engineer| Ruby, Rails  Remote").
 
+**After a gap, a place may be written out** (2026-11-12): a full state name
+("Stony Brook, New York"), a Canadian province code ("Toronto, ON") or a
+country from `COUNTRIES` ("Incheon, South Korea"). Before, those stayed in
+the organization ("Signal Lab Stony Brook, New York"). Only after the gap,
+where a right-aligned place sits; without one these words could be part of
+a name.
+
 Known ceilings:
-- US-only (no international locations)
-- Max 2-word city names -- misses "Salt Lake City", "New York City"
-- No apostrophes in city names -- misses "O'Fallon"
+- Without a gap, US state codes only
+- Countries not in `COUNTRIES` (a short list) stay in the name
+- Max 2-word city names without a gap -- misses "New York City, NY"
+- No apostrophes in city names without a gap -- misses "O'Fallon"
 
 ### Bullet joining (`_bullets`)
 
@@ -207,6 +269,21 @@ Three patterns, checked in priority order:
 Day is always 1 (resumes don't specify days). "Present", "Current", "Now" store
 as `None` (null end date).
 
+Forms read since the 2026-11-12 audit, each found on a real upload:
+- **A month may end in a period** ("Aug. 2024", `MONTH`): Jake's template,
+  and so WorkIt's own PDFs, write months so, and a re-uploaded WorkIt resume
+  read "Acme Corp Aug." as the company and January as the month.
+- **"to" joins a range** ("May 2024 to Aug 2024").
+- **A month in numbers** ("06/2024") becomes its name in `_clean_text`.
+- **A season becomes a month, only where a date goes** (`_SEASON_START_RE`,
+  `_SEASON_END_RE`): in a range, after "Expected", or alone after a PDF gap
+  at a line's end. As a start it is the season's first month (Spring
+  January, Summer June, Fall September, Winter December), as an end its last
+  (May, August, December, February), so a spring graduation is May. Never
+  inside a sentence: "in Fall 2026, picked 13 of 101" stays. Before, the
+  season stayed in the title ("Team Captain Spring") and the date read
+  January. The bank keeps months, so the season's word goes.
+
 A range in one year names it once: "Jun-Aug 2026" becomes "Jun 2026 - Aug
 2026" in `_clean_text`, before any pattern runs. Before, only "Aug 2026" was
 read, as the end. Only whole month names count (`_MONTH_NAME`), since `MONTH`
@@ -214,7 +291,42 @@ would read "Marketing - May 2026" as a range.
 
 ### Education fields
 
-- The degree keeps its full name ("Bachelor of Science", not "Bachelor").
+- The degree keeps its full name ("Bachelor of Science", not "Bachelor"),
+  up to three capitalized words after "of" ("Bachelor of Computer Science",
+  "Associate of Arts"), and an abbreviation keeps its last period ("B.S.").
+  **`DEGREE_RE` ends in `(?!\w)`, never `\b`**: no word boundary falls
+  between "." and the space after it, so the match backed up to "B.S", and
+  every abbreviated degree printed without its period (13 of 15 resumes in
+  the 2026-11-12 audit). B.Sc., M.Eng., MBA and the like are degrees too.
+- **The degree is read with each "City, ST" out of the way**: "Northeast
+  Tech University  Boston, MA" gave the degree "MA".
+- **The field after the degree, in every common form** (`DEGREE_FIELD_RE`):
+  "B.S. in X", "B.S., X", "Bachelor's in X", "Bachelor's degree in X", "Bachelor
+  of Business Administration in X", and after an abbreviation the field with
+  nothing between ("B.S. Computer Science", the conditional `(?(abbr)...)`).
+  A date after the degree is no field ("B.S. Expected May 2027"). Before,
+  the field was empty for "B.S. Computer Science" and "Bachelor's in X".
+- **A specialization follows the major** as a minor does (`SPECIALIZATION_RE`:
+  Specialization, Concentration or Emphasis, "in" or ":"): "Computer
+  Science, specialization in Artificial Intelligence".
+- **The school's place comes off its name** (`Education.location`, saved as
+  the entry's `location`): after a gap, or as its own "|" field. It stayed
+  in the name ("Stony Brook University Stony Brook, NY") or was lost.
+- **A second degree at the school above is that school**: a dated degree
+  line with no school name of its own, under a school's entry ("M.S. ...
+  Expected May 2028" then "B.S. ... Expected May 2027"), takes that school's
+  name and place. Before, the degree line became a school.
+- **A school named on its own date line keeps its name**
+  (`_school_on_date_line`): when the date line holds the school ("Lakeside
+  Global Campus  February 2026 – June 2026") and the lines above it hold
+  no school or degree, those lines go back to the school before. Before,
+  they became this school's name and its own name was lost.
+- **A school keeps its start date** ("Aug 2023 – May 2027" printed "May
+  2027" alone): only the end was kept.
+- **A long course list wraps mid-name**: a line after a course line of 60
+  characters or more that does not end in a full stop continues it
+  ("…, Artificial" / "Intelligence"), and a label wrapped onto it
+  ("Honors:", "Awards:") starts a line of its own (`_EDUCATION_LABEL_RE`).
 - The field of study ends at a PDF gap or "GPA": "Bachelor of Science,
   Computer Science  GPA: 3.81/4.00" gives "Computer Science".
 - **A minor follows the major in the field of study** ("Minor in Writing &
@@ -283,13 +395,29 @@ would read "Marketing - May 2026" as a range.
   upload; one the student typed is never removed.
 - **A skills line that ends in a comma** continues on the next line, which
   keeps its group. Before this, a wrapped "Concepts:" list lost its group.
+- **A skills list splits at commas, semicolons, bars and bullets, never
+  inside brackets** (`_skill_items`), and a name with a list in brackets is
+  the name and each item ("React (Next.js, Redux)" is three). A short label
+  before a spaced dash is the group ("Languages – Python, Java"). Split at
+  commas alone, "Python | Java | C++" and "Python; Java" saved no skills.
 
 ### Clean-up
 
 - A run of spaces inside a bullet is a PDF gap (after a bold phrase), not
   wording, and becomes one space.
-- `∼` (U+223C, which resume fonts lack) becomes `~`, so the rendered PDF has
-  no missing glyph.
+- **`fix_symbols`** runs on both readings' text (the model's in
+  `bank_import.read_resume`): a ring after a number (◦, ∘, º) is a degree
+  sign, since LaTeX's "$^\circ$" reads as "◦", which the bullet clean-up made
+  "•" ("2.75 • to 1.01 •"); `∼` (U+223C, which resume fonts lack) becomes
+  `~`, set apart from a word right before it ("to∼40 ms" is "to ~40 ms": math
+  spacing put the gap there, and extraction drops it).
+- More bullet glyphs are bullets (`_BULLET_GLYPHS_RE`: ➢ ► ▸ ➤ ✓ ✔ and Word's
+  Symbol-font U+F0B7), and "* " opening a line. Not "■" or "❖", which also
+  mark section headings.
+- **Both readings end in `bank_import.tidy_drafts`**: a "|" in a title or
+  organization spaced on both sides ("thinkwell (Pulp) |AI Platform"), and
+  an entry the reading holds twice word for word kept once (a PDF editor
+  left a resume's whole text in it twice).
 
 ### Known ceilings
 
@@ -332,7 +460,13 @@ Rules:
   takes the entry's dates; a GPA not on it (3.8 may be "3.80") goes with its
   scale; an entry whose title goes is dropped. The prompt asks for names
   copied as written ("B.S." stays "B.S."): an expanded degree fails the
-  check and is dropped, not saved wrong. An organization that only repeats
+  check and is dropped, not saved wrong. **A degree must appear on the
+  resume word for word** (case and spacing aside, `_degree_key`): the word
+  check passed "Bachelor's" for "Bachelor of Science" ("bachelor" and "s"
+  are on most resumes) and "BS" for "B.S."; dropped, the parser's reading
+  fills it (2026-11-12 audit). **A minor in a phrase of its own stays as
+  written** ("with a Minor in", "(Minor in", "Double Minor"): joined, it
+  read "with a, minor in". An organization that only repeats
   the title is left out, as this parser leaves it out: the model sometimes
   sent the school as its own organization (a real resume, 2026-11-09).
 - **It never sees links or the contact block.** URLs reach the model as
