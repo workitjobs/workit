@@ -229,6 +229,86 @@ def json_name(text: str) -> str | None:
     return " ".join(name.split()) or None
 
 
+# -- Shared JSON-LD helpers (schema.org JobPosting) --------------------------
+
+#: The JSON-LD block on a detail page.
+_LD_JSON = re.compile(
+    r'<script[^>]*type="application/ld\+json"[^>]*>(.*?)</script>', re.S
+)
+
+
+def _ld_posting(page: str) -> dict:
+    """The page's ``JobPosting`` from its JSON-LD, or ``{}`` when it has none.
+
+    Used by every provider whose detail page carries a schema.org JobPosting
+    (iCIMS, JazzHR, Jobvite)."""
+    for match in _LD_JSON.finditer(page):
+        try:
+            found = json.loads(match.group(1))
+        except json.JSONDecodeError:
+            continue
+        for item in found if isinstance(found, list) else [found]:
+            if isinstance(item, dict) and item.get("@type") == "JobPosting":
+                return item
+    return {}
+
+
+_LD_PERIOD = {"HOUR": "hour", "WEEK": "week", "MONTH": "month", "YEAR": "year"}
+
+
+def _ld_num(v: object) -> float | None:
+    """A JSON value that may be a number or a numeric string, or None.
+
+    Jobvite sends pay values as strings; JazzHR and iCIMS send numbers.
+    ``float(int_value)`` is a no-op, so the coercion is safe for both."""
+    if isinstance(v, (int, float)) and v:
+        return float(v)
+    if isinstance(v, str) and v:
+        try:
+            f = float(v)
+            return f if f > 0 else None
+        except ValueError:
+            return None
+    return None
+
+
+def _ld_pay(salary: object) -> details.Pay | None:
+    """Structured pay from a JSON-LD ``baseSalary`` (schema.org MonetaryAmount)."""
+    if not isinstance(salary, dict):
+        return None
+    value = salary.get("value")
+    if not isinstance(value, dict):
+        return None
+    unit = (value.get("unitText") or "").upper()
+    period = _LD_PERIOD.get(unit)
+    if not period:
+        return None
+    return details.Pay.from_interval(
+        salary.get("currency"),
+        _ld_num(value.get("minValue")),
+        _ld_num(value.get("maxValue")),
+        period,
+    )
+
+
+def _ld_place(location: object) -> str | None:
+    """A place from the JSON-LD's ``jobLocation`` (one or a list of Places)."""
+    locs = location if isinstance(location, list) else [location] if location else []
+    for loc in locs:
+        if not isinstance(loc, dict):
+            continue
+        address = loc.get("address") or {}
+        if not isinstance(address, dict):
+            continue
+        place = _place(
+            address.get("addressLocality"),
+            address.get("addressRegion"),
+        )
+        if place:
+            return place
+    return None
+
+
 _TITLE = re.compile(r"<title[^>]*>(.*?)</title>", re.I | re.S)
 
 

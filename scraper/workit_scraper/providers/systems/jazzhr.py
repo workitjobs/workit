@@ -11,7 +11,6 @@ robots.txt on every ``{slug}.applytojob.com`` disallows only ``/cb``.
 from __future__ import annotations
 
 import html
-import json
 import re
 from dataclasses import replace
 
@@ -22,8 +21,10 @@ from workit_scraper.providers.model import Job, Provider
 from workit_scraper.providers.registry import job_url, listing_url
 from workit_scraper.providers.text import (
     _described,
+    _ld_pay,
+    _ld_place,
+    _ld_posting,
     _page,
-    _place,
     _work_style,
 )
 
@@ -31,11 +32,6 @@ from workit_scraper.providers.text import (
 _JAZZHR_JOB = re.compile(
     r'href="(https?://[a-z0-9_.-]+\.applytojob\.com/apply/([A-Za-z0-9]+)/[^"]+)"',
     re.I,
-)
-
-#: The JSON-LD JobPosting block on a detail page.
-_LD_JSON = re.compile(
-    r'<script[^>]*type="application/ld\+json"[^>]*>(.*?)</script>', re.S
 )
 
 #: Location entries on the listing page: inside <ul> under the job link.
@@ -81,10 +77,10 @@ def describe_jazzhr(job: Job) -> Job:
     """The same JazzHR posting with what its JSON-LD JobPosting says:
     description, date, pay, employment type and places."""
     text = fetch._get_text(job_url("jazzhr", job.token, job.external_id))
-    posting = _jazzhr_posting(text)
+    posting = _ld_posting(text)
     full, roles = _described(posting.get("description"))
-    stated_pay = _jazzhr_pay(posting.get("baseSalary"))
-    places = _jazzhr_place(posting.get("jobLocation"))
+    stated_pay = _ld_pay(posting.get("baseSalary"))
+    places = _ld_place(posting.get("jobLocation"))
     stated_style = _work_style(None, places or job.location)
 
     return replace(
@@ -100,54 +96,6 @@ def describe_jazzhr(job: Job) -> Job:
             offices=(places,) if places else (),
         ),
     )
-
-
-def _jazzhr_posting(page: str) -> dict:
-    """The page's JobPosting from its JSON-LD, or {} when it has none."""
-    for match in _LD_JSON.finditer(page):
-        try:
-            found = json.loads(match.group(1))
-        except json.JSONDecodeError:
-            continue
-        for item in found if isinstance(found, list) else [found]:
-            if isinstance(item, dict) and item.get("@type") == "JobPosting":
-                return item
-    return {}
-
-
-def _jazzhr_pay(salary: object) -> details.Pay | None:
-    """Structured pay from a JazzHR ``baseSalary``."""
-    if not isinstance(salary, dict):
-        return None
-    value = salary.get("value")
-    if not isinstance(value, dict):
-        return None
-    unit = (value.get("unitText") or "").upper()
-    period_map = {"HOUR": "hour", "WEEK": "week", "MONTH": "month", "YEAR": "year"}
-    period = period_map.get(unit)
-    if not period:
-        return None
-    return details.Pay.from_interval(
-        salary.get("currency"),
-        value.get("minValue"),
-        value.get("maxValue"),
-        period,
-    )
-
-
-def _jazzhr_place(location: object) -> str | None:
-    """A place from the JSON-LD's ``jobLocation``."""
-    if isinstance(location, list):
-        location = location[0] if location else None
-    if not isinstance(location, dict):
-        return None
-    address = location.get("address") or {}
-    if not isinstance(address, dict):
-        return None
-    return _place(
-        address.get("addressLocality"),
-        address.get("addressRegion"),
-    ) or None
 
 
 PROVIDER = Provider(
