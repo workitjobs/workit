@@ -144,6 +144,24 @@ def _real_size(first: dict) -> int | None:
     return max(agreed) if agreed else None
 
 
+def _pick_dimension(
+    facets: dict[str, list[dict]], used: set[str]
+) -> tuple[str, list[dict]] | None:
+    """The best unused dimension to split by: the one whose largest value is smallest,
+    skipping dimensions already used and those whose sum is below the cap (a facet
+    summing to 5 once gave 548 of 4,390 postings)."""
+    best: tuple[str, int, list[dict]] | None = None
+    for name, values in facets.items():
+        if name in used:
+            continue
+        if sum(v["count"] for v in values) < WORKDAY_CAP:
+            continue
+        largest = max(v["count"] for v in values)
+        if best is None or largest < best[1]:
+            best = (name, largest, values)
+    return (best[0], best[2]) if best is not None else None
+
+
 def _workday_slices(first: dict) -> tuple[int, list[dict] | None]:
     """A capped board's real size, and one filter value per slice to read it by.
 
