@@ -1,4 +1,4 @@
-"""Hosted models in place of `claude -p` for `ask` (KAN-723, ../docs/desktop_application_auto_apply.md §8).
+"""Hosted models in place of `claude -p` for `ask` (KAN-723, ../docs/desktop_application_auto_apply.md, D1 and W1).
 
 policies.yaml's `ask_model` names the backend of every `ask` (answers, essays, edits, checks): a provider in
 PROVIDERS (`groq`, `gemini`), a list of them tried in order (`[groq, gemini]`, the default since 2026-11-10:

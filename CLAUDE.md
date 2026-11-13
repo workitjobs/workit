@@ -47,7 +47,9 @@ none.
 - `apply-agent/` — Apply (KAN-534): a Python command-line agent (uv,
   Playwright) that fills job applications in its own Chrome workers, writes
   answers with Claude and never submits in a rehearsal. A developer tool
-  today; KAN-723 plans a downloadable student app (`docs/desktop_application_auto_apply.md`).
+  today; KAN-723 designs WorkIt Auto Apply, its downloadable student app,
+  and moves Apply to the private repo `workitjobs/apply-agent`
+  (`docs/desktop_application_auto_apply.md`).
   It loads the Fill engine from the extension's
   submodule, keeps personal data only in `APPLY_HOME`, never in the repo,
   and has its own glossary and ADRs (`GLOSSARY-MAP.md`). Read
@@ -244,15 +246,18 @@ with the failure it prevents.
   student's email.
 - `docs/whats-new-2026-11-05.md` — what a teammate must do after the rename to
   `workitjobs`, and the new Apply settings and commands.
-- `docs/desktop_application_auto_apply.md` — KAN-723's plan, not built: Apply as a
-  downloadable desktop app beside the extension. Two paths (the extension
-  with the connector, one form at a time; the desktop app, which runs in
-  the background with its own Chrome Workers and no connector), WorkIt as
-  the source of the student's data, and its two tasks: a model the app may
-  call with no student in the loop (API-only: Groq's gpt-oss with Gemini as backup, through WorkIt, the default for `ask` already;
-  no research in the app: company briefs come from a WorkIt pipeline with Tavily search) and code that
-  can't be stolen; per-OS work, and how Apply works today from the ground up. Read it before
-  changing Apply toward a download, or where its data comes from.
+- `docs/desktop_application_auto_apply.md` — KAN-723's design for WorkIt
+  Auto Apply, decided 2026-11-13, not built: Apply as a downloadable Mac
+  app beside the extension. Its 34 decisions (every model call through
+  WorkIt's Model route with a monthly Usage cap and personal data
+  replaced; no research in the app; the Fill engine downloaded encrypted;
+  the Worker extension on the Chrome Web Store through the Debugger API;
+  a native window with no port; Apple Silicon only; Apply moved to the
+  private repo `workitjobs/apply-agent`), the v1 app end to end,
+  workstreams W0 to W13 that sessions can take one at a time, future work
+  (a hosted `drive` loop next, the company brief pipeline with Tavily,
+  Windows), and the costs. Read it before changing Apply toward a
+  download, the Model route, or where Apply's data comes from.
 - `docs/scraper_gh_action/plan.md` — KAN-726, built: the scheduled
   scrape runs on a team computer as a self-hosted runner (PR runs stay on
   GitHub's), with keywords from a local Qwen and every vector, jobs and

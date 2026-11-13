@@ -1,138 +1,270 @@
-# Desktop application for auto apply (KAN-723)
+# WorkIt Auto Apply: the desktop app (KAN-723)
 
-**Status (2026-11-10):** plan, mostly not built. Built: Apply's Workers
-default to `worker_mode: protected`, and `ask` runs on Groq with Gemini as
-backup by default (`ask_model: [groq, gemini]`). Everything else here is a plan; section 10 lists the
-work. Apply's own folder is `apply-agent/`; its rules are in
-`apply-agent/CLAUDE.md`, and its terms are in `apply-agent/GLOSSARY.md`.
+**Status (2026-11-13):** designed, not built. A design review on
+2026-11-13 settled every decision in section 2. Built so far: Workers
+default to `worker_mode: protected` (2026-11-06), and `ask` runs on Groq
+with Gemini as backup (`ask_model: [groq, gemini]`, 2026-11-10,
+`apply-agent/docs/ask-model.md`).
 
-This note records a design talk about how Apply works today and how to make
-it a downloadable app. It explains the system from the ground up first,
-because each part of the plan replaces or keeps one of those parts.
+**How to use this doc.** Read sections 1 to 3 first. Then take one
+workstream from section 6: each one says what it changes, which files it
+touches, what it waits for and when it is done, so one session can work
+on it without the others. Section 4 explains Apply as it is today, as
+background. Apply's terms are in `apply-agent/GLOSSARY.md`. The main
+decision is ADR 0005 (`apply-agent/docs/adr/0005-student-build-calls-models-only-through-workit.md`).
 
-## 1. The decision
+**Where this doc lives.** Apply's code moves to the private repo
+`workitjobs/apply-agent` (workstream W0), and this doc and the ADR move
+with it. The WorkIt repo then keeps the server side: the API routes and
+the website pages this design adds.
 
-WorkIt will offer auto apply on two paths:
+## 1. What the app is
+
+### 1.1 Two paths to auto apply
 
 | Path | What it is | Who it is for |
 |---|---|---|
-| **Extension path** | The WorkIt Chrome extension (KAN-164) fills forms in the student's own Chrome. Its answers come from WorkIt or from the student's own Claude, through WorkIt's MCP server (the connector, KAN-377). The student works with each form: opens it, goes over it, and gets the open answers from their own Claude through the connector. | Most students. No install beyond the Chrome Web Store. Reliable, but it needs the student at each form, and it has the limits of an extension (section 4). |
-| **Desktop path** | Apply as a downloadable desktop app. It runs its own Chrome Workers, fills many applications at once in the background, and shows the Apply window. | Students who want applications run for them with the least work: they check, change and approve in one window. |
+| **The extension** | The WorkIt Chrome extension (KAN-164) fills forms in the student's own Chrome. The student opens each form and goes over it. Open answers come from WorkIt, or from the student's own Claude through WorkIt's MCP server (the connector, KAN-377). | Most students. Install from the Chrome Web Store. Reliable, but the student works one form at a time. |
+| **WorkIt Auto Apply** | Apply as a desktop app. It runs its own Chrome Workers in the background and fills several applications at once. One window shows every Worker. | Students who want applications filled for them: they check, change and approve in one window, and press Submit. |
 
-**The connector belongs to the extension path only.** It needs the student
-to start each piece of work from their own Claude, so it cannot serve a
-run that goes on in the background. The desktop path needs an AI model
-that the app calls by itself, with no student in the loop (section 8).
+**The connector belongs to the extension path only.** It needs the
+student to start each piece of work from their own Claude, so it can't
+serve a run in the background. The desktop app calls its models by
+itself, through WorkIt (ADR 0005).
 
-On the desktop path:
+### 1.2 What the student does
 
-- **WorkIt is the source of the student's data.** The profile, the answer
-  bank, the stories, the resumes and the tracker come from the WorkIt app
-  over HTTP. The answer bank's new design is owned by a teammate (section 9).
-- **The desktop app only runs auto apply.** The student uses it to watch
-  progress, do each captcha, check the answers and press Submit. All other
-  work (the bank, the resumes, Tailor, the tracker) stays on the website.
-- **Workers default to `protected` mode** (section 6).
+The app fills the forms. The student:
 
-### 1.1 The two tasks
+- signs in to WorkIt once;
+- adds jobs to the Auto Apply queue on the website, or pastes a posting's
+  link into the app, and presses Start;
+- watches each Worker's tile;
+- answers Needs-you items, types emailed codes and does each captcha;
+- checks the answers and the verification flags;
+- presses Submit on each form, in that Worker's Chrome window.
 
-What stands between Apply today and the desktop app comes down to two
-tasks. Each covers both the desktop app's own code and the Fill engine.
+**Apply never presses Submit in WorkIt Auto Apply.** `live_runs` is fixed
+off in the Student build, and nothing in it can turn it on. W12 removes
+`live_runs` and Rehearsals from Apply altogether.
 
-1. **A model that works with no student in the loop.** Claude on the
-   developer's own login (`claude -p`) cannot ship (section 8). The app
-   needs a model it may call on its own schedule, at a cost WorkIt can
-   carry, and no connector. **The launched app is API-only (decided
-   2026-11-10):** hosted models (Groq's gpt-oss, with Gemini as backup)
-   for every model call, through a WorkIt route that holds the keys, so no
-   key ships and the student sets none up. No `claude -p` and no local
-   model in the app; `claude -p` stays a developer's setting (section 8).
-   **The app does no research (decided 2026-11-13):** it reads each
-   company's brief from WorkIt, which a WorkIt pipeline keeps for every
-   student (§8.1). The app's model calls only answer and write.
-2. **Code that cannot be stolen.** The desktop app's Python is compiled
-   to machine code; the Fill engine is the hard part, because its in-page
-   part must run as JavaScript in the job site's page (§7.4).
+**The app is simple.** One sign-in (the student's WorkIt account), no API
+keys, no settings files, no terminal. First run needs only Google Chrome
+and one click to add the Worker extension (section 3.1). All other work
+stays on the website: the profile, the answer bank, the resumes, Tailor
+and the Tracker.
 
-The engine that the extension ships through the Chrome Web Store is a
-teammate's work and is out of this note's scope.
+### 1.3 The bot rule
 
-### 1.2 The bot rule
+Apply never evades bot detection and never touches a captcha; it hands
+both to the student (`apply-agent/docs/captchas-and-bot-blocks.md`). The
+goal is the fewest *false* blocks: blocks that come only from the
+automation channel. Choosing the channel with the fewest false blocks is
+within the rule; getting past a site that decided to block is not. A real
+block goes to the student's everyday Chrome, where the extension fills
+it.
 
-**The rule for bot checks stays as it is:** Apply never evades bot
-detection and never touches a captcha; it hands both to the student
-(`apply-agent/docs/plain-workers/PROTOCOL.md`, `captcha.py`). The goal of
-the desktop path is the fewest *false* blocks, the blocks that come only
-from the automation channel. It is not to get past a site that decides to
-block a bot. A real block goes to the student's everyday Chrome, where the
-extension fills it.
+### 1.4 Names
 
-## 2. How Apply works today
+| Name | What it is |
+|---|---|
+| **WorkIt Auto Apply** | The released desktop app: the **Student build** of Apply. Bundle id `ai.workitjobs.autoapply` |
+| **Developer checkout** | Apply run from a clone of `workitjobs/apply-agent`. It keeps every developer part, Claude included |
+| **WorkIt Auto Apply Worker** | The **Worker extension** as it is listed on the Chrome Web Store (unlisted) |
+| **Seed** | The Worker profile that gets the Worker extension once; each plain Worker's profile starts as a copy of it |
+| **Model route** | WorkIt's API routes that make each model call for a Student build and count it |
+| **Usage cap** | The model use one student may spend in one month, shown in the app |
 
-### 2.1 What it is
+"Apply" stays the code's and the glossary's name for the agent itself.
 
-Apply is a Python package (`apply-agent/pyproject.toml`, entry point
-`apply = "apply.cli:main"`). `uv sync` installs it into `apply-agent/.venv`.
-Nothing is packaged for download. It runs only on macOS.
+## 2. Decisions
 
-`~/Applications/Apply.app` is not a real app. Apply writes it each time it
-opens its window (`dock_app.py`): an `Info.plist`, an icon and a short shell
-script. The script either starts Chrome on the Apply window, or runs
-`python -m apply.cli watch` from the checkout that last opened the window.
-It exists only so that the Dock shows "Apply" and not a second "Google
-Chrome". It holds absolute paths to one Mac's checkout, so it cannot be
-shared.
+All dated 2026-11-13 unless noted. Each row names the workstream that
+builds it.
 
-### 2.2 The processes in a rehearsal
+| # | Decision | Why | Builds it |
+|---|---|---|---|
+| D1 | **Every model call goes through WorkIt's Model route.** No `claude -p`, no local model and no student key in the app (2026-11-10; ADR 0005) | A product may not offer a student's Claude login; a local model is too weak and too heavy for a laptop; a key in the app is a key for everyone | W1 |
+| D2 | **The app does no research.** It reads each company's brief from WorkIt | Research is the most expensive call, and a brief holds no student data, so WorkIt can make one per company for every student | W9, F2 |
+| D3 | **The Fill engine is downloaded only, never shipped in the app.** Signed, encrypted, unlocked by a per-launch key, kept only in memory | A copy in the download is a copy for everyone; the app needs WorkIt to run anyway | W7 |
+| D4 | **The Worker extension goes on the Chrome Web Store, unlisted, from WorkIt's existing developer account.** Its code runs in pages through the Debugger API, not `userScripts`, and holds no engine. A spike decides it first; if it fails, v1 keeps the extension off the store | One click for the student; the store allows outside code only through the Debugger or User Scripts API, and User Scripts is only for the user's own code; the existing account costs no new fee and has a trust history | W6 |
+| D5 | **The Model route is a thin proxy for v1.** The app sends the call; WorkIt adds the key, runs the provider chain and counts tokens. The prompts stay in the app | Fastest path; writing on WorkIt's server can come later (F6) | W1 |
+| D6 | **A free beta with a Usage cap of 3,000,000 tokens per student per calendar month**, reset on the 1st (UTC), always shown in the app. WorkIt can change it without an app update | High enough for testing; the number is checked after W13 measures one Application | W1 |
+| D7 | **The beta uses the providers' free tiers.** Paid tiers come later (F3) | No paid keys for now | W1, F3 |
+| D8 | **Personal data is replaced before a prompt leaves the computer**, and put back on the computer. Self-ID answers are never sent. The app shows a short disclosure | Prompts go to WorkIt and to Groq and Google, and Google's free tier may use prompts to improve its products | W1, W5 |
+| D9 | **No Gmail.** A job site's emailed code becomes a Needs-you item that the student types | Reading Gmail needs an app password (a hard setup) or Google's paid security review | W3 |
+| D10 | **macOS-only code is removed or replaced.** Scheduled runs, phone push and the Dock bundle are dropped; Keychain becomes `keyring`; Chrome is found per OS | A simple app, and a later Windows port that is not a rewrite | W4 |
+| D11 | **The window is native (pywebview) and opens no port.** Its page talks to Python through pywebview's bridge, not through a server on `127.0.0.1` | It works like any other app; no local server that other programs can call | W5 |
+| D12 | **The only sign-in is WorkIt**, in the student's default browser, back to the app through `workit-auto-apply://` with PKCE. The session lives in `keyring` | No new account and no port; the student signs in where they already do | W5, W1 |
+| D13 | **In v1 no model drives the browser.** Job systems with no Filler get the generic Filler; what it can't fill is a Handoff, and a field a Filler fails on is a Needs-you item. **A hosted `drive` loop is the next work after v1** (F1) | `drive` needs a strong model, large calls and an adversarial guard review; the generic Filler needs only short closed choices | W2, F1 |
+| D14 | **One codebase, two builds.** The Student build is compiled without the developer parts. There is no setting, switch or key that turns them on | Developer features can't be turned on by accident when their code isn't in the app | W3 |
+| D15 | **Company briefs belong to WorkIt** and may become proprietary. One brief format, a company registry and a pipeline that keeps briefs are designed but not built for v1 | Shared briefs cost per company, not per application | W9, F2 |
+| D16 | **Legal uses free templates and tools now.** No review of the hiring systems' terms for now | No budget; the student presses Submit | W10 |
+| D17 | **Distribution: a notarized DMG on workitjobs.ai, with Sparkle updates** from Cloudflare R2. Not the Mac App Store | The App Store's sandbox blocks control of Chrome | W8 |
+| D18 | **Apple Silicon only, macOS 13 and later.** Intel Macs are future work (F8) | One build; macOS 26 is the last version for Intel Macs | W8 |
+| D19 | **Names:** "WorkIt Auto Apply", `ai.workitjobs.autoapply`, and "WorkIt Auto Apply Worker" for the extension | | W5, W6, W8 |
+| D20 | **Apple enrollment: an individual now**, an organization later (F7) | An organization needs a registered company and a D-U-N-S number; Apple says the Team ID stays on conversion | W8 |
+| D21 | **Google Chrome is required.** First run checks for it and links to its download | Chrome for Testing can't turn on Allow User Scripts, and other browsers are untested | W5 |
+| D22 | **CDP Workers keep their debugging port on `127.0.0.1` in v1.** One Worker kind with no port is future work (F5) | Pipe mode adds automation switches; the bridge may later carry CDP Workers too | F5 |
+| D23 | **Jobs come from the student's Auto Apply queue on WorkIt**, plus a box to paste one posting's link | The queue is already on the website | W5 |
+| D24 | **Two Workers by default, one to three.** Each is a full Chrome, about 0.5 to 1 GB of memory | Student laptops | W5 |
+| D25 | **"Remove all my data"** in settings deletes the Worker profiles, the seed, Records, Traces and the app's `keyring` items. The data folder is in each OS's standard place | Mac apps have no uninstaller | W5 |
+| D26 | **"Send report"** sends one Application's Record and a masked Trace to WorkIt only when the student presses it. No automatic telemetry | Testers need a way to report; privacy first | W5, W1 |
+| D27 | **Engine signing:** the Fill engine's CI signs each build with an Ed25519 key; WorkIt serves the newest build that fits the app's version; the app holds only the public key | An unsigned download would let an attacker run code on every student's computer | W7 |
+| D28 | **Certificate pinning** to the certificate authorities Cloudflare uses for `api.workitjobs.ai`, with backups. Sparkle's feed is on another host without pinning, so an update can fix the set | A proxy on the student's computer can't read the engine download | W7 |
+| D29 | **Apply moves to the private repo `workitjobs/apply-agent`**, with its history | The WorkIt repo is public; compiling protects nothing while the source is public | W0 |
+| D30 | **The Developer checkout uses the local API** (`ask_model: workit` against localhost by default after W0). `claude` stays a developer choice. There is no staging server | Simple; keys stay only in WorkIt's `backend/.env` | W0, W1 |
+| D31 | **Developer setup is `git clone --recurse-submodules`, `uv sync`, `uv run apply app`.** The window's first run does the rest, as for a student | One path for everyone | W5, W0 |
+| D32 | **CI is small:** GitHub-hosted Linux runners, on PRs only, ruff and a short list of fast tests. No builds and no tags in CI | GitHub Actions minutes are limited | W0 |
+| D33 | **One mode:** Apply fills each form and stops on its last page; a person always presses Submit. Rehearsals and `live_runs` go. Not a v1 blocker | Simpler and safer: Apply never sends an application | W12 |
+| D34 | **The student's data comes through the Fill engine's code as it does now.** Its redesign is a teammate's work | Out of this design's scope | W11 |
+
+## 3. The v1 app, end to end
+
+### 3.1 First run
+
+1. **Download.** The student downloads `WorkIt Auto Apply.dmg` from
+   workitjobs.ai and drags the app to Applications. The app is signed and
+   notarized, so macOS opens it with only its standard "downloaded from
+   the internet" question.
+2. **Sign in.** The window shows "Sign in with WorkIt". The app opens
+   WorkIt's sign-in page in the default browser (password, Google or
+   LinkedIn, as on the website). After sign-in, the website opens
+   `workit-auto-apply://signed-in?code=…`; macOS hands it to the app,
+   which trades the one-time code for a session (PKCE, W5). The session
+   goes into `keyring`.
+3. **Chrome.** If Google Chrome is missing, the app says "WorkIt Auto
+   Apply needs Google Chrome" with a Download button (google.com/chrome
+   in the default browser), and goes on when Chrome appears.
+4. **Disclosure.** One screen says what leaves the computer (section 3.4)
+   and that Google's free tier may use prompts to improve its products.
+   The student presses OK.
+5. **The seed.** The app makes a Chrome profile folder in its data folder
+   and opens Chrome on it at the store listing of WorkIt Auto Apply
+   Worker. The student clicks "Add to Chrome" and confirms Chrome's
+   dialog ("Access the page debugger backend", "Communicate with
+   cooperating native applications"). The app sees the extension in the
+   profile's files, closes that Chrome, starts one test Worker from a copy
+   and waits for its hello. It takes about a minute. The student types
+   nothing. (If the W6 spike fails, this step is the three-click guide
+   that `apply plain seed` is today.)
+6. **Ready.** The window shows the student's Auto Apply queue, the paste
+   box, Start, and the Usage cap ("Model use this month: 0 of 3,000,000
+   tokens").
+
+The seed is made once. Each Worker's profile is copied from it the first
+time that Worker is needed, then kept: it holds its own sign-ins between
+Applications and runs. Every Worker profile is its own Chrome user data
+folder (`--user-data-dir`): none of it shows in the student's own Chrome
+profiles, and nothing of theirs changes.
+
+### 3.2 A run
+
+1. The student presses Start. The app downloads the Fill engine for its
+   version (W7), unless it already holds this launch's copy in memory.
+2. The Orchestrator gives one Application to each Worker (two by
+   default). Each Application goes as in section 4.3, with these v1
+   changes:
+   - Model calls go to the Model route (W1), with personal data replaced.
+   - The company brief comes from WorkIt (W9). No research.
+   - A job system with no Filler gets the generic Filler (W2); what it
+     can't fill is a Handoff. A field a Filler fails on is a Needs-you
+     item; there is no Rescue.
+   - An emailed code is a Needs-you item; Apply reads no mail.
+3. The window shows each Worker's tile. When the student must act (a
+   captcha, a sign-in, a Needs-you item, Submit), the app brings that
+   Worker's Chrome window to the front.
+4. Each form stops on its last page. The student checks it and presses
+   Submit in the Worker's window. Apply writes the Tracker on WorkIt.
+5. At the Usage cap, the run pauses with "Monthly model use reached;
+   resets on <date>". The window always shows the use so far.
+
+### 3.3 The processes
+
+```
+WorkIt Auto Apply (one compiled app)
+ ├─ window: pywebview (WKWebView), no port ◄── bridge ──► Python core
+ ├─ Node: the Fill engine, from memory (stdin), never from a file
+ ├─ Chrome Worker 1 (CDP)    ◄── Playwright, debugging port on 127.0.0.1 (D22)
+ ├─ Chrome Worker 2 (plain)  ◄── socket file ── host relay ── native messaging ── Worker extension ── debugger
+ └─ HTTPS to api.workitjobs.ai (pinned): sign-in, Model route, usage, engine, briefs, queue, Tracker
+```
+
+`worker_mode: protected` stays: plain Workers fill the hosts that block
+CDP Workers (Lever, SmartRecruiters, Workable and each host where Apply
+saw a block), and CDP Workers fill the rest (section 4.7).
+
+### 3.4 What leaves the computer
+
+| To | What | When |
+|---|---|---|
+| WorkIt | Each model call's prompt with personal data replaced; tokens used | Each call |
+| Groq, Google (Gemini) | The same prompt, sent by WorkIt with WorkIt's key | Each call |
+| WorkIt | Tracker writes, answers the student approves, the queue | As today (`apply-agent/docs/workit.md`) |
+| WorkIt | One Application's Record and masked Trace | Only when the student presses "Send report" |
+| Job sites | The form's answers, in the Worker's Chrome | As a person filling the form |
+
+**Replaced before a prompt leaves** (D8): the name, email, phone, street
+address and ZIP code, birth date, links to personal profiles (LinkedIn,
+GitHub, portfolio) and student ID, each with a placeholder such as
+`@NAME@` (essays already use it). The app puts the real values back into
+the answer. **Never sent:** self-ID answers (gender, race, disability,
+veteran status). **Kept, because essays need them:** school, major,
+graduation date, city and state, employers and the text of the student's
+stories. **Not caught:** other people's names inside a story.
+
+### 3.5 What stays on the computer
+
+| What | Where |
+|---|---|
+| The data folder: Records, Traces, the Worker profiles, the seed, the local copy of the student's data | `~/Library/Application Support/WorkIt Auto Apply` (`%APPDATA%` on Windows) |
+| The WorkIt session; Employer account passwords (passwords Apply makes for job-site accounts) | `keyring`: macOS Keychain, Windows Credential Manager. The student can see and change them in Keychain Access |
+| The Fill engine | Memory only, for one launch |
+
+WorkIt never holds a student's job-site passwords: a breach would expose
+every student's accounts. A new computer starts with no saved job-site
+accounts.
+
+### 3.6 What v1 does not do
+
+- No model drives the browser: no Claude fill, no Rescue, no Ask Claude
+  (F1).
+- No company research; no brief where WorkIt has none (F2).
+- No Gmail: emailed codes and links are the student's.
+- No scheduled runs, no phone push, no Daily sweep.
+- No Intel Macs, no Windows (F8, F4).
+- No paid model tiers (F3).
+
+## 4. How Apply works today
+
+Background for every workstream. Apply is the Python package in
+`apply-agent/` (`pyproject.toml`, entry point `apply = "apply.cli:main"`),
+installed with `uv sync`, macOS only, nothing packaged.
+
+### 4.1 The processes in a rehearsal
 
 ```
 terminal: uv run apply rehearse <links>
  └─ Python (Apply)
-     ├─ web server on 127.0.0.1   ← the Apply window (Chrome --app) calls it
+     ├─ web server on 127.0.0.1   ← the Apply window (Chrome --app) calls it (dashboard.py)
      ├─ Node (Fill engine)        ← reads question sets, plans, checks
      ├─ Chrome worker-1, -2, -3   ← one process, profile and window for each Worker
-     └─ claude -p (many, short)   ← text in, JSON out, then it exits
-         └─ npx @playwright/mcp   ← only for Claude fill
+     └─ claude -p (many, short)   ← only with ask_model: claude, and for drive and research
 ```
 
-Apply does not run inside Claude Code. It runs the `claude` command as
-separate subprocesses, on the user's own login.
+`~/Applications/Apply.app` is not a real app: `dock_app.py` writes an
+`Info.plist`, an icon and a shell script so the Dock shows "Apply" and
+not a second "Google Chrome". D10 drops it.
 
-### 2.3 One Application, step by step
+### 4.2 Who reads the questions
 
-1. Resolve the link: the hiring system, the company, and a Greenhouse,
-   Lever or Ashby form inside a careers page.
-2. Check whether the student already applied. If so, stop.
-3. Get a tailored resume from WorkIt, if the posting has one.
-4. Read the posting's text, by API or a plain fetch, with no browser.
-   Plain code checks eligibility, and checks for text aimed at AI agents.
-5. Read the question set. The Fill engine reads it from the hiring
-   system's API (Greenhouse, Lever, Ashby). The Workday Filler signs in and
-   reads it from the page. Claude fill reads it on a site with no Filler.
-6. Open the form. The submit guard goes into every page before the site's
-   own code.
-7. The engine's planner answers the routine questions from the profile and
-   the answer bank. Missing facts go to Needs you at once.
-8. Claude writes what is left (section 3).
-9. Plain-code gates check each essay: caps, names, not-on-resume.
-10. The engine fills the form in the page, then reads every field back. If
-    the read-back is wrong, Sonnet re-plans once and the form is filled
-    again.
-11. Verify: plain-code checks, then a Haiku Pre-submit review.
-12. A rehearsal stops on the last page and writes its Record. The page
-    becomes the student's: they can answer, press Resume, or press Submit
-    themselves.
-
-### 2.4 Who reads the questions
-
-The Fill engine reads them, not Claude. Claude gets only the questions the
-planner could not answer. The one exception is Claude fill, on a site
-Apply has no Filler for.
+The Fill engine reads them, not a model. A model gets only the questions
+the planner could not answer.
 
 ```
 question set ─► engine planner ─┬─ answered from profile + answer bank
                                 ├─ Missing facts ─► Needs you
-                                └─ essays + one-off questions ─► Claude (text)
+                                └─ essays + one-off questions ─► ask (text)
                                                                    │
                                      gates (plain code) ◄──────────┘
                                           │
@@ -140,978 +272,888 @@ question set ─► engine planner ─┬─ answered from profile + answer bank
                               one plan ─► the engine fills the page
 ```
 
-The engine is a JavaScript bundle (`autofiller_extension/fill-engine/dist/engine.js`),
-the same build the WorkIt extension uses. Python runs it in a long-lived
-Node process (`fill_engine.call_without_page`) and inside each page
-(`page.evaluate`, or the worker extension's ops).
+The engine is a JavaScript bundle (`autofiller_extension/fill-engine/dist/engine.js`,
+about 590 KB), the same build the WorkIt extension loads. Python runs it
+in a long-lived Node process (`fill_engine.call_without_page`) and inside
+each page.
 
-## 3. How Apply uses Claude today
+### 4.3 One Application, step by step
 
-Every call goes through `apply-agent/src/apply/claude_cli.py`.
+1. Resolve the link: the hiring system, the company, and a Greenhouse,
+   Lever or Ashby form inside a careers page.
+2. Check whether the student already applied. If so, stop.
+3. Get a tailored resume from WorkIt, if the posting has one.
+4. Read the posting's text, by API or a plain fetch. Plain code checks
+   eligibility and text aimed at AI agents.
+5. Read the question set: from the hiring system's API (Greenhouse,
+   Lever, Ashby), from the page (Workday), or by Claude fill on a site
+   with no Filler.
+6. Open the form. The submit guard goes into every page before the
+   site's own code.
+7. The planner answers the routine questions from the profile and the
+   answer bank. Missing facts go to Needs you.
+8. `ask` writes what is left: essays, one-off answers.
+9. Plain-code gates check each essay: caps, names, not-on-resume.
+10. The engine fills the form, then reads every field back; a wrong
+    read-back is re-planned once.
+11. Verify: plain-code checks, then a Pre-submit review.
+12. Stop on the last page and write the Record. The page is the
+    student's.
 
-**Text only (most calls, `ask`).** `claude -p` with Apply's own system
-prompt, no tools, no settings, no MCP servers, a JSON schema for the
-answer, and an empty working folder. `ANTHROPIC_API_KEY` is removed, so
-the call uses the user's plan. The prompt holds the questions as data
-(label, type, options, limits), the student's sources and the company's
-material. Claude never sees the browser.
+### 4.4 Model calls today
 
-| Job | Model |
-|---|---|
-| Company brief, with web search (`research`) | Sonnet |
-| Essay plan and essays | Opus |
-| Edit and source check | Opus |
-| Re-plan after a bad read-back | Sonnet |
-| Pre-submit review | Haiku |
-| Claude fill and Rescue (`drive`) | Haiku |
+Every call goes through one adapter (`Adapters.claude`) with three kinds
+of call:
 
-**Claude drives the browser (`drive`).** This happens only in Claude fill
-and Rescue. Playwright MCP attaches to the Worker's own Chrome. Claude
-reads the page's accessibility tree as text, with no images, and works
-under caps on turns and tokens. Even then Claude does not write the
-answers: it reads the questions, the normal planner and writer answer them,
-and Claude types the planned answers in. Plain code clicks Next, types
-passwords and codes, and clicks Submit only on a live run. A hook refuses
-Claude's clicks on Submit.
-
-### 3.1 Claude fill and Rescue: when the model drives the browser
-
-These are the only two places where a model acts in the browser. Both use
-Haiku through `ClaudeCLI.drive`, both run under the drive guard
-(`submit_guard.DriveGuard`) and the submit-click hook (`send_click.py`),
-and neither writes an answer: the answers come from the planner and the
-writer first.
-
-**Claude fill** (`claude_fill.py`, `docs/claude-fill.md`) is the Filler for
-a hiring system Apply has no Filler for. `orchestrator._apply_with` picks
-it when the posting's job system is not in `fillers.FILLERS` (Greenhouse,
-Ashby, Lever, Workday, Rippling, Workable, Eightfold), and only after
-`greenhouse.board_behind` and `embedded.form_behind` found no known form
-inside the page. Oracle, iCIMS, TAL.net, SmartRecruiters and company-built
-forms go here.
-
-1. Plain code reads the posting's text off the open page, with no tokens.
-2. Session 1, read: Claude reads the form and returns its questions as
-   JSON. The planner and the writer answer them, as on any form.
-3. Session 2, fill: Claude types the planned answers and reports what each
-   field shows. On a form in steps, Claude names the step's Next and plain
-   code clicks it; a new step's questions are planned like any others.
-4. Plain code types passwords and emailed codes; Claude never sees them.
-   Plain code checks each step before Next (`cant_be_right`).
-5. Claude stops at the last step and names the button that sends. In a
-   rehearsal nothing presses it. In a live run, plain code clicks it after
-   the Pre-submit check, and confirms the page.
-6. Caps for the whole Application: 40 turns and 400,000 tokens
-   (`claude_fill.MAX_TURNS`, `MAX_TOKENS`; `policies.yaml: claude_fill`).
-   A cap, a captcha or a guard block is a Handoff to the student.
-
-**Rescue** (`rescue.py`) is for one field that a scripted Filler failed on.
-Only the Fillers built per Application (Workday, Eightfold) get one.
-
-1. The Filler fails on a field: a `FillError`, or a click that timed out
-   (`WorkdayFiller._put_or_rescue`).
-2. Haiku drives the same open page to put that one answer in, and reads
-   the field back. It may touch no other field and no button that changes
-   the step or sends.
-3. Caps: 15 turns and 150,000 tokens per field, at most 6 fields per
-   Application (30 turns when the field is on an earlier step of a held
-   form, KAN-686).
-4. The Filler reads the field back as it reads every field, so the
-   Pre-submit check judges it. Each rescued field is noted for a Repair
-   request, so the Filler's code gets fixed and the next form needs no
-   Rescue.
-5. A cap, or Claude saying it can't, gives the Filler's own error back. A
-   guard block is a Handoff.
-
-**Without a strong model**, both can be turned off. Claude fill's forms
-then go to the student, in a Worker's window or in their everyday Chrome
-with the extension; a field that needed a Rescue is left for the student
-on the held form.
-
-### 3.2 A generic Filler with a local model (proposed)
-
-The aim: replace most of Claude fill and Rescue with plain code, and use a
-small local model only for short, closed choices. A local model is weak at
-long, open tool loops, so it never drives freely.
-
-**A Rescue today, as an example.** Workday asks "How did you hear about
-us?" with a two-level list. The planner's answer is "LinkedIn". The engine
-fails ("no option LinkedIn"), and `WorkdayFiller._put_or_rescue` hands the
-field to Rescue. Haiku gets `<field>`, `<answer>` and `<error>`, then works
-in turns: snapshot, click the box, see the groups, click "Job Board", see
-"LinkedIn", click it, close the list, read the field. It returns
-`{"shown": ["LinkedIn"], "blocked": false}` in about 6 of its 15 turns. The
-Filler reads the field back, the Pre-submit check judges it, and the field
-is noted for a Repair request.
-
-**Read, with no model for most fields.** Chrome's accessibility tree
-already gives each control its role and its label (its accessible name).
-Plain code builds the question set from it: a textbox is a text question,
-a combobox or a radio group is a select with its options, a checkbox is a
-yes/no. Generic code opens each custom dropdown in turn, reads its
-options, and closes it. The model is asked only where the tree is unclear
-(a box with no label, an "Other, please specify" box, a question split
-across elements), as one short question about a few elements.
-
-**Control, by role.** Plain code acts; the model only picks.
-
-| Control | Plain code | The model's question, when needed |
+| Kind | Jobs | Goes to today |
 |---|---|---|
-| Textbox, textarea | Fill it with the planned answer | None |
-| Native `<select>` | Pick the option; `fit.ts` maps the value to the form's wording | None |
-| Checkbox, radio | Click the one whose name fits the answer | Which of these names means the answer? |
-| Custom dropdown, search box | Click, type the answer to filter, read the options, match with `fit.ts` | Which of these options is the answer? |
-| Two-level list | Open it and read the groups | Which group holds the answer? |
-| File upload | Set the file on the file input | None |
-| Next | Find it by Claude fill's `NEXT` and `BACK` patterns | Which of these buttons goes on, without sending? |
+| `ask`: text in, JSON out | Essay plans and essays, edits and checks, one-off answers, re-plans, the Pre-submit review, the team's name, the story map | `ask_model`: Groq, then Gemini, by default; `claude -p` for a developer who sets `claude` (`apply-agent/docs/ask-model.md`) |
+| `research`: web search over many turns | Company briefs (`brief.py`) | `claude -p`, Sonnet |
+| `drive`: the model controls the page | Claude fill (`claude_fill.py`), Rescue (`rescue.py`), Ask Claude | `claude -p`, Haiku, through Playwright MCP |
 
-**What the model gets is not what Claude gets.** Claude gets the whole page
-and the tools, and runs the loop. The local model gets one closed question
-with a small part of the page, and returns one choice as JSON (Ollama and
-llama.cpp can hold a model's output to a JSON schema):
+`ask_model.HostedAsk` takes over only `ask`; the other kinds go to
+`claude -p` unchanged. In the Student build, `ask` goes to the Model
+route (W1), `research` is gone (D2) and `drive` is gone (D13).
 
-```
-System: Pick the option that means the answer. Reply {"choice": <number>} or {"choice": null}.
-Prompt: Field: "How did you hear about us?"   Answer: "LinkedIn"
-        Options: 1. Job Board   2. Social Media   3. Employee Referral   4. Career Fair
-Reply:  {"choice": 1}
-```
+**Claude fill** is the Filler for a hiring system Apply has no Filler for
+(Oracle, iCIMS, TAL.net, company-built forms). Claude reads the form,
+the planner and the writer answer it, and Claude types the planned
+answers in. Caps: 40 turns and 400,000 tokens per Application. **Rescue**
+fills one field a scripted Filler failed on (Workday, Eightfold): up to
+15 turns and 150,000 tokens per field. Both run under the drive guard and
+the submit-click hook, and neither writes an answer itself
+(`apply-agent/docs/claude-fill.md`).
 
-The loop belongs to plain code: act, read the tree again, check the field
-by read-back, and ask the model again only for the next closed choice. The
-same example runs as: code clicks the box and reads 4 groups; `fit.ts`
-finds no "LinkedIn"; the model picks group 1; code clicks it and reads the
-new list; `fit.ts` finds "LinkedIn"; code clicks it and reads the field
-back. One model call of about a hundred tokens, against Haiku's six turns
-over whole-page snapshots.
-
-**What stays hard, and goes to the student.** A page in an unexpected
-state (an error banner, a pop-up, a field that resets, a reload), a widget
-missing from the tree (a canvas date picker, drag and drop), and a step
-whose end is not clear. A long page is cut to the form's part before any
-model sees it, because a local model's context is small and a laptop reads
-long input slowly. A field the generic Filler can't place is left for the
-student on the held form, as a failed Rescue is today.
-
-**Tools for a local model: narrow, not Claude's.** A local model can call
-tools (Qwen 3 and Llama 3.1 and later do; Ollama has a tools API). But
-Claude's tools do not move over as they are. `drive` runs inside the
-`claude` CLI, which owns the loop and attaches Playwright MCP to a CDP
-endpoint. A local model has no such loop, so Apply would run the loop and
-carry out each tool call itself. Give it the whole page and Claude's tools,
-and it fails: snapshots are tens of thousands of tokens, a laptop reads
-them slowly, and a small model repeats clicks or says "done" too early over
-20 to 40 steps. So the model gets a few tools on one field's part of the
-page, and plain code checks each call before it runs it:
-
-| Tool | What plain code does |
-|---|---|
-| `pick_option(n)` | Clicks option n, then reads the field back |
-| `click(ref)` | Clicks only an element inside the field's subtree |
-| `type(ref, text)` | Types only the planned answer, never the model's own text |
-| `give_up()` | Puts the field on Needs you |
-
-The submit guard (`submit_guard.py`, `plain/guards.py`) stays under every
-call, as it is under Claude's clicks today: no model can press Submit. These
-tools can reuse Apply's own tool server for plain Workers
-(`apply/plain/tools.py`, KAN-612), which already runs Playwright MCP's tool
-names on a plain Worker's page for `drive`; the same tools work on CDP and
-plain Workers alike. The scale, most reliable first: closed questions
-only (enough for most Rescues); narrow tools on one field (a widget that
-takes 2 or 3 actions); full page control (not with a local model: the page
-goes to the student).
-
-**How to test it.**
-
-1. Build the generic Filler over the accessibility tree, with the local
-   model as the tie-breaker, behind the same `Filler` shape
-   (`apply/fillers.py`), so it runs on CDP and plain Workers alike.
-2. Run it on the engine's saved forms (`test/fixtures/`;
-   `uv run apply plain fill <saved-form>` serves one on 127.0.0.1 and
-   refuses every POST).
-3. Rehearse the long-tail postings that Claude fill fills today.
-   Rehearsals never submit.
-4. Compare the share of fields filled right, and the time, with Claude
-   fill on the same postings. Keep Claude fill as developer mode.
-
-The volume comes from plain code, not from more AI: Matches cost no tokens,
-the planner answers most fields, the answer bank reuses drafted answers, a
-company brief is researched once per company, 3 Workers run at once, and
-Apply stops starting new Applications at 85% of the 5-hour usage window or
-70% of the weekly one.
-
-## 4. Why a desktop app, and not only the website
-
-**A web page cannot drive another site.** The same-origin policy stops a
-page on `workitjobs.ai` from reading or typing into a page on
-`greenhouse.io`. A page also cannot start Chrome processes or choose
-profiles. So filling a job site's form needs an extension or a local
-program.
-
-| | Website + extension | Desktop app (Apply) |
-|---|---|---|
-| What drives the form | Chrome extension APIs | Python, through Playwright (CDP) or the worker extension |
-| Where the run's state lives | An MV3 service worker, which Chrome stops when idle | A long-running Python process |
-| Tabs | Background tabs in the student's own window (5 at once) | One Chrome process and window per Worker; each form is that window's active tab |
-| Profiles | The student's one profile | A separate profile per Worker |
-| Install | Chrome Web Store | A desktop app per OS |
-
-The extension had these problems (`auto-apply/architecture.md` §10):
-hidden tabs run slowly, the service worker stops when idle, a new window
-switched the student's macOS Space, and the session expires after one
-hour. Apply avoids them because:
-
-- each form is the active tab of its own Worker's window;
-- Playwright passes `--disable-background-timer-throttling`,
-  `--disable-renderer-backgrounding` and
-  `--disable-backgrounding-occluded-windows` by default, and plain Workers
-  pass the last one;
-- Python holds the run, and in plain mode the native-messaging port keeps
-  the worker extension's service worker alive;
-- Workers are separate Chrome processes that start in the background;
-- Apply refreshes its own WorkIt session.
-
-Two limits are the same on both paths: a minimized window stops painting,
-so a Worker must never be minimized; and `apply rehearse --into` puts more
-forms into one Worker, so all but one are background tabs again. The
-second case is not tested on plain Workers yet, which pass only the
-occluded-window flag.
-
-Cloud browsers (Chrome on WorkIt's servers) are not a path: data-center
-IPs are blocked far more often, the student's sign-ins would live on
-WorkIt's servers, and the cost and the hiring-system risk are highest.
-
-## 5. How Apply controls Chrome
-
-**CDP Workers.** Playwright starts real Google Chrome
-(`channel="chrome"`) with `launch_persistent_context` on
-`profiles/worker-N`, with a normal user agent and
-`--disable-blink-features=AutomationControlled`. Clicks and keys are
-trusted input over CDP. The engine runs in the page through
-`page.evaluate`. The tiles come from CDP screencast frames.
-
-**Plain Workers** (`apply-agent/src/apply/plain/`, protocol in
-`apply-agent/docs/plain-workers/PROTOCOL.md`):
-
-```
-Apply ── Unix socket ── host relay (Chrome starts it) ── native messaging ── worker extension
-```
-
-Apply starts a normal Chrome with no DevTools port, no `--enable-automation`
-and no headless mode. A private worker extension runs each op (`tabs.goto`,
-`dom click`, `fill`, `tile.start`...). `PortPage` copies the Playwright
-`Page` API, so Fillers, the engine and the guards run unchanged. Claude
-fill gets a tool server with the same `mcp__playwright__*` tool names.
-
-**Two paths, one caller.** Only Apply's Python controls Chrome:
+### 4.5 How Apply controls Chrome
 
 | Worker | Path from Python to the page |
 |---|---|
-| CDP | Python → Playwright → Playwright's Node driver (`site-packages/playwright/driver/`) → CDP → the page |
-| Plain | Python → Unix socket → host relay → native messaging → worker extension → the page |
+| CDP | Python → Playwright → Playwright's Node driver → CDP over a debugging port on `127.0.0.1` → the page |
+| Plain | Python → socket file → host relay (Chrome starts it) → native messaging → Worker extension → the page |
 
-The worker extension does not use Playwright; it takes Playwright's place
-on a Worker with no CDP. A model never touches Chrome. It names an action
-(a tool call, or one choice), and Apply's code carries it out on whichever
-path the Worker has. Claude does so today on plain Workers through
-`apply/plain/tools.py`; an API or local model that replaces Claude uses
-the same path, and Playwright MCP's tool definitions are already in
-`apply/plain/mcp_tools.json`.
+**CDP Workers.** Apply starts real Google Chrome on `profiles/worker-N`
+with `--remote-debugging-port=0` (`browsers.py`) and connects Playwright.
+Input is trusted. The engine runs through `page.evaluate`; tiles come
+from CDP screencast frames.
 
-## 6. Worker mode: `protected` is the default (built, 2026-11-06)
+**Plain Workers** (`apply-agent/src/apply/plain/`, protocol in
+`apply-agent/docs/plain-workers/PROTOCOL.md`). Chrome starts with no
+debugging port, no `--enable-automation` and no headless mode.
+`PortPage` copies Playwright's `Page` API, so Fillers, the engine and the
+guards run unchanged. Today the Worker extension (about 3,000 lines in
+`apply-agent/worker-extension/`) runs code in pages three ways:
 
-`apply-agent/policies.default.yaml` sets `worker_mode: protected`: plain
-Workers fill the hosts that block CDP Workers (`plain_worker_hosts`: Lever,
-SmartRecruiters, Workable; and each host where Apply saw a bot block,
-`APPLY_HOME/plain-hosts.json`), and CDP Workers fill the rest. The team
-chose this before the planned week of side-by-side runs. A student who
-wants every form in a plain Worker sets `plain` in their own
-`policies.yaml`.
+- its own packaged ops (`ops/*.js`, `page/*.js`): tabs, clicks, tiles,
+  typing;
+- the Fill engine, which Apply writes into the extension's folder as
+  `vendor/engine.js` before each launch, injected as a file
+  (`ops/engine.js`);
+- Apply's page code (each `page.evaluate`) through `userScripts.execute`
+  (`ops/core.js`), and the guards' early scripts through
+  `userScripts.register` (`ops/guard.js`).
 
-What it means for a teammate:
+It types through its own `chrome.debugger`, attached only while text goes
+in (`ops/typing.js`); Workers start with `--silent-debugger-extension-api`,
+so Chrome shows no debugging bar. The extension is loaded unpacked into
+the seed by the student's own clicks (`apply plain seed`: Developer mode,
+Load unpacked, Allow User Scripts), and each Worker profile copies the
+seed. W6 changes the last two ways (section 6, W6).
 
-- Run `uv run apply plain seed` once. `apply doctor` now shows a
-  "Plain seed" line beside "Worker profiles".
-- Tests do not follow the default: `apply-agent/tests/conftest.py` takes
-  `worker_mode` out of the default policies, so a test that needs a plain
-  Worker sets it itself.
+A model never touches Chrome directly. It names an action, and Apply's
+code carries it out on whichever path the Worker has
+(`apply/plain/tools.py`, `apply/plain/mcp_tools.json`).
 
-### 6.1 The tradeoffs of plain Workers
+### 4.6 Why a desktop app, and not only the website
 
-- **Input is synthetic.** Each event has `isTrusted: false`, which a page
-  can read; CDP's input is trusted. With no user activation, pop-ups are
-  blocked (the extension opens the URL in a new tab), the file picker does
-  not open (the extension sets files through `DataTransfer`), and focus
-  events do not fire in a background window (Workday's blur, KAN-709).
-  Only left clicks.
-- **Page code is limited.** The extension needs "Allow User Scripts" on. A
-  page whose CSP forbids `eval` refuses it, so the per-turn page functions
-  are fixed extension code (`apply.plain.fixed`).
-- **More setup.** Branded Chrome ignores `--load-extension`, so the worker
-  extension goes into a seed profile by hand (`apply plain seed`), with
-  Developer mode on.
-- **Slower screens.** `captureVisibleTab` allows about 2 captures a second.
-  A smooth tile needs macOS Screen Recording and a Swift helper.
-- **Weaker network control.** `declarativeNetRequest` rules block requests;
-  response bodies are read only for non-GET fetch and XHR calls.
-- **More code to keep up.** `PortPage` copies Playwright's API by hand.
-- **Chromium only, and tied to Chrome's rules.** MV3, native messaging and
-  user scripts can change, and managed Chrome can block them. The native
-  host is registered per OS, and the Unix socket needs a named pipe on
-  Windows.
+A web page can't drive another site (the same-origin policy), start
+Chrome or pick profiles. The extension path fills in the student's own
+Chrome, in background tabs, with an MV3 service worker that Chrome
+stops when idle (`auto-apply/architecture.md` §10). Apply avoids those
+limits: each form is the active tab of its own Worker's window, Workers
+pass the anti-throttling switches, Python holds the run, and the native
+messaging port keeps the Worker extension's service worker alive. A
+Worker must never be minimized: a minimized window stops painting.
 
-### 6.2 What plain Workers do not do
+Cloud browsers (Chrome on WorkIt's servers) are not a path: data-center
+IPs are blocked far more often, the student's sign-ins would live on
+WorkIt's servers, and the cost is highest.
 
-A plain Worker removes one signal: the automation channel. A site can
-still see synthetic input, timing, behavior, the IP, and scores from
-reCAPTCHA, hCaptcha, DataDome or Akamai (`apply-agent/docs/captchas-and-bot-blocks.md`
-lists the blocks Apply met). Bot detection and AI-content checks are also
-different things: an AI-content check reads the text, so the Worker kind
-does not change it. Postings that ban AI answers are caught by the engine
-(`posting_bans_ai`) and handed to the student.
+### 4.7 Worker mode and the plain Workers' tradeoffs
 
-`protected` picks the Worker kind once per host, before the form opens; a
-whole form runs in one kind. Switching a Worker between plain and CDP
-mid-form, to pass a check in one mode and then act in the other, is
-evasion. It is out of scope, with the student in control or not: the
-check judges the session that fills the form. It also cannot work as
-pictured, since a Chrome gets its DevTools port only when it starts.
+`worker_mode: protected` (the default since 2026-11-06): plain Workers
+fill the hosts that block CDP Workers (`plain_worker_hosts`: Lever,
+SmartRecruiters, Workable, and each host in `APPLY_HOME/plain-hosts.json`
+where Apply saw a block); CDP Workers fill the rest. `protected` picks
+the kind once per host, before the form opens. Switching kinds in the
+middle of a form to pass a check is evasion and out of scope.
 
-Within the rule, the design is: `protected` per host, hosts learned from
-each block (`plain-hosts.json`), a real block sent to the student's
-everyday Chrome and the extension (KAN-590), and the student's own clicks
-(trusted in either Worker kind) for a field that needs them.
+Plain Workers' tradeoffs: most input is synthetic (`isTrusted: false`)
+except the debugger's typing and choice clicks; pop-ups and file pickers
+need workarounds; `captureVisibleTab` allows about two captures a second
+(the smooth tile needs macOS Screen Recording and a Swift helper today);
+request control is weaker; `PortPage` copies Playwright by hand; and
+Chrome's MV3 rules can change. A plain Worker removes one signal, the
+automation channel. A site can still read synthetic input, timing, the IP
+and captcha scores.
 
-## 7. The desktop app: what it needs
+## 5. The Developer checkout, the repo, testing and CI
 
-| Part | Today | Desktop app |
+### 5.1 The repo (D29)
+
+`workitjobs/apply-agent` is private (created 2026-11-13, one README
+commit). W0 moves `apply-agent/` there with its history. The Fill engine
+becomes its submodule at `fill-engine/`. The WorkIt repo keeps the API
+routes, the website pages and a pointer. The old commits stay readable in
+the WorkIt repo's public history: the move protects only what comes after
+it.
+
+### 5.2 Setup (D31)
+
+```
+git clone --recurse-submodules git@github.com:workitjobs/apply-agent.git
+cd apply-agent && uv sync
+uv run apply app
+```
+
+The window's first run does the rest, as for a student (section 3.1):
+sign-in against the local API, the Chrome check and the seed. Doctor's
+checks become first-run checks. Claude Code is needed only for
+`ask_model: claude`. A developer loads the Worker extension unpacked
+from the checkout, so it can change without a store release; its ID is
+pinned by the manifest's `key`, and the native host accepts both that ID
+and the store's.
+
+### 5.3 Which model a Developer checkout uses (D30)
+
+| `ask_model` | Calls go to | Keys |
 |---|---|---|
-| Apply's code | Python, run with `uv` | Frozen with its dependencies (PyInstaller or Briefcase), one build per OS |
-| Fill engine | `engine.js` from the private submodule | `engine.js` inside the app. Decide whether a built copy of the private engine may ship in a public download |
-| JS runtime | The Node inside Playwright's driver | The same, bundled |
-| Browser | The user's Chrome at `/Applications/...` | Find Chrome on each OS; keep the user's installed Chrome |
-| Claude | `claude -p` on the user's login | An allowed method (section 8) |
-| The Apply window | A local web page on 127.0.0.1 in Chrome app mode | Keep it; it already works on any OS |
-| Student data | YAML and Markdown in `~/.config/apply/` | From WorkIt over HTTP (section 9) |
-| Secrets | macOS Keychain through `security` | A cross-platform store (`keyring`: Keychain, Windows Credential Manager, Secret Service) |
-| Sign-ins | Chrome started by hand with flags | A first-run step that opens the Worker profile for Google sign-in |
-| OS extras | Dock bundle, macOS notifications, launchd, Swift window capture | A version per OS, or left out on that OS |
-| Updates | `git pull` | Code signing (Apple notarization, a Windows certificate) and an auto-updater |
+| `workit` (the default after W0) | The Model route of the WorkIt API the checkout points at: `http://localhost:8000` unless set | Only in WorkIt's `backend/.env` |
+| `[groq, gemini]` | Groq and Gemini directly (`ask_model.py`) | The new repo's own `.env`, or `GROQ_API_KEY` and `GEMINI_API_KEY` |
+| `claude` | `claude -p` on the developer's own login, full prompts; `drive` and `research` too | The developer's Claude Code login |
 
-**macOS-only code today** (a search of `apply-agent/src/apply/` for macOS
-commands and paths; check each module before porting it): `keychain.py`, `notify.py`, `schedule.py`,
-`dock_app.py`, `focus.py`, `browsers.py`, `dashboard.py`, `captcha.py`,
-`doctor.py`, `accounts_tab.py`, `brief.py`, `cover_letter.py`, `cli.py`,
-`workit.py`, `plain/launcher.py`, `plain/seed_setup.py`,
-`plain/window_capture.py`. They use `security`, `osascript`, `launchctl`,
-`open`, `pgrep`, `/Applications/...` and Swift. The core (the Worker, the
-engine calls, the essays, the gates, the window's server) is ordinary
-Python and Playwright.
+The Student build has none of these choices: it always uses `workit`
+against `https://api.workitjobs.ai`.
 
-### 7.1 The student's part
+### 5.4 Testing while the app is built
 
-The app fills the forms. The student:
+1. **From source, every day.** `uv run apply app` runs the real window
+   and first run with no compile step. It points at the local API (`npm
+   run dev` in the WorkIt repo, or Superset's Run button). Sign in with
+   the shared test account (`frontend/CLAUDE.md`, "Auth and the API").
+2. **On real forms.** Start a posting from the window or the paste box.
+   The form stops on its last page; never press Submit on a real posting
+   in a test.
+3. **As a real app.** A developer runs the build script on a Mac (W8)
+   and installs the result, or sends it to testers through Sparkle's beta
+   channel. Testers outside the team need the Apple enrollment first,
+   because macOS blocks an app signed by no one.
 
-- watches each Worker's tile and the run's progress;
-- answers Missing facts and does each captcha;
-- checks the answers and the verification flags;
-- presses Submit on each form.
+There is no staging server. Tests that reach production use the shared
+test account.
 
-`live_runs` (Apply presses Submit after every check passes) stays off in a
-public build.
+### 5.5 CI (D32)
 
-### 7.2 Plain Workers on every OS
+GitHub-hosted Linux runners, on PRs only: `uv run ruff check .` and a
+short list of fast tests (no browser, no network, no `claude`), a few
+minutes in all. No macOS runners, no builds, no version tags. Builds run
+by hand (W8).
 
-Plain Workers ship on every OS, as part of the app. The CDP path already
-runs anywhere Playwright runs. The plain path has these per-OS parts:
+## 6. Workstreams
 
-| Part | macOS today | Windows | Linux |
+| # | Workstream | Waits for | v1 |
 |---|---|---|---|
-| Native-messaging host manifest | A JSON file in each Worker profile's `NativeMessagingHosts/` | A registry key under `HKCU` that names the manifest | A JSON file, as on macOS |
-| The host's launcher | A shell-script wrapper | An `.exe` or `.bat` wrapper | A shell script |
-| Apply ↔ host channel | A Unix socket (`workers.sock`) | A named pipe or a localhost port, with the same framing | A Unix socket |
-| Starting Chrome in the background | `open -g -n -a` | `subprocess` with no focus | `subprocess` |
-| Smooth tile | ScreenCaptureKit (Swift helper) | Windows Graphics Capture, or the extension's frames (about 2 fps, built) | The extension's frames |
-| Seed profile | `apply plain seed` | The same steps | The same steps |
+| W0 | Move Apply to `workitjobs/apply-agent` | KAN-723 merged into WorkIt's `main` | Yes, first |
+| W1 | Model route and Usage cap | None | Yes |
+| W2 | Filling with no model in the browser | None | Yes |
+| W3 | What the Student build leaves out | None | Yes |
+| W4 | Remove macOS-only code | None | Yes |
+| W5 | The app shell | W3, W4 (and W1 for sign-in and usage) | Yes |
+| W6 | The Worker extension on the store (spike first) | None | Yes |
+| W7 | The engine download and its protection | W1 (sign-in) | Yes |
+| W8 | Compile, sign, notarize, update, publish | W3, W4, W5 | Yes |
+| W9 | Company briefs in v1 | None | Yes |
+| W10 | Legal | None | Yes |
+| W11 | The student's data | A teammate | Yes (not ours) |
+| W12 | One mode: remove Rehearsals and `live_runs` | W0 | No |
+| W13 | Measure quality and model use | W1 | Yes, for the cap |
 
-Each part is known work. The parts to test early are background-window
-behaviour on Windows and Linux (`--disable-backgrounding-occluded-windows`
-reads window cover differently on each OS) and the host's registration
-under a school's managed Chrome.
+Every workstream that adds or changes a click path, or touches
+`submit_guard.py`, `plain/guards.py`, `send_click.py` or a guard flag,
+gets the adversarial review (root `CLAUDE.md`, KAN-666) and new cases in
+`tests/test_submit_guard_hostile.py`. Claude never runs `alembic
+upgrade`: a workstream that adds a table writes the migration and asks
+the user to apply it (root `CLAUDE.md`).
 
-### 7.3 Updates
+### W0. Move Apply to `workitjobs/apply-agent`
 
-- **The app** updates as a whole, in the background, with an auto-updater
-  (Sparkle on macOS; Squirrel, WinSparkle or MSIX on Windows). It downloads
-  a signed build, often a delta, and applies it at the next restart. The
-  student never downloads the app again by hand. Python changes (how Apply
-  drives Chrome, `protected` rules, the window) ship this way.
-- **The Fill engine** (`engine.js`) comes from WorkIt's server, apart from
-  the app, so a fill fix reaches students in minutes. Rules:
-  - The file is versioned and signed; the app checks the signature and the
-    sha256 before it loads it. Unsigned downloaded code would let an
-    attacker run code on every student's computer.
-  - Each engine names the app versions it works with; the app keeps its
-    bundled engine when the new one does not fit.
-  - Plain Workers already refuse an engine whose version or sha256 differs
-    from Apply's, and already take a new one from a vendor set without a
-    restart (`apply-agent/docs/plain-workers/PROTOCOL.md`, KAN-645). CDP
-    Workers load `fill_engine.ENGINE` from disk and need the same
-    download-and-check step.
+**Goal.** Apply's code in a private repo, with its history, before any
+code that must stay secret lands.
 
-### 7.4 Who can see the code
+**Steps.**
 
-Anything that runs on the student's computer can be read in the end.
-Compiling only makes it cost more. The private repo hides the source; it
-does not hide what the app ships.
+1. Merge KAN-723 into WorkIt's `main`. Ask teammates to merge or hold
+   their open `apply-agent/` PRs for one day.
+2. On a fresh clone: `git filter-repo --subdirectory-filter apply-agent`.
+   Apply's files and history are then at the root.
+3. Add the Fill engine as a submodule at `fill-engine/`, and fix every
+   path that points outside Apply:
+   - `fill_engine.py` (`parents[3] / "autofiller_extension" / "fill-engine"`);
+   - `ask_model.DOTENV` (WorkIt's root `.env`);
+   - `repairer.py` (`ENGINE`, `FROM_APP`, the prompt's paths) and Repairs'
+     merge target;
+   - `native_host.py`'s note on the WorkIt extension's ID;
+   - links into WorkIt's `docs/` from Apply's docs and code comments.
+4. Push to the new repo's `main` once, with force, to replace the
+   README-only commit. The user says yes to the force push at that time.
+5. Add the new repo's CI (D32) and `ask_model: workit` as the Developer
+   checkout's default (D30), once W1's route exists.
+6. In WorkIt: delete `apply-agent/`, remove the `apply` job from
+   `.github/workflows/ci.yml` (and `apply-nightly.yml`), and replace the
+   root `CLAUDE.md`'s Apply section with a pointer. Move this doc and
+   ADR 0005 to the new repo; keep a short server-side note in WorkIt's
+   `docs/`.
 
-**Where each part of the engine runs.**
+**Done when.** The new repo's CI passes, a Developer checkout runs a form
+to its last page, and WorkIt's CI passes without `apply-agent/`.
 
-| Part | Where it runs | Can it be machine code? |
+### W1. Model route and Usage cap
+
+**Goal.** Every model call of a Student build goes through WorkIt, is
+counted, stops at the cap, and carries no personal data.
+
+**The server (WorkIt repo, `backend/`).**
+
+- **Routes** (names to settle in the PR), each signed in as the student:
+  - `POST /apply-app/model`: body `{kind, model, system, prompt, schema}`.
+    `model` is Apply's tier (`haiku`, `sonnet`, `opus`); WorkIt maps it
+    to a provider's model. The server runs the provider chain that
+    `apply-agent/src/apply/ask_model.py` runs today (Groq, then Gemini;
+    strict schemas; moving on at 413, 429 and 5xx; `_misfit` checks), with
+    the keys from the API's secrets (`CF_API_SECRETS_JSON`). It answers
+    `{answer, tokens}`.
+  - `GET /apply-app/usage`: `{used, cap, resets_at}`.
+  - At the cap, `POST /apply-app/model` answers 429 with `resets_at`.
+- **Table** `model_usage`: one row per student per month (`applicant_id`,
+  `month`, `input_tokens`, `output_tokens`, `calls`). A new Alembic
+  migration that enables RLS with no policies (root `CLAUDE.md`).
+- **The cap** (3,000,000 tokens) is a server setting, so it changes with
+  no app update. A short per-student rate limit (requests a minute)
+  protects the free tiers, which every student shares.
+- **Logs** keep no prompt text: only the student, the kind, the model and
+  the tokens.
+
+**The app (Apply).**
+
+- `ask_model: workit`: a provider in `ask_model.py` whose endpoint is
+  the Model route and whose key is the student's WorkIt session. The
+  lean prompts stay (`adapters.lean`).
+- **Personal data out, back in** (D8, section 3.4): one module replaces
+  each personal value with its placeholder before `ask` sends, and puts
+  the values back into the answer. Self-ID answers are never in a
+  prompt. Tests check that no profile value of the listed kinds reaches
+  the request.
+- **The Orchestrator's limit.** Today it pauses on Claude Code's 5-hour
+  and weekly windows (`orchestrator._resume_at`, `adapters.usage`). The
+  Student build reads `GET /apply-app/usage` instead and pauses at the
+  cap with its reset date.
+- **Send report** (D26) uploads one Record and masked Trace through a
+  WorkIt route; the server keeps it for the team.
+
+**Waits for.** Nothing. Sign-in (W5) supplies the session in the app; a
+developer can test with an existing WorkIt token.
+
+**Done when.** A Developer checkout with `ask_model: workit` against the
+local API writes a form's essays, the usage row grows, a cap set low
+pauses the run with its date, and a request captured in a test holds no
+personal value.
+
+**Open.** The route's exact names; whether the server keeps the
+`[groq, gemini]` chain or adds Cloudflare AI Gateway in front of it for
+logs.
+
+### W2. Filling with no model in the browser
+
+**Goal.** v1 fills without `drive` (D13).
+
+**Design.**
+
+1. **Handoffs first** (needed in every case): in the Student build, a job
+   system with no Filler and no generic fill is a Handoff to the student
+   in that Worker's window; a field a Filler fails on (today a Rescue)
+   is a Needs-you item on the held form, with the planned answer shown.
+2. **The generic Filler**, behind the same `Filler` shape
+   (`apply/fillers.py`), on CDP and plain Workers alike:
+   - **Read with no model.** Chrome's accessibility tree gives each
+     control its role and label. A textbox is a text question, a combobox
+     or radio group a select with its options, a checkbox a yes/no.
+     Generic code opens each custom dropdown, reads its options and
+     closes it.
+   - **Act with plain code; the model only picks.**
+
+     | Control | Plain code | The model's question, when needed |
+     |---|---|---|
+     | Textbox, textarea | Fill the planned answer | None |
+     | Native `<select>` | Pick the option; `fit.ts` maps the value | None |
+     | Checkbox, radio | Click the one whose name fits | Which of these names means the answer? |
+     | Custom dropdown, search box | Click, type to filter, read, match with `fit.ts` | Which of these options is the answer? |
+     | Two-level list | Open it, read the groups | Which group holds the answer? |
+     | File upload | Set the file | None |
+     | Next | Claude fill's `NEXT` and `BACK` patterns | Which of these buttons goes on, without sending? |
+
+   - **The model's question is a small `ask`** through the Model route:
+     `{"choice": <number> | null}` for one field's few options, about a
+     hundred tokens. Example: Workday's "How did you hear about us?" with
+     groups Job Board, Social Media, Employee Referral, Career Fair, and
+     the answer "LinkedIn": `fit.ts` finds no "LinkedIn", the model picks
+     group 1, code opens it, `fit.ts` finds "LinkedIn", code clicks it
+     and reads the field back.
+   - **What goes to the student:** a page in an unexpected state (an
+     error banner, a pop-up, a reset field), a widget missing from the
+     tree (a canvas date picker, drag and drop), and a step whose end is
+     not clear.
+
+**Touches.** `claude_fill.py`, `rescue.py` (their Student-build paths),
+`fillers.py`, `orchestrator._apply_with`, a new generic Filler module,
+`apply/plain/tools.py` for its narrow tools.
+
+**Done when.** On the engine's saved forms (`uv run apply plain fill
+<saved-form>` serves one on 127.0.0.1 and refuses every POST) and on
+long-tail postings that Claude fill fills today, the generic Filler's
+share of fields filled right is measured against Claude fill's, and
+every field it can't place is a clear Needs-you item or Handoff. The
+generic Filler's clicks pass the adversarial review.
+
+### W3. What the Student build leaves out
+
+**Goal.** The Student build holds no developer part, and nothing in it
+can turn one on (D14).
+
+**Left out** (kept in the Developer checkout):
+
+- `claude_cli.py` and every `claude -p` path: `ask_model: claude`,
+  `research` (`brief.research`), `drive` (Claude fill, Rescue, Ask
+  Claude), Repairs (`repair.py`, `repairer.py`, `work`), Claude Code's
+  usage reading;
+- mail: `gmail.py`, `email_code.py`'s Gmail lookups, Employer mail, `apply
+  mail` (D9: the code is a Needs-you item);
+- `schedule.py`, `notify.py` (ntfy), `dock_app.py` (D10);
+- `sheet_import.py`, `clean-tracker`, `apply ask` and every command that
+  only runs from a terminal; `doctor.py`'s developer checks;
+- `live_runs` and its paths (fixed off; W12 removes them everywhere).
+
+**Design.** One build constant (for example `apply.build.STUDENT`) that
+the build script sets. Developer modules are not imported on the Student
+path, and Nuitka leaves them out of the compile (W8). The Student build
+reads no developer keys from `policies.yaml`: its few settings (the
+Worker count) live in the window.
+
+**Done when.** A Student build's file list holds none of the modules
+above, and a test proves that setting `ask_model: claude` or `live_runs:
+true` in its data folder changes nothing.
+
+### W4. Remove macOS-only code
+
+**Goal.** No macOS command or path in the code the Student build runs,
+so the Windows port (F4) is a port, not a rewrite.
+
+| Module | macOS part today | Change |
 |---|---|---|
-| Planner, rules (`planner.ts`, `rules.ts`), `fit.ts` | The long-lived Node process (`call_without_page`); no page needed | Yes, after a rewrite (Rust or Go, to a native binary or WebAssembly), or by moving it to the server |
-| Field reading, filling, read-back | Inside the job site's page: `page.evaluate` on a CDP Worker, the worker extension's user script on a plain Worker | No. Only JavaScript can touch a page's DOM (WebAssembly needs JavaScript to reach the DOM) |
+| `keychain.py`, `brief.py`, `gmail.py` | `security` | `keyring` (Keychain on Mac, Credential Manager on Windows). Items left: Employer account passwords (`apply-ats`) and the WorkIt session |
+| `workit.py` | Session in `workit-login.json`; sign-in through Chrome's debugging port | Session in `keyring`; sign-in through the browser and `workit-auto-apply://` (W5) |
+| `notify.py` | `osascript` notifications, ntfy | Dropped: the window shows notices |
+| `schedule.py`, `cli.py` | `launchctl`, `~/Library/LaunchAgents` | Dropped |
+| `dock_app.py` | The Dock bundle | Dropped: the app is its own bundle |
+| `dashboard.py` | `open`, `osascript`, `pgrep`, Chrome `--app` | Replaced by the pywebview window (W5) |
+| `focus.py`, `captcha.py` | `osascript`, `open` | Bring the Worker's window forward through Chrome (`Page.bringToFront`, or `chrome.windows.update` through the Worker extension) |
+| `accounts_tab.py` | `osascript` clipboard (`MacClipboard`) | A cross-platform clipboard |
+| `browsers.py`, `plain/launcher.py`, `cover_letter.py`, `workit.py` | `/Applications/Google Chrome.app` | One Chrome finder per OS. Windows: `C:\Program Files\Google\Chrome\Application\chrome.exe`, then the per-user folder |
+| `plain/launcher.py` | `open -g -n -a` | Start Chrome as a background process per OS |
+| `plain/window_capture.*` | Swift and ScreenCaptureKit | Dropped: tiles come from the debugger's screencast (W6) or the extension's frames |
+| `plain/seed_setup.py` | `open -R`, `pbcopy`, `ps` | The store install needs none of them (W6); the fallback guide uses cross-platform calls |
+| `native_host.py`, `plain/launcher.py` | `~/Library/...` paths | Per-OS paths; the data folder through the standard per-OS place (D25) |
 
-The in-page part stays JavaScript because it reads and changes the page's
-DOM from inside the page. The desktop app's Python never touches the DOM:
-it sends the script into the page (over CDP, or through native messaging
-to the worker extension) and gets the result back.
+**Done when.** A search of the Student build's modules for `osascript`,
+`security`, `launchctl`, `open`, `pgrep`, `pbcopy`, `/Applications/` and
+`~/Library/` finds nothing, and the moved features work on the Mac.
 
-**How a student could read it.** The engine file on disk in the app's
-folder (downloaded from WorkIt or bundled); the download itself (HTTPS
-stops others, not the computer's owner); DevTools on a Worker's tab, which
-lists injected scripts; and the app's memory. Encrypting the file on disk
-does not help: it must be plain JavaScript at the moment it enters the
-page. Turning DevTools off needs a machine-wide Chrome policy, which the
-student can undo.
+### W5. The app shell
 
-Node packagers (Node SEA, `pkg`) put the JavaScript source in the binary,
-so they hide nothing. V8 bytecode (bytenode) is harder to read but can be
-decompiled. Nuitka or Cython compile Apply's Python to machine code.
+**Goal.** One native window that does everything a student needs
+(sections 3.1 and 3.2).
 
-**The black-box design (proposed).** Split the engine into a brain and a
-thin hand:
+**Design.**
 
-- **The hand** (in the page, JavaScript): generic DOM steps only: list the
-  controls with their roles and labels, click element n, type text into
-  element n, read element n back, wait for a change. It holds no rules and
-  no per-hiring-system tricks, so reading it shows little.
-- **The brain** (on WorkIt's server, or compiled): the planner, the rules,
-  `fit.ts`, and each hiring system's widget recipe ("Workday's two-level
-  list: click the box, wait for the list, pick the group, then the
-  option"), sent to the hand as a list of steps.
+- **pywebview, no port** (D11). The window's page is today's Apply
+  window (Start, Needs you, Answers, Accounts) without the Developer-only
+  parts. Its 28 routes in `dashboard.py` (`/state`, `/start`, `/answer`,
+  `/answers`, `/approve`, `/resume`, `/fill-again`, `/regenerate`,
+  `/accounts`, `/frames`, `/stream/`, `/input/`, ...) become methods on
+  pywebview's JavaScript bridge (`js_api`). Tiles' frames are pushed into
+  the page through the bridge. The window shows in the Dock while open,
+  as every Mac app does.
+- **Sign-in** (D12):
+  1. The app makes a PKCE verifier and challenge and opens
+     `https://workitjobs.ai/app-sign-in?challenge=…&state=…` in the default
+     browser (a new website page).
+  2. The page signs the student in as the website does, then asks the
+     API for a one-time code bound to the challenge, and opens
+     `workit-auto-apply://signed-in?code=…&state=…`.
+  3. The app (registered for the scheme in its `Info.plist`) sends the
+     code and the verifier to the API and gets the session. The session
+     goes into `keyring`; the app refreshes it as `workit.py` does today.
+- **First run:** the Chrome check (D21), the disclosure (D8), the seed
+  (W6), then Ready.
+- **A run:** the Auto Apply queue from WorkIt (the batch routes in
+  `backend/app/routers/auto_apply.py`), the paste box, Start, tiles,
+  Needs you, the Usage cap line (W1).
+- **Settings:** the Worker count (one to three, default two), "Remove all
+  my data" (D25), "Send report" (D26), the disclosure, sign out.
+- **Notices** replace phone push: the window and macOS's own notification
+  for "needs you".
 
-**The label cache (proposed).** The planner does four steps for each
-question. Only step 2 is the student's data; the others are WorkIt's
-logic:
+**Touches.** `dashboard.py`, `accounts_tab.py`, `workit.py`, a new app
+entry point (`uv run apply app`), new website page and API routes in the
+WorkIt repo.
 
-| Step | Example | Secret? |
-|---|---|---|
-| 1. Meaning | "How did you hear about us?" → the fact `source` | Yes: the rules |
-| 2. Value | `source` = "LinkedIn" | No: the student's data |
-| 3. Fit | Options [Job Board, LinkedIn, Referral] → "LinkedIn" | Partly: `fit.ts` |
-| 4. Policy | A screener, a trap, an AI ban | Yes: rules, per posting |
+**Done when.** From a Developer checkout, `uv run apply app` takes a new
+user from sign-in to a filled form held on its last page, with no
+terminal step and no open port.
 
-The app keeps the server's results of steps 1 and 3, never the rules:
+### W6. The Worker extension on the store
 
-- **Key:** the label in a standard form (lower case, spaces collapsed),
-  the control type, the option list and the engine version.
-- **Value:** the meaning (`source`) and the fit for that option list,
-  with the value it was fitted for.
+**Goal.** One click to add the Worker extension, from the Chrome Web
+Store, under the store's rules (D4).
 
-The first form sends its labels and options in one call and stores the
-results. The next form with the same labels plans them in the app, with
-no trip; only new labels go to WorkIt. The value always comes from the
-student's current data, so an edit on the website needs no cache change;
-a cached fit is used only while the value matches the one it was made
-for. A new engine version clears the cache. Step 4 stays on the server,
-once per job posting. A reader of the cache sees one student's labels and
-their meanings, not the rules that read a new wording; the app can also
-encrypt it with the per-launch key.
+**Why the change.** The store allows code from outside the extension's
+package only through the Debugger API or the User Scripts API, each for
+its stated purpose; the User Scripts API is for code the user writes.
+Today the extension runs Apply's code through `userScripts` and loads the
+engine from a file Apply writes into its folder, and a store
+extension's folder belongs to Chrome. The store also forbids obfuscated
+code, including code the extension runs; minified code is allowed.
 
-**Recipes as steps.** Each hiring system's widget steps (Workday's
-two-level list) must reach the hand, so they can be read while the app
-runs. WorkIt sends a hiring system's recipe only when a form on it opens,
-the app keeps it in memory only, and a recipe is a list of generic steps
-("click the box, wait for a list, pick the item") that the generic hand
-carries out.
+**The change: the debugger replaces `userScripts`.**
 
-The server is the only real black box: the rules never leave it, and
-WorkIt already holds the student's data, so no new data goes out. Costs:
-one call per form for the plan (the steps can come in one reply), no
-planning when WorkIt is offline, and a large refactor of the engine. The
-extension, which goes through the Chrome Web Store, may be minified but
-not obfuscated. The desktop app's worker extension is private and does not
-go through the Store, so its hand may also be obfuscated, which only slows
-a reader down.
+| Today | With the debugger |
+|---|---|
+| `vendor/engine.js` written into the extension's folder, injected as a file | Apply sends the engine's text over native messaging (it goes in pieces: Apply splits any message over 512 KiB). The extension runs it with `Runtime.evaluate`. No engine file on disk |
+| `userScripts.execute` for Apply's page code (`ops/core.js`) | `Runtime.evaluate`, with `Runtime` never turned on |
+| `userScripts.register` for the guards' early scripts (`ops/guard.js`) | `Page.addScriptToEvaluateOnNewDocument`, in every frame's session |
+| Tiles through `captureVisibleTab`, about 2 a second; Swift for smooth tiles | `Page.startScreencast` |
+| Packaged ops (tabs, clicks, typing) | Unchanged |
 
-**Other desktop apps ship readable JavaScript too (checked 2026-11-09).**
-Electron apps (a Chrome engine plus Node, with the app in JavaScript) ship
-their code in an `app.asar` archive or an `app` folder. An `.asar` is a
-JSON list of files followed by their bytes, with no compression and no
-encryption; `npx @electron/asar extract app.asar out/` unpacks it. On one
-team Mac, 9 apps had an `app.asar` (Slack, ChatGPT, Teams classic,
-Obsidian, Postman Agent and others) and 6 an `app` folder (VS Code,
-Cursor and others). Slack's archive held 954 files, 518 of them
-JavaScript, minified but readable. Electron's docs say asar hides code
-"from cursory inspection" only
-(https://github.com/electron/electron/blob/v11.4.7/docs/tutorial/application-packaging.md).
-These companies keep their value on their servers; the app is a client.
-Apply follows the same rule: ship only JavaScript that is safe to read
-(the hand, the worker extension), and hide the rest.
+The `userScripts` permission goes, so the student never turns on Allow
+User Scripts and needs no Developer mode. The extension keeps
+`nativeMessaging` and `debugger` (and host access, if attaching needs
+it). Chrome's install dialog then says "Access the page debugger
+backend" and "Communicate with cooperating native applications". Students
+with Enhanced Safe Browsing on may also see "Proceed with caution" for a
+developer without a trust history. Workers start with
+`--silent-debugger-extension-api`, so no debugging bar shows.
 
-**The four ways, one by one (2026-11-09).**
+**The spike, first.** Prove on real postings, with the form held on its
+last page:
 
-| Way | Steps | What stays open |
-|---|---|---|
-| 1. The file on disk | Keep no plain engine file. The app fetches a key from WorkIt at each launch, after the student signs in, over a pinned connection, and keeps it only in memory; the engine on disk is encrypted with it. The key can change with each engine version, and WorkIt can stop giving it to a login. On a plain Worker, inject with `userScripts.execute` (one-off, `ops/core.js` already does), not `register`, whose scripts are saved in the Worker's profile (`ops/guard.js` registers its init scripts today). | The app must decrypt to use it, so the key and the plain code are in the app's memory while it runs (way 4), and the plain code is in the page (way 3). It stops a copy of the folder, not a reader of a running app. |
-| 2. The download | HTTPS with certificate pinning (the app trusts only WorkIt's certificate, so a proxy the student installs cannot read the traffic); the same per-launch key. | The same as way 1, after decryption. |
-| 3. DevTools on a Worker's tab | Obfuscation (below). DevTools cannot be turned off for the Workers only: Chrome's DevTools policy covers all of Chrome on the computer, and the student can remove it. | The page holds the code as JavaScript; a reader can pretty-print and step through it. |
-| 4. Memory | macOS: the hardened runtime, without the `get-task-allow` entitlement, stops other programs from reading the app's memory (notarization needs the hardened runtime anyway). A root user, or one who turns off System Integrity Protection, can still read it. Windows has no equal for normal apps. | The engine also runs in Chrome's page process, which the app cannot protect. |
+1. **Frames from other sites:** a Greenhouse form embedded in a careers
+   page sits in a frame Chrome runs in its own process. The debugger
+   must reach it and run the engine there, without turning `Runtime` on.
+2. **The guard in every frame before the page's code**, as each new frame
+   appears. This is guard code: adversarial review and hostile-page
+   cases.
+3. **Bot signals:** the debugger stays attached for the whole form, not
+   only while typing. Rehearse Lever, SmartRecruiters and Workable, and
+   compare with today's plain Workers on the same postings.
+4. **A whole form:** fill, read-back, Next and file upload, compared with
+   today's plain Worker.
 
-Heavy packers and anti-debug code make antivirus programs and Apple's
-notarization scan more likely to flag the app as malware, and they break
-Apply's own Traces and Repairs. Keep any source maps on WorkIt's server.
+**If the spike passes:** list "WorkIt Auto Apply Worker", unlisted, from
+WorkIt's existing developer account: a privacy policy link, one stated
+purpose ("lets WorkIt Auto Apply control its own Chrome windows"), a
+reason for each permission, and a license header in each file (W10).
+The native host's manifest names the store's extension ID beside the
+Developer checkout's unpacked one. The extension updates from the store
+on Chrome's schedule, so the app and the extension check one protocol
+version on hello (`PROTOCOL.md` already has a feature number) and the app
+says "Updating the Worker extension" while they differ.
 
-**Minify and obfuscate are different.** Minifying removes spaces and
-comments and shortens local names. DevTools' pretty-print restores the
-layout, and the logic and every string stay readable: each regex in
-`rules.ts`, each label it matches, each hiring system's selectors. So
-minifying (a teammate's work) hides the comments and the long names only;
-it is a first step, not protection. Obfuscation also encodes the strings
-and scrambles the control flow (javascript-obfuscator: string arrays,
-control-flow flattening). The rules then are not plain text, but the code
-runs slower and gets bigger, so measure a fill before and after. Neither
-stops a reader with time; the brain on the server does.
+**If the spike fails:** v1 keeps today's extension off the store. First
+run guides the student through Developer mode, Load unpacked and Allow
+User Scripts (`plain/seed_setup.py` does this today), and the engine
+still reaches the Worker in memory, not in a file.
 
-**The desktop app's own code.** Two separate steps:
+**Touches.** `apply-agent/worker-extension/` (`ops/core.js`,
+`ops/guard.js`, `ops/engine.js`, `ops/tile.js`, `background.js`,
+`manifest.json`), `apply/plain/` (`bridge`, `launcher`, `seed_setup`,
+`tile`), `docs/plain-workers/PROTOCOL.md` and `guide.md`.
 
-- **Compile, for protection.** Nuitka compiles Apply's Python to machine
-  code. Playwright's driver and Node are third-party and public, so they
-  need no hiding. Apply's own JavaScript is not covered: the worker
-  extension (`apply-agent/worker-extension/`, with the guards and ops) and
-  the engine's Node side. They are the same problem as the engine's hand.
-- **Sign and notarize, for install.** Notarizing is Apple's malware scan
-  of a signed app, so macOS opens it without a warning. It hides nothing.
-  Windows needs a code-signing certificate, so SmartScreen does not warn.
-  The packaging spike (section 10, #11) proves that the compiled app runs.
+### W7. The engine download and its protection
 
-## 8. Claude access
+**Goal.** The Fill engine never sits on the student's disk in plain text
+and comes only from WorkIt (D3, D27, D28).
 
-**Why it works today.** Apply does not run inside Claude Code. Each person
-installs Claude Code, logs in with their own plan, and runs Apply on their
-own computer; Apply calls the `claude` command as a subprocess. It is a
-tool each developer runs for themselves, not a product WorkIt offers to
-others. Having the source code is not the point; who offers the login is.
+**Design.**
 
-**What changes in a product.** Anthropic's Agent SDK docs say: "Unless
-previously approved, Anthropic does not allow third party developers to
-offer claude.ai login or rate limits for their products, including agents
-built on the Claude Agent SDK. Use the API key authentication methods
-described in the Quickstart instead."
-(https://code.claude.com/docs/en/agent-sdk/overview, read 2026-11-06).
-A WorkIt app that runs `claude -p` on a student's Pro or Max login offers
-that login's rate limits in WorkIt's product. Plan on it being not allowed
-without Anthropic's approval, even when the student installed Claude Code
-themselves. A commercial launch also needs a read of Anthropic's terms by
-someone qualified; this note only reports the docs.
+1. **Build and sign.** The Fill engine's CI builds `dist/engine.js` and
+   signs it with an Ed25519 key kept in its GitHub secrets, then uploads
+   the build and its signature to WorkIt (R2 or the API's storage) with
+   the app versions it fits. This step is in the engine's repo, so its
+   owners make it.
+2. **Serve.** `GET /apply-app/engine?app_version=…` (signed in) answers
+   the newest build that fits, encrypted with AES-GCM under a key made
+   for this launch; `POST /apply-app/engine-key` gives that key to this
+   session only, for a short time.
+3. **Load.** The app checks the signature with the public key compiled
+   into it, decrypts in memory, and never writes the plain text:
+   - the Node process gets the engine on stdin (today
+     `fill_engine.call_without_page` loads a file path);
+   - CDP Workers get it as text through `page.evaluate` and
+     `add_init_script` (today `fill_engine.ENGINE` is a file);
+   - plain Workers get it over native messaging (W6).
+4. **Pinning.** The app's HTTPS client trusts only the certificate
+   authorities that Cloudflare uses for `api.workitjobs.ai`, with backups.
+   Sparkle's feed is on another host without pinning.
+5. **No source maps** ship; they stay on WorkIt.
 
-**What stays allowed for a student's subscription: the connector.** The
-student adds WorkIt's MCP server to their own Claude (claude.ai, Claude
-Desktop or Claude Code) and starts the work there. That is the student
-using Anthropic's product, which calls WorkIt's tools; WorkIt never holds
-the login. It is built for the extension path (KAN-377,
-`auto-apply/architecture.md` §14.6).
+**A dependency outside this design.** The WorkIt extension ships the
+minified engine in its public store package today, so anyone can read
+it. The download above protects one copy while another is public. A
+teammate's work on the engine's exposure through the extension must
+close that gap, or most of W7's value is lost.
 
-**The desktop app on the connector (rejected, 2026-11-09).** The desktop
-path's goal is a run with no student in the loop (section 1), and the
-connector needs the student to start the work from their own Claude. So
-the connector stays on the extension path. The idea, for the record: Apply already plans every
-form before it fills (a rehearsal with `--start-button` waits, planned, for
-Start). So one prompt can serve a whole batch:
+**Done when.** A Developer checkout runs a form with the engine from
+the route, the data folder and the Worker extension's folder hold no
+engine file, and a wrong signature stops the run with a clear message.
 
-1. The app reads each form's question set and runs the planner; the open
-   questions (essays, one-off questions) go to WorkIt as one batch.
-2. The student runs one prompt in their Claude ("Write my WorkIt
-   answers"). Their Claude reads each application's questions and the
-   student's material through the connector and saves the answers.
-3. The app takes the saved answers, runs the gates, and fills the forms.
-   The student checks, does each captcha and presses Submit.
+### W8. Compile, sign, notarize, update, publish
 
-Cost to WorkIt: none for the model. Cost to the student: one prompt per
-batch, on their own plan. Limits: no Claude fill and no Rescue (they need a
-model that drives the browser on the app's schedule), and no company brief
-research unless the student's Claude does it in the same prompt.
+**Goal.** A signed, notarized `WorkIt Auto Apply.dmg` that updates
+itself (D17, D18, D20).
 
-**Cheaper models.** Every call goes through one adapter
-(`Adapters.claude`: `ask`, `research`, `drive`), so another backend fits
-behind it. `ask` needs a model that returns valid JSON reliably; essay
-quality drops (`essays.py`: Opus's essays beat Sonnet's 142 to 26 in
-paired judging). `research` needs Apply to fetch pages itself when the
-model has no web search. `drive` needs strong tool use, so a weak model
-should not drive; turn Claude fill and Rescue off (§3.1). WorkIt already
-uses Groq for Scout and Gemini in production, and Scout runs on Ollama
-locally; check each provider's terms for a paid product (§14.5). A local
-model is free per call but slow, needs a strong laptop and writes the
-weakest essays.
+**Design.**
 
-| Option | How | Consequence |
-|---|---|---|
-| A. `claude -p` on the user's login | No change | Allowed only as a developer mode, for the user's own use |
-| B. The user's own API key | Replace `claude_cli.py` with the Anthropic SDK: `ask` becomes a Messages call with structured outputs, `research` uses the web search and web fetch server tools, `drive` becomes a tool loop over Playwright (or the Agent SDK with the key) | Allowed. The user pays per token, apart from any Claude plan. Opus on every form costs more, so the model mix needs a review |
-| C. WorkIt pays | The app calls Claude through WorkIt's API, with WorkIt's key | Allowed. WorkIt needs billing, quotas and per-user limits (`auto-apply/architecture.md` §14.2–14.3) |
-| D. The student's own Claude calls WorkIt | The connector (KAN-377): the student adds WorkIt's MCP server to their Claude, which reads the questions and saves the answers | Allowed, on the extension path only. The student starts it from their Claude app, so the desktop app cannot call Claude on its own schedule |
-| E. Sign in with ChatGPT | The student signs in with ChatGPT; the app calls OpenAI's Responses API with the student's token, on their Plus or Pro allowance | Allowed only after OpenAI approves a paid or hosted app (below). No cost to WorkIt |
-| F. Chrome's built-in model | The worker extension (or the student's extension) calls Chrome's Prompt API, which runs Gemini Nano on the computer | Free and local; for closed questions (§3.2) only, not essays. Needs a strong enough computer |
+- **Compile:** Nuitka, standalone, as a macOS app bundle, on Apple
+  Silicon with macOS 13 as the minimum (`MACOSX_DEPLOYMENT_TARGET`). It
+  holds Playwright's Node driver (`site-packages/playwright/driver/`) as
+  data, pywebview, and none of W3's modules. Nuitka is AGPLv3 with an
+  exception: the compiled app is not bound by the AGPL.
+- **Sign:** Developer ID, with the hardened runtime and without
+  `get-task-allow`, so other programs can't read the app's memory. Every
+  Mach-O file inside is signed, the Node binary included, with the
+  entitlements Node needs (JIT) and no more.
+- **Notarize** with `notarytool`, then staple.
+- **Update:** Sparkle with its own EdDSA key; the feed and builds on
+  Cloudflare R2; a beta channel for testers. The app checks at launch and
+  installs at the next restart.
+- **Publish:** a download page on workitjobs.ai (WorkIt repo, `frontend/`)
+  that says "Apple Silicon Macs (M1 and later), macOS 13 or later".
+- **Build by hand:** one script (for example `scripts/build_app.py`) that
+  compiles, signs, notarizes, makes the DMG and uploads it. No builds in
+  CI (D32).
 
-**Other AI companies (read 2026-11-08; check each provider's own pages
-before relying on it).**
+**Done when.** A clean Apple Silicon Mac on macOS 13 opens the
+downloaded app with no warning beyond macOS's "downloaded from the
+internet", runs a form to its last page, and takes a newer build through
+Sparkle.
 
-- **OpenAI: "Sign in with ChatGPT".** OpenAI first used it in Codex CLI
-  (May 2025). At DevDay (2026-09-29) it let supported third-party apps use
-  a Plus or Pro subscriber's included allowance; launch partners include
-  Amp, Devin and Lovable. Reports say plan usage is open to open-source
-  projects, personal projects that run locally, and selected private apps;
-  a paid or hosted app fills in an interest form first. The app calls the
-  Responses API with the user's token; the user can cap each app weekly,
-  and at the cap requests fail rather than move to other billing. This is
-  the nearest thing to "use the student's own AI plan" in a product, but
-  WorkIt needs OpenAI's approval, and essay quality would need a new
-  comparison (Apply's prompts are tuned for Claude). Sources:
-  https://www.developersdigest.tech/blog/sign-in-with-chatgpt-coding-agents-plan-usage-2026,
-  https://itbrief.com.au/story/openai-launches-chatgpt-sign-in-for-16-partner-tools,
-  https://techcrunch.com/2025/05/27/openai-may-soon-let-you-sign-in-with-chatgpt-for-other-apps/.
-- **The connector in other chat apps.** The connector is an MCP server, so
-  any chat app that takes MCP servers can call it, not only Claude
-  (ChatGPT's Apps and developer-mode connectors take them). Each app has
-  its own setup and review.
-- **Chrome's built-in AI.** Chrome's Prompt API is stable for extensions
-  (Chrome 138 and later) on Windows, macOS and Linux. Chrome downloads
-  Gemini Nano the first time an extension uses it. It needs free disk
-  space (Google's page has said 22 GB) and a GPU with more than 4 GB of
-  memory, and the developer accepts Google's Generative AI Prohibited Uses
-  Policy. It is free and needs no Ollama, but it is a small model:
-  closed questions only. https://developer.chrome.com/docs/ai/prompt-api,
-  https://developer.chrome.com/docs/extensions/ai/prompt-api.
-- No other major company has a known program that lets a third-party app
-  spend a user's chat subscription. Anthropic's rule is above.
+**Cost.** Section 9.
 
-Direction (2026-11-09): no paid API keys for now, and no connector on
-the desktop path. The team judges approval from an AI company to use a
-student's subscription very unlikely.
+### W9. Company briefs in v1
 
-**Decision (2026-11-10): the launched desktop app is API-only.** Every
-model call (answers, essays, checks, Claude fill's and Rescue's
-successors) goes to hosted models (company briefs come from WorkIt, §8.1), Groq's gpt-oss with Gemini as
-backup, through a WorkIt route that holds the keys and sets each
-student's quota. No local model, and no `claude -p`, in the app. In the
-checkout, `ask_model: [groq, gemini]` is already the default for `ask`,
-with the team's keys from the root `.env`; a developer sets `ask_model:
-claude` to use their own Claude login (`apply-agent/docs/ask-model.md`).
-The local-model notes below and in §3.2 stay for the record.
+**Goal.** Essays name real company facts with no research in the app
+(D2).
 
-What a local model must do, by call kind:
+**Design.** The app reads WorkIt's shared brief (`company_briefs`,
+KAN-382; `backend/app/auto_apply/briefs.py`): one per company and one per
+team a posting names, built today by extension students' Claude through
+the connector and checked in code (each quote found on its page). WorkIt
+already serves its facts (`brief_for`; `GET /jobs/{job_id}/company` for
+the job page's Company tab); the app reads them through `apply/workit.py`
+and turns them into the lines `essays.py` reads. Where WorkIt has no
+brief, essays use the posting and the Company material only, and a "why
+us" essay names no brief fact. The shared brief has no problem tags yet,
+so the plan picks its fact without the tag match.
 
-| Call | Today | A local model |
-|---|---|---|
-| Closed fill questions (§3.2) | Haiku in Rescue | Good fit: short, closed, JSON |
-| One-off answers | Opus or Sonnet (`ask`) | Fair: short text from the student's sources |
-| Essays | Opus | Weakest; test the quality on real postings before shipping |
-| Company brief (`research`) | Sonnet with web search | Apply fetches the company's pages itself, and the model only summarizes |
-| Pre-submit review | Haiku | Fair: a check against a list |
-| Claude fill (`drive`) | Haiku, whole page | No: plain code's generic Filler with narrow tools (§3.2); the rest goes to the student |
+**Done when.** An essay for a company with a shared brief names one of
+its facts, and one for a company with none still passes the gates.
 
-Open risks: a student's laptop may be too weak (8 GB of memory runs only
-small models, slowly), the model download is several GB, and essays may
-not be good enough. Measure before deciding; a cheap hosted model paid by
-WorkIt stays the fallback if the measured cost per Application is small.
+### W10. Legal
 
-**First step (2026-11-10): an API model on Groq, then a local one.** An
-API model is the fastest way to replace Claude end to end and measure
-quality and cost; a local model can take its place later behind the same
-adapter. **Built for `ask` (2026-11-10):** `ask_model: [groq, gemini]`,
-with Gemini as Groq's backup and lean essay prompts that fit Groq's free
-tier (`apply-agent/docs/ask-model.md`); `drive` is next (section 10), and
-`research` moves out of the app to a WorkIt pipeline (§8.1). Groq's catalog (https://console.groq.com/docs/models, read
-2026-11-10):
+**Goal.** The app and the Worker extension go out with free, adequate
+terms (D16).
 
-| Model | Status | Price per 1M tokens (in / out) | Use in Apply |
-|---|---|---|---|
-| `openai/gpt-oss-120b` | Production | $0.15 / $0.60 | Essay plans and essays, one-off answers, `drive`; the brief pipeline's read step is a candidate (§8.1) |
-| `openai/gpt-oss-20b` | Production | $0.075 / $0.30 | Closed fill questions, Rescue's picks, the Pre-submit review |
-| `qwen/qwen3.8-27b` | Preview | $0.80 / $4.00 | Not for production: preview models are for evaluation and can go at short notice |
-| `llama-3.3-70b-versatile`, `llama-3.1-8b-instant` | Contact sales | — | No: reported retired for most plans on 2026-08-16 |
+- **App license (EULA):** adapt Basecamp's open-source policies (CC BY
+  4.0, archived; attribution required). Forbid copying, reverse
+  engineering and use of the app or its output to train AI models.
+- **WorkIt's `/terms`:** add a section for the desktop app.
+- **WorkIt's `/privacy`:** name each outside service (Groq, Google's
+  Gemini, Cloudflare, Supabase; Tavily when F2 is built) and section
+  3.4's flows, including that Google's free tier may use prompts.
+- **Third-party notices:** generated with `pip-licenses` (free) for the
+  Python packages, plus Playwright's driver, pywebview, Sparkle (MIT) and
+  Nuitka's runtime exception.
+- **Chrome Web Store:** a privacy policy link and its user-data rules for
+  the Worker extension; a license header in each of its files.
+- **Not now:** a review of the hiring systems' terms on automated
+  applying.
 
-Both gpt-oss models take strict JSON schemas, call tools, and read 131,072
-tokens; WorkIt's Scout already runs on them (`scout/CLAUDE.md`), so the
-team knows their quirks. What Apply's code must handle
-(https://console.groq.com/docs/structured-outputs,
-https://console.groq.com/docs/tool-use):
+### W11. The student's data
 
-- **Structured output and tools do not mix** on Groq, and neither does
-  structured output with streaming. A `drive` loop ends with a `finish`
-  tool whose parameters are the answer's schema, checked by Apply, in
-  place of `claude -p --json-schema`.
-- **Strict schemas** need every field `required` and
-  `additionalProperties: false`; an optional field becomes a nullable
-  type. `apply/ask_model.py`'s `strict` does that pass for `ask`, and drops
-  the nulls from the answer.
-- **No parallel tool calls** on gpt-oss: one action per turn, which suits
+A teammate owns it. Until their design lands, the app reads the student's
+data as the Fill engine's code and `apply/workit.py` do now, and keeps
+its local copy in the data folder. The answer bank's redesign, the data
+contract (each fact Apply reads and the WorkIt table that serves it) and
+the sync are theirs.
+
+### W12. One mode: remove Rehearsals and `live_runs`
+
+**Goal.** Apply never presses Submit, in any build (D33). Not a v1
+blocker: the Student build already fixes `live_runs` off.
+
+**Design.** Remove `live_runs`, the run versus Rehearsal split, the
+guard's lift for Apply's own Submit click, the Daily sweep and the
+Calibration and Backlog runs. `apply rehearse <link>` becomes the
+window's paste box, or a short command in the Developer checkout. Update
+the glossary (Rehearsal, Calibration run, Backlog run, Daily sweep) and
+`apply-agent/CLAUDE.md`'s testing rules. The guard change gets the
+adversarial review.
+
+### W13. Measure quality and model use
+
+**Goal.** Numbers for the cap and for quality.
+
+1. Fill the same postings with `ask_model: claude` and `workit`, and
+   compare answers and essays (a comparison outside a rehearsal on
+   2026-11-10 found Groq's plainer but correct, `apply-agent/docs/ask-model.md`).
+2. Count calls and tokens by call kind on about 20 forms across hiring
+   systems: the tokens of one Application, which sets the app's "about N
+   Applications left".
+3. With W2: the generic Filler's share of fields filled right, against
+   Claude fill.
+
+## 7. Future work
+
+Designed or noted, not scheduled. F1 is the next work after v1.
+
+### F1. A hosted `drive` loop (next after v1)
+
+Apply runs the loop itself and sends each tool call to Playwright (CDP)
+or `apply/plain/tools.py` (plain), with `apply/plain/mcp_tools.json` as
+the tool definitions. What Groq's gpt-oss models need
+(https://console.groq.com/docs/tool-use, read 2026-11-10):
+
+- Structured output and tools do not mix on Groq, so the loop ends with
+  a `finish` tool whose parameters are the answer's schema, checked by
+  Apply.
+- No parallel tool calls on gpt-oss: one action per turn, which suits
   the guards.
-- **Apply runs the loop.** `claude -p` ran the loop before; Apply now
-  sends each tool call to Playwright (CDP) or `apply/plain/tools.py`
-  (plain), with `apply/plain/mcp_tools.json` as the tool definitions, and
-  keeps the caps on turns and tokens, the send-click hook and the captcha
-  refusal.
-- **Rate limits:** the Developer plan gives 250,000 tokens a minute per
-  model. A Claude fill may use up to 400,000 tokens on one form, so `drive`
-  must send a trimmed snapshot, not the whole page each turn. The free
-  tier is far smaller.
-- **Quality:** compare gpt-oss-120b's essays with Opus's on the same
-  postings with `essays.py`'s paired judging before shipping.
+- A Claude fill may use up to 400,000 tokens on one form, so each turn
+  sends a trimmed snapshot of the form's part of the page, not the whole
+  page. It needs a paid tier (F3).
+- The caps on turns and tokens, the send-click hook, the drive guard and
+  the captcha refusal stay. It is a new click path: adversarial review.
+- Measure it against Claude fill on the same postings before it ships.
 
-**The key never ships in the app.** Anything in the app can be read
-(§7.4), so a Groq key there is a key for everyone. The app calls the model
-through a WorkIt API route that holds the key and sets each student's
-quota (option C). Check Groq's terms for a paid product and for the
-student's personal data in prompts before launch.
+### F2. The company brief pipeline
 
-### 8.1 Company briefs: a WorkIt pipeline (decided 2026-11-13)
+**One brief format** (D15). Apply's own brief (`brief.py`) has, on each
+fact, a type and problem tags; plus the mission, the values, the problems
+the company states and its teams. WorkIt's shared brief has four
+categories (products, launches, engineering, team) and none of the rest.
+The shared format takes Apply's fields; WorkIt's categories map onto
+them; the connector's save takes the same format. Briefs belong to
+WorkIt, and the student no longer edits them.
 
-**The app does no research.** It reads each company's brief from WorkIt,
-and its model calls only answer and write. Research is Apply's most
-expensive call: Sonnet with web search and fetch, up to 25 turns, for each
-company on each student's own login (`apply-agent/src/apply/brief.py`). A
-brief holds no student data: its research gets only the company, the team
-and the form's question labels. So WorkIt makes one brief per company for
-every student, and its cost goes with the number of companies, not the
-number of applications.
+**A company registry.** WorkIt has no table of companies: a brief is
+keyed by the folded name (`briefs.company_key`), and each posting has a
+`company_name` and often a `company_domain` (the website its job board
+names, read by the scraper's `logos.py`, never guessed). The pipeline
+needs to know which company to research: a `companies` table with the
+key, the name, other names, website domains and job boards, filled from
+the postings. A person reviews each merge of two names and each new
+domain, as the scraper's Wikidata domain proposals are reviewed now. It
+must handle one company under two names, two companies with nearly the
+same name, and postings on a staffing agency's board.
 
-**WorkIt already keeps a shared brief** (`company_briefs`, KAN-382,
-`backend/app/auto_apply/briefs.py`): one per company, and one per team a
-posting names. Today a student's Claude researches it through the
-connector on the extension path (`get_research_task`,
-`save_company_brief`). WorkIt calls no model for it. It keeps a fact only
-when the quote is on its page, the page is on the company's own site or a
-news site, and every number in the fact is in the quote. It keeps a brief
-only when it scores higher than the kept one (`score`: categories
-covered, facts, facts under a year old). The job page's Company tab
-already shows it (`GET /jobs/{job_id}/company`).
+**The pipeline.** A scheduled job fills the briefs no student has
+researched and refreshes the stale and weak ones:
 
-**The pipeline (proposed).** A scheduled job fills the briefs that no
-student has researched, and refreshes the stale and weak ones:
-
-1. **Pick** the companies: those of open postings and of students'
-   queues whose brief is missing, older than `FRESH_DAYS` or under
-   `STRONG` (the rules `research_task` uses today).
-2. **Gather in code, free sources first:**
-   - the posting's own text (its "About us");
-   - the company's intro text on its Greenhouse job board (the scraper
-     already reads `boards-api.greenhouse.io/v1/boards/{token}` for the
-     company's name);
-   - the company's own about, values, careers and team pages;
-   - its blog or newsroom feed (RSS or Atom, linked from its homepage);
-   - its GitHub organization, through the GitHub API;
-   - press news from GDELT's DOC 2.0 API (free, no key; its article lists
-     cover about the last 3 months).
-3. **Search with Tavily** for what those miss: engineering blog posts,
-   recent launches, the mission and values, the team. `topic: news` with
-   `time_range: year` gives recent news; `include_raw_content` returns
-   each result's page text.
-4. **Read.** One model call turns the gathered text into facts: each with
-   a quote copied from its page, the page's link and month, a category and
-   problem tags; and the mission and values word for word. It is a plain
-   `ask` call with no tool loop. It runs once per company, so it can use a
-   bigger model on WorkIt's key. The team computer's local Qwen (KAN-726)
-   is a free option, not yet tested on exact quotes.
-5. **Check and save** with `briefs.py` as it is: each quote confirmed on
-   its page as WorkIt fetches it, and the brief kept only when it scores
-   higher.
-
-**Which model, where:**
+1. **Pick** the companies of open postings and students' queues whose
+   brief is missing, older than `FRESH_DAYS` or under `STRONG` (the rules
+   `research_task` uses).
+2. **Gather in code, free sources first:** the posting's own text; the
+   company's intro on its Greenhouse job board
+   (`boards-api.greenhouse.io/v1/boards/{token}`); its own about, values,
+   careers and team pages; its blog or newsroom feed (RSS or Atom); its
+   GitHub organization; press news from GDELT's DOC 2.0 API (free, no
+   key, about the last 3 months).
+3. **Search with Tavily** for what those miss
+   (https://docs.tavily.com/documentation/api-credits, read 2026-11-13):
+   a basic search is 1 credit and an advanced one 2, up to 20 results;
+   extracting page text is 1 credit per 5 pages. The free plan has 1,000
+   credits a month, then $0.008 a credit. A brief needs about 3 to 6
+   basic searches (an estimate): 125 to 250 briefs a month free. A credit
+   is one search, not an answer. Our own search would need a web index;
+   pages at known addresses need none, so step 2 stays ours.
+4. **Read.** One `ask` call turns the text into facts, each with a quote
+   copied from its page, its link and month, a type and tags, plus the
+   mission and values word for word. It runs once per company, so it can
+   use a bigger model on WorkIt's key.
+5. **Check and save** with `briefs.py` as it is: each quote found on its
+   page, the page on the company's own site or a news site, every number
+   in its quote, and the brief kept only when it scores higher.
 
 | Step | Runs | Model |
 |---|---|---|
-| Gather and search | Once per company | None: code and Tavily |
-| Read the pages into facts | Once per company | Bigger; the check in code catches a made-up fact |
-| Plan: the one fact that fits the student's story and the role | Once per essay | Bigger: this is the judgment of what is relevant |
-| Write the essay from the plan's slots | Once per essay | Smaller (`gpt-oss-20b`, for example); test the quality first |
+| Gather and search | Once per company | None |
+| Read the pages into facts | Once per company | Bigger; the check catches a made-up fact |
+| Plan: the fact that fits the student's story and the role | Once per essay | Bigger |
+| Write the essay from the plan's slots | Once per essay | Smaller; test it first |
 
-Matching a fact to the student's background is the plan's job
-(`essays.py` matches a fact's tags to the story's problem kinds), never
-research's. That is why one brief serves every student.
+**Work it needs:** a save with no student (`save_brief` refuses a company
+the student doesn't apply to, `NotApplying`), the one format, the
+registry, and a place to run. **Open:** where it runs (GitHub Actions on
+GitHub's runners, or the team computer after the scrape, KAN-726), which
+model reads, how often it refreshes, and Tavily's terms for a paid
+product. A Tavily query holds no student data.
 
-**Tavily, not our own search.** Tavily is a search API for AI agents
-(https://docs.tavily.com/documentation/api-credits, read 2026-11-13):
+### F3. Paid model tiers
 
-| Tavily call | Credits |
+Groq's Developer plan (pay per token; gpt-oss-120b $0.15 in and $0.60 out
+per million tokens, read 2026-11-10) and Gemini's paid tier, before the
+beta grows past invited testers. Paid terms don't use prompts for
+training, and `drive` (F1) needs the larger limits.
+
+### F4. Windows
+
+| Part | macOS | Windows |
+|---|---|---|
+| Native host manifest | A JSON file in each Worker profile's `NativeMessagingHosts/` | A registry key under `HKCU` that names the manifest |
+| The host's launcher | A shell-script wrapper | An `.exe` or `.bat` wrapper |
+| Apply ↔ host channel | A socket file | A named pipe (no port) |
+| Starting Chrome in the background | A background process | A process with no focus |
+| Window | pywebview on WKWebView | pywebview on WebView2 |
+| Secrets | `keyring` on Keychain | `keyring` on Credential Manager |
+| Signing | Developer ID and notarization | A code-signing certificate, so SmartScreen doesn't warn |
+| Updates | Sparkle | WinSparkle or similar |
+
+Test early: background-window behaviour (`--disable-backgrounding-occluded-windows`
+reads window cover differently per OS) and the native host under a
+school's managed Chrome.
+
+### F5. One Worker kind with no port
+
+If W6's debugger path fills every host as well as CDP Workers do, CDP
+Workers move onto it too: one Worker kind, no debugging port, the same on
+every OS.
+
+### F6. The brain and the hand, and writing on WorkIt
+
+The strongest protection keeps the valuable code on WorkIt's server.
+
+- **The hand** (in the page, JavaScript): generic DOM steps only (list
+  the controls with roles and labels, click element n, type into element
+  n, read it back, wait for a change). No rules, no per-system tricks.
+  It is also the way to a fully static store extension.
+- **The brain** (on WorkIt's server): the planner, the rules, `fit.ts`
+  and each hiring system's widget recipe, sent to the hand as data ("click
+  the box, wait for the list, pick the group").
+- **The label cache:** the app keeps the server's results for each
+  label (its meaning and its fit to an option list), never the rules. Key:
+  the label in a standard form, the control type, the option list and the
+  engine version. The value always comes from the student's current
+  data; a new engine version clears the cache.
+- **Writing on WorkIt:** the app sends the questions and the data, and
+  WorkIt builds the prompts, so the prompts and answering guides leave
+  the app (D5's later step).
+
+Costs: one call per form for the plan, no planning while WorkIt is
+offline, and a large refactor of the engine.
+
+### F7. An Apple organization enrollment
+
+Register a company (an LLC: a state filing fee of tens to hundreds of
+dollars, some states yearly; an EIN from the IRS, free), get a D-U-N-S
+number (free, days to weeks), then ask Apple to convert the individual
+membership. Apple's support says the Team ID stays; get it in writing
+first, because `keyring` items are tied to the app's signature.
+
+### F8. Intel Macs
+
+One more build: an Intel Python and every library for Intel (Rosetta can
+run them on an Apple Silicon Mac until Apple limits Rosetta after macOS
+27), then either a universal app (each compiled file merged with
+`lipo`; about twice the size) or a second download. It needs a test on a
+real Intel Mac.
+
+### F9. Emailed codes from Gmail
+
+Gmail through OAuth needs Google's paid security review, the reason
+WorkIt's Inbox is archived (`docs/email_tracker.md`). Until then the
+student types each code.
+
+## 8. Who can see the code
+
+Anything that runs on the student's computer can be read in the end;
+each step only raises the cost.
+
+| Part | Where it is | Protection |
+|---|---|---|
+| Apply's Python | The private repo; machine code in the app | Nuitka. Strings (prompts) still show to a tool that reads the binary; F6 moves the prompts to WorkIt |
+| Answering guides and prompts | Data inside the app | Compiled in; F6 moves them |
+| The Fill engine | WorkIt; the app's memory; each page while it fills | Signed, encrypted download, per-launch key, pinning, no file on disk (W7). In the page it is plain JavaScript that DevTools can show. The WorkIt extension's public copy is a teammate's work |
+| The Worker extension | The Chrome Web Store, readable by anyone | Little of value in it (generic browser steps and the submit guard); the license (W10). The store forbids obfuscation |
+| Model keys | WorkIt's API secrets only | Never in the app (D1) |
+| Job-site passwords, the WorkIt session | `keyring` on the student's computer | The OS's safe store |
+| The app's memory | The running app | The hardened runtime without `get-task-allow` blocks other programs, but not a root user or one who turns off System Integrity Protection |
+
+**Minify and obfuscate are different.** Minifying (a teammate's work for
+the engine) removes spaces and comments and shortens names; DevTools'
+pretty-print restores the layout, and every string and regex stays
+readable. Obfuscating encodes strings and scrambles control flow, slows
+the code, and is forbidden for code that passes through a store
+extension. Heavy packers and anti-debug code also make antivirus and
+notarization flag the app. Neither stops a reader with time; F6 does.
+
+**Other desktop apps ship readable code too** (checked 2026-11-09).
+Electron apps ship their JavaScript in an `app.asar` archive (a file
+list and the files' bytes, not encrypted); on one team Mac, Slack's held
+954 files, 518 of them minified but readable JavaScript. Electron's docs
+say it hides code "from cursory inspection" only. Those companies keep
+their value on their servers; WorkIt Auto Apply does the same.
+
+## 9. Costs
+
+| Item | Cost |
 |---|---|
-| Search, basic / advanced | 1 / 2 per query, up to 20 results |
-| Extract page text, basic | 1 per 5 pages |
-| Research (Tavily's own agent) | 4 to 250 per request |
+| Apple Developer Program (Developer ID, notarization included) | $99 a year (the fee waiver is for nonprofits, accredited schools and governments, never individuals) |
+| Chrome Web Store | $0: WorkIt's existing developer account already paid the $5 fee |
+| Sparkle | Free (MIT) |
+| Cloudflare R2 for builds and the update feed | Free tier: 10 GB stored, no fee for downloads |
+| Nuitka | Free (AGPLv3 with a runtime exception); Nuitka Commercial, for extra protection, about €400 |
+| Model calls in the beta | Free tiers (D7); paid tiers later (F3), cost per Application from W13 |
+| Tavily (F2, not v1) | 1,000 free credits a month, then $0.008 a credit |
+| GitHub Actions | Small Linux jobs on PRs only (D32) |
+| **Fixed total for v1** | **About $99 a year** |
 
-- The free plan has 1,000 credits a month; after that, a credit costs
-  $0.008.
-- A credit is one search, not an answer. The read step still writes the
-  facts, and the check still confirms them.
-- A brief needs about 3 to 6 basic searches, so about 4 to 8 credits (an
-  estimate, to measure). That is 125 to 250 briefs a month on the free
-  plan, then about 3 to 6 cents a brief.
-- Our own search would need a web index (a crawl of the web), or the
-  scraped results of a search engine, which break its terms and get
-  blocked. Pages at known addresses need neither, so step 2 stays ours
-  and saves credits.
+## 10. Open questions
 
-**Better than each student's Claude research:**
+- The W6 spike's result: the store with the debugger, or the
+  three-click fallback.
+- The Usage cap's number after W13, and when to move to paid tiers (F3).
+- Where the brief pipeline runs, and when it is built (F2).
+- The teammate's work on the engine's exposure through the WorkIt
+  extension (W7's dependency).
+- When to enroll with Apple, and when to convert to an organization (F7).
 
-- Every brief passes the same check and score, and is refreshed on a
-  schedule.
-- Every student gets it at once, on both paths. The connector hands Claude
-  the kept brief and asks for research only when it is missing or weak,
-  which becomes rare.
-- A student's Claude can still save a brief: the score keeps the better
-  one. Claude follows leads over many turns, and the pipeline can't, so
-  the score shows which briefs stay weak.
+## 11. History
 
-**Work it needs:**
-
-- A save with no student. `save_brief` takes a student and refuses a
-  company they don't apply to (`NotApplying`).
-- One brief format. Apply's own brief (`brief.py`) has a type and problem
-  tags on each fact, the mission, the values, and the extra research a
-  form's questions ask for (values, stated problems, teams). The shared
-  brief has four categories (products, launches, engineering, team) and
-  none of the rest. Apply's plan matches a fact by its tags, so the shared
-  brief needs the tags, the mission and the values.
-- Apply reads the brief through `apply/workit.py`, in place of
-  `brief.research`.
-- A place to run the job: the team computer after the scrape (KAN-726;
-  it does not deploy on merge), or the API's container.
-
-**Privacy.** A Tavily query holds the company, the team and words such as
-"engineering blog". It holds no student data. Read Tavily's terms for a
-paid product before launch.
-
-## 9. WorkIt as the source of the data
-
-Apply already calls WorkIt through one client, `apply-agent/src/apply/workit.py`
-(`apply-agent/docs/workit.md`): `apply login` with its own token refresh,
-`GET /auth/me`, the tracker writes (applied with the sent resume,
-needs_you), the tailored resume for a posting, and add-by-link. New reads go
-there as methods, never in another module.
-
-What would move from the data folder to WorkIt:
-
-| Apply's file today | WorkIt today | Work |
-|---|---|---|
-| `applicant-profile.yaml` | The student's profile | Map the fields, or add an endpoint |
-| `answer-bank.yaml` | Batch apply's answer bank (KAN-369) and `written_answers` | Being redesigned by a teammate |
-| `story-bank.md`, `story-map.yaml` | The experience bank, by resume (`docs/bank_by_resume.md`) | Map entries to stories |
-| `voice.md` | None | New |
-| `company-briefs/` | `company_briefs` (KAN-382), shared by every student; filled today by students' Claude through the connector | Read it from WorkIt; a WorkIt pipeline fills it; one brief format (§8.1) |
-| The resume PDF | Uploads and built resumes; sent resumes | Partly built (tailored resume) |
-| `tracker.json` | The Applications Tracker | Built: Apply already writes it |
-
-The data model is the main work, not the transport. Personal data stays
-out of the repo on both sides.
-
-**A local copy, synced (proposed).** "WorkIt is the source" means the
-student edits on the website and WorkIt keeps the main copy; it does not
-mean a trip per question. Apply already plans from local files today.
-
-1. At launch, the app downloads the student's data (profile, answer bank,
-   stories, resumes) into the data folder.
-2. Before each Application, it checks one version number and downloads
-   only what changed.
-3. The planner reads the local copy.
-4. An answer the student approves in the window goes up to WorkIt, queued
-   while WorkIt is offline, as `workit-queue.json` queues tracker writes
-   today.
-
-With the local copy, a local or label-cached planner and the model, a form
-needs WorkIt only for new labels (if the rules stay on the server), the
-model calls (if the model is hosted, section 8), and the tracker writes.
-Rules in the app mean no trips but readable rules; rules on the server
-mean one short trip per new label. That choice is open (section 11).
-
-## 10. The work list
-
-Every piece of work this note plans, in order inside each group. "Owner"
-is KAN-723's owner unless it names teammates. Status as of 2026-11-13.
-
-**Done**
-
-| # | Work | Where |
-|---|---|---|
-| 1 | `worker_mode: protected` as the default | Section 6 |
-| 2 | `ask` on hosted models: `ask_model: [groq, gemini]` in `policies.yaml` sends every answer, essay and check to Groq's gpt-oss, with Gemini taking what Groq can't (too large, rate-limited, down), on lean essay prompts that fit Groq's free tier (`apply/ask_model.py`); the default since 2026-11-10, and a developer sets `ask_model: claude` for `claude -p`; doctor checks the keys | Section 8; `apply-agent/docs/ask-model.md` |
-
-**Task 1: a model that works with no student in the loop (section 8)**
-
-| # | Work | Owner | Status |
-|---|---|---|---|
-| 3 | Rehearse the same postings with `ask_model: claude` and `[groq, gemini]`; compare the answers and essays | KAN-723's owner | Started 2026-11-10 on Test Person's data, outside a rehearsal: `[groq, gemini]` wrote both essays and the one-off answers in 39 s; plainer than Claude's, one held by the length gate (`apply-agent/docs/ask-model.md`). Next: a real rehearsal |
-| 4 | Measure one Application's model use (calls and tokens by call kind) on about 20 rehearsals across hiring systems: the cost per Application on Groq | KAN-723's owner | Not started |
-| 5 | Company briefs from a WorkIt pipeline, so the app does no research (§8.1). In order: a prototype on one company (the free sources, Tavily, one read call, `briefs.py`'s check, the credits counted); a save with no student; one brief format with tags, the mission and the values; the scheduled job; Apply reads the brief from WorkIt in place of `research`. Needed before launch (API-only) | KAN-723's owner | Designed 2026-11-13 |
-| 6 | `drive` on hosted models, needed before launch (API-only): Apply's own tool loop over `apply/plain/mcp_tools.json`, run through Playwright (CDP) or `apply/plain/tools.py` (plain), a `finish` tool for the answer, a trimmed snapshot per turn, the caps, the send-click hook and the captcha refusal | KAN-723's owner | Not started |
-| 7 | The generic Filler with narrow tools (§3.2), tested on saved forms and long-tail rehearsals against Claude fill | KAN-723's owner | Not started |
-| 8 | A WorkIt API route that holds the Groq and Gemini keys and sets each student's quota; the app calls every model only through it, so no key ships and the student sets none up. Before any student build | KAN-723's owner | Not started |
-| 9 | Read Groq's and Gemini's terms for a paid product and for students' personal data in prompts: Gemini's free tier may use prompts to improve Google's products, and Apply's prompts carry the profile; use terms that don't train, or remove identity data, before students' data goes there | KAN-723's owner | Not started |
-| 10 | A local model in the app | KAN-723's owner | Dropped 2026-11-10: the app is API-only |
-
-**Task 2: code that cannot be stolen (§7.4)**
-
-| # | Work | Owner | Status |
-|---|---|---|---|
-| 11 | Packaging spike: compile Apply with Nuitka on one Mac and one Windows computer; one CDP rehearsal and its window work | KAN-723's owner | Not started |
-| 12 | The engine's per-launch key from WorkIt over a pinned connection; no plain engine file on disk; the decrypted engine sent to Node on stdin (today `fill_engine.py` passes a file path); `userScripts.execute` for every inject | KAN-723's owner | Not started |
-| 13 | Decide: the rules in the app (no trips, readable) or on WorkIt's server with the label cache | KAN-723's owner | Open |
-| 14 | The brain and hand split: the planner, rules, `fit.ts` and recipes on WorkIt's server; the label cache; recipes sent as steps | KAN-723's owner | Not started |
-| 15 | Obfuscate the hand and the worker extension; measure the fill time before and after | KAN-723's owner | Not started |
-| 16 | Sign and notarize per OS: Developer ID and the hardened runtime on macOS, a code-signing certificate on Windows | KAN-723's owner | Not started |
-| 17 | Terms of use that ban reverse engineering | KAN-723's owner, with a legal check | Not started |
-| 18 | The engine's exposure through the extension | Teammates | Teammates |
-| 19 | Minify the engine | Teammates | Teammates |
-
-**The student's data (section 9)**
-
-| # | Work | Owner | Status |
-|---|---|---|---|
-| 20 | The data contract: every fact Apply reads, the module that reads it, and the WorkIt table or endpoint that will serve it | KAN-723's owner | Not started |
-| 21 | The answer bank redesign, from the data contract | KAN-723's owner | Not started |
-| 22 | WorkIt client reads (`apply/workit.py`) for the profile, the answer bank and the stories | KAN-723's owner | Not started |
-| 23 | The local copy: download at launch, a version check before each Application, approved answers queued up to WorkIt | KAN-723's owner | Not started |
-
-**The desktop app**
-
-| # | Work | Owner | Status |
-|---|---|---|---|
-| 24 | Replace the macOS-only modules; plain Workers on Windows and Linux (§7.2) | KAN-723's owner | Not started |
-| 25 | First-run and setup screens in the Apply window: WorkIt login, Google sign-in for the Worker profile, the seed | KAN-723's owner | Not started |
-| 26 | Start a run from the window (paste links, or take WorkIt's queue), not only from the terminal | KAN-723's owner | Not started |
-| 27 | The auto-updater and the signed engine download (§7.3) | KAN-723's owner | Not started |
-| 28 | Publish one build per OS | KAN-723's owner | Not started |
-| 29 | A legal check of the hiring systems' terms on automated applying | KAN-723's owner, with a legal check | Not started |
-
-## 11. Open questions
-
-- Whether gpt-oss-120b's essays and `drive` are good enough (section 8),
-  and the cost per Application on Groq and Gemini once the free tiers
-  are outgrown.
-- The brief pipeline (§8.1): which model reads the pages, where the job
-  runs, how often it refreshes, the credits a brief really uses, and
-  Tavily's terms for a paid product.
-- Rules in the app (no trips, readable) or on WorkIt's server with the
-  label cache (§7.4, section 9).
-- Whether a built copy of the private Fill engine may ship in a public
-  download, and whether to move the planner to WorkIt's server (§7.4).
-- Whether to apply to OpenAI for Sign in with ChatGPT plan usage (§8, E).
-- The answer bank's redesign and each mapping in section 9.
-- Windows and Linux plain Workers (§7.2): background-window behaviour and
-  managed Chrome.
-- The engine download (§7.3): who signs it, and the version rule.
-- Filling in a background tab of a plain Worker (`--into`): test it before
-  relying on it.
-- The hiring systems' terms restrict automated applying. "The student
-  presses Submit" helps; get a legal check before selling it
-  (`auto-apply/architecture.md` §14.5).
+- **2026-11-06:** `worker_mode: protected` became the default.
+- **2026-11-09:** the connector was rejected for the desktop path: it needs
+  the student to start each piece of work from their own Claude.
+- **2026-11-10:** the launched app became API-only (ADR 0005). A local
+  model in the app was dropped. `ask` moved to Groq with Gemini as
+  backup, on lean prompts that fit Groq's free tier.
+- **2026-11-13:** a design review settled sections 2 to 7: no research in
+  the app, the Model route and Usage cap, the engine download, the Worker
+  extension on the store through the Debugger API, the private repo, and
+  the v1 scope.

@@ -13,15 +13,18 @@ window (Start, Needs you, Answers, Accounts). A rehearsal fills the form and nev
 submits. It runs on the person's own Mac, with their own Chrome and their
 own Claude Code login. Today it is a developer and power-user tool, not a student
 feature: students apply through the extension and the connector (KAN-369).
-KAN-723 plans to make it a downloadable desktop app for students, beside the
-extension, with WorkIt as the source of the student's data, a model it may
-call with no student in the loop (not `claude -p` on a login, not the
-connector) and code that can't be stolen. Read
-`../docs/desktop_application_auto_apply.md` before a change toward that.
+KAN-723 designs WorkIt Auto Apply, the Student build of Apply: a desktop
+app for students, beside the extension (decided 2026-11-13, not built). It
+makes every model call through WorkIt's Model route and does no research
+(ADR 0005), downloads the Fill engine encrypted, puts the Worker extension
+on the Chrome Web Store through the Debugger API, and is compiled without
+the developer parts. Apply's code moves to the private repo
+`workitjobs/apply-agent` first (workstream W0). Read
+`../docs/desktop_application_auto_apply.md` before a change toward that:
+it splits the work into workstreams a session can take one at a time.
 `ask_model: [groq, gemini]` is the default (2026-11-10): the text answers
 and essays go to Groq, with Gemini as its backup, on shorter (lean) essay
-prompts, with keys from the checkout's `.env` (`docs/ask-model.md`). The
-launched desktop app calls hosted models only, through WorkIt.
+prompts, with keys from the checkout's `.env` (`docs/ask-model.md`).
 
 Workers default to `worker_mode: protected` (2026-11-06, KAN-723): plain
 Workers fill the hosts that block CDP Workers, and CDP Workers fill the rest

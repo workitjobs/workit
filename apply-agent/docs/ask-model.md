@@ -4,7 +4,7 @@
 call that answers, writes, edits or checks (one-off answers, essays, the
 Pre-submit review, re-plans, the story map). KAN-723 added it, as the first
 step from `claude -p` to a model a desktop app may call
-(`../../docs/desktop_application_auto_apply.md`, section 8). The goal of a
+(`../../docs/desktop_application_auto_apply.md`, D1 and W1). The goal of a
 hosted model is a run that works and is usable, not Claude's quality.
 
 **`[groq, gemini]` is the default** (2026-11-10, `policies.default.yaml`).
@@ -82,7 +82,7 @@ that holds the keys.
   `SCOUT_BASE_URL`. Nothing else in the file is read. The team's `.env`
   holds both, so a developer saves no key (`no_key` prints the ways). It is
   a key for testing. Never ship a key in an app: a student build calls through a
-  WorkIt route that holds the key (the desktop plan, section 8). `apply
+  WorkIt route that holds the key (the Model route, the desktop plan's W1). `apply
   doctor` prints an "Ask model" line only for a hosted `ask_model`,
   failing when a provider in it has no key; it never prints a key.
 - **Privacy.** With a hosted model, each prompt (the profile, the sources,
