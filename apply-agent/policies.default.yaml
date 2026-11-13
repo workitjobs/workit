@@ -217,18 +217,20 @@ claude_fill:
   max_steps: 20  # Nexts and profile pop-ups before a Handoff, a guard against a loop (KAN-649, KAN-658)
 
 # The model behind Apply's text calls (`ask`: answers, essays, edits, checks):
-# claude (`claude -p` on your own Claude login), groq (Groq's gpt-oss models),
-# gemini (Gemini Flash-Lite), or a list tried in order: [groq, gemini] sends to
-# Gemini what Groq refuses as too large, rate-limits or can't answer (KAN-723,
-# apply.ask_model). groq and gemini get lean essay prompts, sized for a free
-# tier. Claude fill, Rescue and company briefs stay on claude either way. Each
-# provider needs a key of your own: GROQ_API_KEY or Keychain (service
-# apply-groq, account api.groq.com); GEMINI_API_KEY or Keychain (apply-gemini,
-# generativelanguage.googleapis.com). `apply doctor` checks them. Prompts carry
+# groq (Groq's gpt-oss models), gemini (Gemini Flash-Lite), a list tried in
+# order, or claude. [groq, gemini], the default since 2026-11-10 (KAN-723,
+# apply.ask_model), sends to Gemini what Groq refuses as too large, rate-limits
+# or can't answer; both get lean essay prompts, sized for a free tier. claude
+# (`claude -p` on your own Claude login, full prompts) is for developers: set
+# it in your own policies.yaml. The launched desktop app calls hosted models
+# only. Claude fill, Rescue and company briefs stay on claude for now. The keys
+# come from the checkout's root .env (Scout's SCOUT_ENDPOINTS), or GROQ_API_KEY
+# and GEMINI_API_KEY, or Keychain (apply-groq / api.groq.com, apply-gemini /
+# generativelanguage.googleapis.com); `apply doctor` checks them. Prompts carry
 # your profile and sources, which then go to that provider. ask_models maps
 # Apply's model names to a provider's, key by key over apply.ask_model.PROVIDERS:
 # {groq: {haiku: openai/gpt-oss-120b}}.
-ask_model: claude
+ask_model: [groq, gemini]
 ask_models: {}
 
 # Scheduled runs (`apply schedule install`, launchd): the Daily sweep, `apply

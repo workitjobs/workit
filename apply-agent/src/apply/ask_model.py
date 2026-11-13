@@ -1,11 +1,13 @@
 """Hosted models in place of `claude -p` for `ask` (KAN-723, ../docs/desktop_application_auto_apply.md §8).
 
-policies.yaml's `ask_model` names the backend of every `ask` (answers, essays, edits, checks): `claude` (the
-default, `claude -p`), a provider in PROVIDERS (`groq`, `gemini`), or a list of providers tried in order
-(`[groq, gemini]`: Gemini takes a call Groq refuses as too large, rate-limits or can't answer). `drive` and
+policies.yaml's `ask_model` names the backend of every `ask` (answers, essays, edits, checks): a provider in
+PROVIDERS (`groq`, `gemini`), a list of them tried in order (`[groq, gemini]`, the default since 2026-11-10:
+Gemini takes a call Groq refuses as too large, rate-limits or can't answer), or `claude` (`claude -p` on a
+developer's own login, set in their policies.yaml). `drive` and
 `research` stay on `claude -p`. Apply's model names map to each provider's (`Provider.models`, overridden key
-by key by `ask_models.<provider>`). Each key is the provider's environment variable, else Keychain; it is a
-developer's own key for testing, never one shipped in an app (§8: a student build calls through WorkIt).
+by key by `ask_models.<provider>`). Each key is the provider's environment variable, else Keychain, else the
+checkout's root .env (Scout's endpoints); a developer's key for testing, never one shipped in an app: the
+launched desktop app calls hosted models only, through a WorkIt route that holds the keys (§8).
 
 A hosted adapter is lean (apply.adapters.lean): the essay prompts shrink to fit a free tier's request limit
 (Groq's 8,000 tokens a minute, seen 2026-11-10).
@@ -27,10 +29,13 @@ import urllib.request
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
+from pathlib import Path
+from urllib.parse import urlsplit
 
 from apply import trace
 from apply.adapters import SetupError, UsageLimitHit
 from apply.claude_cli import ClaudeCLI, ClaudeError
+from apply.home import CODE
 from apply.keychain import GEMINI, GEMINI_HOST, GROQ, GROQ_HOST, MacKeychain
 
 
@@ -92,21 +97,55 @@ def https_post(url: str, body: bytes, headers: dict) -> tuple[int, dict, bytes]:
         return e.code, dict(e.headers or {}), e.read()
 
 
+# The checkout's root .env (a developer's, copied by `npm run worktree`): Scout's endpoints there hold the team's
+# Groq and Gemini keys, so a developer needs no key of their own. A packaged app has none, and calls through WorkIt.
+DOTENV = CODE.parent / ".env"
+SCOUT_LISTS = ("SCOUT_ENDPOINTS_LARGE", "SCOUT_ENDPOINTS", "SCOUT_ENDPOINTS_SMALL")
+
+
 def no_key(provider: Provider) -> str:
     service, account = provider.keychain
-    return (f"no {provider.name} key: set {provider.env}, or save it in Keychain with `security add-generic-password "
-            f"-s {service} -a {account} -w` (it asks for the key), or set ask_model: claude in policies.yaml")
+    return (f"no {provider.name} key: copy the team's .env into the checkout's root (Scout's SCOUT_ENDPOINTS hold it), "
+            f"set {provider.env}, or save it in Keychain with `security add-generic-password -s {service} -a {account} "
+            "-w` (it asks for the key); a developer can set ask_model: claude in policies.yaml instead")
 
 
-def key(provider: Provider, keychain=None) -> str | None:
-    """`provider`'s API key: its environment variable, else its Keychain item; None with neither."""
+def key(provider: Provider, keychain=None, dotenv: Path = DOTENV) -> str | None:
+    """`provider`'s API key: its environment variable, else its Keychain item, else the checkout's .env (Scout's
+    endpoint on the provider's host); None with none of them."""
     service, account = provider.keychain
-    return os.environ.get(provider.env) or (keychain or MacKeychain(service)).password(account)
+    return (os.environ.get(provider.env) or (keychain or MacKeychain(service)).password(account)
+            or _from_dotenv(provider, dotenv))
+
+
+def _from_dotenv(provider: Provider, path: Path) -> str | None:
+    """The key in `path` of a Scout endpoint on `provider`'s host: an entry of SCOUT_ENDPOINTS (or its _LARGE and
+    _SMALL), else SCOUT_API_KEY when SCOUT_BASE_URL is that host. Nothing else in the file is read."""
+    if not path.is_file():
+        return None
+    host = urlsplit(provider.url).hostname
+    values = {}
+    for line in path.read_text().splitlines():
+        name, sep, value = line.partition("=")
+        if sep and not name.lstrip().startswith("#"):
+            values[name.strip()] = value.strip().strip("'\"")
+    for name in SCOUT_LISTS:
+        try:
+            entries = json.loads(values.get(name) or "[]")
+        except ValueError:
+            continue
+        for entry in entries if isinstance(entries, list) else []:
+            if isinstance(entry, dict) and entry.get("api_key") and urlsplit(str(entry.get("base_url") or "")).hostname == host:
+                return str(entry["api_key"])
+    if values.get("SCOUT_API_KEY") and urlsplit(values.get("SCOUT_BASE_URL") or "").hostname == host:
+        return values["SCOUT_API_KEY"]
+    return None
 
 
 def chain(policies: dict) -> list[str]:
-    """The providers policies.yaml's ask_model names, in order; [] for claude. Raises SetupError on a name that is
-    neither claude nor a provider."""
+    """The providers policies.yaml's ask_model names, in order; [] for claude. policies.default.yaml names
+    [groq, gemini] (2026-11-10, KAN-723); policies with no ask_model key (a test's) read as claude. Raises
+    SetupError on a name that is neither claude nor a provider."""
     named = policies.get("ask_model") or "claude"
     names = [named] if isinstance(named, str) else list(named)
     if names == ["claude"]:
@@ -117,7 +156,7 @@ def chain(policies: dict) -> list[str]:
     return names
 
 
-def live_claude(policies: dict, claude: ClaudeCLI | None = None, keychain=None):
+def live_claude(policies: dict, claude: ClaudeCLI | None = None, keychain=None, dotenv: Path = DOTENV):
     """The Claude adapter policies.yaml's ask_model names: `claude` itself, or a HostedAsk over its providers."""
     claude = claude or ClaudeCLI()
     if not (names := chain(policies)):
@@ -126,7 +165,7 @@ def live_claude(policies: dict, claude: ClaudeCLI | None = None, keychain=None):
     endpoints = []
     for name in names:
         provider = PROVIDERS[name]
-        if not (found := key(provider, keychain)):
+        if not (found := key(provider, keychain, dotenv)):
             raise SetupError(no_key(provider))
         endpoints.append(Endpoint(provider, found, provider.models | (overrides.get(name) or {})))
     return HostedAsk(endpoints, claude)

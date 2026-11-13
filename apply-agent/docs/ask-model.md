@@ -7,12 +7,19 @@ step from `claude -p` to a model a desktop app may call
 (`../../docs/desktop_application_auto_apply.md`, section 8). The goal of a
 hosted model is a run that works and is usable, not Claude's quality.
 
+**`[groq, gemini]` is the default** (2026-11-10, `policies.default.yaml`).
+`claude` is a developer's choice, set in their own `policies.yaml`.
+Policies with no `ask_model` key (a test's) read as `claude`, and
+`conftest.py` drops the key, so a test never calls a provider. The
+launched desktop app calls hosted models only, through a WorkIt route
+that holds the keys.
+
 | `ask_model` | `ask` goes to | Essay prompts | Claude fill, Rescue, company briefs |
 |---|---|---|---|
-| `claude` (default) | `claude -p` on your own login (`claude_cli.py`) | full | `claude -p` |
+| `[groq, gemini]` (default) | Groq, and Gemini for each call Groq can't take | lean | `claude -p`, still |
 | `groq` | Groq: `openai/gpt-oss-120b`, `gpt-oss-20b` for Haiku's calls | lean | `claude -p`, still |
 | `gemini` | Gemini: `gemini-3.5-flash-lite` | lean | `claude -p`, still |
-| `[groq, gemini]` | Groq, and Gemini for each call Groq can't take | lean | `claude -p`, still |
+| `claude` (developers) | `claude -p` on your own login (`claude_cli.py`) | full | `claude -p` |
 
 ## Rules
 
@@ -69,8 +76,12 @@ hosted model is a run that works and is usable, not Claude's quality.
   backs a company-fact slot with the brief line its plan's company_fact
   names, when the model named a fact and copied no line.
 - **The key** is each provider's environment variable, else its Keychain
-  item (`no_key` prints the command). It is a developer's own key for
-  testing. Never ship a key in an app: a student build calls through a
+  item, else the checkout's root `.env` (`ask_model.DOTENV`): the Scout
+  endpoint on the provider's host in `SCOUT_ENDPOINTS`,
+  `SCOUT_ENDPOINTS_LARGE` or `_SMALL`, else `SCOUT_API_KEY` with
+  `SCOUT_BASE_URL`. Nothing else in the file is read. The team's `.env`
+  holds both, so a developer saves no key (`no_key` prints the ways). It is
+  a key for testing. Never ship a key in an app: a student build calls through a
   WorkIt route that holds the key (the desktop plan, section 8). `apply
   doctor` prints an "Ask model" line only for a hosted `ask_model`,
   failing when a provider in it has no key; it never prints a key.
@@ -79,6 +90,12 @@ hosted model is a run that works and is usable, not Claude's quality.
   `claude -p`'s do, with `backend` and `provider_model` added, and a
   `moved_on` event for each call one provider handed on. An error keeps
   no organization id.
+  Google's terms let it use Gemini free-tier prompts to improve its
+  products. Scout accepts that because it removes identity data
+  (`scout/CLAUDE.md`); Apply's prompts carry the applicant's name and,
+  for one-off questions, the whole profile. Before a student's data goes
+  to a provider, the WorkIt route must use terms that don't train on it,
+  or remove the identity data.
 - **Tests** never reach a provider: `tests/test_ask_model.py` fakes the
   HTTPS post, and `conftest.py` drops `ask_model` from the data folder's
   policies, so a test always runs on `claude`. `LeanClaude` in
@@ -98,13 +115,14 @@ hosted model is a run that works and is usable, not Claude's quality.
 - **Plans:** before the quote fixes, gpt-oss passed the plan's quote check
   in 1 of 6 tries; after them, its first plans passed.
 
-## To try it
+## To use it
+
+With the team's `.env` in the checkout's root, nothing: `uv run apply
+doctor` says "Ask model: groq, then gemini". To keep `claude -p`, set
+`ask_model: claude` in `policies.yaml` in the data folder. Your own keys
+go in `GROQ_API_KEY` and `GEMINI_API_KEY`, or in Keychain:
 
 ```sh
 security add-generic-password -s apply-groq -a api.groq.com -w                      # asks for the key
 security add-generic-password -s apply-gemini -a generativelanguage.googleapis.com -w
 ```
-
-Then set `ask_model: [groq, gemini]` in `policies.yaml` in the data folder,
-run `uv run apply doctor` (the "Ask model" line), and rehearse a posting
-you rehearsed on `claude` before. Compare the two Records' answers.

@@ -188,14 +188,15 @@ def test_strict_closes_nested_objects_and_makes_unrequired_enums_nullable():
     assert schema["properties"]["fields"]["items"]["required"] == ["label"]  # the caller's schema is unchanged
 
 
-def test_live_claude_follows_ask_model(monkeypatch):
+def test_live_claude_follows_ask_model(monkeypatch, tmp_path):
     monkeypatch.delenv("GROQ_API_KEY", raising=False)
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.setattr(ask_model, "DOTENV", tmp_path / ".env")  # no checkout .env
     claude = FakeClaude()
     assert live_claude({}, claude) is claude
     assert live_claude({"ask_model": "claude"}, claude) is claude
     with pytest.raises(SetupError, match="no groq key"):
-        live_claude({"ask_model": "groq"}, claude, keychain=InMemoryKeychain())
+        live_claude({"ask_model": "groq"}, claude, keychain=InMemoryKeychain(), dotenv=tmp_path / ".env")
     with pytest.raises(SetupError, match="gpt"):
         live_claude({"ask_model": ["groq", "gpt"]}, claude)
 
@@ -208,7 +209,33 @@ def test_live_claude_follows_ask_model(monkeypatch):
     assert (gemini.provider.name, gemini.key) == ("gemini", "saved-gemini")
 
     monkeypatch.setenv("GEMINI_API_KEY", "env-key")
-    assert live_claude({"ask_model": "gemini"}, claude, keychain=InMemoryKeychain())._endpoints[0].key == "env-key"
+    assert live_claude({"ask_model": "gemini"}, claude, keychain=InMemoryKeychain(),
+                       dotenv=tmp_path / ".env")._endpoints[0].key == "env-key"
+
+
+def test_a_key_comes_from_scouts_endpoints_in_the_checkouts_dotenv(monkeypatch, tmp_path):
+    # the team's .env already holds Groq and Gemini keys for Scout, so a developer saves none (KAN-723)
+    monkeypatch.delenv("GROQ_API_KEY", raising=False)
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    groq = [{"base_url": "https://api.groq.com/openai/v1", "model": "openai/gpt-oss-120b", "api_key": "dotenv-groq"}]
+    gemini = [{"base_url": "https://generativelanguage.googleapis.com/v1beta/openai/", "model": "m", "api_key": "dotenv-gemini"}]
+    dotenv = tmp_path / ".env"
+    dotenv.write_text(f"# SCOUT_ENDPOINTS=[]\nSCOUT_ENDPOINTS_LARGE={json.dumps(groq)}\nSCOUT_ENDPOINTS='{json.dumps(gemini)}'\n")
+    keychain = InMemoryKeychain()
+    assert ask_model.key(PROVIDERS["groq"], keychain, dotenv) == "dotenv-groq"
+    assert ask_model.key(PROVIDERS["gemini"], keychain, dotenv) == "dotenv-gemini"
+
+    dotenv.write_text("SCOUT_BASE_URL=https://api.groq.com/openai/v1\nSCOUT_API_KEY=single-groq\n")
+    assert ask_model.key(PROVIDERS["groq"], keychain, dotenv) == "single-groq"
+    assert ask_model.key(PROVIDERS["gemini"], keychain, dotenv) is None
+    assert ask_model.key(PROVIDERS["groq"], InMemoryKeychain({"api.groq.com": "saved"}), dotenv) == "saved"
+
+
+def test_the_default_policies_name_groq_then_gemini():
+    import yaml
+
+    from apply.profile import POLICIES
+    assert yaml.safe_load(POLICIES.read_text())["ask_model"] == ["groq", "gemini"]
 
 
 class Policies:

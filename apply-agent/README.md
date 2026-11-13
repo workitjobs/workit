@@ -9,8 +9,12 @@ never submits.** Apply runs on macOS only. Before you change code here, read
 
 - A Mac with Google Chrome in `/Applications`.
 - [uv](https://docs.astral.sh/uv/) (`brew install uv`).
+- The team's `.env` in the checkout's root (Scout's Groq and Gemini keys):
+  Apply's answers and essays use them (`ask_model: [groq, gemini]`, the
+  default). `npm run worktree` copies it into a new worktree.
 - Claude Code, logged in with your own Claude plan: `claude auth login`.
-  Apply's essays use your plan's usage.
+  Claude fill, Rescue and company briefs use your plan's usage, and so do
+  the answers and essays if you set `ask_model: claude` in `policies.yaml`.
 - Read access to the private `workitjobs/fill-engine` repo (the Fill
   engine is a git submodule). git must sign in to GitHub without a prompt:
   run `gh auth login` and then `gh auth setup-git` once.
@@ -41,8 +45,10 @@ never submits.** Apply runs on macOS only. Before you change code here, read
    apply plain seed` fixes it: the default `worker_mode: protected` fills
    Lever, SmartRecruiters and Workable in plain Workers). With
    `worker_mode: plain` in `policies.yaml`, doctor checks only "Plain seed";
-   with `cdp`, only "Worker profiles". Fix every other fail first. The warn
-   lines are for optional features and optional facts (`identity.phone_type`).
+   with `cdp`, only "Worker profiles". "Ask model" fails when the
+   checkout's root has no `.env` with Scout's keys: copy the team's `.env`
+   there. Fix every other fail first. The warn lines are for optional
+   features and optional facts (`identity.phone_type`).
 
 ## First rehearsal: Test Person
 
@@ -102,9 +108,8 @@ never submits.** Apply runs on macOS only. Before you change code here, read
    - `apply-ntfy`: an ntfy topic for phone notifications
      (`./scripts/setup-wizard.sh` sets it up).
    - `apply-groq` (account `api.groq.com`) and `apply-gemini` (account
-     `generativelanguage.googleapis.com`): Groq and Gemini API keys, only
-     for `ask_model: [groq, gemini]` in `policies.yaml`, which writes the
-     answers with them instead of Claude
+     `generativelanguage.googleapis.com`): your own Groq and Gemini API
+     keys, used before the `.env`'s
      ([docs/ask-model.md](docs/ask-model.md)). Doctor's "Ask model" line
      checks them.
 

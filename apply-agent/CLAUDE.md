@@ -6,7 +6,9 @@ Loaded on top of the root `../CLAUDE.md` when you work in `apply-agent/`.
 
 Apply is a command-line agent that applies to job postings for one person.
 It reads a job posting, fills the application form in Chrome through the
-Fill engine, writes the answers and essays with Claude, and shows the Apply
+Fill engine, writes the answers and essays with hosted models (Groq, with
+Gemini as backup; `claude -p` for a developer who sets `ask_model: claude`),
+and shows the Apply
 window (Start, Needs you, Answers, Accounts). A rehearsal fills the form and never
 submits. It runs on the person's own Mac, with their own Chrome and their
 own Claude Code login. Today it is a developer and power-user tool, not a student
@@ -16,9 +18,10 @@ extension, with WorkIt as the source of the student's data, a model it may
 call with no student in the loop (not `claude -p` on a login, not the
 connector) and code that can't be stolen. Read
 `../docs/desktop_application_auto_apply.md` before a change toward that.
-`ask_model: [groq, gemini]` in `policies.yaml` already sends the text
-answers and essays to Groq, with Gemini as its backup, instead of `claude -p`,
-on shorter (lean) essay prompts (`docs/ask-model.md`).
+`ask_model: [groq, gemini]` is the default (2026-11-10): the text answers
+and essays go to Groq, with Gemini as its backup, on shorter (lean) essay
+prompts, with keys from the checkout's `.env` (`docs/ask-model.md`). The
+launched desktop app calls hosted models only, through WorkIt.
 
 Workers default to `worker_mode: protected` (2026-11-06, KAN-723): plain
 Workers fill the hosts that block CDP Workers, and CDP Workers fill the rest
@@ -36,7 +39,7 @@ glossary entry in ASD-STE100 wording: sentences of 25 words or fewer.
   fills forms in the student's own Chrome; Scout and the connector write its
   answers, and the WorkIt backend keeps its state.
 - `apply-agent/` is a Python program (uv, Playwright) that runs its own
-  Chrome workers. Claude writes its answers. Its state is files in the data
+  Chrome workers. Hosted models (or Claude) write its answers. Its state is files in the data
   folder, not the WorkIt database. It calls the WorkIt API only through
   the WorkIt client (`docs/workit.md`), as the signed-in student.
 
