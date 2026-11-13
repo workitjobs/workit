@@ -349,9 +349,13 @@ Each fake opens a new tab. `FakeWorkdayServer(plain=True)`, the default when
 
 `policies.yaml: worker_mode` picks the Worker each form opens in (`apply.plain.site.live_site`):
 
-- `cdp` (the default): CDP Workers, as before.
+- `cdp`: CDP Workers, as before. Policies with no `worker_mode` key (a test's) read as `cdp`;
+  `tests/conftest.py` takes the key out of the default policies, so a test that needs a plain
+  Worker sets it itself.
 - `plain`: every form on a plain Worker (`PlainSite`). `apply rehearse` and `apply run` use it.
-- `protected`: plain only for `plain_worker_hosts` (jobs.lever.co, smartrecruiters.com,
+- `protected` (**the default** since 2026-11-06, KAN-723, `policies.default.yaml`; the team chose it
+  before the planned week of side-by-side runs, `../../../docs/desktop_application_auto_apply.md`): plain only for
+  `plain_worker_hosts` (jobs.lever.co, smartrecruiters.com,
   apply.workable.com, and their subdomains) and the hosts in `APPLY_HOME/plain-hosts.json`, which
   `captcha.blocked` writes. A block itself is always handed off to the student. The other forms use
   CDP Workers (`RoutedSite`).

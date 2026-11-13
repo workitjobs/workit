@@ -6,11 +6,29 @@ Loaded on top of the root `../CLAUDE.md` when you work in `apply-agent/`.
 
 Apply is a command-line agent that applies to job postings for one person.
 It reads a job posting, fills the application form in Chrome through the
-Fill engine, writes the answers and essays with Claude, and shows the Apply
+Fill engine, writes the answers and essays with hosted models (Groq, with
+Gemini as backup; `claude -p` for a developer who sets `ask_model: claude`),
+and shows the Apply
 window (Start, Needs you, Answers, Accounts). A rehearsal fills the form and never
 submits. It runs on the person's own Mac, with their own Chrome and their
-own Claude Code login. It is a developer and power-user tool, not a student
+own Claude Code login. Today it is a developer and power-user tool, not a student
 feature: students apply through the extension and the connector (KAN-369).
+KAN-723 designs WorkIt Auto Apply, the Student build of Apply: a desktop
+app for students, beside the extension (decided 2026-11-13, not built). It
+makes every model call through WorkIt's Model route and does no research
+(ADR 0005), downloads the Fill engine encrypted, puts the Worker extension
+on the Chrome Web Store through the Debugger API, and is compiled without
+the developer parts. Apply's code moves to the private repo
+`workitjobs/apply-agent` first (workstream W0). Read
+`../docs/desktop_application_auto_apply.md` before a change toward that:
+it splits the work into workstreams a session can take one at a time.
+`ask_model: [groq, gemini]` is the default (2026-11-10): the text answers
+and essays go to Groq, with Gemini as its backup, on shorter (lean) essay
+prompts, with keys from the checkout's `.env` (`docs/ask-model.md`).
+
+Workers default to `worker_mode: protected` (2026-11-06, KAN-723): plain
+Workers fill the hosts that block CDP Workers, and CDP Workers fill the rest
+(`docs/plain-workers/guide.md`).
 
 Apply has its own domain language. Read `GLOSSARY.md` and `docs/adr/` here,
 not the root ones, for its terms (root `GLOSSARY-MAP.md`). Write each
@@ -24,7 +42,7 @@ glossary entry in ASD-STE100 wording: sentences of 25 words or fewer.
   fills forms in the student's own Chrome; Scout and the connector write its
   answers, and the WorkIt backend keeps its state.
 - `apply-agent/` is a Python program (uv, Playwright) that runs its own
-  Chrome workers. Claude writes its answers. Its state is files in the data
+  Chrome workers. Hosted models (or Claude) write its answers. Its state is files in the data
   folder, not the WorkIt database. It calls the WorkIt API only through
   the WorkIt client (`docs/workit.md`), as the signed-in student.
 
@@ -64,6 +82,7 @@ this folder's `CLAUDE.md` for its area.
 - `docs/fill-engine.md`: Apply's plan rules, `fill_engine.py`, `APPLY_FILL_ENGINE`, or what the plan answers from the Tracker, the Answer bank or a bare date.
 - `docs/workit.md`: a WorkIt call, `apply login`, `import-sheet`, `clean-tracker`, `sync-answers` (the Answer bank sync), a Tracker write, the already-applied check, the resume check, or the tailored resume.
 - `docs/held-forms.md`: verifying, a flag, Resume, Regenerate, Ask Claude, Fill again (`apply fill-again`), page gates, a held form's job-site session (`keepalive.py`), or how a question reaches Needs you.
+- `docs/ask-model.md`: `ask_model`, `ask_model.py` (Groq, Gemini), the lean essay prompts, or another model behind `ask` (`Adapters.claude`).
 - `docs/prompts-and-gates.md`: a prompt, a length, cap or names gate, or the catch-all box rule.
 - `docs/claude-fill.md`: Claude fill, its Next and profile clicks, its dropdowns, or a Filler's `form_url`.
 - `docs/captchas-and-bot-blocks.md`: a captcha wait, a block's handoff, or `captcha.py`.

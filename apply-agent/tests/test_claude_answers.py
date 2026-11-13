@@ -2066,3 +2066,65 @@ def test_setting_the_answers_keeps_the_forms_files_and_no_attestation(tmp_path):
 
 def _block_text(prompt: str, tag: str) -> str:
     return re.search(rf"<{tag}>\n(.*?)\n</{tag}>", prompt, re.DOTALL)[1]
+
+
+def test_a_quote_with_a_non_breaking_hyphen_is_word_for_word():
+    # gpt-oss quotes "made-up" as "made‑up" (U+2011): the same words (KAN-723)
+    sources = essays._quotable("Shelf Bot is a made-up robot that counts stock on store shelves overnight.")
+    assert essays._holds(sources, "Shelf Bot is a made‑up robot that counts stock on store shelves overnight.")
+    assert not essays._holds(sources, "Shelf Bot is a made-up robot that counts boxes on store shelves overnight.")
+
+
+def test_a_quote_holds_with_its_punctuation_or_a_number_spelled_out():
+    # gpt-oss quoted "every 5 minutes, so the catalog" as "every five minutes so the catalog" (KAN-723)
+    sources = essays._quotable("I built a Flask app that reads the checkout log every 5 minutes, so the catalog shows a book.")
+    assert essays._holds(sources, "reads the checkout log every five minutes so the catalog shows a book")
+    assert not essays._holds(sources, "reads the checkout log every six minutes so the catalog shows a book")
+    assert not essays._holds(sources, "eads the checkout log every 5 minutes, so the catal")  # whole words only
+
+
+class LeanClaude(FakeClaude):
+    """FakeClaude as a hosted model with a small request limit (apply.adapters.lean)."""
+
+    lean = True
+
+
+def test_a_lean_model_gets_one_off_questions_in_a_call_of_their_own_and_short_guides():
+    # Groq's free tier refused one call writing an essay and drafting one-off questions (KAN-723)
+    claude = LeanClaude(essays={"Why Figma?": "Because."})
+    posting = Posting("p", "Figma", "Software Engineer Intern", "https://jobs.example.com/1")
+    why = Question("a", "Why Figma?", "textarea", True)
+    adult = Question("d", "Are you 18 or older?", "select", True, options=("Yes", "No"))
+
+    written, drafted = essays.answer(claude, posting, [why], [adult], ApplicantProfile.load(PROFILE, POLICIES))
+
+    assert written[0].text and drafted[0].answer == "Yes"
+    planned = next(c for c in claude.calls if "plan" in c["schema"]["properties"])
+    assert planned["system"].count("company link:") == 1  # only why-company's slots are listed
+    essay_call = next(c for c in claude.calls if "essays" in c["schema"]["properties"])
+    assert "drafts" not in essay_call["schema"]["properties"] and "<profile>" not in essay_call["prompt"]
+    assert "## Pairs" not in essay_call["system"] and "## Rules" in essay_call["system"]
+    assert any(set(c["schema"]["properties"]) == {"drafts"} for c in claude.calls)
+
+
+def test_claude_still_gets_every_type_and_one_call_for_essays_and_one_off_questions():
+    claude = FakeClaude(essays={"Why Figma?": "Because."})
+    posting = Posting("p", "Figma", "Software Engineer Intern", "https://jobs.example.com/1")
+    essays.answer(claude, posting, [Question("a", "Why Figma?", "textarea", True)],
+                  [Question("d", "Are you 18 or older?", "select", True, options=("Yes", "No"))],
+                  ApplicantProfile.load(PROFILE, POLICIES))
+    planned = next(c for c in claude.calls if "plan" in c["schema"]["properties"])
+    assert planned["system"].count("company link:") == len(answering.load())
+    assert any(set(c["schema"]["properties"]) == {"essays", "drafts"} for c in claude.calls)
+
+
+def test_a_plan_that_names_a_brief_fact_but_quotes_none_gets_the_facts_line():
+    # gpt-oss and Gemini named the brief fact for company-fact and copied no line (KAN-723)
+    company = "<company>\nCompany:\n- **Shelf Bot** (2026-05, product): Shelf Bot is a robot that counts stock overnight.\n</company>"
+    given = essays.Plan("why-company", ("why",), "", "Shelf Bot", slots=(essays.Backed("company-fact", ()),))
+    [fixed] = essays._fact_quoted({"q1": given}, company, company).values()
+    assert {b.slot: b.quotes for b in fixed.slots}["company-fact"] == (
+        "**Shelf Bot** (2026-05, product): Shelf Bot is a robot that counts stock overnight.",)
+    assert not [f for f in essays._slot_failures(fixed, company) if f.startswith("company-fact")]
+    unnamed = essays.Plan("why-company", ("why",), "", "", slots=())
+    assert essays._fact_quoted({"q1": unnamed}, company, company)["q1"] == unnamed

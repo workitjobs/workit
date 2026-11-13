@@ -2911,7 +2911,11 @@ was: a guess with Looks right, or a change with Save for next time. A
 failed delete says "WorkIt couldn't undo it. Try again." Tests:
 `test/batch.extension.spec.ts` (the walk, the save, Undo of a change, the
 next form), `test/greenhouse.spec.ts` (the batch skips self-ID and legal;
-Undo after Looks right ×N).
+Undo after Looks right ×N). Since KAN-775 the engine guesses no box that
+names arbitration (Coinbase's is the student's, Needs you), so that test
+puts its own guessed legal box in the panel to check the batch skips it;
+it had expected Coinbase's box guessed, and failed on every PR that ran
+the extension's tests after the pin moved.
 
 Both of the extension's surfaces, the popup and the panel, follow
 WorkIt's design system (`frontend/docs/design.md`). **The tokens are

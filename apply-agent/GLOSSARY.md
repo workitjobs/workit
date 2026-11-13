@@ -152,6 +152,30 @@ _Avoid_: scheduler, manager, controller
 A Worker's own browser profile that persists between runs and stays signed in to Lisul's Google account.
 _Avoid_: session, browser, Chrome profile
 
+**Worker extension**:
+The extension through which a plain Worker reads and fills a form. It lives only in Apply's Worker profiles, never in the applicant's own Chrome.
+_Avoid_: helper extension, plugin, "the extension" (that is WorkIt's)
+
+**Seed**:
+The Worker profile that gets the Worker extension once, by the applicant's own clicks. Each new plain Worker's profile starts as a copy of it.
+_Avoid_: template profile, base profile
+
+**Student build**:
+Apply as the app that students download from WorkIt, named WorkIt Auto Apply. It has no developer parts, signs in only to WorkIt, and makes every model call through WorkIt.
+_Avoid_: release, production app, desktop version
+
+**Developer checkout**:
+Apply run from a clone of its repo. It keeps every developer part, such as Claude on the developer's own login.
+_Avoid_: dev mode, local build
+
+**Model route**:
+WorkIt's way for a Student build to call a model. WorkIt holds the provider keys, makes the call and counts it against the student's Usage cap.
+_Avoid_: proxy, AI gateway, model API
+
+**Usage cap**:
+The model use that one student may spend in one month in a Student build. The Apply window shows the use; at the cap, a run pauses.
+_Avoid_: quota, limit, credits
+
 **Apply window**:
 The one window where Lisul watches every Worker live (a tile each), reads and edits his answers (the Answers tab), signs in to his Employer accounts (the Accounts tab) and pastes his Own applications (atop that tab), opened by a run or rehearsal, `apply watch` or `apply answers`. On the Mac it is its own app, Apply (~/Applications/Apply.app), in the Dock: click it to bring the window forward, Quit or close the window to end it, and keep it in the Dock to open it again.
 _Avoid_: dashboard, Chrome window
@@ -191,7 +215,7 @@ What else the employer publishes about itself and the role, read when an Applica
 _Avoid_: research, context, company info
 
 **Company brief**:
-What a company builds and works on: its engineering work first (a problem its engineers solved and what made it hard), then its products, customers and people, and the work of the team a role names, each fact with the page it came from, the kinds of problem it is, and a mark when it is the headline launch every applicant sees. It also holds the company's mission and values word for word, what kind of company it is, and, when a form asks, the problems it states itself and what each of its teams or tracks works on. Every fact is confirmed by a quote on its page; one whose page can't be read is marked unchecked and is never a Named fact. Drawn from the company's own pages, or from press coverage when its own pages can't be read. Lisul may edit it. Essays, cover letters and questions about the company draw on it beside the Company material; it is web text, not employer text. Apply reads a brief only when its heading names the form's company. The company comes from the link, the posting, the open form page or a known job site's host. When none names it, essays get no brief, only a note.
+What a company builds and works on: its engineering work first (a problem its engineers solved and what made it hard), then its products, customers and people, and the work of the team a role names, each fact with the page it came from, the kinds of problem it is, and a mark when it is the headline launch every applicant sees. It also holds the company's mission and values word for word, what kind of company it is, and, when a form asks, the problems it states itself and what each of its teams or tracks works on. Every fact is confirmed by a quote on its page; one whose page can't be read is marked unchecked and is never a Named fact. Drawn from the company's own pages, or from press coverage when its own pages can't be read. Lisul may edit it. Essays, cover letters and questions about the company draw on it beside the Company material; it is web text, not employer text. Apply reads a brief only when its heading names the form's company. The company comes from the link, the posting, the open form page or a known job site's host. When none names it, essays get no brief, only a note. In a Student build, the brief is WorkIt's, shared by every student: the app never researches it, and the student can't edit it.
 _Avoid_: research notes, company profile
 
 **Named fact**:
