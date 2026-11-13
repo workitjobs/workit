@@ -312,9 +312,9 @@ class TestList:
 
 class TestCappedBoards:
     def test_nvidias_filters_give_its_real_size(self) -> None:
-        assert providers.systems.workday._real_size(
-            {"total": 2000, "facets": NVIDIA_FACETS}
-        ) == 2676
+        assert (
+            providers.systems.workday._real_size({"total": 2000, "facets": NVIDIA_FACETS}) == 2676
+        )
 
     def test_one_filter_alone_is_not_trusted(self) -> None:
         alone = {"total": 2000, "facets": NVIDIA_FACETS[:1]}
@@ -390,21 +390,33 @@ class TestCappedBoards:
         board_pages(
             monkeypatch,
             {
-                ((), 0): {"total": 2, "facets": [
-                    {"facetParameter": "d0", "values": [{"id": "x", "count": 2}]},
-                    {"facetParameter": "d1", "values": [{"id": "x", "count": 2}]},
-                ]},
-                ((("d0", "x"),), 0): {"total": 2, "facets": [
-                    {"facetParameter": "d1", "values": [{"id": "x", "count": 2}]},
-                    {"facetParameter": "d2", "values": [{"id": "x", "count": 2}]},
-                ]},
-                ((("d0", "x"), ("d1", "x")), 0): {"total": 2, "facets": [
-                    {"facetParameter": "d2", "values": [{"id": "x", "count": 2}]},
-                    {"facetParameter": "d3", "values": [{"id": "x", "count": 2}]},
-                ]},
-                ((("d0", "x"), ("d1", "x"), ("d2", "x")), 0): {"total": 2, "facets": [
-                    {"facetParameter": "d3", "values": [{"id": "x", "count": 2}]},
-                ]},
+                ((), 0): {
+                    "total": 2,
+                    "facets": [
+                        {"facetParameter": "d0", "values": [{"id": "x", "count": 2}]},
+                        {"facetParameter": "d1", "values": [{"id": "x", "count": 2}]},
+                    ],
+                },
+                ((("d0", "x"),), 0): {
+                    "total": 2,
+                    "facets": [
+                        {"facetParameter": "d1", "values": [{"id": "x", "count": 2}]},
+                        {"facetParameter": "d2", "values": [{"id": "x", "count": 2}]},
+                    ],
+                },
+                ((("d0", "x"), ("d1", "x")), 0): {
+                    "total": 2,
+                    "facets": [
+                        {"facetParameter": "d2", "values": [{"id": "x", "count": 2}]},
+                        {"facetParameter": "d3", "values": [{"id": "x", "count": 2}]},
+                    ],
+                },
+                ((("d0", "x"), ("d1", "x"), ("d2", "x")), 0): {
+                    "total": 2,
+                    "facets": [
+                        {"facetParameter": "d3", "values": [{"id": "x", "count": 2}]},
+                    ],
+                },
             },
         )
         with pytest.raises(TooLarge):

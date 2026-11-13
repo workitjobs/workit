@@ -72,9 +72,7 @@ def workday(
     if is_capped:
         size = _real_size(first)
         if size is None:
-            raise TooLarge(
-                f"capped at {WORKDAY_CAP:,} postings, and no two facets agree on a size"
-            )
+            raise TooLarge(f"capped at {WORKDAY_CAP:,} postings, and no two facets agree on a size")
     if size > WORKDAY_MAX:
         raise TooLarge(f"{size:,} postings")
 
@@ -135,9 +133,7 @@ def _real_size(first: dict) -> int | None:
     return max(agreed) if agreed else None
 
 
-def _pick_dimension(
-    facets: dict[str, list[dict]], used: set[str]
-) -> tuple[str, list[dict]] | None:
+def _pick_dimension(facets: dict[str, list[dict]], used: set[str]) -> tuple[str, list[dict]] | None:
     """The best unused dimension to split by: the one whose largest value is smallest,
     skipping dimensions already used and those whose sum is below the cap (a facet
     summing to 5 once gave 548 of 4,390 postings)."""
@@ -177,9 +173,7 @@ def _page_slice(
         for row in postings:
             # AT&T's list has a row with only a requisition number: counted
             # in the total and linked nowhere, so counted here and never a Job.
-            rows.setdefault(
-                row.get("externalPath") or json.dumps(row, sort_keys=True), row
-            )
+            rows.setdefault(row.get("externalPath") or json.dumps(row, sort_keys=True), row)
         if not postings:
             break
         offset += WORKDAY_PAGE
@@ -201,9 +195,7 @@ def _split_capped(
     facets = _flat_facets(page)
     pick = _pick_dimension(facets, used)
     if pick is None or depth >= MAX_FACET_DEPTH:
-        raise TooLarge(
-            f"capped at {WORKDAY_CAP:,}, no usable dimension at depth {depth}"
-        )
+        raise TooLarge(f"capped at {WORKDAY_CAP:,}, no usable dimension at depth {depth}")
     dim, values = pick
     for v in values:
         pace(url)
