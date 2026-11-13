@@ -186,6 +186,38 @@ def _workday_slices(first: dict) -> tuple[int, list[dict] | None]:
     return size, None
 
 
+def _page_slice(
+    url: str,
+    pace: Callable[[str], None],
+    facets: dict,
+    first_page: dict,
+    rows: dict[str, dict],
+) -> None:
+    """Page one (possibly filtered) query to exhaustion, collecting rows."""
+    offset, expected = 0, None
+    while expected is None or offset < expected:
+        if offset:
+            pace(url)
+            try:
+                page = _workday_page(url, facets, offset)
+            except BoardNotFound as error:
+                raise Incomplete(f"no page at offset {offset:,}") from error
+        else:
+            page = first_page
+        # Only the first page of a search carries the count; later pages say 0.
+        expected = int(page.get("total") or 0) if expected is None else expected
+        postings = page.get("jobPostings") or []
+        for row in postings:
+            # AT&T's list has a row with only a requisition number: counted
+            # in the total and linked nowhere, so counted here and never a Job.
+            rows.setdefault(
+                row.get("externalPath") or json.dumps(row, sort_keys=True), row
+            )
+        if not postings:
+            break
+        offset += WORKDAY_PAGE
+
+
 def _workday_location(text: str | None) -> str | None:
     """The list's place, or None for "3 Locations": the posting's own record names
     them (`describe_workday`)."""
