@@ -181,19 +181,23 @@ NVIDIA_FACETS = [
 ]
 
 
-def board_pages(monkeypatch, pages: dict[tuple[str, int], dict]) -> list[tuple[str, int]]:
-    """Answer each list request by (filter value, offset); record what was asked."""
-    asked: list[tuple[str, int]] = []
+def board_pages(monkeypatch, pages: dict) -> list:
+    """Answer each list request by (facet key, offset); record what was asked.
+
+    The facet key is a sorted tuple of ``(param, value_id)`` pairs, or ``()`` for
+    an unfiltered request.
+    """
+    asked: list = []
 
     def post(url: str, payload: dict) -> dict:
         facets = payload["appliedFacets"]
-        value = next(iter(facets.values()))[0] if facets else ""
-        asked.append((value, payload["offset"]))
+        key = tuple(sorted((k, v[0]) for k, v in facets.items())) if facets else ()
+        asked.append((key, payload["offset"]))
         assert (
             payload["limit"] == providers.systems.workday.WORKDAY_PAGE
             and payload["searchText"] == ""
         )
-        return pages[(value, payload["offset"])]
+        return pages[(key, payload["offset"])]
 
     monkeypatch.setattr(providers.fetch, "_post_json", post)
     return asked
@@ -226,14 +230,14 @@ class TestList:
         asked = board_pages(
             monkeypatch,
             {
-                ("", 0): {"total": 3, "jobPostings": AXOS_ROWS[:2]},
+                ((), 0): {"total": 3, "jobPostings": AXOS_ROWS[:2]},
                 # Workday sends the count on the first page only.
-                ("", 2): {"total": 0, "jobPostings": AXOS_ROWS[2:]},
+                ((), 2): {"total": 0, "jobPostings": AXOS_ROWS[2:]},
             },
         )
         paced: list[str] = []
         jobs = providers.workday(AXOS, "Axos", pace=paced.append)
-        assert asked == [("", 0), ("", 2)]
+        assert asked == [((), 0), ((), 2)]
         # The first request is paced by the caller, like every board's.
         assert paced == ["https://axos.wd5.myworkdayjobs.com/wday/cxs/axos/axos/jobs"]
         assert [j.external_id for j in jobs] == [r["externalPath"] for r in AXOS_ROWS]
@@ -248,14 +252,14 @@ class TestList:
         assert lead.page is None and lead.key.startswith("workday/axos.wd5/axos#/job/")
 
     def test_an_empty_board_is_a_board(self, monkeypatch) -> None:
-        board_pages(monkeypatch, {("", 0): {"total": 0, "jobPostings": []}})
+        board_pages(monkeypatch, {((), 0): {"total": 0, "jobPostings": []}})
         assert providers.workday(AXOS, "Axos") == []
 
     def test_a_row_with_no_path_counts_but_is_no_posting(self, monkeypatch) -> None:
         # AT&T's list, offset 640: a requisition number and nothing else. Workday
         # counts it in the total, so the read adds up only if we count it too.
         unlinked = {"bulletFields": ["R-123620"]}
-        board_pages(monkeypatch, {("", 0): {"total": 3, "jobPostings": [*AXOS_ROWS[:2], unlinked]}})
+        board_pages(monkeypatch, {((), 0): {"total": 3, "jobPostings": [*AXOS_ROWS[:2], unlinked]}})
         jobs = providers.workday("att.wd1/attgeneral", "AT&T")
         assert [j.title for j in jobs] == [
             "Commercial Lending Operations Lead",
@@ -269,8 +273,8 @@ class TestList:
         board_pages(
             monkeypatch,
             {
-                ("", 0): {"total": 4, "jobPostings": AXOS_ROWS[:2]},
-                ("", 2): {"total": 0, "jobPostings": AXOS_ROWS[1:3]},
+                ((), 0): {"total": 4, "jobPostings": AXOS_ROWS[:2]},
+                ((), 2): {"total": 0, "jobPostings": AXOS_ROWS[1:3]},
             },
         )
         with pytest.raises(Incomplete):
@@ -292,10 +296,10 @@ class TestList:
 
     def test_a_board_past_the_limit_is_skipped_after_one_request(self, monkeypatch) -> None:
         # Dollar Tree's count.
-        asked = board_pages(monkeypatch, {("", 0): {"total": 25026, "jobPostings": AXOS_ROWS}})
+        asked = board_pages(monkeypatch, {((), 0): {"total": 25026, "jobPostings": AXOS_ROWS}})
         with pytest.raises(TooLarge):
             providers.workday("dollartree.wd5/dollartreeus", "Dollar Tree")
-        assert asked == [("", 0)]
+        assert asked == [((), 0)]
 
     def test_no_such_tenant_is_a_422(self, monkeypatch) -> None:
         def post(url: str, payload: dict) -> dict:
@@ -307,19 +311,14 @@ class TestList:
 
 
 class TestCappedBoards:
-    def test_nvidias_filters_give_its_real_size_and_slices(self) -> None:
-        size, slices = providers.systems.workday._workday_slices(
-            {"total": 2000, "facets": NVIDIA_FACETS}
+    def test_nvidias_filters_give_its_real_size(self) -> None:
+        assert (
+            providers.systems.workday._real_size({"total": 2000, "facets": NVIDIA_FACETS}) == 2676
         )
-        assert size == 2676
-        # Job family: its largest value, Engineering's 1,723, is under the cap.
-        # Job type would not do: Regular Employee alone is 2,267.
-        assert slices is not None and len(slices) == 15
-        assert slices[0] == {"jobFamilyGroup": ["0c40f6bd1d8f10ae43ffaefd46dc7e78"]}
 
     def test_one_filter_alone_is_not_trusted(self) -> None:
         alone = {"total": 2000, "facets": NVIDIA_FACETS[:1]}
-        assert providers.systems.workday._workday_slices(alone) == (2000, None)
+        assert providers.systems.workday._real_size(alone) is None
 
     def test_a_capped_board_is_read_in_slices(self, monkeypatch) -> None:
         # Shrunk cap (3): NVIDIA's shape, three postings in two job families.
@@ -332,23 +331,188 @@ class TestCappedBoards:
         asked = board_pages(
             monkeypatch,
             {
-                ("", 0): {"total": 3, "jobPostings": AXOS_ROWS[:2], "facets": facets},
-                ("eng", 0): {"total": 2, "jobPostings": AXOS_ROWS[:2]},
-                ("univ", 0): {"total": 1, "jobPostings": AXOS_ROWS[2:]},
+                ((), 0): {"total": 3, "jobPostings": AXOS_ROWS[:2], "facets": facets},
+                ((("jobFamilyGroup", "eng"),), 0): {"total": 2, "jobPostings": AXOS_ROWS[:2]},
+                ((("jobFamilyGroup", "univ"),), 0): {"total": 1, "jobPostings": AXOS_ROWS[2:]},
             },
         )
         paced: list[str] = []
         jobs = providers.workday(AXOS, "Axos", pace=paced.append)
-        assert asked == [("", 0), ("eng", 0), ("univ", 0)]
+        assert asked == [
+            ((), 0),
+            ((("jobFamilyGroup", "eng"),), 0),
+            ((("jobFamilyGroup", "univ"),), 0),
+        ]
         assert len(paced) == 2 and len(jobs) == 3
 
     def test_a_capped_board_no_filter_splits_is_too_large(self, monkeypatch) -> None:
         board_pages(
             monkeypatch,
-            {("", 0): {"total": 2000, "jobPostings": AXOS_ROWS, "facets": NVIDIA_FACETS[:1]}},
+            {((), 0): {"total": 2000, "jobPostings": AXOS_ROWS, "facets": NVIDIA_FACETS[:1]}},
         )
         with pytest.raises(TooLarge):
             providers.workday("citi.wd5/2", "Citi")
+
+    def test_two_level_split(self, monkeypatch) -> None:
+        # Shrunk cap (2): dim A value a1 is still capped, so it splits again by
+        # dim B.  Three distinct postings across the two levels.
+        monkeypatch.setattr(providers.systems.workday, "WORKDAY_CAP", 2)
+        facets_l0 = [
+            {"facetParameter": "dimA", "values": [
+                {"id": "a1", "count": 2}, {"id": "a2", "count": 1}]},
+            {"facetParameter": "dimB", "values": [
+                {"id": "b1", "count": 2}, {"id": "b2", "count": 1}]},
+        ]  # fmt: skip
+        facets_l1 = [
+            {"facetParameter": "dimA", "values": [{"id": "a1", "count": 2}]},
+            {"facetParameter": "dimB", "values": [
+                {"id": "b1", "count": 1}, {"id": "b2", "count": 1}]},
+        ]  # fmt: skip
+        board_pages(
+            monkeypatch,
+            {
+                ((), 0): {"total": 2, "facets": facets_l0, "jobPostings": []},
+                ((("dimA", "a1"),), 0): {"total": 2, "facets": facets_l1, "jobPostings": []},
+                ((("dimA", "a2"),), 0): {"total": 1, "jobPostings": AXOS_ROWS[2:]},
+                ((("dimA", "a1"), ("dimB", "b1")), 0): {"total": 1, "jobPostings": AXOS_ROWS[:1]},
+                ((("dimA", "a1"), ("dimB", "b2")), 0): {"total": 1, "jobPostings": AXOS_ROWS[1:2]},
+            },
+        )
+        paced: list[str] = []
+        jobs = providers.workday(AXOS, "Axos", pace=paced.append)
+        assert len(jobs) == 3
+        # a1, a1+b1, a1+b2, a2 — four paced requests.
+        assert len(paced) == 4
+
+    def test_depth_limit_raises_too_large(self, monkeypatch) -> None:
+        # Every level stays capped: after MAX_FACET_DEPTH levels, TooLarge.
+        monkeypatch.setattr(providers.systems.workday, "WORKDAY_CAP", 2)
+        board_pages(
+            monkeypatch,
+            {
+                ((), 0): {
+                    "total": 2,
+                    "facets": [
+                        {"facetParameter": "d0", "values": [{"id": "x", "count": 2}]},
+                        {"facetParameter": "d1", "values": [{"id": "x", "count": 2}]},
+                    ],
+                },
+                ((("d0", "x"),), 0): {
+                    "total": 2,
+                    "facets": [
+                        {"facetParameter": "d1", "values": [{"id": "x", "count": 2}]},
+                        {"facetParameter": "d2", "values": [{"id": "x", "count": 2}]},
+                    ],
+                },
+                ((("d0", "x"), ("d1", "x")), 0): {
+                    "total": 2,
+                    "facets": [
+                        {"facetParameter": "d2", "values": [{"id": "x", "count": 2}]},
+                        {"facetParameter": "d3", "values": [{"id": "x", "count": 2}]},
+                    ],
+                },
+                ((("d0", "x"), ("d1", "x"), ("d2", "x")), 0): {
+                    "total": 2,
+                    "facets": [
+                        {"facetParameter": "d3", "values": [{"id": "x", "count": 2}]},
+                    ],
+                },
+            },
+        )
+        with pytest.raises(TooLarge):
+            providers.workday(AXOS, "Axos", pace=lambda url: None)
+
+    def test_dedup_across_split_values(self, monkeypatch) -> None:
+        """A posting in two split values is collected once."""
+        monkeypatch.setattr(providers.systems.workday, "WORKDAY_CAP", 4)
+        facets = [
+            {"facetParameter": "dimA", "values": [
+                {"id": "a1", "count": 2}, {"id": "a2", "count": 2}]},
+            {"facetParameter": "dimB", "values": [
+                {"id": "b1", "count": 2}, {"id": "b2", "count": 2}]},
+        ]  # fmt: skip
+        # a1 and a2 overlap on AXOS_ROWS[1]: 4 counted, 3 distinct → Incomplete.
+        board_pages(
+            monkeypatch,
+            {
+                ((), 0): {"total": 4, "facets": facets, "jobPostings": []},
+                ((("dimA", "a1"),), 0): {"total": 2, "jobPostings": AXOS_ROWS[:2]},
+                ((("dimA", "a2"),), 0): {"total": 2, "jobPostings": AXOS_ROWS[1:3]},
+            },
+        )
+        with pytest.raises(Incomplete, match="3.*4"):
+            providers.workday(AXOS, "Axos", pace=lambda url: None)
+
+    def test_small_sum_dimension_skipped(self, monkeypatch) -> None:
+        """A facet whose sum is below the cap is not picked for splitting."""
+        monkeypatch.setattr(providers.systems.workday, "WORKDAY_CAP", 3)
+        facets = [
+            {"facetParameter": "location", "values": [
+                {"id": "ny", "count": 1}, {"id": "sf", "count": 1}]},
+            {"facetParameter": "jobFamily", "values": [
+                {"id": "eng", "count": 2}, {"id": "ops", "count": 1}]},
+            {"facetParameter": "timeType", "values": [{"id": "full", "count": 3}]},
+        ]  # fmt: skip
+        asked = board_pages(
+            monkeypatch,
+            {
+                ((), 0): {"total": 3, "facets": facets, "jobPostings": AXOS_ROWS[:2]},
+                ((("jobFamily", "eng"),), 0): {"total": 2, "jobPostings": AXOS_ROWS[:2]},
+                ((("jobFamily", "ops"),), 0): {"total": 1, "jobPostings": AXOS_ROWS[2:]},
+            },
+        )
+        jobs = providers.workday(AXOS, "Axos", pace=lambda url: None)
+        assert len(jobs) == 3
+        # The location dimension (sum 2 < cap 3) was never queried.
+        queried_dims = {dim for key, _ in asked for dim, _ in key}
+        assert "location" not in queried_dims
+
+    def test_zero_total_slice_is_skipped(self, monkeypatch) -> None:
+        """A facet value whose filtered query returns total=0 is skipped."""
+        monkeypatch.setattr(providers.systems.workday, "WORKDAY_CAP", 3)
+        facets = [
+            {"facetParameter": "dim", "values": [
+                {"id": "a", "count": 2}, {"id": "b", "count": 1}, {"id": "c", "count": 0}]},
+            {"facetParameter": "dim2", "values": [
+                {"id": "x", "count": 2}, {"id": "y", "count": 1}]},
+        ]  # fmt: skip
+        board_pages(
+            monkeypatch,
+            {
+                ((), 0): {"total": 3, "facets": facets, "jobPostings": []},
+                ((("dim", "a"),), 0): {"total": 2, "jobPostings": AXOS_ROWS[:2]},
+                ((("dim", "b"),), 0): {"total": 1, "jobPostings": AXOS_ROWS[2:]},
+                ((("dim", "c"),), 0): {"total": 0, "jobPostings": []},
+            },
+        )
+        jobs = providers.workday(AXOS, "Axos", pace=lambda url: None)
+        assert len(jobs) == 3
+
+    def test_no_usable_dimension_mid_recursion_raises_too_large(self, monkeypatch) -> None:
+        """When the first level splits but a still-capped slice has no unused
+        dimension with sum >= cap, TooLarge is raised from depth 1."""
+        monkeypatch.setattr(providers.systems.workday, "WORKDAY_CAP", 2)
+        # Level 0: dimA splits the board. Value "a1" stays capped.
+        facets_l0 = [
+            {"facetParameter": "dimA", "values": [
+                {"id": "a1", "count": 2}, {"id": "a2", "count": 1}]},
+            {"facetParameter": "dimB", "values": [
+                {"id": "b1", "count": 2}, {"id": "b2", "count": 1}]},
+        ]  # fmt: skip
+        # Level 1 (a1): dimA is used, dimB sums to 1 (below cap) — no pick.
+        facets_l1 = [
+            {"facetParameter": "dimA", "values": [{"id": "a1", "count": 2}]},
+            {"facetParameter": "dimB", "values": [{"id": "b1", "count": 1}]},
+        ]  # fmt: skip
+        board_pages(
+            monkeypatch,
+            {
+                ((), 0): {"total": 2, "facets": facets_l0, "jobPostings": []},
+                ((("dimA", "a1"),), 0): {"total": 2, "facets": facets_l1, "jobPostings": []},
+            },
+        )
+        with pytest.raises(TooLarge, match="no usable dimension at depth 1"):
+            providers.workday(AXOS, "Axos", pace=lambda url: None)
 
 
 class TestPostedOn:
@@ -370,7 +534,7 @@ class TestPostedOn:
         assert providers.systems.workday._workday_posted(text, date(2026, 10, 10)) == posted
 
     def test_the_list_date_is_relative_to_the_day_of_the_read(self, monkeypatch) -> None:
-        board_pages(monkeypatch, {("", 0): {"total": 1, "jobPostings": AXOS_ROWS[:1]}})
+        board_pages(monkeypatch, {((), 0): {"total": 1, "jobPostings": AXOS_ROWS[:1]}})
         [job] = providers.workday(AXOS, "Axos")
         assert job.posted_at is not None and job.posted_at.endswith("T00:00:00+00:00")
 

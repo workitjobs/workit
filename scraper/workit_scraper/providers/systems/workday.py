@@ -39,6 +39,10 @@ WORKDAY_CAP = 2000
 WORKDAY_MAX = 5000
 
 
+#: How many nested dimensions a capped board may split by before giving up.
+MAX_FACET_DEPTH = 3
+
+
 def workday(
     token: str, company: str, *, pace: Callable[[str], None] = lambda url: None
 ) -> list[Job]:
@@ -50,8 +54,9 @@ def workday(
     WORKDAY_MAX raises `TooLarge`: only a whole read may count as evidence that a
     posting has gone (scraper/CLAUDE.md, "Nothing closes").
 
-    A board reporting exactly WORKDAY_CAP is read in slices by one of its own
-    filters (`_workday_slices`), or raises `TooLarge` when none splits it.
+    A board reporting exactly WORKDAY_CAP is split recursively by its facets, up
+    to MAX_FACET_DEPTH dimensions deep, or raises `TooLarge` when it cannot be
+    split.
     """
     url = listing_url("workday", token)
     try:
@@ -63,36 +68,19 @@ def workday(
             raise BoardNotFound(url) from error
         raise
     size = int(first.get("total") or 0)
-    slices: list[dict] | None = [{}]
-    if size == WORKDAY_CAP:
-        size, slices = _workday_slices(first)
+    is_capped = size == WORKDAY_CAP
+    if is_capped:
+        size = _real_size(first)
+        if size is None:
+            raise TooLarge(f"capped at {WORKDAY_CAP:,} postings, and no two facets agree on a size")
     if size > WORKDAY_MAX:
         raise TooLarge(f"{size:,} postings")
-    if slices is None:
-        raise TooLarge(f"capped at {WORKDAY_CAP:,} postings, and no filter splits it")
 
     rows: dict[str, dict] = {}
-    for facets in slices:
-        offset, expected = 0, None
-        while expected is None or offset < expected:
-            if facets or offset:
-                pace(url)
-                try:
-                    page = _workday_page(url, facets, offset)
-                except BoardNotFound as error:
-                    raise Incomplete(f"no page at offset {offset:,}") from error
-            else:
-                page = first
-            # Only the first page of a search carries the count; later pages say 0.
-            expected = int(page.get("total") or 0) if expected is None else expected
-            postings = page.get("jobPostings") or []
-            for row in postings:
-                # AT&T's list has a row with only a requisition number: counted
-                # in the total and linked nowhere, so counted here and never a Job.
-                rows.setdefault(row.get("externalPath") or json.dumps(row, sort_keys=True), row)
-            if not postings:
-                break
-            offset += WORKDAY_PAGE
+    if is_capped:
+        _split_capped(url, pace, first, {}, set(), 0, rows)
+    else:
+        _page_slice(url, pace, {}, first, rows)
     if len(rows) != size:
         raise Incomplete(f"read {len(rows):,} distinct postings of {size:,}")
 
@@ -125,35 +113,101 @@ def _workday_page(url: str, facets: dict, offset: int) -> dict:
     return payload
 
 
-def _workday_slices(first: dict) -> tuple[int, list[dict] | None]:
-    """A capped board's real size, and one filter value per slice to read it by.
-
-    The list's filters (job family, job type, time type, ...) come with a count per
-    value. A filter whose counts add up to the board's size puts every posting in
-    exactly one slice; the size is the sum that two filters agree on, since one
-    filter alone could leave postings out (NVIDIA: 2,676 by job family, job type
-    and time type alike). A slice is only readable below the cap, so a filter with
-    any value at 2,000 or more is no use. `workday` then checks that the slices
-    really held that many distinct postings. None when no filter fits: 17 of the
-    39 capped boards on 2026-10-10 (Citi, Walmart, Target, Airbus).
-    """
-    filters = {
+def _flat_facets(page: dict) -> dict[str, list[dict]]:
+    """Flat facets from a page: {parameter: values} for dimensions whose values all
+    have an id and an integer count (skipping wrapper facets with no id)."""
+    return {
         facet.get("facetParameter"): values
-        for facet in first.get("facets") or []
-        if (values := facet.get("values"))
+        for facet in page.get("facets") or []
+        if facet.get("facetParameter")
+        and (values := facet.get("values"))
         and all(isinstance(v.get("count"), int) and v.get("id") for v in values)
     }
+
+
+def _real_size(first: dict) -> int | None:
+    """A capped board's real size: the sum two or more facets agree on, or None."""
+    filters = _flat_facets(first)
     sums = Counter(sum(v["count"] for v in values) for values in filters.values())
     agreed = [total for total, n in sums.items() if n >= 2 and total >= WORKDAY_CAP]
-    if not agreed:
-        return WORKDAY_CAP, None
-    size = max(agreed)
-    for name, values in filters.items():
-        if sum(v["count"] for v in values) == size and all(
-            v["count"] < WORKDAY_CAP for v in values
-        ):
-            return size, [{name: [v["id"]]} for v in values]
-    return size, None
+    return max(agreed) if agreed else None
+
+
+def _pick_dimension(facets: dict[str, list[dict]], used: set[str]) -> tuple[str, list[dict]] | None:
+    """The best unused dimension to split by: the one whose largest value is smallest,
+    skipping dimensions already used and those whose sum is below the cap (a facet
+    summing to 5 once gave 548 of 4,390 postings)."""
+    best: tuple[str, int, list[dict]] | None = None
+    for name, values in facets.items():
+        if name in used:
+            continue
+        if sum(v["count"] for v in values) < WORKDAY_CAP:
+            continue
+        largest = max(v["count"] for v in values)
+        if best is None or largest < best[1]:
+            best = (name, largest, values)
+    return (best[0], best[2]) if best is not None else None
+
+
+def _page_slice(
+    url: str,
+    pace: Callable[[str], None],
+    facets: dict,
+    first_page: dict,
+    rows: dict[str, dict],
+) -> None:
+    """Page one (possibly filtered) query to exhaustion, collecting rows."""
+    offset, expected = 0, None
+    while expected is None or offset < expected:
+        if offset:
+            pace(url)
+            try:
+                page = _workday_page(url, facets, offset)
+            except BoardNotFound as error:
+                raise Incomplete(f"no page at offset {offset:,}") from error
+        else:
+            page = first_page
+        # Only the first page of a search carries the count; later pages say 0.
+        expected = int(page.get("total") or 0) if expected is None else expected
+        postings = page.get("jobPostings") or []
+        for row in postings:
+            # AT&T's list has a row with only a requisition number: counted
+            # in the total and linked nowhere, so counted here and never a Job.
+            rows.setdefault(row.get("externalPath") or json.dumps(row, sort_keys=True), row)
+        if not postings:
+            break
+        offset += WORKDAY_PAGE
+
+
+def _split_capped(
+    url: str,
+    pace: Callable[[str], None],
+    page: dict,
+    applied: dict,
+    used: set[str],
+    depth: int,
+    rows: dict[str, dict],
+) -> None:
+    """Split a capped query by the best unused dimension, recursing if a slice is
+    still capped.  Collects rows into *rows* (deduped by externalPath via
+    setdefault).  Raises TooLarge when no dimension is left or depth reaches
+    MAX_FACET_DEPTH."""
+    facets = _flat_facets(page)
+    pick = _pick_dimension(facets, used)
+    if pick is None or depth >= MAX_FACET_DEPTH:
+        raise TooLarge(f"capped at {WORKDAY_CAP:,}, no usable dimension at depth {depth}")
+    dim, values = pick
+    for v in values:
+        pace(url)
+        query = {**applied, dim: [v["id"]]}
+        sub = _workday_page(url, query, 0)
+        total = int(sub.get("total") or 0)
+        if total == 0:
+            continue
+        if total < WORKDAY_CAP:
+            _page_slice(url, pace, query, sub, rows)
+        else:
+            _split_capped(url, pace, sub, query, used | {dim}, depth + 1, rows)
 
 
 def _workday_location(text: str | None) -> str | None:
