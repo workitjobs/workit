@@ -47,25 +47,23 @@ class TestPinpoint:
         monkeypatch.setattr(providers.fetch, "_get_json", lambda url: payload)
         jobs = providers.pinpoint("acme", "Acme Corp")
         first = jobs[0]
-        # The shortlist may or may not keep this title; if it does, the page
-        # concatenates description + key_responsibilities + skills.
-        if first.page is not None:
-            desc = first.description or ""
-            assert "12-week summer internship" in desc
-            assert "Build features" in desc
-            assert "Currently pursuing" in desc
+        assert first.page is not None
+        desc = first.description or ""
+        assert "12-week summer internship" in desc
+        assert "Build features" in desc
+        assert "Currently pursuing" in desc
 
     def test_pay_from_visible_compensation(self, monkeypatch) -> None:
         payload = fixture("pinpoint-list.json")
         monkeypatch.setattr(providers.fetch, "_get_json", lambda url: payload)
         jobs = providers.pinpoint("acme", "Acme Corp")
         first = jobs[0]
-        if first.page is not None:
-            assert first.facts.pay is not None
-            assert first.facts.pay.currency == "USD"
-            assert first.facts.pay.low == 30.0
-            assert first.facts.pay.high == 45.0
-            assert first.facts.pay.period == "hour"
+        assert first.page is not None
+        assert first.facts.pay is not None
+        assert first.facts.pay.currency == "USD"
+        assert first.facts.pay.low == 30.0
+        assert first.facts.pay.high == 45.0
+        assert first.facts.pay.period == "hour"
 
     def test_hidden_compensation_gives_no_stated_pay(self, monkeypatch) -> None:
         """compensation_visible: false → no structured pay passed to _page."""
@@ -73,23 +71,21 @@ class TestPinpoint:
         monkeypatch.setattr(providers.fetch, "_get_json", lambda url: payload)
         jobs = providers.pinpoint("acme", "Acme Corp")
         second = jobs[1]
-        if second.page is not None:
-            # No stated pay; details.read might still find one in the text.
-            # We only check the structured field was not passed.
-            pass  # The absence is implicit; a stated_pay=None is correct.
+        # The second fixture title is an intern too, so may_keep keeps it.
+        assert second.page is not None
 
     def test_work_style_mapped(self, monkeypatch) -> None:
         payload = fixture("pinpoint-list.json")
         monkeypatch.setattr(providers.fetch, "_get_json", lambda url: payload)
         jobs = providers.pinpoint("acme", "Acme Corp")
-        # Work styles come from _listed_page → details.read → facts.work_style.
-        # The first has "hybrid", second "remote", third "on-site".
-        if jobs[0].page:
-            assert jobs[0].page.facts.work_style == "Hybrid"
-        if jobs[1].page:
-            assert jobs[1].page.facts.work_style == "Remote"
-        if jobs[2].page:
-            assert jobs[2].page.facts.work_style == "On site"
+        assert jobs[0].page is not None
+        assert jobs[0].page.facts.work_style == "Hybrid"
+        assert jobs[1].page is not None
+        assert jobs[1].page.facts.work_style == "Remote"
+        # Third posting ("Marketing Coordinator") is not an intern title,
+        # so may_keep rejects it and page is None. On-site is tested via
+        # the first two's assertion that _listed_page reads workplace_type.
+        assert jobs[2].page is None
 
     def test_empty_board_returns_no_jobs(self, monkeypatch) -> None:
         monkeypatch.setattr(

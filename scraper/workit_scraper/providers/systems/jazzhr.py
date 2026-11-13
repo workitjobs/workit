@@ -56,8 +56,9 @@ def jazzhr(token: str, company: str) -> list[Job]:
         after = text[match.end() : match.end() + 500]
         loc_match = _LOCATION.search(after)
         location = html.unescape(loc_match[1]).strip() if loc_match else None
-        # Title is in the <a> tag's text: find the closing </a>.
-        title_start = text.find(">", match.start()) + 1
+        # Title is in the <a> tag's text: search from after the matched href
+        # to skip any > inside earlier attributes.
+        title_start = text.find(">", match.end()) + 1
         title_end = text.find("</a>", title_start)
         raw = text[title_start:title_end] if title_end > title_start else ""
         title = html.unescape(raw).strip()
