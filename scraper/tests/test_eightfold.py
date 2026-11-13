@@ -13,8 +13,7 @@ from pathlib import Path
 import pytest
 
 from workit_scraper import providers
-from workit_scraper.providers.model import BoardNotFound, Incomplete
-from workit_scraper.providers.systems.eightfold import EIGHTFOLD_PAGE
+from workit_scraper.providers.model import BoardNotFound
 
 FIXTURES = Path(__file__).parent / "fixtures" / "providers"
 

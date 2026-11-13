@@ -11,10 +11,7 @@ import json
 from copy import deepcopy
 from pathlib import Path
 
-import pytest
-
 from workit_scraper import providers
-from workit_scraper.providers.systems.smartrecruiters import SR_PAGE
 
 FIXTURES = Path(__file__).parent / "fixtures" / "providers"
 
