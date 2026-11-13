@@ -25,6 +25,7 @@ from pydantic import (
 )
 
 from app.models.dto import bank_section, entry_end_kind
+from app.schemas.profile import HeaderFill
 
 _MONTH_RE = re.compile(r"^(\d{4})-(0[1-9]|1[0-2])$")
 
@@ -345,6 +346,8 @@ class ImportResult(BaseModel):
     read_by: Literal["parser", "model"] = "parser"
     # AI readings the student has left today; at 0 the parser reads.
     uses_left: int
+    # What the resume's header filled on the profile, and offers (KAN-436)
+    header: HeaderFill = HeaderFill()
 
 
 class PreviewEntry(DraftEntry):

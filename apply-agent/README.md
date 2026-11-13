@@ -42,7 +42,7 @@ never submits.** Apply runs on macOS only. Before you change code here, read
    Lever, SmartRecruiters and Workable in plain Workers). With
    `worker_mode: plain` in `policies.yaml`, doctor checks only "Plain seed";
    with `cdp`, only "Worker profiles". Fix every other fail first. The warn
-   lines are for optional features.
+   lines are for optional features and optional facts (`identity.phone_type`).
 
 ## First rehearsal: Test Person
 

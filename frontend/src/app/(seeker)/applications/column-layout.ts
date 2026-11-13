@@ -34,16 +34,19 @@ import { APPLICATIONS_COLUMNS_KEY } from "@/lib/local-drafts";
  * stored string, so a read that finds the same string returns the same
  * object, and one that finds the key gone (Sign Out) returns the default.
  */
+/* Widths for the cells as plain text and the stage as a pill (2026-11-10):
+ * with a glyph in every cell and a 42px stage field they summed to 1672px,
+ * and a 1440px window's table ran 400px past its card with no sign of it. */
 export const COLUMNS = [
-  { id: "role", label: "Role", width: 320 },
-  { id: "status", label: "Status", width: 184 },
-  { id: "applied", label: "Date Applied", width: 152 },
-  { id: "match", label: "Match", width: 128 },
-  { id: "track", label: "Job Type", width: 152 },
-  { id: "location", label: "Location", width: 208 },
-  { id: "workModel", label: "Work Model", width: 144 },
-  { id: "pay", label: "Pay Range", width: 184 },
-  { id: "resume", label: "Resume", width: 200 },
+  { id: "role", label: "Job", width: 320 },
+  { id: "status", label: "Status", width: 160 },
+  { id: "applied", label: "Date Applied", width: 128 },
+  { id: "match", label: "Match", width: 104 },
+  { id: "track", label: "Job Type", width: 120 },
+  { id: "location", label: "Location", width: 200 },
+  { id: "workModel", label: "Work Model", width: 120 },
+  { id: "pay", label: "Pay Range", width: 152 },
+  { id: "resume", label: "Resume", width: 104 },
 ] as const;
 
 export type ColumnId = (typeof COLUMNS)[number]["id"];
@@ -58,15 +61,35 @@ const MOVABLE = COLUMNS.map(({ id }) => id).filter((id) => !FROZEN.includes(id))
 export const MIN_WIDTH = 80;
 export const MAX_WIDTH = 640;
 
+/** How the list groups its rows (Table Settings' Group By, 2026-11-10, as
+ *  Auto Apply's Up Next groups its queue): by Status (the default, a closed
+ *  posting's saved job in a Posting Closed group of its own), by Job Type,
+ *  by Work Model, or not at all. */
+export const GROUP_BY = [
+  { value: "status", label: "Status" },
+  { value: "track", label: "Job Type" },
+  { value: "workModel", label: "Work Model" },
+  { value: "none", label: "None" },
+] as const;
+export type GroupBy = (typeof GROUP_BY)[number]["value"];
+
 export type ColumnLayout = {
   /** The movable columns in their order; the frozen two always lead. */
   order: ColumnId[];
   hidden: ColumnId[];
   /** Only the columns resized away from their default. */
   widths: Partial<Record<ColumnId, number>>;
+  /** How the rows are grouped. Kept with the columns, a preference of this
+   *  browser too; Reset Columns leaves it. */
+  group: GroupBy;
 };
 
-export const DEFAULT_LAYOUT: ColumnLayout = { order: MOVABLE, hidden: [], widths: {} };
+export const DEFAULT_LAYOUT: ColumnLayout = {
+  order: MOVABLE,
+  hidden: [],
+  widths: {},
+  group: "status",
+};
 
 const isMovable = (id: unknown): id is ColumnId => MOVABLE.includes(id as ColumnId);
 
@@ -88,6 +111,10 @@ function parse(raw: string | null): ColumnLayout {
       order: [...order, ...MOVABLE.filter((id) => !order.includes(id))],
       hidden: [...new Set((stored.hidden ?? []).filter(isMovable))],
       widths,
+      // A layout stored before Group By groups by Status, as a new one does.
+      group: GROUP_BY.some(({ value }) => value === stored.group)
+        ? (stored.group as GroupBy)
+        : DEFAULT_LAYOUT.group,
     };
   } catch {
     return DEFAULT_LAYOUT;

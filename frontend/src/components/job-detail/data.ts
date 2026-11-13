@@ -48,6 +48,9 @@ export type JobPosting = {
   /** Always a display string, e.g. "Austin, TX" or "Remote" — never absent,
    *  since `JobFacts` always prints a location. */
   locationCity: string;
+  /** Every place a posting lists, where `locationCity` names the first and
+   *  "+N more" (`PlacesValue`). */
+  places?: string[];
   salary: string;
 
   postedAt: string; // ISO

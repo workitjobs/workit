@@ -68,8 +68,33 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   `cf:deploy` uploads it. Each is one binary, so `cf:preview` and `cf:deploy`
   need a fresh `cf:build` first. `npx wrangler deploy --dry-run --outdir
   <dir>` prints the upload size with no Cloudflare login: the Workers Paid cap
-  is 10 MiB gzip (4.8 MiB on 2026-11-02; the cached pages are assets and
-  do not count). Never run a real deploy locally.
+  is 10 MiB gzip (4.8 MiB on 2026-11-02, 4.5 MiB on 2026-11-10; the cached
+  pages are assets and do not count). Never run a real deploy locally.
+- **The Worker's size is its cold start** (KAN-782, 2026-11-10). Each new copy of
+  the Worker loads and parses the whole script before it answers. Static
+  files are served before the Worker runs. On workitjobs.ai, about half of
+  the requests one second apart met a new copy: 0.75 to 1.35 s, against
+  0.06 s once warm, even for a prerendered page or `/api/session`. A ping
+  cannot keep it warm, as the API's cron keeps the API's containers
+  (`backend/CLAUDE.md`, Deployment): Cloudflare starts and drops Worker
+  copies itself. So keep the script small. `"minify": true` in
+  `wrangler.jsonc` (wrangler bundles OpenNext's output again and wrote it
+  unminified, 22.5 MB, now 15.1 MB), and a library only the browser runs
+  stays out of the server bundle: a bare `import()` in a client component
+  still puts its target there, so guard it with `typeof window ===
+  "undefined"`, which the bundler folds (`loadPdfjs` in
+  `resumes/[resumeId]/pdf-pages.tsx`, pdf.js, about 0.4 MB). To measure:
+  `npx wrangler deploy --dry-run --outdir <dir>` prints the size;
+  `npx wrangler check startup` profiles startup (about 18 ms of CPU: the
+  cost is the parse and the first request, not startup code); and a loop of
+  `curl -so /dev/null -w '%{time_starttransfer}\n'
+  https://workitjobs.ai/api/session`, a second apart, counts the cold
+  answers after a deploy. **Still open:** about 3.8 MB of the 9 MB of page
+  code are copies of shared modules that Turbopack puts in each route's
+  server chunk (Phosphor icons in 128 chunks), with no setting to share
+  them; and the Node proxy brings Next's server and `@vercel/og` with its
+  two WebAssembly files (3.2 MB and 1.4 MB) into the bundle, which only
+  moving the proxy to the Edge runtime would drop (`src/proxy.ts`, below).
 - **`@opennextjs/cloudflare` is pinned exactly**: each release's peer range
   sets a floor on `next` (1.20.6 is the newest that takes `next` 16.3.3).
   Raise them together; a newer adapter on an older Next fails to install.
@@ -222,10 +247,10 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
 - **The page at `/` is the landing page, `app/(landing)/`**, ported from
   the team's Astro marketing site (`WorkIt-Website`, kept outside this repo)
   in place of the old Job Seeker / Hiring chooser. Its components keep the
-  site's markup, classes and copy, with two deliberate changes, and set the
-  app's own face (`--font-sans`, Plus Jakarta Sans) instead of the site's
-  Inter, so the page and the app read as one product; Google Sans loads only
-  for the Google sign-in button.
+  site's markup, classes and copy, with two deliberate changes, and read in
+  the app's own face (`--font-sans`, Inter, as the site had it), with Plus
+  Jakarta Sans on the headlines (below, "Type on the marketing pages");
+  Google Sans loads only for the Google sign-in button.
   **Colour and logo:** the site's numbered blue scale became
   `landing-brand-50` to `950` in `globals.css`, the same steps in WorkIt
   violet, so a component copied from the site needs only `brand-N` renamed
@@ -769,7 +794,7 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   resume and writes no answer to a new written question, and the student
   clicks Submit on each, so no page says WorkIt submits, sends or
   applies. Scout's page is about Fill With Scout, the one way into Scout
-  while Ask Scout is greyed out; bring the job questions back to it when
+  while Ask Scout is hidden; bring the job questions back to it when
   `ASK_SCOUT_LIVE` turns on. Fill With Scout is off in the app
   (`FILL_WITH_SCOUT_LIVE`, KAN-732) until it gets a new place, which is
   still open; **the site keeps Scout on purpose meanwhile** (settled
@@ -1241,7 +1266,17 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   client navigation to a marketing page shows "Open WorkIt" until the
   probe answers. The hint is a guess for the header alone; nothing
   decides access by it.
-- **Type on the marketing pages.** Plus Jakarta Sans is 1.26em tall
+- **Type on the marketing pages.** **Headlines are Plus Jakarta Sans and
+  everything else is Inter** (2026-11-10, Jobright's split: a display face
+  on marketing headlines, Inter in the product). One rule in landing.css
+  gives every `h1` to `h3` under `.landing` the face, so a new section's
+  heading cannot miss it; a display line that is no heading (the bridge's
+  lines, the footer's tagline, the quote, a plan's price) takes the
+  `font-display` utility, and a heading that is a small label (the
+  footer's column titles) takes `font-sans` back. Mock app screens on the
+  page draw no `h1` to `h3`, so they stay Inter, as the app is. The face
+  loads from `app/fonts.ts`, only in this layout and the design kit's, so
+  an app page never downloads it. Plus Jakarta Sans is 1.26em tall
   (ascent 1.038, descent 0.222), taller than any display line, so a
   wrapped heading's lines overlap by a few pixels. The selection
   (`.landing ::selection`) is see-through, 14% of the brand violet, so a
@@ -1401,13 +1436,15 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   sticky bar on the page takes `bg-app`, or it shows as a white strip. Each
   rail tile is an icon over its name, and below md the rail is a sheet of
   rows with the same names. **Each section has one name in the panel**
-  (Tracker, Resumes, Profile), short enough for a tile: a `short` for the
+  (Tracker, Experiences, Documents, Profile), short enough for a tile: a `short` for the
   tile beside a longer name in the sheet ("Applications Tracker") read as
   two sets of names for one app (2026-11-05). **The same names are used
   everywhere a student reads them**: the bar's title, page titles, Back
   links, breadcrumbs and any line that sends them there ("on your Profile",
-  "on Resumes"). Never "Applications Tracker", "Resumes & Experiences" or
-  "My Profile" again. On hover
+  "on Experiences"). Never "Applications Tracker", "Resumes & Experiences" or
+  "My Profile" again. Documents' tabs, Resumes and Cover Letters
+  (KAN-766), name its two pages and their Back links ("Back to
+  Resumes"). On hover
   and press only the fills move; the icon stays still (KAN-426), since a
   2px icon nudge on top of the gliding fill read as the row jumping. The panel
   never moves the page, so there is no pin, no peek and no `--panel-gain`
@@ -1415,14 +1452,28 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   (1440px) inside `SEEKER_GUTTER`, so all start at Home's left edge; the
   Applications Tracker alone has no cap. At `max-w-app` (1024px) they sat
   centred between wide empty margins beside the rail. **A job's page is the
-  exception: one centred 800px column** (`max-w-job`, `JOB_PAGE_WIDTH` in
-  `jobs/[jobId]/job-view.tsx`, 2026-11-09), shared with the application's
-  own page, so the action bar, the header, Key Requirements and About the
-  Role all end on one edge (736px of content, the action bar's one row).
-  In the split view's pane the bar takes the pane and the content under it
-  stops at the same 736px (`JOB_COLUMN`). About the Role is 16px there,
-  about 90 characters a line; at 46ch of 14px (KAN-569) it ended halfway
-  across the full-width blocks above it and read as cut short.
+  exception: it takes the Cards view's column and its card's shape**
+  (`max-w-feed`, `JOB_PAGE_WIDTH` in `jobs/[jobId]/job-view.tsx`,
+  2026-11-10), shared with the application's own page: the action bar and
+  the job's panel take the whole 944px. **The posting is one white panel**
+  (`JobPanel`, 2026-11-10, after Jobright's): the header (company line with
+  Save and ⋮ at its end, title, facts) beside the match tile the card
+  shows (`GET /jobs/{id}/match`, the card's grey tile at its 240px,
+  stretched to the header's height), then under a rule across the panel
+  the open tab's pane: Key Requirements and About the Role as sections
+  with a rule between them, or the Company tab. It was three cards, and
+  the two under the header stopped 17.25rem short (`JOB_BODY`) where the
+  rail started, so an empty column ran down the right and a 150px hole sat
+  under the facts beside the taller rail; the user found the page not
+  thought out. It was one 800px column (`max-w-job`, 2026-11-09) before,
+  208px narrower than the card the student had just clicked. In the split
+  view's pane the panel is flat, the bar takes the pane, the content under
+  it stops at 736px (`JOB_COLUMN`), and the tile shows there too
+  (2026-11-10; it was hidden, since the list card beside it has a score,
+  but that small tile has no reasons and the open job read as unscored). Every page outside the Jobs page and a
+  posting's own page (Home, Tracker, Auto Apply, Documents, Experiences,
+  Profile, Tailor) is a workspace of tables, grids or columns and keeps
+  `max-w-dashboard`.
   The user found the floating panels wasted room, and the 256px panel that
   opened over the page on hover a flaw. A height worked out from the
   shell's chrome (the job rail's `100svh-4rem`) changes with it. A sidebar
@@ -1521,9 +1572,10 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   company bar's corner and the split view's list heading each crossed one
   until 2026-11-03. The seeker top bar's rule and the rail's edge are
   `border-surface`, as the cards are (2026-11-09); the company shell keeps its lavender
-  `rail-border`. A "·" between facts is round: the "Round Dot" face in
-  `globals.css` draws U+00B7 from Georgia, since Jakarta's is square; keep
-  typing "·" and never draw a dot in markup (`docs/design.md`, Components).
+  `rail-border`. A "·" between facts is round: Inter's own is (the "Round
+  Dot" face that borrowed Georgia's for Jakarta's square one went with the
+  switch, 2026-11-10); keep typing "·" and never draw a dot in markup
+  (`docs/design.md`, Components).
   Skeletons are `bg-ink/6`, so they show on white and on the ground.
 - **The sidebar's current fill never slides** (`components/app-sidebar.tsx`,
   2026-11-02): it lands on the row at once, because the slide read as
@@ -1547,7 +1599,12 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   Up Next's skeleton showed on the way to Application Info. The company side
   follows the same rules, with its own `error.tsx` and `not-found.tsx`. A
   client-side read draws a skeleton line in its place too (Transcript, the
-  resume pickers' `ResumeListsSkeleton`), never a "Loading…" line.
+  resume pickers' `ResumeListsSkeleton`), never a "Loading…" line. **A
+  part that draws only once it hydrates (a canvas) keeps a skeleton in its
+  own place until its first frame** (Home's Activity map, `drawn` in
+  `home/streak.tsx`): the section's Suspense fallback ends when the
+  server's HTML lands, and the map's room stood blank white until the
+  page's script loaded, which read as a section with no loader.
   A page with two long reads streams each in its own `<Suspense>` over a
   skeleton of its shape, and starts every read before its first `await` (the
   Home: only the account is awaited). **Settings' modal has no
@@ -1648,13 +1705,13 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   (`applications/email-kinds.tsx`). No sidebar badge: one was removed; Settings > Integrations is the
   design only until the Google sign-in is built (`docs/screens.md`). Home's four numbers are all live and all links
   (KAN-342), each a white tile with its glyph in a small chip of its own
-  colour (KAN-423): Strong Matches green, Saved grey, Applied violet,
+  colour (KAN-423): Excellent Matches green, Saved grey, Applied violet,
   Interviewing yellow, from the matched `--color-kpi-*` set (2026-11-09:
   the tiles were tinted with the stage tints, which read as four families
   with no shared shade; white tiles with chips were chosen over a matched
   set of tinted tiles, `globals.css`); a filled
   Activity day opens a table of that day's applications. Its
-  Strong Matches reads the Best Match scores
+  Excellent Matches reads the Best Match scores
   (`getMatches`, one read with Top Matches), and Top Matches under them lists the twelve
   best-scoring jobs as flat rows that scroll inside a tile, with no score
   floor; its Auto Apply button picks jobs for the queue
@@ -1723,9 +1780,10 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   fact is for their Claude to quote, not the answer itself.
   Every resume dialog (Did You Apply?, Tailor's Pick a Resume, Up Next's
   Choose a Resume) picks through one list, `ResumeLists` in
-  `jobs/resume-picker.tsx` (KAN-360; grouped as the Resumes page since
-  KAN-406): change it there, never per dialog (`docs/screens.md`, Job
-  posting page).
+  `jobs/resume-picker.tsx` (KAN-360): change it there, never per dialog
+  (`docs/screens.md`, Job posting page). It is flat with a type badge on
+  each card, as the Resumes table is (2026-11-10; grouped by type with a
+  PDF mark on every card from KAN-406 until then).
   `docs/screens.md`, Applications, has the rest.
 - **Tailor is one step per view** (`(seeker)/jobs/[jobId]/tailor`,
   2026-10-26): every step opens with the same top row (`TailorBar`: Back,
@@ -2019,6 +2077,18 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
 - **An icon's colour says its job** (`docs/design.md`, Components): black to
   click, purple when on, grey for information. Never set a clickable icon to
   `text-ink-meta`.
+- **A bare glyph button takes `place`, never a size class** (2026-11-12,
+  `docs/design.md`, Components): `heading` at a card's heading (20px
+  glyph), `row` everywhere else (16px), both 32px round, Experiences' look.
+  Each call site picked its own size, and Close ran from 24 to 36px.
+- **A tooltip only where the glyph could mean two things, after 600ms**
+  (2026-11-12, `docs/design.md`, Components, has both lists). Close, Back,
+  ⋯, Undo, arrows, a drag handle and a job card's Save take
+  `tooltip={false}` on `IconButton` and no `Tip`; the aria-label stays.
+  With a tooltip on every icon and no delay (`TooltipProvider` had
+  `delay = 0`), a pass over close icons opened each in turn, and a scroll
+  on the Jobs page opened one under the pointer that rode up over the
+  sticky filter bar. Never set the delay back to 0.
 - **Contrast is measured on white and on `well`** (KAN-555,
   `docs/design.md`, Components): a word 4.5:1, a live glyph or chart mark
   3:1. `ink-faint` and `ink-subtle` never colour a word or a live arrow (a
@@ -2033,11 +2103,17 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   right (KAN-565). A disabled filled button is grey (`ui/button.tsx`,
   DISABLED_FILL), never a faded brand fill, and a lesser action beside a
   button is `variant="section"`, never brand text.
-- **Anything clicked or picked is medium (500)**: buttons, chips,
+- **Anything clicked or picked is medium (450, `--font-weight-medium`; 500
+  until 2026-11-10, which read thick beside Jobright's)**: buttons, chips,
   segmented controls, filter options, and shadcn's menu, select and
   combobox rows, which `globals.css` sets by `data-slot` since they set no
-  weight of their own (KAN-365). Regular text is 450, not 400
-  (`--font-weight-normal`): the face's 400 read thin in small grey text. The four weights and their jobs are in
+  weight of their own (KAN-365). One exception: a filter or sort trigger
+  (the row over the Jobs page, the Tracker's and the Resumes tab's) is
+  regular, 400, as Jobright's are (2026-11-10). `text-title` is 600; 700
+  names a page only. Regular text is 400
+  (`--font-weight-normal`, Inter's own, as Jobright's), and the page keeps
+  the Mac's own smoothing: no `antialiased`, which drew every word thinner
+  (2026-11-10). The four weights and their jobs are in
   `docs/design.md`, Type weights, and on `/design-kit/type`.
 - **Reading text is 12px or more** (KAN-554, `docs/design.md`, Type sizes):
   a sentence, hint, error, status or group name is `text-note` or larger;
@@ -2052,7 +2128,7 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   the assistant two marks (`docs/design.md`, Brand and icons). Tailor My
   Resume on a job's card and page is the one exception (`TailorIcon`,
   KAN-518): beside Ask Scout, a second sparkle read as a second assistant.
-- **A match score is red, yellow or green, only through `matchColor()`**
+- **A match score is red, orange, yellow or green, only through `matchColor()`**
   (`lib/match.ts`, KAN-518; `docs/design.md`, Colour): a magenta ramp said
   nothing about the fit, so the score now shares hues with the stages. The
   ramp's pink lives on as the marketing pages' `--color-updates`: a landing
@@ -2060,7 +2136,10 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   there when the bands changed. **Weak is red** (`--color-match-weak` is
   `--color-danger`): KAN-569 drew it in neutral ink while the cut-offs are
   placeholders, and the user brought the bands back on 2026-11-03, since a
-  black ring read as a fault. Keep all four bands coloured.
+  black ring read as a fault. Since 2026-11-10 there are four bands: Weak
+  (under 40) red, Fair (40 to 64) orange, Good (65 to 79) yellow,
+  Excellent (80 up) one green; Strong merged into Excellent, and with Weak
+  at 0 to 64 every card in the feed drew red. Keep all four coloured.
 - **A button is a rounded rectangle; a pill is a chip** (`ui/chip.tsx`, KAN-251).
   Pick a button's size by where it sits (`docs/design.md`, Components). A
   `className` on a Button or Chip may place it or colour a state, never change
@@ -2116,7 +2195,13 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   the kit's layout. Never type a variant's hover or focus classes into the
   kit: Tailwind builds only the classes it finds in the source, so a class cut
   from `hover:bg-brand-hover` at run time has no rule, and a typed copy
-  drifts.
+  drifts. **A kit row that reads the URL** (`useShallowParams`,
+  `useSearchParams`) sits in `<Suspense>` with `<ShallowRouting>` around
+  it, as the motion page's ShallowRouting row and the forms page's
+  TabLinks row do: the kit's pages are static, and without the boundary
+  `npm run build` fails on that page ("useSearchParams() should be wrapped
+  in a suspense boundary", KAN-766's CI, 2026-11-10). `npm run dev` never
+  shows it, so run the build after adding one.
 - **Never key a Tailwind `group-*` variant on the shell wrapper, or on any
   large ancestor whose attribute changes often** (KAN-368). Tailwind v4
   compiles it to `.cls:is(:where(.group)[attr] *)`, and Chrome then restyles
@@ -2181,14 +2266,15 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   The flag lives in its own module, not beside `ASK_SCOUT_LIVE`, because
   server components read it: a value a server component imports from a
   "use client" file arrives as a client reference, which is never false.
-  **Ask Scout is greyed out** (`ASK_SCOUT_LIVE` in
-  `components/scout/scout-buttons.tsx`, 2026-11-02, it does not work): every
-  job's button and the phone editor's two buttons stay in place, disabled,
-  the panel's hint is hidden, and the flag brings them back. A job's
-  button, and Not Interested, which stores nothing yet, are `soon` on
-  `IconButton` (KAN-569): faded and inert, but still hovered and focused,
-  so the tooltip says "Coming Soon". A disabled button shows no tooltip, so
-  nothing said why; a control that is not built takes `soon`. **While it
+  **Ask Scout is hidden** (`ASK_SCOUT_LIVE` in
+  `components/scout/scout-buttons.tsx`, 2026-11-02, it does not work): no
+  Scout button is drawn, neither a job's nor the phone editor's two, and the
+  panel's hint is hidden; the flag brings them all back. They were greyed out
+  in place until 2026-11-11, which the user found read as broken: **a Scout
+  control that does not work is not drawn, never greyed**. Not Interested,
+  which stores nothing yet, is `soon` on `IconButton` (KAN-569): faded and
+  inert, but still hovered and focused, so the tooltip says "Coming Soon". A
+  disabled button shows no tooltip, so nothing said why. **While it
   is off, Scout's chat and the editor's assistant cannot be reached at
   all** (2026-11-06): the panel shows only while a page holds it
   (`scout-panel.tsx` reads `open` as open and taken over), and the editor
@@ -2308,7 +2394,10 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   revert, which moves several bullets, waited for the compile. A
   swap is kept by item, not by position, so a PDF that lands before its
   own still shows it, and one the page already shows draws nothing.
-  A phone's "Saved, N ms" times the render.
+  The round trip from the send to the paint is a performance measure,
+  "resume edit round trip" (`drawn`), read in the browser's developer
+  tools (Safari's on an iPhone) for the open production check; a phone's
+  bar showed it as "Saved, N ms" until KAN-799, noise to a student.
 - **Undo and Redo live in the tab's memory, never in browser storage**
   (KAN-391, `(seeker)/resumes/[resumeId]/history.ts`, tested with
   `node --test`). Each edit records a step: the edit and its reverse,
@@ -2445,26 +2534,28 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   the wording into it and `readMarked` reads it back from each piece's computed
   style, so it does not matter which tags the browser wrote. Bold and italic
   are the browser's own (`document.execCommand`, deprecated with no
-  replacement, in every browser), which brings Ctrl or Cmd+B and I and text
-  undo. A textarea showing `**` until the line was left came first, and the
-  user wanted the look to change directly. Other lines stay plain fields, and
-  anything that lists a bullet as text (Sections, the Experiences picker) goes
-  through `unmarked`. Desktop only: the phone's sheet is still a textarea.
-- **A bullet being added has no box and no id until it is saved** (KAN-435,
-  `add-bullet.ts`, `newLine` in the editor, `extra` on `PdfPages`). It is drawn
-  as a box with no height under its anchor, so the live page moves the page
-  under it, and `moved` skips a box's own move: with no height it counts as
-  under itself, which drew the field a line too low, over the next bullet.
-  **A rich field needs its own React `key`**: its words are the browser's, so
-  a plain div drawn in its place took the same element and printed them twice.
-  Enter and Esc finish the line themselves, and `finishing` keeps the blur that
-  follows from saving it again: a blur alone never fires in an unfocused window.
-- **The toolbar holds what acts on the line clicked, Format Options what acts
-  on the whole resume** (`page-format.tsx`): font size beside bold, unnamed, read
-  as acting on the selection and changed the whole page, so the toolbar's size
-  names its kind of text (`RoleTools`, `textRoleOf`). `TEXT_ROLES` is the one list
-  of kinds, `sizeOf` what each prints at, read by the toolbar, the panel and the
-  open line's type (`typeOf`), so the three cannot disagree. A size is typed
+  replacement, in every browser), set by Ctrl or Cmd+B and I, which
+  `richLine` catches itself (KAN-586): with the bar's Bold and Italic gone,
+  the keys are the only way, and the browser's own shortcut did nothing for
+  a key the Browser pane sent. Text undo is the browser's. A textarea showing
+  `**` until the line was left came first, and the user wanted the look to
+  change directly. Other lines stay plain fields, and anything that lists a
+  bullet as text (Sections, the Experiences picker) goes through
+  `unmarked`. The phone's line sheet uses the same rich field (KAN-799).
+- **A rich field needs its own React `key`** (`richLine`): its words are the
+  browser's, so a plain div drawn in its place took the same element and
+  printed them twice. Found on Add Bullet on the page (KAN-435), which drew a
+  new bullet's field in place under the open line; it was removed in KAN-586
+  once its toolbar button went, and a bullet is added in the entry's form.
+  It is in git history (`add-bullet.ts`, `newLine`, `extra` on `PdfPages`)
+  if an in-place add is wanted again.
+- **The toolbar holds the line's arrows, the Format tab what acts on the whole
+  resume** (`page-format.tsx`): font size beside bold, unnamed, read as acting
+  on the selection and changed the whole page; the toolbar's size then named
+  its kind of text (`RoleTools`), and since KAN-586 a size is the Format tab's
+  alone. `TEXT_ROLES` is the one list of kinds, `sizeOf` what each prints at,
+  read by the panel and the open line's type (`typeOf`, `textRoleOf`), so the
+  two cannot disagree. A size is typed
   or stepped (`SizeStepper`), and a typed one applies on Enter or on leaving the
   field, never per key, since each change compiles the PDF. Each role's `min`
   and `max` repeat `resume_render`'s scales. The bar's `onMouseDown` keeps the
@@ -2472,44 +2563,132 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   stays open behind it. `FONTS` is the
   list of families, whose `css` puts the open line in the system font the
   PDF's matches letter for letter: with Tinos a line sat 2px off the print over
-  714px. A new page setting joins the panel only if a student expects it from a resume
-  builder, and keeps one control per decision: Spacing and Margins stay one
-  choice each. Degree First moves the school to the degree's row, so
+  714px. **Format Options is grouped as Jobright's Style panel** (2026-11-11,
+  `docs/screens.md`) in WorkIt's own style: flat groups (`Group`) for Font,
+  Content Style, Layout and Spacing & Margin, each a 13px semibold name over
+  its settings, a hairline between groups (`divide-y`, as the Sections tab's
+  rows), all open, then Reset Formatting, always there and off while
+  nothing is set. Each group was a white card with a 20px title ruled off
+  under it for a day: no other card in the app rules off its heading, and
+  boxed cards beside the flat Sections list read as two designs. A new page setting joins the card it belongs to, and only
+  if a student expects it from a resume builder. **No Accent Color**
+  (KAN-586): the user found a coloured name and headings unprofessional and
+  took the swatches out. The API still prints `accent`, so a resume set to
+  a colour before keeps it until Reset Formatting sets black.
+  **A glyph button that stays pressed on the bar takes `PRESSED_GLYPH`**
+  (`slim-bar.ts`: the side panel's button, the phone's zoom): a ghost
+  button's 2px corner, meant for a ring around inline text, drew the
+  pressed tint as a square block against the bar's round end. **Every page setting
+  compiles the PDF, so a control commits once per decision**: each spacing
+  and margin is its own slider (`StopSlider`) that stops only at the API's
+  values (`PageSettings`' Literals in `backend/app/schemas/built_resume.py`;
+  change both together) and commits on release or per arrow key, never per
+  stop crossed (`onValueCommitted`, not `onValueChange`, which only moves the
+  value shown). The slider is shadcn's, vendored as `shadcn add` wrote it and
+  set from `globals.css` by `data-slot` as the checkbox and switch are: Base
+  UI focuses a range input inside the thumb, so shadcn's own
+  `focus-visible` ring on the thumb never showed, and its well-grey track
+  vanished on a white card. Pass the vendored `Slider` an array `value`: given
+  a number, it draws two thumbs. Spacing and Margins were one three-way
+  choice each over several settings until then, and a resume set any other
+  way showed none picked. A choice that is a picture (the bullet, the
+  education order) is a tile that draws it (`Tiles`, on Base UI's
+  ToggleGroup), named on hover. Degree First moves the school to the degree's row, so
   `degreeLeads` swaps that line's type too (`textRoleOf`, `typeOf`) and must
-  agree with the API's `degree_leads`. The API keeps the settings the
-  panel dropped, so a resume set that way prints as it did. The bar mutes every
-  button's words (`SLIM_BAR`, `DOCS_BAR`), so a real action there (Add Bullet,
-  `FitButton`) carries `data-bar-action`, or a filled button reads grey on purple.
-  **An open bullet or entry moves from the bar** (`MoveButtons`, Move Up
-  and Move Down beside bold and italic, or an entry's size): a bullet within
+  agree with the API's `degree_leads`. The bar mutes every
+  button's words (`BAR_BUTTONS` in `slim-bar.ts`, on the phone's row and line
+  sheet too), so a real action there (`FitButton`, Download) carries
+  `data-bar-action`, or a filled button reads grey on purple.
+  **An open bullet or entry moves from the bar** (`lineTools`' Move Up and
+  Move Down, the only tools an open line has, KAN-586, and in the phone's
+  line sheet): a bullet within
   its entry, an entry within its section, through `move` and `apply`, so it
   trades places with its neighbour on the page at once (`swapsOf`; an entry
   takes its bullets with it, and only when both sit on one page) while the
   save and the render go behind it, and the line stays open on it. The
   Sections panel reorders at once too, since it reads the same choices. It
   sends the line's typed text first (`flush`), so the move's render prints
-  it. A section moves only in the Sections panel.
+  it. A section, a skill group or a skill moves only in the Sections panel
+  (KAN-586, `docs/screens.md`). **A skill's move to another
+  group is this resume's** (its choice's `group`), and its Undo names the
+  bank's group rather than null (`reverseChoices`): a null field keeps its
+  value in a save, so a reverse of null undid nothing.
   **One bar, one height** (KAN-576): every button on it is 36px, text
   buttons `sm` and icon buttons `icon-lg` (the kit's `icon-sm` is 28px);
-  `xs` and `icon-sm` there stood 26 and 28px beside 36px ones. An upload's
-  page draws the same box (`SLIM_BAR`, `[resumeId]/slim-bar.ts`).
-  **One row, never two** (`[resumeId]/bar-fold.tsx`): the idle bar is a
-  container (`@container/bar`), so it folds by its own width, which the
-  side panel and Tailor's columns change, never by the window's. Words go
-  first, least needed first (Format Options, Sections, the save status, Add
-  Experiences, Fit to One Page, Download), each button keeping its glyph,
-  its `aria-label` and a tooltip (`FoldButton`); then zoom, the panels and
-  Add Experiences leave the row for More (⋯) at its end, which lists only
-  what the bar hides (each piece in a `data-fold` box, read on open). Undo,
-  Redo, Fit and Download never leave. The steps are measured widths in
-  `FOLD`: a control added to the row, or a longer word, means measuring
-  them again (sweep the bar's width by script and look for a button past
-  its edge). The phone editor's row folds its words the same way
-  (`PHONE_FOLD`). The bar wrapped to a ragged second row at about 800px
-  until then. **Still open:** the bar with a line open still wraps.
-- **A bullet's one wording button is Original** (`LineActions`), shown
-  only while the bullet shows another wording (Tailor's, or one typed on
-  this resume): it puts the bank's text back, and Undo takes that back.
+  `xs` and `icon-sm` there stood 26 and 28px beside 36px ones. **One bar
+  shape** (KAN-799): the editor's own page, Tailor's review and an upload's
+  page draw the same box (`SLIM_BAR`, `[resumeId]/slim-bar.ts`); Tailor's
+  was a pill of its own (`DOCS_BAR`) with zoom at its left, and the
+  review's icons in the title row were 40px.
+  **The bar holds editing tools only; the title row holds the file**
+  (KAN-799, `[resumeId]/toolbar.tsx`). The title row is the name, the save
+  status ("Saving…", "Saved"; `SaveStatus`) and Download, the page's one
+  filled button (secondary on Tailor's review, whose fill is Finish), with
+  the review's Original and Suggestions before it. The bar is three groups
+  that keep their places: Undo and Redo; the middle; the zoom and **the side
+  panel's one button** (KAN-586), at the row's end above where the panel
+  opens, never folded away. **Sections and Format are tabs of one side
+  panel** (`PanelTabs`, `ui/tabs.tsx`'s `TabButtons`), not toolbar buttons:
+  they are views, not tools. The panel opens with the editor where it docks
+  beside the page (xl up) and waits for the button below that, where it
+  floats over the page; its ✕ and the button close it, and the button opens
+  it on the tab shown last. On the editor's page it is Scout's panel with no
+  header of its own (`ScoutTakeover`'s `bare`); on Tailor's review it is the
+  column beside the page. Sections and Format Options were two toolbar
+  buttons, each opening its own panel, until then. Only the middle changes when a line opens: idle, the
+  page's tools (Add Experiences, Fit to One Page, Cut From Resume); open,
+  **the line's two arrows and nothing else** (`lineTools`, KAN-586, the
+  user's call; `docs/screens.md` says where each dropped tool lives). A
+  line with no moves (a header field, a skill, a lone entry) keeps the bar
+  idle (`openLineOf` returns null). Until KAN-586 an open line also had its
+  size, bold, italic, Add Bullet, Hide, Original, the GPA and Coursework
+  switches, Edit Header and Done; until KAN-799 the panels, the zoom,
+  Download and More left the bar when a line opened. **The phone's line
+  sheet draws the same `lineTools`**, under the desktop's rich field
+  (`richLine`). **Add Bullet on the page is removed** (the user's call):
+  a bullet is added in the entry's form (Add Bullet Point), which places it
+  on this resume where the form lists it.
+  **The phone editor has the desktop's two rows** (`phone.tsx`, KAN-586):
+  the title row (the editor's `heading`, so the name renames in place, the
+  save status and Download) over the toolbar in `SLIM_BAR`, with the shared
+  `FitButton`, `ReviewButtons` and `PanelToggle`; the side panel is a sheet
+  whose title is the Sections and Format tabs (`TabButtons`), and a tap on
+  the header line no longer opens anything but its field. It kept a
+  lavender bar, a bottom bar and its own Format and Header sheets until
+  then.
+  **Show and Hide Suggestions is the Suggestions panel's own** (its eye
+  icon, `marks` on `SuggestionsApi`): the toolbar's toggle beside the title
+  row's Suggestions was two controls for one thing.
+  **One row, never two** (`[resumeId]/bar-fold.tsx`), idle and with any
+  line open: the bar folds by measure (`useFoldToFit`), one step at a time
+  until the row is no wider than the bar, whenever what it holds or its
+  width changes, before paint. Words go first, least needed first, each
+  button keeping its glyph, its `aria-label` and a tooltip (`FoldButton`);
+  then controls leave the row for More (⋯) at its end, which lists only what
+  the bar hides (each piece in a `data-fold` box, read on open). The steps
+  are `FOLD.idle` and `FOLD.line`; a new control joins by naming its step on
+  its box (`data-word-at`, `data-away-at`), with no width to measure.
+  Undo, Redo, Fit and the panel's button never leave. Fixed container-query
+  widths came first (KAN-576),
+  measured on the editor's own page: they folded Tailor's bar early,
+  needed measuring again for each button or word, and could not cover a
+  line's tools, which differ by kind, so the bar wrapped with a line open
+  until KAN-799. The idle bar's real buttons wait for the first render,
+  which only the browser runs, so measuring costs the server's first paint
+  nothing. Swept by script on 2026-11-11 from 300px to 1300px, idle (with
+  and without Fit and Cut From Resume) and with a bullet, an entry, the
+  header, a skill and a new bullet open: no overflow from 424px up, and the
+  narrowest desktop bar (a 641px window) is 596px. The phone editor's rows
+  fold their words with fixed steps (`PHONE_FOLD`): Add Experiences' and
+  Fit's in the toolbar, Download's in the title row.
+- **A bullet's one wording button was Original** (`lineTools`, until
+  KAN-586 cut the open line's tools to its arrows), on the desktop bar and
+  the phone's sheet, shown
+  only while the bullet showed another wording (Tailor's, or one typed on
+  this resume): it put the bank's text back, and Undo took that back. With
+  it gone, Undo and Tailor's panel take a wording back; KAN-800 ("Resume
+  edits stay on that resume") decides where a resume's own wording is
+  reset.
   The resume's own wording and Tailor's stay in `bank_bullet_variants`.
   A "Tailored N" button per Tailor wording came first, then This Resume's
   Wording beside Original; the user wanted Original alone (2026-10-29).
@@ -2528,9 +2707,10 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
 - **Tailor's review is the resume editor with props, not a fork**
   (`(seeker)/resumes/[resumeId]/editor.tsx`), and both pages draw one
   editor design (KAN-411): the title row (`heading`, `ResumeTitle`
-  renamed in place) and the slim toolbar (`SlimBar`). Only the review
-  passes `suggestions` (the panel, and with it the margin dots and tints,
-  the view switch in the title row, no Experiences picker, and Scout's
+  renamed in place) and the slim toolbar (`Bar`, `toolbar.tsx`). Only the
+  review passes `suggestions` (the panel, and with it the margin dots and
+  tints, Original and Suggestions in the title row (`ReviewButtons`), a
+  secondary Download, no Experiences picker, and Scout's
   panel left to the job chat), `original`, `phoneBar` and `phoneBack`
   (the phone layer covers the step's row, so its header carries the job,
   the step and Finish, KAN-574). A change for the review goes behind
@@ -2548,6 +2728,26 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   against "Oct 20" (a browser in the Americas) broke hydration with React
   error #418 (2026-10-22). `toLocaleDateString()` in render is safe only for
   data fetched in an effect.
+- **A value read from browser storage in a `useState` initializer is
+  false while hydrating** (`useHydrated` in `(seeker)/local-time.tsx`,
+  read in the same render): the server has no storage, so a client that
+  reads it during hydration draws other classes and React warns. The Jobs
+  feed's `fromSnapshot` did, on every hard load with a kept snapshot
+  (2026-11-10).
+- **A page drawn under a modal on a hard load comes hidden from the
+  server.** The Settings modal hides everything outside itself but live
+  regions (`[aria-live]`), and walks into each live region's ancestors to
+  hide their other children, so on a hard load it set `aria-hidden` inside
+  Home's streamed sections before they hydrated, and React warned of a
+  mismatch (2026-11-10). `settings/layout.tsx` wraps Home in
+  `aria-live="off" aria-hidden inert`: one kept region the modal never
+  walks into.
+- **A control inside a card with a click layer sits above the layer**
+  (`relative z-2`; the layer is `absolute inset-0 z-1`,
+  `components/job-posting-card.tsx`). `relative` alone is not enough: Save
+  on the job card had no z-index, sat under the layer, showed no hover and
+  opened the job when clicked (2026-11-10). Check a new control with
+  `document.elementFromPoint` at its centre.
 - **A relative time ("Posted 5 minutes ago") rendered in a client component
   sits in an element with `suppressHydrationWarning`**, as the job card's
   badge does. The clock moves between the server render and hydration, so
@@ -2764,60 +2964,101 @@ are in `docs/auth.md`.
   short.
 - **The Resumes view is one list of every resume** (KAN-362, KAN-404,
   `(seeker)/resumes/built-resumes.tsx`): uploaded, generated and tailored,
-  newest first, each as its card (`components/resume-row.tsx`'s box, star
-  and icons: star, Rename, Download, Delete; Delete asks in a popover
-  under the trash, `DeleteResumeConfirm`, KAN-347; below `@xl` of the
-  row, a phone's, Rename, Download and Delete sit in a `⋯` menu,
-  `RowMoreMenu`, and the name keeps half the row, KAN-575), in one card that scrolls
-  inside itself and runs down to the foot of the page (`ResumeScroll`'s
-  `fill` in `components/resume-list.tsx`, KAN-434), never shorter than
-  five cards under a heading (`FIVE_ROWS`, 352px). Capped at five cards,
-  it left half a laptop screen empty under it. The cap is measured from
-  the start of the page, not the window: a cap that grew as the list's top
-  rose would grow the page with it as it scrolled. **It is laid
+  newest first, as a List or a Grid (KAN-766). **The List is a table
+  after the Tracker's** (`applications/list.tsx`; `ResumeList` in
+  `resumes/resume-list.tsx`, rows by `ResumeCard`, 2026-11-10): one white
+  card, grey headings Name, Target Job, Type and Date Modified, rules
+  between rows, a row that opens the resume on a click anywhere
+  (`ClickableRow`), and the actions at the right (Make Primary, Rename,
+  Download and Delete in ⋮, and for picked rows in the bar over the table; Delete asks in a popover under the
+  trash, `DeleteResumeConfirm`, KAN-347). After Jobright's resume table,
+  the name stands alone with a Primary badge on the primary, and a
+  tailored resume's job has its own column, drawn as the Tracker's Role
+  cell (logo, then the role over the company), empty for the rest; no
+  tile leads a row, since Type says what each resume is. The headings name each column once: as cards, each resume
+  labeled its own date "Modified" or "Created", which the user found
+  repetitive. Its columns do not move, resize or hide as the Tracker's
+  do. **Name is two fifths of the table and Target Job takes the rest**
+  (`RESUME_NAME_COL`, 2026-11-11): Name took all the room the fixed
+  columns left, so a short name stood far from its job, which was cut at
+  256px. **Rows are picked with select boxes, and a bar acts on them**
+  (2026-11-11, after Notion's; `components/selection-bar.tsx`): a box
+  starts each row's Name cell and Select All the Name heading, as Up
+  Next's Role cell and heading do (the same `PickBox`); while any row is
+  picked, `SelectionBar` floats over the filter row, whose other controls
+  hide meanwhile (`SELECTION_ROW`), with the count, Make Primary and
+  Rename (one pick only), Download, then Delete as a glyph alone (asks
+  first, in `DeleteDialog`). **No close button**: a × beside the actions
+  confused the user; Escape, or Select All while any row is picked,
+  clears the pick. Up Next uses the same bar (Auto Apply, then Remove From
+  Queue as a trash glyph), and Add Jobs stays in its place; so does the
+  Tracker's list (`applications/pick.tsx`: Status, then Remove while
+  every pick is a saved job). **Every page table picks the same way**: a
+  new one takes `PickBox` in its first cell, Select All in that heading,
+  and `SelectionBar` over its filter row. **Every page table fills its
+  rows with `rowFill` and its frozen cells with `frozenFill`**
+  (`components/fill-page.ts`, 2026-11-11): the shadcn row's own grey hover
+  turned a picked row grey under the pointer while its frozen Job cell
+  stayed purple, and an open group heading grey while a folded one stayed
+  white; the base row now has only the app's hover grey, and a group
+  heading draws its own light band (`table-group.tsx`), open or folded. A frozen column
+  ends in `FROZEN_EDGE`, darker than the row rules, so it reads as
+  apart (after Notion's). **Draw that edge as a 1px `after:` line inside
+  the sticky cell, never a `box-shadow` outside it**: the shadow showed
+  only as a short tick mid-row, and the user saw no line. Each row keeps its current
+  actions with the page (`RowPick.register`), so the bar runs the very
+  handlers ⋮ runs. Each row keeps ⋮ alone in a 48px column
+  (`RESUME_ACTIONS_COL`) for one resume at a time. Hover icons came
+  first: over Date Modified, which they hid and ran past into Type, then
+  in a 144px column of their own, empty at rest, with ⋮ beside them
+  holding the same four; the user found both wrong. The grid has no
+  boxes. The bar's words fold to icons below `@lg` of the filter row (a
+  phone's). Cover Letters' table (`cover-letters/cover-letters.tsx`) uses
+  the same column constants, so a width change here changes both tabs.
+  **Both layouts scroll with the page**, as the Tracker's table does
+  (2026-11-10): the list, then the grid, scrolled inside their own box
+  down to the page's foot from KAN-434 (`ResumeScroll`'s `fill`, which
+  Tailor's Pick a Resume keeps), and once the table scrolled with the page
+  a switch of layout also switched how the page scrolled. The loading
+  frame draws the layout the cookie names ((list)/loading.tsx), or the
+  page jumped from a table to the grid as it loaded. **It is laid
   out as the Applications Tracker is**, so keep the two alike: the search
   on its own row, then the Type filter (`FieldFacet`, the Applications
   list's dropdown, in `?type=`) and the Sort dropdown (Last Edited, the
   default; Oldest First; Name, A to Z; in `?sort=`, KAN-366) with Upload
   Resume and Generate Resume at the right, both above the list, and `EmptyState` in the list's place
   when no card shows. Upload Resume and Generate Resume never sit in the
-  shared header. A card says what it is in its own line ("Uploaded …",
-  "Last edited … · For <posting>"), so the list needs no Type or date
-  column: two table versions came first in KAN-362, one with Type and
-  Last Edited columns and sort headings, one with each row's icons in a
-  `⋯` menu, and the user found the columns useless beside the cards and
-  the menu hid the actions students use. Three views behind pills, then
+  shared header. Two table versions came first in KAN-362, one with Type
+  and Last Edited columns and sort headings, one with each row's icons in
+  a `⋯` menu; the user found the columns useless beside cards that each
+  said what they were, and the menu hid the actions students use. The
+  table came back on 2026-11-10 with the icons kept on hover. Three views behind pills, then
   tabs, came before that: each split one list though every card acts
   alike, and a student had to look in three places for their latest
-  resume. **The list is grouped by type, as Notion's Group by**
-  (KAN-404): Uploaded, Generated, then Tailored, the Type filter's order,
-  each under a sticky heading with its name in a `Badge` pill and its
-  count, which folds it (`ResumeGroup`, `?collapsed=`). The search, Type
-  and Sort still run over every row; the groups only split what they
-  leave, the order runs inside each group, and the starred resume leads
-  its own. **Keep one scroll for the list, never a scroll box per group
+  resume. **The list is flat, as the grid is** (2026-11-10): every card
+  the search, Type and Sort leave, in the sort's order, the starred resume
+  first. It was grouped by type from KAN-404 (Uploaded, Generated, then
+  Tailored, each under a sticky heading with a pill and a count that
+  folded it, `?collapsed=`), so the uploads, capped at 5, did not sink
+  under the tailored resumes, which have no cap. The user dropped the
+  groups once the grid came without them: the headings looked ugly beside
+  it, and the Type filter finds one type. Do not group one view and not
+  the other. **Keep one scroll for the list, never a scroll box per type
   and no Show N More**: nested, the wheel and a finger get caught in the
   inner box, and a per-group limit with Show N More (Notion's) was built
-  and turned down by the user, who wants the list to scroll on. The
-  heading sits on z-20, over the cards' z-10 icons, which bled over it on
-  the same layer. Uploads are capped at 5 and Generate refuses duplicates, but
-  tailored resumes have no cap (one per job posting), so ungrouped they
-  buried the uploads and a student needed the Type filter to find their
-  own file. A first version had two groups, Uploaded and Generated, then
-  Tailored, with grey capitals for names; the user wanted one group per
-  type and the names in pills, which stand out from the grey cards.
+  and turned down by the user, who wants the list to scroll on.
   **Below a 42rem row the filters are two even rows** (Type and Sort,
   then the two buttons), and below 24rem the buttons say only Upload and
   Generate (`ShortLabel`, "Resume" kept for screen readers): wrapped as
   one row the buttons sat alone at the right, and "Generate Resume"
   broke onto two lines on a phone. **Every resume picker dialog draws
-  the same grouped list** (KAN-406): `components/resume-list.tsx` holds
-  the groups, the heading (`ResumeGroup`) and the scroll (`ResumeScroll`:
-  five cards in a picker, the page's foot with `fill`), and each screen
-  draws its own cards in it, the
-  Resumes page's with their actions, a picker's with a radio. A change
-  to how the list groups or scrolls goes there, so the page and the
-  dialogs never drift apart again. The picker's row is the page's row
+  the same list** (KAN-406): `components/resume-list.tsx` holds the
+  scroll (`ResumeScroll`: five cards in a picker, the page's foot with
+  `fill`) and the pickers' group heading (`ResumeGroup`), and each screen
+  draws its own cards in it, the Resumes page's with their actions, a
+  picker's with a radio. The pickers still group by type; the Resumes
+  page stopped on 2026-11-10 (above). A change to how the list scrolls
+  goes there, so the page and the dialogs never drift apart again. The picker's row is the page's row
   cut down: the search, the Type filter and, where the dialog takes a
   file (Did You Apply?, Tailor), Upload Resume, which at the 5-upload
   limit asks which upload the file replaces, under the row. No Sort and
@@ -3082,6 +3323,15 @@ query, the percent; `node --test`); its read is `getFillHealth` in
   Settled choices (16px card gap, the 68ch `--measure-prose` and 48rem
   `--measure-form`, the wizard footer, no Experiences exception to the
   icon rule) change only with the user.
+- **Reuse before drawing** (2026-11-11, the user's rule, after the
+  Tracker's closed-postings notice drew a look of its own beside Auto
+  Apply's notice for the same job, and Documents lacked the table toolbar
+  the Tracker and Auto Apply had): before drawing a banner, a toolbar
+  control, a group heading or a panel, find the one the app already has
+  and use it, moving it to `components/` when it lives in one page. A
+  change to one page table is checked on the others (the Tracker, Up
+  Next, Documents' resumes). The shared parts are listed in
+  `docs/design.md`, "Reuse before drawing".
 - **Motion**: before adding or changing an animation, transition, hover or
   press state, `<ViewTransition>` or shallow routing, read `docs/motion.md`.
 

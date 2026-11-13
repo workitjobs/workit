@@ -53,6 +53,10 @@ def test_a_keyword_reads_as_a_resume_prints_it():
         ("c++", "C++"), ("node.js", "Node.js"),
         # A word the posting capitalized its own way stays
         ("iOS", "iOS"), ("McKinsey consulting", "McKinsey Consulting"),
+        # A skill the catalog spells, as it spells it: "Numpy", "Html5" and
+        # "Matlab" printed on tailored resumes (2026-11-12 audit)
+        ("numpy", "NumPy"), ("html5", "HTML5"), ("matlab", "MATLAB"), ("grpc", "gRPC"), ("jquery", "jQuery"),
+        ("gpu programming", "GPU Programming"),
     ]:
         assert keywords.resume_case(typed) == printed
 

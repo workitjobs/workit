@@ -7,11 +7,11 @@ import {
 import type { ComponentType } from "react";
 
 import {
+  AppliedIcon,
   AwardIcon,
   BookmarkIcon,
-  BriefcaseIcon,
-  CalendarIcon,
-  CloseIcon,
+  InterviewIcon,
+  RejectedIcon,
 } from "@/components/icons";
 import type { BadgeTone } from "@/components/ui/badge";
 
@@ -66,10 +66,10 @@ export const STAGE_LABEL: Record<StageKey, string> = {
  *  Status filter option, a board column's header and an Up Next row. */
 export const STAGE_ICON: Record<StageKey, ComponentType<{ className?: string }>> = {
   saved: BookmarkIcon,
-  applied: BriefcaseIcon,
-  interviewing: CalendarIcon,
+  applied: AppliedIcon,
+  interviewing: InterviewIcon,
   offer: AwardIcon,
-  rejected: CloseIcon,
+  rejected: RejectedIcon,
 };
 
 export const STAGE_COLOR: Record<
@@ -149,8 +149,8 @@ export const KIND_STAGE: Record<EventKind, StageKey> = {
 /**
  * Each kind's glyph, wherever an entry is drawn (the Calendar, Home's Up
  * Next, an application's timeline and its Interviews & Dates), so two kinds
- * in one stage's colour still read apart (KAN-429): Applied's briefcase and
- * Apply by's flag, an interview's calendar and an assessment's clipboard. A
+ * in one stage's colour still read apart (KAN-429): Applied's paper plane and
+ * Apply by's flag, an interview's chat bubbles and an assessment's clipboard. A
  * kind with a stage of its own keeps that stage's glyph.
  */
 export const KIND_ICON: Record<EventKind, ComponentType<{ className?: string }>> = {

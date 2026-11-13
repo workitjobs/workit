@@ -8,6 +8,7 @@ import type { RenderBox } from "@/lib/built-resume-actions";
 import { cn } from "@/lib/cn";
 
 import type { Mark } from "./tailor-review";
+import { Tip } from "@/components/ui/tip";
 
 /**
  * The rendered PDF drawn with pdf.js, one canvas per page, with a click
@@ -88,6 +89,7 @@ const KIND_LABELS: Record<string, string> = {
   github_url: "GitHub",
   portfolio_url: "Portfolio",
   other_url: "Link",
+  resume_header_extra: "Additional Line",
 };
 export const kindLabel = (kind: string) => KIND_LABELS[kind] ?? kind;
 
@@ -101,8 +103,17 @@ let pdfjsLoading: Promise<typeof import("pdfjs-dist")> | null = null;
  * downloads while the server is still compiling the PDF rather than after
  * the PDF has arrived. A failed import is forgotten, so the next caller
  * tries again.
+ *
+ * NEVER ON THE SERVER, AND NOT IN ITS BUNDLE. Only effects call it, but the
+ * bare import() still put pdf.js (about 1 MB) into the server's code, which
+ * the app's Cloudflare Worker loads whole each time a new copy of it starts.
+ * The bundler reads `typeof window` as a constant, so the server build drops
+ * the branch and the library with it.
  */
 export function loadPdfjs() {
+  if (typeof window === "undefined") {
+    return Promise.reject(new Error("pdf.js runs in the browser only"));
+  }
   pdfjsLoading ??= import("pdfjs-dist").then(
     (pdfjs) => {
       pdfjs.GlobalWorkerOptions.workerSrc ||= new URL(
@@ -161,7 +172,6 @@ export function PdfPages({
   onDrawn,
   overlay,
   overlaid = [],
-  extra,
   shiftOf,
   swaps,
   gaps,
@@ -189,9 +199,6 @@ export function PdfPages({
    *  key: the text field for the selected line, typed text for others. */
   overlay?: (box: RenderBox) => ReactNode;
   overlaid?: string[];
-  /** A line the PDF does not print yet, with no height: a bullet being added,
-   *  drawn like any overlaid line, with the page under it moved by `shiftOf`. */
-  extra?: RenderBox;
   /** Points an overlaid line's text is taller (or, below 0, shorter) than
    *  its box on the PDF on screen: what the page under it moves by. */
   shiftOf?: (box: RenderBox) => number;
@@ -227,7 +234,7 @@ export function PdfPages({
   const closing = readOnly ? [] : closeUp(gaps?.(traded) ?? []);
   const shown = readOnly
     ? []
-    : [...traded, ...(extra ? [afterStrips(extra, strips)] : [])].flatMap((box) => {
+    : traded.flatMap((box) => {
         const kept = afterGaps(box, closing);
         return kept ? [kept] : [];
       });
@@ -242,7 +249,6 @@ export function PdfPages({
   // A target below an overlaid line moves with the page under it
   const moved = (box: RenderBox) =>
     lives.reduce(
-      // Never by itself: `extra` has no height, so it counts as under itself
       (by, l) =>
         l.page === box.page && l.y1 <= box.y0 && boxKey(l) !== boxKey(box) ? by + l.by : by,
       0,
@@ -327,7 +333,7 @@ export function PdfPages({
             }}
           />
           {shown
-            .filter((box) => box.page === i + 1 && box !== extra)
+            .filter((box) => box.page === i + 1)
             .map((box) => {
               const key = boxKey(box);
               const mark = marks?.get(key);
@@ -460,7 +466,7 @@ function LinePopup({
     <div
       ref={card}
       data-popup
-      className="bg-panel ring-border-subtle absolute z-20 w-80 max-w-full overflow-y-auto overscroll-none rounded-xl shadow-lg ring-1"
+      className="bg-panel ring-border-subtle rounded-card absolute z-20 w-80 max-w-full overflow-y-auto overscroll-none shadow-lg ring-1"
       style={{
         left: `min(${left * 100}%, calc(100% - 20rem - 8px))`,
         maxHeight: place.room === Infinity ? undefined : place.room,
@@ -503,25 +509,26 @@ function MarginDots({
       const nth = perRow.get(row) ?? 0;
       perRow.set(row, nth + 1);
       return (
-        <button
-          key={`${key}.dot`}
-          type="button"
-          aria-label={DOT_LABEL[dot.mark]}
-          onClick={() => onDot?.(key)}
-          className={cn(
-            // Brand purple whatever the change, and 8px: in each type's
-            // colour the amber dots read as one more signal among the
-            // highlights; a dot says only that a line changed, the panel
-            // says how
-            "outline-panel bg-brand absolute z-10 size-2 rounded-full shadow-sm outline-2 transition-transform hover:z-20 hover:scale-125",
-            "focus-visible:outline-brand focus-visible:outline-2 focus-visible:outline-offset-1",
-            dot.lit && "ring-brand scale-125 ring-2 ring-offset-1",
-          )}
-          style={{
-            left: `calc(${(12 / size.width) * 100}% + ${nth * 7}px)`,
-            top: `calc(${(box.y0 / size.height) * 100}% + 4px)`,
-          }}
-        />
+        <Tip key={`${key}.dot`} label={DOT_LABEL[dot.mark]}>
+          <button
+            type="button"
+            aria-label={DOT_LABEL[dot.mark]}
+            onClick={() => onDot?.(key)}
+            className={cn(
+              // Brand purple whatever the change, and 8px: in each type's
+              // colour the amber dots read as one more signal among the
+              // highlights; a dot says only that a line changed, the panel
+              // says how
+              "outline-panel bg-brand absolute z-10 size-2 rounded-full shadow-sm outline-2 transition-transform hover:z-20 hover:scale-125",
+              "focus-visible:outline-brand focus-visible:outline-2 focus-visible:outline-offset-1",
+              dot.lit && "ring-brand scale-125 ring-2 ring-offset-1",
+            )}
+            style={{
+              left: `calc(${(12 / size.width) * 100}% + ${nth * 7}px)`,
+              top: `calc(${(box.y0 / size.height) * 100}% + 4px)`,
+            }}
+          />
+        </Tip>
       );
     });
 }

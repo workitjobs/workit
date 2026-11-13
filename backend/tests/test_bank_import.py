@@ -194,6 +194,8 @@ async def test_an_upload_writes_its_reading_into_the_bank(student, upload):
     assert body["bank"] == {
         "found": 8, "entries_added": 6, "skills_added": 2, "entries_replaced": 0, "skills_replaced": 0,
         "read_by": "parser", "uses_left": 1,
+        # No header above the first heading: nothing for the profile
+        "header": {"added": {}, "offers": [], "overflow": False},
     }
 
     saved = (await client.get(bank)).json()
@@ -208,7 +210,7 @@ async def test_an_upload_writes_its_reading_into_the_bank(student, upload):
     ]
     education, job, project, club, award, cert = saved["entries"]
 
-    assert (education["degree"], education["field_of_study"], education["gpa"]) == ("B.S", "Mechanical Engineering", 3.62)
+    assert (education["degree"], education["field_of_study"], education["gpa"]) == ("B.S.", "Mechanical Engineering", 3.62)
     assert education["coursework"] == ["Thermodynamics", "Fluid Mechanics", "Statics"]
     assert (education["end_month"], education["end_kind"]) == ("2099-05", "expected")
     assert education["bullets"] == []
@@ -453,6 +455,47 @@ async def test_another_students_resume_cannot_be_updated(student, upload, databa
     res = await upload(client, applicant_id, UPDATED_TEXT, replacing=theirs)
     assert res.status_code == 404
     assert upload.bucket.files == {}
+
+
+# --- the header fills the profile (KAN-436) ------------------------------------
+
+HEADER = """\
+Sam Seeker
+Stony Brook, NY | (631) 555-0100 | linkedin.com/in/samseeker | samseeker.dev
+Open to relocation
+"""
+
+
+async def test_an_upload_fills_the_profiles_empty_fields_from_its_header(student, upload):
+    client, applicant_id, _ = student
+    me = f"/applicants/{applicant_id}"
+    assert (await client.patch(f"{me}/profile", json={"location": "Albany, NY"})).status_code == 200
+
+    res = await upload(client, applicant_id, HEADER + RESUME_TEXT)
+    assert res.status_code == 200, res.text
+    header = res.json()["bank"]["header"]
+    assert header["added"] == {
+        "phone_number": "(631) 555-0100", "linkedin_url": "https://linkedin.com/in/samseeker",
+        "portfolio_url": "https://samseeker.dev", "resume_header_extra": "Open to relocation",
+    }
+    # The location the profile had stays; the resume's is offered
+    assert header["offers"] == [{"field": "location", "value": "Stony Brook, NY"}]
+    profile = (await client.get(f"{me}/profile")).json()
+    assert (profile["location"], profile["phone_number"], profile["resume_header_extra"]) == (
+        "Albany, NY", "(631) 555-0100", "Open to relocation")
+
+
+async def test_import_again_reads_the_header_and_overwrites_nothing(student, database):
+    client, applicant_id, bank = student
+    me = f"/applicants/{applicant_id}"
+    resume_id = await _seed_resume(database, applicant_id, HEADER + RESUME_TEXT)
+    assert (await client.patch(f"{me}/profile", json={"phone_number": "212-555-0199"})).status_code == 200
+
+    body = (await client.post(f"{bank}/import", json={"resume_id": str(resume_id)})).json()
+    assert "phone_number" not in body["header"]["added"]
+    assert body["header"]["added"]["location"] == "Stony Brook, NY"
+    assert {"field": "phone_number", "value": "(631) 555-0100"} in body["header"]["offers"]
+    assert (await client.get(f"{me}/profile")).json()["phone_number"] == "212-555-0199"
 
 
 # --- Import Again ---------------------------------------------------------------
@@ -745,7 +788,7 @@ async def test_a_confirmed_preview_replaces_matching_entries_instead_of_adding_c
     new = res.json()["id"]
     assert res.json()["bank"] == {
         "found": 4, "entries_added": 2, "skills_added": 2, "entries_replaced": 1, "skills_replaced": 1,
-        "read_by": "parser", "uses_left": 1,
+        "read_by": "parser", "uses_left": 1, "header": {"added": {}, "offers": [], "overflow": False},
     }
 
     held = _held((await client.get(bank)).json())
@@ -880,6 +923,13 @@ async def test_an_upload_is_read_by_the_model_and_checked_against_its_text(stude
     assert res.json()["bank"] == {
         "found": 5, "entries_added": 3, "skills_added": 2, "entries_replaced": 0, "skills_replaced": 0,
         "read_by": "model", "uses_left": 0,
+        # The header is the parser's alone (KAN-436): the street is never
+        # kept, only its city
+        "header": {
+            "added": {"contact_email": "sam.seeker@example.com", "phone_number": "(631) 555-0142",
+                      "location": "Riverside, CA"},
+            "offers": [], "overflow": False,
+        },
     }
 
     saved = (await client.get(bank)).json()
@@ -1519,6 +1569,42 @@ def test_a_minor_the_model_copied_as_written_reads_as_the_parser_writes_it():
             {"section": "education", "title": "Riverside State University", "field_of_study": field},
         ]})
         assert model_drafts(reading, text)[0].field_of_study == "Biology, minor in Writing & Rhetoric"
+
+
+def test_a_minor_in_a_phrase_of_its_own_is_kept_as_written():
+    # "with a Minor in" became "with a, minor in" (2026-11-12 audit)
+    from app.schemas.bank import ModelReading
+    from app.services.bank_import import model_drafts
+
+    for field in ("Biology with a Minor in Chemistry", "Biology (Minor in Chemistry)", "Biology, Double Minor in Art and Music"):
+        text = f"Education\nRiverside State University\nB.S. in {field}\n"
+        reading = ModelReading.model_validate({"entries": [
+            {"section": "education", "title": "Riverside State University", "degree": "B.S.", "field_of_study": field},
+        ]})
+        assert model_drafts(reading, text)[0].field_of_study == field
+
+
+def test_the_models_degree_stays_only_as_the_resume_writes_it():
+    # "Bachelor's" for "Bachelor of Science" passed the word check ("bachelor"
+    # and "s" are on most resumes), and the resume printed "Bachelor's"
+    from app.schemas.bank import ModelReading
+    from app.services.bank_import import model_drafts
+
+    text = "Education\nRiverside State University\nBachelor of Science in Biology  May 2027\n• Led the company's lab\n"
+    for degree, kept in [("Bachelor's", None), ("BS", None), ("Bachelor of Science", "Bachelor of Science"),
+                         ("bachelor of  science", "bachelor of science")]:
+        reading = ModelReading.model_validate({"entries": [
+            {"section": "education", "title": "Riverside State University", "degree": degree, "field_of_study": "Biology"},
+        ]})
+        assert model_drafts(reading, text)[0].degree == kept
+
+
+def test_both_readings_space_a_bar_and_keep_a_repeated_entry_once():
+    # A PDF editor left a resume's whole text in it twice, and every entry
+    # was saved twice; "thinkwell (Pulp) |AI Platform" kept its glued bar
+    text = "PROJECTS\nThinkpad (Lab) |AI Notes Platform  Apr 2026 – Jul 2026\n• Built the editor\n"
+    entries, _ = read(text + text.removeprefix("PROJECTS\n"))
+    assert [e.title for e in entries] == ["Thinkpad (Lab) | AI Notes Platform"]
 
 
 # --- a project's tools (KAN-738) -------------------------------------------------

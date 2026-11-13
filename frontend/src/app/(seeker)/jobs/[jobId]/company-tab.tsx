@@ -1,5 +1,6 @@
-import { ExternalLinkIcon } from "@/components/icons";
-import { Section } from "@/components/ui/section";
+import type { ReactNode } from "react";
+
+import { CompanyIcon, ExternalLinkIcon } from "@/components/icons";
 import { apiGet } from "@/lib/api";
 import { safeHref } from "@/lib/profile-links";
 
@@ -36,12 +37,28 @@ export async function getCompany(jobId: string): Promise<JobCompany | null> {
  * so most jobs show the website alone. The facts come from the web: text only,
  * and a link only through `safeHref`.
  */
-export function CompanyTab({ name, company }: { name: string; company: JobCompany | null }) {
+export function CompanyTab({
+  name,
+  company,
+  about = null,
+}: {
+  name: string;
+  company: JobCompany | null;
+  /** The posting's own About the Company section (`companyFromPosting`,
+   *  ./description.tsx), which the Overview leaves out where this tab is. */
+  about?: ReactNode | null;
+}) {
   const facts = company?.facts ?? [];
   const website = company?.website ? safeHref(company.website) : null;
 
+  // Its heading is drawn as the Overview's sections' are (20px bold beside
+  // a 24px brand glyph), since both sit in the job's one panel.
   return (
-    <Section title={`About ${name}`}>
+    <section aria-labelledby="company-tab-title">
+      <h2 id="company-tab-title" className="text-title text-ink flex items-center gap-2 font-bold">
+        <CompanyIcon className="text-brand size-6 shrink-0" />
+        About {name}
+      </h2>
       {website && (
         <a
           href={website}
@@ -54,42 +71,51 @@ export function CompanyTab({ name, company }: { name: string; company: JobCompan
           <span className="sr-only"> (opens in a new tab)</span>
         </a>
       )}
-      {facts.length === 0 ? (
-        <p className="text-body text-ink-meta mt-3">WorkIt has no notes on {name} yet.</p>
-      ) : (
-        CATEGORIES.map(([category, heading]) => {
-          const inCategory = facts.filter((fact) => fact.category === category);
-          if (inCategory.length === 0) return null;
-          return (
-            <section key={category} className="text-body mt-5">
-              <h3 className="text-label text-ink">{heading}</h3>
-              <ul className="mt-2 flex list-disc flex-col gap-2 pl-5">
-                {inCategory.map((fact) => {
-                  const source = safeHref(fact.url);
-                  return (
-                    <li key={fact.url + fact.fact} className="text-body text-ink">
-                      {fact.fact}
-                      {source && (
-                        <>
-                          {" "}
-                          <a
-                            href={source}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-brand hover:text-brand-hover underline decoration-current underline-offset-2"
-                          >
-                            Source<span className="sr-only"> (opens in a new tab)</span>
-                          </a>
-                        </>
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
-            </section>
-          );
-        })
+      {/* What the employer wrote about itself in the posting, under the
+          brief's own kind of heading, so it reads as theirs. */}
+      {about && (
+        <section className="mt-5">
+          <h3 className="text-label text-ink">From the Job Posting</h3>
+          <div className="mt-2">{about}</div>
+        </section>
       )}
-    </Section>
+      {facts.length === 0
+        ? // With the posting's words above, "no notes" only said less.
+          !about && (
+            <p className="text-body text-ink-meta mt-3">WorkIt has no notes on {name} yet.</p>
+          )
+        : CATEGORIES.map(([category, heading]) => {
+            const inCategory = facts.filter((fact) => fact.category === category);
+            if (inCategory.length === 0) return null;
+            return (
+              <section key={category} className="text-body mt-5">
+                <h3 className="text-label text-ink">{heading}</h3>
+                <ul className="mt-2 flex list-disc flex-col gap-2 pl-5">
+                  {inCategory.map((fact) => {
+                    const source = safeHref(fact.url);
+                    return (
+                      <li key={fact.url + fact.fact} className="text-body text-ink">
+                        {fact.fact}
+                        {source && (
+                          <>
+                            {" "}
+                            <a
+                              href={source}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-brand hover:text-brand-hover underline decoration-current underline-offset-2"
+                            >
+                              Source<span className="sr-only"> (opens in a new tab)</span>
+                            </a>
+                          </>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </section>
+            );
+          })}
+    </section>
   );
 }

@@ -15,6 +15,20 @@ os.environ["APPLY_HOME"] = tempfile.mkdtemp(prefix="apply-test-home-")
 os.environ["APPLY_TEST_TEMP_OK"] = "1"  # that folder is temp on purpose (home.temp_state, KAN-665)
 atexit.register(shutil.rmtree, os.environ["APPLY_HOME"], True)
 
+# HTTPServer.server_bind asks socket.getfqdn for the bound host's name, a reverse lookup that
+# took 35 s for 127.0.0.1 on GitHub's macOS runners, once in each test process (KAN-780). The
+# tests' servers are all on loopback and nothing reads that name: skip the lookup.
+import http.server
+import socketserver
+
+
+def _bind_without_lookup(self):
+    socketserver.TCPServer.server_bind(self)
+    self.server_name, self.server_port = self.server_address[:2]
+
+
+http.server.HTTPServer.server_bind = _bind_without_lookup
+
 # Before anything else can open a connection: no test reaches past loopback (KAN-662).
 import network_block
 

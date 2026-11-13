@@ -37,6 +37,13 @@ import { cn } from "@/lib/cn";
  * Escape-to-clear behaviour people expect, which matters more here than the
  * small cross-browser difference in how that button is drawn.
  */
+/** A page's search beside its controls, the same width on every page
+ * (2026-11-10): the Jobs page, Documents, the Tracker and Experiences. It
+ * fills its row below 512px of page and stops at 320px from there. The
+ * Jobs page's was 320px and the others 256px, so the bar changed length
+ * from one page to the next. */
+export const PAGE_SEARCH = "min-w-48 flex-1 @lg/main:max-w-80";
+
 type SearchFieldProps = {
   id: string;
   label: string;
@@ -53,7 +60,7 @@ export function SearchField({ id, label, className, ...input }: SearchFieldProps
       <input
         id={id}
         type="search"
-        className="bg-panel border-border-control hover:border-ink-meta text-ink sm:text-body placeholder:text-ink-meta focus-visible:ring-brand-ring h-10 w-full rounded-full border pr-4 pl-10 text-base/5 transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none"
+        className="bg-panel border-border-control hover:not-focus-visible:border-ink-meta text-ink sm:text-body placeholder:text-ink-meta focus-visible:border-brand focus-visible:ring-brand-ring h-10 w-full rounded-full border pr-4 pl-10 text-base/5 transition-colors duration-150 focus-visible:ring-1 focus-visible:outline-none"
         {...input}
       />
     </div>

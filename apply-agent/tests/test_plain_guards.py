@@ -66,6 +66,12 @@ SCRIPTED = """<!doctype html><title>Scripted</title>
 </script>"""
 
 
+# A page whose worker posts a moment after the page loads: no page script can stop it, only the rules.
+LATE_WORKER = """<!doctype html><title>Late</title><script>
+  new Worker(URL.createObjectURL(new Blob(["setTimeout(() => fetch('" + location.origin + "/acme/job/7/submitApplication', {method: 'POST', body: 'a'}).catch(() => {}), 2000)"])));
+</script>"""
+
+
 # A step whose Next posts natively (TAL.net's), then a step with a Continue bound for a final URL.
 NATIVE_STEP = """<!doctype html><title>One</title><form method="post" action="/step/two"><input name="first"><button>Next</button></form>"""
 NATIVE_LAST = """<!doctype html><title>Two</title><form method="post" action="/acme/j/42/apply"><input name="why"><button>Continue</button></form>"""
@@ -82,6 +88,7 @@ class Site:
                 self.send_header("Content-Type", "text/html; charset=utf-8")
                 self.end_headers()
                 page = (SCRIPTED if self.path.startswith("/scripted") else FORM if self.path.startswith("/form")
+                        else LATE_WORKER if self.path.startswith("/late")
                         else NATIVE_STEP if self.path.startswith("/native") else "<p>other")
                 self.wfile.write(page.encode())
 
@@ -144,11 +151,14 @@ def _note(page) -> str:
 # --- without a browser
 
 def test_the_cdp_scripts_are_the_plain_ones_less_their_port_lines():
-    for cdp, plain in [(submit_guard.SCRIPT, submit_guard.rehearsal_script(port=True)),
-                       (submit_guard.drive_script(True, False), submit_guard.drive_script(True, False, port=True))]:
-        name = "Apply rehearsal" if cdp is submit_guard.SCRIPT else "Apply drive guard"
-        assert plain.replace(submit_guard.PORT_TOUCH, "").replace(submit_guard.PORT_SAID.replace("@NAME@", name), "") == cdp
-        assert "__apply_touch" in plain and "__apply_touch" not in cdp
+    g = submit_guard
+    tell_port, tell_cdp = g.TELL_PORT.replace("@TELL_TYPE@", g.TELL_TYPE), g.TELL_CDP.replace("@TELL_PREFIX@", g.TELL_PREFIX)
+    for cdp, plain, key in [(g.SCRIPT, g.rehearsal_script(port=True), g.REHEARSAL),
+                            (g.drive_script(True, False), g.drive_script(True, False, port=True), g.DRIVE)]:
+        name = "Apply rehearsal" if cdp is g.SCRIPT else "Apply drive guard"
+        less = plain.replace(g.PORT_TOUCH.replace("@TOUCH@", g.touch_type(key)), "")
+        assert less.replace(g.PORT_SAID.replace("@NAME@", name), "").replace(tell_port, tell_cdp) == cdp
+        assert g.touch_type(key) in plain and "__apply_touch" not in cdp
 
 
 def test_the_plain_rules_block_every_url_the_cdp_route_aborts():
@@ -343,6 +353,8 @@ def test_a_lifted_tab_stays_lisuls_on_reload_and_rearm_guards_it_again(page, sit
 
 @live
 def test_the_drive_guard_blocks_claudes_submit_until_lifted_for_its_own_click(page, site):
+    submit_guard.on_open(page)  # a live run's page, as a Worker opens it: the drive guard before the page's code
+    page.goto(f"{site.url}/form")
     drive = DriveGuard(page)
     assert isinstance(drive, guards.PlainDriveGuard)
     page.get_by_role("button", name="Submit application").click()
@@ -357,6 +369,17 @@ def test_the_drive_guard_blocks_claudes_submit_until_lifted_for_its_own_click(pa
 
 
 @live
+def test_a_drive_guard_put_in_after_the_pages_code_takes_no_lift(page, site):
+    # A page not opened through on_open: its drive guard came after the page's code, which may have heard the control
+    # event's name, so it only blocks (PR 477's second review).
+    drive = DriveGuard(page)
+    drive.lift()
+    page.get_by_role("button", name="Submit application").click()
+    _settle(page, 1)
+    assert drive.blocked() == ['the "Submit application" click'] and site.posts == []
+
+
+@live
 def test_the_drive_guard_rests_and_arms_as_claude_fill_drives(page, site):
     drive = DriveGuard(page)
     drive.arm()
@@ -365,6 +388,102 @@ def test_the_drive_guard_rests_and_arms_as_claude_fill_drives(page, site):
     page.get_by_role("button", name="Submit application").click()
     assert drive.blocked() == ['the "Submit application" click']
     assert site.posts == []
+
+
+# --- the rules' count (KAN-793): Chrome caps a profile's regex rules (about 1000). Each guarded tab had 7 rules of
+# its own, and a closed tab's stayed until guard.reset, which comes only when no other form is open in the Worker.
+# About 142 guarded tabs later, every guard() failed with "Session rule count for regex rules exceeded".
+
+ONE_SET = len(guards.RULES) + len(guards.WORKER_RULES)  # a Worker's rules, however many tabs it guards
+
+
+def _all_rules(worker) -> int:
+    return worker.call("guard.status")["rules"]
+
+
+def _new_tab(worker) -> PortPage:
+    return PortPage(worker, worker.call("tabs.create", url="about:blank", active=False)["tab"])
+
+
+def _fill_the_regex_cap(worker) -> None:
+    """Routes of junk regexes on a tab that does not exist, until Chrome takes no more regex rules."""
+    n = 0
+    for size in (100, 10, 1):
+        while True:
+            try:
+                worker.call("guard.route", key=f"filler-{n}", tab=999999, caseSensitive=False,
+                            regexes=[rf"^https://filler\.invalid/{n}-{i}$" for i in range(size)])
+            except Exception:
+                break
+            n += 1
+
+
+@live
+def test_many_guarded_tabs_in_one_worker_share_one_rule_set(worker, site):
+    """A form held all along (`--into`), and 160 more tabs guarded, lifted, guarded again and closed in turn (Fill
+    again's fresh tab, Ask's and Resume's rearm): never more rules than one set, and none on a tab once it closed."""
+    guards.reset(worker)
+    held = _new_tab(worker)
+    guards.guard(held, reload=False)
+    for n in range(160):
+        page = _new_tab(worker)
+        guards.guard(page, reload=False)
+        if n % 4 == 0:
+            guards.lift(page)
+            assert worker.call("guard.status", tab=page.tab)["rules"] == 0
+            guards.rearm(page)
+        assert _all_rules(worker) == ONE_SET
+        assert worker.call("guard.status", tab=page.tab)["rules"] == len(guards.RULES)
+        worker.call("tabs.close", tab=page.tab)
+    assert worker.call("guard.status", tab=held.tab)["rules"] == len(guards.RULES)
+    worker.call("tabs.close", tab=held.tab)
+    deadline = time.monotonic() + 5
+    while worker.call("guard.status", tab=held.tab)["rules"] and time.monotonic() < deadline:
+        time.sleep(0.1)
+    # No tab keeps them, but the set stays on -1 until guard.reset: a closed page's service worker lives on.
+    assert worker.call("guard.status", tab=held.tab)["rules"] == 0
+    assert _all_rules(worker) == ONE_SET
+
+
+@live
+def test_when_chrome_refuses_the_rules_the_page_stays_guarded_never_lifted(page, site):
+    """A failed updateSessionRules fails closed: rearm raises with the page's own guard back on (Apply's, not Lisul's),
+    and its Submit sends nothing. A new tab's guard() raises too. A tab joins a rule set already on with no new rule."""
+    guard(page)
+    lift(page)
+    try:
+        _fill_the_regex_cap(page.worker)
+        full = _all_rules(page.worker)
+        with pytest.raises(Exception, match="(?i)rule"):
+            rearm(page)
+        assert page.worker.call("guard.status", tab=page.tab)["lifted"] is False
+        assert _note(page) == ""
+        _blocks_every_way(page, site)
+        fresh = _new_tab(page.worker)
+        with pytest.raises(Exception, match="(?i)rule"):
+            guards.guard(fresh, reload=False)
+        assert _all_rules(page.worker) == full  # each failed update left Chrome's rules as they were
+        page.worker.call("tabs.close", tab=fresh.tab)
+        # A page already open whose worker would post: refused, guard() takes the page away rather than leave it.
+        late = _new_tab(page.worker)
+        late.goto(f"{site.url}/late")
+        with pytest.raises(Exception, match="(?i)rule"):
+            guard(late)
+        assert late.url == "about:blank"
+        time.sleep(3)
+        assert site.posts == []
+        page.worker.call("tabs.close", tab=late.tab)
+    finally:
+        guards.reset(page.worker)
+    guard(page)  # one set on: a second guarded tab, at the cap, adds no rule
+    _fill_the_regex_cap(page.worker)
+    try:
+        other = _new_tab(page.worker)
+        guards.guard(other, reload=False)
+        assert page.worker.call("guard.status", tab=other.tab)["rules"] == len(guards.RULES)
+        page.worker.call("tabs.close", tab=other.tab)
+    finally:
+        guards.reset(page.worker)
 
 
 
@@ -432,7 +551,8 @@ def test_the_rules_alone_survive_a_reload(reloading, site):
     guard(page)
     connection = bridge.reload(0)
     page = _after_reload(page, connection)
-    connection.call("guard.flags", tab=page.tab, set={"__applyRehearsalLifted": True})  # the in-page guard off: the rule stops it
+    connection.call("guard.control", tab=page.tab,  # the in-page guard off: the rule stops it
+                    events=submit_guard._events({"lift": submit_guard.note(False, "", False, "")}))
     page.evaluate("() => fetch('/acme/job/9/submitApplication', {method: 'POST'}).catch(() => null)")
     _settle(page, 1)
     assert site.posts == []

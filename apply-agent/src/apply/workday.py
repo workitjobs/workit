@@ -56,13 +56,14 @@ import json
 import re
 import time
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import TYPE_CHECKING
 from urllib.parse import urlsplit
 
 from playwright.sync_api import Locator, Page
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
-from apply import feed, fill_engine, trace
+from apply import feed, fill_engine, submit_guard, trace
 from apply.accounts import HANDS_OFF, NEEDS_SIGN_IN, Accounts
 from apply.adapters import JobSite
 from apply.confirmation import wait_for_confirmation
@@ -97,6 +98,9 @@ SIGN_INS = ("email", "google")  # policies.yaml: workday_sign_in
 GOOGLE_WAIT = 60.0  # s for Workday to come back from Sign in with Google
 FOLLOW_UP_WAIT = 300  # ms for a follow-up question to show once its question is answered
 REFUSED = "won't leave its"  # the engine's Handoff when Save and Continue doesn't leave the step
+# The engine's FillError when Workday answers Save and Continue with its error page ("Something went wrong. Please refresh
+# the page and then try again."): its React error boundary, shown when the page's own script throws (KAN-758).
+WENT_WRONG = "showed its error page"
 REFILL_WAIT = 1_000  # ms for a step Workday refused to settle before it is filled again
 SEND_WAIT = 10.0  # s for an auth form's click to send it, before it is clicked again
 SEND_CLICKS = 3  # clicks on an auth form's button at most
@@ -111,6 +115,7 @@ UNVERIFIED = re.compile(r"verif", re.IGNORECASE)  # Workday's refusal of a sign-
 VERIFY_LOOKBACK = timedelta(days=1)
 # Each tenant's nested prompts as last read: "<tenant> / <label>" -> its categories and each choice's category.
 TREES = HOME / "workday-trees.json"
+ENTRIES = re.compile(r"\(entries\)\s*$")  # a repeating section's Question: "Work Experience (entries)", answered with how many
 
 
 def site_of(url: str) -> str:
@@ -154,6 +159,17 @@ def next_step(page: Page, step: str) -> None:
         if "would send the application" not in str(handoff):
             raise
         raise Handoff(f"{handoff}. Apply didn't click it: check the form and submit it yourself.") from None
+
+
+def _naming(page: Page, names: list[str]) -> list[str]:
+    """Which of `names` name an entry of a repeating section, by the engine (`workdayEntries.naming`); none on an engine
+    without the call (a plain Worker seeded before it), which deletes the last panels as it always did."""
+    try:
+        return fill_engine.call(page, "workdayEntries.naming", names) or []
+    except FillError as error:
+        if "has no function" not in str(error):
+            raise
+        return []
 
 
 def confirmed(page: Page) -> bool:
@@ -220,6 +236,7 @@ class WorkdayFiller:
         self._known = list(questions)
         self._back_to_changed(page, questions, answers)
         refilled: set[str] = set()  # the steps Workday refused once, filled again
+        crashed: set[str] = set()  # the steps whose Save and Continue showed Workday's error page once
         attests = {name for name in fill_engine.attestations(questions) if name not in answers}  # Lisul's to tick
         # The last step is Review, or whichever step's footer button sends (a tenant may name it
         # otherwise): filling stops there, and only submit() clicks that button.
@@ -229,8 +246,14 @@ class WorkdayFiller:
             if new:
                 raise MoreQuestions(new)
             kept = self._his[1] if shown["step"] == self._his[0] else set()
-            if sections := {name: answers[name] for name in shown["sections"] if name in answers and name not in kept}:
-                self._fill(page, sections)  # the step's new panels' fields are MoreQuestions
+            sections = {name: answers[name] for name in shown["sections"] if name in answers and name not in kept}
+            # Each entry's naming answers (company, title) go with the count, so a panel holding one is never deleted
+            # (KAN-775). One Lisul changed before Resume leaves the panels as he left them: his entry is told by none.
+            naming = _naming(page, [q.name for q in fields if q.name in answers]) if sections else []
+            if sections and not kept.intersection(naming):
+                self._fill(page, sections | {name: answers[name] for name in naming})  # new panels' fields: MoreQuestions
+                # Panels added for questions known already (a step filled again, KAN-775): their fields as shown now.
+                fields = self._shown(page)["questions"]
             for q in fields:
                 if q.name in answers and q.name not in sections and q.name not in kept:
                     self._put_or_rescue(page, q, None, answers[q.name])
@@ -246,7 +269,7 @@ class WorkdayFiller:
             if unticked := [q.label for q in fields if q.required and q.name in attests and q.name not in kept]:
                 raise Handoff(fill_engine.tick_ask(unticked))
             try:
-                next_step(page, shown["step"])
+                self._save_and_continue(page, shown["step"], crashed)
             except Handoff as refused:
                 # Workday may drop a step's picks as it loads the step's questions again: ASML's Application
                 # Questions showed each pick, yet Save and Continue found two required answers empty, while the
@@ -255,7 +278,42 @@ class WorkdayFiller:
                     raise
                 refilled.add(shown["step"])
                 page.wait_for_timeout(REFILL_WAIT)
+        if shown["review"]:
+            self._readback |= self._reviewed(page, questions, answers)
         return dict(self._readback)
+
+    def _save_and_continue(self, page: Page, step: str, crashed: set[str]) -> None:
+        """Save and Continue on `step`. Workday's error page in its place (NVIDIA's My Experience, live, KAN-758) is
+        reloaded, as it asks: the fill goes on from the step the reload shows, and fills that step again if it is the
+        same one. A second error page on the step is Lisul's."""
+        try:
+            next_step(page, step)
+        except FillError as error:
+            if WENT_WRONG not in str(error):
+                raise
+            if step in crashed:
+                raise Handoff(f"Workday showed its error page (\"Something went wrong\") after Save and Continue on its "
+                              f"'{step}' step twice. Refresh the page, check the step and press Save and Continue "
+                              "yourself") from None
+            crashed.add(step)
+            page.reload()
+
+    def _reviewed(self, page: Page, questions: QuestionSet, answers: Answers) -> Readback:
+        """Each repeating section's entries as Review shows them, read back under the plan's names (the engine's
+        `workdayEntries.reviewed`, KAN-775): the section's count, and an entry Review lacks as blank. NVIDIA's keeps only
+        the entries changed on a step's last visit, so an entry read back on My Experience can be gone by Review
+        (Ask changed one date there and saved, live 2026-11-10): verifying then holds the form, and the next fill
+        goes back to put it again (`_back_to_changed`). An engine without the call (a plain Worker seeded before it)
+        reads nothing here."""
+        if not any(ENTRIES.search(q.label) and q.name in answers for q in questions):
+            return {}
+        named = {name: answer for name, answer in answers.items() if not isinstance(answer, Path)}
+        try:
+            return fill_engine.call(page, "workdayEntries.reviewed", fill_engine.questions_arg(questions), named) or {}
+        except FillError as error:
+            if "has no function" not in str(error):
+                raise
+            return {}
 
     def _back_to_changed(self, page: Page, questions: QuestionSet, answers: Answers) -> None:
         """Back to the first step holding an answer other than the one the last fill was given there (the
@@ -264,17 +322,34 @@ class WorkdayFiller:
         again opens past them."""
         changed = [q for q in questions if q.name in answers and q.name in self._given and q.name in self._readback
                    and answers[q.name] != self._given[q.name]]
+        # A section Review showed with fewer entries than planned (`_reviewed`): its step is filled again, every entry
+        # typed anew, so Workday keeps them all (KAN-775).
+        short = [q for q in questions if ENTRIES.search(q.label) and q.name in answers and q.name in self._readback
+                 and str(self._readback[q.name]).strip() != str(answers[q.name]).strip()]
+        changed = short + changed
         self._given = dict(answers)
         if not changed:
             return
         wanted = changed[0].name.split(" / ", 1)[0]  # a Question's name starts with its step
+        if self._back_to(page, wanted):
+            # Back draws each step from what the page kept of it, not from Workday's server. Filled again on that
+            # page, NVIDIA's My Experience answered Save and Continue with Workday's error page (live, KAN-758). Once
+            # reloaded, the page loads the step from Workday, as a fill on the draft's first visit does.
+            page.reload()
+            self._back_to(page, wanted)
+
+    def _back_to(self, page: Page, wanted: str) -> bool:
+        """Press Back until the page shows `wanted` (or has no Back): whether it pressed it."""
+        pressed = False
         for _ in range(MAX_BACK):
             step = self._shown(page)["step"]
             back = page.locator(BACK_BUTTON).first
             if step == wanted or not back.count() or not back.is_visible():
-                return
+                break
             back.click()
+            pressed = True
             _until(page, lambda: _on_step(page) and _step(page) != step)
+        return pressed
 
     def resume_blocked(self, page: Page) -> str:
         """Why Resume can't go on from the page now, or "": only from an
@@ -663,10 +738,7 @@ def _let_account_click(page: Page, let: bool = True) -> None:
     guard (apply.submit_guard), which would take Workday's "Submit" (its
     label in the Sign in with email view, Sonos's, live) for the application's;
     `let=False` puts the guard back."""
-    try:
-        page.evaluate(f"window.__applyAccountClick = {'true' if let else 'false'}")
-    except Exception:
-        pass  # the page navigating: its next document has no guard state to set yet
+    submit_guard.let_account_click(page, let)  # KAN-710: by the guards' own control, which no page can send
 
 
 def _by_email(page: Page) -> None:

@@ -9,6 +9,7 @@ would through the MCP tools, and each drive costs the tokens a test gives it.
 import json
 import re
 from datetime import datetime
+from pathlib import Path
 
 import pytest
 from conftest import FIXTURES, FORMS
@@ -21,7 +22,7 @@ from fakes import FakeClaude, FakeClock, FakeMailbox, RecordingBoard, ScriptedUs
 from test_matches import feed_record
 from test_run_answers import profile_with
 
-from apply import claude_fill
+from apply import claude_fill, fill_engine
 from apply.adapters import Adapters, UsageLimitHit
 from apply.claude_fill import FILL, ClaudeFill
 from apply.cli import main
@@ -1639,6 +1640,50 @@ def test_a_label_in_another_section_is_a_new_question_never_merged(html, named):
         browser.close()
 
 
+# Oracle's More About You (JPMorgan's, 2026-11-10): each option of a choice is labelled with the question too.
+ORACLE_GROUPS = """<h2>Diversity Information</h2>
+<span id="eth">Ethnicity</span>
+<label><input type="checkbox" aria-labelledby="eth opt1"><span id="opt1">Asian</span></label>
+<label><input type="checkbox" aria-labelledby="eth opt2"><span id="opt2">White</span></label>
+<label><input type="checkbox" aria-labelledby="eth opt3"><span id="opt3">Decline</span></label>
+<fieldset><legend>Veteran Status</legend>
+<label><input type="radio" name="vet" aria-label="Veteran Status">I am not a protected veteran</label>
+<label><input type="radio" name="vet" aria-label="Veteran Status">I am a protected veteran</label></fieldset>"""
+
+
+def _questions_found(html: str, known: list, found: list[dict], rounds: int = 1) -> list[list[str]]:
+    from playwright.sync_api import sync_playwright
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.set_content(html)
+        sectioned: set[str] = set()
+        named = [[q["label"] for q in claude_fill._new_questions(page, known, found, sectioned)] for _ in range(rounds)]
+        browser.close()
+    return named
+
+
+def test_a_choice_whose_options_carry_its_label_is_one_question_not_another_sections():
+    # KAN-788: Ethnicity and Veteran Status were named again ("Diversity Information: Ethnicity") in each of ~45 rounds,
+    # till Claude fill's cap of 300 turns and 6,000,000 tokens.
+    from apply.model import Question
+
+    known = [Question("q1", "Ethnicity", "multi_select", False, ()), Question("q2", "Veteran Status", "select", True, ())]
+    found = [{"label": "Ethnicity", "kind": "multi_select", "required": False, "options": []},
+             {"label": "Veteran Status", "kind": "select", "required": True, "options": []}]
+    assert _questions_found(ORACLE_GROUPS, known, found) == [[]]
+
+
+def test_a_label_is_named_as_another_sections_once_a_step_however_often_claude_lists_it():
+    # KAN-788: Claude lists a question it wasn't given to fill in every round; the campus line is named the first time only.
+    from apply.model import Question
+
+    known = [Question("q1", "Address line 1", "text", True, ())]
+    found = [{"label": "Address line 1", "kind": "text", "required": True, "options": []}]
+    assert _questions_found(HOME_AND_CAMPUS, known, found, rounds=3) == [["Campus Address: Address line 1"], [], []]
+
+
 def test_the_step_limit_comes_from_the_policy(tmp_path):
     # Bank of America's TAL.net form has more than 8 steps (KAN-649): a limit of 1 hands off at the first Next.
     profile = profile_with(tmp_path, policies={"claude_fill": {"max_turns": 80, "max_tokens": 1200000, "max_steps": 1}})
@@ -1683,6 +1728,16 @@ def _profile_then_form_driver(page, schema: dict, prompt: str, files: list) -> d
             "submit_button": "Submit" if profile else "Submit application", "unlisted": unlisted}
 
 
+def _open_live(page, html: str) -> None:
+    """`html` as a live run's page, opened as a Worker opens it: submit_guard.on_open before its first load, so the
+    drive guard runs before its code (a page written by set_content gets only the drive guard's block-only copy)."""
+    from apply import submit_guard
+
+    page.route("https://jobs.example.com/apply-form", lambda route: route.fulfill(body=html, content_type="text/html"))
+    submit_guard.on_open(page)
+    page.goto("https://jobs.example.com/apply-form")
+
+
 def test_a_profile_pop_up_before_the_application_is_sent_on_and_only_the_forms_last_page_is_held(tmp_path):
     from playwright.sync_api import sync_playwright
 
@@ -1692,7 +1747,7 @@ def test_a_profile_pop_up_before_the_application_is_sent_on_and_only_the_forms_l
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch()
         page = browser.new_page()
-        page.set_content(PROFILE_THEN_FORM)
+        _open_live(page, PROFILE_THEN_FORM)
         with pytest.raises(MoreQuestions) as more:  # the application's own questions, once the profile is sent
             fill.fill(page, [Question("q1", "Preferred First name", "text", True)], {"q1": "Test"})
         [why] = more.value.questions
@@ -1715,7 +1770,7 @@ def test_a_submit_outside_a_profile_pop_up_stays_blocked_while_its_click_is_let_
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch()
         page = browser.new_page()
-        page.set_content(PROFILE_THEN_FORM.replace('<form id="application" hidden', '<form id="application" style="display:none"'))
+        _open_live(page, PROFILE_THEN_FORM.replace('<form id="application" hidden', '<form id="application" style="display:none"'))
         drive = DriveGuard(page)
         drive.let_profile_click()
         page.evaluate("document.getElementById('application').style.display = ''")  # shown, outside the pop-up
@@ -1996,6 +2051,51 @@ def test_an_answer_that_comes_after_its_step_went_by_is_left_behind_not_looked_f
     assert filler.left_behind == [(NATIVE, "English")]
 
 
+DOCUMENTS = """<!doctype html><body><h2>More About You</h2>
+<div><label for="cl">Cover Letter</label><input id="cl" type="file"></div>
+<div><label for="ph">Phone</label><input id="ph"></div><button>Submit</button></body>"""
+
+
+class DocumentsDriver:
+    """Plays Claude on DOCUMENTS: shows each file in <fields> as attached, lists Phone as unlisted the first time,
+    and names Submit. Keeps the files each session was given."""
+
+    def __init__(self):
+        self.files: list[list[str]] = []
+
+    def __call__(self, page, schema: dict, prompt: str, files: list) -> dict:
+        self.files.append(sorted(Path(f).name for f in files))
+        fields = json.loads(re.search(r"<fields>(.*?)</fields>", prompt, re.DOTALL)[1])
+        asked = {f["question"] for f in fields}
+        return {"blocked": False, "why": "", "filled": [{"field": f["field"], "shown": [f["answer"]]} for f in fields],
+                "submit_button": "Submit", "next_button": "",
+                "unlisted": [] if len(self.files) > 1 or "Phone" in asked else [{"label": "Phone", "kind": "text",
+                                                                                   "required": False, "options": []}]}
+
+
+def test_every_file_the_plan_gives_the_form_goes_to_each_fill_session(tmp_path):
+    # KAN-789: a session after MoreQuestions had only that round's files, so the cover letter an earlier round put
+    # in its slot couldn't be attached again; Claude's upload tool sees only the files Apply passes.
+    from playwright.sync_api import sync_playwright
+
+    from apply.model import MoreQuestions, Question
+    letter = tmp_path / "Test_Person_Cover_Letter.pdf"
+    letter.write_bytes(b"%PDF-1.4")
+    cover = Question("read1", "Cover Letter", "file", False)  # as the read pass names it, apart from the fill's own
+    driver = DocumentsDriver()
+    filler = ClaudeFill(FakeClaude(driver=driver))
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.set_content(DOCUMENTS)
+        with pytest.raises(MoreQuestions) as more:
+            filler.fill(page, [cover], {"read1": letter})
+        [phone] = more.value.questions
+        filler.fill(page, [cover, phone], {"read1": letter, phone.name: "555 010 0199"})
+        browser.close()
+    assert driver.files == [[letter.name], [letter.name]]
+
+
 # Amazon's Job-specific questions (live, KAN-714): a month box whose only word on its format is its placeholder.
 AMAZON_DATES = """<!doctype html><body>
 <div><label id="grad-label">In what month and year did you (or do you expect to) graduate from your highest degree?</label>
@@ -2024,3 +2124,67 @@ def test_a_date_boxs_placeholder_format_is_added_to_its_label():
         "In what month and year did you (or do you expect to) graduate from your highest degree? (YYYY-MM)",
         "Please provide your Amazon Login ID (alias)",
     ]
+
+
+def test_the_fill_prompt_picks_a_date_its_box_did_not_take_from_its_calendar():
+    # amazon.jobs (live, KAN-716): typed YYYY-MM-DD dates never registered; dates picked with its calendar did, and a
+    # picked 21 read back as 20 on the Review page.
+    assert "calendar" in FILL and "date picker" in FILL and "read it back" in FILL
+    assert "never pick another day to make up for it" in FILL
+
+
+# --- KAN-762: entries an old profile on the job site carried over (JPMorgan's Oracle, 2026-11-10: a Princeton entry the
+# profile doesn't list was kept, and an old Cloud Data Pro entry's end refused a start typed after it).
+
+HISTORY_JOBS = [{"employer": "Acme Rail", "title": "Software Engineer Intern", "start": "2026-06", "end": "2026-08"},
+                {"employer": "Data Shop", "title": "Software Engineer (Part-Time)", "start": "2026-01", "end": None}]
+SECTION = {"label": "Work Experience (entries)", "kind": "select", "required": False, "options": []}
+
+
+class CarriedOverDriver(JobviteStepsDriver):
+    """Plays Haiku on a form whose work section holds an entry an old profile left, which it could not delete."""
+
+    def __init__(self):
+        super().__init__()
+        self.prompts: list[str] = []
+
+    def __call__(self, page, schema, prompt, files):
+        if "questions" in schema["properties"]:
+            return {"blocked": False, "why": "", "page": "application form", "questions": [*JOBVITE_QUESTIONS[1:], SECTION]}
+        said = super().__call__(page, schema, prompt, files)
+        self.prompts.append(prompt)
+        fields = json.loads(re.search(r"<fields>(.*?)</fields>", prompt, re.DOTALL)[1])
+        for field in fields:
+            if field["question"] == SECTION["label"]:
+                said["filled"].append({"field": field["field"], "shown": [field["answer"]]})
+                said["entries_kept"] = ["Princeton University - Undergraduate Researcher: its Delete is disabled"]
+        return said
+
+
+def test_claude_gets_the_profiles_entries_and_an_entry_it_could_not_delete_holds_the_form(tmp_path):
+    driver = CarriedOverDriver()
+    path = profile_with(tmp_path, **{"experience_facts.employment_history": HISTORY_JOBS})
+    with FakeJobviteServer(steps=JOBVITE_STEPS) as server:
+        [row] = run(server, path, tyler_match(), claude=FakeClaude(driver=driver))
+
+    entries = json.loads(re.search(r"<entries>(.*?)</entries>", driver.prompts[0], re.DOTALL)[1])
+    assert [job["employer"] for job in entries["jobs"]] == ["Acme Rail", "Data Shop"] and entries["jobs"][1]["end"] is None
+    assert "delete each entry whose employer" in FILL and "current-job box" in FILL
+    assert server.submissions == [], "an entry the profile doesn't list must hold a live run"
+    assert "Verify: Remove this entry, which your profile doesn't list: Princeton University" in row.reason, row.reason
+
+
+def test_an_entrys_current_job_box_goes_to_claude_before_its_dates():
+    order = fill_engine.call_without_page("currentFirst", [{"name": "a", "label": "Work Experience 1 / End Date"},
+                                                           {"name": "b", "label": "Work Experience 1 / Current Job"}], ["a", "b"])
+    assert order == ["b", "a"]
+
+
+def test_the_entries_claude_gets_are_the_profiles_jobs_and_school(tmp_path):
+    from apply.profile import ApplicantProfile
+
+    profile = ApplicantProfile.load(profile_with(tmp_path, **{"experience_facts.employment_history": HISTORY_JOBS,
+                                                             "education.school": "State University"}))
+    history = claude_fill.entry_history(profile)
+    assert [j["title"] for j in history["jobs"]] == ["Software Engineer Intern", "Software Engineer (Part-Time)"]
+    assert [s["school"] for s in history["schools"]] == ["State University"]

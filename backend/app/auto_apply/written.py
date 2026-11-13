@@ -17,7 +17,7 @@ from typing import Literal
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auto_apply import briefs, checks, plans, truth
+from app.auto_apply import briefs, checks, plans, question_types, truth
 from app.auto_apply.queries import (
     drop_own_written,
     drop_written,
@@ -33,6 +33,7 @@ from app.auto_apply.queries import (
     fetch_saved_answers,
     fetch_sent_plans,
     fetch_stage,
+    fetch_text_answers,
     fetch_unanswered,
     fetch_written,
     put_questions,
@@ -46,6 +47,7 @@ from app.queries import writing
 from app.schemas.applications import (
     AnsweredQuestion,
     Application,
+    CoverLetter,
     NamedFact,
     OwnAnswer,
     PostingAnswers,
@@ -56,7 +58,7 @@ from app.schemas.applications import (
     WrittenQuestion,
 )
 from app.services import bank as experience
-from app.services.bank import Bank, bank_context, load_bank
+from app.services.bank import Bank, Entry, bank_context, load_bank
 
 
 async def ask_questions(
@@ -129,6 +131,37 @@ async def answered_questions(db: AsyncSession, applicant_id: uuid.UUID) -> list[
             for r in rows
         ])
         for job_id, company, title, rows in await fetch_answered(db, applicant_id)
+    ]
+
+
+COVER_LETTER = "cover-letter"
+
+
+def question_type(label: str, review: dict | None) -> str:
+    """A saved answer's Question type: its Essay plan's, when their Claude
+    wrote it, else its label's class (a pasted answer or the student's own
+    words have no plan)."""
+    plan = (review or {}).get("plan")
+    kind = plan.get("type") if isinstance(plan, dict) else None
+    return kind if isinstance(kind, str) and kind else question_types.classify(label)
+
+
+async def cover_letters(db: AsyncSession, applicant_id: uuid.UUID) -> list[CoverLetter]:
+    """
+    Every cover letter WorkIt wrote for the student's applications, at any
+    stage, last saved first (KAN-766, step 1 of docs/cover_letters.md):
+    each saved written answer whose Question type is `cover-letter`, with
+    its posting and its application's stage, for the Cover Letters tab.
+    Read-only.
+    """
+    return [
+        CoverLetter(
+            job_id=r.answer.job_id, name=r.answer.name, label=r.answer.label, text=r.answer.answer or "",
+            own=r.answer.own, answered_at=r.answer.answered_at, company=r.company, title=r.title,
+            logo_url=r.logo_url, company_domain=r.company_domain, closed=not r.listed, stage=r.stage,
+        )
+        for r in await fetch_text_answers(db, applicant_id)
+        if question_type(r.answer.label, r.answer.review) == COVER_LETTER
     ]
 
 
@@ -260,19 +293,22 @@ async def save_answers(
         from app.auto_apply import review
         own = await _own_facts(db, applicant_id, job_id)
         await review.flag_claims(db, applicant_id, job_id, {
-            name: (text, truth.unsupported(text, own, (*sources, questions[name].label))) for name, text in said.items()
+            name: (text, truth.unsupported(text, own, (*sources, questions[name].label),
+                                           planned[name].story if name in planned else ""))
+            for name, text in said.items()
         })
     await db.commit()
     return sum(1 for name, q in questions.items() if q.answer is None and name not in answers)
 
 
 async def _own_facts(db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID) -> list[str]:
-    """What the student gave, for the truth check: their experience bank,
-    their profile, and their own words in the answer bank (on other
-    applications, and brought from Apply)."""
+    """What the student gave, for the truth check: their experience bank
+    (bank_facts: one text per entry, so an outcome stands only on its own
+    entry's facts), their profile, and their own words in the answer bank
+    (on other applications, and brought from Apply)."""
     own = [*(s for s in await fetch_saved_answers(db, applicant_id, exclude=job_id) if s.own),
            *(s for s in await fetch_brought_answers(db, applicant_id) if s.own)]
-    return [*bank_sources(await load_bank(db, applicant_id)), *await fetch_profile_facts(db, applicant_id),
+    return [*bank_facts(await load_bank(db, applicant_id)), *await fetch_profile_facts(db, applicant_id),
             *("; ".join(s.answer) if isinstance(s.answer, list) else s.answer for s in own)]
 
 
@@ -521,17 +557,27 @@ def bank_sources(bank: Bank) -> list[str]:
     """Every fact of the student's bank as text, for the number check and the
     truth check: each entry's fields, its dates ("June 2025 – August 2025",
     "June 2025 – Present") and its bullets, and the skills."""
-    texts: list[str] = []
-    for entry in bank.entries:
-        row = entry.row
-        texts += [str(v) for v in (
-            row.title, row.organization, row.location, row.degree, row.field_of_study, row.gpa, row.gpa_scale,
-            row.honors, row.issuer, *(row.coursework or ()), *(row.tools or ()), _dates(row.start_month, row.end_month),
-            f"{row.award_date:%B %Y}" if row.award_date else None,
-        ) if v is not None]
-        texts += [b.text for b in entry.bullets]
-    texts += [s.name for s in bank.skills]
-    return texts
+    return [*(text for entry in bank.entries for text in _entry_texts(entry)), *(s.name for s in bank.skills)]
+
+
+def bank_facts(bank: Bank) -> list[str]:
+    """The bank for the truth check (KAN-750): one text per entry, under a
+    heading of its title and organization ("## Software Intern, Hitachi
+    Rail"), so the check knows which entry each fact is about; then the skills."""
+    return [
+        "\n".join([f"## {', '.join(filter(None, (entry.row.title, entry.row.organization)))}", *_entry_texts(entry)])
+        for entry in bank.entries
+    ] + [s.name for s in bank.skills]
+
+
+def _entry_texts(entry: Entry) -> list[str]:
+    """One entry's fields, its dates and its bullets, as text."""
+    row = entry.row
+    return [str(v) for v in (
+        row.title, row.organization, row.location, row.degree, row.field_of_study, row.gpa, row.gpa_scale,
+        row.honors, row.issuer, *(row.coursework or ()), *(row.tools or ()), _dates(row.start_month, row.end_month),
+        f"{row.award_date:%B %Y}" if row.award_date else None,
+    ) if v is not None] + [b.text for b in entry.bullets]
 
 
 def _dates(start, end) -> str | None:

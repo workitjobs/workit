@@ -117,7 +117,9 @@ export function toolsLine(entry: Pick<EntryFields, "tools">): string | null {
 /** What the editor edits: an entry's fields, plus its bullets, which carry
  *  an id once saved. A draft from intake or import has no ids at all. */
 export type EntryDraft<S extends EntrySection = EntrySection> = EntryFields<S> & {
-  bullets: { id?: string; text: string }[];
+  /** `off`: in the resume editor's form only (KAN-586), a bullet this
+   *  resume leaves out; the bank keeps it. */
+  bullets: { id?: string; text: string; off?: boolean }[];
 };
 
 /** A draft as the API takes it: no empty bullet box, which makes the API

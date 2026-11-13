@@ -701,6 +701,67 @@ async def test_a_typed_header_field_with_a_copy_prints_at_once(student):
     assert render["identity"]["links"][0] == ["linkedin_url", "https://linkedin.com/in/sam"]
 
 
+async def test_a_typed_header_location_saves_to_the_profile_and_prints(student):
+    # KAN-436: the header's location is the profile's, not an entry's
+    _tectonic_or_skip()
+    client, me = student
+    await _fill_bank(client, me)
+    resume_id = await _generate(client, me)
+    copy = await _copy(client, me, resume_id)
+
+    res = await _type(client, me, resume_id, "header", "location", "Stony Brook, NY")
+    assert res.status_code == 200, res.text
+    assert res.json()["profile"]["location"] == "Stony Brook, NY"
+    res = await _render_line(client, me, resume_id, "header", "location", "Albany, NY", copy)
+    assert res.status_code == 200, res.text
+    render = res.json()["render"]
+    assert _box(render, "location", "header")["text"] == "Albany, NY"
+    assert render["identity"]["location"] == "Albany, NY"
+
+
+async def test_the_additional_line_saves_to_the_profile_and_prints_under_the_contact_line(student):
+    _tectonic_or_skip()
+    client, me = student
+    await _fill_bank(client, me)
+    resume_id = await _generate(client, me)
+
+    res = await _type(client, me, resume_id, "header", "resume_header_extra", "Open to relocation")
+    assert res.status_code == 200, res.text
+    assert res.json()["profile"]["resume_header_extra"] == "Open to relocation"
+    render = (await client.get(f"{me}/built-resumes/{resume_id}/render")).json()
+    assert _box(render, "resume_header_extra", "header")["text"] == "Open to relocation"
+    assert render["identity"]["extra"] == "Open to relocation"
+    # One short line: longer is refused, and the profile keeps the old one
+    res = await _type(client, me, resume_id, "header", "resume_header_extra", "x" * 101)
+    assert res.status_code == 422
+    profile = (await client.get(f"{me}/profile")).json()
+    assert profile["resume_header_extra"] == "Open to relocation"
+
+
+async def test_a_hidden_header_field_leaves_this_resume_only(student):
+    # KAN-436: the Header panel's check box is a page setting, so the copy
+    # keeps the value and only this page leaves it out
+    _tectonic_or_skip()
+    client, me = student
+    await _fill_bank(client, me)
+    resume_id = await _generate(client, me)
+    copy = await _copy(client, me, resume_id)
+    res = await client.post(f"{me}/built-resumes/{resume_id}/render",
+                            json={"source": copy, "page": {"hidden_header": ["phone_number"]}})
+    assert res.status_code == 200, res.text
+    render = res.json()["render"]
+    assert not [b for b in render["boxes"] if b["item_id"] == "header" and b["kind"] == "phone_number"]
+    assert render["identity"]["phone"] == "555-010-2030"
+    assert render["page_settings"]["hidden_header"] == ["phone_number"]
+    res = await client.put(f"{me}/built-resumes/{resume_id}/page-settings", json={"hidden_header": ["phone_number"]})
+    assert res.status_code == 204
+    saved = (await client.get(f"{me}/built-resumes/{resume_id}/render")).json()
+    assert not [b for b in saved["boxes"] if b["kind"] == "phone_number"]
+    other = await _generate(client, me)
+    assert [b for b in (await client.get(f"{me}/built-resumes/{other}/render")).json()["boxes"]
+            if b["kind"] == "phone_number"]
+
+
 async def test_moving_bullets_renders_from_the_copy(student):
     _tectonic_or_skip()
     client, me = student
@@ -890,7 +951,7 @@ async def test_a_render_takes_the_token_of_the_paths_applicant_only(student, dat
 SETTINGS = {"font_size": 12, "line_spacing": 1.15, "side_margin": 0.75, "top_margin": 0.75, "alignment": "justified", "section_spacing": 4, "entry_spacing": 2, "accent": "#14532D", "bullet": "dash", "show_divider": False, "header_alignment": "left",
             "section_order": ["skills", "education", "experience", "projects", "leadership", "awards", "certifications"],
             "font_family": "tinos", "name_size": 22, "heading_size": 13, "title_size": 11.5, "body_size": None,
-            "date_format": "year", "education_first": "degree"}
+            "date_format": "year", "education_first": "degree", "hidden_header": []}
 
 
 async def test_page_settings_render_from_the_copy_and_save_on_their_own(student):
@@ -987,3 +1048,64 @@ async def test_a_tools_line_renders_from_the_copy_with_its_box(student):
     assert body["entry"]["tools"] == ["FastAPI", "Next.js"]
     # Rendered, never saved
     assert _entry(await _bank(client, me), "WorkIt")["tools"] == []
+
+
+# A skill's group on one resume (KAN-586)
+
+async def test_a_skill_moved_to_another_group_moves_on_this_resume_only(student):
+    client, me = student
+    await _fill_bank(client, me)
+    resume_id = await _generate(client, me)
+    other = await _another(client, me)
+    skills = {s["name"]: s["id"] for s in (await _bank(client, me))["skills"]}
+    move = {"skills": [{"skill_id": skills["Python"], "position": 0},
+                       {"skill_id": skills["Docker"], "position": 1, "group": "Languages"}]}
+
+    # The fast statement: both rows exist, so nothing is read first
+    res = await client.patch(f"{me}/built-resumes/{resume_id}/choices", params={"read_back": "false"}, json=move)
+    assert res.status_code == 204, res.text
+    lines = await _lines(client, me, resume_id)
+    assert "Languages: Python, Docker" in lines
+    assert not any(line.startswith("Tools:") for line in lines)
+    choices = (await client.get(f"{me}/built-resumes/{resume_id}/choices")).json()
+    assert {c["skill_id"]: c["group"] for c in choices["skills"]}[skills["Docker"]] == "Languages"
+    # The bank and every other resume keep the bank's group
+    assert {s["name"]: s["group"] for s in (await _bank(client, me))["skills"]}["Docker"] == "Tools"
+    assert "Tools: Docker" in await _lines(client, me, other)
+
+    # "" is no group: beside named groups it prints as Other
+    res = await client.patch(f"{me}/built-resumes/{resume_id}/choices",
+                             json={"skills": [{"skill_id": skills["Docker"], "group": ""}]})
+    assert res.status_code == 200, res.text
+    assert "Other: Docker" in await _lines(client, me, resume_id)
+    # A null group keeps it
+    await client.patch(f"{me}/built-resumes/{resume_id}/choices",
+                       json={"skills": [{"skill_id": skills["Docker"], "group": None, "position": 5}]})
+    assert "Other: Docker" in await _lines(client, me, resume_id)
+
+
+async def test_a_group_too_long_is_refused(student):
+    client, me = student
+    await _fill_bank(client, me)
+    resume_id = await _generate(client, me)
+    docker = next(s["id"] for s in (await _bank(client, me))["skills"] if s["name"] == "Docker")
+    res = await client.patch(f"{me}/built-resumes/{resume_id}/choices",
+                             json={"skills": [{"skill_id": docker, "group": "x" * 61}]})
+    assert res.status_code == 422
+
+
+async def test_a_skill_moved_to_another_group_renders_from_the_copy_as_it_saves(student):
+    _tectonic_or_skip()
+    client, me = student
+    await _fill_bank(client, me)
+    resume_id = await _generate(client, me)
+    docker = next(s["id"] for s in (await _bank(client, me))["skills"] if s["name"] == "Docker")
+    move = {"skills": [{"skill_id": docker, "position": 0, "group": "Languages"}]}
+
+    res = await _render_changes(client, me, resume_id, move)
+    assert res.status_code == 200, res.text
+    assert {c["skill_id"]: c["group"] for c in res.json()["choices"]["skills"]}[docker] == "Languages"
+    assert (await client.patch(f"{me}/built-resumes/{resume_id}/choices", json=move)).status_code == 200
+    after = (await client.get(f"{me}/built-resumes/{resume_id}/render")).json()
+    assert [(b["item_id"], b["kind"], b["text"]) for b in res.json()["render"]["boxes"]] == [
+        (b["item_id"], b["kind"], b["text"]) for b in after["boxes"]]

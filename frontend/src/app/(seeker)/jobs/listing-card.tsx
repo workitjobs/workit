@@ -18,6 +18,7 @@ import {
   formatPosted,
   formatSalary,
   formatWorkStyle,
+  placesOf,
 } from "./format";
 import { hasApplied } from "../applied";
 import type { ApplicationStage } from "../auto-apply/actions";
@@ -216,6 +217,8 @@ export function listingFacts(job: JobListing) {
     location:
       formatPlaces(job.location_label ?? job.location) ??
       (job.work_style === "remote" ? null : NOT_LISTED),
+    // Every place, for "+N more" to open (components/places-value.tsx).
+    places: placesOf(job.location_label ?? job.location),
     jobType: job.job_type ? formatJobType(job.job_type) : NOT_LISTED,
     salary: salary(job),
     workStyle: job.work_style ? formatWorkStyle(job.work_style) : NOT_LISTED,

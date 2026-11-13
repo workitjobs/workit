@@ -36,6 +36,10 @@ _Avoid_: personal info, answers file
 A required question only Lisul can answer: one asking for an Applicant profile fact the profile lacks, a one-off question Claude can't answer from his facts, or one that stays his whatever Claude knows (references or contacts, government IDs, signatures and attestations, criminal history, an "if yes, explain" his answer calls for), or a fact an Essay plan's required slot needs that no Story bank line states (asked as "Essay fact: …"). A follow-up that Apply's own answer to the question before it doesn't call for ("If yes, …" or "If a contingent worker, …" after a No, 'If "Other," …' after another pick) is not one: it is left blank, or answered N/A where it must be answered. Pay is not one: asked as a figure it gets the middle of the Posting's own pay range, or Lisul's fallback rate (policies.yaml); asked in words it gets "Open to the posted range" when the Posting names its pay, else the fallback rate ("$30/hr"); asked whether the posted or stated pay suits him, it gets Yes. Its Application pauses until Lisul answers, and the answer joins the profile (an Essay fact's joins the Story bank, and the essay is then written). A question that the profile, the Answer bank, the Story bank or the resume already answers is not one: Apply answers it from there. Each one shows a context line: its form step, the question before a bare label, its pair, or the essay that it is for.
 _Avoid_: unknown question, gap
 
+**Optional ask**:
+An optional question that asks a fact about Lisul that no source holds, where the fact may exist for him (KAN-759). It shows in Needs you with a Skip (leave blank) button. It never stops or holds the form. Verifying lists it as a note. His answer joins the profile. His Skip is kept as an empty answer, so no later form asks it again. It is never asked when the known facts say that the fact does not exist: an empty profile fact (no middle name), Address Line 2 or 3 of a home address that has none, or a Tax District for a home in no local tax district. An optional catch-all box and a preferred name are never asked.
+_Avoid_: optional Missing fact, optional blank
+
 **Go to question**:
 The button on a Needs you question whose form is still open in its Worker's browser. It brings that browser to the front and scrolls to the field, which it focuses and outlines. A field on another Workday step is not shown: Apply names the step and moves nothing. Lisul can then answer the question on the form. Once he leaves the field and it rests a moment, Apply saves his answer as the card saves it, and the question leaves Needs you.
 _Avoid_: jump, show field
@@ -128,6 +132,10 @@ _Avoid_: ban, captcha, stealth
 The action that continues a paused Rehearsal on its open page. A Rehearsal pauses when its fill stops mid-form for Lisul, for example on a step that does not go on. He fixes the page, then presses Resume on its card or Needs you item. Apply reads the page as it is, keeps his fixes and fills the remaining steps. It never starts over, never submits and never asks for a new code. When the tab is closed, the button says why it cannot continue. A filling Rehearsal also shows Resume when Apply waits on Claude, the page shows a field error, or the fill makes no progress for 45 seconds. There, Resume stops the wait and continues from the page as he left it.
 _Avoid_: retry, restart, continue
 
+**Session keep-alive**:
+What Apply does to keep a job site's session open while a form is held for the applicant. It acts on every job site, and its site table adds what is known of each system. It sends a request for the page's own address and a mouse-move event to the page. When the site shows a "session about to expire" dialog, Apply presses only that dialog's stay-signed-in button, with the guards on. The applicant's Submit then stays held until they press Dismiss on the page. It never saves, never sends the Application and never changes a field. When a session ends, the tile and the phone push say to press Fill again.
+_Avoid_: heartbeat, refresh, keep awake
+
 **Worker**:
 One process with its own browser that carries one Application at a time: it runs the Filler for the Posting's job system and calls Claude only for answers no stored fact covers. Several run at once.
 _Avoid_: bot, agent, runner
@@ -211,7 +219,7 @@ A Posting that reappears in the Feed under a new identity but is the same role L
 _Avoid_: duplicate, relisting
 
 **Filler**:
-The fixed procedure that fills every form of one job system (Greenhouse, Ashby, Lever, Workday, Rippling, Workable, Eightfold) from the Applicant profile.
+The fixed procedure that fills every form of one job system (Greenhouse, Ashby, Lever, Workday, Rippling, Workable, Eightfold, amazon.jobs) from the Applicant profile.
 _Avoid_: autofill, script, bot
 
 **Fill engine**:
@@ -277,7 +285,7 @@ Claude's fix, live on a held form, of a problem Lisul tells it in his own words.
 _Avoid_: chat, assistant, live edit
 
 **Rescue**:
-Claude filling, live on the open form, one field a Filler's own code failed on (a FillError, or a click that timed out), so the Application goes on to the next step instead of failing. It runs under the drive guard, is read back and checked like any field, and leaves a Repair request so the Filler's code is fixed too. Workday's Filler has one.
+Claude filling, live on the open form, one field a Filler's own code failed on (a FillError, or a click that timed out), so the Application goes on to the next step instead of failing. It runs under the drive guard, is read back and checked like any field, and leaves a Repair request so the Filler's code is fixed too. Workday's and amazon.jobs's Fillers have one.
 _Avoid_: fallback, live repair, retry
 
 **Repair request**:

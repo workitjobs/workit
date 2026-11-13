@@ -8,7 +8,6 @@ import { LightningRoundedIcon } from "@/components/custom-icons";
 import { ArrowRightIcon } from "@/components/icons";
 import { MatchBadge } from "@/components/match-badge";
 import { Checkbox } from "@/components/shadcn/checkbox";
-import { Badge } from "@/components/ui/badge";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import { openNextApplication } from "@/lib/autofill-extension";
@@ -217,11 +216,6 @@ export function TopMatchesList({
             const blocked = blockedReason(row);
             const isPicked = picked.has(row.id);
             const match = row.match != null && <MatchBadge score={row.match} />;
-            const posted = row.posted && (
-              <Badge variant="tag" pill>
-                {row.posted}
-              </Badge>
-            );
             const details = (
               <div className="flex min-w-0 flex-1 items-center gap-3">
                 <CompanyLogo
@@ -242,23 +236,31 @@ export function TopMatchesList({
                       {row.title}
                     </TopMatchLink>
                   )}
-                  <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-                    <span className="text-note text-ink-meta min-w-0 truncate">{row.company}</span>
-                    <span className="contents @4xl/main:hidden">
-                      {match}
-                      {posted}
-                    </span>
+                  {/* The company, then when it was posted, as the job
+                      cards' meta line reads ("HP · 21 days ago"): the
+                      company truncates first, so the age always shows. */}
+                  <div className="text-note text-ink-meta mt-1 flex min-w-0 items-center gap-x-1.5">
+                    <span className="min-w-0 truncate">{row.company}</span>
+                    {row.posted && (
+                      <>
+                        <span aria-hidden="true">·</span>
+                        <span className="shrink-0">{row.posted}</span>
+                      </>
+                    )}
+                    {/* Picking has no buttons' row, so the match stays
+                        here below @4xl/main; otherwise it leads that row. */}
+                    {picking && match && (
+                      <span className="ml-1 flex shrink-0 @4xl/main:hidden">{match}</span>
+                    )}
                   </div>
                 </div>
-                {/* From @4xl/main the match and the posted date are columns
-                    of their own (KAN-423), centred on the row's height at
-                    fixed widths, so they line up down the list. Squeezed
-                    on the company's line they read as one cramped run, and
-                    a long company name pushed them out of line. */}
-                <div className="hidden shrink-0 items-center gap-6 pl-4 @4xl/main:flex">
-                  <span className="flex w-20">{match}</span>
-                  <span className="flex w-36">{posted}</span>
-                </div>
+                {/* From @4xl/main the match is a column of its own
+                    (KAN-423), against Save and Apply Now, so the scores
+                    line up down the list. The posted date was a second
+                    pill column until 2026-11-10: two pills in fixed
+                    columns floated in the middle of the row, apart from
+                    both the title and the buttons. */}
+                {match && <span className="hidden shrink-0 pl-4 @4xl/main:flex">{match}</span>}
               </div>
             );
 
@@ -302,8 +304,16 @@ export function TopMatchesList({
                     {details}
                     {/* Save, then Apply Now: their own full-width line below
                         @xl/main, since beside the text on a phone they
-                        squeezed the title to two words a line. */}
+                        squeezed the title to two words a line. Below
+                        @4xl/main the match leads the line: on the
+                        company's line it cut the name to "Hewlett P…".
+                        Apply Now is secondary here (2026-11-10): filled on
+                        every row, five violet buttons stacked into a wall
+                        on a phone, and the title is the row's way in. */}
                     <div className="flex shrink-0 items-center gap-2 @max-xl/main:w-full">
+                      {match && (
+                        <span className="mr-auto flex shrink-0 @4xl/main:hidden">{match}</span>
+                      )}
                       <SaveJobButton jobId={row.id} title={row.title} stage={row.stage} />
                       <ApplyButton
                         jobId={row.id}
@@ -311,6 +321,7 @@ export function TopMatchesList({
                         applyUrl={row.applyUrl}
                         canMarkApplied={canMarkApplied}
                         applied={hasApplied(row.stage)}
+                        variant="secondary"
                         className="whitespace-nowrap @max-xl/main:flex-1"
                       />
                     </div>

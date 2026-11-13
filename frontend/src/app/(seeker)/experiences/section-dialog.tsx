@@ -24,9 +24,6 @@ import {
 } from "./entry-dialog";
 import type { BankRow } from "./holdings";
 
-/** A card heading's icon action: a 32px round target, as LinkedIn's. */
-export const HEADING_ACTION = "hover:bg-hover size-8 rounded-full";
-
 /** An item of the list's ⋯ that asks across the foot first: Clear All,
  *  Delete Section. On a yes it runs, and the list closes once it is done,
  *  since what it showed is gone. */
@@ -198,25 +195,25 @@ export function SectionDialog({
           actions={
             <>
               <IconButton
+                place="heading"
                 id={ADD_ID}
                 label={`Add ${noun[0]}`}
                 tooltip={`Add ${noun[0].toLowerCase() === "entry" ? "an entry" : `a ${noun[0].toLowerCase()}`}`}
-                className={HEADING_ACTION}
                 onClick={() => setStep({ kind: "entry", entry: null, near: null })}
               >
-                <PlusIcon aria-hidden className="size-5" />
+                <PlusIcon aria-hidden />
               </IconButton>
               {(actions.length > 0 || rename) && (
                 <DropdownMenu>
                   <DropdownMenuTrigger
                     render={
                       <IconButton
+                        place="heading"
                         id={MORE_ID}
                         label={`More actions for ${name}`}
-                        tooltip="More actions"
-                        className={HEADING_ACTION}
+                        tooltip={false}
                       >
-                        <EllipsisIcon className="size-5" />
+                        <EllipsisIcon />
                       </IconButton>
                     }
                   />

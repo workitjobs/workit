@@ -3,6 +3,7 @@
 import Link from "next/link";
 
 import { ClickableRow } from "@/components/clickable-row";
+import { rowFill } from "@/components/fill-page";
 import {
   Dialog,
   DialogContent,
@@ -83,7 +84,7 @@ export function DayApplications({
           <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent">
-                <TableHead className={TH}>Role</TableHead>
+                <TableHead className={TH}>Job</TableHead>
                 <TableHead className={TH}>Applied</TableHead>
                 <TableHead className={TH}>Status</TableHead>
               </TableRow>
@@ -93,7 +94,7 @@ export function DayApplications({
                 <ClickableRow
                   key={app.id}
                   href={applicationHref(app.id)}
-                  className="hover:bg-hover"
+                  className={rowFill(false)}
                 >
                   <TableCell className={`${TD} max-w-0 py-3`}>
                     <div className="flex min-w-0 items-center gap-3">

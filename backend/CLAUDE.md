@@ -462,6 +462,13 @@ Find files with a directory listing; these are the rules for where code goes.
   **Each listed answer carries `answered_at`** (KAN-369), when it was last
   saved: the page marks the student's own answers (captured from a form)
   New by it until they have seen them. Tests: `tests/test_captured_answers.py`.
+  **Documents' Cover Letters tab lists the cover letters** (KAN-766,
+  `GET /applicants/{id}/cover-letters`, `pipeline.cover_letters`): every
+  saved answer asked in words whose Question type is `cover-letter`, read
+  per row as the plan's `type`, else `question_types.classify(label)`
+  (`written.question_type`), at any stage, last saved first, with the
+  posting's logo and the application's stage. Read-only. Tests:
+  `tests/test_pasted_answers.py`.
   **Problem reports from the extension's panel** (KAN-403, fix reports
   KAN-369; `routers/fill_reports.py` over `queries/fill_reports.py`, table
   `fill_reports`, migrations `c4e1a9f2d803`, `e5b8d2a7c914`): `POST
@@ -788,9 +795,13 @@ Find files with a directory listing; these are the rules for where code goes.
   `tests/test_truth_check.py`). It reads each saved answer in words,
   Claude's or a paste. It finds the claims that none of the student's facts
   hold: numbers, names of tools and employers, a month or season, and
-  outcomes such as "went into use". The student's facts are their bank,
-  profile and own answers. The posting, brief and question can also give a
-  number or a name. WorkIt saves such an answer as written and flags it in
+  outcomes such as "went into use". An outcome counts only from a fact
+  about the same project or role (KAN-750): the project the sentence (or
+  the one before it, or the plan's story) names. The bank goes in one
+  entry per text under a "## title, organization" heading
+  (`written.bank_facts`). The student's facts are their bank, profile and
+  own answers. The posting, brief and question can also give a number or
+  a name. WorkIt saves such an answer as written and flags it in
   the tab (`review.flag_claims`, kept as `answer_review.truth`). The flag
   names the claims and marks the first one's sentence. It holds until the
   answer changes or the student keeps it. The pre-submit review's own flag
@@ -1350,6 +1361,10 @@ Find files with a directory listing; these are the rules for where code goes.
   `cached` and `_cleaned`): postings read before the prompt asked for it hold
   lower case, which showed on the Tailor screen and printed in the resume's
   skills. Only a word wholly in lower case changes, and the match ignores case.
+  **A skill the catalog spells keeps its spelling** (`skill_catalog.spelled`,
+  the same name with the catalog's case, never another name for it):
+  "numpy" is "NumPy" and "grpc" "gRPC"; title case had printed "Numpy",
+  "Html5" and "Matlab" on tailored resumes (2026-11-12).
 - **The keyword match** (KAN-215) is `GET .../built-resumes/{rid}/keyword-match`
   over `services/keywords.py`: a job posting's keywords, extracted once by
   the model and cached on the posting with a hash of its title and the
@@ -1972,6 +1987,14 @@ go then. A change needs to work on Cloudflare only.
   them: an upload never wrote one, and Tailor, the resume view, Generate,
   Scout, the recommender and the embedding all ignored them. A skill is
   one list per student.
+- **Apply `d8f3b6a1c947` (`built_resume_skills.group`, KAN-586) before
+  the deploy that maps it.** The model selects the column with every skill
+  choice, so deployed first, every built resume, Generate, Tailor and the
+  editor answer 500. It only adds a nullable column (null is the bank's
+  group, so every row prints as before), so applying it early is safe. It
+  sits on KAN-436's `c5e1a9d3b724` (`applicant_profiles.resume_header_extra`),
+  so `upgrade head` applies that one first; both go to `main` before either
+  is applied (`alembic/CLAUDE.md`, "Commit the migration in the same PR").
 - **Apply `d642d93fcfbc` (`resumes.text_hash`, KAN-267) before the deploy
   that writes it.** The model maps the column, so every upload's INSERT
   names it: deployed first, every upload answers 500. It only adds a

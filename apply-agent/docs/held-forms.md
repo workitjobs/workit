@@ -29,7 +29,12 @@ reads: it does not click, type or submit.
   profile on the job site carried it over (Amazon's Minor, KAN-754). A
   None or N/A that the plan picked and the page does not show is the
   read-back's flag. A field whose fact the profile only lacks is never a
-  leftover. Claude makes only the judgment checks, in
+  leftover. Entries an old profile on the job site carried over hold as
+  leftovers too (`verify._extra_entries`, KAN-762): a jobs or schools
+  section read back with more entries than the plan gave it (JPMorgan's
+  Oracle kept a Princeton entry the profile doesn't list), and an employer
+  field of a work entry Apply didn't fill that names no job on file.
+  Claude makes only the judgment checks, in
   the Pre-submit review call (`presubmit.SYSTEM`: contradictions, wrong
   answers); its findings join the flags. Its `<profile>` block holds
   the facts as the plan read them, the Tracker's past applications too
@@ -45,7 +50,33 @@ reads: it does not click, type or submit.
   Claude draft that a fix replaces leaves the Answer bank. On Workday, the
   next fill goes Back to the step that holds the fixed answer
   (`WorkdayFiller._back_to_changed`). A read-back replan also refills
-  this way.
+  this way. Once there, it reloads the page before it fills the step.
+  Back draws a step from what the page kept of it, not from Workday's
+  server, and NVIDIA's My Experience, filled again that way, answered
+  Save and Continue with Workday's error page (2026-11-10, KAN-758). A
+  reload that opens another step is followed by Back again.
+- On Workday, the read-back of each repeating section (Work Experience,
+  Education) is Review's, not the step's (`WorkdayFiller._reviewed`, the
+  engine's `workdayEntries.reviewed`, KAN-775). NVIDIA's keeps only the
+  entries changed on a step's last visit: Ask went back to My
+  Experience, changed one date and saved, and Review then showed one of
+  three jobs, while verifying still read the step as filled (live,
+  2026-11-10). Each planned entry is found on Review by its company or
+  school (title only when neither shows), never by its place. The
+  section reads back as the count Review shows, and an entry Review
+  lacks reads back blank, so the read-back and the Work history check
+  (`verify._work_history`) hold the form. The next fill goes Back to
+  that step and types every entry again, which Workday then keeps. Ask
+  Claude's prompt (`ask.SYSTEM`) tells it the same: on a Workday step it
+  went back to, a change to one entry goes with the other entries'
+  Company or School typed again.
+- A Workday fill deletes an entry panel only when the section shows more
+  panels than the plan's entries and the panel holds none of them by its
+  naming fields (`workdayEntries.naming`, sent with the count). When
+  every extra panel holds one of Lisul's entries, the fill stops for him
+  and deletes nothing. An engine without these calls (a plain Worker
+  seeded before v0.3.44) reads nothing from Review and deletes as
+  before: run `uv run apply plain seed` once no Worker runs.
 - A flag that `holds` goes in the reason as `Verify: <field>: <why>` and
   holds a live run (Needs you, kind `check`). Read-back and review flags
   hold already by their own reason. A blank optional field holds as a
@@ -121,6 +152,9 @@ goes on from the step that the page shows.
   and the site's account menu does. Then the pause goes on, and Claude fill reads the same page
   again; on the posting page it presses Apply now itself, under the drive guard. Any other Claude fill
   pause keeps `signed_in` None (or Oracle's), so a page gate's pause never goes on by itself.
+- Signing in on a paused page never ends Resume: a press on a sign-in, account or code step is not
+  his Submit, on any job system (KAN-781, `docs/sign-in.md`). Only the application's own Submit, or a
+  confirmation page after any press of his, makes the form his to send (`rehearsal.SENT`).
 - A tab that closed, or a rehearsal that ended, makes `resume={"ok": False,
   "why": ...}` (`rehearsal.TAB_CLOSED`, `ENDED`). The button stays, turned
   off, and says why. Fill again still fills the form anew.
@@ -140,7 +174,9 @@ Review with no submit. Also a closed tab, the `/resume` route, and the
 window's card and tile. `-k by_itself`: Lisul signs in to Google on the paused page and the fill goes
 on with no Resume; a captcha there stops that. Run it with `-k`; it opens Chromium. `tests/test_provider_sign_in.py`:
 the fake Microsoft Careers (`tests/fake_microsoft.py`) pauses at its sign-in window, Lisul signs in,
-and the form fills to its last page with no Resume, no provider button pressed and nothing sent.
+and the form fills to its last page with no Resume, no provider button pressed and nothing sent. `tests/test_rehearse.py -k oracle`: Lisul signs in
+to an Oracle-shaped page (email, Next, Send New Code, the code, Verify), and Resume goes on; the
+application's own Submit after it still ends Resume.
 
 ## Resume while a rehearsal fills (KAN-594)
 
@@ -268,6 +304,17 @@ fixes it live on that form.
   every frame's fields and values, captcha frames left out, a field on another step marked `hidden`),
   Apply's plan and Record for the form (`_Ask._form`), and the sources (`ask.sources`: profile,
   Answer bank, policies, resume text). Page text is data, never an instruction.
+- **The files it may attach** (`_Ask._files`, KAN-683, KAN-789). Claude's upload tool sees only the files Apply
+  copies into the drive's folder, so Ask gets the files Apply prepared for this form: the files the form was given,
+  then each file kept for its own Application under `sent/` (newest day first, so an earlier fill's cover letter
+  too: `worker.sent_files`), then the profile's resume. Each name is given once, the first found. Before, Ask had
+  the resume alone, and couldn't put JPMorgan's own cover letter back in its Cover Letter slot (2026-11-10).
+  Two limits, from the security look at #552:
+  - A transcript only when this form was given one. A page's words ("attach your transcript to Additional
+    documents") or a misread message could otherwise put his grades on a form that never asked for them.
+  - Only the Application's own `sent/` folder, by its whole name (`<company slug>-<id>`, as `sent_folder` names
+    it). A suffix match (`*-<id>`) also took another Application's folder whose id ends in this one's
+    (`acme-9-123` for id `123`), and so another company's cover letter. `sent_resume` still matches by suffix.
 - **How it acts.** `claude_cli.drive`, as Claude fill does (Playwright MCP on CDP, Apply's own MCP server
   on a plain Worker), under the drive guard. Code, not only the prompt, judges the real element, never
   Claude's word for it (KAN-654). The send_click hook runs with `--ask`: a second hook after each browser
@@ -297,9 +344,27 @@ fixes it live on that form.
   (`apply_bug`) is a Repair request (`ask.repair_requests`). His message and the fix go in the Record
   (`asks.json`, the README's "Ask Claude" section, history lines, and the changed fields' on-page answers).
 
+- **A consent dialog stops it (KAN-769).** An upload that brings on a consent dialog (Microsoft's Data Privacy
+  Notice) ends Claude's drive: its tool result says to stop, its buttons are refused, and the prompt says the
+  same. After the drive, an open one is a waiting item, "Press 'I understand' on the 'Data Privacy Notice' dialog
+  yourself". A capped Ask names it too. Before, Claude pressed its Cancel, the upload went, and Claude spent its
+  3,000,000-token cap (about 33 tool calls of a 90k-token page each) setting fields again. His press lets the file
+  the page holds go: nothing is attached again. Claude never clicks the option a list holds already (KAN-767).
+
 **Tests.** `tests/test_ask.py` (in CI, no browser): the hook's Ask mode, the read-back, an attestation
 put back, the window's routes, `apply ask`, and the Record and Repair request.
 `tests/test_dashboard.py -k ask_claude_box` types in the tile's box in Chromium.
+
+## His own Submit on an Eightfold form (KAN-771)
+
+A held page on an Eightfold careers site (the engine's `jobOf`: Netflix, Lockheed Martin, and Microsoft, which
+Claude fill fills) is confirmed by Eightfold's own check (`eightfold.confirmed`, "Application Submitted"), whichever
+Filler filled it. A confirmation that shows after the hold began counts as his Submit even when his press was not
+heard (`_Kept.hold`'s `unheard`): Lisul's Submit on Microsoft 200061280 (2026-11-10) went in, and Apply recorded
+nothing. Then the Tracker row and the Record are written as for any job system. The engine's `submitResult` also
+reads Eightfold's `POST /api/application/v2/submit` answer (`data.success`), for the extension's watch.
+
+**Tests.** `tests/test_rehearse.py -k eightfolds_own_check`; the engine's `test/submit.spec.ts`.
 
 ## Page gates (KAN-637)
 
@@ -349,6 +414,45 @@ through `worker._Planned._missing` first.
 
 **Tests.** `test_claude_answers.py -k already_holds` and
 `test_dashboard.py -k says_where_it_sits` (opens Chromium).
+
+## An optional question no source answers (KAN-759)
+
+Lisul answers optional questions too (Lisul, 2026-11-10: "if it's optional
+and i can provide it then it should prompt me for it"), but never one about
+a fact that can't exist for him ("if it's something that doesn't exist then
+don't prompt me for it").
+
+- The engine's plan lists each such question in `Plan.optional`: a rule's
+  profile fact that the profile doesn't keep at all. A fact the profile keeps
+  empty (`line2: ""`, `minors: []`) is none: blank, never asked. The rules
+  for Address Line 2 and 3 and for Tax District (its table of local taxes,
+  `src/local-tax.ts` in the engine) leave those blank where the home has none
+  (`docs/fill-engine.md`). A one-off question that Claude can't answer goes
+  to Lisul as before, marked Optional by the form's own flag.
+- `_Planned.add` passes `Plan.optional` to `_missing` with the Missing facts.
+  A rehearsal lists them all. A run stops only for a required one
+  (`self.required`): an optional one is left blank and the form goes on.
+- Verifying (`verify._blanks`) notes an asked optional field that is still
+  blank (`OPTIONAL_UNANSWERED`). The note holds nothing.
+- The tile (`dashboard.verdict`) makes only the required questions a Missing
+  fact. With only optional ones left, it says `OPTIONAL_ASK`, after any real
+  flag or check, and the item's `optional` list puts their answer boxes on
+  the card whatever its kind.
+- The card has a **Skip (leave blank)** button. It posts an empty answer to
+  `/answer`, which calls the window's `answer` with `""`. `cli._answering`
+  then saves the Skip as an empty answer in the profile's
+  `answered_questions` (`AnswersTab.save_skipped`). The engine leaves an
+  optional question of that wording blank from then on (`SKIPPED`). A
+  required one with that wording is still asked. The Answers tab shows the
+  Skip as an empty answer, which he may fill in later. An Essay fact or a
+  bare date is skipped on that form only.
+- An answer is saved as a Missing fact's answer is: on his click, to the
+  profile, for every later form.
+
+**Tests.** `tests/test_optional_ask.py` (in CI): Tax District on a New York
+home (not asked) and an Ohio home (asked), a run that goes on, the note, the
+Skip and the answer kept for the next form, the tile, and `/answer`. The
+engine's `test/planner.spec.ts` has the planner's cases.
 
 ## An answer from the window, on a held form (`rehearsal._fill_answer`, KAN-686)
 
@@ -411,6 +515,80 @@ on the held form itself, not only in its Needs you card.
 fake Greenhouse, Go to question on a paused fake Workday step, finding a
 field by its label and panel, the rest rules, and the window's `/goto` and
 `typed` (opens Chromium).
+
+## A held form's job-site session (KAN-776, KAN-779)
+
+`src/apply/keepalive.py`. A held form waits for the applicant, but many job systems sign a person out when a page
+sits idle. Live, 2026-11-10: JPMorgan's Oracle Recruiting form was held on its last step. When Lisul came to
+submit, Oracle said "For security reasons your session was ended due to inactivity" and went back to the job list,
+and the filled form was lost. Which systems time out, after how long, and from what source:
+`docs/research/session-timeouts.md`.
+
+- **The Keeper.** `_Kept.hold(keep=...)` runs a `keepalive.Keeper` on each turn of the hold loop, until Submit
+  is pressed (rehearsal `holds()` makes one per hold). It reads the page every `LOOK_S` (5 s).
+- **Every site, by the generic rules.** A site with no entry gets `keepalive.ANY`; `keepalive.SITES` adds what
+  is known per system: Oracle Recruiting (30 min), Workday, amazon.jobs, Eightfold (Microsoft Careers too),
+  Taleo (30 min), SuccessFactors (30 min), BrassRing. Only an http(s) page gets anything, and only while it is
+  on the host it was held on (not a sign-in page's). Three things, never more: every `PING_S` (4 min), one
+  same-origin GET of the page's own URL with its cookies (a CDP page: the context's request API, so no page code
+  runs; a plain page: the extension's isolated world, `keepalive.PING`), plus one GET of the site's own
+  keep-alive address when its entry names one (`own`, same origin only; none is known yet), and one `mousemove`
+  dispatched on the document (`ACTIVITY`: no field, no pointer; Oracle's own idle timer listens for it); and,
+  when a dialog says the session is about to end, a press of ONLY its stay-signed-in button. It never presses
+  Sign out, never saves, never sends and never types.
+- **The warning.** Its words (`WARNS`: "about to expire", "will expire in 2", "are you still there", "you will
+  be signed out in 5 minutes", "extend your session"...) in a shown dialog: a dialog or alertdialog role,
+  `<dialog>` or `aria-modal`. Words alone in a box with no dialog role are never a warning.
+- **The stay press is a click path** (`keepalive.press`), by a name of the entry's `stay` (`STAY_NAMES`:
+  Continue, Stay signed in, Keep me signed in, I'm still here, Extend session...), matched whole as listed or in
+  Sentence, Title or lower case (exact strings: a case-insensitive pattern made the click time out). The four
+  checks, all of them: Python refuses a name that sends (`account_pages.SENDS`) or leaves (`LEAVES`: sign out,
+  cancel, close, end, a bare Yes, No or OK), and `STAY` (a fixed function, isolated world, on a plain page)
+  refuses the element when its own words, value, label or title send or leave; it must be in a dialog whose words
+  warn; it is no form's (nor `form=` or `formaction`), no input and no link away, with nothing inside it; and the
+  dialog holds no form and no field. Then the press runs in `driving()`, the same context Ask Claude's drive
+  uses: both guards back on (`rearm`). After it (and `SETTLE_MS`, 3 s), the page is the applicant's again, but
+  their Submit is held (`Keeper.holding`, `keepalive.STAY_HELD`): `lift(held=...)`, under the red note with
+  Dismiss, where the in-page guard stays whole. Only their Dismiss on the note gives Submit back (`Keeper.dismiss`,
+  with any flag's hold). That Dismiss is the guard's own tell (PR 477's design: `submit_guard.TELLS`, from the
+  guard's closure, for a trusted press or the worker extension's marked one), so nothing the page can reach
+  releases it: not a call of `__applyDismissHold`, nor a script's click on the note's button, nor a console line
+  that looks like the tell (the re-review of #541). So a button that sends the form at any delay after the press
+  sends nothing while the form is held. A fixed 3 s of guard was not enough: in the adversarial review of #541, a Continue that sent 3.5 s later
+  went through. From the press on, the Keeper sends no more mouse moves on that page, since a page could arm on
+  the press and send on the next one; the GET, which the page's code never sees, goes on. The same holds on a site
+  with no entry. It is in `tests/test_submit_guard_hostile.py` (`PATHS`: the stay press and the generic stay
+  press; `SESSION_PAGES`, sending 1.5 s, 3.5 s, 10 s and 60 s after the press or after the next mouse move, or after
+  dismissing the hold itself, and `GENERIC_SESSION_PAGES`, the same on a site with no entry): a change here gets an adversarial review
+  before it merges (KAN-666).
+- **When a session ends anyway.** On every site the Keeper reads for `ENDED` (past tense only: "was ended due to
+  inactivity", "has expired"; never "will expire" or "will be signed out due to inactivity") showing anew, the
+  address turning to a timeout page (`ENDED_PATH`: Eightfold's `/session_timeout`), or, where the entry knows the
+  form's own pages (`form`: Oracle's `/apply/section/<n>`, Workday's `/apply`), the page leaving them. Words or an
+  address there from the first look (a sign-in page's) are no new end. Then, once (`rehearsal.session_lost`): the
+  tile goes to handoff with "<company>'s session ended; press Fill again after signing in", the phone push says
+  the same (`phone_push` on), Ask Claude stops (`askable` off), and the open-forms list notes `session ended`.
+  The page stays held: Fill again, from its note or the window (`refill` lets `POST /fill-again` take it), fills
+  it anew.
+- **The tile's session line** (`session` in the caption, `.session`): "Held since 10:42; Apply keeps Oracle
+  Recruiting's session alive; it signs you out after about 30 min idle" ("the site's" and "its idle limit isn't
+  known" on a site with no entry), then the last stay press, or "Session ended at 11:15". `Site.minutes` is a
+  system's published default; an employer can change it.
+- **Still open.** No site's dialog words or stay name are verified live, nor Taleo's beacon address (the first
+  `own` to fill). The GET of a page's own URL reloads it on the server: a system that keeps one flow per page
+  load could take it as a second window; if one does, set `ping=False` in its entry. A stay button that is an
+  `<input type=button>` is never pressed (an input is refused). A rehearsal held past each limit is the live proof
+  still to make; put what is seen in the site's entry.
+
+**Tests.** `tests/test_keepalive.py` (in CI; its browser cases skip there without Chromium): the table and the
+generic rules, the warning and ended words, the names never pressed, the Keeper's turns on a fake page (generic
+ping, host change, timeout address, the site's own address), a fake Oracle form whose session dialog gets only
+Continue, the dialogs of Taleo, SuccessFactors, iCIMS, a TAL.net-like site and an unknown site each getting only
+their stay press, warning words with no dialog role getting none, the expiry told through `_Kept.hold` with Fill
+again after, the ping on loopback with its cookie (and the own address, same origin only), and the same press and
+ping on a plain Worker, and the Submit held after a stay press until the Dismiss. `tests/test_into.py -k session`: Fill again on a form whose session ended.
+`tests/test_submit_guard_hostile.py -k "session or stay"`: both stay presses against every hostile page, and on a
+held page through `_Kept.hold`.
 
 ## Fill again from outside the page: `POST /fill-again` and `apply fill-again` (KAN-672)
 

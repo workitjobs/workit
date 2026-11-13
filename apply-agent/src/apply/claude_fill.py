@@ -58,7 +58,14 @@ from urllib.parse import urlsplit
 
 from playwright.sync_api import Locator, Page
 
-from apply import captcha, description, fill_engine, on_page, provider_sign_in
+from apply import (
+    captcha,
+    description,
+    fill_engine,
+    on_page,
+    provider_sign_in,
+    upload_origin,
+)
 from apply.account_pages import FIELDS as ACCOUNT_FIELDS
 from apply.account_pages import PROMPT as ACCOUNT_PROMPT
 from apply.account_pages import SENDS, AccountPages
@@ -99,6 +106,8 @@ APPLIES = re.compile(r"\bappl(?:y|ying|ication)\b", re.IGNORECASE)
 STEP_SHOWS_MS = 8_000
 ADDS = re.compile(r"^\s*add\b", re.IGNORECASE)  # a section's button that adds an entry ("Add another")
 ENTRIES_COUNT = re.compile(r"^work experience \(entries\)$", re.IGNORECASE)
+# A jobs or schools section's count of entries (KAN-762): the profile's history goes in an <entries> block beside it.
+SECTION_COUNT = re.compile(r"^(work experience|education) \(entries\)$", re.IGNORECASE)
 MAX_ADDS = 10  # a guard against a loop: no work section takes more entries
 # What a page says once it has the application, and how long it may take to say so.
 THANKS = re.compile(
@@ -197,7 +206,9 @@ ENTRIES = ("A section for jobs or work experience whose entries the person adds 
            "name each field of its entries \"Work Experience <n> / <label>\", n counting the entries from 1, whatever the "
            "section's heading (\"Work Experience 1 / Employer\"), and list one more question, \"Work Experience (entries)\": "
            "kind select, not required, options the counts of entries it may hold (\"1\", \"2\"), up to the most the page "
-           "states, or no options when it states no limit.")
+           "states, or no options when it states no limit. A section of jobs or of schools that shows entries as cards (an "
+           "earlier profile on the site left them, with Edit and Delete) is listed the same way, \"Work Experience (entries)\" "
+           "or \"Education (entries)\", with no options.")
 BLOCKED = {
     "blocked": {"type": "boolean", "description": "true only if you had to stop (see the rules)"},
     "why": {"type": "string", "description": "why you stopped; empty if not blocked"},
@@ -233,23 +244,34 @@ READ_SCHEMA = {
     "required": [*REPORTED, "page", "questions"],
 }
 
+# Entries an old profile on the job site carried over (KAN-762): Oracle's, Workday's My Experience, Amazon's tabs.
+CARRIED = ("When <entries> is given, it lists the person's jobs and schools as their profile gives them, and nothing else is "
+           "theirs. In a section of jobs or schools that already holds entries (cards an earlier profile on this site left, "
+           "with Edit and Delete or Remove): delete each entry whose employer, or school, no item of <entries> names, and open "
+           "each one that an item names to set its title and dates to that item's. For a job with no end (held now), tick its "
+           "current-job box (\"I currently work here\", \"Current job\") first, then set its start, and leave its end empty. "
+           "Never delete an entry that <entries> names, and never add one it doesn't. In `entries_kept`, list each entry the "
+           "section still holds that no item of <entries> names, as \"<employer or school> - <title>\", with why you couldn't "
+           "delete it; empty when there is none.")
 FILL = f"""You fill the step of the internship application form open in the browser's current tab with the answers in <fields>, exactly as given.
 The form may come in steps (pages): work only on the step showing now. Never click a button that goes to another step or sends the application.
 A file answer names a file in your working folder: attach that file. A select answer is the option to pick; a list answer, the options to tick.
 Use as few tool calls as you can: one browser_fill_form call for every field it can take, then the rest one by one; take a new snapshot only when the page has changed.
 Pick every select answer yourself, even when the dropdown already seems to show it (a country listed first): choose the option, then read it back; never leave a select's `shown` empty.
 A dropdown that opens a search box ("Type to Search") searches as you type, and its list takes a few seconds to change: click the dropdown, type only the answer's first word or its first few letters ("New" for New York, "Stony" for Stony Brook University) with browser_type, then browser_wait_for 2 seconds, find the answer's option in the list and click it. On "No Results", or a list that hasn't changed, wait once more, then type a shorter part of the answer. Don't press Escape or leave the dropdown before its option is clicked.
+A date: type it in the format the box gives, then leave the box. If it then shows an error ("required", "invalid"), stays empty, or reads back another date, pick the date with the box's calendar (its date picker) instead, then read it back. If a picked date reads back a day off (Amazon's can show the day before), put it in `for_lisul` as it shows; never pick another day to make up for it.
 Leave every other field as it is, and any captcha ("I'm not a robot") too.
 Then read each field back, one `filled` entry a field: `field` is its id from <fields> ("q1"), copied exactly, never its label; `shown` is exactly the text, option or file name the field shows now, with nothing added ("Yes" or "No" for a single checkbox).
 If the step asks a question <fields> doesn't hold, leave it and go on: list it in `unlisted` like a question read off the form (label exactly as shown, with the help text under it after it in parentheses; kind, required, options). Don't stop for it. When a label shows more than once on the form, in different sections (a home and a campus address, current and permanent, mailing and residential), put the section's heading before it: "Campus Address: Address line 1".
 If a question in <fields> is not on this step, leave it out of `filled` and go on.
 {ENTRIES} "Work Experience (entries)" in <fields> is how many entries that section should hold: read it back as the count it holds now. Never press the section's add button yourself: if it holds fewer, fill the entries it shows, then name that button exactly in `add_button`, and Apply presses it. Otherwise leave `add_button` empty.
+{CARRIED}
 If this step has a button that goes on to the form's next step ("Next", "Continue"), name it exactly in `next_button` and leave `submit_button` empty.
 On the last step, name exactly the button that would send the application in `submit_button` and leave `next_button` empty. Never click that button, press Enter to send or try it again: once the fields are filled and read back, you are done. Apply sends the form itself, after its own checks.
 {RULES}"""
 # Lisul's page gates (policies: page_gates, KAN-637): he checks these on each step before the form goes on.
 GATES = """
-Never tick an attestation, certification or agreement box ("I certify", "I acknowledge", "I agree", consent to terms, to a background check or to data processing), and never type an e-signature, a typed-name signature or a date of signature, even when <fields> gives an answer for it: leave each as it is for the person, and list it in `for_lisul`.
+Never tick an attestation, certification or agreement box ("I certify", "I acknowledge", "I agree", consent to terms, to a background check or to data processing), and never type an e-signature, a typed-name signature or a date of signature, even when <fields> gives an answer for it: leave each as it is for the person, and list it in `for_lisul`. The one exception is a field whose entry in <fields> has "attested": true: Apply's own rule found the person's facts settle it, so pick or tick its answer exactly as given, and list it in `for_lisul` as "<label>: attested from sources".
 Before you finish, read every field on this step back and check it against <fields>: fix any that shows something else, once.
 In `for_lisul`, list every field on this step that the person must check before the form goes on, one entry each, as "<label>: <what it shows now>" (or "<label>: left for you"): attestation, certification, signature or date-of-signature fields; terms, or consent to a background check or to data processing; self-identification (gender, race or ethnicity, veteran, disability); work authorization, citizenship, U.S. person, export control or sponsorship; non-compete or prior-employer agreements; relatives at the company, prior employment with it, conflicts of interest; criminal history; and any answer you aren't sure is right. An option that only spells out the answer's abbreviation (a state's "NY" as "New York", a country's "US" as "United States") is a sure match, not one to list. Empty when the step has none."""
 FILL_SCHEMA = {
@@ -265,6 +287,8 @@ FILL_SCHEMA = {
         "next_button": {"type": "string", "description": "the button that goes to the next step; empty on the last step"},
         "unlisted": {"type": "array", "items": QUESTION, "description": "questions on the page that <fields> doesn't hold"},
         "add_button": {"type": "string", "description": "the work section's button that adds an entry, while it holds fewer than asked"},
+        "entries_kept": {"type": "array", "items": {"type": "string"},
+                         "description": "entries a jobs or schools section still holds that <entries> doesn't name"},
     },
     "required": [*REPORTED, "filled", "submit_button", "next_button", "unlisted"],
 }
@@ -312,7 +336,8 @@ class ClaudeFill:
                  sign_in: Callable[[Page], None] | None = None, resume: Path | None = None,
                  sms_opt_in: bool = False, marketing_opt_in: bool = False,
                  accounts: Accounts | None = None, account_facts: dict | None = None,
-                 page_gates: bool | str = False, signed_in: Callable[[Page], bool] | None = None):
+                 page_gates: bool | str = False, signed_in: Callable[[Page], bool] | None = None,
+                 history: dict | None = None):
         """`sign_in` takes the open posting to its form by plain code first,
         on a job system whose sign-in needs no Claude (Oracle's emailed code).
         `resume` is for a pop-up that asks for it before the form can be used.
@@ -325,7 +350,9 @@ class ClaudeFill:
         isn't sure of, pauses for his check before the form goes on, and Claude never ticks or
         signs his boxes. "note" pauses nothing: each such field goes on `checks`, his list to
         check before he submits, and the form goes on. `signed_in(page)` says whether a page is
-        past `sign_in`'s sign-in, with `sign_in`'s own check."""
+        past `sign_in`'s sign-in, with `sign_in`'s own check. `history` is the profile's jobs and schools
+        (`entry_history`): Claude gets them beside a section's count of entries, to delete the entries an old
+        profile on the site carried over and to correct the rest (KAN-762)."""
         self._claude = claude
         self._account_pages = AccountPages(accounts, account_facts or {})
         self._url = ""  # the Posting's, to go back to once a mailed link is opened
@@ -359,6 +386,10 @@ class ClaudeFill:
         self._approved: set[str] = set()  # the steps he checked and resumed from
         self._tick_asked: set[str] = set()  # the attestations the form stopped on for Lisul, till his Resume (KAN-676)
         self._adds = 0  # the entries plain code added to work sections (_add_entry)
+        # The labels named as another section's on each step (its count of steps and of entries added), KAN-788.
+        self._sectioned: dict[tuple[int, int], set[str]] = {}
+        self._history = history or {}
+        self.extra_entries: list[str] = []  # entries a section still holds that the profile doesn't list (KAN-762)
         self._tick_his: set[str] = set()  # the attestations he resumed from a stop on: his own, as he left them
         self.posting_text = ""  # the Posting's own text, as its open page showed it
         self.names: tuple[str, str] = ("", "")  # the company and role its open page named
@@ -459,7 +490,10 @@ class ClaudeFill:
         kinds = {q.name: q.kind for q in questions}
         # Attestations and signatures (KAN-676): Lisul's own to tick or sign. Claude leaves each as it is and reads it
         # back, so a required one left unticked on this step stops the form here, before its Next.
-        attests = {name for name in fill_engine.attestations(questions) if name not in answers}
+        found = fill_engine.attestations(questions)
+        attests = {name for name in found if name not in answers}
+        # One the plan answered (attest_from_sources, KAN-761), or that Lisul ticked himself: its answer, as given.
+        settled = {name for name in found if name in answers}
         required = {q.name for q in questions if q.required}
         self._asked = (labels, answers)
         if self._waited_for_box and not captcha.shows(page):  # Lisul did the captcha on the filled form
@@ -482,10 +516,19 @@ class ClaudeFill:
                     if name not in self._attached and name not in self._picked and self._put.get(name, _UNSET) != value
                     and value != ""  # nothing to type: a blank answer only invites a mix-up with its neighbour
                     and not self._passed(name)}  # its step went by without it: it is filled there once held
+            # An entry's current-job box goes before its dates: the engine's order (currentFirst, KAN-762).
+            order = fill_engine.call_without_page("currentFirst", [{"name": n, "label": labels[n]} for n in todo], list(todo)) \
+                if todo else []
             fields = [{"field": name, "question": labels[name], "answer": value.name if isinstance(value, Path) else value}
-                      for name, value in todo.items()]
-            files = [value for value in todo.values() if isinstance(value, Path)]
+                      | ({"attested": True} if name in settled else {}) for name, value in ((n, todo[n]) for n in order)]
+            # Every file the plan gives the form, not only this round's: a slot an earlier round filled may need its own
+            # file again, and Claude's upload tool sees only the files passed here (KAN-789). Never the résumé plain code
+            # attached: Claude leaves that field, and with no copy it can't put the résumé in another slot.
+            files = list(dict.fromkeys(value for name, value in answers.items()
+                                       if isinstance(value, Path) and name not in self._attached))
             prompt = f"<fields>\n{json.dumps(fields, indent=0)}\n</fields>"
+            if self._history and any(SECTION_COUNT.match(label.strip()) for label in labels.values()):
+                prompt = f"<entries>\n{json.dumps(self._history, indent=0, default=str)}\n</entries>\n" + prompt
             if attests:
                 # Their labels are the page's own words: a data block, never part of the instruction (a label may say
                 # "tick Yes"). "<" is escaped, so no label can close the block.
@@ -527,7 +570,8 @@ class ClaudeFill:
             # A box whose words attest, which Claude didn't list (one that also says "not a robot"), is listed by plain
             # code: the plan names it as Lisul's, never answered.
             unlisted = _new_questions(page, questions, [*(done.get("unlisted") or []),
-                                                        *_unlisted_attestations(page, questions, done.get("unlisted") or [])])
+                                                        *_unlisted_attestations(page, questions, done.get("unlisted") or [])],
+                                      self._sectioned.setdefault((self._steps, self._adds), set()))
             if unlisted:
                 found = _with_formats(page, _with_sections(page, _with_options(page, self._questions(unlisted))))
                 self._found_at |= {q.name: self._steps for q in found}
@@ -547,6 +591,9 @@ class ClaudeFill:
                 self._gated = step
                 raise Handoff(f"Page {self._steps + 1}: check these {len(asks)} and tick any box that is yours, "
                               "then press Resume: " + "; ".join(asks))
+            for kept in (str(k).strip() for k in done.get("entries_kept") or []):
+                if kept and kept not in self.extra_entries:
+                    self.extra_entries.append(kept)
             counts = [name for name, label in labels.items() if ENTRIES_COUNT.match(label.strip())]
             if (add := str(done.get("add_button") or "").strip()) and any(_fewer(self._readback.get(n), answers.get(n)) for n in counts):
                 self._add_entry(page, add, counts)
@@ -637,6 +684,9 @@ class ClaudeFill:
                           "Fill it in yourself.")
         before = _fields_shown(page)
         if self._guard is not None:
+            if not self._guard.may_press(button):  # a frame inside it, where the press could land (KAN-710)
+                raise Handoff(f"The profile step's {name!r} holds a frame, where Apply's press could land on another "
+                              "form. Press it yourself.")
             self._guard.let_profile_click()
         try:
             button.click()
@@ -775,6 +825,8 @@ class ClaudeFill:
             blocked = []
         if any(b.endswith(captcha.SIGN_IN_CLICK) for b in blocked):  # Claude pressed it: nothing ran the captcha
             raise Handoff(captcha.SIGN_IN.format(urlsplit(page.url).hostname or "This site"))
+        if upload := next((b for b in blocked if b.startswith(upload_origin.BLOCKED)), None):  # KAN-795
+            raise upload_origin.Elsewhere(urlsplit(upload.removeprefix(upload_origin.BLOCKED).strip(" ()")).hostname or "")
         if blocked:
             raise Handoff(f"Apply blocked {blocked[0]} while Claude filled the form (a click that may send it, sign in, "
                           "pay, withdraw or opt in), so nothing it blocked was sent. Check the form and finish it yourself.")
@@ -848,8 +900,12 @@ def press_step(page: Page, guard, name: str, back: bool = False, listed: bool = 
     words = _sends_or_reviews(page, button)
     if words and not (back and words == REVIEW_WORDS):
         raise Handoff(f"Claude fill's Next ({name!r}) is {words}, which may send the form. Fill it in yourself.")
-    if guard:
-        guard.let_account_click()
+    # A frame inside the button (KAN-710): the press lands in it, where no guard may run (a sandboxed one runs no
+    # script), and its form could post the application to the top page. Never pressed.
+    if guard and not guard.let_account_click(button):
+        guard.arm()
+        raise Handoff(f"The form's {name!r} holds a frame, where Apply's press could land on another form. "
+                      "Press it yourself.")
     try:
         button.click()
         waited = 0
@@ -863,6 +919,17 @@ def press_step(page: Page, guard, name: str, back: bool = False, listed: bool = 
         if guard:
             guard.arm()  # the account click's flag off again, in the step it led to
             guard.rest()
+
+
+def entry_history(profile) -> dict:
+    """The profile's jobs and schools for <entries> (KAN-762): each job's employer, title, start and end (none: held
+    now), and the school's name, degree, majors, start and graduation."""
+    jobs = [{key: job.get(key) for key in ("employer", "title", "start", "end")}
+            for job in profile.get("experience_facts.employment_history") or [] if isinstance(job, dict) and job.get("employer")]
+    school = profile.get("education.school")
+    schools = [{"school": school, "degree": profile.get("education.degree"), "majors": profile.get("education.majors") or [],
+                "start": profile.get("education.start_date"), "graduation": profile.get("education.expected_graduation")}] if school else []
+    return {"jobs": jobs, "schools": schools}
 
 
 def _fewer(shown: object, wanted: object) -> bool:
@@ -908,6 +975,15 @@ STEP_ENTRY = """el => {
 }"""
 
 
+def _step_entry(el) -> bool:
+    """Whether `el` is an entry of the form's list of steps (STEP_ENTRY); an element Apply can't read there (a plain
+    Worker's in a shadow root) is none, so it is never pressed."""
+    try:
+        return el.evaluate(STEP_ENTRY) is True
+    except Exception:
+        return False
+
+
 def _the_listed(page: Page, name: str):
     """The one entry in the form's list of steps that Claude named: of exactly that name, else the one whose name
     starts with it (a tracker's "Declaration Item not completed"), else the one that has it just after a heading's
@@ -921,7 +997,7 @@ def _the_listed(page: Page, name: str):
     headed = re.compile(rf"^[^:]{{0,40}}:\s*{re.escape(name.strip())}(?!\w)", re.IGNORECASE)
     for match in ({"name": name, "exact": True}, {"name": starts}, {"name": headed}):
         found = [el for role in ("link", "button", "tab") for el in page.get_by_role(role, **match).all()
-                 if el.is_visible() and el.evaluate(STEP_ENTRY) is True]
+                 if el.is_visible() and _step_entry(el)]
         if found:
             break
     if not found:
@@ -967,11 +1043,17 @@ SECTION_OF = """el => {
 }"""
 
 
-def _new_questions(page: Page, questions: QuestionSet, found: list[dict]) -> list[dict]:
+def _new_questions(page: Page, questions: QuestionSet, found: list[dict], sectioned: set[str] | None = None) -> list[dict]:
     """The questions Claude found on the step that Apply doesn't know yet. One is known by its label with or
     without its help text, as either session may give it, but a label the page shows on more fields than
     Apply knows (a campus address under a home one, Bank of America's, live) is a new question each time,
-    named with its section's heading: never merged with another section's (KAN-642)."""
+    named with its section's heading: never merged with another section's (KAN-642).
+
+    A radio or checkbox group is one field, however many of its options the page labels with the question
+    (`_labelled_fields`). And a label is named as another section's at most once on a step (`sectioned`, the
+    labels so named on it before): Claude lists a question it wasn't given to fill again in every round, so on
+    JPMorgan's Oracle form each round named Ethnicity and four more again, until the fill's cap (KAN-788)."""
+    sectioned = set() if sectioned is None else sectioned
     known: dict[str, int] = {}
     for q in questions:
         for k in {_key(q.label), _key(_bare(q.label))}:
@@ -984,9 +1066,12 @@ def _new_questions(page: Page, questions: QuestionSet, found: list[dict]) -> lis
             new.append(q)
             continue
         have = max(known.get(k, 0) for k in keys)
-        fields = _labelled(page, _bare(label))
+        if keys & sectioned:
+            continue  # named as another section's on this step already
+        fields = _labelled_fields(page, _bare(label))
         if len(fields) <= have:
             continue  # the same question again
+        sectioned |= keys
         try:
             heading = str(fields[have].evaluate(SECTION_OF)).strip()
         except Exception:
@@ -1112,13 +1197,47 @@ def _unlisted_attestations(page: Page, questions: QuestionSet, listed: list[dict
     return [b for b, attests in zip(new, attest) if attests]
 
 
+def _label_pattern(label: str) -> re.Pattern:
+    """`label` whole, a trailing "*" aside, in any case."""
+    return re.compile(rf"^\s*{re.escape(label.strip().rstrip('*').strip())}\s*\*?\s*$", re.IGNORECASE)
+
+
 def _labelled(page: Page, label: str) -> list:
     """The visible fields the page labels `label` (a trailing "*" aside), in page order."""
-    pattern = re.compile(rf"^\s*{re.escape(label.strip().rstrip('*').strip())}\s*\*?\s*$", re.IGNORECASE)
     try:
-        return [f for f in page.get_by_label(pattern).all() if f.is_visible()]
+        return [f for f in page.get_by_label(_label_pattern(label)).all() if f.is_visible()]
     except Exception:
         return []
+
+
+# What makes a labelled element one field: a radio or checkbox is its group's (its group element, else its radio name,
+# else what labels it); any other element is its own.
+FIELD_OF = r"""(els) => {
+  const groups = [...document.querySelectorAll('[role=radiogroup], [role=group], fieldset')];
+  return els.map((el, i) => {
+    if (!el.matches('input[type=radio], input[type=checkbox], [role=radio], [role=checkbox]')) return `field ${i}`;
+    const group = el.closest('[role=radiogroup], [role=group], fieldset');
+    if (group) return `group ${groups.indexOf(group)}`;
+    if (el.name && el.type === 'radio') return `radio ${el.name}`;
+    const by = (el.getAttribute('aria-labelledby') || '').trim().split(/\s+/)[0];
+    return by ? `labelled ${by}` : `field ${i}`;
+  });
+}"""
+
+
+def _labelled_fields(page: Page, label: str) -> list:
+    """The visible fields the page labels `label`, a radio or checkbox group counted once, by its first visible
+    option (KAN-788): Oracle labels each option of Ethnicity, Gender and Veteran Status with the question."""
+    labelled = page.get_by_label(_label_pattern(label))
+    try:
+        every, keys = labelled.all(), labelled.evaluate_all(FIELD_OF)
+        first: dict[str, Locator] = {}
+        for field, key in zip(every, keys):
+            if key not in first and field.is_visible():
+                first[key] = field
+        return list(first.values())
+    except Exception:
+        return _labelled(page, label)
 
 
 REVIEW_PAGE = re.compile(r"\b(review (your|and submit|the) application|application (summary|review)|summary of your "

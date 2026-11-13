@@ -397,8 +397,14 @@ function Calendar({
                 onChange={(next) => setKinds(next as EventKind[])}
               />
               {kinds.length > 0 && (
-                <IconButton label="Clear Filter" className="size-8" onClick={() => setKinds([])}>
-                  <CloseIcon className="size-4" />
+                <IconButton
+                  place="row"
+                  tooltip={false}
+                  label="Clear Filter"
+
+                  onClick={() => setKinds([])}
+                >
+                  <CloseIcon />
                 </IconButton>
               )}
             </div>

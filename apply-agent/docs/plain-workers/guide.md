@@ -9,17 +9,42 @@ On a plain Worker's page (a PortPage, `apply-agent/docs/plain-workers/PROTOCOL.m
 `apply.plain.guards`. The CDP path is unchanged: its scripts are byte for byte the same.
 
 - **The same scripts, as files.** `apply plain prepare` writes `submit_guard`'s scripts into
-  `worker-extension/vendor/guards/` (the rehearsal guard, the four drive guards, LIFTED,
-  REARMED). The extension registers one as a MAIN-world content script at `document_start` in
+  `worker-extension/vendor/guards/` (the rehearsal guard and the four drive guards). Each
+  holds this run's tokens (KAN-710), so each Apply process writes a vendor set of its own. The extension registers one as a MAIN-world content script at `document_start` in
   every frame, so it runs before the page's code with no eval and no user scripts. It refuses
   a file whose sha256 is not Apply's: re-run `prepare` after changing `submit_guard.py`.
 - **Below them, declarativeNetRequest.** `guard` puts one session rule per final application
   URL (the guard script's FINAL_URLS, which cover ROUTED) on the tab, the tabs it opens and
   service workers. It blocks a non-GET before it leaves Chrome: page code from another realm,
-  a worker, a beacon, or a form's native POST. `lift` takes the rules off and `rearm` puts them
-  back.
+  a worker, a beacon, or a form's native POST. A second rule set (`WORKER_RULES`, KAN-791) blocks
+  a non-GET to Ashby's GraphQL from no tab alone (a service or shared worker): no rule reads a
+  body, and the guard script, which reads the page's, refuses the page any new worker. `lift`
+  takes both off and `rearm` puts them back.
+- **One rule set per Worker** (KAN-793). Chrome caps a profile's regex rules at about 1000. Each
+  guarded tab had 7 rules of its own, and a closed tab's rules stayed until `guard.reset`, which
+  comes only when no other form is open in the Worker. After about 142 guarded tabs (a long test
+  run; a form held through many `--into` postings and Fill agains), every `guard()` failed with
+  "Session rule count for regex rules exceeded". Now the routes with the same regexes (and the
+  same `workers`) share one rule per regex, on all of their tabs, so a Worker holds
+  `len(RULES) + len(WORKER_RULES)` rules however many tabs it guards. A closed tab leaves every
+  route, and a route with no tab left goes, as does a tab's `WORKER_RULES` route. Their sets'
+  rules stay on -1 (requests from no tab) until `guard.reset`: a service worker the page started
+  outlives its tab and could post (the review of #555). A pop-up the extension opens for a
+  refused `window.open` (`accounts.js`) opens blank and takes its opener's rules before its page
+  loads; a tab a guarded page opens joins them on `tabs.onCreated` or
+  `webNavigation.onCreatedNavigationTarget`.
+- **Fails closed.** When Chrome refuses an update, it keeps its rules as they were, the extension
+  puts its memory back to match, and the op raises. `guard` and `rearm` put the page's own guard on
+  before the rules, so the page is then Apply's and blocked, never lifted, and the error stops
+  the caller (the hold ends; Resume raises). A page `guard` can't put rules on goes to
+  about:blank first, so no worker it started is left to send. A tab that a guarded tab opens is
+  closed if its rules can't go on. `lift` takes the rules off before its note, so a refusal there
+  leaves the page guarded.
+- **The guards' state** (KAN-710) is set only by token-named control events the extension sends
+  from its isolated world (`guard.control`, `guard.lift`, `guard.rearm`, `guard.applied`); no page sees
+  or sends them. `guard.tokens` tells the extension the run's touch and tell events once.
 - **Presses are untrusted.** The plain copy of the guard script (`port=True`) counts as a touch
-  the `__apply_touch` the extension sends before each press: Apply's own (`page/dom.js`) and
+  the token-named touch the extension sends before each press (a page can't send one): Apply's own (`page/dom.js`) and
   Lisul's from the tile (`tile.input` calls `touch()` in `ops/guard.js`, which also sends `guard.touched`
   up the port). It also reports each block as a `guard.said` event, which `PlainDriveGuard.blocked()`
   reads, since no console reaches Apply.
@@ -32,6 +57,10 @@ On a plain Worker's page (a PortPage, `apply-agent/docs/plain-workers/PROTOCOL.m
   records every POST. A page that sends by script (fetch from a fresh realm, a worker, a beacon,
   requestSubmit, a native POST) sends nothing once guarded, and the rules alone stop it too.
   A tile press shows the blocked note, and a lifted page's Submit goes through and is heard.
+  160 tabs guarded, lifted, rearmed and closed in one Worker keep one rule set; with Chrome's
+  regex cap full, `rearm` raises and the page's Submit still sends nothing, and `guard` takes a
+  page whose worker would post away. `test_submit_guard_hostile.py` has a service worker that posts
+  after its guarded tab closed, and a worker in a pop-up the extension opened.
 
 ## Plain Workers: trusted text and choices (KAN-716)
 
@@ -83,8 +112,8 @@ permission):
   `navigator.webdriver` stays false. A page can see `document.hasFocus()` true while attached,
   and input in CDP's pattern (a press with no path of moves before it).
 - **The guards see it as a keyboard.** `PlainDriveGuard.asking` and its driving state now set
-  `__applyAsking`, `__applyAskTick` and `__applyDriving` on the page (`guard.flags`), so the drive
-  guard's Ask checks (no typing in a password, code or attestation box) and the captcha frame's
+  the drive guard's `asking`, `askTick` and `driving` by its control (`guard.control`, KAN-710: the
+  guard's own state, never a window flag a page could set), so the drive guard's Ask checks (no typing in a password, code or attestation box) and the captcha frame's
   refusal act on a plain Worker's trusted input as on a CDP one.
 - **Where it applies.** Every `dom` text call (Claude fill and Ask through Apply's MCP server,
   Fillers through PortPage) and the tile's `text` and `key` events: Lisul's typing on the tile
@@ -359,7 +388,8 @@ What changes on a plain Worker:
   `protected`. With `plain_chrome: testing` the seed line is ok.
 - **Held Submit and the already-applied note** (KAN-629, KAN-621) work on plain pages:
   `submit_guard.lift(held=, dismiss=)`, `renote(held=)`, `warn_applied` and `applied_dismissed`
-  hand over to `apply.plain.guards` (`guard.lift`'s `held` and `onlyLifted`, `guard.applied`). A
+  hand over to `apply.plain.guards` (`guard.lift`'s events and `onlyLifted`, `guard.applied`). The
+  bindings Lisul's presses call (`TELLS`) fire only on the guard's own tell, never on a page's call. A
   `renote` of a page still guarded leaves it guarded.
 - Tests: `tests/test_plain_routing.py`. Its live test rehearses the fake Greenhouse form twice in
   one reused plain Worker. `tests/test_plain_guards.py -k "held_submit or already_applied"`.

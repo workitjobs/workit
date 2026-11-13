@@ -1,6 +1,7 @@
 import itertools
 import json
 import re
+from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 
@@ -23,13 +24,16 @@ MONTH_MAP = {
     "jul": 7, "aug": 8, "sep": 9, "oct": 10, "nov": 11, "dec": 12,
 }
 
-MONTH = r'(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*'
+# "Aug. 2024" as well as "Aug 2024": Jake's template, and so WorkIt's own
+# PDFs, end a short month in a period, and without it a re-uploaded WorkIt
+# resume read "Acme Corp Aug." as the company and January as the month
+MONTH = r'(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?'
 
 YEAR = r'(\d{4})'
 
 # REGEX
 DATE_RANGE_RE = re.compile(
-    rf'(?:({MONTH})\s+)?{YEAR}\s*[–\-—]\s*(Present|Current|Now|(?:({MONTH})\s+)?{YEAR})',
+    rf'(?:({MONTH})\s+)?{YEAR}\s*(?:[–\-—]|\bto\b)\s*(Present|Current|Now|(?:({MONTH})\s+)?{YEAR})',
     re.IGNORECASE,
 )
 # "Expected May 2027", "Expected Graduation: May 2027", "Anticipated Grad Date May 2027"
@@ -99,16 +103,33 @@ GPA_RE = re.compile(r'GPA[:\s]*(\d+(?:\.\d+)?)(?:\s*/\s*(\d+(?:\.\d+)?))?', re.I
 DEGREE_RE = re.compile(
     # A.A./A.S. need the dot, or the word "as" would count as a degree
     r'\b(B\.?S\.?|B\.?A\.?|M\.?S\.?|M\.?A\.?|A\.A\.?|A\.S\.?|Ph\.?D\.?|'
-    # the whole "Bachelor of Science", not just "Bachelor"
-    r"(?:Bachelor|Master)(?:'?s)?(?:\s+of\s+(?:Applied\s+Science|Fine\s+Arts|Business\s+Administration|"
-    r'Science|Arts|Engineering|Technology))?|Associate|Doctorate|'
-    r'(?:High\s+School\s+)?Diploma|GED)\b',
+    r'B\.?Sc\.?|M\.?Sc\.?|B\.?Eng\.?|M\.?Eng\.?|B\.?B\.?A\.?|M\.?B\.?A\.?|B\.?F\.?A\.?|M\.?F\.?A\.?|'
+    # the whole "Bachelor of Science" or "Bachelor of Computer Science", not
+    # just "Bachelor": up to three capitalized words after "of", case
+    # sensitive inside, so "in" ends it
+    r"(?:Bachelor|Master|Associate)(?:'?s)?(?:\s+of\s+(?-i:[A-Z][A-Za-z]*(?:\s+[A-Z][A-Za-z]*){0,2}))?|"
+    r'Doctorate|(?:High\s+School\s+)?Diploma|GED)'
+    # not \b: after "B.S." the next character is a space, and a word
+    # boundary cannot fall between "." and a space, so the match backed up
+    # to "B.S" and every abbreviated degree lost its last period
+    r'(?!\w)',
     re.IGNORECASE,
 )
 INSTITUTION_RE = re.compile(r'\b(?:University|College|School|Institute|Academy)\b', re.IGNORECASE)
 DEGREE_FIELD_RE = re.compile(
-    r'\b(?:B\.?S\.?|B\.?A\.?|M\.?S\.?|M\.?A\.?|A\.A\.?|A\.S\.?|Ph\.?D\.?|Bachelor\w*|Master\w*)'
-    r'(?:\s+of\s+\w+)?(?:\s+in\s+|,\s*)([^|;,\n]+)',
+    r'\b(?:(?P<abbr>B\.?S\.?|B\.?A\.?|M\.?S\.?|M\.?A\.?|A\.A\.?|A\.S\.?|Ph\.?D\.?|B\.?Sc\.?|M\.?Sc\.?|'
+    r'B\.?Eng\.?|M\.?Eng\.?|B\.?B\.?A\.?|M\.?B\.?A\.?|B\.?F\.?A\.?|M\.?F\.?A\.?)(?!\w)|'
+    r"(?:Bachelor|Master|Associate)(?:'?s)?)"
+    r'(?:\s+of\s+(?-i:[A-Z][A-Za-z]*(?:\s+[A-Z][A-Za-z]*){0,2}))?(?:\s+degree)?'
+    # "B.S. in X", "B.S., X", "Bachelor's in X", and after an abbreviation
+    # the field with nothing between: "B.S. Computer Science"
+    r'(?:\s+in\s+|,\s*|(?(abbr)\s+(?=[A-Z])|(?!)))(?P<field>[^|;,\n]+)',
+    re.IGNORECASE,
+)
+# "Specialization in AI/ML", "Concentration: Finance": kept after the major,
+# as a minor is
+SPECIALIZATION_RE = re.compile(
+    r'\b(Specialization|Concentration|Emphasis)\s*(?:in\b|:)\s*(.+?)(?=\s{2,}|\s*\||\s*;|\s+[–—-]\s|\s*\bGPA\b|\n|$)',
     re.IGNORECASE,
 )
 # catch bullet points; a hyphen before a digit is a minus sign ("-20%"), not one
@@ -121,7 +142,10 @@ ROLE_KEYWORDS = re.compile(
     r'Researcher|Fellow|Assistant|Associate|Lead|Senior|Junior|'
     r'Coordinator|Specialist|Consultant|Administrator|Scientist|'
     r'Officer|President|Head|Chief|Technician|Scribe|Support|'
-    r'Advisor|Tutor|Representative|Operator|Strategist)\b',
+    r'Advisor|Tutor|Representative|Operator|Strategist|'
+    # a club's roles: "Chess Club – Treasurer" splits as "Company - Title"
+    r'Treasurer|Secretary|Captain|Chair|Chairperson|Founder|Co-Founder|Mentor|'
+    r'Volunteer|Organizer|Ambassador|Editor|Coach|Instructor)\b',
     re.IGNORECASE,
 )
 
@@ -133,6 +157,30 @@ US_STATES = {
     "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC",
     "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY",
     "DC", "PR", "GU", "VI", "AS", "MP",
+}
+# Places written out after a PDF gap: "Stony Brook, New York", "Toronto, ON",
+# "Incheon, South Korea". Only after the gap, where a right-aligned place
+# sits; without one these words could be part of a name.
+US_STATE_NAMES = {
+    "Alabama", "Alaska", "Arizona", "Arkansas", "California", "Colorado", "Connecticut", "Delaware",
+    "Florida", "Georgia", "Hawaii", "Idaho", "Illinois", "Indiana", "Iowa", "Kansas", "Kentucky",
+    "Louisiana", "Maine", "Maryland", "Massachusetts", "Michigan", "Minnesota", "Mississippi",
+    "Missouri", "Montana", "Nebraska", "Nevada", "New Hampshire", "New Jersey", "New Mexico",
+    "New York", "North Carolina", "North Dakota", "Ohio", "Oklahoma", "Oregon", "Pennsylvania",
+    "Rhode Island", "South Carolina", "South Dakota", "Tennessee", "Texas", "Utah", "Vermont",
+    "Virginia", "Washington", "West Virginia", "Wisconsin", "Wyoming", "Puerto Rico",
+    "District of Columbia",
+}
+CA_PROVINCES = {"AB", "BC", "MB", "NB", "NL", "NS", "NT", "NU", "ON", "PE", "QC", "SK", "YT"}
+COUNTRIES = {
+    "USA", "United States", "Canada", "Mexico", "Brazil", "Argentina", "Chile", "Colombia", "Peru",
+    "United Kingdom", "UK", "England", "Scotland", "Ireland", "France", "Germany", "Spain", "Portugal",
+    "Italy", "Netherlands", "Belgium", "Switzerland", "Austria", "Denmark", "Sweden", "Norway",
+    "Finland", "Poland", "Greece", "Turkey", "Israel", "United Arab Emirates", "UAE", "Saudi Arabia",
+    "Qatar", "Egypt", "Nigeria", "Ghana", "Kenya", "South Africa", "India", "Pakistan", "Bangladesh",
+    "Sri Lanka", "Nepal", "China", "Hong Kong", "Taiwan", "Japan", "South Korea", "Korea",
+    "Singapore", "Malaysia", "Indonesia", "Philippines", "Thailand", "Vietnam", "Australia",
+    "New Zealand",
 }
 # City is 1-2 words (caps-initial, may contain periods/hyphens), then ", ST"
 LOCATION_RE = re.compile(r'([A-Z][\w.\-]*(?:\s+[A-Z][\w.\-]*){0,1},\s*([A-Z]{2}))\s*$')
@@ -271,12 +319,52 @@ def _load_learned() -> dict[str, str]:
 LEARNED = _load_learned()
 
 
+def fix_symbols(text: str) -> str:
+    """Characters a PDF's math or symbol fonts put in a resume's text, as
+    the resume means them; the model's reading gets the same text
+    (`bank_import.read_resume`). A ring after a number is a degree sign:
+    LaTeX's "$^\\circ$" reads as "◦", which became a bullet, so "2.75° to
+    1.01°" printed "2.75 • to 1.01 •". U+223C TILDE OPERATOR, which resume
+    fonts often lack ("∼120ms"), is a tilde, set apart from the word before
+    it, since math spacing put the gap there that text extraction drops
+    ("to∼40 ms" read "to~40 ms")."""
+    text = re.sub(r'(?<=\d)\s?[◦∘º˚](?![\w])', '°', text)
+    text = text.replace('∼', '~')
+    return re.sub(r'(?<=[A-Za-z])~(?=\d)', ' ~', text)
+
+
+# A season where a date goes: in a range ("Spring 2024 – Present"), after
+# "Expected", or alone after a PDF gap at a line's end ("Dean's List  Fall
+# 2023"). Never inside a sentence: "in Fall 2026, picked 13 of 101" stays.
+_SEASON = r'(Spring|Summer|Fall|Autumn|Winter)'
+_SEASON_START_RE = re.compile(rf'\b{_SEASON}\s+(\d{{4}})(?=\s*(?:[–\-—]|\bto\b))', re.IGNORECASE)
+_SEASON_END_RE = re.compile(
+    rf'((?:[–\-—]|\bto\b|\bExpected|\bAnticipated)\s*|\s{{2,}}){_SEASON}\s+(\d{{4}})(?=\s*(?:\||$))',
+    re.IGNORECASE | re.MULTILINE,
+)
+# A season's month: its first as a start, its last as an end (a spring
+# graduation is in May). The bank holds months, so the season's word goes.
+_SEASON_STARTS = {"spring": "Jan", "summer": "Jun", "fall": "Sep", "autumn": "Sep", "winter": "Dec"}
+_SEASON_ENDS = {"spring": "May", "summer": "Aug", "fall": "Dec", "autumn": "Dec", "winter": "Feb"}
+# "06/2024": a month and year in numbers
+_NUMERIC_MONTH_RE = re.compile(r'\b(0?[1-9]|1[0-2])/(\d{4})\b')
+_MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+# Bullet glyphs from Word's and Docs' symbol fonts (U+F0B7 is Word's
+# Symbol-font bullet). Not "■" or "❖", which also mark section headings.
+_BULLET_GLYPHS_RE = re.compile(r'[▪●◦·➢►▸➤✓✔\uf0b7\uf0a7\uf076\uf0d8]')
+
+
 def _clean_text(text: str) -> str:
     # use library to clean up text
     text = ftfy.fix_text(text)
-    text = re.sub(r'[▪●◦·]', '•', text)
-    # U+223C TILDE OPERATOR, which resume fonts often lack: "∼120ms"
-    text = text.replace('∼', '~')
+    # before the bullets: a ring after a number is a degree sign
+    text = fix_symbols(text)
+    text = _BULLET_GLYPHS_RE.sub('•', text)
+    # "* Built a ..." (a plain-text resume's bullet)
+    text = re.sub(r'^(\s*)\*\s+', r'\1• ', text, flags=re.MULTILINE)
+    text = _NUMERIC_MONTH_RE.sub(lambda m: f"{_MONTHS[int(m[1]) - 1]} {m[2]}", text)
+    text = _SEASON_START_RE.sub(lambda m: f"{_SEASON_STARTS[m[1].lower()]} {m[2]}", text)
+    text = _SEASON_END_RE.sub(lambda m: f"{m[1]}{_SEASON_ENDS[m[2].lower()]} {m[3]}", text)
     # "Jun-Aug 2026" is "Jun 2026 - Aug 2026": a range in one year names it
     # once, and only "Aug 2026" was read, as the end
     text = _SAME_YEAR_RANGE_RE.sub(r'\1 \3 - \2 \3', text)
@@ -367,8 +455,9 @@ def _extract_location(text: str) -> tuple[str | None, str]:
     back to regex-only matching at the end of the line."""
     # Pass 1: multi-space separator (PDF extraction preserves these).
     # City words are single-space separated so the match starts at the last gap.
-    ms = re.search(r'\s{2,}([\w.]+(?: [\w.]+)*,\s*([A-Z]{2}))\s*$', text)
-    if ms and ms.group(2) in US_STATES:
+    ms = re.search(r"\s{2,}([\w.'’-]+(?: [\w.'’-]+)*,\s*([A-Z][A-Za-z]*(?: (?:of )?[A-Z][A-Za-z]*)*))\s*$", text)
+    if ms and (ms.group(2) in US_STATES or ms.group(2) in US_STATE_NAMES
+               or ms.group(2) in CA_PROVINCES or ms.group(2) in COUNTRIES):
         location = ms.group(1).strip()
         remainder = text[:ms.start()].strip().rstrip("|–—-").strip()
         return location, remainder
@@ -549,10 +638,38 @@ def _bullets(lines: list[str]) -> str | None:
     return "\n".join(re.sub(r'\s{2,}', ' ', p) for p in parts) if parts else None
 
 
+# A label that starts a new line of a school's text inside a wrapped one:
+# "..., Artificial Intelligence Honors: Dean's List"
+_EDUCATION_LABEL_RE = re.compile(r'\s+(?=(?:Honors|Awards|Activities|Achievements|Distinctions)\s*:)')
+
+
+def _school_on_date_line(lines: list[str]) -> bool:
+    """An entry whose date line names its school ("Lakeside Global
+    Campus  February 2026 – June 2026") while the lines above it name no
+    school or degree: those lines are the school before's, wrapped or left
+    over ("…, Artificial" / "Intelligence Honors: Dean's List")."""
+    anchor = next((i for i, ln in enumerate(lines) if _has_date(ln)), 0)
+    if anchor == 0:
+        return False
+    above = lines[:anchor]
+    if any(INSTITUTION_RE.search(ln) or DEGREE_RE.search(ln) for ln in above):
+        return False
+    name = _strip_dates(EXPECTED_RE.sub("", lines[anchor].split("|")[0]))
+    return bool(name) and not DEGREE_RE.search(name) and not GPA_RE.search(name)
+
+
 def _parse_education(text: str) -> list[Education]:
     if not text.strip():
         return []
     entries = _split_entries(text)
+    # A school named on its own date line: the lines above it go back to
+    # the school before. Before, they became this school's name, and the
+    # school's own name was lost (a real resume, 2026-11-12).
+    for i in range(1, len(entries)):
+        if entries[i] and _school_on_date_line(entries[i]):
+            anchor = next(j for j, ln in enumerate(entries[i]) if _has_date(ln))
+            entries[i - 1] = entries[i - 1] + entries[i][:anchor]
+            entries[i] = entries[i][anchor:]
     results: list[Education] = []
     for lines in entries:
         if not lines:
@@ -566,9 +683,22 @@ def _parse_education(text: str) -> list[Education]:
         anchor = next((i for i, ln in enumerate(lines)
                        if _has_date(ln)), 0)
         fields = [f.strip() for ln in lines[:anchor + 1] for f in ln.split("|")]
-        inst_field = next((f for f in fields
-                           if INSTITUTION_RE.search(f) and not DEGREE_RE.search(f)), first.split("|")[0])
+        named = next((f for f in fields if INSTITUTION_RE.search(f) and not DEGREE_RE.search(f)), None)
+        inst_field = named or first.split("|")[0]
         inst = _strip_dates(EXPECTED_RE.sub("", inst_field)) or inst_field.strip()
+        # The school's place: after a gap or as its own "|" field. It stayed
+        # in the name ("Stony Brook University Stony Brook, NY"), or was lost
+        location, rest = _extract_location(inst)
+        if location:
+            inst = rest
+        else:
+            location = next((loc for f in fields
+                             for loc, left in [_extract_location("  " + _strip_dates(f))] if loc and not left), None)
+        # A second degree at the school above ("M.S. ...  Expected May 2028"
+        # / "B.S. ...  Expected May 2027" under one name): the same school.
+        # Before, the degree line became a school of its own.
+        if named is None and DEGREE_RE.search(inst) and results:
+            inst, location = results[-1].institution, location or results[-1].location
         # "School - B.S. Computer Science - May 2028 - GPA 3.7" on one line:
         # the school is the dash fields before the degree, so "University of
         # Wisconsin - Madison - B.S." keeps "Madison"
@@ -578,8 +708,9 @@ def _parse_education(text: str) -> list[Education]:
                 lambda f: not (DEGREE_RE.search(f) or _has_date(f) or GPA_RE.search(f)), dash_fields))
             inst = " - ".join(school).strip() or inst
 
-        # Dates
-        _, end = _parse_date_range(all_text)
+        # Dates: the start too, which was dropped, so "Aug 2023 - May 2027"
+        # printed "May 2027" alone
+        start, end = _parse_date_range(all_text)
         if end is None:
             # "... - May 2028 - GPA 3.7": a dash field, not a line's end
             end = next((e for f in dash_fields if (e := _parse_date_range(f.strip())[1])), None)
@@ -589,8 +720,10 @@ def _parse_education(text: str) -> list[Education]:
         gpa = float(gpa_m.group(1)) if gpa_m else None
         gpa_scale = float(gpa_m.group(2)) if gpa_m and gpa_m.group(2) else None
 
-        # Degree
-        deg_m = DEGREE_RE.search(all_text)
+        # Degree, read with each "City, ST" out of the way: "Boston, MA"
+        # read as a master's degree
+        degree_text = re.sub(r',\s*[A-Z]{2}\b', ',', all_text)
+        deg_m = DEGREE_RE.search(degree_text)
         degree = deg_m.group(1) if deg_m else None
 
         # Field of study: look for "Major(s):" or ": <field>" pattern, or text after degree
@@ -603,16 +736,23 @@ def _parse_education(text: str) -> list[Education]:
                 break
         if field is None:
             # "B.S. in Computer Science", "Bachelor of Science in X", "B.S., X"
-            m = DEGREE_FIELD_RE.search(all_text)
-            if m and m.group(1).strip():
+            m = DEGREE_FIELD_RE.search(degree_text)
+            if m and m.group("field").strip():
                 # "Computer Science  GPA: 3.81/4.00": the field ends at a PDF gap or the GPA
-                field = re.split(r'\s{2,}|\s*\bGPA\b', m.group(1).strip(), flags=re.IGNORECASE)[0].strip() or None
+                field = re.split(r'\s{2,}|\s*\bGPA\b', m.group("field").strip(), flags=re.IGNORECASE)[0].strip()
+                # nor a date: "B.S. Expected May 2027" names no field
+                field = _strip_dates(EXPECTED_RE.sub("", field)) or None
         # "B.S. in Computer Science | Minor in Writing & Rhetoric": the minor goes
         # after the major, since an entry has no field of its own for it, and it
         # was dropped
         minor = MINOR_RE.search(all_text)
         if field and minor and "minor" not in field.lower():
             field = f"{field}, minor in {minor.group(1).strip()}"
+        # a specialization the same way: "Computer Science, specialization in
+        # AI/ML" (the comma ended the field, and it was dropped)
+        special = SPECIALIZATION_RE.search(all_text)
+        if field and special and special.group(1).lower() not in field.lower():
+            field = f"{field}, {special.group(1).lower()} in {special.group(2).strip()}"
 
         # Description: coursework + other non-header lines
         desc_parts: list[str] = []
@@ -622,15 +762,20 @@ def _parse_education(text: str) -> list[Education]:
                 desc_parts.append(stripped)
             elif BULLET_RE.match(stripped):
                 desc_parts.append(BULLET_RE.sub("", stripped).strip())
-            elif desc_parts and (desc_parts[-1].endswith((",", ":")) or stripped[0].islower()):
+            elif desc_parts and (desc_parts[-1].endswith((",", ":")) or stripped[0].islower()
+                                 or (COURSEWORK_RE.match(desc_parts[-1]) and len(desc_parts[-1]) >= 60
+                                     and not desc_parts[-1].endswith("."))):
                 # a PDF-wrapped coursework or bullet line, or the list
-                # under a "Relevant Coursework:" heading
+                # under a "Relevant Coursework:" heading; a long course list
+                # wraps mid-name ("…, Artificial" / "Intelligence")
                 desc_parts[-1] += " " + stripped
+        # "Honors:" wrapped onto a course list's last line starts its own line
+        desc_parts = [part for d in desc_parts for part in _EDUCATION_LABEL_RE.split(d)]
         desc = "\n".join(re.sub(r'\s{2,}', ' ', d) for d in desc_parts) if desc_parts else None
 
         results.append(Education(
-            institution=inst, degree=degree, field_of_study=field,
-            gpa=gpa, gpa_scale=gpa_scale, end_date=end, description=desc,
+            institution=inst, degree=degree, field_of_study=field, location=location,
+            gpa=gpa, gpa_scale=gpa_scale, start_date=start, end_date=end, description=desc,
         ))
     return results
 
@@ -738,6 +883,38 @@ def _parse_experience(text: str) -> list[Experience]:
     return results
 
 
+def _skill_items(text: str) -> list[str]:
+    """The names in a skills list: split at commas, semicolons, bars and
+    bullets, never inside brackets, and a name with a list in brackets is
+    the name and each item ("React (Next.js, Redux)" is three). Split at
+    commas alone, "Python | Java | C++" and "Python; Java" read as one
+    unknown name each, and "React (Next.js" and "Redux)" both fell out."""
+    items, current, depth = [], [], 0
+    for ch in text:
+        if ch in "([":
+            depth += 1
+        elif ch in ")]" and depth:
+            depth -= 1
+        if depth == 0 and ch in ",;|•":
+            items.append("".join(current))
+            current = []
+        else:
+            current.append(ch)
+    items.append("".join(current))
+    names: list[str] = []
+    for item in (i.strip() for i in items):
+        listed = re.fullmatch(r'(.*?)\s*\((.*[,;].*)\)', item)
+        if listed:
+            names += [listed[1].strip(), *(x.strip() for x in re.split(r'[,;]', listed[2]))]
+        else:
+            names.append(item)
+    return [n for n in names if n]
+
+
+# "Languages – Python, Java": a short label before a spaced dash, then a list
+_DASH_LABEL_RE = re.compile(r'^([A-Za-z][A-Za-z &/+]{1,30}?)\s+[–—-]\s+(.*[,;|].*)$')
+
+
 def _parse_skills(text: str) -> list[Skill]:
     if not text.strip():
         return []
@@ -748,25 +925,24 @@ def _parse_skills(text: str) -> list[Skill]:
         line = line.strip()
         if not line:
             continue
-        if ":" in line or (wrapped and category):
+        dashed = None if ":" in line else _DASH_LABEL_RE.match(BULLET_RE.sub("", line).strip())
+        if ":" in line or dashed or (wrapped and category):
             if ":" in line:
                 category, rest = line.split(":", 1)
                 category = BULLET_RE.sub("", category).strip()
+            elif dashed:
+                category, rest = dashed[1].strip(), dashed[2]
             else:
                 rest = line
             wrapped = line.endswith(",")
-            for s in rest.split(","):
-                name = s.strip()
-                if name:
-                    results.append(Skill(skill_name=name, category=category))
+            for name in _skill_items(rest):
+                results.append(Skill(skill_name=name, category=category))
         else:
             category, wrapped = None, False
             line = BULLET_RE.sub("", line).strip()
             # two-column skill lists put several bullets on one line
-            for s in re.split(r'[,•]', line):
-                name = s.strip()
-                if name:
-                    results.append(Skill(skill_name=name))
+            for name in _skill_items(line):
+                results.append(Skill(skill_name=name))
     return results
 
 
@@ -904,3 +1080,141 @@ def _parse_awards(text: str) -> list[Award]:
         if parts[0]:
             results.append(Award(title=parts[0], issuer=parts[1] if len(parts) > 1 and parts[1] else None, date=when))
     return results
+
+
+# --- The header (KAN-436) ---------------------------------------------------
+#
+# The lines above the first heading: the name, the contact details, and
+# whatever else a student put there ("Secret Clearance", "Open to
+# relocation"). Read by these rules alone, never by a model (ADR 0007, "The
+# contact block stays home"), for upload to fill the profile's empty fields
+# (`services/header_fill.py`).
+
+# The header is the contact block: a heading further down than this means
+# the resume opens with text that is no header
+HEADER_LINES = 12
+_HEADER_EMAIL_RE = re.compile(r'(?:mailto:)?([\w.+-]+@[\w-]+(?:\.[\w-]+)+)', re.IGNORECASE)
+# A link: a scheme or "www.", or a host with a path, or a bare host on a
+# site's usual ending ("janedoe.dev"); the email went first, so no "@" is left
+_HEADER_URL_RE = re.compile(
+    r'(?:https?://|www\.)[^\s|,;]+'
+    r'|(?<![\w@.])[\w-]+(?:\.[\w-]+)*\.[A-Za-z]{2,}/[^\s|,;]*'
+    r'|(?<![\w@.])[\w-]+(?:\.[\w-]+)*\.(?:com|dev|io|me|net|org|edu|co|ai|app|site|tech|xyz|page|info)\b(?!\.\w)',
+    re.IGNORECASE,
+)
+# A phone: ten digits in the usual groups, with an optional country code
+_HEADER_PHONE_RE = re.compile(
+    r'(?<![\w+])(?:\+\d{1,3}[\s.-]?)?(?:\(\d{3}\)|\d{3})[\s.-]?\d{3}[\s.-]?\d{4}(?!\w)')
+# "City, ST" or "City, ST 11790", the whole piece; a street before it is
+# taken off first, since an address is never kept
+_HEADER_PLACE_RE = re.compile(
+    r"([A-Z][A-Za-z.'\-]*(?:\s+[A-Z][A-Za-z.'\-]*){0,3}),\s*([A-Z]{2})(?:\s+\d{5}(?:-\d{4})?)?$")
+_HEADER_STREET_RE = re.compile(r'^\d+\s+[\w .\'-]+?,\s*(?=[A-Z])')
+# How the pieces of a contact line are set apart
+_HEADER_SPLIT_RE = re.compile(r'\s*[|•·◆♦⋄✉☎]\s*|\t|\s{2,}|\s+[–—]\s+')
+# A label before a value ("Email: ...", "LinkedIn: ...")
+_HEADER_LABEL_RE = re.compile(
+    r'^(?:e-?mail|phone|tel|mobile|cell|linkedin|github|portfolio|website|web|address|location|links?)\s*:\s*',
+    re.IGNORECASE,
+)
+# "U.S. Citizen" belongs to Application Questions, which prints it itself
+_HEADER_CITIZEN_RE = re.compile(r'^u\.?\s?s\.?\s+citizen(?:ship)?$', re.IGNORECASE)
+# Free text kept for the Additional line: a short phrase, never a sentence
+_HEADER_TEXT_WORDS = 8
+_HEADER_TEXT_CHARS = 60
+
+
+@dataclass(frozen=True)
+class HeaderReading:
+    """What a resume's header holds, by the parser's rules (`read_header`).
+    `links` are the links that are neither LinkedIn nor GitHub, in order;
+    `text` is the free text left once the name and every contact detail
+    are taken out, a phrase per item."""
+
+    email: str | None = None
+    phone: str | None = None
+    location: str | None = None
+    linkedin: str | None = None
+    github: str | None = None
+    links: tuple[str, ...] = ()
+    text: tuple[str, ...] = ()
+
+
+def header_lines(raw_text: str) -> list[str]:
+    """The lines above the first heading, when it is in the first
+    HEADER_LINES lines; none when no heading is there."""
+    lines = [ln.strip() for ln in _clean_text(raw_text).splitlines() if ln.strip()]
+    for at, line in enumerate(lines[:HEADER_LINES + 1]):
+        if section_of(line):
+            return lines[:at]
+    return []
+
+
+def _link(url: str) -> str:
+    url = url.rstrip(".)")
+    return url if re.match(r'https?://', url, re.IGNORECASE) else f"https://{url}"
+
+
+def _phrase(piece: str) -> str | None:
+    """A piece of free text worth keeping: short, no sentence, no
+    citizenship (Application Questions prints it)."""
+    piece = piece.strip(" ,;:-–—|()[]")
+    words = piece.split()
+    if not words or not re.search(r'[A-Za-z]', piece) or _HEADER_CITIZEN_RE.match(piece):
+        return None
+    # "Authorized to work in the U.S." ends in an abbreviation, not a sentence
+    ends = piece.endswith(("!", "?")) or (piece.endswith(".") and not re.search(r'\b(?:[A-Za-z]\.){1,3}$', piece))
+    sentence = ends and len(words) >= 3
+    if sentence or len(words) > _HEADER_TEXT_WORDS or len(piece) > _HEADER_TEXT_CHARS:
+        return None
+    return piece
+
+
+def read_header(raw_text: str) -> HeaderReading:
+    """The resume's header read by rules: the first email and phone, a
+    "City, ST" place, the LinkedIn and GitHub links, the other links, and
+    the short phrases left (a clearance, "Open to relocation"). The first
+    line is the name and is skipped unless it holds a contact detail; a
+    sentence (an objective written above the first heading) is never kept."""
+    found: dict[str, str] = {}
+    links: list[str] = []
+    text: list[str] = []
+    for at, line in enumerate(header_lines(raw_text)):
+        # A line that reads as a sentence is an objective or a summary
+        if len(line.split()) > 2 * _HEADER_TEXT_WORDS and not _HEADER_SPLIT_RE.search(line):
+            continue
+        name_line = at == 0
+        for piece in _HEADER_SPLIT_RE.split(line):
+            piece = _HEADER_LABEL_RE.sub("", piece.strip())
+            for match in _HEADER_EMAIL_RE.finditer(piece):
+                found.setdefault("email", match.group(1))
+                name_line = False
+            piece = _HEADER_EMAIL_RE.sub(" ", piece)
+            for match in _HEADER_URL_RE.finditer(piece):
+                url = _link(match.group(0))
+                host = re.sub(r'^https?://(?:www\.)?', "", url, flags=re.IGNORECASE).lower()
+                kind = "linkedin" if host.startswith("linkedin.com") else (
+                    "github" if host.startswith("github.com") else None)
+                if kind and kind not in found:
+                    found[kind] = url
+                elif url not in links:
+                    links.append(url)
+                name_line = False
+            piece = _HEADER_URL_RE.sub(" ", piece)
+            for match in _HEADER_PHONE_RE.finditer(piece):
+                found.setdefault("phone", match.group(0).strip())
+                name_line = False
+            piece = " ".join(_HEADER_PHONE_RE.sub(" ", piece).split())
+            place = _HEADER_PLACE_RE.fullmatch(_HEADER_STREET_RE.sub("", piece))
+            if place and place.group(2) in US_STATES:
+                found.setdefault("location", f"{place.group(1)}, {place.group(2)}")
+                continue
+            if name_line or _HEADER_STREET_RE.match(piece):
+                continue
+            if (phrase := _phrase(piece)) and phrase not in text:
+                text.append(phrase)
+    return HeaderReading(
+        email=found.get("email"), phone=found.get("phone"), location=found.get("location"),
+        linkedin=found.get("linkedin"), github=found.get("github"),
+        links=tuple(links), text=tuple(text),
+    )

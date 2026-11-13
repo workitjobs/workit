@@ -204,6 +204,15 @@ class Highlight(BaseModel):
     met: bool
 
 
+class JobMatch(BaseModel):
+    """One job's match for the signed-in applicant (GET /jobs/{job_id}/match):
+    the score and reasons the feed gives the same job. Empty (None, []) when
+    there is nothing to score against or the job is not open."""
+
+    match: int | None = None
+    highlights: list[Highlight] = []
+
+
 class ScoredJob(JobListing):
     """A job listing with its match score and highlights."""
 
@@ -222,7 +231,7 @@ class HomeMatches(BaseModel):
     # Matches' picking mode.
     auto_apply: list[ScoredJob]
     # When each job posted within `posted_within` days that scores at least
-    # `min_match` went up: Strong Matches counts them per range.
+    # `min_match` went up: Excellent Matches counts them per range.
     strong_posted: list[str]
 
 

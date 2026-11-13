@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist_Mono, Plus_Jakarta_Sans } from "next/font/google";
+import { Geist_Mono, Inter } from "next/font/google";
 
 import { TooltipProvider } from "@/components/shadcn/tooltip";
 import { ToastProvider } from "@/components/ui/toast";
@@ -10,12 +10,23 @@ import { hero } from "./(landing)/data";
 import "./globals.css";
 
 /**
- * Plus Jakarta Sans, not Geist, since KAN-173: rounder and warmer at the
- * medium weight the Dashboard's headings and figures now use. Geist Mono
- * stays for code-like figures; Jakarta has no mono.
+ * Inter, every word in the app (2026-11-10). It replaced Plus Jakarta Sans
+ * (KAN-173 to 2026-11-10), whose tall capitals, short lowercase and round,
+ * wide letters read as marketing copy in tables, filters and job facts:
+ * the user found it unprofessional. Inter is built for screens at 12 to
+ * 14px, where most of the app's text sits, and is Jobright's face. Jakarta
+ * stays for the marketing pages' headlines (./fonts.ts). Geist Mono
+ * stays for code-like figures.
+ *
+ * NO `antialiased` (2026-11-10). Tailwind's `antialiased` turns off the
+ * Mac's own smoothing, which draws strokes a touch heavier, and every
+ * word read thinner for it: the user found Jobright's text, Inter at 400
+ * with the Mac's smoothing (measured on its job page: no element sets
+ * `antialiased`), more solid than WorkIt's Inter at 450 with it. Windows
+ * ignores the property, so only Mac screens change.
  */
-const jakartaSans = Plus_Jakarta_Sans({
-  variable: "--font-jakarta-sans",
+const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin"],
 });
 
@@ -49,7 +60,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     // suppressHydrationWarning: SIGNED_IN_SCRIPT sets data-signed-in before hydration.
     <html
       lang="en"
-      className={`${jakartaSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${inter.variable} ${geistMono.variable} h-full`}
       suppressHydrationWarning
     >
       <head>

@@ -55,8 +55,9 @@ export function useZoom() {
   return [zoom, set] as const;
 }
 
-/** Zoom out, the zoom as a menu of its steps, and zoom in, as a PDF
- *  viewer has them. After KAN-421 widened every seeker page to 1440px,
+/** Zoom Out, the zoom as a menu of its steps, and Zoom In, as a PDF
+ *  viewer has them, at the slim bar's end (the bar draws the rule before
+ *  it). After KAN-421 widened every seeker page to 1440px,
  *  the page filled its column and took most of the screen; it now opens
  *  at 125% and the student picks. */
 export function Zoom({ zoom, onZoom }: { zoom: number; onZoom: (zoom: number) => void }) {
@@ -66,8 +67,7 @@ export function Zoom({ zoom, onZoom }: { zoom: number; onZoom: (zoom: number) =>
       <Button
         variant="ghost"
         size="icon-lg"
-        aria-label="Zoom out"
-        title="Zoom out"
+        aria-label="Zoom Out"
         disabled={at <= 0}
         onClick={() => onZoom(ZOOMS[at - 1])}
       >
@@ -94,14 +94,12 @@ export function Zoom({ zoom, onZoom }: { zoom: number; onZoom: (zoom: number) =>
       <Button
         variant="ghost"
         size="icon-lg"
-        aria-label="Zoom in"
-        title="Zoom in"
+        aria-label="Zoom In"
         disabled={at >= ZOOMS.length - 1}
         onClick={() => onZoom(ZOOMS[at + 1])}
       >
         <MagnifyingGlassPlusIcon aria-hidden />
       </Button>
-      <span aria-hidden className="bg-border-subtle mx-1 h-5 w-px" />
     </div>
   );
 }

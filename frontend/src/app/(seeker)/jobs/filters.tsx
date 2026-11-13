@@ -14,11 +14,9 @@ import {
 } from "react";
 
 import {
-  BriefcaseIcon,
+  JobTypeIcon,
   CheckIcon,
   ChevronDownIcon,
-  CloseIcon,
-  FilterIcon,
   PinIcon,
   RoleIcon,
   SearchIcon,
@@ -34,7 +32,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/shadcn/pop
 import { SortMenu } from "@/components/sort-menu";
 import { buttonClasses } from "@/components/ui/button";
 import { CheckRowBox, checkRowClasses } from "@/components/ui/check-row";
-import { IconButton } from "@/components/ui/icon-button";
+import { AllFiltersButton, ClearFiltersButton } from "@/components/filter-actions";
 import { Select, SelectCheckboxItem, SelectContent, SelectTrigger } from "@/components/ui/select";
 import { cn } from "@/lib/cn";
 
@@ -100,9 +98,10 @@ import type { JobFacets, JobLocationOption } from "./listings";
  *  its popup is closed, the one visible signal that it is in use. The edge is
  *  solid brand, as a selected card's and a pressed chip's are (2026-11-03). */
 function facetTriggerClasses(count: number, open: boolean, className?: string) {
+  // Regular, not a button's medium, as `facetClasses` (field-facet.tsx).
   return cn(
     buttonClasses({ variant: "secondary", size: "sm" }),
-    "h-auto justify-between",
+    "h-auto justify-between font-normal",
     count > 0 && !open && "border-brand bg-brand-tint text-brand hover:bg-brand-tint",
     className,
   );
@@ -356,7 +355,7 @@ function LocationFacet({
         {/* The URL's places, not the ticks: picking California ticks the
             United States too, and should still say 1. */}
         {values.length > 0 && <span className="sr-only">, {values.length} selected</span>}
-        <ChevronDownIcon className="text-muted-foreground size-4" />
+        <ChevronDownIcon className="text-ink-meta size-4" />
       </PopoverTrigger>
       <PopoverContent
         align="start"
@@ -421,7 +420,7 @@ function Location(props: Parameters<typeof LocationFacet>[0]) {
           className={facetTriggerClasses(props.values.length, false, props.className)}
         >
           <FacetLabel Icon={PinIcon} label="Location" active={false} />
-          <ChevronDownIcon className="text-muted-foreground size-4" />
+          <ChevronDownIcon className="text-ink-meta size-4" />
         </button>
       }
     >
@@ -533,7 +532,7 @@ function RoleFacet(props: Parameters<typeof RoleFacetOptions>[0]) {
           className={facetTriggerClasses(props.values.length, false, props.className)}
         >
           <FacetLabel Icon={RoleIcon} label="Role" active={false} />
-          <ChevronDownIcon className="text-muted-foreground size-4" />
+          <ChevronDownIcon className="text-ink-meta size-4" />
         </button>
       }
     >
@@ -674,7 +673,7 @@ export function JobFilters({
     ),
     jobType: (className: string) => (
       <Facet
-        Icon={BriefcaseIcon}
+        Icon={JobTypeIcon}
         label="Job Type"
         options={optionsOf(JOB_TYPE_OPTIONS)}
         values={shown.jobTypes}
@@ -695,13 +694,15 @@ export function JobFilters({
   return (
     <>
       {/* THE FACETS STEP OUT ONE AT A TIME, least used first, from the right,
-          and All Filters stays at every width, a 36px icon named by its tooltip
-          (KAN-519; in words it took 105px of the row). Each facet is at least
-          144px and as wide as its label needs, Clear Filters 36, with 8px gaps,
-          so the row fits them on one line from these widths of row (the page's
-          @container, so an open sidebar or Scout counts): on /search Location
-          and All Filters anywhere, then Role from 392px, Workplace 544 and Job
-          Type 704, each a few pixels over what it needs, for a
+          and All Filters stays at every width, a 36px icon named by its
+          tooltip (KAN-519; components/filter-actions.tsx, shared with the
+          Tracker since 2026-11-10). Each facet is at least 144px and as wide
+          as its label needs, Clear (a text button with a cross) about 70,
+          with 8px gaps, so the row fits them on one line from these widths of
+          row (the page's @container, so an open sidebar or Scout counts): on
+          /search Location and All Filters anywhere, then Role from 428px,
+          Workplace 580 and Job Type 740, each a few pixels over what it needs,
+          for a
           label that renders a little wider elsewhere. Those leave room for
           Clear Filters whether or not it shows, so a pick never pushes a
           facet out of the row or All Filters onto a second line (KAN-252).
@@ -733,62 +734,49 @@ export function JobFilters({
       )}
       {sort ? (
         <>
-          {facet.location("hidden min-w-36 @min-[24.5rem]:flex")}
-          {facet.role("hidden min-w-36 @min-[34rem]:flex")}
-          {facet.workplace("hidden min-w-36 @min-[44rem]:flex")}
-          {facet.jobType("hidden min-w-36 @min-[53.5rem]:flex")}
+          {facet.location("hidden min-w-36 @min-[26.75rem]:flex")}
+          {facet.role("hidden min-w-36 @min-[36.25rem]:flex")}
+          {facet.workplace("hidden min-w-36 @min-[46.25rem]:flex")}
+          {facet.jobType("hidden min-w-36 @min-[55.75rem]:flex")}
         </>
       ) : (
         <>
           {facet.location("min-w-36")}
-          {facet.role("hidden min-w-36 @min-[24.5rem]:flex")}
-          {facet.workplace("hidden min-w-36 @min-[34rem]:flex")}
-          {facet.jobType("hidden min-w-36 @min-[44rem]:flex")}
+          {facet.role("hidden min-w-36 @min-[26.75rem]:flex")}
+          {facet.workplace("hidden min-w-36 @min-[36.25rem]:flex")}
+          {facet.jobType("hidden min-w-36 @min-[46.25rem]:flex")}
         </>
       )}
 
       {/* Every pick off in one press (KAN-252), shown only while there is
-          one: the panel's Clear All, without opening the panel. A round, soft-grey
-          X at All Filters' height, its name in the tooltip: as the words
-          "Clear Filters" (93px) it cost the row a facet at every width,
-          and on a phone it pushed All Filters onto a second line. It keeps
+          one: the panel's Clear All, without opening the panel. "Clear"
+          with a cross, a text button (components/filter-actions.tsx); it
+          was a round soft-grey X named by its tooltip, and before that the
+          words "Clear Filters" (93px), which cost the row a facet. It keeps
           ?sort and ?q as every pick does, and apply() keeps /jobs off the
           bare URL, so the list stays cleared rather than bringing the saved
           preferences back. The press hands focus to All Filters,
           since the button leaves with the last pick. */}
       {filtered && (
-        <IconButton
-          label="Clear filters"
-          variant="soft"
-          className="animate-fade ml-auto size-9 shrink-0"
+        <ClearFiltersButton
+          className="animate-fade ml-auto shrink-0"
           onClick={() => {
             allFiltersButton.current?.focus();
             apply(NO_FILTERS);
           }}
-        >
-          <CloseIcon className="size-4" />
-        </IconButton>
+        />
       )}
-      {/* Its count is the facets with a pick (KAN-569): below about 1000px of
-          row some facets have stepped out, and their picks showed nowhere
-          else. The count is in its name too, "All Filters, 3 on". */}
-      <IconButton
+      {/* Clear and All Filters as on the Tracker (components/
+          filter-actions.tsx, 2026-11-10): in words, not round icons named
+          by their tooltips. Its count is the facets with a pick (KAN-569):
+          below about 1000px of row some facets have stepped out, and their
+          picks showed nowhere else. */}
+      <AllFiltersButton
         ref={allFiltersButton}
-        label={on ? `All Filters, ${on} on` : "All Filters"}
-        variant="soft"
+        count={on}
         onClick={() => setAllFiltersOpen(true)}
-        className={cn("relative size-9 shrink-0", !filtered && "ml-auto")}
-      >
-        <FilterIcon className="size-4" />
-        {on > 0 && (
-          <span
-            aria-hidden
-            className="bg-brand text-on-brand text-meta absolute -top-1.5 -right-1.5 flex h-4.5 min-w-4.5 items-center justify-center rounded-full px-1 font-semibold tabular-nums"
-          >
-            {on}
-          </span>
-        )}
-      </IconButton>
+        className={cn("shrink-0", !filtered && "ml-auto")}
+      />
 
       <AllFiltersPanel
         open={allFiltersOpen}

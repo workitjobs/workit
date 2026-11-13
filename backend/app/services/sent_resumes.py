@@ -53,6 +53,7 @@ from app.services.resume_render import (
     HeaderIdentity,
     PageSettings,
     render,
+    shown_header,
 )
 from app.services.resume_view import ResumeView, view_from_json, view_from_reading
 
@@ -88,21 +89,33 @@ class SentFile:
     original_text: str | None = None
 
 
-def _identity(identity: HeaderIdentity) -> dict:
-    """The header's fields as stored and hashed. `us_citizen` is left out
-    while false, so a resume sent before the field existed still hashes the
-    same and a repeat still finds it; an old snapshot reads it as false."""
-    data = dataclasses.asdict(identity)
+def _identity(identity: HeaderIdentity, page: PageSettings = DEFAULT_PAGE) -> dict:
+    """The header's fields as stored and hashed: only what the page prints
+    (`shown_header`, KAN-436), so a field the resume hides is neither kept
+    nor counted. `us_citizen`, `location` and `extra` are left out while unset, so a
+    resume sent before either existed still hashes the same and a repeat
+    still finds it; an old snapshot reads them as unset."""
+    data = dataclasses.asdict(shown_header(identity, page))
     if not data["us_citizen"]:
         del data["us_citizen"]
+    for field in ("location", "extra"):
+        if data[field] is None:
+            del data[field]
     return data
 
 
 def _page(page: PageSettings) -> dict:
     """The page settings in a hash or a snapshot: nothing at Jake's own page,
     so a resume sent before KAN-435 still repeats, and an old snapshot reads
-    as his page."""
-    return {} if page == DEFAULT_PAGE else {"page": dataclasses.asdict(page)}
+    as his page. `hidden_header` is always left out (KAN-436): the identity
+    beside it already holds only what prints, so hiding an empty field
+    changes nothing, and an old snapshot still matches."""
+    page = dataclasses.replace(page, hidden_header=())
+    if page == DEFAULT_PAGE:
+        return {}
+    data = dataclasses.asdict(page)
+    del data["hidden_header"]
+    return {"page": data}
 
 
 _ONLY_SET = frozenset({"marked", "label", "layout", "tools"})
@@ -121,14 +134,14 @@ def content_hash(
     # resume with no project stack and one kept before KAN-738
     plain = dataclasses.asdict(
         view, dict_factory=lambda items: {k: v for k, v in items if k not in _ONLY_SET or v})
-    payload = {"template": template, "identity": _identity(identity), "view": plain, **_page(page)}
+    payload = {"template": template, "identity": _identity(identity, page), "view": plain, **_page(page)}
     return hashlib.sha256(json.dumps(payload, sort_keys=True, default=str).encode()).hexdigest()
 
 
 def _snapshot(
     view: ResumeView, identity: HeaderIdentity, template: str, page: PageSettings = DEFAULT_PAGE, **more: Any
 ) -> dict:
-    return {"v": SNAPSHOT_VERSION, "template": template, "identity": _identity(identity),
+    return {"v": SNAPSHOT_VERSION, "template": template, "identity": _identity(identity, page),
             "view": dataclasses.asdict(view), **_page(page), **more}
 
 

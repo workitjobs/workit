@@ -2,15 +2,15 @@
 
 import type { Icon as PhosphorIcon } from "@phosphor-icons/react";
 import {
-  BriefcaseMetalIcon,
   CaretLeftIcon,
+  CertificateIcon,
   CheckIcon,
+  DeskIcon,
   GraduationCapIcon,
-  LightbulbIcon,
   MinusIcon,
-  SealCheckIcon,
+  RocketLaunchIcon,
   TrophyIcon,
-  UsersIcon,
+  UsersThreeIcon,
 } from "@phosphor-icons/react/ssr";
 import type { CSSProperties } from "react";
 
@@ -69,14 +69,17 @@ export const WALK: readonly Section[] = [
 ];
 
 /** Each section's glyph: its step chip, the chat's chapter line, the draft
- *  form's header and the sections Scout offers to start. */
+ *  form's header and the sections Scout offers to start. The same glyphs as
+ *  the Experiences page's (section-icons.tsx), so a section wears one mark
+ *  everywhere: the intake drew its own set (a lightbulb for Projects, a
+ *  seal for Certifications) until 2026-11-12. Change both together. */
 export const ICONS: Record<Section, PhosphorIcon> = {
   education: GraduationCapIcon,
-  experience: BriefcaseMetalIcon,
-  projects: LightbulbIcon,
-  leadership: UsersIcon,
+  experience: DeskIcon,
+  projects: RocketLaunchIcon,
+  leadership: UsersThreeIcon,
   awards: TrophyIcon,
-  certifications: SealCheckIcon,
+  certifications: CertificateIcon,
 };
 
 const HEAD_START = 25;

@@ -6,7 +6,13 @@
 //   for goes through chrome.userScripts (only where Allow User Scripts is on).
 // - Routes: declarativeNetRequest session rules that block a non-GET request whose URL matches,
 //   from the tab (and the tabs it opens) or from no tab (a service worker), before any page code:
-//   what a page's script, its workers or a form's native POST would send.
+//   what a page's script, its workers or a form's native POST would send. Routes with the same
+//   regexes share one rule set (KAN-793): one rule per regex, on every tab of those routes. Chrome
+//   caps a profile's regex rules (about 1000), and 7 rules for each guarded tab, kept after the tab
+//   closed, filled it after about 142 tabs. A closed tab leaves every route. A failed update keeps
+//   Chrome's rules and this file's memory as they were, and throws (fails closed). A set whose last
+//   tab closed keeps its rules on -1 until guard.reset: a service worker the page started outlives
+//   its tab (the review of #555), and the set's count is the same either way.
 // - Bindings: window[name] in MAIN dispatches `__apply_call` on the document; page/relay.js (the
 //   isolated world) hands it here, and Apply gets a `binding` event.
 // - What a guard blocked comes up as `guard.said` (its `__apply_said`), since no console reaches
@@ -25,9 +31,14 @@ const NO_TAB = -1; // chrome.tabs.TAB_ID_NONE: a service or shared worker's requ
 
 let ctxRef = null; // the background's ctx, for events
 export const useCtx = (ctx) => { ctxRef = ctx; }; // from its start: what a page blocks after a reload comes before any op
-const routes = new Map(); // key -> {tab, regexes, caseSensitive, ids, tabs: Set}
-const lifted = new Map(); // tab -> the note's {again, warning, wrong, held}
-const applied = new Map(); // tab -> the day of the "You already applied" note (KAN-621) it shows
+const routes = new Map(); // key -> {tab, regexes, caseSensitive, tabs: Set (null: every tab)}
+const sets = new Map(); // the routes' regexes (setOf) -> the ids of their shared rules
+const orphaned = new Set(); // sets a route left as its last tab closed: their rules stay on -1 (NO_TAB) until reset
+const lifted = new Map(); // tab -> the control events that lift it, with its note (apply.submit_guard.lift)
+const applied = new Map(); // tab -> the control events of the "You already applied" note (KAN-621) it shows
+// This run's guard events (KAN-710, apply.plain.guards.tokens): the touch sent before each press, the rehearsal
+// guard's tell, and the bindings only that tell may call. Named with Apply's tokens; no page knows them.
+let tokens = { touch: [], tell: "", tells: [] };
 const bindings = new Map(); // tab (or "*", every tab) -> Set of names
 const syncs = new Map(); // token -> resolve
 let nextRule = 1000;
@@ -43,9 +54,12 @@ async function reset() {
   } catch {}
   try { if (userScriptsOn()) await chrome.userScripts.unregister(); } catch {}
   routes.clear();
+  sets.clear();
+  orphaned.clear();
   lifted.clear();
   applied.clear();
   bindings.clear();
+  tokens = { touch: [], tell: "", tells: [] };
   return null;
 }
 const ready = reset().then(restore);
@@ -60,8 +74,10 @@ export async function keepAcrossReload() {
     at: Date.now(), vendor: vendorSet(),
     scripts: await chrome.scripting.getRegisteredContentScripts(),
     userScripts: userScriptsOn() ? await chrome.userScripts.getScripts() : [],
-    routes: [...routes].map(([key, r]) => [key, { tab: r.tab, regexes: r.regexes, caseSensitive: r.caseSensitive, tabs: r.tabs && [...r.tabs] }]),
+    routes: [...routes].map(([key, r]) => [key, { tab: r.tab, regexes: r.regexes, caseSensitive: r.caseSensitive, workers: r.workers, tabs: r.tabs && [...r.tabs] }]),
+    orphaned: [...orphaned],
     lifted: [...lifted], applied: [...applied], bindings: [...bindings].map(([where, names]) => [where, [...names]]),
+    tokens,
   };
   await chrome.storage.local.set({ [KEPT]: kept });
 }
@@ -72,14 +88,13 @@ async function restore() {
   await chrome.storage.local.remove(KEPT);
   if (Date.now() - kept.at > KEPT_FOR_MS) return;
   useVendor(kept.vendor);
+  if (kept.tokens) tokens = kept.tokens;
   for (const [where, names] of kept.bindings) bindings.set(where, new Set(names));
   for (const [tab, note] of kept.lifted) lifted.set(tab, note);
   for (const [tab, day] of kept.applied) applied.set(tab, day);
-  for (const [key, r] of kept.routes) {
-    const entry = { ...r, ids: r.regexes.map(() => nextRule++), tabs: r.tabs && new Set(r.tabs) };
-    routes.set(key, entry);
-    await putRules(entry, []);
-  }
+  for (const [key, r] of kept.routes) routes.set(key, { ...r, tabs: r.tabs && new Set(r.tabs) });
+  for (const set of kept.orphaned ?? []) orphaned.add(set);
+  for (const set of new Set([...routes.values()].map(setOf).concat([...orphaned]))) await putSet(set);
   if (kept.scripts.length) await chrome.scripting.registerContentScripts(kept.scripts);
   if (kept.userScripts.length && userScriptsOn()) await chrome.userScripts.register(kept.userScripts);
   // The open documents kept their page guards, but their relay died with the old code.
@@ -165,39 +180,67 @@ async function inject({ tab, file, sha256: sha }) {
 
 // --- routes
 
-function rulesOf(route) {
-  return route.regexes.map((regexFilter, i) => ({
-    id: route.ids[i], priority: 1, action: { type: "block" },
+const setOf = (route) => JSON.stringify([route.regexes, route.caseSensitive, Boolean(route.workers)]);
+
+// The rules of one rule set: each regex once, on every tab of the routes that share it (no tabIds
+// when one of them is every tab's), and on -1 for a set a closed tab left (orphaned). Neither: no rule.
+function rulesOf(set) {
+  const members = [...routes.values()].filter((r) => setOf(r) === set);
+  if (!members.length && !orphaned.has(set)) return [];
+  const [regexes, caseSensitive] = JSON.parse(set);
+  const every = members.some((r) => !r.tabs);
+  const tabs = new Set(members.flatMap((r) => (r.tabs ? [...r.tabs] : [])));
+  if (orphaned.has(set)) tabs.add(NO_TAB);
+  if (!sets.has(set)) sets.set(set, regexes.map(() => nextRule++));
+  return regexes.map((regexFilter, i) => ({
+    id: sets.get(set)[i], priority: 1, action: { type: "block" },
     condition: {
-      regexFilter, isUrlFilterCaseSensitive: route.caseSensitive, excludedRequestMethods: ["get", "head", "options"],
-      resourceTypes: RESOURCE_TYPES, ...(route.tabs ? { tabIds: [...route.tabs] } : {}),
+      regexFilter, isUrlFilterCaseSensitive: caseSensitive, excludedRequestMethods: ["get", "head", "options"],
+      resourceTypes: RESOURCE_TYPES, ...(every ? {} : { tabIds: [...tabs] }),
     },
   }));
 }
 
-async function putRules(route, old = route.ids) {
-  await chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: old, addRules: rulesOf(route) });
+// One update, in place: Chrome removes the set's rules, then adds them anew, or (on a throw) keeps them as they were.
+async function putSet(set) {
+  await chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: sets.get(set) ?? [], addRules: rulesOf(set) });
 }
 
-async function route({ key, tab = null, regexes, caseSensitive = false }) {
+// `change` to `routes`, then the sets it touched in Chrome. A throw puts `routes` back as it was, so Chrome's rules and
+// this memory agree, and goes on to Apply: its guard() or rearm() raises, with the page's own guard on (fails closed).
+async function changing(keys, change) {
+  const before = new Map(keys.map((key) => [key, routes.get(key)]));
+  const touched = () => keys.map((key) => routes.get(key)).filter(Boolean).map(setOf);
+  const was = touched();
+  change();
+  const done = [];
+  try {
+    for (const set of new Set([...touched(), ...was])) {
+      await putSet(set);
+      done.push(set);
+    }
+  } catch (error) {
+    for (const [key, entry] of before) entry ? routes.set(key, entry) : routes.delete(key);
+    for (const set of done) await putSet(set).catch(() => {}); // more blocked, never less, if this fails too
+    throw error;
+  }
+}
+
+// `workers`: the rules hold only for requests from no tab (a service or shared worker's), never the tab's own (KAN-791).
+async function route({ key, tab = null, regexes, caseSensitive = false, workers = false }) {
   for (const regex of regexes) {
     const answer = await chrome.declarativeNetRequest.isRegexSupported({ regex, isCaseSensitive: caseSensitive });
     if (!answer.isSupported) throw named("BadOp", `declarativeNetRequest can't take ${regex}: ${answer.reason}`);
   }
   const old = routes.get(key);
-  const entry = {
-    tab, regexes, caseSensitive, ids: regexes.map(() => nextRule++),
-    tabs: tab === null ? null : new Set([tab, NO_TAB, ...(old?.tabs ?? [])]),
-  };
-  routes.set(key, entry);
-  await putRules(entry, old?.ids ?? []);
-  return { rules: entry.ids.length };
+  // A workers route holds its tab only as its owner: its rules are on -1 alone, never the tab's own requests.
+  const entry = { tab, regexes, caseSensitive, workers, tabs: workers ? new Set([NO_TAB]) : tab === null ? null : new Set([tab, NO_TAB, ...(old?.tabs ?? [])]) };
+  await changing([key], () => routes.set(key, entry));
+  return { rules: regexes.length };
 }
 
 async function unroute({ key }) {
-  const old = routes.get(key);
-  routes.delete(key);
-  if (old) await chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: old.ids });
+  if (routes.has(key)) await changing([key], () => routes.delete(key));
   return null;
 }
 
@@ -235,55 +278,76 @@ function namesFor(tab) {
   return [...(bindings.get(tab) ?? []), ...(bindings.get("*") ?? [])];
 }
 
-// --- lift and rearm (apply.submit_guard.lift / rearm / renote)
+// --- the guards' state (KAN-710): set only by their control events, sent here from the isolated world
 
-const LIFTED = "vendor/guards/lifted.js";
-const REARMED = "vendor/guards/rearmed.js";
-
-function liftIn(tab, frame, note) {
-  return inFrames(tab, "MAIN", { frame, files: [vendor(LIFTED)], func: (note) => window.__applyLift && window.__applyLift(note), args: [note] });
+// apply.submit_guard.DISPATCH: each [type, detail] event on the window, or on the one element marked `mark`.
+function dispatchIn(events, mark) {
+  let at = window;
+  if (mark) {
+    at = document.querySelector('[data-apply-press="' + mark + '"]');
+    if (!at) return "none";
+    at.removeAttribute("data-apply-press");
+    if (at.querySelector("iframe, frame, object, embed, fencedframe, portal")) return "frame";
+  }
+  let heard = false;
+  for (const [type, detail] of events) {
+    const event = new CustomEvent(type, { detail, cancelable: true });
+    at.dispatchEvent(event);
+    heard = heard || event.defaultPrevented;
+  }
+  return heard ? "heard" : "unheard";
 }
 
-async function lift({ tab, again = false, warning = "", wrong = true, held = "", sha256: sha, onlyLifted = false }) {
-  await checked(LIFTED, sha);
+async function sendEvents(tab, frame, events, mark = null) {
+  const done = await inFrames(tab, "ISOLATED", { frame, func: dispatchIn, args: [events, mark] });
+  return (done || []).map((r) => r?.result);
+}
+
+async function control({ tab, events, mark = null }) {
+  return sendEvents(tab, undefined, events, mark);
+}
+
+async function setTokens({ touch = [], tell = "", tells = [] }) {
+  tokens = { touch, tell, tells };
+  await relay(); // every frame's relay asks for them again
+  return null;
+}
+
+// --- lift and rearm (apply.submit_guard.lift / rearm / renote)
+
+const liftIn = (tab, frame, events) => sendEvents(tab, frame, events);
+
+async function lift({ tab, events, onlyLifted = false }) {
   if (onlyLifted && !lifted.has(tab)) return false; // renote: a page still guarded stays guarded
-  const note = { again, warning, wrong, held };
-  lifted.set(tab, note);
-  await liftIn(tab, undefined, note);
+  lifted.set(tab, events);
+  await liftIn(tab, undefined, events);
   return null;
 }
 
 // The "You already applied on <day>" note (KAN-621) on a page still guarded, in its top frame now and in
-// each document the tab loads, until `day` is null (Lisul dismissed it: no page shows it again).
-const APPLIED = "vendor/guards/applied.js";
-
-function appliedIn(tab, frame, day) {
-  return inFrames(tab, "MAIN", { frame, files: [vendor(APPLIED)], func: (day) => window.__applyAppliedNote && window.__applyAppliedNote(day), args: [day] });
-}
-
-async function appliedNote({ tab, day = null, sha256: sha }) {
-  await checked(APPLIED, sha);
-  if (day === null) {
+// each document the tab loads, until `events` is null (Lisul dismissed it: no page shows it again).
+async function appliedNote({ tab, events = null, dismissed = null }) {
+  if (events === null) {
     applied.delete(tab);
-    await inFrames(tab, "MAIN", { func: () => { window.__applyAppliedDismissed = true; } });
+    if (dismissed) await sendEvents(tab, undefined, dismissed);
     return null;
   }
-  applied.set(tab, day);
-  await appliedIn(tab, 0, day);
+  applied.set(tab, events);
+  await sendEvents(tab, 0, events);
   return null;
 }
 
-async function rearm({ tab, sha256: sha }) {
+async function rearm({ tab, events }) {
   lifted.delete(tab);
-  await inFrames(tab, "MAIN", { files: [await checked(REARMED, sha)] });
+  await sendEvents(tab, undefined, events);
   return null;
 }
 
 // Each document a lifted tab loads is Lisul's too, and each gets the tab's bindings.
 function onDocument(d) {
-  const note = lifted.get(d.tabId);
-  if (note) liftIn(d.tabId, d.frameId, note).catch(() => {});
-  if (applied.has(d.tabId) && d.frameId === 0) appliedIn(d.tabId, 0, applied.get(d.tabId)).catch(() => {});
+  const events = lifted.get(d.tabId);
+  if (events) liftIn(d.tabId, d.frameId, events).catch(() => {});
+  if (applied.has(d.tabId) && d.frameId === 0) sendEvents(d.tabId, 0, applied.get(d.tabId)).catch(() => {});
   const names = namesFor(d.tabId);
   if (names.length) bindIn(d.tabId, d.frameId, names).catch(() => {});
 }
@@ -292,42 +356,60 @@ chrome.webNavigation.onDOMContentLoaded.addListener(onDocument);
 
 // A tab a guarded tab opens is guarded as its opener is (Playwright's routes are the context's),
 // and one a lifted tab opens is Lisul's.
-chrome.tabs.onCreated.addListener((tab) => {
-  const opener = tab.openerTabId;
-  if (opener === undefined) return;
-  if (lifted.has(opener)) lifted.set(tab.id, lifted.get(opener));
-  for (const entry of routes.values()) {
-    if (entry.tabs?.has(opener) && !entry.tabs.has(tab.id)) {
-      entry.tabs.add(tab.id);
-      putRules(entry).catch(() => {});
-    }
+// Tab `tab` joins every route of tab `opener`, and its lift. Only a tab id more on a set already on: Chrome's count of
+// rules stays. Should Chrome refuse even so, the tab goes rather than run unguarded by the rules, and this throws.
+export async function joinOpener(tab, opener) {
+  await ready;
+  if (lifted.has(opener) && !lifted.has(tab)) lifted.set(tab, lifted.get(opener));
+  const keys = [...routes].filter(([, r]) => r.tabs?.has(opener) && !r.tabs.has(tab)).map(([key]) => key);
+  if (!keys.length) return;
+  try {
+    await changing(keys, () => {
+      for (const key of keys) routes.set(key, { ...routes.get(key), tabs: new Set([...routes.get(key).tabs, tab]) });
+    });
+  } catch (error) {
+    await chrome.tabs.remove(tab).catch(() => {});
+    throw error;
   }
+}
+chrome.tabs.onCreated.addListener((tab) => {
+  if (tab.openerTabId !== undefined) joinOpener(tab.id, tab.openerTabId).catch(() => {});
 });
+// A tab opened by a page's link or window.open names its opener here even where tabs.onCreated doesn't.
+chrome.webNavigation.onCreatedNavigationTarget.addListener((d) => joinOpener(d.tabId, d.sourceTabId).catch(() => {}));
+// A closed tab leaves every route, and a route with no tab left goes (KAN-793: its rules stayed until guard.reset).
 chrome.tabs.onRemoved.addListener((tab) => {
   lifted.delete(tab);
   applied.delete(tab);
   bindings.delete(tab);
+  // A workers route (KAN-791) goes with its owner tab, its set kept on -1 as any other's.
+  const keys = [...routes].filter(([, r]) => r.tabs?.has(tab) || (r.workers && r.tab === tab)).map(([key]) => key);
+  if (!keys.length) return;
+  ready.then(() => changing(keys, () => {
+    for (const key of keys) {
+      if (routes.get(key).workers && routes.get(key).tab === tab) {
+        orphaned.add(setOf(routes.get(key)));
+        routes.delete(key);
+        continue;
+      }
+      const tabs = new Set([...routes.get(key).tabs].filter((t) => t !== tab));
+      if ([...tabs].some((t) => t !== NO_TAB)) routes.set(key, { ...routes.get(key), tabs });
+      else {
+        orphaned.add(setOf(routes.get(key))); // its service workers may live on: the set's rules stay on -1
+        routes.delete(key);
+      }
+    }
+  })).catch(() => {}); // Chrome kept the closed tab's rules: more blocked, never less; the next update drops them
 });
 
-// --- flags, touches and what the page said
-
-// __applyAsking, __applyAskTick and __applyDriving (KAN-716): the drive guard's checks on trusted input, which a
-// plain Worker's text and choice clicks now are.
-const FLAGS = new Set(["__applyRehearsalLifted", "__applyDriveLifted", "__applyAccountClick", "__applyProfileClick", "__applyUploadPost", "__applyStartClick",
-                       "__applyAsking", "__applyAskTick", "__applyDriving"]);
-
-async function flags({ tab, set }) {
-  const pairs = Object.entries(set || {}).filter(([name, value]) => FLAGS.has(name) && typeof value === "boolean");
-  await inFrames(tab, "MAIN", { args: [pairs], func: (pairs) => { for (const [name, value] of pairs) window[name] = value; } });
-  return null;
-}
+// --- touches and what the page said
 
 // A press the extension is about to make in a frame counts as a touch: the guard then shows what
 // it blocks, as it does for a trusted click. tile.input calls this before
 // each press it replays (by = "lisul" for the tile's), and Apply hears `guard.touched` from the extension itself (his press is
-// untrusted, so the page can't tell it from a script's).
+// untrusted, so the page can't tell it from a script's). The touch is the token's: a page can't send one.
 export async function touch({ tab, frame = 0, by = "lisul" }, ctx = ctxRef) {
-  await inFrames(tab, "ISOLATED", { frame, args: [by], func: (by) => window.dispatchEvent(new CustomEvent("__apply_touch", { detail: by })) });
+  await inFrames(tab, "ISOLATED", { frame, args: [tokens.touch], func: (types) => { for (const type of types) window.dispatchEvent(new CustomEvent(type)); } });
   if (by === "lisul") ctx?.send("guard.touched", { tab, frame, by });
   return null;
 }
@@ -349,10 +431,14 @@ async function sync({ tab, timeout = 1000 }) {
   return null;
 }
 
-chrome.runtime.onMessage.addListener((message, sender) => {
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (!message?.applyGuard || sender.id !== chrome.runtime.id) return;
   if (message.applyGuard === "sync") {
     syncs.get(message.detail)?.();
+    return;
+  }
+  if (message.applyGuard === "tokens") { // a frame's relay, as it starts: what to send before a press, and hear
+    sendResponse({ touch: tokens.touch, tell: tokens.tell });
     return;
   }
   if (!sender.tab) return;
@@ -365,7 +451,17 @@ chrome.runtime.onMessage.addListener((message, sender) => {
     } catch {
       return;
     }
-    if (namesFor(where.tab).includes(call?.name)) ctxRef?.send("binding", { ...where, name: call.name, args: Array.isArray(call.args) ? call.args : [] });
+    // A guard's own binding (Lisul's press, Fill again, Dismiss) is called only by the guard's tell, never the page.
+    if (namesFor(where.tab).includes(call?.name) && !tokens.tells.includes(call.name)) ctxRef?.send("binding", { ...where, name: call.name, args: Array.isArray(call.args) ? call.args : [] });
+  } else if (message.applyGuard === "tell") {
+    let told;
+    try {
+      told = JSON.parse(message.detail);
+    } catch {
+      return;
+    }
+    const [name, args] = Array.isArray(told) ? told : [];
+    if (tokens.tells.includes(name) && namesFor(where.tab).includes(name)) ctxRef?.send("binding", { ...where, name, args: Array.isArray(args) ? args : [] });
   }
 });
 
@@ -395,7 +491,8 @@ export const ops = {
   "guard.lift": withCtx(lift),
   "guard.rearm": withCtx(rearm),
   "guard.applied": withCtx(appliedNote),
-  "guard.flags": withCtx(flags),
+  "guard.control": withCtx(control),
+  "guard.tokens": withCtx(setTokens),
   "guard.touch": withCtx(touch),
   "guard.sync": withCtx(sync),
   "guard.status": withCtx(status),

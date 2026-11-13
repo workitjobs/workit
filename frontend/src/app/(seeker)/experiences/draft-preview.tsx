@@ -88,7 +88,7 @@ export function DraftPreview({
   return (
     <section
       aria-label={`Draft entry: ${draft.title}`}
-      className="bg-panel shadow-card ring-brand-tint animate-rise overflow-hidden rounded-2xl ring-1"
+      className="bg-panel shadow-card ring-brand-tint animate-rise rounded-card overflow-hidden ring-1"
     >
       <div className="flex flex-col gap-2 px-3.5 py-3">
         <div className="flex min-w-0 flex-col gap-0.5">

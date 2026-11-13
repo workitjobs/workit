@@ -28,6 +28,7 @@ import { cn } from "@/lib/cn";
 import { acceptUpdate, dismissUpdate } from "../applications/actions";
 import type { Email } from "../applications/tracked";
 import type { EmailJob } from "./email-row";
+import { Tip } from "@/components/ui/tip";
 
 /** A toolbar action's square: Gmail's 32px glyph buttons. */
 const TOOL = "size-8 rounded-control hover:bg-hover";
@@ -124,13 +125,15 @@ export function InboxToolbar({
           </CheckboxPrimitive.Root>
         </span>
         <DropdownMenu>
-          <DropdownMenuTrigger
-            aria-label="Select By"
-            disabled={shown.length === 0}
-            className="text-ink-meta hover:text-ink hover:bg-hover rounded-control focus-visible:ring-brand-ring -ml-1 flex h-8 w-5 items-center justify-center focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
-          >
-            <ChevronDownIcon className="size-3.5" />
-          </DropdownMenuTrigger>
+          <Tip label="Select By">
+            <DropdownMenuTrigger
+              aria-label="Select By"
+              disabled={shown.length === 0}
+              className="text-ink-meta hover:text-ink hover:bg-hover rounded-control focus-visible:ring-brand-ring -ml-1 flex h-8 w-5 items-center justify-center focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
+            >
+              <ChevronDownIcon className="size-3.5" />
+            </DropdownMenuTrigger>
+          </Tip>
           <DropdownMenuContent align="start" className="w-40">
             <DropdownMenuItem onClick={() => onPick(ids(shown))}>All</DropdownMenuItem>
             <DropdownMenuItem onClick={() => onPick([])}>None</DropdownMenuItem>

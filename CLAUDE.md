@@ -210,6 +210,12 @@ with the failure it prevents.
   it prints last (a Summary first), Fit cuts it first and Tailor reads it as
   any entry. Read it before changing the bank's sections, a resume's
   section order or import's headings.
+- `docs/cover_letters.md` — KAN-766's cover letters design, step 1 built:
+  the Documents page's Cover Letters tab lists the letters WorkIt wrote
+  as written answers (`GET /applicants/{id}/cover-letters`). The rest is
+  a draft for review: uploads (a new `cover_letters` table), then the
+  letter each application sent (`sent_cover_letter_id`), then writing one
+  in WorkIt. Read it before building any of it.
 - `docs/live_page.md` — the editor's live page (KAN-391), step 1 partly
   built: each edit renders from the editor's copy with no database read
   while its save writes beside it, and the page below a typed line
@@ -330,7 +336,7 @@ with the failure it prevents.
 - **A PR that touches the submit or drive guards gets an adversarial review
   before it merges** (KAN-666). The guards are `apply-agent/src/apply/submit_guard.py`,
   `plain/guards.py`, `send_click.py`, and any code that sets a guard flag or
-  presses through one. A second reviewer tries to make the change send an
+  presses through one (the keep-alive's stay press, `keepalive.press`). A second reviewer tries to make the change send an
   application, and the PR merges only once each way they find is fixed. A
   new click path, or a new way a page can trick the guard, joins
   `apply-agent/tests/test_submit_guard_hostile.py` in the same PR.

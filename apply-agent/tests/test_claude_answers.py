@@ -1021,6 +1021,23 @@ def test_a_drafted_answer_stating_a_number_no_source_holds_is_a_missing_fact(mon
     assert (row.status, row.missing_fact[:len(RELATIONSHIPS)]) == ("missing fact", RELATIONSHIPS)
 
 
+def test_a_drafted_answer_naming_an_employer_or_an_outcome_no_source_holds_is_a_missing_fact(monkeypatch):
+    # The full truth check (KAN-750): the Story bank never names Stripe, and its WorkIt entry never says deployed.
+    for made_up in ("Stripe hired me as an advisor to the firm.", "No, though WorkIt was deployed to their team."):
+        row = run(monkeypatch, ResearchForm("GCM Grosvenor"), FakeClaude(drafts={RELATIONSHIPS: made_up}))
+
+        assert (row.status, row.missing_fact[:len(RELATIONSHIPS)]) == ("missing fact", RELATIONSHIPS), made_up
+
+
+def test_a_plain_short_drafted_answer_passes_the_truth_check(monkeypatch):
+    form = ResearchForm("GCM Grosvenor")
+
+    row = run(monkeypatch, form, FakeClaude(drafts={RELATIONSHIPS: "No"}))
+
+    assert row.status == "submitted", row.reason
+    assert sent_answer(form, RELATIONSHIPS) == "No"
+
+
 DECISION = "What made you pick YOLOv8-OBB over a plain detector for the depot tracker?"
 PICKED = "Buses park at angles in the depot, so rotated boxes kept two side-by-side buses apart."
 

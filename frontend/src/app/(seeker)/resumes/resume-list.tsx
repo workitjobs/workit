@@ -1,32 +1,124 @@
+"use client";
+
 import type { ReactNode } from "react";
 
-import { ResumeScroll } from "@/components/resume-list";
+import {
+  RESUME_ACTIONS_COL,
+  RESUME_DATE_COL,
+  RESUME_NAME_COL,
+  RESUME_TARGET_COL,
+  RESUME_TH,
+  RESUME_TYPE_COL,
+} from "@/components/resume-row";
+import { STICKY_HEAD, STICKY_TH, TABLE_FILL, useFillPage } from "@/components/fill-page";
+import { PickBox } from "@/components/selection-bar";
+import { Checkbox } from "@/components/shadcn/checkbox";
+import { Table, TableBody, TableHead, TableHeader, TableRow } from "@/components/shadcn/table";
+import { Card } from "@/components/ui/card";
+import { cn } from "@/lib/cn";
+
+import { RESUME_GRID } from "./view";
 
 /**
- * The Resumes page's list (KAN-362): every resume's card (an upload's
- * `ResumeRow`, a built resume's ./built-resume-row.tsx) under its group's
- * heading (`ResumeGroup`, KAN-404), in one card that scrolls inside itself
- * (`ResumeScroll`, components/resume-list.tsx, shared with the resume
- * picker since KAN-406) down to the foot of the page (`fill`, KAN-434), so
- * the search and the buttons above it stay in view however many resumes a
- * student keeps. The cards hold all a resume
- * needs: its name, one line saying what it is ("Uploaded Oct 21", "Last
- * edited Oct 21 · For …"), and its star, Rename, Download and Delete. A
- * table with Type and Last Edited columns, then with the icons in one menu,
- * came first in KAN-362: the columns said what each card's line already
- * says, and the menu hid the actions a student uses.
+ * The Resumes page's resumes (KAN-362), in the layout the student picked
+ * (KAN-766): every resume's row or card (an upload's `ResumeRow`, a built
+ * resume's ./built-resume-row.tsx), in the sort's order, flat unless Table
+ * Settings groups the list by type (./resume-filters.tsx), when
+ * ./built-resumes.tsx puts the shared heading rows among them.
  *
- * Since 2026-11-10 the cards sit on the page's ground, as the Tracker's do,
- * each a white card with its date in a column (`ResumeCard`), and the list
- * is no card of its own: grey strips in a white card read skinny and
- * cramped to the user. The scroll's own inset (`ResumeScroll`'s px-3, the
- * room a card's shadow needs) is taken back with -mx-3, so the cards line
- * up with the search and the buttons above.
+ * **The list is a table after the Tracker's** (`applications/list.tsx`,
+ * 2026-11-10): one white card, 12px grey headings (Name, Target Job, Type,
+ * Date Modified, and the actions' column with no heading), rules between
+ * the rows and no box around each, the name alone in its cell and the job
+ * a tailored resume was made for in a column of its own, after Jobright's
+ * resume table. The page scrolls, as the Tracker's does.
+ * The headings name each column once; as wide cards on the page's ground,
+ * each resume labeled its own date "Modified" or "Created", which the user
+ * found repetitive. A table came once before, in KAN-362, and the user
+ * found its columns useless beside cards that each said what they were;
+ * the user asked for it back once the grid needed a list that read as the
+ * Tracker's. Unlike the Tracker's, its columns do not move, resize or hide:
+ * a resume has five facts, not twelve. Below `@4xl` of the table Target
+ * Job folds to nothing and the job reads under the name; below `@2xl` the
+ * Type column folds too and the date drops its time.
+ *
+ * **The grid** is the tops of the resumes' first pages, four to a row (two
+ * below `@3xl`, a phone's). **Both scroll with the page** (2026-11-10): the
+ * grid scrolled inside its own box down to the page's foot, as the list
+ * did from KAN-434 to keep the search in view, so a switch of layout also
+ * switched how the page scrolled.
  */
-export function ResumeList({ children }: { children: ReactNode }) {
+export function ResumeList({
+  grid = false,
+  selectAll,
+  children,
+}: {
+  /** The grid of first pages (KAN-766), not the table. */
+  grid?: boolean;
+  /** The Name heading's select box (2026-11-11, as Up Next's Role
+   *  heading's): checked while every shown row is picked, a dash while
+   *  some are; a click picks every row, or unpicks while any is picked. */
+  selectAll?: { all: boolean; some: boolean; onToggle: () => void };
+  children: ReactNode;
+}) {
+  const fill = useFillPage(!grid);
+  if (grid) {
+    return (
+      <section className="@container mt-4">
+        <ul role="list" aria-label="Your Resumes" className={RESUME_GRID}>
+          {children}
+        </ul>
+      </section>
+    );
+  }
   return (
-    <section aria-label="Your Resumes" className="-mx-3 mt-1">
-      <ResumeScroll fill>{children}</ResumeScroll>
-    </section>
+    <Card padding="none" className="@container mt-4 overflow-hidden">
+      {/* It scrolls inside its card, down to the page's foot, so the tabs,
+          the search and the filters above stay in view
+          (components/fill-page.ts). */}
+      <Table
+        aria-label="Your Resumes"
+        containerRef={fill}
+        containerClassName={TABLE_FILL}
+        className="table-fixed"
+      >
+        <TableHeader className={STICKY_HEAD}>
+          <TableRow className="hover:bg-transparent">
+            <TableHead className={cn(RESUME_TH, STICKY_TH, RESUME_NAME_COL)}>
+              {selectAll ? (
+                <span className="flex items-center gap-2">
+                  <PickBox>
+                    <Checkbox
+                      className="border-ink-meta"
+                      checked={selectAll.all}
+                      indeterminate={selectAll.some && !selectAll.all}
+                      onCheckedChange={selectAll.onToggle}
+                      aria-label={selectAll.some ? "Unselect All" : "Select All"}
+                    />
+                  </PickBox>
+                  Name
+                </span>
+              ) : (
+                "Name"
+              )}
+            </TableHead>
+            <TableHead className={cn(RESUME_TH, STICKY_TH, RESUME_TARGET_COL)}>
+              <span className="hidden @4xl:inline">Target Job</span>
+            </TableHead>
+            <TableHead className={cn(RESUME_TH, STICKY_TH, RESUME_TYPE_COL)}>
+              <span className="hidden @2xl:inline">Type</span>
+            </TableHead>
+            <TableHead className={cn(RESUME_TH, STICKY_TH, RESUME_DATE_COL)}>
+              <span className="@2xl:hidden">Modified</span>
+              <span className="hidden @2xl:inline">Date Modified</span>
+            </TableHead>
+            <TableHead className={cn(STICKY_TH, RESUME_ACTIONS_COL)}>
+              <span className="sr-only">Actions</span>
+            </TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>{children}</TableBody>
+      </Table>
+    </Card>
   );
 }

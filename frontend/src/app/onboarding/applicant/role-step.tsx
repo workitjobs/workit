@@ -14,7 +14,7 @@ import { SalaryPicker, SearchPicker, type PickOption } from "@/components/filter
 import { ChoiceTile } from "@/components/ui/choice-tile";
 import { Chip } from "@/components/ui/chip";
 import {
-  BriefcaseIcon,
+  JobTypeIcon,
   CalendarIcon,
   CoinIcon,
   LevelIcon,
@@ -77,7 +77,7 @@ export function RoleStep({
           onChange={(next) => set({ roles: next })}
         />
       </Field>
-      <Field dense={dense} Icon={BriefcaseIcon} label="Job Type" required>
+      <Field dense={dense} Icon={JobTypeIcon} label="Job Type" required>
         <Choices dense={dense} columns="grid-cols-2">
           {JOB_TYPE_OPTIONS.map((o) => (
             <Choice

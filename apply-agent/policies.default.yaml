@@ -27,6 +27,23 @@ captcha_wait_minutes: 15
 # a Missing fact for the applicant).
 tick_consent_when_true: true
 
+# Attestations and acknowledgements ("I certify", "I attest", "I understand that
+# this role is not eligible for sponsorship") are yours to tick: Apply leaves
+# each for you (KAN-676). List rules here to let the Fill engine's plan answer
+# one whose every claim your profile's facts settle, with the form's own "I
+# Confirm" or "Yes" (KAN-761). Each such answer goes on the form's Check before
+# Submit list as "Attested from sources: <fact>", and holds a live run for you.
+#   sponsorship: you need no sponsorship now or later, and may work in the US
+#   work_authorization: you may work in the US
+#   age_18: you are 18 or older
+#   truthful_information: a statement that the application is true (only when
+#     listed by name)
+# It never signs, types a name, dates a signature, consents to a background
+# check, arbitration, terms or data processing, or opts in to texts or
+# marketing, and never answers a claim no listed rule settles. Claude never
+# ticks one on its own. For example: [sponsorship, work_authorization, age_18]
+attest_from_sources: []
+
 # Apply applies only to US roles, so "can you work in London / outside the US?"
 # is answered No (and a sponsorship question there Yes). Without this the Fill
 # engine leaves those questions blank.

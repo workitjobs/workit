@@ -515,9 +515,13 @@ async def place_on(
         if p.skill_id is None:
             new[p.name] = (await add_local_skill(session, applicant_id, resume_id, p.name, p.group)).id
         order.append(p.skill_id or new[p.name])
-    skills = {skill_id: SkillChoice(shown=True, position=i) for i, skill_id in enumerate(order)}
+    # A skill the source moved to another group (KAN-586) keeps that group
+    group = {i: c.group for i, c in choices.skills.items()}
+    skills = {skill_id: SkillChoice(shown=True, position=i, group=group.get(skill_id))
+              for i, skill_id in enumerate(order)}
     hidden = [i for i, c in choices.skills.items() if i not in skills and not c.shown]
-    skills |= {skill_id: SkillChoice(shown=False, position=len(order) + i) for i, skill_id in enumerate(hidden)}
+    skills |= {skill_id: SkillChoice(shown=False, position=len(order) + i, group=group.get(skill_id))
+               for i, skill_id in enumerate(hidden)}
     return Choices(choices.entries, choices.bullets, skills), new
 
 

@@ -43,6 +43,7 @@ from urllib.parse import parse_qs, quote, urljoin, urlsplit
 from fakes import FakeMailbox, Submission
 from playwright.sync_api import Route, sync_playwright
 
+from apply import submit_guard
 from apply.fill_engine import ENGINE_DIR
 
 MAIL_SEARCH = "from:(myworkday.com OR otp.workday.com)"  # Workday mails from both
@@ -308,6 +309,9 @@ class FakeWorkdayServer:
     clicks on an auth form's button each page drops without sending it.
     `went_wrong`: how many times the first step shows Workday's "Something
     went wrong" page in place of its fields (Salesforce's, live).
+    `crashes_on_save`: how many Save and Continue clicks Workday answers with its
+    "Something went wrong" page in place of the step, under its progress bar, saving
+    nothing (NVIDIA's My Experience, live, KAN-758).
     `flashes_error`: Save and Continue shows an error a moment before the next
     step (Adobe's, live).
     `drops_untouched`: a repeating section keeps only the entries changed on
@@ -318,6 +322,9 @@ class FakeWorkdayServer:
     `review_delay`: seconds the Review step shows only a placeholder, and its
     Submit button, before its answers (NVIDIA's, live).
     `box_wiring`: seconds after a step shows before its checkboxes take a click.
+    `dates_need_calendar`: each date shows what Workday holds in a hidden
+    "current value is" line and has a Calendar button; typed dates show but
+    are held wrong, and only the Calendar sets them (NVIDIA's, live, KAN-716).
     `to_sign_in`: Create Account makes the account and goes to a bare Sign
     In view, with no notice, as Workday's own code does on a success that
     says isLoginRedirect (Visa's, Northrop's, live). A tenant that verifies
@@ -341,7 +348,7 @@ class FakeWorkdayServer:
                  drops_untouched: bool = False, flashes_error: bool = False,
                  dropped_saves: int = 0, box_wiring: float = 0, to_sign_in: bool = False,
                  lost_picks: int = 0, exists_quietly: bool = False, hides_errors: bool = False,
-                 plain: bool | None = None):
+                 crashes_on_save: int = 0, plain: bool | None = None, dates_need_calendar: bool = False):
         self.plain = bool(os.environ.get("APPLY_TEST_PLAIN")) if plain is None else plain
         self._responses: dict[str, tuple[int, str, bytes]] = {}
         redirects: dict[str, str] = {}
@@ -371,6 +378,8 @@ class FakeWorkdayServer:
         self._step_name_delay = step_name_delay
         self._ignored_clicks = ignored_clicks
         self._went_wrong = went_wrong
+        self._crashes_on_save = crashes_on_save
+        self.step_loads: list[int] = []  # each application step served, by number, as loaded
         self._review_delay = review_delay
         self._drops_untouched = drops_untouched
         self._flashes_error = flashes_error
@@ -379,6 +388,7 @@ class FakeWorkdayServer:
         self._to_sign_in = to_sign_in
         self._exists_quietly = exists_quietly
         self._hides_errors = hides_errors
+        self._dates_need_calendar = dates_need_calendar
         # How many of the first saves hold none of the step's dropdown picks, though the page shows them
         # (ASML's Application Questions, live): the step is refused as missing them.
         self._lost_picks = lost_picks
@@ -415,6 +425,9 @@ class FakeWorkdayServer:
                 f"window.__fakeDroppedSaves = {self._dropped_saves}",
                 f"window.__fakeBoxWiring = {self._box_wiring}",
                 f"window.__fakeHidesErrors = {str(self._hides_errors).lower()}",
+                # Each date says what it holds and has a Calendar; typed dates are held wrong (NVIDIA's, live, KAN-716).
+                f"window.__fakeHeldLine = {str(self._dates_need_calendar).lower()}",
+                f"window.__fakeTypedDatesWrong = {str(self._dates_need_calendar).lower()}",
                 AUTH_SCRIPT, *([CONTINUE_SCRIPT] if self._in_progress else [])]
 
     @contextmanager
@@ -434,6 +447,8 @@ class FakeWorkdayServer:
             context.route("**/*", self._handle)
             try:
                 page = context.new_page()
+                if getattr(self, "guard_at_open", True):  # as a Worker opens each page (apply.browsers)
+                    submit_guard.on_open(page)
                 page.goto(url)
                 yield page
             finally:
@@ -443,6 +458,11 @@ class FakeWorkdayServer:
         """What the tenant at `host` saved of the application in progress, by field key."""
         tenant = self._tenant(host)
         return dict(tenant.saved.get((tenant.signed_in, tenant.posting), {}))
+
+    def save(self, host: str, **values) -> None:
+        """Change what the tenant at `host` holds of the application in progress, as another visit would have."""
+        tenant = self._tenant(host)
+        tenant.saved.setdefault((tenant.signed_in, tenant.posting), {}).update(values)
 
     def account(self, host: str, email: str) -> dict | None:
         return self._tenant(host).accounts.get(email)
@@ -516,6 +536,7 @@ class FakeWorkdayServer:
                 return _page(route, "<h2>Your session has expired. Sign in again.</h2>")
             if route.request.method == "POST":
                 return route.fulfill(json=self._save_step(host, tenant, step, body))
+            self.step_loads.append(step)
             return _page(route, self._step_page(tenant, step))
         if path == "done":
             return _page(route, "<h2>Application Submitted</h2><p>Congratulations! Your application has been submitted.</p>")
@@ -588,6 +609,9 @@ class FakeWorkdayServer:
             files = {k: base64.b64decode(v["b64"]) for k, v in saved.items() if isinstance(v, dict)}
             self.submissions.append(Submission(tenant.posting, application, files))
             return {"next": "/__fake__/done"}
+        if self._crashes_on_save:
+            self._crashes_on_save -= 1
+            return {"crash": True}  # the page script shows the error page; nothing is saved
         _, fields = self._steps[step - 1]
         for f in fields:  # a file attached on an earlier visit stays attached
             if isinstance(f, Field) and f.kind == "file" and values.get(f.key) is None and saved.get(f.key):
@@ -630,7 +654,7 @@ class FakeWorkdayServer:
             fields_html = "".join(
                 f"<p><b>{html.escape(label)}</b> {html.escape(str(_shown(value)))}</p>"
                 for _, fields in self._steps for f in fields for label, value in _review_rows(f, saved.get(f.key))
-            )
+            ) + _review_sections([f for _, fields in self._steps for f in fields if isinstance(f, Section)], saved)
             footer = "Submit"
         else:
             fields_html = "".join(_field_html(f, saved.get(f.key)) for f in self._steps[step - 1][1])
@@ -715,6 +739,25 @@ def _review_rows(f: "Field | Section", value) -> list[tuple[str, object]]:
     if isinstance(f, Field):
         return [(f.label, value)]
     return [(f"{f.title} {n} {g.label}", panel.get(g.key)) for n, panel in enumerate(value or [], 1) for g in f.fields]
+
+
+def _review_sections(sections: list[Section], saved: dict) -> str:
+    """Each repeating section saved, as live Review shows it (NVIDIA's, 2026-11-10): a group titled by its section, a
+    group per entry titled "<section> <n>", and each field shown as a label and the value beside it, by the field's id."""
+    out = []
+    for s in sections:
+        if not isinstance(saved.get(s.key), list):
+            continue
+        ref = re.sub(r"\W+", "-", s.title)
+        entries = "".join(
+            f'<div role="group" aria-labelledby="{ref}-{n}-panel"><h5 id="{ref}-{n}-panel">{html.escape(s.title)} {n}</h5>'
+            + "".join(f'<div><label for="{g.key}">{html.escape(g.label)}</label><div><span id="{g.key}">'
+                      f"{html.escape(str(_shown(entry.get(g.key))))}</span></div></div>"
+                      for g in s.fields if entry.get(g.key) not in EMPTY)
+            + "</div>" for n, entry in enumerate(saved[s.key], 1))
+        out.append(f'<div role="group" aria-labelledby="{ref}-section"><h4 id="{ref}-section">{html.escape(s.title)}</h4>'
+                   f"{entries}</div>")
+    return "".join(out)
 
 
 def _section_html(s: Section, panels: list[dict] | None) -> str:

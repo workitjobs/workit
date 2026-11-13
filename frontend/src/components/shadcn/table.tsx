@@ -4,9 +4,24 @@ import * as React from "react";
 
 import { cn } from "@/lib/cn";
 
-function Table({ className, ...props }: React.ComponentProps<"table">) {
+// Forked (2026-11-10): `containerClassName` and `containerRef` reach the
+// scroll box around the table, so a page table can scroll inside itself
+// (components/fill-page.ts, TABLE_FILL). `shadcn add table` drops them.
+function Table({
+  className,
+  containerClassName,
+  containerRef,
+  ...props
+}: React.ComponentProps<"table"> & {
+  containerClassName?: string;
+  containerRef?: React.Ref<HTMLDivElement>;
+}) {
   return (
-    <div data-slot="table-container" className="relative w-full overflow-x-auto">
+    <div
+      ref={containerRef}
+      data-slot="table-container"
+      className={cn("relative w-full overflow-x-auto", containerClassName)}
+    >
       <table
         data-slot="table"
         className={cn("w-full caption-bottom text-sm", className)}
@@ -45,7 +60,11 @@ function TableRow({ className, ...props }: React.ComponentProps<"tr">) {
     <tr
       data-slot="table-row"
       className={cn(
-        "hover:bg-muted/50 has-aria-expanded:bg-muted/50 data-[state=selected]:bg-muted border-b transition-colors",
+        // The app's own hover grey. No has-aria-expanded fill (2026-11-11): it
+        // greyed a group heading while open (its fold button is expanded) and
+        // left it white folded; a data row's open menu is rowFill's
+        // (components/fill-page.ts).
+        "hover:bg-hover data-[state=selected]:bg-muted border-b transition-colors",
         className,
       )}
       {...props}

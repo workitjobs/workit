@@ -112,6 +112,13 @@
     return target.dispatchEvent(event);
   }
 
+  // Apply's press of `element` (KAN-710, PR 477's second review): the run's touch on that element itself, right before
+  // the click the guard then counts as Apply's. A touch on the window, before the pointer events, let a page's
+  // pointerdown handler click its own button first and have that count.
+  function touch(element) {
+    for (const type of globalThis.__applyTouchTypes || []) element.dispatchEvent(new CustomEvent(type, { bubbles: true, composed: true }));
+  }
+
   // A choice a trusted click may make (KAN-716): a radio, a checkbox or an option, never a button,
   // a link or anything in one. amazon.jobs dropped the radios a synthetic click had set. Only in
   // the top frame (the debugger's points are the tab's viewport), only a plain single click.
@@ -167,7 +174,8 @@
   }
 
   function syntheticClick(target, at, keys, clickCount) {
-    touch(); // a trusted click's own pointerdown is its touch: it sends none ahead, for a page to time a move by
+    // Its touch goes on the target right before the click (touch, KAN-710), none ahead of the pointer events: a page
+    // could time a move by one, or click its own button in a pointerdown handler.
     mouse(target, "pointerover", at, keys);
     mouse(target, "mouseover", at, keys);
     mouse(target, "pointermove", at, keys);
@@ -182,6 +190,7 @@
       }
       mouse(target, "pointerup", at, { ...keys, detail: n });
       mouse(target, "mouseup", at, { ...keys, detail: n });
+      touch(target);
       mouse(target, "click", at, { ...keys, detail: n });
     }
     if (clickCount === 2) mouse(target, "dblclick", at, { ...keys, detail: 2 });
@@ -436,7 +445,7 @@
         // keyup after the trusted insertion (`after`), as a keyboard's.
         // If its keydown moved the focus, the character goes nowhere: not into a box no call chose.
         if (field) return deepActive() === field ? request(field, { __applyType: k, after: ["keyup", [key]] }, () => insert(field, k)) : keyup(key);
-        if (target.matches?.("input[type=checkbox], input[type=radio], button") && k === " ") target.click();
+        if (target.matches?.("input[type=checkbox], input[type=radio], button") && k === " ") { touch(target); target.click(); }
         else insert(target, k);
       } else if ((init.ctrlKey || init.metaKey) && name.toLowerCase() === "a") {
         if (target.select) target.select();
@@ -447,7 +456,7 @@
         // form's submit button and jumped to Review; on a lifted last step it would have sent it.
         // The page still hears the keydown and keyup, and its own handlers act on them as they will.
         if (target.matches?.("textarea") || target.isContentEditable) insert(target, "\n");
-        else if (target.matches?.("a[href], input[type=button], button[type=button], input[type=checkbox], input[type=radio]")) target.click();
+        else if (target.matches?.("a[href], input[type=button], button[type=button], input[type=checkbox], input[type=radio]")) { touch(target); target.click(); }
       } else if (k === "Tab") {
         const list = tabbables();
         const at = list.indexOf(target);
@@ -506,8 +515,48 @@
     return answer;
   }
 
-  function files(selector, payloads) {
+  // Where a file may go (KAN-795): apply.upload_origin's RULE_JS, word for word (a test holds the copies the same).
+  // Read in this frame, from its own location, in the same task as the set: a frame that navigated elsewhere first
+  // is read as where it is now.
+  const mayUpload = (own, ancestors, hosts) => {
+    if (!ancestors.length) return true;  // the top frame: the form's own site, whatever its URL
+    const top = ancestors[ancestors.length - 1];
+    if (!own || own === 'null' || !top || top === 'null') return false;
+    // Every frame between this one and the top is the top's own site: a job system's form inside another site's
+    // frame is that site's to embed, and a frame under one is that site's to read (PR 556's review).
+    for (let i = 0; i < ancestors.length - 1; i++) if (ancestors[i] !== top) return false;
+    if (own === top) return true;
+    const host = own.replace(/^[a-z][a-z0-9+.-]*:\/\//i, '').replace(/:\d+$/, '').replace(/^\[|\]$/g, '').toLowerCase();
+    for (let i = 0; i < hosts.length; i++) {
+      const h = String(hosts[i]).toLowerCase();
+      if (host === h || (host.length > h.length && host.slice(-h.length - 1) === '.' + h)) return true;
+    }
+    return false;
+  };
+  const ancestorOrigins = () => {
+    const found = location.ancestorOrigins, out = [];
+    for (let i = 0; found && found[i] !== undefined; i++) out.push(found[i]);
+    return out;
+  };
+  // The input a chooser opened for, kept by its token as Apply first saw it (apply.plain.tools): never found again
+  // by an attribute a page can move, so an input a script put in its place gets no file.
+  const pins = new Map();
+  function pin(selector, token) {
+    pins.set(token, new WeakRef(pw.retarget(one(selector), "follow-label")));
+    return null;
+  }
+
+  // `rule`: {hosts: the job systems' hosts a frame may be on besides the top frame's own site; pinned: the token of
+  // the input it must be}. No hosts: the top frame's own site only.
+  function files(selector, payloads, rule = {}) {
     const element = pw.retarget(one(selector), "follow-label");
+    const own = location.protocol === "about:" ? (ancestorOrigins()[0] || "null") : location.origin;
+    if (!mayUpload(own, ancestorOrigins(), Array.isArray(rule?.hosts) ? rule.hosts : []))
+      throw fail("UploadElsewhere", own === "null" ? "another site" : own);
+    if (rule?.pinned !== undefined && rule?.pinned !== null) {
+      const kept = pins.get(rule.pinned)?.deref();
+      if (!kept || kept !== element || !kept.isConnected) throw fail("UploadSwapped", "the file input is not the one the chooser opened for");
+    }
     const answer = pw.setInputFiles(element, payloads.map((f) => ({ name: f.name, mimeType: f.mimeType, buffer: f.base64, lastModifiedMs: Date.now() })));
     if (typeof answer === "string") throw fail("Error", answer);
     return null;
@@ -602,6 +651,7 @@
       return null;
     },
     files,
+    pin,
     mark(selector, token) {
       const found = all(selector);
       for (const element of found) element.setAttribute("data-apply-mark", token);
@@ -615,19 +665,19 @@
   };
 
   const TOUCHES = new Set(["click", "type", "press", "keys", "keyInto", "check"]);
-  function touch() {
-    window.dispatchEvent(new CustomEvent("__apply_touch", { detail: "apply" }));
-  }
 
   globalThis.__applyDom = {
     leaving, // for page/tile.js's presses
+    touch, // and its touch before each click of Lisul's
     run(method, args, { trusted = false } = {}) {
       const fn = METHODS[method];
       if (!fn) return { err: { name: "BadOp", message: `no dom method ${method}` } };
       // A press of Apply's counts as a touch for the page's guard (apply.plain.guards), as a
       // trusted click of Playwright's does: the guard then shows what it blocked.
-      // A click's touch goes with its synthetic press (syntheticClick): a trusted one needs none.
-      if (TOUCHES.has(method) && method !== "click" && method !== "check") touch();
+      // The touch is named with this run's tokens (ops/guard.js), which no page knows, so no page can send one. A
+      // click's touch goes on its element, right before its synthetic click (syntheticClick): a trusted one needs none.
+      if (TOUCHES.has(method) && method !== "click" && method !== "check")
+        for (const type of globalThis.__applyTouchTypes || []) window.dispatchEvent(new CustomEvent(type));
       canTrust = trusted === true;
       try {
         const value = fn(...args);
