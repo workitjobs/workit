@@ -126,7 +126,7 @@ class TestDescribeSmartRecruiters:
         assert result.facts.pay.high == 45.0
         assert result.facts.pay.period == "hour"
 
-    def test_remote_from_location_flag(self, monkeypatch) -> None:
+    def test_remote_from_location_flag(self, monkeypatch, swap_provider) -> None:
         detail = deepcopy(fixture("smartrecruiters-detail.json"))
         detail["location"]["remote"] = True
         monkeypatch.setattr(providers.fetch, "_get_json", lambda url: detail)
@@ -141,7 +141,7 @@ class TestDescribeSmartRecruiters:
         result = providers.describe_smartrecruiters(job)
         assert result.facts.work_style == "Remote"
 
-    def test_hybrid_from_location_flag(self, monkeypatch) -> None:
+    def test_hybrid_from_location_flag(self, monkeypatch, swap_provider) -> None:
         detail = deepcopy(fixture("smartrecruiters-detail.json"))
         detail["location"]["remote"] = False
         detail["location"]["hybrid"] = True
@@ -157,7 +157,7 @@ class TestDescribeSmartRecruiters:
         result = providers.describe_smartrecruiters(job)
         assert result.facts.work_style == "Hybrid"
 
-    def test_no_sections_gives_no_description(self, monkeypatch) -> None:
+    def test_no_sections_gives_no_description(self, monkeypatch, swap_provider) -> None:
         detail = deepcopy(fixture("smartrecruiters-detail.json"))
         detail["jobAd"]["sections"] = {}
         detail.pop("compensation", None)

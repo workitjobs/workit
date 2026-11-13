@@ -115,9 +115,9 @@ def describe_smartrecruiters(job: Job) -> Job:
 
     # Work style from location
     loc = payload.get("location") or {}
-    if loc.get("remote"):
+    if loc.get("remote") is True:
         stated_style = "Remote"
-    elif loc.get("hybrid"):
+    elif loc.get("hybrid") is True:
         stated_style = "Hybrid"
     else:
         stated_style = _work_style(None, job.location)
