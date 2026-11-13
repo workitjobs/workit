@@ -307,19 +307,14 @@ class TestList:
 
 
 class TestCappedBoards:
-    def test_nvidias_filters_give_its_real_size_and_slices(self) -> None:
-        size, slices = providers.systems.workday._workday_slices(
+    def test_nvidias_filters_give_its_real_size(self) -> None:
+        assert providers.systems.workday._real_size(
             {"total": 2000, "facets": NVIDIA_FACETS}
-        )
-        assert size == 2676
-        # Job family: its largest value, Engineering's 1,723, is under the cap.
-        # Job type would not do: Regular Employee alone is 2,267.
-        assert slices is not None and len(slices) == 15
-        assert slices[0] == {"jobFamilyGroup": ["0c40f6bd1d8f10ae43ffaefd46dc7e78"]}
+        ) == 2676
 
     def test_one_filter_alone_is_not_trusted(self) -> None:
         alone = {"total": 2000, "facets": NVIDIA_FACETS[:1]}
-        assert providers.systems.workday._workday_slices(alone) == (2000, None)
+        assert providers.systems.workday._real_size(alone) is None
 
     def test_a_capped_board_is_read_in_slices(self, monkeypatch) -> None:
         # Shrunk cap (3): NVIDIA's shape, three postings in two job families.

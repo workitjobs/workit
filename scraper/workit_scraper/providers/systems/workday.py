@@ -125,6 +125,25 @@ def _workday_page(url: str, facets: dict, offset: int) -> dict:
     return payload
 
 
+def _flat_facets(page: dict) -> dict[str, list[dict]]:
+    """Flat facets from a page: {parameter: values} for dimensions whose values all
+    have an id and an integer count (skipping wrapper facets with no id)."""
+    return {
+        facet.get("facetParameter"): values
+        for facet in page.get("facets") or []
+        if (values := facet.get("values"))
+        and all(isinstance(v.get("count"), int) and v.get("id") for v in values)
+    }
+
+
+def _real_size(first: dict) -> int | None:
+    """A capped board's real size: the sum two or more facets agree on, or None."""
+    filters = _flat_facets(first)
+    sums = Counter(sum(v["count"] for v in values) for values in filters.values())
+    agreed = [total for total, n in sums.items() if n >= 2 and total >= WORKDAY_CAP]
+    return max(agreed) if agreed else None
+
+
 def _workday_slices(first: dict) -> tuple[int, list[dict] | None]:
     """A capped board's real size, and one filter value per slice to read it by.
 
@@ -137,17 +156,10 @@ def _workday_slices(first: dict) -> tuple[int, list[dict] | None]:
     really held that many distinct postings. None when no filter fits: 17 of the
     39 capped boards on 2026-10-10 (Citi, Walmart, Target, Airbus).
     """
-    filters = {
-        facet.get("facetParameter"): values
-        for facet in first.get("facets") or []
-        if (values := facet.get("values"))
-        and all(isinstance(v.get("count"), int) and v.get("id") for v in values)
-    }
-    sums = Counter(sum(v["count"] for v in values) for values in filters.values())
-    agreed = [total for total, n in sums.items() if n >= 2 and total >= WORKDAY_CAP]
-    if not agreed:
+    size = _real_size(first)
+    if size is None:
         return WORKDAY_CAP, None
-    size = max(agreed)
+    filters = _flat_facets(first)
     for name, values in filters.items():
         if sum(v["count"] for v in values) == size and all(
             v["count"] < WORKDAY_CAP for v in values
