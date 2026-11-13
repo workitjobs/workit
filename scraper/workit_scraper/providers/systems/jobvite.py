@@ -40,9 +40,8 @@ _JOBVITE_JOB = re.compile(
 )
 
 #: Location text in the table cell after the job link.
-_LOCATION = re.compile(
-    r'<td[^>]*class="jv-job-list-location"[^>]*>(.*?)</td>', re.S
-)
+_LOCATION = re.compile(r'<td[^>]*class="jv-job-list-location"[^>]*>(.*?)</td>', re.S)
+
 
 def jobvite(token: str, company: str) -> list[Job]:
     """Every posting on a Jobvite board, in one request.

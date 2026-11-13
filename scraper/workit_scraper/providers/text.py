@@ -232,9 +232,7 @@ def json_name(text: str) -> str | None:
 # -- Shared JSON-LD helpers (schema.org JobPosting) --------------------------
 
 #: The JSON-LD block on a detail page.
-_LD_JSON = re.compile(
-    r'<script[^>]*type="application/ld\+json"[^>]*>(.*?)</script>', re.S
-)
+_LD_JSON = re.compile(r'<script[^>]*type="application/ld\+json"[^>]*>(.*?)</script>', re.S)
 
 
 def _ld_posting(page: str) -> dict:

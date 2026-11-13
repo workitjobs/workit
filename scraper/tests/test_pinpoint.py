@@ -27,9 +27,7 @@ class TestPinpoint:
     def test_the_list_reads_postings_with_all_fields(self, monkeypatch) -> None:
         asked: list[str] = []
         payload = fixture("pinpoint-list.json")
-        monkeypatch.setattr(
-            providers.fetch, "_get_json", lambda url: asked.append(url) or payload
-        )
+        monkeypatch.setattr(providers.fetch, "_get_json", lambda url: asked.append(url) or payload)
         jobs = providers.pinpoint("acme", "Acme Corp")
         assert len(asked) == 1
         assert "postings.json" in asked[0]
@@ -38,7 +36,10 @@ class TestPinpoint:
         first = jobs[0]
         assert first.title == "Software Engineering Intern - Summer 2027"
         assert first.external_id == "591998"
-        assert first.apply_url == "https://acme.pinpointhq.com/postings/591998-software-engineering-intern"
+        assert (
+            first.apply_url
+            == "https://acme.pinpointhq.com/postings/591998-software-engineering-intern"
+        )
         assert first.location == "London, UK"
         assert first.department == "Engineering"
 
@@ -88,16 +89,12 @@ class TestPinpoint:
         assert jobs[2].page is None
 
     def test_empty_board_returns_no_jobs(self, monkeypatch) -> None:
-        monkeypatch.setattr(
-            providers.fetch, "_get_json", lambda url: {"data": []}
-        )
+        monkeypatch.setattr(providers.fetch, "_get_json", lambda url: {"data": []})
         jobs = providers.pinpoint("empty", "Empty Corp")
         assert jobs == []
 
     def test_missing_data_raises_board_not_found(self, monkeypatch) -> None:
-        monkeypatch.setattr(
-            providers.fetch, "_get_json", lambda url: {"error": "not found"}
-        )
+        monkeypatch.setattr(providers.fetch, "_get_json", lambda url: {"error": "not found"})
         with pytest.raises(BoardNotFound):
             providers.pinpoint("nosuch", "No Such Corp")
 

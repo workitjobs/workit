@@ -60,9 +60,7 @@ def smartrecruiters(
         for row in content:
             loc = row.get("location") or {}
             parts = [loc.get("city"), loc.get("region"), loc.get("country")]
-            location = loc.get("fullLocation") or ", ".join(
-                str(p) for p in parts if p
-            ) or None
+            location = loc.get("fullLocation") or ", ".join(str(p) for p in parts if p) or None
             # Clean empty slots: "London, , UK" -> "London, UK"
             if location:
                 location = re.sub(r",\s*,", ",", location).strip(", ")
@@ -105,9 +103,11 @@ def describe_smartrecruiters(job: Job) -> Job:
     # details._INTERVAL wants the lowercase word.
     comp = payload.get("compensation") or {}
     period = _SR_PERIOD.get(comp.get("period") or "")
-    stated_pay = details.Pay.from_interval(
-        comp.get("currency"), comp.get("min"), comp.get("max"), period
-    ) if comp.get("currency") and period else None
+    stated_pay = (
+        details.Pay.from_interval(comp.get("currency"), comp.get("min"), comp.get("max"), period)
+        if comp.get("currency") and period
+        else None
+    )
 
     # Employment type
     toe = payload.get("typeOfEmployment") or {}
@@ -138,9 +138,7 @@ def describe_smartrecruiters(job: Job) -> Job:
 PROVIDER = Provider(
     listing_url="https://api.smartrecruiters.com/v1/companies/{token}/postings",
     read=smartrecruiters,
-    apply_link=re.compile(
-        r"(?:jobs|careers)\.smartrecruiters\.com/([a-zA-Z0-9_.-]+)", re.I
-    ),
+    apply_link=re.compile(r"(?:jobs|careers)\.smartrecruiters\.com/([a-zA-Z0-9_.-]+)", re.I),
     job_url="https://api.smartrecruiters.com/v1/companies/{token}/postings/{job_id}",
     describe=describe_smartrecruiters,
     paged=True,

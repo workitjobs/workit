@@ -25,9 +25,7 @@ class TestSmartRecruiters:
     def test_the_list_reads_postings_with_all_fields(self, monkeypatch) -> None:
         asked: list[str] = []
         payload = fixture("smartrecruiters-list.json")
-        monkeypatch.setattr(
-            providers.fetch, "_get_json", lambda url: asked.append(url) or payload
-        )
+        monkeypatch.setattr(providers.fetch, "_get_json", lambda url: asked.append(url) or payload)
         jobs = providers.smartrecruiters("ExampleCorp", "Example Corp")
         assert len(asked) == 1
         assert "limit=100&offset=0" in asked[0]
@@ -73,12 +71,8 @@ class TestSmartRecruiters:
             providers.fetch, "_get_json", lambda url: asked.append(url) or next(pages)
         )
         # Shrink page size so the fixture triggers pagination.
-        monkeypatch.setattr(
-            "workit_scraper.providers.systems.smartrecruiters.SR_PAGE", 2
-        )
-        jobs = providers.smartrecruiters(
-            "ExampleCorp", "Example Corp", pace=paced.append
-        )
+        monkeypatch.setattr("workit_scraper.providers.systems.smartrecruiters.SR_PAGE", 2)
+        jobs = providers.smartrecruiters("ExampleCorp", "Example Corp", pace=paced.append)
         assert len(jobs) == 3
         assert len(asked) == 2
         assert "offset=0" in asked[0]

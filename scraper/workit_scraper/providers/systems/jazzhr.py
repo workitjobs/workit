@@ -102,9 +102,7 @@ def describe_jazzhr(job: Job) -> Job:
 PROVIDER = Provider(
     listing_url="https://{token}.applytojob.com/apply",
     read=jazzhr,
-    apply_link=re.compile(
-        r"([a-z0-9_.-]+)\.applytojob\.com/", re.I
-    ),
+    apply_link=re.compile(r"([a-z0-9_.-]+)\.applytojob\.com/", re.I),
     job_url="https://{token}.applytojob.com/apply/{job_id}",
     describe=describe_jazzhr,
     subdomains="applytojob.com",

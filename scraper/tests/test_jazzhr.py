@@ -24,9 +24,7 @@ class TestJazzHR:
     def test_the_list_reads_postings_with_all_fields(self, monkeypatch) -> None:
         asked: list[str] = []
         html = fixture_text("jazzhr-list.html")
-        monkeypatch.setattr(
-            providers.fetch, "_get_text", lambda url: asked.append(url) or html
-        )
+        monkeypatch.setattr(providers.fetch, "_get_text", lambda url: asked.append(url) or html)
         jobs = providers.jazzhr("examplecorp", "Example Corp")
         assert len(asked) == 1
         assert "applytojob.com/apply" in asked[0]
@@ -35,7 +33,10 @@ class TestJazzHR:
         first = jobs[0]
         assert first.title == "Software Engineering Intern - Summer 2027"
         assert first.external_id == "WpIfUaLo9Q"
-        assert first.apply_url == "https://examplecorp.applytojob.com/apply/WpIfUaLo9Q/Software-Engineering-Intern"
+        assert (
+            first.apply_url
+            == "https://examplecorp.applytojob.com/apply/WpIfUaLo9Q/Software-Engineering-Intern"
+        )
         assert first.location == "New York, NY"
         assert first.page is None
 
@@ -58,6 +59,7 @@ class TestJazzHR:
     def test_missing_board_raises_board_not_found(self, monkeypatch) -> None:
         def raise_404(url):
             raise BoardNotFound(url)
+
         monkeypatch.setattr(providers.fetch, "_get_text", raise_404)
         with pytest.raises(BoardNotFound):
             providers.jazzhr("nosuch", "No Such Corp")

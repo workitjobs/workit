@@ -25,9 +25,7 @@ class TestJobvite:
     def test_the_list_reads_postings_with_all_fields(self, monkeypatch) -> None:
         asked: list[str] = []
         html = fixture_text("jobvite-list.html")
-        monkeypatch.setattr(
-            providers.fetch, "_get_text", lambda url: asked.append(url) or html
-        )
+        monkeypatch.setattr(providers.fetch, "_get_text", lambda url: asked.append(url) or html)
         jobs = providers.jobvite("examplecorp", "Example Corp")
         assert len(asked) == 1
         assert "jobs.jobvite.com/examplecorp" in asked[0]

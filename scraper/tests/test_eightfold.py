@@ -27,9 +27,7 @@ class TestEightfold:
     def test_the_list_reads_postings_with_all_fields(self, monkeypatch) -> None:
         asked: list[str] = []
         payload = fixture("eightfold-search.json")
-        monkeypatch.setattr(
-            providers.fetch, "_get_json", lambda url: asked.append(url) or payload
-        )
+        monkeypatch.setattr(providers.fetch, "_get_json", lambda url: asked.append(url) or payload)
         jobs = providers.eightfold("testco/example.com", "Test Co")
         assert len(asked) == 1
         assert "start=0" in asked[0]
@@ -86,12 +84,8 @@ class TestEightfold:
         monkeypatch.setattr(
             providers.fetch, "_get_json", lambda url: asked.append(url) or next(pages)
         )
-        monkeypatch.setattr(
-            "workit_scraper.providers.systems.eightfold.EIGHTFOLD_PAGE", 2
-        )
-        jobs = providers.eightfold(
-            "testco/example.com", "Test Co", pace=paced.append
-        )
+        monkeypatch.setattr("workit_scraper.providers.systems.eightfold.EIGHTFOLD_PAGE", 2)
+        jobs = providers.eightfold("testco/example.com", "Test Co", pace=paced.append)
         assert len(jobs) == 3
         assert len(asked) == 2
         assert "start=0" in asked[0]
@@ -109,9 +103,7 @@ class TestEightfold:
         assert jobs == []
 
     def test_missing_data_raises_board_not_found(self, monkeypatch) -> None:
-        monkeypatch.setattr(
-            providers.fetch, "_get_json", lambda url: {"status": "ERROR"}
-        )
+        monkeypatch.setattr(providers.fetch, "_get_json", lambda url: {"status": "ERROR"})
         with pytest.raises(BoardNotFound):
             providers.eightfold("testco/example.com", "Test Co")
 

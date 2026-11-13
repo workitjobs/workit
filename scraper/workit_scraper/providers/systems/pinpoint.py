@@ -78,9 +78,7 @@ def pinpoint(token: str, company: str) -> list[Job]:
                     title,
                     markup,
                     stated_type=details.job_type_label(row.get("employment_type")),
-                    stated_style=_work_style(
-                        row.get("workplace_type"), location
-                    ),
+                    stated_style=_work_style(row.get("workplace_type"), location),
                     stated_pay=stated_pay,
                 ),
             )
@@ -91,8 +89,6 @@ def pinpoint(token: str, company: str) -> list[Job]:
 PROVIDER = Provider(
     listing_url="https://{token}.pinpointhq.com/postings.json",
     read=pinpoint,
-    apply_link=re.compile(
-        r"([a-z0-9_.-]+)\.pinpointhq\.com/", re.I
-    ),
+    apply_link=re.compile(r"([a-z0-9_.-]+)\.pinpointhq\.com/", re.I),
     subdomains="pinpointhq.com",
 )
