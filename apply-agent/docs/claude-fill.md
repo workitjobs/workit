@@ -255,7 +255,11 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
 
 - A Filler with a `form_url(url)` method names the page that holds its
   form. The Worker opens that page, not the posting link. Lever's form is
-  on `/apply`; a link without it opens the job description.
+  on `/apply`; a link without it opens the job description. So is
+  Workable's (KAN-839): its posting link, the one WorkIt's Jobs page and
+  Workable's widget give, opens the job's overview, which holds only a
+  link to the form, and the Filler waited there for a Submit that never
+  showed. Both take the engine's `form` for the link (`job_of`).
 - A Workday step that Save and Continue refuses ("won't leave its ... step")
   is filled once more, after a second's wait, and saved again; a second
   refusal is the Handoff. ASML's Application Questions showed every pick,

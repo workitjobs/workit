@@ -17,8 +17,8 @@ const HOST = "com.workit.apply_worker";
 const PROTOCOL = 1;
 // What this code can do, in the hello (`features`): Apply compares it with what it expects
 // (bridge.FEATURES). 2: tile.shown (KAN-635) and extension.reload. 3: the welcome's vendor set and
-// vendor.use (KAN-645). Raise it with each new op or event.
-const FEATURES = 3;
+// vendor.use (KAN-645). 4: cdp.eval, cdp.load and cdp.script (KAN-839). Raise it with each new op or event.
+const FEATURES = 4;
 const RECONNECT_MS = 2000;
 
 let port = null;

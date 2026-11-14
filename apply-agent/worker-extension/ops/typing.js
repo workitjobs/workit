@@ -26,25 +26,22 @@
 // error for Apply, never a second try. The submit guard and its network rules stand behind all of
 // it.
 //
-// The debugger is attached to a tab only while input goes in, and detached IDLE ms after the
-// last. Workers start with --silent-debugger-extension-api (apply.plain.launcher), so Chrome shows
-// no "started debugging this browser" bar. Without the debugger (no permission, a DevTools window
-// on the tab, a chrome:// page) page/dom.js acts as before, untrusted.
+// The debugger attachment is debug.js's, shared with cdp.js: a tab detaches a few seconds after
+// its last input unless cdp.js keeps it. Workers start with --silent-debugger-extension-api
+// (apply.plain.launcher), so Chrome shows no "started debugging this browser" bar. Without the
+// debugger (no permission, a DevTools window on the tab, a chrome:// page) page/dom.js acts as
+// before, untrusted.
 
+import { attach as attachTab, available } from "./debug.js";
 import { named } from "./shared.js";
 
-const IDLE = 4000; // ms the debugger stays on a tab after its last input
 const KEYS = {
   Backspace: { code: "Backspace", windowsVirtualKeyCode: 8, commands: ["deleteBackward"] },
   Delete: { code: "Delete", windowsVirtualKeyCode: 46, commands: ["deleteForward"] },
 };
 const MOUSE = new Set(["mousePressed", "mouseReleased"]);
-const attached = new Map(); // tab -> {ready, timer}
 
-chrome.debugger?.onDetach?.addListener(({ tabId }) => attached.delete(tabId));
-chrome.tabs.onRemoved.addListener((tab) => attached.delete(tab));
-
-export const available = () => typeof chrome.debugger?.attach === "function";
+export { available };
 
 const exactly = (params, keys) => Object.keys(params ?? {}).sort().join() === [...keys].sort().join();
 
@@ -64,30 +61,19 @@ function allowed(method, params) {
   return false;
 }
 
-// The one place a debugger command leaves this extension.
+// The one place trusted input leaves this extension (cdp.js sends page code through its own list).
 export function send(tab, method, params) {
   if (!allowed(method, params)) return Promise.reject(named("Refused", `the worker extension sends no debugger command ${method} ${JSON.stringify(params)}`));
   return chrome.debugger.sendCommand({ tabId: tab }, method, params);
 }
 
+// The shared attachment, with focus emulation on once per attachment, as before.
 async function attach(tab) {
-  let entry = attached.get(tab);
-  if (!entry) {
-    entry = { timer: null };
-    entry.ready = (async () => {
-      await chrome.debugger.attach({ tabId: tab }, "1.3");
-      await send(tab, "Emulation.setFocusEmulationEnabled", { enabled: true });
-    })();
-    attached.set(tab, entry);
-    entry.ready.catch(() => attached.get(tab) === entry && attached.delete(tab));
+  const entry = await attachTab(tab);
+  if (!entry.focus) {
+    await send(tab, "Emulation.setFocusEmulationEnabled", { enabled: true });
+    entry.focus = true;
   }
-  await entry.ready;
-  clearTimeout(entry.timer);
-  entry.timer = setTimeout(() => {
-    if (attached.get(tab) !== entry) return;
-    attached.delete(tab);
-    chrome.debugger.detach({ tabId: tab }).catch(() => {});
-  }, IDLE);
 }
 
 // Every frame of the tab but `frame` refuses trusted input (`on`) or takes it again: a page that

@@ -42,6 +42,7 @@ from apply import upload_origin
 from apply.plain import fixed
 from apply.plain.bridge import Connection, PortError, PortTimeoutError
 from apply.plain.script import evaluate as evaluate_in
+from apply.plain.script import keep_engine
 
 DEFAULT_TIMEOUT = 30000  # ms, as Playwright's
 POLL = 0.1  # s between tries of an action whose element is missing or not actionable
@@ -870,6 +871,7 @@ class PortPage(PortFrame):
         self._clearing = False  # a locator handler is running: its own actions don't run handlers
         self._watching = 0  # listeners that need the tab watched (request, response, popup)
         worker.on("tab.removed", self._removed)
+        keep_engine(worker)  # APPLY_PLAIN_EXEC=debugger only (KAN-839)
 
     @classmethod
     def first(cls, worker: Connection) -> "PortPage":
