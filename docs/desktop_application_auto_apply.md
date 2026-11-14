@@ -624,6 +624,13 @@ its own instructions or a hostile schema.
   (drafts, questions, the posting), and a new version of each kind reads
   the sources on the server. That keeps each call small and lets the
   server send a kind only the sources it needs.
+- **The student sees and edits the Story bank in the app** (decided
+  2026-11-14). WorkIt holds the one true copy; the app keeps a cached
+  copy, so the window shows it at once and Apply's own checks read it on
+  the Mac (the plan's quotes, the truth check, the copy check). An edit in
+  the app goes to WorkIt first and then updates the cache; the app pulls
+  a fresh copy before each run, so an edit on the website is never lost.
+  Part of W11's redesign, with the answer bank.
 - **Order every prompt for the providers' prompt cache** (decided
   2026-11-14). A provider keeps the start of recent prompts: a call whose
   prompt starts with exactly the same text pays half for that part on
