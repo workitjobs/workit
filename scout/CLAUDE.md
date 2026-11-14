@@ -142,8 +142,9 @@ a reply the provider stops at its cap (`finish_reason` "length") raises
 
 `LLM.complete_schema(messages, schema, identity=...)` is the same call for
 a schema given as JSON data, not a Pydantic class: WorkIt Auto Apply's
-Model route (`backend/app/routers/apply_app.py`, KAN-723) passes the
-desktop app's own schemas through it. Two differences, both because that
+Model route (`backend/app/routers/apply_app.py`, KAN-723) passes each of
+the desktop app's kinds through it, with a schema the server builds
+(`backend/app/apply_prompts/`). Two differences, both because that
 caller can't ask again cheaply: an answer that is not JSON, fails the
 schema (`jsonschema`) or is cut off **moves down the chain** like a 429,
 and so does a 400 or 422, which refuses that request rather than the
@@ -151,8 +152,8 @@ endpoint (Groq's `json_validate_failed`, a schema the provider does not
 take); a 401, 403 or 404 still stops it. The call returns the tokens it spent (`Spent`, from each reply's
 `usage`; reasoning counts as output), on a failure too, as the error's
 `spent`. Its validator has an empty `referencing.Registry`: by default
-`jsonschema` fetches a remote `$ref`'s URL, and this schema comes from
-outside the API. Identity data is masked and put back (`Masked`, under
+`jsonschema` fetches a remote `$ref`'s URL, and a schema may come from
+outside the API again. Identity data is masked and put back (`Masked`, under
 "Identity data never reaches a model"), so the answer holds real values.
 Logs name the endpoint and the failed check, never the answer's text.
 

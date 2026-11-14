@@ -40,11 +40,6 @@ class as_applicant:
     def __init__(self, claude, profile: ApplicantProfile):
         self._claude, self._profile = claude, profile
 
-    def ask(self, *, model: str, system: str, prompt: str, schema: dict) -> dict:
-        say = lambda text: named(text, self._profile)
-        return self._claude.ask(model=model, system=say(system + pronouns_note(self._profile)), prompt=say(prompt),
-                                schema=json.loads(say(json.dumps(schema))))
-
     def ask_kind(self, kind: str, data: dict) -> dict:
         """`kind` said as the applicant: WorkIt adds the pronouns note and names the school from what this
         sends, and the name, which stays NAME in every prompt WorkIt builds (D8), goes back into the answer."""

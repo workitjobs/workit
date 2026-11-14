@@ -423,10 +423,7 @@ class WorkItAsk:
         return self._claude.spent() + getattr(self._spent, "tokens", 0)
 
     def ask(self, *, model: str, system: str, prompt: str, schema: dict) -> dict:
-        """A call that still builds its own prompt, while Apply's calls move to kinds (KAN-723, W1): WorkIt's
-        free-form route, which goes once the last call sends a kind."""
-        return self._post("/apply-app/model", {"kind": "ask", "model": model, "system": system, "prompt": prompt,
-                                               "schema": schema}, "ask")
+        raise SetupError("ask_model: workit sends each call as a kind and its data, never a prompt (D5, KAN-723)")
 
     def ask_kind(self, kind: str, data: dict) -> dict:
         """WorkIt's answer. Its per-minute limit is waited out once; its Usage cap raises UsageLimitHit,

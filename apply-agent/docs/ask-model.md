@@ -20,15 +20,14 @@ A kind call is a wait the tile shows with Resume (`stuck.Waits.ask_kind`), but i
 can't be cut short: Resume takes effect once WorkIt answers or the call times out.
 `as_applicant.ask_kind` adds the pronouns and the school to the data, and
 puts the first name back into the answer, since the prompts say `@NAME@`.
-**`workit` is the default** (2026-11-14, `policies.default.yaml`). Apply's
-calls move to kinds one module at a time. Moved, with their prompts only
-on the server: the claim check and the editor's pass (`writing.check`,
-`writing.edit`), the Essay plan and the essay call (`essays.plan`,
-`essays.write`) and the default probe (`probe.typical`). The answering
+**`workit` is the default** (2026-11-14, `policies.default.yaml`), and
+every one of Apply's calls sends a kind, with its prompt only on the
+server: the Essay plan and essay call, the claim check and editor's pass,
+the default probe, the Pre-submit review and its replan, the story map,
+the team name, Own application and Claude fill's sent check. The answering
 guides' bodies and rules moved with them; `answering/` keeps each type's
-front matter, which Apply's own code reads. A call not yet moved still builds its own
-prompt, and `WorkItAsk.ask` sends it to WorkIt's free-form route
-(`POST /apply-app/model`), which goes once the last call sends a kind. In
+front matter, which Apply's own code reads. `WorkItAsk.ask` refuses a
+prompt, and WorkIt's free-form route that took one is gone. In
 tests, `FakeClaude.ask_kind` answers a kind from its data and keeps it in
 `claude.kinds`, apart from `claude.calls`.
 

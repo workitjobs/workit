@@ -12,23 +12,20 @@ POST /apply-app/ask  AskCall {kind, version?, data}
      the system prompt, the prompt and the schema, so a request carries no
      instructions and no schema. Each kind runs on the size of the API's
      model chain it names (app/services/models.py).
-POST /apply-app/model  ModelCall {kind?, model, system?, prompt, schema}
-     The same call with the app's own prompt and schema, until every kind
-     is ported; then it goes, with ModelCall's schema guards
-     (app/schemas/apply_app.py). `haiku` asks the small chain, `sonnet` and
-     `opus` the large one.
+     The free-form POST /apply-app/model, which took the app's own prompt
+     and schema, went once every kind was built here (2026-11-14).
 
-Both: the chain moves on at a 429, a 5xx, a request too large, a 400 or
+The chain moves on at a 429, a 5xx, a request too large, a 400 or
 422 (the provider refused this request or its schema) or an answer outside
 the schema (workit_scout.llm.complete_schema). The student's email, phone
 and links, and any email, phone or link found by pattern, go to the model
 as placeholders, whatever the app replaced first, and come back in the
 answer as their values (workit_scout.identity.Masked). The name is the
 app's to replace (D8): the server's name removal also took ordinary words
-("will" for a student named Will) and broke the prompt. Both answer
+("will" for a student named Will) and broke the prompt. It answers
 ModelAnswer {answer, tokens, usage}.
        403  not a student's account.
-       422  a body outside AskCall or ModelCall, an unknown kind or version,
+       422  a body outside AskCall, an unknown kind or version,
             or data outside the kind's model. Nothing counts.
        429  with Retry-After: the student's calls this minute are at
             APPLY_APP_CALLS_PER_MINUTE (a minute at most), or their tokens
@@ -64,7 +61,7 @@ from app.config import get_settings
 from app.db import get_session
 from app.deps import get_current_account
 from app.queries import model_usage
-from app.schemas.apply_app import AskCall, ModelAnswer, ModelCall, Usage
+from app.schemas.apply_app import AskCall, ModelAnswer, Usage
 from app.schemas.auth import AccountType, AuthenticatedAccount
 from app.services.identity import load_identity
 from app.services.models import get_large_llm, get_small_llm
@@ -121,20 +118,6 @@ async def ask(
     messages = [{"role": "system", "content": built.system}, {"role": "user", "content": built.prompt}]
     return await _call(db, account, small if kind.size == "small" else large, messages, built.schema,
                        kind.name, kind.size)
-
-
-@router.post("/model")
-async def model_call(
-    body: ModelCall,
-    account: AuthenticatedAccount = Depends(_student),
-    db: AsyncSession = Depends(get_session),
-    large: LLM = Depends(get_large_llm),
-    small: LLM = Depends(get_small_llm),
-) -> ModelAnswer:
-    messages = [{"role": "system", "content": body.system}] if body.system else []
-    messages.append({"role": "user", "content": body.prompt})
-    return await _call(db, account, small if body.model == "haiku" else large, messages, body.answer_schema,
-                       body.kind, body.model)
 
 
 async def _call(db: AsyncSession, account: AuthenticatedAccount, llm: LLM, messages: list[dict[str, str]],

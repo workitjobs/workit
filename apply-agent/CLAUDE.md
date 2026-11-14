@@ -24,8 +24,8 @@ the developer parts. Apply's code moves to the private repo
 it splits the work into workstreams a session can take one at a time.
 `ask_model: workit` is the default (2026-11-14, KAN-723 D5): each text
 call goes to WorkIt's Model route as a kind and its data, and WorkIt builds
-the prompt (`../backend/app/apply_prompts/`) and runs the models. Calls not
-yet moved to kinds go to its free-form route meanwhile. Before that,
+the prompt (`../backend/app/apply_prompts/`) and runs the models; Apply
+builds no `ask` prompt of its own. Before that,
 `ask_model: [groq, gemini]` (2026-11-10) sent them to Groq, with Gemini as its backup, on shorter (lean) essay
 prompts, with keys from the checkout's `.env` (`docs/ask-model.md`).
 

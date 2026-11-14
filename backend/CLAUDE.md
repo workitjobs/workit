@@ -351,10 +351,11 @@ Find files with a directory listing; these are the rules for where code goes.
   gone from Apply). The guides' front matter
   (`app/apply_prompts/answering/types/`) keeps a copy in Apply for good,
   since Apply classifies questions and checks plans with it.
-  `POST /apply-app/model`, which takes the app's own prompt and schema,
-  goes when the last kind is ported. Both run the schema as data through
-  `LLM.complete_schema`. Apply's `haiku` takes the small
-  chain, `sonnet` and `opus` the large one. It counts tokens a day (UTC)
+  Each kind's schema runs as data through `LLM.complete_schema`, on the
+  chain size the kind names (Apply's Haiku calls on the small one, its
+  Sonnet and Opus calls on the large one). The free-form
+  `POST /apply-app/model`, which took the app's own prompt and schema,
+  went once every kind was built here (2026-11-14). It counts tokens a day (UTC)
   in `model_usage` (`queries/model_usage.py`), not uses in
   `services/usage.py`, against `APPLY_APP_DAILY_TOKENS`, and calls a
   minute against `APPLY_APP_CALLS_PER_MINUTE`. It commits before the
@@ -363,15 +364,14 @@ Find files with a directory listing; these are the rules for where code goes.
   answer. It passes the seam the student's identity without the name
   (the app replaces the name, D8; the server's name removal broke
   prompts by taking words such as "will"), and the seam puts the masked
-  email, phone and links back into the answer (`Masked`). **The schema is the student's, so it may not make the server
-  work without bound** (`schemas/apply_app.py`): a `$ref` (or its dynamic
-  forms) is a 422, since `jsonschema` would fetch its URL; so is a
-  `pattern` or `patternProperties`, since the answer's check runs it with
-  Python's backtracking `re` in the event loop (`^(a+)+$` on 40
-  characters takes hours, for every user); so is a schema more than 32
-  levels deep, where `jsonschema`'s own check runs out of stack. A new
-  keyword that runs code on the answer joins that list. Tests:
-  `tests/test_apply_app.py`.
+  email, phone and links back into the answer (`Masked`). **No route
+  takes a schema from a student.** If one ever does again, it must refuse
+  a `$ref` (or its dynamic forms), since `jsonschema` would fetch its URL;
+  a `pattern` or `patternProperties`, since the answer's check runs it
+  with Python's backtracking `re` in the event loop (`^(a+)+$` on 40
+  characters takes hours, for every user); and more than 32 levels, where
+  `jsonschema`'s own check runs out of stack. The free-form route did,
+  until it went. Tests: `tests/test_apply_app.py`.
 - **Auto apply** (`app/auto_apply/`): KAN-223's layers 1 and 2. Layer 1
   is `rules.py` pure (no session) and `queries.py` database; layer 2 is
   the steps that call them, `pipeline.py`, which every caller imports.

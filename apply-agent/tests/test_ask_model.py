@@ -299,10 +299,8 @@ def test_workit_sends_a_kind_and_its_data_and_counts_its_tokens():
     assert (method, path, body) == ("POST", "/apply-app/ask", {"kind": "writing.check", "version": 1,
                                                                "data": {"drafts": {"q1": "x"}}})
     assert timeout == ask_model.ASK_TIMEOUT and asks.spent() == 125
-    # A call that still builds its own prompt goes to the free-form route until it sends a kind.
-    assert asks.ask(model="opus", system="s", prompt="p", schema={"type": "object"}) == {"ok": True}
-    assert fake.calls[1][1:3] == ("/apply-app/model", {"kind": "ask", "model": "opus", "system": "s", "prompt": "p",
-                                                       "schema": {"type": "object"}})
+    with pytest.raises(SetupError):  # never a prompt
+        asks.ask(model="opus", system="s", prompt="p", schema={"type": "object"})
 
 
 def test_workit_waits_out_its_minute_limit_once_and_pauses_the_run_at_its_cap():

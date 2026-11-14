@@ -17,7 +17,7 @@ from openai import APIStatusError, RateLimitError
 from sqlalchemy import text
 from workit_scout.testing import ScriptedLLM
 
-from app.apply_prompts import KINDS, said, writing
+from app.apply_prompts import KINDS, brief, said, writing
 from app.config import get_settings
 from app.deps import get_current_account
 from app.main import app
@@ -29,11 +29,13 @@ from tests import fake_models
 pytestmark = pytest.mark.anyio
 
 NOW = datetime.datetime(2026, 11, 13, 10, 0, 30, tzinfo=datetime.UTC)
-CHOICE = {"type": "object", "properties": {"choice": {"type": ["integer", "null"]}}, "required": ["choice"]}
-CALL = {"kind": "pick", "model": "sonnet", "system": "Pick one.", "prompt": "Which group?", "schema": CHOICE}
-ANSWER = '{"choice": 1}'
+TEAM = {"title": "Software Engineering Intern, Payments", "posting_text": "Join Payments."}
+CALL = {"kind": "brief.team", "data": TEAM}
+ANSWER = '{"team": "Payments"}'
 # ScriptedLLM spends a token a character: the prompt's read, the reply's written.
-COST = len("Pick one.") + len("Which group?") + len(ANSWER)
+BUILT = KINDS["brief.team", 1].build(brief.Teamed.model_validate(TEAM))
+READ = len(BUILT.system) + len(BUILT.prompt)
+COST = READ + len(ANSWER)
 _REQUEST = httpx.Request("POST", "http://endpoint.test/v1/chat/completions")
 
 
@@ -77,14 +79,14 @@ async def _row(database, account) -> dict | None:
 async def test_a_call_answers_and_counts_its_tokens(student, database):
     fake_models.use(ScriptedLLM([ANSWER]))
     async with _api() as api:
-        first = await api.post("/apply-app/model", json=CALL)
+        first = await api.post("/apply-app/ask", json=CALL)
         assert first.status_code == 200, first.text
         assert first.json() == {
-            "answer": {"choice": 1},
+            "answer": {"team": "Payments"},
             "tokens": COST,
             "usage": {"used": COST, "cap": 80_000, "resets_at": "2026-11-14T00:00:00Z"},
         }
-        assert (await api.post("/apply-app/model", json=CALL)).json()["usage"]["used"] == 2 * COST
+        assert (await api.post("/apply-app/ask", json=CALL)).json()["usage"]["used"] == 2 * COST
         assert (await api.get("/apply-app/usage")).json()["used"] == 2 * COST
     assert await _row(database, student) == {
         "input_tokens": 2 * (COST - len(ANSWER)), "output_tokens": 2 * len(ANSWER), "calls": 2}
@@ -92,24 +94,24 @@ async def test_a_call_answers_and_counts_its_tokens(student, database):
 
 async def test_contact_details_reach_the_model_as_placeholders_and_come_back_as_values(student):
     # The model writes placeholders; the route puts the student's values back.
-    fake = ScriptedLLM(['{"note": "Write to [email] or call [phone]."}'])
+    fake = ScriptedLLM(['{"team": "Write to [email] or call [phone]."}'])
     fake_models.use(fake)
-    note = {"type": "object", "properties": {"note": {"type": "string"}}, "required": ["note"]}
-    prompt = "Sam Seeker (sam@example.com, 631 555 0142) asks: which group?"
+    asked = {**TEAM, "posting_text": "Sam Seeker (sam@example.com, 631 555 0142) asks: which group?"}
     async with _api() as api:
-        reply = await api.post("/apply-app/model", json={**CALL, "prompt": prompt, "schema": note})
-    assert reply.json()["answer"] == {"note": "Write to sam@example.com or call 631 555 0142."}
+        reply = await api.post("/apply-app/ask", json={**CALL, "data": asked})
+    assert reply.json()["answer"] == {"team": "Write to sam@example.com or call 631 555 0142."}
     # The name stays: the app replaces it (D8), so the prompt keeps its words.
-    assert fake.prompts[0][1]["content"] == "Sam Seeker ([email], [phone]) asks: which group?"
+    assert "Sam Seeker ([email], [phone]) asks: which group?" in fake.prompts[0][1]["content"]
 
 
-async def test_haiku_asks_the_small_chain_and_the_others_the_large(student):
-    small, large = ScriptedLLM([ANSWER]), ScriptedLLM([ANSWER])
+async def test_each_kind_asks_the_size_of_chain_it_names(student):
+    small, large = ScriptedLLM([ANSWER]), ScriptedLLM(['{"unsupported": {"q1": []}}'])
     app.dependency_overrides[get_small_llm] = lambda: small
     app.dependency_overrides[get_large_llm] = lambda: large
     async with _api() as api:
-        for model in ("haiku", "sonnet", "opus"):
-            assert (await api.post("/apply-app/model", json={**CALL, "model": model})).status_code == 200
+        assert (await api.post("/apply-app/ask", json=CALL)).status_code == 200  # Apply's Haiku call
+        for _ in range(2):
+            assert (await api.post("/apply-app/ask", json=CHECK)).status_code == 200  # Apply's Opus call
     assert (len(small.prompts), len(large.prompts)) == (1, 2)
 
 
@@ -118,8 +120,8 @@ async def test_at_the_cap_nothing_reaches_the_model_until_midnight(student, monk
     fake = ScriptedLLM([ANSWER])
     fake_models.use(fake)
     async with _api() as api:
-        assert (await api.post("/apply-app/model", json=CALL)).status_code == 200
-        refused = await api.post("/apply-app/model", json=CALL)
+        assert (await api.post("/apply-app/ask", json=CALL)).status_code == 200
+        refused = await api.post("/apply-app/ask", json=CALL)
         usage = (await api.get("/apply-app/usage")).json()
     assert refused.status_code == 429
     assert refused.json()["detail"] == "Today's model use is reached; it resets at midnight UTC."
@@ -134,14 +136,14 @@ async def test_past_the_minute_limit_a_call_waits_for_the_next_minute(student, m
     fake_models.use(fake)
     async with _api() as api:
         for _ in range(2):
-            assert (await api.post("/apply-app/model", json=CALL)).status_code == 200
-        refused = await api.post("/apply-app/model", json=CALL)
+            assert (await api.post("/apply-app/ask", json=CALL)).status_code == 200
+        refused = await api.post("/apply-app/ask", json=CALL)
         assert refused.status_code == 429
         assert refused.headers["Retry-After"] == "30"
         assert len(fake.prompts) == 2
 
         monkeypatch.setattr("app.routers.apply_app._now", lambda: NOW + datetime.timedelta(minutes=1))
-        assert (await api.post("/apply-app/model", json=CALL)).status_code == 200
+        assert (await api.post("/apply-app/ask", json=CALL)).status_code == 200
 
 
 @pytest.mark.parametrize(("script", "status"), [
@@ -152,30 +154,12 @@ async def test_past_the_minute_limit_a_call_waits_for_the_next_minute(student, m
 async def test_a_failed_call_still_counts_what_it_spent(student, database, script, status):
     fake_models.use(ScriptedLLM(script))
     async with _api() as api:
-        failed = await api.post("/apply-app/model", json=CALL)
+        failed = await api.post("/apply-app/ask", json=CALL)
     assert failed.status_code == status
     assert (failed.headers.get("Retry-After") == "60") is (status == 503)
-    spent = len("Pick one.") + len("Which group?") + 2 if status == 502 else 0
+    spent = READ + 2 if status == 502 else 0
     row = await _row(database, student)
     assert (row["input_tokens"] + row["output_tokens"], row["calls"]) == (spent, 1)
-
-
-@pytest.mark.parametrize("schema", [
-    {"type": "array", "items": {"type": "string"}},
-    {"type": "object", "properties": {"x": {"$ref": "http://169.254.169.254/x"}}},
-    # Python's backtracking `re` would run it on the answer, in the event loop.
-    {"type": "object", "properties": {"x": {"type": "string", "pattern": "^(a+)+$"}}},
-    {"type": "object", "default": [[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]},
-    {"type": "object", "properties": {"x": {"type": "number-ish"}}},
-    {"type": "object", "description": "x" * 20_001},
-])
-async def test_a_schema_outside_the_rules_is_refused_before_anything_counts(student, database, schema):
-    fake = ScriptedLLM([ANSWER])
-    fake_models.use(fake)
-    async with _api() as api:
-        assert (await api.post("/apply-app/model", json={**CALL, "schema": schema})).status_code == 422
-    assert fake.prompts == []
-    assert await _row(database, student) is None
 
 
 DRAFTS = {"q1": "I led a team of ten at HackSBU."}
@@ -222,7 +206,7 @@ async def test_a_company_account_is_refused(database):
     app.dependency_overrides[get_current_account] = lambda: _account(AccountType.COMPANY)
     try:
         async with _api() as api:
-            assert (await api.post("/apply-app/model", json=CALL)).status_code == 403
+            assert (await api.post("/apply-app/ask", json=CALL)).status_code == 403
             assert (await api.get("/apply-app/usage")).status_code == 403
     finally:
         app.dependency_overrides.pop(get_current_account, None)

@@ -6,8 +6,9 @@ default to `worker_mode: protected` (2026-11-06), `ask` runs on Groq
 with Gemini as backup (`ask_model: [groq, gemini]`, 2026-11-10,
 `apply-agent/docs/ask-model.md`), and W1's server side, the Model route
 and the Usage cap (2026-11-13, `backend/app/routers/apply_app.py`).
-Being built (2026-11-14): the prompts move to WorkIt's server (D5, W1's
-"Prompts on the server").
+Built (2026-11-14): the prompts are on WorkIt's server (D5, W1's "Prompts
+on the server"): Apply sends each call as a kind and its data, and the
+default is `ask_model: workit`.
 
 **How to use this doc.** Read sections 1 to 3 first. Then take one
 workstream from section 6: each one says what it changes, which files it
@@ -532,13 +533,16 @@ docstring (`backend/app/routers/apply_app.py`) is the reference for its
 shapes and status codes.
 
 - **Routes**, each signed in as a student (a company account gets 403):
-  - `POST /apply-app/model`: body `{kind, model, system, prompt, schema}`
-    (`kind` is optional, `"ask"` by default). `model` is Apply's tier:
-    `haiku` asks the API's small model chain, `sonnet` and `opus` the
-    large one (`app/services/models.py`). So the models and their keys are
-    the `SCOUT_ENDPOINTS*` settings already in `CF_API_SECRETS_JSON`, and
-    a model change is an env change. It answers `{answer, tokens, usage}`,
-    with `usage` as below, so the window's cap line updates with each call.
+  - `POST /apply-app/ask`: body `{kind, version, data}` (below, "Prompts
+    on the server"). Each kind runs on the size of the API's model chain
+    it names: Apply's Haiku calls on the small one, its Sonnet and Opus
+    calls on the large one (`app/services/models.py`). So the models and
+    their keys are the `SCOUT_ENDPOINTS*` settings already in
+    `CF_API_SECRETS_JSON`, and a model change is an env change. It answers
+    `{answer, tokens, usage}`, with `usage` as below, so the window's cap
+    line updates with each call. The free-form `POST /apply-app/model`,
+    which took the app's own prompt and schema, went once every kind was
+    built on the server (2026-11-14).
   - `GET /apply-app/usage`: `{used, cap, resets_at}`.
   - **429 with `Retry-After`** at the cap (it runs to midnight, UTC) and
     past the per-minute limit (to the next minute). Nothing goes to a
@@ -570,13 +574,14 @@ shapes and status codes.
   student named Will Mark, "You will write" reached the model as "You
   [name] write", and the prompt broke. The cost: a name the app misses
   reaches Groq or Google.
-- **The schema is checked before anything counts**: an object's schema,
-  valid JSON Schema, at most 20,000 characters and 32 levels, and none of
-  `$ref` (or its dynamic forms), `pattern` and `patternProperties`. A
-  `$ref` makes `jsonschema` fetch a remote URL by default; a `pattern`
-  runs in Python's backtracking `re` in the API's event loop, so one
-  call with `^(a+)+$` could stop the API for every user. Apply's schemas
-  use none of them.
+- **No request carries a schema** (2026-11-14): the server builds each
+  kind's. The free-form route's checks went with it. Its lesson stays for
+  any route that takes a schema from outside: refuse a `$ref` (or its
+  dynamic forms), since `jsonschema` fetches a remote URL by default;
+  refuse `pattern` and `patternProperties`, since the answer's check runs
+  them with Python's backtracking `re` in the API's event loop, and one
+  call with `^(a+)+$` could stop the API for every user; and refuse more
+  than 32 levels, where `jsonschema`'s own check runs out of stack.
 - **Table** `model_usage` (migration `3132c5026bf6`, RLS on, no
   policies): one row per student per day (UTC), with
   `input_tokens`, `output_tokens`, `calls`, and the current minute's
@@ -646,8 +651,8 @@ its own instructions or a hostile schema.
   question type's guide, so their shared start ends early; moving those
   guides after the fixed part is next, checked by W13 since the order can
   change an answer.
-- **The free-form `POST /apply-app/model` goes** when the last kind is
-  ported, with its schema guards.
+- **The free-form `POST /apply-app/model` went** (2026-11-14), with its
+  schema guards, once every call sent a kind.
 - **Urgent, for developers:** `ask_model: claude` can't run a ported
   kind once Apply's calls send kinds, since the prompts are no longer in
   the app. It needs the developer prompt route
@@ -665,10 +670,8 @@ its own instructions or a hostile schema.
   copied to `backend/app/apply_prompts/answering/`; Apply keeps its copy
   for the front matter its own code reads (which type a question is, its
   slots and default length), and the bodies go from Apply in step 4.
-  Apply's calls move to kinds one module at a time (`ask_model: workit`,
-  the default since 2026-11-14); a call not yet moved goes to
-  `/apply-app/model` with its own prompt. Moved: `writing.check`,
-  `writing.edit`, `essays.plan`, `essays.write` and `probe.typical`.
+  Every one of Apply's calls sends its kind (`ask_model: workit`, the
+  default since 2026-11-14), and Apply builds no prompt of its own.
 - **Next, not in this PR: the checks move to the server too, and fewer
   round trips** (noted 2026-11-14). Today the app runs every check on an
   answer (the plan's quotes, the gates, the claim check loop, the truth
