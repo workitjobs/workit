@@ -23,10 +23,8 @@ from fakes import (
 
 from apply import (
     answering,
-    cover_letter,
     essays,
     home,
-    presubmit,
     probe,
     sameness,
     stock,
@@ -188,9 +186,8 @@ def test_essays_are_written_from_the_companys_own_material(monkeypatch):
     row = run(monkeypatch, ResearchForm("Northwood Space"), claude, site=Browser({POSTING_PAGE: f"<p>{PORTAL}</p>"}))
 
     assert row.status == "submitted", row.reason
-    [call] = [c for c in claude.calls if "essays" in c["schema"]["properties"]]
+    [call] = [c for c in asks(claude) if c["data"]["questions"]]
     assert f"<description>\n{PORTAL}\n</description>" in call["prompt"]
-    assert "<company>" in call["system"] and "<posting>" in call["system"]
 
 
 def test_the_essay_call_knows_where_he_lives_so_it_never_leaves_a_placeholder_for_it(monkeypatch):
@@ -200,9 +197,8 @@ def test_the_essay_call_knows_where_he_lives_so_it_never_leaves_a_placeholder_fo
 
     run(monkeypatch, ResearchForm("Northwood Space"), claude)
 
-    [call] = [c for c in claude.calls if "essays" in c["schema"]["properties"]]
+    [call] = [c for c in asks(claude) if c["data"]["questions"]]
     assert "<home>\nSpringfield, IL 62701, United States\n</home>" in call["prompt"]
-    assert "<home>" in call["system"]
     assert "1 Main St" not in call["prompt"]  # an essay never needs his street
 
 
@@ -245,11 +241,10 @@ def test_essays_and_their_review_name_what_the_company_builds_from_its_company_b
 
     assert row.status == "submitted", row.reason
     assert ["<company>Northwood Space</company>" in p for p in claude.researched] == [True]
-    [call] = [c for c in claude.calls if "essays" in c["schema"]["properties"]]
+    [call] = [c for c in asks(claude) if c["data"]["questions"]]
     [review] = [c for c in claude.calls if "problems" in c["schema"]["properties"]]
     for prompt in (call["prompt"], review["prompt"]):
         assert '<source from="a brief of what the company builds' in prompt and LOOKOUT["fact"] in prompt
-    assert "a launch, an open-source project" in call["system"]
 
 
 LOOKOUT_PAGE = Browser({POSTING_PAGE: f"<p>{PORTAL}</p>", LOOKOUT["url"]: "<h1>Introducing Lookout</h1>"})
@@ -305,11 +300,10 @@ def test_the_postings_description_is_read_once_however_many_calls_get_it(monkeyp
     run(monkeypatch, ResearchForm("Workshop"), claude, company="Workshop", site=site)
 
     assert site.fetched.count(POSTING_PAGE) == 1
-    # The default probe, the plan, the essay call and the Pre-submit review; the claim check and the editor's pass
-    # are WorkIt kinds, whose sources hold it.
-    assert len(claude.calls) == 4 and len(claude.kinds) == 2
-    assert all(f"<description>\n{PORTAL}\n</description>" in call["prompt"] for call in claude.calls)
-    assert all(f"<description>\n{PORTAL}\n</description>" in asked["data"]["sources"] for asked in claude.kinds)
+    # The Pre-submit review sends its own prompt; the probe, the plan, the essay call, the claim check and the
+    # editor's pass are WorkIt kinds, whose data holds it.
+    assert len(claude.calls) == 1 and len(claude.kinds) == 5
+    assert all(f"<description>\n{PORTAL}\n</description>" in call["prompt"] for call in claude.calls + claude.kinds)
 
 
 def test_a_postings_api_text_is_read_once_for_its_eligibility_and_every_claude_call(monkeypatch):
@@ -321,8 +315,8 @@ def test_a_postings_api_text_is_read_once_for_its_eligibility_and_every_claude_c
 
     assert row.status == "held", row.reason  # its essay is about Workshop
     assert site.fetched.count(api) == 2  # once for its text; first, once to see which site shows the job
-    assert len(claude.calls) == 4 and all(PORTAL in call["prompt"] for call in claude.calls)  # with the probe and plan
-    assert len(claude.kinds) == 2 and all(PORTAL in asked["data"]["sources"] for asked in claude.kinds)
+    assert len(claude.calls) + len(claude.kinds) == 6  # with the probe and plan
+    assert all(PORTAL in call["prompt"] for call in claude.calls + claude.kinds)
 
 
 def test_the_drafts_only_call_gets_the_postings_description(monkeypatch):
@@ -331,7 +325,7 @@ def test_the_drafts_only_call_gets_the_postings_description(monkeypatch):
     run(monkeypatch, without_cover_letter(ResearchForm("MetOx International")), claude, site=Browser({POSTING_PAGE: f"<p>{PORTAL}</p>"}))
 
     [call] = asks(claude)
-    assert set(call["schema"]["properties"]) == {"drafts"}
+    assert not call["data"]["questions"] and call["data"]["short_questions"]
     assert f"<description>\n{PORTAL}\n</description>" in call["prompt"]
 
 
@@ -632,22 +626,6 @@ AUTONOMY = "I would like to work on autonomy software, building on the flood fil
 GIVEAWAY = "I should be upfront: my materials don't yet say why. Your posting lists fleet monitoring."
 
 
-def test_essays_answer_a_why_question_from_his_facts_and_tie_it_to_this_company(monkeypatch):
-    # Scout: "why renewable energy?" got a hedge; Harvey: "why Harvey?" said nothing of Harvey.
-    claude = FakeClaude()
-
-    run(monkeypatch, ResearchForm("Northwood Space"), claude)
-
-    [call] = [c for c in claude.calls if "essays" in c["schema"]["properties"]]
-    assert call["model"] == "opus"  # Sonnet drafts lost 26-142 in paired judging
-    system = call["system"]
-    assert "Their feelings are theirs to voice" in system
-    assert "never quote <posting>" in system
-    assert "sincere, specific interest in one thing of theirs" in system  # no mission fallback
-    assert "Never mention their materials" in system
-    assert "A question about their motives or interests never needs Test" in system
-
-
 def test_an_essay_that_gives_away_how_it_was_written_is_drafted_again_once(monkeypatch):
     form = ResearchForm("Northwood Space")
     claude = FakeClaude(essays={PROJECT: [GIVEAWAY, MICROMOUSE]})
@@ -657,7 +635,7 @@ def test_an_essay_that_gives_away_how_it_was_written_is_drafted_again_once(monke
     assert row.status == "submitted", row.reason
     assert sent_answer(form, PROJECT) == MICROMOUSE
     _first, again = asks(claude)
-    assert list(again["schema"]["properties"]["essays"]["properties"]) == ["q1"]
+    assert list(again["data"]["questions"]) == ["q1"]
     assert "my materials" in again["prompt"] and "Your posting" in again["prompt"]
 
 
@@ -713,8 +691,6 @@ def test_an_essay_missing_one_fact_of_his_is_held_with_the_rest_drafted(monkeypa
     assert row.status == "held" and "needs your input" in row.reason
     assert MICROMOUSE in row.essay
     assert form.submitted == []
-    [call] = [c for c in claude.calls if "essays" in c["schema"]["properties"]]
-    assert "still write that part and leave the unknown one out" in call["system"]
 
 
 @pytest.mark.parametrize("company", ["Stripe", "Meta Platforms", "Amazon Web Services", "NVIDIA"])
@@ -804,8 +780,8 @@ def without_cover_letter(form: ResearchForm) -> ResearchForm:
 
 
 def asks(claude: FakeClaude) -> list[dict]:
-    """The Claude calls that write essays or draft one-off answers."""
-    return [c for c in claude.calls if {"essays", "drafts"} & set(c["schema"]["properties"])]
+    """The calls that write essays or draft one-off answers (WorkIt's essays.write kind), as {"kind", "data"}."""
+    return [k for k in claude.kinds if k["kind"] == "essays.write"]
 
 
 def test_a_one_off_question_is_drafted_by_claude_sent_with_the_form_and_banked(monkeypatch):
@@ -892,25 +868,13 @@ def test_lisuls_own_answer_to_a_company_question_is_still_used(monkeypatch):
     assert sent_answer(form, FAMILIAR) == "Very"
 
 
-def test_claude_answers_company_questions_from_the_posting_and_takes_the_middle_of_a_scale(monkeypatch):
-    claude = FakeClaude()
-
-    run(monkeypatch, ResearchForm("Workshop"), claude, company="Workshop")
-
-    [call] = asks(claude)
-    assert "a question about the company or the role from <posting> and <company>" in call["system"]
-    assert "the middle option" in call["system"]
-    assert "open to any team" not in call["system"]  # the essay-writer plan: a preference gets a real pick
-
-
 def test_a_form_with_only_one_off_questions_costs_one_small_call_from_the_profile(monkeypatch):
     claude = FakeClaude()
 
     run(monkeypatch, without_cover_letter(ResearchForm("MetOx International")), claude)
 
     [call] = asks(claude)
-    assert set(call["schema"]["properties"]) == {"drafts"}
-    assert call["model"] == "sonnet"
+    assert not call["data"]["questions"] and call["data"]["short_questions"]
     assert "<profile>" in call["prompt"] and "test.person@example.com" in call["prompt"]
     assert "<story_bank>" in call["prompt"]
     assert "one-pager.pdf" not in call["prompt"]  # no file path ever leaves Apply
@@ -923,7 +887,7 @@ def test_one_off_questions_ride_in_the_essay_call(monkeypatch):
     run(monkeypatch, ResearchForm("Workshop"), claude, company="Workshop")
 
     [call] = asks(claude)
-    assert set(call["schema"]["properties"]) == {"essays", "drafts"}
+    assert call["data"]["questions"] and call["data"]["short_questions"]
     assert OMAHA in call["prompt"]
 
 
@@ -951,8 +915,6 @@ def test_a_drafted_answer_is_banked_with_the_facts_it_drew_on(monkeypatch):
 
     [entry] = bank.entries()
     assert entry.facts == ("identity.summer_2027_location", story)  # what Claude named that a source holds
-    [call] = asks(claude)
-    assert "facts" in call["system"]
 
 
 def test_each_application_an_answer_in_the_bank_answers_counts_one_use(monkeypatch):
@@ -1229,12 +1191,6 @@ def test_a_reviewed_answer_is_never_held_for_its_uses(monkeypatch, tmp_path):
     assert [row.status for row in rows] == ["submitted"], rows[0].reason
 
 
-def test_essays_place_his_experience_by_its_dates_never_by_today():
-    # Astranis (seen live, October 2026): "Last summer I led 13 interns" for his summer 2026 internship.
-    from apply import essays
-    assert "never by words that count from today" in essays.SYSTEM and "summer 2026" in essays.SYSTEM
-
-
 def test_a_cover_letter_is_written_to_the_template_slot_by_slot_then_edited():
     claude = FakeClaude()
     posting = Posting("p", "Figma", "Software Engineer Intern", "https://jobs.example.com/1")
@@ -1243,27 +1199,21 @@ def test_a_cover_letter_is_written_to_the_template_slot_by_slot_then_edited():
     drafted = "Dear Figma Recruiting Team:\n\nOpening.\n\nThe proof.\n\nClosing.\n\nSincerely,\nTest Person"
     edited = drafted.replace("The proof.", "The proof, edited.")
 
-    def ask(**call):
-        claude.calls.append(call)
-        if "plan" in call["schema"]["properties"]:
-            return FakeClaude().ask(**call)
-        return {"essays": {"q1": paragraphs | {"needs_lisul": False}}}
-
     def ask_kind(kind, data):
         claude.kinds.append({"kind": kind, "data": data})
+        if kind == "essays.plan":
+            return FakeClaude().ask_kind(kind, data)
+        if kind == "essays.write":
+            return {"essays": {"q1": paragraphs | {"needs_lisul": False}}}
         return {"edited": {"q1": edited}} if kind == "writing.edit" else {"unsupported": {"q1": []}}
-    claude.ask, claude.ask_kind = ask, ask_kind
+    claude.ask_kind = ask_kind
 
     [essay] = essays.write(claude, posting, [letter], ApplicantProfile.load(PROFILE, POLICIES))
 
     assert essay.text == edited
-    planned, written, *_ = claude.calls
-    checked, editor, *_ = claude.kinds
-    assert "plan" in planned["schema"]["properties"]
-    assert checked["kind"] == "writing.check"
-    assert cover_letter.RULES in written["system"] and writing.WRITE.replace("@NAME@", "Test") in written["system"]
-    assert set(written["schema"]["properties"]["essays"]["properties"]["q1"]["required"]) == {*cover_letter.SLOTS, "needs_lisul"}
-    assert editor["kind"] == "writing.edit" and editor["data"]["drafts"] == {"q1": drafted}
+    assert [k["kind"] for k in claude.kinds] == ["essays.plan", "essays.write", "writing.check", "writing.edit"]
+    editor = claude.kinds[-1]
+    assert editor["data"]["drafts"] == {"q1": drafted}
     assert "<story_bank>" in editor["data"]["sources"] and "style_card" in editor["data"]
 
 
@@ -1292,36 +1242,6 @@ def _flagged_with(data: dict, text: str) -> bool:
     return any(text in flag for flags in data["flagged"].values() for flag in flags)
 
 
-def test_the_essay_call_sees_the_questions_description_kind_and_limit():
-    # Figma's "3-4 sentences" is in the question's description, not its label.
-    claude = FakeClaude(essays={"Why Figma?": "Because."})
-    posting = Posting("p", "Figma", "Software Engineer Intern", "https://jobs.example.com/1")
-    why = Question("a", "Why Figma?", "textarea", True, description="Please answer in 3-4 sentences.", max_length=1000)
-    other = Question("b", "Anything else?", "text", False, description="word " * 200)
-
-    essays.write(claude, posting, [why, other], ApplicantProfile.load(PROFILE, POLICIES))
-
-    written = next(c for c in claude.calls if "essays" in c["schema"]["properties"])
-    asked = _block(written["prompt"], "questions")
-    assert asked["q1"].startswith("Why Figma?")
-    assert all(part in asked["q1"] for part in ("3-4 sentences", "required", "multi-line", "1000 characters"))
-    assert "optional" in asked["q2"] and "single-line" in asked["q2"] and len(asked["q2"]) < 500
-    assert written["schema"]["properties"]["essays"]["properties"]["q1"]["description"] == asked["q1"]
-
-
-def test_a_short_question_shows_its_description_and_whether_it_is_required():
-    claude = FakeClaude()
-    posting = Posting("p", "Figma", "Software Engineer Intern", "https://jobs.example.com/1")
-    office = Question("a", "Preferred office", "text", True, description="Choose from SF, NYC or remote.", max_length=50)
-
-    essays.answer(claude, posting, [], [office], ApplicantProfile.load(PROFILE, POLICIES))
-
-    [call] = claude.calls
-    assert _block(call["prompt"], "short_questions")["d1"] == {
-        "question": "Preferred office", "description": "Choose from SF, NYC or remote.", "required": True,
-        "field": "single-line", "max_length": 50}
-
-
 FIGMA_AREAS = "Which engineering areas are you most excited to work on at Figma?"
 FIGMA_LISTED = ("Based on the engineering work you listed above that you're most excited to do at Figma, briefly "
                 "describe a past project or experience that best reflects your interest in those areas.")
@@ -1340,11 +1260,10 @@ def test_an_essay_about_an_answer_given_above_sees_that_answer(monkeypatch):
 
     run(monkeypatch, form, claude, bank=bank)
 
-    written = next(c for c in claude.calls if "essays" in c["schema"]["properties"])
+    written = next(c for c in asks(claude) if c["data"]["questions"])
     shown = _block(written["prompt"], "form_answers")
     assert shown[FIGMA_AREAS] == "Infrastructure"
     assert not any(label.startswith("Resume") for label in shown)  # files never reach it
-    assert "listed above" in essays.SYSTEM and "<form_answers>" in essays.SYSTEM
 
 
 def test_form_answers_leave_out_files_essays_self_id_and_secrets():
@@ -1436,65 +1355,6 @@ def test_time_counted_from_today_and_a_placeholder_are_flagged():
         'a placeholder: "[add WorkIt repo URL]" (leave out what only they can give)']
 
 
-def test_each_essay_gets_the_rules_and_the_guidance_of_only_its_own_question_type():
-    claude = FakeClaude(essays={"Why Figma?": "Because.", "Which team": "Infrastructure."})
-    posting = Posting("p", "Figma", "Software Engineer Intern", "https://jobs.example.com/1")
-    questions = [Question("a", "Why Figma?", "textarea", True),
-                 Question("b", "Which team would you most like to join?", "textarea", True)]
-
-    essays.write(claude, posting, questions, ApplicantProfile.load(PROFILE, POLICIES))
-
-    [written] = asks(claude)
-    assert not hasattr(writing, "SHAPES")
-    assert answering.rules().replace("@NAME@", "Test") in written["system"]
-    guides = answering.load()
-    assert guides["why-company"].body in written["system"] and guides["preference"].body in written["system"]
-    assert guides["failure"].body not in written["system"]
-    asked = _block(written["prompt"], "questions")
-    assert "type: why-company" in asked["q1"] and "company link: same-kind" in asked["q1"]
-    assert "default length: 70-120 words" in asked["q1"]
-    assert "type: preference" in asked["q2"] and "default length: 60-100 words" in asked["q2"]
-
-
-def test_a_stated_limit_leaves_out_the_types_default_length_and_the_editor_gets_each_answers_length():
-    claude = FakeClaude(essays={"Why Figma?": "Because.", "Tell us": "A project."})
-    posting = Posting("p", "Figma", "Software Engineer Intern", "https://jobs.example.com/1")
-    questions = [Question("a", "Why Figma?", "textarea", True, description="Please answer in 3-4 sentences."),
-                 Question("b", "Tell us about a project you're most proud of.", "textarea", True)]
-
-    essays.write(claude, posting, questions, ApplicantProfile.load(PROFILE, POLICIES))
-
-    [written] = asks(claude)
-    asked = _block(written["prompt"], "questions")
-    assert "type: why-company" in asked["q1"] and "default length" not in asked["q1"]
-    assert "type: best-project" in asked["q2"] and "default length: 80-120 words" in asked["q2"]
-    assert _edits(claude)[0]["lengths"] == {"q2": "80-120 words"}  # the first pass; repairs follow
-
-
-def test_a_question_about_him_gets_no_company_sentence():
-    claude = FakeClaude(essays={"Tell us": "A project."})
-    posting = Posting("p", "Figma", "Software Engineer Intern", "https://jobs.example.com/1")
-
-    essays.write(claude, posting, [Question("b", "Tell us about a time you failed.", "textarea", True)],
-                 ApplicantProfile.load(PROFILE, POLICIES))
-
-    [written] = asks(claude)
-    assert "company link: never" in _block(written["prompt"], "questions")["q1"]
-    assert '"company link: never"' in written["system"] and "no sentence about the company" in written["system"]
-
-
-def test_a_preference_question_gets_a_real_pick_never_open_to_any_team(monkeypatch):
-    claude = FakeClaude(essays={"Which team": "Infrastructure."})
-    posting = Posting("p", "Figma", "Software Engineer Intern", "https://jobs.example.com/1")
-
-    essays.write(claude, posting, [Question("b", "Which team would you most like to join?", "textarea", True)],
-                 ApplicantProfile.load(PROFILE, POLICIES))
-
-    [written] = asks(claude)
-    assert "open to any team" not in written["system"].lower()
-    assert "a real pick" in written["system"] and "one closing line" in written["system"]
-
-
 def test_the_review_is_told_which_answers_are_lisuls_own_from_the_bank(monkeypatch, tmp_path):
     # Semgrep (seen live, 2026-10-20): his own bank answer was called a fact none of the sources hold.
     profile = with_policies(tmp_path, "")
@@ -1507,24 +1367,6 @@ def test_the_review_is_told_which_answers_are_lisuls_own_from_the_bank(monkeypat
 
     [reviewed] = [p for p in claude.prompts if "<form>" in p]
     assert '"his_own_answer": true' in reviewed
-
-
-def test_an_option_a_form_lists_twice_is_offered_once_in_the_drafts_schema():
-    # Netflix's languages list has "Scala" twice (Airtable, live): claude -p refused the schema.
-    from apply.essays import _draft_schema
-    from apply.model import Question
-
-    q = Question("q1", "Which languages are you most comfortable in?", "multi_select", False, ("C", "Scala", "Rust", "Scala"))
-    assert _draft_schema(q)["properties"]["answer"]["items"]["enum"] == ["C", "Scala", "Rust"]
-
-
-def test_a_drafted_multi_select_ticks_no_more_than_the_form_allows():
-    from apply.essays import _draft_schema
-    from apply.model import Question
-
-    q = Question("q1", "Which areas are you most interested in? (Select up to 3 MAX.)", "multi_select", False,
-                 ("Web apps", "Mobile apps", "Data processing systems", "Systems engineering"))
-    assert _draft_schema(q)["properties"]["answer"]["maxItems"] == 3
 
 
 # The plan stage (apply/docs/essay-writer-plan.md, decision 3): one call plans
@@ -1542,7 +1384,7 @@ def backed(kind: str, quote: str = HITACHI) -> tuple[essays.Backed, ...]:
 
 
 def plans(claude: FakeClaude) -> list[dict]:
-    return [c for c in claude.calls if "plan" in c["schema"]["properties"]]
+    return [k for k in claude.kinds if k["kind"] == "essays.plan"]
 
 
 def write_figma(claude: FakeClaude, questions=(WHY_FIGMA, PROUD), company: str = BRIEF) -> list[essays.Essay]:
@@ -1557,26 +1399,11 @@ def test_the_whole_form_is_planned_by_opus_before_the_draft_which_follows_the_pl
 
     [planned] = plans(claude)
     [drafted] = asks(claude)
-    assert claude.calls.index(planned) < claude.calls.index(drafted)
-    assert planned["model"] == "opus"
-    assert "typical applicant" in planned["system"] and "first idea" in planned["system"]
-    entry = planned["schema"]["properties"]["plan"]["properties"]["q1"]["properties"]
-    assert set(entry) == {"type", "parts", "story", "company_fact", "angle", "link_kind", "slots"}
+    assert claude.kinds.index(planned) < claude.kinds.index(drafted)
     plan = _block(drafted["prompt"], "plan")
     assert plan["q1"]["story"] == HITACHI and plan["q1"]["angle"] == "Handoff is a data problem."
     assert plan["q1"]["type"] == "why-company" and plan["q2"]["type"] == "best-project"
-    assert "<plan>" in drafted["system"] and "follows its entry" in drafted["system"]
     assert written[0].plan.story == HITACHI and written[0].plan.type == "why-company"
-
-
-def test_the_plans_type_decides_the_guidance_and_the_tag():
-    claude = FakeClaude(essays={"Why Figma?": "Because."}, plans=[{"Why Figma?": {"type": "why-role"}}])
-
-    write_figma(claude, [WHY_FIGMA])
-
-    [drafted] = asks(claude)
-    assert "type: why-role" in _block(drafted["prompt"], "questions")["q1"]
-    assert answering.load()["why-role"].body in drafted["system"]
 
 
 def test_a_plan_is_checked_for_its_story_company_fact_parts_and_reuse():
@@ -1601,8 +1428,13 @@ SPECIFIC = "Dev Mode hands designs to engineers, the handoff I did by hand on Wo
 OWN = "I built the WorkIt front end from frames myself. Dev Mode would have saved me that handoff."
 
 
+KIND_NAMES = {"probe.typical": "typical", "essays.plan": "plan", "essays.write": "essays", "writing.check": "unsupported",
+              "writing.edit": "edited"}
+
+
 def kinds(claude: FakeClaude) -> list[str]:
-    return [next(iter(call["schema"]["properties"])) for call in claude.calls]
+    """The essay calls in order, by what each answers (WorkIt's kinds)."""
+    return [KIND_NAMES[k["kind"]] for k in claude.kinds]
 
 
 FIX = "reproduced it, traced it to the data layer silently ignoring empty values"
@@ -1614,25 +1446,11 @@ def test_each_essay_is_drafted_once_from_its_plans_slots_with_no_pick_or_critic(
 
     [essay] = write_figma(claude, [SHORT_WHY])
 
-    assert kinds(claude) == ["typical", "plan", "essays"]
-    assert [asked["kind"] for asked in claude.kinds] == ["writing.check", "writing.edit"]
+    assert kinds(claude) == ["typical", "plan", "essays", "unsupported", "edited"]
     [drafted] = asks(claude)
-    assert drafted["schema"]["properties"]["essays"]["properties"]["q1"]["required"] == ["answer", "needs_lisul"]
     slots = _block(drafted["prompt"], "plan")["q1"]["slots"]
     assert set(slots) == {s.name for s in answering.load()["why-company"].slots if s.required is True}
-    assert "from its slots only" in drafted["system"] and "answer_b" not in drafted["system"]
     assert [b.slot for b in essay.plan.slots] == list(slots)
-
-
-def test_the_planner_sees_each_types_slots_and_quotes_lines_for_them():
-    claude = FakeClaude(essays={"Why Figma?": OWN})
-    write_figma(claude, [SHORT_WHY])
-    [planned] = plans(claude)
-    assert "- failure (company link: never)\n  - miss (required): " in planned["system"]
-    assert "  - habit-held (optional): " in planned["system"] and "  - why (asked): " in planned["system"]
-    assert "word for word" in planned["system"] and "in ask, one short question to Test" in planned["system"]
-    entry = planned["schema"]["properties"]["plan"]["properties"]["q1"]["properties"]["slots"]["items"]
-    assert entry["required"] == ["slot", "quotes", "ask"]
 
 
 def test_a_slot_quote_must_be_in_the_sources_and_a_required_slot_needs_one():
@@ -1684,7 +1502,7 @@ def test_an_essay_whose_required_slot_no_line_backs_waits_for_lisul_and_is_not_w
     assert failed.text == "" and failed.plan.asks == (f"Essay fact: {ask}",)
     assert why.text == OWN and why.plan.asks == ()
     [drafted] = asks(claude)
-    assert list(drafted["schema"]["properties"]["essays"]["properties"]) == ["q1"]  # the failure essay isn't written
+    assert list(drafted["data"]["questions"]) == ["q1"]  # the failure essay isn't written
     alone = FakeClaude(plans=[{"Tell us about a time": {"type": "failure", "slots": slots}}])
     [waiting] = write_figma(alone, [failure])
     assert waiting.text == "" and kinds(alone) == ["plan", "plan"]  # nothing to write: no essay call
@@ -1844,9 +1662,6 @@ def test_an_approved_stock_answer_of_a_type_on_the_form_is_material_for_the_plan
     for call in (planned, drafted):
         assert '<core_answer type="best-project">\nMy depot bus tracker' in call["prompt"]
         assert "A failure answer." not in call["prompt"]  # no failure question on this form
-    assert "never its sentences" in drafted["system"] and "<core_answers>" in drafted["system"]
-    for system in (essays.PLAN, presubmit.SYSTEM):  # the editor's and the claim check's are on WorkIt's server
-        assert "<core_answers>" in system
 
 
 # The story map (plan decision 11): routing for the plan only, and a company link must share a problem kind.
@@ -1878,8 +1693,7 @@ def test_the_story_map_reaches_the_plan_call_only_and_an_episode_id_becomes_its_
 
     [planned] = plans(claude)
     assert "<story_map>" in planned["prompt"] and "clever-devices/geofence" in planned["prompt"]
-    assert "link_kind" in planned["schema"]["properties"]["plan"]["properties"]["q1"]["properties"]
-    for call in claude.calls[2:]:  # after the probe and the plan: the draft, the claim check, the editor
+    for call in claude.kinds[2:]:  # after the probe and the plan: the draft, the claim check, the editor
         assert "<story_map>" not in call["prompt"] and "kinds: fleet-tracking" not in call["prompt"]
     assert "link_kind" not in _block(asks(claude)[0]["prompt"], "plan")["q1"]
     assert why.plan.story == GEOFENCE and why.plan.company_fact == "Live Map" and why.plan.link_kind == "fleet-tracking"
@@ -1919,16 +1733,14 @@ def test_an_idea_driven_essay_is_probed_for_the_typical_answer_with_no_facts_abo
 
     write_figma(claude)
 
-    [probed] = [c for c in claude.calls if "typical" in c["schema"]["properties"]]
-    assert claude.calls.index(probed) < claude.calls.index(plans(claude)[0])
-    assert probed["model"] == "sonnet"
-    assert list(probed["schema"]["properties"]["typical"]["properties"]) == ["q1"]  # the best-project essay is no idea type
+    [probed] = [k for k in claude.kinds if k["kind"] == "probe.typical"]
+    assert claude.kinds.index(probed) < claude.kinds.index(plans(claude)[0])
+    assert list(probed["data"]["questions"]) == ["q1"]  # the best-project essay is no idea type
     for source in ("<story_bank>", "<stock_answers>", "<home>", "Hitachi"):
         assert source not in probed["prompt"]
     assert "<posting>" in probed["prompt"] and "Dev Mode" in probed["prompt"]
     [planned] = plans(claude)
     assert _block(planned["prompt"], "typical") == {"q1": ["the mission opener"]}
-    assert "<typical>" in planned["system"] and "none of them" in planned["system"]
 
 
 def test_the_typical_answer_is_cached_by_company_and_question():
@@ -1982,7 +1794,6 @@ def test_the_ledger_keeps_the_story_each_sent_answer_led_with_and_the_plan_steer
     write_figma(claude, [SHORT_WHY])
     [planned] = plans(claude)
     assert _block(planned["prompt"], "led_before") == {"why-company": ["Story 1", "Story 0"]}  # its types only
-    assert "<led_before>" in planned["system"] and "never a reason to lead with a weaker story" in planned["system"]
 
 
 def test_a_held_application_adds_nothing_to_the_answer_ledger(monkeypatch):
@@ -2090,35 +1901,6 @@ class LeanClaude(FakeClaude):
     lean = True
 
 
-def test_a_lean_model_gets_one_off_questions_in_a_call_of_their_own_and_short_guides():
-    # Groq's free tier refused one call writing an essay and drafting one-off questions (KAN-723)
-    claude = LeanClaude(essays={"Why Figma?": "Because."})
-    posting = Posting("p", "Figma", "Software Engineer Intern", "https://jobs.example.com/1")
-    why = Question("a", "Why Figma?", "textarea", True)
-    adult = Question("d", "Are you 18 or older?", "select", True, options=("Yes", "No"))
-
-    written, drafted = essays.answer(claude, posting, [why], [adult], ApplicantProfile.load(PROFILE, POLICIES))
-
-    assert written[0].text and drafted[0].answer == "Yes"
-    planned = next(c for c in claude.calls if "plan" in c["schema"]["properties"])
-    assert planned["system"].count("company link:") == 1  # only why-company's slots are listed
-    essay_call = next(c for c in claude.calls if "essays" in c["schema"]["properties"])
-    assert "drafts" not in essay_call["schema"]["properties"] and "<profile>" not in essay_call["prompt"]
-    assert "## Pairs" not in essay_call["system"] and "## Rules" in essay_call["system"]
-    assert any(set(c["schema"]["properties"]) == {"drafts"} for c in claude.calls)
-
-
-def test_claude_still_gets_every_type_and_one_call_for_essays_and_one_off_questions():
-    claude = FakeClaude(essays={"Why Figma?": "Because."})
-    posting = Posting("p", "Figma", "Software Engineer Intern", "https://jobs.example.com/1")
-    essays.answer(claude, posting, [Question("a", "Why Figma?", "textarea", True)],
-                  [Question("d", "Are you 18 or older?", "select", True, options=("Yes", "No"))],
-                  ApplicantProfile.load(PROFILE, POLICIES))
-    planned = next(c for c in claude.calls if "plan" in c["schema"]["properties"])
-    assert planned["system"].count("company link:") == len(answering.load())
-    assert any(set(c["schema"]["properties"]) == {"essays", "drafts"} for c in claude.calls)
-
-
 def test_a_plan_that_names_a_brief_fact_but_quotes_none_gets_the_facts_line():
     # gpt-oss and Gemini named the brief fact for company-fact and copied no line (KAN-723)
     company = "<company>\nCompany:\n- **Shelf Bot** (2026-05, product): Shelf Bot is a robot that counts stock overnight.\n</company>"
@@ -2129,3 +1911,15 @@ def test_a_plan_that_names_a_brief_fact_but_quotes_none_gets_the_facts_line():
     assert not [f for f in essays._slot_failures(fixed, company) if f.startswith("company-fact")]
     unnamed = essays.Plan("why-company", ("why",), "", "", slots=())
     assert essays._fact_quoted({"q1": unnamed}, company, company)["q1"] == unnamed
+
+
+def test_with_a_hosted_model_the_one_off_questions_go_in_an_essays_write_call_of_their_own():
+    # A free tier's request limit (apply.adapters.lean): WorkIt gets the essays and the one-off questions apart.
+    claude = FakeClaude(essays={"Why Figma?": "Because."})
+    claude.lean = True
+
+    essays.answer(claude, FIGMA, [WHY_FIGMA], [Question("start", "When can you start?", "text", True)],
+                  ApplicantProfile.load(PROFILE, POLICIES))
+
+    assert [(bool(c["data"]["questions"]), bool(c["data"]["short_questions"])) for c in asks(claude)] == [
+        (True, False), (False, True)]

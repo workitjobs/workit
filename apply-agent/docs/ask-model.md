@@ -19,9 +19,12 @@ other adapter refuses a kind with a SetupError (`adapters.NEEDS_WORKIT`):
 `as_applicant.ask_kind` adds the pronouns and the school to the data, and
 puts the first name back into the answer, since the prompts say `@NAME@`.
 **`workit` is the default** (2026-11-14, `policies.default.yaml`). Apply's
-calls move to kinds one module at a time: the claim check and the editor's
-pass (`writing.py`) send `writing.check` and `writing.edit`, and their
-prompts are only on the server. A call not yet moved still builds its own
+calls move to kinds one module at a time. Moved, with their prompts only
+on the server: the claim check and the editor's pass (`writing.check`,
+`writing.edit`), the Essay plan and the essay call (`essays.plan`,
+`essays.write`) and the default probe (`probe.typical`). The answering
+guides' bodies and rules moved with them; `answering/` keeps each type's
+front matter, which Apply's own code reads. A call not yet moved still builds its own
 prompt, and `WorkItAsk.ask` sends it to WorkIt's free-form route
 (`POST /apply-app/model`), which goes once the last call sends a kind. In
 tests, `FakeClaude.ask_kind` answers a kind from its data and keeps it in
@@ -74,12 +77,13 @@ that holds the keys.
 - **Lean essay prompts** (`adapters.lean`: a hosted adapter is lean,
   `claude -p` never is). They fit Groq's free tier: 8,000 tokens a minute
   per model, and a request over that is refused.
-  - The plan lists only the Question types its questions were matched to
-    (`LEAN_PLAN`), not all 16.
-  - The writer gets the rules for every answer cut to each rule's lead
-    (`answering.rules(lean=True)`) and each type's guide cut to its Order
-    and Rules (`answering.guide_text(..., lean=True)`); the quoted readers,
-    the Pairs and the model letters stay out.
+  - The plan lists only the Question types its questions were matched to,
+    not all 16.
+  - The writer gets the rules for every answer cut to each rule's lead and
+    each type's guide cut to its Order and Rules; the quoted readers, the
+    Pairs and the model letters stay out. Both are built on WorkIt's
+    server now (`../../backend/app/apply_prompts/essays.py` and
+    `guides.py`), always lean.
   - One-off questions are drafted in a call of their own, so the essay
     call holds no Applicant profile.
 

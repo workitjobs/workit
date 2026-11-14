@@ -345,9 +345,12 @@ Find files with a directory listing; these are the rules for where code goes.
   instructions, then the student's sources, then the form's data), so the
   providers' prompt cache matches more of it: half price on Groq, and not
   counted against its rate limits (the design doc's W1).
-  **Until Apply's calls send kinds, each ported prompt and the answering
-  guides (`app/apply_prompts/answering/`) have a copy in `apply-agent/`;
-  a change goes into both in the same PR** (`apply-agent/docs/prompts-and-gates.md`).
+  **Until Apply's calls send kinds, each ported prompt has a copy in
+  `apply-agent/`; a change goes into both in the same PR**
+  (`apply-agent/docs/prompts-and-gates.md`, which lists the prompts already
+  gone from Apply). The guides' front matter
+  (`app/apply_prompts/answering/types/`) keeps a copy in Apply for good,
+  since Apply classifies questions and checks plans with it.
   `POST /apply-app/model`, which takes the app's own prompt and schema,
   goes when the last kind is ported. Both run the schema as data through
   `LLM.complete_schema`. Apply's `haiku` takes the small

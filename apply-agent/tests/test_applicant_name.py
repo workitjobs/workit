@@ -50,24 +50,21 @@ def test_persons_bank(monkeypatch, tmp_path):
 def written(profile: ApplicantProfile) -> list[dict]:
     """Every call Claude gets while Apply writes a why-company essay and a cover letter."""
     claude = FakeClaude()
-    sent = []
 
-    def ask(**call):
-        sent.append(call)
-        wanted = call["schema"]["properties"]
-        if "plan" in wanted:  # a plan that leads every essay with the club's story
-            types = answering.load()
-            return {"plan": {key: {"type": (kind := entry["properties"]["type"]["default"]), "parts": ["What it asks"],
-                                   "story": CLUB.removeprefix("## "), "company_fact": "", "angle": "His own robot.",
-                                   "link_kind": "",
-                                   "slots": [{"slot": s.name, "quotes": [BUILT.removeprefix("- ")], "ask": ""}
-                                             for s in types[kind].slots if s.required is True]}
-                             for key, entry in wanted["plan"]["properties"].items()}}
-        return FakeClaude.ask(claude, **call)
+    def ask_kind(kind, data):
+        if kind != "essays.plan":
+            return FakeClaude.ask_kind(claude, kind, data)
+        claude.kinds.append({"kind": kind, "data": data})
+        types = answering.load()  # a plan that leads every essay with the club's story
+        return {"plan": {key: {"type": (t := asked["type"]), "parts": ["What it asks"], "story": CLUB.removeprefix("## "),
+                               "company_fact": "", "angle": "His own robot.", "link_kind": "",
+                               "slots": [{"slot": s.name, "quotes": [BUILT.removeprefix("- ")], "ask": ""}
+                                         for s in types[t].slots if s.required is True]}
+                         for key, asked in data["questions"].items()}}
 
-    claude.ask = ask
+    claude.ask_kind = ask_kind
     essays.write(claude, POSTING, [WHY, LETTER], profile)
-    return sent + claude.kinds  # the claim check and the editor's pass are WorkIt kinds (D5)
+    return claude.calls + claude.kinds  # every essay call is a WorkIt kind (D5)
 
 
 def said(call: dict) -> str:
@@ -82,9 +79,8 @@ def test_claude_writes_as_test_person_never_as_another_applicant(test_persons_ba
     assert len(calls) >= 4  # plan, draft, claim check, editor
     for call in calls:
         assert "Lisul" not in said(call) and "Stony Brook" not in said(call)
-    draft = next(c for c in calls if "essays" in c["schema"]["properties"])
-    assert "as Test, in the first person" in draft["system"]
-    assert "Example State University" in json.dumps(draft["schema"])
+    draft = next(c for c in calls if c.get("kind") == "essays.write")
+    assert draft["data"]["school"] == "Example State University"
 
 
 def test_every_call_says_the_applicants_own_pronouns(test_persons_bank):
@@ -98,24 +94,6 @@ def test_every_call_says_the_applicants_own_pronouns(test_persons_bank):
             assert call["data"]["pronouns"] == "they/them/theirs"
         else:
             assert "Test's pronouns are they/them/theirs." in call["system"]
-
-
-def test_with_lisuls_profile_the_prompts_say_lisul_and_stony_brook_as_before(test_persons_bank, tmp_path):
-    profile = ApplicantProfile.load(PROFILE, POLICIES)
-    profile.set("identity.preferred_first_name", "Lisul")
-    profile.set("education.school", "Stony Brook University")
-
-    calls = written(profile)
-
-    draft = next(c for c in calls if "essays" in c["schema"]["properties"])
-    assert "as Lisul, in the first person" in draft["system"]
-    assert "never needs Lisul: answer it from what they did" in draft["system"]
-    assert "reads as Lisul typed it themselves" in draft["system"]
-    assert "a computer science student at Stony Brook University, and when they graduate" in json.dumps(draft["schema"])
-    editor = next(c for c in calls if c.get("kind") == "writing.edit")  # WorkIt says the school; the name stays @NAME@
-    assert editor["data"]["school"] == "Stony Brook University"
-    for call in calls:
-        assert "@NAME@" not in said(call) and "@SCHOOL@" not in said(call)
 
 
 def test_test_persons_own_answers_are_the_samples_of_his_voice(test_persons_bank):

@@ -10,7 +10,6 @@ below it is guidance for the writing model, put into the essay prompt as is.
 """
 
 import re
-from collections.abc import Iterable
 from dataclasses import dataclass
 from functools import cache
 
@@ -89,23 +88,6 @@ def load() -> dict[str, TypeGuide]:
 
 
 @cache
-def rules(lean: bool = False) -> str:
-    """The rules for every answer. `lean` (a smaller model's prompt, apply.ask_model): each numbered rule cut to its
-    bold lead and the sentence after it, the Length section whole, and no Types list."""
-    text = (ROOT / "README.md").read_text().strip()
-    if not lean:
-        return text
-    text = re.split(r"^## Types\n", text, flags=re.MULTILINE)[0].strip()
-    length = text.index("## Length")
-    cut = lambda m: m[1] + (first[0] if (first := re.match(r"\s*[^.!?]*[.!?]", m[2])) else "")
-    return re.sub(r"^(\d+\. \*\*.+?\*\*)(.*)$", cut, text[:length], flags=re.MULTILINE) + text[length:]
-
-
-# The parts of a type's guide a lean prompt keeps: how the answer runs and its checks, not the quoted examples.
-LEAN_SECTIONS = ("Order", "Rules")
-
-
-@cache
 def _patterns() -> tuple[tuple[str, tuple[re.Pattern, ...]], ...]:
     guides = load()
     return tuple((t, tuple(re.compile(p) for p in guides[t].match)) for t in PRIORITY)
@@ -121,19 +103,3 @@ def classify(question_text: str) -> str:
     return "general"
 
 
-def guide_text(types: Iterable[str], lean: bool = False) -> str:
-    """The guidance bodies of `types`, each once, headed by its name, for the prompt. `lean` keeps only each
-    guide's LEAN_SECTIONS: the reader's quotes, Pairs and Model letters are examples a smaller model's
-    prompt can't hold (apply.ask_model)."""
-    guides = load()
-    body = lambda t: guides[t].body if not lean else "\n\n".join(
-        section.strip() for section in re.split(r"^(?=## )", guides[t].body, flags=re.MULTILINE)
-        if section.startswith(tuple(f"## {name}\n" for name in LEAN_SECTIONS)))
-    return "\n\n".join(f"# Question type: {t}\n\n{body(t)}" for t in dict.fromkeys(types))
-
-
-def checklist(kind: str) -> tuple[str, ...]:
-    """The yes/no questions of the numbered rules under "## Rules" in `kind`'s guide
-    (each rule opens with its question in bold), for a per-type judge calibrated on Lisul's picks."""
-    section = re.search(r"^## Rules\n(.*?)(?=^## |\Z)", load()[kind].body, re.MULTILINE | re.DOTALL)
-    return tuple(re.findall(r"^\d+\. \*\*(.+?)\*\*", section.group(1), re.MULTILINE)) if section else ()

@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 
 import pytest
 
-from apply import answering, ask_model, doctor, workit
+from apply import ask_model, doctor, workit
 from apply.adapters import SetupError, UsageLimitHit, lean
 from apply.ask_model import PROVIDERS, Endpoint, HostedAsk, live_claude, strict
 from apply.claude_cli import ClaudeCLI, ClaudeError
@@ -262,18 +262,6 @@ def test_doctor_checks_each_providers_key_only_when_ask_model_names_one():
     found = check(("groq", "gemini"), ask_model=["groq", "gemini"])[0]
     assert found.level == doctor.OK
     assert "groq, then gemini" in found.detail
-
-
-def test_lean_guides_and_rules_keep_their_checks_and_drop_the_examples():
-    for kind in answering.load():
-        full, short = answering.guide_text([kind]), answering.guide_text([kind], lean=True)
-        assert "## Rules" in short and "## Order" in short
-        assert "## Pairs" not in short and "## What the reader is checking" not in short
-        assert len(short) < len(full)
-    rules = answering.rules(lean=True)
-    assert "1. **The answer is in the first sentence.**" in rules
-    assert "## Length" in rules and "## Types" not in rules
-    assert len(rules) < len(answering.rules()) / 2
 
 
 # --- ask_model: workit (D5, KAN-723): a kind and its data to WorkIt's Model route ----------------------------------

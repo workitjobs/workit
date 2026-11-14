@@ -667,8 +667,25 @@ its own instructions or a hostile schema.
   slots and default length), and the bodies go from Apply in step 4.
   Apply's calls move to kinds one module at a time (`ask_model: workit`,
   the default since 2026-11-14); a call not yet moved goes to
-  `/apply-app/model` with its own prompt. Moved: `writing.check` and
-  `writing.edit`.
+  `/apply-app/model` with its own prompt. Moved: `writing.check`,
+  `writing.edit`, `essays.plan`, `essays.write` and `probe.typical`.
+- **Next, not in this PR: the checks move to the server too, and fewer
+  round trips** (noted 2026-11-14). Today the app runs every check on an
+  answer (the plan's quotes, the gates, the claim check loop, the truth
+  check, sameness) and calls the next kind itself. With the sources on the
+  server (W11), WorkIt can run them, and these optimizations open up:
+  - one call per form for its essays: the server runs plan, write,
+    claim check and edit in a row and answers once, so four round trips
+    become one and the app holds no essay logic;
+  - only the sources each step needs (the plan's picked episodes for the
+    write, check and edit steps), so fewer tokens;
+  - a shared prompt start for each student's calls (instructions, then
+    their sources), so more cached tokens, which Groq bills at half and
+    leaves out of its rate limits;
+  - the default probe's cache on the server, shared by every student
+    who applies to the same company and question, not one per Mac;
+  - the essay kinds' per-type guides after the fixed part of the system
+    prompt, so the cached start runs longer (W13 checks the answers).
 
   | Kind | Apply today | What the app sends |
   |---|---|---|

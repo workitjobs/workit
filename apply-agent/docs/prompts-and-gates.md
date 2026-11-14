@@ -12,9 +12,14 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
   guides, are also in `../backend/app/apply_prompts/` (the guides in its
   `answering/`). A change to one goes into both in the same
   PR, or the server writes with the old prompt. The copy here goes once
-  its call sends the kind. Gone from here (2026-11-14): the claim check's
-  and the editor's prompts (`writing.check`, `writing.edit`), now only on
-  the server.
+  its call sends the kind. Gone from here (2026-11-14), now only on the
+  server: the prompts of `writing.check`, `writing.edit`, `essays.plan`,
+  `essays.write` and `probe.typical`, the cover letter's rules and slots'
+  schema, and the answering guides' bodies and rules. **The guides' front
+  matter still has two copies** (`answering/types/` here, the server's
+  `answering/types/`): Apply classifies and checks plans with it, the
+  server lists slots and lengths in prompts with it, so a change goes into
+  both.
 - Every prompt names the applicant as `@NAME@` and their school as
   `@SCHOOL@`; `applicant.as_applicant` puts in the profile's own values.
   Say "they" for the applicant, or `@NAME@` where "they" already means the
