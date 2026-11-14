@@ -185,7 +185,11 @@ frames in real seconds, have their own one-process step too. Before KAN-780 the 
 page on its own path and every path at least once, a pair only where its path
 presses something the page holds (`APPLIES`, `apply-agent/CLAUDE.md`);
 `workflows/apply-nightly.yml` (07:53
-UTC, or `gh workflow run apply-nightly.yml`) runs every `nightly` test.
+UTC, or `gh workflow run apply-nightly.yml`) runs every `nightly` test,
+with a 90-minute step: its plain-Worker cases run one at a time. 887 took
+about 65 minutes on the runner (KAN-841; at 30 it stopped at 57% every
+night); leaving out the pairs whose path finds nothing took them to 574
+(KAN-780, 2026-11-14).
 The pages of PR 477's guard holes (KAN-710: `GUARD_HOLES` in
 `test_submit_guard_hostile.py`, among them a page that sets the guards' old
 `window.__apply*` flags itself) are never only nightly: PRs run each one on

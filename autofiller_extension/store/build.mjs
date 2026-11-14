@@ -34,13 +34,14 @@ const EXTENSION = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const PARTS = [["manifest.json"], ["icons"], ["fonts"], ["src"], ["fill-engine/dist/engine.store.js", "fill-engine/dist/engine.js"]];
 /** The full Rules table, outside the package: what `perSiteData` looks for in it. */
 const FULL_TABLE = join(EXTENSION, "fill-engine", "dist", "rules-table.json");
-/** The extension's own scripts that still carry a job system's table values (the stepped systems' walk:
- *  Workday, Oracle, iCIMS, SuccessFactors; Workable's and TikTok's checks in the background), by file:
- *  tolerated there only, until KAN-778 reads them from the served table. Any other is a leak. */
-const KNOWN = JSON.parse(readFileSync(join(EXTENSION, "store", "extension-site-data.json"), "utf8"));
-/** Job systems' table values that are also the engine's own generic code: label patterns any form's
- *  labels may carry (a phone format "###-###-####", a label ending "(required)"). */
-const GENERIC = new Set([String.raw`(?:\(#{3}\) ?|#{3}[-. ]?)#{3}[-. ]?#{4}`, String.raw`\s*\(required\)$`]);
+/** Job systems' table values that are also the engine's or the extension's own generic code: label patterns any
+ *  form's labels may carry (a phone format "###-###-####", a label ending "(required)"), and the words that send,
+ *  which the extension's step walk keeps in its own code so no served table can loosen it (workday-walk.js SENDS). */
+const GENERIC = new Set([String.raw`(?:\(#{3}\) ?|#{3}[-. ]?)#{3}[-. ]?#{4}`, String.raw`\s*\(required\)$`, String.raw`\b(submit|send|apply|finish|complete|confirm)\b`]);
+/** A job system's names in the table that generic code may also spell (one word each, so only the name check below
+ *  would find them): a question name the engine's Greenhouse map gives (greenhouse.ts SEARCHED), and the attribute
+ *  generic code finds a field by, with the field's own name (batch-tab.js, tab-load.js). */
+const NAMED_IN_CODE = new Set(["candidate-location", "data-field-path"]);
 const DEV_ONLY = /localhost|vercel\.app/;
 /** What no packaged file may contain. "Prototype" as a word: the engine's Object.getPrototypeOf is fine. */
 export const FORBIDDEN = /localhost|vercel\.app|\bPrototype\b/;
@@ -98,8 +99,11 @@ function walk(dir, root = dir) {
  * What of the job systems' data the package at `dir` holds, as lines (none: it holds none). Its engine,
  * run on its own, must bundle no site's data and only basic answer rules, and no packaged file may hold
  * a selector, wording or pattern of the full table that looks like one (8 characters or more, with one
- * of . # [ = > : \ or a parenthesis), a field-kind map (all its `type: "kind"` pairs) or a timeout (its name
- * given its ms), other than GENERIC's and the extension's own KNOWN ones (KAN-778). The engine's own check
+ * of . # [ = > : \ or a parenthesis), a class, id or attribute name of the table (one word of 10 characters
+ * or more with a - or _: "iCIMS_Steps_Current", "data-automation-id"), a field-kind map (all its
+ * `type: "kind"` pairs) or a timeout (its name given its ms), other than GENERIC's and NAMED_IN_CODE's. No file is exempt: the
+ * extension's own scripts read their job system's names from the served table (KAN-778, content/site-data.js).
+ * The engine's own check
  * covers `kinds` and `timeouts` whole: every site's data, all four parts, must be `{}`.
  */
 export function perSiteData(dir) {
@@ -114,7 +118,7 @@ export function perSiteData(dir) {
   const values = Object.entries(full.systems).flatMap(([site, data]) => [
     ...Object.entries(data.strings ?? {}).map(([name, value]) => [`${site} ${name}`, value]),
     ...Object.entries(data.patterns ?? {}).map(([name, value]) => [`${site} ${name}`, value.source]),
-  ]).filter(([, value]) => value.length >= 8 && /[.#[=>:\\(]/.test(value) && !GENERIC.has(value));
+  ]).filter(([, value]) => (value.length >= 8 && /[.#[=>:\\(]/.test(value) || /^(?=.*[-_])[A-Za-z][\w-]{9,}$/.test(value) && !NAMED_IN_CODE.has(value)) && !GENERIC.has(value));
   // A field-kind map, written out in code: all of its `type: "kind"` pairs in one file. A timeout: its name given its ms.
   const kindMaps = Object.entries(full.systems).flatMap(([site, data]) => Object.entries(data.kinds ?? {})
     .filter(([, map]) => Object.keys(map).length >= 2)
@@ -124,13 +128,12 @@ export function perSiteData(dir) {
   for (const file of walk(dir).filter((f) => !/\.(png|woff2?)$/.test(f))) {
     const text = readFileSync(join(dir, file), "utf8");
     for (const [name, pairs] of kindMaps) {
-      if (!KNOWN[file]?.includes(name) && pairs.every((pair) => pair.test(text))) leaks.push(`${file} holds ${name}`);
+      if (pairs.every((pair) => pair.test(text))) leaks.push(`${file} holds ${name}`);
     }
     for (const [name, written] of timeouts) {
-      if (!KNOWN[file]?.includes(name) && written.test(text)) leaks.push(`${file} holds ${name}`);
+      if (written.test(text)) leaks.push(`${file} holds ${name}`);
     }
     for (const [name, value] of values) {
-      if (KNOWN[file]?.includes(name)) continue;
       if (text.includes(value) || text.includes(JSON.stringify(value).slice(1, -1))) leaks.push(`${file} holds ${name}: ${value}`);
     }
   }
