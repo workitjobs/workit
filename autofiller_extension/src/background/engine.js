@@ -875,7 +875,12 @@ export async function fillPage({ call, site, questions, answers, accepted, state
  * essays off instead, so nothing AI-written goes where it is banned.
  * - `off`: the answers held back because their Fields to autofill category is
  *   off (KAN-480, holdBack), each with its category's words (`categoryLabel`).
- * @returns {{ written: Row[], yours: Row[], notes: string[], handed: (Row & { reason: string })[], off: (Row & { category: string, categoryLabel: string })[] }}
+ * - `ticks`: the attestations the Plan leaves blank for the student to tick or
+ *   sign (Plan.attestations, KAN-676 and KAN-775: a certification, a terms
+ *   box), each with the Plan's `reason` from its blanks. Without a row of its
+ *   own a required one showed nowhere, and a Workday step was saved without
+ *   it (KAN-841).
+ * @returns {{ written: Row[], yours: Row[], notes: string[], handed: (Row & { reason: string })[], off: (Row & { category: string, categoryLabel: string })[], ticks: (Row & { reason: string })[] }}
  * @typedef {{ name: string, label: string, required: boolean, max_length?: number | null }} Row
  */
 export function planRows({ plan, questions = [] }) {
@@ -898,6 +903,8 @@ export function planRows({ plan, questions = [] }) {
     notes,
     handed: handed.map(([name, h]) => ({ ...row(byName.get(name)), reason: h.reason })),
     off: plan.off ?? [],
+    ticks: Object.keys(plan.attestations ?? {}).filter((name) => byName.has(name))
+      .map((name) => ({ ...row(byName.get(name)), reason: plan.blanks?.[name] ?? "Yours to tick: you attest to it or sign it yourself" })),
   };
 }
 

@@ -219,6 +219,12 @@
         status.register(q.name, q.label, q.required);
         status.setStatus(q.name, "failed", `${q.reason}. Answer it yourself.`);
       }
+      // An attestation or a terms box is the student's own tick (KAN-841): it needs them when the form requires it.
+      for (const q of rows.ticks ?? []) {
+        if (!isNew(q.name)) continue;
+        status.register(q.name, q.label, q.required);
+        status.setStatus(q.name, q.required ? "failed" : "skipped", `${q.reason}.`);
+      }
       // A Fields to autofill category the student switched off in Options (KAN-480): left blank, theirs to answer.
       for (const q of rows.off ?? []) {
         if (!isNew(q.name)) continue;
