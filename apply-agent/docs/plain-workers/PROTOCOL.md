@@ -137,7 +137,7 @@ Targets: `tab` is a Chrome tab id; `frame` is a webNavigation frame id (0 = top,
 | `tabs.get` | `tab` | `{"tab", "url", "title", "status"}` |
 | `tabs.close` | `tab` | `null` |
 | `extension.reload` | | `null`; then `chrome.runtime.reload()`: the extension loads its files again from its folder, this port closes, and the new code says hello. Its guards come back first: registered scripts, session rules, lifts, held notes and bindings (`keepAcrossReload`, KAN-657). Web tabs, their pages and cookies stay; registered guards and scripts go (KAN-643: Apply calls it only before the welcome, or `Bridge.reload`). |
-| `tabs.goto` | `tab`, `url`, `waitUntil` (`load`/`domcontentloaded`/`commit`), `timeout` ms | `{"url", "title"}` |
+| `tabs.goto` | `tab`, `url`, `waitUntil` (`load`/`domcontentloaded`/`commit`), `timeout` ms | `{"url", "title"}`; the tab's about:blank events (a tab `tabs.create` just made) don't count unless `url` is about:blank |
 | `tabs.reload` | `tab`, `waitUntil`, `timeout` | `{"url", "title"}` |
 | `tabs.waitForLoad` | `tab`, `state`, `timeout` | `null` |
 | `tabs.activate` | `tab` | `null` (also focuses its window, never minimizes) |

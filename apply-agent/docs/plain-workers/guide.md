@@ -335,6 +335,14 @@ page (`docs/plain-workers/PROTOCOL.md`, S7):
 - **Navigation mid-call.** A page call whose document goes away (Workday's
   Save and Continue inside `engine.call next`) fails as `Navigated` rather
   than hanging, and `fill_engine.call` retries it.
+- **A goto in a new tab waits for its own page.** A tab `tabs.create` just
+  made is still loading about:blank when it answers, and those events
+  arrive later. `tabs.goto` once took them as its own and answered before
+  its page had committed; the guard's reload then ran into the page's own
+  load and Chrome aborted it (`net::ERR_ABORTED`), failing about one
+  hostile plain-Worker case in five (2026-11-13). Now a goto anywhere but
+  about:blank ignores the tab's about:blank events
+  (`tests/test_plain_guards.py`, a goto in a tab just made).
 
 `tests/plain_fakes.py` runs a fake site's handler from an HTTPS server on
 127.0.0.1 and points every host there with test-only Chrome for Testing
