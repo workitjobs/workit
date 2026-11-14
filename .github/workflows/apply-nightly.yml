@@ -22,7 +22,7 @@ jobs:
     if: needs.engine.outputs.set == 'true'
     # macOS, as ci.yml's apply job: a plain Worker starts through `open`.
     runs-on: macos-latest
-    timeout-minutes: 45
+    timeout-minutes: 105
     defaults:
       run:
         working-directory: apply-agent
@@ -55,6 +55,9 @@ jobs:
       - run: uv run playwright install chromium
       - name: Chrome for Testing is installed
         run: uv run python -c "from apply.plain.launcher import chrome_for_testing; print(chrome_for_testing())"
+      # The plain-Worker cases run one at a time in one process (ONE_PLAIN_PROCESS): 887 of the 1132
+      # nightly tests, about 4.4 s each on the runner, so about 65 minutes. At 30 the step stopped at 57%
+      # every night from 2026-11-11 to 11-13 (KAN-841).
       - name: Nightly tests
-        timeout-minutes: 30
+        timeout-minutes: 90
         run: uv run pytest -q -rs -n auto --dist loadgroup --durations=15 -m nightly tests/
