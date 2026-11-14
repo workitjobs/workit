@@ -33,8 +33,8 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from apply import trace
-from apply.adapters import SetupError, UsageLimitHit
-from apply.claude_cli import ClaudeCLI, ClaudeError
+from apply.adapters import ClaudeError, SetupError, UsageLimitHit
+from apply.claude_cli import ClaudeCLI
 from apply.home import CODE
 from apply.keychain import GEMINI, GEMINI_HOST, GROQ, GROQ_HOST, SystemKeychain
 

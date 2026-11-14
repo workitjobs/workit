@@ -32,8 +32,7 @@ from dataclasses import replace
 from datetime import date, timedelta
 from pathlib import Path
 
-from apply.adapters import Claude, JobSite
-from apply.claude_cli import ClaudeError
+from apply.adapters import Claude, ClaudeError, JobSite
 from apply.company import text_of
 from apply.home import HOME
 from apply.model import Posting, Question, host_company, one_line

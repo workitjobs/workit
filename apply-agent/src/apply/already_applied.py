@@ -9,7 +9,7 @@ The check reads, once per run or rehearsal:
 
 - the student's Applications Tracker on WorkIt (`WorkIt.applications`): an
   application at applied or later (`workit.APPLIED_STAGES`) whose job link
-  is the same job (`sheet_import.job_key`, WorkIt's link rule);
+  is the same job (`workit.job_key`, WorkIt's link rule);
 - Apply's own Tracker (`tracker.json`): a submitted row with the same
   Application ID or job;
 - the Records: a rehearsal's or a run's Record of the same Application with
@@ -27,9 +27,15 @@ from pathlib import Path
 
 from apply.home import HOME
 from apply.model import Posting, Status
-from apply.sheet_import import job_key
 from apply.tracker import TRACKER, FileTracker
-from apply.workit import APPLIED_STAGES, LoginExpired, NotLoggedIn, Unreachable, WorkIt
+from apply.workit import (
+    APPLIED_STAGES,
+    LoginExpired,
+    NotLoggedIn,
+    Unreachable,
+    WorkIt,
+    job_key,
+)
 
 # What the window and the terminal say when WorkIt could not be checked.
 UNCHECKED = ("Couldn't check your Applications Tracker on WorkIt for jobs you already applied to: {}. "

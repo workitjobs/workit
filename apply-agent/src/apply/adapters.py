@@ -181,6 +181,11 @@ class Keychain(Protocol):
         ...
 
 
+class ClaudeError(Exception):
+    """A model call failed for a reason other than the usage limit (`claude -p`, a hosted model, or a call the
+    Student build doesn't make). Here, not in claude_cli, so the Student build has it (apply.build)."""
+
+
 @dataclass(frozen=True)
 class UsageReading:
     """From the latest rate_limit_event: how much of each Max window is used

@@ -50,10 +50,8 @@ import re
 import sys
 import time
 from collections.abc import Callable
-from contextlib import ExitStack, contextmanager
 from dataclasses import replace
 from pathlib import Path
-from typing import Self
 from urllib.parse import urlsplit
 
 from playwright.sync_api import Locator, Page
@@ -84,6 +82,7 @@ from apply.model import (
     QuestionSet,
     Readback,
 )
+from apply.one_page import OnePage  # noqa: F401 (claude_fill.OnePage, as before)
 from apply.submit_guard import PROFILE_DIALOG, DriveGuard, drive_blocks
 
 MODEL = "haiku"
@@ -1642,28 +1641,3 @@ def _bare(label: str) -> str:
 
 def _key(label: str) -> str:
     return re.sub(r"[^a-z0-9]+", " ", label.casefold()).strip(" *")
-
-
-class OnePage:
-    """The job site as one Claude fill Application sees it: the form opens once,
-    and every open() gives that same page, closed when the Application ends."""
-
-    def __init__(self, site: JobSite):
-        self._site = site
-        self._stack = ExitStack()
-        self._page: Page | None = None
-
-    def __enter__(self) -> Self:
-        return self
-
-    def __exit__(self, *exc) -> None:
-        self._stack.close()
-
-    def fetch(self, url: str, body: bytes | None = None) -> bytes:
-        return self._site.fetch(url, body)
-
-    @contextmanager
-    def open(self, url: str):
-        if self._page is None:
-            self._page = self._stack.enter_context(self._site.open(url))
-        yield self._page
