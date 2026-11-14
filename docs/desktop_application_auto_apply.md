@@ -624,6 +624,21 @@ its own instructions or a hostile schema.
   (drafts, questions, the posting), and a new version of each kind reads
   the sources on the server. That keeps each call small and lets the
   server send a kind only the sources it needs.
+- **Order every prompt for the providers' prompt cache** (decided
+  2026-11-14). A provider keeps the start of recent prompts: a call whose
+  prompt starts with exactly the same text pays half for that part on
+  Groq ($0.075 for each million tokens, not $0.15), and Groq does not
+  count cached tokens against its rate limits, so on the free tier it
+  also stretches the daily 400,000. The match is exact from the first
+  character, needs 128 to 1,024 tokens by model, and lasts about 2 hours
+  without use (https://console.groq.com/docs/prompt-caching, read
+  2026-11-14). So each builder puts what is the same for many calls
+  first: the kind's own instructions (the same for every student), then
+  the student's sources (the same for their calls that day), then the
+  form's data. Not done yet: the essay kinds' system prompts add each
+  question type's guide, so their shared start ends early; moving those
+  guides after the fixed part is next, checked by W13 since the order can
+  change an answer.
 - **The free-form `POST /apply-app/model` goes** when the last kind is
   ported, with its schema guards.
 - **Urgent, for developers:** `ask_model: claude` can't run a ported
