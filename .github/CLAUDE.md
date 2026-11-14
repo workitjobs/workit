@@ -19,11 +19,17 @@ there, a test database that cannot be reached fails the job instead of
 skipping the tests.
 
 **The backend job runs only on a PR that touches `backend/`, `scout/`,
-`scraper/` or `ci.yml`** (the `changes` job's `backend` filter). The API
+`scraper/`, the fill-engine submodule's pin or `ci.yml`** (the `changes` job's `backend` filter). The API
 installs both packages (`workit-scout` and `workit-scraper`, path
 dependencies in `backend/pyproject.toml`), and its tests read no other
 folder: the root `.env` is absent in CI, and the Fill engine test skips
-without the submodule. A new path dependency joins the filter too. Only 3 of the 40 PRs merged before
+without the submodule. A new path dependency joins the filter too.
+**The backend job checks out the fill-engine submodule when
+`FILL_ENGINE_TOKEN` is set** (KAN-756), pinned as the other engine jobs
+pin it, and sets up Node 22: the Rules table's tests read the engine's
+`dist/rules-table.json` and run its round trip on the built engine
+(`backend/tests/test_rules_watermark.py`). Without the token those tests
+skip and the rest of the job runs. Only 3 of the 40 PRs merged before
 2026-11-04 touched either folder; the rest waited about 7 minutes for a
 job their change could not fail. A skipped job passes a required check. A
 new backend test that reads a file outside those folders adds that folder
@@ -48,9 +54,11 @@ localhost, vercel.app or "Prototype", and runs `store-build.spec.ts` and
 which the default token can't read, so the build steps run only once a
 `FILL_ENGINE_TOKEN` secret (read access to workitjobs/fill-engine) is set;
 without it they show as skipped and the job checks the extension ID only.
+The build first runs `npm ci` in `store/` for esbuild, which minifies every
+packaged script (KAN-744).
 
 **Without `FILL_ENGINE_TOKEN`, the engine's tests are skipped, never green.**
-`ci.yml`, `extension-nightly.yml` and `live-canary.yml` each first call
+`ci.yml`, `extension-nightly.yml`, `apply-nightly.yml` and `live-canary.yml` each first call
 `workflows/engine-token.yml` (a reusable workflow, job `engine`), which
 answers whether the secret is set and, when it isn't, writes "SKIPPED: ..."
 to its job summary and a warning. A job that needs the engine depends on it
@@ -60,14 +68,15 @@ checkout (Node, `autofiller_extension/test`'s `npm ci`, Playwright's
 Chromium) in the composite action `actions/extension-setup`; the checkout
 stays in each job, since a local action can't check out its own repo.
 
-The `extension` job (KAN-464) runs the extension's Playwright suite headless
-(`autofiller_extension/test`, both projects) on the engine the submodule
-pins, and first fails if that engine commit's committed `dist/` differs from
+The `extension` job (KAN-464) runs the smoke specs listed in
+`autofiller_extension/test/ci-smoke.txt` headless (both projects) on the
+engine the submodule pins, and first fails if that engine commit's committed `dist/` differs from
 what its `src/` builds. It runs only on a PR touching `autofiller_extension/`
 (the engine pointer included) or `ci.yml`: the `changes` job
-(`dorny/paths-filter`) decides, and a skipped job counts as passed. It leaves
-out `speed.extension.spec.ts`, the timing harness (about 7 minutes alone),
-which `workflows/extension-nightly.yml` runs with the rest every night at
+(`dorny/paths-filter`) decides, and a skipped job counts as passed. The whole
+suite is about 40 minutes on the runner's one worker, so PRs get the smoke
+set (an 8-minute limit, KAN-736) and `workflows/extension-nightly.yml` runs
+every spec, the `speed.extension.spec.ts` timing harness too, every night at
 07:41 UTC (and by hand: `gh workflow run extension-nightly.yml`). Both need
 `FILL_ENGINE_TOKEN`, as `extension-store-build` does, and are skipped
 without it. Both run on `macos-latest` (free on a public repo): on Linux, Chromium
@@ -75,11 +84,68 @@ asks `accounts.google.com` on its own (which `practice.extension.spec.ts`'s
 request list catches) and a field a panel row scrolls to doesn't come into
 view (`panel-reopen`, `workday-show`), found in the Playwright image
 2026-10-31. On CI each spec gets two retries; a broken one fails all three.
+
+**`timeout-minutes` on this job was never validated against a real run
+until 2026-11-03** (KAN-447): every PR before that one shows the job as
+skipped (no `FILL_ENGINE_TOKEN` yet), so the original 30-minute figure
+was a guess, never measured. The first real run reached 329 of 388 tests
+at the 30-minute mark and was cancelled; raised to 45, which is what
+showed the full suite needs about 40 minutes on one worker — the measurement
+KAN-736 then acted on by moving PRs to the smoke set above, at an 8-minute
+limit. Raise that 8 if the smoke set itself ever gets close, rather than
+guessing a second time.
+
+**`actions/checkout@v4`'s own submodule handling can silently land `fill-engine`
+on the wrong commit, and `fetch-depth: 0` alone does not fix it** (found
+2026-11-08, revised 2026-11-09): without `fetch-depth: 0`, the submodule
+fetch is shallow too, and when the pinned commit isn't on the default
+branch's shallow history (true as soon as `main` moves past it, which it
+usually has) it silently checks out the submodule's current branch tip
+instead — no error, no warning. A run pinning `fill-engine@0.3.26` built
+and tested `0.3.30` instead. Adding `fetch-depth: 0` to the checkout
+**did not stop this from recurring** on a later run, for a reason not yet
+root-caused (a plain local `git clone` + `git submodule update --init`
+reaches the pinned commit fine, so it isn't simply "the commit is
+unreachable" — something in `actions/checkout`'s own submodule step
+behaves differently). Rather than keep chasing that action's internals,
+every job now forces it explicitly right after the checkout: read the
+gitlink `git ls-tree HEAD` actually records, then `git -C
+autofiller_extension/fill-engine fetch --depth 1 origin <that SHA> &&
+checkout --detach <that SHA>`. This is the "Pin fill-engine to the commit
+this branch actually records" step in `ci.yml` (`extension-store-build`,
+`extension`, `apply`), `extension-nightly.yml`, `apply-nightly.yml`,
+`live-canary.yml` and `publish-extension.yml` — seven places, one pattern. If `actions/checkout`
+ever fixes this upstream, these steps are redundant but harmless; don't
+remove them without confirming a real run's build log prints the version
+`git ls-tree HEAD` actually names, not just that the step exists.
+A plain local `git submodule update --init` was never affected (no
+`--depth` flag, so it always resolves the real pinned commit) — this was
+CI-only, and the most serious place it bit was `publish-extension.yml`,
+which could have shipped students an unreviewed engine build with no
+record of having done so.
+
+**The pin step's paths are repo-root-relative; a job's `defaults.run.working-directory`
+breaks it silently** (found 2026-11-09, fixed 2026-11-10): `extension-store-build`,
+`extension` (both files) and `apply` each set a job-wide working directory
+(`autofiller_extension`, `autofiller_extension/test`, `apply-agent`), and the
+pin step's `git ls-tree HEAD autofiller_extension/fill-engine` and `git -C
+autofiller_extension/fill-engine ...` resolve those paths against *that*
+directory, not the repo root — so in `autofiller_extension/test` it looked
+for `autofiller_extension/test/autofiller_extension/fill-engine`, found
+nothing, and failed every run with "fatal: cannot change to
+'autofiller_extension/fill-engine': No such file or directory" right after a
+successful submodule checkout. Fixed by adding `working-directory: .` on the
+pin step itself in every job that sets a non-root default (five of the six:
+all but `publish-extension.yml`, which sets no job-wide default and was
+never affected). A step's own `working-directory:` is always resolved from
+`$GITHUB_WORKSPACE`, never nested inside the job's default, so this is safe
+to copy into a sixth place if one is ever added.
+
 The fill-engine repo has its own CI (its `.github/workflows/ci.yml`):
 typecheck, the same stale-`dist/` check, and its tests, on every PR.
 
 The `apply` job (KAN-535) lints and tests Apply (`apply-agent/`) on
-Ubuntu: `uv sync --locked`, `uv run ruff check .` and a fixed list of test
+macOS: `uv sync --locked`, `uv run ruff check .` and a fixed list of test
 files. The list holds only the 44 files that need no browser, no network
 and no `claude` CLI: about 770 tests (28 skipped), 10 s of pytest and 14 s
 with `uv sync --locked` and ruff, timed in a Linux container
@@ -87,13 +153,66 @@ with `uv sync --locked` and ruff, timed in a Linux container
 the engine's saved forms, so the job needs the fill-engine submodule: it
 needs `FILL_ENGINE_TOKEN` and is skipped without it. It runs only on a PR
 that touches `apply-agent/`, the engine pointer, `ci.yml` or
-`engine-token.yml` (the `changes` job).
+`engine-token.yml` (the `changes` job). It then installs Chrome for Testing
+(cached by `uv.lock`) and runs `test_submit_guard_hostile.py`,
+`test_plain_focus.py`, `test_plain_guards.py`,
+`test_plain_routing.py` and `test_upload_origin.py`, the last three on a real plain Worker (KAN-667;
+`test_upload_origin.py`'s hostile upload pages also run on CDP, KAN-795). macOS, because a
+plain Worker starts through `open` and the browser's `.app`; a step fails the
+job if the browser is missing, since these tests skip without it.
+**Its limit is 35 minutes** (KAN-780, 2026-11-10; raised from 15 on
+2026-11-11, and from 20 on 2026-11-13): the job took 16 to 20 minutes once the hostile pages'
+plain-Worker cases ran there (it was raised to 35 for that), about 6 after
+KAN-780 (below), about 13 once the guard holes' pages ran on every CDP
+path (KAN-710, KAN-783), and 22 once KAN-793's and KAN-795's pages
+took the hostile step to 710 cases (2026-11-14). Each step has its own
+limit too, so a hang fails in that step.
 **CI does not run the other 28 test files**, which hold the Filler tests
 (`test_*_filler.py`, `test_claude_fill.py`, `test_run.py`,
 `test_rehearse.py` and more). Most of them need Chromium or the macOS
 `security` tool. The full suite takes more than 20
 minutes. Run the files that a change touches on a Mac, with `-k`
 (`apply-agent/CLAUDE.md`, Testing).
+
+Each test step has its own `timeout-minutes` and skips tests marked
+`nightly` (KAN-780). The fast tests and the hostile pages run in parallel
+(`pytest -n auto`, pytest-xdist), but plain-Worker cases always run one at
+a time in one process (the hostile pages' `xdist_group`, `--dist
+loadgroup`, and the plain-Worker step without `-n`): in parallel, plain
+Workers' trusted typing missed its field. The tile's tests, which time
+frames in real seconds, have their own one-process step too. Before KAN-780 the job took 16 to 20 minutes,
+10 to 15 of them in the hostile pages' matrix. PRs now run every hostile
+page and every path at least once; `workflows/apply-nightly.yml` (07:53
+UTC, or `gh workflow run apply-nightly.yml`) runs every `nightly` test,
+with a 90-minute step: its 887 plain-Worker cases run one at a time, about
+65 minutes on the runner (KAN-841; at 30 it stopped at 57% every night).
+The pages of PR 477's guard holes (KAN-710: `GUARD_HOLES` in
+`test_submit_guard_hostile.py`, among them a page that sets the guards' old
+`window.__apply*` flags itself) are never only nightly: PRs run each one on
+every CDP path. The holes that hang on how a plain Worker carries the guards'
+state, touches, controls and network rules (`PLAIN_HOLES`) also run on one
+plain-Worker path; the rest of their plain-Worker pairs run nightly, since the
+guard script is the same on both kinds of Worker. A page added for a new
+guard hole joins `GUARD_HOLES`, and `PLAIN_HOLES` too when it is about a plain
+Worker. With all 38 on a plain Worker the hostile step took 551 s on CI
+(2026-11-11) and hit its 9-minute limit, so only `PLAIN_HOLES` run there on
+PRs. Even then the step took 505 s for 350 cases, and 547 s for 398 once
+KAN-783's eight pages joined (about five times its time on a 14-core Mac),
+so its limit was 12 minutes. KAN-793's and KAN-795's pages took it to 710
+cases, 1199 s on CI (2026-11-14; 6 minutes on a 10-core Mac, and the runner
+starts 3 processes): from 2026-11-11 every apply job stopped at 60 to 70% of them
+when the 12 minutes ran out, and PRs merged with it red. So its limit is 25
+minutes. The cases mostly wait (the 10-core run used about one core), so
+more processes than the runner's 3 would be faster, but a busier runner can
+delay a hostile page's send past a case's wait and pass a case that should
+fail: the guards' owners decide that, or which pairs run only nightly.
+The Plain-Worker step's limit is 6 minutes (101 tests took 233 s,
+2026-11-14). While the hostile step ran out of time, no step after it ran
+on CI, so what broke there stayed hidden: a fixed 300 ms wait for an
+auto-save in `test_plain_typing.py` failed the first time it ran again. A
+fake that a page saves to keeps the newest save and the test waits for the
+answers, never a fixed time. A
+test safe only on its own (a fixed port or path) can't join a parallel step.
 
 The frontend job runs `format:check`, so an unformatted file fails the PR.
 Run `npm run format` before pushing. Markdown docs are in
@@ -112,6 +231,10 @@ concurrency group (`deploy-cloudflare`), whatever its ref: a group per ref let
 a branch run and a push to `main` deploy at once, so the app could end up on
 one's code and the API on the other's.
 
+- **The API job checks out the fill-engine submodule** with
+  `FILL_ENGINE_TOKEN`, pinned to the commit `main` records, because the image
+  copies the engine's Rules table from it (`backend/Dockerfile`, KAN-756). A
+  missing table fails the image build, never a deploy without it.
 - **Secrets:** `CLOUDFLARE_API_TOKEN` (account token from the "Edit Cloudflare
   Workers" template, scoped to the WorkIt account and the `workitjobs.ai`
   zone) and `CLOUDFLARE_ACCOUNT_ID`, which wrangler reads from the env.
@@ -190,18 +313,45 @@ so the real gap between runs was a median 5.5 hours, at most 8.7. The fix being
 weighed is a Cloudflare Cron Trigger that starts this workflow through GitHub's
 API at exact times (`scraper/docs/coverage.md`, "Later").
 
+**Scheduled and manual runs go to a self-hosted runner** (KAN-726) on a
+team computer with Ollama, picked by its `workit-scraper` label; PR runs
+stay on `ubuntu-latest`, since the repo is public and a PR run executes the
+PR's code. With no such runner online, a scheduled run waits in the queue
+and none runs. The job runs bash on both (a Windows runner needs Git for
+Windows' bash on its PATH) and calls `python`, not `python3`, which Windows
+lacks. A Windows runner also needs the machine's PowerShell policy at
+`RemoteSigned`: Windows' default blocks `setup-python`'s installer script,
+which failed the first dry run there (2026-11-08). It also needs Python
+3.12 put in its tool cache once by an admin, because the installer cannot
+install as Network Service; a change to `python-version` in `scrape.yml`
+needs that step again (the plan, step 5). And Git's `bin` folder must be
+first in the `PATH=` line of the runner's own `C:\actions-runner\.env`
+(a `.path` file did nothing for the service): the machine PATH holds
+only `Git\cmd`, and the scrape step failed with "bash: command not found".
+The job sets `PYTHONUTF8=1`: Windows' default output encoding (cp1252)
+failed the import's report on a place name, after the import had worked.
+The setup (the runner
+and the bank job), why every import embedded 0
+before, and a shorter PR run not yet taken up are in
+`../docs/scraper_gh_action/plan.md`.
+
 - **Secret:** `DATABASE_URL` (the API's pooler URL, from the root `.env`), in the
   repo's Actions secrets. Without it the run fails at the import step and says so.
-- **Secrets:** `SCOUT_ENDPOINTS_SMALL` and `SCOUT_ENDPOINTS`, for the
-  import's keyword pass (`backend/CLAUDE.md`, The feed import): the small
-  chain (KAN-356), then the default chain after it, each a JSON array on one
-  line, copied from the root `.env`. The four single `SCOUT_*` variables are
-  not passed: a chain says the same in one secret. These are the import's
-  own: the deployed API reads its chains from `CF_API_SECRETS_JSON`, so the
-  import can run on another account's quota than the students' features.
-  Without either the run warns and extracts no keywords; the import itself
-  still runs. The step unsets each one that is empty, because GitHub passes
-  a missing secret as `""`, which Scout's settings refuse as a list.
+- **The keyword pass's model** (`backend/CLAUDE.md`, The feed import):
+  `SCOUT_ENDPOINTS_SMALL` is a plain value in the workflow, the computer's
+  own Ollama (`qwen3.5:9b` at `localhost:11434`), since it holds no key; the
+  `SCOUT_ENDPOINTS` secret, the hosted default chain copied from the root
+  `.env` as one JSON line, is its fallback. The four single `SCOUT_*`
+  variables are not passed. These are the import's own: the deployed API
+  reads its chains from `CF_API_SECRETS_JSON`. The step unsets an empty
+  one, because GitHub passes a missing secret as `""`, which Scout's
+  settings refuse as a list. The `SCOUT_ENDPOINTS_SMALL` and
+  `GEMINI_API_KEY` secrets are no longer read here; `GEMINI_API_KEY` stays
+  for the job alerts.
+- **`EMBEDDING_PROVIDER: ollama`**: the import embeds jobs on the
+  computer's Ollama with the code's default model, `qwen3-embedding:4b`, the
+  one model every vector comes from (the computer's bank job embeds the
+  banks). Every other workflow leaves the default, `none`.
 - **The company list** (`scraper/boards.csv`) is grown by `build_boards.py`
   before every scrape, from the curated GitHub lists, so a company they name
   today is read on the next run without a commit. It only ever adds; the rules
@@ -253,12 +403,11 @@ bell-notification path — `send_email` catches the missing-credentials
 error, logs it, and returns `False`, the same best-effort outcome as a
 bounced send.
 
-- **Secrets:** `DATABASE_URL` and `GEMINI_API_KEY` only (both already set
-  for the scrape workflow — reused here, not duplicated).
-  `EMBEDDING_PROVIDER=gemini` is a plain env value here, not a secret, so
-  the digest scores with the semantic part the deployed API itself
-  doesn't have on by default (`backend/CLAUDE.md`'s "Still open" note on
-  that).
+- **Secret:** `DATABASE_URL` only. **It makes no embeddings** (KAN-726):
+  the default provider `none` reads the bank vectors the team computer
+  stores. It set `EMBEDDING_PROVIDER=gemini` until then, which wrote
+  Gemini bank vectors beside the others; **the EC2 crontab's environment
+  must drop it too**, since that crontab lives outside this repo.
 - **One run at a time**, same reasoning as the scrape's concurrency group:
   two overlapping runs would double-send the same applicant. This guards
   against two *workflow* runs overlapping; it says nothing about the EC2
@@ -430,3 +579,27 @@ not a re-run.
 - **Still open:** no notification when a submitted version clears (or
   fails) Google's review — that's checked by hand in the Dashboard for
   now.
+
+## Company websites from Wikidata (`workflows/company-domains.yml`)
+
+Runs `scraper/domain_pr.py --publish` daily at 07:29 UTC on `ubuntu-latest`.
+It downloads the newest scheduled scrape's `metrics.json` artifact (hence
+`actions: read`), looks up on Wikidata up to 150 of the companies whose jobs
+have no `company_domain`, and adds the websites that pass its rules to
+`scraper/checked_websites.csv` on one rolling PR from a
+`codex/company-domains-after-<n>` branch, with `scraper/company-domains.json`
+recording every board looked up. It never pushes to main and never merges.
+A person checks each row's note (the Wikidata item and its description) and
+removes the wrong ones before merging; the rules and why are in
+`scraper/docs/logos.md`, "Wikidata proposals".
+
+- **Like discovery, it needs "Allow GitHub Actions to create and approve pull
+  requests"**, and its PR, opened with `github.token`, starts no CI until a
+  person pushes to the branch.
+- **A PR closed without merging pauses it**: its ledger never reached main, so
+  every board in it would be proposed again. Reopen it, remove the rows you
+  reject and merge it, ledger included.
+- **It needs a scheduled scrape from the last week**, whose artifact it reads;
+  with none it fails and says so.
+- **It stops silently after 60 days without a commit** to `main`, like every
+  schedule here (`gh workflow enable company-domains.yml`).

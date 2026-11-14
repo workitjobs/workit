@@ -128,7 +128,7 @@ def test_experience_mismatch_stays_visible_and_skills_are_evidenced():
                                      .9, .5, .8, 0, matched_skills=["Python"])
     assert len(highlights) == 3
     assert any("Python" in h["text"] for h in highlights)
-    assert not any("Java" in h["text"] for h in highlights)
+    assert not any("Java" in h["detail"] for h in highlights)
     assert any(not h["met"] and "5+ years" in h["text"] for h in highlights)
 
 
@@ -204,8 +204,10 @@ def test_a_weak_match_with_no_reasons_gets_caveats():
         has_titles=True,
     )
     assert hl == [
-        {"text": "None of your skills appear in this posting", "met": False},
-        {"text": "Title isn't close to your past roles", "met": False},
+        {"text": "No skills in common",
+         "detail": "None of your skills appear in this posting", "met": False},
+        {"text": "Unlike your past roles",
+         "detail": "Title isn't close to your past roles", "met": False},
     ]
 
 
@@ -215,7 +217,8 @@ def test_caveats_never_join_a_match_with_reasons():
         semantic=None, skill_overlap=0.5, title_fit=0.2, eligibility=1.0,
         matched_skills=["Python"], has_titles=True,
     )
-    assert hl == [{"text": "Posting mentions your skills: Python", "met": True}]
+    assert hl == [{"text": "Uses your Python skill",
+                   "detail": "Posting mentions your skills: Python", "met": True}]
 
 
 def test_no_title_caveat_without_titles_to_compare():
@@ -223,7 +226,8 @@ def test_no_title_caveat_without_titles_to_compare():
         "Analyst", None, None, ["Excel"], None,
         semantic=None, skill_overlap=0.0, title_fit=0.0, eligibility=1.0,
     )
-    assert hl == [{"text": "None of your skills appear in this posting", "met": False}]
+    assert hl == [{"text": "No skills in common",
+                   "detail": "None of your skills appear in this posting", "met": False}]
 
 
 def test_highlights_empty_bank():

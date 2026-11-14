@@ -34,7 +34,8 @@ none.
   touches the database; runs with `python3 -m workit_scraper`, tests under
   `uvx pytest`.
 - `autofiller_extension/` — the ATS autofiller (KAN-164): a Manifest V3
-  Chrome extension, no build step, no dependency manifest. It fills through
+  Chrome extension, no build step, no dependency manifest (the Store
+  package's build minifies a copy). It fills through
   the Fill engine, the git submodule `autofiller_extension/fill-engine`
   pinned to a commit on its `main` (`git submodule update --init` once per
   checkout). Batch
@@ -45,8 +46,11 @@ none.
   lists every endpoint it calls.
 - `apply-agent/` — Apply (KAN-534): a Python command-line agent (uv,
   Playwright) that fills job applications in its own Chrome workers, writes
-  answers with Claude and never submits in a rehearsal. A developer tool,
-  not a student feature. It loads the Fill engine from the extension's
+  answers with Claude and never submits in a rehearsal. A developer tool
+  today; KAN-723 designs WorkIt Auto Apply, its downloadable student app,
+  and moves Apply to the private repo `workitjobs/apply-agent`
+  (`docs/desktop_application_auto_apply.md`).
+  It loads the Fill engine from the extension's
   submodule, keeps personal data only in `APPLY_HOME`, never in the repo,
   and has its own glossary and ADRs (`GLOSSARY-MAP.md`). Read
   `apply-agent/CLAUDE.md` before any change there.
@@ -120,7 +124,11 @@ every merge to `main`, with no Cloudflare login on anyone's machine. The
 Cloudflare account is owned by the team Gmail, never one person's login;
 teammates are members with Developer Platform Admin on the account and
 Administrator on the `workitjobs.ai` zone only. Migrations stay a manual,
-local step, never part of a deploy. Supabase (Authentication → URL
+local step, never part of a deploy. **One part does not deploy on merge:
+the bank job** (KAN-726) runs on the team computer from its own checkout,
+so a change to the code it runs needs a pull and a restart there: tell the
+user to remind the team, with the steps in `backend/CLAUDE.md`
+(Deployment, "The bank job does not deploy on merge"). Supabase (Authentication → URL
 Configuration) must list each deployed origin's `/auth/callback`, or OAuth
 sign-in bounces. Settings: a `NEXT_PUBLIC_*` value is a GitHub repository
 variable that `deploy.yml` passes to the app's build, and an API value is in
@@ -172,8 +180,8 @@ with the failure it prevents.
   the sent resume it went out with (`job_applications.sent_resume_id`); a
   sent resume is an uploaded resume's file (frozen as parsed JSON once the
   upload is replaced or deleted) or a gzipped snapshot of a built resume,
-  rendered again on view; downloads keep nothing; uploads and Generate
-  refuse duplicates. Read it before changing sent resumes, applications,
+  rendered again on view; downloads keep nothing; uploads refuse
+  duplicates, and Generate asks before it makes one (KAN-444). Read it before changing sent resumes, applications,
   resume upload or delete, Generate or the editor's Download.
 - `docs/bank_by_resume.md` — KAN-343's design, built, as revised by ADR
   0005: each upload owns its own entries and skills (no merge, no
@@ -198,6 +206,18 @@ with the failure it prevents.
   the page fits; by the posting's rank on a
   resume with a job posting and by position on one without. Read it
   before changing Fit to One Page.
+- `docs/custom_sections.md` — custom sections, built (KAN-498): a section
+  the student names, Entries or Lines, five per owner, owned as entries are;
+  import keeps each heading the bank has no section for as a Lines section;
+  it prints last (a Summary first), Fit cuts it first and Tailor reads it as
+  any entry. Read it before changing the bank's sections, a resume's
+  section order or import's headings.
+- `docs/cover_letters.md` — KAN-766's cover letters design, step 1 built:
+  the Documents page's Cover Letters tab lists the letters WorkIt wrote
+  as written answers (`GET /applicants/{id}/cover-letters`). The rest is
+  a draft for review: uploads (a new `cover_letters` table), then the
+  letter each application sent (`sent_cover_letter_id`), then writing one
+  in WorkIt. Read it before building any of it.
 - `docs/live_page.md` — the editor's live page (KAN-391), step 1 partly
   built: each edit renders from the editor's copy with no database read
   while its save writes beside it, and the page below a typed line
@@ -226,6 +246,36 @@ with the failure it prevents.
   student's email.
 - `docs/whats-new-2026-11-05.md` — what a teammate must do after the rename to
   `workitjobs`, and the new Apply settings and commands.
+- `docs/desktop_application_auto_apply.md` — KAN-723's design for WorkIt
+  Auto Apply, decided 2026-11-13, not built: Apply as a downloadable Mac
+  app beside the extension. Its 34 decisions (every model call through
+  WorkIt's Model route with a monthly Usage cap and personal data
+  replaced; no research in the app; the Fill engine downloaded encrypted;
+  the Worker extension on the Chrome Web Store through the Debugger API;
+  a native window with no port; Apple Silicon only; Apply moved to the
+  private repo `workitjobs/apply-agent`), the v1 app end to end,
+  workstreams W0 to W13 that sessions can take one at a time, future work
+  (a hosted `drive` loop next, the company brief pipeline with Tavily,
+  Windows), and the costs. Read it before changing Apply toward a
+  download, the Model route, or where Apply's data comes from.
+- `docs/scraper_gh_action/plan.md` — KAN-726, built: the scheduled
+  scrape runs on a team computer as a self-hosted runner (PR runs stay on
+  GitHub's), with keywords from a local Qwen and every vector, jobs and
+  banks, from a local Qwen3 embedding model that only that computer runs
+  (its bank job listens for bank changes); everywhere else the embedding
+  provider is `none`. A bank change marks its vector stale instead of
+  clearing it. Holds the computer's setup and the cutover order. Read it
+  before changing the scrape workflow, the embedding provider or how a
+  bank is embedded.
+- `docs/auto_apply_in_jobs.md` — a plan, superseded the same day
+  (2026-11-09) by a 1024px Cards column and a queue count on the sidebar's
+  Auto Apply row, which stays; kept for its reasons. It proposed: the
+  Auto Apply queue becomes a tab of the Jobs page (`/jobs/queue`, with a
+  redirect from `/auto-apply`), the Jobs page gets a 960px column and a
+  right column, and the sidebar loses its Auto Apply row. Application
+  Info and Written Answers keep their addresses and never go back to
+  Profile (KAN-550). Read it before changing the seeker sidebar, the
+  Jobs page's layout or any `/auto-apply` address.
 - `docs/search.md` — how the Jobs page's search reads a query.
 - `docs/architecture.md` — how the halves fit together, for a reader new to
   the repo.
@@ -292,7 +342,7 @@ with the failure it prevents.
 - **A PR that touches the submit or drive guards gets an adversarial review
   before it merges** (KAN-666). The guards are `apply-agent/src/apply/submit_guard.py`,
   `plain/guards.py`, `send_click.py`, and any code that sets a guard flag or
-  presses through one. A second reviewer tries to make the change send an
+  presses through one (the keep-alive's stay press, `keepalive.press`). A second reviewer tries to make the change send an
   application, and the PR merges only once each way they find is fixed. A
   new click path, or a new way a page can trick the guard, joins
   `apply-agent/tests/test_submit_guard_hostile.py` in the same PR.

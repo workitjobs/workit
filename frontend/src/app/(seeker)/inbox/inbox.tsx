@@ -149,11 +149,13 @@ export function Inbox({ emails, jobs }: { emails: Email[]; jobs: EmailJob[] }) {
         />
         {statuses.length > 0 && (
           <IconButton
+            place="row"
+            tooltip={false}
             label="Clear Filter"
-            className="size-8"
+
             onClick={() => push(href({ statuses: [] }))}
           >
-            <CloseIcon className="size-4" />
+            <CloseIcon />
           </IconButton>
         )}
       </div>

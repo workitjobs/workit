@@ -1,5 +1,7 @@
 import Form from "next/form";
 
+import { PAGE_SEARCH } from "@/components/ui/search-field";
+
 import { QueryField } from "./query-field";
 
 /**
@@ -10,7 +12,7 @@ import { QueryField } from "./query-field";
  */
 export function JobSearch() {
   return (
-    <Form action="/search" role="search" className="min-w-0 flex-1 sm:max-w-80">
+    <Form action="/search" role="search" className={PAGE_SEARCH}>
       <QueryField id="job-search" />
     </Form>
   );

@@ -613,6 +613,8 @@ window.WIA = window.WIA || {};
   function draw() {
     const shell = window.WIA.panel;
     root = shell.root;
+    // The fill's rows take the panel: the coverage badge was for before it (coverage.js).
+    window.WIA.coverage?.hide();
     style = shell.addCss(styles().textContent);
     const tab = shell.slot("tab:autofill");
     tab.innerHTML = `
@@ -687,5 +689,5 @@ window.WIA = window.WIA || {};
   /** Draws the rows again, for a row card whose own state changed (row-card.js). */
   const refresh = () => render(window.WIA.status.summary());
 
-  window.WIA.overlay = { live, mount, unmount, open, state, promptForEssays, offerNext, setCurrent, refresh, addPart, askSelfId, offerClaude, askSamples, askWorkdayAccounts, offerApplySignIn, momentCard, startClaude, CLAUDE_TRIGGER };
+  window.WIA.overlay = { SOURCE_LABEL, live, mount, unmount, open, state, promptForEssays, offerNext, setCurrent, refresh, addPart, askSelfId, offerClaude, askSamples, askWorkdayAccounts, offerApplySignIn, momentCard, startClaude, CLAUDE_TRIGGER };
 })();

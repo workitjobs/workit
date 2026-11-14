@@ -82,6 +82,9 @@ export type Application = {
   open?: boolean;
   /** Where the job is, as the Jobs page prints it; null when unstated. */
   location?: string | null;
+  /** Every place the posting lists, where `location` names the first and
+   *  "+N more" (components/places-value.tsx). */
+  places?: string[];
   /** Remote, Hybrid or On-Site; null when the posting doesn't say. */
   workModel?: string | null;
   /** Its job type, Internship or Full-Time and so on: the list's Job Type

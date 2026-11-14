@@ -23,19 +23,22 @@ from dataclasses import dataclass, replace
 from datetime import date
 from pathlib import Path
 
+from apply import answer_bank as answers
 from apply import (
     answering,
     asking,
     cover_letter,
     description,
+    fill_engine,
     probe,
     sameness,
     stock,
     story_map,
+    truth,
     writing,
 )
 from apply import home as data_folder  # essays.home() is the applicant's town
-from apply.adapters import Claude
+from apply.adapters import Claude, lean
 from apply.applicant import as_applicant
 from apply.model import Posting, Question, one_line
 from apply.profile import ApplicantProfile
@@ -125,6 +128,8 @@ Question types, each with its company link and its slots (required, asked, or op
 """
 # The plan's part of REDO: Lisul's context steers the plan too.
 REDO_PLAN = """<redo>, when given, holds under a question's key @NAME@'s earlier answer to it and the context they typed when they asked for a better one (added_context). Plan the new answer by that context: a fact about @NAME@ in it is in <story_bank> under "Added while reviewing answers", so quote it from there; follow its directions (a story to lead with, what to stress or cut). Do not plan the earlier answer again unless the context asks to keep it."""
+# A lean plan (apply.adapters.lean) lists only the types its questions were matched to.
+LEAN_PLAN = """Only the types these questions were matched to are listed: keep each question's type."""
 PLAN_FIELDS = ("type", "parts", "story", "company_fact", "angle", "link_kind", "slots")
 CATCH_ALL = "anything-else"  # the type of a catch-all box ("Additional information"): always blank when optional
 REUSABLE = {"anything-else", "cover-letter"}  # types whose answer may lead with a story another answer leads with
@@ -163,12 +168,13 @@ class Plan:
 class Essay:
     question: Question
     text: str
-    unsupported: tuple[str, ...] = ()  # numbers it states that no source backs
+    unsupported: tuple[str, ...] = ()  # numbers it states that no source backs (apply.truth)
     needs_lisul: bool = False  # Claude says the question asks for more than the sources hold
     giveaways: tuple[str, ...] = ()  # words that give away how it was written (GIVEAWAY)
     named: str = ""  # its Named fact: the Company brief line it ties to Lisul, as the brief writes it
     plan: "Plan | None" = None  # its Essay plan, as checked
     failed: tuple[str, ...] = ()  # the code gates it fails (apply.gates)
+    claims: tuple[str, ...] = ()  # the names, dates and outcomes it states that no source backs (apply.truth)
 
 
 @dataclass(frozen=True)
@@ -227,6 +233,11 @@ def answer(claude: Claude, posting: Posting, essays: list[Question], drafts: lis
     it fails its check), the draft 1 Opus, the claim check 1 Opus and the
     editor 1-3 Opus: 4-7 calls. A form with no essays still costs one
     Sonnet call."""
+    if lean(claude) and essays and drafts:  # a smaller model's request limit: the one-off questions go alone
+        written, _ = answer(claude, posting, essays, [], profile, company, posting_text, redraft, answered, planned,
+                            redo, sections)
+        return written, answer(claude, posting, [], drafts, profile, company, posting_text, answered=answered,
+                               sections=sections)[1]
     claude = as_applicant(claude, profile)  # every prompt says the profile's name and school
     keys = {f"q{i}": q for i, q in enumerate(essays, 1)}
     shown = form_answers(answered or {})
@@ -252,7 +263,7 @@ def answer(claude: Claude, posting: Posting, essays: list[Question], drafts: lis
                             "required": list(short)}
     schema = {"type": "object", "properties": wanted, "required": list(wanted)}
     prompt = "\n".join(filter(None, [
-        sources(profile, company, facts=bool(drafts), types=types.values()),
+        sources(profile, company, facts=bool(drafts), types=types.values(), posting=posting),
         description.block(posting, posting_text),
         keys and f"<style_card>\n{writing.style_card()}\n</style_card>",
         keys and shown and f"<form_answers>\n{json.dumps(shown, indent=1)}\n</form_answers>",
@@ -263,8 +274,9 @@ def answer(claude: Claude, posting: Posting, essays: list[Question], drafts: lis
         _redo_block(redo, {**keys, **short}),
     ]))
     letters = any(cover_letter.is_cover_letter(q) for q in keys.values())
-    system = "\n\n".join(filter(None, [keys and SYSTEM, keys and writing.WRITE, keys and answering.rules(),
-                                       keys and answering.guide_text(types.values()), letters and cover_letter.RULES,
+    small = lean(claude)
+    system = "\n\n".join(filter(None, [keys and SYSTEM, keys and writing.WRITE, keys and answering.rules(small),
+                                       keys and answering.guide_text(types.values(), small), letters and cover_letter.RULES,
                                        short and DRAFTS, redraft and REDRAFT, redo and REDO]))
     given = claude.ask(model=MODEL if keys else DRAFTS_MODEL, system=system, prompt=prompt, schema=schema)
     written, drafted = given.get("essays") or {}, given.get("drafts") or {}
@@ -287,17 +299,25 @@ def answer(claude: Claude, posting: Posting, essays: list[Question], drafts: lis
         texts |= writing.repair(claude, {key: texts[key] for key in over}, material, over, letter_keys & set(over),
                                 {key: questions[key] for key in over}, {key: lengths[key] for key in over if key in lengths})
         failed = _gate(checked, texts)
-    result = [Essay(q, texts[key], unsupported_numbers(texts[key], prompt, q.label),
+    own = own_facts(profile, types.values())
+    # The posting, the Company material and the question may give a number or a name; a cover letter's
+    # template gives its salutation ("Recruiting Team").
+    given = (company, description.block(posting, posting_text), cover_letter.TEMPLATE)
+    found = {key: truth.unsupported(texts[key], own, (*given, q.label, q.description), plans[key].story if plans[key] else "")
+             for key, q in keys.items()}
+    result = [Essay(q, texts[key], tuple(c.text for c in found[key] if c.kind == "number"),
                     (written.get(key) or {}).get("needs_lisul") is True, giveaways(texts[key]),
                     _named(written.get(key) or {}, plans[key], texts[key], company), plans[key],
-                    tuple(failed[key]) if texts[key] else ()) if key in keys else Essay(q, "", plan=plans[key])
+                    tuple(failed[key]) if texts[key] else (),
+                    tuple(c.said() for c in found[key] if c.kind != "number"))
+              if key in keys else Essay(q, "", plan=plans[key])
               for key, q in {**keys, **waiting}.items()]
     result.sort(key=lambda e: essays.index(e.question))
     if again := {e.question: e.giveaways for e in result if e.giveaways and redraft is None}:
         redone = {e.question: e for e in answer(claude, posting, list(again), [], profile, company, posting_text, again,
                                                 answered, planned, redo)[0]}
         result = [redone.get(e.question, e) for e in result]
-    return result, [_draft(q, drafted.get(key) or {}, prompt, profile) for key, q in short.items()]
+    return result, [_draft(q, drafted.get(key) or {}, prompt, profile, own) for key, q in short.items()]
 
 
 def _redo_block(redo: Mapping[Question, tuple[str, str]] | None, keys: Mapping[str, Question]) -> str:
@@ -355,16 +375,36 @@ def plan(claude: Claude, posting: Posting, essays: list[Question], profile: Appl
            if kind in classified.values()}
     held = "\n".join([sources(profile, company, types=answering.load()), description.block(posting, posting_text),
                       json.dumps(shown or {}, ensure_ascii=False)])
-    plans = _ask_plan(claude, posting, keys, classified, profile, company, posting_text, shown or {},
-                      mapped=mapped, angles=angles, led=led, redo=redo)
+    plans = _fact_quoted(_ask_plan(claude, posting, keys, classified, profile, company, posting_text, shown or {},
+                                   mapped=mapped, angles=angles, led=led, redo=redo), company, held)
     if failed := check_plan(plans, company, bank, mapped, held):
-        plans = _ask_plan(claude, posting, keys, classified, profile, company, posting_text, shown or {}, failed, mapped,
-                          angles, led, redo)
+        plans = _fact_quoted(_ask_plan(claude, posting, keys, classified, profile, company, posting_text, shown or {},
+                                       failed, mapped, angles, led, redo), company, held)
         for key, fields in check_plan(plans, company, bank, mapped, held).items():
             plans[key] = replace(plans[key], **{field: _DROPPED[field](keys[key])
                                    for field in [*fields, *(["link_kind"] if "company_fact" in fields else [])]
                                    if field != "slots"})
     return {q: _backed(plans[key], held, profile) for key, q in keys.items()}
+
+
+FACT_SLOT = "company-fact"  # the slot that holds the Company brief fact a plan ties
+
+
+def _fact_quoted(plans: dict[str, Plan], company: str, held: str) -> dict[str, Plan]:
+    """`plans` with each company-fact slot that no quote backs quoted from the brief line its plan's company_fact
+    names: the model chose the fact but didn't copy its line (gpt-oss and Gemini, KAN-723, 2026-11-10)."""
+    text = _quotable(held)
+
+    def quoted(p: Plan) -> Plan:
+        line = named_fact(p.company_fact, company)
+        if not line or FACT_SLOT not in {s.name for s in answering.load()[p.type].slots}:
+            return p
+        given = next((b for b in p.slots if b.slot == FACT_SLOT), None)
+        if given and _backers(given, text):
+            return p
+        backed = _Given(FACT_SLOT, (line,), "")
+        return replace(p, slots=(*(b for b in p.slots if b.slot != FACT_SLOT), backed))
+    return {key: quoted(p) for key, p in plans.items()}
 
 
 # What a field of a Plan that fails its check twice becomes.
@@ -446,14 +486,24 @@ def _backers(given: "Backed | None", text: str) -> tuple[str, ...]:
 
 
 def _holds(text: str, quote: str) -> bool:
-    """Whether the sources' quotable `text` holds `quote` word for word."""
+    """Whether the sources' quotable `text` holds `quote` word for word: the same words in the same order, whole."""
     quote = _quotable(quote)
-    return len(quote) >= QUOTED and quote in text
+    return len(quote) >= QUOTED and f" {quote} " in f" {text} "
+
+
+# Small numbers a model may spell out in a quote the sources give as digits ("every five minutes" for "every
+# 5 minutes": gpt-oss, KAN-723, 2026-11-10), and the other way round: either form is the same word.
+NUMBER_WORDS = {word: str(n) for n, word in enumerate((
+    "zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve",
+    "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen", "twenty"))} | {
+    "thirty": "30", "forty": "40", "fifty": "50", "sixty": "60", "seventy": "70", "eighty": "80", "ninety": "90",
+    "hundred": "100"}
 
 
 def _quotable(text: str) -> str:
-    """`text` for matching a quote: one line, casefolded, with no markdown emphasis or curly quotes."""
-    return _plain(text.replace("*", "").replace("“", '"').replace("”", '"'))
+    """`text` for matching a quote: its words only, casefolded, in one line, with small numbers as digits.
+    Punctuation, markdown and quote marks drop out, so a quote that adds or drops a comma still holds."""
+    return " ".join(NUMBER_WORDS.get(word, word) for word in re.findall(r"\w+", _plain(text)))
 
 
 def episode(story: str, mapped: Sequence[story_map.Entry]) -> "story_map.Entry | None":
@@ -474,9 +524,14 @@ def fact_tags(name: str, company: str) -> tuple[str, ...]:
     return tuple(t.strip() for t in tags[1].split(",") if t.strip()) if tags else ()
 
 
+# Hyphens a model may type for "-": gpt-oss writes the non-breaking one (U+2011) inside words it quotes
+# word for word ("made‑up"), so a true quote failed the plan's check (KAN-723, 2026-11-10).
+HYPHENS = str.maketrans({"\u2010": "-", "\u2011": "-"})
+
+
 def _plain(text: str) -> str:
-    """`text` for matching a story: one line, casefolded, without markdown marks."""
-    return one_line(text.replace("’", "'")).strip("#*->: ").casefold()
+    """`text` for matching a story: one line, casefolded, without markdown marks, with plain hyphens."""
+    return one_line(text.replace("’", "'").translate(HYPHENS)).strip("#*->: ").casefold()
 
 
 def _ask_plan(claude: Claude, posting: Posting, keys: Mapping[str, Question], classified: Mapping[str, str],
@@ -508,7 +563,9 @@ def _ask_plan(claude: Claude, posting: Posting, keys: Mapping[str, Question], cl
         failed and f"<replan>\n{json.dumps(failed, indent=1)}\n</replan>",
         _redo_block(redo, keys),
     ]))
-    system = PLAN + "\n".join(_listed(g) for g in types.values()) + (f"\n\n{REDO_PLAN}" if redo else "")
+    listed = [types[t] for t in dict.fromkeys(classified.values())] if lean(claude) else list(types.values())
+    system = (PLAN + "\n".join(_listed(g) for g in listed) + (f"\n\n{LEAN_PLAN}" if lean(claude) else "")
+              + (f"\n\n{REDO_PLAN}" if redo else ""))
     given = claude.ask(model=PLANNER, system=system, prompt=prompt, schema=schema).get("plan") or {}
     plans = {key: _plan(given.get(key), classified[key], keys[key]) for key in keys}
     # An episode id names its line: the writer sees the Story bank, never the map.
@@ -649,16 +706,17 @@ def giveaways(text: str) -> tuple[str, ...]:
     return tuple(dict.fromkeys(m.group() for m in GIVEAWAY.finditer(text)))
 
 
-def sources(profile: ApplicantProfile, company: str = "", facts: bool = False, types: Iterable[str] = ()) -> str:
+def sources(profile: ApplicantProfile, company: str = "", facts: bool = False, types: Iterable[str] = (),
+            posting: Posting | None = None) -> str:
     """What essays may draw on: the Story bank and Lisul's Stock answers, their
     approved core answer (apply.stock) of each Question type in `types`, the
     Application's Company material when it has some, the town they live
     in (<home>), and their links (<links>: apply.asking.links). With
     `facts`, their Applicant profile facts too, for drafted answers to
-    one-off questions."""
+    one-off questions: with `posting`, as the plan reads them (profile_facts)."""
     own = {key: value for key, value in (profile.get("stock_answers") or {}).items() if value}
     return (
-        (profile_block(profile) if facts else "")
+        (profile_block(profile, posting) if facts else "")
         + (f"<home>\n{place}\n</home>\n" if (place := home(profile)) else "")
         + f"<story_bank>\n{data_folder.STORY_BANK.read_text()}</story_bank>\n"
         + (f"<links>\n{chr(10).join(held)}\n</links>\n" if (held := asking.links(profile)) else "")
@@ -668,9 +726,21 @@ def sources(profile: ApplicantProfile, company: str = "", facts: bool = False, t
     )
 
 
-def profile_block(profile: ApplicantProfile) -> str:
-    """Their Applicant profile facts as a <profile> block."""
-    return f"<profile>\n{json.dumps(profile_facts(profile), indent=1, default=str)}\n</profile>\n"
+def own_facts(profile: ApplicantProfile, types: Iterable[str] = ()) -> str:
+    """What Lisul gave, for the truth check (apply.truth): his Applicant profile
+    facts, the Story bank, his Stock answers and core answers of `types`, his
+    links and town (`sources` with `facts`), and the Answer bank's answers in
+    his own words (`source: lisul`, the rule WorkIt's sync keeps too). A
+    draft of Claude's is no fact of his, even once reviewed."""
+    bank = profile.folder / answers.FILE
+    mine = [entry for entry in answers.AnswerBank(bank).entries() if entry.source == answers.LISUL] if bank.exists() else []
+    return "\n".join([sources(profile, facts=True, types=types),
+                      *(f"{e.question}: {'; '.join(e.answer) if isinstance(e.answer, list) else e.answer}" for e in mine)])
+
+
+def profile_block(profile: ApplicantProfile, posting: Posting | None = None) -> str:
+    """Their Applicant profile facts as a <profile> block (profile_facts)."""
+    return f"<profile>\n{json.dumps(profile_facts(profile, posting), indent=1, default=str)}\n</profile>\n"
 
 
 def home(profile: ApplicantProfile) -> str:
@@ -685,10 +755,13 @@ def home(profile: ApplicantProfile) -> str:
 NOT_FACTS = {"files", "stock_answers"}
 
 
-def profile_facts(profile: ApplicantProfile) -> dict:
+def profile_facts(profile: ApplicantProfile, posting: Posting | None = None) -> dict:
     """Lisul's Applicant profile as data for Claude: every fact they gave, but
-    no file path (the profile refuses to hold secrets at all)."""
-    return {key: value for key, value in profile.facts().items() if key not in NOT_FACTS}
+    no file path (the profile refuses to hold secrets at all). With `posting`,
+    the Tracker's past applications and interviews join the screeners as the
+    plan joins them (fill_engine.with_past_applications)."""
+    facts = {key: value for key, value in profile.facts().items() if key not in NOT_FACTS}
+    return fill_engine.with_past_applications(facts, posting) if posting is not None else facts
 
 
 NAMED = "Named: "  # starts the line under an essay's heading that gives its Named fact
@@ -898,10 +971,13 @@ def _draft_schema(q: Question) -> dict:
     }
 
 
-def _draft(q: Question, given: dict, prompt: str, profile: ApplicantProfile) -> Draft:
+def _draft(q: Question, given: dict, prompt: str, profile: ApplicantProfile, own: str) -> Draft:
     """Claude's draft, or one that needs Lisul: one Claude says it can't
     answer, an empty one, a choice that isn't among the options, or words
-    stating a number no source holds (a made-up fact shows most as a number)."""
+    the truth check (apply.truth, KAN-750) finds a claim in: a number or a
+    name nothing in the call (`prompt`) holds, or an outcome none of his
+    facts (`own`) states about its project. Not a date: the profile keeps
+    its dates as values ("2027-05-24"), not as "May 2027"."""
     answer = given.get("answer")
     choices = q.options if q.options and not _unread(q) else None
     if q.kind == "multi_select" and choices:
@@ -910,7 +986,8 @@ def _draft(q: Question, given: dict, prompt: str, profile: ApplicantProfile) -> 
         answer = picked
     else:
         answer = str(answer or "").strip()
-        usable = bool(answer) and (answer in choices if choices else not unsupported_numbers(answer, prompt))
+        usable = bool(answer) and (answer in choices if choices else not [
+            c for c in truth.unsupported(answer, own, prompt) if c.kind != "date"])
     if given.get("needs_lisul") is True or not usable:
         return Draft(q, "", needs_lisul=True)
     return Draft(q, answer, facts=_facts(given.get("facts"), profile))

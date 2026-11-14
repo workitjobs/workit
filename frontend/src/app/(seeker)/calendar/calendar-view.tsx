@@ -122,7 +122,7 @@ export function CalendarView({
           <Skeleton className="h-9 w-40 rounded-full" />
           <Skeleton className="h-9 w-32" />
         </div>
-        <div className="border-border-control rounded-card mt-4 flex min-h-0 flex-1 flex-col overflow-hidden border">
+        <div className="border-border-surface rounded-card mt-4 flex min-h-0 flex-1 flex-col overflow-hidden border">
           <div className="bg-panel border-border-subtle grid shrink-0 grid-cols-7 border-b">
             {Array.from({ length: 7 }, (_, i) => (
               <span key={i} className="flex justify-center py-2.5">
@@ -397,8 +397,14 @@ function Calendar({
                 onChange={(next) => setKinds(next as EventKind[])}
               />
               {kinds.length > 0 && (
-                <IconButton label="Clear Filter" className="size-8" onClick={() => setKinds([])}>
-                  <CloseIcon className="size-4" />
+                <IconButton
+                  place="row"
+                  tooltip={false}
+                  label="Clear Filter"
+
+                  onClick={() => setKinds([])}
+                >
+                  <CloseIcon />
                 </IconButton>
               )}
             </div>

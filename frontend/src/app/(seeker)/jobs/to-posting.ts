@@ -29,6 +29,7 @@ export function toPosting(job: JobListing): JobPosting {
     level: factText(facts.experienceLevel),
     starts: factText("startTerm" in facts ? facts.startTerm : facts.minYearsExperience),
     locationCity: factText(facts.location),
+    places: facts.places,
     salary: factText(facts.salary),
     postedAt: job.posted_at ?? "",
     updatedAt: job.posted_at ?? "",

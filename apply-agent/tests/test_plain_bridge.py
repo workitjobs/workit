@@ -276,7 +276,7 @@ def test_guards_match_reads_the_plain_guard_files(tmp_path):
         (tmp_path / "vendor/guards" / name).parent.mkdir(parents=True, exist_ok=True)
         (tmp_path / "vendor/guards" / name).write_text(text)
     assert extension.guards_match(tmp_path)
-    (tmp_path / "vendor/guards/lifted.js").write_text("another Apply's")
+    (tmp_path / "vendor/guards/rehearsal.js").write_text("another Apply's")
     assert not extension.guards_match(tmp_path)
 
 

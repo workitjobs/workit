@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 import uuid
 
-from sqlalchemy import func, text
+from sqlalchemy import case, func, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncConnection
 
@@ -89,26 +89,55 @@ SELECT
 
 
 async def update_sources(
-    conn: AsyncConnection, schedule_id: uuid.UUID, apply_urls: list[str]
+    conn: AsyncConnection,
+    schedule_id: uuid.UUID,
+    postings: list[tuple[str, str]],
+    *,
+    inline_versions: dict[str, int] | None = None,
 ) -> None:
-    """Upsert job_sources for one board's complete read.  GREATEST prevents a
-    stale retry from pushing last_seen_at backward.
+    """Upsert job_sources for one board's complete read.  Each tuple is
+    ``(apply_url, external_id)``.  GREATEST prevents a stale retry from pushing
+    last_seen_at backward; COALESCE keeps existing non-null external_id.
 
     An empty list is valid: the board returned nothing, so no source records
     update.  advance_reads still runs after this, moving prior_read_at forward,
     which makes every prior source for this board stale — the intended
     semantics of "the board listed nothing."
     """
-    if not apply_urls:
+    if not postings:
         return
-    rows = [{"schedule_id": schedule_id, "apply_url": url} for url in apply_urls]
+    inline_versions = inline_versions or {}
+    rows = [
+        {
+            "schedule_id": schedule_id,
+            "apply_url": url,
+            "external_id": eid,
+            "description_version": inline_versions.get(url),
+            "description_fetched_at": func.now() if url in inline_versions else None,
+        }
+        for url, eid in postings
+    ]
     stmt = insert(_sources).values(rows)
+    newer = stmt.excluded.description_version > func.coalesce(
+        _sources.c.description_version, -1
+    )
     stmt = stmt.on_conflict_do_update(
         index_elements=[_sources.c.schedule_id, _sources.c.apply_url],
         set_={
+            "description_version": case(
+                (newer, stmt.excluded.description_version),
+                else_=_sources.c.description_version,
+            ),
+            "description_fetched_at": case(
+                (newer, stmt.excluded.description_fetched_at),
+                else_=_sources.c.description_fetched_at,
+            ),
             "last_seen_at": func.greatest(
                 _sources.c.last_seen_at, stmt.excluded.last_seen_at
-            )
+            ),
+            "external_id": func.coalesce(
+                stmt.excluded.external_id, _sources.c.external_id
+            ),
         },
     )
     await conn.execute(stmt)

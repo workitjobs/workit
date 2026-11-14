@@ -84,7 +84,11 @@ export type Recommendation = {
 };
 
 export type Highlight = {
+  /** A label of a few words, one line on the rail ("Uses 3 of your skills"). */
   text: string;
+  /** The whole sentence behind the label, its tooltip (2026-11-09). Absent
+   *  on a highlight from before it existed. */
+  detail?: string | null;
   /** True is a reason to apply; false is a caveat to weigh before applying. */
   met: boolean;
 };

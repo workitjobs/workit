@@ -77,12 +77,17 @@ export function StageMenu({
   stage,
   placeholder = "Move To…",
   className = "w-40",
+  compact = false,
 }: {
   jobId: string;
   stage: StageKey;
   /** What a saved job's menu reads, since Saved is not a pick. */
   placeholder?: string;
   className?: string;
+  /** A pill in the stage's tint, 30px tall, as the Tracker's table draws
+   *  it (2026-11-10): a 42px bordered field on every row made the table
+   *  read as a form, taller than the page's own 36px buttons. */
+  compact?: boolean;
 }) {
   const id = useId();
   const router = useRouter();
@@ -140,6 +145,14 @@ export function StageMenu({
           iconClassName: STAGE_COLOR[value].onTint,
         }))}
         disabled={pending}
+        triggerClassName={
+          compact
+            ? cn(
+                "text-label sm:text-label w-fit gap-1.5 rounded-full border-transparent py-1 pr-2 pl-2.5 font-medium",
+                STAGE_COLOR[stage].tint,
+              )
+            : undefined
+        }
         onValueChange={(next) => {
           if (!next || next === stage || pending) return;
           if (asksFirst(stage)) setAsking(next as PickableStage);
@@ -247,8 +260,9 @@ function EventRow({ jobId, event }: { jobId: string; event: ApplicationEvent }) 
       </div>
       {event.id && event.source !== "gmail" && (
         <IconButton
+          place="row"
           label={`Delete ${event.title}`}
-          tooltip="Delete"
+          tooltip={false}
           disabled={pending}
           onClick={() =>
             start(async () => {
@@ -275,7 +289,7 @@ function EventRow({ jobId, event }: { jobId: string; event: ApplicationEvent }) 
             })
           }
         >
-          <TrashIcon className="size-4" />
+          <TrashIcon />
         </IconButton>
       )}
     </li>

@@ -195,6 +195,9 @@ setInterval(async () => {
     const capture = document.getElementById('capture-' + k);
     capture.hidden = !c.capture;
     capture.textContent = capture.title = c.capture || '';
+    const session = document.getElementById('session-' + k);  // a held form's job-site session (KAN-776)
+    session.hidden = !c.session;
+    session.textContent = session.title = c.session || '';
     const bar = document.getElementById('file-' + k);
     bar.hidden = !c.file;
     bar.querySelector('input').multiple = c.file === 'selectMultiple';
@@ -454,7 +457,9 @@ const bankEntry = (entry) => {
 const textEntry = (kind, label, answer, path, body, button = 'Save', done = 'Saved') => {
   const key = kind + ':' + label, status = el('span', {className: 'status'});
   const text = el('textarea', {rows: Math.min(12, 2 + Math.floor(String(answer).length / 90)), maxLength: 20000,
-                               value: drafts.has(key) ? drafts.get(key) : answer});
+                               value: drafts.has(key) ? drafts.get(key) : answer,
+                               // a Skip (KAN-759): an empty answer, which leaves the question blank on every form
+                               placeholder: kind === 'answered' && !answer ? 'Skipped: left blank on every form. Write an answer to fill it instead.' : ''});
   say(status, statuses.get(key) || (drafts.has(key) ? ['Unsaved changes', 'unsaved'] : ['', '']));
   text.oninput = () => { drafts.set(key, text.value); statuses.delete(key); say(status, ['Unsaved changes', 'unsaved']); };
   const card = el('div', {className: 'card ' + kind + '-entry'},
@@ -780,8 +785,7 @@ const answerBox = (item, question) => {
   if (wantsFile) return fileBox(item, question, need);
   const picks = () => picked.get(key) || [];
   const box = make('input', {className: 'answer', value: typed.get(key) || '', maxLength: 20000,
-                             placeholder: (choice ? 'Or write your own answer (used instead of the options)' : 'Your answer')
-                               + (need === false ? ', or leave blank to skip' : ''),
+                             placeholder: choice ? 'Or write your own answer (used instead of the options)' : 'Your answer',
                              oninput: () => typed.set(key, box.value)});
   box.dataset.key = key;
   let options = null;
@@ -799,13 +803,14 @@ const answerBox = (item, question) => {
   }
   // His own words, else what he picked: several joined by "; ", as the Answer cell holds them.
   const answer = () => box.value.trim() || picks().join('; ');
-  const save = make('button', {className: 'primary', textContent: 'Save answer', onclick: async () => {
-    save.disabled = true; status.textContent = 'Saving…'; status.className = 'status';
+  const send = (skip) => async () => {
+    save.disabled = true; if (skipping) skipping.disabled = true;
+    status.textContent = skip ? 'Skipping…' : 'Saving…'; status.className = 'status';
     try {
-      if (!answer() && need !== false) throw new Error(choice ? 'Pick an option or write an answer.' : 'Write an answer.');
+      if (!skip && !answer()) throw new Error(choice ? 'Pick an option or write an answer.' : 'Write an answer.');
       let reply, data;
       try {
-        reply = await fetch('/answer', {method: 'POST', body: JSON.stringify({id: item.id, question, answer: answer()}),
+        reply = await fetch('/answer', {method: 'POST', body: JSON.stringify({id: item.id, question, answer: skip ? '' : answer()}),
           headers: {'Content-Type': 'application/json', 'X-Apply-Token': TOKEN}});
         data = await reply.json();
       } catch (e) { throw new Error('Apply is not answering: is it still running?'); }
@@ -813,12 +818,18 @@ const answerBox = (item, question) => {
       typed.delete(key); picked.delete(key);
       toast(data.message);
       refresh();
-    } catch (e) { status.textContent = e.message; status.className = 'status error'; save.disabled = false; }
-  }});
+    } catch (e) {
+      status.textContent = e.message; status.className = 'status error'; save.disabled = false;
+      if (skipping) skipping.disabled = false;
+    }
+  };
+  const save = make('button', {className: 'primary', textContent: 'Save answer', onclick: send(false)});
+  // An optional one still gets an answer, or Skip: the form leaves it blank, and no later form asks it (KAN-759).
+  const skipping = need === false ? make('button', {className: 'skip', textContent: 'Skip (leave blank)',
+    title: "Leaves it blank on this form, and Apply won't ask it again", onclick: send(true)}) : null;
   box.addEventListener('keydown', e => { if (e.key === 'Enter') save.click(); });
-  // An optional one still gets an answer, but may be saved blank to skip it.
   return make('div', {className: 'ask'}, make('label', {textContent: question}, needFlag(need)), whereLine(item, question),
-              options, make('div', {className: 'answer-row'}, box, save, goToButton(item, question)), status);
+              options, make('div', {className: 'answer-row'}, box, save, skipping, goToButton(item, question)), status);
 };
 // Go to question: the held form's own browser comes forward (or its tile, when it has no window), scrolled to
 // the field, which is focused and outlined. Answered there, it leaves Needs you once he leaves the field.
@@ -920,7 +931,8 @@ const writtenList = (item) => make('details', {}, make('summary', {textContent: 
       make('div', {className: 'answer-row'}, open), box, make('div', {className: 'actions'}, go, status));
   }));
 const row = (item) => {
-  const ctx = last.context || {}, asks = item.kind === 'missing fact' && ctx.answers ? item.questions || [] : [];
+  const ctx = last.context || {};
+  const asks = (item.kind === 'missing fact' || (item.optional || []).length) && ctx.answers ? item.questions || [] : [];
   const failed = item.tone === 'failed', main = failed ? null : action(item);
   const card = make('div', {className: 'item ' + item.tone, tabIndex: 0},
     make('div', {className: 'top'},
@@ -1263,7 +1275,7 @@ STYLE = r"""
   .answer-row { display: flex; gap: 8px; align-items: center; }
   .essay-row { display: flex; gap: 8px; align-items: center; justify-content: space-between; min-height: 28px; margin-top: 4px; }
   .answer-row input { flex: 1; min-width: 0; }
-  .answer-row .goto { white-space: nowrap; }
+  .answer-row .goto, .answer-row .skip { white-space: nowrap; }
   .file-options { display: flex; flex-wrap: wrap; gap: 8px; }
   .file-types { margin-top: 6px; font-size: 12px; color: var(--muted); }
   .failures { margin-top: 28px; font-size: 13px; }
@@ -1387,6 +1399,7 @@ STYLE = r"""
   .banner.failed { background: var(--bad-tint); color: var(--bad); }
   .caption { padding: 6px 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 12px; color: var(--muted); }
   .sent { display: flex; flex-wrap: wrap; gap: 4px 12px; padding: 0 14px 6px; font-size: 12px; color: var(--muted); cursor: default; }
+  .session { padding: 0 14px 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 12px; color: var(--muted); cursor: default; }
   .capture { padding: 0 14px 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 12px; color: var(--needs); cursor: default; }
   .sent .doc { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
   .sent a, .sent button { height: auto; padding: 0; border: 0; border-radius: 0; background: none; font: 500 12px/1.4 var(--sans); color: var(--brand); }

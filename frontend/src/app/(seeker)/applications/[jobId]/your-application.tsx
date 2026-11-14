@@ -75,12 +75,18 @@ export function YourApplication({
   job,
   sent,
   now,
+  matchAbove = false,
 }: {
   app: Application;
   job: JobListing | null;
   /** The sent resumes linked to this job posting, newest first. */
   sent: SentResume[];
   now: Date;
+  /** The job's panel above already shows the match (a live posting with a
+   *  score), so this card leaves it out: the same ring twice on one page
+   *  read as a mistake (2026-11-10). A closed posting's header has none,
+   *  and the score shows here. */
+  matchAbove?: boolean;
 }) {
   const cards: { label: string; value: string | number }[] = [];
   // Every live application has `open`; the type leaves it optional.
@@ -206,7 +212,7 @@ export function YourApplication({
             </dl>
           </div>
 
-          {app.match != null && (
+          {app.match != null && !matchAbove && (
             <MatchRail
               score={app.match}
               highlights={app.highlights ?? []}
@@ -225,45 +231,49 @@ export function YourApplication({
       <TrackerEvents jobId={app.id} events={app.events} />
 
       {/* WHAT YOU SENT (KAN-317): the resume as the Resumes view draws its
-          rows, then the answers the application asked for. Answers are not
-          stored yet; the dashed slot holds their place so the section's
-          shape does not change when they arrive. Both empty slots are the
-          upload dropzone's dashed outline, as the empty resume list's was. */}
+          rows, then the answers the application asked for, in one white
+          card under the heading, as Interviews & Dates above it is.
+          Answers are not stored yet; the empty line holds their place so
+          the section's shape does not change when they arrive. The empty
+          slots were the upload dropzone's dashed outline on the grey
+          ground until 2026-11-10, and read as places to drop a file. */}
       <Section title="What You Sent">
-        <h3 className="text-label text-ink mt-3 font-semibold">Resume</h3>
-        {sent.length > 0 ? (
-          <ul>
-            {sent.map((resume) => (
-              <SentResumeRow
-                key={resume.id}
-                resume={resume}
-                appliedWith={app.sentResume?.id === resume.id}
-              />
-            ))}
-          </ul>
-        ) : (
-          <EmptySlot icon={<FileIcon className="text-ink-meta size-5" />}>
-            No resume sent yet
-          </EmptySlot>
-        )}
+        <Card padding="lg" elevated={false} className="mt-3">
+          <h3 className="text-label text-ink font-semibold">Resume</h3>
+          {sent.length > 0 ? (
+            <ul>
+              {sent.map((resume) => (
+                <SentResumeRow
+                  key={resume.id}
+                  resume={resume}
+                  appliedWith={app.sentResume?.id === resume.id}
+                />
+              ))}
+            </ul>
+          ) : (
+            <EmptySlot icon={<FileIcon className="text-ink-meta size-5" />}>
+              No resume sent yet
+            </EmptySlot>
+          )}
 
-        <h3 className="text-label text-ink mt-5 font-semibold">Answers</h3>
-        <EmptySlot icon={<ChatTextIcon aria-hidden className="text-ink-meta size-5" />}>
-          Your answers to this application&apos;s questions will show here.
-        </EmptySlot>
+          <h3 className="text-label text-ink mt-5 font-semibold">Answers</h3>
+          <EmptySlot icon={<ChatTextIcon aria-hidden className="text-ink-meta size-5" />}>
+            Your answers to this application&apos;s questions will show here.
+          </EmptySlot>
+        </Card>
       </Section>
     </>
   );
 }
 
-/** An empty slot in the upload dropzone's dashed outline: the place a sent
- *  resume or the answers fill, rather than a paragraph about why it's
- *  empty. */
+/** An empty slot: the place a sent resume or the answers fill, as one
+ *  quiet line with its glyph, the height of a resume row so nothing jumps
+ *  when one arrives. */
 function EmptySlot({ icon, children }: { icon: ReactNode; children: ReactNode }) {
   return (
-    <div className="border-border-control bg-well rounded-card mt-2 flex flex-col items-center gap-2 border border-dashed px-4 py-7">
+    <div className="mt-2 flex min-h-13 items-center gap-2">
       {icon}
-      <p className="text-body text-ink-meta text-center">{children}</p>
+      <p className="text-body text-ink-meta">{children}</p>
     </div>
   );
 }

@@ -27,7 +27,7 @@ export function HomeFrame({
     <div className={cn("max-w-dashboard mx-auto w-full flex-1 py-5", SEEKER_GUTTER)}>
       <header className="flex justify-end">
         {/* Find Jobs sat beside it until KAN-261: the sidebar's Jobs row and
-            the Strong Matches tile already lead there. */}
+            the Excellent Matches tile already lead there. */}
         <RangeSwitch />
       </header>
 

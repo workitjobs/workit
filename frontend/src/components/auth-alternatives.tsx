@@ -2,6 +2,7 @@ import { GoogleIcon, LinkedInIcon } from "@/components/icons";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { signInWithOAuth } from "@/lib/oauth-actions";
+import { OrDivider } from "@/components/ui/or-divider";
 
 /**
  * "Soon", on a control that is shown but not built yet: Join a Company on the
@@ -35,11 +36,7 @@ export function SoonBadge() {
 export function AuthAlternatives() {
   return (
     <>
-      <div className="mt-5 flex items-center gap-3">
-        <span className="bg-border-subtle h-px flex-1" />
-        <span className="text-caption text-ink-muted uppercase">Or continue with</span>
-        <span className="bg-border-subtle h-px flex-1" />
-      </div>
+      <OrDivider label="Or continue with" className="mt-5" />
 
       <div className="mt-5 grid grid-cols-2 gap-3">
         <form action={signInWithOAuth.bind(null, "google")}>

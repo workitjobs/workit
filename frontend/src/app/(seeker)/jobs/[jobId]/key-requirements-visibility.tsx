@@ -1,6 +1,9 @@
 "use client";
 
+import { TargetIcon } from "@phosphor-icons/react/ssr";
 import { useId, useSyncExternalStore, type ReactNode } from "react";
+
+import { Button } from "@/components/ui/button";
 
 const PREFERENCE_KEY = "workit:key-requirements-hidden";
 const CHANGE_EVENT = "workit:key-requirements-visibility";
@@ -48,25 +51,27 @@ export function KeyRequirementsVisibility({ children }: { children: ReactNode })
     window.dispatchEvent(new Event(CHANGE_EVENT));
   }
 
+  // A section of the job's panel (`JobPanel`, ./job-view.tsx), not a card
+  // of its own (2026-11-10): its heading is drawn as the description's
+  // sections' are (./description.tsx, `Heading`), 20px bold beside a 24px
+  // brand glyph, since the two sit one under the other in the same panel.
+  // As a 16px card title above 20px section headings it read upside down.
   return (
-    <section
-      aria-labelledby={titleId}
-      className="border-border bg-panel mt-6 rounded-xl border p-4"
-    >
+    <section aria-labelledby={titleId}>
       <div className="flex items-center justify-between gap-4">
-        <h2 id={titleId} className="text-subtitle text-ink font-semibold">
+        <h2 id={titleId} className="text-title text-ink flex items-center gap-2 font-bold">
+          <TargetIcon aria-hidden className="text-brand size-6 shrink-0" />
           Key Requirements
         </h2>
-        <button
-          type="button"
+        <Button
+          variant="section"
           onClick={toggle}
           aria-expanded={!hidden}
           aria-controls={contentId}
           aria-label={hidden ? "Show Key Requirements" : "Hide Key Requirements"}
-          className="text-brand rounded px-2 py-1 text-sm font-medium hover:underline focus-visible:outline-2 focus-visible:outline-offset-2"
         >
           {hidden ? "Show" : "Hide"}
-        </button>
+        </Button>
       </div>
       <div id={contentId} hidden={hidden}>
         {children}

@@ -108,6 +108,8 @@ Chakra UI
 shadcn/ui
 Styled Components
 Three.js
+React Three Fiber | R3F
+Framer Motion
 D3 | D3.js
 Chart.js
 Node.js | Node | NodeJS
@@ -170,6 +172,7 @@ SDL
 Socket.IO
 WebSockets | WebSocket
 gRPC
+RSS | RSS Feeds
 Protocol Buffers | Protobuf
 Apache Thrift
 tRPC
@@ -274,6 +277,8 @@ LangChain
 LlamaIndex
 OpenAI API
 Anthropic API | Claude API
+Gemini API | Google Gemini API
+Claude Code
 Model Context Protocol | MCP
 TensorFlow
 Keras
@@ -680,6 +685,9 @@ User Interface Design | UI Design | UI/UX | UX/UI
 User Research
 Wireframing
 Prototyping
+Interaction Design
+Motion Design
+Design Systems
 Product Management
 Project Management
 Financial Modeling

@@ -126,6 +126,7 @@ export async function loadExtension(
     live = false,
     welcome = false,
     version = undefined as string | undefined,
+    probe = false,
   } = {},
 ): Promise<Loaded> {
   // A copy, so its panel's and marks' shadow roots can be open for Playwright's locators (which can't reach a
@@ -133,7 +134,8 @@ export async function loadExtension(
   // `welcome`: the install opens onboarding's extension step (install.js), as for a student; off, every other test's tabs are its own.
   // `version`: the manifest's version in the copy, so a second start on a kept `profile` is an update to Chrome.
   // `grantPermissions`: optional permissions the student granted on the options page (a test can't press Chrome's prompt).
-  const copy = testCopy(grantHosts, !closedPanel, welcome, version, grantPermissions);
+  // `probe`: the content scripts' isolated world counts its own work in every frame of the job systems' hosts (PROBE_FILE).
+  const copy = testCopy(grantHosts, !closedPanel, welcome, version, grantPermissions, probe);
   const net = await startFakeNet(handlers, copy, live);
   // `profile`: a Chromium profile folder to start (again) with, which the caller keeps; else a new one, removed on close.
   const profile = kept ?? mkdtempSync(join(tmpdir(), "workit-extension-"));
@@ -188,6 +190,43 @@ function noWelcome(source: string): string {
   return quiet;
 }
 
+/** The test copy's probe (loadExtension's `probe`), first in the content scripts' isolated world. */
+export const PROBE_FILE = "test-probe.js";
+
+/**
+ * What the extension's content scripts do in a frame, counted in their own
+ * isolated world (the page's scripts have other globals, so only the
+ * extension's own calls count): observers started, timers and intervals set,
+ * listeners added, messages to the worker, and the scripts that ran
+ * (each panel file sets its global on window.WIA). Read with probeOf.
+ */
+const PROBE = `(() => {
+  const P = (window.__probe = { observers: 0, timeouts: 0, intervals: 0, listeners: 0, messages: [] });
+  const observe = MutationObserver.prototype.observe;
+  MutationObserver.prototype.observe = function (...a) { P.observers++; return observe.apply(this, a); };
+  const timeout = window.setTimeout, interval = window.setInterval;
+  window.setTimeout = function (...a) { P.timeouts++; return timeout.apply(window, a); };
+  window.setInterval = function (...a) { P.intervals++; return interval.apply(window, a); };
+  const listen = EventTarget.prototype.addEventListener;
+  EventTarget.prototype.addEventListener = function (...a) { P.listeners++; return listen.apply(this, a); };
+  const message = chrome.runtime.sendMessage.bind(chrome.runtime);
+  chrome.runtime.sendMessage = (m, ...rest) => { P.messages.push(m?.type); return message(m, ...rest); };
+})();`;
+
+export type Probe = { observers: number; timeouts: number; intervals: number; listeners: number; messages: string[]; globals: string[] };
+
+/** The probe's counts in the top frame of the tab showing `url` (loadExtension's `probe`), with window.WIA's globals. */
+export async function probeOf(loaded: Loaded, url: string): Promise<Probe> {
+  return loaded.worker.evaluate(async (url) => {
+    const [tab] = await chrome.tabs.query({ url });
+    const [{ result }] = await chrome.scripting.executeScript({
+      target: { tabId: tab.id! },
+      func: () => ({ ...(window as any).__probe, globals: Object.keys((window as any).WIA ?? {}).sort() }),
+    });
+    return result;
+  }, url);
+}
+
 /**
  * A copy of the extension to load: its panel's and marks' roots open when `open` (see
  * openPanel), and allowed to read `hosts` too: what activeTab grants when the
@@ -195,13 +234,18 @@ function noWelcome(source: string): string {
  * which a test can't press, and with no onboarding tab on install unless
  * `welcome`. Same key, so the same extension id.
  */
-function testCopy(hosts: string[], open: boolean, welcome: boolean, version?: string, permissions: string[] = []): string {
+function testCopy(hosts: string[], open: boolean, welcome: boolean, version?: string, permissions: string[] = [], probe = false): string {
   const dir = mkdtempSync(join(tmpdir(), "workit-extension-copy-"));
   for (const part of ["src", "icons", "fonts", "fill-engine/dist"]) cpSync(join(EXTENSION, part), join(dir, part), { recursive: true });
   const manifest = JSON.parse(readFileSync(join(EXTENSION, "manifest.json"), "utf8"));
   manifest.host_permissions.push(...hosts);
   manifest.permissions.push(...permissions);
   if (version) manifest.version = version;
+  if (probe) {
+    writeFileSync(join(dir, PROBE_FILE), PROBE);
+    const matches = manifest.content_scripts.find((c: { js: string[] }) => c.js.includes("src/content/launcher.js")).matches;
+    manifest.content_scripts.unshift({ matches, js: [PROBE_FILE], run_at: "document_start", all_frames: true });
+  }
   writeFileSync(join(dir, "manifest.json"), JSON.stringify(manifest));
   if (open) for (const file of CLOSED_ROOT_FILES) writeFileSync(join(dir, file), openPanel(readFileSync(join(dir, file), "utf8"), file));
   if (!welcome) writeFileSync(join(dir, INSTALL_FILE), noWelcome(readFileSync(join(dir, INSTALL_FILE), "utf8")));

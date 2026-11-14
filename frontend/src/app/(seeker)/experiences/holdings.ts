@@ -76,13 +76,24 @@ function bulletWords(entry: { bullets: { text: string }[] }) {
 /** Skills as rows: All Experiences shows a name once, as a resume prints it. */
 export function skillRows<T extends { name: string }>(pick: Pick, skills: T[]): T[] {
   if (pick !== ALL) return skills;
-  const seen = new Set<string>();
-  return skills.filter((s) => {
+  return skillCopies(skills).map((copies) => copies[0]);
+}
+
+/**
+ * The skills by name, ignoring case and the spaces around it: each list is
+ * one name's copies, in the order the names first appear. Each upload owns
+ * its own skills (ADR 0005), so two uploads can each hold "Python". The
+ * Experiences view, the editor's Experiences picker and Cut From Resume all
+ * show a name once through this (KAN-504), and the API's Generate shows one
+ * copy by the same rule (`bank.skill_key`).
+ */
+export function skillCopies<T extends { name: string }>(skills: T[]): T[][] {
+  const names = new Map<string, T[]>();
+  for (const s of skills) {
     const name = s.name.trim().toLowerCase();
-    if (seen.has(name)) return false;
-    seen.add(name);
-    return true;
-  });
+    names.set(name, [...(names.get(name) ?? []), s]);
+  }
+  return [...names.values()];
 }
 
 /** Where a row's copies with other bullets are: each a pick that shows its
@@ -120,11 +131,12 @@ type Searched = {
   field_of_study: string | null;
   honors: string | null;
   coursework: string[];
+  tools: string[];
   bullets: { text: string }[];
 };
 
 /** Whether a row answers a search: the words a student would look for in an
- *  entry or any of its copies, bullets included. */
+ *  entry or any of its copies, a project's tools and the bullets included. */
 export function rowMatches<T extends Searched>(row: BankRow<T>, query: string): boolean {
   const found = searcher(query);
   return found(
@@ -136,6 +148,8 @@ export function rowMatches<T extends Searched>(row: BankRow<T>, query: string): 
       e.field_of_study,
       e.honors,
       ...e.coursework,
+      // Missing from an API older than the web (toolsLine, sections.ts)
+      ...(e.tools ?? []),
       ...e.bullets.map((b) => b.text),
     ]),
   );

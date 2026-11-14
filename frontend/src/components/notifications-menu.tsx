@@ -85,6 +85,7 @@ export function NotificationsMenu({
       <PopoverTrigger
         render={
           <IconButton
+            tooltip={false}
             label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : "Notifications"}
             className={cn("group/bell hover:bg-hover relative size-8 rounded-full", className)}
           >

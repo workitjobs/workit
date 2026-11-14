@@ -57,7 +57,7 @@ export function ScoutMark() {
   return (
     <span
       aria-hidden
-      className="from-brand to-brand-pale text-on-brand flex size-8 shrink-0 items-center justify-center rounded-2xl bg-linear-to-br shadow-[0_4px_12px_rgb(109_63_216/0.35)]"
+      className="from-brand to-brand-pale text-on-brand rounded-control flex size-8 shrink-0 items-center justify-center bg-linear-to-br shadow-[0_4px_12px_rgb(109_63_216/0.35)]"
     >
       <SparkleIcon className="size-4" />
     </span>
@@ -121,7 +121,7 @@ export function Composer({
     >
       {/* A grey field like the bar's search, turning white with the brand
           ring while it is being typed in. */}
-      <div className="bg-well hover:bg-hover focus-within:bg-panel focus-within:hover:bg-panel focus-within:ring-brand-ring rounded-2xl p-3 transition-[background-color,box-shadow] duration-150 focus-within:ring-2">
+      <div className="bg-well hover:bg-hover focus-within:bg-panel focus-within:hover:bg-panel focus-within:ring-brand-ring rounded-card p-3 transition-[background-color,box-shadow] duration-150 focus-within:ring-2">
         <textarea
           ref={input}
           aria-label={label}
@@ -142,6 +142,7 @@ export function Composer({
         <div className="flex items-center justify-end gap-2">
           {speech.supported && (
             <IconButton
+              tooltip={false}
               label={speech.listening ? "Stop dictating" : "Dictate a message"}
               className={cn(
                 "relative size-8 rounded-full after:hidden",
@@ -165,8 +166,10 @@ export function Composer({
           )}
           <IconButton
             label="Send"
+            // Only to say why Send is off: an arrow beside a message box
+            // reads as Send without one.
             tooltip={
-              answering ? `${who} is still answering` : empty ? "Type a message to send" : "Send"
+              answering ? `${who} is still answering` : empty ? "Type a message to send" : false
             }
             type="submit"
             variant="brand"

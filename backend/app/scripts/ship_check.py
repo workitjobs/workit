@@ -163,6 +163,10 @@ def stub(folder: Path, chat: int) -> Iterator[tools.MCPServer]:
                           and not any(checks.names(source, a["company"]) for source in sources))
         return sources, employers, samples
 
+    async def own_facts(db, applicant_id, job_id):
+        # As written._own_facts: what the student gave.
+        return [data["experience"], *data["skills"]]
+
     async def plan_sources(db, applicant_id, job_id, questions, saving):
         # As written._plan_sources: what an Essay plan may quote, folded.
         app = apps[named[job_id]]
@@ -200,6 +204,9 @@ def stub(folder: Path, chat: int) -> Iterator[tools.MCPServer]:
             (review, "fetch_next_to_review", lambda db, applicant_id: _none()),
             # Nor does it send answers back to be written again (the flag card's Rewrite with Claude).
             (review, "fetch_review", lambda db, applicant_id, job_id: _no_review()),
+            # Nor keeps the truth check's flags (KAN-748), which read only the student's own facts.
+            (review, "set_answer_review", nothing),
+            (written, "_own_facts", own_facts),
             (briefs, "research_task", nothing),
             (briefs, "brief_for", no_brief),
             (briefs, "needs_research", nothing),

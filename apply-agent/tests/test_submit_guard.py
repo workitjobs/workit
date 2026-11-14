@@ -36,7 +36,7 @@ from playwright.sync_api import Error as PlaywrightError
 from test_claude_fill import LUNAR_FORM, LUNAR_URL
 from test_workday_filler import CACI_FORM, CACI_URL, NOW, ONE_PAGER, fill_all
 
-from apply import captcha
+from apply import captcha, submit_guard
 from apply.accounts import Accounts
 from apply.ashby import AshbyFiller
 from apply.claude_fill import OnePage
@@ -45,6 +45,12 @@ from apply.keychain import InMemoryKeychain
 from apply.lever import LeverFiller
 from apply.submit_guard import CAPTCHA_TRY, DriveGuard, guard, lift, renote
 from apply.workday import WorkdayFiller
+
+
+def _armed(page) -> bool:
+    """Whether plain code's account click is armed in any frame of the page (the guards' own state, KAN-710)."""
+    return submit_guard.control(page, {"query": "account"}) == "heard"
+
 
 SKYDIO_JOB = "79fdda46-4ff5-42c7-b208-55f2084cdb8c"
 
@@ -105,6 +111,7 @@ def test_the_final_application_post_never_leaves_a_guarded_page(system):
 def test_without_the_guard_the_same_post_reaches_the_job_system(system):
     server, url, script = FINAL_POST[system]
     with server() as fake:
+        fake.guard_at_open = False  # no guard at all, not even a live run's drive guard
         with fake.open(url) as page:
             _post(page, script)
         assert len(fake.submissions) == 1
@@ -152,7 +159,7 @@ def test_a_lifted_page_tells_apply_when_lisul_clicks_a_button_that_sends(job_ser
     pressed, again = [], []
     with job_server.open(ARC_URL) as page:
         guard(page)
-        lift(page, pressed=pressed.append, again=lambda: again.append(True))
+        lift(page, pressed=lambda words, account=False: pressed.append(words), again=lambda: again.append(True))
         page.evaluate("""() => { const next = document.createElement('button');
             next.type = 'button'; next.textContent = 'Next'; document.body.appendChild(next); }""")
         page.get_by_role("button", name="Next").click()
@@ -218,7 +225,7 @@ def test_a_legal_answer_the_review_found_wrong_holds_lisuls_submit_until_he_dism
     with job_server.open(ARC_URL) as page:
         guard(page)
         filler.fill(page, questions, answers)
-        lift(page, pressed=pressed.append, warning=f"Pre-submit review: {US_PERSON_WRONG}", held=US_PERSON_WRONG,
+        lift(page, pressed=lambda words, account=False: pressed.append(words), warning=f"Pre-submit review: {US_PERSON_WRONG}", held=US_PERSON_WRONG,
              dismiss=lambda: dismissed.append(True))
         note = page.locator("#apply-rehearsal-blocked")
         page.get_by_role("button", name="Submit application").click()
@@ -384,6 +391,7 @@ def test_enter_in_a_field_on_jobvites_last_step_sends_nothing_from_a_guarded_pag
 
 def test_without_the_guard_enter_on_jobvites_last_step_sends_the_application():
     with FakeJobviteServer() as server:
+        server.guard_at_open = False  # no guard at all, not even a live run's drive guard
         with server.open(JOBVITE_URL) as page:
             _fill_jobvite(page)
             page.get_by_label("Email*").press("Enter")
@@ -490,7 +498,7 @@ def test_plain_codes_click_on_a_sign_in_button_named_submit_goes_through_a_rehea
         page.get_by_role("button", name="Submit").click()  # not plain code's: blocked
         page.wait_for_timeout(500)
         assert server.sign_ins == []
-        page.evaluate("window.__applyAccountClick = true")
+        submit_guard.let_account_click(page)  # Apply's own, by the guards' control (KAN-710)
         page.get_by_role("button", name="Submit").click()
         page.wait_for_load_state()
         page.wait_for_timeout(500)
@@ -605,7 +613,7 @@ def test_a_next_that_is_a_submit_or_on_a_review_page_is_never_clicked_or_let_thr
         with pytest.raises(Handoff, match="may send the form"):
             filler._next_step(page, "Next")
         page.wait_for_timeout(300)
-        assert posts == [] and page.evaluate("window.__applyAccountClick") is not True
+        assert posts == [] and not _armed(page)
         browser.close()
 
 
@@ -884,7 +892,7 @@ def test_ask_goes_on_and_back_on_native_post_steps_by_plain_code_s_own_click():
         ])
         assert posts == ["/app/2", "/app/1"] and page.title() == "One"
         assert reply.reply == "Set it and came back." and reply.couldnt == []  # Claude's blocked click isn't his to read
-        assert page.evaluate("window.__applyAccountClick") is not True  # the flag is gone in the step it led to
+        assert not _armed(page)  # the account click is off again in the step it led to
 
 
 def test_ask_s_press_never_lets_a_post_to_the_final_url_through(monkeypatch):
@@ -916,10 +924,13 @@ TAL_FORM = "https://bankcampuscareers.tal.net/vx/lang-en-GB/mobile-0/brand-4/use
 TAL_STEPS = ["Languages", "How did you hear about us?", "Inclusion", "Declaration"]
 
 
-def _tal_page(n):
+def _tal_page(n, headed=False):
+    # `headed`: the live tracker's markup (2026-11-06, KAN-729), each link named by its aria-label, a heading first.
     tracker = "".join(f'<li><a href="#" onclick="document.getElementById(\'goto\').value={i};'
-                      f'document.getElementById(\'eform\').submit();return false">{name}'
-                      f'<span class="sr-only"> Item {"completed" if i < n else "not completed"}</span></a></li>'
+                      f'document.getElementById(\'eform\').submit();return false"'
+                      + (f' aria-label="Section Header: {name}  Item {"completed" if i < n else "incomplete"}">{name}</a></li>'
+                         if headed else
+                         f'>{name}<span class="sr-only"> Item {"completed" if i < n else "not completed"}</span></a></li>')
                       for i, name in enumerate(TAL_STEPS, 1))
     last = n == len(TAL_STEPS)
     return (f'<title>{TAL_STEPS[n - 1]}</title><nav aria-label="Progress Tracker"><ul>{tracker}</ul></nav>'
@@ -930,7 +941,7 @@ def _tal_page(n):
 
 
 @contextmanager
-def _tal(start):
+def _tal(start, headed=False):
     from urllib.parse import parse_qs
 
     from playwright.sync_api import sync_playwright
@@ -946,8 +957,8 @@ def _tal(start):
                 return route.fulfill(body="<p>Thank you for applying</p>", content_type="text/html")
             at = int(form["page"][0])
             n = int((form.get("goto") or [at + 1])[0])
-            return route.fulfill(body=_tal_page(n), content_type="text/html")
-        return route.fulfill(body=_tal_page(int(route.request.url.rsplit("/", 1)[1])), content_type="text/html")
+            return route.fulfill(body=_tal_page(n, headed), content_type="text/html")
+        return route.fulfill(body=_tal_page(int(route.request.url.rsplit("/", 1)[1]), headed), content_type="text/html")
 
     with sync_playwright() as p:
         browser = p.chromium.launch()
@@ -974,6 +985,18 @@ def test_ask_moves_between_tal_net_pages_by_the_progress_tracker():
         ])
         assert [(f["page"], f["goto"]) for f in posts] == [(["3"], ["2"]), (["2"], ["4"])]
         assert page.title() == "Declaration" and reply.couldnt == []
+
+
+def test_ask_presses_a_tracker_link_named_by_its_heading():
+    # Bank of America (2026-11-06): the live links are named "Section Header: Additional Information  Item
+    # incomplete", so Apply found no step named 'Additional Information' and couldn't press it (KAN-729).
+    with _tal(1, headed=True) as (page, drive, posts):
+        reply = _asked(page, drive, "open Inclusion", [
+            (lambda p: None, _said(press="Inclusion")),
+            (lambda p: None, _said(reply="Inclusion is open.")),
+        ])
+        assert [(f["page"], f["goto"]) for f in posts] == [(["1"], ["3"])]
+        assert page.title() == "Inclusion" and reply.couldnt == []
 
 
 def test_ask_s_progress_tracker_press_never_posts_the_declaration():
@@ -1254,4 +1277,231 @@ def test_a_widget_loading_into_its_own_frame_goes_through_the_drive_guard(action
         blocked = drive.blocked()
         browser.close()
     assert posts == ([action] if through else [])
-    assert ('the "Submit application" click' in blocked) and (("a form submission" in blocked) is not through)
+    form_blocked = any(b.startswith("a form submission") for b in blocked)
+    assert ('the "Submit application" click' in blocked) and (form_blocked is not through)
+
+
+# A TAL.net-style Employment step (Bank of America's, live 2026-11-06, KAN-728): its "Add another" posts the page to add a
+# blank entry. Claude's click on it is blocked as any POST is; plain code's own press goes through, and nothing sends.
+TAL_STEP = ('<form method="post" action="/eform/1/save_page"><input name="employer" aria-label="Employer">'
+            '<button name="add">Add another</button><button name="next">Save and Continue</button></form>')
+
+
+def _employment_step(press):
+    from playwright.sync_api import sync_playwright
+
+    from apply import claude_fill
+    posts = []
+
+    def serve(route):
+        if route.request.method == "POST":
+            posts.append(route.request.post_data or "")
+            return route.fulfill(body=TAL_STEP.replace('<button name="add">', '<input name="employer2"><button name="add">'),
+                                 content_type="text/html")
+        return route.fulfill(body=TAL_STEP, content_type="text/html")
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.route(lambda url: True, serve)  # every request: no real site is ever reached
+        page.goto("https://jobs.example.com/eform/1")
+        guard(page)
+        drive = DriveGuard(page)
+        drive.arm()
+        try:
+            press(page, drive, claude_fill)
+        finally:
+            page.wait_for_timeout(300)
+            browser.close()
+    return posts
+
+
+def test_claudes_click_on_a_sections_add_another_is_blocked():
+    assert _employment_step(lambda page, drive, _: page.get_by_role("button", name="Add another").click()) == []
+
+
+def test_plain_code_presses_a_sections_add_another_through_the_guards():
+    posts = _employment_step(lambda page, drive, claude_fill: claude_fill.press_step(page, drive, "Add another", add=True))
+
+    assert len(posts) == 1 and "add=" in posts[0]
+
+
+def test_a_button_named_as_an_add_button_that_sends_is_never_pressed():
+    def press(page, drive, claude_fill):
+        with pytest.raises(claude_fill.Handoff):
+            claude_fill.press_step(page, drive, "Save and Continue", add=True)
+
+    assert _employment_step(press) == []
+
+
+# TAL.net's posting page (Bank of America's campus careers, live 2026-11-06, KAN-725): its Apply button is a submit
+# input in a POST form of its token alone, bound for .../opp/<id>/apply/<lang>, which opens the application. The
+# guard took it for a form's Apply that sends, and the rehearsal handed off with no field filled.
+TAL_POSTING = """<form><button id="cookies" type="button">Accept all cookies</button></form>
+<h1>Software Engineer Summer Analyst</h1><p>About the role.</p>{page}
+<form action="{action}" method="post"><input type="hidden" name="__vxXSRF_Token" value="t">{fields}
+<input type="submit" id="go" value="{words}"></form>"""
+TAL_URL = "https://bankcampuscareers.tal.net/vx/candidate/so/pm/1/pl/1/opp/14418-Software-Engineer/en-GB"
+TAL_APPLY = "https://bankcampuscareers.tal.net/vx/candidate/so/pm/1/pl/1/opp/14418/apply/en-GB"
+
+
+SPA = """<a id="spa" href="#">Apply now</a><button id="chip" type="button">Yes</button>
+<script>document.getElementById('spa').addEventListener('click', (e) => { e.preventDefault();
+  history.pushState({}, '', location.pathname + '/form'); });</script>"""
+SHADOW_CHOICE = """<div id="host"></div><script>document.getElementById('host').attachShadow({mode: 'open'}).innerHTML =
+  '<div id="choice" role="radio" aria-checked="false">No</div>';</script>"""
+ADDS_ANSWER = """<script>addEventListener('load', () => document.getElementById('go').addEventListener('click', () =>
+  document.getElementById('go').form.insertAdjacentHTML('beforeend', '<input type="hidden" name="first" value="Test">')));
+</script>"""
+FETCHES = """<script>addEventListener('load', () => document.getElementById('go').addEventListener('click', (e) => {
+  e.preventDefault(); fetch(location.href + '/save', {method: 'POST', body: 'first=Test'}).catch(() => {}); }));</script>"""
+
+
+def _press_tal_apply(action=TAL_APPLY, words="Apply", fields="", page="", start=True, before=None, url=TAL_URL,
+                     rehearsal=False):
+    """The posts the TAL.net-like posting sent, and what the drive guard blocked, after a press of its button
+    (`rehearsal`: under a rehearsal's guard too, put on before the first load as a rehearsal does)."""
+    from playwright.sync_api import sync_playwright
+
+    posts, bodies = [], []
+    _press_tal_apply.bodies = bodies
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        tab = browser.new_page()
+        tab.route(url, lambda route: route.fulfill(body=TAL_POSTING.format(
+            action=action, words=words, fields=fields, page=page), content_type="text/html"))
+        tab.on("request", lambda r: r.method == "POST" and bodies.append(r.post_data))
+        _posts_to(tab, posts)
+        if rehearsal:
+            with submit_guard.guarding_on_open():
+                submit_guard.on_open(tab)
+        drive = DriveGuard(tab)
+        tab.goto(url)
+        drive.arm()  # Claude drives
+        if start:
+            drive.let_start_click()  # Claude fill's first drive, on the Posting's own page
+        tab.click("#cookies")  # a cookie banner's button answers nothing
+        if before:
+            before(tab)
+        tab.click("#go")
+        tab.wait_for_timeout(500)
+        blocked = drive.blocked()
+        browser.close()
+    return posts, blocked
+
+
+def test_a_postings_apply_button_that_opens_the_form_goes_through_the_drive_guard():
+    assert _press_tal_apply() == ([TAL_APPLY], [])
+    assert _press_tal_apply.bodies == ["__vxXSRF_Token=t"]
+
+
+def test_the_postings_apply_sends_its_token_alone_whatever_the_pages_submit_handler_adds():
+    adds = """<script>addEventListener('load', () => document.getElementById('go').form.addEventListener('submit', (e) =>
+      e.target.insertAdjacentHTML('beforeend', '<input type="hidden" name="first" value="Test">')));</script>"""
+    assert _press_tal_apply(page=adds) == ([TAL_APPLY], [])
+    assert _press_tal_apply.bodies == ["__vxXSRF_Token=t"]
+
+
+@pytest.mark.parametrize("given", [
+    {"start": False},  # not the Posting's page as the first drive began: a review page's Apply, a reopened form
+    {"words": "Submit application"},
+    {"fields": '<input name="first" value="Test">'},  # an application's own Apply
+    {"fields": '<input type="hidden" name="first" value="Test">'},  # its answers, hidden beside the token
+    {"page": '<input name="first" value="Test">'},  # an answer on the page
+    {"page": '<input type="search" value="Test">'},
+    {"page": '<div contenteditable="true">Test</div>'},
+    {"action": "https://bankcampuscareers.tal.net/jobs/14418/apply"},  # a final URL
+    {"action": "https://bankcampuscareers.tal.net/jobs/14418/submit"},
+    {"page": '<input id="first" name="first">', "before": lambda tab: (tab.fill("#first", "Test"), tab.fill("#first", ""))},
+    {"page": '<div id="yes" role="radio" aria-checked="false">Yes</div>', "before": lambda tab: tab.click("#yes")},
+    # The adversarial review's pages: a one-page app's Apply link that turns the page into the form, whose answers are
+    # buttons; a custom choice in a shadow root; a draft the site kept, shown at the Posting's URL; and a handler on the
+    # Apply itself that posts the answers by script instead.
+    {"page": SPA, "before": lambda tab: (tab.click("#spa"), tab.click("#chip"))},
+    {"page": SHADOW_CHOICE, "before": lambda tab: tab.click("#choice")},
+    {"page": "<h2>Review your application</h2><p>First name: Test</p>"},
+    {"page": "<h1>Review</h1><p>First: Test</p>"}, {"page": "<h1>Your application</h1><p>First: Test</p>"},
+    {"page": FETCHES},
+    {"page": FETCHES.replace("location.href + '/save'", "'https://api.tal.net/v1/candidates/me/applications'")},
+    {"page": ADDS_ANSWER},  # the page's own click handler adds an answer to the form after the guard's check
+    {"page": "<p>Signed in as Test. Apply with your profile.</p>"},  # the site's saved profile: the press applies
+    {"page": '<iframe srcdoc="<input id=first>"></iframe>',
+     "before": lambda tab: tab.frame_locator("iframe").locator("#first").fill("Test")},  # an answer in a frame
+    # A one-click apply from the site's saved profile, in words no list knows, on a job system not proven to open
+    # the form alone: blocked though plain code vouched for the page (KAN-725's follow-up).
+    {"url": "https://careers.example.com/jobs/1-engineer", "action": "https://careers.example.com/jobs/1/go",
+     "page": "<p>Ready when you are. We'll use what we have on file.</p>"},
+    {"url": "https://careers.example.com/jobs/1-engineer", "action": "https://careers.example.com/jobs/1/go"},
+])
+def test_any_other_forms_apply_stays_blocked(given):
+    posts, blocked = _press_tal_apply(**given)
+    assert posts == [] and blocked
+
+
+@pytest.mark.parametrize("opened, sessions, start", [
+    (TAL_URL, 0, True), (TAL_URL + "#top", 0, True),
+    (TAL_URL, 1, False),  # a later drive: the form, or a page after a sign-in
+    (TAL_URL.replace("/opp/14418-Software-Engineer/en-GB", "/eform/1/page/2"), 0, False),  # not the Posting's page
+    ("https://careers.example.com/jobs/1-engineer", 0, False),  # a job system not proven to open the form alone
+])
+def test_claude_fill_vouches_only_for_the_postings_page_at_its_first_drive(opened, sessions, start):
+    from apply.claude_fill import ClaudeFill
+
+    said = []
+
+    class Guard:
+        def arm(self): said.append("arm")
+        def let_start_click(self): said.append("start")
+        def blocked(self): return []
+        def rest(self): pass
+
+    claude = type("Claude", (), {"drive": lambda self, **_: __import__("apply.adapters").adapters.Drive({}, 1, 10)})()
+    filler = ClaudeFill(claude=claude)
+    filler._guard, filler._url, filler._sessions = Guard(), TAL_URL if "tal.net" in opened else opened, sessions
+    filler._drive(type("Page", (), {"url": opened})(), "system", "prompt", {}, [])
+    assert said == (["arm", "start"] if start else ["arm"])
+
+
+def test_the_postings_apply_opens_the_form_under_a_rehearsals_guard_too():
+    # KAN-710's port of KAN-725: each guard keeps its own word, set by the control, and judges the Apply's one post
+    # as it leaves, whichever guard sent the copy.
+    assert _press_tal_apply(rehearsal=True) == ([TAL_APPLY], [])
+    assert _press_tal_apply.bodies == ["__vxXSRF_Token=t"]
+
+
+# What a page could do to vouch for its own Apply, now that the word is the guards' own (KAN-710): set the flag main
+# read (KAN-725), hold it true for good, send the control events by their names without the run's token, set it from
+# a frame, or set it again as the press lands.
+FORGED = {
+    "the start flag": "<script>window.__applyStartClick = true;</script>",
+    "every flag held true": """<script>for (const k of ['__applyStartClick', '__applyDriveLifted', '__applyRehearsalLifted',
+      '__applyAccountClick']) Object.defineProperty(window, k, {get: () => true, set() {}});</script>""",
+    "a control event without the token": """<script>for (const k of ['__applyDriveControl', '__applyRehearsalControl',
+      '__applyDriveControl' + 'x'.repeat(32)]) dispatchEvent(new CustomEvent(k, {detail: JSON.stringify({start: true})}));
+      </script>""",
+    "the flag set from a frame": """<iframe srcdoc="<script>parent.__applyStartClick = true;</script>"></iframe>""",
+    "the flag set as the press lands": """<script>addEventListener('pointerdown', () => { window.__applyStartClick = true; },
+      true);</script>""",
+}
+
+
+@pytest.mark.parametrize("rehearsal", [False, True], ids=["drive guard", "both guards"])
+@pytest.mark.parametrize("forged", list(FORGED))
+def test_a_page_cannot_vouch_for_its_own_apply(forged, rehearsal):
+    posts, blocked = _press_tal_apply(page=FORGED[forged], start=False, rehearsal=rehearsal)
+    assert posts == [] and blocked
+
+
+def test_a_page_scripts_own_click_on_the_vouched_apply_opens_nothing():
+    # Only Apply's own press opens the form: the page's click is blocked and takes the word back, so Apply's press
+    # after it is blocked too.
+    posts, blocked = _press_tal_apply(before=lambda tab: tab.evaluate("document.getElementById('go').click()"))
+    assert posts == [] and blocked
+
+
+def test_the_guards_start_hosts_are_claude_fills():
+    from apply import submit_guard
+    from apply.claude_fill import OPENS_ONLY
+
+    listed = submit_guard._TEMPLATE.split("const START_HOSTS = [", 1)[1].split("];", 1)[0]
+    assert sorted(h.replace("\\.", ".") for h in __import__("re").findall(r"\(\^\|\\\.\)(.+?)\$", listed)) == sorted(OPENS_ONLY)

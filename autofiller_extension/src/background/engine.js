@@ -36,6 +36,15 @@ export function jobOf(url) {
 }
 
 /**
+ * Whether `site`'s form comes in steps (the engine's Stepper seam: Workday,
+ * Oracle, iCIMS, SuccessFactors), which the student signs in to and moves through.
+ * @param {string} site
+ */
+export function stepped(site) {
+  return engine.stepped(site);
+}
+
+/**
  * The job systems an employer's own domain may host, each with the selector
  * that marks its pages (Workday's career site, SuccessFactors'): the engine's
  * PAGE_MARKS, looked for in the tab, where the engine isn't loaded.
@@ -111,8 +120,13 @@ const readOffPage = (job) => engine.stepped(job.site) || READ_OFF_PAGE.has(job.s
  */
 export function signInFirst(url) {
   const job = jobOf(url);
-  // TikTok USDS keeps its pages, sign-in too, under /usds.
-  return job?.site === "tiktok" && !job.onForm && /^(\/usds)?\/(login|create-?account|register)\b/i.test(new URL(url).pathname);
+  if (job?.site !== "tiktok" || job.onForm) return false;
+  // Its sign-in's path is the Rules table's (KAN-778): none held (the Store package before TikTok's table comes) is none.
+  const path = engine.siteRules("tiktok").patterns?.SIGN_IN_PATH;
+  if (!path) return false;
+  // At the path's start; TikTok USDS keeps its pages, sign-in too, under /usds.
+  const found = new RegExp(path.source, path.flags ?? "").exec(new URL(url).pathname.replace(/^\/usds(?=\/)/i, ""));
+  return found?.index === 0;
 }
 
 /** The link to open for an application: its form, where the engine covers the job system. */
@@ -635,6 +649,10 @@ export async function planFill({ url, profile, bank = {}, today, call, fetchText
   if (!job) return { covered: false };
   const { site } = job;
   if (!job.onForm && !signInFirst(url)) return { covered: true, site, openForm: job.form };
+  // No data for the job system (the Store package's engine with no Rules table from the API): a basic fill.
+  // Asked of the page's engine, which fills: the background's may hold a table that came after the page's was loaded.
+  const hasData = await call("supported", site).catch(() => engine.supported(site));
+  if (!hasData) return planBasic({ job, url, profile, bank, today, call, fetchText, jobType, off });
   const fetchOnce = once(fetchText);
   // The job's names and text need no question: asked beside the questions, not after them.
   const reading = readNames(url, fetchOnce);
@@ -656,6 +674,27 @@ export async function planFill({ url, profile, bank = {}, today, call, fetchText
   // Demographics off: the form's self-identification is the student's, so WorkIt doesn't ask to save it either.
   const selfId = off.includes("demographics") ? null : selfIdAsked(questions, profile, plan, planFor);
   return { ...prepared, rows: planRows(prepared), selfId };
+}
+
+/**
+ * The basic fill's Plan (KAN-777): the Store package's engine ships no job
+ * system's data, so when the API's Rules table didn't come (background/rules.js)
+ * the form's plain fields are read by their labels (the engine's `readBasic`)
+ * and planned with the basic answer rules it ships: names, email, phone,
+ * links and the common questions. Text answers only: a basic fill attaches no
+ * file and ticks no list. `basic` tells the content script to say so, and
+ * fillPage to fill with `fillBasic`. A stepped job system's steps (Workday's)
+ * are custom widgets a label can't fill: the step is the student's.
+ */
+async function planBasic({ job, url, profile, bank, today, call, fetchText, jobType, off }) {
+  const { site } = job;
+  if (engine.stepped(site)) throw new Error("WorkIt can't reach its server, so it can't fill this step");
+  const questions = await call("readBasic");
+  const { posting, plan, planFor } = await planQuestions({ job, url, questions, profile, bank, today, fetchText: once(fetchText), jobType });
+  holdBack(plan, questions, off, (id) => planFor(profile, id));
+  const answers = Object.fromEntries(Object.entries(plan.answers).filter(([, answer]) => typeof answer === "string"));
+  const prepared = { covered: true, basic: true, site, posting, questions, plan, answers, applicantId: profile.id };
+  return { ...prepared, rows: planRows(prepared), selfId: null };
 }
 
 /**
@@ -800,8 +839,10 @@ const WRITTEN_LABEL_MAX = 2000;
  * @returns {Promise<{ results: Record<string, Result>, more?: object[], state?: object, stopped?: true }>}
  * @typedef {{ status: "filled", shows: string | string[] } | { status: "skipped" | "failed" | "left", reason: string }} Result
  */
-export async function fillPage({ call, site, questions, answers, accepted, state, sections, events }) {
+export async function fillPage({ call, site, questions, answers, accepted, state, sections, events, basic = false }) {
   try {
+    // A basic fill (planBasic): each text answer typed into the field its label named.
+    if (basic) return { results: (await call("fillBasic", questions, answers)).results, state };
     const filled = await call("fillEach", site, questions, answers, { accepted: accepted ?? {}, state, sections, ...(events ? { events } : {}) });
     return { results: filled.results, ...(filled.moreQuestions ? { more: filled.moreQuestions } : {}), state: filled.state ?? state, ...(filled.stopped ? { stopped: true } : {}) };
   } catch (error) {
@@ -834,7 +875,12 @@ export async function fillPage({ call, site, questions, answers, accepted, state
  * essays off instead, so nothing AI-written goes where it is banned.
  * - `off`: the answers held back because their Fields to autofill category is
  *   off (KAN-480, holdBack), each with its category's words (`categoryLabel`).
- * @returns {{ written: Row[], yours: Row[], notes: string[], handed: (Row & { reason: string })[], off: (Row & { category: string, categoryLabel: string })[] }}
+ * - `ticks`: the attestations the Plan leaves blank for the student to tick or
+ *   sign (Plan.attestations, KAN-676 and KAN-775: a certification, a terms
+ *   box), each with the Plan's `reason` from its blanks. Without a row of its
+ *   own a required one showed nowhere, and a Workday step was saved without
+ *   it (KAN-841).
+ * @returns {{ written: Row[], yours: Row[], notes: string[], handed: (Row & { reason: string })[], off: (Row & { category: string, categoryLabel: string })[], ticks: (Row & { reason: string })[] }}
  * @typedef {{ name: string, label: string, required: boolean, max_length?: number | null }} Row
  */
 export function planRows({ plan, questions = [] }) {
@@ -857,6 +903,8 @@ export function planRows({ plan, questions = [] }) {
     notes,
     handed: handed.map(([name, h]) => ({ ...row(byName.get(name)), reason: h.reason })),
     off: plan.off ?? [],
+    ticks: Object.keys(plan.attestations ?? {}).filter((name) => byName.has(name))
+      .map((name) => ({ ...row(byName.get(name)), reason: plan.blanks?.[name] ?? "Yours to tick: you attest to it or sign it yourself" })),
   };
 }
 

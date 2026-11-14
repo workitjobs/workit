@@ -2,8 +2,8 @@
 
 import { useShallowParams } from "@/components/shallow-routing";
 import { SegmentedLinks } from "@/components/ui/segmented-control";
+import { viewOption } from "@/components/views";
 
-import { CardsIcon, TableViewIcon } from "./icons";
 import { applicationsHref, parseQuery } from "./query";
 
 /** The page's choices as it is showing them (components/shallow-routing.tsx).
@@ -30,7 +30,7 @@ export function useApplicationsQuery() {
  * one the URL names, so the new layout appears with the thumb instead of a
  * round trip after it.
  *
- * Table View leads because it is the default (KAN-256), so the row reads in the
+ * List View leads because it is the default (KAN-256), so the row reads in the
  * order a new user meets them. The board is archived: its option goes back
  * in first if it returns (./query.ts says what else).
  *
@@ -38,11 +38,13 @@ export function useApplicationsQuery() {
  * closes the detail panel, which belongs to the view it was opened from.
  */
 const OPTIONS = [
-  // "list" stays its URL value, so old links still open the table.
-  { view: "list", label: "Table View", icon: <TableViewIcon className="size-4" /> },
+  // List View, the app's one name and glyph for rows (components/views.tsx):
+  // it was "Table View" with a table glyph until 2026-11-11, a second name
+  // for Documents' List View. "list" stays its URL value.
+  viewOption("list", "list"),
   // "grid" stays its URL value, so old links open the cards (./cards.tsx).
-  { view: "grid", label: "Card View", icon: <CardsIcon className="size-4" /> },
-] as const;
+  viewOption("cards", "grid"),
+];
 
 export function ViewSwitcher() {
   const query = useApplicationsQuery();
@@ -52,11 +54,9 @@ export function ViewSwitcher() {
       shallow
       label="Layout"
       value={query.view}
-      options={OPTIONS.map(({ view, label, icon }) => ({
-        value: view,
-        label,
-        icon,
-        href: applicationsHref(query, { view, app: null }),
+      options={OPTIONS.map((option) => ({
+        ...option,
+        href: applicationsHref(query, { view: option.value, app: null }),
       }))}
     />
   );

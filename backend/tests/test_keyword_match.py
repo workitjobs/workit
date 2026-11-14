@@ -53,6 +53,10 @@ def test_a_keyword_reads_as_a_resume_prints_it():
         ("c++", "C++"), ("node.js", "Node.js"),
         # A word the posting capitalized its own way stays
         ("iOS", "iOS"), ("McKinsey consulting", "McKinsey Consulting"),
+        # A skill the catalog spells, as it spells it: "Numpy", "Html5" and
+        # "Matlab" printed on tailored resumes (2026-11-12 audit)
+        ("numpy", "NumPy"), ("html5", "HTML5"), ("matlab", "MATLAB"), ("grpc", "gRPC"), ("jquery", "jQuery"),
+        ("gpu programming", "GPU Programming"),
     ]:
         assert keywords.resume_case(typed) == printed
 
@@ -510,6 +514,41 @@ async def test_the_import_pass_keeps_to_its_limit(database):
 
     assert await _prefill(fake, limit=2) == 2
     assert len(fake.prompts) == 2
+
+
+async def test_a_scheduled_run_reads_only_its_own_jobs_and_leaves_the_backlog(database):
+    # KAN-726: two jobs from an earlier run, still without keywords, are the
+    # backlog; the next feed adds one job, the only one the run touches.
+    await _import_many(2)
+    urls = [f"https://boards.example.com/acme/{i}" for i in range(3)]
+    async with get_engine().begin() as conn:
+        report = await import_feed(conn, [_listing(DESCRIPTION, url) for url in urls])
+    assert len(report.touched) == 1
+    new = str(report.touched[0])
+
+    fake = ScriptedLLM(reading(KEYWORDS))
+    async with get_engine().connect() as conn:
+        assert await _extract_keywords(conn, fake, limit=10, ids=report.touched) == 1
+    assert len(fake.prompts) == 1
+    assert await _stored(new) == KEYWORDS
+
+    # The backfill (no ids) reads the two left behind.
+    assert await _prefill(ScriptedLLM(reading(KEYWORDS))) == 2
+
+
+async def test_an_unchanged_feed_touches_no_job(database):
+    await _import_many(2)
+    urls = [f"https://boards.example.com/acme/{i}" for i in range(2)]
+    async with get_engine().begin() as conn:
+        report = await import_feed(conn, [_listing(DESCRIPTION, url) for url in urls])
+    assert report.touched == []
+
+
+async def test_a_changed_description_is_touched_again(database):
+    posting = await _import(DESCRIPTION)
+    async with get_engine().begin() as conn:
+        report = await import_feed(conn, [_listing(DESCRIPTION + " Rust too.")])
+    assert [str(i) for i in report.touched] == [posting]
 
 
 async def _import_many(n: int) -> list[str]:

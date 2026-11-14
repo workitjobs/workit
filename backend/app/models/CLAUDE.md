@@ -23,7 +23,16 @@ company_profiles  1 ──o{  company_memberships    a complete HR-user account
   `location` the autofiller reuses. `location` (KAN-372) is free text as
   forms ask it ("Stony Brook, NY"), where the student lives; the places
   they want jobs in are their preferences (`applicant_locations`), not
-  this.
+  this. Every resume header prints it (KAN-436). `resume_header_extra`
+  (KAN-436, 100 characters) is the header's Additional line: the
+  student's own text under the contact line ("Secret clearance | Open to
+  relocation"), set in the editor's Header panel and printed on every
+  resume that does not hide it. **It never goes to a model**: it can hold
+  personal data, and no model path reads the profile (Tailor reads the
+  view, Scout the bank; `tests/test_tailor.py` checks a Tailor prompt).
+  One line, not a list: more lines bloat the header, Fit to One Page cuts
+  none of the header, a hiring system's parser expects a short contact
+  block, and the autofiller has no field to put free lines in.
 - `company_memberships` — identity plus the company it belongs to and its role.
   Many memberships point at one company.
 - `company_profiles` — the employer. One identity for future jobs, HR users and
@@ -260,9 +269,22 @@ design rationale is in `../../../docs/resume.md`, "The experience bank";
 the rules every write follows are in `../services/bank.py`. Invariants a
 change here must keep:
 
-- **`bank_section` has six values, not seven.** Skills is a section to the
-  student but its own table. Adding a section is an `ALTER TYPE ... ADD
-  VALUE` and a coordinated deploy (above).
+- **`bank_section` has the six fixed sections and `custom`**, not
+  Skills: Skills is a section to the student but its own table. Adding a
+  fixed section is an `ALTER TYPE ... ADD VALUE` and a coordinated deploy
+  (above); a section the student names never is, since it is a row.
+- **A section the student names is a `bank_custom_sections` row** (KAN-498,
+  `c9e4a1d7b498`, `../../../docs/custom_sections.md`): its `name`, its
+  `layout` (`entries` or `lines`, a CHECK, not an enum, so a third layout
+  needs no coordinated deploy) and its owner `resume_id`, which cascades as
+  an entry's does. A custom entry is `section = 'custom'` with
+  `custom_section_id` set, and only then
+  (`bank_entries_custom_section_check`); deleting the section deletes its
+  entries. One name per owner, ignoring case
+  (`bank_custom_sections_owner_name_key`, `NULLS NOT DISTINCT`); at most
+  `schemas/bank.py`'s `MAX_CUSTOM_SECTIONS` per owner, checked in
+  `services/bank.py`, not the database. The section is fixed once an entry
+  exists, as `section` is: `EntryUpdate` forbids the key.
 - **`experience_banks` has one row per applicant, made by the first bank
   change** (an upsert in `clear_embedding`), not at signup. A missing row
   reads as "no embedding yet". Its `embedding` is the only applicant vector
@@ -277,6 +299,11 @@ change here must keep:
   JSONB blob, so later queries (graduation date, Tailor's text search) read
   them directly. `schemas/bank.py`'s `SECTION_FIELDS` says which section
   owns which; the database only checks the end (`bank_entries_end_check`).
+  The two lists, `coursework` (Education) and `tools` (Projects, KAN-738,
+  `f4c7a2d9b318`), are `text[]` defaulting to `'{}'`, empty outside their
+  section: a list's empty value is `[]`, never NULL, and a PATCH that sends
+  null clears it to `[]`. A project's tools are the student's words for its
+  stack, in order, kept beside the skills, never in place of them.
 - **A skill name appears once per applicant, ignoring case**
   (`bank_skills_applicant_name_key` on `lower(name)`), so Tailor's "Have you
   used X?" and import can look a skill up by name.
@@ -853,11 +880,15 @@ so WorkIt fills forms as completely as Apply does.
   WorkIt's own fields (name, contact email, phone, links, location, the
   education entry) from the same identity, and they agree.
 - **Only Apply's `source: lisul` entries are the student's own** (`own:
-  true`), as Apply itself treats them (`apply/answer_bank.py`, `LISUL`). A
+  true`), as Apply itself treats them (`apply/answer_bank.py`, `LISUL`), and
+  never one marked `reviewed: false`. A
   Claude draft (`source: claude`) comes as their Claude's even when
-  `reviewed`: Apply still calls it a draft. The answer bank
-  (`pipeline.answer_bank`) offers the student's own words on applications,
-  then their brought own words, then their Claude's on applications, then
+  `reviewed`: Apply still calls it a draft. One rule for the import and
+  the sync: `services/apply_answers.py`. The answer bank
+  (`pipeline.answer_bank`) offers the student's own words first, the
+  newest first across those saved on applications (`answered_at`) and those
+  brought (`edited_at`; one with no time after those with one), then their
+  Claude's on applications, then
   the brought drafts, under the same company rule: one about a company only
   on that company's forms. A draft passes the same checks as their Claude's
   saved answers and never fills a form that bans AI text (the engine skips
@@ -865,6 +896,17 @@ so WorkIt fills forms as completely as Apply does.
   list answer: the options ticked) skips the writing checks. Not
   `written_answers`: those rows belong to an application, and a brought
   answer has none.
+- **Apply keeps `fill_answers` in step** (KAN-746), once its student opts
+  in: `PATCH .../fill-answers` (routers/profiles.py) merges each entry Apply
+  saves, changes or deletes, key by key under a row lock, never the whole
+  column. Each synced entry carries `edited_at`, when Apply changed it. **A
+  newer edit wins** (`apply_answers.merge`): a change or delete older than
+  the stored entry's is left out and named in the answer's `kept`, and a
+  time ahead of the server's clock counts as now. The sync
+  never writes `written_answers`: an answer the student edited on WorkIt
+  stays theirs, and serving's newest-first order keeps an older Apply
+  answer under it. The import still replaces the column whole; it is a
+  local, one-time tool.
 - **No `files` in `fill_profile`.** The files the profile names come over
   as WorkIt's own rows instead, only with `LOCAL_FILES_DIR` set: the resume
   (`files.resume_pdf`) as a `resumes` row, and the unofficial transcript
@@ -1296,6 +1338,10 @@ Real, not forgotten. Do not treat their absence as a decision already made.
   since KAN-424 the batch tab's Rewrite on any answer their Claude wrote
   (`review.redo`), whose reason is the student's steer ("The student asked
   for another version: Make it shorter."). No column changed for it.
+  Its `truth` map (`{name: {answer, reason, quote}}`, KAN-748) is the
+  truth check's flag on each answer saved with claims the student's facts
+  don't hold (`review.flag_claims`); like a review flag, it counts only
+  while its answer is the row's, and `save_review` carries it over.
 - **`connector_clients`, `connector_requests` and `connector_tokens` belong
   to `app/connector/oauth.py`**, the one writer. Tokens and codes are kept
   as sha256 only; a row's `grant_id` ties an access token to its refresh
@@ -1331,6 +1377,32 @@ Real, not forgotten. Do not treat their absence as a decision already made.
   posting writes it, '' for none), written once by the first student's
   Claude and shared by every student applying to that posting; it goes
   with the posting (ON DELETE CASCADE). Migration `d2f4a6c8e013`.
+
+## Scraper tables — `scraper.py`
+
+`Scraper_Schedule`, `Scraper_Task` and `Job_Source` (KAN-605, KAN-619,
+KAN-733). The worker's own tables, documented in `../../CLAUDE.md`'s scraper
+paragraph. Invariants for `Job_Source`:
+
+- **One row per (schedule, apply_url)**, the unique constraint. `external_id`
+  is the posting's id on its hiring system, written by `update_sources` from
+  the provider's `Job.external_id`. Phase 2 needs it to build the description
+  page URL via `providers.job_url(ats, token, external_id)`.
+- **`description_version`** (SmallInteger, nullable): the `PAGE_VERSION` at
+  the last description fetch. NULL means "needs fetch" for postings without
+  inline descriptions; a value equal to `PAGE_VERSION` means current. Phase 2
+  queries `WHERE description_version IS NULL OR description_version <
+  PAGE_VERSION`. A failure stamps the version without `description_fetched_at`,
+  so the posting is retried only on the next `PAGE_VERSION` bump.
+- **`description_fetched_at`** (DateTime with timezone, nullable): when the
+  description was last successfully fetched. NULL for postings that failed or
+  have not been fetched yet.
+- **Inline providers** (Lever, Ashby, Recruitee) stamp `description_version`
+  and `description_fetched_at` during phase 1 via `update_sources`,
+  so phase 2 skips them.
+- **Migration:** `b27f4b974d5c` adds `external_id`, `description_version` and
+  `description_fetched_at` to `job_sources`. Existing rows get NULL, which is
+  correct: NULL `description_version` means "needs fetch".
 
 ## Out of scope
 

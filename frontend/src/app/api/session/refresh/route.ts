@@ -1,7 +1,7 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 
-import { sessionCookieOptions } from "@/lib/supabase/cookies";
+import { sessionCookieWrites } from "@/lib/supabase/cookies";
 import { needsRotation } from "@/lib/session-refresh";
 
 /**
@@ -74,8 +74,8 @@ export async function GET(request: NextRequest) {
     { signed_in: signedIn },
     { status: signedIn ? 200 : 401, headers: { "Cache-Control": "no-store" } },
   );
-  for (const { name, value, options } of pendingCookies) {
-    response.cookies.set(name, value, sessionCookieOptions(options));
+  for (const { name, value, options } of sessionCookieWrites(pendingCookies)) {
+    response.cookies.set(name, value, options);
   }
   return response;
 }

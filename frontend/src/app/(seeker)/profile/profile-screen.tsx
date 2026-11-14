@@ -19,7 +19,7 @@ import { TextInput } from "@/components/ui/text-field";
 import { cn } from "@/lib/cn";
 
 import { Avatar } from "@/components/avatar";
-import { FIELD_GRID, FIELD_HEADING, SECTION_CARD } from "./field-styles";
+import { FACT_LABEL, FACT_VALUE, FIELD_GRID, FIELD_LABEL, SECTION_CARD } from "./field-styles";
 import { MoreOfYou } from "./more-of-you";
 import { SectionAction } from "./section-action";
 import { updateProfile, type ApplicantProfile } from "@/lib/profile-actions";
@@ -28,6 +28,7 @@ import { GitHubGlyph, LinkedInGlyph, OtherLinkGlyph, WebsiteGlyph } from "./icon
 import { getProfilePage } from "@/lib/profile-page-actions";
 import { SEEKER_GUTTER } from "../gutter";
 import { useProfileCache } from "../profile-cache";
+import { Missing } from "@/components/ui/missing";
 
 /**
  * My Profile: the student as an employer sees them (KAN-550). The photo, name
@@ -98,7 +99,7 @@ export function ProfileScreen({ school, extras }: { school: ReactNode; extras: R
   // reads the hash once, as it mounts.
   useEffect(() => {
     if (window.location.hash === "#writing-samples") {
-      window.location.replace("/auto-apply/info#writing-samples");
+      window.location.replace("/auto-apply/info/writing-samples");
     }
   }, []);
 
@@ -292,11 +293,12 @@ type ContactItem = {
 
 /**
  * Contact & Links: every field employers reach the seeker by, each under a
- * visible label, so an empty one is seen ("Not added") instead of left out.
+ * visible label, so an empty one is seen (a faint dash, "Not added" to a
+ * screen reader) instead of left out.
  * Two columns where the page is wide, one on a phone.
  *
- * TWO MODES, LIKE A FORM YOU OPEN. Reading, each field is text: its value or
- * "Not added". Edit turns every value into a text field in place, with Save
+ * TWO MODES, LIKE A FORM YOU OPEN. Reading, each field is its name, small
+ * and grey, over its value or a faint dash (./field-styles.ts). Edit turns every value into a text field in place, with Save
  * and Cancel under them; Escape cancels. A per-field Add button in reading
  * mode was tried and dropped (2026-10-20): it offered an edit while the
  * section was not being edited. These fields are edited here only, never in
@@ -466,9 +468,8 @@ function ContactSection({
       <div className="flex items-baseline justify-between gap-4">
         <SectionHeading id="contact">Contact &amp; Links</SectionHeading>
         {!editing && (
-          <SectionAction aria-label="Edit Contact & Links" onClick={startEditing}>
+          <SectionAction label="Edit Contact & Links" onClick={startEditing} tooltip="Edit">
             <PencilIcon />
-            Edit
           </SectionAction>
         )}
       </div>
@@ -482,7 +483,7 @@ function ContactSection({
           onKeyDown={(e) => e.key === "Escape" && !saving && setEditing(false)}
         >
           <div className={FIELD_GRID}>
-            {items.map(({ field, editLabel, Icon, type, placeholder, hint, action }, i) => {
+            {items.map(({ field, editLabel, type, placeholder, hint, action }, i) => {
               const invalid = badLinks.includes(field);
               const note = invalid
                 ? `edit-${field}-error`
@@ -491,12 +492,11 @@ function ContactSection({
                   : undefined;
               return (
                 <div key={field} className="min-w-0">
-                  <label htmlFor={`edit-${field}`} className={FIELD_HEADING}>
-                    <Icon aria-hidden className="text-ink-meta size-5 shrink-0" />
+                  <label htmlFor={`edit-${field}`} className={FIELD_LABEL}>
                     {editLabel}
                   </label>
                   {/* The bare box: the card's field heading is its label. */}
-                  <div className="mt-1.5 pl-7">
+                  <div className="mt-1.5">
                     <TextInput
                       ref={i === 0 ? firstField : undefined}
                       id={`edit-${field}`}
@@ -558,15 +558,12 @@ function ContactSection({
         </form>
       ) : (
         <dl className={FIELD_GRID}>
-          {items.map(({ field, label, Icon, text, href, external, note }) => (
+          {items.map(({ field, label, text, href, external, note }) => (
             <div key={field} className="min-w-0">
-              <dt className={FIELD_HEADING}>
-                <Icon aria-hidden className="text-ink-meta size-5 shrink-0" />
-                {label}
-              </dt>
-              <dd className="text-body text-ink-muted mt-1.5 min-w-0 pl-7">
+              <dt className={FACT_LABEL}>{label}</dt>
+              <dd className={FACT_VALUE}>
                 {text === null ? (
-                  <span className="text-ink-meta">Not added</span>
+                  <Missing word="Not added" />
                 ) : href ? (
                   <a
                     href={href}

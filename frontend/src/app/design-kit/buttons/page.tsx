@@ -1,11 +1,14 @@
 import {
+  ArrowLeftIcon,
   BellIcon,
   CheckIcon,
+  CloseIcon,
   EllipsisIcon,
   PencilIcon,
   PlusIcon,
   SearchIcon,
   SparkleIcon,
+  TrashIcon,
 } from "@/components/icons";
 import { SaveButton } from "@/components/save-button";
 import { Button, ButtonLink } from "@/components/ui/button";
@@ -225,6 +228,60 @@ export default function ButtonsPage() {
             </Row>
           );
         })}
+      </Group>
+
+      <Group
+        title="IconButton Places"
+        note="Where a bare glyph button sits sets its size: place, never a size class. Both are 32px and round with a grey disc on hover; a heading's glyph is 20px, every other one 16px. The job card's Save and ⋯ (glyph) and a chip's own glyphs are the only exceptions."
+      >
+        <Row
+          name={'<IconButton place="heading">'}
+          role="A card's or a section's own action at its heading's end: Experiences' Add, Edit and ⋯, My Profile's and Application Info's cards"
+        >
+          <IconButton place="heading" label="Add">
+            <PlusIcon />
+          </IconButton>
+          <IconButton place="heading" label="Edit">
+            <PencilIcon />
+          </IconButton>
+          <IconButton place="heading" label="More actions">
+            <EllipsisIcon />
+          </IconButton>
+        </Row>
+        <Row
+          name={'<IconButton place="row">'}
+          role="Everything else: a row's actions, a panel's or dialog's Close and Back, Undo, a filter's Clear"
+        >
+          <IconButton place="row" label="Back" tooltip={false}>
+            <ArrowLeftIcon />
+          </IconButton>
+          <IconButton place="row" label="Edit">
+            <PencilIcon />
+          </IconButton>
+          <IconButton place="row" label="Delete" tooltip={false}>
+            <TrashIcon />
+          </IconButton>
+          <IconButton place="row" label="More actions" tooltip={false}>
+            <EllipsisIcon />
+          </IconButton>
+          <IconButton place="row" label="Close" tooltip={false}>
+            <CloseIcon />
+          </IconButton>
+        </Row>
+        <Row name="Hover" role="Both places on hover">
+          <StateCells>
+            <StateCell label="heading" state="hover">
+              <IconButton place="heading" label="Edit">
+                <PencilIcon />
+              </IconButton>
+            </StateCell>
+            <StateCell label="row" state="hover">
+              <IconButton place="row" label="Edit">
+                <PencilIcon />
+              </IconButton>
+            </StateCell>
+          </StateCells>
+        </Row>
       </Group>
 
       <Group

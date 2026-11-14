@@ -94,7 +94,7 @@ test("another account signing in on the same Chrome never fills with the first a
   expect(forms.submissions).toEqual([]);
 });
 
-test("a session cookie rewritten mid-batch (gone a moment, then half-written) keeps the student's profile and switched résumé", async () => {
+test("a session cookie rewritten mid-batch (gone a moment, then half-written) keeps the student's profile and switched résumé", { tag: "@nightly" }, async () => {
   test.setTimeout(120_000);
   const forms = new SavedForms([ANDURIL]);
   const api = new FakeApi();

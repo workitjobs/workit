@@ -6,9 +6,9 @@ from datetime import date
 import pytest
 from conftest import APPLY, FIXTURES, FORMS
 
-from apply import fill_engine
+from apply import essays, fill_engine
 from apply.answer_bank import AnswerBank
-from apply.model import FillError, Outcome, Posting, Question, Status
+from apply.model import FillError, Outcome, Posting, Question, Status, host_company
 from apply.profile import ApplicantProfile
 from apply.tracker import FileTracker, Row
 
@@ -108,6 +108,15 @@ def test_a_link_the_engine_covers_names_its_job_system_and_form():
     assert fill_engine.job_of("https://example.com/jobs/1") is None
 
 
+@pytest.mark.parametrize("link", ["https://apply.workable.com/perryhomes/j/D894A62691",
+                                  "https://apply.workable.com/perryhomes/j/D894A62691/",
+                                  "https://apply.workable.com/perryhomes/j/D894A62691/apply/"])
+def test_a_workable_posting_opens_on_its_form_not_its_overview(link):
+    from apply.workable import WorkableFiller
+
+    assert WorkableFiller().form_url(link) == "https://apply.workable.com/perryhomes/j/D894A62691/apply"
+
+
 def test_a_host_call_may_call_the_engine_again():
     # The Posting's text is read only when the plan asks, and reading it makes text of HTML with the engine.
     pay = Question("q2", "What hourly rate do you expect?", "text", True)
@@ -177,6 +186,24 @@ def test_past_applications_and_interviews_at_the_company_come_from_the_tracker_t
     assert plan() == {"q1": "Yes", "q2": "Yes"}
 
 
+def test_the_pre_submit_review_reads_the_past_applications_the_plan_answered_from():
+    # amazon.jobs (live 2026-11-10, KAN-753): the plan said Yes to "previously applied to Amazon?" from the Tracker, and
+    # the review, shown a profile with previously_applied_to empty, called it wrong. The link names no company:
+    # Apply names it from the host, and the Tracker's row is named so too.
+    amazon = Posting("a", host_company("https://www.amazon.jobs/en/jobs/2/intern"), "Intern", "https://www.amazon.jobs/en/jobs/2/intern")
+    asked = Question("q1", "Have you previously applied to Amazon or any Amazon subsidiary or affiliate?", "select", False, ("Yes", "No"))
+    FileTracker().add(Row("a1", "Amazon", "Intern", "https://www.amazon.jobs/en/jobs/1/intern", "amazon", Status.SUBMITTED))
+
+    assert fill_engine.plan([asked], amazon, PROFILE).answers == {"q1": "Yes"}
+    shown = json.loads(essays.profile_block(PROFILE, amazon).removeprefix("<profile>\n").removesuffix("\n</profile>\n"))
+    assert shown["screeners"]["previously_applied_to"] == ["Amazon"]
+    assert "Amazon" in essays.sources(PROFILE, facts=True, posting=amazon)
+    # Without the Posting, the profile as it is: the Tracker's join is for the Application being checked.
+    assert '"previously_applied_to": []' in essays.profile_block(PROFILE)
+    # The profile itself is never changed.
+    assert PROFILE.get("screeners.previously_applied_to") == []
+
+
 def test_a_changed_bundle_on_disk_is_reloaded_before_the_next_posting(tmp_path, monkeypatch):
     # The long-lived Node read the bundle once; a merged engine fix must not need a restart (KAN-645).
     bundle = tmp_path / "engine.js"
@@ -238,3 +265,39 @@ def test_a_bare_start_date_under_the_steps_education_heading_is_the_degrees_star
     # Without its heading the questions before it decide, and "Role preference" reads as a job's: left to ask.
     bare = fill_engine.plan(_tal_education(""), POSTING, started)
     assert (bare.answers.get("q3"), bare.answers.get("q4")) == (None, None)
+
+
+JPM = Posting("210773869", "JPMorgan Chase", "Analyst",
+              "https://jpmc.fa.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1001/job/210773869")
+
+
+def test_a_file_or_a_path_on_this_mac_never_goes_into_a_field_that_is_no_upload(monkeypatch):
+    # KAN-785: JPMorgan's Oracle form got the resume's path in its "Resume or Additional Documents Link 1" box.
+    link = Question("q1", "Resume or Additional Documents Link 1", "text", False)
+    note = Question("q2", "Anything else?", "textarea", False)
+    upload = Question("q3", "Resume", "file", True)
+    real = fill_engine.call_without_page
+
+    def planned(name, *args, **kwargs):
+        result = real(name, *args, **kwargs)
+        if name == "plan":
+            result["answers"] |= {"q1": {"file": "/Users/someone/Resume.pdf"}, "q2": "~/Documents/Resume.pdf",
+                                  "q3": {"file": "/Users/someone/Resume.pdf"}}
+        return result
+
+    monkeypatch.setattr(fill_engine, "call_without_page", planned)
+    plan = fill_engine.plan([link, note, upload], JPM, PROFILE)
+
+    assert plan.answers == {"q3": fill_engine.Path("/Users/someone/Resume.pdf")}
+    assert plan.blanks["q1"] == plan.blanks["q2"] == fill_engine.LOCAL_PATH
+
+
+def test_jpmorgans_documents_get_the_resume_only_in_its_slot_and_a_link_in_link_1():
+    # KAN-785, on the engine Apply loads: the cover letter slot is the cover_letter policy's, Link 1 the portfolio.
+    questions = [Question("r", "Resume or Additional Documents: Resume", "file", True),
+                 Question("c", "Resume or Additional Documents: Cover Letter", "file", False),
+                 Question("l", "Resume or Additional Documents Link 1", "text", False)]
+    plan = fill_engine.plan(questions, JPM, PROFILE)
+
+    assert isinstance(plan.answers["r"], fill_engine.Path)
+    assert "c" not in plan.answers and plan.answers["l"] == "https://test-person.example.com"

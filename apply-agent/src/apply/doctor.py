@@ -16,8 +16,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TextIO
 
-from apply import cover_letter, gates, native_host, resume_check
-from apply.adapters import Mailbox, Tracker, Usage
+from apply import ask_model, cover_letter, gates, native_host, resume_check
+from apply.adapters import Mailbox, SetupError, Tracker, Usage
 from apply.browsers import (
     CHROME,
     WORKER_PROFILES,
@@ -96,10 +96,12 @@ class Machine:
     usage: Usage | None = None  # read only when asked (`--usage`): reading it costs a tiny Haiku call
     native_hosts: Path = native_host.CHROME_HOSTS  # everyday Chrome's NativeMessagingHosts folder
     resume_check: Callable = resume_check.compare  # the resume against policies.yaml's resume_source
+    # A provider's API key, by its name in ask_model.PROVIDERS; never printed.
+    ask_key: Callable[[str], str | None] = lambda name: ask_model.key(ask_model.PROVIDERS[name])
 
 
 def diagnose(machine: Machine) -> list[Check]:
-    checks: list[Callable[[Machine], Check | list[Check]]] = [_claude, _chrome, _engine, _chromium, _workers, _facts, _resume_gate, _resume_source, _gmail, _records, _live_runs, _workit, _writes, _tracker, _accounts_host]
+    checks: list[Callable[[Machine], Check | list[Check]]] = [_claude, _ask_model, _chrome, _engine, _chromium, _workers, _facts, _resume_gate, _resume_source, _gmail, _records, _live_runs, _workit, _writes, _tracker, _accounts_host]
     return [found for c in checks for found in _safely(c, machine)]
 
 
@@ -153,6 +155,23 @@ def _claude(machine: Machine) -> Check:
                                f"{usage.weekly:.0%} of the week")
 
 
+def _ask_model(machine: Machine) -> list[Check]:
+    """Where `ask` goes (policies.yaml's ask_model): no line for claude, the default; for hosted providers,
+    whether each has a key (apply.ask_model). A key itself is never printed."""
+    name = "Ask model"
+    try:
+        names = ask_model.chain({"ask_model": _policy(machine, "ask_model")})
+    except SetupError as e:
+        return [Check(name, FAIL, str(e), "set ask_model to claude, groq, gemini or a list of them in policies.yaml")]
+    if not names:
+        return []
+    if missing := [n for n in names if not machine.ask_key(n)]:
+        return [Check(name, FAIL, f"ask_model: {', '.join(names)}, but there is no {missing[0]} key",
+                      ask_model.no_key(ask_model.PROVIDERS[missing[0]]))]
+    return [Check(name, OK, f"{', then '.join(names)} answer and write (ask_model), with lean essay prompts; "
+                            "Claude fill, Rescue and company briefs stay on claude")]
+
+
 def _chrome(machine: Machine) -> Check:
     try:
         version = plistlib.loads(machine.chrome.read_bytes())["CFBundleShortVersionString"]
@@ -182,6 +201,9 @@ SIGN_IN = ("sign in to Google by hand, in a Chrome started with --user-data-dir=
 
 
 PLAIN_SEED = "run `uv run apply plain seed` once no plain Worker runs, and follow its steps (docs/plain-workers/guide.md)"
+# A seed whose worker extension folder holds other code than this checkout's (KAN-764).
+STALE_SEED = ("once no Chrome loads that folder, start Apply (it updates the folder before a Worker starts), or run "
+              "`uv run apply plain seed` and follow its steps (docs/plain-workers/guide.md)")
 
 
 def _workers(machine: Machine) -> list[Check]:
@@ -202,6 +224,9 @@ def _plain_seed(machine: Machine) -> Check:
         return Check(name, FAIL, f"no seed profile at {seed}", PLAIN_SEED)
     if not (folder := worker_extension.loaded_folder(seed)):
         return Check(name, FAIL, f"the worker extension isn't installed in {seed}", PLAIN_SEED)
+    if worker_extension.code_hash(folder) != worker_extension.code_hash(worker_extension.EXTENSION_DIR):
+        return Check(name, FAIL, f"the seed's worker extension, in {folder}, holds other code than this checkout's, so "
+                                 "every new Worker misses the guard and fill fixes since then", STALE_SEED)
     if not developer_mode(seed):
         return Check(name, WARN, f"Developer mode is off in {seed}, so Chrome disables the worker extension "
                                  "when it reloads", PLAIN_SEED)
@@ -246,6 +271,10 @@ REQUIRED = [
     "work_authorization.authorized_to_work_us", "work_authorization.requires_sponsorship_now_or_future",
 ]
 
+# Facts some forms ask that the Fill engine otherwise guesses: blank, doctor warns but passes.
+# identity.phone_type (mobile, landline or work): Workday's Phone Device Type (KAN-757).
+OPTIONAL = ["identity.phone_type"]
+
 
 TEMPLATE = CODE / "applicant-profile.template.yaml"
 
@@ -262,6 +291,11 @@ def _facts(machine: Machine) -> Check:
     if blank:
         return Check("Applicant profile", FAIL, f"blank: {', '.join(blank)}",
                      f"fill them in the Applicant profile in {machine.profile.folder}")
+    unset = [key for key in OPTIONAL if machine.profile.get(key) in (None, "", [], {})]
+    if unset:
+        return Check("Applicant profile", WARN, f"all {len(REQUIRED)} required facts filled; optional blank: {', '.join(unset)}",
+                     f"fill them in the Applicant profile in {machine.profile.folder}, or forms guess them "
+                     "(identity.phone_type: mobile, landline or work)")
     return Check("Applicant profile", OK, f"all {len(REQUIRED)} required facts filled")
 
 

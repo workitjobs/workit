@@ -107,6 +107,13 @@ test("a header link's reverse is its stored URL, not its printed text", () => {
   });
 });
 
+test("a project's tools line's reverse types its printed list back", () => {
+  const tools = { item_id: "e1", kind: "tools" };
+  assert.deepEqual(reverseLine(bank, choices, tools, "Next.js, TypeScript", undefined), {
+    line: { ...tools, text: "Next.js, TypeScript" },
+  });
+});
+
 test("Fit's redo hides again what its undo shows", () => {
   assert.deepEqual(
     hideAgain({

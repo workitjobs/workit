@@ -3,7 +3,7 @@ import "server-only";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
-import { sessionCookieOptions } from "@/lib/supabase/cookies";
+import { sessionCookieWrites } from "@/lib/supabase/cookies";
 
 /**
  * A Supabase client scoped to the current request. Supabase Auth issues our
@@ -38,8 +38,8 @@ export async function createSupabaseServerClient() {
       getAll: () => cookieStore.getAll(),
       setAll: (cookiesToSet) => {
         try {
-          for (const { name, value, options } of cookiesToSet) {
-            cookieStore.set(name, value, sessionCookieOptions(options));
+          for (const { name, value, options } of sessionCookieWrites(cookiesToSet)) {
+            cookieStore.set(name, value, options);
           }
         } catch {
           // A Server Component cannot write cookies. That is expected here:

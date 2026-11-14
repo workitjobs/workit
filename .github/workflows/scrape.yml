@@ -38,7 +38,23 @@ permissions:
 
 jobs:
   scrape-and-import:
-    runs-on: ubuntu-latest
+    # Scheduled and manual runs go to the team computer, a self-hosted runner
+    # with Ollama (KAN-726, docs/scraper_gh_action/plan.md). A PR run stays on
+    # GitHub's runner: it runs the PR's code, the repo is public, and on our
+    # computer a stranger's PR could run anything. It is a dry run, so it
+    # calls no model and needs no GPU.
+    runs-on: ${{ github.event_name == 'pull_request' && fromJSON('["ubuntu-latest"]') || fromJSON('["self-hosted", "workit-scraper"]') }}
+    # Bash on both: Linux has it, and a Windows runner needs Git for Windows'
+    # bash on its PATH. The import step uses bash's ${!name}.
+    defaults:
+      run:
+        shell: bash
+    # Python's output in UTF-8 on Windows, whose default (cp1252) cannot
+    # print every place name: the first full dry run on the team computer
+    # (2026-11-08) imported fine, then failed printing its report. A real
+    # run would have written everything and still shown as failed.
+    env:
+      PYTHONUTF8: "1"
     # A cancelled run saves no store, so the next one repeats its work: every
     # scheduled run from 2026-10-28 to 10-29 hit 30 minutes reading posting pages
     # and none imported. The scraper now stops starting page reads 20 minutes in
@@ -72,7 +88,9 @@ jobs:
       # minutes, so the log looked silent where the scraper was still reading.
       - name: Scrape
         working-directory: scraper
-        run: python3 -u -m workit_scraper ${{ inputs.full && '--full' || '' }}
+        # `python`, not `python3`: setup-python names it so on every OS, and
+        # Windows has no python3.
+        run: python -u -m workit_scraper ${{ inputs.full && '--full' || '' }}
 
       # Saved only after a scrape that finished, so a crashed run can't hand the
       # next one a half-written store.
@@ -103,10 +121,16 @@ jobs:
         working-directory: backend
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          # The computer's Ollama embeds the jobs (KAN-726, Decision 3), with
+          # the code's default model, qwen3-embedding:4b: the one model every
+          # vector in the database comes from, banks included (its bank job).
+          # A PR run is a dry run, which never calls the provider.
+          EMBEDDING_PROVIDER: ollama
           # The model the keyword pass reads (scout/CLAUDE.md): the small
-          # chain, then the default chain after it.
-          SCOUT_ENDPOINTS_SMALL: ${{ secrets.SCOUT_ENDPOINTS_SMALL }}
+          # chain, then the default chain after it. The small chain is the
+          # computer's own Ollama, so it is a plain value, not a secret; the
+          # hosted default chain stays as its fallback.
+          SCOUT_ENDPOINTS_SMALL: '[{"base_url": "http://localhost:11434/v1", "model": "qwen3.5:9b", "reasoning_effort": "none"}]'
           SCOUT_ENDPOINTS: ${{ secrets.SCOUT_ENDPOINTS }}
           DRY_RUN: ${{ (github.event_name == 'pull_request' || inputs.dry_run) && '--dry-run' || '' }}
         run: |

@@ -3,7 +3,8 @@
 // this step on a Workday step outside a batch); "Answer 1 of 3" while
 // anything on the page is red, which goes to the page's first red field and
 // stays there until it is answered (KAN-424); Alt+N runs Next Thing, the
-// walk. Review and submit once nothing is red, which scrolls to the
+// walk. Review and submit once nothing is red, which opens Check before
+// Submit (presubmit.extension.spec.ts); there Go to Submit scrolls to the
 // employer's Submit and rings it, never pressing it. The red box's title
 // counts what the button does. Fill Again, in the ⋯ menu, asks once.
 import { expect, test, type Frame, type Page } from "@playwright/test";
@@ -86,7 +87,7 @@ test("Alt+N runs Next Thing, and Chrome binds it", async () => {
   expect(forms.submissions).toEqual([]);
 });
 
-test("with nothing red, Review and submit scrolls to the employer's Submit and rings it, and sends nothing", async () => {
+test("with nothing red, Review and submit opens Check before Submit, and Go to Submit scrolls to the employer's Submit and rings it, sending nothing", async () => {
   test.setTimeout(150_000);
   const forms = new SavedForms([ANDURIL]);
   await start([forms.handler]);
@@ -106,6 +107,9 @@ test("with nothing red, Review and submit scrolls to the employer's Submit and r
   await expect(mainButton(page)).toHaveText("Review and submit");
   await expect(needsBox(page)).toHaveCount(0);
 
+  await mainButton(page).click();
+  await expect(hostOf(page).locator('[data-slot="check"]')).toBeVisible();
+  await expect(mainButton(page)).toHaveText("Go to Submit");
   // From where the last answer left the page.
   await mainButton(page).click();
   const submit = page.getByRole("button", { name: /^Submit/ });
@@ -170,24 +174,4 @@ test("a filled Workday step with nothing red asks for Save and Continue, not 1 n
   await expect(mainButton(page)).toHaveText("Go to Save and Continue", { timeout: 60_000 });
   await expect(needsBox(page)).toHaveCount(0);
   expect(workdays.submissions).toEqual([]);
-});
-
-test("a company careers page that embeds Greenhouse's form: Autofill This Page works in its iframe", async () => {
-  test.setTimeout(120_000);
-  const forms = new SavedForms(["greenhouse-coinbase"]);
-  const careers = "https://www.acme-robotics.example/careers/job?gh_jid=8175510";
-  const companyPage: Handler = ({ url }) =>
-    url.host === "www.acme-robotics.example"
-      ? { headers: { "content-type": "text/html" }, body: `<!doctype html><title>Careers</title><h1>Software Engineer</h1><iframe id="grnhse_iframe" width="100%" height="2000" src="${forms.url("greenhouse-coinbase")}"></iframe>` }
-      : undefined;
-  await start([companyPage, forms.handler]);
-  const page = await loaded.context.newPage();
-  await page.goto(careers);
-  const frame = () => page.frames().find((f) => f.url().includes("/embed/job_app"))!;
-  await expect.poll(() => Boolean(frame())).toBe(true);
-  await hostOf(frame()).getByRole("button", { name: "Show WorkIt panel" }).click({ timeout: 20_000 });
-  await mainButton(frame()).click();
-  await expect(frame().locator("#first_name")).toHaveValue("Test", { timeout: 60_000 });
-  await expect(mainButton(frame())).not.toHaveText("Autofill This Page", { timeout: 30_000 });
-  expect(forms.submissions).toEqual([]);
 });

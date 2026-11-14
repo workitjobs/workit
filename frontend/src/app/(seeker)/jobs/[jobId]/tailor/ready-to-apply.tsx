@@ -134,7 +134,7 @@ export function TailorFinish({
                   Saved to your Tracker.{" "}
                   <Link
                     href={`/applications/${encodeURIComponent(job.id)}`}
-                    className="text-brand font-medium underline underline-offset-2"
+                    className="text-brand hover:text-brand-hover focus-visible:ring-brand-ring rounded-xs font-medium underline underline-offset-2 transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none"
                   >
                     View
                   </Link>

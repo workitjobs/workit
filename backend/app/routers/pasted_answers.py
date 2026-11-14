@@ -26,6 +26,14 @@ PUT  /applicants/{id}/applications/{job_id}/written-answers
      {"message", "reasons": {name: [reason, ...]}}; 404 with no
      application, 409 when its form is no longer open.
 
+GET  /applicants/{id}/cover-letters
+     Every cover letter WorkIt wrote (KAN-766, Documents' Cover Letters
+     tab): each saved written answer whose Question type is `cover-letter`
+     (its plan's type, or else its label's class), at any stage, last saved
+     first, as [{"job_id", "name", "label", "text", "own", "answered_at",
+     "company", "title", "logo_url", "company_domain", "closed", "stage"}].
+     Read-only.
+
 PUT  /applicants/{id}/applications/{job_id}/essay-facts
      {"name", "answer"}
      The student's answer to the fact their Claude asked for one question
@@ -54,6 +62,7 @@ from app.auto_apply import pipeline
 from app.db import get_session
 from app.deps import assert_applicant_owns, get_current_account
 from app.schemas.applications import (
+    CoverLetter,
     FactAnswer,
     PastedAnswers,
     PostingAnswers,
@@ -86,6 +95,17 @@ async def answered_questions(
     """Every answered written question, by job posting, with its named fact."""
     assert_applicant_owns(account, applicant_id)
     return await pipeline.answered_questions(db, applicant_id)
+
+
+@router.get("/cover-letters", response_model=list[CoverLetter])
+async def cover_letters(
+    applicant_id: uuid.UUID,
+    account: AuthenticatedAccount = Depends(get_current_account),
+    db: AsyncSession = Depends(get_session),
+) -> list[CoverLetter]:
+    """Every cover letter WorkIt wrote, as a written answer, last saved first."""
+    assert_applicant_owns(account, applicant_id)
+    return await pipeline.cover_letters(db, applicant_id)
 
 
 @router.put("/applications/{job_id}/written-answers", response_model=SavedAnswers)

@@ -1,9 +1,9 @@
 "use client";
 
-import { ListBulletsIcon, RowsIcon, SidebarSimpleIcon } from "@phosphor-icons/react/ssr";
 import { useOptimistic, useTransition } from "react";
 
 import { SegmentedToggle } from "@/components/ui/segmented-control";
+import { VIEWS, viewOption } from "@/components/views";
 
 import { setJobsView } from "./actions";
 import type { JobsView } from "./view";
@@ -31,24 +31,22 @@ export function ViewSwitch({ view, listOnly = false }: { view: JobsView; listOnl
           await setJobsView(next as JobsView);
         })
       }
+      // The app's view names and glyphs (components/views.tsx): Card View
+      // ("Cards View" until 2026-11-11), then Split View, which is List View
+      // where there is no room for the open job beside it.
       options={[
-        {
-          value: "cards",
-          label: "Cards View",
-          icon: <RowsIcon aria-hidden className="size-4" />,
-        },
-        {
-          value: "split",
-          label: listOnly ? "List View" : "Split View",
-          icon: listOnly ? (
-            <ListBulletsIcon aria-hidden className="size-4" />
-          ) : (
-            <>
-              <ListBulletsIcon aria-hidden className="size-4 @4xl/main:hidden" />
-              <SidebarSimpleIcon aria-hidden className="hidden size-4 @4xl/main:block" />
-            </>
-          ),
-        },
+        viewOption("cards", "cards"),
+        listOnly
+          ? viewOption("list", "split")
+          : {
+              ...viewOption("split", "split"),
+              icon: (
+                <>
+                  <VIEWS.list.Icon aria-hidden className="size-4 @4xl/main:hidden" />
+                  <VIEWS.split.Icon aria-hidden className="hidden size-4 @4xl/main:block" />
+                </>
+              ),
+            },
       ]}
     />
   );

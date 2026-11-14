@@ -28,7 +28,7 @@ def _view(wording: str | None, text: str = "Built an API") -> ResumeView:
     row = SimpleNamespace(
         id=entry_id, section="experience", title="Intern", organization=None, location=None, start_month=None,
         end_month=None, end_kind=None, degree=None, field_of_study=None, gpa=None, gpa_scale=None, coursework=[],
-        honors=None, link=None, issuer=None, award_date=None,
+        honors=None, link=None, tools=[], issuer=None, award_date=None,
     )
     bank = SimpleNamespace(
         entries=[SimpleNamespace(row=row, bullets=[SimpleNamespace(id=bullet_id, text=text)])], skills=[],

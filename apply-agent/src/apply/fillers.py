@@ -5,6 +5,7 @@ from typing import Protocol
 from playwright.sync_api import Page
 
 from apply.adapters import JobSite
+from apply.amazon import AmazonFiller
 from apply.ashby import AshbyFiller
 from apply.eightfold import EightfoldFiller
 from apply.greenhouse import GreenhouseFiller
@@ -52,4 +53,5 @@ FILLERS: dict[str, Filler | type] = {
     "rippling": RipplingFiller(),
     "workable": WorkableFiller(),
     "eightfold": EightfoldFiller,
+    "amazon": AmazonFiller,
 }

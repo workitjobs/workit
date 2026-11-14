@@ -89,9 +89,20 @@ def load() -> dict[str, TypeGuide]:
 
 
 @cache
-def rules() -> str:
-    """The rules for every answer."""
-    return (ROOT / "README.md").read_text().strip()
+def rules(lean: bool = False) -> str:
+    """The rules for every answer. `lean` (a smaller model's prompt, apply.ask_model): each numbered rule cut to its
+    bold lead and the sentence after it, the Length section whole, and no Types list."""
+    text = (ROOT / "README.md").read_text().strip()
+    if not lean:
+        return text
+    text = re.split(r"^## Types\n", text, flags=re.MULTILINE)[0].strip()
+    length = text.index("## Length")
+    cut = lambda m: m[1] + (first[0] if (first := re.match(r"\s*[^.!?]*[.!?]", m[2])) else "")
+    return re.sub(r"^(\d+\. \*\*.+?\*\*)(.*)$", cut, text[:length], flags=re.MULTILINE) + text[length:]
+
+
+# The parts of a type's guide a lean prompt keeps: how the answer runs and its checks, not the quoted examples.
+LEAN_SECTIONS = ("Order", "Rules")
 
 
 @cache
@@ -110,10 +121,15 @@ def classify(question_text: str) -> str:
     return "general"
 
 
-def guide_text(types: Iterable[str]) -> str:
-    """The guidance bodies of `types`, each once, headed by its name, for the prompt."""
+def guide_text(types: Iterable[str], lean: bool = False) -> str:
+    """The guidance bodies of `types`, each once, headed by its name, for the prompt. `lean` keeps only each
+    guide's LEAN_SECTIONS: the reader's quotes, Pairs and Model letters are examples a smaller model's
+    prompt can't hold (apply.ask_model)."""
     guides = load()
-    return "\n\n".join(f"# Question type: {t}\n\n{guides[t].body}" for t in dict.fromkeys(types))
+    body = lambda t: guides[t].body if not lean else "\n\n".join(
+        section.strip() for section in re.split(r"^(?=## )", guides[t].body, flags=re.MULTILINE)
+        if section.startswith(tuple(f"## {name}\n" for name in LEAN_SECTIONS)))
+    return "\n\n".join(f"# Question type: {t}\n\n{body(t)}" for t in dict.fromkeys(types))
 
 
 def checklist(kind: str) -> tuple[str, ...]:

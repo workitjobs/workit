@@ -49,6 +49,12 @@ RETENTION: tuple[Rule, ...] = (
     # rule on purpose: SES compliance means a bounced or complaining address
     # is never mailed again, so it is kept (docs/email-sending.md).
     Rule("email_sends", "sent_at", 365),
+    # Site tokens for the Rules table (KAN-756) live minutes; a day keeps a
+    # morning's for a look at a burst.
+    Rule("rules_tokens", "created_at", 1),
+    # The Rules table's fetch log (KAN-756), for anomaly review and tracing a
+    # leaked table: 90 days, as fill events.
+    Rule("rules_fetches", "created_at", 90),
 )
 
 

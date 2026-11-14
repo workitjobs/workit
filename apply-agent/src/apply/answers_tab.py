@@ -102,6 +102,14 @@ class AnswersTab:
         except ValueError as refused:  # a question that looks like it asks for a secret
             raise Refused(str(refused)) from refused
 
+    def save_skipped(self, question: str) -> None:
+        """Lisul's Skip of an optional question: an empty answer in the Applicant profile, so the engine's plan leaves
+        it blank on every later form and never asks it again (KAN-759). An answer he writes later replaces it."""
+        try:
+            self._profile_now().save_answered(_question(question), "")
+        except ValueError as refused:
+            raise Refused(str(refused)) from refused
+
     def save_stock(self, key: str, answer: str) -> None:
         """One of Lisul's Stock answers, saved into the Applicant profile in the style it had."""
         profile, answer = self._profile_now(), _answer(answer, choices=False)

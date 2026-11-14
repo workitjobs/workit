@@ -10,7 +10,9 @@
 // the chooser ops stand in for the file picker an untrusted click can't open.
 
 import { capture, inPage, named, sleep, vendor } from "./shared.js";
+import { domCall } from "./dom.js";
 import { touch } from "./guard.js";
+import { available, finish } from "./typing.js";
 
 const SHOWN = { interval: 500, quality: 88, maxWidth: 1280, maxHeight: 900, native: false };
 const AIM_EVERY = 200; // ms between looks at the shown window and tab, with `native`
@@ -182,6 +184,24 @@ async function hook(tab, frame, allFrames = false) {
   await chrome.scripting.executeScript({ target, world: "ISOLATED", func: watchClicks, injectImmediately: true }).catch(() => {});
 }
 
+// Where a file may go (KAN-795): apply.upload_origin's RULE_JS, word for word (a test holds the copies the same).
+const mayUpload = (own, ancestors, hosts) => {
+  if (!ancestors.length) return true;  // the top frame: the form's own site, whatever its URL
+  const top = ancestors[ancestors.length - 1];
+  if (!own || own === 'null' || !top || top === 'null') return false;
+  // Every frame between this one and the top is the top's own site: a job system's form inside another site's
+  // frame is that site's to embed, and a frame under one is that site's to read (PR 556's review).
+  for (let i = 0; i < ancestors.length - 1; i++) if (ancestors[i] !== top) return false;
+  if (own === top) return true;
+  const host = own.replace(/^[a-z][a-z0-9+.-]*:\/\//i, '').replace(/:\d+$/, '').replace(/^\[|\]$/g, '').toLowerCase();
+  for (let i = 0; i < hosts.length; i++) {
+    const h = String(hosts[i]).toLowerCase();
+    if (host === h || (host.length > h.length && host.slice(-h.length - 1) === '.' + h)) return true;
+  }
+  return false;
+};
+const originOf = (url) => { try { return new URL(url).origin; } catch (error) { return "null"; } };
+
 // --- input
 
 async function replay(tab, frame, event) {
@@ -217,7 +237,7 @@ async function input({ tab, event, width, height, by = "lisul" }) {
   tab = tab ?? (await shownTab())?.id;
   if (tab === undefined) throw named("NoTab", "no tab to replay a tile event on");
   let frame = event.type === "choose" ? menus.get(tab) ?? 0 : 0;
-  let shown = { ...event, width, height };
+  let shown = { ...event, width, height, trusted: available() };
   for (let depth = 0; depth < 8; depth++) {
     if (shown.type === "down" || shown.type === "up") await hook(tab, frame);
     if (PRESSES.has(shown.type)) await touch({ tab, frame, by }, depth === 0 ? undefined : null);
@@ -231,6 +251,12 @@ async function input({ tab, event, width, height, by = "lisul" }) {
     }
     if (answer?.menu) menus.set(tab, frame);
     if (answer?.chooser) return { ...answer, tab, frame };
+    // A key or text the tile typed into a field: trusted, as his own keyboard's are (KAN-716).
+    if (shown.type === "text" || shown.type === "key") {
+      const typed = await finish({ tab, frame }, { ok: answer }, (method, args) => domCall({ tab, frame }, method, args, shown.trusted));
+      if (typed?.err) throw named(typed.err.name, typed.err.message);
+      return typed?.ok ?? null;
+    }
     return answer;
   }
   return null;
@@ -263,9 +289,23 @@ export const ops = {
     return null;
   },
   "chooser.get": asked,
-  "chooser.set": async ({ tab, frame = 0, files = [] }) => {
-    const [result] = await chrome.scripting.executeScript({ target: { tabId: tab, frameIds: [frame] }, world: "MAIN",
-                                                            func: giveFiles, args: [files], injectImmediately: true });
+  // `hosts` (KAN-795): Apply's own set, which goes only where apply.upload_origin lets a file go: checked here, out
+  // of the page's reach, on the frame's document as webNavigation knows it, and set on that one document
+  // (documentIds), so a frame that navigated meanwhile takes nothing. None: Lisul's own pick from the tile.
+  "chooser.set": async ({ tab, frame = 0, files = [], hosts = null }) => {
+    let target = { tabId: tab, frameIds: [frame] };
+    if (hosts !== null && files.length) {
+      const frames = (await chrome.webNavigation.getAllFrames({ tabId: tab })) ?? [];
+      const byId = new Map(frames.map((f) => [f.frameId, f]));
+      const own = byId.get(frame);
+      if (!own?.documentId) throw named("NotFound", "FileChooser.set_files: the frame is gone");
+      const ancestors = [];
+      for (let at = byId.get(own.parentFrameId); at; at = byId.get(at.parentFrameId)) ancestors.push(originOf(at.url));
+      const origin = own.url.startsWith("about:") ? (ancestors[0] || "null") : originOf(own.url);
+      if (!mayUpload(origin, ancestors, hosts)) throw named("UploadElsewhere", origin === "null" ? "another site" : origin);
+      target = { tabId: tab, documentIds: [own.documentId] };
+    }
+    const [result] = await chrome.scripting.executeScript({ target, world: "MAIN", func: giveFiles, args: [files], injectImmediately: true });
     return Boolean(result?.result);
   },
 };

@@ -29,7 +29,7 @@
 // fill tells it (content-script.js): track(questions, plan), result,
 // failed, follow (the engine's field events), log; and rowAction(field), the
 // checklist row's Report this / Wrong? button (overlay.js). Loaded after
-// panel.js by the static launcher and by every fill; the first copy keeps
+// panel.js by the launcher's panel/shell and by every fill; the first copy keeps
 // the state.
 window.WIA = window.WIA || {};
 

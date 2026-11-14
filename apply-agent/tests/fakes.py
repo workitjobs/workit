@@ -17,7 +17,7 @@ from pathlib import Path
 
 from playwright.sync_api import Route, sync_playwright
 
-from apply import answering, fill_engine, gates
+from apply import answering, fill_engine, gates, submit_guard
 from apply.adapters import Drive, UsageReading
 from apply.gmail import MailedCode, on_hosts
 from apply.model import Question
@@ -311,6 +311,8 @@ class FakeJobServer:
             context.route("**/*", self._handle)
             try:
                 page = context.new_page()
+                if getattr(self, "guard_at_open", True):  # as a Worker opens each page (apply.browsers)
+                    submit_guard.on_open(page)
                 page.goto(url)
                 self._together.wait()
                 if self._kill == "open":

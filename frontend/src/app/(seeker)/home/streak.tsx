@@ -145,6 +145,12 @@ export function Streak({
   const [view, setView] = useState<View>("2d");
   const [active, setActive] = useState(-1);
   const [announcement, setAnnouncement] = useState("");
+  // False until the canvas has drawn its first frame, which it can do only
+  // once this component hydrates: until then the map's room holds a
+  // skeleton bar. Without it the server's HTML drew the heading and the
+  // numbers over 150px of blank white, which read as a section with no
+  // loader, for as long as the page's script took to load and hydrate.
+  const [drawn, setDrawn] = useState(false);
   // The day whose applications the dialog lists. Kept after it closes, so
   // the dialog keeps its words while it fades out.
   const [day, setDay] = useState<{ date: string; open: boolean } | null>(null);
@@ -189,6 +195,8 @@ export function Streak({
     if (!root || !stage || !canvas || !tip) return;
     const engine = mountSkyline({ root, stage, canvas, tip }, live);
     skyline.current = engine;
+    // mountSkyline paints its first frame before it returns.
+    setDrawn(true);
     return () => {
       engine?.destroy();
       skyline.current = null;
@@ -275,6 +283,10 @@ export function Streak({
           section never changes height. */}
       <div className="relative mt-3">
         <div aria-hidden="true" style={{ height: "var(--streak-h2, 150px)" }} />
+
+        {!drawn && (
+          <Skeleton aria-hidden="true" className="absolute inset-x-0 top-0 z-10 h-[150px]" />
+        )}
 
         <div
           aria-hidden={!showRow}

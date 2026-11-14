@@ -22,6 +22,7 @@ import {
   type FeedFilters,
 } from "../jobs/filter-query";
 import { SECTION_CARD } from "./field-styles";
+import { SectionActionLink } from "./section-action-link";
 
 /**
  * What My Profile reads on the server (KAN-550), each streamed into the
@@ -184,15 +185,13 @@ function JobPreferences({
     <Card as="section" padding="none" aria-labelledby="job-preferences" className={SECTION_CARD}>
       <div className="flex items-baseline justify-between gap-4">
         <SectionHeading id="job-preferences">Job Preferences</SectionHeading>
-        <ButtonLink
+        <SectionActionLink
           href="/settings/preferences"
-          variant="section"
-          size="section"
-          aria-label="Edit in Settings: Job Preferences"
+          label="Edit Job Preferences in Settings"
+          tooltip="Edit in Settings"
         >
           <PencilIcon />
-          Edit in Settings
-        </ButtonLink>
+        </SectionActionLink>
       </div>
       {rows.length > 0 ? (
         <dl className="mt-4 flex flex-col gap-3">

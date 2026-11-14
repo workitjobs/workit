@@ -141,6 +141,16 @@ async def test_a_saved_answer_is_offered_to_later_forms_and_never_reaches_claude
     assert [q["question"] for q in got["questions"]] == [GOALS["label"]]
 
 
+async def test_a_claude_answer_the_truth_check_flagged_is_not_offered_to_another_form(running, applicant, database):
+    # KAN-748: flagged in its own tab, it would reach another form unflagged.
+    me, (first, second) = await _student_queues(database, applicant, 2)
+    await _company(database, second, "Globex")
+    await _tab_asks(me, first, PROUD)
+    await _save(applicant, first, "question_8", "I built a line-following robot with Kafka, and it went into use at school.")
+
+    assert await _bank(me, second) == {}
+
+
 def _engine_banks(bank: dict, label: str) -> bool:
     """Whether the Fill engine's Answer bank lookup finds `label` (its own
     rule: any case or spacing; planner.ts, `banked`)."""

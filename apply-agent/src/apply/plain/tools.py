@@ -35,8 +35,9 @@ import time
 import uuid
 from pathlib import Path
 from typing import Self
+from urllib.parse import urlsplit
 
-from apply import captcha, send_click
+from apply import attach, captcha, send_click, upload_origin
 from apply.plain.bridge import PortError
 from apply.plain.page import PortFrame, PortPage
 
@@ -52,6 +53,20 @@ CAPTCHA = ("That is a captcha, and Apply never touches one: a person does it. Do
 IN_CAPTCHA = "(el, captchas) => !!(el.closest && el.closest(captchas))"
 # Whether the focused element, where a key would go, is a captcha's frame or in a widget box.
 FOCUS_IN_CAPTCHA = """(captchas) => { const el = document.activeElement; return !!(el && el.closest && el.closest(captchas)); }"""
+# Whether the element is an option its single-choice list already holds (aria-selected): Eightfold's lists
+# (Microsoft's) are toggles, and a click on the held option empties the field (KAN-767).
+PICKED = """(el) => {
+  const option = el.closest && el.closest('[role=option]');
+  if (!option || option.getAttribute('aria-selected') !== 'true') return false;
+  const list = option.closest('[role=listbox]');
+  return !(list && list.getAttribute('aria-multiselectable') === 'true');
+}"""
+PICKED_ALREADY = ("### Result\nThat option is picked already: the field shows it, so nothing was clicked. On this form a "
+                  "click on the picked option empties the field. Close the list (press Escape) and go on.")
+CONSENT = ('That is in the "{title}" dialog, a consent that is the applicant\'s own: Apply never presses any of its '
+           'buttons, not "{button}" and not Cancel or Close either (Cancel drops the file it holds). Stop now and '
+           "give your answer: put 'Press \"{button}\" on the \"{title}\" dialog' in `waiting` (in `for_lisul` on a "
+           "fill). Apply attaches the file once they have pressed it.")
 
 
 def socket_folder() -> Path:
@@ -59,6 +74,14 @@ def socket_folder() -> Path:
     folder.mkdir(mode=0o700, exist_ok=True)
     os.chmod(folder, 0o700)
     return folder
+
+
+# A file input in a frame a file may not go to (apply.upload_origin, KAN-795).
+ELSEWHERE = ("That file input is in a frame from {host}, not on the form's own site, and Apply never gives a file "
+             "there: that site would get it. Don't try it another way. Leave the field, and say in couldnt that the "
+             "applicant attaches that file themselves.")
+SWAPPED = ("The page put another file input in place of the one the file chooser opened for, so Apply gave it no file. "
+           "Don't try again. Leave the field, and say in couldnt that the applicant attaches that file themselves.")
 
 
 class ToolError(Exception):
@@ -72,7 +95,19 @@ class Tools:
         self.page = page
         self._folder = folder.resolve()
         self._ask, self._message = send_click.flags_of(hook)
+        self._pinned: set[str] = set()
+        self._home = page  # the drive's own tab: a pop-up of another site takes no file (PR 556's review)
         page.worker.call("mcp.arm", tab=page.tab)
+
+    def _pin(self, frame_id: int, token: str) -> None:
+        """Keep the input chooser `token` opened for, in its frame's isolated world (page/dom.js's pin), so the
+        upload goes to that very input (KAN-795). The token is the page's to write; the pin is not."""
+        frame = PortFrame(self.page, frame_id) if frame_id else self.page
+        try:
+            frame._now("pin", f'[data-apply-mcp-chooser="{token}"]', token)
+            self._pinned.add(token)
+        except PortError:
+            pass  # no such input now: the upload finds none to take the file
 
     def call(self, name: str, arguments: dict) -> dict:
         tool = getattr(self, name, None) if name and name.startswith("browser_") else None
@@ -132,7 +167,9 @@ class Tools:
                 how = "accepted" if dialog["accepted"] else "dismissed"
                 lines.append(f"- \"{dialog['type']}\" dialog with message \"{dialog['message']}\": {how} when it opened. "
                              "browser_handle_dialog sets the answer to the next one.")
-        if _chooser(frames):
+        if chooser := _chooser(frames):
+            if chooser[1] not in self._pinned:  # the input it opened for, kept now: one a script puts there later gets nothing
+                self._pin(*chooser)
             lines.append("- [File chooser]: can be handled by browser_file_upload")
         return "### Modal state\n" + "\n".join(lines) if lines else ""
 
@@ -214,6 +251,15 @@ class Tools:
         if button != "left":
             raise ToolError(f"a {button} click can't be made on this page; use a left click")
         locator = self._locator(target, "click")
+        frame, selector = self._resolve(target)
+        try:
+            in_consent, picked = frame.eval_on_selector(selector, attach.CONSENT), frame.eval_on_selector(selector, PICKED)
+        except PortError:
+            in_consent, picked = None, False  # gone: the click fails on its own
+        if in_consent:
+            raise ToolError(CONSENT.format(**in_consent))
+        if picked and not doubleClick:
+            return PICKED_ALREADY
         if doubleClick:
             locator.dblclick(timeout=ACTION_TIMEOUT)
         else:
@@ -262,6 +308,13 @@ class Tools:
         if not chooser:
             raise ToolError('The tool "browser_file_upload" can only be used when there is related modal state present.')
         frame_id, token = chooser
+        if self.page.tab != self._home.tab and upload_origin.origin(self.page.url) != upload_origin.origin(self._home.url):
+            self.page.worker.call("mcp.modal", tab=self.page.tab, clear=["chooser"])
+            raise ToolError(ELSEWHERE.format(host=urlsplit(self.page.url).hostname or "another site"))
+        frame = self.page if frame_id == 0 else next((f for f in self.page.frames if f._frame == frame_id), None)
+        if frame is None or not upload_origin.frame_may_upload(frame):  # read again as it sets, in the frame itself
+            self.page.worker.call("mcp.modal", tab=self.page.tab, clear=["chooser"])
+            raise ToolError(ELSEWHERE.format(host=upload_origin.host_of(frame) if frame is not None else "another site"))
         files = []
         for path in paths or []:
             file = Path(path) if Path(path).is_absolute() else self._folder / path
@@ -269,12 +322,23 @@ class Tools:
             if self._folder not in file.parents or not file.is_file():
                 raise ToolError(f"File access denied: {path} is outside the working folder or missing")
             files.append(file)
+        if token not in self._pinned:  # a chooser no tool's answer showed yet: kept as it is now
+            self._pin(frame_id, token)
         self.page.worker.call("mcp.modal", tab=self.page.tab, clear=["chooser"])
         if not files:
             return "### Result\nThe file chooser was cancelled."
-        frame = self.page if frame_id == 0 else PortFrame(self.page, frame_id)
-        frame.locator(f'[data-apply-mcp-chooser="{token}"]').set_input_files(files, timeout=ACTION_TIMEOUT)
-        return self._after(f"await fileChooser.setFiles({json.dumps([f.name for f in files])});")
+        try:
+            frame.locator(f'[data-apply-mcp-chooser="{token}"]').set_input_files(files, timeout=ACTION_TIMEOUT, pinned=token)
+        except upload_origin.Elsewhere as refused:
+            raise ToolError(ELSEWHERE.format(host=refused.host or "another site")) from None
+        except PortError as error:
+            if error.kind != "UploadSwapped":
+                raise
+            raise ToolError(SWAPPED) from None
+        done = self._after(f"await fileChooser.setFiles({json.dumps([f.name for f in files])});")
+        if found := attach.consent(self.page):  # the file brought on a consent dialog: Claude stops here (KAN-769)
+            return f"{done}\n### Stop\n{CONSENT.format(**found)}"
+        return done
 
     def browser_press_key(self, key: str) -> str:
         try:

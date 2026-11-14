@@ -1,7 +1,7 @@
 "use client";
 
 import { GearIcon, QuestionIcon } from "@phosphor-icons/react/ssr";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { AccountMenu, type AccountMenuItem } from "@/components/account-menu";
 import { Avatar } from "@/components/avatar";
@@ -12,6 +12,9 @@ import { ChoiceTile } from "@/components/ui/choice-tile";
 import { RemovableChip } from "@/components/ui/chip";
 import { RadioRow } from "@/components/ui/radio-row";
 import { SegmentedToggle } from "@/components/ui/segmented-control";
+import { StepsDialog } from "@/components/steps-dialog";
+import { useShallowParams } from "@/components/shallow-routing";
+import { TabLinks } from "@/components/ui/tabs";
 import {
   Dialog,
   DialogClose,
@@ -73,6 +76,41 @@ export function DialogSpecimen() {
   );
 }
 
+const KIT_STEPS = {
+  reading: "Reading your experience bank",
+  checking: "Checking your resumes for a copy",
+  saving: "Saving your new resume",
+  opening: "Opening your resume",
+} as const;
+type KitStep = keyof typeof KIT_STEPS;
+
+/** The steps dialog (KAN-444) walking through Generate's steps on a timer,
+ *  then closing: the app moves it by what the API streams, never a timer. */
+export function StepsDialogSpecimen() {
+  const [at, setAt] = useState<KitStep | null>(null);
+  useEffect(() => {
+    if (at === null) return;
+    const keys = Object.keys(KIT_STEPS) as KitStep[];
+    const next = keys[keys.indexOf(at) + 1] ?? null;
+    const timer = setTimeout(() => setAt(next), 900);
+    return () => clearTimeout(timer);
+  }, [at]);
+  return (
+    <>
+      <Button variant="secondary" onClick={() => setAt("reading")}>
+        Show the Steps
+      </Button>
+      <StepsDialog
+        open={at !== null}
+        title="Generating Your Resume"
+        art={<div aria-hidden className="bg-brand-tint h-24" />}
+        steps={KIT_STEPS}
+        at={at ?? "reading"}
+      />
+    </>
+  );
+}
+
 /** An on/off setting (Settings' Notifications draws them, KAN-326): on, off,
  *  and disabled. */
 export function SwitchSpecimen() {
@@ -107,6 +145,35 @@ export function DropdownSpecimen() {
         <DropdownMenuItem>Reset to Default</DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+/** Tabs (KAN-766), in a bar and ruled under a page's top. They move in
+ *  place here (`shallow`), as the job page's do. */
+export function TabsSpecimen() {
+  const tab = useShallowParams().get("tab") === "company" ? "company" : "overview";
+  return (
+    <div className="flex w-full max-w-md flex-col gap-6">
+      <TabLinks
+        shallow
+        label="Job Tabs"
+        value={tab}
+        options={[
+          { value: "overview", label: "Overview", href: "/design-kit/forms" },
+          { value: "company", label: "Company", href: "/design-kit/forms?tab=company" },
+        ]}
+      />
+      <TabLinks
+        ruled
+        shallow
+        label="Documents"
+        value={tab === "company" ? "cover-letters" : "resumes"}
+        options={[
+          { value: "resumes", label: "Resumes", href: "/design-kit/forms" },
+          { value: "cover-letters", label: "Cover Letters", href: "/design-kit/forms?tab=company" },
+        ]}
+      />
+    </div>
   );
 }
 

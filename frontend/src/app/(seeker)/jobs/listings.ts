@@ -25,7 +25,7 @@ import { JOBS_VIEW_COOKIE, type JobsView } from "./view";
  * imported job_postings rows (backend/app/routers/jobs.py). Mirrors
  * backend/app/schemas/jobs.py field for field. Read by /jobs, by /search (which
  * sends its words as `q`), and by their Load More (./actions) a page at a
- * time. Home's Strong Matches reads the Best Match scores here too.
+ * time. Home's Excellent Matches reads the Best Match scores here too.
  *
  * NOT IN ./data.ts, THOUGH THAT IS THE USUAL SEAM. Client components import
  * ./data's types (`filters.tsx`, `filter-query.ts`), and `apiGet` is
@@ -189,7 +189,7 @@ export type HomeMatches = {
   /** The best ones auto apply can fill: Top Matches' picking mode. */
   autoApply: JobListing[];
   /** When each job posting from the window that scores at least the floor
-   *  went up: Strong Matches counts them per range. */
+   *  went up: Excellent Matches counts them per range. */
   strongPosted: string[];
 };
 
@@ -200,7 +200,7 @@ export type HomeMatches = {
  * nothing to score against (the API's 404 for an empty bank, or 403 for a
  * company account); null when the API can't say.
  *
- * ONE CALL, NOT THREE. Top Matches, its picking mode and Strong Matches
+ * ONE CALL, NOT THREE. Top Matches, its picking mode and Excellent Matches
  * each asked GET /jobs/recommended, and each call scanned every job
  * posting's vector, so the three ran side by side on one Postgres (13 to
  * 23 s on 2026-10-28). The API scores once and keeps the result until the
@@ -376,6 +376,26 @@ export async function getJobListing(
     return { job: (await res.json()) as JobListing, error: null };
   } catch {
     return { job: null, error: "Could not reach the server." };
+  }
+}
+
+/** This job's match for the viewer (`GET /jobs/{id}/match`, 2026-11-10), the
+ *  score and reasons its card in the feed shows, for the match rail on its
+ *  own page. Asked apart from `getJobListing`, which is cached for everyone
+ *  and carries no token. `null` when there is no score: signed out, an empty
+ *  experience bank, a scoring failure or the API unreachable. */
+export async function getJobMatch(
+  id: string,
+): Promise<{ score: number; highlights: Highlight[] } | null> {
+  const token = await viewerToken();
+  if (!token || !UUID.test(id)) return null;
+  try {
+    const res = await apiGet(`/jobs/${encodeURIComponent(id)}/match`, token);
+    if (!res.ok) return null;
+    const body = (await res.json()) as { match: number | null; highlights: Highlight[] };
+    return body.match == null ? null : { score: body.match, highlights: body.highlights };
+  } catch {
+    return null;
   }
 }
 

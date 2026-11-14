@@ -3,6 +3,8 @@
 import { useState } from "react";
 
 import { CompanyLogo } from "@/components/company-logo";
+import { rowFill } from "@/components/fill-page";
+import { cn } from "@/lib/cn";
 import {
   Dialog,
   DialogContent,
@@ -115,7 +117,7 @@ export function ApplicationTable({
         onChange={(event) => setQuery(event.target.value)}
       />
 
-      <div className="border-border-control rounded-card min-h-0 flex-1 overflow-y-auto border">
+      <div className="border-border-surface rounded-card min-h-0 flex-1 overflow-y-auto border">
         {shown.length === 0 ? (
           <p className="text-body text-ink-meta p-6">No applications match.</p>
         ) : (
@@ -132,7 +134,7 @@ export function ApplicationTable({
                 <TableRow
                   key={job.id}
                   aria-selected={job.id === picked}
-                  className="hover:bg-hover aria-selected:bg-brand-tint cursor-pointer"
+                  className={cn("cursor-pointer", rowFill(job.id === picked))}
                   onClick={() => onPick(job.id)}
                 >
                   <TableCell className={`${TD} max-w-0 py-3`}>

@@ -5,9 +5,11 @@ from the SCOUT_* settings, so routers and scripts never build their own.
 A feature asks for a size, never a model by name (`workit_scout.settings`):
 
 - `get_llm`, the default chain (SCOUT_ENDPOINTS, or the four single
-  SCOUT_* fields): Scout, intake, essay answers.
+  SCOUT_* fields): Scout, intake, and reading every upload (KAN-732: upload,
+  the parse preview, Import Updated Resume, Import Again), which wants the
+  chain's first model (Gemini) for long resumes Groq's free tier refuses.
 - `get_large_llm` (SCOUT_ENDPOINTS_LARGE, then the default chain): Tailor's
-  rewrite, Read It With AI, the editor assistant.
+  rewrite, the editor assistant.
 - `get_small_llm` (SCOUT_ENDPOINTS_SMALL, then the default chain): every
   keyword extraction, so one posting's keywords come from one chain
   whichever path reads them first: the keyword match, Tailor, a company

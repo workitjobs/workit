@@ -19,6 +19,14 @@ work_authorization:
   requires_sponsorship_now_or_future: false
 voluntary_self_id:
   veteran: I don't wish to answer
+  # Kept empty, as the template keeps them: an empty fact is none, so these stay blank. A fact the profile
+  # doesn't keep at all is asked as an optional question (KAN-759).
+  gender:
+  hispanic_or_latino:
+  race:
+  disability:
+  transgender:
+  sexual_orientation:
 logistics:
   earliest_start_date: 2027-05-24
 screeners:

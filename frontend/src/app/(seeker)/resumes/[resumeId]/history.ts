@@ -52,7 +52,7 @@ export function push<S, P>(stack: Step<S, P>[], step: Step<S, P>): void {
   for (const old of stack.slice(0, -PDF_STEPS)) old.pdfBefore = old.pdfAfter = null;
 }
 
-const PLAIN = ["shown", "position", "show_gpa", "show_coursework"] as const;
+const PLAIN = ["shown", "position", "show_gpa", "show_coursework", "group"] as const;
 
 function oldFields(row: object | undefined, change: object): Record<string, unknown> {
   // An item with no row was not on the resume: the change gives it one,
@@ -103,13 +103,17 @@ export function reverseChoices(
     }) as ChoicesUpdate["bullets"];
   }
   if (changes.skills?.length) {
-    reverse.skills = changes.skills.map((c) => ({
-      skill_id: c.skill_id,
-      ...oldFields(
-        choices.skills.find((r) => r.skill_id === c.skill_id),
-        c,
-      ),
-    }));
+    reverse.skills = changes.skills.map((c) => {
+      const row = choices.skills.find((r) => r.skill_id === c.skill_id);
+      const old = oldFields(row, c);
+      // A skill on its bank group has no group of its own (null), and a
+      // null field keeps its value in a save, so its move is undone by
+      // naming the bank's group (KAN-586): it prints the same
+      if (row && "group" in c && old.group == null) {
+        old.group = bank.skills.find((s) => s.id === c.skill_id)?.group ?? "";
+      }
+      return { skill_id: c.skill_id, ...old };
+    });
   }
   return reverse;
 }

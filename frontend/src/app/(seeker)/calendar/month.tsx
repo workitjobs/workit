@@ -107,7 +107,7 @@ export function Month({
   const legend = KIND_ORDER.filter((kind) => shownKinds.has(kind));
 
   return (
-    <div className="border-border-control rounded-card mt-4 flex min-h-0 flex-1 flex-col overflow-hidden border">
+    <div className="border-border-surface rounded-card mt-4 flex min-h-0 flex-1 flex-col overflow-hidden border">
       <div
         aria-hidden="true"
         className="bg-surface border-border-subtle grid shrink-0 grid-cols-7 border-b"

@@ -59,6 +59,10 @@ class Applicant_Profile(Profile):
     # Where the student lives, as forms ask it ("Stony Brook, NY"; KAN-372).
     # Free text: not a job-search place (applicant_locations holds those).
     location: Mapped[str | None] = mapped_column(String(100))
+    # The resume header's Additional line (KAN-436): one line of the
+    # student's own text under the contact line, on every resume that does
+    # not hide it. Never sent to a model: it can hold personal data.
+    resume_header_extra: Mapped[str | None] = mapped_column(String(100))
     # The Fill engine's own profile, policies and Answer bank for this
     # student (models/CLAUDE.md, "The Fill engine's profile"): what a student
     # brings from Apply (scripts/import_apply_profile.py). The extension lays
@@ -66,7 +70,8 @@ class Applicant_Profile(Profile):
     fill_profile: Mapped[dict] = mapped_column(JSONB, server_default=text("'{}'::jsonb"))
     fill_policies: Mapped[dict] = mapped_column(JSONB, server_default=text("'{}'::jsonb"))
     # {question wording: {"answer": text or the options ticked, "own": bool,
-    # "company": where it was first asked or null}}
+    # "company": where it was first asked or null, "edited_at": when Apply
+    # changed it, for its sync (KAN-746), absent when unknown}}
     fill_answers: Mapped[dict] = mapped_column(JSONB, server_default=text("'{}'::jsonb"))
     # KAN-298: opt-in, off until the student turns it on in Settings — a
     # new unsolicited daily email should never surprise an existing

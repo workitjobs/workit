@@ -32,7 +32,7 @@ import { SectionHeading } from "@/components/ui/section-heading";
 import { TextLink } from "@/components/ui/text-link";
 
 import { MatchRail } from "../../(seeker)/jobs/match-rail";
-import { ToastSpecimen } from "../interactive";
+import { StepsDialogSpecimen, ToastSpecimen } from "../interactive";
 import { STAGE_TONE } from "../../company/applicants/data";
 import { STATUS_TONE } from "../../company/jobs/data";
 import { SECTIONS } from "../data";
@@ -111,6 +111,12 @@ export default function DisplayPage() {
               delta={{ value: -1, period: "last week", upIsGood: true }}
             />
           </div>
+        </Row>
+        <Row
+          name="<StepsDialog>"
+          role="A wait shown step by step as the API streams it: Tailor's run and Generate"
+        >
+          <StepsDialogSpecimen />
         </Row>
         <Row name="<HeroArcs>" role="The corner arcs on the company Overview's violet hero">
           <div className="from-brand to-brand-active text-on-brand rounded-shell relative h-28 w-full max-w-sm overflow-hidden bg-linear-to-br p-5">

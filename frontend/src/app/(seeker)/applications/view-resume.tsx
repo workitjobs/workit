@@ -41,17 +41,32 @@ type Viewed = { id: string; name: string; format: string };
  * The callers keep a near miss from opening the application too (the list
  * cell, the card's strip), and a click inside the dialog stops at it.
  */
-export function ViewResumeButton({ resume, className }: { resume: Viewed; className?: string }) {
+export function ViewResumeButton({
+  resume,
+  className,
+  quiet = false,
+}: {
+  resume: Viewed;
+  className?: string;
+  /** Text, not a bordered button: a table's cell, where a bordered View
+   *  beside a dash was the heaviest thing in its column (2026-11-10). */
+  quiet?: boolean;
+}) {
   const viewer = useResumeViewer(resume);
   return (
     <>
       <Button
-        variant="secondary"
+        variant={quiet ? "ghost" : "secondary"}
         size="sm"
         onClick={viewer.show}
         title={`View ${resume.name}`}
         aria-label={`View resume ${resume.name}`}
-        className={cn("max-w-full min-w-0", className)}
+        className={cn(
+          "max-w-full min-w-0",
+          // Ink, brand under the pointer, as a link in a row is.
+          quiet && "text-ink hover:text-brand",
+          className,
+        )}
       >
         <EyeIcon aria-hidden />
         View

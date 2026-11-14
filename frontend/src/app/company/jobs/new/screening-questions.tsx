@@ -141,8 +141,9 @@ export function ScreeningQuestions({ questions, onChange, disabled }: ScreeningQ
             >
               <div className="flex items-start gap-2.5">
                 <IconButton
+                  place="row"
                   label={`Reorder question ${index + 1}. Use the arrow keys to move it.`}
-                  tooltip="Drag to reorder"
+                  tooltip={false}
                   draggable
                   onDragStart={(event) => {
                     event.dataTransfer.effectAllowed = "move";
@@ -158,9 +159,9 @@ export function ScreeningQuestions({ questions, onChange, disabled }: ScreeningQ
                     event.preventDefault();
                     move(index, index + (event.key === "ArrowUp" ? -1 : 1));
                   }}
-                  className="mt-1 size-7 cursor-grab active:cursor-grabbing"
+                  className="mt-1 cursor-grab active:cursor-grabbing"
                 >
-                  <GripIcon className="size-4" />
+                  <GripIcon />
                 </IconButton>
 
                 {/* The one field on the screen with no visible label: the
@@ -176,12 +177,13 @@ export function ScreeningQuestions({ questions, onChange, disabled }: ScreeningQ
                 />
 
                 <IconButton
+                  place="row"
                   label={`Remove question ${index + 1}`}
-                  tooltip="Remove question"
+                  tooltip={false}
                   onClick={() => remove(index)}
-                  className="mt-1 size-7"
+                  className="mt-1"
                 >
-                  <TrashIcon className="size-4" />
+                  <TrashIcon />
                 </IconButton>
               </div>
 

@@ -215,7 +215,7 @@ function Line({
   const live = useTransform(opacity, (o) => (o > 0.5 ? "auto" : "none"));
   return (
     <motion.p
-      className="text-ink absolute inset-x-0 text-3xl leading-[1.08] font-semibold tracking-[-0.03em] text-balance sm:text-5xl"
+      className="text-ink font-display absolute inset-x-0 text-3xl leading-[1.08] font-semibold tracking-[-0.03em] text-balance sm:text-5xl"
       style={{ opacity, y, filter, pointerEvents: live, userSelect: live }}
     >
       {children}
@@ -524,7 +524,7 @@ function ScrolledBridge() {
             <AnimatePresence mode="wait" initial={false}>
               <motion.p
                 key={line.text}
-                className="text-ink absolute inset-x-0 bottom-0 text-2xl font-semibold tracking-[-0.02em] text-balance sm:text-3xl"
+                className="text-ink font-display absolute inset-x-0 bottom-0 text-2xl font-semibold tracking-[-0.02em] text-balance sm:text-3xl"
                 initial={{ opacity: 0, y: 10, filter: "blur(4px)" }}
                 animate={{
                   opacity: 1,
@@ -685,7 +685,7 @@ function StillBridge() {
         {LINES.map((line) => (
           <p
             key={line.text}
-            className="text-ink text-2xl font-semibold tracking-[-0.02em] text-balance sm:text-3xl"
+            className="text-ink font-display text-2xl font-semibold tracking-[-0.02em] text-balance sm:text-3xl"
           >
             {line.text}
           </p>

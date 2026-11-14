@@ -12,7 +12,7 @@
 //
 // `start()` is what the launcher and the toolbar call in place of
 // panel.fillButton before a fill. Loaded after panel.js wherever it is
-// (manifest, SHELL_FILES, CONTENT_SCRIPT_FILES); the first copy stays.
+// (SHELL_FILES, CONTENT_SCRIPT_FILES); the first copy stays.
 window.WIA = window.WIA || {};
 
 (function () {
@@ -59,6 +59,8 @@ window.WIA = window.WIA || {};
     if (answer?.ok && !answer.signedIn) return showSignedOut();
     signedOut = false;
     frame()?.removeAttribute("data-signed-out");
+    // Fully, partly or not supported, before the fill (coverage.js, KAN-749).
+    void window.WIA.coverage?.show();
     const off = await send({ type: "fill/available" });
     if (off?.ok && off.unavailable) return showUnavailable(off.unavailable);
     panel().fillButton(panel().startLabel());

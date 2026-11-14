@@ -134,6 +134,11 @@ const PLACE_SEPARATOR = /\s*(?:;|\||•)\s*/;
  *  only the text is tidied, never a place guessed at. */
 function tidyPlace(place: string): string {
   const parts = place
+    // Text noise around a US place (2026-11-10): "USA Wilmington, MA - HQ"
+    // reads "Wilmington, MA". Only the US, and never before Remote, whose
+    // country says who may apply.
+    .replace(HQ_SUFFIX, "")
+    .replace(US_PREFIX, "")
     .split(",")
     .map((part) => part.trim())
     .filter(Boolean);
@@ -149,6 +154,11 @@ function tidyPlace(place: string): string {
     )
     .join(", ");
 }
+
+/** "USA ", "US - ", "United States: " before a place that is not Remote. */
+const US_PREFIX = /^(?:U\.?S\.?A?\.?|United States(?: of America)?)\s*[-–:]?\s+(?!remote\b)(?=\S)/i;
+/** " - HQ", " (HQ)" or " HQ" at a place's end: the employer's office, not a place. */
+const HQ_SUFFIX = /\s*(?:[-–]\s*HQ|\(HQ\)|\bHQ)\s*$/i;
 
 /**
  * A scraped location's places, each tidied (tidyPlace), in the posting's

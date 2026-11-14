@@ -47,18 +47,6 @@ window.WIA = window.WIA || {};
   const redraw = () => window.WIA.overlay?.refresh();
 
   /** Copies `text`; a page whose clipboard is refused gets the older copy command. */
-  async function copy(text) {
-    try {
-      await navigator.clipboard.writeText(text);
-    } catch {
-      const box = Object.assign(document.createElement("textarea"), { value: text });
-      document.body.append(box);
-      box.select();
-      document.execCommand("copy");
-      box.remove();
-    }
-  }
-
   /**
    * What the form has for a row now: `{ text, file }`, `file` for an upload
    * still showing WorkIt's PDF; `{ other }` when the upload shows another
@@ -97,7 +85,7 @@ window.WIA = window.WIA || {};
       buttons.push({
         label: copied === `${field.key}\n${what.text}` ? "Copied" : "Copy",
         onClick: async () => {
-          await copy(what.text);
+          await window.WIA.ui.copy(what.text);
           copied = `${field.key}\n${what.text}`;
           redraw();
         },

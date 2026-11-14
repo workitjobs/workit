@@ -1,10 +1,10 @@
 """
 Home's matches (KAN-425): Top Matches, the ones auto apply can fill, and the
-Strong Matches posting dates, from one scoring pass, kept per applicant
+Excellent Matches posting dates, from one scoring pass, kept per applicant
 until something they depend on changes.
 
 ONE PASS, NOT THREE. Home asked GET /jobs/recommended three times at once
-(the top 12, the top 12 auto apply fills, and every recent Strong Match a
+(the top 12, the top 12 auto apply fills, and every recent Excellent Match a
 page of 500 at a time), and the tracker scored a fourth. Each pass scans
 every listed job's vector, so the three ran side by side on one small
 Postgres: on 2026-10-28 one pass took 4 to 6 s alone and three at once 13
@@ -18,7 +18,7 @@ the newest job_postings.updated_at (the import, its embeddings and every
 closing set it), and the jobs the applicant marked applied, which GET
 /jobs/recommended leaves out. Any change makes a new key, so a kept result
 is never served after one; HOME_CACHE_SECONDS bounds the rest (a posting's
-freshness and the Strong Matches window move with the clock). Each process
+freshness and the Excellent Matches window move with the clock). Each process
 keeps its own: a Vercel Function's lasts while the instance does, the
 container's for good. Reading the key costs one small query.
 """

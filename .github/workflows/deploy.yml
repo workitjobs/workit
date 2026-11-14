@@ -26,7 +26,22 @@ jobs:
       run:
         working-directory: backend/cloudflare
     steps:
+      # The image copies the Fill engine's Rules table from the private
+      # fill-engine submodule (backend/Dockerfile, KAN-756), so the deploy
+      # checks it out at the commit main records.
       - uses: actions/checkout@v4
+        with:
+          submodules: true
+          fetch-depth: 0
+          token: ${{ secrets.FILL_ENGINE_TOKEN }}
+      # See the same step's comment in ci.yml's extension-store-build.
+      - name: Pin fill-engine to the commit this branch actually records
+        working-directory: .
+        run: |
+          PINNED=$(git ls-tree HEAD autofiller_extension/fill-engine | awk '{print $3}')
+          git -C autofiller_extension/fill-engine fetch --depth 1 origin "$PINNED"
+          git -C autofiller_extension/fill-engine checkout --detach "$PINNED"
+          echo "fill-engine pinned at: $(git -C autofiller_extension/fill-engine rev-parse HEAD)"
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc

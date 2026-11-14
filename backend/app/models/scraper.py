@@ -15,6 +15,7 @@ from sqlalchemy import (
     Float,
     ForeignKey,
     Integer,
+    SmallInteger,
     Text,
     UniqueConstraint,
     text,
@@ -124,6 +125,11 @@ class Job_Source(Base):
         ForeignKey("scraper_schedules.id", ondelete="CASCADE"),
     )
     apply_url: Mapped[str] = mapped_column(Text, index=True)
+    external_id: Mapped[str | None] = mapped_column(Text)
+    description_version: Mapped[int | None] = mapped_column(SmallInteger)
+    description_fetched_at: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
     first_seen_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=text("now()"),

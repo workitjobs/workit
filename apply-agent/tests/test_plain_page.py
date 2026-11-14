@@ -180,10 +180,12 @@ def test_evaluate_takes_an_argument_and_awaits(page):
         page.evaluate("() => { throw new Error('boom'); }")
 
 
-def test_keyboard_enter_submits_the_form(page):
+def test_keyboard_enter_never_submits_the_form(page):
+    # KAN-716: a synthetic Enter in a box clicked amazon.jobs's submit button. The page hears the key; nothing sends.
     page.locator("#first").focus()
     page.keyboard.press("Enter")
-    assert page.evaluate("() => document.body.dataset.submitted") == "yes"
+    page.get_by_test_id("go").press("Enter")
+    assert page.evaluate("() => document.body.dataset.submitted") is None
 
 
 def test_the_caret_keys_move_the_caret_as_a_keyboard_does(page):

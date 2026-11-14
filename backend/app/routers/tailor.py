@@ -339,6 +339,7 @@ async def _steps(
             id=resume.id, name=resume.name, template=resume.template, job_posting_id=resume.job_posting_id,
             is_default=resume.id == default_id, created_at=resume.created_at,
             edited_at=resume.updated_at, posting_title=job.title, posting_company=job.company_name,
+            posting_logo_url=job.company_logo_url, posting_company_domain=job.company_domain,
         ),
         weak_match=tailor.weak_match(job),
         matched=matched,

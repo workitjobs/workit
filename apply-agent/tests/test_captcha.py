@@ -27,3 +27,13 @@ def test_datadomes_block_is_a_block_though_claude_calls_it_a_captcha():
     why = ('DataDome\'s captcha frame says "We detected unusual activity from your device or network" '
            "and offers nothing to solve.")
     assert captcha.SAYS_BLOCKED.search(why)
+
+
+def test_a_plain_worker_runs_the_captcha_checks_as_its_extensions_own_code():
+    # KAN-760: a captcha wait polls these every second. A page whose CSP forbids eval refuses page code on a plain
+    # Worker, and a check that fails reads as no captcha at all.
+    from apply.plain import fixed
+
+    assert fixed.lookup(captcha.VISIBLE) == ("captchaVisible", "ISOLATED")
+    assert fixed.lookup(captcha.UNSOLVED) == ("captchaUnsolved", "ISOLATED")
+    assert "captchaVisible" in fixed.script()

@@ -85,7 +85,7 @@ test("a refused submit leaves the application unapplied, and the tab says why", 
   expect(api.calls.filter((c) => c.endsWith("/finish"))).toEqual([]);
 });
 
-test("the job system's page for a sent application alone doesn't mark it applied", async () => {
+test("the job system's page for a sent application alone doesn't mark it applied", { tag: "@nightly" }, async () => {
   // A page script can move the tab to the confirmation page itself: with no submit request the job
   // system took (submit-proof.js), it is only a hint.
   const forms = new SavedForms([ARC]);
@@ -99,7 +99,7 @@ test("the job system's page for a sent application alone doesn't mark it applied
   expect(api.calls.filter((c) => c.endsWith("/finish"))).toEqual([]);
 });
 
-test("a page script that hooked the Fill engine can't mark the application applied; the job system's answer does", async () => {
+test("a page script that hooked the Fill engine can't mark the application applied; the job system's answer does", { tag: "@nightly" }, async () => {
   // A script on the employer's page, run before the engine, wraps the engine as it loads and keeps the
   // key watchSubmit is given, then sends the engine's submit event itself, as if the job system had
   // answered OK. Only the job system's own answer to the student's submit, which the extension's
@@ -177,7 +177,7 @@ async function readyPatreon(api: FakeApi): Promise<Page> {
   return page;
 }
 
-test("the page's notice of a sent application, shown just before the job system's answer, still marks it applied", async () => {
+test("the page's notice of a sent application, shown just before the job system's answer, still marks it applied", { tag: "@nightly" }, async () => {
   // Ashby's answer needs the page's notice too (submit-proof.js), and the engine can tell the page's
   // notice before the service worker sees the answer arrive.
   const api = new FakeApi();
@@ -190,7 +190,7 @@ test("the page's notice of a sent application, shown just before the job system'
   await expect.poll(() => api.stages.get("job-0"), { timeout: 20_000 }).toBe("applied");
 });
 
-test("a submit the job system took proves only its own application, not a later one in the same tab", async () => {
+test("a submit the job system took proves only its own application, not a later one in the same tab", { tag: "@nightly" }, async () => {
   // Greenhouse's answer proves its submit alone. Once it has marked the application, a later notice in
   // that tab (here its confirmation page, when the tab has come to hold another application) needs an
   // answer of its own.
@@ -218,7 +218,7 @@ test("a submit the job system took proves only its own application, not a later 
   expect(api.calls.filter((c) => c.includes("job-1"))).toEqual([]);
 });
 
-test("reading the student's edits back leaves their focus where they put it", async () => {
+test("reading the student's edits back leaves their focus where they put it", { tag: "@nightly" }, async () => {
   // The tab reads the form back after each edit. Greenhouse's phone country was read by opening its
   // picker, which took the focus: an Enter meant for Submit went to the picker, and nothing was sent.
   const forms = new SavedForms([ARC]);

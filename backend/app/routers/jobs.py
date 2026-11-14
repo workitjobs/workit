@@ -25,6 +25,10 @@ viewer is a signed-in applicant whose experience bank is non-empty, using the
 same `score_jobs` path as GET /jobs/recommended. A scoring failure is logged
 and swallowed: the feed still loads, just without scores.
 
+GET /jobs/{job_id}/match is that same score for one job, for the job's own
+page (2026-11-10): GET /jobs/{job_id} stays the same for everyone, cached
+and tokenless, since a Jobs page prefetches it for every card in view.
+
 This file is the HTTP layer only: the routes, their query parameters and
 read_filters, which turns those into JobFilters. What each filter matches
 and how the database is asked live in app/queries/jobs/ (filters.py has the
@@ -104,6 +108,7 @@ from app.schemas.jobs import (
     JobFacets,
     JobListing,
     JobLocationOption,
+    JobMatch,
     JobRoleOption,
     JobTypeKey,
     PlaceCode,
@@ -345,7 +350,7 @@ async def recommended_jobs(
 @router.get("/recommended/{applicant_id}/home", response_model=HomeMatches)
 async def recommended_home(
     applicant_id: uuid.UUID,
-    # Strong Matches' window: Home sends its longest range's days.
+    # Excellent Matches' window: Home sends its longest range's days.
     posted_within: int = Query(ge=1, le=365),
     min_match: int = Query(ge=0, le=100),
     limit: int = Query(12, ge=1, le=50),
@@ -400,6 +405,35 @@ async def get_job_company(
         website=f"https://{job.company_domain}" if job.company_domain else None,
         facts=await briefs.brief_for(db, job.company_name, job_id),
     )
+
+
+@router.get("/{job_id}/match", response_model=JobMatch)
+async def get_job_match(
+    job_id: str,
+    account: AuthenticatedAccount | None = Depends(get_signed_in_applicant),
+    db: AsyncSession = Depends(get_session),
+) -> JobMatch:
+    """This job's match for the signed-in applicant, scored as the feed
+    scores its cards (GET /jobs), for the job's own page and its match rail.
+    Empty for anyone signed out, an empty experience bank, an id that is no
+    job or a job the scorer does not keep, and a scoring failure, which is
+    logged: the page then draws no rail, as the feed draws a card unscored."""
+    try:
+        job_uuid = uuid.UUID(job_id)
+    except ValueError:
+        return JobMatch()
+    if account is None:
+        return JobMatch()
+    try:
+        bank = await load_bank(db, account.id)
+        if not (bank.entries or bank.skills):
+            return JobMatch()
+        scored = await score_jobs(db, account, bank, JobFilters(job_ids=[job_uuid]))
+    except Exception:
+        logger.exception("Scoring failed for applicant %s", account.id)
+        return JobMatch()
+    hit = next((s for s in scored if s.id == str(job_uuid)), None)
+    return JobMatch(match=hit.match, highlights=hit.highlights) if hit else JobMatch()
 
 
 # Last, so the paths above ("/count", "/facets", "/locations", "/roles") are matched as

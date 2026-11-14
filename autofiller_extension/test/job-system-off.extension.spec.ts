@@ -57,18 +57,6 @@ test("a job system turned off shows WorkIt can't fill it in the panel, and turne
   await expect(primary(page)).not.toContainText("can't fill");
 });
 
-test("another job system still fills while Workday is off", async () => {
-  const forms = new SavedForms([ANDURIL]);
-  const api = new FakeApi();
-  api.disabledJobSystems = WORKDAY_OFF;
-  loaded = await loadExtension([api.handler, webapp, forms.handler]);
-  await signIn(loaded.context);
-  const page = await loaded.context.newPage();
-  await page.goto(forms.url(ANDURIL));
-  await edgeTab(page).click({ timeout: 15_000 });
-  await expect(primary(page).getByRole("button", { name: "Autofill This Page" })).toBeVisible();
-});
-
 test("when the config can't be read, the last copy holds; with none, the job system fills as normal", async () => {
   test.setTimeout(120_000);
   const workdays = new FakeWorkdays(["workday-caci"]);

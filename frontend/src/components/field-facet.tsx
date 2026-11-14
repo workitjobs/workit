@@ -34,11 +34,13 @@ export type FacetOption = {
 };
 
 /** The Jobs page facet's look: a small secondary button with the brand
- *  tint while it holds a pick and its list is closed. */
+ *  tint while it holds a pick and its list is closed. Its label is regular
+ *  (400), not a button's medium, as Jobright's filters are (2026-11-10): a
+ *  row of medium filters read heavier than the cards under it. */
 export function facetClasses(active: boolean, className?: string) {
   return cn(
     buttonClasses({ variant: "secondary", size: "sm" }),
-    "justify-between",
+    "justify-between font-normal",
     active && "border-brand bg-brand-tint text-brand hover:bg-brand-tint",
     className,
   );
@@ -115,7 +117,7 @@ export function FieldFacet({
         className={facetClasses(active, className)}
       >
         <FacetLabel Icon={Icon} label={label} active={active} count={values.length} />
-        <ChevronDownIcon className="text-muted-foreground size-4" />
+        <ChevronDownIcon className="text-ink-meta size-4" />
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="start"

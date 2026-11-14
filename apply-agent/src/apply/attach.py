@@ -14,11 +14,22 @@ frame, hidden or not, and given the file directly:
    page that does (Airtable's "Drop files here or click to browse" under
    "Please upload your resume").
 
+A file goes only into the top frame, a frame of its own site, or a job system's
+embedded form (apply.upload_origin, KAN-795): a résumé input found only in
+another site's frame raises `Elsewhere`, a Handoff, and gets no file.
+
 It counts only once the page shows the file's name. Until then the guards let
 the page's own script post the file it was given (iCIMS posts its résumé to be
 parsed by a native form submission, which they block otherwise: KAN-691). Jobvite's country of
 residence and privacy consent, when a tenant asks for them first, are passed
 here too, so Claude never has to.
+
+A dialog that asks the applicant to accept a privacy or data notice before
+the file goes (Microsoft's Eightfold "Data Privacy Notice": I understand /
+Cancel, KAN-768) is his consent: plain code presses none of its buttons, not
+even Cancel or Close (Cancel drops the file), and raises `Consent`, a Handoff
+that names the dialog and the button for him to press. Once he has, the page
+sends the file it holds, or the next attach gives it again.
 
 So is a pop-up that covers the form and takes every click meant for it
 (Paylocity's "Apply with resume", on load): given the résumé if it asks for
@@ -32,6 +43,9 @@ from contextlib import contextmanager
 from pathlib import Path
 
 from playwright.sync_api import Error, Frame, Page
+
+from apply import upload_origin
+from apply.model import Handoff
 
 RESUME = r"r[eé]sum[eé]|\bcv\b"
 COVER = r"cover"
@@ -90,6 +104,49 @@ POP_UP = """() => {
   const heading = top.querySelector('h1, h2, h3, [role=heading]');
   return ((heading && heading.innerText.trim()) || top.innerText.trim() || 'a pop-up').replace(/\\s+/g, ' ').slice(0, 80);
 }"""
+# A dialog on show that asks for consent to a privacy or data notice, as {title, button}: the dialog `el` is in, or
+# (el undefined) any on the page; null if none. The button is the one that agrees; Cancel and Close are no agreement.
+CONSENT = """(el) => {
+  const DIALOG = '[role=dialog], [role=alertdialog], [aria-modal=true], dialog';
+  const words = n => ((n && (n.innerText || n.getAttribute('aria-label'))) || '').replace(/\\s+/g, ' ').trim();
+  const shown = n => !n.checkVisibility || n.checkVisibility();
+  const NOTICE = /privacy|personal (data|information)|data (protection|processing|notice)|consent|candidate privacy/i;
+  const AGREE = /^(i )?(understand|agree|accept|acknowledge|consent)( (and|&) (continue|accept|agree))?$|^(accept|agree)( all)?$|^(ok(ay)?|got it)$/i;
+  const dialogs = el ? [el.closest && el.closest(DIALOG)].filter(Boolean) : [...document.querySelectorAll(DIALOG)];
+  for (const d of dialogs) {
+    if (!shown(d) || !NOTICE.test(words(d)) || /cookie/i.test(words(d))) continue;  // a cookie banner is no such notice
+    const agree = [...d.querySelectorAll('button, [role=button]')].filter(shown).find(b => AGREE.test(words(b)));
+    if (!agree) continue;
+    const by = (d.getAttribute('aria-labelledby') || '').split(/\\s+/).filter(Boolean).map(id => words(document.getElementById(id))).join(' ');
+    const heading = d.querySelector('h1, h2, h3, h4, [role=heading]');
+    const title = by || d.getAttribute('aria-label') || words(heading) || words(d).split(/[.\\n]/)[0];
+    return {title: title.slice(0, 80), button: words(agree).slice(0, 40)};
+  }
+  return null;
+}"""
+
+
+class Consent(Handoff):
+    """A dialog asks the applicant to accept a privacy or data notice before the résumé goes (KAN-768). Apply never
+    presses it, nor its Cancel: he presses the agreeing button himself, then Resume, and the résumé is attached."""
+
+    def __init__(self, title: str, button: str):
+        super().__init__(f'Press "{button}" on the "{title}" dialog yourself (a consent: Apply never gives it), '
+                         "then press Resume: Apply attaches your resume then.")
+        self.title, self.button = title, button
+
+
+def consent(page: Page) -> dict | None:
+    """The consent dialog on show in any frame of the page ({title, button}), or None."""
+    for frame in getattr(page, "frames", None) or []:
+        try:
+            if found := frame.evaluate(CONSENT):
+                return found
+        except Exception:
+            continue  # a frame gone, one that refuses scripts, or a page that can't be read now
+    return None
+
+
 CLOSE = re.compile(r"^\s*(×|✕|x|close|dismiss|no,? thanks|not now|skip|maybe later|cancel)\b", re.IGNORECASE)
 
 # The text of the widest part of the page that holds this upload button and no other.
@@ -113,23 +170,34 @@ NATIVE = """name => [...document.querySelectorAll('input[type=file]')].some(el =
 def attach_resume(page: Page, resume: Path, guard=None) -> bool:
     """Attach `resume` to the open form's résumé field. True once the page
     shows its file name (as it may already); False if no input took it.
-    `guard` (a DriveGuard) lets the page post the file meanwhile."""
+    `guard` (a DriveGuard) lets the page post the file meanwhile. Raises
+    `Consent` while a consent dialog waits on the applicant (KAN-768)."""
     if _shows(page, resume.name, wait=0):
         return True
+    if found := consent(page):  # one still open from an earlier try: his to press, and no file is given over it
+        raise Consent(found["title"], found["button"])
     deadline = time.monotonic() + FOUND_WITHIN
+    elsewhere = ""  # a résumé input found only in a frame a file may not go to (KAN-795)
     while True:  # a form still rendering may not have its fields yet
         for frame in page.frames:
             try:
                 index = frame.evaluate(FIND, [RESUME, COVER])
                 if index >= 0:
+                    if not upload_origin.frame_may_upload(frame):
+                        elsewhere = elsewhere or upload_origin.host_of(frame) or "another site"
+                        continue
                     with _posting(guard):
-                        frame.locator("input[type=file]").nth(index).set_input_files(resume)
+                        upload_origin.give(frame.locator("input[type=file]").nth(index), resume)
                         return _shows(page, resume.name)
             except Error:
                 continue  # a frame that went away, or one that refuses scripts
         if time.monotonic() >= deadline:
             with _posting(guard):
-                return _behind_button(page, resume)
+                if _behind_button(page, resume):
+                    return True
+            if elsewhere:
+                raise upload_origin.Elsewhere(elsewhere)
+            return False
         page.wait_for_timeout(250)
 
 
@@ -162,6 +230,8 @@ def _resume_button(frame: Frame):
 
 def _behind_button(page: Page, resume: Path) -> bool:
     for frame in page.frames:
+        if not upload_origin.frame_may_upload(frame):
+            continue  # a file goes to no input there (KAN-795): its button isn't pressed either
         try:
             button = _resume_button(frame)
             if button is None:
@@ -170,14 +240,14 @@ def _behind_button(page: Page, resume: Path) -> bool:
             try:
                 with page.expect_file_chooser(timeout=3_000) as chooser:
                     button.click()
-                chooser.value.set_files(resume)
+                upload_origin.give(chooser.value, resume)
                 return _shows(page, resume.name)
             except Error:
                 pass  # no chooser: look for the input the click revealed
             after = frame.evaluate(REACHABLE)
             revealed = [i for i, now in enumerate(after) if now and not (i < len(before) and before[i])]
             if len(revealed) == 1:
-                frame.locator("input[type=file]").nth(revealed[0]).set_input_files(resume)
+                upload_origin.give(frame.locator("input[type=file]").nth(revealed[0]), resume)
                 _send_on(frame)
                 return _shows(page, resume.name)
         except Error:
@@ -201,8 +271,12 @@ def _send_on(frame: Frame) -> None:
 
 
 def _shows(page: Page, name: str, wait: float = SHOWN_WITHIN) -> bool:
+    """Whether the page shows the file's name within `wait` s. A consent dialog that the file brought on
+    (Eightfold's) raises `Consent` at once: the file waits on the applicant, and nothing in it is pressed."""
     deadline = time.monotonic() + wait
     while True:
+        if wait and (found := consent(page)):
+            raise Consent(found["title"], found["button"])
         for frame in page.frames:
             try:
                 if name.casefold() in frame.locator("body").inner_text(timeout=1_000).casefold():
@@ -242,12 +316,14 @@ def clear_pop_up(page: Page, resume: Path | None) -> str:
         said = _pop_up(page)
         if not said:
             return ""
+        if found := consent(page):  # his consent: never closed, and never its Cancel, which drops a file it holds
+            raise Consent(found["title"], found["button"])
         pop_up = page.locator("[data-apply-pop-up]")
         file = pop_up.locator("input[type=file]")
         wait = 1.0
         try:
             if attempt == 0 and resume and file.count() == 1:
-                file.set_input_files(resume)
+                upload_origin.give(file, resume)
                 wait = SHOWN_WITHIN  # an upload may take a moment
             elif (close := [b for b in pop_up.get_by_role("button", name=CLOSE).all() if b.is_visible()]):
                 close[0].click(timeout=3_000)

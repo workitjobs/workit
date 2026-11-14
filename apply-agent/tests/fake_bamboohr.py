@@ -15,6 +15,8 @@ from fake_lever import _load_responses, _multipart
 from fakes import Submission
 from playwright.sync_api import Route, sync_playwright
 
+from apply import submit_guard
+
 # The form renders reCAPTCHA's checkbox and waits for its callback; this one is
 # ticked at once.
 RECAPTCHA_STUB = """
@@ -177,6 +179,8 @@ class FakeBambooServer:
             context.route("**/*", self._handle)
             try:
                 page = context.new_page()
+                if getattr(self, "guard_at_open", True):  # as a Worker opens each page (apply.browsers)
+                    submit_guard.on_open(page)
                 page.goto(url)
                 yield page
             finally:

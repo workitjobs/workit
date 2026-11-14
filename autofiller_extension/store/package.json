@@ -1,0 +1,8 @@
+{
+  "name": "workit-store-build",
+  "private": true,
+  "description": "The Chrome Web Store package's build (build.mjs): esbuild minifies what it ships. The extension itself loads no dependency.",
+  "devDependencies": {
+    "esbuild": "0.25.10"
+  }
+}

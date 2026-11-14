@@ -104,17 +104,25 @@ export function MonthField({
         <PopoverContent align="start" className="w-64 p-3">
           <div className="flex items-center justify-between">
             <IconButton
+              place="row"
+              tooltip={false}
               label="Previous Year"
-              className="size-8"
+
               onClick={() => setYear((y) => y - 1)}
             >
-              <ChevronLeftIcon className="size-4" />
+              <ChevronLeftIcon />
             </IconButton>
             <span className="text-label text-ink tabular-nums" aria-live="polite">
               {year}
             </span>
-            <IconButton label="Next Year" className="size-8" onClick={() => setYear((y) => y + 1)}>
-              <ChevronRightIcon className="size-4" />
+            <IconButton
+              place="row"
+              tooltip={false}
+              label="Next Year"
+
+              onClick={() => setYear((y) => y + 1)}
+            >
+              <ChevronRightIcon />
             </IconButton>
           </div>
 

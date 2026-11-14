@@ -198,7 +198,19 @@ class Highlight(BaseModel):
     """One reason a job matches (or doesn't), for the match rail."""
 
     text: str
+    #: The whole sentence behind `text`, its tooltip (2026-11-09). None on
+    #: a highlight read from before it existed.
+    detail: str | None = None
     met: bool
+
+
+class JobMatch(BaseModel):
+    """One job's match for the signed-in applicant (GET /jobs/{job_id}/match):
+    the score and reasons the feed gives the same job. Empty (None, []) when
+    there is nothing to score against or the job is not open."""
+
+    match: int | None = None
+    highlights: list[Highlight] = []
 
 
 class ScoredJob(JobListing):
@@ -219,7 +231,7 @@ class HomeMatches(BaseModel):
     # Matches' picking mode.
     auto_apply: list[ScoredJob]
     # When each job posted within `posted_within` days that scores at least
-    # `min_match` went up: Strong Matches counts them per range.
+    # `min_match` went up: Excellent Matches counts them per range.
     strong_posted: list[str]
 
 

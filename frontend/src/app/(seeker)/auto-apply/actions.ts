@@ -4,6 +4,8 @@ import { apiFetch, extractErrorMessage } from "@/lib/auth";
 import type { SentResume } from "@/lib/sent-resume-actions";
 import { getApplicantSession } from "@/lib/session";
 
+import { getQueueCount } from "./applications";
+
 /**
  * Auto apply's writes, through the API's routes
  * (backend/app/routers/auto_apply.py). Every export of a "use server" file
@@ -163,4 +165,11 @@ export async function markSubmitted(jobId: string): Promise<{ error: string | nu
   } catch {
     return { error: UNREACHABLE };
   }
+}
+
+/** The queue's count again, for the sidebar's Auto Apply badge
+ *  (../queue-badge.tsx) once a card's Auto Apply, Save or Undo changes a
+ *  stage: none of them reloads the page. */
+export async function readQueueCount(): Promise<number | null> {
+  return getQueueCount();
 }

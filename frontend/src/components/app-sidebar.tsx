@@ -232,6 +232,10 @@ export type SidebarNavItem = NavRowBase &
         /** A section that does not work yet: its row stays, greyed out, with
          *  no link. */
         disabled?: boolean;
+        /** A count on the row's icon's top right, as the Jobs page's filter
+         *  count sits on its button: the Auto Apply queue's (2026-11-09).
+         *  The node draws nothing when there is nothing to count. */
+        badge?: ReactNode;
       }
     | { action: () => void | Promise<void> }
   );
@@ -268,7 +272,7 @@ export type SidebarNavGroup = { label?: string; items: SidebarNavItem[] };
  * full-width bar, offset by the bar's height. See "WHY IT IS OFFSET".
  */
 // The rail's edge is the control edge, as the top bar's rule is (2026-11-03).
-const RAIL = "group-data-[side=left]:border-border-control [&>[data-slot=sidebar-inner]]:bg-panel";
+const RAIL = "group-data-[side=left]:border-border-surface [&>[data-slot=sidebar-inner]]:bg-panel";
 const RAIL_GROUP = "px-2 py-2";
 const RAIL_BUTTON =
   "h-16 flex-col justify-center gap-1 px-1 text-center text-note leading-tight font-medium [&_svg]:size-6 " +
@@ -578,7 +582,14 @@ function NavRow({
         {...focusProps}
         className={cn(size, ROW, lit && CURRENT_ITEM)}
       >
-        <Icon aria-hidden className="size-4" />
+        {item.badge ? (
+          <span className="relative inline-flex">
+            <Icon aria-hidden className="size-4" />
+            <span className="absolute -top-2 -right-3">{item.badge}</span>
+          </span>
+        ) : (
+          <Icon aria-hidden className="size-4" />
+        )}
         <span>{label}</span>
         <PendingMark onPending={onPending} />
       </SidebarMenuButton>

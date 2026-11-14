@@ -3,7 +3,9 @@
 import { useEffect, useRef, useState, type ComponentType } from "react";
 
 import { STAGE_COLOR, STAGE_LABEL, type StageKey } from "@/app/(seeker)/stage-colors";
-import { BriefcaseIcon, CalendarIcon, CheckIcon, FileIcon, SparkleIcon } from "@/components/icons";
+import { ListChecksIcon } from "@phosphor-icons/react/ssr";
+
+import { CalendarIcon, CheckIcon, FileIcon, SparkleIcon } from "@/components/icons";
 import { cn } from "@/lib/cn";
 import { matchColor } from "@/lib/match";
 
@@ -69,7 +71,7 @@ const SCENES: { Icon: Glyph; label: string; Screen: ComponentType; notice: Notic
     },
   },
   {
-    Icon: BriefcaseIcon,
+    Icon: ListChecksIcon,
     label: "Manage Your Applications",
     Screen: BoardScreen,
     notice: {

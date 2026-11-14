@@ -165,6 +165,19 @@ def test_a_required_essay_is_written_by_claude_and_sent_with_the_form(monkeypatc
     assert essay == MICROMOUSE
 
 
+def test_an_essay_with_a_made_up_number_and_outcome_is_held_with_each_named_and_never_sent(monkeypatch):
+    # The truth check (apply.truth, KAN-748): the Story bank never says 47 clubs, nor that any adopted it.
+    form = ResearchForm("Northwood Space")
+    made_up = "I captained our Micromouse team at MIT. 47 other clubs adopted its firmware."
+
+    row = run(monkeypatch, form, FakeClaude(essays={PROJECT: made_up}))
+
+    assert row.status == "held"
+    assert "states 47, which no source backs" in row.reason
+    assert 'claims what no source backs: "adopted" (an outcome)' in row.reason
+    assert form.submitted == []
+
+
 POSTING_PAGE = "https://jobs.example.com/example/1"  # the one Match's link in `run`
 PORTAL = "Interns work on Portal, our network of phased-array ground stations tracking 1,200 satellites."
 
@@ -202,7 +215,7 @@ def test_an_essay_stating_his_zip_code_is_not_held_for_an_unsupported_number(mon
 
 
 def test_an_essay_may_state_a_number_the_companys_material_states(monkeypatch):
-    essay = "Portal tracks 1,200 satellites. My GTFS adapters at Hitachi Rail tracked live buses."
+    essay = "Portal tracks 1,200 satellites. My adapters at Hitachi Rail tracked live buses."
 
     row = run(monkeypatch, ResearchForm("Northwood Space"), FakeClaude(essays={PROJECT: essay}),
               site=Browser({POSTING_PAGE: f"<p>{PORTAL}</p>"}))
@@ -1006,6 +1019,23 @@ def test_a_drafted_answer_stating_a_number_no_source_holds_is_a_missing_fact(mon
     row = run(monkeypatch, form, FakeClaude(drafts={RELATIONSHIPS: "No, though I advised 7,412 founders there."}))
 
     assert (row.status, row.missing_fact[:len(RELATIONSHIPS)]) == ("missing fact", RELATIONSHIPS)
+
+
+def test_a_drafted_answer_naming_an_employer_or_an_outcome_no_source_holds_is_a_missing_fact(monkeypatch):
+    # The full truth check (KAN-750): the Story bank never names Stripe, and its WorkIt entry never says deployed.
+    for made_up in ("Stripe hired me as an advisor to the firm.", "No, though WorkIt was deployed to their team."):
+        row = run(monkeypatch, ResearchForm("GCM Grosvenor"), FakeClaude(drafts={RELATIONSHIPS: made_up}))
+
+        assert (row.status, row.missing_fact[:len(RELATIONSHIPS)]) == ("missing fact", RELATIONSHIPS), made_up
+
+
+def test_a_plain_short_drafted_answer_passes_the_truth_check(monkeypatch):
+    form = ResearchForm("GCM Grosvenor")
+
+    row = run(monkeypatch, form, FakeClaude(drafts={RELATIONSHIPS: "No"}))
+
+    assert row.status == "submitted", row.reason
+    assert sent_answer(form, RELATIONSHIPS) == "No"
 
 
 DECISION = "What made you pick YOLOv8-OBB over a plain detector for the depot tracker?"
@@ -2036,3 +2066,65 @@ def test_setting_the_answers_keeps_the_forms_files_and_no_attestation(tmp_path):
 
 def _block_text(prompt: str, tag: str) -> str:
     return re.search(rf"<{tag}>\n(.*?)\n</{tag}>", prompt, re.DOTALL)[1]
+
+
+def test_a_quote_with_a_non_breaking_hyphen_is_word_for_word():
+    # gpt-oss quotes "made-up" as "made‑up" (U+2011): the same words (KAN-723)
+    sources = essays._quotable("Shelf Bot is a made-up robot that counts stock on store shelves overnight.")
+    assert essays._holds(sources, "Shelf Bot is a made‑up robot that counts stock on store shelves overnight.")
+    assert not essays._holds(sources, "Shelf Bot is a made-up robot that counts boxes on store shelves overnight.")
+
+
+def test_a_quote_holds_with_its_punctuation_or_a_number_spelled_out():
+    # gpt-oss quoted "every 5 minutes, so the catalog" as "every five minutes so the catalog" (KAN-723)
+    sources = essays._quotable("I built a Flask app that reads the checkout log every 5 minutes, so the catalog shows a book.")
+    assert essays._holds(sources, "reads the checkout log every five minutes so the catalog shows a book")
+    assert not essays._holds(sources, "reads the checkout log every six minutes so the catalog shows a book")
+    assert not essays._holds(sources, "eads the checkout log every 5 minutes, so the catal")  # whole words only
+
+
+class LeanClaude(FakeClaude):
+    """FakeClaude as a hosted model with a small request limit (apply.adapters.lean)."""
+
+    lean = True
+
+
+def test_a_lean_model_gets_one_off_questions_in_a_call_of_their_own_and_short_guides():
+    # Groq's free tier refused one call writing an essay and drafting one-off questions (KAN-723)
+    claude = LeanClaude(essays={"Why Figma?": "Because."})
+    posting = Posting("p", "Figma", "Software Engineer Intern", "https://jobs.example.com/1")
+    why = Question("a", "Why Figma?", "textarea", True)
+    adult = Question("d", "Are you 18 or older?", "select", True, options=("Yes", "No"))
+
+    written, drafted = essays.answer(claude, posting, [why], [adult], ApplicantProfile.load(PROFILE, POLICIES))
+
+    assert written[0].text and drafted[0].answer == "Yes"
+    planned = next(c for c in claude.calls if "plan" in c["schema"]["properties"])
+    assert planned["system"].count("company link:") == 1  # only why-company's slots are listed
+    essay_call = next(c for c in claude.calls if "essays" in c["schema"]["properties"])
+    assert "drafts" not in essay_call["schema"]["properties"] and "<profile>" not in essay_call["prompt"]
+    assert "## Pairs" not in essay_call["system"] and "## Rules" in essay_call["system"]
+    assert any(set(c["schema"]["properties"]) == {"drafts"} for c in claude.calls)
+
+
+def test_claude_still_gets_every_type_and_one_call_for_essays_and_one_off_questions():
+    claude = FakeClaude(essays={"Why Figma?": "Because."})
+    posting = Posting("p", "Figma", "Software Engineer Intern", "https://jobs.example.com/1")
+    essays.answer(claude, posting, [Question("a", "Why Figma?", "textarea", True)],
+                  [Question("d", "Are you 18 or older?", "select", True, options=("Yes", "No"))],
+                  ApplicantProfile.load(PROFILE, POLICIES))
+    planned = next(c for c in claude.calls if "plan" in c["schema"]["properties"])
+    assert planned["system"].count("company link:") == len(answering.load())
+    assert any(set(c["schema"]["properties"]) == {"essays", "drafts"} for c in claude.calls)
+
+
+def test_a_plan_that_names_a_brief_fact_but_quotes_none_gets_the_facts_line():
+    # gpt-oss and Gemini named the brief fact for company-fact and copied no line (KAN-723)
+    company = "<company>\nCompany:\n- **Shelf Bot** (2026-05, product): Shelf Bot is a robot that counts stock overnight.\n</company>"
+    given = essays.Plan("why-company", ("why",), "", "Shelf Bot", slots=(essays.Backed("company-fact", ()),))
+    [fixed] = essays._fact_quoted({"q1": given}, company, company).values()
+    assert {b.slot: b.quotes for b in fixed.slots}["company-fact"] == (
+        "**Shelf Bot** (2026-05, product): Shelf Bot is a robot that counts stock overnight.",)
+    assert not [f for f in essays._slot_failures(fixed, company) if f.startswith("company-fact")]
+    unnamed = essays.Plan("why-company", ("why",), "", "", slots=())
+    assert essays._fact_quoted({"q1": unnamed}, company, company)["q1"] == unnamed

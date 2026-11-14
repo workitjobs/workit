@@ -46,3 +46,7 @@ Apply keeps each write that cannot reach WorkIt (no network, or the login expire
 - The first time Apply opens its Tracker, it copies the Sheet's rows and Requests into `tracker.json` one time. It only reads the Sheet. This keeps every job that you applied to, so no run applies to it again.
 - To put the Sheet's submitted applications into your Applications Tracker one time, run `uv run apply import-sheet`. It lists each add and skip first, and writes only when you type yes.
 - Both read the Sheet through the service account key (`~/.config/gspread/service_account.json`) and the Sheet ID in the data folder (`sheet-id`). After the import, you can delete them.
+
+`apply applied <link>` names a Posting of a job system the Fill engine knows from what that system serves
+(`fill_engine.job_names`), and asks Claude to read the link only when the engine can't. Microsoft's careers page
+is a script shell, so Claude could read nothing there; Eightfold's API names its role (KAN-770).

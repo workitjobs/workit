@@ -1,7 +1,7 @@
 "use client";
 
-import { FileArrowDownIcon } from "@phosphor-icons/react/ssr";
-import { useEffect, useRef, useState } from "react";
+import { EyeIcon, FileArrowDownIcon } from "@phosphor-icons/react/ssr";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import {
   Dialog,
@@ -16,6 +16,7 @@ import { openDownload } from "@/lib/save-file";
 import type { TailorSource } from "@/lib/tailor-actions";
 
 import { loadPdfjs, PageSkeleton, PdfPages } from "../../../resumes/[resumeId]/pdf-pages";
+import { THUMBNAIL_RATIO } from "../../../resumes/view";
 
 /**
  * A resume shown read-only: in a dialog for Tailor's step 1, which opens
@@ -34,8 +35,8 @@ import { loadPdfjs, PageSkeleton, PdfPages } from "../../../resumes/[resumeId]/p
  * Each answer is kept by its source for the page's life (`answered`), so a
  * resume shows only its own answer, however late an older one arrives, and
  * a resume opened again shows at once. A caller that knows when the
- * resume last changed passes it as `version` (the Resumes page's eye,
- * KAN-358), so an answer from before an edit is not shown after it. A failed one says so in a line, with
+ * resume last changed passes it as `version` (the Resumes page's duplicate
+ * modal, KAN-444), so an answer from before an edit is not shown after it. A failed one says so in a line, with
  * Try Again. Step 1 held the preview as a column beside the list until the
  * list needed the width; a dialog also gives the page room to be read.
  */
@@ -49,6 +50,25 @@ const keyOf = (source: TailorSource) =>
 
 /** Answers that drew, kept across the dialog's and the pane's mounts. */
 const answered = new Map<string, Preview>();
+
+/** Previews asked for at once: two (KAN-766). The Resumes grid asks for one
+ *  per card that comes into view, and each built resume's is a PDF render
+ *  on the API's small containers, so a grid of twenty asked for twenty
+ *  renders together. The rest wait their turn. */
+const AT_ONCE = 2;
+let running = 0;
+const waiting: (() => void)[] = [];
+
+async function inTurn<T>(work: () => Promise<T>): Promise<T> {
+  if (running >= AT_ONCE) await new Promise<void>((go) => waiting.push(go));
+  running += 1;
+  try {
+    return await work();
+  } finally {
+    running -= 1;
+    waiting.shift()?.();
+  }
+}
 
 /** The source's preview, asked for once `enabled`, and a retry for a
  *  failed one. */
@@ -72,7 +92,7 @@ function useResumePreview(source: TailorSource, enabled: boolean, version?: stri
       if (!answer.error) answered.set(key, answer);
       setPreviews((all) => ({ ...all, [key]: answer }));
     };
-    fetch(`/api/resume-preview?${query}`)
+    inTurn(() => fetch(`/api/resume-preview?${query}`))
       .then(async (res) => {
         const body = (await res.json()) as Partial<Preview>;
         keep({
@@ -163,11 +183,31 @@ export function ResumePreviewDialog({
           </DialogTitle>
           <DialogDescription className="sr-only">A preview of this resume.</DialogDescription>
         </DialogHeader>
-        <div className="bg-well rounded-card min-h-0 flex-1 overflow-y-auto p-3 sm:p-4">
-          <PreviewPages source={source} label={label} enabled={open} version={version} />
-        </div>
+        <ResumePreviewPane source={source} label={label} enabled={open} version={version} />
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** The preview's pages in their grey well, scrolling under whatever sits
+ *  above it: the preview dialog's body, and Generate Resume's dialog when
+ *  its View turns the dialog into the resume (resumes/new-resume-dialog.tsx)
+ *  rather than opening this dialog over it. */
+export function ResumePreviewPane({
+  source,
+  label,
+  enabled = true,
+  version,
+}: {
+  source: TailorSource;
+  label: string;
+  enabled?: boolean;
+  version?: string;
+}) {
+  return (
+    <div className="bg-well rounded-card min-h-0 flex-1 overflow-y-auto overscroll-none p-3 sm:p-4">
+      <PreviewPages source={source} label={label} enabled={enabled} version={version} />
+    </div>
   );
 }
 
@@ -183,6 +223,110 @@ export function ResumePreviewDialog({
  */
 export function OriginalResume({ source }: { source: TailorSource }) {
   return <PreviewPages source={source} label="Original Resume" enabled />;
+}
+
+/**
+ * A resume's first page, small and read-only, for the Resumes page's
+ * duplicate modal (KAN-444): "Resume #6 has the same content" was abstract,
+ * and the page shows which resume it is before the student confirms a copy.
+ * The frame is one Letter page tall, so only page 1 shows, and it costs one
+ * render (about half a second) the first time a resume is shown.
+ */
+export function ResumeFirstPage({
+  source,
+  label,
+  version,
+}: {
+  source: TailorSource;
+  label: string;
+  version?: string;
+}) {
+  return (
+    <div
+      aria-label={`First page of ${label}`}
+      role="figure"
+      className="border-border-subtle mx-auto w-56 overflow-hidden rounded-xs border shadow-sm"
+      style={{ aspectRatio: "8.5 / 11" }}
+    >
+      <PreviewPages source={source} label={label} enabled version={version} />
+    </div>
+  );
+}
+
+/**
+ * A resume's first page as a grid card's picture (KAN-766): the card's full
+ * width and the top of the page (`THUMBNAIL_RATIO`, its name, contact line
+ * and first section), drawn whole at the page's own shape and cut at the
+ * box's foot, asked for only once the card is near the
+ * screen (`useNear`) and then in turn (`inTurn`), and kept for the visit.
+ * The whole page took 83% of a card and 1.5 rows of cards filled a laptop
+ * screen; resumes from one bank look alike below their first section
+ * anyway (2026-11-10).
+ * Read-only and deaf to the pointer, so a press opens the card. A file
+ * pdf.js cannot draw (a DOCX) shows `fallback`, its type, not the preview's
+ * Download note; a failed one shows "No Preview".
+ */
+export function ResumeThumbnail({
+  source,
+  version,
+  fallback,
+}: {
+  source: TailorSource;
+  version?: string;
+  fallback: ReactNode;
+}) {
+  const [near, ref] = useNear();
+  const { key, preview } = useResumePreview(source, near, version);
+  return (
+    <div
+      ref={ref}
+      aria-hidden
+      className="bg-panel pointer-events-none relative w-full overflow-hidden"
+      style={{ aspectRatio: THUMBNAIL_RATIO }}
+    >
+      {preview && !preview.pdf ? (
+        <div className="flex h-full items-center justify-center">
+          {preview.error ? <span className="text-note text-ink-meta">No Preview</span> : fallback}
+        </div>
+      ) : (
+        <div className="w-full" style={{ aspectRatio: "8.5 / 11" }}>
+          {preview?.pdf ? (
+            <PdfPages
+              key={key}
+              pdf={preview.pdf}
+              boxes={[]}
+              selected={null}
+              onSelect={() => {}}
+              placeholder={<PageSkeleton />}
+            />
+          ) : (
+            <PageSkeleton />
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Whether the element came within a screen of view, once: it stays true. */
+function useNear(): [boolean, (node: HTMLDivElement | null) => void] {
+  const [near, setNear] = useState(false);
+  const observer = useRef<IntersectionObserver | null>(null);
+  function ref(node: HTMLDivElement | null) {
+    observer.current?.disconnect();
+    if (!node || near) return;
+    observer.current = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          setNear(true);
+          observer.current?.disconnect();
+        }
+      },
+      { rootMargin: "100% 0px" },
+    );
+    observer.current.observe(node);
+  }
+  return [near, ref];
 }
 
 /** A DOCX upload: pdf.js cannot draw one, so its file downloads instead. */
@@ -211,4 +355,52 @@ function DocxNote({ id, label }: { id: string; label: string }) {
       )}
     </div>
   );
+}
+
+/**
+ * View for one resume in a list of them: a text button with an eye that
+ * opens the resume in `ResumePreviewDialog`, titled with its name. The
+ * key is the resume pickers' ("built:<id>", "uploaded:<id>"). Auto Apply's
+ * Up Next (Resume column) and Generate Resume's list of resumes to start
+ * from (resumes/new-resume-dialog.tsx) draw it, always shown: a View that
+ * waited for the row's hover was missed (2026-11-11).
+ */
+export function ResumeViewButton({ name, resumeKey }: { name: string; resumeKey: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <ViewButton name={name} onClick={() => setOpen(true)} />
+      <ResumePreviewDialog
+        open={open}
+        onOpenChange={setOpen}
+        label={name}
+        source={sourceOfKey(resumeKey)}
+      />
+    </>
+  );
+}
+
+/** View's look, for a list that shows the resume its own way (Generate
+ *  Resume's dialog shows it in place). Text, not a bordered button: a table
+ *  row holds none (frontend/docs/design.md, which button look). */
+export function ViewButton({ name, onClick }: { name: string; onClick: () => void }) {
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      onClick={onClick}
+      title={`View ${name}`}
+      aria-label={`View resume ${name}`}
+      className="text-ink hover:text-brand"
+    >
+      <EyeIcon aria-hidden />
+      View
+    </Button>
+  );
+}
+
+/** A picker's key ("built:<id>", "uploaded:<id>") as the preview's source. */
+export function sourceOfKey(resumeKey: string): TailorSource {
+  const [kind, id] = resumeKey.split(":");
+  return kind === "built" ? { built_resume_id: id } : { uploaded_resume_id: id };
 }

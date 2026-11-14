@@ -953,6 +953,93 @@ def test_resume_never_drives_a_page_lisul_sent_himself(monkeypatch):
     assert len(kept) == 1  # sent and kept: Resume, pressed after, went on with nothing
 
 
+# KAN-781: Oracle Recruiting's sign-in, as its Candidate Experience code draws it (main-minimal.js 2607.26): the email
+# step's form and Next, then the code step's form of six one-digit boxes (autocomplete off) with Verify and
+# "Send New Code" (live, JPMorgan's, 2026-11-10), then the application. Its Submit leaves the page as it is (no thanks).
+ORACLE_PIN = """<form class="pin-code-verification" onsubmit="return false"><p>We've sent a verification code to: t***@example.com.
+  Paste it here to verify your identity.</p><div class="pin-code-input">{boxes}</div>
+  <button type="submit" class="apply-flow-dialog__button" onclick="{verified}"><span class="button__label">Verify</span></button>
+  <button class="pin-code-form__action-button" type="button">Send New Code</button></form>""".format(
+    boxes="".join(f'<div class="pin-code-input__segment"><input class="input-row__control pin-code-input__input" type="text" '
+                  f'inputmode="numeric" autocomplete="off" pattern="[0-9]*" id="pin-code-{n}" '
+                  f'aria-label="Enter verification code digit {n} of six."></div>' for n in range(1, 7)),
+    verified="document.body.innerHTML = T.form")
+ORACLE_FORM = """<h2>Contact Information</h2><form onsubmit="return false"><label>First Name <input></label>
+  <label>Resume <input type="file"></label><textarea aria-label="Why us?"></textarea>
+  <button type="submit">Submit</button></form>"""
+ORACLE = f"""<form onsubmit="return false"><h1>Enter your email to get started</h1><label>Email Address <input type="email"></label>
+  <label><input type="checkbox" id="legal-disclaimer-checkbox"> I agree</label>
+  <button type="submit" class="apply-flow-pagination__button"
+    onclick="document.body.innerHTML = T.pin"><span>Next</span></button></form>
+  <template id="pin">{ORACLE_PIN}</template><template id="form">{ORACLE_FORM}</template>
+  <script>const T = {{pin: pin.innerHTML, form: form.innerHTML}}; pin.remove(); form.remove();</script>"""
+# Oracle's inline code step: the code boxes inside the application's own first section, beside its answers.
+ORACLE_INLINE = """<h2>Contact Information</h2><form onsubmit="return false"><label>First Name <input></label>
+  <label>Resume <input type="file"></label><textarea aria-label="Why us?"></textarea>{}</form>""".format(
+    ORACLE_PIN.replace("onclick=", "data-x=").replace("<form", "<div").replace("</form>", "</div>"))
+
+
+def lisul_signs_in_to_oracle(monkeypatch, then: tuple[str, ...] = ()):
+    """On the held Oracle page, Lisul types his email, presses Next, asks for a new code, types it and presses Verify,
+    then presses each button of `then`."""
+    real = rehearsal.lift
+
+    def lift(page, **heard):
+        real(page, **heard)
+        if page.locator("input[type=email]").count():
+            page.fill("input[type=email]", "t@example.com")
+            page.get_by_role("button", name="Next").click()
+        page.get_by_role("button", name="Send New Code").click()
+        for n, digit in enumerate("482913", 1):
+            page.fill(f"#pin-code-{n}", digit)
+        page.get_by_role("button", name="Verify").click()
+        for name in then:
+            page.get_by_role("button", name=name).click()
+    monkeypatch.setattr(rehearsal, "lift", lift)
+
+
+@pytest.mark.parametrize("html", [ORACLE, ORACLE_INLINE], ids=["code step", "inline code step"])
+def test_resume_goes_on_after_lisul_signs_in_to_oracle_on_the_held_page(monkeypatch, html):
+    # KAN-781, JPMorgan's Oracle, live: his "Send New Code" on the code step was taken for the application's Submit,
+    # and Resume answered "You pressed Submit on the form".
+    lisul_signs_in_to_oracle(monkeypatch)
+    site, release, sent = rehearsal._Kept(OnePage(html), 0), threading.Event(), []
+    resume, asked = resume_pressed_later()
+    threading.Timer(8, release.set).start()
+
+    with site.open("https://jpmc.fa.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1001/job/1/apply/email"):
+        assert site.hold(release, "", resume=resume, sent=lambda: sent.append(True)) == rehearsal.RESUME
+
+    assert len(asked) == 4 and sent == [] and not release.is_set()
+
+
+def test_the_applications_own_submit_after_an_oracle_sign_in_still_ends_resume(monkeypatch):
+    lisul_signs_in_to_oracle(monkeypatch, then=("Submit",))
+    site, release, sent = rehearsal._Kept(OnePage(ORACLE), 0), threading.Event(), []
+    resume, _ = resume_pressed_later()
+    threading.Timer(4, release.set).start()
+
+    with site.open("https://jpmc.fa.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1001/job/1/apply/email"):
+        assert site.hold(release, "", resume=resume, sent=lambda: sent.append(True)) == ""
+
+    assert sent == [True]  # his Submit: Resume goes on no more, and the window says so
+
+
+def test_a_thanks_page_after_a_press_read_as_a_sign_ins_still_ends_resume(monkeypatch):
+    # The backstop: a press the page read as a sign-in's that the job system confirms sent the form is his Submit.
+    lisul_on_the_held_page(monkeypatch, lambda n: ["Submit"])
+    page = """<form onsubmit="return false"><input type=password aria-label=Password>
+      <button onclick="document.body.innerHTML = '<p>Thank you for applying!</p>'">Submit</button></form>"""
+    site, release, kept = rehearsal._Kept(OnePage(page), 0), threading.Event(), []
+    resume, _ = resume_pressed_later()
+    threading.Timer(4, release.set).start()
+
+    with site.open("https://jobs.example.com/apply"):
+        assert site.hold(release, submitted=kept.append, resume=resume) == ""
+
+    assert len(kept) == 1
+
+
 def test_a_held_page_lisul_does_not_submit_leaves_the_tracker_alone(monkeypatch, tmp_path):
     monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
     lisul_on_the_held_page(monkeypatch, lambda n: [])
@@ -1717,3 +1804,23 @@ def test_a_held_form_is_on_the_open_forms_list_until_lisul_sends_it(monkeypatch,
         lisul_on_the_held_page(monkeypatch, lambda n: ["Submit application"])
         hold_until(fake, profile, lambda lines: "you submitted it" in lines[-1], submitted_to=InMemoryTracker())
     assert batch.forms(path) == []  # it went in: nothing to bring back
+
+
+class _Shows:
+    """A page at `url` that shows `text` (get_by_text(...).first.is_visible(), as the confirmation checks read)."""
+
+    def __init__(self, url: str, text: str = ""):
+        self.url, self.text = url, text
+
+    def get_by_text(self, pattern):
+        shown = bool(pattern.search(self.text))
+        return type("Found", (), {"first": type("First", (), {"is_visible": lambda self: shown})()})()
+
+
+def test_an_eightfold_page_claude_fill_filled_is_confirmed_by_eightfolds_own_check():
+    """Microsoft's form is Claude fill's ("other"), but its page is Eightfold's (KAN-771)."""
+    from apply.rehearsal import _confirmed, _eightfold
+    done = _Shows("https://apply.careers.microsoft.com/careers/job/1970393557037859", "Application Submitted Congrats!")
+    assert _eightfold(done) and _confirmed(done, "other")
+    assert not _confirmed(_Shows(done.url, "Submit application"), "other")
+    assert not _eightfold(_Shows("https://jobs.example.com/acme/1", "Application Submitted"))

@@ -96,7 +96,7 @@ export function ResumeUpload({ file, onFileChange, onRemove, busy = false }: Res
         <UploadIcon className="text-ink-meta size-6" />
         <p className="text-note text-ink mt-2.5 font-medium">
           {busy ? (
-            "Uploading…"
+            "Reading your resume…"
           ) : (
             <>
               <span className="pointer-coarse:hidden">Drag and drop your resume here</span>
@@ -124,8 +124,8 @@ export function ResumeUpload({ file, onFileChange, onRemove, busy = false }: Res
             <p className="text-label text-ink truncate">{file.name}</p>
             <div className="text-meta text-ink-meta">{formatBytes(file.size)}</div>
           </div>
-          <IconButton label="Remove resume" onClick={onRemove}>
-            <TrashIcon className="size-4" />
+          <IconButton place="row" tooltip={false} label="Remove resume" onClick={onRemove}>
+            <TrashIcon />
           </IconButton>
         </div>
       )}

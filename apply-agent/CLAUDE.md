@@ -6,11 +6,29 @@ Loaded on top of the root `../CLAUDE.md` when you work in `apply-agent/`.
 
 Apply is a command-line agent that applies to job postings for one person.
 It reads a job posting, fills the application form in Chrome through the
-Fill engine, writes the answers and essays with Claude, and shows the Apply
+Fill engine, writes the answers and essays with hosted models (Groq, with
+Gemini as backup; `claude -p` for a developer who sets `ask_model: claude`),
+and shows the Apply
 window (Start, Needs you, Answers, Accounts). A rehearsal fills the form and never
 submits. It runs on the person's own Mac, with their own Chrome and their
-own Claude Code login. It is a developer and power-user tool, not a student
+own Claude Code login. Today it is a developer and power-user tool, not a student
 feature: students apply through the extension and the connector (KAN-369).
+KAN-723 designs WorkIt Auto Apply, the Student build of Apply: a desktop
+app for students, beside the extension (decided 2026-11-13, not built). It
+makes every model call through WorkIt's Model route and does no research
+(ADR 0005), downloads the Fill engine encrypted, puts the Worker extension
+on the Chrome Web Store through the Debugger API, and is compiled without
+the developer parts. Apply's code moves to the private repo
+`workitjobs/apply-agent` first (workstream W0). Read
+`../docs/desktop_application_auto_apply.md` before a change toward that:
+it splits the work into workstreams a session can take one at a time.
+`ask_model: [groq, gemini]` is the default (2026-11-10): the text answers
+and essays go to Groq, with Gemini as its backup, on shorter (lean) essay
+prompts, with keys from the checkout's `.env` (`docs/ask-model.md`).
+
+Workers default to `worker_mode: protected` (2026-11-06, KAN-723): plain
+Workers fill the hosts that block CDP Workers, and CDP Workers fill the rest
+(`docs/plain-workers/guide.md`).
 
 Apply has its own domain language. Read `GLOSSARY.md` and `docs/adr/` here,
 not the root ones, for its terms (root `GLOSSARY-MAP.md`). Write each
@@ -24,7 +42,7 @@ glossary entry in ASD-STE100 wording: sentences of 25 words or fewer.
   fills forms in the student's own Chrome; Scout and the connector write its
   answers, and the WorkIt backend keeps its state.
 - `apply-agent/` is a Python program (uv, Playwright) that runs its own
-  Chrome workers. Claude writes its answers. Its state is files in the data
+  Chrome workers. Hosted models (or Claude) write its answers. Its state is files in the data
   folder, not the WorkIt database. It calls the WorkIt API only through
   the WorkIt client (`docs/workit.md`), as the signed-in student.
 
@@ -62,8 +80,9 @@ Read the file that matches your change. Update it in the same PR: it counts as
 this folder's `CLAUDE.md` for its area.
 
 - `docs/fill-engine.md`: Apply's plan rules, `fill_engine.py`, `APPLY_FILL_ENGINE`, or what the plan answers from the Tracker, the Answer bank or a bare date.
-- `docs/workit.md`: a WorkIt call, `apply login`, `import-sheet`, `clean-tracker`, a Tracker write, the already-applied check, the resume check, or the tailored resume.
-- `docs/held-forms.md`: verifying, a flag, Resume, Regenerate, Ask Claude, Fill again (`apply fill-again`), page gates, or how a question reaches Needs you.
+- `docs/workit.md`: a WorkIt call, `apply login`, `import-sheet`, `clean-tracker`, `sync-answers` (the Answer bank sync), a Tracker write, the already-applied check, the resume check, or the tailored resume.
+- `docs/held-forms.md`: verifying, a flag, Resume, Regenerate, Ask Claude, Fill again (`apply fill-again`), page gates, a held form's job-site session (`keepalive.py`), or how a question reaches Needs you.
+- `docs/ask-model.md`: `ask_model`, `ask_model.py` (Groq, Gemini), the lean essay prompts, or another model behind `ask` (`Adapters.claude`).
 - `docs/prompts-and-gates.md`: a prompt, a length, cap or names gate, or the catch-all box rule.
 - `docs/claude-fill.md`: Claude fill, its Next and profile clicks, its dropdowns, or a Filler's `form_url`.
 - `docs/captchas-and-bot-blocks.md`: a captcha wait, a block's handoff, or `captcha.py`.
@@ -72,7 +91,7 @@ this folder's `CLAUDE.md` for its area.
 - `docs/restart-recovery.md`: what survives a restart of the Mac: Workers' sign-ins across a quit, the open-forms list (`batch.py`), `apply reopen`, and `apply preflight --open`.
 - `docs/plain-workers/guide.md`: `apply/plain/`, `worker_mode`, `--into`, or the worker extension.
 - `docs/plain-workers/PROTOCOL.md`: a message between Apply and the worker extension.
-- `docs/research/`: the research behind plain Workers and Employer account sign-in. Each note's Status line says what was built.
+- `docs/research/`: the research behind plain Workers, Employer account sign-in and the held form's session keep-alive (`session-timeouts.md`). Each note's Status line says what was built.
 
 ## The data folder (`APPLY_HOME`)
 
@@ -84,7 +103,8 @@ person's data is in one folder, `APPLY_HOME` (default `~/.config/apply/`):
 - a `policies.yaml` that overrides `policies.default.yaml` key by key.
 - the WorkIt login (`workit-login.json`), after `apply login`.
 - Apply's Tracker (`tracker.json`) and the writes that wait for WorkIt
-  (`workit-queue.json`).
+  (`workit-queue.json`, and the Answer bank's changes in
+  `workit-answers-queue.json`, KAN-746).
 - the tailored resumes that Apply gave to forms (`tailored/`, KAN-547).
 
 Apply also writes its output there: rehearsal records, Repairs, Traces and
@@ -142,17 +162,87 @@ into it and the window shows "Sample data".
 - CI (the `apply` job in `../.github/workflows/ci.yml`) runs ruff and only
   a fixed list of fast test files: the files that need no browser, no
   network and no `claude` CLI. When you add a test file that needs none of
-  them, add it to that list. CI never runs the Filler tests
-  (`test_*_filler.py`, `test_claude_fill.py` and the other files that open
-  Chromium). Run the ones that your change touches on your Mac, with `-k`.
+  them, add it to that list. Its test steps run in parallel
+  (`pytest -n auto`), so a new test there can't share a fixed port or
+  path with another. CI also installs Chrome for Testing and runs
+  `test_plain_guards.py` and `test_plain_routing.py` on a real plain Worker.
+  CI never runs the Filler tests (`test_*_filler.py`, `test_claude_fill.py`
+  and the other files that open Chromium). Run the ones that your change
+  touches on your Mac, with `-k`.
 - **The submit guard's hostile pages** (`tests/test_submit_guard_hostile.py`,
   KAN-666) run every click path that presses through the guards (plain
   code's Next, the profile click, the account click, Ask Claude's press,
-  Fill again) against pages built to trick them. Every pair must send no
+  the keep-alive's stay-signed-in press, Fill again) against pages built to
+  trick them. Every pair must send no
   application request. A new click path joins `PATHS`, and a new trick joins
-  `PAGES`, in the same PR. Its no-browser and CDP cases run in CI. Its plain
-  Worker cases run where Chrome for Testing is installed. A guard PR gets an
-  adversarial review first (root `CLAUDE.md`).
+  `PAGES`, in the same PR. CI runs its no-browser cases, every page and
+  every path at least once on CDP (a diagonal), and every path against the
+  first page in `PAGES` on a plain Worker; the other pairs are marked
+  `nightly` and run in `apply-nightly.yml` (KAN-780). Mark a test `nightly` only when it is slow
+  and a faster PR case covers the same code. A guard PR gets an adversarial review first (root `CLAUDE.md`).
+  A page loads with no guard and is then guarded and reloaded, unless it
+  sends by itself from the moment it loads (a timer, before any press):
+  such a page joins `SENDS_AS_IT_LOADS` and is guarded before its first
+  load, as a rehearsal opens every page. Loaded first, its timer posted
+  before the guard was on on CI's slow runner, and its post moved the
+  page during the guard's reload (`net::ERR_ABORTED`, 2026-11-14).
+- **The guards read the page only through built-ins taken before any page
+  code** (KAN-710, KAN-783): the guard script's own (`fn`, `get`, `test`,
+  `up`, `formOf`, ...), and `apply.natives` for the reads that also run on
+  their own (`PROFILE_DIALOG`, `send_click.ELEMENT`; the drive guard takes
+  the natives for Ask's read as it starts). A page's getter that throws or
+  lies, a Proxy prototype, or a replaced built-in sent an application when
+  a guard read `el.innerText` directly. A new read uses one of these, never
+  a property of the page's object, and a new listener that judges a press
+  goes through `judged` (a throw blocks). A request's URL, method and body
+  are read once, and what was judged is what is sent: an XHR keeps what its
+  `open()` took, and one opened by no `open()` of the guard's is not sent.
+- **A request body is read as its server reads it, never by a regex on
+  its text** (KAN-791). One regex on Ashby's `operationName` let through
+  escaped JSON, a submit named only in `query`, a batch, and form or
+  multipart bodies. The guard parses each body to Ashby (JSON with no
+  duplicate key, form fields, multipart `operations`), parses each
+  query as GraphQL, and blocks a mutation whose root field names a
+  submit. A body to Ashby's GraphQL that it can't read is blocked: when
+  the guard can't tell, it fails closed.
+- **A guarded page makes no worker** (KAN-791). A worker runs none of
+  the guard script, so a Web Worker, a shared or service worker, or a
+  blob: or data: worker script posted the application past both guards.
+  While a guard is on, the script refuses `Worker`, `SharedWorker`, a
+  service worker's `register` and a worklet's `addModule`, and ends a
+  dedicated worker made while the page was lifted when the guard comes
+  back on. On a CDP Worker, `_end_workers` closes the shared workers and
+  unregisters the service workers as the guard goes on (Playwright
+  routes no shared worker's request). On a plain Worker, the rules on
+  -1 block the final URLs and Ashby's GraphQL from them. A new way to
+  run code outside the page's realm needs the same three layers.
+  **A refused worker the page made is no Handoff** (KAN-839,
+  `submit_guard.drive_blocks`): the page's code made it, not a model's
+  click, and the refusal sent nothing, so Claude fill, Rescue and Ask
+  Claude go on past it while the worker stays refused. As a Handoff it
+  stopped every SmartRecruiters form, whose page makes one as it opens.
+  Every other block while a model drives is still a Handoff.
+- **A captcha's frame is known by its host, or by its path only on
+  reCAPTCHA's own host** (`captcha.PATH_HOSTS`, KAN-791). The guard
+  leaves a captcha's frame alone, and it took any frame at `/recaptcha/`
+  for one. A page served that path from its own site or another one, and
+  the frame posted the application, or the page did through its `fetch`
+  and `Worker`.
+- **A file goes only to the form's own site** (KAN-795, `apply.upload_origin`,
+  `docs/claude-fill.md`): the top frame, a frame of its origin, or a job
+  system's embedded form, with every frame between it and the top of the
+  top's own origin. A hostile page's frame from another site could take the
+  resume when nothing checked where a file went, and PR 556's review found
+  five more ways past the first fix (a form inside another site's frame, a
+  dispatched click, a closed shadow root, a scriptless frame, a pop-up), and
+  its re-review four more. So while a guard is on, a frame that may not take a
+  file is closed to every press, Claude's too: a narrower block was got round
+  each time. Every new way to set a
+  file goes through `upload_origin.give` (CDP) or the worker extension's
+  checked sets (plain), and each new trick joins `tests/test_upload_origin.py`
+  on CDP and on a plain Worker. The rule's JS copies (page/dom.js,
+  ops/tile.js) stay word for word the same as `RULE_JS`; a test checks that.
+  The guard's picker block is guard code: its PR gets an adversarial review.
 - **No test reaches past loopback** (`tests/network_block.py`, KAN-662). A
   socket or name lookup to another host raises `NetworkBlocked`, Chrome
   started by a test resolves other hosts to nothing, and Playwright's own

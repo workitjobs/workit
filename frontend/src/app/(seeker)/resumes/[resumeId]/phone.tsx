@@ -2,15 +2,12 @@
 
 import {
   ArrowLeftIcon,
-  ArrowUUpLeftIcon,
-  ArrowUUpRightIcon,
   CaretLeftIcon,
   CaretRightIcon,
-  HandPointingIcon,
   MagnifyingGlassMinusIcon,
   MagnifyingGlassPlusIcon,
   ScissorsIcon,
-  SlidersHorizontalIcon,
+  StackIcon,
   XIcon,
 } from "@phosphor-icons/react/ssr";
 import Link from "next/link";
@@ -27,6 +24,7 @@ import { createPortal } from "react-dom";
 import { SparkleIcon } from "@/components/icons";
 import { ASK_SCOUT_LIVE } from "@/components/scout/scout-buttons";
 import { Button } from "@/components/ui/button";
+import { TabButtons } from "@/components/ui/tabs";
 import type { Bank } from "@/lib/bank-actions";
 import type {
   Choices,
@@ -40,13 +38,25 @@ import { cn } from "@/lib/cn";
 import { DownloadMenu, DownloadNotes, type ResumeDownload } from "../download-menu";
 import { useBack } from "../../back-link";
 import { EDITOR_PARENT } from "./back";
-import { FitNotice } from "./fit-notice";
-import { cutLeft as anyCutLeft, lineName, shortPageLabel, type FitCuts, type Line } from "./model";
-import type { HistoryTools } from "./editor";
+import { cutLeft as anyCutLeft, lineName, type FitCuts, type Line } from "./model";
+import {
+  FitButton,
+  HistoryButtons,
+  PanelToggle,
+  ReviewButtons,
+  SaveStatus,
+  SheetTool,
+  lineTools,
+  type HistoryTools,
+  type LineHandlers,
+  type PanelTab,
+} from "./toolbar";
 import { FormatOptions } from "./page-format";
 import { FoldButton, PHONE_FOLD } from "./bar-fold";
+import { BAR_BUTTONS, PRESSED_GLYPH, SLIM_BAR } from "./slim-bar";
 import { boxKey, kindLabel } from "./pdf-pages";
 import { CutPicker, ExperiencesPicker } from "./experiences-picker";
+import { Tip } from "@/components/ui/tip";
 
 /**
  * The phone editor (KAN-219, the KAN-201 prototype's variant A). The page
@@ -58,14 +68,17 @@ import { CutPicker, ExperiencesPicker } from "./experiences-picker";
  * The whole layout is sized to the visual viewport, because the iOS keyboard
  * covers the layout viewport instead of shrinking it; sized this way the
  * sheet stays above the keyboard. The desktop editor owns the state and the
- * saves; this file only lays them out. "Ask Scout", in the bottom bar and
- * in a line's sheet, opens the assistant (KAN-221) in its own sheet.
+ * saves; this file only lays them out. Its two rows are the desktop's
+ * (KAN-586): the title row, then the toolbar with the page's tools and the
+ * side panel's button, whose Sections and Format tabs open in a sheet.
+ * "Ask Scout", while `ASK_SCOUT_LIVE`, opens the assistant (KAN-221) in its
+ * own sheet.
  *
  * The layer renders in a portal to `<body>` (KAN-574): the seeker shell's
  * `@container/main` is a containing block, so `fixed` inside it was fixed
  * to the page area, not the window. The layer sat 64px low under the
- * shell's bar, and its bottom bar (Add Experiences, Cut From Resume,
- * Suggestions) ended past the screen's foot.
+ * shell's bar, and the bottom bar it had then (Add Experiences, Cut From
+ * Resume, Suggestions) ended past the screen's foot.
  */
 
 /** Below this width the editor takes the phone layout. */
@@ -73,8 +86,8 @@ const PHONE_QUERY = "(max-width: 40rem)";
 /** 44 pt, Apple's smallest touch target, for every control in the sheet. */
 const TAP = "[&_button]:min-h-11 [&_button]:min-w-11";
 /** 16 px: below this, iOS Safari zooms the page when the field gets focus. */
-const FIELD =
-  "bg-panel text-ink ring-border-subtle focus:ring-brand w-full resize-none rounded-xl px-3 py-2.5 text-[16px] leading-6 ring-1 outline-none focus:ring-2";
+export const PHONE_FIELD =
+  "bg-panel text-ink ring-border-subtle focus:ring-brand w-full resize-none rounded-control px-3 py-2.5 text-base ring-1 outline-none focus:ring-2";
 
 function subscribeQuery(onChange: () => void) {
   const query = window.matchMedia(PHONE_QUERY);
@@ -117,7 +130,7 @@ export function pageOrder(boxes: RenderBox[]) {
 
 export function PhoneEditor({
   rendered,
-  hint,
+  title,
   pages,
   bank,
   choices,
@@ -125,9 +138,9 @@ export function PhoneEditor({
   line,
   box,
   text,
+  bulletField,
   saving,
   fitting,
-  elapsed,
   error,
   download,
   bar,
@@ -135,8 +148,9 @@ export function PhoneEditor({
   page,
   onPage,
   suggestions,
-  actions,
+  handlers,
   assistant,
+  panel,
   onSelect,
   onType,
   onFlush,
@@ -147,8 +161,9 @@ export function PhoneEditor({
 }: {
   /** Null until the first render lands (./editor.tsx streams it in). */
   rendered: RenderedPdf | null;
-  /** Shows "Tap a line to edit it."; off once the first render failed. */
-  hint: boolean;
+  /** The resume's name, as the desktop's title row draws it (renamed in
+   *  place). */
+  title: ReactNode;
   /** The page area, drawn by the editor: the PDF, or its skeleton while the
    *  first render is on its way, from the same unawaited render the desktop
    *  layout reads. */
@@ -160,12 +175,14 @@ export function PhoneEditor({
   box: RenderBox | undefined;
   /** The selected line's typed text, or null when it is not typed in place. */
   text: string | null;
+  /** A bullet's own field, the desktop's rich one, so bold and italic show
+   *  in its words (KAN-799); null for any other line. */
+  bulletField: (() => ReactNode) | null;
   saving: boolean;
   /** A Fit to One Page is under way, as on the desktop bar. */
   fitting: boolean;
-  elapsed: number | null;
   error: string | null;
-  /** The page's settings, in the Format sheet (./page-format.tsx). */
+  /** The page's settings, in the panel's Format tab (./page-format.tsx). */
   page: PageSettings;
   onPage: (next: PageSettings) => void;
   /** The resume's downloads, the same as the desktop sticky bar's. */
@@ -176,17 +193,28 @@ export function PhoneEditor({
   /** Where the arrow goes, when not to the page that opened the editor
    *  (`useBack`): Tailor's review goes to the step before. */
   back?: { href: string; label: string; onClick?: (event: MouseEvent) => void };
-  /** Tailor's Suggestions panel, in a sheet opened from the bottom bar. */
+  /** Tailor's Suggestions panel, in a sheet opened from the toolbar. */
   suggestions?: {
     count: number;
     panel: ReactNode;
     open: boolean;
     onOpenChange: (open: boolean) => void;
   } | null;
-  /** The selected line's actions, the same as the desktop sticky bar's. */
-  actions: ReactNode;
+  /** What the selected line's tools act through: the sheet draws the
+   *  desktop bar's own (`lineTools`), the arrows alone. */
+  handlers: LineHandlers;
   /** The editor assistant (KAN-221), shown in a sheet when asked for. */
   assistant: ReactNode;
+  /** The side panel (KAN-586), in a sheet: its tabs, Sections and Format,
+   *  opened by the toolbar's panel button, and on Sections' Header row
+   *  when the page's header line is tapped. */
+  panel: {
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    tab: PanelTab;
+    onTab: (tab: PanelTab) => void;
+    sections: ReactNode;
+  };
   onSelect: (key: string | null) => void;
   onType: (text: string) => void;
   onFlush: () => void;
@@ -205,7 +233,6 @@ export function PhoneEditor({
   const [pickerOpen, setPickerOpen] = useState(false);
   const [cutOpen, setCutOpen] = useState(false);
   const cutLeft = anyCutLeft(bank, choices, cuts);
-  const [formatOpen, setFormatOpen] = useState(false);
   const [asking, setAsking] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
 
@@ -227,103 +254,133 @@ export function PhoneEditor({
       className="bg-app fixed inset-x-0 top-0 z-40 flex flex-col overflow-hidden"
       style={{ height: height || "100dvh", transform: `translateY(${top}px)` }}
     >
-      {/* The bars take the desktop bar's brand tint, so their secondary
-          buttons (surface-filled) do not vanish into them (KAN-258). */}
-      <header className="bg-brand-tint/95 border-brand-pale flex flex-col gap-2 border-b px-4 pt-3 pb-2 backdrop-blur">
-        <div className="flex items-center gap-2">
+      {/* The desktop's own two rows, on the page's ground (KAN-586): the
+          title row (the way back, the name, whether it is saved, and
+          Download, the page's one filled button), then the toolbar, tools
+          only, in the desktop bar's white box. Until then the phone kept
+          the old bar: a lavender band with an amber "lines over" notice,
+          Format and Zoom as worded buttons, and a bottom bar of Add
+          Experiences and Cut From Resume */}
+      <header className="bg-app/95 border-border-surface flex flex-col gap-2 border-b px-3 pt-2 pb-2 backdrop-blur">
+        <div className="@container/title flex items-center gap-1">
           <Link
             href={back.href}
             aria-label={back.label}
             onClick={back.onClick}
-            className="text-ink -ml-2 flex size-11 items-center justify-center rounded-full"
+            // A fill on the press (and under a pointer, or a keyboard's
+            // ring): the phone's back arrow gave no sign it was touched.
+            className="text-ink hover:bg-ink/5 active:bg-ink/10 focus-visible:ring-brand-ring -ml-1 flex size-11 shrink-0 items-center justify-center rounded-full transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none"
           >
             <ArrowLeftIcon aria-hidden className="size-5" />
           </Link>
-          {/* As on the desktop bar: the way in, or, over one page, the
-              count joined to its fix (./fit-notice.tsx), short so it fits
-              beside the back arrow; the toast spells it out (KAN-258). */}
-          {rendered && rendered.page_count > 1 ? (
-            <span className={TAP}>
-              <FitNotice
-                label={shortPageLabel(rendered.page_count, rendered.lines_over)}
-                fitLabel="Fit"
-                onFit={onFit}
-                disabled={saving}
-                fitting={fitting}
-              />
-            </span>
-          ) : (
-            hint && (
-              <span className="text-label text-ink flex items-center gap-1.5 font-medium">
-                <HandPointingIcon aria-hidden className="text-brand size-4 shrink-0" />
-                Tap a line to edit it.
-              </span>
-            )
-          )}
-          <span className="text-note text-ink-meta ml-auto" aria-live="polite">
-            {fitting
-              ? "Fitting…"
-              : saving
-                ? "Saving…"
-                : elapsed != null
-                  ? `Saved, ${elapsed} ms`
-                  : ""}
+          <div className="min-w-0 flex-1">{title}</div>
+          <SaveStatus saving={saving} fitting={fitting} ready={Boolean(rendered)} short />
+          <span className={cn("flex shrink-0", TAP)}>
+            <DownloadMenu
+              download={download}
+              fold={PHONE_FOLD.downloadWord}
+              secondary={Boolean(bar)}
+            />
           </span>
         </div>
         {/* One row at every width: the words fold (`PHONE_FOLD`) */}
-        <div className={cn("@container/bar flex flex-nowrap items-center gap-2", TAP)}>
-          <Button
-            variant="secondary"
-            size="sm"
-            aria-label="Undo"
-            disabled={!history.canUndo}
-            onClick={history.onUndo}
-          >
-            <ArrowUUpLeftIcon aria-hidden />
-          </Button>
-          <Button
-            variant="secondary"
-            size="sm"
-            aria-label="Redo"
-            disabled={!history.canRedo}
-            onClick={history.onRedo}
-          >
-            <ArrowUUpRightIcon aria-hidden />
-          </Button>
-          <div className="ml-auto flex min-w-0 gap-2">
+        <div className={cn(SLIM_BAR, "@container/bar static", TAP)}>
+          <HistoryButtons tools={history} />
+          {/* Each waits for the first render: each acts through a new one */}
+          {!suggestions && (
             <FoldButton
-              label="Format"
-              icon={<SlidersHorizontalIcon aria-hidden />}
-              fold={PHONE_FOLD.formatWord}
+              label="Add Experiences"
+              icon={<StackIcon aria-hidden />}
+              fold={PHONE_FOLD.experiencesWord}
               disabled={!rendered}
               render={
                 <Button
                   variant="secondary"
                   size="sm"
+                  className="shrink-0"
                   disabled={!rendered}
-                  onClick={() => setFormatOpen(true)}
+                  onClick={() => setPickerOpen(true)}
                 />
               }
             />
-            <DownloadMenu download={download} fold={PHONE_FOLD.downloadWord} />
+          )}
+          {rendered && rendered.page_count > 1 && (
+            <FitButton
+              pages={rendered.page_count}
+              linesOver={rendered.lines_over}
+              disabled={saving}
+              fitting={fitting}
+              onFit={onFit}
+              fold={PHONE_FOLD.fitWord}
+            />
+          )}
+          {cutLeft && (
             <FoldButton
-              label={zoom ? "Fit Width" : "Zoom"}
-              icon={
-                zoom ? (
-                  <MagnifyingGlassMinusIcon aria-hidden />
-                ) : (
-                  <MagnifyingGlassPlusIcon aria-hidden />
-                )
-              }
-              fold={PHONE_FOLD.zoomWord}
+              label="Cut From Resume"
+              icon={<ScissorsIcon aria-hidden />}
+              fold="sr-only"
+              disabled={!rendered}
               render={
                 <Button
                   variant="secondary"
                   size="sm"
-                  aria-pressed={zoom}
-                  onClick={() => setZoom(!zoom)}
+                  className="text-warning hover:text-warning shrink-0"
+                  disabled={!rendered}
+                  onClick={() => setCutOpen(true)}
                 />
               }
+            />
+          )}
+          {/* Not drawn at all while Scout is off: a greyed Ask Scout read
+              as broken (the user's call, 2026-11-11) */}
+          {ASK_SCOUT_LIVE && (
+            <FoldButton
+              label="Ask Scout"
+              icon={<SparkleIcon />}
+              fold="sr-only"
+              disabled={!rendered}
+              render={
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="shrink-0"
+                  disabled={!rendered}
+                  onClick={() => setAsking(true)}
+                />
+              }
+            />
+          )}
+          <div className="ml-auto flex shrink-0 items-center gap-1">
+            {suggestions && (
+              <ReviewButtons
+                review={{
+                  count: suggestions.count,
+                  side: suggestions.open ? "suggestions" : null,
+                  onSide: (side) => suggestions.onOpenChange(side === "suggestions"),
+                  hasOriginal: false,
+                }}
+              />
+            )}
+            <Tip label={zoom ? "Fit Width" : "Zoom In"}>
+              <Button
+                variant="ghost"
+                size="icon-lg"
+                aria-label={zoom ? "Fit Width" : "Zoom In"}
+                aria-pressed={zoom}
+                className={PRESSED_GLYPH}
+                onClick={() => setZoom(!zoom)}
+              >
+                {zoom ? (
+                  <MagnifyingGlassMinusIcon aria-hidden />
+                ) : (
+                  <MagnifyingGlassPlusIcon aria-hidden />
+                )}
+              </Button>
+            </Tip>
+            <PanelToggle
+              open={panel.open}
+              disabled={!rendered}
+              onToggle={() => panel.onOpenChange(!panel.open)}
             />
           </div>
         </div>
@@ -340,58 +397,11 @@ export function PhoneEditor({
         ref={scroller}
         className={cn(
           "min-h-0 flex-1 overflow-auto overscroll-none p-4",
-          selected || suggestions?.open ? "pb-[70vh]" : suggestions ? "pb-36" : "pb-24",
+          selected || suggestions?.open || panel.open ? "pb-[70vh]" : "pb-6",
         )}
       >
         <div className={zoom ? "w-[200%]" : "w-full"}>{pages}</div>
       </div>
-
-      {!selected && (
-        <div
-          className={cn(
-            "bg-brand-tint/95 border-brand-pale absolute inset-x-0 bottom-0 border-t p-3 backdrop-blur",
-            TAP,
-          )}
-        >
-          {suggestions && (
-            <Button
-              variant="secondary"
-              className="mb-2 w-full"
-              onClick={() => suggestions.onOpenChange(true)}
-            >
-              Suggestions{" "}
-              {suggestions.count > 0 && (
-                <span className="text-ink-meta">({suggestions.count})</span>
-              )}
-            </Button>
-          )}
-          {/* Both wait for the first render: each acts through a new one. */}
-          <div className="flex gap-2">
-            <Button
-              variant="secondary"
-              className="flex-1"
-              disabled={!rendered}
-              onClick={() => setPickerOpen(true)}
-            >
-              Add Experiences
-            </Button>
-            {cutLeft && (
-              <Button
-                variant="secondary"
-                className="text-warning hover:text-warning flex-1"
-                disabled={!rendered}
-                onClick={() => setCutOpen(true)}
-              >
-                <ScissorsIcon aria-hidden /> Cut From Resume
-              </Button>
-            )}
-            {/* The primary action, filled as on the desktop bar. */}
-            <Button disabled={!ASK_SCOUT_LIVE || !rendered} onClick={() => setAsking(true)}>
-              <SparkleIcon /> Ask Scout
-            </Button>
-          </div>
-        </div>
-      )}
 
       {/* No scrim: the page above the sheet still scrolls and takes taps */}
       {selected && line && box && (
@@ -425,19 +435,7 @@ export function PhoneEditor({
         >
           {text != null &&
             (line.kind === "bullet" ? (
-              <textarea
-                aria-label={kindLabel(box.kind)}
-                value={text}
-                enterKeyHint="done"
-                onChange={(e) => onType(e.target.value)}
-                onBlur={onFlush}
-                onKeyDown={(e) => {
-                  if (e.key !== "Enter") return;
-                  e.preventDefault();
-                  e.currentTarget.blur();
-                }}
-                className={cn(FIELD, "field-sizing-content min-h-24")}
-              />
+              bulletField?.()
             ) : (
               <input
                 aria-label={kindLabel(box.kind)}
@@ -446,14 +444,21 @@ export function PhoneEditor({
                 onChange={(e) => onType(e.target.value)}
                 onBlur={onFlush}
                 onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
-                className={FIELD}
+                className={PHONE_FIELD}
               />
             ))}
-          <div className={cn("flex flex-wrap items-center gap-2", TAP)}>
-            {actions}
-            <Button size="sm" disabled={!ASK_SCOUT_LIVE} onClick={() => setAsking(true)}>
-              <SparkleIcon /> Ask Scout About This Line
-            </Button>
+          {/* The desktop bar's tools (`lineTools`): the arrows alone, as on
+              the desktop (KAN-586). Size, Show or Hide, Add Bullet and Edit
+              Header live in the side panel, bold and italic in the keys */}
+          <div className={cn("flex flex-wrap items-center gap-2", TAP, BAR_BUTTONS)}>
+            {lineTools(line, choices, handlers).map((tool) => (
+              <SheetTool key={tool.key} tool={tool} />
+            ))}
+            {ASK_SCOUT_LIVE && (
+              <Button variant="secondary" size="sm" onClick={() => setAsking(true)}>
+                <SparkleIcon /> Ask Scout About This Line
+              </Button>
+            )}
           </div>
         </Sheet>
       )}
@@ -483,12 +488,37 @@ export function PhoneEditor({
         </>
       )}
 
-      {formatOpen && (
-        <Sheet onClose={() => setFormatOpen(false)} title="Format Options">
-          <div className={cn("flex flex-col gap-2", TAP)}>
-            <FormatOptions page={page} onChange={onPage} />
-          </div>
-        </Sheet>
+      {/* The side panel (KAN-586), as beside the desktop's page: its tabs
+          are the sheet's title, and its close is the sheet's own */}
+      {panel.open && (
+        <>
+          <div
+            className="absolute inset-0 z-30 bg-black/25"
+            onClick={() => panel.onOpenChange(false)}
+          />
+          <Sheet
+            onClose={() => panel.onOpenChange(false)}
+            title={
+              <TabButtons
+                label="Side Panel"
+                options={[
+                  { value: "sections", label: "Sections" },
+                  { value: "format", label: "Format" },
+                ]}
+                value={panel.tab}
+                onChange={panel.onTab}
+              />
+            }
+          >
+            <div className={cn("flex flex-col gap-2", TAP)}>
+              {panel.tab === "sections" ? (
+                panel.sections
+              ) : (
+                <FormatOptions page={page} onChange={onPage} />
+              )}
+            </div>
+          </Sheet>
+        </>
       )}
 
       {pickerOpen && (

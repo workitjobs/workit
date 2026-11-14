@@ -74,7 +74,7 @@ import { cn } from "@/lib/cn";
  * touching a fill of its own colour reads as a bigger button, not as focus.
  *
  * `font-medium` sits in the base because every button in both mockups resolves
- * to weight 500 — either from --text-label/--text-note's baked-in weight or from
+ * to medium (450 since 2026-11-10) — either from --text-label's baked-in weight or from
  * an explicit font-medium. Gap lives in the sizes, not the base, so that the
  * padding-free `inline` size can tighten it without two gap utilities colliding.
  *
@@ -130,7 +130,7 @@ export const buttonVariants = cva(
       variant: {
         /** Brand fill — the primary action on a screen. */
         default: cn(
-          "bg-brand text-on-brand hover:bg-brand-hover active:bg-brand-active focus-visible:ring-brand-ring rounded-control border border-transparent focus-visible:ring-[3px] focus-visible:ring-offset-2",
+          "bg-brand text-on-brand hover:bg-brand-hover active:bg-brand-active focus-visible:ring-brand-ring rounded-control border border-transparent focus-visible:ring-2 focus-visible:ring-offset-2",
           DISABLED_FILL,
         ),
         /** Bordered neutral — alternatives sitting beside a primary action.
@@ -138,15 +138,15 @@ export const buttonVariants = cva(
          *  --color-surface itself, Google and LinkedIn sank into the card
          *  (KAN-259). On a white page the two are all but the same. */
         secondary:
-          "border-border-control bg-panel text-ink hover:bg-hover focus-visible:ring-brand-ring rounded-control border focus-visible:ring-[3px]",
+          "border-border-surface bg-panel text-ink hover:bg-hover focus-visible:ring-brand-ring rounded-control border focus-visible:ring-2",
         /** Brand outline — an action inside an already-recessed area. */
         outline:
-          "border-brand text-brand hover:bg-brand/5 focus-visible:ring-brand-ring rounded-control border focus-visible:ring-[3px]",
+          "border-brand text-brand hover:bg-brand/5 focus-visible:ring-brand-ring rounded-control border focus-visible:ring-2",
         /** Positive fill — accepting an offer. The board's only green action,
          *  and the only place a control is not brand-coloured. No shadcn
          *  equivalent: its palette has no success role. */
         positive: cn(
-          "bg-positive-ink text-on-brand hover:bg-positive-hover active:bg-positive-active focus-visible:ring-positive-ring rounded-control border border-transparent focus-visible:ring-[3px] focus-visible:ring-offset-2",
+          "bg-positive-ink text-on-brand hover:bg-positive-hover active:bg-positive-active focus-visible:ring-positive-ring rounded-control border border-transparent focus-visible:ring-2 focus-visible:ring-offset-2",
           DISABLED_FILL,
         ),
         /** Danger tint with red text: declining something offered, beside
@@ -154,7 +154,7 @@ export const buttonVariants = cva(
          *  `destructive`, so the pair reads as two choices, not two alarms.
          *  WorkIt-only. */
         decline:
-          "bg-danger-tint text-danger hover:bg-danger/15 focus-visible:ring-destructive rounded-control border border-transparent focus-visible:ring-[3px]",
+          "bg-danger-tint text-danger hover:bg-danger/15 focus-visible:ring-destructive rounded-control border border-transparent focus-visible:ring-2",
         /** Text only, in brand, no chrome: an inline action such as a form's
          *  Add Question or a table's Clear Selection. A section heading's
          *  action is `section` instead.
@@ -179,7 +179,7 @@ export const buttonVariants = cva(
          *  aliases --color-danger, the Rejected chip's red (see globals.css),
          *  so the app has one red. Shaped and ringed like the other fills. */
         destructive: cn(
-          "bg-destructive text-on-brand hover:bg-destructive/90 focus-visible:ring-destructive rounded-control border border-transparent focus-visible:ring-[3px] focus-visible:ring-offset-2",
+          "bg-destructive text-on-brand hover:bg-destructive/90 focus-visible:ring-destructive rounded-control border border-transparent focus-visible:ring-2 focus-visible:ring-offset-2",
           DISABLED_FILL,
         ),
         /** UNMEASURED — provided because shadcn components ask for it. For a
@@ -214,6 +214,15 @@ export const buttonVariants = cva(
         icon: "size-8",
         "icon-lg": "size-9",
       },
+      /** One part of a split button (2026-11-09, the Jobs page's combined
+       *  Apply, ../../app/(seeker)/jobs/apply-split-button.tsx): `start`
+       *  squares its right corners, `end`, the arrow, its left ones and
+       *  sheds its left edge, so the two read as one control with a seam. */
+      segment: {
+        none: "",
+        start: "rounded-r-none",
+        end: "rounded-l-none border-l-0 px-2",
+      },
     },
     compoundVariants: [
       {
@@ -225,7 +234,7 @@ export const buttonVariants = cva(
         class: "rounded-control",
       },
     ],
-    defaultVariants: { variant: "default", size: "default" },
+    defaultVariants: { variant: "default", size: "default", segment: "none" },
   },
 );
 
@@ -255,6 +264,7 @@ const DEFAULT_SIZE: Record<ButtonVariant, ButtonSize> = {
 type StyleProps = {
   variant?: ButtonVariant;
   size?: ButtonSize;
+  segment?: "none" | "start" | "end";
   className?: string;
 };
 
@@ -262,17 +272,22 @@ type StyleProps = {
  * Exported for the rare element that must be styled as a button without being
  * one — a file input's label, say. Prefer <Button> or <ButtonLink>.
  */
-export function buttonClasses({ variant = "default", size, className }: StyleProps = {}) {
-  return cn(buttonVariants({ variant, size: size ?? DEFAULT_SIZE[variant] }), className);
+export function buttonClasses({
+  variant = "default",
+  size,
+  segment = "none",
+  className,
+}: StyleProps = {}) {
+  return cn(buttonVariants({ variant, size: size ?? DEFAULT_SIZE[variant], segment }), className);
 }
 
 type ButtonProps = StyleProps & Omit<ButtonPrimitive.Props, "className">;
 
-export function Button({ variant, size, className, ...props }: ButtonProps) {
+export function Button({ variant, size, segment, className, ...props }: ButtonProps) {
   return (
     <ButtonPrimitive
       data-slot="button"
-      className={buttonClasses({ variant, size, className })}
+      className={buttonClasses({ variant, size, segment, className })}
       {...props}
     />
   );
@@ -281,6 +296,6 @@ export function Button({ variant, size, className, ...props }: ButtonProps) {
 type ButtonLinkProps = StyleProps & Omit<ComponentProps<typeof Link>, "className">;
 
 /** A link that looks like a button. Navigation, so it stays an anchor. */
-export function ButtonLink({ variant, size, className, ...props }: ButtonLinkProps) {
-  return <Link className={buttonClasses({ variant, size, className })} {...props} />;
+export function ButtonLink({ variant, size, segment, className, ...props }: ButtonLinkProps) {
+  return <Link className={buttonClasses({ variant, size, segment, className })} {...props} />;
 }

@@ -47,7 +47,7 @@ export const chipVariants = cva(
       {
         variant: "choice",
         pressed: false,
-        class: "border-border-control bg-panel text-ink-muted hover:border-ink-meta hover:text-ink",
+        class: "border-border-surface bg-panel text-ink-muted hover:border-ink-meta hover:text-ink",
       },
       { variant: "choice", pressed: true, class: "border-brand bg-brand-tint text-brand" },
     ],

@@ -28,12 +28,19 @@ for Testing's --load-extension names. Apply replaces that copy only while none o
 Workers runs (one Apply process drives a profiles folder, KAN-634), so a `git pull` in any checkout,
 or an Apply on newer code, never changes the code of a Worker that is running: Chrome restarts an
 MV3 service worker from disk, so a shared folder would (KAN-645).
+
+A seed copied from another profiles folder registers that folder's copy, which nothing kept current: on
+2026-11-10 every new Worker loaded 5-day-old guard, tile and typing code that said the same feature level as
+current code (KAN-764). So before a Worker starts, Apply brings the folder it will load up to this Apply's code
+(`refresh`) when that folder is a copy (it has STAMP) and no running Chrome loads it (`loaders`). A folder it
+can't update is welcomed as out of date (bridge.Bridge.code) and fails doctor's "Plain seed".
 """
 
 import base64
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -252,3 +259,32 @@ def guards_match(folder: Path) -> bool:
         return all((folder / "vendor" / guards.FOLDER / name).read_text() == text for name, text in guards.FILES.items())
     except OSError:
         return False
+
+
+def loaders(folder: Path) -> list[int]:
+    """The PIDs of the running Chromes that load the worker extension from `folder`: by --load-extension, or by a
+    profile (--user-data-dir) whose registration names it. Changing `folder` under one of them would change the code
+    of a Worker that runs: never done."""
+    try:
+        listed = subprocess.run(["ps", "-axo", "pid=,command="], capture_output=True, text=True, check=True).stdout
+    except (OSError, subprocess.SubprocessError):
+        return [0]  # can't tell: as if one did
+    target, pids = folder.resolve(), []
+    for line in listed.splitlines():
+        pid, _, command = line.strip().partition(" ")
+        if not pid.isdigit() or "--type=" in command:  # a Chrome's helpers name its profile too: the browser is enough
+            continue
+        named = [Path(found.group(1)) for found in [re.search(r"--load-extension=(.+?)(?= --|$)", command)] if found]
+        if data := re.search(r"--user-data-dir=(.+?)(?= --|$)", command):
+            named += [registered] if (registered := loaded_folder(Path(data.group(1)))) else []
+        if any(path.resolve() == target for path in named):
+            pids.append(int(pid))
+    return pids
+
+
+def refresh(folder: Path, files: dict[str, bytes], source: Path = EXTENSION_DIR) -> bool:
+    """Bring `folder` up to `source`'s code when it is a copy (`install` made it: it has STAMP) that holds other
+    code and no running Chrome loads it. A checkout or a folder in use is left as it is. True when it was updated."""
+    if not (folder / STAMP).is_file() or code_hash(folder) == code_hash(source) or loaders(folder):
+        return False
+    return install(folder, files, replace=True, source=source)

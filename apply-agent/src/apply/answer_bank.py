@@ -8,16 +8,23 @@ comments and order stay. Workers add Claude's drafts from their own threads,
 and runs from several processes may at once, so every add takes a lock on
 the file, reads it again and adds only what it still lacks: an answer in the
 bank is never replaced by a new draft. Each answer counts how many later
-Applications it answered, so a draft used again unreviewed shows."""
+Applications it answered, so a draft used again unreviewed shows.
+
+With `on_change` (the WorkIt sync, answer_sync.py, KAN-746), each write that
+adds, changes or deletes an answer stamps the entry's `edited_at` (UTC) and
+hands the changed entries to `on_change` after the file is saved. A write
+that only counts a use changes no answer and sends nothing."""
 
 import fcntl
 import io
+import json
 import re
+import sys
 import threading
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
-from datetime import date
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -31,6 +38,11 @@ if TYPE_CHECKING:
     from apply.tracker import AnswerRow
 
 CLAUDE, LISUL = "claude", "lisul"  # who gave an answer
+FILE = "answer-bank.yaml"  # the bank's file, beside the Applicant profile
+# What the WorkIt sync carries of an entry: a change to one of these is a change to send.
+SYNCED = ("question", "answer", "options", "source", "reviewed", "first_seen", "none")
+# on_change(changed, deleted): the changed entries (as filed, with their key) and the keys taken out.
+OnChange = Callable[[dict[str, dict], list[str]], None]
 
 
 def key(question: str) -> str:
@@ -58,8 +70,9 @@ class Entry:
 class AnswerBank:
     """The bank in the YAML file at `path`, or in memory without one."""
 
-    def __init__(self, path: Path | None = None):
+    def __init__(self, path: Path | None = None, on_change: OnChange | None = None):
         self._path = path
+        self._on_change = on_change
         self._lock = threading.Lock()
         self._entries = self._read() if path and path.exists() else {}
 
@@ -195,9 +208,16 @@ class AnswerBank:
                 self._entries = self._read()
         return self.entries()
 
+    def raw(self) -> dict[str, dict]:
+        """Every entry as filed, read again from the file, by its key: for the WorkIt sync's catch-up."""
+        self.read_again()
+        return {str(k): v for k, v in self._entries.items() if isinstance(v, dict)}
+
     @contextmanager
     def _writing(self) -> Iterator[dict]:
         """The bank's entries, read again under its locks and saved after."""
+        changed: dict[str, dict] = {}
+        deleted: list[str] = []
         with self._lock:
             if self._path is None:
                 yield self._entries
@@ -208,16 +228,40 @@ class AnswerBank:
                 text = self._path.read_text()
                 self._entries = self._read()
                 before = _dump(self._entries)
+                synced = {str(k): _synced(v) for k, v in self._entries.items()} if self._on_change else {}
                 yield self._entries
+                if self._on_change is not None:
+                    changed, deleted = _stamp(self._entries, synced)
                 after = _dump(self._entries)
                 if after == before:  # nothing changed: the file stays as it was
                     return
                 # A bank with no entry yet keeps its notes on top: there is no entry for them to hang on.
                 notes = "" if _yaml().load(text) else re.match(r"(?:#.*\n|[ \t]*\n)*", text).group()
                 self._path.write_text(notes + after)
+        if changed or deleted:
+            try:  # the bank is saved: a sync that fails never fails the write
+                self._on_change(changed, deleted)
+            except Exception as error:
+                print(f"The Answer bank's change waits to go to WorkIt ({type(error).__name__}).", file=sys.stderr)
 
     def _read(self) -> dict:
         return _yaml().load(self._path.read_text()) or CommentedMap()
+
+
+def _synced(entry: Any) -> tuple:
+    """What the WorkIt sync carries of an entry, to tell a changed one."""
+    return tuple(json.dumps(entry.get(k), default=str) for k in SYNCED) if isinstance(entry, dict) else ()
+
+
+def _stamp(entries: dict, synced: dict[str, tuple]) -> tuple[dict[str, dict], list[str]]:
+    """The entries that changed since `synced`, each stamped `edited_at` now, and the keys taken out."""
+    now = datetime.now(UTC).replace(microsecond=0).isoformat()
+    changed = {}
+    for k, entry in entries.items():
+        if isinstance(entry, dict) and _synced(entry) != synced.get(str(k)):
+            entry["edited_at"] = now
+            changed[str(k)] = dict(entry)
+    return changed, [k for k in synced if k not in entries]
 
 
 def _dump(entries: dict) -> str:

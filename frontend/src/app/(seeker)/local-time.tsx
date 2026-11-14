@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useSyncExternalStore, type ReactNode } from "react";
 
 import { calendarHref, type CalendarView } from "./calendar/query";
+import { dateAndTime } from "./date-time";
 import { describeWhen, describeWhenOnServer, isAllDay, localDay } from "./tracker";
 
 /**
@@ -65,6 +66,22 @@ function dayOf(at: string, timeZone?: "UTC") {
     year: thisYear ? undefined : "numeric",
     timeZone,
   });
+}
+
+/**
+ * When `at` happened, "Nov 10, 3:42 PM", on the viewer's own clock: the
+ * Resumes page's Created column (2026-11-10). The server has no zone, so it
+ * prints the UTC day alone, as <LocalDate> does, and the browser adds the
+ * time after hydration: a UTC time first would read as a wrong time.
+ */
+export function LocalDateTime({ at }: { at: string }) {
+  const text = useSyncExternalStore(
+    noSubscription,
+    () => dateAndTime(at, new Date()),
+    () => dayOf(at, "UTC"),
+  );
+
+  return <time dateTime={at}>{text}</time>;
 }
 
 /** False while hydrating a server render, true after, and true straight away

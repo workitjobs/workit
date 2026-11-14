@@ -18,6 +18,10 @@ runs:
     - shell: bash
       working-directory: autofiller_extension/test
       run: npm ci
+    # esbuild, for store-build.extension.spec.ts's Store package (store/build.mjs, KAN-744).
+    - shell: bash
+      working-directory: autofiller_extension/store
+      run: npm ci
     - shell: bash
       working-directory: autofiller_extension/test
       env:

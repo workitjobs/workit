@@ -19,6 +19,7 @@ import yaml
 
 from apply import (
     already_applied,
+    answer_sync,
     ask,
     batch,
     bot_signals,
@@ -50,8 +51,10 @@ from apply import (
 )
 from apply.accounts_tab import AccountsTab
 from apply.adapters import Adapters
+from apply.answer_bank import FILE as ANSWER_BANK
 from apply.answer_bank import AnswerBank
 from apply.answers_tab import AnswersTab
+from apply.ask_model import live_claude
 from apply.browsers import ProfileInUse, WorkerBrowsers
 from apply.claude_cli import ClaudeCLI
 from apply.clock import SystemClock
@@ -76,8 +79,6 @@ from apply.tracker import TRACKER, FileTracker, InMemoryTracker, WorkItTracker
 from apply.worker import SENT, sent_resume
 
 DEFAULT_PROFILE = HOME / "applicant-profile.yaml"
-# The Answer bank's file, beside the Applicant profile.
-ANSWER_BANK = "answer-bank.yaml"
 # Where a rehearsal keeps its Records, one folder per day.
 REHEARSALS = HOME / "rehearsals"
 # Where a run keeps its Records while policies.yaml sets no records_remote.
@@ -158,6 +159,12 @@ def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
     sign_in.add_argument("url", help="a Posting on that site, as a Handoff's reason gives it")
     commands.add_parser("login", help="log in to WorkIt one time, in a Chrome window that it opens, so Apply can "
                                       "write to your Applications Tracker; Apply keeps the login in the data folder")
+    sync_answers = commands.add_parser(
+        "sync-answers", help="send every answer in the Answer bank to your WorkIt account, so the extension fills "
+                             "them: a one-time catch-up. With workit_sync.answers on in policies.yaml, each change "
+                             "goes by itself after; WorkIt keeps any answer of its own that is newer")
+    sync_answers.add_argument("--profile", type=Path, default=DEFAULT_PROFILE,
+                              help="the Applicant profile (YAML); its Answer bank is beside it")
     import_sheet = commands.add_parser(
         "import-sheet", help="one time: put each submitted row of the Tracker Sheet into your WorkIt Applications "
                              "Tracker. It lists every add and skip first, and writes only when you type yes")
@@ -246,7 +253,7 @@ def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
     if adapters is None and threading.current_thread() is threading.main_thread():
         signal.signal(signal.SIGTERM, _stop)  # `kill <pid>` closes the browsers and the window, as Ctrl-C does
     # doctor only reads: it says the profile is missing. login and import-sheet need no profile.
-    if args.command not in ("doctor", "login", "import-sheet", "clean-tracker", "plain", "ask", "fill-again",
+    if args.command not in ("doctor", "login", "import-sheet", "clean-tracker", "sync-answers", "plain", "ask", "fill-again",
                             "preflight", "data") and home.fill_from_sample():
         print(f"No Applicant profile yet: copied the Test Person sample data into {HOME}. Apply runs as Test Person "
               "(the window says Sample data) until you put your own files there.", file=sys.stderr)
@@ -262,7 +269,7 @@ def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
             _refuse_busy_worker_profiles(args.command)
             _refuse_stale_resume(profile, args.command)
             _send_waiting_writes()
-            adapters = live_adapters(profile, answer_bank=AnswerBank(args.profile.parent / ANSWER_BANK))
+            adapters = live_adapters(profile, answer_bank=_answer_bank(args.profile.parent))
             WorkerBrowsers().seed(args.workers)
             try:
                 with _dashboard(adapters, args.workers, profile):
@@ -297,7 +304,7 @@ def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
             # Employer accounts it makes (their passwords in Keychain).
             adapters = live_adapters(profile, tracker=InMemoryTracker(), records=FolderRecords(REHEARSALS),
                                      notifier=RecordingNotifier(), phone=RecordingNotifier(),
-                                     answer_bank=AnswerBank(args.profile.parent / ANSWER_BANK))
+                                     answer_bank=_answer_bank(args.profile.parent))
             print(f"Rehearsing {len(args.urls)} links; Apply submits nothing, and each page is yours once it stops. "
                   f"Records go to {REHEARSALS}/; "
                   f"answers Claude drafts go to the Answer bank, {args.profile.parent / ANSWER_BANK}.")
@@ -359,6 +366,8 @@ def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
         print(f"Logged in to WorkIt as {account.email}. The login is in {client.login}.")
         if account.account_type != "applicant":
             print(f"That is a {account.account_type} account: the Applications Tracker needs a student account.")
+    elif args.command == "sync-answers":
+        sys.exit(_sync_answers(args.profile.parent / ANSWER_BANK))
     elif args.command == "import-sheet":
         client = workit.WorkIt()
         if not client.logged_in():
@@ -540,7 +549,7 @@ def _story_map(args, claude) -> None:
         print("\n".join((story_map.check() if args.check else []) + (story_map.gaps() if args.gaps else [])) or
               ("No stale entries." if args.check else "No follow-ups the bank can't answer."))
         return
-    built = story_map.build(claude or ClaudeCLI())
+    built = story_map.build(claude or live_claude(load_policies()))
     old = yaml.safe_load(story_map.MAP.read_text()) if story_map.MAP.exists() else None
     print("\n".join(story_map.diff((old or {}).get("episodes") or [], built["episodes"])) or "No changes.")
     if built["dropped"]:
@@ -791,7 +800,7 @@ def _answers_window(profile: Path, window: Path) -> None:
         sheet[:] = sheet or [live_tracker()]
         return sheet[0]
 
-    tab = AnswersTab(AnswerBank(profile.parent / ANSWER_BANK), profile, held=lambda: tracker().rows())
+    tab = AnswersTab(_answer_bank(profile.parent), profile, held=lambda: tracker().rows())
 
     with dashboard.Dashboard(0, dashboard.NoFrames(), tab, _applied_live, past=lambda: tracker().rows(),
                              answer=_answering(tracker, tab), approve=_approving(tracker),
@@ -819,8 +828,15 @@ def _answering(tracker: Callable[[], object], tab: AnswersTab) -> Callable[[dict
     rehearsal's into his Applicant profile, for every form after, or, for
     what an essay asked him, into the Story bank, for every essay after. A
     bare date (From, To) is that form's alone: never saved by its label.
-    The same for his answer typed on the held form itself (Board.typed)."""
+    The same for his answer typed on the held form itself (Board.typed).
+    An empty answer is his Skip of an optional question (KAN-759): kept as
+    an empty answer in his profile, so no later form asks it again."""
     def answer(item: dict, question: str, text: str) -> str:
+        if not text.strip():
+            if question.startswith(essays.ASK) or on_page.bare(question):
+                return "Skipped: it's optional, so this form leaves it blank."
+            tab.save_skipped(question)
+            return "Skipped: the form leaves it blank, and Apply won't ask it again."
         if item.get("status") == "missing fact" and item.get("application_id"):
             tracker().answer(item["application_id"], text)
             return f"Saved your answer for {item.get('company') or 'it'}: it goes on at the next check."
@@ -846,6 +862,28 @@ def _window_context() -> dict:
     """What the Apply window links and says beyond the run: the student's Applications Tracker on WorkIt,
     and when the Daily sweep runs."""
     return {"tracker_url": f"{workit.site().web}/applications", "sweep_at": schedule.daily_sweep_at()}
+
+
+def _answer_bank(folder: Path) -> AnswerBank:
+    """The Answer bank in `folder`, which also sends each change to WorkIt once policies.yaml turns
+    workit_sync.answers on (answer_sync.py, KAN-746)."""
+    return answer_sync.bank(folder / ANSWER_BANK, load_policies())
+
+
+def _sync_answers(path: Path, client: workit.WorkIt | None = None, queue: Path = answer_sync.QUEUE) -> int:
+    """`apply sync-answers`: push the whole Answer bank to WorkIt. 1 when it could not all go."""
+    client = client or workit.WorkIt()
+    if not client.logged_in():
+        print("apply sync-answers: no WorkIt login. Run `uv run apply login` first.", file=sys.stderr)
+        return 1
+    if not path.is_file():
+        print(f"apply sync-answers: no Answer bank at {path}.", file=sys.stderr)
+        return 1
+    sent = answer_sync.AnswerSync(client, queue).push_all(AnswerBank(path))
+    print(answer_sync.report(sent))
+    if not answer_sync.enabled(load_policies()):
+        print(f"Later changes stay on this Mac: set workit_sync: {{answers: true}} in {OVERRIDE} to send each one.")
+    return 1 if sent.waiting or sent.problems else 0
 
 
 def live_tracker() -> WorkItTracker:
@@ -892,7 +930,7 @@ def _applied(adapters: Adapters) -> Callable[[str], str]:
 
 def _applied_live(url: str) -> str:
     """An Own application pasted into the window with no run going, added to the live Tracker."""
-    return own_application.report(url, tracker=live_tracker(), claude=ClaudeCLI(), site=WorkerBrowsers(),
+    return own_application.report(url, tracker=live_tracker(), claude=live_claude(load_policies()), site=WorkerBrowsers(),
                                   clock=SystemClock())
 
 
@@ -988,7 +1026,7 @@ def live_adapters(profile: ApplicantProfile, tracker=None, records=None, notifie
         feed=live_feed(),
         tracker=live_tracker() if tracker is None else tracker,
         site=site,
-        claude=claude,
+        claude=live_claude(profile.policies(), claude),  # policies.yaml: ask_model (claude or groq)
         mailbox=live_mailbox(profile.get("identity.email")) if mailbox is None else mailbox,
         usage=claude,
         clock=SystemClock(),
@@ -997,7 +1035,7 @@ def live_adapters(profile: ApplicantProfile, tracker=None, records=None, notifie
         phone=live_phone() if phone is None else phone,
         keychain=MacKeychain() if keychain is None else keychain,
         repairs=RepairRequests(REPAIRS),
-        answer_bank=AnswerBank(profile.folder / ANSWER_BANK) if answer_bank is None else answer_bank,
+        answer_bank=_answer_bank(profile.folder) if answer_bank is None else answer_bank,
         signed_in=site.signed_in(),  # by apply sign-in
         tailored=tailored.from_workit(),  # the student's tailored resume for each Posting (KAN-547)
         everyday=captcha.to_everyday_chrome,  # a bot-blocked posting goes to the student's own Chrome (KAN-590)

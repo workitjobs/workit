@@ -1,31 +1,35 @@
-import type { ComponentProps } from "react";
+import type { ComponentProps, ReactNode } from "react";
 
-import { Button } from "@/components/ui/button";
+import { IconButton } from "@/components/ui/icon-button";
 
 /**
- * A profile section's own action: Add and Edit at the top right of their
- * headings, and Remove Photo on the name's line, beside the photo it removes.
- * It wears Home's section link (ui/section-link.tsx): 13px, muted ink
- * that darkens on hover, the glyph 14px. So a section's one control sits at
- * the same weight on both seeker pages. These were brand ghost buttons at
- * 12px, which read as links in another kit beside "View All".
+ * A card's own action at the top right of its heading: Edit, Show Answers,
+ * Upload, Add, Remove, on My Profile and Application Info. A glyph with
+ * its word in a tooltip, no button around it (2026-11-11, the user's
+ * call), in Experiences' heading action's look and size (`place="heading"`:
+ * a 32px round target, a 20px glyph, a grey disc under the pointer), so
+ * every card's Edit is one size. It was the glyph and the word as a text
+ * button (the `section` variant), which read as a row of links across
+ * every card.
  *
- * A Button rather than a link, because it acts on this page instead of going
- * somewhere. The look is ui/button.tsx's `section` variant, which brings the
- * focus ring and the widened hit area too; this wrapper only fixes the
- * variant so the three call sites cannot drift.
- *
- * Pass `aria-label` when the visible word leans on the heading for context
- * ("Add" of what), as SectionLink's `label` does for "View All". Start it with
- * the visible word, so a voice command that says what it sees still works.
+ * `label` is the full name for a screen reader and a voice command ("Edit
+ * Work Authorization"); `tooltip` the word the glyph stands for ("Edit").
+ * A Button, not a link: it acts on this page.
  */
 export function SectionAction({
+  label,
+  tooltip,
   children,
   ...props
-}: Omit<ComponentProps<typeof Button>, "variant" | "size" | "className">) {
+}: {
+  label: string;
+  tooltip: string;
+  /** The glyph. */
+  children: ReactNode;
+} & Omit<ComponentProps<"button">, "children" | "className" | "aria-label">) {
   return (
-    <Button variant="section" {...props}>
+    <IconButton place="heading" label={label} tooltip={tooltip} {...props}>
       {children}
-    </Button>
+    </IconButton>
   );
 }

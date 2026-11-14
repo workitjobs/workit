@@ -1,8 +1,10 @@
 """Which kind of Worker fills a form (S8, KAN-614): policies.yaml's `worker_mode`.
 
-- `cdp` (the default): every form in a CDP Worker (apply.browsers.WorkerBrowsers), as before.
+- `cdp`: every form in a CDP Worker (apply.browsers.WorkerBrowsers), as before. Policies with no
+  worker_mode at all (a test's) read as cdp.
 - `plain`: every form in a plain Worker (PlainSite over apply.plain.launcher.PlainWorkers).
-- `protected`: a plain Worker only for the protected hosts, a CDP Worker for the rest
+- `protected` (policies.default.yaml's default since 2026-11-06, KAN-723): a plain Worker only for
+  the protected hosts, a CDP Worker for the rest
   (RoutedSite). The protected hosts are policies.yaml's `plain_worker_hosts` (Lever,
   SmartRecruiters and Workable by default) and each host a bot block was seen on
   (`learn`, kept in APPLY_HOME/plain-hosts.json).

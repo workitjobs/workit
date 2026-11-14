@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { Suspense, use, useEffect, useState, type ComponentType, type ReactNode } from "react";
 
 import {
-  BriefcaseIcon,
+  JobTypeIcon,
   CalendarIcon,
   ClockIcon,
   CoinIcon,
@@ -159,7 +159,7 @@ function PanelBody({
         </Section>
 
         <div className="grid gap-x-6 sm:grid-cols-2">
-          <Section Icon={BriefcaseIcon} label="Job Type">
+          <Section Icon={JobTypeIcon} label="Job Type">
             {JOB_TYPE_OPTIONS.map((o) => (
               <Chip
                 key={o.value}

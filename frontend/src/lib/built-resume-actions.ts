@@ -1,7 +1,7 @@
 "use server";
 
 import { applicantCall, encodeId, type Result } from "@/lib/applicant-call";
-import type { BankEntry, Skill } from "@/lib/bank-actions";
+import type { BankEntry, CustomSection, Skill } from "@/lib/bank-actions";
 import type { ApplicantProfile } from "@/lib/profile-actions";
 import { revalidatingResumes } from "@/lib/resume-revalidate";
 
@@ -12,10 +12,12 @@ import { revalidatingResumes } from "@/lib/resume-revalidate";
  * the browser turns into a download: a resume is tens of KB, far under
  * Vercel's 4.5 MB response limit.
  *
- * A write the Resumes page shows (Generate, Rename, Delete, the star) goes
- * through `revalidatingResumes`, so a Back to a list of resumes reads it
- * again. The editor's per-edit saves and Fit do not: each would render the
- * editor's page, PDF and all, again (`lib/resume-revalidate.ts`).
+ * A write the Resumes page shows (Rename, Delete, the star) goes through
+ * `revalidatingResumes`, so a Back to a list of resumes reads it again. The
+ * editor's per-edit saves and Fit do not: each would render the editor's
+ * page, PDF and all, again (`lib/resume-revalidate.ts`). Generate is a
+ * stream through the route handler `/api/resume-generate` (KAN-444,
+ * `GenerateStreamEvent`), not an action, so the page can show its steps.
  */
 
 export type BuiltResume = {
@@ -34,7 +36,31 @@ export type BuiltResume = {
    *  (KAN-268); null on a base resume. */
   posting_title: string | null;
   posting_company: string | null;
+  /** Its company's logo and website, for the card's logo tile (`jobLogo`);
+   *  null on a base resume or a posting with none. */
+  posting_logo_url: string | null;
+  posting_company_domain: string | null;
 };
+
+/** One line of a streamed Generate (`/api/resume-generate`, the API's
+ *  `POST .../built-resumes/stream`, KAN-444): `checking` before the
+ *  duplicate check, `saving` before the writes, then `done` with the new
+ *  resume or `error` with the JSON route's status and message (409 and the
+ *  resume it matches on a duplicate). The body's `allow_duplicate` skips
+ *  the check (the student confirmed a copy), and with it `checking`. Mirrors `GenerateStep`,
+ *  `GenerateDone` and `GenerateFailed` in backend/app/schemas/built_resume.py;
+ *  change both or neither. */
+export type GenerateStreamEvent =
+  | { type: "phase"; phase: "checking" | "saving" }
+  | { type: "done"; resume: BuiltResume }
+  | {
+      type: "error";
+      status: number;
+      message: string;
+      /** On a duplicate (409): the resume it matches, and its name. */
+      built_resume_id?: string | null;
+      name?: string | null;
+    };
 
 /**
  * Where one line sits on the PDF (schemas `RenderBox`): the bank id of the
@@ -62,6 +88,10 @@ export type IdentityCopy = {
   phone: string | null;
   links: [string, string][];
   us_citizen: boolean;
+  /** The profile's location (KAN-436). */
+  location: string | null;
+  /** The Additional line (KAN-436). */
+  extra: string | null;
 };
 
 /** How a built resume's page is set (schemas `PageSettings`, KAN-435).
@@ -87,7 +117,26 @@ export type PageSettings = {
   heading_size: number | null;
   title_size: number | null;
   body_size: number | null;
+  /** "Aug. 2018", "August 2018", "2018" or "08/2018". */
+  date_format: "short" | "long" | "year" | "numeric";
+  /** Which of an Education entry's two rows goes on top. */
+  education_first: "school" | "degree";
+  /** The header fields this resume leaves out (KAN-436): the Header
+   *  panel's check boxes. The values stay on the profile. */
+  hidden_header: HideableField[];
 };
+
+/** The header fields a resume can leave out (the API's `HEADER_FIELDS`):
+ *  the name always prints. */
+export type HideableField =
+  | "phone_number"
+  | "email"
+  | "location"
+  | "linkedin_url"
+  | "github_url"
+  | "portfolio_url"
+  | "other_url"
+  | "resume_header_extra";
 
 export type FontFamily =
   | "latin_modern"
@@ -140,6 +189,9 @@ export type RenderMeasure = Pick<
 export type ResumeCopy = {
   entries: BankEntry[];
   skills: Skill[];
+  /** The sections the student named (KAN-498): a custom entry prints under
+   *  its section's name and layout, and without them prints nowhere. */
+  sections: CustomSection[];
   choices: Choices;
   identity: IdentityCopy;
   template: string;
@@ -157,11 +209,15 @@ export async function listBuiltResumes(): Promise<Result<BuiltResume[]>> {
   return call<BuiltResume[]>("");
 }
 
-/** Generate: a base resume with everything in the bank, "Resume #N" when
- *  no name is given. No limit: only uploads count toward the 5. */
-export async function generateResume(name?: string): Promise<Result<BuiltResume>> {
+/** Copy a Resume You Have (2026-11-11, the Resumes page's Generate Resume
+ *  dialog): a new resume copied from one of the student's built resumes,
+ *  or made of one upload's own entries ("<name> (Copy)", POST
+ *  .../built-resumes/copy). */
+export async function startFromResume(
+  source: { built_resume_id: string } | { uploaded_resume_id: string },
+): Promise<Result<BuiltResume>> {
   return revalidatingResumes(
-    call<BuiltResume>("", { method: "POST", body: JSON.stringify(name ? { name } : {}) }),
+    call<BuiltResume>("/copy", { method: "POST", body: JSON.stringify(source) }),
   );
 }
 
@@ -227,7 +283,14 @@ export type BulletChoice = {
   variant_id: string | null;
   text: string | null;
 };
-export type SkillChoice = { skill_id: string; shown: boolean; position: number };
+/** `group` is the group the skill prints under on this resume (KAN-586):
+ *  null the bank's, "" no group, any other text that group. */
+export type SkillChoice = {
+  skill_id: string;
+  shown: boolean;
+  position: number;
+  group?: string | null;
+};
 /** A wording a bullet can switch to: Tailor's, or this resume's own (`local`). */
 export type Variant = {
   id: string;

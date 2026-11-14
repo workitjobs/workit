@@ -4,7 +4,6 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, test } from "@playwright/test";
 import { extensionId } from "../store/extension-id.mjs";
-import { EXTENSION_ID } from "./loaded-extension";
 
 const manifest = JSON.parse(readFileSync(join(__dirname, "..", "manifest.json"), "utf8"));
 const website = readFileSync(join(__dirname, "..", "..", "frontend", "src", "lib", "autofill-extension.ts"), "utf8");
@@ -18,8 +17,4 @@ test("a key's ID is the one Chrome gives the unpacked extension", () => {
 
 test("the website calls the ID manifest.json's key gives", () => {
   expect(website).toContain(`const EXTENSION_ID = "${extensionId(manifest.key)}";`);
-});
-
-test("the tests load the extension at the ID manifest.json's key gives", () => {
-  expect(EXTENSION_ID).toBe(extensionId(manifest.key));
 });

@@ -36,6 +36,11 @@ COPY backend/alembic ./alembic
 COPY backend/data ./data
 COPY backend/scripts ./scripts
 COPY backend/app ./app
+# The Fill engine's Rules table (KAN-756, app/services/rules_table.py), from the
+# fill-engine submodule its build writes it into, at the same path beside
+# backend/ as in the repo. The deploy checks the submodule out; without it
+# this COPY fails the build, so production never runs without the table.
+COPY autofiller_extension/fill-engine/dist/rules-table.json /app/autofiller_extension/fill-engine/dist/rules-table.json
 # Pinned Tectonic and its warm cache into vendor/tectonic/. Owned by the
 # runtime user: Tectonic writes into its cache even offline, so a writable
 # cache is used in place (no copy to /tmp)

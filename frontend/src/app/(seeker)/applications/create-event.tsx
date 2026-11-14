@@ -32,6 +32,7 @@ import type { EventKind } from "../tracker";
 import { addApplicationEvent, type NewEventKind } from "./actions";
 import { ApplicationTile } from "./application-tile";
 import { ApplicationTable, type PickableApplication } from "./pick-application";
+import { Tip } from "@/components/ui/tip";
 
 /**
  * CREATE EVENT (KAN-413, KAN-429): the one way a student puts an interview,
@@ -152,20 +153,24 @@ export function CreateEventDialog({
   const [open, setOpen] = useState(false);
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger
-        render={
-          iconOnly ? (
-            <Button variant={variant} size="icon-lg" aria-label="Create Event" title="Create Event">
-              <PlusIcon />
-            </Button>
-          ) : (
-            <Button variant={variant} size="sm">
-              <PlusIcon />
-              Create Event
-            </Button>
-          )
-        }
-      />
+      {/* "Create Event" on hover while it is the plus alone
+          (components/ui/tip.tsx). */}
+      <Tip label="Create Event" disabled={!iconOnly}>
+        <DialogTrigger
+          render={
+            iconOnly ? (
+              <Button variant={variant} size="icon-lg" aria-label="Create Event">
+                <PlusIcon />
+              </Button>
+            ) : (
+              <Button variant={variant} size="sm">
+                <PlusIcon />
+                Create Event
+              </Button>
+            )
+          }
+        />
+      </Tip>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
         {/* Mounted per open, so each opens blank. */}
         {open && (
@@ -266,11 +271,13 @@ function CreateEventForm({
           {/* Back to the form, once it has an application to go back to. */}
           {choosing && picked && (
             <IconButton
+              place="row"
+              tooltip={false}
               label="Back to the event"
-              className="-ml-1.5 size-8"
+              className="-ml-1.5"
               onClick={() => setChoosing(false)}
             >
-              <ArrowLeftIcon className="size-4" />
+              <ArrowLeftIcon />
             </IconButton>
           )}
           <DialogTitle className="text-subtitle font-semibold">

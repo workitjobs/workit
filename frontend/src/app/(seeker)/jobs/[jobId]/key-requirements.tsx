@@ -58,7 +58,8 @@ export async function getRequirements(jobId: string): Promise<Requirement[]> {
   }
 }
 
-/** The Key Requirements card, drawn from getRequirements' list. */
+/** The Key Requirements section of the job's panel, drawn from
+ *  getRequirements' list. */
 export function KeyRequirementsCard({
   requirements: read,
   minYearsExperience,
@@ -121,8 +122,9 @@ export function KeyRequirementsCard({
       <dl className="mt-4 flex flex-col gap-4">
         {groups.map(({ kind, label, highlights }) => (
           <div key={kind}>
-            <dt className="text-body text-ink font-semibold">{label}</dt>
-            <dd className="text-body text-ink mt-1">
+            {/* 16px, as the description under it in the same panel. */}
+            <dt className="text-ink text-base font-semibold">{label}</dt>
+            <dd className="text-ink mt-1 text-base">
               <p>
                 {highlights
                   .map(

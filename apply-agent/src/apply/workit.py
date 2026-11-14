@@ -272,6 +272,13 @@ class WorkIt:
             return None
         return base64.b64decode(self.call("GET", f"/applicants/{me}/built-resumes/{resume['id']}/render")["pdf"])
 
+    def sync_answers(self, answers: list[dict], deleted: list[dict]) -> dict:
+        """Merge Answer bank entries (and deletes) into the student's answers on WorkIt, which the extension
+        fills from (KAN-746, `PATCH .../fill-answers`): at most 200 of each. WorkIt decides which are the
+        student's own and keeps its own newer entries. Answers {saved, deleted, kept}."""
+        return self.call("PATCH", f"/applicants/{self.applicant_id()}/fill-answers",
+                         {"answers": answers, "deleted": deleted})
+
     def applicant_id(self) -> str:
         """The signed-in student's id, read once (`GET /auth/me`): the writes name it in their paths."""
         if self._account is None:

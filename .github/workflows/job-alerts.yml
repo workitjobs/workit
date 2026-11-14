@@ -57,8 +57,9 @@ jobs:
         working-directory: backend
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          EMBEDDING_PROVIDER: gemini
+          # No EMBEDDING_PROVIDER: the default `none` reads the bank vectors
+          # the team computer stores and makes none (KAN-726). Gemini's would
+          # sit beside Qwen3's and score wrong.
           WEB_URL: https://workitjobs.ai
           DRY_RUN: ${{ (github.event_name == 'pull_request' || inputs.dry_run) && '--dry-run' || '' }}
         run: |

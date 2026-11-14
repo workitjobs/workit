@@ -38,6 +38,7 @@ NEEDS = {
     "taleo": (Need.YES, "an Employer account for each employer"),
     "successfactors": (Need.YES, "an Employer account for each employer"),
     "eightfold": (Need.MAYBE, "some employers ask for an account"),
+    "amazon": (Need.YES, "your Amazon sign-in in the Worker"),
     "greenhouse": (Need.NO, "no account; a code may come by mail after Submit"),
     "lever": (Need.NO, "no account"),
     "ashby": (Need.NO, "no account"),

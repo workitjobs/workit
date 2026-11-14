@@ -1,8 +1,7 @@
 "use client";
 
-import { CheckIcon, SparkleIcon } from "@/components/icons";
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/shadcn/dialog";
-import { cn } from "@/lib/cn";
+import { SparkleIcon } from "@/components/icons";
+import { StepsDialog } from "@/components/steps-dialog";
 
 /** The run's phases, in order, by the streamed run's lines
  *  (`TailorStreamEvent`): the first until the API sends `asking`, and the
@@ -14,7 +13,6 @@ const PHASE = {
   compiling: "Opening your resume",
 } as const;
 export type Phase = keyof typeof PHASE;
-const PHASES = Object.keys(PHASE) as Phase[];
 
 /** The little page's rows, top to bottom: a section's heading, or a bullet
  *  at a share of the column. Only bullets are rewritten, as in a real run. */
@@ -75,18 +73,12 @@ function RewritingPage() {
 }
 
 /**
- * The run, over Choose Keywords: a modal with the page being rewritten, the
- * resume's name, and the run's phases as a list as the stream reports them: a
- * check on each done, a spinner on the one running, and a small dot on those
- * to come. It cannot be closed (Esc and a click outside do nothing: a run
- * cannot be stopped); a failed run closes it and shows its error on the card
- * under it, and a finished one opens the tailored resume (Review Changes).
- *
- * The list stays: one sentence over a thin four-part bar was tried on
- * 2026-11-01, and the user wanted to watch the steps finish. What went is the
- * old list's circle on every row, an empty one and one with a dot, which read
- * as radio buttons under a spinner of their own. Tailor was a step of its own
- * until 2026-10-26, a view that only waited.
+ * The run, over Choose Keywords: the shared steps dialog (`StepsDialog`)
+ * with the page being rewritten, the resume's name, and the run's phases as
+ * the stream reports them. A failed run closes it and shows its error on
+ * the card under it, and a finished one opens the tailored resume (Review
+ * Changes). Tailor was a step of its own until 2026-10-26, a view that only
+ * waited.
  */
 export function TailorRunning({
   open,
@@ -97,49 +89,13 @@ export function TailorRunning({
   phase: Phase;
   resume: string | undefined;
 }) {
-  const at = PHASES.indexOf(phase);
   return (
-    <Dialog open={open}>
-      <DialogContent showCloseButton={false} className="gap-0 overflow-hidden p-0 sm:max-w-sm">
-        <RewritingPage />
-        <div className="px-6 pt-5 pb-6">
-          <DialogTitle className="text-subtitle text-ink truncate text-center font-semibold">
-            Tailoring {resume ?? "Your Resume"}
-          </DialogTitle>
-          <DialogDescription className="sr-only" role="status">
-            {PHASE[phase]}
-          </DialogDescription>
-          <ol role="list" className="mx-auto mt-4 flex w-fit flex-col gap-2.5">
-            {PHASES.map((key, i) => {
-              const done = i < at;
-              const now = i === at;
-              return (
-                <li
-                  key={key}
-                  aria-current={now ? "step" : undefined}
-                  className={cn(
-                    "text-label flex items-center gap-2.5 transition-colors duration-300",
-                    now ? "text-ink" : done ? "text-ink-muted" : "text-ink-meta",
-                  )}
-                >
-                  <span aria-hidden className="flex size-4.5 shrink-0 items-center justify-center">
-                    {done ? (
-                      <span className="bg-brand text-on-brand animate-pop flex size-full items-center justify-center rounded-full">
-                        <CheckIcon className="size-3" />
-                      </span>
-                    ) : now ? (
-                      <span className="border-brand-tint border-t-brand size-full animate-spin rounded-full border-2" />
-                    ) : (
-                      <span className="bg-border-strong size-1.5 rounded-full" />
-                    )}
-                  </span>
-                  {PHASE[key]}
-                </li>
-              );
-            })}
-          </ol>
-        </div>
-      </DialogContent>
-    </Dialog>
+    <StepsDialog
+      open={open}
+      title={`Tailoring ${resume ?? "Your Resume"}`}
+      art={<RewritingPage />}
+      steps={PHASE}
+      at={phase}
+    />
   );
 }

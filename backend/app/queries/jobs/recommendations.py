@@ -8,7 +8,7 @@ columns they need and embeds the bank on demand.
 import datetime
 from collections.abc import Mapping
 
-from sqlalchemy import and_, case, false, func, literal, or_, select, true, update
+from sqlalchemy import and_, case, false, func, literal, or_, select, true
 from sqlalchemy.dialects.postgresql import array
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import undefer
@@ -22,7 +22,7 @@ from app.schemas.auth import AuthenticatedAccount
 from app.schemas.jobs import Highlight, ScoredJob
 from app.services.bank import Bank
 from app.services.identity import load_identity
-from app.services.matching import bank_input
+from app.services.matching import bank_input, bank_vectors
 from app.services.matching.bank_input import bank_text
 from app.services.matching.embeddings import embed
 from app.services.matching.highlights import generate_highlights
@@ -47,30 +47,21 @@ REQUEST_EMBED_SECONDS = 10.0
 
 
 async def _bank_embedding(db: AsyncSession, account: AuthenticatedAccount, bank: Bank) -> list[float] | None:
-    """The bank's stored embedding, made and stored here when it is null.
-    None when there is no bank row or embedding fails."""
+    """The bank's stored embedding, even when stale: the bank job on the team
+    computer replaces it (KAN-726). Only a bank with no vector yet is
+    embedded here, and only where this process has a provider: the deployed
+    API's is `none` (the default), so it reads and never embeds.
+    None when there is no bank row or no vector."""
     bank_row = await db.get(
         Experience_Bank, account.id, options=[undefer(Experience_Bank.embedding)]
     )
     if bank_row is None or bank_row.embedding is not None:
         return bank_row.embedding if bank_row else None
     text = bank_text(bank, identity=await load_identity(db, account))
-    vectors = await embed([text], timeout=REQUEST_EMBED_SECONDS) if text else None
+    vectors = await embed([text], timeout=REQUEST_EMBED_SECONDS, query=True) if text else None
     if not vectors:
         return None
-    # Only if the bank is unchanged since it was read: a change in
-    # between cleared the embedding, and this vector is already stale.
-    await db.execute(
-        update(Experience_Bank)
-        .where(
-            Experience_Bank.applicant_id == account.id,
-            Experience_Bank.updated_at == bank_row.updated_at,
-        )
-        # updated_at stays the bank's last change: storing its vector is no
-        # change, and Home's kept result is keyed on it (queries/jobs/home.py).
-        .values(embedding=vectors[0], embedded_at=func.now(), updated_at=bank_row.updated_at)
-        .execution_options(synchronize_session=False)
-    )
+    await bank_vectors.store(db, account.id, bank_row.updated_at, vectors[0])
     try:
         await db.commit()
     except Exception:

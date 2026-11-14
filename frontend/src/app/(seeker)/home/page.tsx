@@ -26,7 +26,7 @@ export const metadata: Metadata = {
  * TOP MATCHES UNDER THE NUMBERS (KAN-342, ./top-matches.tsx): the
  * seeker's twelve best-scoring jobs as flat rows that scroll inside one
  * tile, with no score floor. New Matches, the
- * newest postings in posting order, sat there until Strong Matches replaced
+ * newest postings in posting order, sat there until Excellent Matches replaced
  * New Roles; the user asked for a list back, ordered by fit, since a new
  * seeker can have only weak matches and still needs their best ones. It
  * streams in its own <Suspense>, so the numbers never wait on its scoring,
@@ -39,7 +39,7 @@ export const metadata: Metadata = {
  * own over a skeleton of their own shape (HeadlineSkeleton, TopMatches-
  * Skeleton, StreakSkeleton). Every read is started before that one await,
  * so none waits on another. The page awaited the numbers too, and the
- * Strong Matches count is a full scoring pass, so sign-in's landing page,
+ * Excellent Matches count is a full scoring pass, so sign-in's landing page,
  * and every visit to it, showed nothing until that pass was done; on a hard
  * load not even the shell's first byte left before it. ./loading.tsx draws
  * the same frame with those skeletons, for the moment before the account
@@ -62,7 +62,7 @@ export const metadata: Metadata = {
  * From @4xl/main the numbers run four across the top in their own grid,
  * and Activity runs the full width under them:
  *
- *   Strong Matches   Saved   Applied   Interviewing
+ *   Excellent Matches   Saved   Applied   Interviewing
  *   Top Matches, a scrolling list of rows, See More Matches at its right
  *   Activity, the full width
  *
@@ -101,7 +101,7 @@ export const metadata: Metadata = {
  * them in place without asking the server for the page again. Next Up, Up
  * Next and Waiting are about now.
  *
- * Nothing shown is a fixture (KAN-342): Strong Matches is the seeker's Best
+ * Nothing shown is a fixture (KAN-342): Excellent Matches is the seeker's Best
  * Match scores, and Saved, Applied and Activity the live tracker.
  * Interviewing is a dash, "Not tracked yet", until the tracker stores stages
  * past applied (./data.ts).
@@ -115,7 +115,7 @@ export default async function HomePage() {
   // another. None of these promises rejects (each answers null or "empty"
   // on a failure; ./top-matches.tsx, loadTopMatches, says why that
   // matters). getMatches caches the one scoring call Top Matches and the
-  // Strong Matches number share, getTrackerUnscored the one tracker read
+  // Excellent Matches number share, getTrackerUnscored the one tracker read
   // the numbers and Activity share (./data.ts).
   const topMatches = loadTopMatches();
   const stats = getHeadline();

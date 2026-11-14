@@ -203,8 +203,12 @@ export function ApplicationsBoard({
                 </span>
 
                 <span className="ml-auto flex items-center">
-                  <IconButton label={`${title} column options`} tooltip="Column options">
-                    <EllipsisIcon className="size-4" />
+                  <IconButton
+                    place="row"
+                    label={`${title} column options`}
+                    tooltip="Column options"
+                  >
+                    <EllipsisIcon />
                   </IconButton>
                 </span>
               </header>
