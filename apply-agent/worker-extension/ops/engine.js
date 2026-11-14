@@ -1,3 +1,4 @@
+// WorkIt Auto Apply Worker. Copyright (c) 2026 its authors. All rights reserved: see LICENSE.
 // S2 ops: the Fill engine, the same build the WorkIt extension loads, in the page's MAIN world.
 // Apply hands the bundle over once per connection (cdp.keep, checked by its sha256), and it stays
 // in this service worker's memory: never a file in this extension's folder (KAN-839; a Chrome Web

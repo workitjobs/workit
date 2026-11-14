@@ -1,3 +1,4 @@
+// WorkIt Auto Apply Worker. Copyright (c) 2026 its authors. All rights reserved: see LICENSE.
 // S1 ops: ping, the Worker's tabs, and page code (eval).
 
 import { keepAcrossReload } from "./guard.js";

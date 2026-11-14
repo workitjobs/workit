@@ -1,3 +1,4 @@
+// WorkIt Auto Apply Worker. Copyright (c) 2026 its authors. All rights reserved: see LICENSE.
 // Page code and early scripts through chrome.debugger (KAN-839, the W6 spike in
 // docs/desktop_application_auto_apply.md).
 //

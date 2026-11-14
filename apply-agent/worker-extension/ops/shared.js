@@ -1,3 +1,4 @@
+// WorkIt Auto Apply Worker. Copyright (c) 2026 its authors. All rights reserved: see LICENSE.
 // Helpers every slice's ops share.
 
 // Where Apply's generated files are: a write-once set, vendor/sets/<id>/, that the Apply process

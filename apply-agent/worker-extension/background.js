@@ -1,3 +1,4 @@
+// WorkIt Auto Apply Worker. Copyright (c) 2026 its authors. All rights reserved: see LICENSE.
 // Apply's worker extension: the service worker of one plain Worker Chrome.
 //
 // It connects to Apply's host relay (com.workit.apply_worker, in this Worker

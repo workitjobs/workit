@@ -1,3 +1,4 @@
+// WorkIt Auto Apply Worker. Copyright (c) 2026 its authors. All rights reserved: see LICENSE.
 // Put into a watched tab's frames in the page's MAIN world (ops/accounts.js), only while Apply
 // watches that tab. It reads the answers to the page's own fetch and XHR calls (the body only for
 // a call that isn't a GET, such as Workday's Create Account), and notes a window.open Chrome's

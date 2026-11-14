@@ -1,3 +1,4 @@
+// WorkIt Auto Apply Worker. Copyright (c) 2026 its authors. All rights reserved: see LICENSE.
 // S4 ops: the submit and drive guards on a plain Worker (apply.plain.guards, apply.submit_guard).
 //
 // - Init scripts: a guard's script is a fixed file in vendor/guards/ (written by `apply plain

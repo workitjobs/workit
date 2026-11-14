@@ -83,3 +83,9 @@ Vedant Vyas.
 You are free to use, modify, and redistribute this code, including
 commercially, as long as the copyright notice and license text travel with it.
 The software comes with no warranty.
+
+**Except the Worker extension.** `apply-agent/worker-extension/` is under its
+own proprietary license ([its LICENSE](apply-agent/worker-extension/LICENSE)):
+no copying, redistribution, reverse engineering or use to train AI models.
+Third-party code inside it keeps its own license (its `NOTICE`). Versions of it
+pushed before that license was added (2026-11-14) stay under MIT.
