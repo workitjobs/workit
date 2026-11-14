@@ -42,6 +42,9 @@ RETENTION: tuple[Rule, ...] = (
     # The extension's per-account daily write counts (KAN-478) only enforce
     # daily caps, as the AI counters do: 30 days.
     Rule("daily_counts", "day", 30, date=True),
+    # The Model route's monthly counts (KAN-723) only enforce the Usage cap:
+    # 90 days from the month's first day, so the month just past stays.
+    Rule("model_usage", "month", 90, date=True),
     # Uninstall survey answers (KAN-471), which name no account: 1 year.
     Rule("uninstall_answers", "created_at", 365),
     # The notice send log (KAN-483), an address per campaign with no account

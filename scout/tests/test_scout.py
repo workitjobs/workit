@@ -18,11 +18,12 @@ from openai import (
     RateLimitError,
 )
 from pydantic import BaseModel
+from referencing.exceptions import Unresolvable
 from workit_scout import llm as llm_module
 from workit_scout.agent import MAX_REPLY_CHARS, run
 from workit_scout.facts import bank_facts, job_facts
 from workit_scout.identity import Identity
-from workit_scout.llm import LLM
+from workit_scout.llm import LLM, Spent
 from workit_scout.schemas import (
     ChatMessage,
     ErrorEvent,
@@ -216,6 +217,8 @@ def mocked(sent: list, finish_reason: str = "stop") -> LLM:
             )
         message = {"role": "assistant", "content": content}
         choice = {"index": 0, "message": message, "finish_reason": finish_reason}
+        # Reasoning counted in the total only, as Gemini's endpoint does.
+        usage = {"prompt_tokens": 7, "completion_tokens": 2, "total_tokens": 12}
         return httpx.Response(
             200,
             json={
@@ -224,6 +227,7 @@ def mocked(sent: list, finish_reason: str = "stop") -> LLM:
                 "created": 0,
                 "model": "m",
                 "choices": [choice],
+                "usage": usage,
             },
         )
 
@@ -268,6 +272,71 @@ def test_a_reply_cap_is_sent_and_a_reply_stopped_at_it_is_cut_off():
             )
         )
     assert sent[0]["max_tokens"] == 500
+
+
+# --- a schema as data (the Model route, KAN-723) ----------------------------------
+
+CHOICE = {
+    "type": "object",
+    "properties": {"choice": {"type": ["integer", "null"]}},
+    "required": ["choice"],
+}
+
+
+def ask_schema(llm: LLM, content: str = "pick one", schema=CHOICE, identity=Identity()):
+    messages = [{"role": "user", "content": content}]
+    return asyncio.run(llm.complete_schema(messages, schema, identity=identity))
+
+
+def test_a_schema_call_returns_the_checked_answer_and_its_tokens():
+    answer, spent = ask_schema(ScriptedLLM(['{"choice": 2}']))
+    assert answer == {"choice": 2}
+    assert spent == Spent(len("pick one"), len('{"choice": 2}'))
+
+
+@pytest.mark.parametrize("bad", ['{"choice": "two"}', "Sure! {", ""])
+def test_an_answer_outside_the_schema_moves_down_the_chain_and_still_costs(bad):
+    answer, spent = ask_schema(ScriptedLLM([bad], ['{"choice": 1}']))
+    assert answer == {"choice": 1}
+    assert spent.output_tokens == len(bad) + len('{"choice": 1}')
+
+
+def test_an_answer_that_fits_no_endpoint_is_rejected_with_what_it_cost():
+    with pytest.raises(llm_module.InvalidReply) as raised:
+        ask_schema(ScriptedLLM(["{}"], ["[]"]))
+    assert raised.value.spent.output_tokens == 4
+
+
+def test_a_schema_call_moves_on_at_a_429_and_stops_at_misconfiguration():
+    assert ask_schema(ScriptedLLM(rate_limited(), ['{"choice": null}']))[0] == {"choice": None}
+    with pytest.raises(llm_module.ScoutUnavailable) as raised:
+        ask_schema(ScriptedLLM(bad_request(), ['{"choice": 1}']))
+    assert not isinstance(raised.value, llm_module.InvalidReply)
+
+
+def test_a_schema_call_sends_no_identity_data():
+    fake = ScriptedLLM(['{"choice": 1}'])
+    ask_schema(fake, "Sam Seeker at sam@example.com", identity=Identity(name="Sam Seeker"))
+    assert fake.prompts == [[{"role": "user", "content": "[name] at [email]"}]]
+
+
+def test_a_schema_call_never_fetches_a_remote_ref(monkeypatch):
+    def fetched(*args, **kwargs):
+        raise AssertionError("fetched a $ref")
+
+    monkeypatch.setattr("urllib.request.urlopen", fetched)
+    remote = {"type": "object", "properties": {"x": {"$ref": "http://169.254.169.254/x"}}}
+    with pytest.raises(Unresolvable):
+        ask_schema(ScriptedLLM(['{"x": 1}']), schema=remote)
+
+
+def test_a_schema_call_sends_the_schema_as_given_and_reads_the_tokens():
+    sent = []
+    schema = {"type": "object", "required": ["title"]}
+    answer, spent = ask_schema(mocked(sent), schema=schema)
+    assert answer == {"title": "T", "bullets": []}
+    assert sent[0]["response_format"]["json_schema"] == {"name": "answer", "schema": schema}
+    assert spent == Spent(7, 5)
 
 
 # --- configuration ----------------------------------------------------------------

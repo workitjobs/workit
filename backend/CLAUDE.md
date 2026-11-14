@@ -333,6 +333,18 @@ Find files with a directory listing; these are the rules for where code goes.
   feature picks a size there; it never builds an `LLM` itself, so the
   `SCOUT_*` settings stay the one place a model is named
   (`../scout/CLAUDE.md`, "Which model, where").
+- **WorkIt Auto Apply's Model route** (`routers/apply_app.py`, KAN-723,
+  `../docs/desktop_application_auto_apply.md`, W1) is the one route that
+  takes a prompt from outside: the desktop app's own `ask`, with its
+  schema as data (`LLM.complete_schema`). Apply's `haiku` takes the small
+  chain, `sonnet` and `opus` the large one. It counts tokens a calendar
+  month in `model_usage` (`queries/model_usage.py`), not daily uses in
+  `services/usage.py`, against `APPLY_APP_MONTHLY_TOKENS`, and calls a
+  minute against `APPLY_APP_CALLS_PER_MINUTE`. It commits before the
+  model call, so no connection is held while the model writes, and adds
+  the tokens after, a failed call's too. It never logs a prompt or an
+  answer. A schema with a `$ref` is a 422: `jsonschema` would fetch its
+  URL. Tests: `tests/test_apply_app.py`.
 - **Auto apply** (`app/auto_apply/`): KAN-223's layers 1 and 2. Layer 1
   is `rules.py` pure (no session) and `queries.py` database; layer 2 is
   the steps that call them, `pipeline.py`, which every caller imports.

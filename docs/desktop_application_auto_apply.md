@@ -2,9 +2,10 @@
 
 **Status (2026-11-13):** designed, not built. A design review on
 2026-11-13 settled every decision in section 2. Built so far: Workers
-default to `worker_mode: protected` (2026-11-06), and `ask` runs on Groq
+default to `worker_mode: protected` (2026-11-06), `ask` runs on Groq
 with Gemini as backup (`ask_model: [groq, gemini]`, 2026-11-10,
-`apply-agent/docs/ask-model.md`).
+`apply-agent/docs/ask-model.md`), and W1's server side, the Model route
+and the Usage cap (2026-11-13, `backend/app/routers/apply_app.py`).
 
 **How to use this doc.** Read sections 1 to 3 first. Then take one
 workstream from section 6: each one says what it changes, which files it
@@ -524,26 +525,53 @@ to its last page, and WorkIt's CI passes without `apply-agent/`.
 **Goal.** Every model call of a Student build goes through WorkIt, is
 counted, stops at the cap, and carries no personal data.
 
-**The server (WorkIt repo, `backend/`).**
+**The server (WorkIt repo, `backend/`). Built 2026-11-13.** The route's
+docstring (`backend/app/routers/apply_app.py`) is the reference for its
+shapes and status codes.
 
-- **Routes** (names to settle in the PR), each signed in as the student:
-  - `POST /apply-app/model`: body `{kind, model, system, prompt, schema}`.
-    `model` is Apply's tier (`haiku`, `sonnet`, `opus`); WorkIt maps it
-    to a provider's model. The server runs the provider chain that
-    `apply-agent/src/apply/ask_model.py` runs today (Groq, then Gemini;
-    strict schemas; moving on at 413, 429 and 5xx; `_misfit` checks), with
-    the keys from the API's secrets (`CF_API_SECRETS_JSON`). It answers
-    `{answer, tokens}`.
+- **Routes**, each signed in as a student (a company account gets 403):
+  - `POST /apply-app/model`: body `{kind, model, system, prompt, schema}`
+    (`kind` is optional, `"ask"` by default). `model` is Apply's tier:
+    `haiku` asks the API's small model chain, `sonnet` and `opus` the
+    large one (`app/services/models.py`). So the models and their keys are
+    the `SCOUT_ENDPOINTS*` settings already in `CF_API_SECRETS_JSON`, and
+    a model change is an env change. It answers `{answer, tokens, usage}`,
+    with `usage` as below, so the window's cap line updates with each call.
   - `GET /apply-app/usage`: `{used, cap, resets_at}`.
-  - At the cap, `POST /apply-app/model` answers 429 with `resets_at`.
-- **Table** `model_usage`: one row per student per month (`applicant_id`,
-  `month`, `input_tokens`, `output_tokens`, `calls`). A new Alembic
-  migration that enables RLS with no policies (root `CLAUDE.md`).
-- **The cap** (3,000,000 tokens) is a server setting, so it changes with
-  no app update. A short per-student rate limit (requests a minute)
-  protects the free tiers, which every student shares.
+  - **429 with `Retry-After`** at the cap (it runs to the 1st, UTC) and
+    past the per-minute limit (to the next minute). Nothing goes to a
+    model. `ask_model.py` already reads a `Retry-After` over 60 seconds as
+    a limit hit and pauses the run until then.
+  - 413 when every model finds the request too large, 502 when no model's
+    answer fits the schema, 503 with `Retry-After: 60` when every model is
+    busy or down. A failed call's tokens still count.
+- **The call** is `workit_scout.llm.LLM.complete_schema`, the API's one
+  model seam, with the schema as JSON data. It tries the chain in order
+  and moves on at a 429, a 5xx, a request too large or an answer outside
+  the schema (checked with `jsonschema`). It sends the schema as given:
+  no strict mode and no plain-JSON retry, unlike `ask_model.py`'s three
+  modes. W13 shows whether Apply's schemas need them.
+- **The student's identity is removed on the server too**: the seam takes
+  the name, email, phone and links from the student's WorkIt profile out
+  of both texts, whatever the app replaced first. An answer can then hold
+  `[name]`, `[email]`, `[phone]` or `[link]`; the app must not fill one
+  into a form.
+- **The schema is checked before anything counts**: an object's schema,
+  valid JSON Schema, at most 20,000 characters, and no `$ref`, since
+  `jsonschema` fetches a remote one's URL by default.
+- **Table** `model_usage` (migration `3132c5026bf6`, RLS on, no
+  policies): one row per student per calendar month, with
+  `input_tokens`, `output_tokens`, `calls`, and the current minute's
+  calls for the limit (`app/queries/model_usage.py`). A call takes its
+  place in the minute before it goes, and adds its tokens after, with no
+  database connection held while the model writes. Two calls at once
+  just under the cap both go: the cap can be passed by one call per
+  Worker. Kept 90 days (`services/retention.py`).
+- **Settings**: `APPLY_APP_MONTHLY_TOKENS` (3,000,000) and
+  `APPLY_APP_CALLS_PER_MINUTE` (20), so both change with no app update.
 - **Logs** keep no prompt text: only the student, the kind, the model and
   the tokens.
+- **Not built:** Send report's route (D26).
 
 **The app (Apply).**
 
@@ -570,9 +598,8 @@ local API writes a form's essays, the usage row grows, a cap set low
 pauses the run with its date, and a request captured in a test holds no
 personal value.
 
-**Open.** The route's exact names; whether the server keeps the
-`[groq, gemini]` chain or adds Cloudflare AI Gateway in front of it for
-logs.
+**Open.** Whether to add Cloudflare AI Gateway in front of the chain for
+logs. Whether Apply's schemas need Groq's strict mode on the server (W13).
 
 ### W2. Filling with no model in the browser
 

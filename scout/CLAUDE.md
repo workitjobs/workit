@@ -140,6 +140,19 @@ only when given (as `max_tokens`, which Ollama, Groq and Gemini all accept);
 a reply the provider stops at its cap (`finish_reason` "length") raises
 `ReplyCutOff`, an `InvalidReply`, since its JSON is cut off.
 
+`LLM.complete_schema(messages, schema, identity=...)` is the same call for
+a schema given as JSON data, not a Pydantic class: WorkIt Auto Apply's
+Model route (`backend/app/routers/apply_app.py`, KAN-723) passes the
+desktop app's own schemas through it. Two differences, both because that
+caller can't ask again cheaply: an answer that is not JSON, fails the
+schema (`jsonschema`) or is cut off **moves down the chain** like a 429,
+and the call returns the tokens it spent (`Spent`, from each reply's
+`usage`; reasoning counts as output), on a failure too, as the error's
+`spent`. Its validator has an empty `referencing.Registry`: by default
+`jsonschema` fetches a remote `$ref`'s URL, and this schema comes from
+outside the API. Logs name the endpoint and the failed check, never the
+answer's text.
+
 ## How a failure behaves
 
 `LLM.stream` tries the chain in order, and moves to the next endpoint only
@@ -253,7 +266,9 @@ every prompt as the model received it, and joins a script's pieces as the
 answer to a structured call. It covers: moving down the chain on 429, 5xx,
 a dead endpoint and a request too large, no move on misconfiguration or mid-reply, the structured call
 (checked object, chain, rejected replies, no identity data, a reply cut off
-at its cap), the request body (a JSON schema, never `tool_choice`,
+at its cap), `complete_schema` (an answer outside the schema moves on and
+still costs, its tokens, no remote `$ref` fetched; ScriptedLLM costs a
+token a character), the request body (a JSON schema, never `tool_choice`,
 `max_tokens` only when asked), the chain read from env, the reply cap
 and the privacy mapping (`facts.py`). Tests of the system prompt's wording
 and the facts block's text were removed on purpose (2026-10-18); do not add
