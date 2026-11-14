@@ -11,17 +11,18 @@ export const metadata: Metadata = {
 /**
  * The public Terms of Service. Like /privacy, it describes only what WorkIt
  * does today; its business and legal decisions are the team's, recorded on
- * KAN-462 on 2026-10-31.
+ * KAN-462 on 2026-10-31. The desktop app's section sums up its own license,
+ * `apply-agent/legal/EULA.txt` (KAN-848): change the two together.
  */
 export default function TermsPage() {
   return (
     <LegalPage title="Terms of Service">
       <p>
         These terms are the rules for using WorkIt (
-        <a href="https://workitjobs.ai">workitjobs.ai</a>) and the WorkIt Chrome extension.
-        &ldquo;WorkIt&rdquo;, &ldquo;we&rdquo; and &ldquo;us&rdquo; mean WorkIt, a project run by
-        its student founders. By creating an account or using WorkIt, you agree to these terms and
-        to our <Link href="/privacy">Privacy Policy</Link>.
+        <a href="https://workitjobs.ai">workitjobs.ai</a>), the WorkIt Chrome extension and WorkIt
+        Auto Apply, our desktop app. &ldquo;WorkIt&rdquo;, &ldquo;we&rdquo; and &ldquo;us&rdquo;
+        mean WorkIt, a project run by its student founders. By creating an account or using WorkIt,
+        you agree to these terms and to our <Link href="/privacy">Privacy Policy</Link>.
       </p>
 
       <h2>Who Can Use WorkIt</h2>
@@ -59,6 +60,44 @@ export default function TermsPage() {
         You review each application and click Submit yourself. You are responsible for following the
         rules of each hiring system and employer.
       </p>
+
+      <h2>WorkIt Auto Apply for Mac</h2>
+      <p>
+        WorkIt Auto Apply is our desktop app for Mac, in a free beta. It fills job applications with
+        your WorkIt information, in Chrome windows of its own. It comes with its own license, which
+        you accept when you install it. These terms apply to the app too; where the two disagree
+        about the app, its license wins.
+      </p>
+      <ul>
+        <li>
+          The app stops on each application&apos;s last page and never submits it. You review each
+          application and click Submit yourself. Sign-ins, the codes that job sites send you and
+          captchas are yours to do, and the app never tries to get around a site&apos;s bot checks.
+        </li>
+        <li>
+          The app can sign in to job sites and create accounts on them for you, with a password you
+          choose. Those accounts are yours, and you are responsible for them. Their passwords stay
+          on your Mac.
+        </li>
+        <li>
+          Use the app only for your own job search, signed in to your own WorkIt account. Its AI is
+          only for filling and checking your applications in the app: do not use it, or the WorkIt
+          services it calls, for other work. Do not copy the app, reverse engineer it or get around
+          its limits, and do not use it or what it makes to train AI models. The answers it writes
+          for you stay yours.
+        </li>
+        <li>The app&apos;s AI use has a daily limit, which the app shows. We can change it.</li>
+        <li>
+          The app needs Google Chrome and its own Chrome extension from the Chrome Web Store, which
+          are Google&apos;s services under Google&apos;s terms. The app updates itself, and an older
+          version can stop working with WorkIt.
+        </li>
+        <li>
+          You can stop at any time: &ldquo;Remove all my data&rdquo; in the app&apos;s settings
+          deletes what the app keeps on your Mac, and then you can delete the app. Closing your
+          WorkIt account ends the app&apos;s license.
+        </li>
+      </ul>
 
       <h2>Job Postings</h2>
       <p>
