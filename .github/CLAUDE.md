@@ -160,11 +160,12 @@ that touches `apply-agent/`, the engine pointer, `ci.yml` or
 `test_upload_origin.py`'s hostile upload pages also run on CDP, KAN-795). macOS, because a
 plain Worker starts through `open` and the browser's `.app`; a step fails the
 job if the browser is missing, since these tests skip without it.
-**Its limit is 20 minutes** (KAN-780, 2026-11-10; raised from 15 on
-2026-11-11): the job took 16 to 20 minutes once the hostile pages'
+**Its limit is 35 minutes** (KAN-780, 2026-11-10; raised from 15 on
+2026-11-11, and from 20 on 2026-11-13): the job took 16 to 20 minutes once the hostile pages'
 plain-Worker cases ran there (it was raised to 35 for that), about 6 after
-KAN-780 (below), and about 13 once the guard holes' pages ran on every CDP
-path (KAN-710, KAN-783). Each step has its own
+KAN-780 (below), about 13 once the guard holes' pages ran on every CDP
+path (KAN-710, KAN-783), and about 25 once KAN-793's and KAN-795's pages
+took the hostile step to 710 cases. Each step has its own
 limit too, so a hang fails in that step.
 **CI does not run the other 28 test files**, which hold the Filler tests
 (`test_*_filler.py`, `test_claude_fill.py`, `test_run.py`,
@@ -195,7 +196,14 @@ Worker. With all 38 on a plain Worker the hostile step took 551 s on CI
 (2026-11-11) and hit its 9-minute limit, so only `PLAIN_HOLES` run there on
 PRs. Even then the step took 505 s for 350 cases, and 547 s for 398 once
 KAN-783's eight pages joined (about five times its time on a 14-core Mac),
-so its limit is 12 minutes. A
+so its limit was 12 minutes. KAN-793's and KAN-795's pages took it to 710
+cases, about 18 minutes on CI (6 on a 10-core Mac; the runner starts 3
+processes): from 2026-11-11 every apply job stopped at 60 to 70% of them
+when the 12 minutes ran out, and PRs merged with it red. So its limit is 25
+minutes. The cases mostly wait (the 10-core run used about one core), so
+more processes than the runner's 3 would be faster, but a busier runner can
+delay a hostile page's send past a case's wait and pass a case that should
+fail: the guards' owners decide that, or which pairs run only nightly. A
 test safe only on its own (a fixed port or path) can't join a parallel step.
 
 The frontend job runs `format:check`, so an unformatted file fails the PR.

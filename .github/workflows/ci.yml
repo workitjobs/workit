@@ -178,7 +178,7 @@ jobs:
     # macOS: a plain Worker starts through `open` and Chrome for Testing's .app
     # (apply/plain/launcher.py), as on the Macs Apply runs on.
     runs-on: macos-latest
-    timeout-minutes: 20
+    timeout-minutes: 35
     defaults:
       run:
         working-directory: apply-agent
@@ -316,9 +316,10 @@ jobs:
       # The submit guard's hostile pages (KAN-666): no-browser, CDP and plain Worker cases.
       # On PRs every page and every path at least once; every pair nightly.
       # PR 477's guard holes run on PRs too (KAN-710): every CDP path, and PLAIN_HOLES on a
-      # plain Worker. 350 cases took 505 s here and 398 (KAN-783's pages too) 547 s (2026-11-11), so the limit is 12.
+      # plain Worker. 350 cases took 505 s here and 398 (KAN-783's pages too) 547 s (2026-11-11). 710 (KAN-793's
+      # and KAN-795's pages too) were 60% done at 12 min (2026-11-13): about 18 min, so the limit is 25.
       - name: Submit guard hostile pages
-        timeout-minutes: 12
+        timeout-minutes: 25
         run: uv run pytest -q -n auto --dist loadgroup --durations=15 -m "not nightly" tests/test_submit_guard_hostile.py
       # The worker extension's page scripts in a window without focus (KAN-709).
       - name: Plain Worker focus
