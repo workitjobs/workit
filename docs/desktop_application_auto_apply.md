@@ -940,30 +940,123 @@ its facts, and one for a company with none still passes the gates.
 **Goal.** The app and the Worker extension go out with free, adequate
 terms (D16).
 
-- **App license (EULA):** adapt Basecamp's open-source policies (CC BY
-  4.0, archived; attribution required). Forbid copying, reverse
-  engineering and use of the app or its output to train AI models.
-- **WorkIt's `/terms`:** add a section for the desktop app.
-- **WorkIt's `/privacy`:** name each outside service (Groq, Google's
-  Gemini, Cloudflare, Supabase; Tavily when F2 is built) and section
-  3.4's flows, including that Google's free tier may use prompts.
-- **Third-party notices:** generated with `pip-licenses` (free) for the
-  Python packages, plus Playwright's driver, pywebview, Sparkle (MIT) and
-  Nuitka's runtime exception.
+**Written (KAN-848, 2026-11-14), waiting for the team's yes.** Legal text
+merges only once the team approves it.
+
+- **App license (EULA):** `apply-agent/legal/EULA.txt`, adapted from
+  Basecamp's open-source policies (CC BY 4.0; the repo was archived on
+  2026-10-06). Its Credits section is the attribution that CC BY needs:
+  the source, the license's link and what WorkIt changed. It forbids
+  copying, reverse engineering, using the app or its output to train AI
+  models, and giving the app to an AI tool to learn how it works, as the
+  Worker extension's `LICENSE` does. It also limits the app's AI, and the
+  WorkIt routes the app calls, to filling and checking the student's own
+  applications in the app: no other program, no prompts of the student's
+  own (decided 2026-11-14; the license's side of D5's reason, beside the
+  server's kinds and schema checks). The answers the app writes for a
+  student stay the student's to keep and send (decided 2026-11-14). **Why in
+  `apply-agent/legal/`:** the file ships with the app, which W8 builds
+  from Apply's folder, and W0's `git filter-repo --subdirectory-filter
+  apply-agent` takes only what is under `apply-agent/` to
+  `workitjobs/apply-agent`; a file at WorkIt's root would stay behind.
+  It covers the app as WorkIt distributes it and says nothing about the
+  MIT code: that code leaves public view (the MIT bullet below). The
+  five copyright holders approved licensing the compiled app under it
+  (2026-11-14).
+- **WorkIt's `/terms`:** a section "WorkIt Auto Apply for Mac" that sums
+  up the EULA (each line points to the EULA's rule), and the page's first
+  line names the app.
+- **WorkIt's `/privacy`:** a section "WorkIt Auto Apply for Mac": what
+  stays on the Mac; what goes to WorkIt (the AI calls' data, the Tracker,
+  the queue, Send report only on a click, no analytics); what the AI calls
+  send, after section 3.4 and W1's server (WorkIt builds each prompt and
+  sends it to Groq or Google with its own key, masks email, phone and
+  links a second time, and logs no prompt or answer); that Google's free
+  tier uses prompts to improve its products and lets people read them,
+  and that Groq can log them for 30 days; job sites; the Worker extension
+  (it sends only to the app, under the store's User Data Policy and its
+  Limited Use rules); Chrome; updates from Cloudflare; "Remove all my
+  data"; and the daily use counts, kept 90 days. The page already named
+  Supabase and Cloudflare. The website's AI section now says that only
+  the website and the extension keep form answers from the models.
+  Tavily joins the page with F2.
+- **Third-party notices:** `uv run python scripts/third_party_notices.py`
+  (in `apply-agent/`) writes `dist/THIRD-PARTY-NOTICES.txt`. It runs
+  `pip-licenses` on a new environment built from `uv.lock` without the
+  dev group, so a new dependency joins it with no edit, and adds
+  Playwright's driver (Node.js's license, playwright-core's and the
+  license files beside its bundles), Python's own license (Nuitka
+  compiles the runtime in), and a hand list, `BY_HAND`: pywebview
+  (BSD-3-Clause; its entry goes by itself once W5 adds the package),
+  Sparkle (MIT, with the notices for the code it includes), Nuitka's
+  runtime exception (AGPLv3; the compiled app is not bound by the AGPL)
+  and the cover letters' Latin Modern font (GUST Font License). A hand
+  entry's full text goes in `apply-agent/legal/licenses/`, copied from
+  the release that W5 or W8 uses; `--strict` fails until each is there.
+  On 2026-11-14 it listed 27 packages, each with its license text, in
+  about 400 KB.
+
+**Before the app ships, `/privacy` must be true of it (found
+2026-11-14).** The page describes the app as section 3.4 designs it, and
+the app does not do all of it yet:
+
+- **W1's app side (D8) is not built.** `presubmit.review` sends every
+  answer read back from the form to the model, self-ID answers and
+  contact details included, and nothing in the app replaces the street
+  address, ZIP code, birth date or student ID. The page says that the app
+  replaces them and never sends a self-ID answer. Only the name is a
+  placeholder today (`@NAME@`), and the server masks email, phone and
+  links.
+- **Send report's route (D26) is not built.** It takes the one
+  Application's Record and masked Trace that a student sends with the
+  window's "Send report". **WorkIt keeps a report until the problem it
+  shows is fixed, then deletes it** (decided 2026-11-14), and `/privacy`
+  says so. So the route's PR needs a way to mark a report's problem
+  fixed that deletes the report, not a period in
+  `backend/app/services/retention.py`. A report whose problem is never
+  fixed stays until the team deletes it.
+- **Merge the page after W1's PR (#577)**: it describes that PR's route.
+
+**Left.**
+
+- The team's yes on the final text of the EULA, the `/terms` section
+  and the `/privacy` section.
+- W5: show the EULA and the notices in the app (Settings), and the
+  EULA at first run. W8: put `EULA.txt` and `THIRD-PARTY-NOTICES.txt`
+  (made with `--strict`) in the app bundle and the DMG, and link both
+  from the download page.
+- W3: when the Student build leaves out a developer part, move the
+  packages only that part needs (`gspread` and `google-auth` for the
+  Google Sheet) to a dependency group, so the notices leave them out.
+- Groq: the team may turn off Groq's 30-day logging (Zero Data
+  Retention, in its Data Controls) for WorkIt's organization; then
+  `/privacy` changes.
+- A new provider in production's model chain (Cloudflare Workers AI is
+  in the spec, `scout/CLAUDE.md`) joins `/privacy` before it gets an app's
+  prompt.
+
+**Done before.**
+
 - **Chrome Web Store:** a privacy policy link and its user-data rules for
   the Worker extension. Done (KAN-839, approved by the team 2026-11-14):
   its `LICENSE` (proprietary: no copying, reverse engineering or AI
   training), `NOTICE` (Playwright's Apache-2.0 script) and a header line
-  in each file.
+  in each file. `/privacy`'s Worker extension item (KAN-848) is the
+  policy that the store listing links to.
 - **The repo's MIT license (found 2026-11-14).** The WorkIt repo's root
   `LICENSE` is MIT, held by five team members, and covers everything in
   it, Apply and the Worker extension too. Every version already pushed
   stays MIT: anyone may copy it, and a new license can't take that back.
   The five holders agreed (2026-11-14) to license the Worker extension's
   new versions under its own proprietary `LICENSE`, and the root
-  `README.md` says so until Apply moves to its private repo (W0).
-- **Not now:** a review of the hiring systems' terms on automated
-  applying.
+  `README.md` says so until Apply moves to its private repo (W0). **The
+  team decided (2026-11-14) to make the WorkIt repo private and remove
+  the open MIT code from public view.** That stops new copies. It does
+  not take MIT back from a copy someone already has, so the EULA names
+  no MIT code at all.
+
+**Not now:** a review of the hiring systems' terms on automated
+applying.
 
 ### W11. The student's data
 
