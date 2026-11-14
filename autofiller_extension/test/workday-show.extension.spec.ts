@@ -41,7 +41,11 @@ test("on Workday, pressing a row focuses and rings its field on the step shown",
   test.setTimeout(120_000);
   const { tab, workdays } = await workdayTab();
 
-  // A filled row of the checklist.
+  // A filled row of the checklist. Once the fill settles, filled rows fold into one line (KAN-424): opened, the row
+  // is there to press. Pressed before the fold, the row was hidden under it on a slower runner (KAN-841).
+  const filledLine = tab.locator('#workit-autofiller-overlay-host .group[data-group="filled"] .group-head');
+  await expect(filledLine).toBeVisible({ timeout: 60_000 });
+  await filledLine.click();
   await tab.locator(`#workit-autofiller-overlay-host .row[data-key="${FIRST}"] .label`).click();
 
   await expect(tab.locator("[data-automation-id=formField-legalName--firstName] input")).toBeFocused();

@@ -873,6 +873,12 @@ SENDS_AS_IT_LOADS = frozenset({
     "a page that fakes eventPhase",
 })
 
+# The pages that move their own URL as they load (history.replaceState): the guard's reload after a first load loads
+# that URL instead, the Site's thank-you page, and the case ran on a page with no form at all. The tile's typing
+# found no Next there and timed out (nightly, 2026-11-14, KAN-841). Guarded before their first load too.
+MOVES_ITS_URL = frozenset({"an empty formaction on a page at the final URL"})
+GUARDED_FIRST = SENDS_AS_IT_LOADS | MOVES_ITS_URL
+
 
 def first_page_on_prs() -> list:
     """PAGES for a plain-Worker matrix: PR CI runs every path against the first page, and the
@@ -984,7 +990,7 @@ def quick_steps(monkeypatch):
 
 @pytest.mark.parametrize(("page_name", "path"), each_page_and_path_once_on_prs())
 def test_no_click_path_sends_a_hostile_page_on_cdp(page_name, path):
-    with cdp(PAGES[page_name], first=page_name in SENDS_AS_IT_LOADS) as (page, drive, site):
+    with cdp(PAGES[page_name], first=page_name in GUARDED_FIRST) as (page, drive, site):
         try:
             PATHS[path](page, drive, button(page_name))
         except Handoff:
@@ -1388,7 +1394,7 @@ PLAIN_PATHS = ["plain code's Next", "the Amazon Filler's Continue", "the profile
 @pytest.mark.parametrize(("page_name", "path"), plain_pairs_on_prs(PLAIN_PATHS))
 @ONE_PLAIN_PROCESS
 def test_no_click_path_sends_a_hostile_page_on_a_plain_worker(page_name, path):
-    with plain(PAGES[page_name], first=page_name in SENDS_AS_IT_LOADS) as (page, drive, site):
+    with plain(PAGES[page_name], first=page_name in GUARDED_FIRST) as (page, drive, site):
         try:
             PATHS[path](page, drive, button(page_name))
         except Handoff:
@@ -1416,7 +1422,7 @@ def test_a_worker_made_while_lifted_sends_nothing_once_rearmed_on_a_plain_worker
 @pytest.mark.parametrize("page_name", first_page_on_prs())
 @ONE_PLAIN_PROCESS
 def test_no_typing_path_sends_a_hostile_page_on_a_plain_worker(page_name, path):
-    with plain(PAGES[page_name]) as (page, drive, site):
+    with plain(PAGES[page_name], first=page_name in GUARDED_FIRST) as (page, drive, site):
         try:
             TYPING[path](page, drive, button(page_name))
         except Handoff:
