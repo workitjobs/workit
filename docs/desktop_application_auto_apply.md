@@ -632,11 +632,14 @@ its own instructions or a hostile schema.
   (`docs/developer_apply_agent_testing_framework.md`, not built). Until
   then a developer runs a ported kind through WorkIt (the local API,
   D30).
-- **The kinds**, one for each `ask` call that writes or judges. Built on
-  the server so far (2026-11-14): `writing.check`, `writing.edit`,
-  `essays.plan` and `essays.write`. Each was checked to build the same
-  system prompt, prompt and schema as Apply for the same inputs, by
-  running Apply's own call with a fake model. The answering guides are
+- **The kinds**, one for each `ask` call that writes or judges. All 11
+  are built on the server (2026-11-14). Each was checked to build the
+  same system prompt, prompt, schema and model size as Apply for the same
+  inputs, by running Apply's own call with a fake model. Only the calls
+  Apply says as the applicant (essays.py's and the Pre-submit review) get
+  the pronouns note. Where Apply reads a page (`own_application`, Claude
+  fill's sent check), the app sends the page's text and links, not the
+  page. The answering guides are
   copied to `backend/app/apply_prompts/answering/`; Apply keeps its copy
   for the front matter its own code reads (which type a question is, its
   slots and default length), and the bodies go from Apply in step 4.

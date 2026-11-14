@@ -117,7 +117,7 @@ async def ask(
     except ValidationError as e:
         raise RequestValidationError([{**error, "loc": ("body", "data", *error["loc"])}
                                       for error in e.errors(include_url=False, include_context=False, include_input=False)]) from None
-    built = said(kind.build(data), data)
+    built = said(kind.build(data), data) if kind.applicant else kind.build(data)
     messages = [{"role": "system", "content": built.system}, {"role": "user", "content": built.prompt}]
     return await _call(db, account, small if kind.size == "small" else large, messages, built.schema,
                        kind.name, kind.size)

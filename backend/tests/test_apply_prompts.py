@@ -11,7 +11,7 @@ import json
 import pytest
 from jsonschema import Draft202012Validator
 
-from app.apply_prompts import KINDS, essays, said, writing
+from app.apply_prompts import KINDS, essays, presubmit, said, writing
 from app.apply_prompts.guides import load
 from app.apply_prompts.kind import NAME
 
@@ -29,6 +29,18 @@ SAMPLES = {
     ("essays.write", 1): {"sources": SOURCES, "posting": "<posting>Acme</posting>", "questions": {"q1": WHY, "q2": LETTER},
                           "plans": {"q1": PLANNED, "q2": PLANNED | {"type": "cover-letter"}},
                           "short_questions": {"d1": AREA}},
+    ("probe.typical", 1): {"posting": "<posting>Acme</posting>", "questions": {"q1": "Why Acme? [required]"}},
+    ("presubmit.review", 1): {"posting": "<posting>Acme</posting>",
+                              "rows": [{"question": "Tools", "ticked": ["Go"], "options": ["Go", "Rust"]},
+                                       {"question": "Password", "answer": "(secret)"}]},
+    ("presubmit.replan", 1): {"fields": {"q1": {"question": "Phone", "meant": "631-555-0142", "shown": "(631) 555-0142"},
+                                         "q2": {"question": "Tools", "options": ["Go"], "meant": ["Go"], "shown": [],
+                                                "multi_select": True}}},
+    ("story_map.tag", 1): {"story_bank": SOURCES},
+    ("brief.team", 1): {"title": "Software Engineering Intern, Payments", "posting_text": "Join Payments."},
+    ("own_application.find", 1): {"url": "https://acme.com/thanks?job=1", "page_text": "Thanks!",
+                                  "links": ["https://acme.com/jobs/1", "https://acme.com/jobs/1"]},
+    ("claude_fill.sent", 1): {"url": "https://acme.com/apply", "page_text": "Application received."},
     ("writing.check", 1): {"drafts": DRAFTS, "sources": SOURCES},
     ("writing.edit", 1): {"drafts": DRAFTS, "sources": SOURCES, "style_card": "Short sentences.",
                           "flagged": {"q1": ["a sentence over 30 words"]}, "questions": {"q1": "Why us?"},
@@ -39,7 +51,7 @@ SAMPLES = {
 def _built(key):
     kind = KINDS[key]
     data = kind.data.model_validate(SAMPLES[key])
-    return said(kind.build(data), data)
+    return said(kind.build(data), data) if kind.applicant else kind.build(data)
 
 
 def test_every_kind_has_a_sample():
@@ -100,3 +112,24 @@ def test_a_cover_letter_is_written_in_its_slots_and_a_choice_from_its_options():
 def test_write_data_that_doesnt_hold_together_is_refused(change):
     with pytest.raises(ValueError):
         essays.WriteData.model_validate(SAMPLES["essays.write", 1] | change)
+
+
+def test_only_the_calls_apply_says_as_the_applicant_get_the_pronouns_note():
+    # Apply's as_applicant wraps essays.py's calls and the Pre-submit review (worker.py), no others.
+    assert {key for key, kind in KINDS.items() if kind.applicant} == {
+        ("essays.plan", 1), ("essays.write", 1), ("writing.check", 1), ("writing.edit", 1), ("probe.typical", 1),
+        ("presubmit.review", 1)}
+    assert "pronouns" not in _built(("brief.team", 1)).system
+
+
+def test_a_review_row_holds_an_answer_or_ticked_boxes_never_both():
+    row = {"question": "Tools", "answer": "Go", "ticked": ["Go"]}
+    with pytest.raises(ValueError):
+        presubmit.Reviewed.model_validate({**SAMPLES["presubmit.review", 1], "rows": [row]})
+
+
+def test_a_replan_schema_takes_a_list_only_for_a_multi_select():
+    fields = _built(("presubmit.replan", 1)).schema["properties"]["replanned"]["properties"]
+    assert fields["q1"]["properties"]["answer"] == {"type": "string"}
+    assert fields["q2"]["properties"]["answer"]["type"] == "array"
+    assert "multi_select" not in _built(("presubmit.replan", 1)).prompt

@@ -54,6 +54,9 @@ class Kind:
     data: type[Data]
     size: Literal["large", "small"]
     build: Callable[[Any], Built]
+    # Said as the applicant (the pronouns note, the school named), as Apply's
+    # as_applicant wraps the calls of essays.py and the Pre-submit review.
+    applicant: bool = True
 
 
 def pronouns_note(pronouns: str) -> str:
