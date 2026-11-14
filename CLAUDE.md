@@ -257,8 +257,15 @@ with the failure it prevents.
   private repo `workitjobs/apply-agent`), the v1 app end to end,
   workstreams W0 to W13 that sessions can take one at a time, future work
   (a hosted `drive` loop next, the company brief pipeline with Tavily,
-  Windows), and the costs. Read it before changing Apply toward a
+  Windows), and the costs. Being built (2026-11-14): Apply's prompts move
+  to the server (`backend/app/apply_prompts/`, D5): the app sends a kind
+  and its data, never a prompt. Read it before changing Apply toward a
   download, the Model route, or where Apply's data comes from.
+- `docs/developer_apply_agent_testing_framework.md` — a note, not built:
+  how developers keep testing Apply once its prompts live on the server
+  (a prompt route for developer accounts, so `ask_model: claude` runs
+  the server's prompts). Read it before changing how a Developer
+  checkout reaches a model.
 - `docs/scraper_gh_action/plan.md` — KAN-726, built: the scheduled
   scrape runs on a team computer as a self-hosted runner (PR runs stay on
   GitHub's), with keywords from a local Qwen and every vector, jobs and

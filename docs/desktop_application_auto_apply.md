@@ -6,6 +6,8 @@ default to `worker_mode: protected` (2026-11-06), `ask` runs on Groq
 with Gemini as backup (`ask_model: [groq, gemini]`, 2026-11-10,
 `apply-agent/docs/ask-model.md`), and W1's server side, the Model route
 and the Usage cap (2026-11-13, `backend/app/routers/apply_app.py`).
+Being built (2026-11-14): the prompts move to WorkIt's server (D5, W1's
+"Prompts on the server").
 
 **How to use this doc.** Read sections 1 to 3 first. Then take one
 workstream from section 6: each one says what it changes, which files it
@@ -89,7 +91,7 @@ builds it.
 | D2 | **The app does no research.** It reads each company's brief from WorkIt | Research is the most expensive call, and a brief holds no student data, so WorkIt can make one per company for every student | W9, F2 |
 | D3 | **The Fill engine is downloaded only, never shipped in the app.** Signed, encrypted, unlocked by a per-launch key, kept only in memory | A copy in the download is a copy for everyone; the app needs WorkIt to run anyway | W7 |
 | D4 | **The Worker extension goes on the Chrome Web Store, unlisted, from WorkIt's existing developer account.** Apply's page code and the Fill engine reach pages through the Debugger API, not `userScripts`; the guards and the fixed page functions are packaged in it, since only a content script reaches a pop-up (measured); it holds no engine. A spike decides it (KAN-839, started); if it fails, v1 keeps the extension off the store | One click for the student; the store allows outside code only through the Debugger or User Scripts API, and User Scripts is only for the user's own code; the existing account costs no new fee and has a trust history | W6 |
-| D5 | **The Model route is a thin proxy for v1.** The app sends the call; WorkIt adds the key, runs the provider chain and counts tokens. The prompts stay in the app | Fastest path; writing on WorkIt's server can come later (F6) | W1 |
+| D5 | **WorkIt builds the prompts** (2026-11-14; a thin proxy was decided 2026-11-13). The app sends each call's kind and its data; WorkIt builds the system prompt, the prompt and the schema (`backend/app/apply_prompts/`), runs the provider chain and counts tokens. The prompts and answering guides leave the app | A call that carried its own prompt and schema let anyone with an account use WorkIt as a free general model and send schemas that attack the server (W1). A prompt change ships with the merge that deploys the API | W1 |
 | D6 | **A free beta with a Usage cap of 3,000,000 tokens per student per calendar month**, reset on the 1st (UTC), always shown in the app. WorkIt can change it without an app update | High enough for testing; the number is checked after W13 measures one Application | W1 |
 | D7 | **The beta uses the providers' free tiers.** Paid tiers come later (F3) | No paid keys for now | W1, F3 |
 | D8 | **Personal data is replaced before a prompt leaves the computer**, and put back on the computer. Self-ID answers are never sent. The app shows a short disclosure | Prompts go to WorkIt and to Groq and Google, and Google's free tier may use prompts to improve its products | W1, W5 |
@@ -590,11 +592,63 @@ shapes and status codes.
   since its body can hold the model's output.
 - **Not built:** Send report's route (D26).
 
+**Prompts on the server (decided 2026-11-14, being built).** D5 changed:
+the app no longer sends a prompt and a schema, so a request can't carry
+its own instructions or a hostile schema.
+
+- **The cut.** Each of Apply's `ask` calls splits in three. The app
+  collects the data (the form's questions, the drafts, the student's
+  sources). WorkIt builds the system prompt, the prompt and the schema,
+  and calls the model. The app uses the answer (gates, read-back, the
+  Answer bank). Today one Apply function often does all three: it reads
+  a file from the data folder, builds the text and parses the answer.
+- **The route:** `POST /apply-app/ask {kind, version, data}` answers
+  `{answer, tokens, usage}`, with the Model route's limits, cap and
+  status codes. Each kind's `data` is a Pydantic model, checked before
+  anything counts. The prompt builders and the answering guides live in
+  `backend/app/apply_prompts/`, not a package: the WorkIt repo goes
+  private (2026-11-14).
+- **A kind's data fields never change in place.** A student's app can
+  be an older copy, so a change to the fields is a new `version`, and
+  the server keeps the old one while app copies still send it. The
+  prompt text changes with any merge to `main`.
+- **`drafts` come from the app.** **`sources` is one text field the app
+  builds** (Story bank, Stock answers, profile facts, links, town,
+  Company material) until W11's data contract names the WorkIt table
+  that serves each part; a new version then reads them on the server.
+- **The free-form `POST /apply-app/model` goes** when the last kind is
+  ported, with its schema guards.
+- **Developers:** `ask_model: claude` can't run a ported kind, since the
+  prompts are no longer in the app, until the developer prompt endpoint
+  is built (`docs/developer_apply_agent_testing_framework.md`, not
+  built). Until then a developer runs `ask_model: workit` against the
+  local API (D30).
+- **The kinds**, one for each `ask` call that writes or judges:
+
+  | Kind | Apply today | What the app sends |
+  |---|---|---|
+  | `essays.plan` | `essays._ask_plan` | the questions with their matched types, the posting, sources, form answers, typical answers, redo context |
+  | `essays.write` | `essays.answer` | the questions, the plans, short questions, the posting, sources, form answers, redraft and redo context |
+  | `writing.check` | `writing._check` | drafts, sources |
+  | `writing.edit` | `writing._pass` | drafts, sources, flagged problems, the questions, their lengths |
+  | `probe.typical` | `probe.typical` | the questions, the posting and its text, Company material |
+  | `presubmit.review` | `presubmit` | the filled form's answers read back, sources, the posting |
+  | `presubmit.replan` | `presubmit` | the flagged fields, the posting |
+  | `story_map.tag` | `story_map` | the Story bank (the server knows the Question types) |
+  | `brief.team` | `brief.name_team` | the posting's title and text |
+  | `own_application.find` | `own_application` | the page's text and address |
+  | `claude_fill.sent` | `claude_fill` | the page's text after a send |
+
+  `applicant.as_applicant` (the name and the pronouns note on every
+  call) becomes a `pronouns` field the server reads; the name stays the
+  placeholder `@NAME@` in the prompt, which the app puts back (D8). The `claude_cli` probe ("Reply with
+  ok") is not a kind: `GET /apply-app/usage` checks the session.
+
 **The app (Apply).**
 
 - `ask_model: workit`: a provider in `ask_model.py` whose endpoint is
-  the Model route and whose key is the student's WorkIt session. The
-  lean prompts stay (`adapters.lean`).
+  the Model route (`/apply-app/ask`) and whose key is the student's
+  WorkIt session. It sends a kind and its data, never a prompt.
 - **Personal data out, back in** (D8, section 3.4): one module replaces
   each personal value with its placeholder before `ask` sends, and puts
   the values back into the answer. Self-ID answers are never in a
@@ -1136,9 +1190,8 @@ The strongest protection keeps the valuable code on WorkIt's server.
   the label in a standard form, the control type, the option list and the
   engine version. The value always comes from the student's current
   data; a new engine version clears the cache.
-- **Writing on WorkIt:** the app sends the questions and the data, and
-  WorkIt builds the prompts, so the prompts and answering guides leave
-  the app (D5's later step).
+- **Writing on WorkIt:** moved into v1 (2026-11-14, D5 and W1's
+  "Prompts on the server").
 
 Costs: one call per form for the plan, no planning while WorkIt is
 offline, and a large refactor of the engine.
@@ -1172,8 +1225,8 @@ each step only raises the cost.
 
 | Part | Where it is | Protection |
 |---|---|---|
-| Apply's Python | The private repo; machine code in the app | Nuitka. Strings (prompts) still show to a tool that reads the binary; F6 moves the prompts to WorkIt |
-| Answering guides and prompts | Data inside the app | Compiled in; F6 moves them |
+| Apply's Python | The private repo; machine code in the app | Nuitka. No prompts in it once W1's "Prompts on the server" is done |
+| Answering guides and prompts | WorkIt's server (`backend/app/apply_prompts/`, D5) | Never in the app; a request carries data only |
 | The Fill engine | WorkIt; the app's memory; each page while it fills | Signed, encrypted download, per-launch key, pinning, no file on disk (W7). In the page it is plain JavaScript that DevTools can show. The WorkIt extension's public copy is a teammate's work |
 | The Worker extension | The Chrome Web Store, readable by anyone | Little of value in it (generic browser steps and the submit guard); the license (W10). The store forbids obfuscation |
 | Model keys | WorkIt's API secrets only | Never in the app (D1) |
