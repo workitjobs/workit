@@ -3019,12 +3019,15 @@ The build fails if any packaged file still names localhost, vercel.app or
 (`perSiteData`): the packaged engine must bundle no site's data and only
 basic answer rules, and no packaged file may hold a selector, wording or
 pattern of the full table (`fill-engine/dist/rules-table.json`, the copy kept
-outside the package), nor a field-kind map (all its `type: "kind"` pairs) or
-a timeout written out (its name given its ms); the engine's own `{}` for
-every site covers all four parts, `kinds` and `timeouts` too, other than two generic label patterns (`GENERIC`) and
-the stepped systems' walk's own copies listed by file in
-`store/extension-site-data.json`, which KAN-778 moves behind the served
-table. A new one anywhere fails the build. A new dev-only line in `config.js` must be one
+outside the package), nor one of its class, id or attribute names (one word
+of 10 characters or more with a `-` or `_`), nor a field-kind map (all its
+`type: "kind"` pairs) or a timeout written out (its name given its ms); the
+engine's own `{}` for every site covers all four parts, `kinds` and
+`timeouts` too. The only values allowed are generic ones the code keeps on
+purpose (`GENERIC`: two label patterns and the step walk's words that send;
+`NAMED_IN_CODE`: a Greenhouse question name and the attribute a field is
+found by with its own name). No file is exempt (KAN-778, "The extension's
+own job-system names come from the table too" above). A new one anywhere fails the build. A new dev-only line in `config.js` must be one
 `storeConfig` rewrites, or the build fails. `test/store-build.spec.ts` reads
 the zip back (minified, the banner, no source map, one engine file);
 `test/store-build.extension.spec.ts` loads the built package
