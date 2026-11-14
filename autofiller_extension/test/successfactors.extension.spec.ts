@@ -34,7 +34,8 @@ async function open(body: string): Promise<Page> {
   await tab.goto(SF_FORM);
   await loaded.worker.evaluate(async ([engine, scripts]) => {
     const [{ id }] = await chrome.tabs.query({ url: "https://*.successfactors.com/*" });
-    await chrome.scripting.executeScript({ target: { tabId: id! }, func: () => void ((window as any).WIA = { running: true }) });
+    // The job system's data, as injectFill gives it (giveSiteData).
+    await chrome.scripting.executeScript({ target: { tabId: id! }, func: (siteData) => void ((window as any).WIA = { running: true, siteData }), args: [{ site: "successfactors", data: (globalThis as any).FillEngine.siteRules("successfactors") }] });
     await chrome.scripting.executeScript({ target: { tabId: id! }, world: "MAIN", files: engine });
     void chrome.scripting.executeScript({ target: { tabId: id! }, files: scripts });
   }, [ENGINE_FILES, CONTENT_SCRIPT_FILES]);

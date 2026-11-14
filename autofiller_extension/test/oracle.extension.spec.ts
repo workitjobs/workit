@@ -42,7 +42,8 @@ async function open(opts: { gate?: boolean; sections?: OracleSection[] }, path: 
   await tab.goto(`${ORACLE_JOB}${path}`);
   await loaded.worker.evaluate(async ([engine, scripts]) => {
     const [{ id }] = await chrome.tabs.query({ url: "https://*.oraclecloud.com/*" });
-    await chrome.scripting.executeScript({ target: { tabId: id! }, func: () => void ((window as any).WIA = { running: true }) });
+    // The job system's data, as injectFill gives it (giveSiteData).
+    await chrome.scripting.executeScript({ target: { tabId: id! }, func: (siteData) => void ((window as any).WIA = { running: true, siteData }), args: [{ site: "oracle", data: (globalThis as any).FillEngine.siteRules("oracle") }] });
     await chrome.scripting.executeScript({ target: { tabId: id! }, world: "MAIN", files: engine });
     void chrome.scripting.executeScript({ target: { tabId: id! }, files: scripts });
   }, [ENGINE_FILES, CONTENT_SCRIPT_FILES]);
@@ -94,7 +95,8 @@ test("a closed Oracle job says so instead of waiting for the email", async () =>
   await tab.goto(ORACLE_JOB);
   await loaded.worker.evaluate(async ([engine, scripts]) => {
     const [{ id }] = await chrome.tabs.query({ url: "https://*.oraclecloud.com/*" });
-    await chrome.scripting.executeScript({ target: { tabId: id! }, func: () => void ((window as any).WIA = { running: true }) });
+    // The job system's data, as injectFill gives it (giveSiteData).
+    await chrome.scripting.executeScript({ target: { tabId: id! }, func: (siteData) => void ((window as any).WIA = { running: true, siteData }), args: [{ site: "oracle", data: (globalThis as any).FillEngine.siteRules("oracle") }] });
     await chrome.scripting.executeScript({ target: { tabId: id! }, world: "MAIN", files: engine });
     void chrome.scripting.executeScript({ target: { tabId: id! }, files: scripts });
   }, [ENGINE_FILES, CONTENT_SCRIPT_FILES]);

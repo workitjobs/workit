@@ -1808,6 +1808,28 @@ for; a 401 for the table gets one new token and one more fetch.
   nothing. A practice form is Lever's form on WorkIt's own site: it asks for
   Lever's table with a Lever link for its job (`tokenLink`), since the API
   names no job system on WorkIt's site.
+- **The extension's own job-system names come from the table too (KAN-778).**
+  The stepped systems' scripts (`workday.js`, `oracle.js`, `icims.js`,
+  `successfactors.js`, `workday-walk.js`, `primary.js`) and the panel's
+  Workday step line (`panel-top.js`) hold no selector or pattern of a job
+  system: they read the table's names through `window.WIA.site(site)`
+  (`content/site-data.js`, first of `SHELL_FILES`), `SEL.NAME` and
+  `PAT.NAME`, at each use. The background gives the page's isolated world
+  its job system's data (`giveSiteData`: the background engine's
+  `FillEngine.siteRules(site)`, the held table's else the bundled data) before
+  the panel's shell (`panel/shell`) and in `injectFill` after
+  `loadRulesIn`. The background's own checks read it the same way
+  (`signInFirst`'s TikTok sign-in path, `tab-load.js`'s Workable Submit).
+  With no data (the Store package before its table comes) a name is a
+  selector and a pattern that match nothing, so a script finds nothing
+  rather than throwing. A list is used only whole (a served copy's lists
+  are watermarked). Names only the extension reads are marked so in the
+  engine's `src/systems-table.ts` (Workday's sign-in and Apply buttons, each
+  system's footer buttons, review pages and error banners). Plain words
+  stay in code: Workday's sign-in and verification wordings, its Apply
+  button words, and the walk's words that send (`SENDS`), which no served
+  table may loosen. A test that injects the fill's scripts itself gives the
+  data as `injectFill` does (`siteData: { site, data: FillEngine.siteRules(site) }`).
 - **The Store package bundles no job system's data (KAN-777).** It ships the
   engine's Store bundle (fill-engine `dist/engine.store.js`, packaged as
   `dist/engine.js`): the same code, every site `{}` and only the basic answer

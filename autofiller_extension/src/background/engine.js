@@ -120,8 +120,13 @@ const readOffPage = (job) => engine.stepped(job.site) || READ_OFF_PAGE.has(job.s
  */
 export function signInFirst(url) {
   const job = jobOf(url);
-  // TikTok USDS keeps its pages, sign-in too, under /usds.
-  return job?.site === "tiktok" && !job.onForm && /^(\/usds)?\/(login|create-?account|register)\b/i.test(new URL(url).pathname);
+  if (job?.site !== "tiktok" || job.onForm) return false;
+  // Its sign-in's path is the Rules table's (KAN-778): none held (the Store package before TikTok's table comes) is none.
+  const path = engine.siteRules("tiktok").patterns?.SIGN_IN_PATH;
+  if (!path) return false;
+  // At the path's start; TikTok USDS keeps its pages, sign-in too, under /usds.
+  const found = new RegExp(path.source, path.flags ?? "").exec(new URL(url).pathname.replace(/^\/usds(?=\/)/i, ""));
+  return found?.index === 0;
 }
 
 /** The link to open for an application: its form, where the engine covers the job system. */
