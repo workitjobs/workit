@@ -70,6 +70,18 @@ has neither.
     `code` and `files`, then build and upload the package after merge, and
     release an app that needs it only once the store publishes it
     (`docs/plain-workers/worker-extension-todo.md`, Releases).
+- **The Student build leaves the developer parts out** (KAN-723, W3,
+  `src/apply/build.py`). WorkIt Auto Apply is compiled from `apply.student`
+  without the modules in `build.DEVELOPER` (`claude -p`, Claude fill, Rescue,
+  Ask Claude, Repairs, Gmail, notifications, the Dock keeper, the Sheet,
+  `cli.py`). So a module on the Student path never imports one of them at its
+  top: import it inside the function that uses it, behind `if build.STUDENT`
+  or in a path the Student build never runs (a Developer checkout's command).
+  `tests/test_student_build.py` (in CI) fails when the Student path loads one.
+  Read `build.STUDENT` when the code runs, never into a constant at import.
+  The Student build reads no `policies.yaml`: `build.STUDENT_POLICIES` go over
+  the defaults. A new developer part joins `DEVELOPER`, and the Student
+  build's stand-in for it joins `apply.student.adapters()`.
 - **Lisul reports a problem with an open application in a Claude Code chat:**
   send it to the form with `uv run apply ask "<company, role or application
   ID>" "<his words>"` (from `apply-agent/`). Do not open or drive the form

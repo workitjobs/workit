@@ -30,13 +30,16 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import TYPE_CHECKING
 from urllib.parse import urlsplit
 
 from apply import trace
 from apply.adapters import ClaudeError, SetupError, UsageLimitHit
-from apply.claude_cli import ClaudeCLI
 from apply.home import CODE
 from apply.keychain import GEMINI, GEMINI_HOST, GROQ, GROQ_HOST, SystemKeychain
+
+if TYPE_CHECKING:
+    from apply.claude_cli import ClaudeCLI
 
 
 @dataclass(frozen=True)
@@ -156,9 +159,14 @@ def chain(policies: dict) -> list[str]:
     return names
 
 
-def live_claude(policies: dict, claude: ClaudeCLI | None = None, keychain=None, dotenv: Path = DOTENV):
-    """The Claude adapter policies.yaml's ask_model names: `claude` itself, or a HostedAsk over its providers."""
-    claude = claude or ClaudeCLI()
+def live_claude(policies: dict, claude: "ClaudeCLI | None" = None, keychain=None, dotenv: Path = DOTENV):
+    """The Claude adapter policies.yaml's ask_model names: `claude` itself, or a HostedAsk over its providers.
+    The Student build passes its own `claude` (apply.student.NoClaude): it has no `claude -p` (apply.build)."""
+    if claude is None:
+        from apply.claude_cli import (
+            ClaudeCLI,  # a Developer checkout's: never on the Student path
+        )
+        claude = ClaudeCLI()
     if not (names := chain(policies)):
         return claude
     overrides = policies.get("ask_models") or {}
@@ -186,7 +194,7 @@ class HostedAsk:
 
     lean = True  # apply.adapters.lean: the essay prompts shrink to fit a free tier
 
-    def __init__(self, endpoints: list[Endpoint], claude: ClaudeCLI, post: Post = https_post,
+    def __init__(self, endpoints: list[Endpoint], claude: "ClaudeCLI", post: Post = https_post,
                  sleep: Callable[[float], None] = time.sleep, now: Callable[[], datetime] = datetime.now):
         self._endpoints = endpoints
         self._claude = claude

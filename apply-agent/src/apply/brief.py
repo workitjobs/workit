@@ -32,6 +32,7 @@ from dataclasses import replace
 from datetime import date, timedelta
 from pathlib import Path
 
+from apply import build
 from apply.adapters import Claude, ClaudeError, JobSite
 from apply.company import text_of
 from apply.home import HOME
@@ -149,6 +150,8 @@ def brief(posting: Posting, site: JobSite, claude: Claude, today: date, posting_
             body = sections.get(kept, "")
             if fresh(body, today, "company" if heading == COMPANY else "team") and (
                     heading != COMPANY or all(ASKS[ask][2] in body for ask in asks)):
+                continue
+            if build.STUDENT:  # no research in the app (D2): the kept section stays, fresh or not (W9: WorkIt's brief)
                 continue
             if (found := research(posting, team if heading != COMPANY else "", site, claude,
                                   asks if heading == COMPANY else None)) is not None:
