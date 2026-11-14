@@ -210,6 +210,12 @@ into it and the window shows "Sample data".
   routes no shared worker's request). On a plain Worker, the rules on
   -1 block the final URLs and Ashby's GraphQL from them. A new way to
   run code outside the page's realm needs the same three layers.
+  **A refused worker the page made is no Handoff** (KAN-839,
+  `submit_guard.drive_blocks`): the page's code made it, not a model's
+  click, and the refusal sent nothing, so Claude fill, Rescue and Ask
+  Claude go on past it while the worker stays refused. As a Handoff it
+  stopped every SmartRecruiters form, whose page makes one as it opens.
+  Every other block while a model drives is still a Handoff.
 - **A captcha's frame is known by its host, or by its path only on
   reCAPTCHA's own host** (`captcha.PATH_HOSTS`, KAN-791). The guard
   leaves a captcha's frame alone, and it took any frame at `/recaptcha/`

@@ -24,7 +24,7 @@ from playwright.sync_api import Page
 from apply.adapters import Claude
 from apply.claude_fill import BLOCKED, MODEL, REPORTED, RULES
 from apply.model import Handoff, one_line
-from apply.submit_guard import CAPTCHA_TRY, DriveGuard
+from apply.submit_guard import DriveGuard, drive_blocks
 
 # The cap on one field, and how many fields one Application may hand over.
 MAX_TURNS = 15
@@ -93,7 +93,7 @@ class Rescue:
         finally:
             self._guard.lift()  # the Filler's own clicks go through again
         # A click or key Claude tried in a captcha was refused there, untouched: no Handoff of its own.
-        if blocked := [b for b in self._guard.blocked()[was_blocked:] if b != CAPTCHA_TRY]:
+        if blocked := drive_blocks(self._guard.blocked()[was_blocked:]):
             raise Handoff(f"Apply blocked {blocked[0]} while Claude filled {label!r}, so nothing it blocked was sent. "
                           "Check the form and finish it yourself.")
         if drive.capped or drive.output is None or drive.output.get("blocked") is True:

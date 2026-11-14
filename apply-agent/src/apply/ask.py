@@ -51,7 +51,7 @@ from apply.claude_fill import BACK, NEXT, press_step
 from apply.model import Handoff, Posting, one_line
 from apply.repair import WRONG, RepairRequest, _shape, _signature
 from apply.send_click import ATTEST, asks_a_tick, may_tick
-from apply.submit_guard import CAPTCHA_TRY, DriveGuard
+from apply.submit_guard import DriveGuard, drive_blocks
 
 MODEL = "opus"
 # The cap on one message: going back a step and forward again takes many snapshots.
@@ -362,7 +362,7 @@ def ask(claude: Claude, page, message: str, thread: list[dict], form: Form, give
     finally:
         guard.asking(False)
         guard.lift()  # the page is Lisul's again: his own Submit goes through
-    blocked = [b for b in guard.blocked()[was_blocked:] if b != CAPTCHA_TRY]
+    blocked = drive_blocks(guard.blocked()[was_blocked:])
     after = settled(page)
     changed = changes(before, after)
     couldnt = couldnt_press + [str(c) for c in said.get("couldnt") or []]

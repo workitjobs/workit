@@ -174,6 +174,13 @@ same way on both paths, and no Trace held a captcha, a challenge or a block:
 | Workable: `apply.workable.com/perryhomes/j/D894A62691` | Failed before the form: the Workable Filler waits for `button[data-ui=apply-button]`, which the page (no challenge) never showed. A Filler fix, not the debugger |
 | SmartRecruiters: `jobs.smartrecruiters.com/BoschGroup/744000159649749-…` (an engineering internship) | Handoff: the guard refused a worker the page made while Claude filled it (KAN-791) |
 
+Both were fixed in KAN-839 and rehearsed again on both paths: Workable's Filler now opens the
+form's `/apply` page (`WorkableFiller.form_url`), and the form was held on its last page with
+the Pre-submit check passed; a worker the page makes is still refused but is no Handoff
+(`submit_guard.drive_blocks`), so Claude fill went on into the SmartRecruiters form, where it
+handed off later for the form's own reasons (two "Add" buttons on one run, a City list that
+covered its options on the other).
+
 **So the guards stay registered content scripts.** Chrome puts them in every tab and frame
 itself, pop-ups included, and the debugger can't. For a store copy they are packaged files, not
 `vendor/` files that Apply writes: the guard scripts, `fixed.js`, `injected.js` (Playwright's

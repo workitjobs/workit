@@ -783,7 +783,8 @@ user scripts off:
    Chrome for Testing on both paths, ended the same way each (Lever held
    and verified; Workable failed on its Filler's Apply button; SmartRecruiters
    handed off when the guard refused a page worker), and no Trace held a
-   captcha or a block. Still to check: branded Chrome on a real seed, and
+   captcha or a block. KAN-839 fixed both: Workable's form is then held on
+   its last page, and Claude fill goes on past the page's refused worker. Still to check: branded Chrome on a real seed, and
    more postings.
 4. **A whole form: passed on one saved form.** `lever-immuta` through
    `apply plain fill` gives the same read-back on both paths (13 of 13
