@@ -57,7 +57,8 @@ jobs:
         run: uv run python -c "from apply.plain.launcher import chrome_for_testing; print(chrome_for_testing())"
       # The plain-Worker cases run one at a time in one process (ONE_PLAIN_PROCESS): 887 of the 1132
       # nightly tests, about 4.4 s each on the runner, so about 65 minutes. At 30 the step stopped at 57%
-      # every night from 2026-11-11 to 11-13 (KAN-841).
+      # every night from 2026-11-11 to 11-13 (KAN-841). Leaving out the pairs whose path finds nothing on
+      # its page took them to 574 of 724 (KAN-780, 2026-11-14), about 42 minutes.
       - name: Nightly tests
         timeout-minutes: 90
         run: uv run pytest -q -rs -n auto --dist loadgroup --durations=15 -m nightly tests/
