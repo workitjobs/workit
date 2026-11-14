@@ -49,6 +49,7 @@ window.WIA = window.WIA || {};
       --radius-shell: 20px;
       --shadow-lift: 0 2px 4px rgb(18 26 40 / 0.04), 0 10px 24px rgb(18 26 40 / 0.08);
 
+      /* Plus Jakarta Sans's weights (KAN-365): the app's are Inter's since 2026-11-10 (tokens.spec.ts). */
       --font-weight-normal: 450;
       --text-meta: 11px;
       --text-meta--line-height: 15px;
