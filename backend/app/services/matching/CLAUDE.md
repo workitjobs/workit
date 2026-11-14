@@ -237,7 +237,8 @@ then `curved = raw ** CURVE_POWER` (`CURVE_POWER = 0.6`). A negative
 `weighted_sum * freshness` (possible when cosine similarity is negative) is
 floored at 0 before the power, so `nan` never appears. Final score is
 `round(curved * 100)`, clamped 0-100. Component points are scaled by
-`curved / weighted_sum` so they still sum to `weighted_score`.
+`curved / weighted_sum` so they still sum to `score_before_rounding`.
+`weighted_score` is the pre-curve sum (`weighted_sum * 100`).
 `compute_breakdown()` returns each part's weight and points too, sent as
 `score_breakdown`; equal scores sort by the unrounded score, then job id.
 The curve is monotonic, so the ordering of jobs by score is preserved.

@@ -29,13 +29,14 @@ def test_breakdown_reconciles_with_score(semantic, fresh):
     result = compute_breakdown(semantic, 0.6, 0.4, 1.0, fresh)
     parts = [result.semantic, result.skill_overlap, result.title_fit, result.eligibility]
     assert sum(p.weight for p in parts) == pytest.approx(1)
-    assert sum(p.points for p in parts) == pytest.approx(result.weighted_score)
-    assert result.score_before_rounding == pytest.approx(result.weighted_score)
+    assert sum(p.points for p in parts) == pytest.approx(result.score_before_rounding)
     weighted = (0.45 * semantic + 0.25 * 0.6 + 0.15 * 0.4 + 0.15) if semantic is not None else (
         (0.25 * 0.6 + 0.15 * 0.4 + 0.15) / 0.55
     )
+    assert result.weighted_score == pytest.approx(weighted * 100)
     raw = max(0.0, weighted * fresh)
     curved = raw ** CURVE_POWER
+    assert result.score_before_rounding == pytest.approx(curved * 100)
     assert result.final_score == max(0, min(100, round(curved * 100)))
     assert result.final_score == compute_score(semantic, 0.6, 0.4, 1.0, fresh)
     if semantic is None:
@@ -63,8 +64,8 @@ def test_no_embedding_redistributes():
     with_emb = compute_score(0.5, 0.5, 0.5, 0.5, 1.0)
     without_emb = compute_score(None, 0.5, 0.5, 0.5, 1.0)
     # Both should be reasonable mid-range scores (curve lifts them)
-    assert 30 <= with_emb <= 90
-    assert 30 <= without_emb <= 90
+    assert 40 <= with_emb <= 80
+    assert 40 <= without_emb <= 80
 
 
 def test_freshness_boost():
@@ -252,12 +253,6 @@ def test_curve_is_monotonic():
         cur = compute_score(v, v, v, v, 1.0)
         assert cur > prev
         prev = cur
-
-
-def test_component_points_sum_to_weighted_score():
-    result = compute_breakdown(0.7, 0.5, 0.4, 1.0, 0.95)
-    parts = [result.semantic, result.skill_overlap, result.title_fit, result.eligibility]
-    assert sum(p.points for p in parts) == pytest.approx(result.weighted_score)
 
 
 # --- what the recommender reads from a bank ---

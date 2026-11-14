@@ -214,8 +214,8 @@ Names are not final.
 | 1 | `sent_resumes.send_built`, `send_uploaded` | Keep the file as a sent resume linked to the job posting; unchanged content returns the last one. **Built** (KAN-208, KAN-220) |
 | 1 | `record_run(db, application_id, report)` | Saves one autofill result |
 | 1 | `set_stage(db, applicant_id, job_id, stage)` | Moves it; `applied` sets `applied_at` to now (the submit), any other stage clears it. **Built** |
-| 2 | `get_matches(db, account, filters, min_match=60, size=10)` | `fetch_recommended`, leaving out every job posting with an application at any stage (`JobFilters.no_application_by`) → `pick_batch`. Reads only. **Built** |
-| 2 | `start_batch(db, account, filters, min_match=60, size=10)` | `fetch_recommended` → `pick_batch` → `queue_applications`; one commit; returns the queued job ids, best first. **Built** |
+| 2 | `get_matches(db, account, filters, min_match=74, size=10)` | `fetch_recommended`, leaving out every job posting with an application at any stage (`JobFilters.no_application_by`) → `pick_batch`. Reads only. **Built** |
+| 2 | `start_batch(db, account, filters, min_match=74, size=10)` | `fetch_recommended` → `pick_batch` → `queue_applications`; one commit; returns the queued job ids, best first. **Built** |
 | 2 | `queue_job(db, applicant_id, job_id)` | A job's Auto Apply button: `queue_applications` for one; a job with an application keeps its stage (`fetch_stage`). **Built** |
 | 1 | `remove_queued(db, applicant_id, job_id)` | Deletes the application only while it is `queued`, in one statement, so a fill that finishes it meanwhile is never undone. **Built** |
 | 2 | `dequeue_job(db, applicant_id, job_id)` | The Auto Apply button's second click and Live Activity's cross: `remove_queued`, one commit; the job has no application again, so a later batch may pick it. `NotFound` without one, `WrongStage` past queued. **Built** |
@@ -295,11 +295,11 @@ which job postings a batch gets, and "The resume" decides what file each
 application sends. A student with an empty bank cannot start a batch, even
 with resumes.
 
-- **`fetch_recommended(db, account, min_match=60)`** in
+- **`fetch_recommended(db, account, min_match=74)`** in
   `backend/app/routers/jobs.py` returns the matches, best first, as
   `ScoredJob`s (a job listing plus `match` and `highlights`). It checks no
   ownership; its caller does.
-- **`GET /jobs/recommended/{applicant_id}?min_match=60`** returns the same
+- **`GET /jobs/recommended/{applicant_id}?min_match=74`** returns the same
   list over HTTP. It checks that the token owns the applicant.
 - **`min_match`** (default 0) leaves out job postings scored below it, before
   the offset. Auto-apply starts at 60; tune it on real data.

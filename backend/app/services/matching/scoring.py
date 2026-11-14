@@ -28,7 +28,7 @@ CURVE_POWER = 0.6       # < 1 stretches mid-range scores upward
 
 @dataclass(frozen=True)
 class ScoreComponent:
-    """Points are on the 0-100 scale before freshness is applied."""
+    """Points are on the 0-100 scale, scaled so they sum to score_before_rounding."""
 
     value: float | None
     weight: float
@@ -78,7 +78,7 @@ def compute_breakdown(
     return ScoreBreakdown(
         *components,
         freshness_multiplier=freshness,
-        weighted_score=curved * 100,
+        weighted_score=weighted * 100,
         score_before_rounding=curved * 100,
         final_score=max(0, min(100, round(curved * 100))),
     )
