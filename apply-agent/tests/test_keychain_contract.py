@@ -1,29 +1,60 @@
-"""Contract tests every Keychain must pass: the in-memory one tests use, and
-macOS Keychain through the `security` CLI (opt in with APPLY_TEST_KEYCHAIN=1;
-it uses a throwaway keychain file, never Lisul's login keychain)."""
+"""Contract tests every Keychain must pass: the in-memory one tests use, and the system's keychain through
+`keyring`, over a fake backend here. With APPLY_TEST_KEYCHAIN=1 they also run on the real one (macOS
+Keychain, Windows Credential Manager) under the service apply-ats-test, whose items each test removes:
+never an apply-ats item. keyring's macOS backend ignores a keychain file, so this is the login keychain."""
 
 import os
-import subprocess
 
+import keyring
 import pytest
+from keyring.backend import get_all_keyring
+from keyring.backends import chainer, fail, null
+from keyring.errors import KeyringLocked, PasswordDeleteError
 
-from apply.keychain import InMemoryKeychain, MacKeychain
+from apply.keychain import InMemoryKeychain, SystemKeychain
+
+SITES = ["acme.wd5.myworkdayjobs.com", "other.wd1.myworkdayjobs.com", "never.wd1.myworkdayjobs.com"]
 
 
-@pytest.fixture(params=["memory", "mac"])
-def keychain(request, tmp_path):
+class FakeBackend:
+    """A keyring backend in a dict that acts as macOS's and Windows' do: removing no item raises."""
+
+    def __init__(self):
+        self.items = {}
+
+    def get_password(self, service, username):
+        return self.items.get((service, username))
+
+    def set_password(self, service, username, password):
+        self.items[(service, username)] = password
+
+    def delete_password(self, service, username):
+        if self.items.pop((service, username), None) is None:
+            raise PasswordDeleteError(service)
+
+
+def _system_backend():
+    """The system's own keyring backend: the best one keyring finds, never a chain, the null or the fail one."""
+    found = [k for k in get_all_keyring() if not isinstance(k, chainer.ChainerBackend | null.Keyring | fail.Keyring)]
+    return max(found, key=lambda k: k.priority) if found else pytest.skip("no system keychain here")
+
+
+@pytest.fixture(params=["memory", "keyring", "system"])
+def keychain(request):
     if request.param == "memory":
         yield InMemoryKeychain()
         return
+    if request.param == "keyring":
+        yield SystemKeychain("apply-ats-test", backend=FakeBackend())
+        return
     if not os.environ.get("APPLY_TEST_KEYCHAIN"):
-        pytest.skip("set APPLY_TEST_KEYCHAIN=1 to use the real `security` CLI on a throwaway keychain")
-    path = tmp_path / "apply-test.keychain-db"
-    subprocess.run(["security", "create-keychain", "-p", "test", str(path)], check=True)
+        pytest.skip("set APPLY_TEST_KEYCHAIN=1 to use the system's keychain, under the service apply-ats-test")
+    real = SystemKeychain("apply-ats-test", backend=_system_backend())
     try:
-        subprocess.run(["security", "unlock-keychain", "-p", "test", str(path)], check=True)
-        yield MacKeychain("apply-ats-test", keychain=path)
+        yield real
     finally:
-        subprocess.run(["security", "delete-keychain", str(path)], check=False)
+        for site in SITES:
+            real.forget(site)
 
 
 def test_a_site_with_no_password_has_none(keychain):
@@ -63,57 +94,31 @@ def test_passwords_with_shell_characters_survive(keychain):
     assert keychain.password("acme.wd5.myworkdayjobs.com") == password
 
 
-def test_a_forgotten_password_is_gone_and_forgetting_none_is_fine(keychain):
-    keychain.save("acme.wd5.myworkdayjobs.com", "Pa55-word!")
-    keychain.save("other.wd1.myworkdayjobs.com", "Different#9")
-
-    keychain.forget("acme.wd5.myworkdayjobs.com")
-    keychain.forget("never.wd1.myworkdayjobs.com")
-
-    assert keychain.password("acme.wd5.myworkdayjobs.com") is None
-    assert keychain.password("other.wd1.myworkdayjobs.com") == "Different#9"
+def test_a_save_that_a_backend_does_not_keep_fails():
+    # A new account's password must be kept before its form is sent; keyring's null backend drops it silently.
+    with pytest.raises(RuntimeError, match="did not keep"):
+        SystemKeychain(backend=null.Keyring()).save("acme.wd5.myworkdayjobs.com", "Fake-Pw-1!q")
 
 
-def test_sites_names_each_site_with_a_password_and_never_a_password(keychain):
-    keychain.save("acme.wd5.myworkdayjobs.com", "Pa55-word!")
-    keychain.save("other.wd1.myworkdayjobs.com", "Different#9")
-    keychain.forget("other.wd1.myworkdayjobs.com")
-    keychain.save("third.wd3.myworkdayjobs.com", "Third-3!x")
+class LockedBackend(FakeBackend):
+    def get_password(self, *args):
+        raise KeyringLocked("Can't get password from keychain: (-25308, 'User interaction is not allowed.')")
 
-    assert sorted(keychain.sites()) == ["acme.wd5.myworkdayjobs.com", "third.wd3.myworkdayjobs.com"]
+    set_password = delete_password = get_password
 
 
-class FakeSecurity:
-    """The `security` CLI, recording each call: its argv and what it got on stdin."""
+@pytest.mark.parametrize("use", [lambda k: k.password("acme.wd5.myworkdayjobs.com"),
+                                 lambda k: k.save("acme.wd5.myworkdayjobs.com", "Fake-Pw-1!q"),
+                                 lambda k: k.forget("acme.wd5.myworkdayjobs.com")])
+def test_a_locked_keychain_is_a_runtime_error_with_no_password_in_it(use):
+    # Callers (the Accounts tab's Copy password, say) catch RuntimeError, never keyring's own errors.
+    with pytest.raises(RuntimeError) as refused:
+        use(SystemKeychain(backend=LockedBackend()))
 
-    def __init__(self):
-        self.calls, self.saved = [], {}
-
-    def __call__(self, argv, input=None, **kw):
-        self.calls.append((argv, input))
-        if argv == ["security", "-i"]:
-            # add-generic-password -U -s <service> -a "<site>" -w "<password>"
-            site, password = (part.split('"')[1] for part in input.split(" -a ")[1].split(" -w "))
-            self.saved[site] = password
-            return subprocess.CompletedProcess(argv, 0, "", "")
-        if argv[:2] == ["security", "find-generic-password"]:
-            found = self.saved.get(argv[argv.index("-a") + 1])
-            return subprocess.CompletedProcess(argv, 0 if found else 44, (found or "") + "\n", "")
-        return subprocess.CompletedProcess(argv, 0, "", "")
+    assert "acme.wd5.myworkdayjobs.com" in str(refused.value) and "Fake-Pw-1!q" not in str(refused.value)
 
 
-def test_a_saved_password_never_goes_in_argv():
-    # `ps` shows every process's argv while it runs: the password goes to `security -i` on stdin.
-    password, security = "Fake-Pw-1!q", FakeSecurity()
-    keychain = MacKeychain(run=security)
-
-    keychain.save("acme.wd5.myworkdayjobs.com", password)
-
-    assert keychain.password("acme.wd5.myworkdayjobs.com") == password
-    assert not any(password in arg for argv, _ in security.calls for arg in argv)
-    assert any(input and password in input for _, input in security.calls)
-
-
-def test_a_line_break_never_reaches_securitys_command_line():
-    with pytest.raises(ValueError):
-        MacKeychain(run=FakeSecurity()).save("acme.wd5.myworkdayjobs.com", "one\ndelete-keychain")
+def test_tests_never_reach_the_system_keychain():
+    # conftest.py puts keyring's null backend in place: a SystemKeychain no test gave a backend reads nothing.
+    assert isinstance(keyring.get_keyring(), null.Keyring)
+    assert SystemKeychain().password("acme.wd5.myworkdayjobs.com") is None

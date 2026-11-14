@@ -41,7 +41,7 @@ NOT_RETRIED = (
     "sign in yourself, and fix the password in Keychain (service apply-ats)."
 )
 SAVE_PASSWORD = ("Sign in there yourself and save the password in Keychain "
-                 "(security add-generic-password -U -s apply-ats -a {site} -w).")
+                 "(uv run keyring set apply-ats {site}, in apply-agent/).")
 NO_PASSWORD = "{site} already has an account for {login}, and Keychain has no password for it. " + SAVE_PASSWORD
 NO_RESET = (
     "{site} already has an account for {login}, and Keychain has no password for it. Apply resets its password "

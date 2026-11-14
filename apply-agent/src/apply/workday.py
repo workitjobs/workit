@@ -835,7 +835,7 @@ def _google_rejected(page: Page) -> bool:
 
 # Create Account went back to Sign In, or unanswered, in a rehearsal: the account may exist already.
 MAY_EXIST = (f"{NEEDS_SIGN_IN}{{company}} may already have an account for your email: reset its password once, or "
-             "save it with security add-generic-password -U -s apply-ats -a {site} -w, then apply yourself.")
+             "save it with uv run keyring set apply-ats {site} (in apply-agent/), then apply yourself.")
 
 # An account exists for Lisul's email on a tenant that offers Google, and Keychain has no password for it.
 MADE_WITH_GOOGLE = (

@@ -16,10 +16,10 @@ App passwords need 2-Step Verification on the Google account you apply with.
 
 - [ ] Turn on 2-Step Verification for that account, if it isn't on yet: <https://myaccount.google.com/signinoptions/twosv>.
 - [ ] Make an app password named `Apply` at <https://myaccount.google.com/apppasswords>. Google shows 16 letters once.
-- [ ] Save it to your login Keychain. Use the address you apply with, as written in the Applicant profile (`identity.email`). The `-w` with no value makes `security` ask for the password, so it never lands in your shell history:
+- [ ] Save it to your Keychain from `apply-agent/`. Use the address you apply with, as written in the Applicant profile (`identity.email`). `keyring set` asks for the password, so it never lands in your shell history:
 
   ```sh
-  security add-generic-password -s apply-gmail -a you@gmail.com -w
+  uv run keyring set apply-gmail you@gmail.com
   ```
 
 - [ ] Check it from `apply-agent/`: `APPLY_TEST_GMAIL=you@gmail.com uv run pytest tests/test_gmail.py -k real`. This signs in to Gmail and runs one search. It reads no mail and changes nothing.
@@ -51,8 +51,8 @@ Run `uv run apply doctor` from `apply-agent/` before a run, and again after any 
 |---|---|---|
 | `Sign-in failed at <site>` | The site refused the Keychain password. Apply won't try that password there again, for any Posting, since a few failures lock a Workday account. | Sign in yourself and fix the password in Keychain. Later Postings at that site still hand off, so finish those yourself too. |
 | `Type the emailed code: no verification email` / `no verification code` | The mail didn't come within about 2 minutes. Apply asks a site for a code once per sign-in and never asks again. | Look in Gmail (spam too), then sign in and finish the application yourself. |
-| `Sign-in failed at <site>: the password reset didn't finish` | Apply asked for a password reset, but the reset email never came. Keychain holds the new password Apply meant to set, which the site doesn't have. | Reset the password yourself, then save it to Keychain (`security add-generic-password -U -s apply-ats -a <site> -w`). |
+| `Sign-in failed at <site>: the password reset didn't finish` | Apply asked for a password reset, but the reset email never came. Keychain holds the new password Apply meant to set, which the site doesn't have. | Reset the password yourself, then save it to Keychain (`uv run keyring set apply-ats <site>` in `apply-agent/`). |
 | `Google asked for more than an account pick` | Google wanted a password, a code or a check. | Sign the Worker profiles in to Google again by hand. |
-| `<Company>'s Workday account was made with Google` | You made that tenant's account with Google before, so Keychain has no password for it. Apply never presses Forgot password, since that sends an email. | Sign in once yourself, or reset the password and save it to Keychain (`security add-generic-password -U -s apply-ats -a <site> -w`). |
+| `<Company>'s Workday account was made with Google` | You made that tenant's account with Google before, so Keychain has no password for it. Apply never presses Forgot password, since that sends an email. | Sign in once yourself, or reset the password and save it to Keychain (`uv run keyring set apply-ats <site>` in `apply-agent/`). |
 | `Oracle sent its code by text message` | The site sends codes by SMS. | Finish signing in yourself. |
-| `<site> already has an account for … Gmail isn't set up` | You made an account there yourself, and Apply can't reset its password without Gmail. | Sign in yourself and save the password to Keychain (`security add-generic-password -U -s apply-ats -a <site> -w`). |
+| `<site> already has an account for … Gmail isn't set up` | You made an account there yourself, and Apply can't reset its password without Gmail. | Sign in yourself and save the password to Keychain (`uv run keyring set apply-ats <site>` in `apply-agent/`). |

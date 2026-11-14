@@ -4,6 +4,7 @@ import argparse
 import imaplib
 import os
 import queue
+import re
 import signal
 import subprocess
 import sys
@@ -61,7 +62,7 @@ from apply.clock import SystemClock
 from apply.feed import live_feed
 from apply.gmail import live_mailbox
 from apply.home import HOME
-from apply.keychain import GMAIL, MacKeychain
+from apply.keychain import EMPLOYER_ACCOUNTS, GMAIL, SystemKeychain
 from apply.match_queue import match_queue
 from apply.notify import SET_UP, TEST_PUSH, MacNotifier, RecordingNotifier, live_phone
 from apply.plain.site import live_site
@@ -662,24 +663,28 @@ def _fill_again(target: str) -> int:
     print(" | ".join(str(caption.get(k) or "") for k in ("company", "role", "status", "why")))
     return 0
 def _gmail_set_up() -> bool:
-    """Whether Keychain lists a Gmail app password: attributes only, never the password."""
+    """Whether Keychain holds a Gmail app password for the profile's email. It reads the password, as doctor's
+    Gmail check does, and never prints it."""
     try:
-        return bool(MacKeychain(GMAIL).sites())
-    except (OSError, subprocess.SubprocessError):
+        address = ApplicantProfile.load(DEFAULT_PROFILE).get("identity.email")
+        return bool(address) and SystemKeychain(GMAIL).password(address) is not None
+    except Exception:  # no profile yet, one that won't load, or no keychain to read: the report says no Gmail
         return False
 
 
 def _preflight(urls: list[str], workers: int, adapters: Adapters | None) -> None:
-    """`apply preflight`: the sign-ins and the plan for `urls`, from the links, Keychain's attributes and the
-    Worker profiles' notes. Nothing here opens a page or reads a job site."""
+    """`apply preflight`: the sign-ins and the plan for `urls`, from the links, the Tracker's Employer accounts and
+    the Worker profiles' notes. Nothing here opens a page or reads a job site."""
     if wrong := [url for url in urls if not urlsplit(url).hostname or url.split() != [url]]:
         print(f"apply preflight: not a link: {wrong[0]}", file=sys.stderr)
         raise SystemExit(2)
-    keychain = adapters.keychain if adapters else MacKeychain()
+    # `keyring` can't list a keychain's items, so the sites with a password come from the Tracker, which lists
+    # each Employer account whose password Apply keeps (Accounts.created). No password is read.
+    tracker = adapters.tracker if adapters else FileTracker()
     try:
-        items = keychain.sites()
-    except (OSError, subprocess.SubprocessError):
-        items = None  # no Keychain here, or it would not list: the report says so
+        items = {account.site for account in tracker.employer_accounts()}
+    except (OSError, ValueError):
+        items = None  # the Tracker would not read: the report says so
     browsers = None if adapters else WorkerBrowsers()
     signed_in = adapters.site.signed_in() if adapters else browsers.signed_in()
     policies = load_policies()
@@ -779,11 +784,35 @@ def _close_workers(site) -> None:
             print(f"Couldn't stop every plain Worker ({type(error).__name__}: {error}).", file=sys.stderr)
 
 
+# One attribute line of `security dump-keychain` (no -d, so it prints no secret).
+_ATTRIBUTE = re.compile(r'^\s*"(svce|acct)"<blob>="(.*)"$')
+
+
+def _mac_keychain_sites(run: Callable[..., subprocess.CompletedProcess] = subprocess.run) -> list[str]:
+    """Each site with an Employer account password in the macOS login Keychain, from `security dump-keychain`
+    without -d: item attributes only, never a password, and no Keychain prompt. `keyring` can't list items, so
+    this one read stays macOS-only, for `_chrome_passwords`' backfill of the accounts that rehearsals made
+    before KAN-592 (2026-11-03) listed them in the Tracker. Elsewhere there are none. It goes with that
+    backfill."""
+    if sys.platform != "darwin":
+        return []
+    dumped = run(["security", "dump-keychain"], capture_output=True, text=True, check=True)
+    found, item = [], {}
+    for line in dumped.stdout.splitlines() + ["keychain: end"]:
+        if line.startswith("keychain:"):
+            if item.get("svce") == EMPLOYER_ACCOUNTS and item.get("acct"):
+                found.append(item["acct"])
+            item = {}
+        elif attribute := _ATTRIBUTE.match(line):
+            item[attribute[1]] = attribute[2]
+    return found
+
+
 def _chrome_passwords(login: str) -> None:
     """Install the Apply accounts host for Lisul's everyday Chrome, and list each Employer account Keychain
     has in the Tracker, so the extension's Sign In button knows it (KAN-592). No password is read."""
     manifest = native_host.install()
-    added = native_host.adopt(MacKeychain(), FileTracker(), login, date.today())
+    added = native_host.adopt(_mac_keychain_sites(), FileTracker(), login, date.today())
     print(f"Installed the Apply accounts host: {manifest}, for the WorkIt extension only ({native_host.EXTENSION_ID}).")
     print(f"Listed {len(added)} more Employer accounts from Keychain in the Tracker" + (f": {', '.join(added)}." if added else "."))
     print("In Chrome, open the WorkIt extension's options page and turn on Use My Apply Accounts (Chrome asks once to "
@@ -805,7 +834,7 @@ def _answers_window(profile: Path, window: Path) -> None:
     with dashboard.Dashboard(0, dashboard.NoFrames(), tab, _applied_live, past=lambda: tracker().rows(),
                              answer=_answering(tracker, tab), approve=_approving(tracker),
                              everyday=captcha.to_everyday_chrome,
-                             accounts=_accounts_tab(tracker, MacKeychain(), captcha.to_everyday_chrome),
+                             accounts=_accounts_tab(tracker, SystemKeychain(), captcha.to_everyday_chrome),
                              **_window_context()) as board:
         dashboard.open_window(board.url, window)
         print(f"Answers: {board.url} (no run is going; close the window or press Ctrl-C to stop)")
@@ -1033,7 +1062,7 @@ def live_adapters(profile: ApplicantProfile, tracker=None, records=None, notifie
         records=_records(profile) if records is None else records,
         notifier=MacNotifier() if notifier is None else notifier,
         phone=live_phone() if phone is None else phone,
-        keychain=MacKeychain() if keychain is None else keychain,
+        keychain=SystemKeychain() if keychain is None else keychain,
         repairs=RepairRequests(REPAIRS),
         answer_bank=_answer_bank(profile.folder) if answer_bank is None else answer_bank,
         signed_in=site.signed_in(),  # by apply sign-in
