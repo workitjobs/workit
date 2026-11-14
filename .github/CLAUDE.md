@@ -183,7 +183,9 @@ Workers' trusted typing missed its field. The tile's tests, which time
 frames in real seconds, have their own one-process step too. Before KAN-780 the job took 16 to 20 minutes,
 10 to 15 of them in the hostile pages' matrix. PRs now run every hostile
 page and every path at least once; `workflows/apply-nightly.yml` (07:53
-UTC, or `gh workflow run apply-nightly.yml`) runs every `nightly` test.
+UTC, or `gh workflow run apply-nightly.yml`) runs every `nightly` test,
+with a 90-minute step: its 887 plain-Worker cases run one at a time, about
+65 minutes on the runner (KAN-841; at 30 it stopped at 57% every night).
 The pages of PR 477's guard holes (KAN-710: `GUARD_HOLES` in
 `test_submit_guard_hostile.py`, among them a page that sets the guards' old
 `window.__apply*` flags itself) are never only nightly: PRs run each one on

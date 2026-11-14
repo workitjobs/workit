@@ -171,17 +171,14 @@ test("fills a saved Waymo careers site form from a WorkIt profile, reading its q
 
   expect(phase).toBe("filled");
   expect(shown(rows)).toMatchObject({ first_name: "Test", last_name: "Person", email: "test.person@example.com" });
-  // Two required consent checkboxes the engine's traps don't cover yet (KAN-447, live-checked against
-  // fill-engine/src/traps.ts, 2026-11-06): a plain "I certify this is true" attestation, no AI trap kind
-  // for it at all; and Waymo's own AI-policy notice, whose wording puts a whole clause between "AI" and
-  // "guidelines" so it misses every aiPolicy/aiBan pattern. Both correctly fail as required-and-empty
-  // (autofiller_extension/CLAUDE.md, "Never Ready while the form would refuse the submit") rather than
-  // silently passing -- a real engine trap-coverage gap, not something this test should paper over.
+  // Two required boxes are the student's own tick (the engine's attestations, KAN-676 and KAN-775): a plain "I certify
+  // this is true", and Waymo's AI-policy notice that "you acknowledge and agree to adhere to". The panel lists each as
+  // theirs (KAN-841). Its privacy policy acknowledgement is a consent the policy ticks.
   expect(failed(rows)).toEqual({
     "By submitting my application, I certify that the information provided (including in my resume/CV) is true and correct. I understand that any misrepresentations or false statements made in connection with the recruitment process may be grounds for disqualification from further consideration for employment or, if employed, separation of employment.":
-      "The form needs this before it sends. Answer it yourself.",
+      "Yours to tick: you attest to it or sign it yourself.",
     "To ensure a fair and accurate assessment of each candidate's unique capabilities, Waymo prohibits the use of unauthorized outside assistance during the interview process. This includes, but is not limited to, artificial intelligence (AI) tools, generative software, or third-party resources, unless explicitly authorized by the hiring team. By submitting this application, you acknowledge and agree to adhere to these guidelines.":
-      "The form needs this before it sends. Answer it yourself.",
+      "Yours to tick: you attest to it or sign it yourself.",
   });
   expect(waymo.submissions).toEqual([]);
 });
