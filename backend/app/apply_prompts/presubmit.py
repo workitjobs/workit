@@ -9,7 +9,16 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from app.apply_prompts.kind import MAX_KEYS, Built, Data, Key, Kind, Line, Sources
+from app.apply_prompts.kind import (
+    MAX_KEYS,
+    Answer,
+    Built,
+    Data,
+    Key,
+    Kind,
+    Line,
+    Sources,
+)
 
 MAX_ROWS = 300  # the answered fields of one form
 
@@ -53,7 +62,7 @@ class Row(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     question: Line
-    answer: Line | list[Line] | None = None
+    answer: Answer | list[Line] | None = None  # an essay read back can run past a line
     ticked: list[Line] | None = None
     options: list[Line] | None = Field(default=None, max_length=MAX_ROWS)
     his_own_answer: Literal[True] | None = None
@@ -78,8 +87,8 @@ class Shown(BaseModel):
 
     question: Line
     options: list[Line] = Field(default_factory=list, max_length=MAX_ROWS)
-    meant: Line | list[Line]
-    shown: Line | list[Line] = ""
+    meant: Answer | list[Line]
+    shown: Answer | list[Line] = ""
     multi_select: bool = False  # for the schema; not shown to the model
 
 

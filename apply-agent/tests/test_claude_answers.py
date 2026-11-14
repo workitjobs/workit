@@ -224,9 +224,8 @@ def test_the_pre_submit_review_checks_essays_against_the_same_company_material(m
 
     run(monkeypatch, ResearchForm("Northwood Space"), claude, site=Browser({POSTING_PAGE: f"<p>{PORTAL}</p>"}))
 
-    [review] = [c for c in claude.calls if "problems" in c["schema"]["properties"]]
+    [review] = [k for k in claude.kinds if k["kind"] == "presubmit.review"]
     assert PORTAL in review["prompt"] and "<story_bank>" in review["prompt"]
-    assert "<company>" in review["system"]
 
 
 LOOKOUT = {"name": "Lookout", "month": "2026-08", "url": "https://northwood.space/blog/lookout",
@@ -242,7 +241,7 @@ def test_essays_and_their_review_name_what_the_company_builds_from_its_company_b
     assert row.status == "submitted", row.reason
     assert ["<company>Northwood Space</company>" in p for p in claude.researched] == [True]
     [call] = [c for c in asks(claude) if c["data"]["questions"]]
-    [review] = [c for c in claude.calls if "problems" in c["schema"]["properties"]]
+    [review] = [k for k in claude.kinds if k["kind"] == "presubmit.review"]
     for prompt in (call["prompt"], review["prompt"]):
         assert '<source from="a brief of what the company builds' in prompt and LOOKOUT["fact"] in prompt
 
@@ -300,10 +299,10 @@ def test_the_postings_description_is_read_once_however_many_calls_get_it(monkeyp
     run(monkeypatch, ResearchForm("Workshop"), claude, company="Workshop", site=site)
 
     assert site.fetched.count(POSTING_PAGE) == 1
-    # The Pre-submit review sends its own prompt; the probe, the plan, the essay call, the claim check and the
-    # editor's pass are WorkIt kinds, whose data holds it.
-    assert len(claude.calls) == 1 and len(claude.kinds) == 5
-    assert all(f"<description>\n{PORTAL}\n</description>" in call["prompt"] for call in claude.calls + claude.kinds)
+    # The probe, the plan, the essay call, the claim check, the editor's pass and the Pre-submit review are
+    # WorkIt kinds, whose data holds it.
+    assert claude.calls == [] and len(claude.kinds) == 6
+    assert all(f"<description>\n{PORTAL}\n</description>" in call["prompt"] for call in claude.kinds)
 
 
 def test_a_postings_api_text_is_read_once_for_its_eligibility_and_every_claude_call(monkeypatch):
@@ -334,9 +333,8 @@ def test_the_pre_submit_review_gets_the_postings_description_on_a_form_claude_wr
 
     run(monkeypatch, ResearchForm("Anduril"), claude, site=Browser({POSTING_PAGE: f"<p>{PORTAL}</p>"}))
 
-    [review] = [c for c in claude.calls if "problems" in c["schema"]["properties"]]
+    [review] = [k for k in claude.kinds if k["kind"] == "presubmit.review"]
     assert f"<description>\n{PORTAL}\n</description>" in review["prompt"]
-    assert "<posting>" in review["system"]
 
 
 def test_an_essay_claude_leaves_blank_is_held_and_never_submitted_blank(monkeypatch):
@@ -593,8 +591,7 @@ def test_a_readback_mismatch_is_planned_again_by_sonnet_and_filled_once_more(mon
     assert row.status == "submitted", row.reason
     [sent] = form.submitted
     assert sent["Phone Number"] == "(555) 010-0199"
-    [replan] = [call for call in claude.calls if "replanned" in call["schema"]["properties"]]
-    assert replan["model"] == "sonnet"
+    [replan] = [k for k in claude.kinds if k["kind"] == "presubmit.replan"]
     assert "Phone Number" in replan["prompt"] and "Email" not in replan["prompt"]
 
 
@@ -603,7 +600,7 @@ def test_the_sonnet_replan_gets_the_postings_description(monkeypatch):
 
     run(monkeypatch, ReformatsPhones("Northwood Space"), claude, site=Browser({POSTING_PAGE: f"<p>{PORTAL}</p>"}))
 
-    [replan] = [call for call in claude.calls if "replanned" in call["schema"]["properties"]]
+    [replan] = [k for k in claude.kinds if k["kind"] == "presubmit.replan"]
     assert f"<description>\n{PORTAL}\n</description>" in replan["prompt"]
 
 
@@ -1077,9 +1074,8 @@ def test_the_pre_submit_review_checks_drafted_answers_against_the_profile(monkey
 
     run(monkeypatch, ResearchForm("MetOx International"), claude)
 
-    [review] = [c for c in claude.calls if "problems" in c["schema"]["properties"]]
+    [review] = [k for k in claude.kinds if k["kind"] == "presubmit.review"]
     assert "<profile>" in review["prompt"] and "test.person@example.com" in review["prompt"]
-    assert "<profile>" in review["system"]
 
 
 def test_the_pre_submit_review_gets_the_profile_on_a_form_with_no_drafted_answer(monkeypatch):
@@ -1088,7 +1084,7 @@ def test_the_pre_submit_review_gets_the_profile_on_a_form_with_no_drafted_answer
 
     run(monkeypatch, ResearchForm("Anduril"), claude, site=Browser({POSTING_PAGE: f"<p>{PORTAL}</p>"}))
 
-    [review] = [c for c in claude.calls if "problems" in c["schema"]["properties"]]
+    [review] = [k for k in claude.kinds if k["kind"] == "presubmit.review"]
     assert "<profile>" in review["prompt"] and "test.person@example.com" in review["prompt"]
 
 
@@ -1365,8 +1361,8 @@ def test_the_review_is_told_which_answers_are_lisuls_own_from_the_bank(monkeypat
 
     run_all(monkeypatch, form, claude, ["First Co"], profile, bank=bank)
 
-    [reviewed] = [p for p in claude.prompts if "<form>" in p]
-    assert '"his_own_answer": true' in reviewed
+    [reviewed] = [k for k in claude.kinds if k["kind"] == "presubmit.review"]
+    assert any(row.get("his_own_answer") for row in reviewed["data"]["rows"])
 
 
 # The plan stage (apply/docs/essay-writer-plan.md, decision 3): one call plans

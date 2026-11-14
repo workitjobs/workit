@@ -18,7 +18,6 @@ from apply import answering, home
 from apply.brief import TAGS as PROBLEM_KINDS
 
 MAP = home.HOME / "story-map.yaml"
-MODEL = "opus"
 NONE = "none"  # a follow-up's `bank` when the story bank can't answer it
 # The bank's sections that hold episodes: from the first of these headings up
 # to (not including) the second. The voice sections before and the Skills and
@@ -30,34 +29,6 @@ def area(heading: str) -> str:
     """A section's area: its heading's name before any ":" or "(", as a slug
     ("Clever Devices: Software Engineer Intern" is clever-devices)."""
     return re.sub(r"[^a-z0-9]+", "-", re.split(r"[:(]", heading, maxsplit=1)[0].lower()).strip("-") or "other"
-
-
-SYSTEM = """You tag a student's experience stories so an essay planner can pick the right one for a company. You add no facts: every tag is either a quote from the story bank or routing.
-
-Make one entry per episode: a single bullet line under the sections from Education to Honors (not the voice sections, Skills or "Not on the one-pager"). A section with several distinct stories gets one entry per bullet that tells a story.
-- id: "<section-slug>/<short-name>", lowercase with hyphens, unique.
-- anchor: the bullet's opening words, copied exactly (at least 6 words), enough to match that one line.
-- types: the question types this story answers well, from the list given.
-- problem_kinds: the kinds of problem it is, from the list given; none when none fits.
-- skills: the languages, tools and techniques the line names.
-- numbers: every number in that line, copied exactly with its unit (e.g. "about 40 ms").
-- follow_ups: 2 to 4 questions an interviewer would ask next, each with what the bank says in a few words, or exactly "none" when the bank can't answer it.
-- never_claim: what an answer must not claim, from the bank's own "not", "never" and "no" statements about this story.
-- related: ids of other entries about the same system or event."""
-
-ENTRY = {"type": "object", "properties": {
-    "id": {"type": "string"},
-    "anchor": {"type": "string"},
-    "types": {"type": "array", "items": {"type": "string"}},
-    "problem_kinds": {"type": "array", "items": {"type": "string"}},
-    "skills": {"type": "array", "items": {"type": "string"}},
-    "numbers": {"type": "array", "items": {"type": "string"}},
-    "follow_ups": {"type": "array", "items": {"type": "object", "properties": {
-        "q": {"type": "string"}, "bank": {"type": "string"}}, "required": ["q", "bank"]}},
-    "never_claim": {"type": "array", "items": {"type": "string"}},
-    "related": {"type": "array", "items": {"type": "string"}},
-}, "required": ["id", "anchor", "types", "problem_kinds", "skills", "numbers", "follow_ups", "never_claim", "related"]}
-SCHEMA = {"type": "object", "properties": {"episodes": {"type": "array", "items": ENTRY}}, "required": ["episodes"]}
 
 
 @dataclass(frozen=True)
@@ -103,10 +74,8 @@ def build(claude, bank: Path | None = None) -> dict:
     """Tag every episode with one Opus call and check the tags: `episodes` is
     the map to write, `dropped` says what the checks removed and why."""
     text = (bank or home.STORY_BANK).read_text()
-    prompt = (f"<document>\n<source>story-bank.md</source>\n<document_content>\n{text}</document_content>\n</document>\n\n"
-              f"Question types: {', '.join(answering.load())}\nProblem kinds: {', '.join(PROBLEM_KINDS)}\n\n"
-              "Tag every episode in the story bank.")
-    given = claude.ask(model=MODEL, system=SYSTEM, prompt=prompt, schema=SCHEMA)["episodes"]
+    # WorkIt's story_map.tag kind (D5, KAN-723): its prompt and schema are on the server.
+    given = claude.ask_kind("story_map.tag", {"story_bank": text})["episodes"]
     return _checked(given, episodes(text))
 
 

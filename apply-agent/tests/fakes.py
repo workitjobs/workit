@@ -448,7 +448,7 @@ class FakeJobServer:
 # The Story bank headings a default essay plan leads with, one per essay in order: from the
 # tests' Story bank, which conftest.data_folder() puts in the data folder.
 # A kind's data field and the block the server's prompt holds it in (backend/app/apply_prompts/).
-_TAGS = {"plans": "plan"}
+_TAGS = {"plans": "plan", "rows": "form"}
 _PLAIN = ("sources", "posting", "company", "page_text")  # text that holds its own blocks
 
 
@@ -595,7 +595,10 @@ class FakeClaude:
         """One of WorkIt's kinds (D5, KAN-723), answered from its data as the call with its own prompt was.
         Kept in `kinds` as {"kind", "data", "prompt"}, apart from `calls` (the calls that send their own prompt):
         `prompt` is the data's text as one string, for a test that looks for a value the call was sent (WorkIt
-        builds the real prompt)."""
+        builds the real prompt). A team's naming is kept apart, in `teams_named`, as its posting block."""
+        if kind == "brief.team":
+            self.teams_named.append(f"<posting>\n{data['title']}\n{data['posting_text']}\n</posting>")
+            return {"team": self._team}
         self.kinds.append({"kind": kind, "data": data, "prompt": _given(data)})
         self._spend(self._ask_tokens)
         if kind == "writing.edit":  # the editor's pass: hands every answer back as it was, unless repaired
@@ -605,6 +608,19 @@ class FakeClaude:
                                for key, text in data["drafts"].items()}}
         if kind == "writing.check":  # the claim check: finds nothing
             return {"unsupported": {key: [] for key in data["drafts"]}}
+        if kind == "story_map.tag":
+            return {"episodes": [dict(e) for e in self._story_map]}
+        if kind == "presubmit.review":  # its problems, or a dict of them with the fixes it gives
+            found = self._reviews.pop(0) if self._reviews else []
+            return found if isinstance(found, dict) else {"problems": found}
+        if kind == "presubmit.replan":
+            return {"replanned": {key: {"answer": next((a for start, a in self._replans.items()
+                                                        if field["question"].startswith(start)), "")}
+                                  for key, field in data["fields"].items()}}
+        if kind == "claude_fill.sent":
+            if isinstance(self._sent, Exception):
+                raise self._sent
+            return {"sent": self._sent, "why": "it says so" if self._sent else "the form is still there"}
         if kind == "probe.typical":  # the default probe: the stock typical answer, unless told otherwise
             return {"typical": {key: next((t for start, t in self._typical.items() if asked.startswith(start)),
                                           {"answer": self.TYPICAL, "angles": list(self.TYPICAL_ANGLES)})
@@ -643,26 +659,9 @@ class FakeClaude:
         self._spent.tokens = self.spent() + tokens
 
     def ask(self, *, model: str, system: str, prompt: str, schema: dict) -> dict:
-        if "team" in schema["properties"]:
-            self.teams_named.append(prompt)
-            return {"team": self._team}
         self.calls.append({"model": model, "system": system, "prompt": prompt, "schema": schema})
         self._spend(self._ask_tokens)
         wanted = schema["properties"]
-        if "episodes" in wanted:  # the story map (apply.story_map)
-            return {"episodes": [dict(e) for e in self._story_map]}
-        if "problems" in wanted:  # a review: its problems, or a dict of them with the fixes it gives
-            found = self._reviews.pop(0) if self._reviews else []
-            return found if isinstance(found, dict) else {"problems": found}
-        if "sent" in wanted:
-            if isinstance(self._sent, Exception):
-                raise self._sent
-            return {"sent": self._sent, "why": "it says so" if self._sent else "the form is still there"}
-        if "replanned" in wanted:
-            return {"replanned": {
-                key: {"answer": next((a for start, a in self._replans.items() if field["description"].startswith(start)), "")}
-                for key, field in wanted["replanned"]["properties"].items()
-            }}
         raise AssertionError(f"FakeClaude doesn't know this call: {sorted(wanted)}")
 
     def drive(self, *, page, model: str, system: str, prompt: str, schema: dict, files: list[Path],
