@@ -73,10 +73,17 @@ export async function inject(page: Page): Promise<void> {
   }, jobSystem);
   // Evaluated, not added as script tags, so a page's CSP can't block them (Chrome's injection isn't blocked either).
   // The panel's and marks' roots open, so the tests' locators reach them (loaded-extension.ts's openPanel).
-  for (const file of [...ENGINE_FILES, ...CONTENT_SCRIPT_FILES]) {
+  const load = async (file: string) => {
     const source = readFileSync(join(EXTENSION, file), "utf8");
     await page.evaluate(`${CLOSED_ROOT_FILES.includes(file) ? openPanel(source, file) : source}\n;undefined`);
-  }
+  };
+  for (const file of ENGINE_FILES) await load(file);
+  // The job system's data for the page's own scripts, as injectFill's giveSiteData puts it (KAN-778): the engine's bundled data.
+  await page.evaluate((site) => {
+    const w = window as any;
+    w.WIA.siteData = { site, data: site ? w.FillEngine.siteRules(site) : {} };
+  }, jobSystem);
+  for (const file of CONTENT_SCRIPT_FILES) await load(file);
 }
 
 /** Waits for the fill to reach a phase other than "filling" (see content-script.js), and returns it with the overlay's rows. */
