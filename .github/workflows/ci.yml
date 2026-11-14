@@ -328,9 +328,9 @@ jobs:
       # A real plain Worker on a fake job system. A new suite this fast joins the list.
       # test_upload_origin.py (KAN-795) runs its CDP and plain Worker cases here too.
       # One process: in parallel each pays a 40 s Worker start and the typing
-      # tests' timing slips, for no gain (KAN-780).
+      # tests' timing slips, for no gain (KAN-780). 101 tests took 233 s (2026-11-14), so the limit is 6.
       - name: Plain-Worker tests
-        timeout-minutes: 4
+        timeout-minutes: 6
         run: |
           uv run pytest -q -rs --durations=15 -m "not nightly" \
             tests/test_plain_guards.py \
