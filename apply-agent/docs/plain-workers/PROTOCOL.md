@@ -479,7 +479,10 @@ zip of the extension's code, `vendor/` with the generated files built in (the gu
 `injected.js`; never the engine) and their id in `vendor/set.json`, `LICENSE`, `NOTICE` and
 Playwright's Apache-2.0 license, with `store.json`'s name, description and version and no
 manifest `key` (the store gives the ID). A guard change therefore needs a store release before the
-app that expects it: the bridge refuses a store copy whose files aren't Apply's.
+app that expects it: the bridge refuses a store copy whose files aren't Apply's
+(`tests/test_worker_extension_store.py` checks that `store.json` records what its version holds).
+Not usable yet: the guard files carry each Apply process's own tokens, so no package built once
+matches a student's app (`worker-extension-todo.md`, item 0).
 
 `PlainWorkers` (S1): `prepare()`, `launch(worker) -> PlainWorker` (pid, profile,
 connection), `open(url, worker)`, `stop(worker)` / `stop_all()` (by PID only),

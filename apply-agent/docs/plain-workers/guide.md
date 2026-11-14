@@ -197,6 +197,10 @@ checks a guard file now. A guard change then needs a store release before the ap
 it. The debugger carries only what may change between store releases: the Fill engine and the
 page code that has no fixed copy.
 
+**The package can't be used yet.** The guard scripts carry each Apply process's own random tokens
+(KAN-710), so a package built once never matches a student's app, and the bridge refuses it: it fails
+closed. `worker-extension-todo.md`, item 0, has the constraints for the fix.
+
 **Still open** (W6): `worker-extension-todo.md` lists it: the first store upload and its ID
 (`extension.STORE_ID`), the seed from the store, releases, bot signals in branded Chrome on a
 real seed, a multi-step form, and the tile's screencast. The `about:blank` failures seen early in the spike were a plain Worker's

@@ -1,14 +1,45 @@
 # The Worker extension: what is left (KAN-839)
 
 Status (2026-11-14): the extension asks for no user scripts, keeps no engine file
-on disk, and `uv run apply plain package` builds its Chrome Web Store package
+on disk, and `uv run apply plain package` builds its Chrome Web Store package, which
+no app can use until item 0 is fixed
 (`guide.md`, "Page code through the debugger"; `PROTOCOL.md`; the design doc's
 W6, `../../../docs/desktop_application_auto_apply.md`). It is not on the store
 yet. Each item below can be taken on its own unless it says what it waits for.
 Delete an item from this list when it is done, and record the result in
 `guide.md`.
 
-## 1. The first store upload
+## 0. The guards' per-run tokens (blocks every store copy)
+
+Found in the adversarial review (2026-11-14). The guard scripts carry this
+run's secrets: `submit_guard.TOKENS`, `TOUCHES`, `MARKS` and `TELL`, new random
+values in each Apply process, so that only Apply's own scripts can set a guard's
+state, count Apply's own press, or hear the rehearsal guard's tell (KAN-710, PR
+477's review). A package built once holds the tokens of the process that built
+it. A student's app makes others, so every guard file's sha256 differs from the
+one Apply sends, and the bridge refuses the store copy (`STORE_STALE`). It fails
+closed: nothing is sent, but no store copy can be used. The package test passed
+only because it built the package in the same process as the Apply it tested.
+
+**Don't upload a package until this is fixed.** The fix is the guards' owners'
+to choose, with an adversarial review (KAN-666). The constraints:
+
+- The tokens can't be in the package: anyone can download a store package and
+  read them, and a page that knows them can lift the guards.
+- The guards must still run before the page's own code in every frame and every
+  pop-up: only a registered content script does that (measured), and it takes
+  only packaged files.
+- A guard with no tokens yet must fail closed: guarded, never lifted, and no
+  press of Apply's counted as a touch.
+
+Ideas to weigh: a token-free packaged guard that learns its tokens through the
+debugger in a tab with a session (`Page.addScriptToEvaluateOnNewDocument`), and
+stays strict where none arrive (a pop-up until Apply attaches to it); or the
+guard's decisions in the isolated world, which pages can't reach, with only the
+hooks in the MAIN world. `extension.store_stamp` already writes the tokens as
+fixed values, so the release rule (below) holds whatever the fix.
+
+## 1. The first store upload (waits for 0)
 
 1. Build the package: `uv run apply plain package` (the zip goes to
    `apply-agent/dist/`). It holds the extension's code, the guard scripts,
@@ -44,10 +75,18 @@ Delete an item from this list when it is done, and record the result in
 
 ## 3. Releases and updates (waits for 1)
 
-- The bridge refuses a store copy whose built-in files aren't Apply's
-  (`STORE_STALE`). So a change to a guard script, `fixed.py` or Playwright
-  needs a store release first, and the app version that expects it after.
-  Write that order down where releases are made (W8).
+- **The rule** (`apply-agent/CLAUDE.md`, "Rules for every run"): a change to
+  what the package holds needs a store release. `tests/test_worker_extension_store.py`
+  (in CI) fails on one until `worker-extension/store.json`'s `version` is bumped
+  and its `code` and `files` set to the values it prints (`extension.store_stamp`:
+  the extension's code hash, and its built-in files' set id with the guards'
+  tokens written as fixed values). After merge: `uv run apply plain package`,
+  upload the zip, wait for the store to publish it, then release the app that
+  needs it. The bridge refuses a store copy whose built-in files aren't Apply's
+  (`STORE_STALE`), so an app released first finds every Worker refused.
+- Every upload is reviewed by the store, unlisted too. With `debugger`,
+  `nativeMessaging` and `<all_urls>`, expect an in-depth review that takes days.
+  Write that time into the release order where releases are made (W8).
 - A workflow that builds and uploads the package on a version bump, as
   `.github/workflows/publish-extension.yml` does for the WorkIt extension. It
   belongs in the private repo, after the move (W0).
@@ -65,7 +104,21 @@ Delete an item from this list when it is done, and record the result in
 - **A multi-step form.** Fill one with Next and a file upload on a plain
   Worker, through the debugger, held on its last page.
 
-## 5. Smaller work
+## 5. The adversarial review's other findings (2026-11-14)
+
+- **Fixed:** `PlainWorkers.refresh` sent `vendor.use` to a running store copy
+  when the engine on disk changed, a set its folder can't hold; it now hands the
+  engine over again and keeps the built-in files.
+- **Fixed:** `cdp.eval`'s `gesture` (page code run as if the user had clicked)
+  is honoured only in an unpacked copy; a store copy ignores it.
+- **Checked, no change:** pages can't reach the debugger ops (their relay
+  forwards only the guards' own messages); no guard state depended on a
+  code-only init script (the drive guard is a file that starts armed, and the
+  extension replays a lifted tab, its applied note and its bindings into each
+  new document); a store copy with other built-in files is refused; and the
+  guard files are checked by sha256 in every mode.
+
+## 6. Smaller work
 
 - **The tile through the debugger.** `Page.startScreencast` in place of
   `captureVisibleTab` (about 2 frames a second) and the Swift helper, which W4

@@ -810,6 +810,15 @@ user scripts off:
 - Both extension IDs may connect (`extension.STORE_ID`, empty until the
   store gives one).
 
+**The adversarial review (2026-11-14) found a blocker:** the guard scripts
+carry each Apply process's own random tokens (KAN-710), so a package built
+once never matches a student's app and the bridge refuses every store copy.
+It fails closed, but no store copy can be used until the guards learn their
+tokens another way (the to-do list's item 0, for the guards' owners). It
+also fixed two smaller issues: `refresh` and a store copy, and the `gesture`
+flag. A change to what the package holds now fails CI until `store.json`
+records a new version (`apply-agent/CLAUDE.md`).
+
 Left: `apply-agent/docs/plain-workers/worker-extension-todo.md` lists it,
 item by item: the first store upload and its ID, the seed from the store,
 releases and updates, item 3 in branded Chrome, a multi-step form on a
