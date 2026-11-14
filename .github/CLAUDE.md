@@ -164,8 +164,8 @@ job if the browser is missing, since these tests skip without it.
 2026-11-11, and from 20 on 2026-11-13): the job took 16 to 20 minutes once the hostile pages'
 plain-Worker cases ran there (it was raised to 35 for that), about 6 after
 KAN-780 (below), about 13 once the guard holes' pages ran on every CDP
-path (KAN-710, KAN-783), and about 25 once KAN-793's and KAN-795's pages
-took the hostile step to 710 cases. Each step has its own
+path (KAN-710, KAN-783), and 22 once KAN-793's and KAN-795's pages
+took the hostile step to 710 cases (2026-11-14). Each step has its own
 limit too, so a hang fails in that step.
 **CI does not run the other 28 test files**, which hold the Filler tests
 (`test_*_filler.py`, `test_claude_fill.py`, `test_run.py`,
@@ -197,8 +197,8 @@ Worker. With all 38 on a plain Worker the hostile step took 551 s on CI
 PRs. Even then the step took 505 s for 350 cases, and 547 s for 398 once
 KAN-783's eight pages joined (about five times its time on a 14-core Mac),
 so its limit was 12 minutes. KAN-793's and KAN-795's pages took it to 710
-cases, about 18 minutes on CI (6 on a 10-core Mac; the runner starts 3
-processes): from 2026-11-11 every apply job stopped at 60 to 70% of them
+cases, 1199 s on CI (2026-11-14; 6 minutes on a 10-core Mac, and the runner
+starts 3 processes): from 2026-11-11 every apply job stopped at 60 to 70% of them
 when the 12 minutes ran out, and PRs merged with it red. So its limit is 25
 minutes. The cases mostly wait (the 10-core run used about one core), so
 more processes than the runner's 3 would be faster, but a busier runner can
