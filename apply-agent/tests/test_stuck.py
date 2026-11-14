@@ -51,6 +51,11 @@ class WaitingClaude(FakeClaude):
             self._waits(prompt + json.dumps(schema))
         return super().ask(model=model, system=system, prompt=prompt, schema=schema)
 
+    def ask_kind(self, kind, data):
+        if kind in ("essays.plan", "essays.write"):  # WorkIt kinds (D5): the essay's plan and its draft
+            self._waits(json.dumps(data))
+        return super().ask_kind(kind, data)
+
     def research(self, **call):
         self._waits(call["prompt"])
         return super().research(**call)

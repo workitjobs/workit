@@ -16,6 +16,8 @@ raises `UsageLimitHit`, which pauses the run until midnight UTC. Every
 other adapter refuses a kind with a SetupError (`adapters.NEEDS_WORKIT`):
 `claude` can run one again only once the developer prompt route is built
 (urgent, `../../docs/developer_apply_agent_testing_framework.md`).
+A kind call is a wait the tile shows with Resume (`stuck.Waits.ask_kind`), but its HTTP call
+can't be cut short: Resume takes effect once WorkIt answers or the call times out.
 `as_applicant.ask_kind` adds the pronouns and the school to the data, and
 puts the first name back into the answer, since the prompts say `@NAME@`.
 **`workit` is the default** (2026-11-14, `policies.default.yaml`). Apply's

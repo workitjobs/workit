@@ -178,12 +178,12 @@ def test_holds_do_not_stop_a_rehearsal_and_claude_fill_never_clicks_submit(monke
 
     assert (done.posting.job_system, done.outcome) == ("other", "ready to submit")
     # Its High-stakes essay was written and filled anyway; a run would hold it for that, and for the Calibration run.
-    assert any("essays" in call["schema"]["properties"] for call in claude.calls)
+    assert any(asked["kind"] == "essays.write" for asked in claude.kinds)
     assert f"High-stakes essay: '{ESSAY}'" in done.why
     assert "Calibration run: Application 1 of 10" in done.why
     assert done.missing == ("Date Available",)
     # Two drives, then 1,000 for each other call: the essay's probe, plan, draft, checks and editor's passes, and the review.
-    assert done.tokens == 18_000 + 31_500 + 1_000 * (len(claude.calls) - 2)
+    assert done.tokens == 18_000 + 31_500 + 1_000 * (len(claude.calls) + len(claude.kinds) - 2)  # kinds spend too
     assert "Claude fill:" not in done.why  # its cost is in the tokens, not among the holds
     assert server.submissions == []
 

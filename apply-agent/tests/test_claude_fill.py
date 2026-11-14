@@ -215,7 +215,7 @@ def test_claude_fill_reads_the_postings_description_off_its_page_for_the_essay_c
     with FakeBambooServer(LUNAR_FORM) as server:
         run(server, profile, requests=[LUNAR_URL], claude=claude)
 
-    [essay] = [c for c in claude.calls if "essays" in c["schema"]["properties"]]
+    [essay] = [asked for asked in claude.kinds if asked["kind"] == "essays.write"]
     [review] = [c for c in claude.calls if "problems" in c["schema"]["properties"]]
     assert LUNAR_TEXT in essay["prompt"] and LUNAR_TEXT in review["prompt"]
     assert "Pursuing a Bachelor’s or Master's degree in Computer Science" in essay["prompt"]
