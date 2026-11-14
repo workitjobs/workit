@@ -210,7 +210,8 @@ class PlainWorkers:
         """Write the worker extension's generated files (the guards, the fixed page functions, Playwright's
         injected script; never the engine, KAN-839) into this checkout's extension folder, and the same files
         as a write-once vendor set into the folder Worker `worker` loads, which the bridge names in each
-        welcome (KAN-645)."""
+        welcome (KAN-645). A store copy's folder is Chrome's and is never written: its own packaged files
+        are used when they are this Apply's (bridge.Bridge.packaged)."""
         identity = extension.engine_identity()
         files = extension.generated(identity)
         if self.direct:
@@ -230,6 +231,7 @@ class PlainWorkers:
                   f"load this folder's own copy ({self.copy}).", file=sys.stderr)
         self.bridge.folder = loaded
         self.bridge.vendor = roots.pop()  # one id: the same files
+        self.bridge.packaged = extension.set_id(extension.packaged_files(files))  # a package with these built in
         self.bridge._engine = identity
         return identity
 
@@ -282,7 +284,7 @@ class PlainWorkers:
             "description": "Relays Apply's plain Worker extension to the Apply process on this Mac",
             "path": str(wrapper),
             "type": "stdio",
-            "allowed_origins": [extension.EXTENSION_ORIGIN],
+            "allowed_origins": list(extension.EXTENSION_ORIGINS),
         }, indent=1) + "\n")
         return manifest
 

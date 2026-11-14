@@ -37,3 +37,5 @@ private-identifiers.txt
 
 .venv/
 .pytest_cache/
+# The Chrome Web Store package `apply plain package` builds (KAN-839).
+/dist/

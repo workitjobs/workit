@@ -225,6 +225,9 @@ def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
                        help="Chrome for Testing (default), or branded Chrome from the seed profile")
     plain.add_parser("prepare", help="write the worker extension's generated files (the guards, the fixed page "
                                      "functions, Playwright's injected script); never the engine")
+    packaged = plain.add_parser("package", help="build the worker extension's Chrome Web Store zip: its code, the "
+                                                "generated files built in, LICENSE and NOTICE; never the engine")
+    packaged.add_argument("--out", default="dist", help="the folder the zip and its unpacked copy go in (default: dist)")
     plain.add_parser("seed", help="guided one-time setup: open branded Chrome on the seed profile, confirm each step, check a real Worker")
     asked = commands.add_parser("ask", help="Ask Claude to fix an open form in a running Apply window, in your own "
                                             "words; prints what Claude changed. It never submits")
@@ -454,6 +457,11 @@ def _plain(args) -> None:
     elif args.action == "prepare":
         identity = PlainWorkers(kind="testing").prepare()
         print(f"Worker extension ready: Fill engine {identity['version']}.")
+    elif args.action == "package":
+        from apply.plain import extension
+
+        archive = extension.package(Path(args.out))
+        print(f"Chrome Web Store package: {archive} (unpacked beside it). Upload it in the Developer Dashboard.")
     elif args.action == "seed":
         from apply.adapters import SetupError
         from apply.plain import seed_setup

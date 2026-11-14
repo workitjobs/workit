@@ -14,7 +14,8 @@ extension asks for no user scripts. Measured here on Chrome for Testing:
   the page opens: a new tab, outside the tab's debugger session. So the guards stay registered
   content scripts, which Chrome puts in every tab;
 - a saved form fills through the debugger with no read-back problem;
-- a code-only init script is refused: there are no user scripts.
+- a code-only init script is refused (no user scripts), and the store package (`extension.package`),
+  loaded as Chrome would load it, is welcomed to its own built-in files and guards and fills a page.
 
 Skips without Chrome for Testing; CI installs it."""
 
@@ -28,8 +29,8 @@ from urllib.parse import parse_qs, urlparse
 
 import pytest
 
-from apply import fill_engine
-from apply.plain import demo, script
+from apply import fill_engine, submit_guard
+from apply.plain import demo, extension, guards, script
 from apply.plain.bridge import Bridge, PortError
 from apply.plain.launcher import PlainWorkers, chrome_for_testing
 from apply.plain.page import PortPage
@@ -200,3 +201,24 @@ def test_a_saved_form_fills_through_the_debugger(form):
         pytest.skip("needs the Fill engine's saved forms (git submodule update --init)")
     lines = demo.fill(form, kind="testing")
     assert "0 read-back problems" in lines[0] and "Nothing was sent" in lines[0]
+
+
+def test_the_store_package_is_welcomed_to_its_own_files_and_guards_a_page(site, tmp_path):
+    """The package, as `apply plain package` builds it but keeping the manifest's key, so Chrome for Testing gives it
+    the extension's ID: its hello names its built-in files, which are this Apply's, so its welcome names them."""
+    built = extension.package(tmp_path / "out", store=False).with_suffix("")
+    assert [p.relative_to(built).as_posix() for p in built.rglob("engine.js")] == ["ops/engine.js"]  # the op, no bundle
+    short = Path(tempfile.mkdtemp(prefix="apw-pkg-", dir="/tmp"))  # a Unix socket's path must be short
+    workers = PlainWorkers(short / "profiles", kind="testing", bridge=Bridge(short / "w.sock"), extension_dir=built)
+    try:
+        connection = workers.launch(0).connection
+        assert connection.hello["packaged"] == workers.bridge.packaged and connection.vendor == "vendor"
+        page = PortPage(connection, connection.call("tabs.create", url="about:blank", active=False)["tab"])
+        guards.reset(connection)
+        page.context.add_init_script(submit_guard.SCRIPT)  # the rehearsal's guard, from the package's own file
+        page.goto(f"{site.url}/top")
+        page.load_engine()
+        assert page.evaluate("() => typeof FillEngine.call") == "function"
+        assert "rehearsal" in [s.removeprefix("apply-init-") for s in connection.call("guard.status")["scripts"]]
+    finally:
+        workers.stop_all()
