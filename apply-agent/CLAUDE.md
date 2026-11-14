@@ -175,10 +175,21 @@ into it and the window shows "Sample data".
   the keep-alive's stay-signed-in press, Fill again) against pages built to
   trick them. Every pair must send no
   application request. A new click path joins `PATHS`, and a new trick joins
-  `PAGES`, in the same PR. CI runs its no-browser cases, every page and
-  every path at least once on CDP (a diagonal), and every path against the
-  first page in `PAGES` on a plain Worker; the other pairs are marked
-  `nightly` and run in `apply-nightly.yml` (KAN-780). Mark a test `nightly` only when it is slow
+  `PAGES`, in the same PR. A pair runs only where its path looks for
+  something the page holds (`APPLIES`): the four paths that press a form's
+  own button take every page, the profile click only the profile pop-ups,
+  Ask's press of a listed step only pages with a step list, and the
+  keep-alive's presses only the session dialogs. Anywhere else the path finds
+  nothing, and the pair is the guarded page sitting still: 312 of the 728
+  pairs were, and 12 pages' only PR pair was one (KAN-780, 2026-11-14, found
+  by recording what each pair's path pressed). A new page of one of those
+  kinds joins its set; a new path that looks for its own kind of element
+  gets a set. CI runs its no-browser cases, each page on CDP on its own
+  path (`OWN`, else one of the four in turn), each guard hole on every path
+  that applies, and on a plain Worker the first page, each path once and
+  each `PLAIN_HOLES` page; the other pairs are marked `nightly` and run in
+  `apply-nightly.yml` (KAN-780). A no-browser test fails on a pair whose
+  path doesn't apply and on a page or path with no PR case. Mark a test `nightly` only when it is slow
   and a faster PR case covers the same code. A guard PR gets an adversarial review first (root `CLAUDE.md`).
   A page loads with no guard and is then guarded and reloaded, unless it
   sends by itself from the moment it loads (a timer, before any press):

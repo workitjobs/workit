@@ -882,24 +882,65 @@ def first_page_on_prs() -> list:
     return names[:1] + [pytest.param(name, marks=pytest.mark.nightly) for name in names[1:]]
 
 
+# Which pages each click path can press (KAN-780, 2026-11-14). A path presses only what its own code looks for. The
+# four that press a form's own button (plain code's Next, Amazon's Continue, the account click, Ask's press) apply to
+# every page. The others apply only to the pages that hold what they look for, where pressing nothing is itself the
+# check: a stay button that is the form's Submit, a step list clipped to nothing, a profile pop-up that is the
+# application. On any other page they found nothing to press, so the pair was the guarded page sitting still for
+# 3 s: 312 of the 728 pairs, measured by recording what each pair's path pressed. Worse, 12 pages' only PR pair was
+# one of those, so those pages had no real case on PRs.
+PROFILE_PAGES = frozenset({"a profile pop-up that is the application", "a profile pop-up that turns into the application"})
+LISTED_STEP_PAGES = frozenset({
+    "a step list's link to /apply on a page with more steps", "a step list's link that sends", "a step list clipped to nothing",
+    "Step 1 of 2 in text of no size", "a link that pings the final URL", "a ping in a shadow root", "a Submit in a shadow root",
+    "a page that vouches for its own Apply", "a review page's Apply with its answers hidden", "an Amazon card whose Continue sends",
+    *PROFILE_PAGES,
+})
+SESSION_DIALOG_PAGES = frozenset(SESSION_PAGES) | frozenset(GENERIC_SESSION_PAGES)
+AMAZON_PAGES = frozenset({"an Amazon card whose Continue sends"})
+APPLIES = {"the profile click": PROFILE_PAGES, "Ask Claude's press of a listed step": LISTED_STEP_PAGES,
+           "the keep-alive's stay press": SESSION_DIALOG_PAGES, "the keep-alive's generic stay press": SESSION_DIALOG_PAGES}
+# The kind of page each path was written against, in this order: a page's one PR pair takes the first that holds it.
+OWN = {"the profile click": PROFILE_PAGES, "Ask Claude's press of a listed step": LISTED_STEP_PAGES,
+       "the keep-alive's stay press": frozenset(SESSION_PAGES),
+       "the keep-alive's generic stay press": frozenset(GENERIC_SESSION_PAGES),
+       "the Amazon Filler's Continue": AMAZON_PAGES}
+
+
+def applies(page: str, path: str) -> bool:
+    """Whether `path` looks for something `page` holds: else the pair tests nothing."""
+    return page in APPLIES.get(path, PAGES)
+
+
+def own_path(i: int, page: str, paths: list) -> str:
+    """The path a page was written against: the first in OWN whose kind of page it is, else (a page any of them
+    presses) one of the paths that press a form's own button, in turn by the page's place `i`."""
+    for path, pages in OWN.items():
+        if path in paths and page in pages:
+            return path
+    universal = [path for path in paths if path not in APPLIES]
+    return universal[i % len(universal)]
+
+
 def each_page_and_path_once_on_prs(paths=None) -> list:
-    """(page, path) pairs for a matrix: PR CI runs a diagonal, so every page and every path
-    runs at least once, and the nightly workflow runs the other pairs, marked `nightly` (KAN-780).
-    A guard hole's page (GUARD_HOLES) runs on PRs on every path."""
+    """(page, path) pairs for a matrix, only where the path applies: PR CI runs each page on its own path, and a
+    guard hole's page (GUARD_HOLES) on every path that applies; the nightly workflow runs the other pairs, marked
+    `nightly` (KAN-780)."""
     paths = list(PATHS) if paths is None else list(paths)
-    return [(page, path) if page in GUARD_HOLES or i % len(paths) == paths.index(path)
+    return [(page, path) if page in GUARD_HOLES or path == own_path(i, page, paths)
             else pytest.param(page, path, marks=pytest.mark.nightly)
-            for i, page in enumerate(PAGES) for path in paths]
+            for i, page in enumerate(PAGES) for path in paths if applies(page, path)]
 
 
 def plain_pairs_on_prs(paths) -> list:
-    """(page, path) pairs for the plain-Worker click matrix: PR CI runs every path against the first page and each
-    plain Worker's guard hole (PLAIN_HOLES) on one path (a diagonal), and the nightly workflow runs the rest, marked
-    `nightly` (KAN-780)."""
+    """(page, path) pairs for the plain-Worker click matrix, only where the path applies: PR CI runs the first page on
+    each path that applies to it, each other path once on the first page of its kind, and each plain Worker's guard
+    hole (PLAIN_HOLES) on its own path; the nightly workflow runs the rest, marked `nightly` (KAN-780)."""
     paths, first = list(paths), next(iter(PAGES))
-    return [(page, path) if page == first or (page in PLAIN_HOLES and i % len(paths) == paths.index(path))
+    once = {path: next(page for page in PAGES if page in OWN[path] and applies(page, path)) for path in paths if path in OWN}
+    return [(page, path) if page == first or once.get(path) == page or (page in PLAIN_HOLES and path == own_path(i, page, paths))
             else pytest.param(page, path, marks=pytest.mark.nightly)
-            for i, page in enumerate(PAGES) for path in paths]
+            for i, page in enumerate(PAGES) for path in paths if applies(page, path)]
 
 
 def _settle(page, ms=3000) -> None:
@@ -1733,3 +1774,24 @@ def test_every_guard_hole_is_a_hostile_page():
     # A name in GUARD_HOLES that is no page would leave that hole to the nightly run alone.
     assert GUARD_HOLES <= set(PAGES)
     assert PLAIN_HOLES <= GUARD_HOLES
+
+
+def _pairs(matrix) -> tuple[list, list]:
+    """A matrix's (page, path) pairs, and those PR CI runs."""
+    every = [tuple(p.values) if hasattr(p, "values") else p for p in matrix]
+    return every, [p for p in matrix if not hasattr(p, "values")]
+
+
+def test_each_pair_is_a_path_on_a_page_it_can_press_and_every_page_and_path_runs_on_prs():
+    # Before KAN-780's table, 312 of the 728 pairs were a path that found nothing on its page, and 12 pages' only PR
+    # pair was one: a name here that is no page would take a path's pages away, and a page with no PR pair is untested.
+    assert all(pages <= set(PAGES) for pages in [*APPLIES.values(), *OWN.values()])
+    for matrix, paths, every_page in ((each_page_and_path_once_on_prs(), list(PATHS), True),
+                                      (plain_pairs_on_prs(PLAIN_PATHS), PLAIN_PATHS, False)):
+        every, on_prs = _pairs(matrix)
+        assert all(applies(page, path) for page, path in every)
+        assert len(set(every)) == len(every)
+        assert {path for _, path in on_prs} == set(paths)
+        if every_page:
+            assert {page for page, _ in on_prs} == set(PAGES)
+            assert all(own_path(i, page, paths) in {path for p, path in on_prs if p == page} for i, page in enumerate(PAGES))

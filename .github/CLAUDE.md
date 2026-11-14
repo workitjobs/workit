@@ -182,12 +182,15 @@ loadgroup`, and the plain-Worker step without `-n`): in parallel, plain
 Workers' trusted typing missed its field. The tile's tests, which time
 frames in real seconds, have their own one-process step too. Before KAN-780 the job took 16 to 20 minutes,
 10 to 15 of them in the hostile pages' matrix. PRs now run every hostile
-page and every path at least once; `workflows/apply-nightly.yml` (07:53
+page on its own path and every path at least once, a pair only where its path
+presses something the page holds (`APPLIES`, `apply-agent/CLAUDE.md`);
+`workflows/apply-nightly.yml` (07:53
 UTC, or `gh workflow run apply-nightly.yml`) runs every `nightly` test.
 The pages of PR 477's guard holes (KAN-710: `GUARD_HOLES` in
 `test_submit_guard_hostile.py`, among them a page that sets the guards' old
 `window.__apply*` flags itself) are never only nightly: PRs run each one on
-every CDP path. The holes that hang on how a plain Worker carries the guards'
+every CDP path that applies to it. Leaving out the pairs whose path finds
+nothing on its page took the step from 710 cases to 495 (2026-11-14). The holes that hang on how a plain Worker carries the guards'
 state, touches, controls and network rules (`PLAIN_HOLES`) also run on one
 plain-Worker path; the rest of their plain-Worker pairs run nightly, since the
 guard script is the same on both kinds of Worker. A page added for a new
