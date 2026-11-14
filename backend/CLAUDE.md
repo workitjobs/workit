@@ -334,9 +334,16 @@ Find files with a directory listing; these are the rules for where code goes.
   `SCOUT_*` settings stay the one place a model is named
   (`../scout/CLAUDE.md`, "Which model, where").
 - **WorkIt Auto Apply's Model route** (`routers/apply_app.py`, KAN-723,
-  `../docs/desktop_application_auto_apply.md`, W1) is the one route that
-  takes a prompt from outside: the desktop app's own `ask`, with its
-  schema as data (`LLM.complete_schema`). Apply's `haiku` takes the small
+  `../docs/desktop_application_auto_apply.md`, W1) runs the desktop app's
+  `ask`s. **`POST /apply-app/ask` builds each prompt on the server** (D5):
+  the app sends a kind and its data, and `app/apply_prompts/` holds each
+  kind's data model, size and builder, ported from Apply's modules. A
+  kind's data fields never change in place (an app copy can be older than
+  the server): a change is a new version beside the old one. A new kind
+  joins its module's `KINDS` and a sample in `tests/test_apply_prompts.py`.
+  `POST /apply-app/model`, which takes the app's own prompt and schema,
+  goes when the last kind is ported. Both run the schema as data through
+  `LLM.complete_schema`. Apply's `haiku` takes the small
   chain, `sonnet` and `opus` the large one. It counts tokens a calendar
   month in `model_usage` (`queries/model_usage.py`), not daily uses in
   `services/usage.py`, against `APPLY_APP_MONTHLY_TOKENS`, and calls a

@@ -2,27 +2,34 @@
 WorkIt Auto Apply's Model route (KAN-723, W1 of
 docs/desktop_application_auto_apply.md; ADR 0005 in apply-agent/docs/adr/):
 the desktop app makes every model call here, and WorkIt holds the provider
-keys, counts each student's tokens and stops them at the monthly Usage cap.
-A thin proxy: the prompts stay in the app.
+keys, builds the prompts (D5), counts each student's tokens and stops them
+at the monthly Usage cap.
 
+POST /apply-app/ask  AskCall {kind, version?, data}
+     One of Apply's `ask`s, built on the server: `kind` names it
+     ("writing.check"), and `data` is what the app collected for it, checked
+     against the kind's own model (app/apply_prompts/). The server builds
+     the system prompt, the prompt and the schema, so a request carries no
+     instructions and no schema. Each kind runs on the size of the API's
+     model chain it names (app/services/models.py).
 POST /apply-app/model  ModelCall {kind?, model, system?, prompt, schema}
-     One `ask`: the answer to `prompt` as JSON that fits `schema`, through
-     the API's model chain (app/services/models.py): `haiku` asks the small
-     chain, `sonnet` and `opus` the large one, so the model names stay in
-     the SCOUT_* settings. The chain moves on at a 429, a 5xx, a request too
-     large, a 400 or 422 (the provider refused this request or its schema)
-     or an answer outside the schema (workit_scout.llm.complete_schema).
-     The student's email, phone and links, and any email, phone or link
-     found by pattern, go to the model as placeholders, whatever the app
-     replaced first, and come back in the answer as their values
-     (workit_scout.identity.Masked). The name is the app's to replace (D8):
-     the server's name removal also took ordinary words ("will" for a
-     student named Will) and broke the prompt. Answers ModelAnswer
-     {answer, tokens, usage}.
+     The same call with the app's own prompt and schema, until every kind
+     is ported; then it goes, with ModelCall's schema guards
+     (app/schemas/apply_app.py). `haiku` asks the small chain, `sonnet` and
+     `opus` the large one.
+
+Both: the chain moves on at a 429, a 5xx, a request too large, a 400 or
+422 (the provider refused this request or its schema) or an answer outside
+the schema (workit_scout.llm.complete_schema). The student's email, phone
+and links, and any email, phone or link found by pattern, go to the model
+as placeholders, whatever the app replaced first, and come back in the
+answer as their values (workit_scout.identity.Masked). The name is the
+app's to replace (D8): the server's name removal also took ordinary words
+("will" for a student named Will) and broke the prompt. Both answer
+ModelAnswer {answer, tokens, usage}.
        403  not a student's account.
-       422  a body outside ModelCall (a schema that is not an object's, uses
-            `$ref` or `pattern`, or is over 20,000 characters or 32 levels,
-            app/schemas/apply_app.py).
+       422  a body outside AskCall or ModelCall, an unknown kind or version,
+            or data outside the kind's model. Nothing counts.
        429  with Retry-After: the student's calls this minute are at
             APPLY_APP_CALLS_PER_MINUTE (a minute at most), or their tokens this
             month are at APPLY_APP_MONTHLY_TOKENS (Retry-After runs to the 1st,
@@ -35,8 +42,8 @@ POST /apply-app/model  ModelCall {kind?, model, system?, prompt, schema}
      The tokens a failed call spent still count.
 GET  /apply-app/usage  Usage {used, cap, resets_at}: this month's tokens.
 
-Logs name the student, the call's kind and model, and its tokens; never a
-prompt or an answer.
+Logs name the student, the call's kind and model size, and its tokens;
+never a prompt or an answer.
 """
 
 import dataclasses
@@ -45,14 +52,17 @@ import logging
 import math
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.exceptions import RequestValidationError
+from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 from workit_scout.llm import LLM, InvalidReply, RequestTooLarge, ScoutUnavailable
 
+from app.apply_prompts import KINDS, said
 from app.config import get_settings
 from app.db import get_session
 from app.deps import get_current_account
 from app.queries import model_usage
-from app.schemas.apply_app import ModelAnswer, ModelCall, Usage
+from app.schemas.apply_app import AskCall, ModelAnswer, ModelCall, Usage
 from app.schemas.auth import AccountType, AuthenticatedAccount
 from app.services.identity import load_identity
 from app.services.models import get_large_llm, get_small_llm
@@ -89,6 +99,28 @@ async def usage(
     return _usage(await model_usage.used_this_month(db, account.id, now), now)
 
 
+@router.post("/ask")
+async def ask(
+    body: AskCall,
+    account: AuthenticatedAccount = Depends(_student),
+    db: AsyncSession = Depends(get_session),
+    large: LLM = Depends(get_large_llm),
+    small: LLM = Depends(get_small_llm),
+) -> ModelAnswer:
+    kind = KINDS.get((body.kind, body.version))
+    if kind is None:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, f"No kind {body.kind!r} at version {body.version}.")
+    try:
+        data = kind.data.model_validate(body.data)
+    except ValidationError as e:
+        raise RequestValidationError([{**error, "loc": ("body", "data", *error["loc"])}
+                                      for error in e.errors(include_url=False, include_context=False, include_input=False)]) from None
+    built = said(kind.build(data), data)
+    messages = [{"role": "system", "content": built.system}, {"role": "user", "content": built.prompt}]
+    return await _call(db, account, small if kind.size == "small" else large, messages, built.schema,
+                       kind.name, kind.size)
+
+
 @router.post("/model")
 async def model_call(
     body: ModelCall,
@@ -97,6 +129,15 @@ async def model_call(
     large: LLM = Depends(get_large_llm),
     small: LLM = Depends(get_small_llm),
 ) -> ModelAnswer:
+    messages = [{"role": "system", "content": body.system}] if body.system else []
+    messages.append({"role": "user", "content": body.prompt})
+    return await _call(db, account, small if body.model == "haiku" else large, messages, body.answer_schema,
+                       body.kind, body.model)
+
+
+async def _call(db: AsyncSession, account: AuthenticatedAccount, llm: LLM, messages: list[dict[str, str]],
+                schema: dict, kind: str, model: str) -> ModelAnswer:
+    """The limits, the cap, one call down the chain and its count."""
     settings = get_settings()
     now = _now()
     used = await model_usage.take_call(db, account.id, settings.apply_app_calls_per_minute, now)
@@ -115,18 +156,15 @@ async def model_call(
     # Hold no connection while the model writes, which can take a minute.
     await db.commit()
 
-    messages = [{"role": "system", "content": body.system}] if body.system else []
-    messages.append({"role": "user", "content": body.prompt})
-    llm = small if body.model == "haiku" else large
     failure: ScoutUnavailable | None = None
     try:
-        answer, spent = await llm.complete_schema(messages, body.answer_schema, identity=identity)
+        answer, spent = await llm.complete_schema(messages, schema, identity=identity)
     except ScoutUnavailable as e:
         failure, spent = e, e.spent
 
     used = await model_usage.add_spent(db, account.id, spent, now)
     await db.commit()
-    logger.info("Model route: student %s, %s on %s, %d tokens in, %d out%s", account.id, body.kind, body.model,
+    logger.info("Model route: student %s, %s on %s, %d tokens in, %d out%s", account.id, kind, model,
                 spent.input_tokens, spent.output_tokens, f", failed: {type(failure).__name__}" if failure else "")
     if isinstance(failure, RequestTooLarge):
         raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, str(failure))

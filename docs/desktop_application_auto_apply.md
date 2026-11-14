@@ -623,7 +623,9 @@ its own instructions or a hostile schema.
   is built (`docs/developer_apply_agent_testing_framework.md`, not
   built). Until then a developer runs `ask_model: workit` against the
   local API (D30).
-- **The kinds**, one for each `ask` call that writes or judges:
+- **The kinds**, one for each `ask` call that writes or judges. Built on
+  the server so far: `writing.check` and `writing.edit` (2026-11-14);
+  Apply still sends their prompts itself until its calls send kinds:
 
   | Kind | Apply today | What the app sends |
   |---|---|---|

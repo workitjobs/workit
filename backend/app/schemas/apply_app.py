@@ -70,6 +70,18 @@ class ModelCall(BaseModel):
         return schema
 
 
+class AskCall(BaseModel):
+    """One of Apply's calls by its kind (app/apply_prompts/): the server
+    builds its prompt and schema from `data`, which the kind's own model
+    checks."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    kind: str = Field(pattern=r"^[a-z][a-z0-9_]{0,39}(?:\.[a-z][a-z0-9_]{0,39})?$")
+    version: int = Field(default=1, ge=1, le=1000)
+    data: dict[str, Any]
+
+
 class Usage(BaseModel):
     """The student's model use this month, in tokens, against the cap."""
 
