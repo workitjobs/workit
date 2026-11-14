@@ -45,5 +45,13 @@ class as_applicant:
         return self._claude.ask(model=model, system=say(system + pronouns_note(self._profile)), prompt=say(prompt),
                                 schema=json.loads(say(json.dumps(schema))))
 
+    def ask_kind(self, kind: str, data: dict) -> dict:
+        """`kind` said as the applicant: WorkIt adds the pronouns note and names the school from what this
+        sends, and the name, which stays NAME in every prompt WorkIt builds (D8), goes back into the answer."""
+        said = {"pronouns": str(self._profile.get("identity.pronouns") or "they/them/theirs").strip(),
+                "school": self._profile.get("education.school") or ""}
+        given = self._claude.ask_kind(kind, {**data, **said})
+        return json.loads(json.dumps(given).replace(NAME, json.dumps(first_name(self._profile))[1:-1]))
+
     def __getattr__(self, name: str):
         return getattr(self._claude, name)

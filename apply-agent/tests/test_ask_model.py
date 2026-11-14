@@ -6,10 +6,10 @@ from datetime import datetime, timedelta
 
 import pytest
 
-from apply import answering, ask_model, doctor
+from apply import answering, ask_model, doctor, workit
 from apply.adapters import SetupError, UsageLimitHit, lean
 from apply.ask_model import PROVIDERS, Endpoint, HostedAsk, live_claude, strict
-from apply.claude_cli import ClaudeError
+from apply.claude_cli import ClaudeCLI, ClaudeError
 from apply.keychain import InMemoryKeychain
 
 NOW = datetime(2026, 11, 10, 9, 0)
@@ -274,3 +274,72 @@ def test_lean_guides_and_rules_keep_their_checks_and_drop_the_examples():
     assert "1. **The answer is in the first sentence.**" in rules
     assert "## Length" in rules and "## Types" not in rules
     assert len(rules) < len(answering.rules()) / 2
+
+
+# --- ask_model: workit (D5, KAN-723): a kind and its data to WorkIt's Model route ----------------------------------
+
+class FakeWorkIt:
+    """WorkIt.call, answering from `replies` in order: a dict, or an exception to raise."""
+
+    def __init__(self, *replies):
+        self.replies, self.calls = list(replies), []
+
+    def call(self, method, path, body=None, timeout=None):
+        self.calls.append((method, path, body, timeout))
+        reply = self.replies.pop(0)
+        if isinstance(reply, Exception):
+            raise reply
+        return reply
+
+
+def workit_ask(*replies, now=datetime(2026, 11, 14, 10, 0)):
+    slept = []
+    fake = FakeWorkIt(*replies)
+    return ask_model.WorkItAsk(_NoClaude(), fake, slept.append, lambda: now), fake, slept
+
+
+class _NoClaude:
+    def spent(self) -> int:
+        return 5
+
+
+def test_workit_sends_a_kind_and_its_data_and_counts_its_tokens():
+    asks, fake, _ = workit_ask({"answer": {"unsupported": {"q1": []}}, "tokens": 120, "usage": {}})
+    assert asks.ask_kind("writing.check", {"drafts": {"q1": "x"}}) == {"unsupported": {"q1": []}}
+    method, path, body, timeout = fake.calls[0]
+    assert (method, path, body) == ("POST", "/apply-app/ask", {"kind": "writing.check", "version": 1,
+                                                               "data": {"drafts": {"q1": "x"}}})
+    assert timeout == ask_model.ASK_TIMEOUT and asks.spent() == 125
+    with pytest.raises(SetupError):  # never a prompt
+        asks.ask(model="opus", system="s", prompt="p", schema={})
+
+
+def test_workit_waits_out_its_minute_limit_once_and_pauses_the_run_at_its_cap():
+    now = datetime(2026, 11, 14, 10, 0)
+    minute = workit.CapReached("429", now.timestamp() + 30)
+    asks, _, slept = workit_ask(minute, {"answer": {"a": 1}, "tokens": 1}, now=now)
+    assert asks.ask_kind("brief.team", {}) == {"a": 1} and slept == [30]
+    midnight = datetime(2026, 11, 15, 0, 0)
+    asks, _, slept = workit_ask(workit.CapReached("429", midnight.timestamp()), now=now)
+    with pytest.raises(UsageLimitHit) as hit:
+        asks.ask_kind("brief.team", {})
+    assert hit.value.resets_at == midnight and slept == []
+
+
+@pytest.mark.parametrize(("refusal", "raised"), [
+    (workit.Unreachable("api.workitjobs.ai: 503"), ClaudeError),
+    (workit.WorkItError("413", 413), ClaudeError),
+    (workit.LoginExpired("refused"), SetupError),
+])
+def test_workit_refusals_are_apply_errors(refusal, raised):
+    asks, _, _ = workit_ask(refusal)
+    with pytest.raises(raised):
+        asks.ask_kind("brief.team", {})
+
+
+def test_ask_model_workit_stands_alone_and_other_adapters_refuse_a_kind():
+    assert isinstance(live_claude({"ask_model": "workit"}, claude=_NoClaude()), ask_model.WorkItAsk)
+    with pytest.raises(SetupError):
+        live_claude({"ask_model": ["workit", "groq"]}, claude=_NoClaude())
+    with pytest.raises(SetupError, match="ask_model: workit"):
+        ClaudeCLI().ask_kind("writing.check", {})

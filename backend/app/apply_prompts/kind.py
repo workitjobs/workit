@@ -32,7 +32,8 @@ class Data(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    pronouns: str = Field(default="they/them/theirs", pattern=r"^[A-Za-z][A-Za-z/ ,-]{0,39}$")
+    # As the profile states them ("she/her/hers", "ze/zir"): one short line, so it can't carry instructions.
+    pronouns: str = Field(default="they/them/theirs", pattern=r"^[^\n\r<>{}]{1,40}$")
     school: str = Field(default="", max_length=200)
 
 

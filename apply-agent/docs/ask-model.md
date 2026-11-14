@@ -7,6 +7,20 @@ step from `claude -p` to a model a desktop app may call
 (`../../docs/desktop_application_auto_apply.md`, D1 and W1). The goal of a
 hosted model is a run that works and is usable, not Claude's quality.
 
+**`ask_model: workit`** (`WorkItAsk`, 2026-11-14) sends each call as a
+kind and its data (`Claude.ask_kind`), as the signed-in student
+(`apply login`; a developer's own API with `APPLY_WORKIT_API`). WorkIt
+builds the prompt (`../../backend/app/apply_prompts/`), so a call never
+carries one. Its per-minute limit is waited out once; its daily Usage cap
+raises `UsageLimitHit`, which pauses the run until midnight UTC. Every
+other adapter refuses a kind with a SetupError (`adapters.NEEDS_WORKIT`):
+`claude` can run one again only once the developer prompt route is built
+(urgent, `../../docs/developer_apply_agent_testing_framework.md`).
+`as_applicant.ask_kind` adds the pronouns and the school to the data, and
+puts the first name back into the answer, since the prompts say `@NAME@`.
+Apply's calls move to kinds one module at a time; until a module moves,
+it still builds its own prompt.
+
 **`[groq, gemini]` is the default** (2026-11-10, `policies.default.yaml`).
 `claude` is a developer's choice, set in their own `policies.yaml`.
 Policies with no `ask_model` key (a test's) read as `claude`, and
@@ -16,6 +30,7 @@ that holds the keys.
 
 | `ask_model` | `ask` goes to | Essay prompts | Claude fill, Rescue, company briefs |
 |---|---|---|---|
+| `workit` (being built, KAN-723 D5) | WorkIt's Model route, `POST /apply-app/ask`, as a kind and its data; WorkIt builds the prompt and runs its own chain | lean, on the server | `claude -p`, still |
 | `[groq, gemini]` (default) | Groq, and Gemini for each call Groq can't take | lean | `claude -p`, still |
 | `groq` | Groq: `openai/gpt-oss-120b`, `gpt-oss-20b` for Haiku's calls | lean | `claude -p`, still |
 | `gemini` | Gemini: `gemini-3.5-flash-lite` | lean | `claude -p`, still |

@@ -129,3 +129,23 @@ def test_a_company_named_only_in_test_persons_past_answers_is_still_a_leftover(m
 def test_test_persons_story_areas_come_from_his_bank_headings():
     assert story_map.episodes(BANK) == [("- Example State University, B.S. Computer Science, May 2028.", "education"),
                                         (BUILT, "example-robotics-club")]
+
+
+def test_a_kind_goes_with_the_pronouns_and_school_and_its_answer_gets_the_name_back(tmp_path):
+    from apply.applicant import as_applicant
+
+    class Kinds:
+        def __init__(self):
+            self.sent = []
+
+        def ask_kind(self, kind, data):
+            self.sent.append((kind, data))
+            return {"letter": 'Sincerely, @NAME@'}
+
+    profile = ApplicantProfile({"identity": {"preferred_first_name": 'Te"st', "pronouns": "she/her/hers"},
+                                "education": {"school": "Example State University"}}, tmp_path, {})
+    kinds = Kinds()
+    answer = as_applicant(kinds, profile).ask_kind("essays.write", {"drafts": {}})
+    assert kinds.sent == [("essays.write", {"drafts": {}, "pronouns": "she/her/hers",
+                                            "school": "Example State University"})]
+    assert answer == {"letter": 'Sincerely, Te"st'}
