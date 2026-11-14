@@ -13,6 +13,15 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
   they/them/theirs) to each system prompt. Without them, Claude guesses
   from the name, and a plan or a reason can call a they/them applicant
   "he". Wrap each Claude call that writes about the applicant with it.
+- A hosted model (`ask_model`, `docs/ask-model.md`) gets lean essay
+  prompts: the plan lists only the asked Question types, the writer gets
+  the rules' leads and each guide's Order and Rules (no quoted readers,
+  Pairs or model letters), and one-off questions go in their own call. A
+  new guide section that a lean prompt must keep joins
+  `answering.LEAN_SECTIONS`. `claude -p` always gets the full prompts.
+- A plan's quote holds when its words match the sources in order, whole:
+  punctuation, hyphen kinds and small number words ("five" for "5") don't
+  count (`essays._quotable`).
 - The length gate (`gates.bounds`) reads a limit that the form states,
   also a hyphenated one ("500-word limit") and one with the unit first
   ("Word limit: 260", `gates.LIMIT`). Keep it in step with

@@ -864,6 +864,21 @@ PLAIN_HOLES = frozenset({
     "a Next whose service worker posts the application", "a worker made by a constructor the guard never wrapped",
 })
 
+# The pages whose own timer posts every 100 ms from the moment they load, before any press: guarded before their
+# first load (submit_guard.on_open), as a rehearsal opens every page (KAN-682). Loaded first and guarded after, the
+# timer can post before the guard is on, and its post moves the page during the guard's reload: on CI (2026-11-14)
+# they failed as sends to SAVE and as net::ERR_ABORTED reloads, never past a guard that was on.
+SENDS_AS_IT_LOADS = frozenset({
+    "a form a timer posts while a Next is pressed", "a frame that forges the extension's touch",
+    "a page that fakes eventPhase",
+})
+
+# The pages that move their own URL as they load (history.replaceState): the guard's reload after a first load loads
+# that URL instead, the Site's thank-you page, and the case ran on a page with no form at all. The tile's typing
+# found no Next there and timed out (nightly, 2026-11-14, KAN-841). Guarded before their first load too.
+MOVES_ITS_URL = frozenset({"an empty formaction on a page at the final URL"})
+GUARDED_FIRST = SENDS_AS_IT_LOADS | MOVES_ITS_URL
+
 
 def first_page_on_prs() -> list:
     """PAGES for a plain-Worker matrix: PR CI runs every path against the first page, and the
@@ -975,7 +990,7 @@ def quick_steps(monkeypatch):
 
 @pytest.mark.parametrize(("page_name", "path"), each_page_and_path_once_on_prs())
 def test_no_click_path_sends_a_hostile_page_on_cdp(page_name, path):
-    with cdp(PAGES[page_name]) as (page, drive, site):
+    with cdp(PAGES[page_name], first=page_name in GUARDED_FIRST) as (page, drive, site):
         try:
             PATHS[path](page, drive, button(page_name))
         except Handoff:
@@ -1357,12 +1372,17 @@ def _plain_or_skip():
 
 
 @contextmanager
-def plain(pages: dict[str, str]):
+def plain(pages: dict[str, str], first: bool = False):
+    """As cdp(), on a plain Worker: guarded after a first load, or with `first` before it (SENDS_AS_IT_LOADS)."""
     _plain_or_skip()
     from plain_fakes import fake_page
 
     site = Site(pages)
-    with fake_page(site.handle, url=HOST + START) as page:
+    with fake_page(site.handle) as page:
+        if first:
+            with submit_guard.guarding_on_open():
+                submit_guard.on_open(page)
+        page.goto(HOST + START)
         guard(page)
         yield page, DriveGuard(page), site
 
@@ -1374,7 +1394,7 @@ PLAIN_PATHS = ["plain code's Next", "the Amazon Filler's Continue", "the profile
 @pytest.mark.parametrize(("page_name", "path"), plain_pairs_on_prs(PLAIN_PATHS))
 @ONE_PLAIN_PROCESS
 def test_no_click_path_sends_a_hostile_page_on_a_plain_worker(page_name, path):
-    with plain(PAGES[page_name]) as (page, drive, site):
+    with plain(PAGES[page_name], first=page_name in GUARDED_FIRST) as (page, drive, site):
         try:
             PATHS[path](page, drive, button(page_name))
         except Handoff:
@@ -1402,7 +1422,7 @@ def test_a_worker_made_while_lifted_sends_nothing_once_rearmed_on_a_plain_worker
 @pytest.mark.parametrize("page_name", first_page_on_prs())
 @ONE_PLAIN_PROCESS
 def test_no_typing_path_sends_a_hostile_page_on_a_plain_worker(page_name, path):
-    with plain(PAGES[page_name]) as (page, drive, site):
+    with plain(PAGES[page_name], first=page_name in GUARDED_FIRST) as (page, drive, site):
         try:
             TYPING[path](page, drive, button(page_name))
         except Handoff:

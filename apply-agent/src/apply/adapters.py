@@ -195,6 +195,13 @@ class UsageReading:
     resets_at: datetime | None = None
 
 
+def lean(claude) -> bool:
+    """Whether `claude` is a smaller model with a small request limit (apply.ask_model: Groq, Gemini): its essay
+    prompts drop their examples, list only the Question types asked, and draft one-off questions in a call of
+    their own. `claude -p` is never lean."""
+    return getattr(claude, "lean", False) is True
+
+
 class SetupError(Exception):
     """This Mac isn't set up for a call (the claude CLI missing or logged out, say): no
     Application can go on until the applicant fixes it, and no Repair could. Its message

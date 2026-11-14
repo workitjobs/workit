@@ -84,7 +84,7 @@ from apply.model import (
     QuestionSet,
     Readback,
 )
-from apply.submit_guard import CAPTCHA_TRY, PROFILE_DIALOG, DriveGuard
+from apply.submit_guard import PROFILE_DIALOG, DriveGuard, drive_blocks
 
 MODEL = "haiku"
 # The cap on one Application, across its sessions. policies.yaml can change it.
@@ -817,7 +817,7 @@ class ClaudeFill:
         self._tokens += drive.tokens
         # A click or key Claude tried in a captcha was refused there: nothing was touched, and the captcha
         # is Lisul's still (the challenge's wait below, or its box's once the form is filled).
-        blocked = [b for b in self._guard.blocked()[before:] if b != CAPTCHA_TRY]
+        blocked = drive_blocks(self._guard.blocked()[before:])
         if blocked and drive.output and _only_its_submit(blocked, drive.output):
             # Claude clicked the button it then named as the one that sends: the guard stopped it, so
             # the form is filled and unsent, as a Filler leaves it (Roblox's, live: a Handoff after 1.2M tokens).

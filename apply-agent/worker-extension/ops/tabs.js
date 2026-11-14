@@ -4,12 +4,16 @@ import { capture, inPage, named, sleep } from "./shared.js";
 
 // Resolves once the tab's top frame reaches `waitUntil` ("commit", "domcontentloaded" or "load")
 // after a navigation that starts from now; rejects on a failed navigation, a closed tab or the timeout.
-// Set it up before starting the navigation.
-function navigation(tab, waitUntil = "load", timeout = 30000, what = "page.goto") {
+// Set it up before starting the navigation. `to`: where a goto goes. A tab tabs.create just made is
+// still loading about:blank, and those events come after it answers: a goto anywhere else heard them
+// as its own and answered before its page had committed, and the guard's reload then ran into the
+// page's own load and was aborted (net::ERR_ABORTED in the hostile pages' tests).
+function navigation(tab, waitUntil = "load", timeout = 30000, what = "page.goto", to = "") {
   let finish, fail;
   const done = new Promise((resolve, reject) => { finish = resolve; fail = reject; });
   let committed = false;
-  const top = (d) => d.tabId === tab && d.frameId === 0;
+  const blank = (url) => /^about:blank(?:[?#]|$)/.test(url || "");
+  const top = (d) => d.tabId === tab && d.frameId === 0 && !(blank(d.url) && to && !blank(to));
   const onCommitted = (d) => { if (top(d)) { committed = true; if (waitUntil === "commit") end(); } };
   const onDom = (d) => { if (top(d) && committed && waitUntil === "domcontentloaded") end(); };
   const onCompleted = (d) => { if (top(d) && committed) end(); };
@@ -38,7 +42,7 @@ async function info(tab) {
 }
 
 async function goto({ tab, url, waitUntil = "load", timeout = 30000 }) {
-  const waiting = navigation(tab, waitUntil, timeout);
+  const waiting = navigation(tab, waitUntil, timeout, "page.goto", url);
   try {
     await chrome.tabs.update(tab, { url });
   } catch (error) {

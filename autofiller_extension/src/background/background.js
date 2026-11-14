@@ -28,7 +28,7 @@ import { sendFill, setFillNumbers } from "./fill-events.js";
 import { SELF_ID, checkedSelfId, unansweredSelfId } from "./self-id.js";
 import { forgetSubmits, submitHinted, watchSubmitRequests } from "./submit-proof.js";
 import { watchEmbeddedForms } from "./embedded-forms.js";
-import { SHELL_FILES, injectFill } from "../shared/content-scripts.js";
+import { SHELL_FILES, giveSiteData, injectFill } from "../shared/content-scripts.js";
 import { forgetShownWorkableDraft } from "./tab-load.js";
 import { allowForMe, forgetLogin, markCreated, markRefused, markSignedIn, removeLogin, sentSince, watchWorkdaySends, workdayLogin } from "./workday-logins.js";
 import { writeEarly } from "./write-early.js";
@@ -454,8 +454,12 @@ async function handleMessage(message, sender) {
     // The launcher's next step on a page panel/where named a job system's (launcher.js, KAN-749): the panel's
     // files, into that frame only. Other pages never load them.
     case "panel/shell": {
-      if (sender.tab?.id === undefined || !(await pageSystem(sender.tab.id, sender.frameId ?? 0, sender.url ?? ""))) return { loaded: false };
-      await chrome.scripting.executeScript({ target: { tabId: sender.tab.id, frameIds: [sender.frameId ?? 0] }, files: SHELL_FILES });
+      const shellSystem = sender.tab?.id === undefined ? null : await pageSystem(sender.tab.id, sender.frameId ?? 0, sender.url ?? "");
+      if (!shellSystem) return { loaded: false };
+      const target = { tabId: sender.tab.id, frameIds: [sender.frameId ?? 0] };
+      // Its job system's data first, for the panel's Workday step line (panel-top.js reads it by name).
+      await giveSiteData(target, shellSystem);
+      await chrome.scripting.executeScript({ target, files: SHELL_FILES });
       return { loaded: true };
     }
     case "panel/site":

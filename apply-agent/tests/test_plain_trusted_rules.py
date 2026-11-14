@@ -1,9 +1,12 @@
-"""The worker extension's debugger sends only what ops/typing.js allows (KAN-716). No browser: in CI.
+"""The worker extension's debugger sends only what ops/typing.js and ops/cdp.js allow (KAN-716,
+KAN-839). No browser: in CI.
 
 A plain Worker types text trusted through its own chrome.debugger. That is a key and click path, so
-these rules are checked on the source: one file uses the debugger, every command goes through its
-`send`, and `send` names only text, Backspace/Delete, a plain left click (for a radio, checkbox or
-option only) and focus emulation."""
+these rules are checked on the source: three files use the debugger. ops/debug.js holds the one
+attachment per tab and sends nothing. ops/typing.js sends every input, through its `send`, which
+names only text, Backspace/Delete, a plain left click (for a radio, checkbox or option only) and
+focus emulation. ops/cdp.js runs page code (KAN-839) through its own `send`, whose list names no
+input, no emulation and no domain that a page can notice turned on (Runtime, Debugger, Console)."""
 
 import re
 from pathlib import Path
@@ -12,22 +15,44 @@ from apply.plain import extension, launcher
 
 EXT = Path(extension.__file__).resolve().parents[3] / "worker-extension"
 TYPING = EXT / "ops" / "typing.js"
+CDP = EXT / "ops" / "cdp.js"
+DEBUG = EXT / "ops" / "debug.js"
 
 
 def sources() -> dict[Path, str]:
     return {p: p.read_text() for p in sorted(EXT.rglob("*.js")) if "vendor" not in p.parts}
 
 
-def test_only_ops_typing_uses_the_debugger_and_only_through_send():
+def _send_of(text: str, head: str) -> str:
+    send = text[text.index(head):]
+    return send[:send.index("\n}\n")]
+
+
+def test_only_typing_and_cdp_send_debugger_commands_and_each_only_through_its_send():
     users = [p.relative_to(EXT).as_posix() for p, text in sources().items() if "chrome.debugger" in text]
-    assert users == ["ops/typing.js"]
-    text = TYPING.read_text()
-    assert text.count("chrome.debugger.sendCommand") == 1
-    send = text[text.index("export function send("):]
-    send = send[:send.index("\n}\n")]
-    assert "chrome.debugger.sendCommand" in send
-    calls = re.findall(r"chrome\.debugger\.(\w+)", text)
-    assert set(calls) <= {"attach", "detach", "sendCommand", "onDetach"}
+    assert users == ["ops/cdp.js", "ops/debug.js", "ops/typing.js"]
+    attach = DEBUG.read_text()
+    assert "sendCommand" not in attach  # the attachment only: it sends nothing
+    assert set(re.findall(r"chrome\.debugger\??\.(\w+)", attach)) <= {"attach", "detach", "onDetach", "onEvent"}
+    for path, head in ((TYPING, "export function send("), (CDP, "function send(")):
+        text = path.read_text()
+        assert text.count("chrome.debugger.sendCommand") == 1, path.name
+        assert "chrome.debugger.sendCommand" in _send_of(text, head), path.name
+        assert set(re.findall(r"chrome\.debugger\.(\w+)", text)) <= {"sendCommand"}, path.name  # attaching is debug.js's
+
+
+def test_cdp_sends_page_code_never_input_and_turns_on_nothing_a_page_can_notice():
+    text = CDP.read_text()
+    allowed = text[text.index("const ALLOWED = new Set(["):]
+    allowed = set(re.findall(r'"(\w+\.\w+)"', allowed[:allowed.index("]);")]))
+    assert allowed == {
+        "Runtime.evaluate", "Runtime.callFunctionOn", "Runtime.releaseObject", "Runtime.runIfWaitingForDebugger",
+        "DOM.getFrameOwner", "DOM.describeNode", "DOM.resolveNode",
+        "Page.enable", "Page.getFrameTree", "Page.addScriptToEvaluateOnNewDocument", "Page.removeScriptToEvaluateOnNewDocument",
+        "Target.setAutoAttach"}
+    assert not {m for m in allowed if m.startswith(("Input.", "Emulation.", "Debugger.", "Console."))}
+    assert "Runtime.enable" not in allowed  # with Runtime on, a page can tell (tests/test_plain_debugger.py)
+    assert "if (!ALLOWED.has(method))" in _send_of(text, "function send(")
 
 
 def test_send_names_only_text_backspace_delete_a_click_and_focus():
@@ -56,7 +81,7 @@ def test_send_refuses_what_it_does_not_name():
         import pytest
         pytest.skip("no node here")
     text = TYPING.read_text()
-    rules = text[text.index("const KEYS = {"):text.index("const attached")] + text[text.index("const exactly"):text.index("// The one place")]
+    rules = text[text.index("const KEYS = {"):text.index("export { available }")] + text[text.index("const exactly"):text.index("// The one place")]
     cases = [
         ("Input.insertText", {"text": "Acme"}, True), ("Input.insertText", {"text": "\n"}, False),
         ("Input.insertText", {"text": "a\nb"}, False), ("Input.insertText", {"text": "\r"}, False),

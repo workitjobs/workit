@@ -35,11 +35,12 @@ async function filled(tab: Page, [name, fields]: Step, n: number, of: number): P
 
 /**
  * The student answers, on step `n`, what the panel leaves to them ("Answer it
- * yourself": the made-up profile has no answer for it), as a person would.
+ * yourself": the made-up profile has no answer for it; "Yours to tick": an
+ * attestation or terms box), as a person would.
  */
 async function answerLeft(tab: Page, steps: Step[], n: number): Promise<string[]> {
-  // The red box's rows WorkIt had no answer for (groups.js marks them; the box's title says it once).
-  const left = await overlay(tab).locator(".row[data-no-answer]").allInnerTexts();
+  // The red box's fields: what WorkIt had no answer for and what is the student's own tick (not a note, "_step").
+  const left = await overlay(tab).locator('.row[data-mark=needs-you]:not([data-key^="_"])').allInnerTexts();
   const labels = left.map((text) => text.split("\n")[0].trim());
   for (const label of labels) {
     const f = steps[n][1].find((g) => "label" in g && g.label === label) as Field | undefined;

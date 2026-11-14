@@ -310,6 +310,38 @@ def test_what_the_guard_blocked_is_said_and_the_cap_fails_the_message():
     assert reply.failed and "cap" in reply.reply
 
 
+def _page_workers() -> list[str]:
+    """What the guard script says as it refuses each kind of worker the page makes (KAN-791), from its own source."""
+    import re
+
+    from apply import submit_guard
+
+    source = submit_guard._TEMPLATE
+    assert "note('a ' + what + ' while the page is guarded')" in source
+    kinds = re.findall(r"wrapWorker\('\w+', '([\w ]+)'\)|refuseCall\(W\.\w+, '\w+', '([\w ]+)'\)", source)
+    return [f"a {a or b} while the page is guarded" for a, b in kinds]
+
+
+def test_a_drive_goes_on_past_a_worker_the_page_made_but_never_past_a_click():
+    from apply.submit_guard import CAPTCHA_TRY, drive_blocks
+
+    workers = _page_workers()
+    assert workers == [f"a {kind} while the page is guarded" for kind in ("worker", "shared worker", "service worker", "worklet")]
+    assert drive_blocks([*workers, CAPTCHA_TRY]) == []
+    assert drive_blocks([workers[0], 'the "Submit" click', CAPTCHA_TRY]) == ['the "Submit" click']
+    assert drive_blocks(["a worker while the page is guarded, and the Submit click"]) != []  # only the whole note
+
+
+def test_a_worker_the_page_made_while_claude_fixed_it_is_not_said_as_its_block():
+    page = Page([dict(f) for f in FORM])
+    reply = ask.ask(Claude(lambda p: None, said()), page, "fix it", [], ask.Form(POSTING), "",
+                    guard=Guard(_page_workers()[:1]))
+    assert reply.couldnt == []
+    both = ask.ask(Claude(lambda p: None, said()), page, "fix it", [], ask.Form(POSTING), "",
+                   guard=Guard([_page_workers()[0], 'the "Submit" click']))
+    assert both.couldnt == ['Apply blocked the "Submit" click, so nothing it blocked was sent']
+
+
 def test_followups_carry_the_thread_and_a_bug_of_apply_s_own_is_a_repair_request():
     thread = [{"message": "pick New York", "reply": "Picked New York.",
                "changed": [{"field": "Preferred locations", "shown": "New York"}]}]
