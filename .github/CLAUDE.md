@@ -203,7 +203,13 @@ when the 12 minutes ran out, and PRs merged with it red. So its limit is 25
 minutes. The cases mostly wait (the 10-core run used about one core), so
 more processes than the runner's 3 would be faster, but a busier runner can
 delay a hostile page's send past a case's wait and pass a case that should
-fail: the guards' owners decide that, or which pairs run only nightly. A
+fail: the guards' owners decide that, or which pairs run only nightly.
+The Plain-Worker step's limit is 6 minutes (101 tests took 233 s,
+2026-11-14). While the hostile step ran out of time, no step after it ran
+on CI, so what broke there stayed hidden: a fixed 300 ms wait for an
+auto-save in `test_plain_typing.py` failed the first time it ran again. A
+fake that a page saves to keeps the newest save and the test waits for the
+answers, never a fixed time. A
 test safe only on its own (a fixed port or path) can't join a parallel step.
 
 The frontend job runs `format:check`, so an unformatted file fails the PR.
