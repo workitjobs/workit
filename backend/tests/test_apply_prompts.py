@@ -11,14 +11,24 @@ import json
 import pytest
 from jsonschema import Draft202012Validator
 
-from app.apply_prompts import KINDS, said, writing
+from app.apply_prompts import KINDS, essays, said, writing
+from app.apply_prompts.guides import load
 from app.apply_prompts.kind import NAME
 
 DRAFTS = {"q1": "I built a scheduling tool.", "q2": "Dear team, ..."}
 SOURCES = "<story_bank>\nAt HackSBU 2025 I led a team of four.\n</story_bank>"
 
+WHY = {"label": "Why Acme?", "kind": "textarea", "required": True, "type": "why-company"}
+LETTER = {"label": "Cover letter", "kind": "textarea", "type": "cover-letter"}
+AREA = {"label": "Which area? Select up to 2", "kind": "multi_select", "options": ["Backend", "ML", "Backend"]}
+PLANNED = {"type": "why-company", "parts": ["why"], "story": "HackSBU", "slots": {"why": ["I led a team of four"]}}
+
 # One sample of each kind's data: a new kind adds its own.
 SAMPLES = {
+    ("essays.plan", 1): {"sources": SOURCES, "posting": "<posting>Acme</posting>", "questions": {"q1": WHY, "q2": LETTER}},
+    ("essays.write", 1): {"sources": SOURCES, "posting": "<posting>Acme</posting>", "questions": {"q1": WHY, "q2": LETTER},
+                          "plans": {"q1": PLANNED, "q2": PLANNED | {"type": "cover-letter"}},
+                          "short_questions": {"d1": AREA}},
     ("writing.check", 1): {"drafts": DRAFTS, "sources": SOURCES},
     ("writing.edit", 1): {"drafts": DRAFTS, "sources": SOURCES, "style_card": "Short sentences.",
                           "flagged": {"q1": ["a sentence over 30 words"]}, "questions": {"q1": "Why us?"},
@@ -65,3 +75,28 @@ def test_a_call_is_said_as_the_applicant_and_keeps_the_name_a_placeholder():
     assert built.prompt == 'Stony "Brook" prompt'
     assert built.schema == {"description": 'at Stony "Brook"'}
     json.dumps(built.schema)
+
+
+def test_a_plan_has_an_entry_for_each_question_and_lists_only_the_asked_types():
+    built = _built(("essays.plan", 1))
+    entries = built.schema["properties"]["plan"]["properties"]
+    assert set(entries) == {"q1", "q2"} and entries["q1"]["properties"]["type"]["enum"] == list(load())
+    assert "- why-company (company link" in built.system and "- failure (company link" not in built.system
+
+
+def test_a_cover_letter_is_written_in_its_slots_and_a_choice_from_its_options():
+    schema = _built(("essays.write", 1)).schema["properties"]
+    assert set(schema["essays"]["properties"]["q2"]["properties"]) >= {"opening", "proof", "closing"}
+    area = schema["drafts"]["properties"]["d1"]["properties"]["answer"]
+    assert area == {"type": "array", "items": {"type": "string", "enum": ["Backend", "ML"]}, "maxItems": 2}
+
+
+@pytest.mark.parametrize("change", [
+    {"questions": {"q1": WHY | {"type": "write-my-homework"}}, "plans": {"q1": PLANNED}},
+    {"plans": {"q1": PLANNED}},  # q2 has no plan
+    {"short_questions": {"q1": AREA}},  # one key for an essay and a one-off question
+    {"questions": {}, "plans": {}, "short_questions": {}},
+])
+def test_write_data_that_doesnt_hold_together_is_refused(change):
+    with pytest.raises(ValueError):
+        essays.WriteData.model_validate(SAMPLES["essays.write", 1] | change)

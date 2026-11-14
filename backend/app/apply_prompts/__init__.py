@@ -14,9 +14,9 @@ text may change in any merge. Apply's own copy of a prompt goes once its
 call sends the kind.
 """
 
-from app.apply_prompts import writing
+from app.apply_prompts import essays, writing
 from app.apply_prompts.kind import Built, Kind, said
 
-KINDS: dict[tuple[str, int], Kind] = {(k.name, k.version): k for k in (*writing.KINDS,)}
+KINDS: dict[tuple[str, int], Kind] = {(k.name, k.version): k for k in (*essays.KINDS, *writing.KINDS)}
 
 __all__ = ["KINDS", "Built", "Kind", "said"]

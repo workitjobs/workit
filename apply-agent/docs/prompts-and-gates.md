@@ -4,6 +4,14 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
 
 ## Prompts and gates
 
+- **A ported prompt has two copies until Apply's calls send kinds**
+  (KAN-723, W1's "Prompts on the server" in
+  `../docs/desktop_application_auto_apply.md`). The prompts of
+  `writing.check`, `writing.edit`, `essays.plan` and `essays.write`, and
+  the answering guides, are also in `../backend/app/apply_prompts/` (the
+  guides in its `answering/`). A change to one goes into both in the same
+  PR, or the server writes with the old prompt. The copy here goes once
+  its call sends the kind.
 - Every prompt names the applicant as `@NAME@` and their school as
   `@SCHOOL@`; `applicant.as_applicant` puts in the profile's own values.
   Say "they" for the applicant, or `@NAME@` where "they" already means the

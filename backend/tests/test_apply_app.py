@@ -82,7 +82,7 @@ async def test_a_call_answers_and_counts_its_tokens(student, database):
         assert first.json() == {
             "answer": {"choice": 1},
             "tokens": COST,
-            "usage": {"used": COST, "cap": 60_000, "resets_at": "2026-11-14T00:00:00Z"},
+            "usage": {"used": COST, "cap": 80_000, "resets_at": "2026-11-14T00:00:00Z"},
         }
         assert (await api.post("/apply-app/model", json=CALL)).json()["usage"]["used"] == 2 * COST
         assert (await api.get("/apply-app/usage")).json()["used"] == 2 * COST

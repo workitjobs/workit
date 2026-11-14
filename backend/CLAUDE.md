@@ -341,6 +341,9 @@ Find files with a directory listing; these are the rules for where code goes.
   kind's data fields never change in place (an app copy can be older than
   the server): a change is a new version beside the old one. A new kind
   joins its module's `KINDS` and a sample in `tests/test_apply_prompts.py`.
+  **Until Apply's calls send kinds, each ported prompt and the answering
+  guides (`app/apply_prompts/answering/`) have a copy in `apply-agent/`;
+  a change goes into both in the same PR** (`apply-agent/docs/prompts-and-gates.md`).
   `POST /apply-app/model`, which takes the app's own prompt and schema,
   goes when the last kind is ported. Both run the schema as data through
   `LLM.complete_schema`. Apply's `haiku` takes the small

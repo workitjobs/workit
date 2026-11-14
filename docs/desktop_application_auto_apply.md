@@ -92,8 +92,8 @@ builds it.
 | D3 | **The Fill engine is downloaded only, never shipped in the app.** Signed, encrypted, unlocked by a per-launch key, kept only in memory | A copy in the download is a copy for everyone; the app needs WorkIt to run anyway | W7 |
 | D4 | **The Worker extension goes on the Chrome Web Store, unlisted, from WorkIt's existing developer account.** Apply's page code and the Fill engine reach pages through the Debugger API, not `userScripts`; the guards and the fixed page functions are packaged in it, since only a content script reaches a pop-up (measured); it holds no engine. A spike decides it (KAN-839, started); if it fails, v1 keeps the extension off the store | One click for the student; the store allows outside code only through the Debugger or User Scripts API, and User Scripts is only for the user's own code; the existing account costs no new fee and has a trust history | W6 |
 | D5 | **WorkIt builds the prompts** (2026-11-14; a thin proxy was decided 2026-11-13). The app sends each call's kind and its data; WorkIt builds the system prompt, the prompt and the schema (`backend/app/apply_prompts/`), runs the provider chain and counts tokens. The prompts and answering guides leave the app | A call that carried its own prompt and schema let anyone with an account use WorkIt as a free general model and send schemas that attack the server (W1). A prompt change ships with the merge that deploys the API | W1 |
-| D6 | **A free beta with a Usage cap of 60,000 tokens per student per day**, reset at midnight UTC, always shown in the app. WorkIt can change it without an app update (2026-11-14; it was 3,000,000 a month) | The free tiers limit WorkIt's one key a day, shared by every student and feature: Groq allows 200,000 tokens a day for each model. A monthly cap let one student spend a whole day's share. 60,000 is about ten 6,000-token calls, two forms with essays; on Groq's paid tier it costs about 1 cent a student a day. W13 checks the number | W1 |
-| D7 | **The beta uses the providers' free tiers.** Paid tiers come later (F3). One account per provider: the team does not pool developers' free keys | No paid keys for now. Groq's AI policy forbids use "beyond published parameters, rate limits, or use limitations, including by registering multiple accounts" (checked 2026-11-14) | W1, F3 |
+| D6 | **A free beta with a Usage cap of 80,000 tokens per student per day**, reset at midnight UTC, always shown in the app. WorkIt can change it without an app update (2026-11-14; it was 3,000,000 a month) | The free tiers limit WorkIt's one key a day, shared by every student and feature: Groq allows 200,000 tokens a day for each model, about 400,000 for our two, so about five students at full use fill it. A monthly cap let one student spend a whole day's share. 80,000 is about thirteen 6,000-token calls, about three forms with essays; on Groq's paid tier it costs under 2 cents a student a day. W13 checks the number | W1 |
+| D7 | **The beta uses the providers' free tiers.** Paid tiers come later (F3). One account per provider, owned by the team Gmail with developers as members, as Cloudflare's is; the team does not pool developers' free keys | No paid keys for now. Groq's AI policy forbids use "beyond published parameters, rate limits, or use limitations, including by registering multiple accounts" (checked 2026-11-14); members share their organization's limits | W1, F3 |
 | D8 | **Personal data is replaced before a prompt leaves the computer**, and put back on the computer. Self-ID answers are never sent. The app shows a short disclosure | Prompts go to WorkIt and to Groq and Google, and Google's free tier may use prompts to improve its products | W1, W5 |
 | D9 | **No Gmail.** A job site's emailed code becomes a Needs-you item that the student types | Reading Gmail needs an app password (a hard setup) or Google's paid security review | W3 |
 | D10 | **macOS-only code is removed or replaced.** Scheduled runs, phone push and the Dock bundle are dropped; Keychain becomes `keyring`; Chrome is found per OS | A simple app, and a later Windows port that is not a rewrite | W4 |
@@ -152,7 +152,7 @@ builds it.
    nothing. (If the W6 spike fails, this step is the three-click guide
    that `apply plain seed` is today.)
 6. **Ready.** The window shows the student's Auto Apply queue, the paste
-   box, Start, and the Usage cap ("Model use today: 0 of 60,000
+   box, Start, and the Usage cap ("Model use today: 0 of 80,000
    tokens").
 
 The seed is made once. Each Worker's profile is copied from it the first
@@ -585,7 +585,7 @@ shapes and status codes.
   database connection held while the model writes. Two calls at once
   just under the cap both go: the cap can be passed by one call per
   Worker. Kept 90 days (`services/retention.py`).
-- **Settings**: `APPLY_APP_DAILY_TOKENS` (60,000) and
+- **Settings**: `APPLY_APP_DAILY_TOKENS` (80,000) and
   `APPLY_APP_CALLS_PER_MINUTE` (20), so both change with no app update.
 - **Logs** keep no prompt text: only the student, the kind, the model and
   the tokens. A provider's error is logged by its status and code only,
@@ -633,8 +633,14 @@ its own instructions or a hostile schema.
   then a developer runs a ported kind through WorkIt (the local API,
   D30).
 - **The kinds**, one for each `ask` call that writes or judges. Built on
-  the server so far: `writing.check` and `writing.edit` (2026-11-14);
-  Apply still sends their prompts itself until its calls send kinds:
+  the server so far (2026-11-14): `writing.check`, `writing.edit`,
+  `essays.plan` and `essays.write`. Each was checked to build the same
+  system prompt, prompt and schema as Apply for the same inputs, by
+  running Apply's own call with a fake model. The answering guides are
+  copied to `backend/app/apply_prompts/answering/`; Apply keeps its copy
+  for the front matter its own code reads (which type a question is, its
+  slots and default length), and the bodies go from Apply in step 4.
+  Apply still sends these prompts itself until its calls send kinds:
 
   | Kind | Apply today | What the app sends |
   |---|---|---|

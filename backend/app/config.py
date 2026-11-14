@@ -152,9 +152,9 @@ class Settings(BaseSettings):
 
     # WorkIt Auto Apply's Model route (KAN-723, routers/apply_app.py): each student's model use a
     # day (UTC) in tokens, the Usage cap the app shows, and calls a minute, which keep one student
-    # from taking the free tiers' daily limits every student shares. 60,000 is about ten calls, two
-    # forms with essays. Either changes with no app update.
-    apply_app_daily_tokens: int = Field(default=60_000, ge=0)
+    # from taking the free tiers' daily limits every student shares. 80,000 is about thirteen calls,
+    # about three forms with essays. Either changes with no app update.
+    apply_app_daily_tokens: int = Field(default=80_000, ge=0)
     apply_app_calls_per_minute: int = Field(default=20, ge=1)
 
     # How long a site token fetches its job system's rules (KAN-756): long enough for the extension's
