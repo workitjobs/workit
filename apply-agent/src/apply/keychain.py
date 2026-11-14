@@ -13,6 +13,9 @@ from keyring.errors import KeyringError, PasswordDeleteError
 # The Keychain service every Employer account password is saved under; the
 # item's account is the site (a Workday tenant's host, say).
 EMPLOYER_ACCOUNTS = "apply-ats"
+# The item, under EMPLOYER_ACCOUNTS, that holds the password Lisul chose in the Accounts tab for every new
+# Employer account. No site has this name (a site is a host), so it never reads as an account.
+CHOSEN = "all job sites"
 # The Gmail app password the mailbox signs in with; the item's account is the address.
 GMAIL = "apply-gmail"
 # The ntfy topic Lisul's phone subscribes to for pushes; the item's account is PHONE_PUSH_HOST.

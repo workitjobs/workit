@@ -218,7 +218,7 @@ stories. **Not caught:** other people's names inside a story.
 | What | Where |
 |---|---|
 | The data folder: Records, Traces, the Worker profiles, the seed, the local copy of the student's data | `~/Library/Application Support/WorkIt Auto Apply` (`%APPDATA%` on Windows) |
-| The WorkIt session; Employer account passwords (passwords Apply makes for job-site accounts) | `keyring`: macOS Keychain, Windows Credential Manager. The student can see and change them in Keychain Access |
+| The WorkIt session; Employer account passwords (passwords Apply makes for job-site accounts) | `keyring`: macOS Keychain, Windows Credential Manager. The student chooses the job-site password in the Accounts tab (KAN-838), sees each account's with Show password, and can see and change them in Keychain Access |
 | The Fill engine | Memory only, for one launch |
 
 WorkIt never holds a student's job-site passwords: a breach would expose

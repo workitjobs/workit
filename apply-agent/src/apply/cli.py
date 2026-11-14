@@ -62,7 +62,7 @@ from apply.clock import SystemClock
 from apply.feed import live_feed
 from apply.gmail import live_mailbox
 from apply.home import HOME
-from apply.keychain import EMPLOYER_ACCOUNTS, GMAIL, SystemKeychain
+from apply.keychain import CHOSEN, EMPLOYER_ACCOUNTS, GMAIL, SystemKeychain
 from apply.match_queue import match_queue
 from apply.notify import SET_UP, TEST_PUSH, MacNotifier, RecordingNotifier, live_phone
 from apply.plain.site import live_site
@@ -800,7 +800,7 @@ def _mac_keychain_sites(run: Callable[..., subprocess.CompletedProcess] = subpro
     found, item = [], {}
     for line in dumped.stdout.splitlines() + ["keychain: end"]:
         if line.startswith("keychain:"):
-            if item.get("svce") == EMPLOYER_ACCOUNTS and item.get("acct"):
+            if item.get("svce") == EMPLOYER_ACCOUNTS and item.get("acct") not in (None, "", CHOSEN):
                 found.append(item["acct"])
             item = {}
         elif attribute := _ATTRIBUTE.match(line):

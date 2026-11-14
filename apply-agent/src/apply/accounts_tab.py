@@ -1,9 +1,10 @@
 """The Accounts tab of the Apply window (KAN-591): each Employer account Apply made, so Lisul can sign in to it
-himself later, to check an application's status.
+himself later, to check an application's status, and the one password he chooses for every new account (KAN-838).
 
-A password lives only in Keychain. It is never in the tab's view, a reply, a log, a Trace or a Record: only
-this server reads it, and only to put it on the clipboard. The tab keeps no copy of it, only the clipboard's change
-count after its write, to tell whether the clipboard still holds it when its minute is up."""
+A password lives in Keychain. Show password sends one account's password to the window when he presses it; Copy
+password puts it on the clipboard for a minute. Neither goes in a log, a Trace or a Record, and the tab keeps no
+copy, only the clipboard's change count after its write, to tell whether the clipboard still holds it when its
+minute is up."""
 
 import subprocess
 import threading
@@ -12,8 +13,10 @@ from typing import Protocol
 from urllib.parse import urlsplit
 
 from apply import captcha, fill_engine
+from apply.accounts import RULE, broken_rule
 from apply.adapters import Keychain
 from apply.answers_tab import Refused
+from apply.keychain import CHOSEN
 from apply.tracker import EmployerAccount
 
 CLEAR_AFTER = 60.0  # s a copied password stays on the clipboard
@@ -97,22 +100,35 @@ class AccountsTab:
         self._written: int | None = None  # the clipboard's change count after the tab last put a password there
 
     def view(self) -> dict:
-        """Each account, newest first, with no password."""
+        """Each account, newest first, with no password; whether Lisul chose a password, and its rule."""
         listed = sorted(self._accounts(), key=lambda a: a.created, reverse=True)
+        try:
+            chosen = self._keychain.password(CHOSEN) is not None
+        except RuntimeError:  # Keychain is locked: the tab offers to choose one, and saving says why it can't
+            chosen = False
         return {"accounts": [{"company": a.company, "site": a.site, "login": a.login, "created": a.created.isoformat()}
-                             for a in listed]}
+                             for a in listed], "chosen": chosen, "rule": RULE}
+
+    def choose(self, password: object) -> str:
+        """Save the password Lisul chose for every new account. Accounts made before keep their own."""
+        if not isinstance(password, str) or (why := broken_rule(password)):
+            raise Refused(why if isinstance(password, str) else "Not a password.", 400)
+        try:
+            self._keychain.save(CHOSEN, password)
+        except RuntimeError:
+            raise Refused("Keychain did not save the password. Unlock Keychain and try again.", 502) from None
+        return "Saved. Apply uses this password for each new account. Accounts made before keep their own."
+
+    def show(self, site: object) -> str:
+        """The password of the listed account at `site`, for the window to show when Lisul presses Show password.
+        Only a site in the Employer accounts list is read: the page cannot name any other Keychain item."""
+        return self._password(self._listed(site))
 
     def copy(self, site: object) -> str:
         """Put the password of the listed account at `site` on the clipboard, for a minute. Only a site in the
         Employer accounts list is read: the page cannot name any other Keychain item."""
         account = self._listed(site)
-        try:
-            password = self._keychain.password(account.site)
-        except RuntimeError:  # Keychain is locked, or Lisul denied it
-            raise Refused("Keychain did not give Apply the password. Unlock Keychain and try again.", 502) from None
-        if not password:
-            raise Refused(f"Keychain has no password for {account.site}. Apply made no password for it, "
-                          "or it was made with Google.", 404)
+        password = self._password(account)
         with self._lock:
             self._written = written = self._clipboard.put_secret(password)
         self._later(CLEAR_AFTER, lambda: self._clear(written))
@@ -142,6 +158,16 @@ class AccountsTab:
                 return
             self._clipboard.clear(self._written)
             self._written = None
+
+    def _password(self, account: EmployerAccount) -> str:
+        try:
+            password = self._keychain.password(account.site)
+        except RuntimeError:  # Keychain is locked, or Lisul denied it
+            raise Refused("Keychain did not give Apply the password. Unlock Keychain and try again.", 502) from None
+        if not password:
+            raise Refused(f"Keychain has no password for {account.site}. Apply made no password for it, "
+                          "or it was made with Google.", 404)
+        return password
 
     def _listed(self, site: object) -> EmployerAccount:
         account = next((a for a in self._accounts() if a.site == site), None)

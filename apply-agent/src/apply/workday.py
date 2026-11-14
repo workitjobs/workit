@@ -489,7 +489,7 @@ class WorkdayFiller:
                     self._accounts.not_made(site)
                     raise Handoff(MADE_WITH_GOOGLE.format(company=self._accounts.company or site))
                 return self._reset_password(page, site)
-            raise Handoff(f"Workday at {site} refused the new account: '{error}'")
+            raise self._accounts.refused(site, f"Workday said: '{error}'")
         if outcome == "sign in" or outcome == "unanswered" and made():
             # Workday's code goes to Sign In only when its answer made the account (a root widget), and then the
             # new password signs in, or is refused as not verified yet (Visa's, Northrop's, live). It answers an
