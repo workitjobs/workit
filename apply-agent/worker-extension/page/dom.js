@@ -1,3 +1,4 @@
+// WorkIt Auto Apply Worker. Copyright (c) 2026 its authors. All rights reserved: see LICENSE.
 // Playwright's locators and actions for one frame, in the worker extension's isolated world.
 //
 // Loaded after vendor/injected.js (Playwright's own injected script, `__applyPW`), so

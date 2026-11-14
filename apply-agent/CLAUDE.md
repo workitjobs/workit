@@ -55,6 +55,21 @@ has neither.
 
 ## Rules for every run
 
+- **A change to what the Worker extension's store package holds needs a store
+  release** (KAN-839). Students run the copy the Chrome Web Store publishes,
+  never a checkout's, so a change reaches them only in a new store version.
+  - **These change it:** the extension's own code (`worker-extension/`:
+    `manifest.json`, `background.js`, `ops/`, `page/`); the guard scripts
+    (anything that changes `plain/guards.FILES`: `submit_guard.py`'s scripts and
+    the constants they take in); the fixed page functions (`plain/fixed.py` and
+    every string it lists); and Playwright's version (`vendor/injected.js`).
+  - **These don't:** the Fill engine (Apply hands it over at run time), the rest
+    of Apply's Python, prompts, and page code that runs through `eval`.
+  - `tests/test_worker_extension_store.py` (in CI) fails on such a change and
+    says what to do: bump `worker-extension/store.json`'s `version`, set its
+    `code` and `files`, then build and upload the package after merge, and
+    release an app that needs it only once the store publishes it
+    (`docs/plain-workers/worker-extension-todo.md`, Releases).
 - **Lisul reports a problem with an open application in a Claude Code chat:**
   send it to the form with `uv run apply ask "<company, role or application
   ID>" "<his words>"` (from `apply-agent/`). Do not open or drive the form
@@ -89,7 +104,7 @@ this folder's `CLAUDE.md` for its area.
 - `docs/sign-in.md`: a sign-in page, an Employer account or its password, the Accounts tab, or `apply preflight`.
 - `docs/apply-window.md`: the window's lifetime, its Dock keeper, or what a Record keeps.
 - `docs/restart-recovery.md`: what survives a restart of the Mac: Workers' sign-ins across a quit, the open-forms list (`batch.py`), `apply reopen`, and `apply preflight --open`.
-- `docs/plain-workers/guide.md`: `apply/plain/`, `worker_mode`, `--into`, or the worker extension.
+- `docs/plain-workers/guide.md`: `apply/plain/`, `worker_mode`, `--into`, or the worker extension; `docs/plain-workers/worker-extension-todo.md` for its store package and what is left.
 - `docs/plain-workers/PROTOCOL.md`: a message between Apply and the worker extension.
 - `docs/research/`: the research behind plain Workers, Employer account sign-in and the held form's session keep-alive (`session-timeouts.md`). Each note's Status line says what was built.
 

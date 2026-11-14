@@ -1,3 +1,4 @@
+// WorkIt Auto Apply Worker. Copyright (c) 2026 its authors. All rights reserved: see LICENSE.
 // Trusted text and choices for plain Workers (KAN-716): the text Apply and Lisul's tile type, as a
 // keyboard's, and the radios and checkboxes Apply clicks, as a mouse's.
 //

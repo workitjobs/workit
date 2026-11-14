@@ -791,9 +791,38 @@ user scripts off:
    answers shown). Next and file upload on a multi-step form are still to
    test.
 
-Left after the spike: item 3 in branded Chrome; the packaged files and a store build of the
-extension; turning the switch on by default and removing the
-`userScripts` path; the tile's screencast.
+**Built after the spike (KAN-839, 2026-11-14):**
+
+- No user scripts: the manifest asks for none, `eval` runs through the
+  debugger on every page, a code-only init script is refused, and the
+  seed's setup is Developer mode and Load unpacked only.
+- No engine file: Apply hands the engine to the extension's memory once
+  per connection (`cdp.keep`), and `vendor/` holds no `engine.js`.
+- The store package: `uv run apply plain package` builds the zip
+  (`apply-agent/dist/`) with the guard scripts, `fixed.js` and
+  `injected.js` built in, `LICENSE`, `NOTICE` and Playwright's
+  Apache-2.0 license, `store.json`'s name and version, and no manifest
+  `key`. The hello names the package's built-in files and its install
+  type; the bridge welcomes a package to its own files when they are
+  Apply's, and refuses a store copy whose files aren't. A test loads the
+  package in Chrome for Testing, guards a page from its files and loads
+  the engine.
+- Both extension IDs may connect (`extension.STORE_ID`, empty until the
+  store gives one).
+
+**The adversarial review (2026-11-14) found a blocker:** the guard scripts
+carry each Apply process's own random tokens (KAN-710), so a package built
+once never matches a student's app and the bridge refuses every store copy.
+It fails closed, but no store copy can be used until the guards learn their
+tokens another way (the to-do list's item 0, for the guards' owners). It
+also fixed two smaller issues: `refresh` and a store copy, and the `gesture`
+flag. A change to what the package holds now fails CI until `store.json`
+records a new version (`apply-agent/CLAUDE.md`).
+
+Left: `apply-agent/docs/plain-workers/worker-extension-todo.md` lists it,
+item by item: the first store upload and its ID, the seed from the store,
+releases and updates, item 3 in branded Chrome, a multi-step form on a
+plain Worker, and the tile's screencast.
 
 **If the spike passes:** list "WorkIt Auto Apply Worker", unlisted, from
 WorkIt's existing developer account: a privacy policy link, one stated
@@ -805,10 +834,10 @@ on Chrome's schedule, so the app and the extension check one protocol
 version on hello (`PROTOCOL.md` already has a feature number) and the app
 says "Updating the Worker extension" while they differ.
 
-**If the spike fails:** v1 keeps today's extension off the store. First
-run guides the student through Developer mode, Load unpacked and Allow
-User Scripts (`plain/seed_setup.py` does this today), and the engine
-still reaches the Worker in memory, not in a file.
+**If the spike fails:** v1 keeps the extension off the store. First run
+guides the student through Developer mode and Load unpacked
+(`plain/seed_setup.py` does this today), and the engine still reaches the
+Worker in memory, not in a file.
 
 **Touches.** `apply-agent/worker-extension/` (`ops/cdp.js`, `ops/debug.js`,
 `ops/core.js`, `ops/guard.js`, `ops/engine.js`, `ops/tile.js`,
@@ -922,7 +951,17 @@ terms (D16).
   Python packages, plus Playwright's driver, pywebview, Sparkle (MIT) and
   Nuitka's runtime exception.
 - **Chrome Web Store:** a privacy policy link and its user-data rules for
-  the Worker extension; a license header in each of its files.
+  the Worker extension. Done (KAN-839, approved by the team 2026-11-14):
+  its `LICENSE` (proprietary: no copying, reverse engineering or AI
+  training), `NOTICE` (Playwright's Apache-2.0 script) and a header line
+  in each file.
+- **The repo's MIT license (found 2026-11-14).** The WorkIt repo's root
+  `LICENSE` is MIT, held by five team members, and covers everything in
+  it, Apply and the Worker extension too. Every version already pushed
+  stays MIT: anyone may copy it, and a new license can't take that back.
+  The five holders agreed (2026-11-14) to license the Worker extension's
+  new versions under its own proprietary `LICENSE`, and the root
+  `README.md` says so until Apply moves to its private repo (W0).
 - **Not now:** a review of the hiring systems' terms on automated
   applying.
 

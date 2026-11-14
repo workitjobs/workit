@@ -1,3 +1,4 @@
+// WorkIt Auto Apply Worker. Copyright (c) 2026 its authors. All rights reserved: see LICENSE.
 // Every op the worker extension runs, by name. Each slice adds its own file and one line here.
 
 import { ops as accounts } from "./accounts.js";

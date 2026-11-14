@@ -45,7 +45,6 @@ FOLDER = Path("/profiles/worker-extension")
     (SeedState(developer=True), seed_setup.EXTENSION, "no_extension"),
     (SeedState(developer=True, path="/old/checkout"), seed_setup.EXTENSION, "wrong_folder"),
     (SeedState(developer=True, path=str(FOLDER), disabled=True), seed_setup.EXTENSION, "disabled"),
-    (SeedState(developer=True, path=str(FOLDER)), seed_setup.SCRIPTS, "scripts"),
 ])
 def test_first_problem_names_the_first_step_not_saved(state, step, kind):
     problem = first_problem(state, FOLDER)
@@ -53,11 +52,11 @@ def test_first_problem_names_the_first_step_not_saved(state, step, kind):
 
 
 def test_first_problem_is_none_when_every_step_is_saved():
-    assert first_problem(SeedState(developer=True, path=str(FOLDER), scripts=True), FOLDER) is None
+    assert first_problem(SeedState(developer=True, path=str(FOLDER)), FOLDER) is None  # no user scripts (KAN-839)
 
 
 def test_each_failure_has_its_own_message():
-    kinds = ("developer", "no_extension", "wrong_folder", "disabled", "scripts")
+    kinds = ("developer", "no_extension", "wrong_folder", "disabled")
     said = [seed_setup.instruction(Problem("step", kind, "/old/checkout"), FOLDER) for kind in kinds]
     assert len(set(said)) == len(kinds)
     assert "/old/checkout" in said[2] and "Remove" in said[2] and str(FOLDER) in said[2]
@@ -74,7 +73,7 @@ def test_read_state_on_a_fresh_profile_and_on_broken_files(tmp_path):
 @pytest.mark.parametrize("name", ["Secure Preferences", "Preferences"])
 def test_read_state_reads_each_step_from_either_file(tmp_path, name):
     write_prefs(tmp_path, developer=True, path="/a/folder", scripts=True, disabled=[8], name=name)
-    assert read_state(tmp_path) == SeedState(developer=True, path="/a/folder", disabled=True, scripts=True)
+    assert read_state(tmp_path) == SeedState(developer=True, path="/a/folder", disabled=True)
 
 
 def test_read_state_keeps_the_path_of_a_folder_that_is_gone(tmp_path):
@@ -121,7 +120,7 @@ class FakeWorkers:
     def __init__(self, root: Path, hellos=None):
         self.profiles, self.seed, self.copy = root, root / "plain-seed", root / "worker-extension"
         self.copy.mkdir(parents=True)
-        self.hellos = list(hellos or [{"extension": "1.0", "userScripts": True}])
+        self.hellos = list(hellos or [{"extension": "1.0"}])
         self.launched, self.stopped = [], []
         self.bridge = SimpleNamespace(stop=lambda: None)
         self.running = False
@@ -170,11 +169,11 @@ class Run:
         return "\n".join(self.said)
 
     def done(self):
-        return {"developer": True, "path": self.workers.copy, "scripts": True}
+        return {"developer": True, "path": self.workers.copy}
 
 
 def happy(run):
-    return [run.prefs(developer=True), run.prefs(developer=True, path=run.workers.copy), run.prefs(**run.done())]
+    return [run.prefs(developer=True), run.prefs(**run.done())]
 
 
 def test_a_fresh_profile_reaches_a_working_worker_with_only_the_users_clicks(tmp_path):
@@ -182,13 +181,13 @@ def test_a_fresh_profile_reaches_a_working_worker_with_only_the_users_clicks(tmp
     run.clicks = happy(run)
     assert run.wizard.run() is True
 
-    assert run.desk.opened == [EXTENSIONS_PAGE, DETAILS_PAGE]  # opened for the user, nothing clicked
+    assert run.desk.opened == [EXTENSIONS_PAGE]  # opened for the user, nothing clicked
     assert run.desk.copied == [str(run.workers.copy.resolve())]
     assert run.desk.revealed == [run.workers.copy.resolve()]
     assert run.desk.terminated == [4242]
     assert run.workers.launched == [0] and run.workers.stopped == [0]
     for confirmed in ("Done: Developer mode is on.", "Done: The worker extension is registered",
-                      "Done: Allow User Scripts is on.", "Done: a real Worker said hello"):
+                      "Done: a real Worker said hello"):
         assert confirmed in run.text
     assert run.text.index("Quitting") < run.text.index("real Worker said hello")
 
@@ -222,11 +221,12 @@ def test_wrong_folder_names_both_folders_and_shows_the_step_again(tmp_path):
     assert run.desk.revealed == [run.workers.copy.resolve()]
 
 
-def test_user_scripts_off_says_so_on_its_details_page(tmp_path):
+def test_no_allow_user_scripts_step_after_load_unpacked(tmp_path):
+    """The extension asks for no user scripts (KAN-839): Developer mode and Load unpacked are the setup."""
     run = Run(tmp_path)
-    run.clicks = [run.prefs(developer=True, path=run.workers.copy), run.prefs(**run.done())]
+    run.clicks = [run.prefs(developer=True, path=run.workers.copy)]  # user_scripts_enabled stays false
     assert run.wizard.run() is True
-    assert "User scripts are off" in run.text and DETAILS_PAGE in run.desk.opened
+    assert "User Scripts" not in run.text and DETAILS_PAGE not in run.desk.opened
 
 
 def test_a_turned_off_card_says_so(tmp_path):
@@ -238,8 +238,7 @@ def test_a_turned_off_card_says_so(tmp_path):
 
 def test_a_step_that_went_back_does_not_stick(tmp_path):
     run = Run(tmp_path)
-    run.clicks = [run.prefs(developer=True, path=run.workers.copy), run.prefs(developer=False),
-                  run.prefs(developer=True, path=run.workers.copy), run.prefs(**run.done())]
+    run.clicks = [run.prefs(developer=True), run.prefs(developer=False), run.prefs(**run.done())]
     assert run.wizard.run() is True
     assert "Developer mode did not stick" in run.text
 
@@ -282,14 +281,6 @@ def test_chrome_closed_too_early_opens_again_on_the_same_step(tmp_path):
     assert run.text.count("No extension yet") == 2
 
 
-def test_done_needs_user_scripts_on_in_the_workers_hello(tmp_path):
-    run = Run(tmp_path, hellos=[{"extension": "1.0", "userScripts": False}, {"extension": "1.0", "userScripts": True}], again=[True])
-    write_prefs(run.workers.seed, **run.done())
-    assert run.wizard.run() is True
-    assert "its user scripts are off" in run.text and DETAILS_PAGE in run.desk.opened
-    assert len(run.workers.launched) == 2
-
-
 def test_no_hello_is_not_done_and_the_user_can_stop(tmp_path):
     run = Run(tmp_path, hellos=[TimeoutError("no hello from plain Worker 1")], again=[False])
     write_prefs(run.workers.seed, **run.done())
@@ -300,7 +291,7 @@ def test_no_hello_is_not_done_and_the_user_can_stop(tmp_path):
 
 
 def test_a_refused_hello_is_not_done(tmp_path):
-    run = Run(tmp_path, hellos=[Refused("protocol 0"), {"extension": "1.0", "userScripts": True}], again=[True])
+    run = Run(tmp_path, hellos=[Refused("protocol 0"), {"extension": "1.0"}], again=[True])
     write_prefs(run.workers.seed, **run.done())
     assert run.wizard.run() is True
     assert "did not say hello: protocol 0" in run.text
