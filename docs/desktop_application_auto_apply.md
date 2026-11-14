@@ -687,6 +687,15 @@ its own instructions or a hostile schema.
   - the essay kinds' per-type guides after the fixed part of the system
     prompt, so the cached start runs longer (W13 checks the answers).
 
+  It waits on: W11's data on the server (the plan check, the truth check
+  and the copy check read the Story bank, Stock answers, profile facts
+  and the Answer bank); WorkIt tables for the sameness ledger (each
+  student's past answers by company, a file on the Mac today) and the
+  default probe's cache; and a route that runs the loop and can stop for
+  the student (an essay whose plan needs a fact waits in Needs you, then
+  goes on). Checks that read the live page (the read-back, the replan's
+  "does the page show it") stay in the app. It does not wait on W0 or W6.
+
   | Kind | Apply today | What the app sends |
   |---|---|---|
   | `essays.plan` | `essays._ask_plan` | the questions with their matched types, the posting, sources, form answers, typical answers, redo context |
