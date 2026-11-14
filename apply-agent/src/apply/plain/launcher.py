@@ -47,6 +47,7 @@ from apply.focus import KEEPER
 from apply.plain import extension, host
 from apply.plain.bridge import (
     OUT_OF_DATE,
+    PACKAGED,
     SETS_FROM,
     Bridge,
     Connection,
@@ -55,6 +56,7 @@ from apply.plain.bridge import (
     features,
     socket_path,
 )
+from apply.plain.script import keep_engine
 from apply.profile import load_policies
 
 BRANDED = Path("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome")
@@ -264,7 +266,12 @@ class PlainWorkers:
                     running.code = code
                     said.append(f"its worker extension's code changed on disk but didn't reload ({error})")
                 return said
-        if self.bridge.vendor != before and running.connection.vendor:
+        if running.connection.vendor == PACKAGED:  # a store copy has no vendor sets: its built-in files stay
+            held = getattr(running.connection, "engine_kept", None)
+            keep_engine(running.connection)  # the engine is handed over again when the bundle on disk changed
+            if getattr(running.connection, "engine_kept", None) != held:
+                said.append(f"the Fill engine changed on disk: its pages load {self.bridge.engine['version']} now")
+        elif self.bridge.vendor != before and running.connection.vendor:
             running.connection.call("vendor.use", root=self.bridge.vendor)
             running.connection.vendor = self.bridge.vendor
             said.append(f"the Fill engine changed on disk: its pages load {self.bridge.engine['version']} now")
