@@ -180,6 +180,12 @@ into it and the window shows "Sample data".
   first page in `PAGES` on a plain Worker; the other pairs are marked
   `nightly` and run in `apply-nightly.yml` (KAN-780). Mark a test `nightly` only when it is slow
   and a faster PR case covers the same code. A guard PR gets an adversarial review first (root `CLAUDE.md`).
+  A page loads with no guard and is then guarded and reloaded, unless it
+  sends by itself from the moment it loads (a timer, before any press):
+  such a page joins `SENDS_AS_IT_LOADS` and is guarded before its first
+  load, as a rehearsal opens every page. Loaded first, its timer posted
+  before the guard was on on CI's slow runner, and its post moved the
+  page during the guard's reload (`net::ERR_ABORTED`, 2026-11-14).
 - **The guards read the page only through built-ins taken before any page
   code** (KAN-710, KAN-783): the guard script's own (`fn`, `get`, `test`,
   `up`, `formOf`, ...), and `apply.natives` for the reads that also run on
