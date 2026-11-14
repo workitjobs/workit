@@ -11,7 +11,7 @@ On a plain Worker's page (a PortPage, `apply-agent/docs/plain-workers/PROTOCOL.m
 - **The same scripts, as files.** `apply plain prepare` writes `submit_guard`'s scripts into
   `worker-extension/vendor/guards/` (the rehearsal guard and the four drive guards). Each
   holds this run's tokens (KAN-710), so each Apply process writes a vendor set of its own. The extension registers one as a MAIN-world content script at `document_start` in
-  every frame, so it runs before the page's code with no eval and no user scripts. It refuses
+  every frame, so it runs before the page's code with no eval. It refuses
   a file whose sha256 is not Apply's: re-run `prepare` after changing `submit_guard.py`.
 - **Below them, declarativeNetRequest.** `guard` puts one session rule per final application
   URL (the guard script's FINAL_URLS, which cover ROUTED) on the tab, the tabs it opens and
@@ -141,18 +141,26 @@ permission):
 WorkIt Auto Apply puts the worker extension on the Chrome Web Store
 (`../../../docs/desktop_application_auto_apply.md`, D4 and W6). A store copy may run code that
 isn't in its package only through the Debugger API or the User Scripts API, and the User Scripts
-API is for the user's own code. Today the extension runs Apply's page code (`eval`) through
-`chrome.userScripts`, and loads files Apply writes into its folder (`vendor/`), which a store
-install's folder doesn't allow. `ops/cdp.js` (PROTOCOL.md, "Ops (the debugger)") runs both
-through the debugger instead.
+API is for the user's own code. Until KAN-839 the extension ran Apply's page code (`eval`) through
+`chrome.userScripts`, and loaded the engine from a file Apply writes into its folder (`vendor/`),
+which a store install's folder doesn't allow. Now (features 5):
 
-**Off by default.** `APPLY_PLAIN_EXEC=debugger` turns it on for a process: `PortPage`'s
-`evaluate` sends `cdp.eval` in place of `eval`, and each connection hands the Fill engine to the
-extension's memory once (`cdp.keep`, with its sha256), so `engine.load` runs it through the
-debugger with no `vendor/engine.js`. Every other op is unchanged.
+- **`eval` runs through the debugger** (`ops/cdp.js`, PROTOCOL.md "Ops (the debugger)"), in the
+  frame's MAIN world, which the page's CSP doesn't govern. The manifest asks for no user scripts,
+  so the seed has no Allow User Scripts step, and a code-only init script is refused
+  (`NoCodeScripts`: the guards' state goes by `guard.control`).
+- **The Fill engine is never a file here.** Each connection hands it to the extension's memory
+  once (`cdp.keep`, checked by its sha256; again when the bundle on disk changed), and
+  `engine.load` runs it through the debugger. `vendor/` holds no engine, and `prepare` removes one
+  an older Apply wrote.
+- **The guard scripts, `fixed.js` and `injected.js` stay files**, registered or injected through
+  `chrome.scripting` as before: the guards must reach pop-ups, which only a registered content
+  script does (measured below). A Developer checkout's copy gets them as vendor sets (below); the
+  store package has them built in (`apply plain package`), and the bridge welcomes a package to its
+  own files when they are Apply's (`Bridge.packaged`) and refuses a store copy whose files aren't.
 
 **What the spike measured** (`tests/test_plain_debugger.py`, Chrome for Testing 158 with user
-scripts off, 2026-11-13):
+scripts off, 2026-11-13, while both paths were there; `eval` itself has gone through the debugger since):
 
 | Check | Result |
 |---|---|
@@ -189,12 +197,14 @@ checks a guard file now. A guard change then needs a store release before the ap
 it. The debugger carries only what may change between store releases: the Fill engine and the
 page code that has no fixed copy.
 
-**Still open** (W6): the bot signals in branded Chrome on a real seed, with more postings than one
-per job system (the run above is Chrome for Testing, Test Person, one posting each); the packaged
-files above and the store build; turning the switch on by default and removing the
-`userScripts` path. Early in the spike, three runs of `apply plain fill lever-immuta` failed on
-`engine.call` against an `about:blank` frame, one of them on the user-scripts path; 26 later runs
-on both paths and the original code did not repeat it.
+**The package can't be used yet.** The guard scripts carry each Apply process's own random tokens
+(KAN-710), so a package built once never matches a student's app, and the bridge refuses it: it fails
+closed. `worker-extension-todo.md`, item 0, has the constraints for the fix.
+
+**Still open** (W6): `worker-extension-todo.md` lists it: the first store upload and its ID
+(`extension.STORE_ID`), the seed from the store, releases, bot signals in branded Chrome on a
+real seed, a multi-step form, and the tile's screencast. The `about:blank` failures seen early in the spike were a plain Worker's
+`tabs.goto` answering on a new tab's about:blank (fixed in KAN-780).
 
 ## Plain Workers' tiles and Fix from the window (KAN-609)
 
@@ -346,9 +356,8 @@ A plain Worker is a Chrome with no CDP, driven by the worker extension
   has a `<base>`, so it opens with its styles. `records.record_files` replaces
   each secret question's answer with REDACTED. A CDP page's Record has no
   `page.html`: `worker.page_html` gives "" for it.
-- **Fixed page functions.** On a plain page, `evaluate(code)` needs eval. A
-  page whose CSP forbids eval refuses it in Chrome for Testing, where
-  Allow User Scripts can't be turned on. So the page functions that the held
+- **Fixed page functions.** On a plain page, `evaluate(code)` is a round trip
+  and a debugger command (KAN-839). So the page functions that the held
   page runs on each turn are fixed extension code: `on_page.FIELD` (Go to
   question and the Watch), `stuck.FIELD_ERROR` (Resume), and
   `email_code.WORDS`, `ARM` and `DISARM`. `apply.plain.fixed` lists them.
@@ -449,8 +458,7 @@ What changes on a plain Worker:
   rehearsal skips.
 - **The production seed.** `uv run apply plain seed` is a guided setup of `APPLY_PROFILES/plain-seed`
   (`apply.plain.seed_setup`, KAN-677). `plain_chrome: chrome` (the default) then copies that seed to each
-  Worker. `plain_chrome: testing` (Chrome for Testing) needs no seed, but Allow User Scripts can't be turned
-  on there. See "The seed's guided setup" below.
+  Worker. `plain_chrome: testing` (Chrome for Testing) needs no seed. See "The seed's guided setup" below.
 - **`apply doctor`** checks the Workers `worker_mode` runs: the CDP Worker profiles for `cdp`, the
   "Plain seed" line for `plain` (the seed exists, Load unpacked registered the worker extension in it,
   that folder holds this checkout's extension code (KAN-764), and Developer mode is on), and both for
@@ -547,16 +555,16 @@ helps with each click and confirms it. It refuses to start while a plain Worker 
 
 - **What Apply does.** It opens branded Chrome on the seed at `chrome://extensions`. At Load unpacked it
   puts the copy's path on the clipboard (`pbcopy`) and shows the copy in Finder (`open -R`), so the user
-  can drag it onto the page or paste it in the picker. At Allow User Scripts it opens
-  `chrome://extensions/?id=<EXTENSION_ID>`, where the switch is.
+  can drag it onto the page or paste it in the picker. There is no Allow User Scripts step since KAN-839: the
+  extension asks for no user scripts.
 - **What Apply never does.** It never clicks a `chrome://` page, never changes a Chrome setting and never
   writes the seed's preference files. Those clicks are the user's. It only launches Chrome with normal
   switches and reads files.
 - **How it sees each step.** It reads `Default/Secure Preferences` (then `Preferences`) once a second
-  (`read_state`): `extensions.ui.developer_mode`, `extensions.settings.<id>.path`, its `disable_reasons`
-  and `user_scripts_enabled`. Chrome writes a click to disk about 10 s after it (measured on Chrome for
+  (`read_state`): `extensions.ui.developer_mode`, `extensions.settings.<id>.path` and its
+  `disable_reasons`. Chrome writes a click to disk about 10 s after it (measured on Chrome for
   Testing 157). `first_problem` gives the first step not saved, with one message for each problem: no
-  extension, wrong folder (names both folders: Remove that card), card turned off, user scripts off.
+  extension, wrong folder (names both folders: Remove that card), card turned off.
   A step that is saved and then goes back says "did not stick". A step still unsaved after 45 s gets a
   nudge, and the path goes on the clipboard again.
 - **Quit.** When all steps show, Apply quits the seed's Chrome itself, with SIGTERM to the PID that holds
@@ -565,9 +573,9 @@ helps with each click and confirms it. It refuses to start while a plain Worker 
   after 15 s (a dialog or the folder picker open), Apply says so and waits. Ctrl-C quits it the same way.
   After the quit, Apply reads the files again. A step that a clean exit didn't save is named and shown again.
 - **Done only after a real hello.** Apply starts one Worker from the seed on a new `plain-<k>` profile (so an
-  old Worker profile can't answer for the seed) and needs its hello with `userScripts: true`. Then that
-  profile goes. No hello, a refused hello or user scripts off is not done: Apply opens the Details page
-  and asks the user to press Return to try again.
+  old Worker profile can't answer for the seed) and needs its hello. Then that profile goes. No hello or a
+  refused hello is not done: Apply opens the extension's Details page and asks the user to press Return to
+  try again.
 - **Old Worker profiles** keep their own registration. The wizard lists them; delete them to copy the seed again.
 - Tests: `tests/test_plain_seed_setup.py` (in CI), with fixture preference files and a fake Chrome and Worker.
   A live run with Chrome for Testing on a scratch `APPLY_PROFILES` needs a stand-in for the user's clicks,

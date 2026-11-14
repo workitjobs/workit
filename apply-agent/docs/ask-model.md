@@ -120,9 +120,9 @@ that holds the keys.
 With the team's `.env` in the checkout's root, nothing: `uv run apply
 doctor` says "Ask model: groq, then gemini". To keep `claude -p`, set
 `ask_model: claude` in `policies.yaml` in the data folder. Your own keys
-go in `GROQ_API_KEY` and `GEMINI_API_KEY`, or in Keychain:
+go in `GROQ_API_KEY` and `GEMINI_API_KEY`, or in Keychain, from `apply-agent/`:
 
 ```sh
-security add-generic-password -s apply-groq -a api.groq.com -w                      # asks for the key
-security add-generic-password -s apply-gemini -a generativelanguage.googleapis.com -w
+uv run keyring set apply-groq api.groq.com                      # asks for the key
+uv run keyring set apply-gemini generativelanguage.googleapis.com
 ```

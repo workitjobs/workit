@@ -1,3 +1,4 @@
+// WorkIt Auto Apply Worker. Copyright (c) 2026 its authors. All rights reserved: see LICENSE.
 // S3 ops (KAN-609): the live tile and Fix from the window.
 //
 // tile.start streams the Worker's shown tab to Apply. With `native` (KAN-635), Apply films the

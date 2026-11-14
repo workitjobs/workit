@@ -1,3 +1,4 @@
+// WorkIt Auto Apply Worker. Copyright (c) 2026 its authors. All rights reserved: see LICENSE.
 // The guards' relay, in the worker extension's isolated world of every frame (ops/guard.js).
 // It hands the service worker what the page's guard says it blocked (`__apply_said`) and each
 // call of a binding Apply exposed (`__apply_call`). Both carry text only: an object from the

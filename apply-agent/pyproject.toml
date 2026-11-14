@@ -5,6 +5,7 @@ description = "Finds Summer 2027 internship Matches and submits Applications to 
 requires-python = ">=3.12"
 dependencies = [
     "gspread>=6.2.1",
+    "keyring>=25.7.0",
     "playwright>=1.55",
     "pypdf>=6.21.4",
     "pyyaml>=6.0.3",

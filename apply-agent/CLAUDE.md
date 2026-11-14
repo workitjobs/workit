@@ -55,6 +55,21 @@ has neither.
 
 ## Rules for every run
 
+- **A change to what the Worker extension's store package holds needs a store
+  release** (KAN-839). Students run the copy the Chrome Web Store publishes,
+  never a checkout's, so a change reaches them only in a new store version.
+  - **These change it:** the extension's own code (`worker-extension/`:
+    `manifest.json`, `background.js`, `ops/`, `page/`); the guard scripts
+    (anything that changes `plain/guards.FILES`: `submit_guard.py`'s scripts and
+    the constants they take in); the fixed page functions (`plain/fixed.py` and
+    every string it lists); and Playwright's version (`vendor/injected.js`).
+  - **These don't:** the Fill engine (Apply hands it over at run time), the rest
+    of Apply's Python, prompts, and page code that runs through `eval`.
+  - `tests/test_worker_extension_store.py` (in CI) fails on such a change and
+    says what to do: bump `worker-extension/store.json`'s `version`, set its
+    `code` and `files`, then build and upload the package after merge, and
+    release an app that needs it only once the store publishes it
+    (`docs/plain-workers/worker-extension-todo.md`, Releases).
 - **Lisul reports a problem with an open application in a Claude Code chat:**
   send it to the form with `uv run apply ask "<company, role or application
   ID>" "<his words>"` (from `apply-agent/`). Do not open or drive the form
@@ -86,10 +101,10 @@ this folder's `CLAUDE.md` for its area.
 - `docs/prompts-and-gates.md`: a prompt, a length, cap or names gate, or the catch-all box rule.
 - `docs/claude-fill.md`: Claude fill, its Next and profile clicks, its dropdowns, or a Filler's `form_url`.
 - `docs/captchas-and-bot-blocks.md`: a captcha wait, a block's handoff, or `captcha.py`.
-- `docs/sign-in.md`: a sign-in page, an Employer account or its password, the Accounts tab, or `apply preflight`.
+- `docs/sign-in.md`: a sign-in page, an Employer account or its password (the one Lisul chooses, its rule, Show password), where secrets live (`keychain.py`, `keyring`), the Accounts tab, or `apply preflight`.
 - `docs/apply-window.md`: the window's lifetime, its Dock keeper, or what a Record keeps.
 - `docs/restart-recovery.md`: what survives a restart of the Mac: Workers' sign-ins across a quit, the open-forms list (`batch.py`), `apply reopen`, and `apply preflight --open`.
-- `docs/plain-workers/guide.md`: `apply/plain/`, `worker_mode`, `--into`, or the worker extension.
+- `docs/plain-workers/guide.md`: `apply/plain/`, `worker_mode`, `--into`, or the worker extension; `docs/plain-workers/worker-extension-todo.md` for its store package and what is left.
 - `docs/plain-workers/PROTOCOL.md`: a message between Apply and the worker extension.
 - `docs/research/`: the research behind plain Workers, Employer account sign-in and the held form's session keep-alive (`session-timeouts.md`). Each note's Status line says what was built.
 
@@ -278,6 +293,11 @@ into it and the window shows "Sample data".
   A test that goes live on purpose names its hosts:
   `@pytest.mark.live_network("example.com")`. A program that a test starts
   other than Chrome (`curl`, `gh`) is not covered, so fake those.
+- **No test reaches the system's keychain** (KAN-838). `conftest.py` puts
+  keyring's null backend in place, so a `SystemKeychain` that a test gave
+  no backend reads nothing, and its save fails. Pass `InMemoryKeychain` or
+  a fake backend. Only `test_keychain_contract.py` with
+  `APPLY_TEST_KEYCHAIN=1` touches the real one (`docs/sign-in.md`).
 - **Prove a fix on the real form.** Rehearse the job posting that showed the
   bug (`uv run apply rehearse <url>`) and read its record. A rehearsal never
   submits. A unit test that passes is not the check that matters; the live
@@ -307,6 +327,31 @@ this checkout's `origin`, the WorkIt repo. It also moves the engine pointer
 pointer too. A Repair never runs on `main` (`repair_waiting` refuses it):
 its pushes would move fill-engine's `main` and WorkIt's `main` to code
 Claude wrote, and only WorkIt's `main` is protected.
+
+## The app's license and notices
+
+WorkIt Auto Apply ships with two legal files (W10 of
+`../docs/desktop_application_auto_apply.md`, KAN-848). Both stay in this
+folder, so they move with Apply to `workitjobs/apply-agent` (W0) and the
+app's build (W8) finds them.
+
+- **`legal/EULA.txt`** is the app's license. It is adapted from
+  Basecamp's open-source policies under CC BY 4.0: keep its Credits
+  section, which is the attribution that license needs. WorkIt's
+  `/terms` sums it up (`../frontend/src/app/(landing)/terms/page.tsx`):
+  change the two together, and only with the team's yes.
+- **`THIRD-PARTY-NOTICES.txt` is made, never kept**: `uv run python
+  scripts/third_party_notices.py` writes it to `dist/` from `uv.lock`.
+  Never add a Python package to it by hand: a dependency in
+  `pyproject.toml` joins it on the next run, and a dev dependency never
+  does. Code that ships without a Python package (a macOS framework, a
+  font, Nuitka's runtime) joins `BY_HAND` in the script, with its license
+  text in `legal/licenses/`. The build runs the script with `--strict`,
+  which fails while a text is missing.
+- **A change to what the app sends off the Mac** (a model call's data, a
+  new WorkIt route, a new outside service) updates the WorkIt Auto Apply
+  section of `/privacy` in the same PR (`../frontend/CLAUDE.md`, the legal
+  pages).
 
 ## The privacy gate
 

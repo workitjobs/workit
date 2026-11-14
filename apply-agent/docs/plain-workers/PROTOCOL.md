@@ -20,16 +20,19 @@ Apply process                                   Worker k (plain Chrome)
   apply.plain.launcher.PlainWorkers
 ```
 
-- **Extension:** `apply-agent/worker-extension/` in WorkIt. Private, never on the
-  Store. Its ID is fixed by `manifest.json`'s `key`: `apply.plain.extension.EXTENSION_ID`.
+- **Extension:** `apply-agent/worker-extension/` in WorkIt. A Developer checkout loads it
+  unpacked, with its ID fixed by `manifest.json`'s `key` (`apply.plain.extension.EXTENSION_ID`);
+  WorkIt Auto Apply's students add the Chrome Web Store copy, which `apply plain package` builds
+  (below) and whose ID the store gives (`extension.STORE_ID`, empty until the first upload). It asks
+  for no user scripts (KAN-839).
   Workers load a copy of it, `APPLY_PROFILES/worker-extension/` (KAN-645), which Apply replaces
   only while none of that folder's Workers runs. Its generated files are in `vendor/` and, for
   code at features 3, in a write-once set `vendor/sets/<id>/` that the welcome names (the
   extension then reads each `vendor/<file>` from the set: `ops/shared.js: vendor`). The launcher
   writes them before every launch (`apply plain prepare` writes the checkout's `vendor/`):
-  - `vendor/engine.js`: the Fill engine bundle, copied from the extension submodule's
-    `fill-engine/dist/engine.js` (the same build the WorkIt extension uses).
-  - `vendor/engine.json`: `{"version": "0.3.13+7a3a3fc", "sha256": "..."}`.
+  - `vendor/engine.json`: `{"version": "0.3.13+7a3a3fc", "sha256": "..."}`: the engine Apply hands
+    over. The bundle itself is never a file here (KAN-839): Apply sends it once per connection
+    (`cdp.keep`, `apply.plain.script.keep_engine`), and the extension holds it in memory.
   - `vendor/injected.js`: Playwright's own injected script (playwright-core's
     `injectedScriptSource`, Apache-2.0, taken from the installed Python package's driver),
     wrapped so it sets `globalThis.__applyPW = new InjectedScript(...)` in the
@@ -69,17 +72,23 @@ extension joins them before handling. The extension never needs to chunk.
    (`worker` is 0-based everywhere, as `WorkerBrowsers.open(worker=0)`; Worker k's profile is `plain-<k+1>`.)
 4. Extension → Apply:
    ```json
-   {"type": "hello", "protocol": 1, "extension": "0.2.0", "features": 2,
+   {"type": "hello", "protocol": 1, "extension": "0.3.0", "features": 5,
     "engine": {"version": "0.3.13+7a3a3fc", "sha256": "..."},
-    "userScripts": true, "webdriver": false,
+    "packaged": "3254a38b1604313f", "installType": "normal", "webdriver": false,
     "userAgent": "...", "brands": ["Google Chrome", "..."]}
    ```
+   `packaged` is the id of the generated files built into a package (`vendor/set.json`), null in an
+   unpacked copy Apply writes; `installType` is `chrome.management.getSelf()`'s (`development` for
+   an unpacked copy, `normal` for a store one).
 5. Apply → extension: `{"type": "welcome", "worker": k, "protocol": 1, "vendor": "vendor/sets/<id>"}`
-   (`vendor` only for features 3 or more), or
+   (`vendor` only for features 3 or more), or, for a package whose `packaged` is the id of this
+   Apply's own packaged files (`Bridge.packaged`), `"vendor": "vendor"`: its built-in files, since
+   Apply can't write into a store copy's folder (KAN-839), or
    `{"type": "refuse", "reason": "..."}` and Apply closes the connection.
-   Apply refuses: a wrong origin, another protocol, or an engine whose version or
-   sha256 differs from Apply's own `fill_engine.ENGINE` (the reason names both and says
-   to run `apply plain prepare`).
+   Apply refuses: a wrong origin (neither ID), another protocol, a store copy (`installType` not
+   `development`) whose `packaged` isn't Apply's (it holds other guards Apply can't replace; Chrome
+   updates it from the store), or, from code before vendor sets, an engine whose version or sha256
+   differs from Apply's own `fill_engine.ENGINE` (the reason names both and says to run `apply plain prepare`).
    An extension at features 3 or more that gets a `vendor` set is never refused for its engine:
    the set holds Apply's own.
    `features` (KAN-643) is what the extension's code can do: 2 is `tile.shown` and
@@ -118,7 +127,8 @@ Extension → Apply:
 Error names: `TimeoutError`, `Navigated` (the frame or tab went away mid-op: Apply retries
 like `fill_engine.NAVIGATED`), `NoTab`, `NoFrame`, `NotFound`, `Strict` (strict-mode
 violation: more than one element), `NotActionable` (hidden, disabled, covered; Apply's
-auto-wait retries it), `EvalError` (the page's code threw), `UserScriptsOff`,
+auto-wait retries it), `EvalError` (the page's code threw), `NoCodeScripts` (an init script with no
+guard file), `NoEngine` (`engine.load` before Apply handed the engine over), `Refused`,
 `BadOp`, `Crash`. On the Python side every error raises `apply.plain.page.PortError`,
 a subclass of `playwright.sync_api.Error`, and `TimeoutError` raises
 `PortTimeoutError`, a subclass of `playwright.sync_api.TimeoutError`, so existing
@@ -132,7 +142,7 @@ Targets: `tab` is a Chrome tab id; `frame` is a webNavigation frame id (0 = top,
 
 | Op | Params | Value |
 |---|---|---|
-| `ping` | | `{"pong": true, "userScripts": bool, "webdriver": bool, "tabs": n}` |
+| `ping` | | `{"pong": true, "webdriver": bool, "tabs": n}` |
 | `tabs.query` | | `[{"tab", "url", "title", "status", "active", "window"}]` |
 | `tabs.create` | `url?`, `active?` | that tab's info |
 | `tabs.get` | `tab` | `{"tab", "url", "title", "status"}` |
@@ -144,10 +154,10 @@ Targets: `tab` is a Chrome tab id; `frame` is a webNavigation frame id (0 = top,
 | `tabs.activate` | `tab` | `null` (also focuses its window, never minimizes) |
 | `tabs.screenshot` | `tab`, `format` (`png`/`jpeg`), `quality?` | `{"data": base64}`; activates the tab; waits out the ~2/s quota |
 | `frames` | `tab` | `[{"frame", "parent", "url"}]` |
-| `eval` | `tab`, `frame?`, `code` | the value of `code` (an expression; promises are awaited), run in the page's MAIN world through `chrome.userScripts.execute`. With user scripts off: `chrome.scripting.executeScript` in MAIN calling indirect `eval` (works where page CSP allows eval: the fakes; real sites need the seed's Allow User Scripts). The value must be JSON-serializable. |
+| `eval` | `tab`, `frame?`, `code` | the value of `code` (an expression; promises are awaited), run in the frame's MAIN world through the debugger (`cdp.eval`, below), which page CSP doesn't govern. The value must be JSON-serializable. |
 | `vendor.use` | `root` | `{root}`: read Apply's generated files from that vendor set from now (a new engine) |
-| `engine.load` | `tab`, `frame?` | `true`; injects `vendor/engine.js` into MAIN as a file (no CSP issue), unless `FillEngine` is there |
-| `engine.call` | `tab`, `frame?`, `name`, `args` | `FillEngine.call(name, args)`'s answer (`{value}` or `{error}`), run by a fixed function in MAIN through `chrome.scripting` (no eval, no user scripts needed); loads the engine first if the page lacks it |
+| `engine.load` | `tab`, `frame?` | `true`; runs the engine Apply handed over (`cdp.keep`, name `engine`) in MAIN through the debugger, unless `FillEngine` is there; `NoEngine` when none is held |
+| `engine.call` | `tab`, `frame?`, `name`, `args` | `FillEngine.call(name, args)`'s answer (`{value}` or `{error}`), run by a fixed function in MAIN through `chrome.scripting` (no eval); loads the engine first if the page lacks it |
 | `dom` | `tab`, `frame?`, `method`, `args` | `{"ok": value}` or `{"retry": reason}`; runs `page/dom.js`'s `method` in the extension's isolated world with Playwright's injected script (`__applyPW`); see below |
 
 `dom` methods (values below are inside `{"ok": ...}`; "retry" means `{"retry": reason}`, answered while the element is missing or not actionable; all take a Playwright selector string first; selectors are built the way
@@ -223,11 +233,11 @@ drops a `tile.frame` whose window switched tabs during its capture.
 `add_init_script`, `expose_binding` and `route`. A guard file is one of `vendor/guards/*.js`,
 written by `apply plain prepare` from `submit_guard`'s own scripts; an op that takes one refuses
 it (`Crash`, "run `uv run apply plain prepare`") unless its sha256 is the `sha256` Apply sends.
-A fresh service worker starts with no content scripts, rules or user scripts.
+A fresh service worker starts with no content scripts or rules.
 
 | Op | Params | Value |
 |---|---|---|
-| `guard.script` | `id`, and `file` + `sha256` (a guard file), or `code` | `{"file"}` / `{"code": true}`; registers the file as a MAIN-world content script at `document_start` in every frame (`matchOriginAsFallback`, not persisted), or the code through `chrome.userScripts` (`UserScriptsOff` when Allow User Scripts is off). Also registers `page/relay.js` |
+| `guard.script` | `id`, and `file` + `sha256` (a guard file) | `{"file"}`; registers the file as a MAIN-world content script at `document_start` in every frame (`matchOriginAsFallback`, not persisted). `code` instead of a file is refused (`NoCodeScripts`): there are no user scripts, and the guards' state goes by `guard.control`. Also registers `page/relay.js` |
 | `guard.inject` | `tab`, `file`, `sha256` | `null`; runs a guard file in every frame of the tab now |
 | `guard.route` | `key`, `tab` (null: every tab), `regexes`, `caseSensitive`, `workers?` | `{"rules": n}`; with `workers` (KAN-791), the rules hold on `tabIds` -1 alone (a service or shared worker's requests, never the tab's own), and the route goes when its tab closes; one declarativeNetRequest session rule per regex blocking a non-GET (`excludedRequestMethods: get, head, options`) of every resource type, main_frame included, on `tabIds` = the tab, the tabs it opens later, and -1 (service and shared workers). Routes with the same `regexes`, `caseSensitive` and `workers` share those rules, on all of their tabs (KAN-793); a closed tab leaves every route, and a set whose last tab closed keeps its rules on -1 until `guard.reset` (a page's service worker outlives its tab). Each regex must pass `isRegexSupported` (RE2, 2 KB compiled). When Chrome refuses the update, its rules and the route stay as they were and the op fails |
 | `guard.unroute` | `key` | `null`; fails, with the route kept, when Chrome refuses the update |
@@ -289,8 +299,8 @@ Chrome never settles such a call by itself.
 In `worker-extension/ops/cdp.js`, over the one debugger attachment per tab that it shares with
 `ops/typing.js` (`ops/debug.js`). For a Chrome Web Store copy of the extension, which may run code
 that isn't in its package only through the Debugger API (the User Scripts API is for the user's
-own code). Apply uses them only with `APPLY_PLAIN_EXEC=debugger` (`apply.plain.script`); the
-guide's "Page code through the debugger" has what was measured.
+own code). `eval` and `engine.load` run on them (`apply.plain.script`); the guide's "Page code
+through the debugger" has what was measured.
 
 | Op | Params | Value |
 |---|---|---|
@@ -314,7 +324,7 @@ since `Page.addScriptToEvaluateOnNewDocument` does nothing without it.
 ## Ops (S6: Claude fill and Rescue)
 
 KAN-612. In `worker-extension/ops/claude.js`, with `page/modal.js`. They serve Apply's MCP server
-(below); fixed functions through `chrome.scripting`, so no eval and no user scripts.
+(below); fixed functions through `chrome.scripting`, so no eval.
 
 | Op | Params | Value |
 |---|---|---|
@@ -457,13 +467,22 @@ with workers.open(url, worker=0) as page:   # same shape as WorkerBrowsers.open:
 ```
 
 `fill_engine.call` uses `page.engine_call(name, args)` when the page has one (PortPage does): the
-`engine.call` op, which loads `vendor/engine.js` as a file. So the 1 MB message cap never meets
-the 440 KB bundle, page CSP never blocks it, and the engine needs no user scripts.
+`engine.call` op, which loads the engine Apply handed over (`cdp.keep`: the bundle crosses native
+messaging once per connection, in pieces) through the debugger, so page CSP never blocks it.
 
-User scripts: in Chrome for Testing (tests, dev) nobody can turn on Allow User Scripts, so `eval`
-falls back to an indirect eval in MAIN, which works on the fakes but not on a page whose CSP
-forbids eval (it raises `PortError` kind `UserScriptsOff`). Prefer a fixed extension function
-(like `engine.call` and `dom`) over `eval` for anything a slice runs on real sites.
+`eval` runs through the debugger on every page, its CSP or not. Prefer a fixed extension function
+(like `engine.call`, `dom` and `fixed.call`) over `eval` for what a held page runs on each turn:
+each `eval` is a round trip and a debugger command.
+
+The Chrome Web Store package (`apply plain package [--out dist]`, `extension.package`, KAN-839): a
+zip of the extension's code, `vendor/` with the generated files built in (the guards, `fixed.js`,
+`injected.js`; never the engine) and their id in `vendor/set.json`, `LICENSE`, `NOTICE` and
+Playwright's Apache-2.0 license, with `store.json`'s name, description and version and no
+manifest `key` (the store gives the ID). A guard change therefore needs a store release before the
+app that expects it: the bridge refuses a store copy whose files aren't Apply's
+(`tests/test_worker_extension_store.py` checks that `store.json` records what its version holds).
+Not usable yet: the guard files carry each Apply process's own tokens, so no package built once
+matches a student's app (`worker-extension-todo.md`, item 0).
 
 `PlainWorkers` (S1): `prepare()`, `launch(worker) -> PlainWorker` (pid, profile,
 connection), `open(url, worker)`, `stop(worker)` / `stop_all()` (by PID only),

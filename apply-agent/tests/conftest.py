@@ -34,6 +34,14 @@ import network_block
 
 network_block.install()
 
+# No test reaches the system's keychain (macOS Keychain, Windows Credential Manager): keyring's null
+# backend reads nothing and keeps nothing, so a SystemKeychain that a test gave no backend sees an empty
+# keychain, and its save fails. test_keychain_contract.py opts in to the real one with APPLY_TEST_KEYCHAIN=1.
+import keyring
+from keyring.backends import null
+
+keyring.set_keyring(null.Keyring())
+
 from fake_lever import FakeLeverServer
 from fakes import FakeJobServer
 

@@ -1,8 +1,8 @@
 """Fixed page functions (KAN-611): page code Apply's own modules run with `evaluate`, which a plain
 Worker runs as code its extension ships, not through eval.
 
-On a plain Worker, `evaluate(code)` needs eval or user scripts: a page whose CSP forbids eval
-refuses it in Chrome for Testing, where Allow User Scripts can't be turned on. So the page
+On a plain Worker, `evaluate(code)` goes through the extension's debugger (KAN-839), which the
+page's CSP doesn't govern; each call is a round trip and a debugger command. So the page
 functions the held page runs on every turn (Needs you's FIELD, Resume's FIELD_ERROR, the emailed
 code's WORDS, a held page's session look and keep-alive, regenerate's button and its field lock and read-back, Ask Claude's field read and undo) are written into the extension as `vendor/fixed.js` by
 `apply plain prepare`, from the very strings their modules hold. PortPage's `evaluate` and
