@@ -458,10 +458,16 @@ def _plain(args) -> None:
         identity = PlainWorkers(kind="testing").prepare()
         print(f"Worker extension ready: Fill engine {identity['version']}.")
     elif args.action == "package":
+        import json
+
         from apply.plain import extension
 
         archive = extension.package(Path(args.out))
         print(f"Chrome Web Store package: {archive} (unpacked beside it). Upload it in the Developer Dashboard.")
+        recorded, stamp = json.loads(extension.STORE.read_text()), extension.store_stamp()
+        if any(recorded.get(key) != value for key, value in stamp.items()):
+            print(f"store.json doesn't record what this package holds ({stamp}): bump its version and record these "
+                  "before uploading (tests/test_worker_extension_store.py says how).")
     elif args.action == "seed":
         from apply.adapters import SetupError
         from apply.plain import seed_setup

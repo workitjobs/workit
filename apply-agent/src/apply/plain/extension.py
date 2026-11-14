@@ -126,21 +126,45 @@ def _driver_bundle() -> Path:
     return Path(compute_driver_executable()[1]).parent / "lib" / "coreBundle.js"
 
 
+def _injected() -> str:
+    """vendor/injected.js: Playwright's injected script, from the installed package's driver."""
+    source = subprocess.run([_node(), "-e", EXTRACT, str(_driver_bundle())], capture_output=True, text=True, check=True).stdout
+    return ("// Playwright's injected script (Apache-2.0), from the installed playwright package.\n"
+            "(() => {\nif (globalThis.__applyPW) return;\nconst module = {};\n" + source +
+            f"\nglobalThis.__applyPW = new (module.exports.InjectedScript())(globalThis, {json.dumps(INJECTED_OPTIONS)});\n}})();\n")
+
+
+def _built_in(guard_files: dict[str, str]) -> dict[str, bytes]:
+    from apply.plain import guards
+
+    files = {"injected.js": _injected().encode(), "fixed.js": fixed.script().encode()}
+    return files | {f"{guards.FOLDER}/{name}": text.encode() for name, text in guard_files.items()}
+
+
 def generated(identity: dict | None = None) -> dict[str, bytes]:
     """Each generated file's path under vendor/ and its bytes."""
     from apply.plain import guards
 
     fill_engine._built()
     identity = identity or engine_identity()
-    bundle = _driver_bundle()
-    source = subprocess.run([_node(), "-e", EXTRACT, str(bundle)], capture_output=True, text=True, check=True).stdout
-    injected = ("// Playwright's injected script (Apache-2.0), from the installed playwright package.\n"
-                "(() => {\nif (globalThis.__applyPW) return;\nconst module = {};\n" + source +
-                f"\nglobalThis.__applyPW = new (module.exports.InjectedScript())(globalThis, {json.dumps(INJECTED_OPTIONS)});\n}})();\n")
-    files = {"engine.json": (json.dumps(identity, indent=1) + "\n").encode(),
-             "injected.js": injected.encode(), "fixed.js": fixed.script().encode()}
-    files |= {f"{guards.FOLDER}/{name}": text.encode() for name, text in guards.FILES.items()}
-    return files
+    return {"engine.json": (json.dumps(identity, indent=1) + "\n").encode(), **_built_in(guards.FILES)}
+
+
+def store_stamp() -> dict[str, str]:
+    """What a store version of the extension holds, the same in every Apply process: the hash of its own code, and the
+    set id of its built-in files with each of the guards' per-run tokens (submit_guard.TOKENS, TOUCHES, MARKS, TELL,
+    wherever their values went) written as a fixed value. store.json records it for its version; a change means a new
+    store release (apply-agent/CLAUDE.md)."""
+    from apply import submit_guard
+    from apply.plain import guards
+
+    secrets = [*submit_guard.TOKENS.values(), *submit_guard.TOUCHES.values(), *submit_guard.MARKS.values(), submit_guard.TELL]
+    neutral = {}
+    for name, text in guards.FILES.items():
+        for secret in secrets:
+            text = text.replace(secret, "0" * len(secret))
+        neutral[name] = text
+    return {"code": code_hash(), "files": set_id(_built_in(neutral))}
 
 
 def packaged_files(files: dict[str, bytes] | None = None) -> dict[str, bytes]:
