@@ -311,6 +311,31 @@ pointer too. A Repair never runs on `main` (`repair_waiting` refuses it):
 its pushes would move fill-engine's `main` and WorkIt's `main` to code
 Claude wrote, and only WorkIt's `main` is protected.
 
+## The app's license and notices
+
+WorkIt Auto Apply ships with two legal files (W10 of
+`../docs/desktop_application_auto_apply.md`, KAN-848). Both stay in this
+folder, so they move with Apply to `workitjobs/apply-agent` (W0) and the
+app's build (W8) finds them.
+
+- **`legal/EULA.txt`** is the app's license. It is adapted from
+  Basecamp's open-source policies under CC BY 4.0: keep its Credits
+  section, which is the attribution that license needs. WorkIt's
+  `/terms` sums it up (`../frontend/src/app/(landing)/terms/page.tsx`):
+  change the two together, and only with the team's yes.
+- **`THIRD-PARTY-NOTICES.txt` is made, never kept**: `uv run python
+  scripts/third_party_notices.py` writes it to `dist/` from `uv.lock`.
+  Never add a Python package to it by hand: a dependency in
+  `pyproject.toml` joins it on the next run, and a dev dependency never
+  does. Code that ships without a Python package (a macOS framework, a
+  font, Nuitka's runtime) joins `BY_HAND` in the script, with its license
+  text in `legal/licenses/`. The build runs the script with `--strict`,
+  which fails while a text is missing.
+- **A change to what the app sends off the Mac** (a model call's data, a
+  new WorkIt route, a new outside service) updates the WorkIt Auto Apply
+  section of `/privacy` in the same PR (`../frontend/CLAUDE.md`, the legal
+  pages).
+
 ## The privacy gate
 
 `scripts/privacy_gate.py` scans the files for personal data (phone numbers,
