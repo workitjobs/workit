@@ -5,7 +5,7 @@ reaches a model".
 """
 
 import re
-from collections.abc import Iterable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 
 _EMAIL = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
@@ -42,27 +42,31 @@ def placeholders_in(text: str) -> list[str]:
     return [p for p in PLACEHOLDERS if p in text]
 
 
-def _literal(text: str, value: str | None, placeholder: str) -> str:
+# What takes a found value's place: its kind ("name", "email", "phone",
+# "link") and the value as written in, its replacement out.
+Put = Callable[[str, str], str]
+
+
+def _plain(kind: str, value: str) -> str:
+    return f"[{kind}]"
+
+
+def _literal(text: str, value: str | None, kind: str, put: Put) -> str:
     if not value or not value.strip():
         return text
-    return re.sub(re.escape(value.strip()), placeholder, text, flags=re.IGNORECASE)
+    return re.sub(re.escape(value.strip()), lambda m: put(kind, m[0]), text, flags=re.IGNORECASE)
 
 
-def _profile_link(text: str, link: str) -> str:
+def _profile_link(text: str, link: str, put: Put) -> str:
     core = re.sub(r"^(?:https?://)?(?:www\.)?", "", link.strip(), flags=re.IGNORECASE)
     core = core.rstrip("/")
     if not core:
         return text
     found = rf"(?:https?://)?(?:www\.)?{re.escape(core)}{_PATH}(?![\w-])"
-    return re.sub(found, "[link]", text, flags=re.IGNORECASE)
+    return re.sub(found, lambda m: put("link", m[0]), text, flags=re.IGNORECASE)
 
 
-def _phone(match: re.Match[str]) -> str:
-    digits = sum(c.isdigit() for c in match[0])
-    return "[phone]" if 10 <= digits <= 15 else match[0]
-
-
-def _profile_phone(text: str, phone: str | None) -> str:
+def _profile_phone(text: str, phone: str | None, put: Put) -> str:
     # The profile's number in any formatting: its last ten digits with any
     # separators between them, plus whatever country code precedes them.
     digits = re.sub(r"\D", "", phone or "")[-10:]
@@ -70,7 +74,38 @@ def _profile_phone(text: str, phone: str | None) -> str:
         return text
     between = r"[\s().-]*"
     found = rf"(?:\+\d{{1,3}}{between})?\(?" + between.join(digits)
-    return re.sub(rf"(?<![\w+]){found}(?!\d)", "[phone]", text)
+    return re.sub(rf"(?<![\w+]){found}(?!\d)", lambda m: put("phone", m[0]), text)
+
+
+def _removed(
+    text: str,
+    put: Put,
+    *,
+    name: str | None,
+    email: str | None,
+    phone: str | None,
+    links: Iterable[str | None],
+) -> str:
+    # The profile's own fields first, then any email, URL or phone by
+    # pattern, the name last so a name inside an email or a link cannot
+    # break that match.
+    text = _literal(text, email, "email", put)
+    text = _EMAIL.sub(lambda m: put("email", m[0]), text)
+    for link in links:
+        text = _profile_link(text, link or "", put)
+    text = _URL.sub(lambda m: put("link", m[0]), text)
+    text = _profile_phone(text, phone, put)
+    text = _PHONE.sub(
+        lambda m: put("phone", m[0]) if 10 <= sum(c.isdigit() for c in m[0]) <= 15 else m[0], text
+    )
+    if name:
+        parts = sorted({name.strip(), *name.split()}, key=len, reverse=True)
+        words = "|".join(re.escape(p) for p in parts if len(p) > 1)
+        if words:
+            text = re.sub(
+                rf"(?<!\w)(?:{words})(?!\w)", lambda m: put("name", m[0]), text, flags=re.IGNORECASE
+            )
+    return text
 
 
 def remove_identity(
@@ -87,23 +122,10 @@ def remove_identity(
     URL or phone by pattern, the name last so a name inside an email or a link
     cannot break that match. Each part of the name is replaced on its own, in
     any case, even where it is also a common word: privacy wins over wording.
-    Nothing maps a placeholder back to its value, by design.
+    Nothing maps a placeholder back to its value, by design; `Masked` is the
+    one exception.
     """
-    text = _literal(text, email, "[email]")
-    text = _EMAIL.sub("[email]", text)
-    for link in links:
-        text = _profile_link(text, link or "")
-    text = _URL.sub("[link]", text)
-    text = _profile_phone(text, phone)
-    text = _PHONE.sub(_phone, text)
-    if name:
-        parts = sorted({name.strip(), *name.split()}, key=len, reverse=True)
-        words = "|".join(re.escape(p) for p in parts if len(p) > 1)
-        if words:
-            text = re.sub(
-                rf"(?<!\w)(?:{words})(?!\w)", "[name]", text, flags=re.IGNORECASE
-            )
-    return text
+    return _removed(text, _plain, name=name, email=email, phone=phone, links=links)
 
 
 @dataclass(frozen=True)
@@ -124,3 +146,44 @@ class Identity:
         return remove_identity(
             text, name=self.name, email=self.email, phone=self.phone, links=self.links
         )
+
+
+class Masked:
+    """
+    Identity data behind placeholders that can be put back, for one model
+    call whose answer must hold the real values: WorkIt Auto Apply's Model
+    route (`LLM.complete_schema`), whose answers the desktop app types into
+    forms. The map from placeholder to value lives in memory for that one
+    call; it is never stored or logged. Each distinct value gets its own
+    placeholder, the first of a kind `[email]`, then `[email2]`, `[email3]`,
+    so two emails come back as the right two. A placeholder already in the
+    text (the app's own) is never used, so putting back never touches it.
+    """
+
+    def __init__(self, identity: Identity, texts: Iterable[str]):
+        self._identity = identity
+        self._seen = "\n".join(texts)
+        self._placeholders: dict[tuple[str, str], str] = {}
+        self._values: dict[str, str] = {}
+
+    def _put(self, kind: str, value: str) -> str:
+        if (kind, value) not in self._placeholders:
+            n = 1
+            while (p := f"[{kind}]" if n == 1 else f"[{kind}{n}]") in self._seen or p in self._values:
+                n += 1
+            self._placeholders[kind, value] = p
+            self._values[p] = value
+        return self._placeholders[kind, value]
+
+    def hide(self, text: str) -> str:
+        i = self._identity
+        return _removed(text, self._put, name=i.name, email=i.email, phone=i.phone, links=i.links)
+
+    def put_back(self, text: str, escape: Callable[[str], str] = lambda value: value) -> str:
+        """`text` with each placeholder this mask made replaced by its value,
+        in one pass, so a value is never read again as a placeholder.
+        `escape` writes a value as `text` needs it (as inside a JSON string)."""
+        if not self._values:
+            return text
+        found = "|".join(re.escape(p) for p in self._values)
+        return re.sub(found, lambda m: escape(self._values[m[0]]), text)

@@ -10,21 +10,28 @@ POST /apply-app/model  ModelCall {kind?, model, system?, prompt, schema}
      the API's model chain (app/services/models.py): `haiku` asks the small
      chain, `sonnet` and `opus` the large one, so the model names stay in
      the SCOUT_* settings. The chain moves on at a 429, a 5xx, a request too
-     large or an answer outside the schema (workit_scout.llm.complete_schema).
-     The student's identity (name, email, phone, links) is removed from both
-     texts on the way, whatever the app replaced first: an answer may then
-     hold `[name]`, `[email]`, `[phone]` or `[link]`, which the app must not
-     fill into a form. Answers ModelAnswer {answer, tokens, usage}.
+     large, a 400 or 422 (the provider refused this request or its schema)
+     or an answer outside the schema (workit_scout.llm.complete_schema).
+     The student's email, phone and links, and any email, phone or link
+     found by pattern, go to the model as placeholders, whatever the app
+     replaced first, and come back in the answer as their values
+     (workit_scout.identity.Masked). The name is the app's to replace (D8):
+     the server's name removal also took ordinary words ("will" for a
+     student named Will) and broke the prompt. Answers ModelAnswer
+     {answer, tokens, usage}.
        403  not a student's account.
-       422  a body outside ModelCall (a schema that is not an object's, has a
-            `$ref`, or is over 20,000 characters, app/schemas/apply_app.py).
+       422  a body outside ModelCall (a schema that is not an object's, uses
+            `$ref` or `pattern`, or is over 20,000 characters or 32 levels,
+            app/schemas/apply_app.py).
        429  with Retry-After: the student's calls this minute are at
             APPLY_APP_CALLS_PER_MINUTE (a minute at most), or their tokens this
             month are at APPLY_APP_MONTHLY_TOKENS (Retry-After runs to the 1st,
             UTC; the app pauses its run until then). Nothing goes to a model.
        413  too large for every model in the chain.
-       502  no model's answer fit the schema.
-       503  with Retry-After: every model is busy, out of quota or down.
+       502  no model's answer fit the schema, or every model refused the
+            request: asking again the same way will not help.
+       503  with Retry-After: every model is busy, out of quota or down, or
+            the API's model settings are wrong (a key, a model name).
      The tokens a failed call spent still count.
 GET  /apply-app/usage  Usage {used, cap, resets_at}: this month's tokens.
 
@@ -32,6 +39,7 @@ Logs name the student, the call's kind and model, and its tokens; never a
 prompt or an answer.
 """
 
+import dataclasses
 import datetime
 import logging
 import math
@@ -101,7 +109,9 @@ async def model_call(
         raise _refused(status.HTTP_429_TOO_MANY_REQUESTS,
                        f"Monthly model use reached; resets on {resets:%B} {resets.day}.",
                        (resets - now).total_seconds())
-    identity = await load_identity(db, account)
+    # No name: the app replaces it (D8), and removing it here also took
+    # ordinary words that are a part of it, such as "will" or "mark".
+    identity = dataclasses.replace(await load_identity(db, account), name=None)
     # Hold no connection while the model writes, which can take a minute.
     await db.commit()
 
@@ -123,5 +133,6 @@ async def model_call(
     if isinstance(failure, InvalidReply):
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(failure))
     if failure is not None:
-        raise _refused(status.HTTP_503_SERVICE_UNAVAILABLE, str(failure), 60)
+        # Not Scout's message, which names Scout and can say "tomorrow".
+        raise _refused(status.HTTP_503_SERVICE_UNAVAILABLE, "No model can answer right now. Try again in a minute.", 60)
     return ModelAnswer(answer=answer, tokens=spent.total, usage=_usage(used, now))

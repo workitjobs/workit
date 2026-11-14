@@ -19,7 +19,7 @@ from openai import APIConnectionError, APIStatusError, AsyncOpenAI, RateLimitErr
 from pydantic import BaseModel, ValidationError
 from referencing import Registry
 
-from workit_scout.identity import Identity
+from workit_scout.identity import Identity, Masked
 from workit_scout.settings import Endpoint, ScoutSettings, Size
 
 logger = logging.getLogger(__name__)
@@ -136,9 +136,20 @@ def _effort(endpoint: Endpoint) -> dict[str, str]:
 
 
 def _log_failure(endpoint: Endpoint, exc: Exception) -> None:
+    # Never the error's text: the SDK puts the provider's whole error body in
+    # it, and Groq's holds the model's output (`failed_generation`); a
+    # pydantic ValidationError holds the reply.
+    if isinstance(exc, APIStatusError):
+        said = f"HTTP {exc.status_code} {exc.code or ''}".rstrip()
+    else:
+        said = type(exc).__name__
     logger.warning(
-        "Scout model %s at %s failed: %r", endpoint.model, endpoint.base_url, exc
+        "Scout model %s at %s failed: %s", endpoint.model, endpoint.base_url, said
     )
+
+
+def _in_json_string(value: str) -> str:
+    return json.dumps(value)[1:-1]
 
 
 def _deidentified(messages: Sequence[Message], identity: Identity) -> list[Message]:
@@ -244,11 +255,19 @@ class LLM:
         (KAN-723). The caller has checked the schema
         (`Draft202012Validator.check_schema`). A reply that is not JSON, fails
         the schema or is cut off moves down the chain, as a 429 does, since
-        another model may well fit it; one that fails on every endpoint raises
-        `InvalidReply`. Returns the answer and the tokens every endpoint tried
-        spent; a failure carries them as `spent`.
+        another model may well fit it, and so does a 400 or 422: it refuses
+        this request, not the endpoint (Groq's `json_validate_failed`, or a
+        schema the provider takes no part of). One that fails on every
+        endpoint raises `InvalidReply`. Returns the answer and the tokens
+        every endpoint tried spent; a failure carries them as `spent`.
+
+        Identity data goes to the model as placeholders (`Masked`) and comes
+        back in the answer as its values, since the caller types the answer
+        into forms. The answer is checked with the values back in, so what
+        the caller gets is what fits the schema.
         """
-        messages = _deidentified(messages, identity)
+        mask = Masked(identity, (m["content"] for m in messages))
+        messages = [{**m, "content": mask.hide(m["content"])} for m in messages]
         # An empty registry: by default jsonschema fetches a remote `$ref`'s
         # URL, and this schema came from outside the API.
         check = Draft202012Validator(schema, registry=Registry())
@@ -263,14 +282,18 @@ class LLM:
                 continue
             except (APIConnectionError, APIStatusError) as exc:
                 _log_failure(endpoint, exc)
-                if not _worth_another_try(exc):
+                if _worth_another_try(exc):
+                    failure = _user_message(exc)
+                elif isinstance(exc, APIStatusError) and exc.status_code in (400, 422):
+                    failure = INVALID
+                else:
                     raise _with(ScoutUnavailable(OFFLINE), spent) from exc
-                failure = _user_message(exc)
                 continue
             spent += used
             try:
-                answer = json.loads(text)
-            except ValueError:
+                answer = json.loads(mask.put_back(text, _in_json_string))
+            # RecursionError: an answer nested thousands deep.
+            except (ValueError, RecursionError):
                 # Never the text itself in a log: it can echo the prompt.
                 logger.warning("Model %s at %s answered no JSON", endpoint.model, endpoint.base_url)
                 failure = INVALID

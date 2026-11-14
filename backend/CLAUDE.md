@@ -343,8 +343,18 @@ Find files with a directory listing; these are the rules for where code goes.
   minute against `APPLY_APP_CALLS_PER_MINUTE`. It commits before the
   model call, so no connection is held while the model writes, and adds
   the tokens after, a failed call's too. It never logs a prompt or an
-  answer. A schema with a `$ref` is a 422: `jsonschema` would fetch its
-  URL. Tests: `tests/test_apply_app.py`.
+  answer. It passes the seam the student's identity without the name
+  (the app replaces the name, D8; the server's name removal broke
+  prompts by taking words such as "will"), and the seam puts the masked
+  email, phone and links back into the answer (`Masked`). **The schema is the student's, so it may not make the server
+  work without bound** (`schemas/apply_app.py`): a `$ref` (or its dynamic
+  forms) is a 422, since `jsonschema` would fetch its URL; so is a
+  `pattern` or `patternProperties`, since the answer's check runs it with
+  Python's backtracking `re` in the event loop (`^(a+)+$` on 40
+  characters takes hours, for every user); so is a schema more than 32
+  levels deep, where `jsonschema`'s own check runs out of stack. A new
+  keyword that runs code on the answer joins that list. Tests:
+  `tests/test_apply_app.py`.
 - **Auto apply** (`app/auto_apply/`): KAN-223's layers 1 and 2. Layer 1
   is `rules.py` pure (no session) and `queries.py` database; layer 2 is
   the steps that call them, `pipeline.py`, which every caller imports.

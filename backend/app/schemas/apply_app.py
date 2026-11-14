@@ -3,8 +3,9 @@
 A call is Apply's own `ask`: a system prompt, a prompt and the JSON schema
 its answer must fit. The schema is checked here, before anything is counted
 or sent: it must be a valid JSON Schema for an object, at most MAX_SCHEMA
-characters, with no `$ref` (jsonschema would fetch a remote one's URL, and
-Apply's schemas use none)."""
+characters and MAX_DEPTH levels, with none of the REFUSED keywords (Apply's
+schemas use none). The check is by key, so a property may not have one of
+those names either."""
 
 import datetime
 import json
@@ -17,12 +18,29 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 # 32,000 characters); a Developer checkout's full ones run past 45,000.
 MAX_TEXT = 100_000
 MAX_SCHEMA = 20_000
+# Levels of objects and arrays. Apply's schemas use under ten; at about 150,
+# jsonschema's own check runs out of Python's stack (a 500).
+MAX_DEPTH = 32
+
+# `$ref` and its dynamic forms: jsonschema resolves them, fetching a remote
+# one's URL by default, and a recursive one runs as deep as the answer.
+# `pattern` and `patternProperties`: the answer's check runs them with
+# Python's backtracking `re`, in the API's event loop, and `^(a+)+$` on 40
+# characters takes hours, for every user at once.
+REFUSED = frozenset({"$ref", "$dynamicRef", "$recursiveRef", "pattern", "patternProperties"})
 
 
-def _refs(value: Any) -> bool:
+def _refuse_keywords(value: Any, depth: int = 1) -> None:
+    if not isinstance(value, dict | list):
+        return
+    if depth > MAX_DEPTH:
+        raise ValueError(f"the schema is nested more than {MAX_DEPTH} levels deep")
     if isinstance(value, dict):
-        return "$ref" in value or any(_refs(v) for v in value.values())
-    return isinstance(value, list) and any(_refs(v) for v in value)
+        if found := REFUSED & value.keys():
+            raise ValueError(f"the schema may not use {', '.join(sorted(found))}")
+        value = value.values()
+    for item in value:
+        _refuse_keywords(item, depth + 1)
 
 
 class ModelCall(BaseModel):
@@ -44,8 +62,7 @@ class ModelCall(BaseModel):
             raise ValueError(f"the schema is over {MAX_SCHEMA} characters")
         if schema.get("type") != "object":
             raise ValueError('the schema must be for an object ("type": "object")')
-        if _refs(schema):
-            raise ValueError("the schema may not use $ref")
+        _refuse_keywords(schema)
         try:
             Draft202012Validator.check_schema(schema)
         except SchemaError as e:

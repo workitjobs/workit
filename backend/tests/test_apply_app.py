@@ -13,7 +13,7 @@ import uuid
 
 import httpx
 import pytest
-from openai import APIStatusError, RateLimitError
+from openai import APIStatusError, BadRequestError, RateLimitError
 from sqlalchemy import text
 from workit_scout.testing import ScriptedLLM
 
@@ -89,14 +89,17 @@ async def test_a_call_answers_and_counts_its_tokens(student, database):
         "input_tokens": 2 * (COST - len(ANSWER)), "output_tokens": 2 * len(ANSWER), "calls": 2}
 
 
-async def test_the_students_identity_never_reaches_the_model(student):
-    fake = ScriptedLLM([ANSWER])
+async def test_contact_details_reach_the_model_as_placeholders_and_come_back_as_values(student):
+    # The model writes placeholders; the route puts the student's values back.
+    fake = ScriptedLLM(['{"note": "Write to [email] or call [phone]."}'])
     fake_models.use(fake)
+    note = {"type": "object", "properties": {"note": {"type": "string"}}, "required": ["note"]}
     prompt = "Sam Seeker (sam@example.com, 631 555 0142) asks: which group?"
     async with _api() as api:
-        assert (await api.post("/apply-app/model", json={**CALL, "prompt": prompt})).status_code == 200
-    sent = fake.prompts[0][1]["content"]
-    assert sent == "[name] ([email], [phone]) asks: which group?"
+        reply = await api.post("/apply-app/model", json={**CALL, "prompt": prompt, "schema": note})
+    assert reply.json()["answer"] == {"note": "Write to sam@example.com or call 631 555 0142."}
+    # The name stays: the app replaces it (D8), so the prompt keeps its words.
+    assert fake.prompts[0][1]["content"] == "Sam Seeker ([email], [phone]) asks: which group?"
 
 
 async def test_haiku_asks_the_small_chain_and_the_others_the_large(student):
@@ -142,6 +145,8 @@ async def test_past_the_minute_limit_a_call_waits_for_the_next_minute(student, m
 
 @pytest.mark.parametrize(("script", "status"), [
     (["{}"], 502),
+    # The provider refused the request: asking again the same way won't help.
+    (BadRequestError("schema", response=httpx.Response(400, request=_REQUEST), body=None), 502),
     (RateLimitError("quota", response=httpx.Response(429, request=_REQUEST), body=None), 503),
     (APIStatusError("Request too large", response=httpx.Response(413, request=_REQUEST), body=None), 413),
 ])
@@ -151,7 +156,7 @@ async def test_a_failed_call_still_counts_what_it_spent(student, database, scrip
         failed = await api.post("/apply-app/model", json=CALL)
     assert failed.status_code == status
     assert (failed.headers.get("Retry-After") == "60") is (status == 503)
-    spent = len("Pick one.") + len("Which group?") + 2 if status == 502 else 0
+    spent = len("Pick one.") + len("Which group?") + 2 if script == ["{}"] else 0
     row = await _row(database, student)
     assert (row["input_tokens"] + row["output_tokens"], row["calls"]) == (spent, 1)
 
@@ -159,6 +164,11 @@ async def test_a_failed_call_still_counts_what_it_spent(student, database, scrip
 @pytest.mark.parametrize("schema", [
     {"type": "array", "items": {"type": "string"}},
     {"type": "object", "properties": {"x": {"$ref": "http://169.254.169.254/x"}}},
+    {"type": "object", "$dynamicAnchor": "a", "properties": {"x": {"$dynamicRef": "#a"}}},
+    # Python's backtracking `re` would run these on the answer, in the event loop.
+    {"type": "object", "properties": {"x": {"type": "string", "pattern": "^(a+)+$"}}},
+    {"type": "object", "patternProperties": {"^(a+)+$": {"type": "string"}}},
+    {"type": "object", "default": [[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]},
     {"type": "object", "properties": {"x": {"type": "number-ish"}}},
     {"type": "object", "description": "x" * 20_001},
 ])

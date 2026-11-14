@@ -543,22 +543,38 @@ shapes and status codes.
     model. `ask_model.py` already reads a `Retry-After` over 60 seconds as
     a limit hit and pauses the run until then.
   - 413 when every model finds the request too large, 502 when no model's
-    answer fits the schema, 503 with `Retry-After: 60` when every model is
-    busy or down. A failed call's tokens still count.
+    answer fits the schema or every model refused the request (asking
+    again the same way won't help), 503 with `Retry-After: 60` when every
+    model is busy or down. A failed call's tokens still count.
 - **The call** is `workit_scout.llm.LLM.complete_schema`, the API's one
   model seam, with the schema as JSON data. It tries the chain in order
-  and moves on at a 429, a 5xx, a request too large or an answer outside
-  the schema (checked with `jsonschema`). It sends the schema as given:
+  and moves on at a 429, a 5xx, a request too large, a 400 or 422 (the
+  provider refused this request: Groq's `json_validate_failed`, or a
+  schema it does not take) or an answer outside the schema (checked with
+  `jsonschema`). It sends the schema as given:
   no strict mode and no plain-JSON retry, unlike `ask_model.py`'s three
   modes. W13 shows whether Apply's schemas need them.
-- **The student's identity is removed on the server too**: the seam takes
-  the name, email, phone and links from the student's WorkIt profile out
-  of both texts, whatever the app replaced first. An answer can then hold
-  `[name]`, `[email]`, `[phone]` or `[link]`; the app must not fill one
-  into a form.
+- **Contact details are masked on the server too, and come back**: the
+  seam replaces the student's email, phone and links from their WorkIt
+  profile, and any email, phone or link found by pattern, with
+  placeholders (`[email]`, `[email2]` for a second address, `[phone]`,
+  `[link]`) whatever the app replaced first, and puts each value back
+  into the answer (`workit_scout.identity.Masked`). The map lives in
+  memory for the one call, never stored or logged; a placeholder already
+  in the prompt (the app's own) is never used. The answer is checked
+  against the schema with the values back in. **The name is the app's to
+  replace (D8), not the server's** (2026-11-13): the server's name
+  removal takes each part of the name as a word in any case, so for a
+  student named Will Mark, "You will write" reached the model as "You
+  [name] write", and the prompt broke. The cost: a name the app misses
+  reaches Groq or Google.
 - **The schema is checked before anything counts**: an object's schema,
-  valid JSON Schema, at most 20,000 characters, and no `$ref`, since
-  `jsonschema` fetches a remote one's URL by default.
+  valid JSON Schema, at most 20,000 characters and 32 levels, and none of
+  `$ref` (or its dynamic forms), `pattern` and `patternProperties`. A
+  `$ref` makes `jsonschema` fetch a remote URL by default; a `pattern`
+  runs in Python's backtracking `re` in the API's event loop, so one
+  call with `^(a+)+$` could stop the API for every user. Apply's schemas
+  use none of them.
 - **Table** `model_usage` (migration `3132c5026bf6`, RLS on, no
   policies): one row per student per calendar month, with
   `input_tokens`, `output_tokens`, `calls`, and the current minute's
@@ -570,7 +586,8 @@ shapes and status codes.
 - **Settings**: `APPLY_APP_MONTHLY_TOKENS` (3,000,000) and
   `APPLY_APP_CALLS_PER_MINUTE` (20), so both change with no app update.
 - **Logs** keep no prompt text: only the student, the kind, the model and
-  the tokens.
+  the tokens. A provider's error is logged by its status and code only,
+  since its body can hold the model's output.
 - **Not built:** Send report's route (D26).
 
 **The app (Apply).**
