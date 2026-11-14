@@ -188,13 +188,17 @@ presses something the page holds (`APPLIES`, `apply-agent/CLAUDE.md`);
 UTC, or `gh workflow run apply-nightly.yml`) runs every `nightly` test,
 with a 90-minute step: its plain-Worker cases run one at a time. 887 took
 about 65 minutes on the runner (KAN-841; at 30 it stopped at 57% every
-night); leaving out the pairs whose path finds nothing took them to 574
-(KAN-780, 2026-11-14).
+night); leaving out the pairs whose path finds nothing took them to 574,
+and the timed session copies' going to 512 of 787 (KAN-780, 2026-11-14).
 The pages of PR 477's guard holes (KAN-710: `GUARD_HOLES` in
 `test_submit_guard_hostile.py`, among them a page that sets the guards' old
-`window.__apply*` flags itself) are never only nightly: PRs run each one on
-every CDP path that applies to it. Leaving out the pairs whose path finds
-nothing on its page took the step from 710 cases to 495 (2026-11-14). The holes that hang on how a plain Worker carries the guards'
+`window.__apply*` flags itself) are never only nightly: PRs run each one
+once, on the path that reaches its hole (until 2026-11-14, on every CDP path:
+a mutation study found the other paths caught no fault the one didn't,
+`apply-agent/CLAUDE.md`). Leaving out the pairs whose path finds nothing on
+its page, each page once on PRs, a wait as long as the page's own timers and
+one timed session copy took the step from 710 cases to 303 (KAN-780,
+2026-11-14). The holes that hang on how a plain Worker carries the guards'
 state, touches, controls and network rules (`PLAIN_HOLES`) also run on one
 plain-Worker path; the rest of their plain-Worker pairs run nightly, since the
 guard script is the same on both kinds of Worker. A page added for a new
