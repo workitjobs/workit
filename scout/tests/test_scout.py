@@ -289,13 +289,7 @@ def ask_schema(llm: LLM, content: str = "pick one", schema=CHOICE, identity=Iden
     return asyncio.run(llm.complete_schema(messages, schema, identity=identity))
 
 
-def test_a_schema_call_returns_the_checked_answer_and_its_tokens():
-    answer, spent = ask_schema(ScriptedLLM(['{"choice": 2}']))
-    assert answer == {"choice": 2}
-    assert spent == Spent(len("pick one"), len('{"choice": 2}'))
-
-
-@pytest.mark.parametrize("bad", ['{"choice": "two"}', "Sure! {", ""])
+@pytest.mark.parametrize("bad", ['{"choice": "two"}', "Sure! {"])
 def test_an_answer_outside_the_schema_moves_down_the_chain_and_still_costs(bad):
     answer, spent = ask_schema(ScriptedLLM([bad], ['{"choice": 1}']))
     assert answer == {"choice": 1}

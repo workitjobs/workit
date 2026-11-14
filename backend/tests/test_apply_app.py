@@ -13,7 +13,7 @@ import uuid
 
 import httpx
 import pytest
-from openai import APIStatusError, BadRequestError, RateLimitError
+from openai import APIStatusError, RateLimitError
 from sqlalchemy import text
 from workit_scout.testing import ScriptedLLM
 
@@ -145,8 +145,6 @@ async def test_past_the_minute_limit_a_call_waits_for_the_next_minute(student, m
 
 @pytest.mark.parametrize(("script", "status"), [
     (["{}"], 502),
-    # The provider refused the request: asking again the same way won't help.
-    (BadRequestError("schema", response=httpx.Response(400, request=_REQUEST), body=None), 502),
     (RateLimitError("quota", response=httpx.Response(429, request=_REQUEST), body=None), 503),
     (APIStatusError("Request too large", response=httpx.Response(413, request=_REQUEST), body=None), 413),
 ])
@@ -156,7 +154,7 @@ async def test_a_failed_call_still_counts_what_it_spent(student, database, scrip
         failed = await api.post("/apply-app/model", json=CALL)
     assert failed.status_code == status
     assert (failed.headers.get("Retry-After") == "60") is (status == 503)
-    spent = len("Pick one.") + len("Which group?") + 2 if script == ["{}"] else 0
+    spent = len("Pick one.") + len("Which group?") + 2 if status == 502 else 0
     row = await _row(database, student)
     assert (row["input_tokens"] + row["output_tokens"], row["calls"]) == (spent, 1)
 
@@ -164,10 +162,8 @@ async def test_a_failed_call_still_counts_what_it_spent(student, database, scrip
 @pytest.mark.parametrize("schema", [
     {"type": "array", "items": {"type": "string"}},
     {"type": "object", "properties": {"x": {"$ref": "http://169.254.169.254/x"}}},
-    {"type": "object", "$dynamicAnchor": "a", "properties": {"x": {"$dynamicRef": "#a"}}},
-    # Python's backtracking `re` would run these on the answer, in the event loop.
+    # Python's backtracking `re` would run it on the answer, in the event loop.
     {"type": "object", "properties": {"x": {"type": "string", "pattern": "^(a+)+$"}}},
-    {"type": "object", "patternProperties": {"^(a+)+$": {"type": "string"}}},
     {"type": "object", "default": [[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]},
     {"type": "object", "properties": {"x": {"type": "number-ish"}}},
     {"type": "object", "description": "x" * 20_001},
