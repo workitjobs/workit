@@ -151,7 +151,7 @@ async function run(params, body, expression) {
 // One expression (Apply wraps the caller's code so it answers {ok}, {undef} or {err}, as for `eval`).
 // `gesture: true` runs it as if the user had just clicked, so a test can open a pop-up; Apply's own
 // code never sends it (apply.plain.script.evaluate).
-const evaluate = (params) => run(params, params.code, true);
+export const evaluate = (params) => run(params, params.code, true);
 
 // A whole script, given (`source`) or held (`name`), run once in the frame.
 export async function load(params) {

@@ -1,11 +1,11 @@
-"""Page code and the Fill engine through the worker extension's chrome.debugger (KAN-839, the W6
-spike). A Chrome Web Store copy of the extension may run code that isn't in its package only
-through the Debugger API or the User Scripts API, and User Scripts is for the user's own code; so
-these ops (`cdp.eval`, `cdp.load`, `cdp.keep`, `cdp.script`) run Apply's page code and the engine
-through the debugger. Measured here on Chrome for Testing, with user scripts off as in CI:
+"""Page code and the Fill engine through the worker extension's chrome.debugger (KAN-839). A Chrome
+Web Store copy of the extension may run code that isn't in its package only through the Debugger
+API or the User Scripts API, and User Scripts is for the user's own code; so `eval` (`cdp.eval`),
+`engine.load` (an engine `cdp.keep` holds) and `cdp.script` go through the debugger, and the
+extension asks for no user scripts. Measured here on Chrome for Testing:
 
 - page code reaches each frame's MAIN world (the top, a same-site frame, a frame from another site
-  in its own process) where the page's CSP forbids eval, which the `eval` op can't;
+  in its own process) where the page's CSP forbids eval;
 - Runtime is never turned on: a page that watches for it (a getter DevTools would read off a
   console call's argument) sees nothing;
 - the engine, held in the extension's memory, loads in every frame, and one whose sha256 differs is
@@ -13,7 +13,8 @@ through the debugger. Measured here on Chrome for Testing, with user scripts off
 - an early script runs before the page's own code in every frame of the tab, but not in a pop-up
   the page opens: a new tab, outside the tab's debugger session. So the guards stay registered
   content scripts, which Chrome puts in every tab;
-- a saved form fills the same through the debugger as through user scripts.
+- a saved form fills through the debugger with no read-back problem;
+- a code-only init script is refused: there are no user scripts.
 
 Skips without Chrome for Testing; CI installs it."""
 
@@ -135,9 +136,9 @@ def _in(page, frame: int, expression: str):
     return script.unwrap(page.worker.call("cdp.eval", tab=page.tab, frame=frame, code=wrap(expression)))
 
 
-def test_user_scripts_off_the_eval_op_can_t_run_page_code_under_this_csp(page):
-    with pytest.raises(PortError, match="user scripts are off"):
-        script.unwrap(page.worker.call("eval", tab=page.tab, code=wrap("1 + 1")))
+def test_the_eval_op_runs_page_code_where_the_csp_forbids_eval(page):
+    assert script.unwrap(page.worker.call("eval", tab=page.tab, code=wrap("window.__mark + ' ' + (1 + 1)"))) == "top 2"
+    assert page.evaluate("() => document.title") == "top"  # PortPage's own evaluate goes the same way
 
 
 def test_page_code_reaches_each_frame_s_main_world_under_the_csp(page):
@@ -188,16 +189,14 @@ def test_an_early_script_runs_first_in_every_frame_of_the_tab_but_not_in_a_pop_u
         page.worker.call("cdp.unscript", tab=page.tab, id="early")
 
 
+def test_a_code_only_init_script_is_refused(worker):
+    with pytest.raises(PortError, match="NoCodeScripts|fixed guard files"):
+        worker.call("guard.script", id="mine", code="window.__mine = 1;")
+
+
 @pytest.mark.parametrize("form", ["lever-immuta"])
-def test_a_saved_form_fills_the_same_through_the_debugger(form, monkeypatch):
+def test_a_saved_form_fills_through_the_debugger(form):
     if not (demo.SAVED_FORMS / form / "page.har").exists():
         pytest.skip("needs the Fill engine's saved forms (git submodule update --init)")
-    monkeypatch.delenv(script.EXEC, raising=False)
-    plain = demo.fill(form, kind="testing")
-    monkeypatch.setenv(script.EXEC, "debugger")
-    debugged = demo.fill(form, kind="testing")
-
-    def same(lines):
-        return [line.split(" at http", 1)[0] if " at http" in line else line for line in lines]
-
-    assert same(debugged) == same(plain)
+    lines = demo.fill(form, kind="testing")
+    assert "0 read-back problems" in lines[0] and "Nothing was sent" in lines[0]

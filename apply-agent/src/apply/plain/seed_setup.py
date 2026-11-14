@@ -1,14 +1,15 @@
 """`apply plain seed`: the guided setup of the plain seed profile (KAN-677).
 
-Branded Chrome takes the worker extension only by the user's own clicks: Developer mode, Load
-unpacked, Allow User Scripts. This wizard opens the page, puts the folder's path on the clipboard,
+Branded Chrome takes the worker extension only by the user's own clicks: Developer mode and Load
+unpacked (the extension asks for no user scripts since KAN-839, so there is no Allow User Scripts
+switch to turn on). This wizard opens the page, puts the folder's path on the clipboard,
 shows the folder in Finder, and then watches the seed's preference files until each step is saved.
 It only reads those files, and it never clicks a chrome:// page.
 
 Chrome writes a change to disk about 10 s after the click (measured on Chrome for Testing), and only
 a clean exit writes the rest: SIGTERM saves, SIGKILL loses it (measured on both Chromes). So Apply
 quits the seed's Chrome with SIGTERM, never SIGKILL, reads the files again, and says "done" only
-after a real Worker, copied from the seed, says hello with user scripts on.
+after a real Worker, copied from the seed, says hello.
 """
 
 import os
@@ -34,11 +35,10 @@ QUIT_WAIT = 15.0  # s from SIGTERM to telling the user that Chrome is still up
 OPEN_WAIT = 20.0  # s from opening Chrome to its holding the seed profile
 
 # The steps, in the order the user does them. Each problem below belongs to one of them.
-DEVELOPER, EXTENSION, SCRIPTS = "Developer mode", "Load unpacked", "Allow User Scripts"
-ORDER = (DEVELOPER, EXTENSION, SCRIPTS)
+DEVELOPER, EXTENSION = "Developer mode", "Load unpacked"
+ORDER = (DEVELOPER, EXTENSION)
 DONE = {DEVELOPER: "Developer mode is on.",
-        EXTENSION: "The worker extension is registered from the right folder.",
-        SCRIPTS: "Allow User Scripts is on."}
+        EXTENSION: "The worker extension is registered from the right folder."}
 
 
 @dataclass(frozen=True)
@@ -48,7 +48,6 @@ class SeedState:
     developer: bool = False
     path: str | None = None  # the folder the worker extension is registered from
     disabled: bool = False  # its card's switch is off, or Chrome turned it off
-    scripts: bool = False
 
 
 @dataclass(frozen=True)
@@ -56,7 +55,7 @@ class Problem:
     """The first step that isn't saved yet, and how it is wrong."""
 
     step: str
-    kind: str  # "developer", "no_extension", "wrong_folder", "disabled" or "scripts"
+    kind: str  # "developer", "no_extension", "wrong_folder" or "disabled"
     path: str | None = None  # wrong_folder: the folder that is registered
 
 
@@ -64,8 +63,7 @@ def read_state(seed: Path) -> SeedState:
     """Read the seed's preference files. It only reads: nothing here opens a file to write."""
     entry = extension.registration(seed) or {}
     return SeedState(developer=developer_mode(seed), path=entry.get("path"),
-                     disabled=bool(entry.get("disable_reasons")),
-                     scripts=entry.get("user_scripts_enabled") is True)
+                     disabled=bool(entry.get("disable_reasons")))
 
 
 def first_problem(state: SeedState, folder: Path) -> Problem | None:
@@ -78,8 +76,6 @@ def first_problem(state: SeedState, folder: Path) -> Problem | None:
         return Problem(EXTENSION, "wrong_folder", state.path)
     if state.disabled:
         return Problem(EXTENSION, "disabled")
-    if not state.scripts:
-        return Problem(SCRIPTS, "scripts")
     return None
 
 
@@ -93,7 +89,6 @@ def instruction(problem: Problem, folder: Path) -> str:
         "wrong_folder": f"Wrong folder. The Apply Worker card loads from {problem.path}. Click Remove on that card, "
                         f"then add it again from the right folder. {load}",
         "disabled": "The Apply Worker card is turned off. Turn on the switch on that card.",
-        "scripts": "User scripts are off. On the Apply Worker's Details page, turn on Allow User Scripts.",
     }[problem.kind]
 
 
@@ -171,7 +166,7 @@ class Wizard:
         return first_problem(read_state(self.seed), self.folder)
 
     def run(self) -> bool:
-        """The whole setup. True only after a real Worker's hello said the extension and user scripts are on."""
+        """The whole setup. True only after a real Worker, copied from the seed, said hello."""
         if not self.workers.idle():
             raise ProfileInUse(f"a plain Worker of {self.workers.profiles} is running: seed once none runs")
         self.seed.mkdir(parents=True, exist_ok=True)
@@ -198,7 +193,7 @@ class Wizard:
                 return True
             self.out(f"Not done yet. {failed}")
             self.desk.open_chrome(DETAILS_PAGE)
-            self.out("Check the Apply Worker card and its Allow User Scripts switch in the Chrome that opened. "
+            self.out("Check the Apply Worker card and its switch in the Chrome that opened. "
                      "Then press Return here to try again, or Ctrl-C to stop.")
             if not self.ask_again():
                 self._quit(wait=False)
@@ -231,7 +226,7 @@ class Wizard:
             self.sleep(POLL)
 
     def _open(self, problem: Problem) -> None:
-        self.desk.open_chrome(DETAILS_PAGE if problem.kind == "scripts" else EXTENSIONS_PAGE)
+        self.desk.open_chrome(EXTENSIONS_PAGE)
         deadline = self.clock() + OPEN_WAIT
         while self.desk.chrome() is None:
             if self.clock() > deadline:
@@ -247,8 +242,6 @@ class Wizard:
         if problem.kind in ("no_extension", "wrong_folder"):
             self.desk.copy(str(self.folder.resolve()))
             self.desk.reveal(self.folder.resolve())
-        elif problem.kind == "scripts" and last:
-            self.desk.open_chrome(DETAILS_PAGE)  # shows the switch; the click is the user's
 
     def _quit(self, wait: bool = True) -> None:
         """Ask the seed's Chrome to quit, so that it saves. Never SIGKILL: that loses unsaved changes."""
@@ -266,8 +259,7 @@ class Wizard:
 
     def _worker_says(self) -> str | None:
         """Start one real Worker from the seed, on a new profile, so that an old Worker profile can't answer for
-        it. It goes after the check. Returns what is wrong, or None when its hello has the extension and user
-        scripts on."""
+        it. It goes after the check. Returns what is wrong, or None when it said hello."""
         worker = 0
         while self.workers.profile(worker).exists():
             worker += 1
@@ -280,9 +272,7 @@ class Wizard:
             self.workers.bridge.stop()
             shutil.rmtree(self.workers.profile(worker), ignore_errors=True)
             (self.workers.profiles / f"plain-{worker + 1}.log").unlink(missing_ok=True)
-        if hello.get("userScripts") is not True:
-            return "The Worker said hello, but its user scripts are off."
-        self.out(f"Done: a real Worker said hello with extension {hello.get('extension')} and user scripts on.")
+        self.out(f"Done: a real Worker said hello with extension {hello.get('extension')}.")
         return None
 
     def _tell_old_workers(self) -> None:

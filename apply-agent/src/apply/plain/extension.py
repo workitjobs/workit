@@ -3,9 +3,10 @@
 The extension is private, never on the Store, and separate from the WorkIt extension. Its ID
 is fixed by manifest.json's `key`. `prepare` writes its generated files into vendor/:
 
-- engine.js: the Fill engine bundle, copied from the extension submodule's build
-  (fill_engine.ENGINE), the very file the WorkIt extension and Apply's CDP Workers load;
-- engine.json: that bundle's version and sha256, which the extension reports in its hello;
+- engine.json: the Fill engine's version and sha256 (fill_engine.ENGINE), which the extension
+  reports in its hello. The engine itself is never a file here: Apply hands it to the extension's
+  memory over native messaging (`cdp.keep`, apply.plain.script.keep_engine), so no plain engine
+  sits on disk (KAN-839);
 - injected.js: Playwright's own injected script (playwright-core's injectedScriptSource,
   Apache-2.0), from the installed Python package's driver, wrapped to set
   `globalThis.__applyPW` in the extension's isolated world;
@@ -126,17 +127,18 @@ def generated(identity: dict | None = None) -> dict[str, bytes]:
     injected = ("// Playwright's injected script (Apache-2.0), from the installed playwright package.\n"
                 "(() => {\nif (globalThis.__applyPW) return;\nconst module = {};\n" + source +
                 f"\nglobalThis.__applyPW = new (module.exports.InjectedScript())(globalThis, {json.dumps(INJECTED_OPTIONS)});\n}})();\n")
-    files = {"engine.js": fill_engine.ENGINE.read_bytes(), "engine.json": (json.dumps(identity, indent=1) + "\n").encode(),
+    files = {"engine.json": (json.dumps(identity, indent=1) + "\n").encode(),
              "injected.js": injected.encode(), "fixed.js": fixed.script().encode()}
     files |= {f"{guards.FOLDER}/{name}": text.encode() for name, text in guards.FILES.items()}
     return files
 
 
 def prepare(vendor: Path = VENDOR) -> dict:
-    """Write vendor/engine.js, engine.json, injected.js, fixed.js and guards/, each only when it changed.
-    Returns the engine's identity."""
+    """Write vendor/engine.json, injected.js, fixed.js and guards/, each only when it changed, and remove an
+    engine bundle an older Apply wrote there. Returns the engine's identity."""
     identity = engine_identity()
     vendor.mkdir(parents=True, exist_ok=True)
+    (vendor / "engine.js").unlink(missing_ok=True)
     for name, data in generated(identity).items():
         path = vendor / name
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -238,6 +240,8 @@ def install(dest: Path, files: dict[str, bytes], replace: bool, source: Path = E
             (building / "vendor" / name).write_bytes(data)
         if (dest / "vendor" / SETS).is_dir():
             shutil.copytree(dest / "vendor" / SETS, building / "vendor" / SETS)
+            for old_engine in (building / "vendor" / SETS).glob("*/engine.js"):  # an older Apply's: no engine on disk
+                old_engine.unlink()
         (building / STAMP).write_text(code + "\n")
         old = dest.with_name(f".{dest.name}-old-{os.getpid()}")
         if dest.exists():

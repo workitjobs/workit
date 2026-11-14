@@ -4,24 +4,18 @@ The wrapped code evaluates `expression`; a function is called with `arg`; a prom
 awaited. It answers {ok: value}, {undef: true}, or {err: {name, message}}, so a page error
 comes back as data rather than as the extension's own failure.
 
-With APPLY_PLAIN_EXEC=debugger (KAN-839, the W6 spike), page code goes through the worker
-extension's chrome.debugger (`cdp.eval`) instead of chrome.userScripts, and the Fill engine is
-handed to the extension's memory once per connection (`cdp.keep`), so `engine.load` runs it
-through the debugger, with no file in the extension's folder: what a Chrome Web Store copy of
-the extension may do. Off by default until the spike's checks pass.
+The worker extension runs it through its chrome.debugger (KAN-839), in the frame's MAIN world,
+where the page's CSP doesn't govern: no chrome.userScripts, which a Chrome Web Store copy may use
+only for the user's own code. The Fill engine goes to the extension's memory once per connection
+(`keep_engine`), so `engine.load` runs it from there: no engine file in the extension's folder.
 """
 
 import hashlib
 import json
-import os
 
 from apply.plain.bridge import PortError, features
 
-EXEC = "APPLY_PLAIN_EXEC"  # "debugger": page code and the engine through chrome.debugger
-DEBUGGER_FROM = 4  # the worker extension's feature level with cdp.eval, cdp.load and cdp.keep
-
-USER_SCRIPTS_OFF = ("the page's CSP blocks eval and this Worker's user scripts are off: turn on Allow User Scripts "
-                    "for the Apply Worker extension in the seed profile (`uv run apply plain seed`)")
+HELD_FROM = 4  # the first feature level whose extension holds an engine Apply hands over (cdp.keep)
 
 
 def wrap(expression: str, arg=None) -> str:
@@ -38,30 +32,26 @@ def unwrap(answer):
         raise PortError("EvalError", f"page code gave no answer ({answer!r})")
     if "err" in answer:
         error = answer["err"] or {}
-        if error.get("name") == "UserScriptsOff":
-            raise PortError("UserScriptsOff", f"{USER_SCRIPTS_OFF} ({error.get('message')})")
         raise PortError("EvalError", f"{error.get('name', 'Error')}: {error.get('message', '')}")
     return None if answer.get("undef") else answer.get("ok")
 
 
-def through_debugger(connection) -> bool:
-    """Whether this Worker's page code goes through its extension's debugger (APPLY_PLAIN_EXEC)."""
-    return os.environ.get(EXEC) == "debugger" and features(connection.hello) >= DEBUGGER_FROM
-
-
 def keep_engine(connection) -> None:
-    """The Fill engine's bundle in the extension's memory (`cdp.keep`), once per connection, so its
-    `engine.load` runs it through the debugger. Only with through_debugger."""
+    """The Fill engine's bundle in the extension's memory (`cdp.keep`, with its sha256), so its `engine.load`
+    runs it through the debugger. Once per connection, and again when the bundle on disk changed (a new posting
+    on a running Worker after a pull): the extension refuses a bundle whose sha256 isn't the one sent."""
     from apply import fill_engine
 
-    if not through_debugger(connection) or getattr(connection, "engine_kept", False):
-        return
+    if features(getattr(connection, "hello", None) or {}) < HELD_FROM:
+        return  # an older extension: stale, reloaded or told so by the bridge
     source = fill_engine.ENGINE.read_text()
-    connection.call("cdp.keep", name="engine", source=source, sha256=hashlib.sha256(source.encode()).hexdigest())
-    connection.engine_kept = True
+    sha = hashlib.sha256(source.encode()).hexdigest()
+    if getattr(connection, "engine_kept", None) == sha:
+        return
+    connection.call("cdp.keep", name="engine", source=source, sha256=sha)
+    connection.engine_kept = sha
 
 
 def evaluate(connection, tab: int, expression: str, arg=None, frame: int = 0):
     """Playwright's page.evaluate(expression, arg), in the MAIN world of `frame` of `tab`."""
-    op = "cdp.eval" if through_debugger(connection) else "eval"
-    return unwrap(connection.call(op, tab=tab, frame=frame, code=wrap(expression, arg)))
+    return unwrap(connection.call("eval", tab=tab, frame=frame, code=wrap(expression, arg)))

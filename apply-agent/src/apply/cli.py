@@ -223,7 +223,8 @@ def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
     tiled.add_argument("--seconds", type=float, default=300, help="how long the tile stays up after the fill")
     tiled.add_argument("--chrome", choices=("testing", "chrome"), default="testing",
                        help="Chrome for Testing (default), or branded Chrome from the seed profile")
-    plain.add_parser("prepare", help="write the worker extension's engine bundle and Playwright's injected script")
+    plain.add_parser("prepare", help="write the worker extension's generated files (the guards, the fixed page "
+                                     "functions, Playwright's injected script); never the engine")
     plain.add_parser("seed", help="guided one-time setup: open branded Chrome on the seed profile, confirm each step, check a real Worker")
     asked = commands.add_parser("ask", help="Ask Claude to fix an open form in a running Apply window, in your own "
                                             "words; prints what Claude changed. It never submits")

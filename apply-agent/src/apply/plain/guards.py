@@ -105,7 +105,7 @@ def file_params(name: str) -> dict:
 
 def init_script(script: str) -> dict:
     """guard.script's params for an add_init_script of `script`: its guard file when it is one
-    of the guards' scripts, else the code itself (which needs Allow User Scripts on)."""
+    of the guards' scripts, else the code itself, which the extension refuses (NoCodeScripts, KAN-839)."""
     if (name := PREPARED.get(_sha(script))):
         # The drive guard is one registration whatever its opt-ins: a later one, with Lisul's, replaces on_open's.
         return {"id": "drive" if name.startswith("drive-") else name.removesuffix(".js"), **file_params(name)}

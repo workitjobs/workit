@@ -11,8 +11,9 @@ Worker, and the extension's debugger sends only text, Backspace/Delete and a cli
 
 Two Chromes (policies.yaml `plain_chrome`):
 - "chrome": branded Google Chrome. It ignores `--load-extension`, so the worker extension is
-  installed once by the user's clicks in the seed profile (APPLY_PROFILES/plain-seed: `apply plain seed`),
-  with Allow User Scripts on; each Worker profile starts as a copy of the seed.
+  installed once by the user's clicks in the seed profile (APPLY_PROFILES/plain-seed: `apply plain seed`:
+  Developer mode and Load unpacked; no user scripts since KAN-839), and each Worker profile starts as a
+  copy of the seed.
 - "testing": Chrome for Testing (the build Playwright installs), which still takes
   `--load-extension`: dev and tests. A seed is copied if there is one; else a fresh profile.
 
@@ -206,9 +207,10 @@ class PlainWorkers:
         return self.copy
 
     def prepare(self, worker: int | None = None) -> dict:
-        """Write the worker extension's generated files (the engine bundle, Playwright's injected script)
-        into this checkout's extension folder, and the same files as a write-once vendor set into the
-        folder Worker `worker` loads, which the bridge names in each welcome (KAN-645)."""
+        """Write the worker extension's generated files (the guards, the fixed page functions, Playwright's
+        injected script; never the engine, KAN-839) into this checkout's extension folder, and the same files
+        as a write-once vendor set into the folder Worker `worker` loads, which the bridge names in each
+        welcome (KAN-645)."""
         identity = extension.engine_identity()
         files = extension.generated(identity)
         if self.direct:

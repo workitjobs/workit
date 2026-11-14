@@ -11,7 +11,7 @@
 
 import { useCtx } from "./ops/guard.js";
 import { ops } from "./ops/index.js";
-import { useVendor, userScriptsOn } from "./ops/shared.js";
+import { useVendor } from "./ops/shared.js";
 
 const HOST = "com.workit.apply_worker";
 const PROTOCOL = 1;
@@ -51,7 +51,6 @@ async function hello() {
     extension: chrome.runtime.getManifest().version,
     features: FEATURES,
     engine,
-    userScripts: userScriptsOn(),
     webdriver: navigator.webdriver === true,
     userAgent: navigator.userAgent,
     brands: (navigator.userAgentData?.brands ?? []).map((b) => b.brand),
