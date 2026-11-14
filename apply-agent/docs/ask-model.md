@@ -18,10 +18,16 @@ other adapter refuses a kind with a SetupError (`adapters.NEEDS_WORKIT`):
 (urgent, `../../docs/developer_apply_agent_testing_framework.md`).
 `as_applicant.ask_kind` adds the pronouns and the school to the data, and
 puts the first name back into the answer, since the prompts say `@NAME@`.
-Apply's calls move to kinds one module at a time; until a module moves,
-it still builds its own prompt.
+**`workit` is the default** (2026-11-14, `policies.default.yaml`). Apply's
+calls move to kinds one module at a time: the claim check and the editor's
+pass (`writing.py`) send `writing.check` and `writing.edit`, and their
+prompts are only on the server. A call not yet moved still builds its own
+prompt, and `WorkItAsk.ask` sends it to WorkIt's free-form route
+(`POST /apply-app/model`), which goes once the last call sends a kind. In
+tests, `FakeClaude.ask_kind` answers a kind from its data and keeps it in
+`claude.kinds`, apart from `claude.calls`.
 
-**`[groq, gemini]` is the default** (2026-11-10, `policies.default.yaml`).
+**`[groq, gemini]` was the default** (2026-11-10 to 2026-11-14).
 `claude` is a developer's choice, set in their own `policies.yaml`.
 Policies with no `ask_model` key (a test's) read as `claude`, and
 `conftest.py` drops the key, so a test never calls a provider. The

@@ -643,7 +643,10 @@ its own instructions or a hostile schema.
   copied to `backend/app/apply_prompts/answering/`; Apply keeps its copy
   for the front matter its own code reads (which type a question is, its
   slots and default length), and the bodies go from Apply in step 4.
-  Apply still sends these prompts itself until its calls send kinds:
+  Apply's calls move to kinds one module at a time (`ask_model: workit`,
+  the default since 2026-11-14); a call not yet moved goes to
+  `/apply-app/model` with its own prompt. Moved: `writing.check` and
+  `writing.edit`.
 
   | Kind | Apply today | What the app sends |
   |---|---|---|

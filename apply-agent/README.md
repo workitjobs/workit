@@ -9,9 +9,14 @@ never submits.** Apply runs on macOS only. Before you change code here, read
 
 - A Mac with Google Chrome in `/Applications`.
 - [uv](https://docs.astral.sh/uv/) (`brew install uv`).
-- The team's `.env` in the checkout's root (Scout's Groq and Gemini keys):
-  Apply's answers and essays use them (`ask_model: [groq, gemini]`, the
-  default). `npm run worktree` copies it into a new worktree.
+- A WorkIt account, signed in with `uv run apply login` (below). Apply's
+  answers and essays go to WorkIt's Model route (`ask_model: workit`, the
+  default since 2026-11-14), which builds the prompts and runs the models.
+  Until the route is live on `api.workitjobs.ai`, run your own API
+  (`../backend/CLAUDE.md`, Commands) and set
+  `APPLY_WORKIT_API=http://localhost:8000`. That API reads its model keys
+  from the team's `.env` in the checkout's root (Scout's Groq and Gemini
+  keys); `npm run worktree` copies it into a new worktree.
 - Claude Code, logged in with your own Claude plan: `claude auth login`.
   Claude fill, Rescue and company briefs use your plan's usage, and so do
   the answers and essays if you set `ask_model: claude` in `policies.yaml`.
@@ -109,7 +114,8 @@ never submits.** Apply runs on macOS only. Before you change code here, read
      (`./scripts/setup-wizard.sh` sets it up).
    - `apply-groq` (account `api.groq.com`) and `apply-gemini` (account
      `generativelanguage.googleapis.com`): your own Groq and Gemini API
-     keys, used before the `.env`'s
+     keys, only for `ask_model: groq` or `gemini`, which can't run a call
+     whose prompt moved to WorkIt; used before the `.env`'s
      ([docs/ask-model.md](docs/ask-model.md)). Doctor's "Ask model" line
      checks them.
 

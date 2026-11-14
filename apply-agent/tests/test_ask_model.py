@@ -231,11 +231,11 @@ def test_a_key_comes_from_scouts_endpoints_in_the_checkouts_dotenv(monkeypatch, 
     assert ask_model.key(PROVIDERS["groq"], InMemoryKeychain({"api.groq.com": "saved"}), dotenv) == "saved"
 
 
-def test_the_default_policies_name_groq_then_gemini():
+def test_the_default_policies_send_every_call_to_workit():
     import yaml
 
     from apply.profile import POLICIES
-    assert yaml.safe_load(POLICIES.read_text())["ask_model"] == ["groq", "gemini"]
+    assert yaml.safe_load(POLICIES.read_text())["ask_model"] == "workit"
 
 
 class Policies:
@@ -304,14 +304,17 @@ class _NoClaude:
 
 
 def test_workit_sends_a_kind_and_its_data_and_counts_its_tokens():
-    asks, fake, _ = workit_ask({"answer": {"unsupported": {"q1": []}}, "tokens": 120, "usage": {}})
+    asks, fake, _ = workit_ask({"answer": {"unsupported": {"q1": []}}, "tokens": 120, "usage": {}},
+                               {"answer": {"ok": True}, "tokens": 3, "usage": {}})
     assert asks.ask_kind("writing.check", {"drafts": {"q1": "x"}}) == {"unsupported": {"q1": []}}
     method, path, body, timeout = fake.calls[0]
     assert (method, path, body) == ("POST", "/apply-app/ask", {"kind": "writing.check", "version": 1,
                                                                "data": {"drafts": {"q1": "x"}}})
     assert timeout == ask_model.ASK_TIMEOUT and asks.spent() == 125
-    with pytest.raises(SetupError):  # never a prompt
-        asks.ask(model="opus", system="s", prompt="p", schema={})
+    # A call that still builds its own prompt goes to the free-form route until it sends a kind.
+    assert asks.ask(model="opus", system="s", prompt="p", schema={"type": "object"}) == {"ok": True}
+    assert fake.calls[1][1:3] == ("/apply-app/model", {"kind": "ask", "model": "opus", "system": "s", "prompt": "p",
+                                                       "schema": {"type": "object"}})
 
 
 def test_workit_waits_out_its_minute_limit_once_and_pauses_the_run_at_its_cap():

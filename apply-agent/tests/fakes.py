@@ -537,10 +537,25 @@ class FakeClaude:
         self._drive_tokens = list(drive_tokens)
         self._drive_turns = drive_turns
         self.calls: list[dict] = []
+        self.kinds: list[dict] = []  # each WorkIt kind asked (ask_kind), as {"kind", "data"}
 
     @property
     def prompts(self) -> list[str]:
         return [call["prompt"] for call in self.calls]
+
+    def ask_kind(self, kind: str, data: dict) -> dict:
+        """One of WorkIt's kinds (D5, KAN-723), answered from its data as the call with its own prompt was.
+        Kept in `kinds` as {"kind", "data"}, apart from `calls` (the calls that send their own prompt)."""
+        self.kinds.append({"kind": kind, "data": data})
+        self._spend(self._ask_tokens)
+        if kind == "writing.edit":  # the editor's pass: hands every answer back as it was, unless repaired
+            flagged = data.get("flagged") or {}
+            return {"edited": {key: next((fixed for start, fixed in self._repairs.items()
+                                          if key in flagged and text.startswith(start)), text)
+                               for key, text in data["drafts"].items()}}
+        if kind == "writing.check":  # the claim check: finds nothing
+            return {"unsupported": {key: [] for key in data["drafts"]}}
+        raise AssertionError(f"FakeClaude has no answer for the kind {kind}")
 
     def spent(self) -> int:
         return getattr(self._spent, "tokens", 0)
@@ -587,14 +602,6 @@ class FakeClaude:
                     {"slot": slot.name, "quotes": [story or PLAN_STORIES[n % len(PLAN_STORIES)]], "ask": ""}
                     for slot in answering.load()[planned[key]["type"]].slots if slot.required is True])
             return {"plan": planned}
-        if "edited" in wanted:  # the editor's pass (apply.writing): hands every answer back as it was, unless repaired
-            drafts = json.loads(prompt.split("<drafts>\n", 1)[1].split("\n</drafts>", 1)[0])
-            flagged = json.loads(prompt.split("<flagged>\n", 1)[1].split("\n</flagged>", 1)[0]) if "<flagged>" in prompt else {}
-            return {"edited": {key: next((fixed for start, fixed in self._repairs.items()
-                                          if key in flagged and text.startswith(start)), text)
-                               for key, text in drafts.items()}}
-        if "unsupported" in wanted:  # the claim check (apply.writing): finds nothing
-            return {"unsupported": {key: [] for key in wanted["unsupported"]["properties"]}}
         if "problems" in wanted:  # a review: its problems, or a dict of them with the fixes it gives
             found = self._reviews.pop(0) if self._reviews else []
             return found if isinstance(found, dict) else {"problems": found}

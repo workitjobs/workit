@@ -423,15 +423,20 @@ class WorkItAsk:
         return self._claude.spent() + getattr(self._spent, "tokens", 0)
 
     def ask(self, *, model: str, system: str, prompt: str, schema: dict) -> dict:
-        raise SetupError("ask_model: workit sends a kind and its data, never a prompt: this call has no kind")
+        """A call that still builds its own prompt, while Apply's calls move to kinds (KAN-723, W1): WorkIt's
+        free-form route, which goes once the last call sends a kind."""
+        return self._post("/apply-app/model", {"kind": "ask", "model": model, "system": system, "prompt": prompt,
+                                               "schema": schema}, "ask")
 
     def ask_kind(self, kind: str, data: dict) -> dict:
         """WorkIt's answer. Its per-minute limit is waited out once; its Usage cap raises UsageLimitHit,
         which pauses the run until the cap resets (midnight UTC)."""
+        return self._post("/apply-app/ask", {"kind": kind, "version": 1, "data": data}, kind)
+
+    def _post(self, path: str, body: dict, kind: str) -> dict:
         for attempt in range(2):
             try:
-                reply = self._workit.call("POST", "/apply-app/ask", {"kind": kind, "version": 1, "data": data},
-                                          timeout=ASK_TIMEOUT)
+                reply = self._workit.call("POST", path, body, timeout=ASK_TIMEOUT)
             except CapReached as capped:
                 wait = capped.until - self._now().timestamp()
                 if attempt == 0 and wait <= LONGEST_WAIT:

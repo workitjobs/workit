@@ -12,7 +12,9 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
   guides, are also in `../backend/app/apply_prompts/` (the guides in its
   `answering/`). A change to one goes into both in the same
   PR, or the server writes with the old prompt. The copy here goes once
-  its call sends the kind.
+  its call sends the kind. Gone from here (2026-11-14): the claim check's
+  and the editor's prompts (`writing.check`, `writing.edit`), now only on
+  the server.
 - Every prompt names the applicant as `@NAME@` and their school as
   `@SCHOOL@`; `applicant.as_applicant` puts in the profile's own values.
   Say "they" for the applicant, or `@NAME@` where "they" already means the

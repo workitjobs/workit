@@ -67,10 +67,12 @@ def written(profile: ApplicantProfile) -> list[dict]:
 
     claude.ask = ask
     essays.write(claude, POSTING, [WHY, LETTER], profile)
-    return sent
+    return sent + claude.kinds  # the claim check and the editor's pass are WorkIt kinds (D5)
 
 
 def said(call: dict) -> str:
+    if "kind" in call:
+        return json.dumps(call["data"])
     return "\n".join([call["system"], call["prompt"], json.dumps(call["schema"])])
 
 
@@ -92,7 +94,10 @@ def test_every_call_says_the_applicants_own_pronouns(test_persons_bank):
     calls = written(profile)
 
     for call in calls:
-        assert "Test's pronouns are they/them/theirs." in call["system"]
+        if "kind" in call:  # WorkIt adds the note from the pronouns the kind goes with
+            assert call["data"]["pronouns"] == "they/them/theirs"
+        else:
+            assert "Test's pronouns are they/them/theirs." in call["system"]
 
 
 def test_with_lisuls_profile_the_prompts_say_lisul_and_stony_brook_as_before(test_persons_bank, tmp_path):
@@ -107,8 +112,8 @@ def test_with_lisuls_profile_the_prompts_say_lisul_and_stony_brook_as_before(tes
     assert "never needs Lisul: answer it from what they did" in draft["system"]
     assert "reads as Lisul typed it themselves" in draft["system"]
     assert "a computer science student at Stony Brook University, and when they graduate" in json.dumps(draft["schema"])
-    editor = next(c for c in calls if "edited" in c["schema"]["properties"])
-    assert editor["system"].startswith("You edit Lisul's written answers")
+    editor = next(c for c in calls if c.get("kind") == "writing.edit")  # WorkIt says the school; the name stays @NAME@
+    assert editor["data"]["school"] == "Stony Brook University"
     for call in calls:
         assert "@NAME@" not in said(call) and "@SCHOOL@" not in said(call)
 

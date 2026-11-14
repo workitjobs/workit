@@ -305,8 +305,11 @@ def test_the_postings_description_is_read_once_however_many_calls_get_it(monkeyp
     run(monkeypatch, ResearchForm("Workshop"), claude, company="Workshop", site=site)
 
     assert site.fetched.count(POSTING_PAGE) == 1
-    assert len(claude.calls) == 6  # the default probe, the plan, the essay call, the claim check, the editor's pass, the Pre-submit review
+    # The default probe, the plan, the essay call and the Pre-submit review; the claim check and the editor's pass
+    # are WorkIt kinds, whose sources hold it.
+    assert len(claude.calls) == 4 and len(claude.kinds) == 2
     assert all(f"<description>\n{PORTAL}\n</description>" in call["prompt"] for call in claude.calls)
+    assert all(f"<description>\n{PORTAL}\n</description>" in asked["data"]["sources"] for asked in claude.kinds)
 
 
 def test_a_postings_api_text_is_read_once_for_its_eligibility_and_every_claude_call(monkeypatch):
@@ -318,7 +321,8 @@ def test_a_postings_api_text_is_read_once_for_its_eligibility_and_every_claude_c
 
     assert row.status == "held", row.reason  # its essay is about Workshop
     assert site.fetched.count(api) == 2  # once for its text; first, once to see which site shows the job
-    assert len(claude.calls) == 6 and all(PORTAL in call["prompt"] for call in claude.calls)  # with the probe and plan
+    assert len(claude.calls) == 4 and all(PORTAL in call["prompt"] for call in claude.calls)  # with the probe and plan
+    assert len(claude.kinds) == 2 and all(PORTAL in asked["data"]["sources"] for asked in claude.kinds)
 
 
 def test_the_drafts_only_call_gets_the_postings_description(monkeypatch):
@@ -363,7 +367,7 @@ def test_an_essay_over_its_word_cap_is_rewritten_once_and_if_still_over_held_off
 
     assert row.status == "held"
     assert re.search(r"is left off the form: too long: \d+ words, the most is 30", row.reason)
-    shorter = [c for c in claude.calls if "edited" in c["schema"]["properties"] and essays.SHORTER in c["prompt"]]
+    shorter = [data for data in _edits(claude) if _flagged_with(data, essays.SHORTER)]
     assert len(shorter) == 1  # asked once for a shorter rewrite
     assert not any(label.startswith(PROJECT) for fill in form.filled for label in fill)
     assert form.submitted == []
@@ -379,8 +383,8 @@ def test_an_essay_over_its_default_length_the_editor_left_long_is_cut_once_more(
 
     row = run(monkeypatch, form, claude)
 
-    recut = [c for c in claude.calls if "edited" in c["schema"]["properties"] and essays.CUT in c["prompt"]]
-    assert len(recut) == 1 and essays.SHORTER not in recut[0]["prompt"]  # no word or character cap: not refused
+    recut = [data for data in _edits(claude) if _flagged_with(data, essays.CUT)]
+    assert len(recut) == 1 and not _flagged_with(recut[0], essays.SHORTER)  # no word or character cap: not refused
     assert re.search(r"too long: \d+ sentences, the most is 3", row.reason)  # still long: held with its check
     assert form.submitted == []
 
@@ -1241,25 +1245,26 @@ def test_a_cover_letter_is_written_to_the_template_slot_by_slot_then_edited():
 
     def ask(**call):
         claude.calls.append(call)
-        if "edited" in call["schema"]["properties"]:
-            return {"edited": {"q1": edited}}
-        if "unsupported" in call["schema"]["properties"]:
-            return {"unsupported": {"q1": []}}
         if "plan" in call["schema"]["properties"]:
             return FakeClaude().ask(**call)
         return {"essays": {"q1": paragraphs | {"needs_lisul": False}}}
-    claude.ask = ask
+
+    def ask_kind(kind, data):
+        claude.kinds.append({"kind": kind, "data": data})
+        return {"edited": {"q1": edited}} if kind == "writing.edit" else {"unsupported": {"q1": []}}
+    claude.ask, claude.ask_kind = ask, ask_kind
 
     [essay] = essays.write(claude, posting, [letter], ApplicantProfile.load(PROFILE, POLICIES))
 
     assert essay.text == edited
-    planned, written, checked, editor, *_ = claude.calls
+    planned, written, *_ = claude.calls
+    checked, editor, *_ = claude.kinds
     assert "plan" in planned["schema"]["properties"]
-    assert "unsupported" in checked["schema"]["properties"]
+    assert checked["kind"] == "writing.check"
     assert cover_letter.RULES in written["system"] and writing.WRITE.replace("@NAME@", "Test") in written["system"]
     assert set(written["schema"]["properties"]["essays"]["properties"]["q1"]["required"]) == {*cover_letter.SLOTS, "needs_lisul"}
-    assert editor["model"] == writing.EDITOR and json.dumps(drafted) in editor["prompt"]
-    assert "<story_bank>" in editor["prompt"] and "<style_card>" in editor["prompt"]
+    assert editor["kind"] == "writing.edit" and editor["data"]["drafts"] == {"q1": drafted}
+    assert "<story_bank>" in editor["data"]["sources"] and "style_card" in editor["data"]
 
 
 def test_every_essay_of_a_form_is_edited_in_one_call():
@@ -1269,12 +1274,22 @@ def test_every_essay_of_a_form_is_edited_in_one_call():
 
     essays.write(claude, posting, questions, ApplicantProfile.load(PROFILE, POLICIES))
 
-    editor = next(c for c in claude.calls if "edited" in c["schema"]["properties"])  # the first pass; repairs follow
-    assert set(editor["schema"]["properties"]["edited"]["required"]) == {"q1", "q2"}
+    editor = _edits(claude)[0]  # the first pass; repairs follow
+    assert set(editor["drafts"]) == {"q1", "q2"}
 
 
 def _block(prompt: str, tag: str) -> dict:
     return json.loads(re.search(rf"<{tag}>\n(.*?)\n</{tag}>", prompt, re.DOTALL)[1])
+
+
+def _edits(claude) -> list[dict]:
+    """The data of each editor's pass, WorkIt's writing.edit kind (D5), in order."""
+    return [asked["data"] for asked in claude.kinds if asked["kind"] == "writing.edit"]
+
+
+def _flagged_with(data: dict, text: str) -> bool:
+    """Whether an editor's pass was flagged `text` in any answer."""
+    return any(text in flag for flags in data["flagged"].values() for flag in flags)
 
 
 def test_the_essay_call_sees_the_questions_description_kind_and_limit():
@@ -1360,20 +1375,16 @@ def test_an_answer_still_holding_a_tell_is_edited_once_more_with_it_flagged():
     claude, sent = FakeClaude(), []
     answers = iter(["It was a pivotal project!", "It was an important project."])
 
-    def ask(**call):
-        if "unsupported" in call["schema"]["properties"]:
+    def ask_kind(kind, data):
+        if kind == "writing.check":
             return {"unsupported": {"q1": []}}
-        sent.append(call["prompt"])
+        sent.append(data)
         return {"edited": {"q1": next(answers)}}
-    claude.ask = ask
+    claude.ask_kind = ask_kind
 
     assert writing.edit(claude, {"q1": "It was a project."}, "") == {"q1": "It was an important project."}
-    assert "<flagged>" in sent[1] and "pivotal" in sent[1]
+    assert _flagged_with(sent[1], "pivotal")
 
-
-
-def test_the_editor_keeps_his_experience_dated_never_counted_from_today():
-    assert "never words that count from today" in writing.EDIT and "summer 2026" in writing.EDIT
 
 
 def test_tells_and_copied_runs_are_found():
@@ -1398,24 +1409,23 @@ def test_the_editor_gets_no_1_to_10_review_only_the_claim_check():
     # g-quality.md: the 1-10 reader review raised unsupported claims from 8 to 13; it is gone.
     claude = FakeClaude()
     writing.edit(claude, {"q1": "A draft."}, "", questions={"q1": "Why us?"})
-    assert [sorted(call["schema"]["properties"]) for call in claude.calls] == [["unsupported"], ["edited"]]
+    assert claude.calls == [] and [asked["kind"] for asked in claude.kinds] == ["writing.check", "writing.edit"]
     assert not hasattr(writing, "REVIEW") and not hasattr(writing, "_review")
 
 
 def test_claims_the_check_finds_are_flagged_to_the_editor():
     claude, sent = FakeClaude(), []
 
-    def ask(**call):
-        wanted = call["schema"]["properties"]
-        if "unsupported" in wanted:
+    def ask_kind(kind, data):
+        if kind == "writing.check":
             return {"unsupported": {"q1": ["what surprised me most"]}}
-        sent.append(call["prompt"])
+        sent.append(data)
         return {"edited": {"q1": "It was a project."}}
-    claude.ask = ask
+    claude.ask_kind = ask_kind
 
     writing.edit(claude, {"q1": "What surprised me most was the project."}, "")
 
-    assert "<flagged>" in sent[0] and "what surprised me most" in sent[0]
+    assert _flagged_with(sent[0], "what surprised me most")
 
 
 def test_time_counted_from_today_and_a_placeholder_are_flagged():
@@ -1424,12 +1434,6 @@ def test_time_counted_from_today_and_a_placeholder_are_flagged():
     assert writing.flags("At Hitachi Rail in summer 2026 I built adapters.") == []
     assert writing.flags("WorkIt (link: [add WorkIt repo URL]) is a job app.") == [
         'a placeholder: "[add WorkIt repo URL]" (leave out what only they can give)']
-
-
-def test_the_editor_keeps_each_answer_within_its_types_length_not_a_fixed_word_count():
-    # The essay-writer plan (2026-10-22): each Question type has its own default length.
-    assert "Cut the fluff" in writing.EDIT and "<lengths>" in writing.EDIT
-    assert not re.search(r"\b(180|220) words", writing.EDIT)
 
 
 def test_each_essay_gets_the_rules_and_the_guidance_of_only_its_own_question_type():
@@ -1464,8 +1468,7 @@ def test_a_stated_limit_leaves_out_the_types_default_length_and_the_editor_gets_
     asked = _block(written["prompt"], "questions")
     assert "type: why-company" in asked["q1"] and "default length" not in asked["q1"]
     assert "type: best-project" in asked["q2"] and "default length: 80-120 words" in asked["q2"]
-    editor = next(c for c in claude.calls if "edited" in c["schema"]["properties"])  # the first pass; repairs follow
-    assert _block(editor["prompt"], "lengths") == {"q2": "80-120 words"}
+    assert _edits(claude)[0]["lengths"] == {"q2": "80-120 words"}  # the first pass; repairs follow
 
 
 def test_a_question_about_him_gets_no_company_sentence():
@@ -1611,7 +1614,8 @@ def test_each_essay_is_drafted_once_from_its_plans_slots_with_no_pick_or_critic(
 
     [essay] = write_figma(claude, [SHORT_WHY])
 
-    assert kinds(claude) == ["typical", "plan", "essays", "unsupported", "edited"]
+    assert kinds(claude) == ["typical", "plan", "essays"]
+    assert [asked["kind"] for asked in claude.kinds] == ["writing.check", "writing.edit"]
     [drafted] = asks(claude)
     assert drafted["schema"]["properties"]["essays"]["properties"]["q1"]["required"] == ["answer", "needs_lisul"]
     slots = _block(drafted["prompt"], "plan")["q1"]["slots"]
@@ -1841,7 +1845,7 @@ def test_an_approved_stock_answer_of_a_type_on_the_form_is_material_for_the_plan
         assert '<core_answer type="best-project">\nMy depot bus tracker' in call["prompt"]
         assert "A failure answer." not in call["prompt"]  # no failure question on this form
     assert "never its sentences" in drafted["system"] and "<core_answers>" in drafted["system"]
-    for system in (essays.PLAN, writing.EDIT, writing.CHECK, presubmit.SYSTEM):
+    for system in (essays.PLAN, presubmit.SYSTEM):  # the editor's and the claim check's are on WorkIt's server
         assert "<core_answers>" in system
 
 
@@ -1951,11 +1955,9 @@ def test_the_editor_is_flagged_an_answer_that_reads_like_the_typical_one_or_reus
 
     write_figma(claude, [SHORT_WHY])
 
-    flagged = [_block(c["prompt"], "flagged")["q1"] for c in claude.calls
-               if "edited" in c["schema"]["properties"] and "<flagged>" in c["prompt"]]
+    flagged = [data["flagged"]["q1"] for data in _edits(claude) if data["flagged"].get("q1")]
     assert flagged and any(f.startswith("reads like the typical answer") for f in flagged[-1])
     assert any(f.startswith("reuses the applicant's Canva answer") for f in flagged[-1])
-    assert "never add a fact" in writing.EDIT
 
 
 def test_a_submitted_applications_essays_go_in_the_answer_ledger(monkeypatch):
@@ -2004,8 +2006,7 @@ def test_an_essay_failing_a_gate_is_repaired_by_the_editor_and_checked_again_bef
     assert row.status == "submitted", row.reason
     [sent] = form.submitted
     assert [answer for label, answer in sent.items() if label.startswith(PROJECT)] == [REPAIRED]
-    repaired = [_block(c["prompt"], "flagged") for c in claude.calls
-                if "edited" in c["schema"]["properties"] and "<flagged>" in c["prompt"]]
+    repaired = [data["flagged"] for data in _edits(claude) if data["flagged"]]
     assert any("too short" in f for flagged in repaired for found in flagged.values() for f in found)
 
 
