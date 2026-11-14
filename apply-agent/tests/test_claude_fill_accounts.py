@@ -146,7 +146,7 @@ def test_an_account_lisul_made_himself_that_keychain_has_no_password_for_is_a_ha
 
     assert row.status == "handoff"
     assert f"{SITE} already has an account for {EMAIL}, and Keychain has no password for it" in row.reason
-    assert "security add-generic-password -U -s apply-ats" in row.reason
+    assert "uv run keyring set apply-ats" in row.reason
     assert server.sign_ins == [] and server.accounts[EMAIL]["password"] == "Made-By-Hand1!"
     assert world.tracker.employer_accounts() == []
 

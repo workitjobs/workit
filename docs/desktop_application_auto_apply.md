@@ -218,7 +218,7 @@ stories. **Not caught:** other people's names inside a story.
 | What | Where |
 |---|---|
 | The data folder: Records, Traces, the Worker profiles, the seed, the local copy of the student's data | `~/Library/Application Support/WorkIt Auto Apply` (`%APPDATA%` on Windows) |
-| The WorkIt session; Employer account passwords (passwords Apply makes for job-site accounts) | `keyring`: macOS Keychain, Windows Credential Manager. The student can see and change them in Keychain Access |
+| The WorkIt session; Employer account passwords (passwords Apply makes for job-site accounts) | `keyring`: macOS Keychain, Windows Credential Manager. The student chooses the job-site password in the Accounts tab (KAN-838), sees each account's with Show password, and can see and change them in Keychain Access |
 | The Fill engine | Memory only, for one launch |
 
 WorkIt never holds a student's job-site passwords: a breach would expose
@@ -661,7 +661,7 @@ so the Windows port (F4) is a port, not a rewrite.
 
 | Module | macOS part today | Change |
 |---|---|---|
-| `keychain.py`, `brief.py`, `gmail.py` | `security` | `keyring` (Keychain on Mac, Credential Manager on Windows). Items left: Employer account passwords (`apply-ats`) and the WorkIt session |
+| `keychain.py` | `security` | Built (KAN-838): `keyring` (Keychain on Mac, Credential Manager on Windows) for every caller, `gmail.py` too; `brief.py` never called `security`. Items left in the Student build: Employer account passwords (`apply-ats`) and the WorkIt session (W5). One developer-only `security dump-keychain` stays in `cli._mac_keychain_sites`, the backfill of accounts made before KAN-592 |
 | `workit.py` | Session in `workit-login.json`; sign-in through Chrome's debugging port | Session in `keyring`; sign-in through the browser and `workit-auto-apply://` (W5) |
 | `notify.py` | `osascript` notifications, ntfy | Dropped: the window shows notices |
 | `schedule.py`, `cli.py` | `launchctl`, `~/Library/LaunchAgents` | Dropped |

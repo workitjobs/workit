@@ -489,7 +489,7 @@ class WorkdayFiller:
                     self._accounts.not_made(site)
                     raise Handoff(MADE_WITH_GOOGLE.format(company=self._accounts.company or site))
                 return self._reset_password(page, site)
-            raise Handoff(f"Workday at {site} refused the new account: '{error}'")
+            raise self._accounts.refused(site, f"Workday said: '{error}'")
         if outcome == "sign in" or outcome == "unanswered" and made():
             # Workday's code goes to Sign In only when its answer made the account (a root widget), and then the
             # new password signs in, or is refused as not verified yet (Visa's, Northrop's, live). It answers an
@@ -835,7 +835,7 @@ def _google_rejected(page: Page) -> bool:
 
 # Create Account went back to Sign In, or unanswered, in a rehearsal: the account may exist already.
 MAY_EXIST = (f"{NEEDS_SIGN_IN}{{company}} may already have an account for your email: reset its password once, or "
-             "save it with security add-generic-password -U -s apply-ats -a {site} -w, then apply yourself.")
+             "save it with uv run keyring set apply-ats {site} (in apply-agent/), then apply yourself.")
 
 # An account exists for Lisul's email on a tenant that offers Google, and Keychain has no password for it.
 MADE_WITH_GOOGLE = (

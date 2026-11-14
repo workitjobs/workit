@@ -36,7 +36,7 @@ from apply import trace
 from apply.adapters import SetupError, UsageLimitHit
 from apply.claude_cli import ClaudeCLI, ClaudeError
 from apply.home import CODE
-from apply.keychain import GEMINI, GEMINI_HOST, GROQ, GROQ_HOST, MacKeychain
+from apply.keychain import GEMINI, GEMINI_HOST, GROQ, GROQ_HOST, SystemKeychain
 
 
 @dataclass(frozen=True)
@@ -106,15 +106,15 @@ SCOUT_LISTS = ("SCOUT_ENDPOINTS_LARGE", "SCOUT_ENDPOINTS", "SCOUT_ENDPOINTS_SMAL
 def no_key(provider: Provider) -> str:
     service, account = provider.keychain
     return (f"no {provider.name} key: copy the team's .env into the checkout's root (Scout's SCOUT_ENDPOINTS hold it), "
-            f"set {provider.env}, or save it in Keychain with `security add-generic-password -s {service} -a {account} "
-            "-w` (it asks for the key); a developer can set ask_model: claude in policies.yaml instead")
+            f"set {provider.env}, or save it in Keychain with `uv run keyring set {service} {account}` "
+            "in apply-agent/ (it asks for the key); a developer can set ask_model: claude in policies.yaml instead")
 
 
 def key(provider: Provider, keychain=None, dotenv: Path = DOTENV) -> str | None:
     """`provider`'s API key: its environment variable, else its Keychain item, else the checkout's .env (Scout's
     endpoint on the provider's host); None with none of them."""
     service, account = provider.keychain
-    return (os.environ.get(provider.env) or (keychain or MacKeychain(service)).password(account)
+    return (os.environ.get(provider.env) or (keychain or SystemKeychain(service)).password(account)
             or _from_dotenv(provider, dotenv))
 
 

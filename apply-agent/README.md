@@ -99,7 +99,8 @@ never submits.** Apply runs on macOS only. Before you change code here, read
    With `APPLY_HOME` or `APPLY_PROFILES` set, use the folder that `uv run
    apply doctor` prints. A run copies this profile to the other Workers.
 
-7. Optional Keychain items:
+7. Optional Keychain items. Save each one from `apply-agent/` with
+   `uv run keyring set <service> <account>`, which asks for the value:
    - `apply-gmail`: a Gmail app password, so Apply can read Workday and
      Greenhouse verification codes (also the code a job site emails after
      you press Submit on a rehearsal's page: Apply types it in, and Submit
