@@ -344,9 +344,9 @@ Find files with a directory listing; these are the rules for where code goes.
   `POST /apply-app/model`, which takes the app's own prompt and schema,
   goes when the last kind is ported. Both run the schema as data through
   `LLM.complete_schema`. Apply's `haiku` takes the small
-  chain, `sonnet` and `opus` the large one. It counts tokens a calendar
-  month in `model_usage` (`queries/model_usage.py`), not daily uses in
-  `services/usage.py`, against `APPLY_APP_MONTHLY_TOKENS`, and calls a
+  chain, `sonnet` and `opus` the large one. It counts tokens a day (UTC)
+  in `model_usage` (`queries/model_usage.py`), not uses in
+  `services/usage.py`, against `APPLY_APP_DAILY_TOKENS`, and calls a
   minute against `APPLY_APP_CALLS_PER_MINUTE`. It commits before the
   model call, so no connection is held while the model writes, and adds
   the tokens after, a failed call's too. It never logs a prompt or an

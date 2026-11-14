@@ -250,7 +250,7 @@ with the failure it prevents.
   Auto Apply, decided 2026-11-13, mostly not built (built: W1's server
   side, the Model route and the Usage cap): Apply as a downloadable Mac
   app beside the extension. Its 34 decisions (every model call through
-  WorkIt's Model route with a monthly Usage cap and personal data
+  WorkIt's Model route with a daily Usage cap and personal data
   replaced; no research in the app; the Fill engine downloaded encrypted;
   the Worker extension on the Chrome Web Store through the Debugger API;
   a native window with no port; Apple Silicon only; Apply moved to the
@@ -261,7 +261,7 @@ with the failure it prevents.
   to the server (`backend/app/apply_prompts/`, D5): the app sends a kind
   and its data, never a prompt. Read it before changing Apply toward a
   download, the Model route, or where Apply's data comes from.
-- `docs/developer_apply_agent_testing_framework.md` — a note, not built:
+- `docs/developer_apply_agent_testing_framework.md` — urgent, not built:
   how developers keep testing Apply once its prompts live on the server
   (a prompt route for developer accounts, so `ask_model: claude` runs
   the server's prompts). Read it before changing how a Developer

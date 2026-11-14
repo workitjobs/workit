@@ -1,9 +1,11 @@
 # Developer Apply agent testing framework (KAN-723, not built)
 
-**Status (2026-11-14):** a note for later, not built and not scheduled.
-It records how developers keep testing Apply once its prompts live on
-WorkIt's server (D5 and W1's "Prompts on the server" in
-`desktop_application_auto_apply.md`).
+**Status (2026-11-14): urgent, not built.** Once Apply's calls send
+kinds (W1's "Prompts on the server" in `desktop_application_auto_apply.md`),
+`ask_model: claude` stops working for every ported kind, since the
+prompts are no longer in the app. Build this before a developer needs
+Claude for a ported kind again. It records how developers keep testing
+Apply once its prompts live on WorkIt's server (D5).
 
 ## The problem it solves
 

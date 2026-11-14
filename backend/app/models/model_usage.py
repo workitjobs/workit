@@ -10,8 +10,7 @@ from app.db import Base
 class Model_Usage(Base):
     """
     One student's model use through WorkIt Auto Apply's Model route in one
-    calendar month (UTC; `month` is its first day), for the monthly Usage
-    cap, and their calls in the current minute, for the per-minute limit
+    day (UTC), for the daily Usage cap, and their calls in the current minute, for the per-minute limit
     (app/queries/model_usage.py, KAN-723). Goes with the account.
     """
 
@@ -19,7 +18,7 @@ class Model_Usage(Base):
 
     applicant_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("applicant_profiles.id", ondelete="CASCADE"), primary_key=True)
-    month: Mapped[datetime.date] = mapped_column(Date, primary_key=True)
+    day: Mapped[datetime.date] = mapped_column(Date, primary_key=True)
     input_tokens: Mapped[int] = mapped_column(BigInteger, server_default=text("0"))
     output_tokens: Mapped[int] = mapped_column(BigInteger, server_default=text("0"))
     # Calls sent to the providers, answered or not.

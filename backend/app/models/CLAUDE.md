@@ -1380,9 +1380,11 @@ Real, not forgotten. Do not treat their absence as a decision already made.
 
 ## WorkIt Auto Apply's model use — `model_usage.py` (KAN-723)
 
-- **One row per student and calendar month (UTC)**, primary key
-  `(applicant_id, month)`, `month` the month's first day, CASCADE from
-  `applicant_profiles`. A new month is a new row, so the Usage cap resets
+- **One row per student and day (UTC)**, primary key
+  `(applicant_id, day)`, CASCADE from `applicant_profiles`. A day, not a
+  month (2026-11-14): the free tiers limit WorkIt's key a day, so a
+  monthly cap let one student spend a day's share. A new day is a new
+  row, so the Usage cap resets
   with no job. Only `app/queries/model_usage.py` writes it, in single
   upserts, so two calls at once never lose a count.
 - **The per-minute limit lives on the same row** (`minute`,

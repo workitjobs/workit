@@ -83,7 +83,7 @@ class AskCall(BaseModel):
 
 
 class Usage(BaseModel):
-    """The student's model use this month, in tokens, against the cap."""
+    """The student's model use today (UTC), in tokens, against the cap."""
 
     used: int
     cap: int

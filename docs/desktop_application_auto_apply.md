@@ -92,8 +92,8 @@ builds it.
 | D3 | **The Fill engine is downloaded only, never shipped in the app.** Signed, encrypted, unlocked by a per-launch key, kept only in memory | A copy in the download is a copy for everyone; the app needs WorkIt to run anyway | W7 |
 | D4 | **The Worker extension goes on the Chrome Web Store, unlisted, from WorkIt's existing developer account.** Apply's page code and the Fill engine reach pages through the Debugger API, not `userScripts`; the guards and the fixed page functions are packaged in it, since only a content script reaches a pop-up (measured); it holds no engine. A spike decides it (KAN-839, started); if it fails, v1 keeps the extension off the store | One click for the student; the store allows outside code only through the Debugger or User Scripts API, and User Scripts is only for the user's own code; the existing account costs no new fee and has a trust history | W6 |
 | D5 | **WorkIt builds the prompts** (2026-11-14; a thin proxy was decided 2026-11-13). The app sends each call's kind and its data; WorkIt builds the system prompt, the prompt and the schema (`backend/app/apply_prompts/`), runs the provider chain and counts tokens. The prompts and answering guides leave the app | A call that carried its own prompt and schema let anyone with an account use WorkIt as a free general model and send schemas that attack the server (W1). A prompt change ships with the merge that deploys the API | W1 |
-| D6 | **A free beta with a Usage cap of 3,000,000 tokens per student per calendar month**, reset on the 1st (UTC), always shown in the app. WorkIt can change it without an app update | High enough for testing; the number is checked after W13 measures one Application | W1 |
-| D7 | **The beta uses the providers' free tiers.** Paid tiers come later (F3) | No paid keys for now | W1, F3 |
+| D6 | **A free beta with a Usage cap of 60,000 tokens per student per day**, reset at midnight UTC, always shown in the app. WorkIt can change it without an app update (2026-11-14; it was 3,000,000 a month) | The free tiers limit WorkIt's one key a day, shared by every student and feature: Groq allows 200,000 tokens a day for each model. A monthly cap let one student spend a whole day's share. 60,000 is about ten 6,000-token calls, two forms with essays; on Groq's paid tier it costs about 1 cent a student a day. W13 checks the number | W1 |
+| D7 | **The beta uses the providers' free tiers.** Paid tiers come later (F3). One account per provider: the team does not pool developers' free keys | No paid keys for now. Groq's AI policy forbids use "beyond published parameters, rate limits, or use limitations, including by registering multiple accounts" (checked 2026-11-14) | W1, F3 |
 | D8 | **Personal data is replaced before a prompt leaves the computer**, and put back on the computer. Self-ID answers are never sent. The app shows a short disclosure | Prompts go to WorkIt and to Groq and Google, and Google's free tier may use prompts to improve its products | W1, W5 |
 | D9 | **No Gmail.** A job site's emailed code becomes a Needs-you item that the student types | Reading Gmail needs an app password (a hard setup) or Google's paid security review | W3 |
 | D10 | **macOS-only code is removed or replaced.** Scheduled runs, phone push and the Dock bundle are dropped; Keychain becomes `keyring`; Chrome is found per OS | A simple app, and a later Windows port that is not a rewrite | W4 |
@@ -152,7 +152,7 @@ builds it.
    nothing. (If the W6 spike fails, this step is the three-click guide
    that `apply plain seed` is today.)
 6. **Ready.** The window shows the student's Auto Apply queue, the paste
-   box, Start, and the Usage cap ("Model use this month: 0 of 3,000,000
+   box, Start, and the Usage cap ("Model use today: 0 of 60,000
    tokens").
 
 The seed is made once. Each Worker's profile is copied from it the first
@@ -179,8 +179,8 @@ profiles, and nothing of theirs changes.
    Worker's Chrome window to the front.
 4. Each form stops on its last page. The student checks it and presses
    Submit in the Worker's window. Apply writes the Tracker on WorkIt.
-5. At the Usage cap, the run pauses with "Monthly model use reached;
-   resets on <date>". The window always shows the use so far.
+5. At the Usage cap, the run pauses with "Today's model use is reached;
+   it resets at midnight UTC". The window always shows the use so far.
 
 ### 3.3 The processes
 
@@ -540,7 +540,7 @@ shapes and status codes.
     a model change is an env change. It answers `{answer, tokens, usage}`,
     with `usage` as below, so the window's cap line updates with each call.
   - `GET /apply-app/usage`: `{used, cap, resets_at}`.
-  - **429 with `Retry-After`** at the cap (it runs to the 1st, UTC) and
+  - **429 with `Retry-After`** at the cap (it runs to midnight, UTC) and
     past the per-minute limit (to the next minute). Nothing goes to a
     model. `ask_model.py` already reads a `Retry-After` over 60 seconds as
     a limit hit and pauses the run until then.
@@ -578,14 +578,14 @@ shapes and status codes.
   call with `^(a+)+$` could stop the API for every user. Apply's schemas
   use none of them.
 - **Table** `model_usage` (migration `3132c5026bf6`, RLS on, no
-  policies): one row per student per calendar month, with
+  policies): one row per student per day (UTC), with
   `input_tokens`, `output_tokens`, `calls`, and the current minute's
   calls for the limit (`app/queries/model_usage.py`). A call takes its
   place in the minute before it goes, and adds its tokens after, with no
   database connection held while the model writes. Two calls at once
   just under the cap both go: the cap can be passed by one call per
   Worker. Kept 90 days (`services/retention.py`).
-- **Settings**: `APPLY_APP_MONTHLY_TOKENS` (3,000,000) and
+- **Settings**: `APPLY_APP_DAILY_TOKENS` (60,000) and
   `APPLY_APP_CALLS_PER_MINUTE` (20), so both change with no app update.
 - **Logs** keep no prompt text: only the student, the kind, the model and
   the tokens. A provider's error is logged by its status and code only,
@@ -612,17 +612,26 @@ its own instructions or a hostile schema.
   be an older copy, so a change to the fields is a new `version`, and
   the server keeps the old one while app copies still send it. The
   prompt text changes with any merge to `main`.
-- **`drafts` come from the app.** **`sources` is one text field the app
-  builds** (Story bank, Stock answers, profile facts, links, town,
-  Company material) until W11's data contract names the WorkIt table
-  that serves each part; a new version then reads them on the server.
+- **`drafts` come from the app**: they belong to one form. **`sources`
+  is one text field the app builds for now** (Story bank, Stock
+  answers, profile facts, links, town, Company material, and the style
+  card for `writing.edit`).
+- **Sources move to the server** (noted 2026-11-14, part of W11's
+  answer bank redesign). Sources belong to the student, not to one form,
+  so WorkIt builds and stores them, and the app pulls a copy and caches
+  it, as it will for the redesigned answer bank; the student edits them
+  through WorkIt's routes. Each call then sends only the form's own data
+  (drafts, questions, the posting), and a new version of each kind reads
+  the sources on the server. That keeps each call small and lets the
+  server send a kind only the sources it needs.
 - **The free-form `POST /apply-app/model` goes** when the last kind is
   ported, with its schema guards.
-- **Developers:** `ask_model: claude` can't run a ported kind, since the
-  prompts are no longer in the app, until the developer prompt endpoint
-  is built (`docs/developer_apply_agent_testing_framework.md`, not
-  built). Until then a developer runs `ask_model: workit` against the
-  local API (D30).
+- **Urgent, for developers:** `ask_model: claude` can't run a ported
+  kind once Apply's calls send kinds, since the prompts are no longer in
+  the app. It needs the developer prompt route
+  (`docs/developer_apply_agent_testing_framework.md`, not built). Until
+  then a developer runs a ported kind through WorkIt (the local API,
+  D30).
 - **The kinds**, one for each `ask` call that writes or judges. Built on
   the server so far: `writing.check` and `writing.edit` (2026-11-14);
   Apply still sends their prompts itself until its calls send kinds:

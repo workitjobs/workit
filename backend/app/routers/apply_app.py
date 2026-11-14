@@ -3,7 +3,7 @@ WorkIt Auto Apply's Model route (KAN-723, W1 of
 docs/desktop_application_auto_apply.md; ADR 0005 in apply-agent/docs/adr/):
 the desktop app makes every model call here, and WorkIt holds the provider
 keys, builds the prompts (D5), counts each student's tokens and stops them
-at the monthly Usage cap.
+at the daily Usage cap.
 
 POST /apply-app/ask  AskCall {kind, version?, data}
      One of Apply's `ask`s, built on the server: `kind` names it
@@ -31,16 +31,18 @@ ModelAnswer {answer, tokens, usage}.
        422  a body outside AskCall or ModelCall, an unknown kind or version,
             or data outside the kind's model. Nothing counts.
        429  with Retry-After: the student's calls this minute are at
-            APPLY_APP_CALLS_PER_MINUTE (a minute at most), or their tokens this
-            month are at APPLY_APP_MONTHLY_TOKENS (Retry-After runs to the 1st,
+            APPLY_APP_CALLS_PER_MINUTE (a minute at most), or their tokens
+            today are at APPLY_APP_DAILY_TOKENS (Retry-After runs to midnight,
             UTC; the app pauses its run until then). Nothing goes to a model.
+            The check is before the call, so the last call of a day may pass
+            the cap by its own tokens; the answer is never cut short.
        413  too large for every model in the chain.
        502  no model's answer fit the schema, or every model refused the
             request: asking again the same way will not help.
        503  with Retry-After: every model is busy, out of quota or down, or
             the API's model settings are wrong (a key, a model name).
      The tokens a failed call spent still count.
-GET  /apply-app/usage  Usage {used, cap, resets_at}: this month's tokens.
+GET  /apply-app/usage  Usage {used, cap, resets_at}: today's tokens.
 
 Logs name the student, the call's kind and model size, and its tokens;
 never a prompt or an answer.
@@ -83,7 +85,7 @@ def _now() -> datetime.datetime:
 
 
 def _usage(used: int, now: datetime.datetime) -> Usage:
-    return Usage(used=used, cap=get_settings().apply_app_monthly_tokens, resets_at=model_usage.resets_at(now))
+    return Usage(used=used, cap=get_settings().apply_app_daily_tokens, resets_at=model_usage.resets_at(now))
 
 
 def _refused(code: int, message: str, wait: float) -> HTTPException:
@@ -96,7 +98,7 @@ async def usage(
     db: AsyncSession = Depends(get_session),
 ) -> Usage:
     now = _now()
-    return _usage(await model_usage.used_this_month(db, account.id, now), now)
+    return _usage(await model_usage.used_today(db, account.id, now), now)
 
 
 @router.post("/ask")
@@ -145,10 +147,9 @@ async def _call(db: AsyncSession, account: AuthenticatedAccount, llm: LLM, messa
         next_minute = now.replace(second=0, microsecond=0) + datetime.timedelta(minutes=1)
         raise _refused(status.HTTP_429_TOO_MANY_REQUESTS, "Too many model calls this minute.",
                        (next_minute - now).total_seconds())
-    if used >= settings.apply_app_monthly_tokens:
+    if used >= settings.apply_app_daily_tokens:
         resets = model_usage.resets_at(now)
-        raise _refused(status.HTTP_429_TOO_MANY_REQUESTS,
-                       f"Monthly model use reached; resets on {resets:%B} {resets.day}.",
+        raise _refused(status.HTTP_429_TOO_MANY_REQUESTS, "Today's model use is reached; it resets at midnight UTC.",
                        (resets - now).total_seconds())
     # No name: the app replaces it (D8), and removing it here also took
     # ordinary words that are a part of it, such as "will" or "mark".

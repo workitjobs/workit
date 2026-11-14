@@ -2,7 +2,7 @@
 WorkIt Auto Apply's Model route (KAN-723, routers/apply_app.py) on the
 real-Postgres test database, with ScriptedLLM as the model: a call answers
 through the size its tier names and counts its tokens, the student's
-identity never reaches the model, the per-minute limit and the monthly Usage
+identity never reaches the model, the per-minute limit and the daily Usage
 cap refuse a call before it is sent, and a failed call still counts what it
 spent. The model call itself (moving down the chain, the schema check) is
 tested in ../scout/tests/test_scout.py.
@@ -82,7 +82,7 @@ async def test_a_call_answers_and_counts_its_tokens(student, database):
         assert first.json() == {
             "answer": {"choice": 1},
             "tokens": COST,
-            "usage": {"used": COST, "cap": 3_000_000, "resets_at": "2026-12-01T00:00:00Z"},
+            "usage": {"used": COST, "cap": 60_000, "resets_at": "2026-11-14T00:00:00Z"},
         }
         assert (await api.post("/apply-app/model", json=CALL)).json()["usage"]["used"] == 2 * COST
         assert (await api.get("/apply-app/usage")).json()["used"] == 2 * COST
@@ -113,8 +113,8 @@ async def test_haiku_asks_the_small_chain_and_the_others_the_large(student):
     assert (len(small.prompts), len(large.prompts)) == (1, 2)
 
 
-async def test_at_the_cap_nothing_reaches_the_model_until_the_first(student, monkeypatch):
-    monkeypatch.setattr(get_settings(), "apply_app_monthly_tokens", COST)
+async def test_at_the_cap_nothing_reaches_the_model_until_midnight(student, monkeypatch):
+    monkeypatch.setattr(get_settings(), "apply_app_daily_tokens", COST)
     fake = ScriptedLLM([ANSWER])
     fake_models.use(fake)
     async with _api() as api:
@@ -122,10 +122,10 @@ async def test_at_the_cap_nothing_reaches_the_model_until_the_first(student, mon
         refused = await api.post("/apply-app/model", json=CALL)
         usage = (await api.get("/apply-app/usage")).json()
     assert refused.status_code == 429
-    assert refused.json()["detail"] == "Monthly model use reached; resets on December 1."
+    assert refused.json()["detail"] == "Today's model use is reached; it resets at midnight UTC."
     assert int(refused.headers["Retry-After"]) == (resets_at(NOW) - NOW).total_seconds()
     assert len(fake.prompts) == 1
-    assert usage == {"used": COST, "cap": COST, "resets_at": "2026-12-01T00:00:00Z"}
+    assert usage == {"used": COST, "cap": COST, "resets_at": "2026-11-14T00:00:00Z"}
 
 
 async def test_past_the_minute_limit_a_call_waits_for_the_next_minute(student, monkeypatch):
@@ -228,6 +228,10 @@ async def test_a_company_account_is_refused(database):
         app.dependency_overrides.pop(get_current_account, None)
 
 
-def test_the_cap_resets_on_the_first_of_the_next_month_utc():
+def test_the_cap_resets_at_the_next_midnight_utc():
     assert resets_at(datetime.datetime(2026, 12, 31, 23, 59, tzinfo=datetime.UTC)) == (
         datetime.datetime(2027, 1, 1, tzinfo=datetime.UTC))
+    # 8 p.m. in New York on the 13th is already the 14th in UTC.
+    new_york = datetime.timezone(datetime.timedelta(hours=-5))
+    assert resets_at(datetime.datetime(2026, 11, 13, 20, 0, tzinfo=new_york)) == (
+        datetime.datetime(2026, 11, 15, tzinfo=datetime.UTC))
