@@ -34,7 +34,8 @@ window.WIA = window.WIA || {};
 
   const SUBMIT_WORDS = /^\s*submit\b/i;
   const CONTROL = 'button, input[type="submit"], input[type="button"], [role="button"]';
-  const WORKDAY_NEXT = "[data-automation-id=pageFooterNextButton], [data-automation-id=bottom-navigation-next-button]";
+  // Workday's Save and Continue: the Rules table's (site-data.js), read at each use.
+  const { SEL: WORKDAY } = window.WIA.site("workday");
   const { send } = window.WIA.ui;
 
   const STYLES = `
@@ -107,7 +108,7 @@ window.WIA = window.WIA || {};
   async function press() {
     if (action === "answer") return answer();
     if (action === "continue") {
-      const button = [...document.querySelectorAll(WORKDAY_NEXT)].find(visible);
+      const button = [...document.querySelectorAll(WORKDAY.NEXT_BUTTONS)].find(visible);
       if (button) return ringControl(button);
       return say("WorkIt can't find Save and Continue on this step.", true);
     }

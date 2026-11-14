@@ -8,16 +8,14 @@
 // them to sign in; each step fills once it shows. A step is a new page in the
 // frame, which the top page's observers don't see, so the waits here look
 // every STEP_LOOK ms. The same face as workday.js gives (see steps.js);
-// loaded after oracle.js, as window.WIA.icims.
+// loaded after oracle.js, as window.WIA.icims. iCIMS's selectors and
+// patterns are the Rules table's (site-data.js: SEL, PAT), read at each use.
 window.WIA = window.WIA || {};
 
 (function () {
   "use strict";
 
-  const FRAME = "iframe#icims_content_iframe";
-  const SIGN_IN = "#enterEmailForm, input[name=css_loginName], input[type=password], [id^='PersonProfileFields.Password']";
-  const ROW = ".iCIMS_TableRow, .iCIMS_FieldRow";
-  const PRIMARY = "input.iCIMS_PrimaryButton, button.iCIMS_PrimaryButton";
+  const { SEL, PAT } = window.WIA.site("icims");
   // How often a wait looks at the frame, how long a step must stop changing before it is read, and the longest wait for that.
   const STEP_LOOK = 300;
   const STEP_QUIET = 600;
@@ -37,7 +35,7 @@ window.WIA = window.WIA || {};
   /** The document iCIMS draws its pages in: its frame's, else this page's. */
   function doc() {
     try {
-      const inner = document.querySelector(FRAME)?.contentDocument;
+      const inner = document.querySelector(SEL.FRAME)?.contentDocument;
       if (inner?.body && inner.location.href !== "about:blank") return inner;
     } catch {}
     return document;
@@ -45,25 +43,25 @@ window.WIA = window.WIA || {};
   const all = (selector, root = doc()) => [...root.querySelectorAll(selector)];
 
   function rows() {
-    return all(ROW).filter((r) => shows(r) && !r.parentElement?.closest(ROW)
-      && !r.closest(".iCIMS_CollectionContainer, .iCIMS_CollectionGroup, #staticSection, .iCIMS_NoDisplay")
-      && !r.querySelector("input[type=password]") && !r.closest("#enterEmailForm"));
+    return all(SEL.ROW).filter((r) => shows(r) && !r.parentElement?.closest(SEL.ROW)
+      && !r.closest(SEL.NOT_FIELDS)
+      && !r.querySelector("input[type=password]") && !r.closest(SEL.EMAIL_FORM));
   }
 
   /** Whether the candidate's sign-in shows: the student's. */
-  const onGate = () => all(SIGN_IN).some(shows) && !rows().length;
+  const onGate = () => all(SEL.SIGN_IN).some(shows) && !rows().length;
 
   /** The step shown, as the engine names it (its icims.ts stepName). "" on the sign-in or the job's page. */
   function icimsStep() {
     if (onGate()) return "";
     const d = doc();
-    const current = all('li[id^="Step_"], .iCIMS_Steps li').find((li) => li.classList.contains("iCIMS_Steps_Current") || /current step/i.test(li.getAttribute("title") ?? ""));
-    const named = oneLine(current?.querySelector(".iCIMS_Steps_Content")?.getAttribute("title") ?? "") || text(current?.querySelector(".iCIMS_Steps_Content") ?? current)
-      || text(d.querySelector(".iCIMS_PageStepText"));
-    const clean = named.replace(/^(current step:?\s*)?(step )?\d+( of \d+)?[:.)]?\s*/i, "").replace(/\s*[-:(]?\s*\b(current( step)?|completed)\b\)?\s*$/i, "");
+    const current = all(SEL.STEPS).find((li) => li.classList.contains(SEL.STEP_CURRENT) || PAT.CURRENT_STEP.test(li.getAttribute("title") ?? ""));
+    const named = oneLine(current?.querySelector(SEL.STEP_CONTENT)?.getAttribute("title") ?? "") || text(current?.querySelector(SEL.STEP_CONTENT) ?? current)
+      || text(d.querySelector(SEL.PAGE_STEP));
+    const clean = named.replace(PAT.STEP_NUMBER, "").replace(PAT.STEP_STATE, "");
     if (clean) return clean;
-    if (!rows().length && !all(PRIMARY).some(shows)) return "";
-    return text(d.querySelector("h1.iCIMS_Header, h2.iCIMS_SubHeader")) || "Application";
+    if (!rows().length && !all(SEL.PRIMARY).some(shows)) return "";
+    return text(d.querySelector(SEL.HEADER)) || "Application";
   }
 
   const stepId = () => `${icimsStep()}#${doc().location?.pathname ?? ""}`;
@@ -132,7 +130,7 @@ window.WIA = window.WIA || {};
   /** A row's label, as the engine reads it (its icims.ts labelOf). */
   function labelOf(row) {
     const ids = new Set(all("input[type=radio], input[type=checkbox]", row).map((i) => i.id).filter(Boolean));
-    const own = all("label, legend, .iCIMS_InfoMsg_Label, .iCIMS_LabelText", row)
+    const own = all(SEL.LABEL, row)
       .find((l) => !(l.htmlFor && ids.has(l.htmlFor)) && !l.querySelector("input[type=radio], input[type=checkbox]") && text(l));
     if (own) return text(own);
     return all("input[type=checkbox]", row).length === 1 ? text(row.querySelector("label")) : "";
@@ -155,6 +153,7 @@ window.WIA = window.WIA || {};
 
   window.WIA.icims = {
     isOn,
+    site: "icims",
     name: "iCIMS",
     doc,
     step: icimsStep,
@@ -169,12 +168,12 @@ window.WIA = window.WIA || {};
     gateFirst: "Sign in on iCIMS's page first. ",
     nextLabel: "Next",
     reviewName: "last",
-    // Fill to Review's view of the page (workday-walk.js), in the frame (`doc`).
+    // Fill to Review's view of the page (workday-walk.js), in the frame (`doc`), read at each use.
     walk: {
-      next: PRIMARY,
-      review: 'input.iCIMS_PrimaryButton[value*="submit" i], button.iCIMS_PrimaryButton[value*="submit" i]',
-      goesOn: /^(next|continue|save (and|&) continue)$/i,
-      banner: ".iCIMS_ErrorMessage, .iCIMS_Error",
+      get next() { return SEL.PRIMARY; },
+      get review() { return SEL.SUBMIT; },
+      get goesOn() { return PAT.GOES_ON; },
+      get banner() { return SEL.ERROR_BANNER; },
       wentWrong: () => false,
     },
   };

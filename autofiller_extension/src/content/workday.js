@@ -12,26 +12,21 @@
 // Apply, then Apply Manually, or Continue Application, each at most once a
 // page (watchStart). It presses nothing else. Loaded
 // before content-script.js (shared/content-scripts.js), as window.WIA.workday.
+// Workday's selectors and patterns are the Rules table's (site-data.js: SEL,
+// PAT), read at each use; only its plain words stay here.
 window.WIA = window.WIA || {};
 
 (function () {
   "use strict";
 
-  // Workday's name of the step shown.
-  const WORKDAY_STEP = "[data-automation-id=progressBarActiveStep]";
-  // Workday's sign-in: its form, the name its step bar gives it, and when to look at a typed box again.
-  const SIGN_IN_FORM = "[data-automation-id=signInFormo]";
+  const { SEL, PAT } = window.WIA.site("workday");
+  // Workday's sign-in (SEL.SIGN_IN_FORM): the name its step bar gives it, and when to look at a typed box again.
   const SIGN_IN_STEP = /sign in|create account/i;
   const SIGN_IN_SETTLE = 300;
-  // Workday's sign-in parts the extension presses or reads, once allowed.
-  const TERMS_BOX = "[data-automation-id=createAccountCheckbox]";
-  const SUBMIT = {
-    create: '[data-automation-id=click_filter][aria-label="Create Account"], [data-automation-id=createAccountSubmitButton]',
-    signin: '[data-automation-id=click_filter][aria-label="Sign In"], [data-automation-id=signInSubmitButton]',
-  };
-  const SWITCH = { create: "[data-automation-id=signInLink]", signin: "[data-automation-id=createAccountLink]" };
-  const WITH_EMAIL = "[data-automation-id=SignInWithEmailButton]";
-  const ALERT = "[data-automation-id=errorMessage], [data-automation-id=alertMessage]";
+  // Workday's sign-in parts the extension presses or reads, once allowed (the terms box is SEL.TERMS_BOX, its
+  // messages SEL.ALERTS, its Sign in with email SEL.WITH_EMAIL): each view's button, and its link to the other view.
+  const SUBMIT = { get create() { return SEL.CREATE_ACCOUNT; }, get signin() { return SEL.SIGN_IN; } };
+  const SWITCH = { get create() { return SEL.SIGN_IN_LINK; }, get signin() { return SEL.CREATE_ACCOUNT_LINK; } };
   const VERIFY = /verif/i;
   // Workday's page text, not only its alerts, may say a new account waits for verification (as Apply reads it).
   const VERIFY_PAGE = /verification (email|link)|verify your (account|email)/i;
@@ -43,12 +38,10 @@ window.WIA = window.WIA || {};
   const SEND_WAIT = 10_000;
   const SEND_PRESSES = 3;
   // Workday's job page: Apply, or Continue Application for an application
-  // started before (as Apply's _start finds them), and Apply Manually in the
-  // popup Apply opens. Autofill with Resume and Use My Last Application are
-  // never pressed: WorkIt fills from the student's profile.
-  const START = "[data-automation-id=adventureButton], [data-automation-id=continueButton]";
+  // started before (as Apply's _start finds them; SEL.START, by these words), and
+  // Apply Manually in the popup Apply opens (SEL.APPLY_MANUALLY). Autofill with Resume
+  // and Use My Last Application are never pressed: WorkIt fills from the student's profile.
   const START_WORDS = /^(apply|continue application)$/i;
-  const MANUALLY = "[data-automation-id=applyManually]";
   // How long a ticked box gets to show it is ticked before Create Account is pressed.
   const TICK_SHOWS = 100;
   // How long a Workday step's page must stop changing before it is read, and the longest wait for that.
@@ -60,14 +53,12 @@ window.WIA = window.WIA || {};
    * redraws, or on its sign-in, which Workday counts as the first step).
    */
   function workdayStep() {
-    const lines = (document.querySelector(WORKDAY_STEP)?.innerText ?? "").split("\n").map((l) => l.trim()).filter(Boolean);
-    const step = lines.length ? lines[lines.length - 1].replace(/^(current )?step \d+ of \d+\s*/i, "") : "";
+    const lines = (document.querySelector(SEL.ACTIVE_STEP)?.innerText ?? "").split("\n").map((l) => l.trim()).filter(Boolean);
+    const step = lines.length ? lines[lines.length - 1].replace(PAT.STEP_OF, "") : "";
     return SIGN_IN_STEP.test(step) ? "" : step;
   }
 
-  // A step's fields and repeating sections, as the Fill engine reads them (its workday.ts).
-  const FIELD = '[data-automation-id^="formField-"]';
-  const GROUP = "[role=group][aria-labelledby]";
+  // A step's fields (SEL.FIELD) and repeating sections (SEL.GROUP), as the Fill engine reads them (its workday.ts).
   const DATE_PARTS = { dateSectionMonth: "MM", dateSectionDay: "DD", dateSectionYear: "YYYY" };
   const oneLine = (text) => String(text ?? "").replace(/\s+/g, " ").trim();
   const textOf = (el) => (el ? oneLine(el.innerText.replace(/\*/g, "")) : "");
@@ -77,7 +68,7 @@ window.WIA = window.WIA || {};
 
   /** The numbered panel ("Work Experience 2") a field stands in, or "". */
   function panelOf(box) {
-    for (let group = box.closest(GROUP); group; group = group.parentElement?.closest(GROUP) ?? null) {
+    for (let group = box.closest(SEL.GROUP); group; group = group.parentElement?.closest(SEL.GROUP) ?? null) {
       if (numbered(titleOf(group))) return titleOf(group);
     }
     return "";
@@ -87,16 +78,16 @@ window.WIA = window.WIA || {};
   function labelOf(box) {
     const checks = [...box.querySelectorAll("input[type=checkbox]")];
     const forInput = (input) => textOf(box.querySelector(`label[for="${CSS.escape(input.id)}"]`));
-    const group = box.closest(GROUP);
+    const group = box.closest(SEL.GROUP);
     const legend = box.querySelector("legend");
     const file = Boolean(box.querySelector("input[type=file]"));
-    const dates = [...box.querySelectorAll("[data-automation-id^=dateSection][data-automation-id$=-input]")];
+    const dates = [...box.querySelectorAll(SEL.DATE_INPUTS)];
     const label = legend ? textOf(legend)
-      : checks.length === 1 && group && /statement above/i.test(forInput(checks[0])) ? `${titleOf(group)}: ${forInput(checks[0])}`
+      : checks.length === 1 && group && PAT.STATEMENT_ABOVE.test(forInput(checks[0])) ? `${titleOf(group)}: ${forInput(checks[0])}`
       : checks.length === 1 ? forInput(checks[0]) || textOf(box.querySelector("label"))
-      : file && group && /^upload\b/i.test(textOf(box.querySelector("label"))) ? titleOf(group)
+      : file && group && PAT.UPLOAD.test(textOf(box.querySelector("label"))) ? titleOf(group)
       : textOf(box.querySelector("label"));
-    const format = !file && dates.length ? dates.map((d) => DATE_PARTS[d.dataset.automationId.replace(/-input$/, "")]).join("/") : "";
+    const format = !file && dates.length ? dates.map((d) => DATE_PARTS[(d.getAttribute(SEL.ID_ATTR) ?? "").replace(PAT.DATE_INPUT_END, "")]).join("/") : "";
     return label && label + (format ? ` (${format})` : "");
   }
 
@@ -111,12 +102,12 @@ window.WIA = window.WIA || {};
     const step = workdayStep();
     if (!step || !key.startsWith(`${step} / `)) return null;
     const name = key.slice(step.length + 3);
-    for (const group of document.querySelectorAll(GROUP)) {
+    for (const group of document.querySelectorAll(SEL.GROUP)) {
       if (shows(group) && titleOf(group) === name && !numbered(name)) return group;
     }
     const seen = {};
-    for (const box of document.querySelectorAll(FIELD)) {
-      if (!shows(box) || box.parentElement?.closest(FIELD)) continue;
+    for (const box of document.querySelectorAll(SEL.FIELD)) {
+      if (!shows(box) || box.parentElement?.closest(SEL.FIELD)) continue;
       const own = labelOf(box);
       if (!own) continue;
       const label = [panelOf(box), own].filter(Boolean).join(" / ");
@@ -126,13 +117,16 @@ window.WIA = window.WIA || {};
     return null;
   }
 
+  /** The sign-in form's box with automation id `id` ("email", "password", "verifyPassword"), or null. */
+  const signInBox = (id) => document.querySelector(SEL.SIGN_IN_FORM)?.querySelector(`[${SEL.ID_ATTR}=${CSS.escape(id)}]`) ?? null;
+
   /**
    * Types `value` into the sign-in form's box `id` (an automation id), as
    * typing would (Workday's React reads the input event), unless the box
    * holds something already: the student's typing, or this fill's.
    */
   function typeInto(id, value) {
-    const box = document.querySelector(`${SIGN_IN_FORM} [data-automation-id=${id}]`);
+    const box = signInBox(id);
     if (!box || box.value) return;
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(box, value);
     box.dispatchEvent(new Event("input", { bubbles: true }));
@@ -141,7 +135,7 @@ window.WIA = window.WIA || {};
 
   /** Sets the sign-in form's box `id` to `value` as typing would, whatever it holds: the student pressed for it. */
   function setBox(id, value) {
-    const box = document.querySelector(`${SIGN_IN_FORM} [data-automation-id=${id}]`);
+    const box = signInBox(id);
     if (!box) return false;
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(box, value);
     box.dispatchEvent(new Event("input", { bubbles: true }));
@@ -164,7 +158,7 @@ window.WIA = window.WIA || {};
    * Workday keeps some on the form with text in them.
    */
   function alerts() {
-    return [...document.querySelectorAll(ALERT)].filter((a) => a.checkVisibility())
+    return [...document.querySelectorAll(SEL.ALERTS)].filter((a) => a.checkVisibility())
       .map((a) => a.innerText.trim()).filter(Boolean).join(" ");
   }
 
@@ -185,7 +179,7 @@ window.WIA = window.WIA || {};
   /** The words of the terms box's label, as the student reads them on the page. */
   function termsWords(box) {
     const label = box.closest("label") ?? (box.id && document.querySelector(`label[for="${CSS.escape(box.id)}"]`))
-      ?? box.closest("[data-automation-id^=formField]");
+      ?? box.closest(SEL.FIELD);
     return (label?.innerText ?? "").replace(/\s+/g, " ").trim().slice(0, 300);
   }
 
@@ -230,7 +224,7 @@ window.WIA = window.WIA || {};
    * second questionnaire is "Application Questions" again): their numbers differ.
    */
   function stepNumber() {
-    return /\bstep (\d+) of \d+/i.exec(document.querySelector(WORKDAY_STEP)?.innerText ?? "")?.[1] ?? "";
+    return /\bstep (\d+) of \d+/i.exec(document.querySelector(SEL.ACTIVE_STEP)?.innerText ?? "")?.[1] ?? "";
   }
 
   // This tab's steps filled before, kept across its page loads: "<application path> <step>#<number>".
@@ -353,18 +347,18 @@ window.WIA = window.WIA || {};
       try {
         do {
           again = false;
-          const form = document.querySelector(SIGN_IN_FORM);
+          const form = document.querySelector(SEL.SIGN_IN_FORM);
           if (workdayStep()) return;
           if (!form) {
             // A sign-in with Google or Apple first: its "Sign in with email" shows the form.
-            const button = document.querySelector(WITH_EMAIL);
+            const button = document.querySelector(SEL.WITH_EMAIL);
             if (button && !withEmail && login?.forMe) {
               withEmail = true;
               press(button);
             }
             return;
           }
-          const create = Boolean(form.querySelector("[data-automation-id=verifyPassword]"));
+          const create = Boolean(form.querySelector(SEL.VERIFY_PASSWORD));
           const view = create ? "create" : "signin";
           if (loginView !== view) {
             login = await chrome.runtime.sendMessage({ type: "workday/login", create });
@@ -480,15 +474,15 @@ window.WIA = window.WIA || {};
       if (create && untickable) return true;
       if (!login.password || (create && !login.made)) return false;
       await quiet();
-      const now = document.querySelector(SIGN_IN_FORM);
-      const holds = (id) => now?.querySelector(`[data-automation-id=${id}]`)?.value === (id === "email" ? login.email : login.password);
+      const now = document.querySelector(SEL.SIGN_IN_FORM);
+      const holds = (id) => now?.querySelector(`[${SEL.ID_ATTR}=${CSS.escape(id)}]`)?.value === (id === "email" ? login.email : login.password);
       if (now !== form || !holds("email") || !holds("password") || (create && !holds("verifyPassword"))) {
         again = true;
         return true;
       }
       const button = document.querySelector(SUBMIT[view]);
       if (!button) return false;
-      const box = create ? form.querySelector(TERMS_BOX) : null;
+      const box = create ? form.querySelector(SEL.TERMS_BOX) : null;
       const terms = box ? termsWords(box) : "";
       if (box && !ticks(box)) {
         press(box);
@@ -529,8 +523,8 @@ window.WIA = window.WIA || {};
      * answer: a second Create Account would find the account made.
      */
     async function pressAgain(view) {
-      const form = document.querySelector(SIGN_IN_FORM);
-      const shows = form && !workdayStep() && Boolean(form.querySelector("[data-automation-id=verifyPassword]")) === (view === "create");
+      const form = document.querySelector(SEL.SIGN_IN_FORM);
+      const shows = form && !workdayStep() && Boolean(form.querySelector(SEL.VERIFY_PASSWORD)) === (view === "create");
       if (!shows || alerts() !== before[view]) return;
       if (await sentSince(sends[view].since)) return;
       if (sends[view].count >= SEND_PRESSES) {
@@ -573,10 +567,10 @@ window.WIA = window.WIA || {};
       onPress(reason);
     };
     const look = () => {
-      if (document.querySelector(SIGN_IN_FORM)) return;
-      const manually = [...document.querySelectorAll(MANUALLY)].find((b) => b.checkVisibility());
+      if (document.querySelector(SEL.SIGN_IN_FORM)) return;
+      const manually = [...document.querySelectorAll(SEL.APPLY_MANUALLY)].find((b) => b.checkVisibility());
       if (manually) return once("manually", manually, `WorkIt pressed Apply Manually for you, so it fills from your WorkIt profile. ${SIGNED_IN}`);
-      const start = [...document.querySelectorAll(START)].find((b) => b.checkVisibility() && START_WORDS.test(b.innerText.trim()));
+      const start = [...document.querySelectorAll(SEL.START)].find((b) => b.checkVisibility() && START_WORDS.test(b.innerText.trim()));
       if (start) once("start", start, `WorkIt pressed ${start.innerText.trim()} for you. ${SIGNED_IN}`);
     };
     const observer = new MutationObserver(() => {
@@ -594,17 +588,18 @@ window.WIA = window.WIA || {};
     isWorkday,
     // The stepped system's face (steps.js).
     isOn: isWorkday,
+    site: "workday",
     name: "Workday",
     nextLabel: "Save and Continue",
     reviewName: "Review",
     waiting: { title: "Waiting for the application", reason: "Sign in and start the application. WorkIt fills each step as it shows." },
     walk: {
-      next: "[data-automation-id=pageFooterNextButton], [data-automation-id=bottom-navigation-next-button]",
-      review: "[data-automation-id=applyFlowReviewPage], [data-automation-id=reviewJobApplicationPage]",
-      goesOn: /^(save and continue|continue|next)$/i,
-      banner: "[data-automation-id=errorHeading], [data-automation-id=errorBanner], [data-automation-id=errorMessage]",
+      get next() { return SEL.NEXT_BUTTONS; },
+      get review() { return SEL.REVIEW_PAGES; },
+      get goesOn() { return PAT.GOES_ON; },
+      get banner() { return SEL.ERRORS; },
       // Workday's error page in place of the step: its words, and no field of the step showing.
-      wentWrong: () => /something went wrong/i.test(document.body.innerText) && ![...document.querySelectorAll('[data-automation-id^="formField-"]')].some((f) => f.checkVisibility()),
+      wentWrong: () => PAT.WENT_WRONG.test(document.body.innerText) && ![...document.querySelectorAll(SEL.FIELD)].some((f) => f.checkVisibility()),
     },
     step: workdayStep,
     // The field on the step shown for a panel row's key (batch-tab.js's fieldOf).
