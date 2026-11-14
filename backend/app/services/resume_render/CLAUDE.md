@@ -21,6 +21,27 @@ resume; KAN-207 renders the bank and retired the proof endpoint.
 - **`fields.py` is how a field reads as text** (dates, GPA, headings, skill
   groups), shared by the PDF and the Word file so the two never disagree.
   Change wording there, not in a layout.
+- **Group names that differ only in case or "&" print as one line**
+  (`resume_view.grouped_skills`, `group_key`, KAN-810): "Frameworks" and
+  "frameworks", "Tools & Platforms" and "tools and platforms", and a group
+  named "other" with the skills that have none. The line takes the first
+  name with a capital letter, else the first in title case (`group_label`).
+  Tailor's prompt (`tailor.skill_groups`), Fit to One Page and the
+  editor's outline (`printedSkills`, `groupKey`) group the same way;
+  change them together.
+- **A heading wraps only when it is wider than its row leaves** (KAN-807,
+  `jakes.FIT`, `_fitted`): Jake's `l` column never breaks, so a long title
+  or organization ran under the dates and off the page. `\wifit` measures
+  each left side against what the right side leaves; a heading that fits
+  keeps Jake's own table (no fitting page moved: every box of a page with
+  each heading kind matched main, and Jake's sample pixel for pixel), and
+  one that does not puts its left sides in a `\parbox` 1em short of the
+  right side. Two traps, each found by a test: `\wiw` is a `\newdimen`,
+  since a `\newlength` glue assignment looks ahead for "plus" and ran the
+  next `\ifdim` early; and the `\wifit` line ends in `%`, since its line end
+  read as a space set two one-row headings 13.5 pt apart. A box over two
+  lines stops 4 pt short of its own item's next box on its first line
+  (`_short_of_beside`), so a wrapped title's box never covers its dates.
 - **The font and a size per kind of text are page settings too** (KAN-435):
   `font_family` from `FONT_FAMILIES`, and `name_size`, `heading_size`,
   `title_size` and `body_size`, each null until set, which follows `font_size`
@@ -305,10 +326,19 @@ resume; KAN-207 renders the bank and retired the proof endpoint.
   "+1 646-555-0142" however it was typed; any other as typed. The profile
   keeps what was typed, and the resume printed it bare ("16465550142"). PDF,
   LaTeX and Word alike; the box's text is the printed form.
+- **A date given as a year alone prints as the year** (`dates`, the
+  entry's `year_only`, KAN-808): "2019 – 2023", "Expected 2027", never
+  "Jan. 2019". The Experiences view's `formatDates` shows it the same way.
 - **Numbers and dates print once and whole** (2026-11-12): a GPA keeps a
   whole number's zeros ("90/100"; `_number` stripped them, so it printed
   "9/100") and prints one of ten or more with no decimals ("85/100", not
-  "85.0/100.0"); one month, or one year in the year format, names it once
+  "85.0/100.0"). **A GPA or scale under ten prints two decimals**
+  (`_grade`: "3.80/4.00", "8.50/10"), as career centers ask ("to two
+  decimal points", Concordia University Wisconsin's resume rubric) and a
+  transcript prints it: the database keeps two decimals and nothing of how
+  many were typed (the editor sends a number), so "3.80/4.00" printed
+  "3.8/4.0" until KAN-813. Printing each GPA as typed would need the typed
+  text kept: a migration, and the editor sending it as text; one month, or one year in the year format, names it once
   ("June 2024", never "June 2024 – June 2024"); a field the degree already
   names prints once (`_degree_line`).
 - **A project's link prints as the header's do** (`fields.heading`'s tag):

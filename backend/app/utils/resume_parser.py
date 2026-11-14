@@ -100,6 +100,61 @@ _SPACED_RE = re.compile(r'[A-Za-z](?: [A-Za-z&])+(?:\s{2,}[A-Za-z](?: [A-Za-z&])
 
 # "GPA: 3.81/4.00" gives the scale too
 GPA_RE = re.compile(r'GPA[:\s]*(\d+(?:\.\d+)?)(?:\s*/\s*(\d+(?:\.\d+)?))?', re.IGNORECASE)
+# "Major GPA: 3.95/4.00", "GPA: 3.95/4.00 (Major)": the major's GPA alone
+_MAJOR_BEFORE_RE = re.compile(r"\b(?:major|in-major|departmental|department)(?:'s)?[\s-]*$", re.IGNORECASE)
+_MAJOR_AFTER_RE = re.compile(r"\s*\(\s*(?:in\s+)?(?:the\s+)?major\s*\)", re.IGNORECASE)
+
+
+def gpa_matches(text: str) -> list[tuple[re.Match[str], str | None]]:
+    """Each GPA in `text`, with its line as written when it is a major's GPA
+    ("Major GPA: 3.95/4.00"), else None. The entry's GPA is the cumulative
+    one, which a form's "GPA" asks for; a major's stays a line of its own and
+    never fills it. The first GPA found filled it until KAN-813, so "Major
+    GPA: 3.95 | Cumulative GPA: 3.72" saved 3.95 and lost the other."""
+    out: list[tuple[re.Match[str], str | None]] = []
+    for m in GPA_RE.finditer(text):
+        label = _MAJOR_BEFORE_RE.search(text, max(0, m.start() - 20), m.start())
+        after = _MAJOR_AFTER_RE.match(text, m.end())
+        if label or after:
+            start, end = label.start() if label else m.start(), after.end() if after else m.end()
+            out.append((m, " ".join(text[start:end].split())))
+        else:
+            out.append((m, None))
+    return out
+
+
+def major_gpas(text: str) -> list[str]:
+    """The major GPAs in `text`, each as written."""
+    return [line for _, line in gpa_matches(text) if line]
+
+
+# Honors a degree carries, written after the major: "Computer Science,
+# Honors", "..., magna cum laude"
+DEGREE_HONOR_RE = re.compile(
+    r"(?:with\s+)?(?:(?:highest|high)\s+)?hono(?:u)?rs(?:\s+program)?|(?:(?:summa|magna)\s+)?cum\s+laude",
+    re.IGNORECASE,
+)
+_HONOR_AFTER_FIELD_RE = re.compile(rf",\s*({DEGREE_HONOR_RE.pattern})\b(?!\s*:)", re.IGNORECASE)
+
+
+# A degree said only by its level ("Bachelor's", "a master's degree"): it
+# names no subject (Bachelor of Science, of Arts), so no resume prints it as
+# the degree. The Apply import leaves such a degree empty, and intake asks
+# which one it is (KAN-812).
+_DEGREE_LEVEL_RE = re.compile(
+    r"(?:an?\s+)?(?:bachelor|master|associate|doctorate|doctoral|undergraduate|graduate)(?:'s|’s|s)?(?:\s+degree)?",
+    re.IGNORECASE,
+)
+
+
+def is_degree_level(text: str | None) -> bool:
+    """Whether a degree names only its level ("Bachelor's", "a master's
+    degree", "Doctorate"), not the degree ("Bachelor of Science", "B.S.")."""
+    if not text:
+        return False
+    return _DEGREE_LEVEL_RE.fullmatch(" ".join(text.split()).rstrip(".")) is not None
+
+
 DEGREE_RE = re.compile(
     # A.A./A.S. need the dot, or the word "as" would count as a degree
     r'\b(B\.?S\.?|B\.?A\.?|M\.?S\.?|M\.?A\.?|A\.A\.?|A\.S\.?|Ph\.?D\.?|'
@@ -449,6 +504,23 @@ def _parse_date_range(text: str) -> tuple[date | None, date | None]:
     return start, _to_date(m.group(5), m.group(4))
 
 
+def _years_only(text: str) -> list[str]:
+    """Which dates `_parse_date_range` reads from `text` name a year alone,
+    as "start_date" and "end_date" (KAN-808): "2019 – 2023" reads as
+    January of each, which a resume printed as "Jan. 2019"."""
+    m = EXPECTED_RE.search(text)
+    if m:
+        return [] if m.group(1) else ["end_date"]
+    m = DATE_RANGE_RE.search(text)
+    if not m:
+        b = BARE_DATE_RE.search(text)
+        return ["end_date"] if b and not b.group(1) else []
+    years = [] if m.group(1) else ["start_date"]
+    if m.group(3).lower() not in ("present", "current", "now") and not m.group(4):
+        years.append("end_date")
+    return years
+
+
 def _extract_location(text: str) -> tuple[str | None, str]:
     """Extract 'City, ST' from the end of a line. Returns (location, remainder).
     Tries multi-space separator first (common in PDF extraction), then falls
@@ -711,12 +783,17 @@ def _parse_education(text: str) -> list[Education]:
         # Dates: the start too, which was dropped, so "Aug 2023 - May 2027"
         # printed "May 2027" alone
         start, end = _parse_date_range(all_text)
+        years = _years_only(all_text)
         if end is None:
             # "... - May 2028 - GPA 3.7": a dash field, not a line's end
-            end = next((e for f in dash_fields if (e := _parse_date_range(f.strip())[1])), None)
+            dated = next((f.strip() for f in dash_fields if _parse_date_range(f.strip())[1]), None)
+            if dated is not None:
+                end = _parse_date_range(dated)[1]
+                years = [y for y in years if y != "end_date"] + [y for y in _years_only(dated) if y == "end_date"]
 
-        # GPA
-        gpa_m = GPA_RE.search(all_text)
+        # GPA: the cumulative one; a major's stays a line, as written
+        gpas = gpa_matches(all_text)
+        gpa_m = next((m for m, major in gpas if major is None), None)
         gpa = float(gpa_m.group(1)) if gpa_m else None
         gpa_scale = float(gpa_m.group(2)) if gpa_m and gpa_m.group(2) else None
 
@@ -742,6 +819,10 @@ def _parse_education(text: str) -> list[Education]:
                 field = re.split(r'\s{2,}|\s*\bGPA\b', m.group("field").strip(), flags=re.IGNORECASE)[0].strip()
                 # nor a date: "B.S. Expected May 2027" names no field
                 field = _strip_dates(EXPECTED_RE.sub("", field)) or None
+                # "Computer Science, Honors", "..., magna cum laude": the comma
+                # ended the field, and the honors were dropped (KAN-813)
+                if field and (honor := _HONOR_AFTER_FIELD_RE.match(degree_text, m.end("field"))):
+                    field = f"{field}, {honor.group(1)}"
         # "B.S. in Computer Science | Minor in Writing & Rhetoric": the minor goes
         # after the major, since an entry has no field of its own for it, and it
         # was dropped
@@ -771,11 +852,14 @@ def _parse_education(text: str) -> list[Education]:
                 desc_parts[-1] += " " + stripped
         # "Honors:" wrapped onto a course list's last line starts its own line
         desc_parts = [part for d in desc_parts for part in _EDUCATION_LABEL_RE.split(d)]
+        # A major's GPA from anywhere in the entry is a line of its own
+        desc_parts += [line for _, line in gpas
+                       if line and not any(line.casefold() in " ".join(d.split()).casefold() for d in desc_parts)]
         desc = "\n".join(re.sub(r'\s{2,}', ' ', d) for d in desc_parts) if desc_parts else None
 
         results.append(Education(
             institution=inst, degree=degree, field_of_study=field, location=location,
-            gpa=gpa, gpa_scale=gpa_scale, start_date=start, end_date=end, description=desc,
+            gpa=gpa, gpa_scale=gpa_scale, start_date=start, end_date=end, year_only=years, description=desc,
         ))
     return results
 
@@ -800,6 +884,7 @@ def _parse_experience(text: str) -> list[Experience]:
 
         date_line = lines[date_idx]
         start, end = _parse_date_range(date_line)
+        years = _years_only(date_line)
 
         # Detect layout: if the line AFTER the date has a role keyword,
         # then date_line = company, next line = title + location.
@@ -878,7 +963,7 @@ def _parse_experience(text: str) -> list[Experience]:
 
         results.append(Experience(
             company_name=company, title=title, location=location,
-            start_date=start, end_date=end, description=desc, technologies=technologies,
+            start_date=start, end_date=end, year_only=years, description=desc, technologies=technologies,
         ))
     return results
 
@@ -958,6 +1043,7 @@ def _parse_projects(text: str) -> list[Project]:
         # First line has project name + optional tech parens + date
         first = lines[0]
         start, end = _parse_date_range(first)
+        years = _years_only(first)
         name = BARE_DATE_RE.sub("", DATE_RANGE_RE.sub("", first)).strip().rstrip(",").rstrip("–—-").strip()
         technologies: list[str] = []
         name, technologies = split_tools(name)
@@ -991,7 +1077,7 @@ def _parse_projects(text: str) -> list[Project]:
 
         results.append(Project(
             project_name=name, url=url, technologies=technologies,
-            start_date=start, end_date=end, description=desc,
+            start_date=start, end_date=end, year_only=years, description=desc,
         ))
     return results
 
@@ -1030,13 +1116,15 @@ def _parse_publications(text: str) -> list[Project]:
         url_m = URL_RE.search(item)
         name = URL_RE.sub("", item).strip().rstrip(",").strip()
         _, when = _parse_date_range(name)
+        years = [y for y in _years_only(name) if y == "end_date"]
         year = CITATION_YEAR_RE.search(name)
         if when is None and year:
-            when = date(int(year.group(1)), 1, 1)
+            when, years = date(int(year.group(1)), 1, 1), ["end_date"]
         # "Paper, Venue  May 2025": the month is the end, not the name
         name = _strip_dates(name) or name
         if name:
-            results.append(Project(project_name=name, url=url_m.group(0) if url_m else None, end_date=when))
+            results.append(Project(project_name=name, url=url_m.group(0) if url_m else None, end_date=when,
+                                   year_only=years))
     return results
 
 
@@ -1070,15 +1158,17 @@ def _parse_awards(text: str) -> list[Award]:
         if not line:
             continue
         _, when = _parse_date_range(line)
+        years = ["date"] if "end_date" in _years_only(line) else []
         rest = _strip_dates(line)
         year = YEAR_ONLY_RE.search(rest)
         if when is None and year:
-            when = date(int(year.group(1)), 1, 1)
+            when, years = date(int(year.group(1)), 1, 1), ["date"]
         if year:
             rest = rest[:year.start()].strip().rstrip(",|–—-").strip()
         parts = [p.strip() for p in re.split(r'\s*[|–—]\s*|\s+-\s+', rest, maxsplit=1)]
         if parts[0]:
-            results.append(Award(title=parts[0], issuer=parts[1] if len(parts) > 1 and parts[1] else None, date=when))
+            results.append(Award(title=parts[0], issuer=parts[1] if len(parts) > 1 and parts[1] else None, date=when,
+                                 year_only=years))
     return results
 
 

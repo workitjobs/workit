@@ -176,6 +176,19 @@ def _model_down():
 
 
 @pytest.fixture(autouse=True)
+def _storage_down(monkeypatch):
+    """Import Again reads the upload's file again from Storage (KAN-809). A
+    test reaches no bucket: Storage fails, so Import Again reads the stored
+    text, as it does when Storage is down, and never the bucket the root
+    `.env` names. A test that wants a file patches
+    `app.routers.bank.get_supabase` itself."""
+    def down():
+        raise RuntimeError("Storage is not reached from tests")
+
+    monkeypatch.setattr("app.routers.bank.get_supabase", down)
+
+
+@pytest.fixture(autouse=True)
 def _researched(request, monkeypatch):
     """Every company counts as researched, so a test about something else
     gets its application without saving a brief first. Tests marked

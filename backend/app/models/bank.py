@@ -81,7 +81,13 @@ class Bank_Entry(BaseModel):
     or re-reading the upload deletes its entries. Null: the student made it.
     '''
     __tablename__ = "bank_entries"
-    __table_args__ = (Index("bank_entries_applicant_resume_idx", "applicant_id", "resume_id"),)
+    __table_args__ = (
+        Index("bank_entries_applicant_resume_idx", "applicant_id", "resume_id"),
+        CheckConstraint(
+            "year_only <@ ARRAY['start_month', 'end_month', 'award_date']::text[]",
+            name="bank_entries_year_only_check",
+        ),
+    )
 
     id: Mapped[_uuid.UUID] = mapped_column(
         primary_key=True, default=_uuid.uuid4, server_default=text("gen_random_uuid()"))
@@ -112,6 +118,9 @@ class Bank_Entry(BaseModel):
     # The project's stack as the resume names it ("Next.js, TypeScript"),
     # printed on its own line under the heading (KAN-738). Also skills.
     tools: Mapped[list[str]] = mapped_column(ARRAY(Text), server_default=text("'{}'"))
+    # Which dates name a year alone (KAN-808): "start_month", "end_month",
+    # "award_date". The date is January of that year, which prints as the year
+    year_only: Mapped[list[str]] = mapped_column(ARRAY(Text), server_default=text("'{}'"))
     # Certifications
     issuer: Mapped[str | None]
     # Awards

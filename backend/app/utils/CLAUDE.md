@@ -291,6 +291,11 @@ would read "Marketing - May 2026" as a range.
 
 ### Education fields
 
+- **A degree said only by its level is no degree name** (`is_degree_level`:
+  "Bachelor's", "a master's degree", "Doctorate"). It names no subject, so
+  the Apply import leaves such a degree empty and intake asks once which
+  one it is: "Bachelor's" alone printed as the degree on generated
+  resumes (KAN-812).
 - The degree keeps its full name ("Bachelor of Science", not "Bachelor"),
   up to three capitalized words after "of" ("Bachelor of Computer Science",
   "Associate of Arts"), and an abbreviation keeps its last period ("B.S.").
@@ -309,6 +314,17 @@ would read "Marketing - May 2026" as a range.
 - **A specialization follows the major** as a minor does (`SPECIALIZATION_RE`:
   Specialization, Concentration or Emphasis, "in" or ":"): "Computer
   Science, specialization in Artificial Intelligence".
+- **Honors written after the major stay in it** (`DEGREE_HONOR_RE`):
+  "Computer Science, Honors", "Biology, magna cum laude". The comma ended
+  the field, and they were dropped (KAN-813). "Honors:" starts a label
+  line instead, never part of the major.
+- **The GPA is the cumulative one** (`gpa_matches`): a major's GPA ("Major
+  GPA: 3.95/4.00", "GPA: 3.95/4.00 (Major)") stays a line of its own, as
+  written, and never fills the GPA, which a form's "GPA" asks for. The
+  first GPA found filled it until KAN-813, so "Major GPA: 3.95 | Cumulative
+  GPA: 3.72" saved 3.95. The import drops a line of GPAs from the bullets,
+  since the GPA prints from its field, but keeps any major GPA on it
+  (`bank_import._gpa_kept`).
 - **The school's place comes off its name** (`Education.location`, saved as
   the entry's `location`): after a gap, or as its own "|" field. It stayed
   in the name ("Stony Brook University Stony Brook, NY") or was lost.
@@ -466,7 +482,12 @@ Rules:
   are on most resumes) and "BS" for "B.S."; dropped, the parser's reading
   fills it (2026-11-12 audit). **A minor in a phrase of its own stays as
   written** ("with a Minor in", "(Minor in", "Double Minor"): joined, it
-  read "with a, minor in". An organization that only repeats
+  read "with a, minor in". **"Expected" is a school's word**: any other
+  entry keeps it only where the resume writes Expected before that date
+  (`_says_expected`), since "Expected Aug 2025" printed on a finished
+  internship. A degree's honors the model put in `honors` ("magna cum
+  laude") go after the major, and a GPA the text shows only as a major's
+  is dropped so the parser's cumulative one fills it (KAN-813). An organization that only repeats
   the title is left out, as this parser leaves it out: the model sometimes
   sent the school as its own organization (a real resume, 2026-11-09).
 - **It never sees links or the contact block.** URLs reach the model as
@@ -493,6 +514,11 @@ Rules:
     `"2022"`, which is no `YYYY-MM`, so the entry lost its dates; an award
     dated "2024" lost itself, since `_valid`'s undated retry left
     `award_date` in place. Both now read as this parser reads them.
+    **And it is marked** (KAN-808): the entry's `year_only` names each
+    date given as a year alone, from this parser (`_years_only`, the
+    DTOs' `year_only`) and from the model (`model_drafts`), and keeps
+    its mark when the merge fills it (`_fill_blanks`), so it prints as
+    the year, not "Jan.".
   - **The two readings are combined, entry by entry**
     (`with_parsers_reading`). Both run on every upload, and the model's
     reading is the base: it reads layouts this parser has no rule for.
@@ -501,6 +527,14 @@ Rules:
     shared, three in four of the shorter one's, in any section, since the
     two file a Resident Assistant differently; "Sales Associate, Target"
     and "Sales Associate, Walmart" share one word and stay two jobs).
+    **A twin is the same kind of entry and the same role** (KAN-805): a
+    role (experience, leadership, project) never twins a school or an
+    award (`_KINDS`), and one side's title words, its organization's
+    aside, must be three in four in the other's name (`_one_role`;
+    "Engineer" counts for "Engineering"). A TA job twinned the school it
+    shared three name words with, and "Teaching Assistant" twinned the
+    model's "Research Assistant" at one university, so the job was lost
+    and its bullets joined the other entry.
     - **No twin: the entry is added whole.** The model left out both papers
       under "Publications"; the prompt names where a paper goes too.
     - **A twin: the parser fills only its empty fields** (`_fill_blanks`):
@@ -510,7 +544,11 @@ Rules:
       four of its words), except a line that only lists tools and one that
       repeats an entry's name (this parser saved a project's "Stony Brook
       University" line as its bullet; the model read it as the
-      organization). **The
+      organization), or its name and place with dates aside (`_is_header`:
+      the next job's "Acme Robotics  Boston, MA  June 2024 – Aug 2024"
+      joined the job above, KAN-805). A word the PDF broke at a line's end
+      ("De- signed") reads as one (`_BROKEN_RE`), or the bullet printed
+      twice beside the model's "Designed". **The
       model's value wins wherever both have one**, and the title and
       organization are never filled: on a layout this parser misreads, they
       are where its mistakes are, so it must not judge the model there.

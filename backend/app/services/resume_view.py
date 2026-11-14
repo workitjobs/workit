@@ -149,6 +149,8 @@ class ViewEntry:
     tools: tuple[str, ...] = ()  # a project's stack (KAN-738)
     issuer: str | None = None
     award_date: datetime.date | None = None
+    # The dates given as a year alone (KAN-808), printed as the year
+    year_only: tuple[str, ...] = ()
     bullets: tuple[ViewBullet, ...] = ()
 
 
@@ -167,6 +169,43 @@ class ViewSkill:
     id: uuid.UUID
     name: str
     group: str | None = None
+
+
+_GROUP_SMALL = frozenset({"a", "an", "and", "for", "in", "of", "on", "or", "the", "to", "with", "&"})
+
+
+def group_key(name: str | None) -> str:
+    '''Which printed group a skill's group name is: case, spacing and "&"
+    for "and" aside, and "Other" is the skills with no group, which print
+    as "Other" beside named groups (KAN-810). "Frameworks" and "frameworks",
+    "Tools & Platforms" and "tools and platforms" printed as two lines, and
+    an upload's lowercase "other" group beside the real "Other". The
+    editor's outline has the same rule (`groupKey` in the editor's
+    model.ts); change both together.'''
+    key = " ".join((name or "").lower().replace("&", " and ").split())
+    return "" if key == "other" else key
+
+
+def group_label(names: Iterable[str | None]) -> str | None:
+    '''A printed group's name: the first of its names with a capital letter
+    ("Frameworks" over "frameworks"), else the first in title case, small
+    words aside; None for the skills with no group (`groupLabel`).'''
+    named = [n for n in names if n and group_key(n)]
+    if not named:
+        return None
+    if cased := next((n for n in named if n != n.lower()), None):
+        return " ".join(cased.split())
+    words = named[0].split()
+    return " ".join(w if i and w in _GROUP_SMALL else w[:1].upper() + w[1:] for i, w in enumerate(words))
+
+
+def grouped_skills(skills: Iterable[ViewSkill]) -> list[tuple[str | None, list[ViewSkill]]]:
+    '''The skills by printed group, each group where its first skill
+    prints: (its label, its skills), None for those with no group.'''
+    groups: dict[str, list[ViewSkill]] = {}
+    for skill in skills:
+        groups.setdefault(group_key(skill.group), []).append(skill)
+    return [(group_label(s.group for s in members) if key else None, members) for key, members in groups.items()]
 
 
 @dataclass(frozen=True)
@@ -249,6 +288,8 @@ def build_view(bank: Any, choices: Choices) -> ResumeView:
                 tools=tuple(row.tools or ()),
                 issuer=row.issuer,
                 award_date=row.award_date,
+                # A row from before the column, or a test's, reads as none
+                year_only=tuple(getattr(row, "year_only", None) or ()),
                 bullets=tuple(_bullet(b, choices.bullets[b.id].text) for b in bullets),
             ))
         if entries:
@@ -291,8 +332,9 @@ def view_from_json(data: Mapping[str, Any]) -> ResumeView:
             **{k: datetime.date.fromisoformat(e[k]) if e[k] else None for k in _DATES},
             **{k: Decimal(e[k]) if e[k] is not None else None for k in _DECIMALS},
             "coursework": tuple(e["coursework"]),
-            # A snapshot kept before KAN-738 has no "tools"
+            # A snapshot kept before KAN-738 has no "tools", one before KAN-808 no "year_only"
             "tools": tuple(e.get("tools", ())),
+            "year_only": tuple(e.get("year_only", ())),
             # A snapshot kept before KAN-435 has no "marked"
             "bullets": tuple(ViewBullet(uuid.UUID(b["id"]), b["text"], b.get("marked")) for b in e["bullets"]),
         })
@@ -333,7 +375,7 @@ def view_from_reading(entries: Iterable[Any], skills: Iterable[tuple[str, str | 
             gpa=None if d.gpa is None else Decimal(str(d.gpa)),
             gpa_scale=None if d.gpa_scale is None else Decimal(str(d.gpa_scale)),
             coursework=tuple(d.coursework), honors=d.honors, link=d.link, tools=tuple(d.tools), issuer=d.issuer,
-            award_date=d.award_date,
+            award_date=d.award_date, year_only=tuple(d.year_only),
             bullets=tuple(ViewBullet(next(ids), text) for text in d.bullets),
         ))
     return ResumeView(

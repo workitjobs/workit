@@ -1,12 +1,13 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import type { BankEntry } from "@/lib/bank-actions";
+import type { BankEntry, EntryFields } from "@/lib/bank-actions";
 
 import {
   changesOf,
   draftOf,
   emptyDraft,
+  formatDates,
   holdsTools,
   isFixed,
   rowGaps,
@@ -155,4 +156,23 @@ test("a row's gaps are badge labels: dates, organization and bullets", () => {
   // An empty bullet box is no bullet
   const project = { ...emptyDraft("projects"), title: "Robot", bullets: [{ text: " " }] };
   assert.deepEqual(rowGaps(project), ["Bullets"]);
+});
+
+test("a date given as a year alone shows as the year (KAN-808)", () => {
+  const school = {
+    section: "education",
+    start_month: "2019-01",
+    end_month: "2023-01",
+    end_kind: "month",
+    year_only: ["start_month", "end_month"],
+  } as EntryFields;
+  assert.equal(formatDates(school), "2019 – 2023");
+  assert.equal(formatDates({ ...school, year_only: ["end_month"] }), "Jan 2019 – 2023");
+  assert.equal(formatDates({ ...school, year_only: undefined }), "Jan 2019 – Jan 2023");
+  const award = {
+    section: "awards",
+    award_date: "2024-01",
+    year_only: ["award_date"],
+  } as EntryFields;
+  assert.equal(formatDates(award), "2024");
 });
