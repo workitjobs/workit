@@ -161,7 +161,8 @@ test("two companies' Create Account at once each keep the login their account wa
     const tabs = await chrome.tabs.query({ url: "https://*/__fake__/signin*" });
     await Promise.all(tabs.map(async ({ id }) => {
       // The page's job system, named as injectFill names it.
-      await chrome.scripting.executeScript({ target: { tabId: id! }, func: () => void ((window as any).WIA = { jobSystem: "workday" }) });
+      // The job system's data, as injectFill gives it (giveSiteData).
+      await chrome.scripting.executeScript({ target: { tabId: id! }, func: (siteData) => void ((window as any).WIA = { jobSystem: "workday", siteData }), args: [{ site: "workday", data: (globalThis as any).FillEngine.siteRules("workday") }] });
       await chrome.scripting.executeScript({ target: { tabId: id! }, world: "MAIN", files: engine });
       void chrome.scripting.executeScript({ target: { tabId: id! }, files: scripts });
     }));
