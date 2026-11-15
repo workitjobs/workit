@@ -365,10 +365,9 @@ is what makes it worth more.
 than `_REPOST_DAYS` (7) after `first_seen_at`. The employer refreshed the
 listing at the same URL, bumping its date forward. Both timestamps already
 live on every `Job`; no new stored field is needed. The flag rides on `Role`,
-through `feed.row` into `feed.json` for offline inspection. The database's
-`job_postings.repost` (migration `a1b2c3d4e5f6`) is computed by `import_feed`
-from the database's own `posted_at` and `created_at`, not from the feed's
-value, so both the CLI scraper and the backend worker get correct results.
+through `feed.row` into `feed.json` for offline inspection. The database
+stores no repost column; a consumer computes it from `posted_at` and
+`created_at` on the row.
 
 ## "New today" lives in `store.py`
 

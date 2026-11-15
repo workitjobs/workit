@@ -92,7 +92,6 @@ from sqlalchemy import (
     literal_column,
     or_,
     select,
-    text,
     tuple_,
     update,
     values,
@@ -150,9 +149,6 @@ RETRY_WAIT_S = 10
 # closes, and a missing reason is what this column is for finding.
 CLOSED_REASONS = frozenset({"gone_from_board", "board_gone", "filtered_out", "replaced"})
 UNKNOWN = "unknown"
-# A job whose posted_at is more than this many days after first_seen_at is a
-# repost: the employer refreshed a listing WorkIt has known much longer.
-_REPOST_DAYS = 7
 
 
 class ImportRefused(Exception):
@@ -364,21 +360,6 @@ async def _upsert(conn: AsyncConnection, rows: list[dict], report: Report) -> No
             else:
                 report.updated += 1
     report.unchanged = len(rows) - report.inserted - report.updated
-
-
-async def _stamp_reposts(conn: AsyncConnection, urls: list[str]) -> None:
-    """Set repost from the database's own dates.  A job whose posted_at is
-    more than _REPOST_DAYS after created_at is a repost: the employer
-    refreshed a listing WorkIt has known much longer."""
-    await conn.execute(text("""
-        UPDATE job_postings
-        SET repost = CASE
-            WHEN posted_at IS NOT NULL
-                 AND (posted_at::date - created_at::date) > :days
-            THEN true ELSE false END
-        WHERE apply_url = ANY(:urls)
-          AND company_id IS NULL
-    """), {"urls": urls, "days": _REPOST_DAYS})
 
 
 async def _take_over_added(conn: AsyncConnection, urls: list[str], report: Report) -> None:
@@ -600,7 +581,6 @@ async def import_feed(
     )
     await _take_over_added(conn, list(prepared.places), report)
     await _upsert(conn, prepared.rows, report)
-    await _stamp_reposts(conn, [r["apply_url"] for r in prepared.rows])
     ids = await _scraped_ids(conn, list(prepared.places))
     await _sync_locations(conn, prepared.places, ids, report)
     await _sync_roles(conn, prepared.role_tags, ids, report)

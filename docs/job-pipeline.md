@@ -58,7 +58,7 @@ separate `import_jobs.py` run loads it, while the **backend worker**
 (`backend/app/scraper/worker.py`) reads boards as a library and calls
 `import_feed` directly, with no feed file. Both paths converge at
 `import_feed` (`backend/app/scripts/import_jobs.py`), which owns the upsert,
-location resolution, role tagging and repost detection. The CLI path is
+location resolution and role tagging. The CLI path is
 simpler and useful for development and offline testing; the worker is the
 production path with per-board checkpoint resilience (section 3.3).
 
@@ -330,14 +330,12 @@ transaction**: if any step fails, nothing changes.
 | 5. Role tags | Each title is matched against the `job_roles` list (section 5.3) and the job posting's `job_role_tags` rows are brought in line. The report lists titles that matched no role |
 | 6. Close | Job postings no longer in the feed are marked closed, with the reason the scraper gives in `closings.json` (gone from its company job board, the board gone, no longer kept by the shortlist, or replaced by another copy), else "unknown"; one that comes back reopens. A job a student added from its form (KAN-515, `added_by_student`) is never closed, since the feed never had it; a feed that lists its link makes it an ordinary scraped job, keeping its applications. A student can't reopen a closed job by adding its form: that link is refused. Apply's tracking (`track_only`) puts the student's application on the closed job and leaves it closed |
 
-**Repost detection.** After the upsert, the import marks a job as a repost
-when its `posted_at` is more than 7 days after its `created_at`: the
-employer refreshed a listing WorkIt has known much longer. A genuinely new
-job has both dates within hours. The 7-day gap (`_REPOST_DAYS` in
-`import_jobs.py`) absorbs timezone and back-dating quirks. The database
-computes repost from its own dates, so both the CLI scraper and the backend
-worker get correct results. The scraper's feed.json carries its own `repost`
-boolean for offline inspection; the database's value does not come from it.
+**Repost detection.** The scraper's feed.json carries a `repost` boolean
+for offline inspection: a job whose `posted_at` is more than 7 days after
+its `first_seen_at` (`_REPOST_DAYS` in `shortlist.py`). The database stores
+no repost column; a consumer that needs it computes
+`posted_at::date - created_at::date > 7` from the two dates already on the
+row.
 
 **Safety net:** the import refuses to close more than half the job postings at
 once and rolls back. A broken scrape fails loudly instead of emptying the site.
