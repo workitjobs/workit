@@ -46,7 +46,12 @@ a posting out.
 Each board publishes independently right after it is scraped
 (`_checkpoint_board`): import_feed, update sources, advance reads and mark
 done in one commit per board, so fast boards checkpoint without waiting for
-slow ones and only one board's payload is in memory at a time. A failed
+slow ones and only one board's payload is in memory at a time. **Phase 4
+runs `BOARD_WORKERS` (4) concurrent asyncio tasks** (KAN-857): each opens
+its own `AsyncConnection` from the engine, runs the same claim-read-publish
+loop, and exits when `claim_task` returns None. `SKIP LOCKED` in
+`claim_task` ensures no two workers claim the same task. `--workers N`
+overrides the default. A failed
 checkpoint logs and continues: one board's failure never stops the rest or
 skips closure detection. Source tracking (`update_sources`) records every URL
 the board listed (with its `external_id`), not just the shortlisted ones
@@ -111,7 +116,7 @@ uv run python -m app.scripts.rules_anomalies [--days 7]  accounts whose Rules ta
 uv run python -m app.scripts.import_apply_profile <applicant_id> [<apply_dir>]  a student's Apply data folder ($APPLY_HOME, else ~/.config/apply) into WorkIt (--dry-run rolls back; local DB only; app/models/CLAUDE.md, "The Fill engine's profile")
 uv run python -m app.scripts.label_resume_headings  label data/resume_heading_candidates.txt's resume headings once with Groq into app/utils/learned_headings.json (--dry-run lists them; review the diff; app/utils/CLAUDE.md, Learned headings)
 uv run python -m app.scripts.purge_old_data  delete rows past app/services/retention.py's periods, KAN-482 (--dry-run counts, deletes nothing; daily in CI)
-uv run python -m app.scripts.scrape_worker   one scraper worker cycle: sync catalog, claim boards, scrape, checkpoint (--dry-run shows what it would do; --full bypasses quiet board stagger and fingerprint rest)
+uv run python -m app.scripts.scrape_worker   one scraper worker cycle: sync catalog, claim boards, scrape, checkpoint (--dry-run shows what it would do; --full bypasses quiet board stagger and fingerprint rest; --workers N overrides the 4 parallel board workers)
 uv run python -m app.scripts.embed_banks     the bank job, KAN-726: listen and embed stale banks until stopped (--once sweeps once); the team computer only, with EMBEDDING_PROVIDER=ollama (app/services/matching/CLAUDE.md); it runs from its own checkout there, so a merge reaches it only after "After a merge to main" in docs/scraper_gh_action/plan.md
 python3 scripts/fetch_tectonic.py              Tectonic + warm cache into vendor/ (resume PDFs; once per checkout)
 ```
