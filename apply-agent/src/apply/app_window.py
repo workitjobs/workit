@@ -249,15 +249,17 @@ USAGE = """<div style="position: fixed; top: 0.4rem; right: 0.8rem; z-index: 20;
   read(); setInterval(read, 60000);
 })();</script>""".replace("{ready}", READY_JS)
 
-# With no run going: the queue, a pasted link, Start (Bridge.queue, Bridge.start).
-PANEL = """<section id="run" style="max-width: 46rem; margin: 2.6rem auto 1rem; display: flex; flex-direction: column;
+# With no run going: the queue, a pasted link, Start (Bridge.queue, Bridge.start). Every id starts "queue-": the
+# Apply window's page has its own Start (#start, the together run's), and its state poll hid this one when it was
+# #start too.
+PANEL = """<section id="queue-panel" style="max-width: 46rem; margin: 2.6rem auto 1rem; display: flex; flex-direction: column;
   gap: 0.6rem">
 <h2>Your Auto Apply Queue</h2>
 <p id="queue-said">Reading your queue on WorkIt…</p>
 <ul id="queue" style="list-style: none; padding: 0; margin: 0"></ul>
-<label>Or paste a job posting's link <input id="pasted" autocomplete="off" spellcheck="false" style="width: 100%"></label>
-<div><button class="primary" id="start">Start</button></div>
-<p id="run-said" role="alert"></p>
+<label>Or paste a job posting's link <input id="queue-pasted" autocomplete="off" spellcheck="false" style="width: 100%"></label>
+<div><button class="primary" id="queue-start">Start</button></div>
+<p id="queue-run-said" role="alert"></p>
 </section>
 <script>(async () => {
   {ready}
@@ -276,13 +278,13 @@ PANEL = """<section id="run" style="max-width: 46rem; margin: 2.6rem auto 1rem; 
     }
   }
   const status = await api.status();
-  if (status.said) document.getElementById('run-said').textContent = status.said;
-  document.getElementById('start').addEventListener('click', async () => {
+  if (status.said) document.getElementById('queue-run-said').textContent = status.said;
+  document.getElementById('queue-start').addEventListener('click', async () => {
     const links = [...list.querySelectorAll('input:checked')].map(box => box.value);
-    const pasted = document.getElementById('pasted').value.trim();
+    const pasted = document.getElementById('queue-pasted').value.trim();
     if (pasted) links.push(pasted);
     const got = await api.start(links);
-    document.getElementById('run-said').textContent = got.error || 'Starting the Workers…';
+    document.getElementById('queue-run-said').textContent = got.error || 'Starting the Workers…';
   });
 })();</script>""".replace("{ready}", READY_JS)
 
