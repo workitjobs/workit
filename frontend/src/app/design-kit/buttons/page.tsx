@@ -300,7 +300,7 @@ export default function ButtonsPage() {
 
       <Group
         title="Before a Delete"
-        note="Every question asked before a delete answers with one pair, whatever its shape: a dialog (DeleteDialog), a popover (DeleteResumeConfirm), a bar across a dialog's foot (ConfirmBar), a line under the thing (DeleteConfirm) or Settings' Delete Account. Keep It comes first and the red button last, so the safe answer is always on the left and takes a dialog's first focus. The way out always says Keep It; the red button names what it does to what. Discard Your Changes? alone says Keep Editing."
+        note="Every question asked before a delete answers with one pair, whatever its shape: a dialog (DeleteDialog), a popover (DeleteResumeConfirm), a bar across a dialog's foot (ConfirmBar) or Settings' Delete Account. Keep It comes first and the red button last, so the safe answer is always on the left and takes a dialog's first focus. The way out always says Keep It; the red button names what it does to what. Discard Your Changes? alone says Keep Editing."
       >
         <Row
           name="<ConfirmButtons>"
@@ -308,7 +308,7 @@ export default function ButtonsPage() {
         >
           <ConfirmSpecimen act="Delete Resumes" />
         </Row>
-        <Row name={'<ConfirmButtons size="sm">'} role="In a popover or on a line under the thing">
+        <Row name={'<ConfirmButtons size="sm">'} role="In a popover">
           <ConfirmSpecimen size="sm" act="Delete Resume" />
         </Row>
         <Row name={'<ConfirmButtons keep="Keep Editing">'} role="Discard Your Changes? only">

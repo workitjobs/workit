@@ -515,14 +515,19 @@ A secondary button with the sidebar's Zap glyph. A click queues
 the job posting through the API (`POST /applicants/{id}/applications`, the
 server action `queueJob`), and the button turns to the stage it answers
 (Queued; or Skipped, Needs You, Applied for a job that already had an
-application). Queued is a toggle (`aria-pressed`): a second click takes the
-job out of the queue (`DELETE .../applications/{job_id}`, `dequeueJob`) and
-the button reads Auto Apply again. The other stages are off: they record what
-happened, so the button never undoes them. A new queueing raises a toast
+application). Queued is a toggle (`aria-pressed`): a second click is Remove
+From Queue, the action's one name (its hover, and the combined Apply
+button's menu row): it takes the job out of the queue (`DELETE
+.../applications/{job_id}`, `dequeueJob`) and the button reads Auto Apply
+again. The other stages are off: they record what happened, so the button
+never undoes them. A new queueing raises a toast
 (`components/ui/toast.tsx`), "<title> from <company> is queued for Auto
 Apply.", with Undo, which takes the job out again (`dequeueJob`) and turns
-the button back to Auto Apply: Live Activity's cross and Undo, the other way
-round. A failed Undo says so in a toast and leaves the button Queued.
+the button back to Auto Apply. A removal raises "<title> from <company> is
+removed from the queue.", as Up Next's Remove does, with Undo, which queues
+it again at the queue's end and turns the button back to Queued (KAN-818;
+it left no toast and no Undo until then). A failed Undo says so in a toast
+and leaves the button as it was.
 A click that leaves the job queued then runs Start Auto Apply's pipeline
 without the matching: it starts batch apply, or tops up the batch running
 (`openNextApplication`, KAN-370): the extension opens the queued jobs in
@@ -1554,15 +1559,17 @@ The link holds only that fixed text (`src/lib/claude-connector.ts`).
 stage, newest application first: the question, the answer as sent and,
 when the student's Claude named one, its **Named fact**, the company brief
 fact the answer uses, linked to the page that states it, so the student can
-read up on it before an interview. Every answer has a muted **Delete**
-under it (KAN-369): the student's own (a Looks right or Save for next time
-in a batch tab), one saved here with Check and Save, and their Claude's;
-not own limits reuse, not removal. It asks first on that line ("Delete
-this answer? Later forms won't fill it.", Keep It and the red Delete
-Answer, as on Resumes), then calls `DELETE
-.../applications/{job_id}/answers?name=&own_only=false` and refreshes the
-list; a question an open tab still asks shows above again, unanswered. A
-failed delete keeps the answer and says why in red under it. The list is left out when nothing is answered or it doesn't load.
+read up on it before an interview. Every answer has a muted **Remove**
+under it (KAN-369, KAN-818): the student's own (a Looks right or Save for
+next time in a batch tab), one saved here with Check and Save, and their
+Claude's; not own limits reuse, not removal. It takes the answer off the
+list at once and says "Your answer is removed. Later forms won't fill it."
+in a toast with Undo, as Writing Samples and the Transcript do. The
+`DELETE .../applications/{job_id}/answers?name=&own_only=false` goes only
+when the toast closes without Undo, then the list refreshes; a question an
+open tab still asks shows above again, unanswered. A failed delete shows
+the answer again and says why in a toast. It said Delete and asked first
+on that line until KAN-818. The list is left out when nothing is answered or it doesn't load.
 
 **New** (KAN-369): an answer the student typed into a batch tab's form is
 saved as they type, and the tab's panel says "Saved N new answers" with
@@ -1735,7 +1742,9 @@ page with one action.
   cell, which follows the row's hover group, once tinted alone.
 - **The ⋯ menu is the same three items on every row**:
   Change Resume, I Already Applied and Remove From Queue. Going to a tab
-  is the status's, so it is not in the menu. **Remove works on every row**:
+  is the status's, so it is not in the menu. **I Already Applied opens
+  Did You Apply?** (KAN-818), as a job's ⋯ does, and both menus draw the
+  menu's own rows with ink glyphs. **Remove works on every row**:
   a tab open on it closes first (`run/close`); a queued job leaves the
   queue with Undo in its toast; a started one with its tab closed, which the queue's
   DELETE refuses, is skipped (`skipJob`), with no Undo. Remove was offered
@@ -1843,11 +1852,13 @@ one client step over the server's rows), in flight.
   in the narrow Actions column, worded: **Go to Its Tab** (the row open in
   a batch tab, `showRunTab`), **I Already Applied** (every row not applied
   or skipped: an application the student sent that the extension's submit
-  detection missed; `markSubmitted`, POST `.../applications/{job_id}/finish`,
-  dated now, then a refresh and the toast "<role> is marked Applied.") and
+  detection missed. It opens Did You Apply? (`ApplyDialog`), as a job's ⋯
+  does, which asks which resume went; Yes marks the job applied with it
+  (`POST /jobs/{id}/applied`) and the refresh drops the row. It marked the
+  job at once, with no resume and no Undo, until KAN-818) and
   **Remove From Queue** (a queued row only, last and in the danger colour:
   it takes the job out of the queue and refreshes; the toast "<role> from
-  <company> is removed from Auto Apply." has Undo, which queues it again,
+  <company> is removed from the queue." has Undo, which queues it again,
   at the bottom, since the queue orders by when a job was queued). A
   failure of any of them is a toast. Until KAN-424 these were bare icon
   buttons side by side, a briefcase for "I submitted this" and a cross for
@@ -1904,7 +1915,9 @@ now; a link to the Calendar from that page is not built.
 
 **The Calendar** (`(seeker)/calendar/`) shows every application's dates
 (KAN-429): the student's own **Apply By** for a job not applied to yet
-(`job_applications.apply_by`, set under Your Application on its page), the
+(`job_applications.apply_by`, set under Your Application on its page; it
+saves on a pick and says so in a toast whose Undo puts the day before
+back, KAN-818), the
 posting's **Closes** date where it publishes one (`closes_at`: company
 jobs; most scraped postings have none), **Applied**, and the tracker's
 events, **Assessment** (its own kind now, not folded into a deadline),
@@ -2404,7 +2417,9 @@ lists every cover letter WorkIt wrote as a written answer, in the
 Resumes table's card, headings and column widths: Job (logo, role over
 company), Status (the stage badge), Date Written and Copy, under a search
 over the job and the text. A row opens the letter read-only in a dialog
-with Copy and Open Application. With none it says "No Cover Letters
+with Copy and Open Application. Both Copies say "Cover letter copied." in
+a toast, as a job's Share does (KAN-818); the row's said it in its
+tooltip and the dialog's in a line by its buttons. With none it says "No Cover Letters
 Yet". Uploads, the letter each application sent and writing one in
 WorkIt wait on the design's review.
 
@@ -4459,7 +4474,8 @@ not it scrolls.
 
 - **Personal Details** (`/settings/personal`): the photo (Change Photo,
   Remove Photo; it saves on pick, shows the file at once and rolls back if
-  the upload fails), First Name, Middle Name (optional; signup no longer
+  the upload fails; Remove takes the photo off at once with Undo in its
+  toast and sends the DELETE once the toast closes, KAN-818), First Name, Middle Name (optional; signup no longer
   asks it, KAN-372) and Last Name, and Headline, with Save and Discard. Save sends only
   what changed; the API joins the parts into the full name every other
   screen prints (`backend/app/models/CLAUDE.md`, Names). These are edited

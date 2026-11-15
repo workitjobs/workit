@@ -15,50 +15,13 @@ import { ConfirmButtons } from "@/components/ui/confirm-buttons";
 import { Tip } from "@/components/ui/tip";
 
 /**
- * A delete's question on a line under what it deletes: what goes and what
- * stays, then Keep It and the red Delete (`ConfirmButtons`, KAN-817, the
- * pair every delete's question draws). The answer bank's Delete asks here
- * (`auto-apply/answers/delete-answer.tsx`). The bank's entries and Clear All
- * asked here too, until KAN-732 moved them into `DeleteDialog`, below. A
- * resume asks in `DeleteResumeConfirm`, below, with the same words and
- * buttons.
- *
- * The two buttons wrap as one group: wrapped one by one, one sat alone on a
- * line under the other. `busy` holds both while the request runs, so a
- * second press cannot send a second delete.
- */
-export function DeleteConfirm({
-  label,
-  busy = false,
-  onDelete,
-  onKeep,
-  children,
-}: {
-  /** The red button's words, "Delete Resume". */
-  label: string;
-  busy?: boolean;
-  onDelete: () => void;
-  onKeep: () => void;
-  /** The question: what goes, and what stays. */
-  children: ReactNode;
-}) {
-  return (
-    <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2">
-      <span className="text-note text-ink-muted">{children}</span>
-      <ConfirmButtons size="sm" act={label} busy={busy} onKeep={onKeep} onAct={onDelete} />
-    </div>
-  );
-}
-
-/**
  * A delete's question in a modal (KAN-732): on Experiences, Skills' Clear
  * All and a Lines section's Delete Section, which sit on the page. Delete
  * Entry, a section's Clear All and an Entries section's Delete Section ask
  * across their dialog's foot since KAN-740 (`ConfirmBar` in
  * `experiences/entry-dialog.tsx`), since a modal over a dialog is a dialog
  * over a dialog. Delete Entry asked on a line under the inline editor
- * (`DeleteConfirm`) before KAN-732, which a long editor opened out of
- * view, which took no focus and which a screen reader never heard. Drawn as
+ * before KAN-732, which a long editor opened out of view, which took no focus and which a screen reader never heard. Drawn as
  * the app's other questions are (`company/jobs/close-job-dialog.tsx`): the
  * question names what goes, the line under it what goes with it and what
  * stays, then Keep It and the red button (`ConfirmButtons`).

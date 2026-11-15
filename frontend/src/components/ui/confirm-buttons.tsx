@@ -9,9 +9,10 @@ import { Button } from "./button";
  * It** first, the red button last, in every shape the question takes. A
  * dialog's footer (`DeleteDialog`, the Tracker's Remove), a popover
  * (`DeleteResumeConfirm`), a bar across a dialog's foot (`ConfirmBar`,
- * Settings' `DiscardBar`), a line under the thing (`DeleteConfirm`) and
- * Settings' Delete Account step all draw their buttons with it, so the
- * order and the words cannot drift.
+ * Settings' `DiscardBar`) and Settings' Delete Account step all draw their
+ * buttons with it, so the order and the words cannot drift. A line under
+ * the thing (`DeleteConfirm`) was one more shape until KAN-818 gave its one
+ * use, Written Answers' Remove, an Undo instead.
  *
  * Until then the question came in four shapes and the red button moved
  * sides: first in the popover, the line and Delete Account, last in the

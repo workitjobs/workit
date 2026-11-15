@@ -150,8 +150,9 @@ export function ApplyButton({
 }
 
 /** "Did You Apply?" in its dialog, for any control that opens it: Apply
- *  Now, the combined Apply button's Apply Manually, and a card's Already
- *  Applied? (./apply-split-button.tsx, ./job-more-menu.tsx). */
+ *  Now, the combined Apply button's Apply Manually, and I Already Applied
+ *  in a job's ⋯ and in Up Next's (./apply-split-button.tsx,
+ *  ./job-more-menu.tsx, ../auto-apply/row-menu.tsx). */
 export function ApplyDialog({
   jobId,
   title,

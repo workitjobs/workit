@@ -251,7 +251,7 @@ open choices (Settled choices, near the end).
   page replaces" (`frontend/CLAUDE.md`). Skeletons are `bg-ink/6` at the
   height of what replaces them, and copy the real layout: a list loads as
   skeleton rows, never as a "Loading…" line.
-- **A write that cannot be taken back asks first or offers Undo.** A
+- **Every write asks first or offers Undo** (KAN-818). A
   student who slips must be able to recover (NN/g, "Preventing user
   errors"; GOV.UK, "Warning text"). A delete of the student's own content
   asks first, answered by `ConfirmButtons` (Keep It, then the red act,
@@ -260,6 +260,20 @@ open choices (Settled choices, near the end).
   result the page does not show by itself is a toast, with Retry where it
   failed. A field error sits under its field, and the submit moves focus
   to the first bad field.
+- **A one-click write acts at once and offers Undo; a write that Undo
+  cannot reverse asks first** (KAN-818). A toggle, a menu row, a field
+  that saves on its pick (Apply By) and a Remove do not ask. Each says
+  what it did in a toast, and the toast's Undo writes the old value back
+  (a job goes back in the queue). Where nothing can write it back (a
+  removed photo, a removed answer, a deleted file), the write waits for
+  the toast to close (`onClose`), so Undo is the write never sent
+  (the toasts' rule, under Components). Marking a job applied asks first, from every place
+  that offers it: it opens Did You Apply? (`ApplyDialog`), which also
+  asks which resume went. A form's Save is its own question: the student
+  read the fields and pressed it. One action has one name on every
+  screen, in its button, menu row, hover and toast: Remove From Queue,
+  I Already Applied, and Remove (not Delete) for one item that a toast
+  can bring back.
 - **No inert or orphan UI.** A control that does nothing reads as broken.
   A control that cannot act now is disabled and says why, in a visible
   line or a tooltip (never `title` alone, which touch and keyboard never
@@ -1138,8 +1152,8 @@ rules, each with its own reason, and every form follows one of them:
 (`components/ui/confirm-buttons.tsx`, KAN-817): **Keep It** first, the red
 button last, in every shape the question takes. A dialog (`DeleteDialog`,
 the Tracker's Remove), a popover (`DeleteResumeConfirm`), a bar across a
-dialog's foot (`ConfirmBar`, Settings' `DiscardBar`), a line under the
-thing (`DeleteConfirm`) and Settings' Delete Account step all draw their
+dialog's foot (`ConfirmBar`, Settings' `DiscardBar`) and Settings' Delete
+Account step all draw their
 buttons with it; Delete Account keeps it left, as a Settings form, but in
 this order, not the primary first. The way out always says Keep It, never
 Cancel, OK or a name of its own ("Keep My Account"); only Discard Your
@@ -1199,6 +1213,13 @@ its toast, or asks first** (KAN-562). Where Undo can write the old value
 back, the write goes at once (a writing sample is added again). Where it
 can't (a deleted file), the write waits for the toast's `onClose`, which
 runs once it is gone without its action, so Undo is the write never sent.
+Application Info's Transcript, Settings' Remove Photo and Written
+Answers' Remove hold theirs (KAN-818); a held write is sent at once when
+the page unmounts, or before a new upload that it would remove. **Copy
+says so in a toast** ("Link copied.", "Cover letter copied.") wherever it
+is, never in a tooltip or a status line beside the button (KAN-818).
+The toasts stand over every other layer (`z-60`, over the dialogs' and
+menus' `z-50`), so one raised from a dialog is not dimmed by its backdrop.
 `lib/format-count.ts` prints a headline figure ("1,234", "12.3K") in en-US so
 the server and the browser print the same.
 

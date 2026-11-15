@@ -35,6 +35,7 @@ import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { IconButton } from "@/components/ui/icon-button";
 import { SearchField } from "@/components/ui/search-field";
+import { useToast } from "@/components/ui/toast";
 import type { ApplicationStage, CoverLetter } from "@/lib/cover-letter-actions";
 import { cn } from "@/lib/cn";
 import { clickIsNotRows } from "@/lib/row-click";
@@ -211,24 +212,33 @@ function StageBadge({ stage }: { stage: ApplicationStage }) {
   return <Badge tone="inert">{QUEUE_LABEL[stage as Exclude<ApplicationStage, StageKey>]}</Badge>;
 }
 
-/** Copy the letter's text, with the outcome in the tooltip. */
-function CopyButton({ text, name }: { text: string; name: string }) {
-  const [said, setSaid] = useState<string | null>(null);
-  async function copy() {
+/**
+ * Copies a letter's text and says so in a toast, as every Copy in the app
+ * does (a job's Share, ../jobs/job-more-menu.tsx; KAN-818). The row's Copy
+ * said it in its tooltip and the dialog's in a status line until then:
+ * three ways for one result.
+ */
+function useCopyLetter() {
+  const toast = useToast();
+  return async (text: string) => {
     try {
       await navigator.clipboard.writeText(text);
-      setSaid("Copied");
+      toast.show({ message: "Cover letter copied." });
     } catch {
-      setSaid("Couldn't copy");
+      toast.show({ message: "Couldn't copy the cover letter." });
     }
-    setTimeout(() => setSaid(null), 2000);
-  }
+  };
+}
+
+/** Copy the letter's text, from its row. */
+function CopyButton({ text, name }: { text: string; name: string }) {
+  const copy = useCopyLetter();
   return (
     <IconButton
       place="row"
       label={`Copy the cover letter for ${name}`}
-      tooltip={said ?? "Copy"}
-      onClick={copy}
+      tooltip="Copy"
+      onClick={() => void copy(text)}
     >
       <CopySimpleIcon aria-hidden />
     </IconButton>
@@ -242,22 +252,12 @@ function CopyButton({ text, name }: { text: string; name: string }) {
  * and the resume it went with are).
  */
 function LetterDialog({ letter, onClose }: { letter: CoverLetter | null; onClose: () => void }) {
-  const [copied, setCopied] = useState<string | null>(null);
-  async function copy(text: string) {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied("Copied.");
-    } catch {
-      setCopied("Couldn't copy. Select the text instead.");
-    }
-  }
+  const copy = useCopyLetter();
   return (
     <Dialog
       open={letter != null}
       onOpenChange={(open) => {
-        if (open) return;
-        setCopied(null);
-        onClose();
+        if (!open) onClose();
       }}
     >
       <DialogContent className="flex max-h-[85vh] flex-col sm:max-w-2xl">
@@ -280,13 +280,8 @@ function LetterDialog({ letter, onClose }: { letter: CoverLetter | null; onClose
             <div className="text-body text-ink min-h-0 max-w-(--measure-prose) flex-1 overflow-y-auto whitespace-pre-wrap">
               {letter.text}
             </div>
-            <DialogFooter className="items-center">
-              {copied && (
-                <p role="status" className="text-note text-ink-muted sm:mr-auto">
-                  {copied}
-                </p>
-              )}
-              <Button variant="secondary" onClick={() => copy(letter.text)}>
+            <DialogFooter>
+              <Button variant="secondary" onClick={() => void copy(letter.text)}>
                 <CopySimpleIcon aria-hidden />
                 Copy
               </Button>

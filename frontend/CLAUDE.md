@@ -1684,7 +1684,9 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   Undo or asks first** (KAN-577): a stage pick and an event's Delete say so
   in a toast whose Undo writes the reverse (`applications/[jobId]/undo.ts`,
   tested), and a saved job's stage pick asks in a dialog, since the API
-  never moves a job back to Saved and so has no Undo for it. **A stage past applied is
+  never moves a job back to Saved and so has no Undo for it. Apply By
+  saves on its pick, and its toast's Undo writes the day before back
+  (`applications/[jobId]/apply-by.tsx`, KAN-818). **A stage past applied is
   still applied**: every "did they apply?" check is `hasApplied` in
   `(seeker)/applied.ts`, never `stage === "applied"` (the job cards' Applied
   button, Save's toast, Auto Apply's button, Top Matches' rows). The
@@ -1745,6 +1747,14 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   and its rarer actions go in its ⋯ menu (`auto-apply/row-menu.tsx`),
   worded, the same three on every row (Change Resume, I Already Applied,
   Remove From Queue), never as bare icon buttons beside each other.
+  **I Already Applied opens Did You Apply?** (`ApplyDialog`, KAN-818), as
+  a job's own ⋯ does (`jobs/job-more-menu.tsx`), so it asks which resume
+  went and marks the job applied through `POST /jobs/{id}/applied`; it
+  finished the run as submitted at once, with no resume and no Undo,
+  until then. **Remove From Queue is the action's one name** (KAN-818,
+  `REMOVE_FROM_QUEUE` in `auto-apply/auto-apply-button.tsx`): Up Next's ⋯
+  and pick bar, the Queued toggle's hover and the combined Apply button's
+  menu, and each toast says "removed from the queue".
   Remove works on every row (`remove` in `up-next.tsx`: closes its tab,
   dequeues a queued job, skips a started one whose tab is closed). **The
   ⋯ column stays at the table's right edge at every width** (KAN-567),
@@ -1831,7 +1841,7 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   a page Next kept shows it gone, and an unsave on the tracker brings it back
   on the next render. **Every button that changes a stage calls
   `rememberStage`**: Save and its Undo, Did You Apply?'s Yes, Auto Apply and
-  its dequeue. One that skips it leaves the job on the rail and its other
+  its dequeue, and the dequeue's Undo. One that skips it leaves the job on the rail and its other
   buttons stale. Save says where the job went: "Saved to your Tracker."
   with View and Undo, two buttons side by side (the toast's
   `actions`). **A toast is the inverted surface** (`bg-inverse` and
@@ -2020,7 +2030,8 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   with a line on what it does; it shares AutoApplyButton's hook
   (`useAutoApply`) and Apply Now's "Did You Apply?" (`ApplyDialog`), and
   `Button`'s `segment` draws its two parts. Any other job keeps Apply Now.
-  **"⋯" holds Already Applied? and Share** (`jobs/job-more-menu.tsx`);
+  **"⋯" holds I Already Applied and Share** (`jobs/job-more-menu.tsx`),
+  drawn with the menu's own rows as Up Next's ⋯ is (KAN-818);
   Report This Job Posting waits on a table to keep reports in, and Hide
   This Job on Not Interested being stored. Not taken: a dark
   tile, capitals, a green action. The six facts are `size="md"` on this
@@ -3284,7 +3295,13 @@ are in `docs/auth.md`.
   waits for its toast to close** (the toast's `onClose`, KAN-562): the page
   can't upload a deleted file again, so Undo is the DELETE never sent. An
   upload in that time sends the DELETE first, or it would remove the new
-  file; leaving the page sends it at once.
+  file; leaving the page sends it at once. **Settings' Remove Photo and
+  Written Answers' Remove hold their DELETE the same way** (KAN-818,
+  `settings/personal/personal-details.tsx`,
+  `auto-apply/answers/remove-answer.tsx`): a photo can't be put back, and
+  saving an answer again would run the checks again and make it the
+  student's own. Written Answers said Delete and asked on the line under
+  the answer until then.
 - **The uninstall survey is `/uninstalled`** (KAN-471): the page Chrome
   opens when a student removes the extension (`?v=` the version removed).
   Public, outside both shells, and it asks no sign-in: the answer goes to

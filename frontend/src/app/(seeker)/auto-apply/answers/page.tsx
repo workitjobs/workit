@@ -14,10 +14,10 @@ import { BackLink } from "../../back-link";
 import { SEEKER_GUTTER } from "../../gutter";
 import { ConnectClaude, WriteWithClaude } from "../write-with-claude";
 import { AnswerBox } from "./answer-box";
-import { DeleteAnswer } from "./delete-answer";
 import { FactBox } from "./fact-box";
 import { isNew, newestSaved, SEEN_COOKIE, seenAt } from "./new-answers";
 import { getAnsweredQuestions, getWrittenQuestions } from "./questions";
+import { RemovableAnswer } from "./remove-answer";
 import { SeenNow } from "./seen-now";
 
 export const metadata: Metadata = {
@@ -56,8 +56,8 @@ export const metadata: Metadata = {
  * YOUR ANSWERS. Below, every written question already answered, newest
  * application first, with the company brief fact the answer names (its
  * Named fact, KAN-369) linked to the page that states it, so the student
- * can read up on it before an interview. Every answer has a Delete
- * (./delete-answer.tsx): the student's own, one saved here, and their
+ * can read up on it before an interview. Every answer has a Remove with
+ * Undo (./remove-answer.tsx): the student's own, one saved here, and their
  * Claude's (not own limits reuse, not removal). A list that doesn't load is left out
  * rather than shown as an error.
  *
@@ -154,7 +154,11 @@ export default async function WrittenAnswersPage() {
                 {posting.company && <p className="text-body text-ink-meta">{posting.company}</p>}
                 <dl className="mt-4 flex max-w-[68ch] flex-col gap-5">
                   {posting.questions.map((question) => (
-                    <div key={question.name} className="flex flex-col gap-1.5">
+                    <RemovableAnswer
+                      key={question.name}
+                      jobId={posting.job_id}
+                      name={question.name}
+                    >
                       <dt className="text-body text-ink flex items-center gap-2 font-semibold">
                         {question.label}
                         {isNew(question, seen) && <Badge tone="brand">New</Badge>}
@@ -172,8 +176,7 @@ export default async function WrittenAnswersPage() {
                           </TextLink>
                         </dd>
                       )}
-                      <DeleteAnswer jobId={posting.job_id} name={question.name} />
-                    </div>
+                    </RemovableAnswer>
                   ))}
                 </dl>
               </Card>

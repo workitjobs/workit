@@ -20,6 +20,7 @@ import {
 } from "@/lib/autofill-extension";
 
 import { dequeueJob, queueJob, skipJob } from "./actions";
+import { REMOVE_FROM_QUEUE } from "./auto-apply-button";
 import type { ActivityItem } from "./activity-list";
 import { AddJobsDialog, type SavedJob } from "./add-jobs-dialog";
 import { openedNote } from "./opened-note";
@@ -66,7 +67,9 @@ import { ResumeDialog } from "./resume-dialog";
  * **Remove works on every row** (`remove`): a tab open on it closes first;
  * a queued job leaves the queue (dequeueJob), with Undo in the toast, which
  * queues it again at the end; a started one (needs_you), which the queue's DELETE
- * refuses, is skipped (skipJob), with no Undo.
+ * refuses, is skipped (skipJob), with no Undo. The toast says "removed from
+ * the queue", as a job's own Queued toggle does (./auto-apply-button.tsx,
+ * KAN-818): the action is Remove From Queue everywhere.
  *
  * **Add Jobs** opens the saved jobs to pick and queue (./add-jobs-dialog.tsx).
  *
@@ -164,8 +167,8 @@ export function UpNext({ items, saved }: { items: ActivityItem[]; saved: SavedJo
       const one = removed.length === 1 && targets.length === 1;
       toast.show({
         message: one
-          ? `${targets[0].role} from ${targets[0].company} is removed from Auto Apply.`
-          : `${removed.length} ${removed.length === 1 ? "job is" : "jobs are"} removed from Auto Apply.${
+          ? `${targets[0].role} from ${targets[0].company} is removed from the queue.`
+          : `${removed.length} ${removed.length === 1 ? "job is" : "jobs are"} removed from the queue.${
               failed > 0 ? ` ${failed} couldn't be removed.` : ""
             }`,
         ...(undoable.length > 0 && {
@@ -219,7 +222,7 @@ export function UpNext({ items, saved }: { items: ActivityItem[]; saved: SavedJo
               <SelectionAction
                 danger
                 iconOnly
-                label="Remove From Queue"
+                label={REMOVE_FROM_QUEUE}
                 icon={<TrashIcon />}
                 disabled={pending}
                 onClick={() => remove(checked)}

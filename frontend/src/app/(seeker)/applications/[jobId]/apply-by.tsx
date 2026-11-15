@@ -17,6 +17,10 @@ import { setApplyBy } from "../actions";
  * publish none. The posting's own closing date, where it has one, is named
  * beside it as the hard limit. Saved on a pick (no Save button), and
  * cleared with the picker's Clear; a refused save puts the field back and says so.
+ * Each save or clear says so in a toast with Undo, which writes the day
+ * before back (KAN-818): it acts at once, so it never asks first
+ * (docs/design.md, "A write that cannot be taken back asks first or offers
+ * Undo"). A failed Undo says so in a toast and leaves the new day.
  * Shown only until the job is applied to, as the Calendar shows it.
  */
 export function ApplyBy({
@@ -37,6 +41,7 @@ export function ApplyBy({
 
   function save(next: string) {
     const before = value;
+    if (next === before) return;
     setValue(next);
     start(async () => {
       const { error } = await setApplyBy(jobId, next || null);
@@ -46,7 +51,22 @@ export function ApplyBy({
         return;
       }
       router.refresh();
+      toast.show({
+        message: next ? "Your Apply By date is saved." : "Your Apply By date is cleared.",
+        action: { label: "Undo", onClick: () => restore(before) },
+      });
     });
+  }
+
+  /** The toast's Undo: the day before the pick, or none, written back. */
+  async function restore(before: string) {
+    const { error } = await setApplyBy(jobId, before || null);
+    if (error) {
+      toast.show({ message: `Couldn't put your Apply By date back. ${error}` });
+      return;
+    }
+    setValue(before);
+    router.refresh();
   }
 
   return (
