@@ -70,6 +70,23 @@ has neither.
     `code` and `files`, then build and upload the package after merge, and
     release an app that needs it only once the store publishes it
     (`docs/plain-workers/worker-extension-todo.md`, Releases).
+- **Code that differs by OS** (W4 of `../docs/desktop_application_auto_apply.md`,
+  KAN-850): Apply runs on the Mac today, and WorkIt Auto Apply ports to Windows
+  and Linux later (F4). A general library comes first: Python's standard
+  library, `psutil` (a process's arguments), `platformdirs` (each OS's data and
+  cache folders), `pyperclip` (the seed guide's clipboard), the window's own
+  `navigator.clipboard`, or Chrome itself (`/json/activate`, the worker
+  extension's `windows.focus`). Per-OS code lives in one place for each job,
+  with an entry for macOS, Windows and Linux picked by a `system` argument
+  (`sys.platform`): Chrome's places and version (`chrome_finder.py`, the one
+  Chrome finder), the native host's folder (`native_host.chrome_hosts`), a
+  Worker's background start (`plain/launcher.start_in_background`) and showing
+  a folder (`plain/seed_setup.Desk.reveal`). FocusKeeper (`focus.py`) is the
+  Mac's only: elsewhere `focus.KEEPER` is a `NoKeeper`. A new Chrome path or OS
+  call goes into one of these places, with a case for each OS in
+  `tests/test_each_os.py` (in CI); never a `/Applications/` path, `open`,
+  `osascript` or `ps` anywhere else. What W4 left for F4 is in its "Found on
+  the way" list.
 - **Lisul reports a problem with an open application in a Claude Code chat:**
   send it to the form with `uv run apply ask "<company, role or application
   ID>" "<his words>"` (from `apply-agent/`). Do not open or drive the form
@@ -125,6 +142,9 @@ person's data is in one folder, `APPLY_HOME` (default `~/.config/apply/`):
 Apply also writes its output there: rehearsal records, Repairs, Traces and
 the Chrome worker profiles (`APPLY_PROFILES`, under `APPLY_HOME` by
 default). `src/apply/home.py` derives every data path from `APPLY_HOME`.
+WorkIt Auto Apply's own data folder is `home.APP_FOLDER`, each OS's
+standard place from `platformdirs` (D25); W5 makes it the Student build's
+`APPLY_HOME`.
 
 The repo holds only generic inputs: the answering guides (`answering/`),
 `policies.default.yaml` (with `live_runs` off) and the profile template.

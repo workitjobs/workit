@@ -317,8 +317,9 @@ them. `apply.plain.tile.PortFrames` is their frame source for the same
   still gets the real picker. `PortPage.expect_file_chooser` and
   `PortPage.mouse` use the same ops (`attach.py`'s upload behind a button
   works on a plain Worker).
-- **Never take Lisul's focus.** Plain Workers start with `open -g -n`
-  (`launcher.start_in_background`) with `--no-startup-window`, then the
+- **Never take Lisul's focus.** On the Mac, plain Workers start with `open -g -n`
+  (`launcher.start_in_background`; on Windows and Linux, the binary itself as a
+  plain background process, W4) with `--no-startup-window`, then the
   extension opens the window unfocused (`windows.create`), 1280 x 900 (readable at 100%),
   shrunk to the main screen's visible area, at its top-left corner. Only his Show brings one forward. Tests share one Worker and
   stop it when they end. A Chrome that comes forward on its own (a launch, a
@@ -327,7 +328,11 @@ them. `apply.plain.tile.PortFrames` is their frame source for the same
   Dock or Mission Control, or Cmd-Tab. A click counts by whose window was
   under the pointer, not only by the time of the click: macOS makes the
   clicked app the front app a moment after the mouse-down, and a Worker he
-  clicked went straight back behind (KAN-752).
+  clicked went straight back behind (KAN-752). FocusKeeper is the Mac's only:
+  Windows and Linux keep a background program behind themselves, so there
+  `focus.KEEPER` is a `NoKeeper`, and Show brings the Worker forward through
+  its extension (`windows.focus`), as it does on the Mac when FocusKeeper
+  can't (KAN-850).
 - **Wired into runs (S8, KAN-614).** `cli._dashboard` builds `PortFrames` when
   `worker_mode: plain`, and `EitherFrames` (each Worker's current kind) when `protected`.
 - **Live check.** `uv run apply plain tile lever-immuta` fills a saved form
@@ -554,7 +559,8 @@ Branded Chrome takes the worker extension only by the user's own clicks. `apply.
 helps with each click and confirms it. It refuses to start while a plain Worker of the folder runs.
 
 - **What Apply does.** It opens branded Chrome on the seed at `chrome://extensions`. At Load unpacked it
-  puts the copy's path on the clipboard (`pbcopy`) and shows the copy in Finder (`open -R`), so the user
+  puts the copy's path on the clipboard (pyperclip, on every OS) and shows the copy in Finder (`Desk.reveal`:
+  `open -R` on the Mac, File Explorer on Windows, its folder through `xdg-open` on Linux), so the user
   can drag it onto the page or paste it in the picker. There is no Allow User Scripts step since KAN-839: the
   extension asks for no user scripts.
 - **What Apply never does.** It never clicks a `chrome://` page, never changes a Chrome setting and never
@@ -568,7 +574,7 @@ helps with each click and confirms it. It refuses to start while a plain Worker 
   A step that is saved and then goes back says "did not stick". A step still unsaved after 45 s gets a
   nudge, and the path goes on the clipboard again.
 - **Quit.** When all steps show, Apply quits the seed's Chrome itself, with SIGTERM to the PID that holds
-  the seed's SingletonLock (checked with `ps`: its command line names the seed). A SIGTERM saves pending
+  the seed's SingletonLock (checked with psutil: its arguments name the seed). A SIGTERM saves pending
   changes; a SIGKILL loses them (measured on both Chromes), so Apply never kills it. If Chrome is still up
   after 15 s (a dialog or the folder picker open), Apply says so and waits. Ctrl-C quits it the same way.
   After the quit, Apply reads the files again. A step that a clean exit didn't save is named and shown again.

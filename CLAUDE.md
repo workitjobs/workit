@@ -256,7 +256,7 @@ with the failure it prevents.
   private repo `workitjobs/apply-agent`), the v1 app end to end,
   workstreams W0 to W13 that sessions can take one at a time, future work
   (a hosted `drive` loop next, the company brief pipeline with Tavily,
-  Windows), and the costs. Read it before changing Apply toward a
+  Windows and Linux), and the costs. Read it before changing Apply toward a
   download, the Model route, or where Apply's data comes from.
 - `docs/scraper_gh_action/plan.md` — KAN-726, built: the scheduled
   scrape runs on a team computer as a self-hosted runner (PR runs stay on

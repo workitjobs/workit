@@ -93,7 +93,7 @@ builds it.
 | D7 | **The beta uses the providers' free tiers.** Paid tiers come later (F3) | No paid keys for now | W1, F3 |
 | D8 | **Personal data is replaced before a prompt leaves the computer**, and put back on the computer. Self-ID answers are never sent. The app shows a short disclosure | Prompts go to WorkIt and to Groq and Google, and Google's free tier may use prompts to improve its products | W1, W5 |
 | D9 | **No Gmail.** A job site's emailed code becomes a Needs-you item that the student types | Reading Gmail needs an app password (a hard setup) or Google's paid security review | W3 |
-| D10 | **macOS-only code is removed or replaced.** Scheduled runs, phone push and the Dock bundle are dropped; Keychain becomes `keyring`; Chrome is found per OS | A simple app, and a later Windows port that is not a rewrite | W4 |
+| D10 | **macOS-only code is removed or replaced with code for macOS, Windows and Linux** (Linux added 2026-11-14). A general cross-platform library comes first; per-OS code stays only where no library does the job (W4's rules). Scheduled runs, phone push and the Dock bundle are dropped; Keychain becomes `keyring`; Chrome is found per OS | A simple app, and a later Windows and Linux port (F4) that is not a rewrite | W4 |
 | D11 | **The window is native (pywebview) and opens no port.** Its page talks to Python through pywebview's bridge, not through a server on `127.0.0.1` | It works like any other app; no local server that other programs can call | W5 |
 | D12 | **The only sign-in is WorkIt**, in the student's default browser, back to the app through `workit-auto-apply://` with PKCE. The session lives in `keyring` | No new account and no port; the student signs in where they already do | W5, W1 |
 | D13 | **In v1 no model drives the browser.** Job systems with no Filler get the generic Filler; what it can't fill is a Handoff, and a field a Filler fails on is a Needs-you item. **A hosted `drive` loop is the next work after v1** (F1) | `drive` needs a strong model, large calls and an adversarial guard review; the generic Filler needs only short closed choices | W2, F1 |
@@ -118,6 +118,7 @@ builds it.
 | D32 | **CI is small:** GitHub-hosted Linux runners, on PRs only, ruff and a short list of fast tests. No builds and no tags in CI | GitHub Actions minutes are limited | W0 |
 | D33 | **One mode:** Apply fills each form and stops on its last page; a person always presses Submit. Rehearsals and `live_runs` go. Not a v1 blocker | Simpler and safer: Apply never sends an application | W12 |
 | D34 | **The student's data comes through the Fill engine's code as it does now.** Its redesign is a teammate's work | Out of this design's scope | W11 |
+| D35 | **Keeping a job-site password from the student is not a requirement** (2026-11-14). The passwords Apply makes are the student's. Copy password writes through the window's own clipboard function, as the window's other copy buttons do, with no secret marks and no clear after a minute | It works on every OS with no clipboard code in Apply; the student can already see each password with Show password | W4 |
 
 ## 3. The v1 app, end to end
 
@@ -217,8 +218,8 @@ stories. **Not caught:** other people's names inside a story.
 
 | What | Where |
 |---|---|
-| The data folder: Records, Traces, the Worker profiles, the seed, the local copy of the student's data | `~/Library/Application Support/WorkIt Auto Apply` (`%APPDATA%` on Windows) |
-| The WorkIt session; Employer account passwords (passwords Apply makes for job-site accounts) | `keyring`: macOS Keychain, Windows Credential Manager. The student chooses the job-site password in the Accounts tab (KAN-838), sees each account's with Show password, and can see and change them in Keychain Access |
+| The data folder: Records, Traces, the Worker profiles, the seed, the local copy of the student's data | `~/Library/Application Support/WorkIt Auto Apply` (`%LOCALAPPDATA%` on Windows, not the roaming `%APPDATA%`: a Worker profile is a Chrome profile, which Chrome keeps there too; `~/.local/share` on Linux), from `platformdirs` (`home.APP_FOLDER`) |
+| The WorkIt session; Employer account passwords (passwords Apply makes for job-site accounts) | `keyring`: macOS Keychain, Windows Credential Manager, the Secret Service on Linux. The student chooses the job-site password in the Accounts tab (KAN-838), sees each account's with Show password, copies it with Copy password (D35), and can see and change them in Keychain Access |
 | The Fill engine | Memory only, for one launch |
 
 WorkIt never holds a student's job-site passwords: a breach would expose
@@ -232,7 +233,7 @@ accounts.
 - No company research; no brief where WorkIt has none (F2).
 - No Gmail: emailed codes and links are the student's.
 - No scheduled runs, no phone push, no Daily sweep.
-- No Intel Macs, no Windows (F8, F4).
+- No Intel Macs, no Windows, no Linux (F8, F4).
 - No paid model tiers (F3).
 
 ## 4. How Apply works today
@@ -657,27 +658,76 @@ true` in its data folder changes nothing.
 ### W4. Remove macOS-only code
 
 **Goal.** No macOS command or path in the code the Student build runs,
-so the Windows port (F4) is a port, not a rewrite.
+outside the few places that only the Mac needs, so the Windows and Linux
+port (F4) is a port, not a rewrite (D10). The rest of W4 is KAN-850,
+built 2026-11-14 except where a row below says what waits.
+
+**Rules (decided 2026-11-14).**
+
+- **A general library first.** Where a cross-platform library, Python's
+  standard library or Chrome itself does the job, Apply uses it and holds
+  no per-OS code: the window's clipboard function for Copy password
+  (D35), `psutil` for a process's command line, and a library for each
+  OS's standard data folder (D25).
+- **Per-OS code only where nothing general does the job,** in one place
+  for each job, with an entry for macOS, Windows and Linux: Chrome's
+  install paths, the native host's place, Playwright's browsers folder,
+  and how Chrome starts in the background.
+- **FocusKeeper stays Mac-only.** On the Mac, Chrome makes itself the
+  front app as it starts and at each new tab or pop-up, and macOS lets
+  it. FocusKeeper (`focus.py`) gives the front back to the student's app
+  when the student did not choose that Chrome. Windows and Linux desktops
+  stop a background program from taking the front (Windows flashes its
+  taskbar button instead), so there FocusKeeper does nothing. F4 checks
+  this on each OS.
 
 | Module | macOS part today | Change |
 |---|---|---|
-| `keychain.py` | `security` | Built (KAN-838): `keyring` (Keychain on Mac, Credential Manager on Windows) for every caller, `gmail.py` too; `brief.py` never called `security`. Items left in the Student build: Employer account passwords (`apply-ats`) and the WorkIt session (W5). One developer-only `security dump-keychain` stays in `cli._mac_keychain_sites`, the backfill of accounts made before KAN-592 |
+| `keychain.py` | `security` | Built (KAN-838): `keyring` (Keychain on Mac, Credential Manager on Windows, the Secret Service on Linux) for every caller, `gmail.py` too; `brief.py` never called `security`. Items left in the Student build: Employer account passwords (`apply-ats`) and the WorkIt session (W5). One developer-only `security dump-keychain` stays in `cli._mac_keychain_sites`, the backfill of accounts made before KAN-592 |
 | `workit.py` | Session in `workit-login.json`; sign-in through Chrome's debugging port | Session in `keyring`; sign-in through the browser and `workit-auto-apply://` (W5) |
 | `notify.py` | `osascript` notifications, ntfy | Dropped: the window shows notices |
 | `schedule.py`, `cli.py` | `launchctl`, `~/Library/LaunchAgents` | Dropped |
 | `dock_app.py` | The Dock bundle | Dropped: the app is its own bundle |
 | `dashboard.py` | `open`, `osascript`, `pgrep`, Chrome `--app` | Replaced by the pywebview window (W5) |
-| `focus.py`, `captcha.py` | `osascript`, `open` | Bring the Worker's window forward through Chrome (`Page.bringToFront`, or `chrome.windows.update` through the Worker extension) |
-| `accounts_tab.py` | `osascript` clipboard (`MacClipboard`) | A cross-platform clipboard |
-| `browsers.py`, `plain/launcher.py`, `cover_letter.py`, `workit.py` | `/Applications/Google Chrome.app` | One Chrome finder per OS. Windows: `C:\Program Files\Google\Chrome\Application\chrome.exe`, then the per-user folder |
-| `plain/launcher.py` | `open -g -n -a` | Start Chrome as a background process per OS |
+| `focus.py` | `lsappinfo`, CoreGraphics, `osascript` | Built (KAN-850). Stays, Mac only (the rules above): `focus.KEEPER` is a FocusKeeper on the Mac and a `NoKeeper`, which does nothing, on Windows and Linux. Show (the window's Open in Chrome) brings a Worker forward through Chrome when there is no FocusKeeper, or when FocusKeeper can't: a CDP Worker through `browsers.activate` (`/json/activate`, the DevTools HTTP form of `Page.bringToFront`, on the page `/json/list` names as used last), a plain Worker through the Worker extension's new `windows.focus` op (`chrome.windows.update`; features 6, store version 0.4.0) |
+| `captcha.py` | `open -a "Google Chrome"`: a bot-blocked posting, or the Accounts tab's Open sign-in page, opens in the student's everyday Chrome | Built (KAN-850): `to_everyday_chrome` starts the finder's Chrome with the link and no profile flag, on every OS. On the Mac a running Chrome takes the link and comes to the front, as with `open -a` (checked 2026-11-14) |
+| `accounts_tab.py` | `MacClipboard`: `osascript` writes the clipboard with Concealed and Transient marks and clears it after a minute | Built (KAN-850): Copy password gets the password as Show password does and writes it through the window's clipboard function (`navigator.clipboard.writeText`), as the window's other copy buttons do; `MacClipboard`, its route and the clear are gone (D35). W5 checks that pywebview's window allows it on each OS |
+| `browsers.py`, `plain/launcher.py`, `cover_letter.py`, `workit.py` | `/Applications/Google Chrome.app` | Built (KAN-850): one Chrome finder, `chrome_finder.py`, with each OS's places. macOS: `/Applications/Google Chrome.app`, then `~/Applications`. Windows: `%PROGRAMFILES%\Google\Chrome\Application\chrome.exe`, the 32-bit Program Files, then the per-user `%LOCALAPPDATA%`. Linux: `google-chrome` or `google-chrome-stable` on the `PATH`. It also reads Chrome's version on each OS and gives a Worker's user agent its OS's platform. `browsers.py`, `plain/launcher.py`, `plain/seed_setup.py`, `captcha.py` and `doctor.py` use it. Waiting: `cover_letter.py` switches to it once PR #577 (W1), which changes that module, merges; `workit.py`'s use goes with W5's sign-in |
+| `plain/launcher.py` | `open -g -n -a` | Built (KAN-850): stays on the Mac: `-g` keeps a new Chrome from taking the front as it starts, and starting the binary itself brings it forward. On Windows and Linux, `start_in_background` starts the binary as a plain background process, in a session (a process group on Windows) of its own, and its Popen is the Worker's process |
 | `plain/window_capture.*` | Swift and ScreenCaptureKit | Dropped: tiles come from the debugger's screencast (W6) or the extension's frames |
-| `plain/seed_setup.py` | `open -R`, `pbcopy`, `ps` | The store install needs none of them (W6); the fallback guide uses cross-platform calls |
-| `native_host.py`, `plain/launcher.py` | `~/Library/...` paths | Per-OS paths; the data folder through the standard per-OS place (D25) |
+| `plain/seed_setup.py` | `open -R`, `pbcopy`, `ps` | Built (KAN-850): the store install needs none of them (W6); the fallback guide uses `pyperclip` for `pbcopy` and `psutil` for `ps`. Showing a folder has no library, so `Desk.reveal` has an entry per OS: `open -R`, `explorer /select,`, `xdg-open` on its parent. Its words (Finder, Cmd+Shift+G) are still the Mac's (F4) |
+| `plain/extension.py` | `ps -axo` (found 2026-11-14) | Built (KAN-850): `psutil` reads each process's arguments as a list, so a path with spaces stays whole |
+| `native_host.py`, `plain/launcher.py`, `doctor.py` | `~/Library/...` paths | Built (KAN-850): each OS's places. The everyday Chrome's native host folder: `native_host.chrome_hosts` (`~/.config/google-chrome/NativeMessagingHosts`, or under `$XDG_CONFIG_HOME`, on Linux; none on Windows, where Chrome reads a registry key under `HKCU`: F4 writes it). Playwright's browsers folder: `chrome_finder.playwright_browsers`, the OS's cache folder from `platformdirs`, as Playwright picks it, with Chrome for Testing's layout for each OS. The data folder: `home.APP_FOLDER` from `platformdirs` (D25); W5 makes it the Student build's data folder |
 
 **Done when.** A search of the Student build's modules for `osascript`,
-`security`, `launchctl`, `open`, `pgrep`, `pbcopy`, `/Applications/` and
-`~/Library/` finds nothing, and the moved features work on the Mac.
+`security`, `launchctl`, `open`, `pgrep`, `pbcopy`, `ps`, `/Applications/`
+and `~/Library/` finds them only where the rules allow: FocusKeeper, the
+Mac's background start of Chrome, and the Mac entries of the per-OS
+places. The moved features work on the Mac, and tests give the Windows
+and Linux entries their own paths. Running on Windows and Linux is F4's.
+
+**Where it stands (2026-11-14, KAN-850).** The search finds the rules'
+places, and the modules that other workstreams replace: `dashboard.py`
+and `workit.py` (W5), `plain/window_capture.*` (W6) and `cover_letter.py`
+(after PR #577). `tests/test_each_os.py` (in CI) runs each OS's entry on
+the Mac with paths of its own. The plain and CDP Worker tests and the
+Accounts tab's browser test pass on the Mac.
+
+Found on the way, left for F4, since each needs Windows to build and test:
+
+- Chrome's profile lock. `browsers.chrome_pid` reads the profile's
+  `SingletonLock`, a link that Chrome makes on macOS and Linux only; on
+  Windows a profile has a `lockfile`, so a Worker's "in use" check and its
+  PID read find nothing there.
+- Signals. `launcher.Chrome` (the Mac's) and the seed guide's quit use
+  SIGTERM and `os.kill(pid, 0)`. On Windows, `os.kill` ends a process at
+  once, with no clean exit, so the seed's preferences would not be saved.
+  A Worker started off the Mac is a Popen, which stops it on each OS.
+- The hosts' wrappers are shell scripts (`native_host.install`,
+  `PlainWorkers.install_host`), and Chrome on Windows reads a Worker
+  profile's host from the registry, not from its `NativeMessagingHosts`
+  folder (F4's table).
+- The seed guide's words name Finder and the Mac's keys.
 
 ### W5. The app shell
 
@@ -1185,22 +1235,29 @@ per million tokens, read 2026-11-10) and Gemini's paid tier, before the
 beta grows past invited testers. Paid terms don't use prompts for
 training, and `drive` (F1) needs the larger limits.
 
-### F4. Windows
+### F4. Windows and Linux
 
-| Part | macOS | Windows |
-|---|---|---|
-| Native host manifest | A JSON file in each Worker profile's `NativeMessagingHosts/` | A registry key under `HKCU` that names the manifest |
-| The host's launcher | A shell-script wrapper | An `.exe` or `.bat` wrapper |
-| Apply ↔ host channel | A socket file | A named pipe (no port) |
-| Starting Chrome in the background | A background process | A process with no focus |
-| Window | pywebview on WKWebView | pywebview on WebView2 |
-| Secrets | `keyring` on Keychain | `keyring` on Credential Manager |
-| Signing | Developer ID and notarization | A code-signing certificate, so SmartScreen doesn't warn |
-| Updates | Sparkle | WinSparkle or similar |
+Linux joined the port on 2026-11-14 (D10). W4 writes each per-OS entry
+for all three systems; F4 builds, packages and tests the app on Windows
+and Linux. W4's "Found on the way" list names what W4 left for it (Chrome's
+profile lock, signals, the hosts' wrappers, the seed guide's words).
+
+| Part | macOS | Windows | Linux |
+|---|---|---|---|
+| Native host manifest | A JSON file in each Worker profile's `NativeMessagingHosts/` | A registry key under `HKCU` that names the manifest | A JSON file, as on macOS |
+| The host's launcher | A shell-script wrapper | An `.exe` or `.bat` wrapper | A shell-script wrapper |
+| Apply ↔ host channel | A socket file | A named pipe (no port) | A socket file |
+| Starting Chrome in the background | `open -g` | A process with no focus | A background process |
+| Keeping Workers behind | FocusKeeper | The OS (a flashing taskbar button) | The desktop's focus-stealing prevention |
+| Window | pywebview on WKWebView | pywebview on WebView2 | pywebview on GTK or Qt |
+| Secrets | `keyring` on Keychain | `keyring` on Credential Manager | `keyring` on the Secret Service (GNOME Keyring, KWallet) |
+| Signing | Developer ID and notarization | A code-signing certificate, so SmartScreen doesn't warn | To decide with the package |
+| Updates | Sparkle | WinSparkle or similar | To decide with the package (an AppImage, a `.deb`, or both) |
 
 Test early: background-window behaviour (`--disable-backgrounding-occluded-windows`
-reads window cover differently per OS) and the native host under a
-school's managed Chrome.
+reads window cover differently per OS), the native host under a school's
+managed Chrome, and on Linux, focus on more than one desktop (GNOME, KDE),
+since each has its own focus-stealing rules.
 
 ### F5. One Worker kind with no port
 
@@ -1319,3 +1376,7 @@ their value on their servers; WorkIt Auto Apply does the same.
   the app, the Model route and Usage cap, the engine download, the Worker
   extension on the store through the Debugger API, the private repo, and
   the v1 scope.
+- **2026-11-14:** W4's rules: Linux joins Windows as a later port (F4); a
+  general library comes before per-OS code; FocusKeeper and `open -g` stay
+  Mac-only; and keeping a job-site password from the student is not a
+  requirement, so Copy password uses the window's clipboard (D35).
