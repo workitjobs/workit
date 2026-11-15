@@ -145,7 +145,11 @@ on the computer.
 | 7. Write files | `jobs.json` (the scraper's memory between runs) and `feed.json` (what the import loads). |
 
 **The worker (`backend/app/scraper/worker.py`) runs the same scraper as a
-library in two phases** (KAN-733). Phase 1 reads each board's listing and
+library in two phases** (KAN-733). It picks boards the same way the
+scheduled scraper does (step 1 above): a hot board (one that has ever had a
+kept posting) whose content hasn't changed rests up to 24 hours; a quiet
+board is read one run in three; `--full` overrides both but not health rest
+(KAN-722). Phase 1 reads each board's listing and
 filters by title only — no description pages are fetched during the board
 read. Providers that return descriptions inline (Lever, Ashby, Recruitee)
 stamp them during phase 1. Phase 2, after all boards finish, fetches
