@@ -29,7 +29,14 @@ from datetime import datetime
 from pathlib import Path
 
 from apply import send_click, stuck, trace
-from apply.adapters import NEEDS_WORKIT, Drive, SetupError, UsageLimitHit, UsageReading
+from apply.adapters import (
+    NEEDS_WORKIT,
+    ClaudeError,
+    Drive,
+    SetupError,
+    UsageLimitHit,
+    UsageReading,
+)
 from apply.browsers import cdp_endpoint
 from apply.plain.page import PortPage
 from apply.plain.tools import ToolServer
@@ -60,10 +67,6 @@ WEB_TOOLS = ["WebSearch", "WebFetch"]
 
 LIMIT_MESSAGE = re.compile(r"hit your (session|weekly) limit", re.IGNORECASE)
 PROBE_SCHEMA = {"type": "object", "properties": {"ok": {"type": "boolean"}}, "required": ["ok"]}
-
-
-class ClaudeError(Exception):
-    """A `claude -p` call failed for a reason other than the usage limit."""
 
 
 class LoggedOut(ClaudeError, SetupError):

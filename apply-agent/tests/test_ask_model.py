@@ -7,9 +7,9 @@ from datetime import datetime, timedelta
 import pytest
 
 from apply import ask_model, doctor, workit
-from apply.adapters import SetupError, UsageLimitHit, lean
+from apply.adapters import ClaudeError, SetupError, UsageLimitHit, lean
 from apply.ask_model import PROVIDERS, Endpoint, HostedAsk, live_claude, strict
-from apply.claude_cli import ClaudeCLI, ClaudeError
+from apply.claude_cli import ClaudeCLI
 from apply.keychain import InMemoryKeychain
 
 NOW = datetime(2026, 11, 10, 9, 0)

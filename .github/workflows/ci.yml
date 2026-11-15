@@ -178,7 +178,7 @@ jobs:
     # macOS: a plain Worker starts through `open` and Chrome for Testing's .app
     # (apply/plain/launcher.py), as on the Macs Apply runs on.
     runs-on: macos-latest
-    timeout-minutes: 35
+    timeout-minutes: 25
     defaults:
       run:
         working-directory: apply-agent
@@ -289,6 +289,7 @@ jobs:
             tests/test_tracker_contract.py \
             tests/test_tracker_record.py \
             tests/test_truth.py \
+            tests/test_student_build.py \
             tests/test_worker_date.py \
             tests/test_worker_extension_store.py \
             tests/test_workit_login.py
@@ -319,9 +320,10 @@ jobs:
       # On PRs every page and every path at least once; every pair nightly.
       # PR 477's guard holes run on PRs too (KAN-710): every CDP path, and PLAIN_HOLES on a
       # plain Worker. 350 cases took 505 s here and 398 (KAN-783's pages too) 547 s (2026-11-11). 710 (KAN-793's
-      # and KAN-795's pages too) took 1199 s (2026-11-14), so the limit is 25.
+      # and KAN-795's pages too) took 1199 s; each page once, for as long as it can send, 303 took 486 s
+      # (2026-11-14, KAN-780), so the limit is 12.
       - name: Submit guard hostile pages
-        timeout-minutes: 25
+        timeout-minutes: 12
         run: uv run pytest -q -n auto --dist loadgroup --durations=15 -m "not nightly" tests/test_submit_guard_hostile.py
       # The worker extension's page scripts in a window without focus (KAN-709).
       - name: Plain Worker focus

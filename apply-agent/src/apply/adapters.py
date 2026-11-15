@@ -15,12 +15,11 @@ from apply.answer_bank import AnswerBank
 from apply.dashboard import Board, NoBoard
 from apply.keychain import InMemoryKeychain
 from apply.model import Posting
-from apply.notify import RecordingNotifier
 from apply.records import InMemoryRecords, Record
-from apply.repair import RepairRequests
 
 if TYPE_CHECKING:
     from apply.gmail import MailedCode
+    from apply.repair import RepairRequests
     from apply.tracker import AnswerRow, EmployerAccount, Row
 
 
@@ -187,6 +186,11 @@ class Keychain(Protocol):
         ...
 
 
+class ClaudeError(Exception):
+    """A model call failed for a reason other than the usage limit (`claude -p`, a hosted model, or a call the
+    Student build doesn't make). Here, not in claude_cli, so the Student build has it (apply.build)."""
+
+
 @dataclass(frozen=True)
 class UsageReading:
     """From the latest rate_limit_event: how much of each Max window is used
@@ -254,6 +258,14 @@ class Clock(Protocol):
     def sleep_until(self, when: datetime) -> None: ...
 
 
+def _developer(module: str):
+    """A developer module (apply.build.DEVELOPER), for an Adapters built without its part: never at import, so the
+    Student build, which passes every part itself, loads none."""
+    import importlib
+
+    return importlib.import_module(f"apply.{module}")
+
+
 @dataclass
 class Adapters:
     """Everything outside Apply that a run touches."""
@@ -268,12 +280,13 @@ class Adapters:
     # Defaults keep a test that doesn't look at Records or notifications
     # light; live_adapters() must pass the real ones.
     records: Records = field(default_factory=InMemoryRecords)
-    notifier: Notifier = field(default_factory=RecordingNotifier)
+    notifier: Notifier = field(default_factory=lambda: _developer("notify").RecordingNotifier())
     # The push to Lisul's phone of what waits on him (ntfy); None while no topic is set up.
     phone: Notifier | None = None
     keychain: Keychain = field(default_factory=InMemoryKeychain)
     board: Board = field(default_factory=NoBoard)  # the dashboard's tile per Worker
-    repairs: RepairRequests = field(default_factory=RepairRequests)  # what went wrong, for a Repair
+    # What went wrong, for a Repair; the Student build passes its own (apply.student.NoRepairs).
+    repairs: "RepairRequests" = field(default_factory=lambda: _developer("repair").RepairRequests())
     answer_bank: AnswerBank = field(default_factory=AnswerBank)  # live: answer-bank.yaml beside the profile
     # Sites Lisul signed the Worker profiles in to by hand (apply sign-in): their sign-in walls are no Handoff.
     signed_in: frozenset[str] = frozenset()

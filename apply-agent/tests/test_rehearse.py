@@ -61,7 +61,7 @@ from test_employer_accounts import CACI, CACI_FORM, CACI_URL, XCEL_FORM, XCEL_UR
 from test_greenhouse_filler import board_listing_schools
 from test_run_answers import profile_with
 
-from apply import rehearsal, worker
+from apply import rehearsal, rescue, worker
 from apply.adapters import Adapters, Drive
 from apply.answer_bank import AnswerBank
 from apply.ashby import AshbyFiller
@@ -723,7 +723,7 @@ def test_a_held_form_lisul_sends_with_a_missing_fact_open_shows_as_sent_and_leav
         page.get_by_role("button", name="Submit application").click()
     monkeypatch.setattr(rehearsal, "lift", lift)
     rescued = []
-    monkeypatch.setattr(rehearsal.Rescue, "field", lambda self, page, label, value, error: rescued.append(label))
+    monkeypatch.setattr(rescue.Rescue, "field", lambda self, page, label, value, error: rescued.append(label))
     profile = ApplicantProfile.load(profile_with(tmp_path, **{"identity.legal_last_name": None}))
     asked = []
 
@@ -1422,7 +1422,7 @@ def test_an_answer_given_in_the_window_is_filled_into_the_held_form(monkeypatch,
         notes.append(page.inner_text("#apply-rehearsal-blocked"))
         return True
 
-    monkeypatch.setattr(rehearsal.Rescue, "field", field)
+    monkeypatch.setattr(rescue.Rescue, "field", field)
 
     class Board(RecordingBoard):
         given = [("Email", "lisul@example.com"), ("Pronouns", "he/him")]  # Pronouns: not a field this form left blank
@@ -1465,7 +1465,7 @@ def test_a_file_attached_in_the_window_is_listed_on_its_tile_kept_by_its_name_an
         held.append(page)
         return True
 
-    monkeypatch.setattr(rehearsal.Rescue, "field", field)
+    monkeypatch.setattr(rescue.Rescue, "field", field)
 
     class Board(RecordingBoard):
         given = [("Email", picked)]

@@ -73,6 +73,25 @@ has neither.
     `code` and `files`, then build and upload the package after merge, and
     release an app that needs it only once the store publishes it
     (`docs/plain-workers/worker-extension-todo.md`, Releases).
+- **The Student build leaves the developer parts out** (KAN-723, W3,
+  `src/apply/build.py`). WorkIt Auto Apply is compiled from `apply.student`
+  without the modules in `build.DEVELOPER` (`claude -p`, Claude fill, Rescue,
+  Ask Claude, Repairs, Gmail, notifications, the Dock keeper, the Sheet,
+  `cli.py`). So a module on the Student path never imports one of them at its
+  top: import it inside the function that uses it, behind `if build.STUDENT`
+  or in a path the Student build never runs (a Developer checkout's command).
+  A function the Student build does run counts too: `plain/fixed.functions()`
+  imported Ask Claude and the emailed code for their page strings, which loaded
+  Gmail and Claude fill at every plain Worker's first page call. A string or
+  class the Student path needs moves out of the developer module
+  (`page_functions.py`, `one_page.py`, `adapters.ClaudeError`,
+  `workit.job_key`), and its callers import it from there.
+  `tests/test_student_build.py` (in CI) fails when the Student path loads one,
+  as it imports, builds `student.adapters()` or makes that first page call.
+  Read `build.STUDENT` when the code runs, never into a constant at import.
+  The Student build reads no `policies.yaml`: `build.STUDENT_POLICIES` go over
+  the defaults. A new developer part joins `DEVELOPER`, and the Student
+  build's stand-in for it joins `apply.student.adapters()`.
 - **Lisul reports a problem with an open application in a Claude Code chat:**
   send it to the form with `uv run apply ask "<company, role or application
   ID>" "<his words>"` (from `apply-agent/`). Do not open or drive the form
@@ -182,7 +201,11 @@ into it and the window shows "Sample data".
   network and no `claude` CLI. When you add a test file that needs none of
   them, add it to that list. Its test steps run in parallel
   (`pytest -n auto`), so a new test there can't share a fixed port or
-  path with another. CI also installs Chrome for Testing and runs
+  path with another. A test of `rehearse` with `keep_open` picks out the
+  lines it checks, and never counts all it printed: when a form's thread
+  is still running as the first line prints, the run also says "Apply
+  submitted nothing", and a test that unpacked every line failed 5 runs
+  in 400 on a busy machine (2026-11-14). CI also installs Chrome for Testing and runs
   `test_plain_guards.py` and `test_plain_routing.py` on a real plain Worker.
   CI never runs the Filler tests (`test_*_filler.py`, `test_claude_fill.py`
   and the other files that open Chromium). Run the ones that your change
@@ -202,12 +225,29 @@ into it and the window shows "Sample data".
   pairs were, and 12 pages' only PR pair was one (KAN-780, 2026-11-14, found
   by recording what each pair's path pressed). A new page of one of those
   kinds joins its set; a new path that looks for its own kind of element
-  gets a set. CI runs its no-browser cases, each page on CDP on its own
-  path (`OWN`, else one of the four in turn), each guard hole on every path
-  that applies, and on a plain Worker the first page, each path once and
-  each `PLAIN_HOLES` page; the other pairs are marked `nightly` and run in
-  `apply-nightly.yml` (KAN-780). A no-browser test fails on a pair whose
-  path doesn't apply and on a page or path with no PR case. Mark a test `nightly` only when it is slow
+  gets a set. CI runs its no-browser cases, each page once on CDP on its
+  own path (`PATH_FOR`, else its kind's in `OWN`, else Ask Claude's press,
+  which pressed on all 91 pages), and on a plain Worker the first page, each
+  path once and each `PLAIN_HOLES` page; the other pairs are marked
+  `nightly` and run in `apply-nightly.yml` (KAN-780). Guard holes once ran
+  on every path on PRs: a mutation study (2026-11-14: 24 faults, each one
+  guard check switched off with the network rule off) found that on 54 of
+  the 56 hole pages one path caught every fault the page's other paths
+  caught, and the one-per-page set still catches every fault any case did.
+  A page whose hole only some paths reach goes in `PATH_FOR`. A no-browser
+  test fails on a pair whose path doesn't apply and on a page or path with
+  no PR case.
+  A case waits for the page's own late send as long as its latest timer
+  and a second more, 1.5 s for a page with none (`wait_ms`; `LATEST` for a
+  timer whose delay is no number), where every case once waited 3 s:
+  unguarded, 78 of the 91 pages sent within 0.5 s. A page's control waits
+  as long, so a page that sends later than its wait on the runner fails its
+  control, never passes unseen. The session pages that send after 3 s
+  (`HELD_ONLY`) are in no matrix: there the guard is on throughout, so they
+  were the plain dialog's pair again; their scenario is the held-page
+  tests'. One timed copy per dialog kind, at 10 s: a hold that ended after
+  T seconds lets through any page that sends later than T, so the 3.5 s and
+  60 s copies added nothing but a minute each. Mark a test `nightly` only when it is slow
   and a faster PR case covers the same code. A guard PR gets an adversarial review first (root `CLAUDE.md`).
   A page loads with no guard and is then guarded and reloaded, unless it
   sends by itself from the moment it loads (a timer, before any press):
@@ -284,6 +324,12 @@ into it and the window shows "Sample data".
   no backend reads nothing, and its save fails. Pass `InMemoryKeychain` or
   a fake backend. Only `test_keychain_contract.py` with
   `APPLY_TEST_KEYCHAIN=1` touches the real one (`docs/sign-in.md`).
+- **No test reads a real model key.** A test that builds the hosted models
+  (`ask_model.live_claude`) gives them stand-in keys in their environment
+  variables (`GROQ_API_KEY`, `GEMINI_API_KEY`), which come before the
+  Keychain and the checkout's `.env`. The `.env` holds the team's real key,
+  so `test_student_build.py` passed on a Mac and failed on CI, which has no
+  key (2026-11-15).
 - **Prove a fix on the real form.** Rehearse the job posting that showed the
   bug (`uv run apply rehearse <url>`) and read its record. A rehearsal never
   submits. A unit test that passes is not the check that matters; the live

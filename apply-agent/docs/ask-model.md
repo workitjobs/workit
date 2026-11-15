@@ -40,7 +40,10 @@ kinds until 2026-11-14. Run those files on a Mac after a change to a call.
 Policies with no `ask_model` key (a test's) read as `claude`, and
 `conftest.py` drops the key, so a test never calls a provider. The
 launched desktop app calls hosted models only, through a WorkIt route
-that holds the keys.
+that holds the keys. The Student build (`apply/build.py`) reads no
+`policies.yaml`: its `ask_model` is fixed (`[groq, gemini]` until W1's
+`workit`), and behind it is `student.NoClaude`, never `claude -p`, so
+`drive` and `research` raise `ClaudeError` there.
 
 | `ask_model` | `ask` goes to | Essay prompts | Claude fill, Rescue, company briefs |
 |---|---|---|---|

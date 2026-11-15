@@ -29,6 +29,7 @@ from apply.cli import main
 from apply.feed import SimplifyFeed
 from apply.model import Handoff
 from apply.notify import RecordingNotifier
+from apply.one_page import OnePage
 from apply.records import InMemoryRecords
 from apply.tracker import InMemoryTracker, Row
 
@@ -591,7 +592,7 @@ def test_a_block_lisul_resumed_after_does_not_stop_the_next_read(tmp_path):
     driver = PostingPageDriver()
     filler = ClaudeFill(FakeClaude(driver=driver))
 
-    with FakeBambooServer(LUNAR_FORM) as server, claude_fill.OnePage(server) as site:
+    with FakeBambooServer(LUNAR_FORM) as server, OnePage(server) as site:
         with pytest.raises(Handoff, match="blocked a form submission") as handoff:
             filler.question_set(LUNAR_URL, site)
         # JPMorgan (2026-11-05): the note says where the post went and that no button sent it.
