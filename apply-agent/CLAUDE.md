@@ -223,7 +223,11 @@ into it and the window shows "Sample data".
   11.5 s one 2.8 s, and a busy runner can't push a timed send past its wait.
   Unguarded, each of the 87
   pages sent on it as on real time, or more (timers that never ran on real
-  time, since the page had left, now run before it leaves). Playwright's clock replaces
+  time, since the page had left, now run before it leaves). A mutation run
+  (2026-11-15: the 25 guard faults on the 81 CDP PR cases, on each clock)
+  found each fault caught by the same cases on both clocks, but two that timed
+  out on a click on real time and failed on the sent application on the
+  clock. Playwright's clock replaces
   `performance`, and the guard's `now()` throws on it, so a CDP guard reads
   no clock: `test_a_cdp_guard_reads_no_clock_a_page_can_fake` fails once it
   does. A plain Worker has no such clock and waits in real time, as do the
