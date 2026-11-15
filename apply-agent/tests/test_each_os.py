@@ -246,12 +246,13 @@ def devtools():
 
 def test_off_the_mac_a_cdp_worker_comes_forward_through_chrome(tmp_path, monkeypatch, devtools):
     monkeypatch.setattr(browsers, "KEEPER", NoKeeper())
-    monkeypatch.setattr(browsers, "chrome_pid", lambda profile: None)  # Windows' Chrome leaves no SingletonLock
-    made(tmp_path / "worker-2" / "DevToolsActivePort").write_text(f"{devtools.port}\n/devtools/browser/x\n")
+    monkeypatch.setattr(browsers, "chrome_pid", lambda profile: 4242 if profile.name == "worker-2" else None)
+    for worker in ("worker-1", "worker-2"):  # worker-1's Chrome quit: Chrome leaves the file, and the port is another's now
+        made(tmp_path / worker / "DevToolsActivePort").write_text(f"{devtools.port}\n/devtools/browser/x\n")
 
     assert WorkerBrowsers(tmp_path, headless=False).show(1)
     assert devtools.activated == ["FORM"]  # the page used last: the Worker's form
-    assert not WorkerBrowsers(tmp_path, headless=False).show(0)  # not open
+    assert not WorkerBrowsers(tmp_path, headless=False).show(0)  # not open: the Chrome on its old port is left alone
     assert not WorkerBrowsers(tmp_path, headless=True).show(1)  # no window to show
     assert devtools.activated == ["FORM"]
 
@@ -264,20 +265,32 @@ def test_activate_is_false_when_no_chrome_answers():
     assert not browsers.activate(f"http://127.0.0.1:{gone}")
 
 
-def test_the_everyday_chrome_gets_the_link_and_no_profile_flag(monkeypatch):
+@pytest.mark.parametrize("system", ["win32", "linux"])
+def test_off_the_mac_the_everyday_chrome_gets_the_link_and_no_profile_flag(monkeypatch, system):
     started, url = [], "https://asml.wd3.myworkdayjobs.com/en-US/ASMLExternal/job/X_R1"
-    captcha.to_everyday_chrome(url, Path("/opt/google/chrome/google-chrome"),
-                               popen=lambda argv, **kwargs: started.append(argv))
-    assert started == [["/opt/google/chrome/google-chrome", url]]  # a running Chrome takes it in its own profile
+    monkeypatch.setattr(subprocess, "run", lambda *a, **k: pytest.fail("`open` off the Mac"))
+    captcha.to_everyday_chrome(url, Path("/opt/google/chrome/google-chrome"), system,
+                               popen=lambda argv, **kwargs: started.append((argv, kwargs["start_new_session"])))
+    assert started == [(["/opt/google/chrome/google-chrome", url], True)]  # a running Chrome takes it in its own profile
 
+
+def test_on_the_mac_the_everyday_chrome_opens_the_link_as_its_own_app(monkeypatch):
+    ran, url = [], "https://asml.wd3.myworkdayjobs.com/en-US/ASMLExternal/job/X_R1"
+    monkeypatch.setattr(subprocess, "run", lambda argv, **kwargs: ran.append(argv))
+    captcha.to_everyday_chrome(url, MAC_CHROME, "darwin",
+                               popen=lambda *a, **k: pytest.fail("its binary would make it Apply's child process"))
+    assert ran == [["open", "-a", "/Applications/Google Chrome.app", url]]  # Launch Services starts it: no Apply's permissions
+
+
+def test_with_no_chrome_the_everyday_chrome_says_how_to_get_it(monkeypatch):
     monkeypatch.setattr(chrome_finder, "find", lambda *a, **k: None)
     with pytest.raises(FileNotFoundError, match="google.com/chrome"):
-        captcha.to_everyday_chrome(url, popen=lambda argv, **kwargs: pytest.fail("no Chrome to start"))
+        captcha.to_everyday_chrome("https://x.example/", popen=lambda argv, **kwargs: pytest.fail("no Chrome to start"))
 
 
 @pytest.mark.parametrize("system, command", [
     ("darwin", ["open", "-R", "/a/worker-extension"]),
-    ("win32", ["explorer", "/select,/a/worker-extension"]),
+    ("win32", 'explorer /select,"/a/worker-extension"'),  # one string: a path with a space stays one
     ("linux", ["xdg-open", "/a"]),
 ])
 def test_the_seed_guide_shows_the_folder_each_oss_way(monkeypatch, system, command):
@@ -285,3 +298,11 @@ def test_the_seed_guide_shows_the_folder_each_oss_way(monkeypatch, system, comma
     monkeypatch.setattr(subprocess, "run", lambda argv, **kwargs: ran.append(argv))
     seed_setup.Desk(Path("/seed")).reveal(Path("/a/worker-extension"), system)
     assert ran == [command]
+
+
+def test_on_windows_a_folder_with_a_space_in_its_path_is_shown_whole(monkeypatch):
+    ran = []
+    monkeypatch.setattr(subprocess, "run", lambda command, **kwargs: ran.append(command))
+    seed_setup.Desk(Path("/seed")).reveal(Path("/Users/Jane Doe/profiles/worker-extension"), "win32")
+    # Python would quote the whole "/select,<path>" argument, and Explorer would open its default folder.
+    assert ran == ['explorer /select,"/Users/Jane Doe/profiles/worker-extension"']

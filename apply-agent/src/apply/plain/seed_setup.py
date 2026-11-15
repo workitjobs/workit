@@ -142,8 +142,12 @@ class Desk:
         """Show `path` in the OS's file manager, selected where the OS can: no library does this on every OS.
         macOS: Finder (`open -R`). Windows: File Explorer (`explorer /select,`). Linux: its parent folder in the
         desktop's file manager (`xdg-open`)."""
-        command = {"darwin": ["open", "-R", str(path)], "win32": ["explorer", f"/select,{path}"]}.get(
-            system, ["xdg-open", str(path.parent)])
+        if system == "darwin":
+            command: list[str] | str = ["open", "-R", str(path)]
+        elif system == "win32":  # one string: Explorer reads /select, only outside the quotes, and Python quotes
+            command = f'explorer /select,"{path}"'  # a whole argument that holds a space (C:\Users\Jane Doe\...)
+        else:
+            command = ["xdg-open", str(path.parent)]
         subprocess.run(command, check=system == "darwin")  # explorer's exit code is 1 even when it opens
 
     def chrome(self) -> int | None:

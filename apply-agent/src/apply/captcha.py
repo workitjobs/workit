@@ -215,19 +215,26 @@ def as_block(handoff: Handoff, page: Page | None, company: str, url: str) -> Han
     return blocked(company, url, said) if said else handoff
 
 
-def to_everyday_chrome(url: str, chrome: Path | None = None,
+def to_everyday_chrome(url: str, chrome: Path | None = None, system: str = sys.platform,
                        popen: Callable[..., subprocess.Popen] = subprocess.Popen) -> None:
     """Open `url` in the student's everyday Chrome, as a click on a link would: never over DevTools, and never
     in a Worker profile, so the job system sees their own browser. The extension fills the form there.
 
-    The Chrome finder's Chrome starts with the link and no profile flag, on every OS (W4): a Chrome that runs
-    takes the link as a new tab in the student's own profile, and one that doesn't starts on it. FileNotFoundError
-    when there is no Chrome."""
-    binary = chrome or chrome_finder.find()
+    The Chrome finder's Chrome gets the link with no profile flag (W4): a Chrome that runs takes it as a new tab in
+    the student's own profile, and one that doesn't starts on it. FileNotFoundError when there is no Chrome.
+
+    - macOS: through `open -a` and that Chrome's app, so Launch Services starts it as its own app. Started from its
+      binary, a Chrome that wasn't running would be Apply's child process: with Apply's privacy permissions (a
+      site's camera or microphone request would name Apply's app) and Apply's environment.
+    - Windows and Linux: the binary itself, in a session of its own."""
+    binary = chrome or chrome_finder.find(system)
     if binary is None:
         raise FileNotFoundError(chrome_finder.NO_CHROME)
-    popen([str(binary), url], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-          start_new_session=True)
+    quiet = {"stdin": subprocess.DEVNULL, "stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL}
+    if system == "darwin":
+        subprocess.run(["open", "-a", str(binary.parents[2]), url], check=False, **quiet)  # …/X.app/Contents/MacOS/X
+        return
+    popen([str(binary), url], start_new_session=True, **quiet)
 
 
 # The submit's wait for a captcha that shows once the form is sent (at_submit); none outside it.

@@ -83,8 +83,10 @@ has neither.
   with an entry for macOS, Windows and Linux picked by a `system` argument
   (`sys.platform`): Chrome's places and version (`chrome_finder.py`, the one
   Chrome finder), the native host's folder (`native_host.chrome_hosts`), a
-  Worker's background start (`plain/launcher.start_in_background`) and showing
-  a folder (`plain/seed_setup.Desk.reveal`). FocusKeeper (`focus.py`) is the
+  Worker's background start (`plain/launcher.start_in_background`), a link in
+  the student's everyday Chrome (`captcha.to_everyday_chrome`: `open -a` on the
+  Mac, so Chrome never runs as Apply's child) and showing a folder
+  (`plain/seed_setup.Desk.reveal`). FocusKeeper (`focus.py`) is the
   Mac's only: elsewhere `focus.KEEPER` is a `NoKeeper`. A new Chrome path or OS
   call goes into one of these places, with a case for each OS in
   `tests/test_each_os.py` (in CI); never a `/Applications/` path, `open`,

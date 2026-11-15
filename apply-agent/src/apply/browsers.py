@@ -265,11 +265,15 @@ class WorkerBrowsers:
         in the Apply window; False if it has none (headless, or not open).
         On the Mac FocusKeeper brings it, so it stays in front as his app. On
         Windows and Linux there is no FocusKeeper, and Chrome itself brings it
-        (`activate`), as it does on the Mac when FocusKeeper can't."""
+        (`activate`), as it does on the Mac when FocusKeeper can't. Only a
+        Chrome that the profile's lock names as running: Chrome leaves its
+        DevToolsActivePort file behind when it quits, and another Chrome may
+        listen on that port later. (Windows' Chrome makes no SingletonLock:
+        F4's.)"""
         if self._headless:
             return False
         pid = chrome_pid(self._profiles / f"worker-{worker + 1}")
-        return bool(pid) and KEEPER.bring(pid) or activate(self.endpoint(worker))
+        return bool(pid) and (KEEPER.bring(pid) or activate(self.endpoint(worker)))
 
     def endpoint(self, worker: int) -> str | None:
         """Where another client (the dashboard) can reach Worker `worker`'s

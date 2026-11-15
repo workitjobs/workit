@@ -54,6 +54,7 @@ from urllib.parse import parse_qs, urlsplit
 from apply import bot_signals, captcha, masked, stuck
 from apply.answers_tab import AnswersTab, Refused
 from apply.asking import IN
+from apply.chrome_finder import NO_CHROME
 from apply.dashboard_page import (
     ACCOUNTS,
     ACCOUNTS_TAB,
@@ -1666,7 +1667,10 @@ class _Handler(BaseHTTPRequestHandler):
         item = next((i for i in self.dashboard.state()["items"] if str(i["id"]) == key), None)
         if item is None or item.get("kind") != "blocked" or not item.get("posting_url"):
             return self._json(404, {"error": "That application no longer waits on your Chrome."})
-        self.dashboard.everyday(str(item["posting_url"]))
+        try:
+            self.dashboard.everyday(str(item["posting_url"]))
+        except FileNotFoundError:  # no Google Chrome on this computer (captcha.to_everyday_chrome)
+            return self._json(404, {"error": NO_CHROME})
         print(f"Opened {item['posting_url']} in your Chrome, as you asked in the window")
         self._json(200, {"message": f"Opened {item.get('company') or 'the posting'} in your Chrome: "
                                     "the extension fills it there."})

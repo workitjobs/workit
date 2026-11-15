@@ -240,7 +240,11 @@ password for new accounts.
 - **Copy password** (D35 of `../../docs/desktop_application_auto_apply.md`,
   2026-11-14): the page asks for the password as Show password does
   (`POST /accounts/show`), and writes it to the clipboard itself with
-  `navigator.clipboard.writeText`, as the window's other copy buttons do.
+  `navigator.clipboard`, as the window's other copy buttons do. The write
+  starts inside the click, as a `ClipboardItem` that waits for the reply:
+  WebKit (the desktop app's window on the Mac, W5) lets a page write the
+  clipboard only while the click lasts, and refuses a write made after an
+  awaited reply.
   Apply has no clipboard code, so it works on every OS. The passwords are
   Lisul's own, and keeping one from him is not a requirement, so there are
   no secret marks for clipboard managers and no clear after a minute: the
@@ -248,14 +252,20 @@ password for new accounts.
   replaced `MacClipboard` (`osascript` and NSPasteboard, with Concealed and
   Transient marks and a clear after 60 s), which ran on the Mac only
   (KAN-850). When the window can't write the clipboard, the card says to
-  use Show password. W5 checks that pywebview's window lets the page write
-  it on each OS.
+  use Show password; when the server refuses (no password), it says why, and
+  the clipboard does not change. W5 checks that pywebview's window lets the
+  page write it on each OS.
 - Open sign-in page: the newest Posting of that site in the Tracker, opened
   in Lisul's everyday Chrome (`captcha.to_everyday_chrome`), never over
-  DevTools: the Chrome finder's Chrome (`chrome_finder.find`) starts with
-  the link and no profile flag, on every OS. A Chrome that runs takes the
-  link as a new tab in his own profile, and comes to the front (checked on
-  the Mac, 2026-11-14); one that doesn't run starts on it. Workday's job
+  DevTools: the Chrome finder's Chrome (`chrome_finder.find`) gets the
+  link with no profile flag. On the Mac it goes through `open -a` and that
+  Chrome's app, so Launch Services starts it as its own app: started from
+  its binary, a Chrome that wasn't running would be Apply's child process,
+  with Apply's privacy permissions (a site's camera request would name
+  Apply's app) and Apply's environment. On Windows and Linux the binary
+  itself starts, in a session of its own. A Chrome that runs takes the
+  link as a new tab in his own profile and comes to the front; one that
+  doesn't run starts on it. Workday's job
   page has Sign In in its header. With no Posting, the site's home page.
   With no Chrome installed, the card says how to get it (404).
 - With no Keychain password (an account made with Google), Show password

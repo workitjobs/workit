@@ -77,7 +77,7 @@ def test_copy_password_is_the_windows_own_clipboard_write_of_the_shown_password(
         page = board.page()
         status, body = call(board, "/accounts/copy", {"site": ASML.site})
 
-    assert "await navigator.clipboard.writeText(password)" in page
+    assert "navigator.clipboard.write([new ClipboardItem(" in page  # started inside the click, as WebKit needs
     assert "post('/accounts/show', {site: account.site})" in page
     assert status == 404 and PASSWORD not in body
 
