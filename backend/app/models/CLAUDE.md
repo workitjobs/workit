@@ -1395,6 +1395,19 @@ Real, not forgotten. Do not treat their absence as a decision already made.
   `3132c5026bf6` (RLS on, no policies), a new table, safe before or after
   the deploy; until it is applied, the Model route answers 500.
 
+## WorkIt Auto Apply's sign-in codes — `app_sign_in.py` (KAN-723)
+
+- **One row per sign-in of the desktop app**, keyed by the sha256 of its
+  one-time code: the code itself is never stored. It holds the app's
+  PKCE challenge and `traded_at`, set at the first trade whatever the
+  verifier, so a code goes once. CASCADE from `applicant_profiles`.
+- Only `app/services/app_sign_in.py` writes it. A code lives 5 minutes;
+  rows over an hour old go at each new sign-in, the hour's rows count
+  toward the 10-an-hour limit, and `services/retention.py` deletes what is
+  left after a day. Migration `696b3a46ca95` (RLS on, no policies), a new
+  table, safe before or after the deploy; until it is applied, the
+  sign-in routes answer 500.
+
 ## Scraper tables — `scraper.py`
 
 `Scraper_Schedule`, `Scraper_Task` and `Job_Source` (KAN-605, KAN-619,

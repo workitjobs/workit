@@ -36,3 +36,36 @@ class ModelAnswer(BaseModel):
     # Tokens this call spent, every provider tried included.
     tokens: int
     usage: Usage
+
+
+class SignInStart(BaseModel):
+    """The website's /app-sign-in page, for the app: the app's PKCE challenge
+    (RFC 7636's S256, base64url with no padding, 43 characters)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    challenge: str = Field(pattern=r"^[A-Za-z0-9_-]{43}$")
+
+
+class SignInCode(BaseModel):
+    """The one-time code the page gives to the app, and its seconds to live."""
+
+    code: str
+    expires_in: int
+
+
+class SessionTrade(BaseModel):
+    """The app's code and the verifier its challenge was made from."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    code: str = Field(min_length=1, max_length=100)
+    verifier: str = Field(pattern=r"^[A-Za-z0-9._~-]{43,128}$")
+
+
+class AppSession(BaseModel):
+    """A Supabase session of the app's own: it refreshes it at Supabase Auth."""
+
+    access_token: str
+    refresh_token: str
+    expires_at: int

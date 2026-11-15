@@ -157,8 +157,9 @@ the student approves on the webapp's `/connect/claude` with their normal
 Supabase session. Signed out, the page sends them to `/login?next=...`,
 and a password sign-in comes back to it; `next` is honoured for that page
 only, so the link can't send anyone elsewhere. A Google or LinkedIn
-sign-in started there lands on the account's home instead (not carried
-through `/auth/callback` yet); the student opens Claude's link again.
+sign-in started there comes back too (KAN-723, `lib/sign-in-next.ts`):
+Google's flow cookie and LinkedIn's `redirectTo` carry `next`. A first
+sign-in, a new account, goes to onboarding instead.
 
 The student disconnects from WorkIt, not only from Claude: My Profile's
 Disconnect calls `DELETE /applicants/{id}/connector`, which deletes every
@@ -166,6 +167,59 @@ access and refresh token given for them (every client) and any sign-in
 they allowed whose code wasn't traded, so the next `/mcp` call is a 401
 and a refresh fails. Removing the connector in Claude alone leaves
 WorkIt's tokens alive until they expire.
+
+## WorkIt Auto Apply's sign-in (the desktop app, KAN-723)
+
+The desktop app gets a Supabase session of its own through the student's
+own browser, with no port (D12 of `desktop_application_auto_apply.md`,
+W5). The code is `backend/app/services/app_sign_in.py`, the page
+`frontend/src/app/app-sign-in/`, the app's side `apply-agent`'s
+`workit.login` and `WorkIt.trade`.
+
+```
+app      makes a PKCE verifier; opens /app-sign-in?challenge=<S256> in the default browser
+page     signed out: /login?next=... and back.  Sign In to the App:
+         Next action ──POST /apply-app/sign-in {challenge}, Bearer──▶ FastAPI
+                                    one-time code, its sha256 kept 5 minutes (app_sign_ins)
+         shows workit-auto-apply://signed-in?code=... and the code itself
+app      ──POST /apply-app/session {code, verifier}──▶ FastAPI
+                                    the code goes at the first try; S256(verifier) must match
+         FastAPI ──admin get_user_by_id, generate_link(magiclink)──▶ Supabase Auth (no email sent)
+         FastAPI ──POST /auth/v1/verify {token_hash}──▶ Supabase Auth: a new session
+         ◀── {access_token, refresh_token, expires_at}; the app refreshes it at Supabase itself
+```
+
+- **A new session, never the website's.** Supabase rotates a refresh
+  token at each use, so the website and the app holding one session
+  would sign each other out, and a reused token can end the session.
+- **PKCE makes a code useless to anyone but the app that asked.** A
+  program that catches the `workit-auto-apply://` link, or a code pasted
+  anywhere else, has no verifier. A Developer checkout, which macOS
+  can't hand the link, pastes the code; the page shows it for that and
+  says to paste it only into the app. A code works once for 5 minutes,
+  and a wrong verifier spends it.
+- **Not the shared client's `verify_otp`**: it would keep the student's
+  session on the service-role client that every route uses. `/verify`
+  is a plain HTTP call, and no log holds its body.
+- **Limits:** 10 sign-ins an hour per student (429 with `Retry-After`).
+  Supabase limits `/verify` by IP address, and every student's comes
+  from the API's own; check the project's Auth rate limits before the
+  beta grows.
+- **What ends the app's session:** its own sign-out, a "sign out
+  everywhere", deleting the account, and **a password change**: Supabase
+  then ends every other session of the account (`UpdatePassword` calls
+  `LogoutAllExceptMe`, read in supabase/auth's source 2026-11-15), and the
+  app asks the student to sign in again. A normal sign-out on the website
+  does not.
+- **An app sign-in cancels a password-reset link asked for just before.**
+  A magic link for a confirmed account is a recovery token, and Supabase
+  deletes the account's old one as it makes a new one
+  (`CreateOneTimeToken`, read 2026-11-15). The student asks for the reset
+  email again.
+- **The app keeps only the refresh token, in the system's keychain**
+  (`keyring`, item `apply-workit`), and the access token in memory:
+  Windows' Credential Manager takes at most 2,560 bytes an item, less than
+  an access token can be.
 
 ## Identity
 
