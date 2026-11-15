@@ -304,6 +304,12 @@ into it and the window shows "Sample data".
   no backend reads nothing, and its save fails. Pass `InMemoryKeychain` or
   a fake backend. Only `test_keychain_contract.py` with
   `APPLY_TEST_KEYCHAIN=1` touches the real one (`docs/sign-in.md`).
+- **No test reads a real model key.** A test that builds the hosted models
+  (`ask_model.live_claude`) gives them stand-in keys in their environment
+  variables (`GROQ_API_KEY`, `GEMINI_API_KEY`), which come before the
+  Keychain and the checkout's `.env`. The `.env` holds the team's real key,
+  so `test_student_build.py` passed on a Mac and failed on CI, which has no
+  key (2026-11-15).
 - **Prove a fix on the real form.** Rehearse the job posting that showed the
   bug (`uv run apply rehearse <url>`) and read its record. A rehearsal never
   submits. A unit test that passes is not the check that matters; the live
