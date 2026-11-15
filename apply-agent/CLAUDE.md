@@ -185,6 +185,35 @@ into it and the window shows "Sample data".
   CI never runs the Filler tests (`test_*_filler.py`, `test_claude_fill.py`
   and the other files that open Chromium). Run the ones that your change
   touches on your Mac, with `-k`.
+- **Every test earns its place: one scenario, and a fault it alone turns
+  red** (KAN-780: the hostile pages' 495 PR cases became 220 and still
+  catch every fault they caught). A fault is a guard check switched off, a
+  path's branch broken, a page's trick no other test holds. Before you add a
+  test, a hostile page, a path or a timed copy:
+  1. Name its fault in its comment.
+  2. Find the tests that already go red on that fault: put the fault in
+     (switch the check off, break the branch) and run the PR cases of the
+     files it touches. When one goes red, extend that test, or add nothing.
+  3. Give it the place its kind has. A page of a known kind joins its set
+     (`APPLIES`, `OWN`) and runs once on PRs, on its own path; its other
+     pairs go nightly by themselves. One delay per scenario: a hold that
+     lasts past T stops every page that sends later than T, so a copy at
+     another delay is the same test, slower.
+  4. Wait on the event: a request, a selector, a flag the page sets
+     (`window.saving === 0`). A hostile page's late send waits `wait_ms` on
+     its clock (`LATEST` for a timer with no number). A fixed time is for a
+     scenario that is itself timed (a hold, a tile's retries), and says so.
+  5. Run it where its kind runs: no browser in the fast list (port 0, its
+     own `tmp_path`); CDP in a parallel step; a plain Worker in the
+     one-process step, or `xdist_group("plain-worker")` in a parallel file,
+     since plain Workers side by side miss their timing.
+  6. Keep it on PRs. A test runs only nightly when a fault run shows a PR
+     test goes red on every fault it does, or when it reads only files a CI
+     filter watches and the filter runs it on their change (the hostile
+     controls, `CONTROLS_ON_PRS`).
+
+  Done when its comment names the fault, the test goes red with that fault
+  in, and the file's no-browser self-checks pass.
 - **The submit guard's hostile pages** (`tests/test_submit_guard_hostile.py`,
   KAN-666) run every click path that presses through the guards (plain
   code's Next, the profile click, the account click, Ask Claude's press,
@@ -249,8 +278,8 @@ into it and the window shows "Sample data".
   were the plain dialog's pair again; their scenario is the held-page
   tests'. One timed copy per dialog kind, at 10 s: a hold that ended after
   T seconds lets through any page that sends later than T, so the 3.5 s and
-  60 s copies added nothing but a minute each. Mark a test `nightly` only when it is slow
-  and a faster PR case covers the same code. A guard PR gets an adversarial review first (root `CLAUDE.md`).
+  60 s copies added nothing but a minute each. Which test runs only nightly:
+  "Every test earns its place", above. A guard PR gets an adversarial review first (root `CLAUDE.md`).
   A page loads with no guard and is then guarded and reloaded, unless it
   sends by itself from the moment it loads (a timer, before any press):
   such a page joins `SENDS_AS_IT_LOADS` and is guarded before its first

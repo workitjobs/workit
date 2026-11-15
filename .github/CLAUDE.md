@@ -164,7 +164,8 @@ that skip without one, and with the browsers installed first they ran in
 parallel and hung the fast tests at 96% until the step's 5 minutes ran out
 (2026-11-15). Then it runs `test_plain_focus.py`, `test_plain_guards.py`,
 `test_plain_routing.py` and `test_upload_origin.py`, the last three on a real plain Worker (KAN-667;
-`test_upload_origin.py`'s hostile upload pages also run on CDP, KAN-795). macOS, because a
+`test_upload_origin.py`'s hostile upload pages also run on CDP, KAN-795, in a parallel step of their own,
+since only plain-Worker cases need one process). macOS, because a
 plain Worker starts through `open` and the browser's `.app`; a step fails the
 job if the browser is missing, since these tests skip without it.
 **`test_submit_guard_hostile.py` runs in its own job, `apply-hostile`**, on a
@@ -181,7 +182,7 @@ limit too, so a hang fails in that step. But the steps' limits came to 38
 minutes under the job's 25, so the job's limit could stop a run whose every
 step was inside its own. **Since the split, every step of both jobs has a
 limit, setup included, and each job's limit is the sum of its steps'**
-(`apply` 31, `apply-hostile` 29): a hang fails in its own step, and the job's
+(`apply` 34, `apply-hostile` 29): a hang fails in its own step, and the job's
 limit never fires first. A step added to either job adds its limit to the
 job's.
 **CI does not run the other 28 test files**, which hold the Filler tests

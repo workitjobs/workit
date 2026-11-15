@@ -198,7 +198,7 @@ jobs:
     # macOS: a plain Worker starts through `open` and Chrome for Testing's .app
     # (apply/plain/launcher.py), as on the Macs Apply runs on.
     runs-on: macos-latest
-    timeout-minutes: 31
+    timeout-minutes: 34
     defaults:
       run:
         working-directory: apply-agent
@@ -316,14 +316,20 @@ jobs:
       - name: Plain Worker focus
         timeout-minutes: 2
         run: uv run pytest -q tests/test_plain_focus.py
-      # A real plain Worker on a fake job system. A new suite this fast joins the list.
-      # test_upload_origin.py (KAN-795) runs its CDP and plain Worker cases here too.
-      # One process: in parallel each pays a 40 s Worker start and the typing
-      # tests' timing slips, for no gain (KAN-780). 101 tests took 233 s (2026-11-14), so the limit is 6.
+      # test_upload_origin.py's CDP cases (KAN-795): Playwright's Chromium, a server on port 0 and a tmp_path
+      # each, so they run in parallel, apart from its plain Worker cases below (22 took 64 s in one process
+      # on a 10-core Mac, 24 s in 3; KAN-780).
+      - name: Upload origin on CDP
+        timeout-minutes: 3
+        run: uv run pytest -q -n auto --durations=5 -m "not nightly" tests/test_upload_origin.py -k "upload_origin and test_cdp"
+      # A real plain Worker on a fake job system. A new suite this fast joins the list, as do
+      # test_upload_origin.py's plain Worker and no-browser cases. One process: in parallel each pays
+      # a 40 s Worker start and the typing tests' timing slips, for no gain (KAN-780). 101 tests took
+      # 233 s (2026-11-14), so the limit is 6; a CDP case runs in a parallel step, as above.
       - name: Plain-Worker tests
         timeout-minutes: 6
         run: |
-          uv run pytest -q -rs --durations=15 -m "not nightly" \
+          uv run pytest -q -rs --durations=15 -m "not nightly" -k "not (upload_origin and test_cdp)" \
             tests/test_plain_guards.py \
             tests/test_plain_routing.py \
             tests/test_plain_typing.py \
