@@ -155,10 +155,14 @@ with `uv sync --locked` and ruff, timed in a Linux container
 the engine's saved forms, so the job needs the fill-engine submodule: it
 needs `FILL_ENGINE_TOKEN` and is skipped without it. It runs only on a PR
 that touches `apply-agent/`, the engine pointer, `ci.yml` or
-`engine-token.yml` (the `changes` job). Its setup, the `apply-setup` action
-(`.github/actions/apply-setup/`, shared with `apply-hostile` and
-`apply-nightly.yml`), installs Chrome for Testing (cached by `uv.lock`); then
-it runs `test_plain_focus.py`, `test_plain_guards.py`,
+`engine-token.yml` (the `changes` job). Its setup is two actions it shares
+with `apply-hostile` and `apply-nightly.yml`: `apply-setup` (the engine pin,
+Python, `uv sync`) and, after the fast tests and the tile's, `apply-browsers`,
+which installs Chrome for Testing (cached by `uv.lock`). **The fast tests run
+before the browsers are installed**: some of their files have browser cases
+that skip without one, and with the browsers installed first they ran in
+parallel and hung the fast tests at 96% until the step's 5 minutes ran out
+(2026-11-15). Then it runs `test_plain_focus.py`, `test_plain_guards.py`,
 `test_plain_routing.py` and `test_upload_origin.py`, the last three on a real plain Worker (KAN-667;
 `test_upload_origin.py`'s hostile upload pages also run on CDP, KAN-795). macOS, because a
 plain Worker starts through `open` and the browser's `.app`; a step fails the
@@ -177,7 +181,7 @@ limit too, so a hang fails in that step. But the steps' limits came to 38
 minutes under the job's 25, so the job's limit could stop a run whose every
 step was inside its own. **Since the split, every step of both jobs has a
 limit, setup included, and each job's limit is the sum of its steps'**
-(`apply` 29, `apply-hostile` 27): a hang fails in its own step, and the job's
+(`apply` 31, `apply-hostile` 29): a hang fails in its own step, and the job's
 limit never fires first. A step added to either job adds its limit to the
 job's.
 **CI does not run the other 28 test files**, which hold the Filler tests
@@ -188,8 +192,8 @@ minutes. Run the files that a change touches on a Mac, with `-k`
 (`apply-agent/CLAUDE.md`, Testing).
 
 Each test step has its own `timeout-minutes` and skips tests marked
-`nightly` (KAN-780). The fast tests run in parallel (`pytest -n auto`,
-pytest-xdist) and the hostile pages in 8 processes (`-n 8`, below), but plain-Worker cases always run one at
+`nightly` (KAN-780). The fast tests and the hostile pages run in parallel
+(`pytest -n auto`, pytest-xdist), but plain-Worker cases always run one at
 a time in one process (the hostile pages' `xdist_group`, `--dist
 loadgroup`, and the plain-Worker step without `-n`): in parallel, plain
 Workers' trusted typing missed its field. The tile's tests, which time
@@ -225,17 +229,20 @@ cases, 1199 s on CI (2026-11-14; 6 minutes on a 10-core Mac, and the runner
 starts 3 processes): from 2026-11-11 every apply job stopped at 60 to 70% of them
 when the 12 minutes ran out, and PRs merged with it red. So its limit went
 to 25 minutes, and back to 12 once each page ran once (303 cases, 486 s,
-2026-11-14). The cases mostly wait (the 10-core run used about one core), so
-the step runs 8 processes on the runner's 3 cores (KAN-780, 2026-11-14). A
-busier runner can delay a hostile page's send past a case's wait and pass a
-case that should fail, so the CDP cases keep the page's time on Playwright's
-clock, where a timed send fires by that clock whatever the runner's speed, and
-three controls on every PR fail if the real time left after the clock is too
-short (`apply-agent/CLAUDE.md`, "The submit guard's hostile pages"). The other
-controls run nightly, and every control on a PR that changes what the control
-reads (the `hostile_pages` filter: the hostile pages' file, the fake site,
-`uv.lock`'s Playwright, the setup), in a step of its own that runs even after a
-red hostile step.
+2026-11-14). On a 10-core Mac the cases mostly wait (the run used about one
+core), but **not on the runner: 8 processes on its 3 cores were no faster**
+(2026-11-15: 220 cases in 237 s, as 303 had taken on 3). The held-page tests
+ran half again as long, and three plain-Worker cases missed their timing: a
+service worker's post came later than its control's 8 s and landed in the next
+test, before its guard was on, and trusted typing missed its field. So the step
+stays at one process per core. The CDP cases keep the page's time on
+Playwright's clock, where a timed send fires by that clock whatever the
+runner's speed, and three controls on every PR fail if the real time left
+after the clock is too short (`apply-agent/CLAUDE.md`, "The submit guard's
+hostile pages"). The other controls run nightly, and every control on a PR
+that changes what the control reads (the `hostile_pages` filter: the hostile
+pages' file, the fake site, `uv.lock`'s Playwright, the setup), in a step of
+its own that runs even after a red hostile step.
 The Plain-Worker step's limit is 6 minutes (101 tests took 233 s,
 2026-11-14). While the hostile step ran out of time, no step after it ran
 on CI, so what broke there stayed hidden: a fixed 300 ms wait for an

@@ -118,6 +118,7 @@ jobs:
               - .github/workflows/ci.yml
               - .github/workflows/engine-token.yml
               - .github/actions/apply-setup/**
+              - .github/actions/apply-browsers/**
             # What the hostile pages' control reads (KAN-780): the pages, the fake site, Chromium (uv.lock pins
             # Playwright) and the runner's setup. The control runs no Apply code, so no other change can turn it red.
             hostile_pages:
@@ -128,6 +129,7 @@ jobs:
               - apply-agent/uv.lock
               - .github/workflows/ci.yml
               - .github/actions/apply-setup/**
+              - .github/actions/apply-browsers/**
 
   # The extension's smoke specs (autofiller_extension/test/ci-smoke.txt),
   # headless, on the engine the submodule pins (KAN-464). The whole suite, 40
@@ -194,7 +196,7 @@ jobs:
     # macOS: a plain Worker starts through `open` and Chrome for Testing's .app
     # (apply/plain/launcher.py), as on the Macs Apply runs on.
     runs-on: macos-latest
-    timeout-minutes: 29
+    timeout-minutes: 31
     defaults:
       run:
         working-directory: apply-agent
@@ -206,7 +208,7 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.FILL_ENGINE_TOKEN }}
       - uses: ./.github/actions/apply-setup
-        timeout-minutes: 8
+        timeout-minutes: 5
       - run: uv run ruff check .
         timeout-minutes: 2
       # The files that need no browser, network or `claude` CLI. A new test
@@ -304,6 +306,10 @@ jobs:
             tests/test_plain_stale_extension.py \
             tests/test_plain_tile_fallback.py \
             tests/test_review_kan717_hostile.py
+      # After the fast tests and the tile's, whose files have browser cases that skip without one: with
+      # the browsers first they ran in parallel and hung the fast tests (2026-11-15, apply-browsers).
+      - uses: ./.github/actions/apply-browsers
+        timeout-minutes: 5
       # The worker extension's page scripts in a window without focus (KAN-709).
       - name: Plain Worker focus
         timeout-minutes: 2
@@ -327,7 +333,7 @@ jobs:
     needs: [changes, engine]
     if: needs.changes.outputs.apply == 'true' && needs.engine.outputs.set == 'true'
     runs-on: macos-latest
-    timeout-minutes: 27
+    timeout-minutes: 29
     defaults:
       run:
         working-directory: apply-agent
@@ -339,21 +345,21 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.FILL_ENGINE_TOKEN }}
       - uses: ./.github/actions/apply-setup
-        timeout-minutes: 8
+        timeout-minutes: 5
+      - uses: ./.github/actions/apply-browsers
+        timeout-minutes: 5
       # No-browser, CDP and plain Worker cases. On PRs every page and every path at least once, each page on its own
-      # path; every pair nightly. The CDP cases mostly wait, so 8 processes share the runner's 3 cores (KAN-780): the
-      # page's timers run on Playwright's clock, so a busy runner can't move a timed send past its case's wait, and
-      # the controls kept on PRs (CONTROLS_ON_PRS) fail if the real time left is too short. The plain-Worker cases
-      # still run one at a time in one of the 8. 303 cases took 237 to 486 s on 3 processes (2026-11-14).
+      # path; every pair nightly. One process per core: on 8 processes (2026-11-15) 220 cases took 237 s, no less than
+      # 303 had on 3, the held-page tests ran half again as long, and three plain-Worker cases missed their timing.
       - name: Submit guard hostile pages
         timeout-minutes: 12
-        run: uv run pytest -q -n 8 --dist loadgroup --durations=15 -m "not nightly" tests/test_submit_guard_hostile.py
+        run: uv run pytest -q -n auto --dist loadgroup --durations=15 -m "not nightly" tests/test_submit_guard_hostile.py
       # Every page's control, on a PR that changes what the control reads (the hostile_pages filter); the others
       # run three on PRs and the rest nightly. Runs even after a red step above, so neither hides the other.
       - name: Every hostile page's control
         if: ${{ !cancelled() && needs.changes.outputs.hostile_pages == 'true' }}
         timeout-minutes: 4
-        run: uv run pytest -q -n 8 --durations=5 "tests/test_submit_guard_hostile.py::test_without_the_guard_each_hostile_page_sends"
+        run: uv run pytest -q -n auto --durations=5 "tests/test_submit_guard_hostile.py::test_without_the_guard_each_hostile_page_sends"
 
   # The API's Cloudflare Worker (KAN-169): a type error here would otherwise
   # surface only when the deploy on main fails.

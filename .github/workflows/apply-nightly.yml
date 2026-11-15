@@ -33,6 +33,7 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.FILL_ENGINE_TOKEN }}
       - uses: ./.github/actions/apply-setup
+      - uses: ./.github/actions/apply-browsers
       # The plain-Worker cases run one at a time in one process (ONE_PLAIN_PROCESS): 887 of the 1132
       # nightly tests, about 4.4 s each on the runner, so about 65 minutes. At 30 the step stopped at 57%
       # every night from 2026-11-11 to 11-13 (KAN-841). Leaving out the pairs whose path finds nothing on

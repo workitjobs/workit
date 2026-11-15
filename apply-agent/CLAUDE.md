@@ -220,8 +220,8 @@ into it and the window shows "Sample data".
   time flows as unfaked while the path presses, then the clock moves through
   the wait in 250 ms steps, each with 50 ms of real time for the requests a
   timer made, and 0.5 s more at the end. A 1.5 s wait takes 0.8 s and an
-  11.5 s one 2.8 s, and a busy runner can't push a timed send past its wait,
-  which is what lets CI run 8 processes on 3 cores. Unguarded, each of the 87
+  11.5 s one 2.8 s, and a busy runner can't push a timed send past its wait.
+  Unguarded, each of the 87
   pages sent on it as on real time, or more (timers that never ran on real
   time, since the page had left, now run before it leaves). Playwright's clock replaces
   `performance`, and the guard's `now()` throws on it, so a CDP guard reads

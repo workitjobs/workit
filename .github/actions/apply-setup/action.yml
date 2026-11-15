@@ -1,10 +1,10 @@
 name: Apply test setup
 description: >-
-  The fill-engine pin, Python, uv and Apply's packages, Playwright's Chromium and
-  Chrome for Testing, for the jobs that run Apply's tests (ci.yml's apply and
-  apply-hostile, apply-nightly.yml; KAN-780). Runs after the checkout, which must
-  bring the fill-engine submodule (FILL_ENGINE_TOKEN): a local action can't check
-  out its own repo.
+  The fill-engine pin, Python, uv and Apply's packages, for the jobs that run
+  Apply's tests (ci.yml's apply and apply-hostile, apply-nightly.yml; KAN-780).
+  Runs after the checkout, which must bring the fill-engine submodule
+  (FILL_ENGINE_TOKEN): a local action can't check out its own repo. The browsers
+  are apply-browsers, apart, since the fast tests must run before them.
 runs:
   using: composite
   steps:
@@ -28,17 +28,3 @@ runs:
     - shell: bash
       working-directory: apply-agent
       run: uv sync --locked
-    # Playwright's Chromium and its Chrome for Testing follow the Playwright that uv.lock
-    # pins. A miss costs one download.
-    - uses: actions/cache@v4
-      with:
-        path: ~/Library/Caches/ms-playwright
-        key: chrome-for-testing-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('apply-agent/uv.lock') }}
-    - shell: bash
-      working-directory: apply-agent
-      run: uv run playwright install chromium
-    # The plain-Worker tests skip without it, so a failed install fails the job here instead.
-    - name: Chrome for Testing is installed
-      shell: bash
-      working-directory: apply-agent
-      run: uv run python -c "from apply.plain.launcher import chrome_for_testing; print(chrome_for_testing())"
