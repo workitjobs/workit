@@ -3,6 +3,8 @@
 board: the provider read is replaced."""
 
 import datetime
+import time
+from types import SimpleNamespace
 
 import pytest
 from sqlalchemy import text
@@ -136,3 +138,153 @@ async def test_a_failed_publish_leaves_the_board_unread(database, boards_csv, mo
     assert task.error.startswith("publish failed")
     assert read_at is None
     assert jobs == 0
+
+
+# ---------------------------------------------------------------------------
+# Quiet board stagger: filter_quiet as a pure function
+# ---------------------------------------------------------------------------
+
+
+def _row(ats="greenhouse", token="acme", has_kept=False, last_read_at=None):
+    """Minimal row for filter_quiet."""
+    return SimpleNamespace(ats=ats, token=token, has_kept=has_kept, last_read_at=last_read_at)
+
+
+def test_filter_quiet_keeps_never_read_boards():
+    rows = [_row(last_read_at=None)]
+    assert schedules.filter_quiet(rows) == rows
+
+
+def test_filter_quiet_keeps_hot_boards():
+    recent = datetime.datetime.now(datetime.UTC)
+    rows = [_row(has_kept=True, last_read_at=recent)]
+    assert schedules.filter_quiet(rows) == rows
+
+
+def test_filter_quiet_keeps_boards_past_quiet_longest():
+    old = datetime.datetime.now(datetime.UTC) - datetime.timedelta(days=2)
+    rows = [_row(last_read_at=old)]
+    assert schedules.filter_quiet(rows) == rows
+
+
+def test_filter_quiet_stagger_matches_one_in_three(monkeypatch):
+    """Across three consecutive slots, each quiet board is read exactly once."""
+    recent = datetime.datetime.now(datetime.UTC)
+    row = _row(last_read_at=recent, has_kept=False)
+    slot_seconds = schedules.RUN_EVERY.total_seconds()
+    base = int(time.time() // slot_seconds) * slot_seconds
+    kept = 0
+    for i in range(3):
+        monkeypatch.setattr(time, "time", lambda t=base + i * slot_seconds: t)
+        kept += len(schedules.filter_quiet([row]))
+    assert kept == 1
+
+
+def test_filter_quiet_full_keeps_everything():
+    recent = datetime.datetime.now(datetime.UTC)
+    rows = [_row(has_kept=False, last_read_at=recent)]
+    assert schedules.filter_quiet(rows, full=True) == rows
+
+
+# ---------------------------------------------------------------------------
+# Fingerprint rest: advance_fingerprint against real Postgres
+# ---------------------------------------------------------------------------
+
+
+async def test_advance_fingerprint_sets_rest_on_unchanged(database, boards_csv):
+    async with get_engine().begin() as conn:
+        await schedules.sync_catalog(conn, boards_csv)
+        row = await _schedule(conn)
+        await schedules.advance_reads(conn, row.id)
+        # First read: sets fingerprint, unchanged_reads = 0 (new fingerprint)
+        await schedules.advance_fingerprint(conn, row.id, new_fingerprint="aabbccdd")
+        row = await _schedule(conn)
+        assert row.fingerprint == "aabbccdd"
+        assert row.unchanged_reads == 0
+        assert row.fingerprint_until is None
+        assert row.has_kept is True
+
+        # Second read, same fingerprint: unchanged_reads = 1, fingerprint_until set
+        await schedules.advance_fingerprint(conn, row.id, new_fingerprint="aabbccdd")
+        row = await _schedule(conn)
+        assert row.unchanged_reads == 1
+        assert row.fingerprint_until is not None
+
+
+async def test_advance_fingerprint_resets_on_change(database, boards_csv):
+    async with get_engine().begin() as conn:
+        await schedules.sync_catalog(conn, boards_csv)
+        row = await _schedule(conn)
+        await schedules.advance_reads(conn, row.id)
+        await schedules.advance_fingerprint(conn, row.id, new_fingerprint="aabbccdd")
+        # Second read, same → rest
+        await schedules.advance_fingerprint(conn, row.id, new_fingerprint="aabbccdd")
+        row = await _schedule(conn)
+        assert row.unchanged_reads == 1
+        assert row.fingerprint_until is not None
+
+        # Third read, different → reset
+        await schedules.advance_fingerprint(conn, row.id, new_fingerprint="11223344")
+        row = await _schedule(conn)
+        assert row.unchanged_reads == 0
+        assert row.fingerprint_until is None
+        assert row.fingerprint == "11223344"
+
+
+async def test_has_kept_is_sticky(database, boards_csv):
+    async with get_engine().begin() as conn:
+        await schedules.sync_catalog(conn, boards_csv)
+        row = await _schedule(conn)
+        assert row.has_kept is False
+        await schedules.advance_reads(conn, row.id)
+        await schedules.advance_fingerprint(conn, row.id, new_fingerprint="aabbccdd")
+        row = await _schedule(conn)
+        assert row.has_kept is True
+        # advance_fingerprint always sets has_kept true; it never goes back
+
+
+async def test_record_missing_second_miss_clears_fingerprint(database, boards_csv):
+    async with get_engine().begin() as conn:
+        await schedules.sync_catalog(conn, boards_csv)
+        row = await _schedule(conn)
+        await schedules.advance_reads(conn, row.id)
+        await schedules.advance_fingerprint(conn, row.id, new_fingerprint="aabbccdd")
+        # Same fingerprint → rest
+        await schedules.advance_fingerprint(conn, row.id, new_fingerprint="aabbccdd")
+        row = await _schedule(conn)
+        assert row.fingerprint_until is not None
+
+        # First miss: note it
+        await schedules.record_missing(conn, row.id)
+        row = await _schedule(conn)
+        assert row.missing_at is not None
+        # Fingerprint state still present
+        assert row.fingerprint == "aabbccdd"
+
+        # Second miss: clears fingerprint state
+        await schedules.record_missing(conn, row.id)
+        row = await _schedule(conn)
+        assert row.fingerprint is None
+        assert row.unchanged_reads == 0
+        assert row.fingerprint_until is None
+
+
+async def test_select_due_skips_fingerprint_resting(database, boards_csv):
+    """A board with fingerprint_until in the future is skipped unless full=True."""
+    async with get_engine().begin() as conn:
+        await schedules.sync_catalog(conn, boards_csv)
+        row = await _schedule(conn)
+        await schedules.advance_reads(conn, row.id)
+        # Set fingerprint and make it rest
+        await schedules.advance_fingerprint(conn, row.id, new_fingerprint="aabbccdd")
+        await schedules.advance_fingerprint(conn, row.id, new_fingerprint="aabbccdd")
+        row = await _schedule(conn)
+        assert row.fingerprint_until is not None
+
+        # Normal select_due skips it
+        due = await schedules.select_due(conn)
+        assert len(due) == 0
+
+        # full=True includes it
+        due = await schedules.select_due(conn, full=True)
+        assert len(due) == 1
