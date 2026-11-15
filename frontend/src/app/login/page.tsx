@@ -75,7 +75,7 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
 
       <LoginForm formId={FORM_ID} next={typeof next === "string" ? next : undefined} />
 
-      <AuthAlternatives />
+      <AuthAlternatives next={typeof next === "string" ? next : undefined} />
     </AuthCard>
   );
 }

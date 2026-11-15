@@ -15,6 +15,7 @@ import type { ReactNode } from "react";
 
 import { AppSidebar, type SidebarNavGroup } from "@/components/app-sidebar";
 
+import { CALENDAR_LIVE } from "./calendar/live";
 import { INBOX_LIVE } from "./inbox/live";
 
 /**
@@ -79,12 +80,6 @@ import { INBOX_LIVE } from "./inbox/live";
  * confusing. The bar's title, page titles, Back links and breadcrumbs use
  * the same names.
  */
-/** Whether the Calendar row shows (2026-11-09). Off while the Calendar does
- *  not work: a greyed-out row on every page was a promise the app could not
- *  keep. Its page stays at /calendar, unlinked from the rail. Set it to true
- *  to bring the row back, live. */
-const CALENDAR_LIVE = false;
-
 const GROUPS: SidebarNavGroup[] = [
   {
     // No caption: with one group there is nothing to tell it apart from.

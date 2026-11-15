@@ -6,7 +6,13 @@ import { useSyncExternalStore, type MouseEvent } from "react";
 import { ArrowLeftIcon } from "@/components/icons";
 import { ButtonLink } from "@/components/ui/button";
 
-import { cameFrom, openerOf, restoreScrollOn, subscribeOpener } from "./scroll-memory";
+import {
+  cameFrom,
+  openerOf,
+  recordedOpenerOf,
+  restoreScrollOn,
+  subscribeOpener,
+} from "./scroll-memory";
 
 /** The seeker pages a Back link can name, by path: the sidebar's names,
  *  and the detail pages by what they show. A page not listed is never a
@@ -40,6 +46,19 @@ function pageName(address: string): string | null {
 
 const noOpener = () => null;
 
+const isWithin = (address: string, path: string) => {
+  const at = address.split("?")[0];
+  return at === path || at.startsWith(`${path}/`);
+};
+
+/** The opener, or, when it is a part of `within` (or its own address), what
+ *  opened `within`; null when that is a part too or unknown. */
+function outside(opener: string | null, within: string | undefined): string | null {
+  if (!opener || !within || !isWithin(opener, within)) return opener;
+  const first = recordedOpenerOf(within);
+  return first && !isWithin(first, within) ? first : null;
+}
+
 /**
  * Where a page's Back goes: the page that opened it in this tab (the
  * scroll memory's `openerOf`), else `parent`, its place in the app, for a
@@ -54,11 +73,22 @@ const noOpener = () => null;
  * from Experiences went Back to Resumes. The job posting page keeps its own
  * (`BackToJobs`): the rail opens job after job, and its Back skips them to
  * the list they came from.
+ *
+ * `within` is the path of a page whose parts are pages of their own
+ * (Application Info, `/auto-apply/info`): a part opened from another part,
+ * or from that path's own address (which opens its first part), goes Back
+ * to what opened the page, never to a part. Application Info went Back to
+ * Auto Apply whenever its opener was a part, which it always was, so a
+ * student who came from Profile was sent to Auto Apply (KAN-822).
  */
-export function useBack(parent: { href: string; name: string }) {
+export function useBack(parent: { href: string; name: string }, within?: string) {
   const pathname = usePathname();
   const router = useRouter();
-  const opener = useSyncExternalStore(subscribeOpener, () => openerOf(pathname), noOpener);
+  const opener = useSyncExternalStore(
+    subscribeOpener,
+    () => outside(openerOf(pathname), within),
+    noOpener,
+  );
   const name = opener ? pageName(opener) : null;
   const href = opener && name ? opener : parent.href;
 
@@ -80,18 +110,20 @@ export function useBack(parent: { href: string; name: string }) {
  * A page's Back button, drawn as every seeker Back is: a small secondary
  * button, its arrow leaning back while hovered. `named` spells out where it
  * goes ("Back to Calendar"); otherwise it reads "Back" and says where in its
- * accessible name.
+ * accessible name. `within` is `useBack`'s.
  */
 export function BackLink({
   parent,
   named = false,
+  within,
   className = "group/back mb-3",
 }: {
   parent: { href: string; name: string };
   named?: boolean;
+  within?: string;
   className?: string;
 }) {
-  const back = useBack(parent);
+  const back = useBack(parent, within);
   return (
     <ButtonLink
       href={back.href}

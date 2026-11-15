@@ -165,4 +165,4 @@ Every slice ends with a rehearsal on the fakes, and from S5 on also a real posti
 - `--disable-backgrounding-occluded-windows` is on.
 - Plain Workers use their own private extension (`apply-agent/worker-extension`), not a mode of the WorkIt extension.
 - Branded Chrome with a seed profile is the default (`plain_chrome: chrome`, `apply plain seed`).
-- `worker_mode` stays `cdp` by default until plain Workers reach parity. The switch-over is still open.
+- `worker_mode` is `protected` by default since 2026-11-06 (KAN-723): the team chose it before full parity and the week of side-by-side runs. `plain` for every form is still open.

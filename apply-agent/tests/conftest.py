@@ -34,10 +34,28 @@ import network_block
 
 network_block.install()
 
+# No test reaches the system's keychain (macOS Keychain, Windows Credential Manager): keyring's null
+# backend reads nothing and keeps nothing, so a SystemKeychain that a test gave no backend sees an empty
+# keychain, and its save fails. test_keychain_contract.py opts in to the real one with APPLY_TEST_KEYCHAIN=1.
+import keyring
+from keyring.backends import null
+
+keyring.set_keyring(null.Keyring())
+
 from fake_lever import FakeLeverServer
 from fakes import FakeJobServer
 
-from apply import browsers, cli, cover_letter, gates, home, profile
+from apply import (
+    answering,
+    browsers,
+    cli,
+    cover_letter,
+    doctor,
+    gates,
+    home,
+    profile,
+    workit,
+)
 
 # Never the student's own data folder: data_folder() deletes HOME before each test. Were
 # Apply imported before APPLY_HOME was set above, HOME would be ~/.config/apply (it was,
@@ -140,8 +158,19 @@ def data_folder() -> Path:
     shutil.rmtree(home.HOME, ignore_errors=True)
     shutil.copytree(home.SAMPLE, home.HOME)
     shutil.copy(FIXTURES / "story-bank.md", home.STORY_BANK)
+    # WorkIt's Question types, as a run fetches them (GET /apply-app/types), saved from the server's own copy.
+    shutil.copy(FIXTURES / "question-types.json", answering.CACHE)
+    answering._served.cache_clear()
+    answering._patterns.cache_clear()
     gates.companies.cache_clear()  # read again from this test's briefs
     return home.HOME
+
+
+@pytest.fixture(autouse=True)
+def a_new_process_for_workit():
+    """Each test starts as a new process does: no WorkIt access token kept from an earlier test (workit._ACCESS),
+    whose fake WorkIt may have had the same port."""
+    workit._ACCESS.clear()
 
 
 @pytest.fixture(autouse=True)
@@ -151,8 +180,11 @@ def cover_letters_printed_as_their_text(monkeypatch):
 
 
 # Lisul's switches in the real policies.yaml (live runs, phone pushes, headed Workers) are his to
-# flip; tests run with them at their defaults, so flipping one never breaks a test.
-SWITCHES = ("live_runs", "phone_push", "worker_headless")
+# flip; tests run with them at their defaults, so flipping one never breaks a test. worker_mode too:
+# a test that needs a plain Worker sets it itself, so policies.default.yaml's protected (KAN-723)
+# starts no plain Worker in a test that didn't ask for one. ask_model too: policies.default.yaml's
+# [groq, gemini] (KAN-723) never sends a test's prompt to a provider; a test runs on claude, its fake.
+SWITCHES = ("live_runs", "phone_push", "worker_headless", "worker_mode", "ask_model")
 
 
 @pytest.fixture(autouse=True)
@@ -166,7 +198,7 @@ def switches_at_their_defaults(monkeypatch):
                 rules.pop(switch, None)
         return rules
 
-    for module in (profile, cli, browsers):
+    for module in (profile, cli, browsers, doctor):  # doctor reads the policies itself with no profile
         monkeypatch.setattr(module, "load_policies", without_switches)
 
 

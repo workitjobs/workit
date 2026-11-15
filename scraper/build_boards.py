@@ -135,7 +135,6 @@ UNREAD_CAUSES: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("a link shortener (--resolve)", SHORTENER),
     ("Greenhouse behind the company's site (--resolve)", GH_JID),
     ("iCIMS behind the company's site (--resolve)", ICIMS_HERE),
-    ("SmartRecruiters, whose robots.txt disallows us", re.compile(r"smartrecruiters\.com", re.I)),
     ("SuccessFactors", re.compile(r"successfactors|sapsf\.", re.I)),
     ("Eightfold", re.compile(r"\.eightfold\.ai/", re.I)),
     ("JazzHR", re.compile(r"\.applytojob\.com/", re.I)),

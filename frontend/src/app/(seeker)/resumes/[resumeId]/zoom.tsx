@@ -22,14 +22,16 @@ import { EDITOR_ZOOM_KEY, readLocalDraft, writeLocalDraft } from "@/lib/local-dr
  *  page never grows past its column, so a high step on a narrow screen
  *  stops at the column's width. Each page draws again at its new width
  *  (`PageCanvas`), so text stays sharp at every step. An upload's page
- *  (../uploaded/[id]/viewer.tsx) draws the same control over its own
- *  state, opening at 100% and storing nothing. */
+ *  (../uploaded/[id]/viewer.tsx) draws the same control over the same
+ *  kept step (`useZoom`), so both resume pages open at one zoom (KAN-825:
+ *  an upload's opened at 100% and kept nothing until then). */
 const ZOOMS = [50, 75, 90, 100, 125, 150];
 const DEFAULT_ZOOM = 125;
 export const zoomWidth = (zoom: number) => `${(816 * zoom) / 100}px`;
 
-/** The page's zoom, kept per browser (`EDITOR_ZOOM_KEY`). The server and
- *  hydration draw the default, then the browser's own step. */
+/** The page's zoom, kept per browser (`EDITOR_ZOOM_KEY`) and shared by
+ *  the editor and an upload's page. The server and hydration draw the
+ *  default, then the browser's own step. */
 const zoomListeners = new Set<() => void>();
 // The pick this tab made, so the zoom still moves when storage refuses it
 let pickedZoom: number | null = null;

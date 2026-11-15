@@ -1,11 +1,11 @@
 """A Worker never runs older worker extension code without Apply saying so (KAN-764). On 2026-11-10 a seed copied
 from another profiles folder registered that folder's copy, 5 days old, and every new Worker loaded it at the same
-feature level as current code. With fakes: a fake `ps`, Chrome preference files and a fake hello. No browser."""
+feature level as current code. With fakes: a fake process list (psutil), Chrome preference files and a fake hello. No browser."""
 
 import json
 import shutil
-import subprocess
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from test_plain_bridge import (  # noqa: F401 (a fixture)
@@ -43,21 +43,19 @@ def old_copy(folder: Path) -> Path:
 
 @pytest.fixture
 def ps(monkeypatch):
-    """`ps -axo pid=,command=`, faked: `ps.lines` are the processes it lists."""
-    real = subprocess.run
+    """psutil's process list, faked: `ps.lines` are the processes it lists, each (pid, its arguments)."""
 
-    def run(command, *args, **kwargs):
-        if command[:2] == ["ps", "-axo"]:
-            return subprocess.CompletedProcess(command, 0, stdout="\n".join(run.lines) + "\n", stderr="")
-        return real(command, *args, **kwargs)
-    run.lines = []
-    monkeypatch.setattr(extension.subprocess, "run", run)
-    return run
+    def process_iter(attrs):
+        assert attrs == ["pid", "cmdline"]
+        return [SimpleNamespace(info={"pid": pid, "cmdline": arguments}) for pid, arguments in process_iter.lines]
+    process_iter.lines = []
+    monkeypatch.setattr(extension.psutil, "process_iter", process_iter)
+    return process_iter
 
 
-def chrome(pid: int, profile: Path, *more: str) -> str:
-    return f"{pid:>6} /Applications/Google Chrome.app/Contents/MacOS/Google Chrome --user-data-dir={profile} " \
-           "--no-first-run " + " ".join(more)
+def chrome(pid: int, profile: Path, *more: str) -> tuple[int, list[str]]:
+    return pid, ["/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", f"--user-data-dir={profile}",
+                 "--no-first-run", *more]
 
 
 def test_loaders_are_the_running_chromes_that_load_the_folder(tmp_path, ps):
@@ -65,11 +63,12 @@ def test_loaders_are_the_running_chromes_that_load_the_folder(tmp_path, ps):
     other = tmp_path / "testing-copy"
     jpm = registered(tmp_path / "profiles-jpm" / "plain-1", shared)
     msft = registered(tmp_path / "profiles-msft" / "plain-1", tmp_path / "profiles-msft" / "worker-extension")
-    ps.lines = [chrome(12302, jpm), chrome(12310, jpm, "--type=renderer"), chrome(13000, msft),
-                f"  14000 /x/Google Chrome for Testing --user-data-dir={tmp_path / 't'} --load-extension={other}",
-                "  15000 /bin/zsh -l"]
+    app = registered(tmp_path / "Application Support" / "WorkIt Auto Apply" / "plain-1", shared)  # D25's folder
+    ps.lines = [chrome(12302, jpm), chrome(12310, jpm, "--type=renderer"), chrome(13000, msft), chrome(13100, app),
+                (14000, ["/x/Google Chrome for Testing", f"--user-data-dir={tmp_path / 't'}", f"--load-extension={other}"]),
+                (15000, ["/bin/zsh", "-l"]), (16000, None)]  # None: another user's process, whose arguments are hidden
 
-    assert extension.loaders(shared) == [12302]  # its browser process only, not its renderer
+    assert extension.loaders(shared) == [12302, 13100]  # each browser process only, not its renderer
     assert extension.loaders(other) == [14000]
     assert extension.loaders(tmp_path / "nowhere") == []
 

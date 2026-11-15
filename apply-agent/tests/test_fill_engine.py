@@ -108,6 +108,15 @@ def test_a_link_the_engine_covers_names_its_job_system_and_form():
     assert fill_engine.job_of("https://example.com/jobs/1") is None
 
 
+@pytest.mark.parametrize("link", ["https://apply.workable.com/perryhomes/j/D894A62691",
+                                  "https://apply.workable.com/perryhomes/j/D894A62691/",
+                                  "https://apply.workable.com/perryhomes/j/D894A62691/apply/"])
+def test_a_workable_posting_opens_on_its_form_not_its_overview(link):
+    from apply.workable import WorkableFiller
+
+    assert WorkableFiller().form_url(link) == "https://apply.workable.com/perryhomes/j/D894A62691/apply"
+
+
 def test_a_host_call_may_call_the_engine_again():
     # The Posting's text is read only when the plan asks, and reading it makes text of HTML with the engine.
     pay = Question("q2", "What hourly rate do you expect?", "text", True)

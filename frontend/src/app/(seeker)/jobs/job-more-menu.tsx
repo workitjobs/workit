@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircleIcon, ExportIcon } from "@phosphor-icons/react/ssr";
+import { ExportIcon } from "@phosphor-icons/react/ssr";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -14,18 +14,25 @@ import {
 } from "@/components/shadcn/dropdown-menu";
 import { useToast } from "@/components/ui/toast";
 
+import { STAGE_ICON } from "../stage-colors";
 import { ApplyDialog } from "./apply-button";
 
 /**
  * A job's "⋯" (2026-11-09, after Simplify's): the actions a student needs
  * now and then, kept out of the action row.
  *
- *   Already Applied?  "Did You Apply?" (./apply-button.tsx), for a job the
- *                     student applied to elsewhere: it marks the job applied
- *                     with the resume they sent. Only for a signed-in
- *                     applicant who has not marked it already.
- *   Share             the device's share sheet where there is one, else the
- *                     job's link copied, with a toast.
+ *   I Already Applied  "Did You Apply?" (./apply-button.tsx), for a job the
+ *                      student applied to elsewhere: it marks the job applied
+ *                      with the resume they sent. Only for a signed-in
+ *                      applicant who has not marked it already. Up Next's ⋯
+ *                      (../auto-apply/row-menu.tsx) has the same row, by the
+ *                      same name and glyph, opening the same dialog (KAN-818).
+ *   Share              the device's share sheet where there is one, else the
+ *                      job's link copied, with a toast.
+ *
+ * Its rows are the menu's own, as Up Next's ⋯ and a resume row's ⋯ draw
+ * theirs: no padding or type of their own, ink glyphs, 192px wide. Until
+ * KAN-818 this one drew larger rows with grey glyphs.
  *
  * Not here yet: Report This Job Posting, which needs somewhere to store a
  * report (a table and an endpoint), and Hide This Job, which waits on
@@ -56,6 +63,7 @@ export function JobMoreMenu({
   const toast = useToast();
   const [asking, setAsking] = useState(false);
   const askable = canMarkApplied && !applied;
+  const Applied = STAGE_ICON.applied;
 
   function marked() {
     setAsking(false);
@@ -101,21 +109,14 @@ export function JobMoreMenu({
             </IconButton>
           }
         />
-        <DropdownMenuContent align="end" className="w-56 p-1.5">
+        <DropdownMenuContent align="end" className="w-48">
           {askable && (
-            <DropdownMenuItem
-              onClick={() => setAsking(true)}
-              className="text-body text-ink gap-2.5 rounded-md px-3 py-2"
-            >
-              <CheckCircleIcon aria-hidden className="text-ink-muted size-4" />
-              Already Applied?
+            <DropdownMenuItem onClick={() => setAsking(true)}>
+              <Applied className="text-ink size-4" />I Already Applied
             </DropdownMenuItem>
           )}
-          <DropdownMenuItem
-            onClick={() => void share()}
-            className="text-body text-ink gap-2.5 rounded-md px-3 py-2"
-          >
-            <ExportIcon aria-hidden className="text-ink-muted size-4" />
+          <DropdownMenuItem onClick={() => void share()}>
+            <ExportIcon aria-hidden className="text-ink size-4" />
             Share
           </DropdownMenuItem>
         </DropdownMenuContent>

@@ -17,6 +17,8 @@ function properties(css: string): Map<string, string> {
 /** A globals.css value as the extension writes it: rem in px (16px to the rem). */
 const inPx = (value: string) => value.replace(/(\d*\.?\d+)rem\b/g, (_, n) => `${Number(n) * 16}px`);
 
+const JAKARTA_WEIGHTS = new Set(["--font-weight-normal", "--text-label--font-weight"]);
+
 test("the extension's tokens have globals.css's values", () => {
   const theirs = properties(read("..", "frontend", "src", "app", "globals.css"));
   const ours = properties(read("src", "shared", "tokens.js"));
@@ -24,6 +26,10 @@ test("the extension's tokens have globals.css's values", () => {
   for (const [name, value] of ours) {
     // The font is the frontend's next/font variable there; here, the shipped file's family.
     if (name === "--font-sans") continue;
+    // The weights are set for a face: the app's are Inter's since 2026-11-10 (400 regular, 450 medium), and the
+    // extension still ships Plus Jakarta Sans, whose 400 reads thin (KAN-365), so it keeps that face's 450 and 500.
+    // Checked again once the extension ships Inter.
+    if (JAKARTA_WEIGHTS.has(name) && ours.get("--font-sans")!.includes("Jakarta")) continue;
     expect(theirs.has(name), `${name} is not a globals.css token`).toBe(true);
     expect(value, name).toBe(inPx(theirs.get(name)!));
   }

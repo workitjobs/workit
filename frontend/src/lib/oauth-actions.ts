@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 
 import { startGoogleFlow } from "@/lib/google-oauth-start";
 import { requestOrigin } from "@/lib/request-origin";
+import { signInNext } from "@/lib/sign-in-next";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 /**
@@ -22,15 +23,17 @@ export type OAuthProvider = "google" | "linkedin_oidc";
  * Action can't do — skipBrowserRedirect keeps it from trying, and this
  * action redirects to the provider's own URL instead. The provider then
  * sends the browser back to /auth/callback (route.ts), which exchanges the
- * code for a session and decides where to send the user next.
+ * code for a session and decides where to send the user next: `next`, when
+ * /login had one that lib/sign-in-next.ts allows, for a returning account.
  */
-export async function signInWithOAuth(provider: OAuthProvider): Promise<void> {
+export async function signInWithOAuth(provider: OAuthProvider, next: string | null): Promise<void> {
+  const back = signInNext(next);
   // Google goes through WorkIt's own callback, so its account chooser names
   // workitjobs.ai rather than the Supabase project (lib/google-oauth.ts).
   // Supabase's OAuth below stays for LinkedIn, and for Google on a clone
   // with no GOOGLE_CLIENT_SECRET.
   if (provider === "google") {
-    const googleUrl = await startGoogleFlow("sign-in");
+    const googleUrl = await startGoogleFlow("sign-in", back);
     if (googleUrl) redirect(googleUrl);
   }
 
@@ -40,7 +43,7 @@ export async function signInWithOAuth(provider: OAuthProvider): Promise<void> {
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider,
     options: {
-      redirectTo: `${origin}/auth/callback`,
+      redirectTo: `${origin}/auth/callback${back ? `?next=${encodeURIComponent(back)}` : ""}`,
       skipBrowserRedirect: true,
       // Without this, Google silently reuses the last account picked in
       // this browser on every retry. That's invisible when it works, but

@@ -179,15 +179,15 @@ export async function forgetShownWorkableDraft(tabId, prepared) {
   // Only a page's first Plan looks: later ones (a fill's own entries showing) never reload it.
   const [{ result }] = await chrome.scripting.executeScript({
     target: { tabId },
-    func: async (names, timeoutMs) => {
+    func: async (names, submit, timeoutMs) => {
       if (window.__workitDraftLooked) return false;
       window.__workitDraftLooked = true;
-      // The restored entries show once Workable's app has mounted, which shows the form's Submit.
+      // The restored entries show once Workable's app has mounted, which shows the form's Submit (the Rules table's).
       const end = Date.now() + timeoutMs;
-      while (!document.querySelector("button[data-ui=apply-button]") && Date.now() < end) await new Promise((wait) => setTimeout(wait, 200));
+      while (submit && !document.querySelector(submit) && Date.now() < end) await new Promise((wait) => setTimeout(wait, 200));
       return names.some((name) => document.querySelector(`[data-ui="${CSS.escape(name)}"] li`));
     },
-    args: [sections, LOAD_TIMEOUT_MS],
+    args: [sections, globalThis.FillEngine.siteRules("workable").strings?.SUBMIT ?? null, LOAD_TIMEOUT_MS],
   });
   if (!result || again) return false;
   freshened.add(tabId);

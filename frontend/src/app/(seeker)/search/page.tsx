@@ -44,7 +44,7 @@ import { SearchFacts } from "./search-facts";
 
 export const metadata: Metadata = {
   title: "Search Jobs",
-  description: "Find your next role.",
+  description: "Find your next job.",
 };
 
 /**
@@ -103,12 +103,12 @@ function ResultCountSkeleton() {
       aria-hidden="true"
       className="bg-ink/6 text-note inline-flex animate-pulse rounded-full px-2 py-0.5 text-transparent"
     >
-      00 Roles
+      00 Jobs
     </span>
   );
 }
 
-/** The matching roles, or the state that stands in for them. */
+/** The matching jobs, or the state that stands in for them. */
 async function Results({
   results,
   facts: factsLoading,
@@ -151,7 +151,7 @@ async function Results({
         {shownFacts}
         <EmptyState
           Icon={SearchIcon}
-          title={`No Roles Match “${query}”`}
+          title={`No Jobs Match “${query}”`}
           className="mt-4"
           action={
             <ButtonLink href="/jobs" variant="secondary" size="sm">
@@ -160,8 +160,8 @@ async function Results({
           }
         >
           {isFiltered(filters) || facts.length > 0
-            ? "Try a different title or company name, loosen a filter, or browse every role in the feed."
-            : "Try a different title or company name, or browse every role in the feed."}
+            ? "Try a different title or company name, loosen a filter, or browse every job in the feed."
+            : "Try a different title or company name, or browse every job in the feed."}
         </EmptyState>
       </>
     );
@@ -202,7 +202,7 @@ export default async function SearchPage({ searchParams }: PageProps<"/search">)
 
         <EmptyState
           Icon={SearchIcon}
-          title="Search for a Role"
+          title="Search for a Job"
           className="mt-6"
           action={
             <ButtonLink href="/jobs" variant="secondary" size="sm">
@@ -210,7 +210,7 @@ export default async function SearchPage({ searchParams }: PageProps<"/search">)
             </ButtonLink>
           }
         >
-          Search by job title or company name, or browse every role in the feed.
+          Search by job title or company name, or browse every job in the feed.
         </EmptyState>
       </div>
     );
@@ -233,9 +233,9 @@ export default async function SearchPage({ searchParams }: PageProps<"/search">)
         {/* The search and filters stay put while the results scroll, as on
             /jobs. The heading, "Results for" the query, is in the top bar
             (../bar-title.tsx). The count's slot is a fixed width (88px holds
-            "9,999 Roles": it counts every match, not the page shown), so the
+            "9,999 Jobs": it counts every match, not the page shown), so the
             row does not move when the count lands. It is a live region, so a
-            screen reader hears how many roles a search found. */}
+            screen reader hears how many jobs a search found. */}
         <FeedHeader
           top={
             <div className="flex items-center gap-3">

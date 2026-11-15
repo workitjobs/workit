@@ -49,6 +49,18 @@ def slugs(link: str) -> list[tuple[str, str]]:
             ("lever", "eu/quantinuum"),
         ),
         ("https://jobs.lever.co/palantir/abc", ("lever", "palantir")),
+        (
+            "https://specialisterne.applytojob.com/apply/Vt3hev3H0E/Software-Engineer-Intern",
+            ("jazzhr", "specialisterne"),
+        ),
+        (
+            "https://acme.pinpointhq.com/postings/591998-software-engineering-intern",
+            ("pinpoint", "acme"),
+        ),
+        (
+            "https://jobs.jobvite.com/tylertech/job/oAVOAfwD?nl=1&fr=false",
+            ("jobvite", "tylertech"),
+        ),
     ],
 )
 def test_an_apply_link_names_its_board(link: str, board: tuple[str, str]) -> None:
@@ -73,14 +85,14 @@ def test_links_that_name_no_board(link: str) -> None:
 def test_unread_links_are_counted_by_host() -> None:
     # Where the next reader would pay off: links no pattern takes, by host.
     links = [
-        "https://jobs.smartrecruiters.com/Visa/744000089542455",
-        "https://jobs.smartrecruiters.com/ServiceNow/744000090109135",
+        "https://johndeere.eightfold.ai/careers/job/137479374700",
+        "https://johndeere.eightfold.ai/careers/job/137479374701",
         "https://jobs.apple.com/en-us/details/200620000",
         "https://jobs.lever.co/palantir/abc",
         "",
     ]
     assert unread_hosts(links).most_common() == [
-        ("jobs.smartrecruiters.com", 2),
+        ("johndeere.eightfold.ai", 2),
         ("jobs.apple.com", 1),
     ]
 
@@ -96,15 +108,7 @@ def test_unread_links_are_counted_by_host() -> None:
             "https://generatebiomedicines.com/open-positions?gh_jid=4643139006",
             "Greenhouse behind the company's site (--resolve)",
         ),
-        (
-            "https://jobs.smartrecruiters.com/RedBull/744000112125687",
-            "SmartRecruiters, whose robots.txt disallows us",
-        ),
         ("https://johndeere.eightfold.ai/careers/job/137479374700", "Eightfold"),
-        (
-            "https://specialisterne.applytojob.com/apply/Vt3hev3H0E/Software-Engineer-Intern",
-            "JazzHR",
-        ),
     ],
 )
 def test_an_unread_link_is_counted_by_why(link: str, cause: str) -> None:

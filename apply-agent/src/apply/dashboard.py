@@ -51,9 +51,10 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Protocol, Self
 from urllib.parse import parse_qs, urlsplit
 
-from apply import bot_signals, captcha, dock_app, masked, stuck
+from apply import bot_signals, captcha, masked, stuck
 from apply.answers_tab import AnswersTab, Refused
 from apply.asking import IN
+from apply.chrome_finder import NO_CHROME
 from apply.dashboard_page import (
     ACCOUNTS,
     ACCOUNTS_TAB,
@@ -148,8 +149,8 @@ WORDS = {
                       "every job on that site."),
     "check": ("Answer to check before sending", "Before it sends, Apply checks every answer against your facts; "
               "one didn't match."),
-    "captcha": ("Do the captcha", "Apply never solves a captcha. Do it on the form's page; Apply waits, and goes on "
-                "by itself once it's gone."),
+    "captcha": ("Do the captcha", "Apply never solves a captcha. Press Open in Chrome and do it in the form's own "
+                "browser window, which a captcha needs; Apply waits, and goes on by itself once it's gone."),
     "blocked": ("Finish it in your Chrome", "The job site refused Apply's Chrome as a bot. Open the posting in "
                 "your own Chrome: the WorkIt extension fills it there, and you press Submit."),
     "handoff": ("Finish this one yourself", "Apply got as far as it could; the rest needs a person, such as a site that blocks it."),
@@ -572,8 +573,10 @@ class Dashboard:
                  notify: Callable[[str, str], None] | None = None, show: Callable[[int], bool] | None = None,
                  sample: bool = False, approve: Callable[[str], str] | None = None,
                  everyday: Callable[[str], None] | None = None, accounts: "AccountsTab | None" = None,
-                 quiet: Callable[[int], bool] | None = None, remember: Callable[[str, str], str] | None = None):
+                 quiet: Callable[[int], bool] | None = None, remember: Callable[[str, str], str] | None = None,
+                 back: Callable[[int], bool] | None = None):
         self._workers = workers
+        self._back = back  # brings this window back after a captcha done in a Worker's own window (come_back)
         self._remember = remember
         # Ask Claude (apply.ask): each Application's thread, by its posting URL, and the messages waiting for its Worker.
         self._threads: dict[str, list[dict]] = {}
@@ -586,7 +589,7 @@ class Dashboard:
         self._into: Callable[[str, int], dict] | None = None  # takes a new link into a Worker (taking)
         quiet = quiet or (lambda k: False)
         self._quiet = lambda k: quiet(self.worker_of(k))
-        self.accounts = accounts  # the Accounts tab: each Employer account, its password only in Keychain
+        self.accounts = accounts  # the Accounts tab: each Employer account, its password in Keychain
         self._sample = sample
         self._frames = _Shown(frames, self)
         self.answers = answers
@@ -628,6 +631,12 @@ class Dashboard:
     def __enter__(self) -> Self:
         threading.Thread(target=self._server.serve_forever, daemon=True).start()
         return self
+
+    def come_back(self, tile: int) -> bool:
+        """Lisul did tile `tile`'s captcha in its Worker's own window (Open in Chrome), and Apply saw it done: this
+        window comes back to the front, only while that Worker's window is still the front one, so it never takes
+        him from another app (KAN-855). False when it stays where it is."""
+        return bool(self._back and self._back(self.worker_of(tile)))
 
     def worker_of(self, tile: int) -> int:
         """The Worker whose window tile `tile` shows."""
@@ -692,8 +701,6 @@ class Dashboard:
     def __exit__(self, *exc) -> None:
         self._server.shutdown()
         self._server.server_close()
-        if self.accounts:
-            self.accounts.close()  # a password copied less than a minute ago leaves the clipboard
         self._quit_window()  # its page has no server now: a window left open shows a dead run
 
     def _quit_window(self) -> None:
@@ -736,7 +743,7 @@ class Dashboard:
                 caption["files"] = list(caption["files"] or []) + [
                     f for f in self._picked[worker] if f not in (caption["files"] or [])]
             if caption.get("status") == "submitted":  # sent: its Missing facts and Essay facts ask him no more
-                caption = caption | {"missing": [], "choices": {}, "required": {}, "where": {}}
+                caption = caption | {"missing": [], "choices": {}, "required": {}, "where": {}, "planned": {}}
             tile.update(caption)
             status = str(tile.get("status") or "")
             ended = "status" in caption and status not in ("", "filling", "paused")
@@ -1094,6 +1101,7 @@ class Dashboard:
                 item["choices"] = {q: c for q, c in (item.get("choices") or {}).items() if q in item["questions"]}
                 item["required"] = {q: r for q, r in (item.get("required") or {}).items() if q in item["questions"]}
                 item["where"] = {q: w for q, w in (item.get("where") or {}).items() if q in item["questions"]}
+                item["planned"] = {q: a for q, a in (item.get("planned") or {}).items() if q in item["questions"]}
                 if not item["questions"] and item.get("kind") == "missing fact":
                     item["answered"] = True  # every question answered here: it waits on Lisul no more
         return {"summary": summary(captions, items if self._workers else None), "tiles": captions, "items": items,
@@ -1281,10 +1289,12 @@ class _Handler(BaseHTTPRequestHandler):
             return self._ask_remember()
         if parts.path == "/everyday" and self.dashboard.everyday:
             return self._everyday()
-        if parts.path == "/accounts/copy" and self.dashboard.accounts:
-            return self._account("copy a password", self.dashboard.accounts.copy)
         if parts.path == "/accounts/open" and self.dashboard.accounts:
             return self._account("open your Chrome", self.dashboard.accounts.open_sign_in)
+        if parts.path == "/accounts/show" and self.dashboard.accounts:
+            return self._account("show a password", self.dashboard.accounts.show, reply="password")
+        if parts.path == "/accounts/password" and self.dashboard.accounts:
+            return self._account("save your password", self.dashboard.accounts.choose, key="password")
         if parts.path.startswith("/show/") and self.dashboard.show:
             return self._show(parts.path.removeprefix("/show/"))
         if parts.path.startswith("/answers/") and self.dashboard.answers:
@@ -1666,27 +1676,33 @@ class _Handler(BaseHTTPRequestHandler):
         item = next((i for i in self.dashboard.state()["items"] if str(i["id"]) == key), None)
         if item is None or item.get("kind") != "blocked" or not item.get("posting_url"):
             return self._json(404, {"error": "That application no longer waits on your Chrome."})
-        self.dashboard.everyday(str(item["posting_url"]))
+        try:
+            self.dashboard.everyday(str(item["posting_url"]))
+        except FileNotFoundError:  # no Google Chrome on this computer (captcha.to_everyday_chrome)
+            return self._json(404, {"error": NO_CHROME})
         print(f"Opened {item['posting_url']} in your Chrome, as you asked in the window")
         self._json(200, {"message": f"Opened {item.get('company') or 'the posting'} in your Chrome: "
                                     "the extension fills it there."})
 
-    def _account(self, does: str, press: Callable[[object], str]) -> None:
-        """Lisul pressed Copy password or Open sign-in page on an account in the Accounts tab (KAN-591). A password
-        goes only to the clipboard: the reply, and the line printed, never hold it."""
+    def _account(self, does: str, press: Callable[[object], str], key: str = "site", reply: str = "message") -> None:
+        """Lisul pressed a button in the Accounts tab (KAN-591): Open sign-in page, Show password or Copy password
+        (the window writes the password it gets to the clipboard itself, D35), or Save on the password he chose
+        (KAN-838). `key` names what the page sent; `reply` names what goes back: a message, or the password he
+        asked for. The line printed never holds a password."""
         if not self._from_window():
             return self._json(403, {"error": f"Only the Apply window may {does}."})
         try:
             body = json.loads(self.rfile.read(min(int(self.headers.get("Content-Length") or 0), MAX_BODY)) or b"{}")
-            site = body["site"]
+            given = body[key]
         except (ValueError, KeyError, TypeError):
-            return self._json(400, {"error": "Not an account."})
+            return self._json(400, {"error": "Not an account." if key == "site" else "Not a password."})
         try:
-            message = press(site)
+            answer = press(given)
         except Refused as refused:
             return self._json(refused.status, {"error": str(refused)})
-        print(f"Accounts tab, {site}: {message}")
-        self._json(200, {"message": message})
+        named = given if key == "site" else "the password you chose"  # never the password itself
+        print(f"Accounts tab, {named}: {answer if reply == 'message' else 'showed its password'}")
+        self._json(200, {reply: answer})
 
     def _in_place(self, item: dict, key: str, question: str, answer: Path | None, message: str) -> None:
         """An answer for this form alone, not saved to his facts: a file to attach, or None for an
@@ -2095,6 +2111,10 @@ def open_window(url: str, profile: Path, front: bool = True) -> None:
                 raise_window(profile)
             return
         _quit(pid)
+    from apply import (
+        dock_app,  # a Developer checkout's (apply.build): W5's window replaces this one
+    )
+
     app = dock_app.install(profile.parent, dock_app.bundle_for(profile.parent))
     # The DevTools port lets the window's keeper (dock_app.keep) see its tabs (its port goes in the profile).
     command = ["open", "-na", str(app), "--args", f"--app={url}", f"--user-data-dir={profile}", "--remote-debugging-port=0"]

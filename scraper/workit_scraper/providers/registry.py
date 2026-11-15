@@ -23,6 +23,9 @@ def _parts(ats: str, token: str) -> dict[str, str]:
         region, _, slug = token.rpartition("/")
         eu = "eu." if region == "eu" else ""
         return {"slug": slug, "api": f"api.{eu}lever.co", "site": f"jobs.{eu}lever.co"}
+    if ats == "eightfold":
+        tenant, domain = token.split("/")
+        return {"tenant": tenant, "domain": domain}
     if ats == "oracle":
         host, site = token.split("/")
         return {"host": host, "site": site}

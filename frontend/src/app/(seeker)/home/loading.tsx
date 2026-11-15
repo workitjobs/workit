@@ -33,8 +33,8 @@ export default function HomeLoading() {
   return (
     <HomeFrame
       tiles={<HeadlineSkeleton />}
-      topMatches={<TopMatchesSkeleton className="mt-4" />}
-      activity={<StreakSkeleton className="mt-4" />}
+      topMatches={<TopMatchesSkeleton />}
+      activity={<StreakSkeleton />}
     />
   );
 }

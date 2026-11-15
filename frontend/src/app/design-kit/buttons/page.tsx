@@ -26,6 +26,7 @@ import {
   SECTIONS,
 } from "../data";
 import { RemovableChipSpecimen } from "../interactive";
+import { ConfirmSpecimen } from "../parts";
 import { Group, KitPage, Row } from "../specimen";
 import { StateCell, StateCells } from "../states";
 
@@ -295,6 +296,30 @@ export default function ButtonsPage() {
             </Button>
           </Row>
         ))}
+      </Group>
+
+      <Group
+        title="Before a Delete"
+        note="Every question asked before a delete answers with one pair, whatever its shape: a dialog (DeleteDialog), a popover (DeleteResumeConfirm), a bar across a dialog's foot (ConfirmBar) or Settings' Delete Account. Keep It comes first and the red button last, so the safe answer is always on the left and takes a dialog's first focus. The way out always says Keep It; the red button names what it does to what. Discard Your Changes? alone says Keep Editing."
+      >
+        <Row
+          name="<ConfirmButtons>"
+          role="In a dialog, a bar or a Settings step: Keep It, then the red act"
+        >
+          <ConfirmSpecimen act="Delete Resumes" />
+        </Row>
+        <Row name={'<ConfirmButtons size="sm">'} role="In a popover">
+          <ConfirmSpecimen size="sm" act="Delete Resume" />
+        </Row>
+        <Row name={'<ConfirmButtons keep="Keep Editing">'} role="Discard Your Changes? only">
+          <ConfirmSpecimen keep="Keep Editing" act="Discard Changes" />
+        </Row>
+        <Row
+          name="<ConfirmButtons busy>"
+          role="While the delete runs: both held, so no second press"
+        >
+          <ConfirmSpecimen busy act="Delete Entry" />
+        </Row>
       </Group>
 
       <Group title="As a Link" note="Navigation stays an anchor rather than becoming a button.">

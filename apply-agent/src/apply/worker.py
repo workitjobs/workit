@@ -20,6 +20,7 @@ from apply import (
     asking,
     brief,
     browsers,
+    build,
     captcha,
     company,
     cover_letter,
@@ -27,6 +28,7 @@ from apply import (
     eligibility,
     essays,
     gates,
+    private,
     regenerate,
     sameness,
     stuck,
@@ -397,6 +399,8 @@ def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fi
                 holds = ([f"Not filled: {e}" for e in planned.unfilled] + holds
                          + [f"Not filled: {label} ({LEFT_BEHIND})" for label, _ in behind] + planned.to_tick
                          + [f"Verify: {EXTRA_ENTRY}: {entry}" for entry in getattr(filler, "extra_entries", None) or ()])
+                if build.STUDENT:  # no Rescue: each field its Filler failed on is the student's, in Needs you (KAN-855)
+                    behind += tuple(dict(planned.failed).items())  # once each, though a fill again failed it too
                 filled = Filled(questions, answers, readback, _screenshot(page), html=page_html(page))
                 problems = readback_problems(questions, answers, readback, planned.accepted)
                 if problems and not replanned and attempt < 2:
@@ -431,7 +435,7 @@ def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fi
                                               types=[e.plan.type for e in planned.written if e.plan], posting=posting) \
                         if planned.written or drafted else essays.profile_block(profile, posting)
                     found = review(as_applicant(claude, profile), posting, questions, readback, sources, planned.text,
-                                   planned.own())  # its reasons say the applicant's own pronouns
+                                   planned.own(), private.self_id(profile))  # its reasons say the applicant's own pronouns
                     if not fixed and attempt < 2 and planned.fix(found.fixes, readback):
                         # The review named the right answer for a wrong one (an internship start in a school's
                         # From): it is filled in its place, and the form filled and reviewed again, before
@@ -552,6 +556,7 @@ class _Planned:
         self.where: dict[str, str] = {}  # each one's context line, by question (apply.asking)
         self.found: dict[str, str] = {}  # what Apply already held for a field it would have asked, by name (asking.known)
         self.unfilled: list[str] = []  # why a rehearsal's Filler couldn't fill each answer it left out
+        self.failed: list[tuple[str, object]] = []  # each of those fields, by its label, with its planned answer
         self._skipped: set[str] = set()
         self.left: set[str] = set()  # fields left blank on purpose: an N/A optional, a follow-up not called for
         self.lisuls: dict[str, object] = {}  # what Lisul put on a paused form's step before Resume, by name
@@ -925,11 +930,12 @@ class _Planned:
         """Drop the answer a Filler couldn't fill, named first in its error
         ("<field>: why"), so the rest can be filled. False if it names none."""
         field = str(error).split(":", 1)[0].strip()
-        name = next((q.name for q in self.questions if field in (q.name, q.label.strip())), None)
-        if name not in self.answers:
+        q = next((q for q in self.questions if field in (q.name, q.label.strip())), None)
+        if q is None or q.name not in self.answers:
             return False
-        self._skipped.add(name)
-        self.answers = {n: a for n, a in self.answers.items() if n != name}
+        self._skipped.add(q.name)
+        self.failed.append((q.label.strip(), self.answers[q.name]))
+        self.answers = {n: a for n, a in self.answers.items() if n != q.name}
         self.unfilled.append(str(error))
         return True
 
@@ -950,6 +956,8 @@ class _Planned:
             holds.append(f"'{one_line(q.label)}' states {', '.join(essay.unsupported)}, which no source backs")
         if essay.claims:  # the truth check: held for Lisul to read, never cut or rewritten here
             holds.append(f"'{one_line(q.label)}' claims what no source backs: {'; '.join(essay.claims)}")
+        if essay.sensitive:  # for Lisul to look at: an essay may mean to say it, so it is never cut here
+            holds.append(f"'{one_line(q.label)}' may share something private: {'; '.join(essay.sensitive)}")
         if essay.giveaways:
             said = ", ".join(f"'{words}'" for words in essay.giveaways)
             holds.append(f"'{one_line(q.label)}' gives away how it was written ({said}), even drafted again")

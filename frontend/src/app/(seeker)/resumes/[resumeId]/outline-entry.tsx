@@ -36,7 +36,9 @@ export type EntrySaved = {
  * bank holds listed, the ones this resume leaves out unticked, and the
  * editor saves them as one choice change with Undo (`EntrySaved`). The bank
  * is written only when a field or a word changed, so a reorder alone never
- * marks the bank changed. There is no ×, and no Delete, for a saved
+ * marks the bank changed, and a save that writes it leaves the bank's order
+ * as it was (`editSteps`' `order: false`); the Experiences page's form sets
+ * the bank's order (KAN-815). There is no ×, and no Delete, for a saved
  * bullet or the entry: on a resume, off means this resume only, and
  * deleting from the bank stays on the Experiences page.
  */
@@ -92,7 +94,8 @@ export function OutlineEntryDialog({
     }
     const bankChanged = writesBank(target, draft);
     if (bankChanged) {
-      for (const [i, step] of editSteps(target, draft).entries()) {
+      // The form's order is this resume's, never the bank's
+      for (const [i, step] of editSteps(target, draft, { order: false }).entries()) {
         const { error } = await step();
         if (!error) continue;
         // Nothing saved yet: the form stays open to fix it

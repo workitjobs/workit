@@ -22,7 +22,8 @@ import { BackToJobs } from "./page-actions";
  *
  * `back` replaces Back to the Jobs page: the application's own page
  * (/applications/[jobId], KAN-256) draws this bar too, and goes back to
- * Applications.
+ * Applications. It puts its own tabs in `tabs`, beside Back as the job's
+ * are (KAN-824), and has no actions once it is applied to.
  *
  * BELOW md IT SCROLLS AWAY. On a phone the actions wrap to rows beside Back,
  * a lot to hold over a 812px screen; the Jobs page stopped
@@ -36,9 +37,11 @@ export function JobActionBar({
   children,
 }: {
   back?: ReactNode;
-  /** The job's Overview and Company (./job-tabs), after Back. */
+  /** The job's Overview and Company (./job-tabs), after Back, or an
+   *  application's tabs. */
   tabs?: ReactNode;
-  children: ReactNode;
+  /** The actions, at the right end. */
+  children?: ReactNode;
 }) {
   const barRef = useRef<HTMLDivElement>(null);
   const [stuck, setStuck] = useState(false);

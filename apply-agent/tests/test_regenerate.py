@@ -48,14 +48,11 @@ def test_an_essay_is_written_again_with_the_context_kept_in_the_story_bank(tmp_p
     line = f'- For "{WHY.label}" at Harvey: {CONTEXT} ({TODAY.isoformat()})'
     assert redone.kept in home.STORY_BANK.read_text() and line in home.STORY_BANK.read_text()
     assert regenerate.ADDED in home.STORY_BANK.read_text()
-    # The plan and the draft both see the earlier answer and his context, as data in a <redo> block.
-    planned, drafted = [c for c in claude.calls if "plan" in c["schema"]["properties"]], \
-        [c for c in claude.calls if "essays" in c["schema"]["properties"]]
-    for call in (planned[0], drafted[0]):
-        redo = json.loads(call["prompt"].split("<redo>\n", 1)[1].split("\n</redo>", 1)[0])
-        assert redo == {"q1": {"earlier_answer": EARLIER, "added_context": CONTEXT}}
-        assert CONTEXT in call["prompt"].split("<story_bank>", 1)[1]  # in the sources too
-    assert "added_context" in drafted[0]["system"] and "never state a fact" in drafted[0]["system"]
+    # The plan and the draft (WorkIt kinds) both get the earlier answer and his context.
+    for kind in ("essays.plan", "essays.write"):
+        [call] = [k for k in claude.kinds if k["kind"] == kind]
+        assert call["data"]["redo"] == {"q1": {"earlier_answer": EARLIER, "added_context": CONTEXT}}
+        assert CONTEXT in call["data"]["sources"].split("<story_bank>", 1)[1]  # in the sources too
 
 
 def test_the_same_context_twice_is_one_story_bank_line(tmp_path):
@@ -124,7 +121,7 @@ def test_no_context_asks_for_some_and_changes_nothing(tmp_path):
     claude = FakeClaude()
     redone = regenerate.regenerate(claude, form, "why", "   ", profile, AnswerBank(), TODAY)
     assert not redone.text and "Type what Claude should know" in redone.why
-    assert claude.calls == [] and home.STORY_BANK.read_text() == before
+    assert claude.asked == [] and home.STORY_BANK.read_text() == before
 
 
 def test_only_answers_claude_wrote_into_a_text_field_can_be_regenerated():

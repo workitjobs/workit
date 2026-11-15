@@ -69,6 +69,46 @@ def test_keywords_cached_in_lower_case_read_as_a_resume_prints_them():
     assert [k.keyword for k in keywords.cached(job)] == ["User Research"]
 
 
+@pytest.mark.parametrize("keyword", [
+    "Bachelor's Degree", "Bachelor of Science", "Bachelors", "BS/MS in Computer Science", "B.S.", "MBA",
+    "Master's Degree", "Master of Science", "Associate Degree", "PhD", "Ph.D.", "Computer Science degree",
+])
+def test_a_degree_is_never_a_keyword(keyword):
+    # KAN-811: a picked "Bachelor's Degree" joined a tailored resume's skills
+    assert keywords.is_degree(keyword)
+
+
+@pytest.mark.parametrize("keyword", [
+    "Scrum Master", "Master Data Management", "MS Office", "360-degree Feedback", "Python", "Business Analysis",
+])
+def test_a_skill_that_shares_a_word_with_a_degree_stays_a_keyword(keyword):
+    assert not keywords.is_degree(keyword)
+
+
+def test_a_cached_degree_keyword_is_neither_matched_nor_missing():
+    from app.schemas.keywords import Keyword
+    from app.services.resume_view import ResumeView, ViewSkill
+
+    view = ResumeView(sections=(), skills=(ViewSkill(uuid.uuid4(), "Python"),))
+    found = [Keyword(keyword="Bachelor's Degree", kind="required"), Keyword(keyword="Python", kind="required"),
+             Keyword(keyword="Go", kind="preferred")]
+
+    matched, missing = keywords.match(view, found)
+
+    assert [k.keyword for k in matched] == ["Python"] and [k.keyword for k in missing] == ["Go"]
+
+
+def test_a_fresh_reading_drops_a_degree_keyword():
+    from app.schemas.keywords import KeywordReading
+
+    reading = KeywordReading.model_validate({"keywords": [
+        {"keyword": "bachelor's degree in computer science", "kind": "required"},
+        {"keyword": "python", "kind": "required"},
+    ]})
+
+    assert [k.keyword for k in keywords._cleaned(reading)] == ["Python"]
+
+
 def rate_limited() -> RateLimitError:
     request = httpx.Request("POST", "http://endpoint.test/v1/chat/completions")
     return RateLimitError("quota", response=httpx.Response(429, request=request), body=None)

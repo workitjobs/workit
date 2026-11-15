@@ -292,16 +292,65 @@ export function skillGroupOf(skill: Skill, choices: Choices): string {
   return choice?.group ?? skill.group ?? "";
 }
 
+const GROUP_SMALL = new Set([
+  "a",
+  "an",
+  "and",
+  "for",
+  "in",
+  "of",
+  "on",
+  "or",
+  "the",
+  "to",
+  "with",
+  "&",
+]);
+
+/** Which printed group a skill's group name is (KAN-810): case, spacing
+ *  and "&" for "and" aside, and "Other" is the skills with no group. The
+ *  backend's `resume_view.group_key`; change both together. */
+export function groupKey(name: string | null | undefined): string {
+  const key = (name ?? "")
+    .toLowerCase()
+    .replace(/&/g, " and ")
+    .split(/\s+/)
+    .filter(Boolean)
+    .join(" ");
+  return key === "other" ? "" : key;
+}
+
+/** A printed group's name: the first of its names with a capital letter,
+ *  else the first in title case, small words aside; "" for no group. The
+ *  backend's `resume_view.group_label`. */
+export function groupLabel(names: string[]): string {
+  const named = names.filter((n) => groupKey(n));
+  if (!named.length) return "";
+  const words = (named.find((n) => n !== n.toLowerCase()) ?? "").split(/\s+/).filter(Boolean);
+  if (words.length) return words.join(" ");
+  return named[0]
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((w, i) => (i && GROUP_SMALL.has(w) ? w : w.charAt(0).toUpperCase() + w.slice(1)))
+    .join(" ");
+}
+
 /** The resume's skills by group, each group where its first skill prints
- *  (`fields.skill_lines`), skills by position and then the bank's order. */
+ *  (`fields.skill_lines`), skills by position and then the bank's order.
+ *  Names that differ only in case or "&" are one group, under its label. */
 export function printedSkills(bank: Bank, choices: Choices): PrintedSkillGroup[] {
-  const groups = new Map<string, PrintedSkillGroup>();
+  const groups = new Map<string, { names: string[]; skills: PrintedSkillGroup["skills"] }>();
   for (const skill of ordered(bank.skills, (id) => choices.skills.find((c) => c.skill_id === id))) {
-    const key = skillGroupOf(skill, choices);
-    if (!groups.has(key)) groups.set(key, { key, label: key || "Other", skills: [] });
-    groups.get(key)!.skills.push({ id: skill.id, name: skill.name });
+    const name = skillGroupOf(skill, choices);
+    const group = groups.get(groupKey(name)) ?? { names: [], skills: [] };
+    groups.set(groupKey(name), group);
+    group.names.push(name);
+    group.skills.push({ id: skill.id, name: skill.name });
   }
-  return [...groups.values()];
+  return [...groups.entries()].map(([key, group]) => {
+    const label = key ? groupLabel(group.names) : "";
+    return { key: label, label: label || "Other", skills: group.skills };
+  });
 }
 
 /** The choice changes that print the skills as `groups` lays them out (a
@@ -318,7 +367,7 @@ export function arrangeSkills(
   return {
     skills: groups.flatMap((group) =>
       group.skills.map(({ id }) => {
-        const moved = skillGroupOf(skill.get(id)!, choices) !== group.key;
+        const moved = groupKey(skillGroupOf(skill.get(id)!, choices)) !== groupKey(group.key);
         return { skill_id: id, position: position++, ...(moved && { group: group.key }) };
       }),
     ),

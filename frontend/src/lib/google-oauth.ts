@@ -15,14 +15,18 @@
  * `app/auth/google/callback/route.ts`.
  */
 
+import { signInNext } from "./sign-in-next.ts";
+
 /** The httpOnly cookie that carries a sign-in's state and nonce to the callback. */
 export const GOOGLE_FLOW_COOKIE = "workit-google-oauth";
 
-/** What the cookie holds. `mode` "link" connects Google from Settings. */
+/** What the cookie holds. `mode` "link" connects Google from Settings.
+ *  `next` is where a returning sign-in goes back to (lib/sign-in-next.ts). */
 export type GoogleFlow = {
   state: string;
   nonce: string;
   mode: "sign-in" | "link";
+  next: string | null;
 };
 
 export function googleRedirectUri(origin: string): string {
@@ -73,7 +77,7 @@ export function readGoogleFlow(cookie: string | undefined): GoogleFlow | null {
     const flow = JSON.parse(cookie) as Partial<GoogleFlow>;
     if (typeof flow.state !== "string" || typeof flow.nonce !== "string") return null;
     if (flow.mode !== "sign-in" && flow.mode !== "link") return null;
-    return { state: flow.state, nonce: flow.nonce, mode: flow.mode };
+    return { state: flow.state, nonce: flow.nonce, mode: flow.mode, next: signInNext(flow.next) };
   } catch {
     return null;
   }

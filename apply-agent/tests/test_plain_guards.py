@@ -184,6 +184,20 @@ def test_add_init_script_knows_each_guard_script_by_its_file():
 # --- live, in a plain Worker
 
 @live
+def test_a_goto_in_a_tab_just_made_answers_once_its_own_page_has_loaded(worker, site):
+    # A tab tabs.create just made is still loading about:blank. A goto heard those events as its own and answered
+    # before its page committed, so the guard's reload ran into the page's own load: net::ERR_ABORTED, in about
+    # one hostile plain-Worker case in five (2026-11-13). One goto in a few missed; fifteen catch it.
+    for _ in range(15):
+        page = PortPage(worker, worker.call("tabs.create", url="about:blank", active=False)["tab"])
+        try:
+            page.goto(f"{site.url}/form")
+            assert page.evaluate("() => [location.pathname, document.readyState]") == ["/form", "complete"]
+        finally:
+            page.close()
+
+
+@live
 def test_without_the_guard_the_scripted_page_reaches_the_job_system(page, site):
     page.goto(f"{site.url}/scripted")
     _settle(page)
