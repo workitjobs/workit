@@ -48,7 +48,7 @@ If you find improvements to make:
 
 1. Make the changes directly on this branch
 2. Run tests and type checking to ensure nothing is broken
-3. Commit describing the refinements
+3. Commit describing the refinements, with the subject `KAN-<n>: <imperative summary>` using the same KAN key as the branch's commits
 
 If the code is already clean and well-structured, do nothing.
 

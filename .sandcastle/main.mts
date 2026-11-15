@@ -1,10 +1,10 @@
 // Sequential Reviewer — implement-then-review loop
 //
 // This template drives a two-phase workflow per issue:
-//   Phase 1 (Implement): A sonnet agent picks an open issue, works on it
+//   Phase 1 (Implement): An agent picks an open KAN issue, works on it
 //                        on a dedicated branch, commits the changes, and signals
 //                        completion.
-//   Phase 2 (Review):    A second sonnet agent reviews the branch diff and either
+//   Phase 2 (Review):    A second agent reviews the branch diff and either
 //                        approves it or makes corrections directly on the branch.
 //
 // Both phases share a single sandbox created via createSandbox(), so the
@@ -16,13 +16,24 @@
 // the simple-loop (no review gate) and the parallel-planner (concurrent
 // execution with a planning phase).
 //
-// Usage:
-//   npx tsx .sandcastle/main.mts
-// Or add to package.json:
-//   "scripts": { "sandcastle": "npx tsx .sandcastle/main.mts" }
+// Usage, from the repo root:
+//   npm run install:sandcastle   (once)
+//   npm run sandcastle
 
+import { fileURLToPath } from "node:url";
 import * as sandcastle from "@ai-hero/sandcastle";
+import { bwrap } from "@ai-hero/sandcastle/sandboxes/bwrap";
 import { seatbelt } from "@ai-hero/sandcastle/sandboxes/seatbelt";
+
+// `npm --prefix .sandcastle start` runs this from .sandcastle/; Sandcastle
+// expects the repo root.
+process.chdir(fileURLToPath(new URL("..", import.meta.url)));
+
+// The OS's own process sandbox: Seatbelt on macOS, Bubblewrap on Linux and
+// on Windows inside WSL2.
+const sandboxProvider = () => (process.platform === "darwin" ? seatbelt() : bwrap());
+
+const MODEL = "claude-opus-5-5";
 
 // ---------------------------------------------------------------------------
 // Configuration
@@ -33,15 +44,16 @@ import { seatbelt } from "@ai-hero/sandcastle/sandboxes/seatbelt";
 const MAX_ITERATIONS = 10;
 
 // Hooks run inside the sandbox before the agent starts each iteration.
-// npm install ensures the sandbox always has fresh dependencies.
+// The root package.json has no dependencies; the JS build lives in frontend/.
+// The Python tiers (backend/, scraper/) sync on demand through `uv run`.
 const hooks = {
-  sandbox: { onSandboxReady: [{ command: "npm install" }] },
+  sandbox: { onSandboxReady: [{ command: "npm --prefix frontend install" }] },
 };
 
-// Copy node_modules from the host into the worktree before each sandbox
-// starts. Avoids a full npm install from scratch; the hook above handles
+// Copy frontend/node_modules from the host into the worktree before each
+// sandbox starts. Avoids a full install from scratch; the hook above handles
 // platform-specific binaries and any packages added since the last copy.
-const copyToWorktree = ["node_modules"];
+const copyToWorktree = ["frontend/node_modules"];
 
 // ---------------------------------------------------------------------------
 // Main loop
@@ -57,7 +69,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
   // This gives both agents a real, named branch that persists across phases.
   const sandbox = await sandcastle.createSandbox({
     branch,
-    sandbox: seatbelt(),
+    sandbox: sandboxProvider(),
     hooks,
     copyToWorktree,
   });
@@ -66,7 +78,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
     // -----------------------------------------------------------------------
     // Phase 1: Implement
     //
-    // A sonnet agent picks the next open issue, writes the
+    // The agent picks the next open issue, writes the
     // implementation (using RGR: Red → Green → Repeat → Refactor), and
     // commits the result.
     //
@@ -79,7 +91,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
     const implement = await sandbox.run({
       name: "implementer",
       maxIterations: 1,
-      agent: sandcastle.claudeCode("claude-opus-4-8"),
+      agent: sandcastle.claudeCode(MODEL),
       promptFile: "./.sandcastle/implement-prompt.md",
     });
 
@@ -96,14 +108,14 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
     // -----------------------------------------------------------------------
     // Phase 2: Review
     //
-    // A second sonnet agent reviews the diff of the branch produced by
+    // A second agent reviews the diff of the branch produced by
     // Phase 1. It uses the {{BRANCH}} prompt argument to inspect the right
     // branch, and either approves or makes corrections directly on the branch.
     // -----------------------------------------------------------------------
     await sandbox.run({
       name: "reviewer",
       maxIterations: 1,
-      agent: sandcastle.claudeCode("claude-opus-4-8"),
+      agent: sandcastle.claudeCode(MODEL),
       promptFile: "./.sandcastle/review-prompt.md",
       promptArgs: {
         BRANCH: branch,

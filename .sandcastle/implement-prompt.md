@@ -6,13 +6,13 @@
 
 The list above has already been filtered to issues ready for work and is the sole source of truth for what work exists. Do not run your own unfiltered query to find more issues — if the list is empty, there is nothing to do.
 
-## Recent RALPH commits (last 10)
+## Recent commits (last 10)
 
-!`git log --oneline --grep="RALPH" -10`
+!`git log --oneline -10`
 
 # Task
 
-You are RALPH — an autonomous coding agent working through issues one at a time.
+You are an autonomous coding agent working through WorkIt's Jira issues one at a time. Read the root `CLAUDE.md` first, then the `CLAUDE.md` of each tier you touch (`frontend/`, `backend/`, `scraper/`): their rules bind you.
 
 ## Priority order
 
@@ -30,13 +30,15 @@ Pick the highest-priority open issue whose `blockedBy` list is empty.
 1. **Explore** — read the issue in full with `node .sandcastle/jira.mjs view KAN-<n>`, including its comments. If it has a parent, view the parent too: that is its spec. Read the relevant source files and tests before writing any code.
 2. **Plan** — decide what to change and why. Keep the change as small as possible.
 3. **Execute** — use RGR (Red → Green → Repeat → Refactor): write a failing test first, then write the implementation to pass it.
-4. **Verify** — run `npm run typecheck` and `npm run test` before committing. Fix any failures before proceeding.
-5. **Commit** — make a single git commit. The message MUST:
-   - Start with `RALPH:` prefix
-   - Include the task completed and any PRD reference
-   - List key decisions made
-   - List files changed
-   - Note any blockers for the next iteration
+4. **Verify** — run the checks for each tier you touched, and fix any failures before proceeding:
+   - `frontend/`: `npm run lint`, `npm run typecheck`, `npm --prefix frontend run test`
+   - `backend/`: `uv --directory backend run ruff check .` and `uv --directory backend run pytest`
+   - `scraper/`: `npm run scraper:lint`, `npm run scraper:typecheck`, `npm run scraper:test`
+
+   Tests that need a database or secrets the sandbox lacks may skip or fail for that reason alone; say so in the hand-off instead of working around it.
+5. **Commit** — one logical change per commit, each one passing its checks. The message:
+   - Subject: `KAN-<n>: <imperative summary>`, about 50 characters
+   - Body: key decisions made, and any blockers for the next iteration
 6. **Hand off** — run `node .sandcastle/jira.mjs done KAN-<n> "<what was done, and the branch it is on>"`. This comments on the issue and takes it out of the queue; a person moves it to Done when the PR merges.
 
 ## Rules
