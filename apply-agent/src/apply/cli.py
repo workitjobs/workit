@@ -21,6 +21,7 @@ import yaml
 from apply import (
     already_applied,
     answer_sync,
+    answering,
     ask,
     batch,
     bot_signals,
@@ -55,6 +56,7 @@ from apply.adapters import Adapters
 from apply.answer_bank import FILE as ANSWER_BANK
 from apply.answer_bank import AnswerBank
 from apply.answers_tab import AnswersTab
+from apply.applicant import as_applicant
 from apply.ask_model import live_claude
 from apply.browsers import ProfileInUse, WorkerBrowsers
 from apply.claude_cli import ClaudeCLI
@@ -565,7 +567,8 @@ def _story_map(args, claude) -> None:
         print("\n".join((story_map.check() if args.check else []) + (story_map.gaps() if args.gaps else [])) or
               ("No stale entries." if args.check else "No follow-ups the bank can't answer."))
         return
-    built = story_map.build(claude or live_claude(load_policies()))
+    answering.refresh(workit.WorkIt())  # the map tags stories by WorkIt's Question types
+    built = story_map.build(claude or as_applicant(live_claude(load_policies()), ApplicantProfile.load(DEFAULT_PROFILE)))
     old = yaml.safe_load(story_map.MAP.read_text()) if story_map.MAP.exists() else None
     print("\n".join(story_map.diff((old or {}).get("episodes") or [], built["episodes"])) or "No changes.")
     if built["dropped"]:
@@ -974,8 +977,8 @@ def _applied(adapters: Adapters) -> Callable[[str], str]:
 
 def _applied_live(url: str) -> str:
     """An Own application pasted into the window with no run going, added to the live Tracker."""
-    return own_application.report(url, tracker=live_tracker(), claude=live_claude(load_policies()), site=WorkerBrowsers(),
-                                  clock=SystemClock())
+    claude = as_applicant(live_claude(load_policies()), ApplicantProfile.load(DEFAULT_PROFILE))  # apply.private
+    return own_application.report(url, tracker=live_tracker(), claude=claude, site=WorkerBrowsers(), clock=SystemClock())
 
 
 def _sign_in(url: str, browsers: WorkerBrowsers) -> None:
@@ -1066,11 +1069,13 @@ def live_adapters(profile: ApplicantProfile, tracker=None, records=None, notifie
     phone Notifier is given)."""
     claude = ClaudeCLI()  # also reads usage, off every call's rate-limit events
     site = live_site(profile.policies())  # policies.yaml: worker_mode (cdp, plain or protected)
+    answering.refresh(workit.WorkIt())  # WorkIt's Question types, for the run's essays
     return Adapters(
         feed=live_feed(),
         tracker=live_tracker() if tracker is None else tracker,
         site=site,
-        claude=live_claude(profile.policies(), claude),  # policies.yaml: ask_model (claude or groq)
+        # policies.yaml's ask_model; every kind said as the applicant, with no private detail (apply.private)
+        claude=as_applicant(live_claude(profile.policies(), claude), profile),
         mailbox=live_mailbox(profile.get("identity.email")) if mailbox is None else mailbox,
         usage=claude,
         clock=SystemClock(),

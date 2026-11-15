@@ -9,12 +9,14 @@ starts here and calls `rehearsal.rehearse` with them.
 from apply import (  # noqa: F401 (rehearsal: W5 runs it)
     already_applied,
     answer_sync,
+    answering,
     captcha,
     rehearsal,
     tailored,
 )
 from apply.adapters import Adapters, ClaudeError, UsageReading
 from apply.answer_bank import FILE as ANSWER_BANK
+from apply.applicant import as_applicant
 from apply.ask_model import live_claude
 from apply.clock import SystemClock
 from apply.feed import live_feed
@@ -24,6 +26,7 @@ from apply.plain.site import live_site
 from apply.profile import ApplicantProfile
 from apply.records import FolderRecords
 from apply.tracker import InMemoryTracker
+from apply.workit import WorkIt
 
 RECORDS = HOME / "rehearsals"  # each held form's Record, as `apply rehearse` keeps them
 NO_MODEL = "WorkIt Auto Apply doesn't {what}: a person does it, or WorkIt's Model route"
@@ -87,11 +90,12 @@ def adapters(profile: ApplicantProfile) -> Adapters:
     policies = profile.policies()
     claude = NoClaude()
     site = live_site(policies)
+    answering.refresh(WorkIt())  # WorkIt's Question types, for the run's essays
     return Adapters(
         feed=live_feed(),
         tracker=InMemoryTracker(),
         site=site,
-        claude=live_claude(policies, claude),
+        claude=as_applicant(live_claude(policies, claude), profile),  # no private detail in a kind (apply.private)
         mailbox=NoMailbox(),
         usage=claude,
         clock=SystemClock(),

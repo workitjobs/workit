@@ -219,3 +219,11 @@ def test_the_cap_resets_at_the_next_midnight_utc():
     new_york = datetime.timezone(datetime.timedelta(hours=-5))
     assert resets_at(datetime.datetime(2026, 11, 13, 20, 0, tzinfo=new_york)) == (
         datetime.datetime(2026, 11, 15, tzinfo=datetime.UTC))
+
+
+async def test_the_question_types_are_served_as_data_never_as_guidance(student):
+    # Apply fetches them and keeps the last copy (apply.answering): a guide's body is prompt text, never sent.
+    async with _api() as api:
+        served = (await api.get("/apply-app/types")).json()
+    assert served["order"][0] == "cover-letter" and set(served["order"]) < set(served["types"])
+    assert set(served["types"]["why-company"]) == {"company_link", "stock", "high_stakes", "length", "match", "slots"}

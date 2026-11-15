@@ -25,8 +25,8 @@ every one of Apply's calls sends a kind, with its prompt only on the
 server: the Essay plan and essay call, the claim check and editor's pass,
 the default probe, the Pre-submit review and its replan, the story map,
 the team name, Own application and Claude fill's sent check. The answering
-guides' bodies and rules moved with them; `answering/` keeps each type's
-front matter, which Apply's own code reads. `WorkItAsk.ask` refuses a
+guides moved with them; Apply fetches each type's front matter, which its
+own code reads, from WorkIt (`GET /apply-app/types`, `apply.answering`). `WorkItAsk.ask` refuses a
 prompt, and WorkIt's free-form route that took one is gone. In
 tests, `FakeClaude.ask_kind` answers a kind from its data and keeps it in
 `claude.kinds`, apart from `claude.calls` (drives, and the calls that send

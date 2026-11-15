@@ -2,9 +2,10 @@
 (essays, cover letters), and one editor's pass over them all, built on
 research/writing-prompt.md.
 
-The drafting call (apply.essays) gets WRITE beside its rules on facts and the
-guidance for each Question type on the form (apply.answering), and Lisul's style card (voice.md) beside their own writing in the Story
-bank. Then a check lists any claim the sources don't support, and a
+The drafting call (apply.essays, WorkIt's essays.write kind) gets the server's
+writing rules and the guidance for each Question type on the form
+(backend/app/apply_prompts/), and Lisul's style card (voice.md) beside their
+own writing in the Story bank. Then a check lists any claim the sources don't support, and a
 stronger model edits every answer of the Application at once (WorkIt's
 writing.check and writing.edit kinds, whose prompts are on its server:
 backend/app/apply_prompts/writing.py, D5):

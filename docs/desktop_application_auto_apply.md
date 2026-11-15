@@ -95,7 +95,7 @@ builds it.
 | D5 | **WorkIt builds the prompts** (2026-11-14; a thin proxy was decided 2026-11-13). The app sends each call's kind and its data; WorkIt builds the system prompt, the prompt and the schema (`backend/app/apply_prompts/`), runs the provider chain and counts tokens. The prompts and answering guides leave the app | A call that carried its own prompt and schema let anyone with an account use WorkIt as a free general model and send schemas that attack the server (W1). A prompt change ships with the merge that deploys the API | W1 |
 | D6 | **A free beta with a Usage cap of 80,000 tokens per student per day**, reset at midnight UTC, always shown in the app. WorkIt can change it without an app update (2026-11-14; it was 3,000,000 a month) | The free tiers limit WorkIt's one key a day, shared by every student and feature: Groq allows 200,000 tokens a day for each model, about 400,000 for our two, so about five students at full use fill it. A monthly cap let one student spend a whole day's share. 80,000 is about thirteen 6,000-token calls, about three forms with essays; on Groq's paid tier it costs under 2 cents a student a day. W13 checks the number | W1 |
 | D7 | **The beta uses the providers' free tiers.** Paid tiers come later (F3). One account per provider, owned by the team Gmail with developers as members, as Cloudflare's is; the team does not pool developers' free keys | No paid keys for now. Groq's AI policy forbids use "beyond published parameters, rate limits, or use limitations, including by registering multiple accounts" (checked 2026-11-14); members share their organization's limits | W1, F3 |
-| D8 | **Personal data is replaced before a prompt leaves the computer**, and put back on the computer. Self-ID answers are never sent. The app shows a short disclosure. As built (2026-11-14): the app leaves private details out, since no call needs them, and the server hides the contact details it finds (section 3.4) | Prompts go to WorkIt and to Groq and Google, and Google's free tier may use prompts to improve its products | W1, W5 |
+| D8 | **Private details are replaced before a prompt leaves the computer, and put back on the computer**: the exact values the student gave, theirs and their references' (2026-11-15). **Self-ID answers stay out where Apply can tell, by exact value**: the profile's self-ID section is never sent, and a form answer that is exactly one of the student's self-ID answers is left out of every call. One the Fill engine types in the form's own words ("I am not a protected veteran") still goes, until the engine reports which answers it took from a self-ID fact. An essay that states something private is flagged for the student. The app shows a short disclosure (section 3.4) | Prompts go to WorkIt and to Groq and Google, and Google's free tier may use prompts to improve its products | W1, W5 |
 | D9 | **No Gmail.** A job site's emailed code becomes a Needs-you item that the student types | Reading Gmail needs an app password (a hard setup) or Google's paid security review | W3 |
 | D10 | **macOS-only code is removed or replaced with code for macOS, Windows and Linux** (Linux added 2026-11-14). A general cross-platform library comes first; per-OS code stays only where no library does the job (W4's rules). Scheduled runs, phone push and the Dock bundle are dropped; Keychain becomes `keyring`; Chrome is found per OS | A simple app, and a later Windows and Linux port (F4) that is not a rewrite | W4 |
 | D11 | **The window is native (pywebview) and opens no port.** Its page talks to Python through pywebview's bridge, not through a server on `127.0.0.1` | It works like any other app; no local server that other programs can call | W5 |
@@ -209,16 +209,50 @@ saw a block), and CDP Workers fill the rest (section 4.7).
 | WorkIt | One Application's Record and masked Trace | Only when the student presses "Send report" |
 | Job sites | The form's answers, in the Worker's Chrome | As a person filling the form |
 
-**Left out before a prompt leaves** (D8, as built 2026-11-14, W1): the
-private details no call needs, since the Fill engine fills them from the
-profile: the name, email, phone, street address, birth date, self-ID
-answers and references' contact details. The server also hides the
-contact details it finds in a prompt (`Masked`) and puts them back in the
-answer. **Kept, because the answers need them:** everything else, such as
-the posting, the form's questions, school, major, graduation date, city,
-state and ZIP code, employers and the text of the student's stories.
-**Not caught:** other people's names inside a story. The privacy page
-says this in general terms (KAN-848).
+**Replaced before a prompt leaves** (D8, as built in PR #587, 2026-11-15,
+W1): the exact private values the student gave, by field, never a value
+guessed from a question or a text: their names (legal, preferred, in
+their own script), email, phone, street address, ZIP code, birth date and
+profile links, and each reference's name, email and phone
+(`experience_facts.professional_references`). Each becomes its
+placeholder (`@FIRST_NAME@`, `@EMAIL@`, `@ZIP@`, `@REFERENCE1_NAME@`)
+wherever it is in what a call sends, as a whole word, and comes back into
+the answer on the computer (`apply/private.py`). A name matches in its
+own case only, so a student named Will never masks "will". No answer
+needs these values, since the Fill engine types them from the profile;
+a draft or an essay that needs one (a reference's details, the ZIP code
+an essay box asks for, live at Applied Materials) writes the placeholder,
+and the student's value comes back. The server also hides any email or
+phone it finds and the student's own links (`Masked`), and puts them
+back.
+
+**Self-ID answers, as built** (PR #587, 2026-11-15): the profile's own
+self-ID section is never sent as profile facts, and a form answer that is
+exactly one of the student's self-ID answers is left out of the
+Pre-submit review's rows and the essays' form answers
+(`private.self_id`). Left out, not masked: the review sees each
+question's options, and a placeholder beside the others would name the
+one it hides. An answer that says nothing on its own (a decline, a yes or
+no) is not matched, so a "No" to sponsorship is still reviewed. **The
+gap:** the Fill engine types many self-ID answers in the form's own words
+("I don't wish to answer" for `decline`, "I am not a protected veteran"
+for `false`), so the student's value is not in the text, and those still
+reach the model. **The full fix, by source:** the Fill engine's plan says
+which answers it took from a `voluntary_self_id` fact (its rules already
+name the fact, such as `voluntary_self_id.veteran`; the plan reports
+only a coarse `sources` today), and Apply leaves those out instead. No
+question's wording is matched either way, so neither the age question
+nor Rippling's school question can be dropped, which the label pattern
+did. The read-back check, which is code, still checks every self-ID field
+the engine typed.
+
+**Sent, because the answers need them:** the posting, the form's
+questions and its other answers, school, major, graduation date, city and
+state, employers and the student's stories. **Flagged, not blocked:** an
+essay that states a private fact, a self-ID answer or a trait ("as a
+first-generation student") is held for the student to read
+(`private.sensitive`). **Not caught:** other people's names inside a
+story. The privacy page says this in general terms (KAN-848).
 
 ### 3.5 What stays on the computer
 
@@ -547,6 +581,8 @@ shapes and status codes.
     which took the app's own prompt and schema, went once every kind was
     built on the server (2026-11-14).
   - `GET /apply-app/usage`: `{used, cap, resets_at}`.
+  - `GET /apply-app/types`: each Question type's front matter and the order
+    Apply tries them in, never a guide's body (2026-11-15).
   - **429 with `Retry-After`** at the cap (it runs to midnight, UTC) and
     past the per-minute limit (to the next minute). Nothing goes to a
     model. `ask_model.py` already reads a `Retry-After` over 60 seconds as
@@ -576,7 +612,9 @@ shapes and status codes.
   removal takes each part of the name as a word in any case, so for a
   student named Will Mark, "You will write" reached the model as "You
   [name] write", and the prompt broke. The cost: a name the app misses
-  reaches Groq or Google.
+  reaches Groq or Google. **The app replaces it** (PR #587): each name
+  field's exact value, in its own case and as a whole word, so "will"
+  stays (section 3.4).
 - **No request carries a schema** (2026-11-14): the server builds each
   kind's. The free-form route's checks went with it. Its lesson stays for
   any route that takes a schema from outside: refuse a `$ref` (or its
@@ -669,10 +707,13 @@ its own instructions or a hostile schema.
   Apply says as the applicant (essays.py's and the Pre-submit review) get
   the pronouns note. Where Apply reads a page (`own_application`, Claude
   fill's sent check), the app sends the page's text and links, not the
-  page. The answering guides are
-  copied to `backend/app/apply_prompts/answering/`; Apply keeps its copy
-  for the front matter its own code reads (which type a question is, its
-  slots and default length), and the bodies go from Apply in step 4.
+  page. The answering guides live once, in
+  `backend/app/apply_prompts/answering/`: Apply fetches their front matter
+  (which type a question is, its slots, its default length) from
+  `GET /apply-app/types` when a run starts and keeps the last copy in its
+  data folder (`apply.answering`, 2026-11-15), since it is the same for
+  every student and no input of theirs. A change reaches every app with
+  the API's deploy.
   Every one of Apply's calls sends its kind (`ask_model: workit`, the
   default since 2026-11-14), and Apply builds no prompt of its own.
 - **Next, not in this PR: the checks move to the server too, and fewer
@@ -717,8 +758,10 @@ its own instructions or a hostile schema.
   | `claude_fill.sent` | `claude_fill` | the page's text after a send |
 
   `applicant.as_applicant` (the name and the pronouns note on every
-  call) becomes a `pronouns` field the server reads; the name stays the
-  placeholder `@NAME@` in the prompt, which the app puts back (D8). The `claude_cli` probe ("Reply with
+  call) becomes a `pronouns` field the server reads. The prompts say
+  `@NAME@` where the name goes, and the app puts the first name into the
+  answer (D8); the name in a call's data goes as a placeholder too
+  (section 3.4). The `claude_cli` probe ("Reply with
   ok") is not a kind: `GET /apply-app/usage` checks the session.
 
 **The app (Apply).**
@@ -731,23 +774,18 @@ its own instructions or a hostile schema.
   the values back into the answer. Self-ID answers are never in a
   prompt. Tests check that no profile value of the listed kinds reaches
   the request.
-  **Built first: private facts are left out** (2026-11-14). No call
-  needs them, since the Fill engine fills them from the profile, so Apply
-  leaves them out instead of replacing them (`apply/applicant.py`): the
-  name, email, phone and street address (`WHO`), the self-ID answers and
-  the birth date (`SELF_ID`, a label pattern), and the references'
-  contact details. They go neither as profile facts
-  (`essays.profile_facts`) nor as answers on the form (the essays' form
-  answers, the Pre-submit review's rows, where an answer that is exactly
-  a `WHO` fact stays out). Every other fact goes. `<home>` keeps the city,
-  state and ZIP code, since an essay box can ask where they would move
-  from (Applied Materials, live). "Age" and "pronouns" are not self-ID
-  words: "Are you 18 years of age?" is an eligibility answer the review
-  must check. Main's essays and review had sent every profile fact,
-  self-ID included. The server masks the email, phone and the student's
-  own links (`Masked`), never every link: the calls read employers'
-  links. Still open: free text the call needs whole, the Story bank and a
-  page's text, can hold the name.
+  **Built in PR #587** (2026-11-15, section 3.4): `apply/private.py`
+  replaces the exact private values the student gave, theirs and their
+  references', in every kind's data, and `applicant.as_applicant`, which
+  wraps every adapter where a run, the window or a command builds it,
+  puts them back. An essay that states something private is flagged at
+  the Hold (`private.sensitive`), never cut or written again. A form
+  answer that is exactly one of the student's self-ID answers is left out
+  of every call (`private.self_id`); one the Fill engine rewords still
+  goes until the engine reports which answers it took from a self-ID fact
+  (section 3.4, next). The label pattern that dropped self-ID answers went
+  in that PR, with the answers it dropped by mistake (a diversity essay,
+  Rippling's school question).
 - **The Orchestrator's limit.** Today it pauses on Claude Code's 5-hour
   and weekly windows (`orchestrator._resume_at`, `adapters.usage`). The
   Student build reads `GET /apply-app/usage` instead and pauses at the
@@ -1290,13 +1328,16 @@ merges only once the team approves it.
 2026-11-14).** The page describes the app as section 3.4 designs it, and
 the app does not do all of it yet:
 
-- **W1's app side (D8) is not built.** `presubmit.review` sends every
-  answer read back from the form to the model, self-ID answers and
-  contact details included, and nothing in the app replaces the street
-  address, ZIP code, birth date or student ID. The page says that the app
-  replaces them and never sends a self-ID answer. Only the name is a
-  placeholder today (`@NAME@`), and the server masks email, phone and
-  links.
+- **W1's app side (D8) is built but for reworded self-ID answers** (PR
+  #587, 2026-11-15): the app replaces the exact private values the
+  student gave (names, email, phone, street, ZIP code, birth date, links,
+  references) with placeholders in every call and puts them back, the
+  server masks contact details again, and a form answer that is exactly
+  one of the student's self-ID answers is left out. A self-ID answer the
+  Fill engine typed in the form's own words still goes (section 3.4), and
+  the page says self-ID answers are included; once the engine reports
+  its sources and Apply leaves those out, the page changes with it. Not
+  done: a student ID has no placeholder, since the profile keeps none.
 - **Send report's route (D26) is not built.** It takes the one
   Application's Record and masked Trace that a student sends with the
   window's "Send report". **WorkIt keeps a report until the problem it
@@ -1713,6 +1754,12 @@ their value on their servers; WorkIt Auto Apply does the same.
 - The teammate's work on the engine's exposure through the WorkIt
   extension (W7's dependency).
 - When to enroll with Apple, and when to convert to an organization (F7).
+- **When the Fill engine reports which answers it took from a self-ID
+  fact** (its own repo, then a pin move), so that Apply leaves out the
+  self-ID answers it rewords too (D8, section 3.4).
+- **Whether Gemini's free tier stays in the Model route's chain** while
+  reworded self-ID answers reach it: the team allowed it on 2026-10-14
+  only because identity data is removed on every call (`scout/CLAUDE.md`).
 - Whether to keep Workers out of the student's view (F10): one Chrome
   process, a virtual screen, or both.
 

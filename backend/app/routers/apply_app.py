@@ -22,8 +22,9 @@ and own links, and any email or phone found by pattern, go to the model
 as placeholders, whatever the app left out first, and come back in the
 answer as their values (workit_scout.identity.Masked). Other links stay:
 the calls read employers' links. The name is the
-app's to replace (D8): the server's name removal also took ordinary words
-("will" for a student named Will) and broke the prompt. It answers
+app's to replace (D8), by its exact value (the design doc's section 3.4):
+the server's name removal also took ordinary words ("will" for a student
+named Will) and broke the prompt. It answers
 ModelAnswer {answer, tokens, usage}.
        403  not a student's account.
        422  a body outside AskCall, an unknown kind or version,
@@ -41,6 +42,10 @@ ModelAnswer {answer, tokens, usage}.
             the API's model settings are wrong (a key, a model name).
      The tokens a failed call spent still count.
 GET  /apply-app/usage  Usage {used, cap, resets_at}: today's tokens.
+GET  /apply-app/types  The Question types Apply classifies questions and checks
+     plans with: each type's front matter and the order to try them in
+     (app/apply_prompts/guides.py, `served`), never a guide's body, which is
+     prompt text. The same for every student; the app keeps the last copy.
 
 Logs name the student, the call's kind and model size, and its tokens;
 never a prompt or an answer.
@@ -51,13 +56,13 @@ import datetime
 import logging
 import math
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from fastapi.exceptions import RequestValidationError
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 from workit_scout.llm import LLM, InvalidReply, RequestTooLarge, ScoutUnavailable
 
-from app.apply_prompts import KINDS, said
+from app.apply_prompts import KINDS, guides, said
 from app.config import get_settings
 from app.db import get_session
 from app.deps import get_current_account
@@ -99,6 +104,11 @@ async def usage(
     return _usage(await model_usage.used_today(db, account.id, now), now)
 
 
+@router.get("/types")
+async def types(account: AuthenticatedAccount = Depends(_student)) -> Response:
+    return Response(guides.served(), media_type="application/json")
+
+
 @router.post("/ask")
 async def ask(
     body: AskCall,
@@ -135,7 +145,7 @@ async def _call(db: AsyncSession, account: AuthenticatedAccount, llm: LLM, messa
         resets = model_usage.resets_at(now)
         raise _refused(status.HTTP_429_TOO_MANY_REQUESTS, "Today's model use is reached; it resets at midnight UTC.",
                        (resets - now).total_seconds())
-    # No name: the app replaces it (D8), and removing it here also took
+    # No name: the app replaces it by its exact value (D8, the design doc's 3.4), and removing it here also took
     # ordinary words that are a part of it, such as "will" or "mark".
     identity = dataclasses.replace(await load_identity(db, account), name=None)
     # Hold no connection while the model writes, which can take a minute.
