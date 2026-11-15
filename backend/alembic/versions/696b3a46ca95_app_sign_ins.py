@@ -1,7 +1,7 @@
 """app_sign_ins: WorkIt Auto Apply's one-time sign-in codes (KAN-723, W5)
 
 Revision ID: 696b3a46ca95
-Revises: 3132c5026bf6
+Revises: e6a2c8f4b015
 Create Date: 2026-11-15 12:00:00.000000
 
 One row per sign-in of the desktop app: the sha256 of the one-time code the
@@ -18,7 +18,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = '696b3a46ca95'
-down_revision: Union[str, Sequence[str], None] = '3132c5026bf6'
+down_revision: Union[str, Sequence[str], None] = 'e6a2c8f4b015'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
