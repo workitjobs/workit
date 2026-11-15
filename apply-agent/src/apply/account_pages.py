@@ -185,8 +185,7 @@ class AccountPages:
         if clicked.page == "sign_up" and kind == "sign_up":
             if ALREADY.search(error):
                 raise Handoff(NO_PASSWORD.format(site=site, login=self._accounts.login))
-            raise Handoff(f"{site} refused the new account ({error or 'its create-account page came back'}). "
-                          "Make it and fill the form in yourself.")
+            raise self._accounts.refused(site, f"the site said: {error}" if error else "its create-account page came back")
         if clicked.page == "code" and kind == "code":
             raise Handoff(f"{site} refused the code from Gmail ({error or 'its code page came back'}): sign in yourself.")
         if clicked.new:

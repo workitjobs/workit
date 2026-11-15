@@ -7,7 +7,7 @@ same one: the API's route tests need a model as much as Scout's do.
 
 from collections.abc import AsyncIterator, Sequence
 
-from workit_scout.llm import LLM, Message
+from workit_scout.llm import LLM, Message, Spent
 from workit_scout.settings import Endpoint
 
 Script = list[str | Exception] | Exception
@@ -47,9 +47,13 @@ class ScriptedLLM(LLM):
                 raise item
             yield item
 
-    async def _complete_json(self, client, endpoint, messages, schema, max_tokens=None) -> str:
-        # A structured reply is the script's pieces joined, as one answer.
+    async def _complete_schema(
+        self, client, endpoint, messages, name, schema, max_tokens=None
+    ) -> tuple[str, Spent]:
+        # A structured reply is the script's pieces joined, as one answer. It
+        # costs a token a character: the prompt's read, the reply's written.
         self.max_tokens.append(max_tokens)
-        return "".join(
+        text = "".join(
             [piece async for piece in self._complete(client, endpoint, messages)]
         )
+        return text, Spent(sum(len(m["content"]) for m in messages), len(text))

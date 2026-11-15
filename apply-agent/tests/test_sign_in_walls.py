@@ -78,7 +78,7 @@ def test_a_tiktok_match_is_a_handoff_before_any_claude_call(tmp_path):
     assert row.status == "handoff"
     assert "TikTok" in row.reason and f"apply sign-in {TIKTOK}" in row.reason
     assert "Gmail isn't set up" in row.reason
-    assert claude.calls == [] and site.opened == []
+    assert claude.asked == [] and site.opened == []
 
 
 def test_with_gmail_set_up_claude_fill_goes_on_behind_a_wall_to_sign_in_there(tmp_path):
@@ -111,7 +111,7 @@ def test_each_icims_employer_needs_its_own_sign_in(tmp_path):
 
     assert row.status == "handoff"
     assert "iCIMS account at careersus-shure.icims.com" in row.reason
-    assert claude.calls == []
+    assert claude.asked == []
 
 
 AMD = "https://careers.amd.com/jobs/91170?icims=1"
@@ -127,7 +127,7 @@ def test_a_posting_whose_apply_link_leads_to_a_sign_in_wall_is_a_handoff_before_
 
     assert row.status == "handoff"
     assert "iCIMS account at careers-amd.icims.com" in row.reason and f"apply sign-in {AMD_ICIMS}" in row.reason
-    assert claude.calls == []
+    assert claude.asked == []
 
 
 def test_a_posting_that_lands_on_a_sign_in_wall_is_a_handoff_before_any_claude_call(tmp_path):
@@ -138,7 +138,7 @@ def test_a_posting_that_lands_on_a_sign_in_wall_is_a_handoff_before_any_claude_c
     [row] = run(tmp_path, site, feed_record(id="amd", company_name="AMD", url=AMD), claude=claude)
 
     assert row.status == "handoff" and "careers-amd.icims.com" in row.reason
-    assert claude.calls == []
+    assert claude.asked == []
 
 
 def test_the_apply_link_to_a_signed_in_site_fills_as_usual(tmp_path):

@@ -9,8 +9,17 @@ never submits.** Apply runs on macOS only. Before you change code here, read
 
 - A Mac with Google Chrome in `/Applications`.
 - [uv](https://docs.astral.sh/uv/) (`brew install uv`).
+- A WorkIt account, signed in with `uv run apply login` (below). Apply's
+  answers and essays go to WorkIt's Model route (`ask_model: workit`, the
+  default since 2026-11-14), which builds the prompts and runs the models.
+  Until the route is live on `api.workitjobs.ai`, run your own API
+  (`../backend/CLAUDE.md`, Commands) and set
+  `APPLY_WORKIT_API=http://localhost:8000`. That API reads its model keys
+  from the team's `.env` in the checkout's root (Scout's Groq and Gemini
+  keys); `npm run worktree` copies it into a new worktree.
 - Claude Code, logged in with your own Claude plan: `claude auth login`.
-  Apply's essays use your plan's usage.
+  Claude fill, Rescue and company briefs use your plan's usage, and so do
+  the answers and essays if you set `ask_model: claude` in `policies.yaml`.
 - Read access to the private `workitjobs/fill-engine` repo (the Fill
   engine is a git submodule). git must sign in to GitHub without a prompt:
   run `gh auth login` and then `gh auth setup-git` once.
@@ -35,12 +44,16 @@ never submits.** Apply runs on macOS only. Before you change code here, read
    ```
 
 3. Check the setup: `uv run apply doctor`. Each line says ok, warn or fail,
-   with a fix. On a new Mac, two lines fail: "Applicant profile" (step 4
-   fixes it) and "Worker profiles" (step 6 fixes it; after step 4 doctor
-   lists each Worker profile, `worker-1` and on). With `worker_mode: plain`
-   in `policies.yaml`, doctor checks "Plain seed" instead: `uv run apply
-   plain seed` fixes it. Fix every other fail first. The warn lines are for
-   optional features and optional facts (`identity.phone_type`).
+   with a fix. On a new Mac, three lines fail: "Applicant profile" (step 4
+   fixes it), "Worker profiles" (step 6 fixes it; after step 4 doctor
+   lists each Worker profile, `worker-1` and on) and "Plain seed" (`uv run
+   apply plain seed` fixes it: the default `worker_mode: protected` fills
+   Lever, SmartRecruiters and Workable in plain Workers). With
+   `worker_mode: plain` in `policies.yaml`, doctor checks only "Plain seed";
+   with `cdp`, only "Worker profiles". "Ask model" fails when the
+   checkout's root has no `.env` with Scout's keys: copy the team's `.env`
+   there. Fix every other fail first. The warn lines are for optional
+   features and optional facts (`identity.phone_type`).
 
 ## First rehearsal: Test Person
 
@@ -91,7 +104,8 @@ never submits.** Apply runs on macOS only. Before you change code here, read
    With `APPLY_HOME` or `APPLY_PROFILES` set, use the folder that `uv run
    apply doctor` prints. A run copies this profile to the other Workers.
 
-7. Optional Keychain items:
+7. Optional Keychain items. Save each one from `apply-agent/` with
+   `uv run keyring set <service> <account>`, which asks for the value:
    - `apply-gmail`: a Gmail app password, so Apply can read Workday and
      Greenhouse verification codes (also the code a job site emails after
      you press Submit on a rehearsal's page: Apply types it in, and Submit
@@ -99,6 +113,12 @@ never submits.** Apply runs on macOS only. Before you change code here, read
      ([docs/accounts-setup.md](docs/accounts-setup.md)).
    - `apply-ntfy`: an ntfy topic for phone notifications
      (`./scripts/setup-wizard.sh` sets it up).
+   - `apply-groq` (account `api.groq.com`) and `apply-gemini` (account
+     `generativelanguage.googleapis.com`): your own Groq and Gemini API
+     keys, only for `ask_model: groq` or `gemini`, which can't run a call
+     whose prompt moved to WorkIt; used before the `.env`'s
+     ([docs/ask-model.md](docs/ask-model.md)). Doctor's "Ask model" line
+     checks them.
 
 8. Optional: log in to WorkIt, so Apply can write your applications to
    your Applications Tracker on WorkIt: a submit as Applied (with the

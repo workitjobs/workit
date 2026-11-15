@@ -26,6 +26,13 @@ SHOWN_WAIT = 30_000  # ms for a file to be stored
 
 
 class WorkableFiller:
+    def form_url(self, url: str) -> str:
+        """The /apply page, where the form is. A posting link without /apply (the one WorkIt's
+        Jobs page and Workable's own widget give) opens the job's overview, which has only a link
+        to the form, so the Filler waited for a Submit that never showed (Perry Homes', live,
+        2026-11-13: "waiting for button[data-ui=apply-button] to be visible")."""
+        return (fill_engine.job_of(url) or {}).get("form") or url
+
     def question_set(self, url: str, site: JobSite) -> QuestionSet:
         return fill_engine.fetched_question_set(url, site)
 

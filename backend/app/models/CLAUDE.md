@@ -1392,6 +1392,23 @@ Real, not forgotten. Do not treat their absence as a decision already made.
   Claude and shared by every student applying to that posting; it goes
   with the posting (ON DELETE CASCADE). Migration `d2f4a6c8e013`.
 
+## WorkIt Auto Apply's model use — `model_usage.py` (KAN-723)
+
+- **One row per student and day (UTC)**, primary key
+  `(applicant_id, day)`, CASCADE from `applicant_profiles`. A day, not a
+  month (2026-11-14): the free tiers limit WorkIt's key a day, so a
+  monthly cap let one student spend a day's share. A new day is a new
+  row, so the Usage cap resets
+  with no job. Only `app/queries/model_usage.py` writes it, in single
+  upserts, so two calls at once never lose a count.
+- **The per-minute limit lives on the same row** (`minute`,
+  `minute_calls`): a call in a new minute resets the count in the same
+  upsert that takes it. No table of its own for a value that lives a
+  minute.
+- Kept 90 days (`services/retention.py`). Its migration is
+  `3132c5026bf6` (RLS on, no policies), a new table, safe before or after
+  the deploy; until it is applied, the Model route answers 500.
+
 ## Scraper tables — `scraper.py`
 
 `Scraper_Schedule`, `Scraper_Task` and `Job_Source` (KAN-605, KAN-619,

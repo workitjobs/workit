@@ -32,7 +32,7 @@ window.WIA = window.WIA || {};
       --color-hover: #f0f0f0;
       --color-border: #e8e8e8;
       --color-border-subtle: #e8e8e8;
-      --color-border-control: #878c97;
+      --color-border-control: #929292;
       --color-positive: #17b076;
       --color-positive-ink: #107a52;
       --color-positive-tint: #e3f7f0;
@@ -49,6 +49,7 @@ window.WIA = window.WIA || {};
       --radius-shell: 20px;
       --shadow-lift: 0 2px 4px rgb(18 26 40 / 0.04), 0 10px 24px rgb(18 26 40 / 0.08);
 
+      /* Plus Jakarta Sans's weights (KAN-365): the app's are Inter's since 2026-11-10 (tokens.spec.ts). */
       --font-weight-normal: 450;
       --text-meta: 11px;
       --text-meta--line-height: 15px;

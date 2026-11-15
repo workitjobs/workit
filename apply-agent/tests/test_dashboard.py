@@ -1548,14 +1548,15 @@ def test_a_live_runs_bot_block_in_the_tracker_offers_open_in_my_chrome(window):
     assert opened == [BLOCKED["posting_url"]]
 
 
-# The Accounts tab (KAN-591): each Employer account, Copy password and Open sign-in page, no password in the page.
+# The Accounts tab (KAN-591, KAN-838): each Employer account with Show password, Copy password and Open sign-in
+# page, and the password Lisul chooses for new accounts. A password is in the page only once he presses Show.
 
-def test_the_accounts_tab_copies_a_password_it_never_shows(window):
+def test_the_accounts_tab_shows_copies_and_takes_lisuls_password(window):
     from datetime import date
     from types import SimpleNamespace
 
     from apply.accounts_tab import AccountsTab
-    from apply.keychain import InMemoryKeychain
+    from apply.keychain import CHOSEN, InMemoryKeychain
     from apply.tracker import EmployerAccount
 
     password, posting = "Fake-Keychain-Pw-7x!Q", "https://asml.wd3.myworkdayjobs.com/en-US/ASMLExternal/job/X_R1"
@@ -1563,7 +1564,8 @@ def test_the_accounts_tab_copies_a_password_it_never_shows(window):
     clipboard, opened = SimpleNamespace(text=""), []
     clipboard.put_secret = lambda text: setattr(clipboard, "text", text) or 1
     clipboard.clear = lambda written: setattr(clipboard, "text", "")
-    tab = AccountsTab(lambda: [account], InMemoryKeychain({account.site: password}),
+    keychain = InMemoryKeychain({account.site: password})
+    tab = AccountsTab(lambda: [account], keychain,
                       rows=lambda: [SimpleNamespace(posting_url=posting)], everyday=opened.append,
                       clipboard=clipboard, later=lambda seconds, then: None)
     with Dashboard(0, NoFrames(), accounts=tab) as board:
@@ -1571,15 +1573,27 @@ def test_the_accounts_tab_copies_a_password_it_never_shows(window):
         window.get_by_role("tab", name="Accounts").click()
         window.wait_for_selector("#accounts .account", timeout=10_000)
         assert "asml.wd3.myworkdayjobs.com" in window.inner_text("#accounts")
+        assert password not in window.content()  # not in the page until Lisul asks
+        assert "None yet" in window.inner_text("#chosen-help")
+        window.get_by_role("button", name="Show password").click()
+        window.wait_for_function(f"() => document.body.innerText.includes({password!r})", timeout=5_000)
+        window.get_by_role("button", name="Hide password").click()
+        window.wait_for_function(f"() => !document.body.innerText.includes({password!r})", timeout=5_000)
         window.get_by_role("button", name="Copy password").click()
         window.wait_for_function("() => document.body.innerText.includes('Paste it within a minute')", timeout=5_000)
         assert clipboard.text == password
         window.get_by_role("button", name="Open sign-in page").click()
         window.wait_for_function("() => document.body.innerText.includes('press Sign In there')", timeout=5_000)
-        html = window.content()
+        window.get_by_label("Your password for new accounts").fill("short")
+        window.get_by_role("button", name="Save").click()
+        window.wait_for_function("() => document.body.innerText.includes('Use 12 to 16 characters')", timeout=5_000)
+        window.get_by_label("Your password for new accounts").fill("Fake!Chosen7xQ")
+        window.get_by_role("button", name="Save").click()
+        window.wait_for_function("() => document.body.innerText.includes('accounts made before keep their own')",
+                                 timeout=5_000)
 
     assert opened == [posting]
-    assert password not in html
+    assert keychain.password(CHOSEN) == "Fake!Chosen7xQ"
 
 
 def test_a_window_with_no_accounts_tab_shows_none():

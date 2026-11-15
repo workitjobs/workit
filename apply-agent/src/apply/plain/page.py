@@ -42,6 +42,7 @@ from apply import upload_origin
 from apply.plain import fixed
 from apply.plain.bridge import Connection, PortError, PortTimeoutError
 from apply.plain.script import evaluate as evaluate_in
+from apply.plain.script import keep_engine
 
 DEFAULT_TIMEOUT = 30000  # ms, as Playwright's
 POLL = 0.1  # s between tries of an action whose element is missing or not actionable
@@ -755,8 +756,9 @@ class Keyboard:
 
 
 def _init_script(worker: Connection, script: str | None, path) -> None:
-    """add_init_script: a guard's script goes in as its fixed file (apply.plain.guards); any other
-    needs chrome.userScripts, so Allow User Scripts on (PortError UserScriptsOff without)."""
+    """add_init_script: a guard's script goes in as its fixed file (apply.plain.guards); the extension refuses
+    any other (PortError NoCodeScripts): a plain Worker has no user scripts (KAN-839), and the guards' state goes
+    by guard.control instead of an init script."""
     from apply.plain import guards
 
     script = Path(path).read_text() if path is not None else script
@@ -870,6 +872,7 @@ class PortPage(PortFrame):
         self._clearing = False  # a locator handler is running: its own actions don't run handlers
         self._watching = 0  # listeners that need the tab watched (request, response, popup)
         worker.on("tab.removed", self._removed)
+        keep_engine(worker)  # the Fill engine in the extension's memory, once per connection (KAN-839)
 
     @classmethod
     def first(cls, worker: Connection) -> "PortPage":

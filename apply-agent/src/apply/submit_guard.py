@@ -1714,6 +1714,17 @@ ASK_ELEMENT = "(() => {" + NATIVES + "  return (" + send_click.ELEMENT_BODY + ")
 # there is refused before the captcha's own code hears it, so Claude never ticks, types in or solves one.
 # Lisul's own clicks go through once Claude stops (DriveGuard.rest), for the captcha wait.
 CAPTCHA_TRY = "a click or key in a captcha"
+# The page's own worker, refused while the page is guarded (KAN-791, the guard script's `refusedWorker`): the
+# page's code made it, not a model's click, and the refusal sent nothing. So a drive goes on past it, and the
+# worker stays refused. As a Handoff it stopped every SmartRecruiters form (live, 2026-11-13: "Apply blocked a
+# worker while the page is guarded while Claude filled the form"), whose page makes one as it opens.
+PAGE_WORKER = re.compile(r"^a (?:worker|shared worker|service worker|worklet) while the page is guarded$")
+
+
+def drive_blocks(blocked: list[str]) -> list[str]:
+    """What in `blocked` (DriveGuard.blocked) stops a model's drive: all but a click or key it tried in a
+    captcha (refused there, untouched) and a worker the page itself made (refused, PAGE_WORKER)."""
+    return [b for b in blocked if b != CAPTCHA_TRY and not PAGE_WORKER.match(b)]
 _IN_CAPTCHA = r"""
     const eventType = get(EvP, 'type');
     const refuse = (event) => {

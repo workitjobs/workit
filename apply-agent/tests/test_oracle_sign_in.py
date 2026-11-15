@@ -97,7 +97,7 @@ def test_a_code_sent_by_text_message_is_a_handoff_before_claude_spends_a_token()
 
     assert row.status == "handoff"
     assert "text message" in row.reason
-    assert claude.calls == [] and server.submissions == []
+    assert claude.asked == [] and server.submissions == []
 
 
 def test_a_code_missing_after_about_two_minutes_needs_lisul_and_send_new_code_is_never_clicked():
@@ -111,7 +111,7 @@ def test_a_code_missing_after_about_two_minutes_needs_lisul_and_send_new_code_is
     assert "Type the emailed code: no verification code" in row.reason
     assert server.resends == 0
     assert world.clock.now() - NOW >= timedelta(minutes=2)
-    assert server.tried_codes == [] and claude.calls == []
+    assert server.tried_codes == [] and claude.asked == []
 
 
 def test_the_cookie_banner_over_the_email_step_is_declined_before_next():

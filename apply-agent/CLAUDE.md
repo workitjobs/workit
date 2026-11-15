@@ -6,11 +6,32 @@ Loaded on top of the root `../CLAUDE.md` when you work in `apply-agent/`.
 
 Apply is a command-line agent that applies to job postings for one person.
 It reads a job posting, fills the application form in Chrome through the
-Fill engine, writes the answers and essays with Claude, and shows the Apply
+Fill engine, writes the answers and essays with hosted models (Groq, with
+Gemini as backup; `claude -p` for a developer who sets `ask_model: claude`),
+and shows the Apply
 window (Start, Needs you, Answers, Accounts). A rehearsal fills the form and never
 submits. It runs on the person's own Mac, with their own Chrome and their
-own Claude Code login. It is a developer and power-user tool, not a student
+own Claude Code login. Today it is a developer and power-user tool, not a student
 feature: students apply through the extension and the connector (KAN-369).
+KAN-723 designs WorkIt Auto Apply, the Student build of Apply: a desktop
+app for students, beside the extension (decided 2026-11-13, not built). It
+makes every model call through WorkIt's Model route and does no research
+(ADR 0005), downloads the Fill engine encrypted, puts the Worker extension
+on the Chrome Web Store through the Debugger API, and is compiled without
+the developer parts. Apply's code moves to the private repo
+`workitjobs/apply-agent` first (workstream W0). Read
+`../docs/desktop_application_auto_apply.md` before a change toward that:
+it splits the work into workstreams a session can take one at a time.
+`ask_model: workit` is the default (2026-11-14, KAN-723 D5): each text
+call goes to WorkIt's Model route as a kind and its data, and WorkIt builds
+the prompt (`../backend/app/apply_prompts/`) and runs the models; Apply
+builds no `ask` prompt of its own. Before that,
+`ask_model: [groq, gemini]` (2026-11-10) sent them to Groq, with Gemini as its backup, on shorter (lean) essay
+prompts, with keys from the checkout's `.env` (`docs/ask-model.md`).
+
+Workers default to `worker_mode: protected` (2026-11-06, KAN-723): plain
+Workers fill the hosts that block CDP Workers, and CDP Workers fill the rest
+(`docs/plain-workers/guide.md`).
 
 Apply has its own domain language. Read `GLOSSARY.md` and `docs/adr/` here,
 not the root ones, for its terms (root `GLOSSARY-MAP.md`). Write each
@@ -24,7 +45,7 @@ glossary entry in ASD-STE100 wording: sentences of 25 words or fewer.
   fills forms in the student's own Chrome; Scout and the connector write its
   answers, and the WorkIt backend keeps its state.
 - `apply-agent/` is a Python program (uv, Playwright) that runs its own
-  Chrome workers. Claude writes its answers. Its state is files in the data
+  Chrome workers. Hosted models (or Claude) write its answers. Its state is files in the data
   folder, not the WorkIt database. It calls the WorkIt API only through
   the WorkIt client (`docs/workit.md`), as the signed-in student.
 
@@ -37,6 +58,40 @@ has neither.
 
 ## Rules for every run
 
+- **A change to what the Worker extension's store package holds needs a store
+  release** (KAN-839). Students run the copy the Chrome Web Store publishes,
+  never a checkout's, so a change reaches them only in a new store version.
+  - **These change it:** the extension's own code (`worker-extension/`:
+    `manifest.json`, `background.js`, `ops/`, `page/`); the guard scripts
+    (anything that changes `plain/guards.FILES`: `submit_guard.py`'s scripts and
+    the constants they take in); the fixed page functions (`plain/fixed.py` and
+    every string it lists); and Playwright's version (`vendor/injected.js`).
+  - **These don't:** the Fill engine (Apply hands it over at run time), the rest
+    of Apply's Python, prompts, and page code that runs through `eval`.
+  - `tests/test_worker_extension_store.py` (in CI) fails on such a change and
+    says what to do: bump `worker-extension/store.json`'s `version`, set its
+    `code` and `files`, then build and upload the package after merge, and
+    release an app that needs it only once the store publishes it
+    (`docs/plain-workers/worker-extension-todo.md`, Releases).
+- **The Student build leaves the developer parts out** (KAN-723, W3,
+  `src/apply/build.py`). WorkIt Auto Apply is compiled from `apply.student`
+  without the modules in `build.DEVELOPER` (`claude -p`, Claude fill, Rescue,
+  Ask Claude, Repairs, Gmail, notifications, the Dock keeper, the Sheet,
+  `cli.py`). So a module on the Student path never imports one of them at its
+  top: import it inside the function that uses it, behind `if build.STUDENT`
+  or in a path the Student build never runs (a Developer checkout's command).
+  A function the Student build does run counts too: `plain/fixed.functions()`
+  imported Ask Claude and the emailed code for their page strings, which loaded
+  Gmail and Claude fill at every plain Worker's first page call. A string or
+  class the Student path needs moves out of the developer module
+  (`page_functions.py`, `one_page.py`, `adapters.ClaudeError`,
+  `workit.job_key`), and its callers import it from there.
+  `tests/test_student_build.py` (in CI) fails when the Student path loads one,
+  as it imports, builds `student.adapters()` or makes that first page call.
+  Read `build.STUDENT` when the code runs, never into a constant at import.
+  The Student build reads no `policies.yaml`: `build.STUDENT_POLICIES` go over
+  the defaults. A new developer part joins `DEVELOPER`, and the Student
+  build's stand-in for it joins `apply.student.adapters()`.
 - **Lisul reports a problem with an open application in a Claude Code chat:**
   send it to the form with `uv run apply ask "<company, role or application
   ID>" "<his words>"` (from `apply-agent/`). Do not open or drive the form
@@ -64,13 +119,14 @@ this folder's `CLAUDE.md` for its area.
 - `docs/fill-engine.md`: Apply's plan rules, `fill_engine.py`, `APPLY_FILL_ENGINE`, or what the plan answers from the Tracker, the Answer bank or a bare date.
 - `docs/workit.md`: a WorkIt call, `apply login`, `import-sheet`, `clean-tracker`, `sync-answers` (the Answer bank sync), a Tracker write, the already-applied check, the resume check, or the tailored resume.
 - `docs/held-forms.md`: verifying, a flag, Resume, Regenerate, Ask Claude, Fill again (`apply fill-again`), page gates, a held form's job-site session (`keepalive.py`), or how a question reaches Needs you.
+- `docs/ask-model.md`: `ask_model`, `ask_model.py` (Groq, Gemini), the lean essay prompts, or another model behind `ask` (`Adapters.claude`).
 - `docs/prompts-and-gates.md`: a prompt, a length, cap or names gate, or the catch-all box rule.
 - `docs/claude-fill.md`: Claude fill, its Next and profile clicks, its dropdowns, or a Filler's `form_url`.
 - `docs/captchas-and-bot-blocks.md`: a captcha wait, a block's handoff, or `captcha.py`.
-- `docs/sign-in.md`: a sign-in page, an Employer account or its password, the Accounts tab, or `apply preflight`.
+- `docs/sign-in.md`: a sign-in page, an Employer account or its password (the one Lisul chooses, its rule, Show password), where secrets live (`keychain.py`, `keyring`), the Accounts tab, or `apply preflight`.
 - `docs/apply-window.md`: the window's lifetime, its Dock keeper, or what a Record keeps.
 - `docs/restart-recovery.md`: what survives a restart of the Mac: Workers' sign-ins across a quit, the open-forms list (`batch.py`), `apply reopen`, and `apply preflight --open`.
-- `docs/plain-workers/guide.md`: `apply/plain/`, `worker_mode`, `--into`, or the worker extension.
+- `docs/plain-workers/guide.md`: `apply/plain/`, `worker_mode`, `--into`, or the worker extension; `docs/plain-workers/worker-extension-todo.md` for its store package and what is left.
 - `docs/plain-workers/PROTOCOL.md`: a message between Apply and the worker extension.
 - `docs/research/`: the research behind plain Workers, Employer account sign-in and the held form's session keep-alive (`session-timeouts.md`). Each note's Status line says what was built.
 
@@ -145,22 +201,117 @@ into it and the window shows "Sample data".
   network and no `claude` CLI. When you add a test file that needs none of
   them, add it to that list. Its test steps run in parallel
   (`pytest -n auto`), so a new test there can't share a fixed port or
-  path with another. CI also installs Chrome for Testing and runs
+  path with another. A test of `rehearse` with `keep_open` picks out the
+  lines it checks, and never counts all it printed: when a form's thread
+  is still running as the first line prints, the run also says "Apply
+  submitted nothing", and a test that unpacked every line failed 5 runs
+  in 400 on a busy machine (2026-11-14). CI also installs Chrome for Testing and runs
   `test_plain_guards.py` and `test_plain_routing.py` on a real plain Worker.
+  The hostile pages run in a job of their own beside it, `apply-hostile`.
   CI never runs the Filler tests (`test_*_filler.py`, `test_claude_fill.py`
   and the other files that open Chromium). Run the ones that your change
   touches on your Mac, with `-k`.
+- **Every test earns its place: one scenario, and a fault it alone turns
+  red** (KAN-780: the hostile pages' 495 PR cases became 220 and still
+  catch every fault they caught). A fault is a guard check switched off, a
+  path's branch broken, a page's trick no other test holds. Before you add a
+  test, a hostile page, a path or a timed copy:
+  1. Name its fault in its comment.
+  2. Find the tests that already go red on that fault: put the fault in
+     (switch the check off, break the branch) and run the PR cases of the
+     files it touches. When one goes red, extend that test, or add nothing.
+  3. Give it the place its kind has. A page of a known kind joins its set
+     (`APPLIES`, `OWN`) and runs once on PRs, on its own path; its other
+     pairs go nightly by themselves. One delay per scenario: a hold that
+     lasts past T stops every page that sends later than T, so a copy at
+     another delay is the same test, slower.
+  4. Wait on the event: a request, a selector, a flag the page sets
+     (`window.saving === 0`). A hostile page's late send waits `wait_ms` on
+     its clock (`LATEST` for a timer with no number). A fixed time is for a
+     scenario that is itself timed (a hold, a tile's retries), and says so.
+  5. Run it where its kind runs: no browser in the fast list (port 0, its
+     own `tmp_path`); CDP in a parallel step; a plain Worker in the
+     one-process step, or `xdist_group("plain-worker")` in a parallel file,
+     since plain Workers side by side miss their timing.
+  6. Keep it on PRs. A test runs only nightly when a fault run shows a PR
+     test goes red on every fault it does, or when it reads only files a CI
+     filter watches and the filter runs it on their change (the hostile
+     controls, `CONTROLS_ON_PRS`).
+
+  Done when its comment names the fault, the test goes red with that fault
+  in, and the file's no-browser self-checks pass.
 - **The submit guard's hostile pages** (`tests/test_submit_guard_hostile.py`,
   KAN-666) run every click path that presses through the guards (plain
   code's Next, the profile click, the account click, Ask Claude's press,
   the keep-alive's stay-signed-in press, Fill again) against pages built to
   trick them. Every pair must send no
   application request. A new click path joins `PATHS`, and a new trick joins
-  `PAGES`, in the same PR. CI runs its no-browser cases, every page and
-  every path at least once on CDP (a diagonal), and every path against the
-  first page in `PAGES` on a plain Worker; the other pairs are marked
-  `nightly` and run in `apply-nightly.yml` (KAN-780). Mark a test `nightly` only when it is slow
-  and a faster PR case covers the same code. A guard PR gets an adversarial review first (root `CLAUDE.md`).
+  `PAGES`, in the same PR. A pair runs only where its path looks for
+  something the page holds (`APPLIES`): the four paths that press a form's
+  own button take every page, the profile click only the profile pop-ups,
+  Ask's press of a listed step only pages with a step list, and the
+  keep-alive's presses only the session dialogs. Anywhere else the path finds
+  nothing, and the pair is the guarded page sitting still: 312 of the 728
+  pairs were, and 12 pages' only PR pair was one (KAN-780, 2026-11-14, found
+  by recording what each pair's path pressed). A new page of one of those
+  kinds joins its set; a new path that looks for its own kind of element
+  gets a set. CI runs its no-browser cases, each page once on CDP on its
+  own path (`PATH_FOR`, else its kind's in `OWN`, else Ask Claude's press,
+  which pressed on all 91 pages), and on a plain Worker the first page, each
+  path once and each `PLAIN_HOLES` page; the other pairs are marked
+  `nightly` and run in `apply-nightly.yml` (KAN-780). Guard holes once ran
+  on every path on PRs: a mutation study (2026-11-14: 24 faults, each one
+  guard check switched off with the network rule off) found that on 54 of
+  the 56 hole pages one path caught every fault the page's other paths
+  caught, and the one-per-page set still catches every fault any case did.
+  A page whose hole only some paths reach goes in `PATH_FOR`. A no-browser
+  test fails on a pair whose path doesn't apply and on a page or path with
+  no PR case.
+  A case waits for the page's own late send as long as its latest timer
+  and a second more, 1.5 s for a page with none (`wait_ms`; `LATEST` for a
+  timer whose delay is no number), where every case once waited 3 s:
+  unguarded, 78 of the 91 pages sent within 0.5 s. **On CDP the page keeps
+  that time on Playwright's clock** (`cdp(clock=True)`, `_run_out`; KAN-780):
+  time flows as unfaked while the path presses, then the clock moves through
+  the wait in 250 ms steps, each with 50 ms of real time for the requests a
+  timer made, and 0.5 s more at the end. A 1.5 s wait takes 0.8 s and an
+  11.5 s one 2.8 s, and a busy runner can't push a timed send past its wait.
+  Unguarded, each of the 87
+  pages sent on it as on real time, or more (timers that never ran on real
+  time, since the page had left, now run before it leaves). A mutation run
+  (2026-11-15: the 25 guard faults on the 81 CDP PR cases, on each clock)
+  found each fault caught by the same cases on both clocks, but two that timed
+  out on a click on real time and failed on the sent application on the
+  clock. Playwright's clock replaces
+  `performance`, and the guard's `now()` throws on it, so a CDP guard reads
+  no clock: `test_a_cdp_guard_reads_no_clock_a_page_can_fake` fails once it
+  does. A plain Worker has no such clock and waits in real time, as do the
+  held-page tests, whose hold is Python's, and **a page whose send waits on
+  what the clock never moves** (a worker's timers, the scheduler's delay, an
+  animation, a refresh, a socket: `REAL_TIME`, found by its words, today the
+  6 worker pages): on the clock a worker's 4 s timer got 1.6 s of real time
+  and its post never came (the adversarial review of #583). A wait whose
+  clock fails to move in any step gets the whole wait in real time, so a page
+  can't skip its own timers by breaking the clock. A page's control waits on the same
+  clock as its cases, so a page that sends later than its wait fails its
+  control, never passes unseen. The control runs no Apply code: PRs run three
+  (`CONTROLS_ON_PRS`, a check that the runner leaves the real time the wait
+  needs), every control when the PR changes what the control reads (`ci.yml`'s
+  `hostile_pages` filter: this file, the fake site, `uv.lock`, the setup), and
+  the nightly workflow the rest. A new page whose send needs more real time
+  than these joins `CONTROLS_ON_PRS`. The session pages that send after 3 s
+  (`HELD_ONLY`) are in no matrix: there the guard is on throughout, so they
+  were the plain dialog's pair again; their scenario is the held-page
+  tests'. One timed copy per dialog kind, at 10 s: a hold that ended after
+  T seconds lets through any page that sends later than T, so the 3.5 s and
+  60 s copies added nothing but a minute each. Which test runs only nightly:
+  "Every test earns its place", above. A guard PR gets an adversarial review first (root `CLAUDE.md`).
+  A page loads with no guard and is then guarded and reloaded, unless it
+  sends by itself from the moment it loads (a timer, before any press):
+  such a page joins `SENDS_AS_IT_LOADS` and is guarded before its first
+  load, as a rehearsal opens every page. Loaded first, its timer posted
+  before the guard was on on CI's slow runner, and its post moved the
+  page during the guard's reload (`net::ERR_ABORTED`, 2026-11-14).
 - **The guards read the page only through built-ins taken before any page
   code** (KAN-710, KAN-783): the guard script's own (`fn`, `get`, `test`,
   `up`, `formOf`, ...), and `apply.natives` for the reads that also run on
@@ -191,6 +342,12 @@ into it and the window shows "Sample data".
   routes no shared worker's request). On a plain Worker, the rules on
   -1 block the final URLs and Ashby's GraphQL from them. A new way to
   run code outside the page's realm needs the same three layers.
+  **A refused worker the page made is no Handoff** (KAN-839,
+  `submit_guard.drive_blocks`): the page's code made it, not a model's
+  click, and the refusal sent nothing, so Claude fill, Rescue and Ask
+  Claude go on past it while the worker stays refused. As a Handoff it
+  stopped every SmartRecruiters form, whose page makes one as it opens.
+  Every other block while a model drives is still a Handoff.
 - **A captcha's frame is known by its host, or by its path only on
   reCAPTCHA's own host** (`captcha.PATH_HOSTS`, KAN-791). The guard
   leaves a captcha's frame alone, and it took any frame at `/recaptcha/`
@@ -219,6 +376,17 @@ into it and the window shows "Sample data".
   A test that goes live on purpose names its hosts:
   `@pytest.mark.live_network("example.com")`. A program that a test starts
   other than Chrome (`curl`, `gh`) is not covered, so fake those.
+- **No test reaches the system's keychain** (KAN-838). `conftest.py` puts
+  keyring's null backend in place, so a `SystemKeychain` that a test gave
+  no backend reads nothing, and its save fails. Pass `InMemoryKeychain` or
+  a fake backend. Only `test_keychain_contract.py` with
+  `APPLY_TEST_KEYCHAIN=1` touches the real one (`docs/sign-in.md`).
+- **No test reads a real model key.** A test that builds the hosted models
+  (`ask_model.live_claude`) gives them stand-in keys in their environment
+  variables (`GROQ_API_KEY`, `GEMINI_API_KEY`), which come before the
+  Keychain and the checkout's `.env`. The `.env` holds the team's real key,
+  so `test_student_build.py` passed on a Mac and failed on CI, which has no
+  key (2026-11-15).
 - **Prove a fix on the real form.** Rehearse the job posting that showed the
   bug (`uv run apply rehearse <url>`) and read its record. A rehearsal never
   submits. A unit test that passes is not the check that matters; the live
@@ -248,6 +416,31 @@ this checkout's `origin`, the WorkIt repo. It also moves the engine pointer
 pointer too. A Repair never runs on `main` (`repair_waiting` refuses it):
 its pushes would move fill-engine's `main` and WorkIt's `main` to code
 Claude wrote, and only WorkIt's `main` is protected.
+
+## The app's license and notices
+
+WorkIt Auto Apply ships with two legal files (W10 of
+`../docs/desktop_application_auto_apply.md`, KAN-848). Both stay in this
+folder, so they move with Apply to `workitjobs/apply-agent` (W0) and the
+app's build (W8) finds them.
+
+- **`legal/EULA.txt`** is the app's license. It is adapted from
+  Basecamp's open-source policies under CC BY 4.0: keep its Credits
+  section, which is the attribution that license needs. WorkIt's
+  `/terms` sums it up (`../frontend/src/app/(landing)/terms/page.tsx`):
+  change the two together, and only with the team's yes.
+- **`THIRD-PARTY-NOTICES.txt` is made, never kept**: `uv run python
+  scripts/third_party_notices.py` writes it to `dist/` from `uv.lock`.
+  Never add a Python package to it by hand: a dependency in
+  `pyproject.toml` joins it on the next run, and a dev dependency never
+  does. Code that ships without a Python package (a macOS framework, a
+  font, Nuitka's runtime) joins `BY_HAND` in the script, with its license
+  text in `legal/licenses/`. The build runs the script with `--strict`,
+  which fails while a text is missing.
+- **A change to what the app sends off the Mac** (a model call's data, a
+  new WorkIt route, a new outside service) updates the WorkIt Auto Apply
+  section of `/privacy` in the same PR (`../frontend/CLAUDE.md`, the legal
+  pages).
 
 ## The privacy gate
 

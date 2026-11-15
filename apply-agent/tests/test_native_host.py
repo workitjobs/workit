@@ -6,10 +6,14 @@ With a fake Keychain and an in-memory Tracker."""
 import io
 import json
 import struct
+import subprocess
+import sys
 from datetime import date
 from pathlib import Path
 
-from apply import native_host
+import pytest
+
+from apply import cli, native_host
 from apply.keychain import InMemoryKeychain
 from apply.model import Status
 from apply.tracker import EmployerAccount, InMemoryTracker, Row
@@ -112,11 +116,51 @@ def test_install_writes_a_host_manifest_that_names_only_the_workit_extension_and
 def test_adopting_lists_each_keychain_tenant_the_tracker_lacks_once_with_its_company_from_a_row(tmp_path):
     tracker = listed(CACI)
     tracker.add(Row("a1", "Xcel Energy", "Intern", f"https://{XCEL}/en-US/careers/job/1", "workday", Status.HANDOFF))
-    keychain = InMemoryKeychain({CACI: PASSWORD, XCEL: PASSWORD, "zillow.wd5.myworkdayjobs.com": PASSWORD})
+    in_keychain = [CACI, XCEL, "zillow.wd5.myworkdayjobs.com"]
 
-    added = native_host.adopt(keychain, tracker, EMAIL, date(2026, 11, 3))
-    native_host.adopt(keychain, tracker, EMAIL, date(2026, 11, 3))
+    added = native_host.adopt(in_keychain, tracker, EMAIL, date(2026, 11, 3))
+    native_host.adopt(in_keychain, tracker, EMAIL, date(2026, 11, 3))
 
     assert added == [XCEL, "zillow.wd5.myworkdayjobs.com"]
     assert [(a.company, a.site) for a in tracker.employer_accounts()] == [
         ("CACI", CACI), ("Xcel Energy", XCEL), ("Zillow", "zillow.wd5.myworkdayjobs.com")]
+
+
+# `security dump-keychain` without -d: attributes only. One apply-ats item, one of another service, one with no account.
+DUMP = f"""keychain: "/Users/test/Library/Keychains/login.keychain-db"
+class: "genp"
+attributes:
+    "acct"<blob>="{CACI}"
+    "svce"<blob>="apply-ats"
+keychain: "/Users/test/Library/Keychains/login.keychain-db"
+class: "genp"
+attributes:
+    "acct"<blob>="{EMAIL}"
+    "svce"<blob>="apply-gmail"
+keychain: "/Users/test/Library/Keychains/login.keychain-db"
+class: "genp"
+attributes:
+    "svce"<blob>="apply-ats"
+keychain: "/Users/test/Library/Keychains/login.keychain-db"
+class: "genp"
+attributes:
+    "svce"<blob>="apply-ats"
+    "acct"<blob>="{XCEL}"
+"""
+
+
+def test_the_backfill_reads_the_mac_keychains_apply_ats_sites_from_attributes_only(monkeypatch):
+    calls = []
+
+    def run(argv, **kw):
+        calls.append(argv)
+        return subprocess.CompletedProcess(argv, 0, DUMP, "")
+
+    monkeypatch.setattr(sys, "platform", "darwin")
+    assert cli._mac_keychain_sites(run) == [CACI, XCEL]
+    assert calls == [["security", "dump-keychain"]]  # no -d: never a password
+
+
+def test_the_backfill_reads_nothing_on_another_system(monkeypatch):
+    monkeypatch.setattr(sys, "platform", "win32")
+    assert cli._mac_keychain_sites(lambda *a, **kw: pytest.fail("ran security off a Mac")) == []

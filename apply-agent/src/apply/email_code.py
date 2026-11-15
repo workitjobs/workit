@@ -33,6 +33,7 @@ from urllib.parse import urlsplit
 from apply import account_pages, greenhouse, submit_guard, workday
 from apply.adapters import Clock, Mailbox
 from apply.gmail import MailedCode
+from apply.page_functions import WORDS
 
 WAIT = timedelta(minutes=10)
 POLL = timedelta(seconds=5)
@@ -42,8 +43,6 @@ SLACK = timedelta(seconds=5)
 FIELDS = f"{greenhouse.SECURITY_BOXES}, {greenhouse.SECURITY_BOX}, {account_pages.CODE_BOX}"
 # A box whose words name another code, which is never an emailed one.
 NOT_A_CODE = re.compile(r"zip|postal|post_code|country|area|promo|coupon|discount|referr|invite|dial", re.IGNORECASE)
-# The words of a box, read in the page: its id, name, label, placeholder and autocomplete.
-WORDS = "b => [b.id, b.name, b.getAttribute('aria-label'), b.placeholder, b.autocomplete].join(' ')"
 SETTLE_MS = 1000  # how long the guard stays on after the code is in, for a page that sends itself
 
 FILLED = "Code filled from an email from {sender}. Check it and press Submit yourself"

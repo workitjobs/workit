@@ -49,11 +49,14 @@ def helper() -> Path | None:
     if not swiftc:
         return None
     CACHE.mkdir(parents=True, exist_ok=True)
-    partial = built.with_suffix(".partial")
+    # Each process builds into its own file: test processes (pytest -n) build at once, and one's rename took the
+    # shared .partial from under another's (nightly, 2026-11-14, KAN-841). The last rename wins; each is whole.
+    partial = built.with_suffix(f".{os.getpid()}.partial")
     made = subprocess.run([swiftc, "-O", "-o", str(partial), str(SOURCE)], capture_output=True, text=True)
     if made.returncode != 0:
+        partial.unlink(missing_ok=True)
         return None
-    partial.rename(built)
+    partial.replace(built)
     return built
 
 

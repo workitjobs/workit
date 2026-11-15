@@ -15,12 +15,11 @@ from apply.answer_bank import AnswerBank
 from apply.dashboard import Board, NoBoard
 from apply.keychain import InMemoryKeychain
 from apply.model import Posting
-from apply.notify import RecordingNotifier
 from apply.records import InMemoryRecords, Record
-from apply.repair import RepairRequests
 
 if TYPE_CHECKING:
     from apply.gmail import MailedCode
+    from apply.repair import RepairRequests
     from apply.tracker import AnswerRow, EmployerAccount, Row
 
 
@@ -120,6 +119,12 @@ class Claude(Protocol):
         """The structured answer. Raises UsageLimitHit when the Max limit is hit."""
         ...
 
+    def ask_kind(self, kind: str, data: dict) -> dict:
+        """The structured answer to one of WorkIt's kinds ("writing.check"): WorkIt builds its prompt
+        from `data` (D5, KAN-723; backend/app/apply_prompts/). Only `ask_model: workit` runs one; any
+        other adapter raises SetupError (NEEDS_WORKIT). Raises UsageLimitHit at WorkIt's Usage cap."""
+        ...
+
     def drive(self, *, page: Page, model: str, system: str, prompt: str, schema: dict, files: list[Path],
               max_turns: int, max_tokens: int, hook: tuple[str, ...] = ()) -> Drive:
         """Claude works the open `page` step by step (Playwright MCP, its only
@@ -164,7 +169,7 @@ class Mailbox(Protocol):
 
 
 class Keychain(Protocol):
-    """Lisul's macOS Keychain: one Employer account password per site."""
+    """Lisul's keychain (macOS Keychain, Windows Credential Manager): one Employer account password per site."""
 
     def password(self, site: str) -> str | None: ...
 
@@ -181,6 +186,11 @@ class Keychain(Protocol):
         ...
 
 
+class ClaudeError(Exception):
+    """A model call failed for a reason other than the usage limit (`claude -p`, a hosted model, or a call the
+    Student build doesn't make). Here, not in claude_cli, so the Student build has it (apply.build)."""
+
+
 @dataclass(frozen=True)
 class UsageReading:
     """From the latest rate_limit_event: how much of each Max window is used
@@ -193,6 +203,19 @@ class UsageReading:
     weekly_resets_at: datetime | None = None
     limited: bool = False
     resets_at: datetime | None = None
+
+
+def lean(claude) -> bool:
+    """Whether `claude` is a smaller model with a small request limit (apply.ask_model: Groq, Gemini): its essay
+    prompts drop their examples, list only the Question types asked, and draft one-off questions in a call of
+    their own. `claude -p` is never lean."""
+    return getattr(claude, "lean", False) is True
+
+
+# A kind's prompt is on WorkIt's server (D5), so only ask_model: workit can run it. ask_model: claude
+# can again once the developer prompt route is built (urgent: ../docs/developer_apply_agent_testing_framework.md).
+NEEDS_WORKIT = ("{kind}'s prompt is on WorkIt's server: set ask_model: workit in policies.yaml "
+                "(a developer's own API with APPLY_WORKIT_API), and sign in with uv run apply login")
 
 
 class SetupError(Exception):
@@ -235,6 +258,14 @@ class Clock(Protocol):
     def sleep_until(self, when: datetime) -> None: ...
 
 
+def _developer(module: str):
+    """A developer module (apply.build.DEVELOPER), for an Adapters built without its part: never at import, so the
+    Student build, which passes every part itself, loads none."""
+    import importlib
+
+    return importlib.import_module(f"apply.{module}")
+
+
 @dataclass
 class Adapters:
     """Everything outside Apply that a run touches."""
@@ -249,12 +280,13 @@ class Adapters:
     # Defaults keep a test that doesn't look at Records or notifications
     # light; live_adapters() must pass the real ones.
     records: Records = field(default_factory=InMemoryRecords)
-    notifier: Notifier = field(default_factory=RecordingNotifier)
+    notifier: Notifier = field(default_factory=lambda: _developer("notify").RecordingNotifier())
     # The push to Lisul's phone of what waits on him (ntfy); None while no topic is set up.
     phone: Notifier | None = None
     keychain: Keychain = field(default_factory=InMemoryKeychain)
     board: Board = field(default_factory=NoBoard)  # the dashboard's tile per Worker
-    repairs: RepairRequests = field(default_factory=RepairRequests)  # what went wrong, for a Repair
+    # What went wrong, for a Repair; the Student build passes its own (apply.student.NoRepairs).
+    repairs: "RepairRequests" = field(default_factory=lambda: _developer("repair").RepairRequests())
     answer_bank: AnswerBank = field(default_factory=AnswerBank)  # live: answer-bank.yaml beside the profile
     # Sites Lisul signed the Worker profiles in to by hand (apply sign-in): their sign-in walls are no Handoff.
     signed_in: frozenset[str] = frozenset()
