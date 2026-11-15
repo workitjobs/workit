@@ -18,6 +18,7 @@ from app.main import app
 from app.models.bank import Bank_Entry
 from app.models.resume import Resume
 from app.schemas.auth import AccountType, AuthenticatedAccount
+from app.scripts import import_apply_profile
 from app.scripts.import_apply_profile import import_apply
 
 pytestmark = pytest.mark.anyio
@@ -175,6 +176,28 @@ async def test_the_import_gives_workit_s_own_fields_the_apply_identity(running, 
         "field_of_study": "Computer Science", "start_month": "2024-08", "end_month": "2028-05",
     }
     assert float(school["gpa"]) == 3.71 and float(school["gpa_scale"]) == 4
+
+
+@pytest.mark.parametrize(("school", "degree"), [
+    ({"degree_type": "Bachelor of Science", "degree": "Bachelor's degree"}, "Bachelor of Science"),
+    ({"degree_type": "Bachelor's", "degree": "B.S."}, "B.S."),
+    ({"degree": "Bachelor's degree"}, None),
+    ({}, None),
+])
+def test_the_degree_is_apply_s_name_for_it_never_only_its_level(school, degree):
+    report = import_apply_profile.Report()
+    assert import_apply_profile._degree(school, report) == degree
+
+
+async def test_a_degree_apply_names_only_by_its_level_is_left_empty(running, applicant, database, apply_dir, local_files):
+    # KAN-812: with no degree_type, the import saved Apply's "Bachelor's degree"
+    (apply_dir / "applicant-profile.yaml").write_text(PROFILE.replace("  degree_type: Bachelor of Science\n", ""))
+
+    report = await _import(database, applicant, apply_dir)
+
+    [school] = [e for e in (await _get(applicant, "/bank")).json()["entries"] if e["section"] == "education"]
+    assert school["degree"] is None
+    assert any("only its level (Bachelor's degree)" in note for note in report.notes)
 
 
 async def test_the_fill_profile_holds_the_engine_s_facts_and_only_its_policies(running, applicant, database, apply_dir, local_files):

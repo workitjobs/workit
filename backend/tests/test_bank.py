@@ -478,6 +478,99 @@ async def test_clear_all_removes_the_skills_sent(student, database):
     assert await _vector_state(database, applicant_id) == (True, True)
 
 
+# --- the student's order of skills (KAN-816) --------------------------------------
+
+
+async def _skills(client, bank) -> list[tuple[str, str | None]]:
+    return [(s["name"], s["group"]) for s in (await client.get(bank)).json()["skills"]]
+
+
+async def _add_skills(client, bank, *skills: tuple[str, str | None]) -> dict[str, str]:
+    ids = {}
+    for name, group in skills:
+        res = await client.post(f"{bank}/skills", json={"name": name, "group": group})
+        assert res.status_code == 201
+        ids[name] = res.json()["id"]
+    return ids
+
+
+async def test_skills_take_the_order_and_groups_sent_and_a_new_one_goes_last(student, database):
+    client, bank = student
+    applicant_id = uuid.UUID(bank.split("/")[2])
+    ids = await _add_skills(client, bank, ("Python", "Languages"), ("Docker", None), ("Go", "Languages"),
+                            ("Git", "Tools"))
+    # Never ordered: by group, no group last, then by name
+    assert await _skills(client, bank) == [
+        ("Go", "Languages"), ("Python", "Languages"), ("Git", "Tools"), ("Docker", None)]
+    await _mark_embedded(database, applicant_id)
+
+    # Tools first, Docker into it, Python before Go
+    order = [("Git", "Tools"), ("Docker", "Tools"), ("Python", "Languages"), ("Go", "Languages")]
+    body = {"skills": [{"id": ids[name], "group": group} for name, group in order]}
+    assert (await client.put(f"{bank}/skills/order", json=body)).status_code == 204
+    assert await _skills(client, bank) == order
+    assert await _vector_state(database, applicant_id) == (True, True)
+
+    # The same order again changes nothing, so the vector stays fresh
+    await _mark_embedded(database, applicant_id)
+    assert (await client.put(f"{bank}/skills/order", json=body)).status_code == 204
+    assert await _vector_state(database, applicant_id) == (True, False)
+
+    # A rename is the group's skills under the new name; a skill added after
+    # goes to its group's end, even when the group sorts first by name
+    renamed = {"skills": [{**s, "group": "Dev Tools" if s["group"] == "Tools" else s["group"]}
+                          for s in body["skills"]]}
+    assert (await client.put(f"{bank}/skills/order", json=renamed)).status_code == 204
+    await _add_skills(client, bank, ("Ada", "Languages"))
+    assert await _skills(client, bank) == [
+        ("Git", "Dev Tools"), ("Docker", "Dev Tools"), ("Python", "Languages"), ("Go", "Languages"),
+        ("Ada", "Languages")]
+
+
+async def test_a_merge_is_one_groups_skills_under_the_others_name(student):
+    client, bank = student
+    ids = await _add_skills(client, bank, ("React", "Frameworks & Libraries"), ("Vue", "Frameworks and Libraries"),
+                            ("Make", "Other"), ("Bash", None))
+    merged = [("React", "Frameworks & Libraries"), ("Vue", "Frameworks & Libraries"), ("Bash", None), ("Make", None)]
+    body = {"skills": [{"id": ids[name], "group": group} for name, group in merged]}
+    assert (await client.put(f"{bank}/skills/order", json=body)).status_code == 204
+    assert await _skills(client, bank) == merged
+
+
+async def test_a_partial_order_moves_only_the_skills_sent(student):
+    # A resume pick lists its own skills: they swap among the places they
+    # held, and the skills it does not show keep theirs
+    client, bank = student
+    ids = await _add_skills(client, bank, ("A", "G"), ("B", "G"), ("C", "G"), ("D", "G"))
+    body = {"skills": [{"id": ids["D"], "group": "G"}, {"id": ids["B"], "group": "G"}]}
+    assert (await client.put(f"{bank}/skills/order", json=body)).status_code == 204
+    assert [name for name, _ in await _skills(client, bank)] == ["A", "D", "C", "B"]
+
+
+async def test_an_order_with_a_skill_not_mine_or_twice_changes_nothing(student, database):
+    client, bank = student
+    ids = await _add_skills(client, bank, ("Python", "Languages"), ("Go", "Languages"))
+    before = await _skills(client, bank)
+    async with database() as session:
+        other = await _seed_applicant(session)
+    _sign_in(other)
+    theirs = f"/applicants/{other}/bank"
+    their_skill = (await client.post(f"{theirs}/skills", json={"name": "Rust"})).json()["id"]
+    _sign_in(uuid.UUID(bank.split("/")[2]))
+
+    mine = [{"id": ids["Go"], "group": "Tools"}, {"id": ids["Python"], "group": "Tools"}]
+    for stray in (their_skill, str(uuid.uuid4())):
+        res = await client.put(f"{bank}/skills/order", json={"skills": [*mine, {"id": stray, "group": None}]})
+        assert res.status_code == 404
+    twice = {"skills": [*mine, mine[0]]}
+    assert (await client.put(f"{bank}/skills/order", json=twice)).status_code == 422
+    # The group must be sent, so leaving it out never clears one
+    assert (await client.put(f"{bank}/skills/order", json={"skills": [{"id": ids["Go"]}]})).status_code == 422
+    assert (await client.put(f"{bank}/skills/order", json={"skills": []})).status_code == 422
+    assert await _skills(client, bank) == before
+    assert (await client.put(f"{theirs}/skills/order", json={"skills": mine})).status_code == 403
+
+
 # --- a project's tools (KAN-738) -------------------------------------------------
 
 
@@ -509,3 +602,20 @@ async def test_only_a_project_holds_tools(student):
     project = {"section": "projects", "title": "Robot"}
     assert (await client.post(f"{bank}/entries", json={**project, "tools": ["x" * 61]})).status_code == 422
     assert (await client.post(f"{bank}/entries", json={**project, "tools": ["Go"] * 31})).status_code == 422
+
+
+async def test_a_year_alone_stays_a_year_until_its_date_changes(student):
+    # KAN-808: the edit form sends every field on each save, so a date sent
+    # again keeps its mark, and only a new month takes it off
+    client, bank = student
+    school = {"section": "education", "title": "Hillcrest State University", "start_month": "2019-01",
+              "end_month": "2023-01", "year_only": ["start_month", "end_month"]}
+    created = (await client.post(f"{bank}/entries", json=school)).json()
+    assert created["year_only"] == ["start_month", "end_month"]
+
+    same = {"title": "Hillcrest State University", "start_month": "2019-01", "end_month": "2023-01"}
+    saved = (await client.patch(f"{bank}/entries/{created['id']}", json=same)).json()
+    assert saved["year_only"] == ["start_month", "end_month"]
+
+    moved = (await client.patch(f"{bank}/entries/{created['id']}", json={**same, "end_month": "2023-05"})).json()
+    assert moved["year_only"] == ["start_month"]

@@ -152,6 +152,7 @@ Targets: `tab` is a Chrome tab id; `frame` is a webNavigation frame id (0 = top,
 | `tabs.reload` | `tab`, `waitUntil`, `timeout` | `{"url", "title"}` |
 | `tabs.waitForLoad` | `tab`, `state`, `timeout` | `null` |
 | `tabs.activate` | `tab` | `null` (also focuses its window, never minimizes) |
+| `windows.focus` | | `null`: the Worker's last focused window comes to the front (`chrome.windows.update({focused: true})`). Only Lisul's Show calls it (`PlainWorkers.show`): on Windows and Linux, which have no FocusKeeper, and on the Mac when FocusKeeper can't (features 6, KAN-850) |
 | `tabs.screenshot` | `tab`, `format` (`png`/`jpeg`), `quality?` | `{"data": base64}`; activates the tab; waits out the ~2/s quota |
 | `frames` | `tab` | `[{"frame", "parent", "url"}]` |
 | `eval` | `tab`, `frame?`, `code` | the value of `code` (an expression; promises are awaited), run in the frame's MAIN world through the debugger (`cdp.eval`, below), which page CSP doesn't govern. The value must be JSON-serializable. |
@@ -492,16 +493,18 @@ connection), `open(url, worker)`, `stop(worker)` / `stop_all()` (by PID only),
 `--load-extension=<worker-extension>`. Never `--remote-debugging-port`,
 `--enable-automation`, `--headless`. Workers are never minimized and sit on-screen.
 
-**Background launch (Lisul, 2026-11-04):** a Worker's Chrome starts through
+**Background launch (Lisul, 2026-11-04):** on the Mac, a Worker's Chrome starts through
 `/usr/bin/open -g -n -a <Chrome app> --args ...` (`launcher.start_in_background`), never by running
-the binary, which macOS brings to the front. Its PID is then read from the profile's
+the binary, which macOS brings to the front. (On Windows and Linux it starts as the binary itself, a
+plain background process in a session of its own, and its Popen is the process, KAN-850: those
+desktops keep it behind.) On the Mac its PID is then read from the profile's
 `SingletonLock` (`PlainWorker.process` is a `launcher.Chrome`, stopped by that PID). `open -g` alone is not enough: Chrome activates itself as it shows its first
 window, so it starts with `--no-startup-window` and, after the hello, the extension's
 `windows.create` op opens the Worker's window with `focused: false`. Windows are
 1280 x 900 at the top-left corner (KAN-635), shrunk to the main screen's visible area
 (`system.display` work area, `ops/core.js: onScreen`), staggered 20 px a Worker, wholly on-screen. Nothing may bring a
 Worker forward except Lisul's own Show (`PlainWorkers.show`): no `chrome.windows.update({focused:
-true})`, no AppleScript focus, no full-screen. Tests use one Worker, shared by the module, and stop it
+true})` but its `windows.focus` op, no AppleScript focus but FocusKeeper's for that Show, no full-screen. Tests use one Worker, shared by the module, and stop it
 when they end.
 
 `policies.yaml: worker_mode: cdp|plain|protected` (default `protected` since 2026-11-06, KAN-723) picks the Worker for each form (S8,

@@ -1086,7 +1086,9 @@ const drawHistory = (state) => {
 
 # The Accounts tab (KAN-591): each Employer account Apply made, to sign in to it himself, and the password Lisul
 # chooses for every new account (KAN-838). Show password asks the server for one account's password and shows it in
-# the card until he hides it; Copy password puts it on the clipboard for a minute.
+# the card until he hides it; Copy password asks for it too and writes it to the clipboard through the window's own
+# navigator.clipboard, as the window's other copy buttons do (D35: no clipboard code in Apply, on any OS). Its write
+# starts inside the click (a ClipboardItem that waits for the reply), which WebKit's window needs.
 ACCOUNTS_TAB = '<button id="tab-accounts" role="tab">Accounts</button>'
 ACCOUNTS = r"""<div id="accounts" hidden><div class="inbox-wrap">
 <h2>Your accounts on job sites</h2>
@@ -1114,6 +1116,25 @@ const post = async (path, body) => {
 const say = (status, text, ok) => { status.textContent = text; status.className = ok ? 'status ok' : 'status error'; };
 const press = async (path, site, status) => {
   try { say(status, (await post(path, {site})).message, true); } catch (err) { say(status, err.message || NOT_ANSWERING, false); }
+};
+// The write starts inside the click, with the password still on its way: WebKit (the desktop app's window on the
+// Mac) lets a page write the clipboard only while the click lasts, so a write after the awaited reply was refused.
+const copy = async (account, status) => {
+  const asked = post('/accounts/show', {site: account.site}).then((reply) => reply.password);
+  asked.catch(() => {});  // its error is read below
+  try {
+    if (window.ClipboardItem) {
+      await navigator.clipboard.write([new ClipboardItem(
+        {'text/plain': asked.then((text) => new Blob([text], {type: 'text/plain'}))})]);
+    } else {
+      await navigator.clipboard.writeText(await asked);
+    }
+    say(status, `Copied the password for ${account.company || account.site}.`, true);
+  } catch (err) {
+    const refused = await asked.then(() => null, (why) => why);  // the server's no (no password) says why
+    say(status, refused ? (refused.message || NOT_ANSWERING)
+                        : "This window couldn't copy it: press Show password and copy it from there.", false);
+  }
 };
 const toggle = async (site, shown, button, status) => {
   if (shown.textContent) { shown.textContent = ''; button.textContent = 'Show password'; return; }
@@ -1149,7 +1170,7 @@ window.loadAccounts = async () => {
       shown,
       make('div', {className: 'actions'},
         show,
-        make('button', {className: 'primary', textContent: 'Copy password', onclick: () => press('/accounts/copy', a.site, status)}),
+        make('button', {className: 'primary', textContent: 'Copy password', onclick: () => copy(a, status)}),
         make('button', {className: 'tonal', textContent: 'Open sign-in page', title: 'In your everyday Chrome',
                         onclick: () => press('/accounts/open', a.site, status)}),
         status));

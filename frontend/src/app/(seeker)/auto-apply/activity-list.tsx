@@ -233,7 +233,7 @@ const SORT_DESC: Record<Sort, boolean> = {
 };
 
 /** `items` in `sort`'s order. Stable, so ties keep the queue order. */
-export function sortItems(items: ActivityItem[], sort: Sort) {
+export function sortItems<T extends ActivityItem>(items: T[], sort: Sort): T[] {
   const value = SORT_VALUE[sort];
   const sign = SORT_DESC[sort] ? -1 : 1;
   return [...items].sort((a, b) => {

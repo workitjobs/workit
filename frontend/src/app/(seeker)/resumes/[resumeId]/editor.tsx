@@ -430,6 +430,7 @@ export function Editor({
   suggestions,
   suggestionPopup,
   heading,
+  more,
   original,
 }: {
   resumeId: string;
@@ -450,6 +451,10 @@ export function Editor({
    *  column beside it; on Tailor's review the step's row with the name in
    *  it (`TailorReviewBar`). */
   heading: ReactNode;
+  /** The resume's ⋯ at the title row's end, after Download (`ResumeMenu`:
+   *  Rename, Make Primary, Delete; KAN-825), on the editor's own page only:
+   *  Tailor's review is a step of a run, not the resume's page. */
+  more?: ReactNode;
   /** The resume Tailor started from, read-only, which the toolbar's View
    *  Original sets beside the page in place of the Suggestions panel. */
   original?: ReactNode;
@@ -2212,6 +2217,7 @@ export function Editor({
           fitting={fittingNow}
           error={error}
           download={download}
+          more={more}
           bar={phoneBar}
           back={phoneBack}
           page={page}
@@ -2528,8 +2534,9 @@ export function Editor({
       {/* The title row (KAN-799): the resume and its file, the name at the
           left, then whether it is saved, the review's columns and Download,
           the page's one filled button (secondary on Tailor's review, whose
-          fill is Finish), at the right. Download and the status
-          sat in the bar until then, among the tools */}
+          fill is Finish), at the right, then on the editor's own page the
+          resume's ⋯ (KAN-825), as an upload's page has. Download and the
+          status sat in the bar until then, among the tools */}
       <div className="flex items-center gap-3">
         <div className="min-w-0 flex-1">
           <TitleHistoryContext value={titleHistory}>{heading}</TitleHistoryContext>
@@ -2548,6 +2555,7 @@ export function Editor({
           </div>
         )}
         <DownloadMenu download={download} secondary={Boolean(suggestions)} />
+        {more}
       </div>
       <DownloadNotes download={download} />
       {grid}
@@ -2653,10 +2661,11 @@ function FirstRenderPane({
 export function EditorSkeleton() {
   return (
     <div aria-hidden="true" className="mt-4 flex flex-col gap-3">
-      {/* The title's height (`ResumeTitle`) */}
-      <div className="flex h-9 items-center gap-3">
-        <Skeleton className="h-6 w-56 max-w-full" />
+      {/* The title's height (`ResumeTitle`'s h1), Download and ⋯ */}
+      <div className="flex h-9 items-center gap-3 @3xl/main:h-10">
+        <Skeleton className="h-6 w-56 max-w-full @3xl/main:h-8" />
         <Skeleton className="ml-auto h-9 w-28" />
+        <Skeleton className="size-8 rounded-full" />
       </div>
       <div className="flex min-w-0 flex-col gap-2">
         <div className={SLIM_BAR}>

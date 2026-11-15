@@ -9,6 +9,7 @@ import os
 import plistlib
 import shutil
 import subprocess
+import sys
 from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
@@ -26,9 +27,12 @@ from apply.workit import WorkIt
 
 
 def chrome(tmp_path, version="141.0.7390.55"):
-    info = tmp_path / "Info.plist"
-    info.write_bytes(plistlib.dumps({"CFBundleShortVersionString": version}))
-    return info
+    """Google Chrome's binary, as the Chrome finder finds it on the Mac: its version in the app's Info.plist."""
+    contents = tmp_path / "Google Chrome.app" / "Contents"
+    (contents / "MacOS").mkdir(parents=True, exist_ok=True)
+    (contents / "Info.plist").write_bytes(plistlib.dumps({"CFBundleShortVersionString": version}))
+    (contents / "MacOS" / "Google Chrome").write_text("")
+    return contents / "MacOS" / "Google Chrome"
 
 
 def filled(tmp_path):
@@ -138,9 +142,10 @@ def test_chrome_says_its_version(tmp_path):
 
 
 def test_no_chrome_fails_with_how_to_install_it(tmp_path):
-    found = check(machine(tmp_path, chrome=tmp_path / "missing.plist"), "Chrome")
+    found = check(machine(tmp_path, chrome=None), "Chrome")  # the finder found none
     assert found.level == doctor.FAIL
     assert "google.com/chrome" in found.fix
+    assert "/Applications/Google Chrome.app" in found.detail or sys.platform != "darwin"  # where it looked
 
 
 def test_live_runs_on_warns_that_a_run_submits_for_real_as_the_applicant(tmp_path):
@@ -166,7 +171,7 @@ def test_prints_a_line_per_check_and_exits_zero_with_no_failure(tmp_path):
 
 
 def test_any_failure_exits_non_zero(tmp_path):
-    assert doctor.run(machine(tmp_path, chrome=tmp_path / "missing.plist"), io.StringIO()) == 1
+    assert doctor.run(machine(tmp_path, chrome=None), io.StringIO()) == 1
 
 
 def test_claude_logged_in_says_whose_login(tmp_path):

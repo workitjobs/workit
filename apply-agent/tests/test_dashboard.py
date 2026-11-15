@@ -1533,6 +1533,21 @@ def test_open_in_my_chrome_opens_the_posting_only_when_lisul_presses_it():
     assert "your Chrome" in reply["message"]
 
 
+def test_open_in_my_chrome_with_no_chrome_says_how_to_get_it():
+    from apply.chrome_finder import NO_CHROME
+
+    def no_chrome(url):
+        raise FileNotFoundError(NO_CHROME)  # as captcha.to_everyday_chrome does when the finder finds none
+
+    with Dashboard(1, NoFrames(), everyday=no_chrome) as board:
+        board.update(0, **BLOCKED)
+        [item] = [i for i in board.state()["items"] if i.get("kind") == "blocked"]
+        with pytest.raises(urllib.error.HTTPError) as refused:
+            post_everyday(board, item["id"])
+
+    assert refused.value.code == 404 and json.loads(refused.value.read())["error"] == NO_CHROME
+
+
 def test_a_live_runs_bot_block_in_the_tracker_offers_open_in_my_chrome(window):
     # KAN-590: a live run opened it already; the window opens it again only on Lisul's press.
     from apply.model import Status
@@ -1561,14 +1576,13 @@ def test_the_accounts_tab_shows_copies_and_takes_lisuls_password(window):
 
     password, posting = "Fake-Keychain-Pw-7x!Q", "https://asml.wd3.myworkdayjobs.com/en-US/ASMLExternal/job/X_R1"
     account = EmployerAccount("ASML", "asml.wd3.myworkdayjobs.com", "lisul@example.com", date(2026, 11, 2))
-    clipboard, opened = SimpleNamespace(text=""), []
-    clipboard.put_secret = lambda text: setattr(clipboard, "text", text) or 1
-    clipboard.clear = lambda written: setattr(clipboard, "text", "")
+    opened = []
     keychain = InMemoryKeychain({account.site: password})
     tab = AccountsTab(lambda: [account], keychain,
-                      rows=lambda: [SimpleNamespace(posting_url=posting)], everyday=opened.append,
-                      clipboard=clipboard, later=lambda seconds, then: None)
+                      rows=lambda: [SimpleNamespace(posting_url=posting)], everyday=opened.append)
     with Dashboard(0, NoFrames(), accounts=tab) as board:
+        # The window's own clipboard (D35), read back here: headless Chromium's, never this Mac's.
+        window.context.grant_permissions(["clipboard-read", "clipboard-write"], origin=board.url)
         window.goto(board.url)
         window.get_by_role("tab", name="Accounts").click()
         window.wait_for_selector("#accounts .account", timeout=10_000)
@@ -1580,8 +1594,9 @@ def test_the_accounts_tab_shows_copies_and_takes_lisuls_password(window):
         window.get_by_role("button", name="Hide password").click()
         window.wait_for_function(f"() => !document.body.innerText.includes({password!r})", timeout=5_000)
         window.get_by_role("button", name="Copy password").click()
-        window.wait_for_function("() => document.body.innerText.includes('Paste it within a minute')", timeout=5_000)
-        assert clipboard.text == password
+        window.wait_for_function("() => document.body.innerText.includes('Copied the password for ASML')", timeout=5_000)
+        assert window.evaluate("navigator.clipboard.readText()") == password
+        assert password not in window.inner_text("#accounts")  # copied, not shown
         window.get_by_role("button", name="Open sign-in page").click()
         window.wait_for_function("() => document.body.innerText.includes('press Sign In there')", timeout=5_000)
         window.get_by_label("Your password for new accounts").fill("short")
@@ -1594,6 +1609,24 @@ def test_the_accounts_tab_shows_copies_and_takes_lisuls_password(window):
 
     assert opened == [posting]
     assert keychain.password(CHOSEN) == "Fake!Chosen7xQ"
+
+
+def test_copy_password_with_no_password_says_why_and_copies_nothing(window):
+    from datetime import date
+
+    from apply.accounts_tab import AccountsTab
+    from apply.keychain import InMemoryKeychain
+    from apply.tracker import EmployerAccount
+
+    account = EmployerAccount("ASML", "asml.wd3.myworkdayjobs.com", "lisul@example.com", date(2026, 11, 2))
+    with Dashboard(0, NoFrames(), accounts=AccountsTab(lambda: [account], InMemoryKeychain())) as board:
+        window.context.grant_permissions(["clipboard-read", "clipboard-write"], origin=board.url)
+        window.goto(board.url)
+        window.evaluate("navigator.clipboard.writeText('what Lisul copied before')")
+        window.get_by_role("tab", name="Accounts").click()
+        window.get_by_role("button", name="Copy password").click()
+        window.wait_for_function("() => document.body.innerText.includes('Keychain has no password')", timeout=5_000)
+        assert window.evaluate("navigator.clipboard.readText()") == "what Lisul copied before"
 
 
 def test_a_window_with_no_accounts_tab_shows_none():

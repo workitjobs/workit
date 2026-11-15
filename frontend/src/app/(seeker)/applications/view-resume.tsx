@@ -11,9 +11,11 @@ import {
   DialogTitle,
 } from "@/components/shadcn/dialog";
 import { PdfIcon } from "@/components/icons";
+import { Skeleton } from "@/components/shadcn/skeleton";
 import { RESUME_ROW } from "@/components/resume-row";
 import { Badge } from "@/components/ui/badge";
 import { Button, ButtonLink } from "@/components/ui/button";
+import { LoadFailed } from "@/components/ui/load-failed";
 import { cn } from "@/lib/cn";
 import { openSentResume, type SentResume, type SentResumeFile } from "@/lib/sent-resume-actions";
 
@@ -170,9 +172,7 @@ function useResumeViewer(resume: Viewed) {
         onClick={(event) => event.stopPropagation()}
       >
         <DialogHeader>
-          <DialogTitle className="text-subtitle truncate pr-8 font-semibold">
-            {resume.name}
-          </DialogTitle>
+          <DialogTitle className="truncate pr-8">{resume.name}</DialogTitle>
           {/* The title says which resume; a visible line saying it was sent
                 repeated the page around it. Kept for screen readers, which
                 announce a dialog by its description. */}
@@ -190,11 +190,21 @@ function useResumeViewer(resume: Viewed) {
             </ButtonLink>
           </div>
         ) : error ? (
-          <p role="alert" className="text-note text-danger">
-            {error}
-          </p>
+          <LoadFailed
+            compact
+            title="This Resume Isn't Loading Right Now"
+            onRetry={show}
+            detail={process.env.NODE_ENV === "development" ? error : undefined}
+          >
+            We couldn&apos;t open the file. Try again in a few minutes.
+          </LoadFailed>
         ) : file == null ? (
-          <p className="text-note text-ink-muted">Loading the resume…</p>
+          // The frame's place while the file comes (KAN-819), never a
+          // "Loading…" line: a page-sized bar where the resume will show.
+          <div role="status" className="flex min-h-0 flex-1">
+            <span className="sr-only">Loading the resume</span>
+            <Skeleton aria-hidden="true" className="rounded-card h-full w-full" />
+          </div>
         ) : (
           <ResumeFile
             file={file}

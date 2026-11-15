@@ -3,14 +3,17 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
 import { Skeleton } from "@/components/shadcn/skeleton";
+import { StatTile, StatTileSkeleton } from "@/components/stat-tile";
 import { Badge } from "@/components/ui/badge";
 import { SegmentedToggle } from "@/components/ui/segmented-control";
 import { cn } from "@/lib/cn";
 import { Card } from "@/components/ui/card";
+import { LoadFailed } from "@/components/ui/load-failed";
 
 import { localDay } from "../tracker";
 import type { AppliedApplication } from "./data";
 import { DayApplications } from "./day-applications";
+import { SectionHeader } from "./section-header";
 import { MORPH_MS, mountSkyline, type Skyline, type SkylineState } from "./streak-canvas";
 import {
   buildGrid,
@@ -51,8 +54,9 @@ import {
  * company/jobs/jobs-table.tsx. Each application's day is the viewer's too, by
  * the same swap: it gets the instant it was sent (`applied`, from the live
  * tracker) and counts it on its UTC day until hydration, then on the
- * browser's own (KAN-342). A failed read draws the empty year with a line
- * that says so, never stand-in days.
+ * browser's own (KAN-342). A failed read draws no year at all: the page
+ * shows `StreakFailed` instead, the card with Try Again (KAN-819), never
+ * stand-in days or an empty year under a line that says so.
  *
  * Adapted from the Contribution Skyline component on 21st.dev.
  */
@@ -117,15 +121,16 @@ export function Streak({
   applied,
   className,
 }: {
-  /** Each sent application; null when the tracker can't be read. */
-  applied: AppliedApplication[] | null;
+  /** Each sent application (`StreakFailed` stands in when the tracker
+   *  can't be read). */
+  applied: AppliedApplication[];
   className?: string;
 }) {
   const today = useSyncExternalStore(noSubscription, localToday, utcToday);
   const local = useSyncExternalStore(noSubscription, inBrowser, onServer);
   const days = useMemo<AppliedDay[]>(
     () =>
-      (applied ?? []).map((app) => ({
+      applied.map((app) => ({
         date: local ? localDay(app.appliedOn) : app.appliedOn.slice(0, 10),
         count: 1,
       })),
@@ -157,7 +162,7 @@ export function Streak({
   const dayApplications = useMemo(
     () =>
       day
-        ? (applied ?? [])
+        ? applied
             .filter((app) => localDay(app.appliedOn) === day.date)
             .sort((a, b) => Date.parse(a.appliedOn) - Date.parse(b.appliedOn))
         : [],
@@ -225,25 +230,25 @@ export function Streak({
   const blocks: StatBlock[] = [
     {
       label: "Past Year",
-      value: NUMBER.format(stats.total),
+      value: stats.total,
       unit: applications(stats.total),
       sub: stats.first ? `Since ${MONTH_YEAR.format(dayMs(stats.first))}` : "None yet",
     },
     {
       label: "Busiest Day",
-      value: NUMBER.format(stats.busiest.count),
+      value: stats.busiest.count,
       unit: applications(stats.busiest.count),
       sub: stats.busiest.date ? DAY.format(dayMs(stats.busiest.date)) : "None yet",
     },
     {
       label: "Longest Streak",
-      value: NUMBER.format(stats.longest.days),
+      value: stats.longest.days,
       unit: daysWord(stats.longest.days),
       sub: stats.longest.days ? span(stats.longest.start, stats.longest.end) : "None yet",
     },
     {
       label: "Current Streak",
-      value: NUMBER.format(stats.current.days),
+      value: stats.current.days,
       unit: daysWord(stats.current.days),
       sub: stats.current.days ? span(stats.current.start, stats.current.end) : "Apply today",
     },
@@ -259,16 +264,7 @@ export function Streak({
       className={cn("@container/streak", className)}
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 id="streak" className="text-subtitle text-ink">
-            Activity
-          </h2>
-          {applied === null && (
-            <p className="text-note text-ink-meta mt-1">
-              Your applications aren&apos;t loading right now.
-            </p>
-          )}
-        </div>
+        <SectionHeader id="streak" title="Activity" />
         <SegmentedToggle
           label="Chart View"
           options={VIEW_OPTIONS}
@@ -300,8 +296,21 @@ export function Streak({
             transitionDelay: showRow ? `${MORPH_MS - 300}ms` : "0ms",
           }}
         >
-          {blocks.map((block) => (
-            <Stat key={block.label} {...block} />
+          {blocks.map(({ label, value, unit, sub }) => (
+            // The app's one stat tile (components/stat-tile.tsx, KAN-828),
+            // as a grey well inside this card, its dates in a tag pill.
+            <StatTile
+              key={label}
+              on="card"
+              label={label}
+              value={value}
+              unit={unit}
+              note={
+                <Badge variant="tag" pill>
+                  {sub}
+                </Badge>
+              }
+            />
           ))}
         </div>
 
@@ -343,7 +352,14 @@ export function Streak({
         </div>
       </div>
 
-      <p aria-live="polite" className="sr-only">
+      {/* A live region only once hydrated (`local`), never in the server's
+          HTML (KAN-829). React holds this streamed section in a hidden div at
+          the end of <body> until it reveals it, outside the wrapper that
+          ../settings/layout.tsx puts round Home; the Settings modal opening
+          in that time kept this region and hid its siblings, the heading row
+          and the map, and hydration found `aria-hidden` on two divs the
+          browser draws without it. */}
+      <p aria-live={local ? "polite" : undefined} className="sr-only">
         {announcement}
       </p>
 
@@ -359,42 +375,46 @@ export function Streak({
   );
 }
 
-type StatBlock = { label: string; value: string; unit: string; sub: string };
-
 /**
- * One number in the row under the heat map, in a recessed well
- * (--color-well) like the match rail's: its label over it, its unit beside
- * it, and its dates in a pill under it, each on a line of its own, so the
- * four wells keep one shape whatever their words. Home draws every
- * date in a pill (docs/screens.md). The pill sat on the label's line for a
- * while, to save height, and wrapped under "Current Streak" alone, which
- * made that well taller than its three siblings. They were open text in ink-muted under the figure, which
- * read as loose lines rather than four readings of one chart. A block with
- * nothing to date says so in the pill ("None yet", "Apply today"), so the
- * four keep one shape.
+ * Activity when the tracker can't be read (KAN-819): the card and its
+ * heading over the failed read's compact card, with Try Again, which reads
+ * the page again. A separate part, not a state of `Streak`, so a read that
+ * works on Try Again mounts the canvas fresh: `Streak` mounts it once.
  */
-function Stat({ label, value, unit, sub }: StatBlock) {
+export function StreakFailed({ className }: { className?: string }) {
   return (
-    <div className="bg-well rounded-card flex min-w-0 flex-col items-start gap-1.5 px-4 py-3">
-      <p className="text-note text-ink-meta">{label}</p>
-      <p className="flex items-baseline gap-1.5">
-        <span className="text-display text-ink">{value}</span>
-        <span className="text-body text-ink-muted">{unit}</span>
-      </p>
-      <Badge variant="tag" pill>
-        {sub}
-      </Badge>
-    </div>
+    <Card as="section" tone="tile" padding="lg" aria-labelledby="streak" className={className}>
+      <SectionHeader id="streak" title="Activity" />
+      <LoadFailed compact title="Your Applications Aren't Loading Right Now" className="mt-3">
+        We couldn&apos;t reach your tracker. Try again in a few minutes.
+      </LoadFailed>
+    </Card>
   );
 }
+
+type StatBlock = { label: string; value: number; unit: string; sub: string };
+
+/*
+ * Each number under the heat map is the app's one stat tile
+ * (components/stat-tile.tsx, KAN-828) on `card`: a grey well, its label
+ * over the figure, its unit beside it, and its dates in a pill under it,
+ * each on a line of its own, so the four keep one shape whatever their
+ * words. Home draws every date in a pill (docs/screens.md). The pill sat
+ * on the label's line for a while, to save height, and wrapped under
+ * "Current Streak" alone, which made that well taller than its three
+ * siblings. A block with nothing to date says so in the pill ("None yet",
+ * "Apply today"). Until KAN-828 the wells drew their label in meta grey
+ * and the figure at --text-display, a third look beside Home's tiles and
+ * an application's.
+ */
 
 /**
  * Activity while the tracker loads (Home streams it in its own
  * <Suspense>, and its loading.tsx draws it too): the heading as a bar, the
  * view switch's pill, the heat map's room at its default 150px (--streak-h2's
  * fallback, which the canvas resets to the map's own height on mount) and
- * the four wells, each with its label, figure and dates pill as bars of
- * those lines' heights. The section is the page's last, so a map a few
+ * the four wells, each the stat tile's own skeleton (StatTileSkeleton).
+ * The section is the page's last, so a map a few
  * pixels taller than 150 moves nothing under it.
  */
 export function StreakSkeleton({ className }: { className?: string }) {
@@ -415,14 +435,7 @@ export function StreakSkeleton({ className }: { className?: string }) {
         <Skeleton className="h-[150px] w-full" />
         <div className="grid grid-cols-2 gap-3 pt-3 @2xl/streak:grid-cols-4">
           {Array.from({ length: 4 }, (_, i) => (
-            <div
-              key={i}
-              className="bg-well rounded-card flex flex-col items-start gap-1.5 px-4 py-3"
-            >
-              <Skeleton className="bg-panel h-4 w-20" />
-              <Skeleton className="bg-panel h-8 w-14" />
-              <Skeleton className="bg-panel h-5 w-24 rounded-full" />
-            </div>
+            <StatTileSkeleton key={i} on="card" />
           ))}
         </div>
       </div>

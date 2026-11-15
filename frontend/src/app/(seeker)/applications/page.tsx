@@ -1,4 +1,3 @@
-import { CloudSlashIcon } from "@phosphor-icons/react/ssr";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
@@ -6,6 +5,7 @@ import { ArrowRightIcon, BookmarkIcon, SearchIcon } from "@/components/icons";
 import { ButtonLink, buttonClasses } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { LoadFailed } from "@/components/ui/load-failed";
 import { cn } from "@/lib/cn";
 
 import { SEEKER_GUTTER } from "../gutter";
@@ -129,15 +129,13 @@ export default async function ApplicationsPage({ searchParams }: PageProps<"/app
           empty={
             shown.length === 0 &&
             (error != null ? (
-              <EmptyState
-                Icon={CloudSlashIcon}
-                title="Applications Aren't Loading"
+              <LoadFailed
+                title="Your Applications Aren't Loading Right Now"
                 className="mt-4"
                 detail={process.env.NODE_ENV === "development" ? error : undefined}
               >
-                We couldn&apos;t reach your saved and applied jobs. Refresh the page in a few
-                minutes.
-              </EmptyState>
+                We couldn&apos;t reach your saved and applied jobs. Try again in a few minutes.
+              </LoadFailed>
             ) : all.length === 0 ? (
               <EmptyState
                 Icon={BookmarkIcon}

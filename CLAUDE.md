@@ -257,7 +257,7 @@ with the failure it prevents.
   private repo `workitjobs/apply-agent`), the v1 app end to end,
   workstreams W0 to W13 that sessions can take one at a time, future work
   (a hosted `drive` loop next, the company brief pipeline with Tavily,
-  Windows), and the costs. Built (2026-11-14): Apply's prompts are on the
+  Windows and Linux), and the costs. Built (2026-11-14): Apply's prompts are on the
   server (`backend/app/apply_prompts/`, D5): the app sends a kind and its
   data, never a prompt. Read it before changing Apply toward a
   download, the Model route, or where Apply's data comes from.

@@ -68,9 +68,15 @@ export function rowsOf<
   });
 }
 
-/** An entry's bullets as one string, to tell two copies apart. */
+/** An entry's bullets as one string, to tell two copies apart. In any order
+ *  (KAN-815): a copy whose bullets the row shows in another order hides no
+ *  words, and compared in order, reordering the row's bullets on this page
+ *  made a copy no resume holds come back as a second row of the same job. */
 function bulletWords(entry: { bullets: { text: string }[] }) {
-  return entry.bullets.map((b) => b.text.trim()).join("\n");
+  return entry.bullets
+    .map((b) => b.text.trim())
+    .sort()
+    .join("\n");
 }
 
 /** Skills as rows: All Experiences shows a name once, as a resume prints it. */

@@ -13,9 +13,11 @@ import {
 } from "@/components/shadcn/dropdown-menu";
 
 /**
- * A list's Sort dropdown (the Resumes page, KAN-366; the Jobs page, KAN-519):
- * drawn as a filter's dropdown is (`facetClasses`), its button naming the order
- * in force. It never takes the filter's brand tint, which marks a filter
+ * A list's Sort dropdown (the Resumes page, KAN-366; the Jobs page, KAN-519;
+ * the Tracker and Up Next, KAN-827): drawn as a filter's dropdown is
+ * (`facetClasses`), its button naming the order in force. It sits first in
+ * every page toolbar's filter row (docs/design.md, "Every page table has one
+ * toolbar"). It never takes the filter's brand tint, which marks a filter
  * holding a pick: an order is always in force. A dropdown, not pills: pills in
  * a header beside another switch read as one kind of choice.
  */

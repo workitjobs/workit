@@ -1611,7 +1611,17 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   Up Next's skeleton showed on the way to Application Info. The company side
   follows the same rules, with its own `error.tsx` and `not-found.tsx`. A
   client-side read draws a skeleton line in its place too (Transcript, the
-  resume pickers' `ResumeListsSkeleton`), never a "Loading…" line. **A
+  resume pickers' `ResumeListsSkeleton`), never a "Loading…" line. **Every
+  failed read is `LoadFailed`** (`components/ui/load-failed.tsx`, KAN-819):
+  `EmptyState` with Try Again, `compact` inside a card, tile or dialog.
+  Without `onRetry`, Try Again is `router.refresh()`, not a full reload:
+  in Settings' modal a reload of `/settings/<section>` would draw the modal
+  over Home (a hard load does) and drop the page behind it; the refresh
+  keeps the modal and the page as they are. A part that reads in the browser
+  passes its read as `onRetry`; one that mounts a canvas once (Home's
+  Activity) draws its failed state as a separate part (`StreakFailed`), so
+  a read that works on Try Again mounts it fresh. Where every other error
+  goes is `docs/design.md`, "An error shows where the student acted". **A
   part that draws only once it hydrates (a canvas) keeps a skeleton in its
   own place until its first frame** (Home's Activity map, `drawn` in
   `home/streak.tsx`): the section's Suspense fallback ends when the
@@ -1648,7 +1658,10 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   (`paramsOf`), not from the saved filters: `RememberFeed`, `ScrollMemory`
   and Load More's kept pages key on the address, so a drifted one loses the
   list on Back or a reload, and a saved `pay_per` of `hour` with no range
-  reads back as `year`. Never bring `redirect()` back: the Jobs link paid two
+  reads back as `year`. For the same reason the no-results state's Clear
+  Filters (`ClearFeedFilters` in `jobs/filters.tsx`, KAN-823) replaces the
+  address with `sortHref(sort, NO_FILTERS)`, exactly what the row's Clear
+  builds on /jobs (`?sort=` and nothing else). Never bring `redirect()` back: the Jobs link paid two
   round trips with a blank panel between. **Still open:** the bar shows bare
   `/jobs` for about 0.4 s (until page-enter ends, `docs/motion.md`), and a
   filter pick in that window builds its URL from the bare address.
@@ -1686,11 +1699,20 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   the dialog in `applications/create-event.tsx`, which the Calendar's toolbar opens too,
   over `applications/actions.ts`), and the tracker's read joins the events
   from `GET .../events` (`applications/tracked.ts`); a failed read of
-  either shows an error, never stand-in cards. **Each tracker write offers
+  either shows an error, never stand-in cards. **The application's page
+  matches the job page and itself** (KAN-824): its tabs sit beside Back in
+  the action bar for every stage, where the job page's do, and the
+  posting's tab is Overview, the job page's name, open or closed; the stage
+  shows once, in the stage menu (a saved job's reads Saved); Interviews &
+  Dates and What You Sent are each a `Section` over an elevated `Card`,
+  with the same empty row (`applications/[jobId]/empty-slot.tsx`). The tabs
+  moved by stage and had three names until then. **Each tracker write offers
   Undo or asks first** (KAN-577): a stage pick and an event's Delete say so
   in a toast whose Undo writes the reverse (`applications/[jobId]/undo.ts`,
   tested), and a saved job's stage pick asks in a dialog, since the API
-  never moves a job back to Saved and so has no Undo for it. **A stage past applied is
+  never moves a job back to Saved and so has no Undo for it. Apply By
+  saves on its pick, and its toast's Undo writes the day before back
+  (`applications/[jobId]/apply-by.tsx`, KAN-818). **A stage past applied is
   still applied**: every "did they apply?" check is `hasApplied` in
   `(seeker)/applied.ts`, never `stage === "applied"` (the job cards' Applied
   button, Save's toast, Auto Apply's button, Top Matches' rows). The
@@ -1716,7 +1738,10 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   of the list (`docs/screens.md`, Inbox). One pill per email kind
   (`applications/email-kinds.tsx`). No sidebar badge: one was removed; Settings > Integrations is the
   design only until the Google sign-in is built (`docs/screens.md`). Home's four numbers are all live and all links
-  (KAN-342), each a white tile with its glyph in a small chip of its own
+  (KAN-342), each the app's one stat tile (`components/stat-tile.tsx`,
+  KAN-828: Home's numbers, Activity's and an application's Open and Days
+  Since were three looks until then; `on` picks only the fill, by what
+  the tile stands on) with its glyph in a small chip of its own
   colour (KAN-423): Excellent Matches green, Saved grey, Applied violet,
   Interviewing yellow, from the matched `--color-kpi-*` set (2026-11-09:
   the tiles were tinted with the stage tints, which read as four families
@@ -1725,8 +1750,10 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   Activity day opens a table of that day's applications. Its
   Excellent Matches reads the Best Match scores
   (`getMatches`, one read with Top Matches), and Top Matches under them lists the twelve
-  best-scoring jobs as flat rows that scroll inside a tile, with no score
-  floor; its Auto Apply button picks jobs for the queue
+  best-scoring jobs as flat rows, five and then See More (KAN-828: the list
+  scrolled inside its tile and took the mouse wheel from the page), with no
+  score floor, each with the job card's own Save and Apply (the Auto Apply
+  split button where auto apply can fill the form); its Auto Apply button picks jobs for the queue
   from the best matches auto apply can fill, each one chosen by the seeker. A job's application
   stage (`saved`, `queued`...) reaches its Save and Auto Apply buttons from
   one read per page. Auto Apply never picks a saved job for a batch; only
@@ -1751,6 +1778,14 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   and its rarer actions go in its ⋯ menu (`auto-apply/row-menu.tsx`),
   worded, the same three on every row (Change Resume, I Already Applied,
   Remove From Queue), never as bare icon buttons beside each other.
+  **I Already Applied opens Did You Apply?** (`ApplyDialog`, KAN-818), as
+  a job's own ⋯ does (`jobs/job-more-menu.tsx`), so it asks which resume
+  went and marks the job applied through `POST /jobs/{id}/applied`; it
+  finished the run as submitted at once, with no resume and no Undo,
+  until then. **Remove From Queue is the action's one name** (KAN-818,
+  `REMOVE_FROM_QUEUE` in `auto-apply/auto-apply-button.tsx`): Up Next's ⋯
+  and pick bar, the Queued toggle's hover and the combined Apply button's
+  menu, and each toast says "removed from the queue".
   Remove works on every row (`remove` in `up-next.tsx`: closes its tab,
   dequeues a queued job, skips a started one whose tab is closed). **The
   ⋯ column stays at the table's right edge at every width** (KAN-567),
@@ -1779,9 +1814,13 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   come from any AI, and never send it to the extension; the open tab fills
   it on its own poll. A failed check is the warning amber under its box,
   never the danger red (the student fixes it; nothing broke).
-  **Its one way in is Up Next's Write N Questions** (KAN-566): a row's
-  questions chip goes to the tab, and for a while no link reached the
-  page, so a student without Claude could not answer. Keep a link there.
+  **Its lasting way in is the setup row's Written Answers cell**
+  (KAN-822, `auto-apply/setup-strip.tsx`); Up Next's questions notice
+  links it too while questions wait. A row's questions chip goes to the
+  tab, and for a while no link reached the page, so a student without
+  Claude could not answer (KAN-566); then only the notice did, so with
+  nothing waiting the saved answers and their Delete were out of reach.
+  Keep the lasting link.
   never the danger red (the student fixes it; nothing broke). Each box's
   save is `secondary` until the box has text (KAN-568): a card holds
   several questions, and a brand Save under each put five on one screen.
@@ -1799,7 +1838,9 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   `docs/screens.md`, Applications, has the rest.
 - **Tailor is one step per view** (`(seeker)/jobs/[jobId]/tailor`,
   2026-10-26): every step opens with the same top row (`TailorBar`: Back,
-  the step, its way on). `TailorHeader` (each step's own title and the job as one line,
+  the step, its way on). Pick a Resume's Back is `BackLink`, the job's
+  page on a direct visit; Choose Keywords' is `TailorStepBack`, drawn as
+  `TailorBack` but changing the step in place (KAN-822). `TailorHeader` (each step's own title and the job as one line,
   `TailorJobLine`) follows it on the pick steps, and
   the review names the job the same way under the resume's name; the tailored resume's page has the slim
   `TailorReviewBar` instead (Back to Choose Keywords, `TailorBack`, the
@@ -1837,18 +1878,22 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   a page Next kept shows it gone, and an unsave on the tracker brings it back
   on the next render. **Every button that changes a stage calls
   `rememberStage`**: Save and its Undo, Did You Apply?'s Yes, Auto Apply and
-  its dequeue. One that skips it leaves the job on the rail and its other
+  its dequeue, the dequeue's Undo, and Top Matches' Add N to Queue. One that skips it leaves the job on the rail and its other
   buttons stale. Save says where the job went: "Saved to your Tracker."
   with View and Undo, two buttons side by side (the toast's
   `actions`). **A toast is the inverted surface** (`bg-inverse` and
   `text-on-inverse`, its buttons and cross the `inverse` variants) and stays
   8 seconds when it has an action, 5 without (`docs/design.md`, toasts). Home's Top Matches leaves saved jobs out on
-  its next read, but a row saved there stays until then.
+  its next read, but a row saved there stays until then; its rows lay the
+  changes since `drawnAt` over their stages as the feed does (KAN-828), so
+  a row queued or saved keeps that stage when picking mode draws it again.
 - **A seeker page's title is in the top bar, and it has no description**
   (2026-11-02, `(seeker)/bar-title.tsx`). The bar reads the title from the
   address, so it shows before the page streams in; a new section joins `TITLES`
   there. It is the page's h1 on a section's own page, and a plain line on a page
-  under it (a job, a resume, an application), which has its own h1. Home's title
+  under it (a job, a resume, an application), which has its own h1.
+  Application Info's parts are one page's parts, so its title is the h1 on
+  each (`isInfoPart`, KAN-822), its cards h2s. Home's title
   is the greeting, which the layout reads with the account. **One h1 per view**
   (KAN-560): a job drawn beside the list on /jobs (the split view) titles itself
   h2 (`JobDetailHeader`'s `titleAs`), and a 404 under a section is the h1
@@ -1925,12 +1970,40 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   (`lib/resumes-stale.ts`), and the Resumes list reads itself again on
   mount when it is set. A screen whose write already revalidates calls no
   `router.refresh()` after it (the editor's title, the upload's page),
-  which would render the page twice. The upload page's Delete passes
-  `leaving`: rendered again, that page is a 404 before its push.
+  which would render the page twice. A resume page's Delete (the ⋯ of the
+  editor and of an upload's page) passes `leaving`: rendered again, the
+  upload's page is a 404 and the editor's reads a resume that is gone
+  before the push. So the editor's Make Primary and Rename compile the PDF
+  once on the server, as its rename always did.
+- **A resume looks and acts the same on every page that shows it**
+  (KAN-825), through three shared pieces; a new place that shows a resume
+  uses them, never its own:
+  - **One Primary mark, `PrimaryBadge`** (`components/resume-row.tsx`): the
+    table row, a grid card's page corner, the title of the editor and of an
+    upload's page, the resume pickers and Experiences' Showing card.
+    `wordClassName` says where the word folds. There were five: the badge,
+    a black disc, a star with the word, a bare purple star and nothing.
+  - **One rename, `RenameField`**: the name's field in its own place with
+    Cancel and Save (a card edited in place), Enter and Escape, in the
+    table row, the grid card and `ResumeTitle`. There were four, the
+    editor's saving on a click away with no buttons.
+  - **One title row on both resume pages**: `ResumeTitle` (the name, an h1
+    at `text-heading`, and the badge), then the page's status ("Saved", or
+    an upload's date), the filled Download, and `ResumeMenu`
+    (`resumes/[resumeId]/resume-menu.tsx`), the list's ⋯ (`RowMoreMenu`)
+    with Rename, Make Primary and Delete. `TitleRowProvider` joins the two
+    ends: the menu's Rename opens the title's field, and a failed Make
+    Primary or Delete shows under the title. Tailor's review keeps its h2
+    title and has no ⋯ (the editor's `more` prop). **`RowMoreMenu` hands no
+    focus back to ⋯ after Rename** (`finalFocus`): on a resume's page the
+    button stays, and its focus return took the focus from the new field.
 - **Every other seeker Back goes to the page that opened it**
   (`(seeker)/back-link.tsx`, KAN-363): `BackLink`, or `useBack` for a
   control drawn its own way (the editor's phone arrow), given the page's
-  parent for a direct visit. The scroll memory records each page's opener
+  parent for a direct visit. A page whose parts are pages passes
+  `within` (Application Info, `/auto-apply/info`): its Back goes to what
+  opened the page, never a part. Without it, Application Info's Back went
+  to Auto Apply even from My Profile, since a part was always the opener. The scroll memory records each page's opener
   (`openerOf`, sessionStorage, the last 50 pages) on every forward arrival
   and never on a return, so a detour and the browser's Back keep it. A
   new Back control uses them, never a fixed `href`; a new seeker page a
@@ -1940,7 +2013,9 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   (`BackToJobs` skips the rail's job-to-job clicks to the list), a 404's
   or placeholder's way out (no page to go back to), or a step form's
   Back (the step before): Tailor's review passes its step before to the
-  phone arrow (`phoneBack`, `useTailorBack`; KAN-574).
+  phone arrow (`phoneBack`, `useTailorBack`; KAN-574), and Choose
+  Keywords' Back is Pick a Resume. Tailor's first Back is `BackLink`, not
+  `BackToJobs`: Tailor opens from the job's page (KAN-822).
 - **A job posting's page has a rail of jobs beside it** (KAN-297), drawn by
   `(seeker)/jobs/layout.tsx` so it survives job-to-job navigation. It reads
   the list `FeedList` last showed (`jobs/shown-list.ts`); a new list screen
@@ -2026,7 +2101,8 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   with a line on what it does; it shares AutoApplyButton's hook
   (`useAutoApply`) and Apply Now's "Did You Apply?" (`ApplyDialog`), and
   `Button`'s `segment` draws its two parts. Any other job keeps Apply Now.
-  **"⋯" holds Already Applied? and Share** (`jobs/job-more-menu.tsx`);
+  **"⋯" holds I Already Applied and Share** (`jobs/job-more-menu.tsx`),
+  drawn with the menu's own rows as Up Next's ⋯ is (KAN-818);
   Report This Job Posting waits on a table to keep reports in, and Hide
   This Job on Not Interested being stored. Not taken: a dark
   tile, capitals, a green action. The six facts are `size="md"` on this
@@ -2055,7 +2131,12 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   `src/components/shadcn` (and its `hooks/`) is vendored by `shadcn add` and
   regenerated in place, so a hand edit there is a fork. shadcn's colour roles
   and stock text sizes are aliased onto WorkIt's tokens at the bottom of
-  `globals.css`; fix the mapping there, not the component. **Read
+  `globals.css`; fix the mapping there, not the component.
+  **The dialog is a fork** (KAN-820, `docs/shadcn.md`): its title is
+  `text-subtitle` by itself, so a call site passes no size or weight, and
+  what sits between a dialog's header and footer goes in `DialogBody`, the
+  one part that scrolls, so the buttons stay on screen. A dialog that
+  scrolled whole took its Save below a 700px window. **Read
   `docs/shadcn.md` before running any `shadcn` command**, and run it from this
   folder: `components.json` differs from a stock install and re-running `init`
   silently undoes it.
@@ -2115,6 +2196,14 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   right (KAN-565). A disabled filled button is grey (`ui/button.tsx`,
   DISABLED_FILL), never a faded brand fill, and a lesser action beside a
   button is `variant="section"`, never brand text.
+- **A delete's question answers with `ConfirmButtons`**
+  (`components/ui/confirm-buttons.tsx`, KAN-817; `docs/design.md`, "A
+  question before a delete"): Keep It first, the red act last, in a dialog,
+  a popover, a bar across a dialog's foot, a line or a Settings step. The
+  way out always says Keep It; Discard Your Changes? alone says Keep
+  Editing. The red button sat first in some shapes and last in others, so
+  on Resumes it changed sides between deleting one resume and several.
+  Never draw a delete's two buttons by hand.
 - **Anything clicked or picked is medium (450, `--font-weight-medium`; 500
   until 2026-11-10, which read thick beside Jobright's)**: buttons, chips,
   segmented controls, filter options, and shadcn's menu, select and
@@ -2190,7 +2279,12 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   `<Badge variant="tag" pill>`, and the title is `SectionHeading` (16px at
   600, company pages included). Three hand-built card kinds drifted apart in
   corner, edge, shadow, title and gap before; never build one from raw
-  classes (`docs/design.md`, The two shells).
+  classes (`docs/design.md`, The two shells). **No section heading copies
+  `SectionHeading`'s classes or is bold, and its glyph is `ink-meta`**
+  (KAN-821, `docs/design.md`, Hierarchy): about a dozen copies, the job
+  page's 700 headings and their purple glyphs drifted apart. Page spacing
+  is one rule too: `py-6` under the bar, `gap-6` between groups, `gap-4`
+  between cards, and a `loading.tsx` at its page's width.
 - **Build class strings with `cn()` from `@/lib/cn`.** Plain interpolation
   leaves both conflicting utilities in the attribute and the stylesheet's
   emit order picks the winner. `cn()` cannot merge across groups (`border` and
@@ -2296,10 +2390,15 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   Experiences, then the Jobs page, showed Scout's chat, and then the editor
   showed its assistant, both working; the editor's toolbar views can still
   leave the panel open. **The
-  Calendar has no sidebar row** (`CALENDAR_LIVE` in `seeker-sidebar.tsx`,
+  Calendar has no sidebar row** (`CALENDAR_LIVE` in `(seeker)/calendar/live.ts`,
   2026-11-09; greyed out with `disabled` from 2026-11-02): /calendar still
-  answers, and Home's Up Next links to it. Set the flag to bring the row back. The landing page still describes
-  it.
+  answers, and Home's Up Next links to it. Off, no line sends a student to
+  it either: Interviews & Dates and Create Event say an event shows on the
+  timeline, and add "and your Calendar" only while it is live (KAN-826).
+  Set the flag to bring the row and those words back. The landing page
+  still describes it. **Help has no row in the account menu** either
+  (`HELP_LIVE` in `(seeker)/account-status.tsx`, KAN-826): its page is a
+  placeholder, so the row waits for guides; /help still answers.
 - **The company table (`app/company/table.tsx`) and the Applications list
   (`(seeker)/applications/list.tsx`, KAN-282) are TanStack Table v9**, and
   every shadcn data-table example in circulation is v8. Read the guides in
@@ -2309,12 +2408,26 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   share the Applications list's frame and its promoted pieces
   (`components/clickable-row.tsx`, `match-badge.tsx`, `reflow.tsx`,
   `field-facet.tsx`); a new seeker table starts from those, not a copy.
+  **The Jobs page's filters are built from the same parts** (KAN-823):
+  `FieldFacet` for Workplace and Job Type, the Tracker's `SearchFacet`
+  (`applications/field-filters.tsx`, with `labelOf` for the roles' slugs)
+  for Role, `facetClasses`, `FacetLabel` and `ui/check-row.tsx` for
+  Location's two-panel popover, and `components/all-filters-dialog.tsx`
+  for All Filters, with `AllFiltersSkeleton` while its places and roles
+  load. Until then `jobs/` drew its own copies of the button, the rows and
+  the panel's frame, which drifted from the Tracker's. Change a filter's
+  look in the shared part, never in `jobs/`.
 - **How many rows a table or list shows depends on where it sits.** A
   full-page table (the Applications list, Up Next) shows every row and the
-  page scrolls. A list or table inside a dialog or a tile scrolls inside
+  page scrolls. A list or table inside a dialog scrolls inside
   itself at one height, the `--spacing-scroll-box` token (`max-h-scroll-box`
-  or `h-scroll-box`, 320px): Add Jobs and Top Matches. Each picked its
-  own height before, and Add Jobs grew to 90% of the window. The grouped
+  or `h-scroll-box`, 320px): Add Jobs. Each picked its
+  own height before, and Add Jobs grew to 90% of the window. **A list in a
+  tile on a page never scrolls inside it** (KAN-828): it shows a fixed
+  number of rows and See More, which shows the rest in place (Home's Top
+  Matches, `SHOWN` in `home/top-matches-frame.ts`). Top Matches scrolled at
+  `h-scroll-box`, and with the pointer over it the mouse wheel moved the
+  list and not the page. The grouped
   resume list is the one exception: five cards under a group heading in
   every resume picker (`ResumeScroll`, `components/resume-list.tsx`),
   since 320px showed three and a half, and on a page (the Resumes page,
@@ -2633,10 +2746,11 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   was a pill of its own (`DOCS_BAR`) with zoom at its left, and the
   review's icons in the title row were 40px.
   **The bar holds editing tools only; the title row holds the file**
-  (KAN-799, `[resumeId]/toolbar.tsx`). The title row is the name, the save
-  status ("Saving…", "Saved"; `SaveStatus`) and Download, the page's one
-  filled button (secondary on Tailor's review, whose fill is Finish), with
-  the review's Original and Suggestions before it. The bar is three groups
+  (KAN-799, `[resumeId]/toolbar.tsx`). The title row is the name with the
+  Primary badge, the save status ("Saving…", "Saved"; `SaveStatus`) and
+  Download, the page's one filled button (secondary on Tailor's review,
+  whose fill is Finish), with the review's Original and Suggestions before
+  it, then on the editor's own page the resume's ⋯ (`more`, KAN-825). The bar is three groups
   that keep their places: Undo and Redo; the middle; the zoom and **the side
   panel's one button** (KAN-586), at the row's end above where the panel
   opens, never folded away. **Sections and Format are tabs of one side
@@ -2662,7 +2776,7 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   on this resume where the form lists it.
   **The phone editor has the desktop's two rows** (`phone.tsx`, KAN-586):
   the title row (the editor's `heading`, so the name renames in place, the
-  save status and Download) over the toolbar in `SLIM_BAR`, with the shared
+  save status, Download and the editor's ⋯) over the toolbar in `SLIM_BAR`, with the shared
   `FitButton`, `ReviewButtons` and `PanelToggle`; the side panel is a sheet
   whose title is the Sections and Format tabs (`TabButtons`), and a tap on
   the header line no longer opens anything but its field. It kept a
@@ -2706,11 +2820,13 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   Wording beside Original; the user wanted Original alone (2026-10-29).
   The API still accepts a switch to any wording the resume can show.
 - **The editor's page has a zoom** (`Zoom` in `[resumeId]/zoom.tsx`, on
-  the slim bar of both pages; an upload's page has the same control for a
-  PDF, opening at 100% and kept in its state only, never stored):
+  the slim bar of both pages; an upload's page has the same control and the
+  same kept step for a PDF, `useZoom`, so both resume pages open at one zoom:
+  it opened at 100% and kept nothing until KAN-825):
   steps of the page's printed size, 100% being 816px (8.5in at 96px an
   inch), opening at 125% (1020px), capped by its column, kept per browser through
-  `lib/local-drafts.ts` (`EDITOR_ZOOM_KEY`). The page filled its column
+  `lib/local-drafts.ts` (`EDITOR_ZOOM_KEY`, whose name stays so a kept step
+  survives). The page filled its column
   until then, and KAN-421's 1440px pages made it take most of the screen.
   Its steps are a `DropdownMenu`: a native `<select>` dropped the browser's own
   list, in the system's blue, in the middle of the app's menus.
@@ -2720,6 +2836,7 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   (`(seeker)/resumes/[resumeId]/editor.tsx`), and both pages draw one
   editor design (KAN-411): the title row (`heading`, `ResumeTitle`
   renamed in place) and the slim toolbar (`Bar`, `toolbar.tsx`). Only the
+  editor's own page passes `more` (the resume's ⋯, KAN-825). Only the
   review passes `suggestions` (the panel, and with it the margin dots and
   tints, Original and Suggestions in the title row (`ReviewButtons`), a
   secondary Download, no Experiences picker, and Scout's
@@ -2753,7 +2870,12 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   Home's streamed sections before they hydrated, and React warned of a
   mismatch (2026-11-10). `settings/layout.tsx` wraps Home in
   `aria-live="off" aria-hidden inert`: one kept region the modal never
-  walks into.
+  walks into. **A live region in a Home section takes `aria-live` only
+  once hydrated** (KAN-829): React holds a streamed section in a hidden div
+  at the end of `<body>`, outside that wrapper, until it reveals it, and
+  the modal opening in that time walked in from Activity's live region and
+  hid its heading row and map, so `next dev` showed "1 Issue" for two divs'
+  `aria-hidden` (`home/streak.tsx`, `local`).
 - **A control inside a card with a click layer sits above the layer**
   (`relative z-2`; the layer is `absolute inset-0 z-1`,
   `components/job-posting-card.tsx`). `relative` alone is not enough: Save
@@ -2959,7 +3081,8 @@ are in `docs/auth.md`.
   leave the entry out), the bank's
   warning badges for what an entry lacks (`warn`, KAN-740), and
   the bank's skills (`SkillGroups`, `skill-groups.tsx`: purple chips, one
-  row per group), whose × shows only in Skills' edit mode. **Every entry is
+  row per group), whose × shows only in the preview's own Skills edit mode
+  (Experiences' card only reads since KAN-816). **Every entry is
   open, with no chevron** (`EntryRow`'s `open`), and **every card shows all
   its entries**, with no Show All and no section's list, unlike
   Experiences: the student checks all of a reading here, so none of it
@@ -3035,9 +3158,10 @@ are in `docs/auth.md`.
   frame draws the layout the cookie names ((list)/loading.tsx), or the
   page jumped from a table to the grid as it loaded. **It is laid
   out as the Applications Tracker is**, so keep the two alike: the search
-  on its own row, then the Type filter (`FieldFacet`, the Applications
-  list's dropdown, in `?type=`) and the Sort dropdown (Last Edited, the
-  default; Oldest First; Name, A to Z; in `?sort=`, KAN-366) with Upload
+  on its own row, then the Sort dropdown first (Date Modified, the
+  default, and the rest in `?sort=`, KAN-366; first in the row since
+  KAN-827, as on every page toolbar) and the Type filter (`FieldFacet`,
+  the Applications list's dropdown, in `?type=`) with Upload
   Resume and Generate Resume at the right, both above the list, and `EmptyState` in the list's place
   when no card shows. Upload Resume and Generate Resume never sit in the
   shared header. Two table versions came first in KAN-362, one with Type
@@ -3145,12 +3269,20 @@ are in `docs/auth.md`.
   modal over it (`docs/design.md`, Dialogs). A search shows every match on
   its card, and so does Scout's card, so a found entry is never behind Show
   All. On Experiences, 14 to 17 entries a card ran the page very long, and
-  each edit opened inline in it. Skills keep their card and edit mode:
-  their heading's pencil (hidden while the card is empty) shows each
-  skill's pencil and × and turns to Done, since a pencil and × on every
-  chip, always, made the list hard to read. Every card had that mode until
+  each edit opened inline in it. **Skills edit in a dialog of the same
+  frame** (KAN-816, `SkillsDialog`, `skills-dialog.tsx`; `docs/screens.md`,
+  Edit Skills): the card's + opens it on its add form and its pencil opens
+  it, so the card only reads. They kept an edit mode of the card's own
+  until then, a pencil and × on every chip with Done in the pencil's place:
+  the one section that edited in place. Every card had that mode until
   KAN-732 (KAN-363), and only in it did entries show their pencil: a press
-  before every edit. Never put Clear All back in a heading as a word: there
+  before every edit. **The dialog's groups, moves, renames and merges are
+  pure** (`skill-order.ts`, tested), and its drag parts are the editor's
+  Sections panel's (`components/sortable-list.tsx`): a new list the student
+  orders by drag uses them, never a third copy. **A chip under All
+  Experiences is every copy of its name** (`skillCopies`): a move, rename,
+  × or Delete Group sends every copy's id, or the next copy came back as
+  the chip, in its old group. Never put Clear All back in a heading as a word: there
   it sat one slip from Add. **One editor at a time** (KAN-732) now holds by
   itself: the form is modal. **Typing is never dropped without a
   question**: Escape, the × and a press outside ask "Discard Your
@@ -3163,24 +3295,53 @@ are in `docs/auth.md`.
   `finalFocus`), since the same render can draw what it changed (a new
   card's +, a deleted row's neighbour). A dialog's ids differ from the
   page's (`section-list-<id>-edit`), since the page stays in the document
-  under it. Skills' Clear All and a Lines section's Delete Section still
-  ask in a modal (`DeleteDialog`), since they sit on the page.
+  under it. A Lines section's Delete Section still asks in a modal
+  (`DeleteDialog`), since it sits on the page; Skills' Clear All asked
+  there too until it moved into their dialog's ⋯ (KAN-816).
 - **A skill's × and a resume's Delete Resume are optimistic** (KAN-388):
   the item leaves the screen at once and the delete runs behind it. The
-  screen that holds the list owns the delete, through `useOptimistic` in
-  a transition (`removeSkill` in `bank-screen.tsx`, `remove` in
-  `resumes/built-resumes.tsx`): a failed delete ends the transition with
-  the item still in state, so React puts it back, and the error shows
-  where the list's own errors show, since the row's error line left with
-  the row. A delete that worked drops the item from state itself before
+  screen that holds the list owns the delete: a resume's through
+  `useOptimistic` in a transition (`remove` in `resumes/built-resumes.tsx`),
+  where a failed delete ends the transition with the item still in state,
+  so React puts it back, and the error shows where the list's own errors
+  show, since the row's error line left with the row. **The Skills dialog
+  shows every change at once and saves behind it** (KAN-816,
+  `skills-dialog.tsx`): its groups as changed (`draft`) stand in for the
+  bank's, and its saves run one at a time, in the order made (`enqueue`):
+  a × deletes, + adds, and a move, rename or merge waits in line once and
+  sends the whole order as the dialog then has it, so six arrow presses
+  are two saves, never six that could land out of order. Once nothing is
+  left in line the bank is read back and the draft goes; a failed save
+  shows its message, and the read-back puts the list back. A field stays
+  read-only, never disabled, while its add saves: a disabled field drops
+  the focus, and the next skill is typed straight after. In a hidden
+  Browser pane a save can stand at "Saving…" for a minute (the page's
+  timers are throttled): check with the pane in view. A delete that worked drops the item from state itself before
   any read-back: a failed reload would otherwise bring back an item the
   API had deleted. Anything else a delete can change still reads back (a
   resume's delete can move the star). Clear All, Delete Entry and the
   upload page's Delete still wait for the API behind a busy button: they
   confirm a count or leave the page.
+- **Every section always has its card on Experiences** (KAN-814, which
+  reverses KAN-440's quiet line, `../docs/bank_by_resume.md`): Education,
+  Work Experience, Projects, Leadership & Activities, Awards,
+  Certifications, Skills, then the student's own. An empty one is a short
+  card with its usual + and pencil and one line from `emptyLine` and
+  `WHAT_GOES_HERE` (`(seeker)/experiences/sections.ts`); only a search hides
+  a card. Never move empty sections back to one line under the page: at
+  the foot, in small grey type, students missed that the sections existed.
+  Add a Section is a text button under the last card, never a filled one.
+  The section is **"Work Experience" on every screen** (`SECTIONS`'
+  label), since "Experience 14" beside the page's name read as a count for
+  the whole page; a printed resume and the editor's Sections outline of it
+  keep "Experience" (`SECTION_LABELS` in `resumes/[resumeId]/model.ts`,
+  mirroring the API's `fields.py`), and its entries stay a "Job". Its mark
+  is Phosphor `Path` in `section-icons.tsx` and `intake-steps.tsx`, which
+  change together.
 - **The Experiences view has a section nav** (KAN-349,
-  `(seeker)/experiences/section-nav.tsx`): one sticky row of links to the seven
-  section cards, each with its count under the current pick, the one in
+  `(seeker)/experiences/section-nav.tsx`): one sticky row of links to every
+  section card, each with its count under the current pick (an empty
+  section's glyph and 0 muted to `ink-meta`, KAN-814), the one in
   view lit. It is one row at every width, scrolling sideways where it does
   not fit, so its height never changes; every section card's `scroll-mt-16`
   is room for it, and a card added to the page needs that margin and an
@@ -3244,7 +3405,13 @@ are in `docs/auth.md`.
   waits for its toast to close** (the toast's `onClose`, KAN-562): the page
   can't upload a deleted file again, so Undo is the DELETE never sent. An
   upload in that time sends the DELETE first, or it would remove the new
-  file; leaving the page sends it at once.
+  file; leaving the page sends it at once. **Settings' Remove Photo and
+  Written Answers' Remove hold their DELETE the same way** (KAN-818,
+  `settings/personal/personal-details.tsx`,
+  `auto-apply/answers/remove-answer.tsx`): a photo can't be put back, and
+  saving an answer again would run the checks again and make it the
+  student's own. Written Answers said Delete and asked on the line under
+  the answer until then.
 - **The uninstall survey is `/uninstalled`** (KAN-471): the page Chrome
   opens when a student removes the extension (`?v=` the version removed).
   Public, outside both shells, and it asks no sign-in: the answer goes to

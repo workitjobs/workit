@@ -51,12 +51,12 @@ export function CompanyTab({
   const facts = company?.facts ?? [];
   const website = company?.website ? safeHref(company.website) : null;
 
-  // Its heading is drawn as the Overview's sections' are (20px bold beside
-  // a 24px brand glyph), since both sit in the job's one panel.
+  // Its heading is drawn as the Overview's sections' are (20px at 600
+  // beside a 24px grey glyph), since both sit in the job's one panel.
   return (
     <section aria-labelledby="company-tab-title">
-      <h2 id="company-tab-title" className="text-title text-ink flex items-center gap-2 font-bold">
-        <CompanyIcon className="text-brand size-6 shrink-0" />
+      <h2 id="company-tab-title" className="text-title text-ink flex items-center gap-2">
+        <CompanyIcon className="text-ink-meta size-6 shrink-0" />
         About {name}
       </h2>
       {website && (

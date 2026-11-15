@@ -20,8 +20,8 @@ const PROTOCOL = 1;
 // (bridge.FEATURES). 2: tile.shown (KAN-635) and extension.reload. 3: the welcome's vendor set and
 // vendor.use (KAN-645). 4: cdp.eval, cdp.load and cdp.script (KAN-839). 5: no user scripts: `eval` runs through the
 // debugger, the engine comes only by cdp.keep, and the hello names its packaged set and install type (KAN-839).
-// Raise it with each new op or event.
-const FEATURES = 5;
+// 6: windows.focus (KAN-850). Raise it with each new op or event.
+const FEATURES = 6;
 const RECONNECT_MS = 2000;
 
 let port = null;

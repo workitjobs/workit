@@ -184,7 +184,7 @@ export function FeedList({
         offset: Math.max(0, offset - gone.length),
       });
       if (page.error != null) {
-        setError("Couldn't load more roles. Try again in a moment.");
+        setError("Couldn't load more jobs. Try again in a moment.");
         return;
       }
       const { fresh } = page;
@@ -198,8 +198,8 @@ export function FeedList({
       });
       setSaid(
         fresh.length === 0
-          ? "No more roles."
-          : `${fresh.length} more ${fresh.length === 1 ? "role" : "roles"} loaded.`,
+          ? "No more jobs."
+          : `${fresh.length} more ${fresh.length === 1 ? "job" : "jobs"} loaded.`,
       );
       setFocusId(fresh[0]?.id ?? null);
     });
@@ -274,7 +274,7 @@ export function FeedList({
           </Button>
         ) : (
           loaded.length > 0 && (
-            <p className="text-body text-ink-meta">That&apos;s every role that matches.</p>
+            <p className="text-body text-ink-meta">That&apos;s every job that matches.</p>
           )
         )}
         {error && (
