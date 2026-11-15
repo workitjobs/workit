@@ -377,6 +377,10 @@ into it and the window shows "Sample data".
   on CDP and on a plain Worker. The rule's JS copies (page/dom.js,
   ops/tile.js) stay word for word the same as `RULE_JS`; a test checks that.
   The guard's picker block is guard code: its PR gets an adversarial review.
+  The rule covers an answer's text too where Apply fills one field in a held
+  page's frames (`rehearsal._engine_fill`, `regenerate.done`): only a frame
+  that `upload_origin.frame_may_upload` allows. Another site's frame with its
+  own `FillEngine` took a resume's bytes (KAN-855's review).
 - **No test reaches past loopback** (`tests/network_block.py`, KAN-662). A
   socket or name lookup to another host raises `NetworkBlocked`, Chrome
   started by a test resolves other hosts to nothing, and Playwright's own

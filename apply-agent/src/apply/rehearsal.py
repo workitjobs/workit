@@ -35,7 +35,7 @@ import threading
 import time
 import traceback
 from collections.abc import Callable
-from contextlib import ExitStack, contextmanager
+from contextlib import ExitStack, contextmanager, nullcontext
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import TYPE_CHECKING, get_args
@@ -63,6 +63,7 @@ from apply import (
     submit_guard,
     tailored,
     trace,
+    upload_origin,
     verify,
     workday,
 )
@@ -918,14 +919,16 @@ def _fill_answer(page, question: str, answer: "str | Path | None", adapters: Ada
 
 def _engine_fill(page, done: Rehearsed, question: str, answer: "str | Path") -> bool:
     """The Student build's fill of one answer the student gave in the Apply window (KAN-855): the Fill engine puts
-    it in as it filled the form, in the frame that shows the field (never a captcha's), with no model. Whether the
-    field shows it now. False where the form has no such field on its step, or the engine doesn't know its job
-    system (the student fills that one on the form, FIX_HERE)."""
+    it in as it filled the form, with no model, in the frame that shows the field. Only a frame of the form's own
+    site (apply.upload_origin, KAN-795), for text as for a file: another site's frame, which a hostile page can
+    hold, gets none of it, and a captcha's never gets Apply's code. Whether the field shows it now. False where the
+    form has no such field on its step, or the engine doesn't know its job system (the student fills that one on
+    the form, FIX_HERE). The hold runs it with both guards on (driving)."""
     q, site = _field_of(done, question), done.posting.job_system
     if q is None or site not in get_args(Site):
         return False
     for frame in page.frames:
-        if frame is not page.main_frame and captcha.in_frame(frame.url):
+        if frame is not page.main_frame and captcha.in_frame(frame.url) or not upload_origin.frame_may_upload(frame):
             continue
         try:
             shown = fill_engine.fill(frame, site, [q], {q.name: answer}).get(q.name)
@@ -1431,7 +1434,8 @@ class _Kept:
 
         @contextmanager
         def driving():
-            """Apply acts on the held page (an Ask Claude message, a session dialog's stay press): both guards back
+            """Apply acts on the held page (an Ask Claude message, a session dialog's stay press, an answer from the
+            window): both guards back
             on, in each document it loads too (going back a step loads one, which lift()'s script would hand to
             Lisul). His again after."""
             nonlocal holding
@@ -1489,7 +1493,11 @@ class _Kept:
                 if resume and not gone and resume(self._page):
                     return RESUME
                 for question, answer in answers():
-                    fill(self._page, question, answer)
+                    # The Student build's Fill engine acts on the held page: both guards back on meanwhile, so its
+                    # clicks, and any page script they wake, send nothing (KAN-855's review). A checkout's Rescue
+                    # arms its own drive guard around its drive.
+                    with driving() if build.STUDENT else nullcontext():
+                        fill(self._page, question, answer)
                 if dismissing:  # on the page's own thread: the binding only says he pressed it
                     dismissing.clear()
                     dismiss()

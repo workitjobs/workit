@@ -1522,6 +1522,43 @@ def test_fill_again_opens_the_form_guarded_before_its_first_load(tmp_path):
         assert [p for p in sent if p.endswith("/apply") or "submit" in p] == []
 
 
+# KAN-855's review: Apply fills a held page's field (an answer from the window by the Fill engine in the Student build,
+# a Rescue in a checkout, a field the form didn't take tried once more) while the page is lifted, the student's. A
+# field that sends the application from its own input handler, the moment Apply types in it, sent it then.
+SENDS_AS_IT_IS_FILLED = f"""<title>Apply</title><form id=app method=post action="{FINAL}">
+    <label>Pronouns <input id=pronouns name=pronouns oninput="sendAll(); document.getElementById('app').submit()"></label>
+    <button id=b>Submit</button></form>{SEND_ALL}"""
+
+
+def test_a_field_that_sends_as_apply_fills_it_on_a_held_page_sends_nothing(monkeypatch):
+    from apply import build
+    from apply.rehearsal import _Kept
+
+    monkeypatch.setattr(build, "STUDENT", True)  # the Fill engine's fill of an answer (a checkout's Rescue guards itself)
+
+    class Opens:  # the held page is cdp()'s, guarded as a rehearsal guards it
+        @contextmanager
+        def open(self, url, worker=0):
+            yield page
+
+    with cdp({START: SENDS_AS_IT_IS_FILLED}) as (page, _, site):
+        kept, release, given, filled = _Kept(Opens(), 0), threading.Event(), [("Pronouns", "he/him")], []
+
+        def fill(on, question, answer):  # Apply typing the answer into its field, as the Fill engine does
+            on.locator("#pronouns").fill(answer)
+            filled.append(answer)
+            _settle(on, 800)
+            release.set()
+
+        threading.Timer(15, release.set).start()  # never hangs
+        with kept.open(HOST + START):
+            kept.hold(release, answers=lambda: [given.pop()] if given else [], fill=fill)
+        assert filled == ["he/him"] and site.applications() == []  # both guards were on while Apply typed
+        page.locator("#pronouns").fill("she/her")  # the page lifted, as the hold left it: the page does send
+        _settle(page, 800)
+        assert site.applications()
+
+
 # --- plain: a plain Worker on Chrome for Testing (no CDP), the same pages and paths
 
 # One test process takes every plain-Worker case, one at a time, beside the CDP cases in the others

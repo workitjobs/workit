@@ -489,14 +489,22 @@ Worker's own Chrome window, but for a captcha. Each message says so
   planned answer (the tile's `planned`, `rehearsal._planned`), to save as it is
   or to change. A file's box starts empty.
 - **An answer from the window.** `rehearsal._engine_fill` puts it in with the
-  Fill engine, as it filled the form, in the frame that shows the field (never
-  a captcha's frame), and reads it back. Where the form has no such field on
-  its step, or the engine doesn't know its job system, the run says to type
-  it on the form (Fix here).
+  Fill engine, as it filled the form, in the frame that shows the field, and
+  reads it back. Only a frame of the form's own site
+  (`upload_origin.frame_may_upload`, KAN-795), for text as for a file, and
+  never a captcha's. The hold runs it with both guards on (`driving()`), as it
+  runs Ask Claude. Where the form has no such field on its step, or the engine
+  doesn't know its job system, the run says to type it on the form (Fix here).
+  The adversarial review found both holes: on the lifted page, a field whose
+  own input handler sends the form sent it the moment the engine typed in it,
+  and another site's frame with its own `FillEngine` took a resume's bytes
+  (`test_submit_guard_hostile.py`, `test_upload_origin.py`). Add context and
+  regenerate's engine fill (`regenerate.done`) takes the same frame rule.
 - **An emailed code after Submit.** No mail is read (D9).
   `code_box.TypeTheCode` watches the held page as `email_code.EmailCode` does,
   and once the code field comes, Needs you says "needs code"
-  (`rehearsal.TYPE_THE_CODE`). Both find the field through `apply.code_box`.
+  (`rehearsal.TYPE_THE_CODE`). Both find the field through `apply.code_box`,
+  which reads no captcha frame.
 - **A captcha.** The tile's clicks are synthetic, and a captcha takes none, so a
   captcha item's first button is Open in Chrome, as a sign-in's is. Apply never
   makes a relayed click look like a person's (the bot rule).

@@ -26,6 +26,7 @@ from apply import (
     profile,
     rehearsal,
     student,
+    upload_origin,
 )
 from apply.adapters import ClaudeError, SetupError
 from apply.ask_model import live_claude
@@ -182,9 +183,10 @@ def held(url: str, q: Question) -> SimpleNamespace:
     return SimpleNamespace(posting=posting(url), questions=(q,), where={})
 
 
-def test_an_answer_from_the_app_goes_in_by_the_fill_engine_never_in_a_captcha(monkeypatch):
-    """KAN-855: no Rescue. The Fill engine fills the one field, in the frame that shows it; a captcha's frame never
-    gets Apply's code."""
+def test_an_answer_from_the_app_goes_in_by_the_fill_engine_only_on_the_forms_own_site(monkeypatch):
+    """KAN-855: no Rescue. The Fill engine fills the one field, in the frame that shows it. A captcha's frame never
+    gets Apply's code, and another site's frame (a hostile page can hold one) never gets the answer (KAN-795's rule,
+    upload_origin.frame_may_upload: here the form's own site is acme.example and Greenhouse's embedded form)."""
     q, tried = Question("q1", "Pronouns", "text"), []
 
     def fill(frame, site, questions, answers):
@@ -193,9 +195,11 @@ def test_an_answer_from_the_app_goes_in_by_the_fill_engine_never_in_a_captcha(mo
             raise FillError("Pronouns: not in this frame")
         return {q.name: frame.shows}
     monkeypatch.setattr(fill_engine, "fill", fill)
+    own = ("https://acme.example/", "https://boards.greenhouse.io/embed/")
+    monkeypatch.setattr(upload_origin, "frame_may_upload", lambda frame: frame.url.startswith(own))
     page = SimpleNamespace(main_frame=Frame("https://acme.example/apply", None))
     page.frames = [page.main_frame, Frame("https://www.google.com/recaptcha/api2/anchor", "he/him"),
-                   Frame("https://boards.greenhouse.io/embed/job_app", "he/him")]
+                   Frame("https://evil.example/frame", "he/him"), Frame("https://boards.greenhouse.io/embed/job_app", "he/him")]
     form = held("https://job-boards.greenhouse.io/acme/jobs/1", q)
     assert rehearsal._engine_fill(page, form, "Pronouns", "he/him")
     assert tried == ["https://acme.example/apply", "https://boards.greenhouse.io/embed/job_app"]

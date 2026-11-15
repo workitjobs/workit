@@ -38,7 +38,17 @@ from dataclasses import dataclass, field, replace
 from datetime import date
 from typing import get_args
 
-from apply import asking, brief, captcha, company, essays, fill_engine, gates, verify
+from apply import (
+    asking,
+    brief,
+    captcha,
+    company,
+    essays,
+    fill_engine,
+    gates,
+    upload_origin,
+    verify,
+)
 from apply import home as data_folder
 from apply.adapters import Claude, JobSite
 from apply.answer_bank import AnswerBank
@@ -386,7 +396,10 @@ def done(page, name: str, text: str, note: str, ok: bool, question: Question | N
     if not (ok and _plain(page) and question is not None and site in get_args(Site)):
         shown = _in_frames(page, DONE, [name, text, note, ok])
         return next((s for s in shown if s is not None), None)
-    frame = next((f for f, s in _each_frame(page, DONE, [name, None, note, True]) if s is not None), None)
+    # Only a frame of the form's own site (apply.upload_origin, KAN-795): another site's frame, which a hostile page
+    # can hold, gets no answer from the engine (KAN-855's review).
+    frame = next((f for f, s in _each_frame(page, DONE, [name, None, note, True])
+                  if s is not None and upload_origin.frame_may_upload(f)), None)
     if frame is None:
         return None
     try:

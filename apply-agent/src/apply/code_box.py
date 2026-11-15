@@ -9,7 +9,7 @@ postal code box is never one), with each of its boxes empty (he did not type the
 import re
 from collections.abc import Callable
 
-from apply import account_pages, greenhouse
+from apply import account_pages, captcha, greenhouse
 from apply.page_functions import WORDS
 
 # Greenhouse's code boxes first, then any box a code goes in.
@@ -20,8 +20,10 @@ NOT_A_CODE = re.compile(r"zip|postal|post_code|country|area|promo|coupon|discoun
 
 def boxes(page) -> list:
     """Every visible box a code could go in, in the first frame that has one,
-    as (a key that names it, its locator)."""
+    as (a key that names it, its locator). Never a captcha's frame: Apply puts no code in one."""
     for n, frame in enumerate(page.frames):
+        if n and captcha.in_frame(frame.url):
+            continue
         try:
             found = []
             for box in frame.locator(FIELDS).all():
