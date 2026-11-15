@@ -20,6 +20,9 @@
 //   npm --prefix .sandcastle install   (once)
 //   npm --prefix .sandcastle start
 
+import { mkdtempSync, realpathSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as sandcastle from "@ai-hero/sandcastle";
 import { bwrap } from "@ai-hero/sandcastle/sandboxes/bwrap";
@@ -31,7 +34,17 @@ process.chdir(fileURLToPath(new URL("..", import.meta.url)));
 
 // The OS's own process sandbox: Seatbelt on macOS, Bubblewrap on Linux and
 // on Windows inside WSL2.
-const sandboxProvider = () => (process.platform === "darwin" ? seatbelt() : bwrap());
+//
+// Claude Code keeps its scratch files under CLAUDE_CODE_TMPDIR, default /tmp,
+// which the sandbox can't write (EPERM on /tmp/claude-<uid>). Each sandbox
+// gets its own host temp dir for it, mounted in and removed on close.
+const sandboxProvider = (claudeTmp: string) => {
+  const options = {
+    env: { CLAUDE_CODE_TMPDIR: claudeTmp },
+    mounts: [{ hostPath: claudeTmp, sandboxPath: claudeTmp }],
+  };
+  return process.platform === "darwin" ? seatbelt(options) : bwrap(options);
+};
 
 const MODEL = "claude-opus-5-5";
 
@@ -68,9 +81,10 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
 
   // Create a single sandbox that both the implementer and reviewer share.
   // This gives both agents a real, named branch that persists across phases.
+  const claudeTmp = mkdtempSync(join(realpathSync(tmpdir()), "sandcastle-claude-"));
   const sandbox = await sandcastle.createSandbox({
     branch,
-    sandbox: sandboxProvider(),
+    sandbox: sandboxProvider(claudeTmp),
     hooks,
     copyToWorktree,
   });
@@ -126,6 +140,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
     console.log("\nReview complete.");
   } finally {
     await sandbox.close();
+    rmSync(claudeTmp, { recursive: true, force: true });
   }
 }
 
