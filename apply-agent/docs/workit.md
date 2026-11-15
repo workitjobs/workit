@@ -69,6 +69,11 @@ call WorkIt from another module; add a method to `WorkIt` that uses `call`.
   This is the only write that doctor makes.
 - Each request sends the `User-Agent` `WorkIt-Apply/1`. Cloudflare, in
   front of WorkIt's API, refuses the Python-urllib user agent (error 1010).
+- A request to the live API trusts only Cloudflare's certificate
+  authorities, never the computer's store (`workit._pinned`, D28, KAN-836):
+  a proxy the computer trusts can't read the session or the Fill engine's
+  download. A local API is not pinned. The set and when to change it:
+  `docs/fill-engine.md`, "The connection is pinned".
 - `workit.LIVE` holds the live URLs and the anon key. They are the same
   public values as `autofiller_extension/src/shared/config.js`, and
   `test_workit_login.py` checks this. For a local WorkIt stack, set

@@ -23,6 +23,12 @@ The API checks the bearer token itself (`backend/app/deps.py`,
 `security.py`): the token's signature, audience and issuer, then the
 account row.
 
+A call to the live API trusts only the certificate authorities Cloudflare
+uses for api.workitjobs.ai (`apply.workit_roots`, D28 and W7), not the
+computer's store, so a proxy the computer trusts can't read the Fill
+engine's download or the session. A local API (APPLY_WORKIT_API) is not
+pinned.
+
 The Applications Tracker's reads and writes (find or add a job by its
 link, set a stage and the applied date, keep a Sent resume) are methods
 that use `call`. So is the read of the student's tailored resume for a
@@ -44,6 +50,7 @@ import json
 import os
 import re
 import secrets
+import ssl
 import sys
 import time
 import urllib.error
@@ -56,6 +63,7 @@ from datetime import UTC, date, datetime, timedelta
 from datetime import time as dtime
 from email.message import Message
 from enum import StrEnum
+from functools import cache
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from urllib.parse import parse_qs, urlsplit
@@ -546,7 +554,7 @@ def _send(method: str, url: str, body: Any, token: str | None, apikey: str | Non
     data = json.dumps(body).encode() if body is not None else None
     request = urllib.request.Request(url, data=data, headers=headers, method=method)
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
+        with urllib.request.urlopen(request, timeout=timeout, context=_pinned(url)) as response:
             status, raw, headers = response.status, response.read(), response.headers
     except urllib.error.HTTPError as error:
         status, raw, headers = error.code, error.read(), error.headers
@@ -558,6 +566,18 @@ def _send(method: str, url: str, body: Any, token: str | None, apikey: str | Non
         return status, json.loads(raw) if raw else None, headers
     except ValueError:
         return status, raw.decode(errors="replace")[:200], headers
+
+
+def _pinned(url: str) -> ssl.SSLContext | None:
+    """The live API's TLS context, which trusts only Cloudflare's CAs; None (the default) for any other host."""
+    return _pinned_context() if urlsplit(url).hostname == urlsplit(LIVE.api).hostname else None
+
+
+@cache
+def _pinned_context() -> ssl.SSLContext:
+    from apply.workit_roots import ROOTS
+
+    return ssl.create_default_context(cadata=ROOTS)
 
 
 def _retry_at(retry_after: str | None) -> float:

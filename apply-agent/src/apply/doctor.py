@@ -191,6 +191,14 @@ def _chrome(machine: Machine) -> Check:
 
 
 def _engine(machine: Machine) -> Check:
+    from apply import fill_engine
+
+    if fill_engine.from_workit():  # fill_engine: workit: the download is what a run would use (W7)
+        try:
+            return Check("Fill engine", OK, f"WorkIt's, {len(fill_engine.source()):,} characters, signature checked")
+        except Exception as failed:
+            return Check("Fill engine", FAIL, f"WorkIt's download: {failed}",
+                         "run `apply login`, or set fill_engine: checkout in policies.yaml")
     if not machine.engine.is_file():
         return Check("Fill engine", FAIL, f"no bundle at {machine.engine}",
                      "run `git submodule update --init` from the checkout (you need read access to the fill-engine repo)")
