@@ -112,9 +112,9 @@ choices.
 **The Model route does not meet that condition yet** (WorkIt Auto Apply,
 `LLM.complete_schema`, 2026-11-15): the server masks only the email, the
 phone and the student's own links there, and the app replaces the rest
-before a call. In PR #587 the student's name, ZIP code and references'
-names, and the form's self-ID answers, still reach the model. The design
-doc's D8 and section 3.4 list what goes and what must be fixed, and its
+before a call: every exact private value the student gave, theirs and
+their references' (PR #587). The form's self-ID answers still reach the
+model there. The design doc's D8 and section 3.4 list what goes, and its
 open questions ask whether Gemini's free tier stays in that chain.
 
 **Z.ai `GLM-4.7-Flash` is not in the chain.** It joins only after a person

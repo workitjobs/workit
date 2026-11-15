@@ -363,9 +363,9 @@ Find files with a directory listing; these are the rules for where code goes.
   model call, so no connection is held while the model writes, and adds
   the tokens after, a failed call's too. It never logs a prompt or an
   answer. It passes the seam the student's identity without the name
-  (the name is the app's to replace, D8, which the app does not do yet:
-  the design doc's section 3.4; the server's name removal broke prompts
-  by taking words such as "will"), and the seam puts the masked
+  (the name is the app's to replace, D8, by its exact value: the design
+  doc's section 3.4; the server's name removal broke prompts by taking
+  words such as "will"), and the seam puts the masked
   email, phone and links back into the answer (`Masked`). **No route
   takes a schema from a student.** If one ever does again, it must refuse
   a `$ref` (or its dynamic forms), since `jsonschema` would fetch its URL;
