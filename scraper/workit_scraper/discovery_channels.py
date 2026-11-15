@@ -295,9 +295,7 @@ def commoncrawl() -> CollectionResult:
     committed ``commoncrawl-boards.json`` the same way ``open_jobs`` reads its
     pinned ``slugs.json``."""
     if not COMMONCRAWL_PATH.exists():
-        raise DiscoveryError(
-            f"{COMMONCRAWL_PATH.name} not found; run harvest_commoncrawl.py first"
-        )
+        raise DiscoveryError(f"{COMMONCRAWL_PATH.name} not found; run harvest_commoncrawl.py first")
     payload = json.loads(COMMONCRAWL_PATH.read_bytes())
     if not isinstance(payload, dict) or not isinstance(payload.get("ats"), dict):
         raise DiscoveryError("expected commoncrawl-boards.json with an `ats` object")

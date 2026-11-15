@@ -164,10 +164,13 @@ def _get_range(url: str, start: int, length: int) -> bytes:
         if attempt > 0:
             time.sleep(DELAY_S * 2**attempt)
         try:
-            req = urllib.request.Request(url, headers={
-                "User-Agent": USER_AGENT,
-                "Range": f"bytes={start}-{start + length - 1}",
-            })
+            req = urllib.request.Request(
+                url,
+                headers={
+                    "User-Agent": USER_AGENT,
+                    "Range": f"bytes={start}-{start + length - 1}",
+                },
+            )
             with urllib.request.urlopen(req, timeout=120) as resp:
                 return resp.read()
         except (urllib.error.HTTPError, TimeoutError, OSError) as exc:
@@ -176,7 +179,10 @@ def _get_range(url: str, start: int, length: int) -> bytes:
 
 
 def _stream_cluster_blocks(
-    crawl: str, surt_prefixes: set[str], *, verbose: bool = False,
+    crawl: str,
+    surt_prefixes: set[str],
+    *,
+    verbose: bool = False,
 ) -> dict[str, list[tuple[str, int, int]]]:
     """Stream ``cluster.idx`` and return matching blocks per SURT prefix.
 
@@ -229,7 +235,9 @@ def _stream_cluster_blocks(
 
 
 def _parse_cdx_block(
-    compressed: bytes, surt_prefix: str, path_filter: str | None,
+    compressed: bytes,
+    surt_prefix: str,
+    path_filter: str | None,
 ) -> list[str]:
     """Decompress one CDX block and return URLs matching the SURT prefix."""
     try:
@@ -386,10 +394,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--dry-run", action="store_true", help="print counts, don't write")
     parser.add_argument("--verbose", action="store_true")
     parser.add_argument(
-        "--direct", action="store_true", help="bypass CDX API; read shards directly",
+        "--direct",
+        action="store_true",
+        help="bypass CDX API; read shards directly",
     )
     parser.add_argument(
-        "--boards", type=Path, default=BOARDS_CSV, help="catalog to compare against",
+        "--boards",
+        type=Path,
+        default=BOARDS_CSV,
+        help="catalog to compare against",
     )
     parser.add_argument("--output", type=Path, default=OUTPUT)
     args = parser.parse_args(argv)
