@@ -199,12 +199,29 @@ into it and the window shows "Sample data".
   pairs were, and 12 pages' only PR pair was one (KAN-780, 2026-11-14, found
   by recording what each pair's path pressed). A new page of one of those
   kinds joins its set; a new path that looks for its own kind of element
-  gets a set. CI runs its no-browser cases, each page on CDP on its own
-  path (`OWN`, else one of the four in turn), each guard hole on every path
-  that applies, and on a plain Worker the first page, each path once and
-  each `PLAIN_HOLES` page; the other pairs are marked `nightly` and run in
-  `apply-nightly.yml` (KAN-780). A no-browser test fails on a pair whose
-  path doesn't apply and on a page or path with no PR case. Mark a test `nightly` only when it is slow
+  gets a set. CI runs its no-browser cases, each page once on CDP on its
+  own path (`PATH_FOR`, else its kind's in `OWN`, else Ask Claude's press,
+  which pressed on all 91 pages), and on a plain Worker the first page, each
+  path once and each `PLAIN_HOLES` page; the other pairs are marked
+  `nightly` and run in `apply-nightly.yml` (KAN-780). Guard holes once ran
+  on every path on PRs: a mutation study (2026-11-14: 24 faults, each one
+  guard check switched off with the network rule off) found that on 54 of
+  the 56 hole pages one path caught every fault the page's other paths
+  caught, and the one-per-page set still catches every fault any case did.
+  A page whose hole only some paths reach goes in `PATH_FOR`. A no-browser
+  test fails on a pair whose path doesn't apply and on a page or path with
+  no PR case.
+  A case waits for the page's own late send as long as its latest timer
+  and a second more, 1.5 s for a page with none (`wait_ms`; `LATEST` for a
+  timer whose delay is no number), where every case once waited 3 s:
+  unguarded, 78 of the 91 pages sent within 0.5 s. A page's control waits
+  as long, so a page that sends later than its wait on the runner fails its
+  control, never passes unseen. The session pages that send after 3 s
+  (`HELD_ONLY`) are in no matrix: there the guard is on throughout, so they
+  were the plain dialog's pair again; their scenario is the held-page
+  tests'. One timed copy per dialog kind, at 10 s: a hold that ended after
+  T seconds lets through any page that sends later than T, so the 3.5 s and
+  60 s copies added nothing but a minute each. Mark a test `nightly` only when it is slow
   and a faster PR case covers the same code. A guard PR gets an adversarial review first (root `CLAUDE.md`).
   A page loads with no guard and is then guarded and reloaded, unless it
   sends by itself from the moment it loads (a timer, before any press):

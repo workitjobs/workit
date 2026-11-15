@@ -160,12 +160,13 @@ that touches `apply-agent/`, the engine pointer, `ci.yml` or
 `test_upload_origin.py`'s hostile upload pages also run on CDP, KAN-795). macOS, because a
 plain Worker starts through `open` and the browser's `.app`; a step fails the
 job if the browser is missing, since these tests skip without it.
-**Its limit is 35 minutes** (KAN-780, 2026-11-10; raised from 15 on
-2026-11-11, and from 20 on 2026-11-13): the job took 16 to 20 minutes once the hostile pages'
+**Its limit is 25 minutes** (KAN-780, 2026-11-10; raised from 15 on
+2026-11-11, to 35 on 2026-11-13, and back to 25 on 2026-11-14): the job took 16 to 20 minutes once the hostile pages'
 plain-Worker cases ran there (it was raised to 35 for that), about 6 after
 KAN-780 (below), about 13 once the guard holes' pages ran on every CDP
 path (KAN-710, KAN-783), and 22 once KAN-793's and KAN-795's pages
-took the hostile step to 710 cases (2026-11-14). Each step has its own
+took the hostile step to 710 cases (2026-11-14), and about 15 once each page
+ran once on PRs, for as long as it can send (303 cases, 486 s). Each step has its own
 limit too, so a hang fails in that step.
 **CI does not run the other 28 test files**, which hold the Filler tests
 (`test_*_filler.py`, `test_claude_fill.py`, `test_run.py`,
@@ -188,13 +189,17 @@ presses something the page holds (`APPLIES`, `apply-agent/CLAUDE.md`);
 UTC, or `gh workflow run apply-nightly.yml`) runs every `nightly` test,
 with a 90-minute step: its plain-Worker cases run one at a time. 887 took
 about 65 minutes on the runner (KAN-841; at 30 it stopped at 57% every
-night); leaving out the pairs whose path finds nothing took them to 574
-(KAN-780, 2026-11-14).
+night); leaving out the pairs whose path finds nothing took them to 574,
+and the timed session copies' going to 512 of 787 (KAN-780, 2026-11-14).
 The pages of PR 477's guard holes (KAN-710: `GUARD_HOLES` in
 `test_submit_guard_hostile.py`, among them a page that sets the guards' old
-`window.__apply*` flags itself) are never only nightly: PRs run each one on
-every CDP path that applies to it. Leaving out the pairs whose path finds
-nothing on its page took the step from 710 cases to 495 (2026-11-14). The holes that hang on how a plain Worker carries the guards'
+`window.__apply*` flags itself) are never only nightly: PRs run each one
+once, on the path that reaches its hole (until 2026-11-14, on every CDP path:
+a mutation study found the other paths caught no fault the one didn't,
+`apply-agent/CLAUDE.md`). Leaving out the pairs whose path finds nothing on
+its page, each page once on PRs, a wait as long as the page's own timers and
+one timed session copy took the step from 710 cases to 303 (KAN-780,
+2026-11-14). The holes that hang on how a plain Worker carries the guards'
 state, touches, controls and network rules (`PLAIN_HOLES`) also run on one
 plain-Worker path; the rest of their plain-Worker pairs run nightly, since the
 guard script is the same on both kinds of Worker. A page added for a new
@@ -206,8 +211,9 @@ KAN-783's eight pages joined (about five times its time on a 14-core Mac),
 so its limit was 12 minutes. KAN-793's and KAN-795's pages took it to 710
 cases, 1199 s on CI (2026-11-14; 6 minutes on a 10-core Mac, and the runner
 starts 3 processes): from 2026-11-11 every apply job stopped at 60 to 70% of them
-when the 12 minutes ran out, and PRs merged with it red. So its limit is 25
-minutes. The cases mostly wait (the 10-core run used about one core), so
+when the 12 minutes ran out, and PRs merged with it red. So its limit went
+to 25 minutes, and back to 12 once each page ran once (303 cases, 486 s,
+2026-11-14). The cases mostly wait (the 10-core run used about one core), so
 more processes than the runner's 3 would be faster, but a busier runner can
 delay a hostile page's send past a case's wait and pass a case that should
 fail: the guards' owners decide that, or which pairs run only nightly.

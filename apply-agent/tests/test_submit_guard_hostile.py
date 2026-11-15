@@ -571,9 +571,11 @@ _SESSION = ("<title>Apply</title><form id=f method=post action='" + FINAL + "'><
 _LATER = """<script>document.getElementById('b').addEventListener('click', () => setTimeout(() => { sendAll();
         document.getElementById('f').submit(); }, %d));</script>"""
 # The adversarial review of #541: a press that re-armed the guard for 3 s let a Continue that sent 3.5 s later through.
-SENDS_AFTER = {"a session dialog whose Continue sends later": 1500, "a session dialog whose Continue sends after 3.5 s": 3500,
+# The hold lasts until Lisul's Dismiss, never for a time: a hold that ended after T seconds lets through every page
+# that sends later than T, so one page at 10 s catches every window a 3.5 s page did and more. The 3.5 s and 60 s
+# copies went (KAN-780, 2026-11-14): the 60 s ones took over a minute each, the slowest cases in the step.
+SENDS_AFTER = {"a session dialog whose Continue sends later": 1500,
                "a session dialog whose Continue sends after 10 s": 10_000,
-               "a session dialog whose Continue sends after 60 s": 60_000,
                "a session dialog whose page dismisses the hold itself": 8000}
 SESSION_PAGES = {
     # Its Continue is no form's, but its script sends the application and posts the form.
@@ -616,9 +618,7 @@ _WARNING = "<p>Are you still there? You will be signed out in 2 minutes.</p>"
 _GENERIC = _SESSION.replace("Your session is about to expire. Do you want to continue?",
                             "Are you still there? You will be signed out in 2 minutes.")
 _STILL = "<button type=button id=b>I'm still here</button>"
-GENERIC_SENDS_AFTER = {"a generic session dialog whose I'm still here sends after 3.5 s": 3500,
-                       "a generic session dialog whose I'm still here sends after 10 s": 10_000,
-                       "a generic session dialog whose I'm still here sends after 60 s": 60_000,
+GENERIC_SENDS_AFTER = {"a generic session dialog whose I'm still here sends after 10 s": 10_000,
                        "a generic session dialog whose page dismisses the hold itself": 8000}
 # #541's page that dismisses the hold itself, every way a script can, then sends: its script, on the generic dialog.
 _FREES = SESSION_PAGES["a session dialog whose page dismisses the hold itself"][START].split("</div>", 1)[1]
@@ -907,33 +907,75 @@ AMAZON_PAGES = frozenset({"an Amazon card whose Continue sends"})
 APPLIES = {"the profile click": PROFILE_PAGES, "Ask Claude's press of a listed step": LISTED_STEP_PAGES,
            "the keep-alive's stay press": SESSION_DIALOG_PAGES, "the keep-alive's generic stay press": SESSION_DIALOG_PAGES}
 # The kind of page each path was written against, in this order: a page's one PR pair takes the first that holds it.
-OWN = {"the profile click": PROFILE_PAGES, "Ask Claude's press of a listed step": LISTED_STEP_PAGES,
-       "the keep-alive's stay press": frozenset(SESSION_PAGES),
-       "the keep-alive's generic stay press": frozenset(GENERIC_SESSION_PAGES),
-       "the Amazon Filler's Continue": AMAZON_PAGES}
+OWN = {"the Amazon Filler's Continue": AMAZON_PAGES, "the profile click": PROFILE_PAGES,
+       "Ask Claude's press of a listed step": LISTED_STEP_PAGES, "the keep-alive's stay press": frozenset(SESSION_PAGES),
+       "the keep-alive's generic stay press": frozenset(GENERIC_SESSION_PAGES)}
+
+
+def _timers(html: str) -> list:
+    """Each setTimeout's and setInterval's delay in a page's code: its number, or None where it is no number."""
+    delays = []
+    for found in re.finditer(r"\bset(?:Timeout|Interval)\s*\(", html):
+        depth, i, comma = 1, found.end(), None
+        while i < len(html) and depth:
+            depth += 1 if html[i] in "([{" else -1 if html[i] in ")]}" else 0
+            comma = i if html[i] == "," and depth == 1 else comma
+            i += 1
+        delay = html[comma + 1:i - 1].strip() if comma else ""
+        delays.append(int(delay) if delay.isdigit() else None)
+    return delays
+
+
+# How long a case waits after the press for the page's own late send (KAN-780, 2026-11-14): its latest timer and a
+# second more, and 1.5 s for a page with none, where every case once waited 3 s. Unguarded, 78 of the 91 pages sent
+# within 0.5 s of the click. A page's control waits as long, so a page that sends later than its wait on the runner
+# fails its control, never passes a guarded case unseen. A timer whose delay is no number says its latest here.
+LATEST = {"a form sent by script after a delay": 2500}
+# The session pages that send only after the case's 3 s once ended (3.5 s, 10 s, 60 s, 8 s, the next mouse move): in a
+# matrix they were the plain session dialog's pair again, since the guard is on throughout. Their own scenario, a
+# Submit held after the keep-alive's press however late the page sends, is the held-page tests'.
+HELD_ONLY = frozenset({name for name, ms in DELAYS.items() if ms > 3000} | MOVED)
+
+
+def wait_ms(page_name: str) -> int:
+    latest = DELAYS.get(page_name) or LATEST.get(page_name) or max(
+        [d for d in _timers(" ".join(PAGES[page_name].values())) if d is not None], default=0)
+    return max(1500, latest + 1000)
 
 
 def applies(page: str, path: str) -> bool:
-    """Whether `path` looks for something `page` holds: else the pair tests nothing."""
-    return page in APPLIES.get(path, PAGES)
+    """Whether `path` looks for something `page` holds: else the pair tests nothing. A HELD_ONLY page is in no matrix."""
+    return page not in HELD_ONLY and page in APPLIES.get(path, PAGES)
+
+
+# A page whose hole only some paths reach runs on the one it was found with. The mutation study (2026-11-14) found
+# one: the forged touch got past the submit-event block's removal only on a press the account click armed. And each
+# path runs on PRs at least once: plain code's Next on a Next of its own, whose case there caught all its Ask case did.
+PATH_FOR = {"a frame that forges the extension's touch": "the account click",
+            "a Next that sends by a hidden button": "plain code's Next"}
+# Else, a page any path presses runs on the first of these the matrix has. Ask Claude's press pressed on all 91 pages
+# and refused none, so it reaches the guard on every one; plain code's Next refused 52 before pressing.
+DEFAULT_PATHS = ("Ask Claude's press", "the account click", "plain code's Next", "the Amazon Filler's Continue")
 
 
 def own_path(i: int, page: str, paths: list) -> str:
-    """The path a page was written against: the first in OWN whose kind of page it is, else (a page any of them
-    presses) one of the paths that press a form's own button, in turn by the page's place `i`."""
+    """The path a page runs on in PR CI: PATH_FOR's, else the first in OWN whose kind of page it is, else the
+    first of DEFAULT_PATHS in `paths`. (`i`, the page's place, is unused since KAN-780's mutation study.)"""
+    if PATH_FOR.get(page) in paths:
+        return PATH_FOR[page]
     for path, pages in OWN.items():
         if path in paths and page in pages:
             return path
-    universal = [path for path in paths if path not in APPLIES]
-    return universal[i % len(universal)]
+    return next(path for path in DEFAULT_PATHS if path in paths)
 
 
 def each_page_and_path_once_on_prs(paths=None) -> list:
-    """(page, path) pairs for a matrix, only where the path applies: PR CI runs each page on its own path, and a
-    guard hole's page (GUARD_HOLES) on every path that applies; the nightly workflow runs the other pairs, marked
-    `nightly` (KAN-780)."""
+    """(page, path) pairs for a matrix, only where the path applies: PR CI runs each page once, on its own path; the
+    nightly workflow runs the other pairs, marked `nightly` (KAN-780). A guard hole's page (GUARD_HOLES) ran on every
+    path on PRs until the mutation study (2026-11-14): on 54 of its 56 pages one path caught every fault the page's
+    other paths caught, and the two others are PATH_FOR's and Ask's press's."""
     paths = list(PATHS) if paths is None else list(paths)
-    return [(page, path) if page in GUARD_HOLES or path == own_path(i, page, paths)
+    return [(page, path) if path == own_path(i, page, paths)
             else pytest.param(page, path, marks=pytest.mark.nightly)
             for i, page in enumerate(PAGES) for path in paths if applies(page, path)]
 
@@ -1037,7 +1079,7 @@ def test_no_click_path_sends_a_hostile_page_on_cdp(page_name, path):
         except Handoff:
             pass  # the path refused: nothing pressed
         _then(page, page_name)
-        _settle(page)
+        _settle(page, wait_ms(page_name))
     assert site.applications() == []
 
 
@@ -1055,7 +1097,7 @@ def test_without_the_guard_each_hostile_page_sends(page_name):
         if page_name in MOVED:
             page.mouse.move(5, 5)
             page.mouse.move(9, 9)
-        _settle(page, max(3000, DELAYS.get(page_name, 0) + 1500, 5000 if page_name in MOVED else 0))
+        _settle(page, max(wait_ms(page_name), DELAYS.get(page_name, 0) + 1500, 5000 if page_name in MOVED else 0))
     assert site.applications()
 
 
@@ -1270,7 +1312,7 @@ def test_the_stay_press_on_a_held_page_sends_nothing(page_name, monkeypatch):
     assert bool(keep.holding()) is pressed  # still held: only his Dismiss gives Submit back
 
 
-@pytest.mark.parametrize("page_name", ["a session dialog whose Continue sends after 3.5 s",
+@pytest.mark.parametrize("page_name", ["a session dialog whose Continue sends after 10 s",
                                        "a session dialog whose Continue sends after the next mouse move",
                                        "a session dialog whose page dismisses the hold itself"])
 def test_the_stay_press_on_a_held_plain_page_sends_nothing(page_name, monkeypatch):
@@ -1315,7 +1357,7 @@ def test_the_generic_stay_press_on_a_held_page_sends_nothing(page_name, monkeypa
     assert bool(keep.holding()) is pressed  # still held: only Dismiss gives Submit back
 
 
-@pytest.mark.parametrize("page_name", ["a generic session dialog whose I'm still here sends after 3.5 s",
+@pytest.mark.parametrize("page_name", ["a generic session dialog whose I'm still here sends after 10 s",
                                        "a generic session dialog whose I'm still here sends after the next mouse move",
                                        "a generic session dialog whose page dismisses the hold itself"])
 def test_the_generic_stay_press_on_a_held_plain_page_sends_nothing(page_name, monkeypatch):
@@ -1441,7 +1483,7 @@ def test_no_click_path_sends_a_hostile_page_on_a_plain_worker(page_name, path):
         except Handoff:
             pass
         _then(page, page_name)
-        _settle(page)
+        _settle(page, wait_ms(page_name))
     assert site.applications() == []
 
 
@@ -1799,5 +1841,16 @@ def test_each_pair_is_a_path_on_a_page_it_can_press_and_every_page_and_path_runs
         assert len(set(every)) == len(every)
         assert {path for _, path in on_prs} == set(paths)
         if every_page:
-            assert {page for page, _ in on_prs} == set(PAGES)
-            assert all(own_path(i, page, paths) in {path for p, path in on_prs if p == page} for i, page in enumerate(PAGES))
+            assert {page for page, _ in on_prs} == set(PAGES) - HELD_ONLY
+            assert all(own_path(i, page, paths) in {path for p, path in on_prs if p == page}
+                       for i, page in enumerate(PAGES) if page not in HELD_ONLY)
+
+
+def test_each_page_says_how_late_it_sends_and_a_held_only_page_has_its_held_test():
+    # A case waits as long as its page's latest timer: one whose delay is no number would make it wait too little.
+    unsaid = [name for name, pages in PAGES.items() if None in _timers(" ".join(pages.values()))
+              and name not in DELAYS and name not in LATEST]
+    assert unsaid == []
+    assert all(wait_ms(name) >= 1500 for name in PAGES)
+    # A page in no matrix still runs: each HELD_ONLY page is a held-page test's (the stay press's or the generic one's).
+    assert HELD_ONLY <= set(SESSION_PAGES) | set(GENERIC_SESSION_PAGES)
