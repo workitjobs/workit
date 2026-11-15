@@ -46,7 +46,10 @@ function adfToText(node) {
   if (node.type === "hardBreak") return "\n";
   const inner = (node.content || []).map(adfToText).join("");
   if (node.type === "listItem") return `- ${inner.trim()}\n`;
-  if (["paragraph", "heading", "codeBlock", "blockquote"].includes(node.type)) return `${inner}\n\n`;
+  if (node.type === "taskItem") return `- [${node.attrs?.state === "DONE" ? "x" : " "}] ${inner.trim()}\n`;
+  if (node.type === "tableRow") return `| ${(node.content || []).map((c) => adfToText(c).trim()).join(" | ")} |\n`;
+  if (["bulletList", "orderedList", "taskList", "table"].includes(node.type)) return `${inner}\n`;
+  if (["paragraph", "heading", "codeBlock", "blockquote", "panel"].includes(node.type)) return `${inner}\n\n`;
   return inner;
 }
 
