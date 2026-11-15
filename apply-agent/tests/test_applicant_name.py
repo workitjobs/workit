@@ -143,17 +143,20 @@ def test_no_call_is_sent_the_students_or_a_references_private_details(test_perso
     profile = ApplicantProfile.load(PROFILE, POLICIES)
     profile.set("experience_facts.professional_references", [{"name": "Ref Erence", "email": "ref@example.org",
                                                               "phone": "+15550100111"}])
+    profile.set("voluntary_self_id.race", "East Asian")
     first, zip_code = Question("first", "First Name", "text", True), Question("zip", "ZIP code", "text", True)
+    race = Question("race", "Race", "select", False, ("East Asian", "White"))
     drafted = Question("refs", "Please list one professional reference.", "text", True)
 
     calls = written(profile, (drafted,), {first: "Test", zip_code: "62701"})
     reviewer = FakeClaude()
-    presubmit.review(as_applicant(reviewer, profile), POSTING, [first, zip_code, WHY],
-                     {"first": "Test", "zip": "62701", "why": "Because I use it."})
+    presubmit.review(as_applicant(reviewer, profile), POSTING, [first, zip_code, race, WHY],
+                     {"first": "Test", "zip": "62701", "race": "East Asian", "why": "Because I use it."},
+                     self_ids=private.self_id(profile))
 
     sent = json.dumps([c["data"] for c in calls + reviewer.kinds if "kind" in c])
     for value in ("Test", "Person", "test.person@example.com", "+15550100199", "1 Main St", "62701",
-                  "Ref Erence", "ref@example.org", "+15550100111", "https://github.com/test-person"):
+                  "Ref Erence", "ref@example.org", "+15550100111", "https://github.com/test-person", "East Asian"):
         assert not re.search(rf"(?<!\w){re.escape(value)}(?!\w)", sent), value
     assert "@FIRST_NAME@" in sent and "@REFERENCE1_NAME@" in sent
 

@@ -94,6 +94,26 @@ def put_back(answer, private: dict[str, Private]):
     return json.loads(text)
 
 
+def self_id(profile: ApplicantProfile) -> frozenset[str]:
+    """The self-identification answers the student gave (voluntary_self_id), as plain text, but those that say
+    nothing on their own (UNSAID: a decline, a yes or no). Until the Fill engine says which answers it took from
+    them, a form's answer that is exactly one of these is how Apply knows it is a self-ID answer (D8)."""
+    given = set()
+    for value in (profile.get("voluntary_self_id") or {}).values():
+        for one in value if isinstance(value, list) else [value]:
+            if isinstance(one, str) and (text := " ".join(one.split()).casefold()) not in UNSAID and len(text) > 2:
+                given.add(text)
+    return frozenset(given)
+
+
+def is_self_id(answer: object, given: frozenset[str]) -> bool:
+    """Whether a form's answer is exactly one of the student's self-ID answers (`given`, from self_id()), or, for a
+    multi-select, holds one. Left out of a call, not masked: the question's options beside a placeholder would
+    name the one it hides."""
+    picks = answer if isinstance(answer, list) else [answer]
+    return any(isinstance(a, str) and " ".join(a.split()).casefold() in given for a in picks)
+
+
 def sensitive(text: str, profile: ApplicantProfile) -> tuple[str, ...]:
     """What `text` tells that most people keep private: a private value of the student's or a reference's (never
     the name), a self-identification answer the profile gave (its race, say), or a trait it states ("as a

@@ -4,7 +4,7 @@ then Claude reviews each question next to the answer on the page, for
 answers that are valid but wrong."""
 
 
-from apply import description, fill_engine
+from apply import description, fill_engine, private
 from apply.adapters import Claude
 from apply.model import Answers, Posting, QuestionSet, Readback, one_line
 from apply.records import SECRET
@@ -20,14 +20,16 @@ class Found(list):
 
 
 def review(claude: Claude, posting: Posting, questions: QuestionSet, readback: Readback, sources: str = "",
-           posting_text: str = "", own: set[str] | frozenset[str] = frozenset()) -> Found:
+           posting_text: str = "", own: set[str] | frozenset[str] = frozenset(),
+           self_ids: frozenset[str] = frozenset()) -> Found:
     """Claude's review of the filled form: the problems it found, with the fixes it
     gives for those the sources answer (Found.fixes). `sources` is
     what essays may draw on (essays.sources, with the Company material), given
     when the form has essays; `posting_text` is the Posting's own text
     (apply.description), always given; `own` names the questions answered in
-    Lisul's own words (his Answer bank answers). Secrets never leave Apply, and his private details go as
-    placeholders (apply.private, D8)."""
+    Lisul's own words (his Answer bank answers). Secrets never leave Apply, nor does an answer that is exactly
+    one of his self-ID answers (`self_ids`: private.self_id, D8), and his private details go as placeholders
+    (apply.private). The read-back check, which is code, still checks every field the engine typed."""
     rows = [
         # Labelled, so a multi-select's ticked boxes never read as its options (Palantir, live).
         {"question": one_line(q.label),
@@ -37,7 +39,7 @@ def review(claude: Claude, posting: Posting, questions: QuestionSet, readback: R
              else readback[q.name],
          **({"options": list(q.options)} if q.options and len(q.options) <= MAX_OPTIONS_SHOWN else {}),
          **({"his_own_answer": True} if q.name in own else {})}
-        for q in questions if readback.get(q.name) not in (None, "", [])
+        for q in questions if readback.get(q.name) not in (None, "", []) and not private.is_self_id(readback[q.name], self_ids)
     ]
     if not rows:
         return Found()

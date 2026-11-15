@@ -178,7 +178,7 @@ def answer(claude: Claude, posting: Posting, essays: list[Question], drafts: lis
                                sections=sections)[1]
     claude = as_applicant(claude, profile)  # every prompt says the profile's name and school
     keys = {f"q{i}": q for i, q in enumerate(essays, 1)}
-    shown = form_answers(answered or {})
+    shown = form_answers(answered or {}, private.self_id(profile))
     defaults = probe.typical(claude, posting, {key: _ask(q) for key, q in keys.items() if question_type(q) in probe.TYPES},
                              company, posting_text)
     if keys and planned is None:
@@ -589,14 +589,15 @@ def remember_fact(asked: str, answer: str, company: str, today: date) -> None:
     data_folder.STORY_BANK.write_text(f"{bank.rstrip()}\n{fact} (asked for {company}, {today.isoformat()})\n")
 
 
-def form_answers(answered: Mapping[Question, object]) -> dict[str, str | list[str]]:
+def form_answers(answered: Mapping[Question, object], self_ids: frozenset[str] = frozenset()) -> dict[str, str | list[str]]:
     """The answers already given on the form that an essay may refer to ("the
     area you picked"), by question label: choices and short text only, never
-    a file, an essay or a secret. The private details in them go as
-    placeholders (apply.private)."""
+    a file, an essay, a secret or an answer that is exactly one of the
+    student's self-ID answers (`self_ids`: private.self_id, D8). The private
+    details in them go as placeholders (apply.private)."""
     return {one_line(q.label): a for q, a in answered.items()
             if q.kind in ("select", "multi_select", "text") and a and isinstance(a, (str, list))
-            and not (SECRET.search(q.label) or SECRET.search(q.name))}
+            and not (SECRET.search(q.label) or SECRET.search(q.name) or private.is_self_id(a, self_ids))}
 
 
 def named_fact(name: object, company: str) -> str:

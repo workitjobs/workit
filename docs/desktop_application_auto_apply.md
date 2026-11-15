@@ -95,7 +95,7 @@ builds it.
 | D5 | **WorkIt builds the prompts** (2026-11-14; a thin proxy was decided 2026-11-13). The app sends each call's kind and its data; WorkIt builds the system prompt, the prompt and the schema (`backend/app/apply_prompts/`), runs the provider chain and counts tokens. The prompts and answering guides leave the app | A call that carried its own prompt and schema let anyone with an account use WorkIt as a free general model and send schemas that attack the server (W1). A prompt change ships with the merge that deploys the API | W1 |
 | D6 | **A free beta with a Usage cap of 80,000 tokens per student per day**, reset at midnight UTC, always shown in the app. WorkIt can change it without an app update (2026-11-14; it was 3,000,000 a month) | The free tiers limit WorkIt's one key a day, shared by every student and feature: Groq allows 200,000 tokens a day for each model, about 400,000 for our two, so about five students at full use fill it. A monthly cap let one student spend a whole day's share. 80,000 is about thirteen 6,000-token calls, about three forms with essays; on Groq's paid tier it costs under 2 cents a student a day. W13 checks the number | W1 |
 | D7 | **The beta uses the providers' free tiers.** Paid tiers come later (F3). One account per provider, owned by the team Gmail with developers as members, as Cloudflare's is; the team does not pool developers' free keys | No paid keys for now. Groq's AI policy forbids use "beyond published parameters, rate limits, or use limitations, including by registering multiple accounts" (checked 2026-11-14); members share their organization's limits | W1, F3 |
-| D8 | **Personal data is replaced before a prompt leaves the computer**, and put back on the computer. Self-ID answers are never sent. The app shows a short disclosure. **Proposed change, not agreed (2026-11-14): send the self-ID answers on the form**, so filling and essays come first. It needs the team's agreement before PR #587 merges, since that PR sends them. As built in PR #587 (2026-11-15): the exact private values the student gave (their names, email, phone, street address, ZIP code, birth date and links, and each reference's name, email and phone) are replaced and put back, and an essay that states something private is flagged (section 3.4); the form's self-ID answers wait on this decision | Prompts go to WorkIt and to Groq and Google, and Google's free tier may use prompts to improve its products | W1, W5 |
+| D8 | **Private details are replaced before a prompt leaves the computer, and put back on the computer**: the exact values the student gave, theirs and their references' (2026-11-15). **Self-ID answers stay out where Apply can tell, by exact value**: the profile's self-ID section is never sent, and a form answer that is exactly one of the student's self-ID answers is left out of every call. One the Fill engine types in the form's own words ("I am not a protected veteran") still goes, until the engine reports which answers it took from a self-ID fact. An essay that states something private is flagged for the student. The app shows a short disclosure (section 3.4) | Prompts go to WorkIt and to Groq and Google, and Google's free tier may use prompts to improve its products | W1, W5 |
 | D9 | **No Gmail.** A job site's emailed code becomes a Needs-you item that the student types | Reading Gmail needs an app password (a hard setup) or Google's paid security review | W3 |
 | D10 | **macOS-only code is removed or replaced.** Scheduled runs, phone push and the Dock bundle are dropped; Keychain becomes `keyring`; Chrome is found per OS | A simple app, and a later Windows port that is not a rewrite | W4 |
 | D11 | **The window is native (pywebview) and opens no port.** Its page talks to Python through pywebview's bridge, not through a server on `127.0.0.1` | It works like any other app; no local server that other programs can call | W5 |
@@ -225,20 +225,25 @@ and the student's value comes back. The server also hides any email or
 phone it finds and the student's own links (`Masked`), and puts them
 back.
 
-**Self-ID answers on the form are sent in PR #587, against D8**, which
-waits for the team's agreement (D8). Masking cannot keep them out: the
-Fill engine types a self-ID answer in the form's own words ("I don't wish
-to answer" for `decline`, "I am not a protected veteran" for `false`), so
-the value the student gave is not in the text. **The way that keeps D8,
-by source:** the Fill engine's plan says which answers it took from a
-`voluntary_self_id` fact (its rules already name the fact, such as
-`voluntary_self_id.veteran`; the plan reports only a coarse `sources`
-today), and Apply leaves those answers out of the Pre-submit review's
-rows and the essays' form answers. No question's wording is matched, so
-neither the age question nor Rippling's school question can be dropped,
-which the label pattern did. The read-back check, which is code, still
-checks every self-ID field the engine typed. The profile's own self-ID
-section is never sent as profile facts.
+**Self-ID answers, as built** (PR #587, 2026-11-15): the profile's own
+self-ID section is never sent as profile facts, and a form answer that is
+exactly one of the student's self-ID answers is left out of the
+Pre-submit review's rows and the essays' form answers
+(`private.self_id`). Left out, not masked: the review sees each
+question's options, and a placeholder beside the others would name the
+one it hides. An answer that says nothing on its own (a decline, a yes or
+no) is not matched, so a "No" to sponsorship is still reviewed. **The
+gap:** the Fill engine types many self-ID answers in the form's own words
+("I don't wish to answer" for `decline`, "I am not a protected veteran"
+for `false`), so the student's value is not in the text, and those still
+reach the model. **The full fix, by source:** the Fill engine's plan says
+which answers it took from a `voluntary_self_id` fact (its rules already
+name the fact, such as `voluntary_self_id.veteran`; the plan reports
+only a coarse `sources` today), and Apply leaves those out instead. No
+question's wording is matched either way, so neither the age question
+nor Rippling's school question can be dropped, which the label pattern
+did. The read-back check, which is code, still checks every self-ID field
+the engine typed.
 
 **Sent, because the answers need them:** the posting, the form's
 questions and its other answers, school, major, graduation date, city and
@@ -773,12 +778,13 @@ its own instructions or a hostile schema.
   references', in every kind's data, and `applicant.as_applicant`, which
   wraps every adapter where a run, the window or a command builds it,
   puts them back. An essay that states something private is flagged at
-  the Hold (`private.sensitive`), never cut or written again. **Open
-  before it merges** (its review): the form's self-ID answers are sent
-  against D8, until the team agrees or the Fill engine reports the
-  answers it took from a self-ID fact (section 3.4). The label pattern
-  that dropped self-ID answers went in that PR, with the answers it
-  dropped by mistake (a diversity essay, Rippling's school question).
+  the Hold (`private.sensitive`), never cut or written again. A form
+  answer that is exactly one of the student's self-ID answers is left out
+  of every call (`private.self_id`); one the Fill engine rewords still
+  goes until the engine reports which answers it took from a self-ID fact
+  (section 3.4, next). The label pattern that dropped self-ID answers went
+  in that PR, with the answers it dropped by mistake (a diversity essay,
+  Rippling's school question).
 - **The Orchestrator's limit.** Today it pauses on Claude Code's 5-hour
   and weekly windows (`orchestrator._resume_at`, `adapters.usage`). The
   Student build reads `GET /apply-app/usage` instead and pauses at the
@@ -1255,14 +1261,16 @@ merges only once the team approves it.
 2026-11-14).** The page describes the app as section 3.4 designs it, and
 the app does not do all of it yet:
 
-- **W1's app side (D8) is built but for self-ID answers** (PR #587,
-  2026-11-15): the app replaces the exact private values the student gave
-  (names, email, phone, street, ZIP code, birth date, links, references)
-  with placeholders in every call and puts them back, and the server
-  masks contact details again. Not done: a student ID has no
-  placeholder, since the profile keeps none. The page says self-ID
-  answers on the form are sent, which D8 does not allow until the team
-  agrees (section 3.4).
+- **W1's app side (D8) is built but for reworded self-ID answers** (PR
+  #587, 2026-11-15): the app replaces the exact private values the
+  student gave (names, email, phone, street, ZIP code, birth date, links,
+  references) with placeholders in every call and puts them back, the
+  server masks contact details again, and a form answer that is exactly
+  one of the student's self-ID answers is left out. A self-ID answer the
+  Fill engine typed in the form's own words still goes (section 3.4), and
+  the page says self-ID answers are included; once the engine reports
+  its sources and Apply leaves those out, the page changes with it. Not
+  done: a student ID has no placeholder, since the profile keeps none.
 - **Send report's route (D26) is not built.** It takes the one
   Application's Record and masked Trace that a student sends with the
   window's "Send report". **WorkIt keeps a report until the problem it
@@ -1561,13 +1569,12 @@ their value on their servers; WorkIt Auto Apply does the same.
 - The teammate's work on the engine's exposure through the WorkIt
   extension (W7's dependency).
 - When to enroll with Apple, and when to convert to an organization (F7).
-- **Whether the form's self-ID answers reach the model** (D8's proposed
-  change, 2026-11-14), or the Fill engine reports the answers it took
-  from a self-ID fact and Apply leaves those out (section 3.4). The team
-  decides before PR #587 merges.
+- **When the Fill engine reports which answers it took from a self-ID
+  fact** (its own repo, then a pin move), so that Apply leaves out the
+  self-ID answers it rewords too (D8, section 3.4).
 - **Whether Gemini's free tier stays in the Model route's chain** while
-  self-ID answers reach it: the team allowed it on 2026-10-14 only
-  because identity data is removed on every call (`scout/CLAUDE.md`).
+  reworded self-ID answers reach it: the team allowed it on 2026-10-14
+  only because identity data is removed on every call (`scout/CLAUDE.md`).
 
 ## 11. History
 
