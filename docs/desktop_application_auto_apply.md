@@ -7,7 +7,8 @@ to `worker_mode: protected` (2026-11-06); W1, the Model route, the Usage
 cap and the prompts on WorkIt's server, so each call sends a kind and its
 data, with `ask_model: workit` the default and the student's private
 values masked (#577, #587); W3's Student path with no developer part
-(#581); W4, no macOS-only code in the Student path (#576, #585); W6's
+(#581); W2's step 1, what Apply can't fill handed to the student in the
+window (#590); W4, no macOS-only code in the Student path (#576, #585); W6's
 store-ready Worker extension (#570, #578), which no app can use yet;
 W10's legal text (#579, #582); and W5's sign-in (#609). The rest of what a
 student downloads and runs (W5's window, W7, W8) is not built.
@@ -508,10 +509,10 @@ by hand (W8).
 
 | # | Workstream | Waits for | v1 | Where it stands (2026-11-14) |
 |---|---|---|---|---|
-| W0 | Move Apply to `workitjobs/apply-agent` | KAN-723 merged into WorkIt's `main` | Yes, first | Not started. KAN-723's first parts are merged (#569, #577, #581); the open `apply-agent/` PRs (#554, #557, #403) and the work in progress (W1's follow-up, W2's step 1) merge or hold first |
+| W0 | Move Apply to `workitjobs/apply-agent` | KAN-723 merged into WorkIt's `main` | Yes, first | Not started. KAN-723's first parts are merged (#569, #577, #581); the open `apply-agent/` PRs (#554, #557, #403) merge or hold first |
 | W1 | Model route and Usage cap | None | Yes | Built (#577, #587): the Model route, the Usage cap, the 11 kinds and the Question types on the server, and the student's private values masked in every call. Left: reworded self-ID answers, which wait on the Fill engine saying which answers came from a self-ID fact (D8, section 3.4); Send report's route (D26); the Orchestrator's pause on `GET /apply-app/usage` |
-| W2 | Filling with no model in the browser | None | Yes | In progress: step 1, Handoffs and Needs-you items in the Student build, the emailed code's box (KAN-855, no PR yet). Not started: the generic Filler |
-| W3 | What the Student build leaves out | None | Yes | Step 1 built (#581). Left: W8's compile flags, and `ask_model: workit` in `build.STUDENT_POLICIES` (W3's table) |
+| W2 | Filling with no model in the browser | None | Yes | Step 1 built (#590): what Apply can't fill is the student's, in the window's Fix here; a failed field is a Needs-you item with its planned answer; the emailed code's box. Next: step 2, the generic Filler |
+| W3 | What the Student build leaves out | None | Yes | Step 1 built (#581); `ask_model` fixed to `workit` (#590). Left: W8's compile flags |
 | W4 | Remove macOS-only code | None | Yes | Built (#576, #585). Left to others: `dashboard.py` (W5) and `window_capture` (W6); what stops Apply on Windows is F4's |
 | W5 | The app shell | W3, W4 (and W1 for sign-in and usage) | Yes | Step 1 of 5 built: sign-in. Next: the window on pywebview |
 | W6 | The Worker extension on the store (spike first) | None | Yes | The spike passed; the store package is built (#570, #578). Blocked: the guards' per-run tokens (`worker-extension-todo.md`, item 0), then the first upload |
@@ -858,6 +859,28 @@ share of fields filled right is measured against Claude fill's, and
 every field it can't place is a clear Needs-you item or Handoff. The
 generic Filler's clicks pass the adversarial review.
 
+**Built (2026-11-15, step 1, KAN-855: Handoffs first).** In the Student
+build, what Apply can't fill is the student's, and they do it in the
+Apply window, never in the Worker's own Chrome window. Fix here gives
+them the form's live view, which takes their clicks, keys, picks, files
+and the form's own Submit. Only a captcha takes the Worker's window:
+the tile's clicks are synthetic, so a captcha item's first button is
+Open in Chrome, and once Apply sees it done the app comes back to the
+front 2 seconds later, if that window is still in front. With no Screen Recording permission the view is about
+two frames a second, so W5's first run asks for the permission.
+
+| Case | Student build now |
+|---|---|
+| A job system with no Filler | The form opens and is held, nothing filled (`orchestrator.ForTheStudent`); the student fills and sends it through Fix here |
+| A field a Filler fails on | A Needs-you item whose box starts with the planned answer; the held page tries it once more by the Fill engine |
+| An answer typed in the window | The Fill engine puts it in its field (`rehearsal._engine_fill`), no model; else "press Fix here and type it on the form in this window" |
+| An emailed code after Submit | No mail read: once the code field comes, Needs you says to type the code (`code_box.TypeTheCode`) |
+
+`docs/held-forms.md` has the rules; `tests/test_student_build.py` (CI)
+and `tests/test_student_handoffs.py` (Chromium) test them. Left for
+step 2: the generic Filler, which fills a form with no Filler of its own
+(it waits for W1's Model route for its small questions).
+
 ### W3. What the Student build leaves out
 
 **Goal.** The Student build holds no developer part, and nothing in it
@@ -903,14 +926,14 @@ part does in the Student build:
 
 | Part | Developer checkout | Student build (until the workstream named) |
 |---|---|---|
-| A job system with no Filler | Claude fill | A Handoff: "WorkIt Auto Apply can't fill ... yet" (W2) |
-| A field a Filler fails on | Rescue | No Rescue: the Filler's own failure (W2) |
-| An answer typed in the window | Rescue fills it in place | "Type it on the page, or press Fill again" (W2) |
+| A job system with no Filler | Claude fill | Held for the student to fill through Fix here (W2 step 1); the generic Filler is W2 step 2 |
+| A field a Filler fails on | Rescue | A Needs-you item with its planned answer (W2 step 1) |
+| An answer typed in the window | Rescue fills it in place | The Fill engine fills it in place (W2 step 1) |
 | Ask Claude on a held form | On | The tile takes no message |
-| An emailed code after Submit | Gmail, typed by script | The student types it (W2's Needs-you item) |
+| An emailed code after Submit | Gmail, typed by script | A Needs-you item: the student types it through Fix here (W2 step 1) |
 | The company brief | Researched with `claude -p` | A kept brief only, never researched (W9) |
 | Repair requests, notifications, phone push | Kept, shown, pushed | None |
-| `ask_model` | `policies.yaml` | Fixed `[groq, gemini]`, which runs no call now that the prompts are on WorkIt (#577). Left: make it `workit`, the session from W5's sign-in |
+| `ask_model` | `policies.yaml` | Fixed `workit`, WorkIt's Model route (W1) |
 
 Left: W8 passes `--nofollow-import-to` for each module in `DEVELOPER`
 and compiles from `apply.student`, and the build's smoke test fills one
@@ -1069,7 +1092,9 @@ terminal step and no open port.
 2. The window on pywebview: `dashboard.py`'s routes as `js_api`
    methods, no port, and `uv run apply app`; its paste box for the
    sign-in code, which `workit.trade` takes.
-3. First run: the Chrome check, the disclosure, the seed.
+3. First run: the Chrome check, the disclosure, the seed, and macOS's
+   Screen Recording permission, without which Fix here's view is about two
+   frames a second (W2).
 4. A run: the Auto Apply queue, the paste box for a posting, the Usage
    cap line.
 5. Settings and notices.

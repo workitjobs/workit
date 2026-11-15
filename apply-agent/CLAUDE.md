@@ -104,7 +104,7 @@ has neither.
   imported Ask Claude and the emailed code for their page strings, which loaded
   Gmail and Claude fill at every plain Worker's first page call. A string or
   class the Student path needs moves out of the developer module
-  (`page_functions.py`, `one_page.py`, `adapters.ClaudeError`,
+  (`page_functions.py`, `one_page.py`, `code_box.py`, `adapters.ClaudeError`,
   `workit.job_key`), and its callers import it from there.
   `tests/test_student_build.py` (in CI) fails when the Student path loads one,
   as it imports, builds `student.adapters()` or makes that first page call.
@@ -112,6 +112,14 @@ has neither.
   The Student build reads no `policies.yaml`: `build.STUDENT_POLICIES` go over
   the defaults. A new developer part joins `DEVELOPER`, and the Student
   build's stand-in for it joins `apply.student.adapters()`.
+- **In the Student build, what Apply can't do is the student's, in the Apply
+  window** (KAN-855, W2 step 1, `docs/held-forms.md`). A form with no Filler,
+  a field the form didn't take and an emailed code are each held for the
+  student, who does it through Fix here; an answer they type in the window
+  goes in by the Fill engine, never a model. Every message says "press Fix
+  here" (`orchestrator.FIX_HERE`), never "your own Chrome". Only a captcha
+  takes the Worker's own window (Open in Chrome): the tile's clicks are
+  synthetic, and Apply never makes one look like a person's.
 - **Lisul reports a problem with an open application in a Claude Code chat:**
   send it to the form with `uv run apply ask "<company, role or application
   ID>" "<his words>"` (from `apply-agent/`). Do not open or drive the form
@@ -398,6 +406,12 @@ into it and the window shows "Sample data".
   on CDP and on a plain Worker. The rule's JS copies (page/dom.js,
   ops/tile.js) stay word for word the same as `RULE_JS`; a test checks that.
   The guard's picker block is guard code: its PR gets an adversarial review.
+  The rule covers an answer's text too where Apply fills one field in a held
+  page's frames (`rehearsal._engine_fill`, `regenerate.done`): only a frame
+  that `upload_origin.frame_may_upload` allows. Another site's frame with its
+  own `FillEngine` took a resume's bytes (KAN-855's review). The top frame
+  passes the rule whatever site it is on, so those fills also check that the
+  tab is still on the form's own origin, as Apply handed it over.
 - **No test reaches past loopback** (`tests/network_block.py`, KAN-662). A
   socket or name lookup to another host raises `NetworkBlocked`, Chrome
   started by a test resolves other hosts to nothing, and Playwright's own

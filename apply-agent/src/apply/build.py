@@ -39,7 +39,7 @@ DEVELOPER = frozenset({
 # default's; these stay so even if a default changes. Only keys the Student path reads: live_runs, repair,
 # records_remote and resume_source are read only by modules in DEVELOPER.
 STUDENT_POLICIES = {
-    "ask_model": ["groq", "gemini"],  # W1's app side makes this `workit`, the Model route, the only choice
+    "ask_model": "workit",  # WorkIt's Model route (W1, D5): the app holds no model key
     "ask_models": {},
     "phone_push": False,
 }

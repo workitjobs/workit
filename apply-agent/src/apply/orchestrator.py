@@ -42,7 +42,7 @@ from apply.captcha import Waiter
 from apply.feed import repost_keys
 from apply.fillers import FILLERS
 from apply.match_queue import match_queue, over_employer_limits
-from apply.model import Posting, Status, one_line
+from apply.model import Handoff, Posting, Status, one_line
 from apply.one_page import OnePage
 from apply.profile import ApplicantProfile
 from apply.records import Record
@@ -52,9 +52,29 @@ from apply.verify import verifying
 from apply.worker import Result, apply_to, named
 
 WORKERS = 3
+# Where the student does what Apply can't, in the Student build: the form's live view in the Apply window, which
+# Fix here gives them (KAN-855). They never go to the Worker's own Chrome window, but for a captcha.
+FIX_HERE = "press Fix here and {} on the form in this window"
 # The Student build's Handoff for a job system Apply has no Filler for (Claude fill is a Developer checkout's).
-NO_FILLER = ("WorkIt Auto Apply can't fill {job_system} forms yet: open the job posting in your own Chrome and fill it "
-             "there, or use the WorkIt extension")
+NO_FILLER = "WorkIt Auto Apply can't fill {job_system} forms yet: " + FIX_HERE.format("fill it in") + ", then press its Submit"
+
+
+class ForTheStudent:
+    """The Student build's Filler for a job system with no Filler (KAN-855, W2): it reads no question and fills
+    nothing. It opens the form and hands it over whole: the form is held, and the student fills and sends it from
+    the Apply window (FIX_HERE). Resume hands it over again."""
+
+    def __init__(self, job_system: str):
+        self.why = NO_FILLER.format(job_system=job_system if job_system not in ("", "other") else "this job site's")
+
+    def question_set(self, url: str, site: JobSite) -> list:
+        return []
+
+    def fill(self, page, questions, answers):
+        raise Handoff(self.why)
+
+    def submit(self, page) -> None:
+        raise SetupError("WorkIt Auto Apply never presses Submit")
 # No Application starts once Lisul's Max plan is this far through a window,
 # which leaves the rest for his own Claude work.
 FIVE_HOUR_STOP = 0.85
@@ -625,8 +645,8 @@ def by_filler(
         if hasattr(filler, "with_accounts"):  # it reads the Application's mail, yet opens its form afresh each time
             filler = filler.with_accounts(accounts())
         return apply(filler, site)
-    if build.STUDENT:  # no Claude fill (apply.build): the student fills it in their own Chrome
-        return Result(Status.HANDOFF, NO_FILLER.format(job_system=posting.job_system or "this job site"))
+    if build.STUDENT:  # no Claude fill (apply.build): its form is held for the student to fill in the Apply window
+        return apply(ForTheStudent(posting.job_system), site)
     from apply.claude_fill import ClaudeFill, entry_history
 
     signing_in, agree = accounts(), bool(profile.policy("tick_consent_when_true"))

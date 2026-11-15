@@ -20,7 +20,7 @@ from fakes import FakeJobServer, RecordingBoard
 from test_rehearse import adapters
 from test_run_answers import profile_with
 
-from apply import email_code, on_page, rehearsal, stuck
+from apply import code_box, on_page, rehearsal, stuck
 from apply.fillers import FILLERS
 from apply.model import Handoff, Question
 from apply.plain.bridge import Bridge
@@ -207,9 +207,8 @@ def test_go_to_question_and_the_watch_run_without_eval(page, monkeypatch):
 
 def test_resumes_field_error_and_the_emailed_codes_boxes_run_without_eval(page):
     assert stuck.field_error(page) == "Enter a valid email address"
-    boxes = email_code._boxes(page)
+    boxes = code_box.boxes(page)
     assert [key.split("|")[1].split()[0] for key, _ in boxes] == ["code"]  # the code box, never the zip
-    email_code._in_frames(page, email_code.ARM)  # the switches run too (S4's guard reads them)
 
 
 # --- a held rehearsal in a plain Worker

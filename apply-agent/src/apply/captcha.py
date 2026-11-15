@@ -9,6 +9,7 @@ click or key of Claude's in a captcha's frame (apply.submit_guard). A bot block 
 import re
 import subprocess
 import sys
+import threading
 import time
 from collections.abc import Callable
 from contextlib import contextmanager
@@ -294,6 +295,18 @@ def wait(page: Page, pressed: Callable[[], bool], minutes: float, poll_ms: int =
     return False
 
 
+# After a captcha Lisul did in a Worker's own window, the Apply window comes back to the front this long after Apply
+# sees it done: a breath to see the page go on, not a jump (KAN-855). Only while that window is still in front.
+BACK_AFTER_S = 2.0
+
+
+def _pending(page) -> bool:
+    try:
+        return pending(page)
+    except Exception:
+        return False  # the page going: nothing for him there
+
+
 class Waiter:
     """Waits on one Worker's page while Lisul does a captcha. Its tile shows it
     as a Handoff with the captcha reason and Resume; his phone gets one push.
@@ -306,6 +319,7 @@ class Waiter:
         minutes = profile.policy("captcha_wait_minutes")
         self.minutes = WAIT_MINUTES if minutes is None else float(minutes)
         self._pushed = False
+        self._came_back = False  # the Apply window came back once for this Application (BACK_AFTER_S)
 
     def __call__(self, why: str, page: Page, company: str = "") -> bool:
         """True once Lisul did the captcha on `page` of `company`'s form: the fill goes on there."""
@@ -314,9 +328,15 @@ class Waiter:
         board, n = self._board, self._worker
         board.update(n, status="handoff", why=why, captcha=True, resume={"ok": True})
         self.tell(company or self._caption().get("company") or "")
+        showed = _pending(page)  # one for him to do: a wait for nothing on view ends at once, and calls no one back
         done = wait(page, lambda: board.resumed(n), self.minutes)
         if done:  # filling again, which clears the tile: its caption anew, as a fill's start gives it
             board.update(n, **self._caption(), status="filling")
+            if showed and not self._came_back and (back := getattr(board, "come_back", None)):
+                self._came_back = True  # once an Application: a challenge that comes back again never pulls him again
+                later = threading.Timer(BACK_AFTER_S, back, args=(n,))
+                later.daemon = True
+                later.start()
         else:
             board.update(n, captcha=False)
         return done

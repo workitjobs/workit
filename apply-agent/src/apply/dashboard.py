@@ -149,8 +149,8 @@ WORDS = {
                       "every job on that site."),
     "check": ("Answer to check before sending", "Before it sends, Apply checks every answer against your facts; "
               "one didn't match."),
-    "captcha": ("Do the captcha", "Apply never solves a captcha. Do it on the form's page; Apply waits, and goes on "
-                "by itself once it's gone."),
+    "captcha": ("Do the captcha", "Apply never solves a captcha. Press Open in Chrome and do it in the form's own "
+                "browser window, which a captcha needs; Apply waits, and goes on by itself once it's gone."),
     "blocked": ("Finish it in your Chrome", "The job site refused Apply's Chrome as a bot. Open the posting in "
                 "your own Chrome: the WorkIt extension fills it there, and you press Submit."),
     "handoff": ("Finish this one yourself", "Apply got as far as it could; the rest needs a person, such as a site that blocks it."),
@@ -573,8 +573,10 @@ class Dashboard:
                  notify: Callable[[str, str], None] | None = None, show: Callable[[int], bool] | None = None,
                  sample: bool = False, approve: Callable[[str], str] | None = None,
                  everyday: Callable[[str], None] | None = None, accounts: "AccountsTab | None" = None,
-                 quiet: Callable[[int], bool] | None = None, remember: Callable[[str, str], str] | None = None):
+                 quiet: Callable[[int], bool] | None = None, remember: Callable[[str, str], str] | None = None,
+                 back: Callable[[int], bool] | None = None):
         self._workers = workers
+        self._back = back  # brings this window back after a captcha done in a Worker's own window (come_back)
         self._remember = remember
         # Ask Claude (apply.ask): each Application's thread, by its posting URL, and the messages waiting for its Worker.
         self._threads: dict[str, list[dict]] = {}
@@ -629,6 +631,12 @@ class Dashboard:
     def __enter__(self) -> Self:
         threading.Thread(target=self._server.serve_forever, daemon=True).start()
         return self
+
+    def come_back(self, tile: int) -> bool:
+        """Lisul did tile `tile`'s captcha in its Worker's own window (Open in Chrome), and Apply saw it done: this
+        window comes back to the front, only while that Worker's window is still the front one, so it never takes
+        him from another app (KAN-855). False when it stays where it is."""
+        return bool(self._back and self._back(self.worker_of(tile)))
 
     def worker_of(self, tile: int) -> int:
         """The Worker whose window tile `tile` shows."""
@@ -735,7 +743,7 @@ class Dashboard:
                 caption["files"] = list(caption["files"] or []) + [
                     f for f in self._picked[worker] if f not in (caption["files"] or [])]
             if caption.get("status") == "submitted":  # sent: its Missing facts and Essay facts ask him no more
-                caption = caption | {"missing": [], "choices": {}, "required": {}, "where": {}}
+                caption = caption | {"missing": [], "choices": {}, "required": {}, "where": {}, "planned": {}}
             tile.update(caption)
             status = str(tile.get("status") or "")
             ended = "status" in caption and status not in ("", "filling", "paused")
@@ -1093,6 +1101,7 @@ class Dashboard:
                 item["choices"] = {q: c for q, c in (item.get("choices") or {}).items() if q in item["questions"]}
                 item["required"] = {q: r for q, r in (item.get("required") or {}).items() if q in item["questions"]}
                 item["where"] = {q: w for q, w in (item.get("where") or {}).items() if q in item["questions"]}
+                item["planned"] = {q: a for q, a in (item.get("planned") or {}).items() if q in item["questions"]}
                 if not item["questions"] and item.get("kind") == "missing fact":
                     item["answered"] = True  # every question answered here: it waits on Lisul no more
         return {"summary": summary(captions, items if self._workers else None), "tiles": captions, "items": items,

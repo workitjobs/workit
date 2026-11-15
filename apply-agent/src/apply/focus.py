@@ -211,6 +211,10 @@ class FocusKeeper:
             self._yours = pid
         return self._give(pid)
 
+    def front(self) -> int | None:
+        """The front app's pid, or None: whether Lisul is in a Worker's own window (each site's in_front, KAN-855)."""
+        return self._front()
+
     def turn(self) -> None:
         """One look at the front app."""
         front, now = self._front(), self._now()
@@ -274,6 +278,9 @@ class NoKeeper:
 
     def bring(self, pid: int) -> bool:
         return False
+
+    def front(self) -> int | None:
+        return None  # it can't tell: the Apply window never comes back by itself (KAN-855)
 
 
 def keeper(system: str = sys.platform) -> "FocusKeeper | NoKeeper":

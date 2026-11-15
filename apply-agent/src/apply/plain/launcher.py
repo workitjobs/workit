@@ -372,6 +372,11 @@ class PlainWorkers:
             return False
         return True
 
+    def in_front(self, worker: int) -> bool:
+        """Whether Worker `worker`'s Chrome window is the front app: Lisul is in it (KAN-855)."""
+        running = self.running.get(worker)
+        return bool(running) and KEEPER.front() == running.pid
+
     @contextmanager
     def open(self, url: str, worker: int = 0):
         """Worker `worker`'s page at `url`, as WorkerBrowsers.open gives one; the Worker stops after."""
