@@ -69,6 +69,11 @@ PAGES = {
     "/thief": '<!doctype html><title>Widget</title><label>Resume <input type=file id=f name=f></label>'
               '<script>window.FillEngine = {call: (name, args) => { window.took = JSON.stringify(args); return {}; }};'
               '</script>',
+    # KAN-855's second review: another site's frame shows a code box after the student's Submit.
+    "/code": '<!doctype html><title>Apply</title><label>Name <input id=name></label>'
+             '<iframe id=w src="http://localhost:{port}/code-ad" width=300 height=100></iframe>',
+    "/code-ad": "<!doctype html><title>Ad</title><div id=d></div><script>window.show = () => { document.getElementById('d')"
+                ".innerHTML = '<label>Security code <input name=security_code></label>'; };</script>",
 }
 
 
@@ -309,6 +314,30 @@ def test_cdp_an_answer_from_the_window_goes_to_no_frame_of_another_site(site, tm
         assert thief.evaluate("() => window.took") is None
 
 
+@needs_chromium
+def test_cdp_an_answer_from_the_window_goes_nowhere_once_the_tab_left_the_forms_site(site, tmp_path):
+    """The top frame passes the frame rule whatever site it is on (KAN-795), so _engine_fill also checks the tab is
+    still on the form's own site, as Apply handed it over (KAN-855's second review)."""
+    from apply import rehearsal
+
+    with cdp_page() as (page, _):
+        page.goto(f"{site.url}/answer")
+        own = upload_origin.origin(page.url)
+        page.goto(f"{site.other}/thief")  # the student followed a link: the tab's top is another site's page now
+        assert not rehearsal._engine_fill(page, _held_resume(), "Resume", _resume(tmp_path), own)
+        assert page.evaluate("() => window.took") is None
+
+
+@needs_chromium
+def test_cdp_a_code_box_in_another_sites_frame_is_never_the_job_sites(site):
+    from apply import code_box
+
+    with cdp_page() as (page, _):
+        page.goto(f"{site.url}/code")
+        _frame(page, "/code-ad").evaluate("() => window.show()")
+        assert code_box.boxes(page) == []  # Needs you never tells him to type a code there
+
+
 def _held_resume():
     """A held Greenhouse form whose one question is its resume: what _engine_fill reads of the form."""
     from types import SimpleNamespace
@@ -496,6 +525,17 @@ def test_plain_an_answer_from_the_window_goes_to_no_frame_of_another_site(plain,
     thief = _port_frame(plain, "/thief")
     assert not rehearsal._engine_fill(plain, _held_resume(), "Resume", _resume(tmp_path))
     assert thief.evaluate("() => window.took") is None
+
+
+@needs_chrome
+def test_plain_an_answer_from_the_window_goes_nowhere_once_the_tab_left_the_forms_site(plain, site, tmp_path):
+    from apply import rehearsal
+
+    plain.goto(f"{site.url}/answer")
+    own = upload_origin.origin(plain.url)
+    plain.goto(f"{site.other}/thief")
+    assert not rehearsal._engine_fill(plain, _held_resume(), "Resume", _resume(tmp_path), own)
+    assert plain.evaluate("() => window.took") is None
 
 
 @needs_chrome

@@ -402,7 +402,9 @@ into it and the window shows "Sample data".
   The rule covers an answer's text too where Apply fills one field in a held
   page's frames (`rehearsal._engine_fill`, `regenerate.done`): only a frame
   that `upload_origin.frame_may_upload` allows. Another site's frame with its
-  own `FillEngine` took a resume's bytes (KAN-855's review).
+  own `FillEngine` took a resume's bytes (KAN-855's review). The top frame
+  passes the rule whatever site it is on, so those fills also check that the
+  tab is still on the form's own origin, as Apply handed it over.
 - **No test reaches past loopback** (`tests/network_block.py`, KAN-662). A
   socket or name lookup to another host raises `NetworkBlocked`, Chrome
   started by a test resolves other hosts to nothing, and Playwright's own

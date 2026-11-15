@@ -386,13 +386,16 @@ def working(page, name: str) -> bool:
     return any(_in_frames(page, WORKING, name))
 
 
-def done(page, name: str, text: str, note: str, ok: bool, question: Question | None = None, site: str = "") -> str | None:
+def done(page, name: str, text: str, note: str, ok: bool, question: Question | None = None, site: str = "",
+         own: str = "") -> str | None:
     """Put `text` in the field `name` (when `ok`), say `note` beside it, make it editable again, and return
     what the field shows now (its read-back); None when no frame shows the field.
 
     On a plain Worker's page, with the field's `question` and the form's job `site` (one the engine knows), the
     Fill engine puts the answer in, in the frame that shows the field, as it filled the form; where it can't (the field
     moved to a step it doesn't know), the page's own input events do, as on a CDP page."""
+    if own and upload_origin.origin(page.url) != own:  # the tab left the form's site: nothing of his goes there
+        return None
     if not (ok and _plain(page) and question is not None and site in get_args(Site)):
         shown = _in_frames(page, DONE, [name, text, note, ok])
         return next((s for s in shown if s is not None), None)

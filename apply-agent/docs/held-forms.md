@@ -500,18 +500,32 @@ Worker's own Chrome window, but for a captcha. Each message says so
   and another site's frame with its own `FillEngine` took a resume's bytes
   (`test_submit_guard_hostile.py`, `test_upload_origin.py`). Add context and
   regenerate's engine fill (`regenerate.done`) takes the same frame rule.
+  A second review found more, each with its hostile case:
+  - The top frame passes the frame rule whatever site it is on, so a tab that
+    left the form's site got the answer. The hold keeps the form's own origin
+    from its hand-over (`_Kept.form_origin`), and `_engine_fill` and
+    `regenerate.done` give nothing to a tab on another site.
+  - Regenerate's write and Go to question acted on the lifted page with the
+    guards off: both run inside `driving()` now (Go to question through the
+    hold's `_Kept.acting()`), in both builds.
+  - A pop-up the student opened from the lifted page takes no guard (KAN-796),
+    and a field Apply typed in told it to send. The Student build closes the
+    held page's pop-ups before Apply acts on it (`_close_pop_ups`, by their
+    opener; Fix here never showed them).
 - **An emailed code after Submit.** No mail is read (D9).
   `code_box.TypeTheCode` watches the held page as `email_code.EmailCode` does,
   and once the code field comes, Needs you says "needs code"
   (`rehearsal.TYPE_THE_CODE`). Both find the field through `apply.code_box`,
-  which reads no captcha frame.
+  which reads no captcha frame and no other site's frame.
 - **A captcha.** The tile's clicks are synthetic, and a captcha takes none, so a
   captcha item's first button is Open in Chrome, as a sign-in's is. Apply never
   makes a relayed click look like a person's (the bot rule). Once Apply sees the
   captcha done, the Apply window comes back to the front `BACK_AFTER_S` (2 s)
   later, a breath to see the page go on, and only while that Worker's window
   is still the front app, so it never takes the student from another app
-  (`captcha.Waiter`, `Dashboard.come_back`, each site's `in_front`).
+  (`captcha.Waiter`, `Dashboard.come_back`, each site's `in_front` through
+  `focus.KEEPER`). Only for a challenge on view as the wait began, once a form,
+  and one try at once after the check.
 
 **Tests.** `tests/test_student_build.py` (in CI) and
 `tests/test_student_handoffs.py` (Chromium, on the fake job sites).
