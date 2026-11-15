@@ -77,7 +77,9 @@ read-then-write race); `has_kept` is sticky (once true, never resets);
 `record_missing`'s second miss clears fingerprint state. Four columns:
 `fingerprint` (8-char hex CRC32), `unchanged_reads`, `fingerprint_until` and
 `has_kept`. `--full` bypasses both mechanisms but not health rest
-(`rest_until`). Tests: `tests/test_scrape_worker.py`.
+(`rest_until`). **Trade-off**: while a board rests (up to 24 h), a posting
+the company removed stays open on the Jobs page until the next read; `--full`
+closes the gap when needed. Tests: `tests/test_scrape_worker.py`.
 
 **Not PostgREST, deliberately.** Queries go to Postgres directly over asyncpg,
 because the job search needs ltree containment and trigram ranking, which
