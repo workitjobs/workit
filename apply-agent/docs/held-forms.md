@@ -332,7 +332,7 @@ fixes it live on that form.
   (`rearm`) for the drive and lifts the page again after it. Without that, a page the drive loads (going
   back a step) ran `lift()`'s script, and Enter there sent the application (KAN-638). So Claude's own click
   on a step's Next or Back that posts natively is blocked too. Claude names that button in `press` and
-  stops; plain code presses it (`claude_fill.press_step`, the rules of Claude fill's Next: KAN-639, with the
+  stops; plain code presses it (`steps.press_step`, the rules of Claude fill's Next: KAN-639, with the
   final-URL block) and a fresh drive goes on from there, up to `MAX_PRESSES` for one message (KAN-655).
 - **Read-back.** Plain code reads `FIELDS` again after the drive and compares (`ask.changes`), custom
   `[role=checkbox]` and `[role=switch]` boxes too (`aria-checked`, and `UNDO` clicks one back). Each change

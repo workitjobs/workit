@@ -26,7 +26,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from apply import amazon, ask, claude_fill, keepalive, send_click, submit_guard
+from apply import amazon, ask, claude_fill, keepalive, send_click, steps, submit_guard
 from apply.account_pages import AccountPages, _Click
 from apply.adapters import Drive
 from apply.claude_fill import ClaudeFill, press_step
@@ -1116,7 +1116,7 @@ def cdp(pages: dict[str, str], guarded: bool = True, first: bool = False, clock:
 
 @pytest.fixture(autouse=True)
 def quick_steps(monkeypatch):
-    monkeypatch.setattr(claude_fill, "STEP_SHOWS_MS", 1500)
+    monkeypatch.setattr(steps, "STEP_SHOWS_MS", 1500)
 
 
 @pytest.mark.parametrize(("page_name", "path"), each_page_and_path_once_on_prs())

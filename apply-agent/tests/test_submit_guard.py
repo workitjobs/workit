@@ -36,7 +36,7 @@ from playwright.sync_api import Error as PlaywrightError
 from test_claude_fill import LUNAR_FORM, LUNAR_URL
 from test_workday_filler import CACI_FORM, CACI_URL, NOW, ONE_PAGER, fill_all
 
-from apply import captcha, submit_guard
+from apply import captcha, steps, submit_guard
 from apply.accounts import Accounts
 from apply.ashby import AshbyFiller
 from apply.greenhouse import GreenhouseFiller
@@ -646,11 +646,10 @@ def _posts_to(page, posts):
 def test_plain_codes_next_click_never_lets_a_post_to_the_final_url_through(monkeypatch, shape, action):
     from playwright.sync_api import sync_playwright
 
-    from apply import claude_fill
     from apply.claude_fill import ClaudeFill
     from apply.model import Handoff
 
-    monkeypatch.setattr(claude_fill, "STEP_SHOWS_MS", 1_000)
+    monkeypatch.setattr(steps, "STEP_SHOWS_MS", 1_000)
     posts = []
     with sync_playwright() as p:
         browser = p.chromium.launch()
@@ -896,8 +895,7 @@ def test_ask_goes_on_and_back_on_native_post_steps_by_plain_code_s_own_click():
 
 
 def test_ask_s_press_never_lets_a_post_to_the_final_url_through(monkeypatch):
-    from apply import claude_fill
-    monkeypatch.setattr(claude_fill, "STEP_SHOWS_MS", 500)
+    monkeypatch.setattr(steps, "STEP_SHOWS_MS", 500)
     with _steps("/app/3") as (page, drive, posts):
         reply = _asked(page, drive, "go on", [(lambda p: None, _said(press="Continue"))])
         assert posts == [] and "didn't press 'Continue'" in reply.couldnt[0]
@@ -1001,9 +999,8 @@ def test_ask_presses_a_tracker_link_named_by_its_heading():
 
 def test_ask_s_progress_tracker_press_never_posts_the_declaration():
     # The Declaration's form has the Submit: a tracker link from there posts that form, so the guard blocks it.
-    from apply import claude_fill
     with _tal(4) as (page, drive, posts), pytest.MonkeyPatch.context() as mp:
-        mp.setattr(claude_fill, "STEP_SHOWS_MS", 800)
+        mp.setattr(steps, "STEP_SHOWS_MS", 800)
         reply = _asked(page, drive, "open Inclusion", [(lambda p: None, _said(press="Inclusion"))])
         assert posts == [] and page.title() == "Declaration" and "didn't press 'Inclusion'" in reply.couldnt[0]
 
@@ -1080,16 +1077,14 @@ def _press_next(url, html):
 
 @pytest.mark.parametrize("name", list(REAL_STEPS))
 def test_plain_codes_next_goes_on_from_every_real_step_form(monkeypatch, name):
-    from apply import claude_fill
-    monkeypatch.setattr(claude_fill, "STEP_SHOWS_MS", 2_000)
+    monkeypatch.setattr(steps, "STEP_SHOWS_MS", 2_000)
     url, *rest = REAL_STEPS[name]
     assert len(_press_next(url, _step_on(url, *rest))) == 1
 
 
 @pytest.mark.parametrize("name", list(REAL_SENDS))
 def test_plain_codes_next_never_posts_what_may_be_the_last_step(monkeypatch, name):
-    from apply import claude_fill
-    monkeypatch.setattr(claude_fill, "STEP_SHOWS_MS", 800)
+    monkeypatch.setattr(steps, "STEP_SHOWS_MS", 800)
     url, *rest = REAL_SENDS[name]
     assert _press_next(url, _step_on(url, *rest)) == []
 
@@ -1148,7 +1143,7 @@ def test_an_application_with_a_password_box_never_posts_under_the_account_click(
 
     from apply import claude_fill
 
-    monkeypatch.setattr(claude_fill, "STEP_SHOWS_MS", 800)
+    monkeypatch.setattr(steps, "STEP_SHOWS_MS", 800)
     posts = []
     with sync_playwright() as p:
         browser = p.chromium.launch()
