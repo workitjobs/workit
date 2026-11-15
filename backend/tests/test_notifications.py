@@ -100,6 +100,54 @@ async def test_read_notifications_marks_every_unread_row_read(database):
     assert body["notifications"][0]["read_at"] is not None
 
 
+async def test_read_notifications_with_ids_marks_only_those_rows(database):
+    # The bell marks the row it opens (and a grouped row's repeats), not the
+    # whole list (KAN-829). Someone else's id in the list marks nothing of
+    # theirs.
+    mine, someone_elses = uuid.uuid4(), uuid.uuid4()
+    opened, left, theirs = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+    async with database() as session:
+        await _seed_applicant(session, mine, email="mine@example.com")
+        await _seed_applicant(session, someone_elses, email="someone-elses@example.com")
+        session.add_all(
+            [
+                Notification(
+                    id=opened, applicant_id=mine, type="job_alert", title="Opened",
+                    body="opened", data=[],
+                ),
+                Notification(
+                    id=left, applicant_id=mine, type="job_alert", title="Left",
+                    body="left", data=[],
+                ),
+                Notification(
+                    id=theirs, applicant_id=someone_elses, type="job_alert", title="Theirs",
+                    body="theirs", data=[],
+                ),
+            ]
+        )
+        await session.commit()
+
+    try:
+        async with _client(mine, email="mine@example.com") as client:
+            res = await client.post(
+                f"/applicants/{mine}/notifications/read",
+                json={"ids": [str(opened), str(theirs)]},
+            )
+    finally:
+        app.dependency_overrides.pop(get_current_account, None)
+
+    assert res.status_code == 200
+    body = res.json()
+    assert body["unread_count"] == 1
+    read = {n["title"]: n["read_at"] is not None for n in body["notifications"]}
+    assert read == {"Opened": True, "Left": False}
+    async with database() as session:
+        theirs_read_at = await session.scalar(
+            text("SELECT read_at FROM notifications WHERE id = :id"), {"id": theirs}
+        )
+    assert theirs_read_at is None
+
+
 async def test_notifications_are_scoped_to_their_own_applicant(database):
     mine, someone_elses = uuid.uuid4(), uuid.uuid4()
     async with database() as session:

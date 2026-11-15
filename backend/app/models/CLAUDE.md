@@ -1246,11 +1246,12 @@ read and mark rows read.
   `schemas/jobs.py`'s `JobListing.id` shape), not a foreign key: a
   notification is a historical record of what was sent, and must still
   read correctly after the job posting it names closes or is deleted.
-- **`read_at` is null until the applicant opens the bell.** There is no
-  per-notification mark-read, only mark-all (`routers/notifications.py`),
-  matching the bell's own existing copy
-  (`frontend/src/components/notifications-menu.tsx`'s "You're All Caught
-  Up") already treating "opened it" as "now caught up."
+- **`read_at` is null until the applicant opens the row or presses Mark
+  All Read** (KAN-829). `POST .../notifications/read` takes the rows to
+  mark (`{"ids": [...]}`, a row the bell opened with its grouped repeats)
+  or, with no body, marks every unread row. Opening the bell marked
+  everything read until then, which left the bell's Mark All Read nothing
+  to do (`frontend/src/components/notifications-menu.tsx`).
 - **Its migration is `89d598a1667d`**, which also adds
   `applicant_profiles.job_alerts_enabled` (RLS on the new table, no
   policies). Nothing reads either before the deploy that adds the

@@ -2864,7 +2864,12 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   Home's streamed sections before they hydrated, and React warned of a
   mismatch (2026-11-10). `settings/layout.tsx` wraps Home in
   `aria-live="off" aria-hidden inert`: one kept region the modal never
-  walks into.
+  walks into. **A live region in a Home section takes `aria-live` only
+  once hydrated** (KAN-829): React holds a streamed section in a hidden div
+  at the end of `<body>`, outside that wrapper, until it reveals it, and
+  the modal opening in that time walked in from Activity's live region and
+  hid its heading row and map, so `next dev` showed "1 Issue" for two divs'
+  `aria-hidden` (`home/streak.tsx`, `local`).
 - **A control inside a card with a click layer sits above the layer**
   (`relative z-2`; the layer is `absolute inset-0 z-1`,
   `components/job-posting-card.tsx`). `relative` alone is not enough: Save

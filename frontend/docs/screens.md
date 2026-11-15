@@ -4568,7 +4568,13 @@ and an unsaved edit in one section survives a visit to another. The nav
 navigation, and one history entry for the whole modal, so one Back leaves
 it. Each item is still a real link, so a modified click opens the section
 in a new tab. Each section's `page.tsx` draws nothing; it is the address
-and the tab title only. A section's content is its `section.tsx`, and a
+and the tab title on a hard load only. **The tab title follows the open
+section** (KAN-829): the modal draws its own `<title>`, which wins over
+Next's while it is open, since the nav moves the address with no
+navigation and the tab kept the first section's name. **The modal opens
+with the focus on itself**, not on Personal Details, the first item: on a
+hard load that focus counted as keyboard focus and drew a ring beside the
+current section's tint, two items that looked picked. A section's content is its `section.tsx`, and a
 section that needs the query reads it in the browser, since a layout gets
 none (`security/notice.tsx`). The title and the nav stay fixed and only the
 section scrolls. The nav is a column beside the section from sm and a row
@@ -4673,7 +4679,9 @@ not it scrolls.
   42px, and the answers (job type, experience, workplace) as the Jobs
   page's filter chips in a wrapping row, not onboarding's 56px tiles
   (2026-11-03). `dense` shrank only the headings until then, and the
-  section read as onboarding dropped into Settings. With Save
+  section read as onboarding dropped into Settings. The three required
+  answers carry a red *, the four others no mark (KAN-829; it said
+  "Optional" on those too). With Save
   and Discard; Save needs the role, job type and workplace onboarding
   requires, and saves as onboarding does (PUT, a picked state narrowing its
   country). The pickers' options come from `role-options.ts`, which

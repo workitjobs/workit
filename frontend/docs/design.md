@@ -513,6 +513,9 @@ open choices (Settled choices, near the end).
 - **One meaning per label.** Two fields on one flow never share a title, a
   label says "Optional" once per step when every field is optional, and an
   exit names what it does ("Skip" moves one step; "Skip Setup" leaves).
+  **A form with a required field marks one way**: a red * on each required
+  one (`RequiredMark`) and nothing on the rest, never "Optional" beside a *
+  (KAN-829; Settings' Job Preferences and onboarding's Role step did both).
   On the Jobs screens a posting is a "job" or "job posting", never a
   "role", tooltips and counts included. Labels are Title Case, tooltips
   too, in US spelling. A public page that looks like the app (a marketing
@@ -549,9 +552,8 @@ rules here follow them; change one only with the user.
 Breaks found on 2026-11-02, while these rules were written. The design
 audits (`design-audit/`, one report per area) add to this list.
 
-- `ink-faint` carries words: onboarding's Role step prints "Optional" in it
-  (3.11:1), and the Calendar's Month prints the days outside the month in it
-  (`calendar/month.tsx`). Both need `ink-meta`.
+- `ink-faint` carries words: the Calendar's Month prints the days outside
+  the month in it (`calendar/month.tsx`). It needs `ink-meta`.
 - `ink-subtle` (2.95:1, under 3:1) on a glyph that informs: the company
   range picker's chevron. The icon rule makes it `ink-meta`. (The stat
   tile's grey glyph went with KAN-828: a tile's glyph is in its chip.)
@@ -768,8 +770,10 @@ shells use: shadcn's Sidebar with WorkIt's row spacing and current-item
 marking; each shell passes its own groups and its bar's height as the offset),
 `sidebar-brand.tsx` (the bar's corner cell: the panel toggle and the logo),
 `hover-sidebar.tsx` (the company panel's pinned and hover states, above),
-`notifications-menu.tsx` (the bell, a popover of its notifications, each a
-`Link` with IconButton's focus ring and its time, or an empty state) and
+`notifications-menu.tsx` (the bell, a popover titled Notifications with
+Mark All Read while anything is unread, then its notifications, each a
+`Link` with IconButton's focus ring and its time, a run of one kind as one
+row that counts the earlier ones, or an empty state; KAN-829) and
 `account-menu.tsx` (a name and email header, the shell's rows, then Sign Out;
 Sign In without `onSignOut`).
 

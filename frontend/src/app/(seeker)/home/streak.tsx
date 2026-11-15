@@ -352,7 +352,14 @@ export function Streak({
         </div>
       </div>
 
-      <p aria-live="polite" className="sr-only">
+      {/* A live region only once hydrated (`local`), never in the server's
+          HTML (KAN-829). React holds this streamed section in a hidden div at
+          the end of <body> until it reveals it, outside the wrapper that
+          ../settings/layout.tsx puts round Home; the Settings modal opening
+          in that time kept this region and hid its siblings, the heading row
+          and the map, and hydration found `aria-hidden` on two divs the
+          browser draws without it. */}
+      <p aria-live={local ? "polite" : undefined} className="sr-only">
         {announcement}
       </p>
 
