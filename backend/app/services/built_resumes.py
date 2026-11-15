@@ -46,7 +46,7 @@ from sqlalchemy import delete, func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.autofill_answers import Autofill_Answers
-from app.models.bank import Bank_Bullet_Variant, Experience_Bank
+from app.models.bank import Bank_Bullet_Variant, Bank_Skill, Experience_Bank
 from app.models.built_resume import (
     Built_Resume,
     Built_Resume_Bullet,
@@ -195,6 +195,115 @@ async def generate(
     raise AssertionError("Generate always ends with its resume")
 
 
+class EmptyUpload(Exception):
+    """Start From This Resume on an upload whose import wrote nothing: its
+    resume would print the header alone."""
+
+
+def copy_name(name: str, names: Iterable[str]) -> str:
+    """"<name> (Copy)", or "(Copy 2)" and up while the student has one by
+    that name, so the list tells the new resume from its source."""
+    taken = {n.strip().lower() for n in names}
+    # Room for " (Copy 99)" inside a name's 80 characters (schemas `Name`),
+    # so Rename takes the copy's name back as it is.
+    base = name.strip()[:70].rstrip()
+    candidate = f"{base} (Copy)"
+    n = 2
+    while candidate.lower() in taken:
+        candidate = f"{base} (Copy {n})"
+        n += 1
+    return candidate
+
+
+def _cloned(row, **changes):
+    """A new row of `row`'s model with its columns, `changes` over them and
+    a new id."""
+    columns = {attr.key: getattr(row, attr.key) for attr in type(row).__mapper__.column_attrs}
+    return type(row)(**{**columns, "id": uuid.uuid4(), **changes})
+
+
+async def copy_resume(session: AsyncSession, applicant_id: uuid.UUID, source_id: uuid.UUID) -> Built_Resume:
+    """A new resume that starts as `source` prints (the Resumes page's
+    Generate Resume, Start From a Resume You Have, 2026-11-11): its
+    template, page settings and choice rows, and a copy of what only it
+    owns, its own skills (Tailor's, `Bank_Skill.built_resume_id`) and its
+    typed wordings (`Bank_Bullet_Variant.built_resume_id`). Shared, those
+    would leave with the source when it is deleted, and an edit on one
+    resume would show on the other. A Tailor wording for a posting is
+    shared already and stays shared.
+
+    Untailored: a posting has one tailored resume
+    (built_resumes_applicant_posting_key), so a copy of a tailored resume
+    keeps its wording and leaves the posting. No duplicate check: the
+    student asked for a copy. NotFound for a resume not theirs."""
+    source = await get_resume(session, applicant_id, source_id)
+    resumes = await list_resumes(session, applicant_id)
+    resume = Built_Resume(
+        id=uuid.uuid4(), applicant_id=applicant_id, name=copy_name(source.name, (r.name for r in resumes)),
+        template=source.template, page_settings=dict(source.page_settings or {}),
+    )
+    session.add(resume)
+    # The resume goes in before the rows that name it (models/CLAUDE.md).
+    await session.flush()
+    skills = {}
+    for skill in (await session.scalars(select(Bank_Skill).where(Bank_Skill.built_resume_id == source.id))).all():
+        clone = _cloned(skill, built_resume_id=resume.id)
+        session.add(clone)
+        skills[skill.id] = clone.id
+    variants = {}
+    for variant in (await session.scalars(
+        select(Bank_Bullet_Variant).where(Bank_Bullet_Variant.built_resume_id == source.id)
+    )).all():
+        clone = _cloned(variant, built_resume_id=resume.id)
+        session.add(clone)
+        variants[variant.id] = clone.id
+    await session.flush()
+    choices = await load_choices(session, source.id)
+    copied = Choices(
+        entries=dict(choices.entries),
+        bullets={
+            i: dataclasses.replace(c, variant_id=variants.get(c.variant_id, c.variant_id))
+            for i, c in choices.bullets.items()
+        },
+        skills={skills.get(i, i): c for i, c in choices.skills.items()},
+    )
+    await write_choices(session, resume.id, copied, fresh=True)
+    await session.refresh(resume)
+    return resume
+
+
+async def from_upload(session: AsyncSession, applicant_id: uuid.UUID, upload_id: uuid.UUID) -> Built_Resume:
+    """A new resume of one upload's own entries and skills (Start From a
+    Resume You Have on an upload, 2026-11-11): each upload owns what its
+    import wrote (ADR 0005), so this is Generate's `base_choices` over that
+    part of the bank, every copy hidden as Generate hides one. Named
+    "<file name> (Copy)". NotFound for an upload not theirs; EmptyUpload
+    for one whose import wrote nothing."""
+    upload = await session.scalar(select(Resume).where(Resume.id == upload_id, Resume.applicant_id == applicant_id))
+    if upload is None:
+        raise NotFound
+    bank = await load_bank(session, applicant_id)
+    own = dataclasses.replace(
+        bank,
+        entries=[e for e in bank.entries if e.row.resume_id == upload.id],
+        skills=[s for s in bank.skills if s.resume_id == upload.id],
+    )
+    if not own.entries and not own.skills:
+        raise EmptyUpload
+    resumes = await list_resumes(session, applicant_id)
+    stem = re.sub(r"\.[A-Za-z0-9]+$", "", upload.original_filename or "") or "Uploaded Resume"
+    resume = Built_Resume(
+        id=uuid.uuid4(), applicant_id=applicant_id, name=copy_name(stem, (r.name for r in resumes)),
+        template=DEFAULT_TEMPLATE,
+    )
+    session.add(resume)
+    await session.flush()
+    await write_choices(session, resume.id, base_choices(own), fresh=True)
+    await default_if_only(session, applicant_id)
+    await session.refresh(resume)
+    return resume
+
+
 async def write_choices(
     session: AsyncSession, resume_id: uuid.UUID, choices: Choices, *, fresh: bool = False
 ) -> None:
@@ -212,7 +321,8 @@ async def write_choices(
         + [Built_Resume_Bullet(built_resume_id=resume_id, bullet_id=i, shown=c.shown, position=c.position,
                                variant_id=c.variant_id)
            for i, c in choices.bullets.items()]
-        + [Built_Resume_Skill(built_resume_id=resume_id, skill_id=i, shown=c.shown, position=c.position)
+        + [Built_Resume_Skill(built_resume_id=resume_id, skill_id=i, shown=c.shown, position=c.position,
+                              group=c.group)
            for i, c in choices.skills.items()]
     )
     await session.flush()
@@ -435,7 +545,7 @@ async def _choices_of(session: AsyncSession, resume_ids: list[uuid.UUID]) -> dic
     for r, wording in bullets:
         found[r.built_resume_id].bullets[r.bullet_id] = BulletChoice(r.shown, r.position, r.variant_id, wording)
     for r in skills:
-        found[r.built_resume_id].skills[r.skill_id] = SkillChoice(r.shown, r.position)
+        found[r.built_resume_id].skills[r.skill_id] = SkillChoice(r.shown, r.position, r.group)
     return found
 
 
@@ -552,7 +662,8 @@ WITH owner AS (
     SELECT * FROM jsonb_to_recordset(CAST(:bullets AS jsonb))
         AS c(bullet_id uuid, shown boolean, position integer, switch boolean, variant_id uuid)
 ), sc AS (
-    SELECT * FROM jsonb_to_recordset(CAST(:skills AS jsonb)) AS c(skill_id uuid, shown boolean, position integer)
+    SELECT * FROM jsonb_to_recordset(CAST(:skills AS jsonb))
+        AS c(skill_id uuid, shown boolean, position integer, "group" text)
 ), e AS (
     UPDATE built_resume_entries r SET
         shown = coalesce(c.shown, r.shown), position = coalesce(c.position, r.position),
@@ -573,7 +684,8 @@ WITH owner AS (
     RETURNING r.bullet_id
 ), s AS (
     UPDATE built_resume_skills r SET
-        shown = coalesce(c.shown, r.shown), position = coalesce(c.position, r.position)
+        shown = coalesce(c.shown, r.shown), position = coalesce(c.position, r.position),
+        "group" = coalesce(c."group", r."group")
     FROM sc c
     WHERE r.built_resume_id IN (SELECT id FROM owner) AND r.skill_id = c.skill_id
     RETURNING r.skill_id
@@ -860,6 +972,8 @@ async def load_header_identity(session: AsyncSession, applicant_id: uuid.UUID) -
             if (url := getattr(profile, field))
         ),
         us_citizen=answers.work_authorization_status == "us_citizen",
+        location=profile.location,
+        extra=profile.resume_header_extra,
     )
 
 
@@ -889,6 +1003,6 @@ def choices_out(choices: Choices, variants: list[VariantResponse]) -> ChoicesRes
         bullets=[BulletChoiceResponse(bullet_id=i, shown=c.shown, position=c.position, variant_id=c.variant_id,
                                       text=c.text)
                  for i, c in choices.bullets.items()],
-        skills=[SkillChoiceResponse(skill_id=i, shown=c.shown, position=c.position)
+        skills=[SkillChoiceResponse(skill_id=i, shown=c.shown, position=c.position, group=c.group)
                 for i, c in choices.skills.items()],
     )

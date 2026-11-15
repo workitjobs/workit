@@ -3,6 +3,8 @@
 import { useState } from "react";
 
 import { CompanyLogo } from "@/components/company-logo";
+import { rowFill } from "@/components/fill-page";
+import { cn } from "@/lib/cn";
 import {
   Dialog,
   DialogContent,
@@ -20,6 +22,7 @@ import {
 } from "@/components/shadcn/table";
 import { Badge } from "@/components/ui/badge";
 import { SearchField } from "@/components/ui/search-field";
+import { NoMatches } from "@/components/ui/no-matches";
 
 import { STAGE_COLOR, STAGE_LABEL } from "../stage-colors";
 import type { Application } from "../tracker";
@@ -77,7 +80,7 @@ export function PickApplication({
     <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
       <DialogContent className="flex max-h-[85vh] flex-col sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle className="text-subtitle font-semibold">Choose Application</DialogTitle>
+          <DialogTitle>Choose Application</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
 
@@ -117,7 +120,7 @@ export function ApplicationTable({
 
       <div className="border-border-surface rounded-card min-h-0 flex-1 overflow-y-auto border">
         {shown.length === 0 ? (
-          <p className="text-body text-ink-meta p-6">No applications match.</p>
+          <NoMatches className="px-4">No applications match.</NoMatches>
         ) : (
           <Table>
             <TableHeader>
@@ -132,7 +135,7 @@ export function ApplicationTable({
                 <TableRow
                   key={job.id}
                   aria-selected={job.id === picked}
-                  className="hover:bg-hover aria-selected:bg-brand-tint cursor-pointer"
+                  className={cn("cursor-pointer", rowFill(job.id === picked))}
                   onClick={() => onPick(job.id)}
                 >
                   <TableCell className={`${TD} max-w-0 py-3`}>

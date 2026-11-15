@@ -35,6 +35,15 @@ DELETE /applicants/{id}/bank/skills/{skill_id}   -> 204
 POST   /applicants/{id}/bank/skills/delete       DeleteMany -> 204, as entries/delete
        A deleted skill is remembered as removed (KAN-369): no reading or
        Tailor adds it again until the student adds it here by hand.
+PUT    /applicants/{id}/bank/skills/order        SkillOrder -> 204
+       The Skills dialog's save (KAN-816): the skills it lists, in their
+       new order, each with its group, so one call renames a group, merges
+       two or moves groups and skills. They take the places they held among
+       the bank's skills; the rest keep theirs. One id that is not the
+       applicant's bank skill answers 404 and changes nothing; an id listed
+       twice is 422. GET /bank lists skills in this order, and a skill
+       never placed after the placed ones by group and name; a skill added
+       after an order goes last.
 POST   /applicants/{id}/bank/sections            CustomSectionCreate -> 201 CustomSectionResponse
        A section the student names (KAN-498): `layout` "entries" or
        "lines". ?resume_id= as for entries (an upload owns it; under a built
@@ -71,6 +80,7 @@ import logging
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import PurePosixPath
 
 from fastapi import APIRouter, Depends, HTTPException, Response
 from fastapi.exceptions import RequestValidationError
@@ -80,7 +90,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from workit_scout.llm import LLM
 
-from app.db import get_session
+from app.db import get_session, get_supabase
 from app.deps import get_current_account, owned_applicant
 from app.models.resume import Resume
 from app.queries.bank import owned_upload_id
@@ -101,14 +111,16 @@ from app.schemas.bank import (
     ImportRequest,
     ImportResponse,
     SkillCreate,
+    SkillOrder,
     SkillResponse,
     SkillUpdate,
 )
 from app.services import bank as service
-from app.services import built_resumes
+from app.services import built_resumes, header_fill, stored_files
 from app.services.bank import bank_response, entry_response
 from app.services.models import get_llm
 from app.services.resume_reading import read_upload
+from app.services.text_extraction import extract
 
 router = APIRouter(prefix="/applicants/{applicant_id}/bank", tags=["bank"])
 logger = logging.getLogger(__name__)
@@ -338,6 +350,17 @@ async def delete_skills(
     return Response(status_code=204)
 
 
+@router.put("/skills/order", status_code=204)
+async def order_skills(
+    body: SkillOrder,
+    applicant_id: uuid.UUID = Depends(owned_applicant),
+    session: AsyncSession = Depends(get_session),
+) -> Response:
+    async with _writing(session):
+        await service.order_skills(session, applicant_id, [(s.id, s.group) for s in body.skills])
+    return Response(status_code=204)
+
+
 @router.post("/sections", status_code=201, response_model=CustomSectionResponse)
 async def create_section(
     body: CustomSectionCreate,
@@ -385,6 +408,39 @@ async def _resume_to_import(session: AsyncSession, applicant_id: uuid.UUID, resu
     return resume
 
 
+async def _text_again(resume: Resume) -> str | None:
+    """The upload's text extracted again from its file, so Import Again
+    reads it as an upload is read today (KAN-809): an upload from before a
+    fix to text extraction kept its old text (words with no space between
+    them before KAN-303's `pdf_spaces`, 2026-11-05), and Import Again read
+    that again. The stored text when the file cannot be read or holds none:
+    Import Again never fails over Storage."""
+    if not resume.storage_path:
+        return resume.raw_text
+    try:
+        contents = await stored_files.read(get_supabase, resume.storage_path)
+        again = await extract(contents, PurePosixPath(resume.storage_path).suffix.lower()) if contents else None
+    # Storage down, or the file refused by extraction: the stored text stands
+    except Exception as exc:
+        logger.warning("Import Again read the stored text: the file could not be read again: %r", exc)
+        return resume.raw_text
+    return again or resume.raw_text
+
+
+async def _keep_text(session: AsyncSession, applicant_id: uuid.UUID, resume: Resume, raw_text: str | None) -> None:
+    """The text read again, stored with its hash (routers/resumes.py's
+    `text_hash`), so the next read and the duplicate check see it. The hash
+    stays empty when another upload of the student holds it: the two are
+    one resume, and the hash is unique per student."""
+    from app.routers.resumes import _duplicate_of, text_hash
+
+    if raw_text == resume.raw_text:
+        return
+    digest = text_hash(raw_text)
+    taken = await _duplicate_of(session, applicant_id, digest, besides=resume.id)
+    resume.raw_text, resume.text_hash = raw_text, None if taken is not None else digest
+
+
 @router.post("/import", response_model=ImportResponse)
 async def import_resume(
     body: ImportRequest,
@@ -394,13 +450,19 @@ async def import_resume(
     session: AsyncSession = Depends(get_session),
 ) -> ImportResponse:
     resume = await _resume_to_import(session, applicant_id, body.resume_id)
-    # The stored text, read again, so a resume uploaded before a parser fix
-    # gets the fix. The AI use, if any, commits with the bank writes below.
-    # The parser's custom sections (KAN-498) come through the combined
-    # reading: the AI reads only the fixed sections, so they have no twin there.
-    reading, left = await read_upload(session, applicant_id, account, resume.raw_text, llm)
+    # The file read again, so a resume uploaded before a fix to extraction
+    # or the parser gets the fix (`_text_again`). The AI use, if any,
+    # commits with the bank writes below. The parser's custom sections
+    # (KAN-498) come through the combined reading: the AI reads only the
+    # fixed sections, so they have no twin there.
+    raw_text = await _text_again(resume)
+    reading, left = await read_upload(session, applicant_id, account, raw_text, llm)
     async with _writing(session):
+        await _keep_text(session, applicant_id, resume, raw_text)
         imported = await service.import_upload(session, applicant_id, resume.id, reading.entries, reading.skills)
+        # Import Again reads the header too (KAN-436), filling only the
+        # profile's empty fields, as an upload does
+        header = await header_fill.fill_from_header(session, applicant_id, raw_text)
     return ImportResponse(
         resume_id=resume.id,
         filename=resume.original_filename,
@@ -409,5 +471,6 @@ async def import_resume(
         skills_added=imported.skills_added,
         read_by=reading.read_by,
         uses_left=left,
+        header=header,
     )
 

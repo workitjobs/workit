@@ -7,15 +7,20 @@ not issue is refused, an expired access token gets 401, and a refresh token
 works one time (Supabase rotates it on each use). Every other path gets 404,
 so a test never reaches the real WorkIt.
 
+`browser` is the student on WorkIt's /app-sign-in page (W5): it gives a code
+bound to the page's PKCE challenge, and `POST /apply-app/session` trades it
+once, for the verifier that challenge was made from.
+
 Use it as a context manager:
 
     with FakeWorkIt() as fake:
-        client = WorkIt(fake.site, tmp_path / "workit-login.json")
+        client = WorkIt(fake.site, tmp_path / "workit-login.json", fake.keychain)
 
 Later tickets add WorkIt's write routes with `route(method, path, handler)`.
 """
 
 import base64
+import hashlib
 import itertools
 import json
 import threading
@@ -24,8 +29,9 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Self
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 
+from apply.keychain import InMemoryKeychain
 from apply.workit import Site
 
 ANON_KEY = "fake-anon-key"
@@ -61,12 +67,16 @@ class FakeWorkIt:
         self.requests: list[Seen] = []
         self._access: dict[str, float] = {}  # access token: when it expires
         self._refresh: set[str] = set()  # refresh tokens not used yet
+        self._codes: dict[str, str] = {}  # sign-in code: its PKCE challenge
+        self._code_numbers = itertools.count(1)
+        self.lifetime = 3600  # each new session's seconds, refreshed ones too
+        self.keychain = InMemoryKeychain()  # the student's keychain, where a client keeps the refresh token
         self._numbers = itertools.count(1)
         self._lock = threading.Lock()
         self._routes: dict[tuple[str, str], Handler] = {
             ("POST", "/auth/v1/token"): _token,
             ("GET", "/auth/me"): _me,
-            ("GET", "/login"): _login_page,
+            ("POST", "/apply-app/session"): _trade,
         }
         self._server = ThreadingHTTPServer(("127.0.0.1", 0), _handler(self))
         self.url = f"http://127.0.0.1:{self._server.server_address[1]}"
@@ -90,8 +100,9 @@ class FakeWorkIt:
         """Answer `method path` (no query string) with `handler`."""
         self._routes[(method, path)] = handler
 
-    def session(self, expires_in: int = 3600) -> dict:
-        """A new session, shaped as Supabase Auth returns it."""
+    def session(self, expires_in: int | None = None) -> dict:
+        """A new session, shaped as Supabase Auth returns it, for `expires_in` seconds (`lifetime`)."""
+        expires_in = expires_in or self.lifetime
         with self._lock:
             n = next(self._numbers)
             access, refresh = f"access-{n}", f"refresh-{n}"
@@ -101,10 +112,14 @@ class FakeWorkIt:
         return {"access_token": access, "refresh_token": refresh, "expires_in": expires_in,
                 "expires_at": expires_at, "token_type": "bearer", "user": {"id": self.account["id"]}}
 
-    def cookies(self, session: dict) -> dict[str, str]:
-        """The session cookie as WorkIt's web app sets it (@supabase/ssr: `base64-` and base64url JSON)."""
-        raw = base64.urlsafe_b64encode(json.dumps(session).encode()).decode().rstrip("=")
-        return {self.site.cookie: f"base64-{raw}"}
+    def browser(self, url: str) -> str:
+        """The student's own browser on WorkIt's /app-sign-in page, signed in: the one-time code the page
+        gives, bound to the URL's PKCE challenge (`workit.login`'s `browser`)."""
+        [challenge] = parse_qs(urlsplit(url).query)["challenge"]
+        with self._lock:
+            code = f"code-{next(self._code_numbers)}"
+            self._codes[code] = challenge
+        return code
 
     def expire(self) -> None:
         """Let every access token expire, as an hour passing does. The refresh tokens still work."""
@@ -147,12 +162,16 @@ def _me(seen: Seen, fake: FakeWorkIt) -> Reply:
     return Reply(200, fake.account)
 
 
-def _login_page(seen: Seen, fake: FakeWorkIt) -> Reply:
-    """WorkIt's sign-in page, already signed in: it sets a new session's cookie, as the web app does after a
-    sign-in."""
-    [(name, value)] = fake.cookies(fake.session()).items()
-    return Reply(200, headers={"Set-Cookie": f"{name}={value}; Path=/; HttpOnly; SameSite=Lax"},
-                 html="<!doctype html><title>WorkIt</title><p>Signed in.</p>")
+def _trade(seen: Seen, fake: FakeWorkIt) -> Reply:
+    """The app's code for a session, once, with the verifier of the code's challenge (RFC 7636's S256)."""
+    body = seen.body or {}
+    with fake._lock:
+        challenge = fake._codes.pop(body.get("code", ""), None)
+    digest = hashlib.sha256(str(body.get("verifier", "")).encode()).digest()
+    if challenge is None or base64.urlsafe_b64encode(digest).rstrip(b"=").decode() != challenge:
+        return Reply(400, {"detail": "That sign-in is over. Sign in again from WorkIt Auto Apply."})
+    session = fake.session()
+    return Reply(200, {key: session[key] for key in ("access_token", "refresh_token", "expires_at")})
 
 
 def _handler(fake: FakeWorkIt) -> type[BaseHTTPRequestHandler]:

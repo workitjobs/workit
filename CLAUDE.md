@@ -46,8 +46,11 @@ none.
   lists every endpoint it calls.
 - `apply-agent/` — Apply (KAN-534): a Python command-line agent (uv,
   Playwright) that fills job applications in its own Chrome workers, writes
-  answers with Claude and never submits in a rehearsal. A developer tool,
-  not a student feature. It loads the Fill engine from the extension's
+  answers with Claude and never submits in a rehearsal. A developer tool
+  today; KAN-723 designs WorkIt Auto Apply, its downloadable student app,
+  and moves Apply to the private repo `workitjobs/apply-agent`
+  (`docs/desktop_application_auto_apply.md`).
+  It loads the Fill engine from the extension's
   submodule, keeps personal data only in `APPLY_HOME`, never in the repo,
   and has its own glossary and ADRs (`GLOSSARY-MAP.md`). Read
   `apply-agent/CLAUDE.md` before any change there.
@@ -209,12 +212,12 @@ with the failure it prevents.
   it prints last (a Summary first), Fit cuts it first and Tailor reads it as
   any entry. Read it before changing the bank's sections, a resume's
   section order or import's headings.
-- `docs/cover_letters.md` — KAN-766's cover letters design, a draft for
-  review, not built: the Documents page's Cover Letters tab lists the
-  letters WorkIt wrote as written answers, then uploads (a new
-  `cover_letters` table), then records the letter each application sent
-  (`sent_cover_letter_id`), then writes one in WorkIt. Read it before
-  building any of it.
+- `docs/cover_letters.md` — KAN-766's cover letters design, step 1 built:
+  the Documents page's Cover Letters tab lists the letters WorkIt wrote
+  as written answers (`GET /applicants/{id}/cover-letters`). The rest is
+  a draft for review: uploads (a new `cover_letters` table), then the
+  letter each application sent (`sent_cover_letter_id`), then writing one
+  in WorkIt. Read it before building any of it.
 - `docs/live_page.md` — the editor's live page (KAN-391), step 1 partly
   built: each edit renders from the editor's copy with no database read
   while its save writes beside it, and the page below a typed line
@@ -243,6 +246,26 @@ with the failure it prevents.
   student's email.
 - `docs/whats-new-2026-11-05.md` — what a teammate must do after the rename to
   `workitjobs`, and the new Apply settings and commands.
+- `docs/desktop_application_auto_apply.md` — KAN-723's design for WorkIt
+  Auto Apply, decided 2026-11-13, being built (its section 6 says where
+  each workstream stands): Apply as a downloadable Mac
+  app beside the extension. Its 34 decisions (every model call through
+  WorkIt's Model route with a daily Usage cap and personal data
+  replaced; no research in the app; the Fill engine downloaded encrypted;
+  the Worker extension on the Chrome Web Store through the Debugger API;
+  a native window with no port; Apple Silicon only; Apply moved to the
+  private repo `workitjobs/apply-agent`), the v1 app end to end,
+  workstreams W0 to W13 that sessions can take one at a time, future work
+  (a hosted `drive` loop next, the company brief pipeline with Tavily,
+  Windows and Linux), and the costs. Built (2026-11-14): Apply's prompts are on the
+  server (`backend/app/apply_prompts/`, D5): the app sends a kind and its
+  data, never a prompt. Read it before changing Apply toward a
+  download, the Model route, or where Apply's data comes from.
+- `docs/developer_apply_agent_testing_framework.md` — urgent, not built:
+  how developers keep testing Apply once its prompts live on the server
+  (a prompt route for developer accounts, so `ask_model: claude` runs
+  the server's prompts). Read it before changing how a Developer
+  checkout reaches a model.
 - `docs/scraper_gh_action/plan.md` — KAN-726, built: the scheduled
   scrape runs on a team computer as a self-hosted runner (PR runs stay on
   GitHub's), with keywords from a local Qwen and every vector, jobs and
@@ -327,7 +350,7 @@ with the failure it prevents.
 - **A PR that touches the submit or drive guards gets an adversarial review
   before it merges** (KAN-666). The guards are `apply-agent/src/apply/submit_guard.py`,
   `plain/guards.py`, `send_click.py`, and any code that sets a guard flag or
-  presses through one. A second reviewer tries to make the change send an
+  presses through one (the keep-alive's stay press, `keepalive.press`). A second reviewer tries to make the change send an
   application, and the PR merges only once each way they find is fixed. A
   new click path, or a new way a page can trick the guard, joins
   `apply-agent/tests/test_submit_guard_hostile.py` in the same PR.

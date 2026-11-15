@@ -56,6 +56,11 @@ export type SuggestionsApi = {
   show: (key: string) => void;
   active: string | null;
   open: (key: string | null) => void;
+  /** Tailor's marks on the page (tints, outlines, margin dots): off when so
+   *  many lines changed that they get in the way of reading it. The panel's
+   *  own switch since KAN-799; it sat in the toolbar beside the title row's
+   *  Suggestions, two controls for one thing. */
+  marks: { shown: boolean; onToggle: () => void };
 };
 
 /** What the editor hands the popup beside a changed line it has open. */

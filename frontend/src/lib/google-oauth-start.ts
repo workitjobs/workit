@@ -31,11 +31,14 @@ export function googleClient(): { id: string; secret: string } | null {
  * and returns Google's consent URL to redirect to. Null when the Google
  * client isn't configured. See lib/google-oauth.ts for why.
  */
-export async function startGoogleFlow(mode: GoogleFlow["mode"]): Promise<string | null> {
+export async function startGoogleFlow(
+  mode: GoogleFlow["mode"],
+  next: string | null = null,
+): Promise<string | null> {
   const client = googleClient();
   if (!client) return null;
 
-  const flow: GoogleFlow = { state: randomToken(), nonce: randomToken(), mode };
+  const flow: GoogleFlow = { state: randomToken(), nonce: randomToken(), mode, next };
   const cookieStore = await cookies();
   cookieStore.set(GOOGLE_FLOW_COOKIE, JSON.stringify(flow), {
     httpOnly: true,

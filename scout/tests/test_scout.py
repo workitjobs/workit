@@ -13,16 +13,18 @@ from openai import (
     APIConnectionError,
     APIStatusError,
     AsyncOpenAI,
+    AuthenticationError,
     BadRequestError,
     InternalServerError,
     RateLimitError,
 )
 from pydantic import BaseModel
+from referencing.exceptions import Unresolvable
 from workit_scout import llm as llm_module
 from workit_scout.agent import MAX_REPLY_CHARS, run
 from workit_scout.facts import bank_facts, job_facts
 from workit_scout.identity import Identity
-from workit_scout.llm import LLM
+from workit_scout.llm import LLM, Spent
 from workit_scout.schemas import (
     ChatMessage,
     ErrorEvent,
@@ -216,6 +218,8 @@ def mocked(sent: list, finish_reason: str = "stop") -> LLM:
             )
         message = {"role": "assistant", "content": content}
         choice = {"index": 0, "message": message, "finish_reason": finish_reason}
+        # Reasoning counted in the total only, as Gemini's endpoint does.
+        usage = {"prompt_tokens": 7, "completion_tokens": 2, "total_tokens": 12}
         return httpx.Response(
             200,
             json={
@@ -224,6 +228,7 @@ def mocked(sent: list, finish_reason: str = "stop") -> LLM:
                 "created": 0,
                 "model": "m",
                 "choices": [choice],
+                "usage": usage,
             },
         )
 
@@ -268,6 +273,93 @@ def test_a_reply_cap_is_sent_and_a_reply_stopped_at_it_is_cut_off():
             )
         )
     assert sent[0]["max_tokens"] == 500
+
+
+# --- a schema as data (the Model route, KAN-723) ----------------------------------
+
+CHOICE = {
+    "type": "object",
+    "properties": {"choice": {"type": ["integer", "null"]}},
+    "required": ["choice"],
+}
+
+
+def ask_schema(llm: LLM, content: str = "pick one", schema=CHOICE, identity=Identity()):
+    messages = [{"role": "user", "content": content}]
+    return asyncio.run(llm.complete_schema(messages, schema, identity=identity))
+
+
+@pytest.mark.parametrize("bad", ['{"choice": "two"}', "Sure! {"])
+def test_an_answer_outside_the_schema_moves_down_the_chain_and_still_costs(bad):
+    answer, spent = ask_schema(ScriptedLLM([bad], ['{"choice": 1}']))
+    assert answer == {"choice": 1}
+    assert spent.output_tokens == len(bad) + len('{"choice": 1}')
+
+
+def test_an_answer_that_fits_no_endpoint_is_rejected_with_what_it_cost():
+    with pytest.raises(llm_module.InvalidReply) as raised:
+        ask_schema(ScriptedLLM(["{}"], ["[]"]))
+    assert raised.value.spent.output_tokens == 4
+
+
+def test_a_schema_call_moves_on_at_a_429_or_a_400_and_stops_at_a_wrong_key():
+    assert ask_schema(ScriptedLLM(rate_limited(), ['{"choice": null}']))[0] == {"choice": None}
+    # A 400 refuses the request (its schema, or Groq's json_validate_failed).
+    assert ask_schema(ScriptedLLM(bad_request(), ['{"choice": 1}']))[0] == {"choice": 1}
+    with pytest.raises(llm_module.InvalidReply):
+        ask_schema(ScriptedLLM(bad_request(), bad_request()))
+    wrong_key = AuthenticationError("bad key", response=httpx.Response(401, request=_REQUEST), body=None)
+    with pytest.raises(llm_module.ScoutUnavailable) as raised:
+        ask_schema(ScriptedLLM(wrong_key, ['{"choice": 1}']))
+    assert not isinstance(raised.value, llm_module.InvalidReply)
+
+
+def test_an_answer_nested_too_deep_to_read_moves_down_the_chain():
+    deep = "[" * 20_000 + "]" * 20_000
+    assert ask_schema(ScriptedLLM([deep], ['{"choice": 1}']))[0] == {"choice": 1}
+
+
+def test_a_failure_log_never_holds_the_providers_error_body(caplog):
+    body = {"code": "json_validate_failed", "failed_generation": "Dear team, I am Sam Seeker"}
+    # The SDK's own text for it: the status and the whole body.
+    refused = BadRequestError(f"Error code: 400 - {body}", response=httpx.Response(400, request=_REQUEST), body=body)
+    ask_schema(ScriptedLLM(refused, ['{"choice": 1}']))
+    assert "HTTP 400 json_validate_failed" in caplog.text
+    assert "Sam Seeker" not in caplog.text
+
+
+def test_a_schema_call_sends_no_identity_data_and_puts_it_back_in_the_answer():
+    fake = ScriptedLLM(['{"note": "[name], at [email]"}'])
+    note = {"type": "object", "properties": {"note": {"type": "string", "maxLength": 30}}}
+    answer, _ = ask_schema(fake, "Sam Seeker at sam@example.com", note, identity=Identity(name="Sam Seeker"))
+    assert fake.prompts == [[{"role": "user", "content": "[name] at [email]"}]]
+    assert answer == {"note": "Sam Seeker, at sam@example.com"}
+
+
+def test_a_schema_call_checks_the_answer_with_the_values_back_in():
+    # "[email]" fits maxLength 10; the address it stands for does not.
+    short = {"type": "object", "properties": {"to": {"type": "string", "maxLength": 10}}}
+    with pytest.raises(llm_module.InvalidReply):
+        ask_schema(ScriptedLLM(['{"to": "[email]"}']), "mail sam.seeker@example.com", short)
+
+
+def test_a_schema_call_never_fetches_a_remote_ref(monkeypatch):
+    def fetched(*args, **kwargs):
+        raise AssertionError("fetched a $ref")
+
+    monkeypatch.setattr("urllib.request.urlopen", fetched)
+    remote = {"type": "object", "properties": {"x": {"$ref": "http://169.254.169.254/x"}}}
+    with pytest.raises(Unresolvable):
+        ask_schema(ScriptedLLM(['{"x": 1}']), schema=remote)
+
+
+def test_a_schema_call_sends_the_schema_as_given_and_reads_the_tokens():
+    sent = []
+    schema = {"type": "object", "required": ["title"]}
+    answer, spent = ask_schema(mocked(sent), schema=schema)
+    assert answer == {"title": "T", "bullets": []}
+    assert sent[0]["response_format"]["json_schema"] == {"name": "answer", "schema": schema}
+    assert spent == Spent(7, 5)
 
 
 # --- configuration ----------------------------------------------------------------

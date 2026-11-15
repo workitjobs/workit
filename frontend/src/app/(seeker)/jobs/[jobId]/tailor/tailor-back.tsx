@@ -2,7 +2,7 @@
 
 import { ArrowLeftIcon } from "@phosphor-icons/react/ssr";
 
-import { ButtonLink } from "@/components/ui/button";
+import { Button, ButtonLink } from "@/components/ui/button";
 
 import { useTailorReview } from "../../../resumes/[resumeId]/tailor-review";
 import { TAILOR_STEPS } from "./tailor-steps";
@@ -32,12 +32,37 @@ export function useTailorBack(jobId: string, resumeId: string) {
   };
 }
 
+/** Every seeker Back's arrow, leaning back while its button is hovered. */
+const ARROW =
+  "ease-glide size-3.5 transition-transform duration-200 group-hover/back:-translate-x-0.5";
+
 export function TailorBack({ jobId, resumeId }: { jobId: string; resumeId: string }) {
   const { href } = useTailorBack(jobId, resumeId);
   return (
     <ButtonLink href={href} variant="secondary" size="sm" className="group/back justify-self-start">
-      <ArrowLeftIcon className="ease-glide size-3.5 transition-transform duration-200 group-hover/back:-translate-x-0.5" />
+      <ArrowLeftIcon className={ARROW} />
       Back
     </ButtonLink>
+  );
+}
+
+/**
+ * Choose Keywords' Back to Pick a Resume, drawn as `TailorBack` but in
+ * place: the step is ./tailor-screen.tsx's state, so the pick, its match
+ * and the picked keywords stay. It was a plain button whose arrow stood
+ * still until KAN-822.
+ */
+export function TailorStepBack({ onClick, disabled }: { onClick: () => void; disabled?: boolean }) {
+  return (
+    <Button
+      variant="secondary"
+      size="sm"
+      className="group/back justify-self-start"
+      disabled={disabled}
+      onClick={onClick}
+    >
+      <ArrowLeftIcon className={ARROW} />
+      Back
+    </Button>
   );
 }

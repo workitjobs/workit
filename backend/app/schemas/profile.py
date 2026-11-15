@@ -37,6 +37,8 @@ class ApplicantProfileResponse(BaseModel):
     github_url: str | None
     other_url: str | None
     location: str | None = None
+    # The resume header's Additional line (KAN-436)
+    resume_header_extra: str | None = None
     # KAN-298: the Settings opt-in for the daily job-match digest (bell and
     # email alike). Off until the student turns it on.
     job_alerts_enabled: bool
@@ -104,6 +106,9 @@ class FillAnswersMerged(BaseModel):
 
 
 LINK_FIELDS = ("linkedin_url", "portfolio_url", "github_url", "other_url")
+# The resume header's Additional line fits one line of the contact line's
+# small type (KAN-436): longer, it wraps and the header grows
+RESUME_HEADER_EXTRA_MAX = 100
 
 
 def web_link(value: str | None) -> str | None:
@@ -150,10 +155,13 @@ class ApplicantProfileUpdate(BaseModel):
     other_url: str | None = Field(None, max_length=500)
     # Where the student lives (KAN-372), as forms ask it: "Stony Brook, NY".
     location: str | None = Field(None, max_length=100)
+    # The resume header's Additional line (KAN-436): one short line
+    resume_header_extra: str | None = Field(None, max_length=RESUME_HEADER_EXTRA_MAX)
     job_alerts_enabled: bool | None = None
 
     @field_validator(
-        "contact_email", "phone_number", "headline", "middle_name", "location", *LINK_FIELDS, mode="before"
+        "contact_email", "phone_number", "headline", "middle_name", "location", "resume_header_extra", *LINK_FIELDS,
+        mode="before",
     )
     @classmethod
     def _blank_is_none(cls, value: object) -> object:
@@ -163,3 +171,22 @@ class ApplicantProfileUpdate(BaseModel):
     @classmethod
     def _web_link(cls, value: str | None) -> str | None:
         return web_link(value)
+
+
+class HeaderOffer(BaseModel):
+    """A value the header has that differs from the profile's: the note's
+    Use This saves it (PATCH .../profile)."""
+
+    field: str
+    value: str
+
+
+class HeaderFill(BaseModel):
+    """What an upload's header did to the profile: each field it filled,
+    with the value; what it offers in place of a value the profile already
+    has; and whether free text was left that the Additional line could not
+    take."""
+
+    added: dict[str, str] = {}
+    offers: list[HeaderOffer] = []
+    overflow: bool = False

@@ -1,4 +1,6 @@
-import { useEffect, useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
+
+import { useFillPage } from "@/components/fill-page";
 
 import { cn } from "@/lib/cn";
 
@@ -43,7 +45,7 @@ const FILL_PAGE = "max-h-[max(calc(0.25rem+5*3.75rem+0.75rem),var(--fill-height,
 
 /**
  * The list's one scroll, five cards high, not the shared
- * `max-h-scroll-box` (320px) that Top Matches uses, so a card is never cut
+ * `max-h-scroll-box` (320px) that Add Jobs uses, so a card is never cut
  * at the foot. With `fill`
  * (a page's list: the Resumes page, KAN-434, and Tailor's Pick a Resume,
  * KAN-576) it runs down to the foot of the page instead: five cards left
@@ -75,35 +77,4 @@ export function ResumeScroll({
       {children}
     </ul>
   );
-}
-
-/**
- * The room under the list, as `--fill-height` on it: the page's scroll
- * area (`main`) below the list's top, less the page's 24px foot (`py-6`)
- * and the card's 1px border. The top is measured from the start of the
- * page, not the window, so the cap holds still while the page scrolls: a
- * cap that grew as the list's top rose would grow the page with it. Read
- * again when `main` resizes (the window) or the page does (an upload's
- * note above the list).
- */
-function useFillPage(on: boolean, below: number) {
-  const [el, setEl] = useState<HTMLElement | null>(null);
-  useEffect(() => {
-    const page = el?.closest("main");
-    if (!on || !el || !page) return;
-    const fit = () => {
-      const top =
-        el.getBoundingClientRect().top - page.getBoundingClientRect().top + page.scrollTop;
-      el.style.setProperty(
-        "--fill-height",
-        `${Math.round(page.clientHeight - top - 25 - below)}px`,
-      );
-    };
-    fit();
-    const observer = new ResizeObserver(fit);
-    observer.observe(page);
-    if (page.firstElementChild) observer.observe(page.firstElementChild);
-    return () => observer.disconnect();
-  }, [on, el, below]);
-  return setEl;
 }

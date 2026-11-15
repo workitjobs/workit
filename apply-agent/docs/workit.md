@@ -7,25 +7,48 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
 `src/apply/workit.py` is the only module in Apply that calls WorkIt. Do not
 call WorkIt from another module; add a method to `WorkIt` that uses `call`.
 
-- `uv run apply login` opens WorkIt's sign-in page (`/login`) in a new
-  Chrome with an empty, temporary profile. The student signs in there
-  (password, Google or LinkedIn). Apply never types into it. Apply reads the
-  web app's session cookie through Chrome's DevTools port, as the extension
-  reads it (`webapp-session.js`), and checks it with `GET /auth/me`. Then
-  Apply closes that Chrome and deletes its profile. Chrome starts as a plain
-  process, not from Playwright. Its DevTools port alone sets
-  `navigator.webdriver`, and Google's sign-in then refuses it (2026-11-03),
-  so it starts with `--disable-blink-features=AutomationControlled` too.
-- Because that browser is gone, only Apply has the session. Apply refreshes
+- `uv run apply login` signs in through the student's own browser, with no
+  port (KAN-723, W5 of `../docs/desktop_application_auto_apply.md`, D12).
+  Apply makes a PKCE verifier (`workit.pkce`) and opens WorkIt's
+  `/app-sign-in?challenge=...` page in the default browser. The student
+  signs in there as on the website (password, Google or LinkedIn) and
+  presses Sign In to the App, and the page shows a one-time code, which
+  they paste into the terminal. `WorkIt.trade` sends the code and the
+  verifier to `POST /apply-app/session`, which answers a new Supabase
+  session of Apply's own (`backend/app/services/app_sign_in.py`). A code
+  works once, for 5 minutes, and only with the verifier its challenge was
+  made from; a refused one is `SignInOver`. Pasting is the Developer
+  checkout's way, since macOS hands the page's `workit-auto-apply://` link
+  only to the built app (W8), and the page shows the code only to
+  WorkIt's admins (`WORKIT_ADMINS`; `../docs/auth.md` says why). The link
+  itself, pasted in place of the code, works too. The line with the page's
+  link goes straight to the terminal, past the shell's mask
+  (`apply.masked` hides the challenge, a long opaque value): a developer
+  whose browser doesn't open needs it, and the challenge is no secret.
+  This replaced a new Chrome with a debugging port that read the
+  website's cookie (KAN-541): D11 forbids the port, and Chrome refuses one
+  on the student's own profile.
+- The session is Apply's alone, never the website's. Apply refreshes
   the access token itself at Supabase Auth
   (`/auth/v1/token?grant_type=refresh_token`, with the public anon key) and
   keeps the new refresh token: Supabase rotates it on each use. The
   extension must not do this (its CLAUDE.md, KAN-465), but Apply's session
   is not shared with a web app. A lock file (`workit-login.lock`) stops two
   processes from using one refresh token.
-- The session is in `APPLY_HOME/workit-login.json` (mode 0600), with the
-  Supabase URL that it belongs to. Never print it, log it or put it in a
-  Record. To log out, delete the file.
+- The session's refresh token is in the system's keychain (`keyring`:
+  Keychain on a Mac, Credential Manager on Windows), item `apply-workit`,
+  its account the Supabase URL it belongs to, so a local stack's login is
+  its own. The access token lives only in memory (`workit._ACCESS`),
+  shared by every client in the process, so a new process refreshes once:
+  Windows keeps at most 2,560 bytes an item, less than an access token can
+  be. Tests start with it empty (`conftest.py`). **A keychain that won't
+  answer** (a locked one, a Deny on macOS's prompt) is `NotLoggedIn` on a
+  read and `LoginExpired` on a save, never a plain `WorkItError`, and
+  `logged_in()` is False: the writes and the Answer bank sync keep what
+  waits on those, and drop only what WorkIt refused. Never print, log or put either in a
+  Record. To log out, delete the item in Keychain Access. The file Apply
+  kept before 2026-11-15 (`workit-login.json`) goes at the next save.
+  Tests give `WorkIt` a keychain (`fake.keychain`, `InMemoryKeychain`).
 - The API checks the bearer token (`backend/app/deps.py`, `security.py`).
   `call(method, path, body)` sends one request as the student. On a 401 it
   refreshes one time and tries again. `applicant_id()` is the student's id
@@ -41,9 +64,9 @@ call WorkIt from another module; add a method to `WorkIt` that uses `call`.
 - `apply doctor` has a "WorkIt" line. It is optional, as Gmail is: no
   login, an expired login, WorkIt that cannot be reached, and a company
   account are each a warn with a fix line, never a fail. A user with no
-  WorkIt account still rehearses. When the access token expired, doctor
-  refreshes it and saves the login again. This is the only write that
-  doctor makes.
+  WorkIt account still rehearses. Doctor, as a new process, refreshes the
+  access token once and saves the rotated refresh token in the keychain.
+  This is the only write that doctor makes.
 - Each request sends the `User-Agent` `WorkIt-Apply/1`. Cloudflare, in
   front of WorkIt's API, refuses the Python-urllib user agent (error 1010).
 - `workit.LIVE` holds the live URLs and the anon key. They are the same
@@ -55,13 +78,14 @@ call WorkIt from another module; add a method to `WorkIt` that uses `call`.
 **Tests.** `tests/fake_workit.py` is a fake WorkIt: one local HTTP server
 that answers as Supabase Auth and WorkIt's API, and records each request
 (`fake.requests`). Use `with FakeWorkIt() as fake:` and
-`WorkIt(fake.site, tmp_path / "workit-login.json")`. `fake.session()` makes
-a session, `fake.cookies(session)` gives the web app's cookie for it,
+`WorkIt(fake.site, tmp_path / "workit-login.json", fake.keychain)`, and
+`workit.login(client, fake.browser)` to sign in: `fake.browser` is the
+student on `/app-sign-in`, giving a code bound to the page's challenge.
+`fake.session()` makes a session (`fake.lifetime` seconds),
 `fake.expire()` lets the access tokens expire, `fake.revoke()` signs out
 every session, and `fake.stop()` makes WorkIt unreachable. Add a WorkIt
 route with `fake.route(method, path, handler)`. `test_workit_login.py` needs
-no browser and is in CI. `test_workit_sign_in_browser.py` opens Chromium
-against the fake's `/login`, so run it on your Mac.
+no browser and is in CI.
 
 ## `apply import-sheet`: the Tracker Sheet into the Applications Tracker (KAN-545)
 

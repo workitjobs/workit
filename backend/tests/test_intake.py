@@ -141,6 +141,27 @@ async def test_the_turn_says_what_title_and_organization_hold_in_the_section(app
     assert "organization is a college or department" in context
 
 
+async def test_a_degree_said_only_by_its_level_is_asked_about_once_more(applicant, client):
+    # KAN-812: "bachelor's" from the chat printed as the degree
+    model = use_model([reply()])
+    card = {"section": "education", "title": "Example State University", "degree": "bachelor's",
+            "field_of_study": "Computer Science"}
+    await client.post("/intake/turn", json={**TURN, "section": "education", "draft": card})
+    context = model.prompts[0][1]["content"]
+    assert "The draft already has: title, field_of_study." in context
+    assert "degree (\"bachelor's\" is only its level: ask which one, such as Bachelor of Science" in context
+
+
+async def test_a_degree_s_own_name_is_never_asked_about_again(applicant, client):
+    model = use_model([reply()])
+    card = {"section": "education", "title": "Example State University", "degree": "Bachelor of Science",
+            "field_of_study": "Computer Science"}
+    await client.post("/intake/turn", json={**TURN, "section": "education", "draft": card})
+    context = model.prompts[0][1]["content"]
+    assert "The draft already has: title, degree, field_of_study." in context
+    assert "only its level" not in context
+
+
 async def test_a_draft_that_breaks_the_entry_schema_does_not_count(applicant, client, cap):
     # The first JSON route: an invalid reply is an error line and costs nothing.
     cap(1)

@@ -91,11 +91,13 @@ from app.schemas.bank import (
     PreviewSkill,
     ResumePreview,
 )
+from app.schemas.profile import HeaderFill
 from app.schemas.resume import ResumeRename
 from app.services import (
     bank,
     bank_import,
     built_resumes,
+    header_fill,
     local_files,
     sent_resumes,
     skill_catalog,
@@ -294,6 +296,8 @@ async def upload_resume(
         await bank.remember_removed(session, applicant_id, removed_skills)
         imported = await bank.import_upload(
             session, applicant_id, resume.id, entries, skills, replace_matching=replace == "matching")
+        # The header fills the profile's empty fields, with the upload (KAN-436)
+        header = await header_fill.fill_from_header(session, applicant_id, raw_text)
         await built_resumes.default_if_only(session, applicant_id)
         default_id = await _default_id(session, applicant_id)
         await session.commit()
@@ -304,7 +308,7 @@ async def upload_resume(
         await _raise_if_raced(session, exc, applicant_id, digest)
         raise HTTPException(500, "Failed to save resume record")
 
-    return _imported(resume, resume.id == default_id, read, imported, left)
+    return _imported(resume, resume.id == default_id, read, imported, left, header)
 
 
 async def _raise_if_raced(
@@ -383,6 +387,7 @@ async def replace_resume(
     try:
         # A newer file: its reading replaces what the old one held (ADR 0005).
         imported = await bank.import_upload(session, applicant_id, resume.id, entries, skills)
+        header = await header_fill.fill_from_header(session, applicant_id, raw_text)
         default_id = await _default_id(session, applicant_id)
         await session.commit()
     except Exception as exc:
@@ -394,10 +399,12 @@ async def replace_resume(
     if old_path and not await sent_resumes.file_in_use(session, old_path):
         await stored_files.remove(get_supabase, old_path, "Failed to remove replaced resume file from Storage")
 
-    return _imported(resume, resume.id == default_id, read, imported, left)
+    return _imported(resume, resume.id == default_id, read, imported, left, header)
 
 
-def _imported(resume: Resume, is_default: bool, read: bank_import.Reading, imported, left: int) -> dict:
+def _imported(
+    resume: Resume, is_default: bool, read: bank_import.Reading, imported, left: int, header: HeaderFill,
+) -> dict:
     """An uploaded file's row and what its reading wrote into the bank."""
     return {
         "id": str(resume.id),
@@ -416,6 +423,7 @@ def _imported(resume: Resume, is_default: bool, read: bank_import.Reading, impor
             skills_replaced=imported.skills_replaced,
             read_by=read.read_by,
             uses_left=left,
+            header=header,
         ).model_dump(),
     }
 

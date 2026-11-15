@@ -16,6 +16,7 @@ from apply import (
     already_applied,
     asking,
     bot_signals,
+    build,
     captcha,
     description,
     embedded,
@@ -38,22 +39,42 @@ from apply.adapters import (
 from apply.answer_bank import Entry
 from apply.answer_bank import key as bank_key
 from apply.captcha import Waiter
-from apply.claude_fill import ClaudeFill, OnePage, entry_history
 from apply.feed import repost_keys
 from apply.fillers import FILLERS
 from apply.match_queue import match_queue, over_employer_limits
-from apply.model import Posting, Status, one_line
-from apply.notify import TITLE, WAITING, summary, used_again, waiting
+from apply.model import Handoff, Posting, Status, one_line
+from apply.one_page import OnePage
 from apply.profile import ApplicantProfile
 from apply.records import Record
-from apply.repair import requests_for
 from apply.request import is_request, resolve
-from apply.rescue import Rescue
 from apply.tracker import AnswerRow, EmployerAccount, Row, options_cell
 from apply.verify import verifying
 from apply.worker import Result, apply_to, named
 
 WORKERS = 3
+# Where the student does what Apply can't, in the Student build: the form's live view in the Apply window, which
+# Fix here gives them (KAN-855). They never go to the Worker's own Chrome window, but for a captcha.
+FIX_HERE = "press Fix here and {} on the form in this window"
+# The Student build's Handoff for a job system Apply has no Filler for (Claude fill is a Developer checkout's).
+NO_FILLER = "WorkIt Auto Apply can't fill {job_system} forms yet: " + FIX_HERE.format("fill it in") + ", then press its Submit"
+
+
+class ForTheStudent:
+    """The Student build's Filler for a job system with no Filler (KAN-855, W2): it reads no question and fills
+    nothing. It opens the form and hands it over whole: the form is held, and the student fills and sends it from
+    the Apply window (FIX_HERE). Resume hands it over again."""
+
+    def __init__(self, job_system: str):
+        self.why = NO_FILLER.format(job_system=job_system if job_system not in ("", "other") else "this job site's")
+
+    def question_set(self, url: str, site: JobSite) -> list:
+        return []
+
+    def fill(self, page, questions, answers):
+        raise Handoff(self.why)
+
+    def submit(self, page) -> None:
+        raise SetupError("WorkIt Auto Apply never presses Submit")
 # No Application starts once Lisul's Max plan is this far through a window,
 # which leaves the rest for his own Claude work.
 FIVE_HOUR_STOP = 0.85
@@ -95,7 +116,10 @@ def run(
     """Submit every Hold Lisul approved, then apply to every waiting Request
     unless `requests` is False, then to the Match queue unless `matches` is False.
     Every run, even one for Requests only, takes approvals first, so an
-    approval waits no longer than the next 5-minute Requests check."""
+    approval waits no longer than the next 5-minute Requests check. A Developer checkout's: the Student build has
+    no live run (apply.build)."""
+    from apply.notify import TITLE, summary, used_again
+
     accounts_before = len(adapters.tracker.employer_accounts())
     this_run = _Run(adapters, profile)
     this_run.list_answers()
@@ -114,6 +138,8 @@ def _push(adapters: Adapters, profile: ApplicantProfile, applications: list[tupl
     up. A push that fails is said and the run goes on: the Tracker has them all."""
     if not applications or profile.policy("phone_push") is not True or adapters.phone is None:
         return
+    from apply.notify import waiting
+
     try:
         adapters.phone.notify(*waiting(applications))
     except Exception as failed:
@@ -325,6 +351,8 @@ class _Run:
                 if result:
                     self._write(posting, result.status, result.reason)
                     self.statuses[result.status] += 1
+                    from apply.notify import WAITING
+
                     if result.status in WAITING:
                         self.waiting.append((result.status, posting.company, posting.title, result.reason))
                 else:
@@ -379,7 +407,7 @@ class _Run:
             if (behind := greenhouse.board_behind(posting, self._adapters.site)) == posting:
                 if posting.job_system == "other":
                     fetched = description.from_link(posting, on_worker)
-                behind = embedded.form_behind(posting, on_worker, fetched)  # a Greenhouse, Lever or Ashby form in the page
+                behind = embedded.form_behind(posting, on_worker, fetched)  # a job system's form in the page
             if behind != posting and (applied := self._adapters.applied_before.of(behind, posting.url)):
                 return Result(Status.HANDOFF, f"{applied.said()}; Apply didn't open the form")
             if behind != posting:
@@ -479,6 +507,8 @@ class _Run:
         self.statuses[result.status] += 1
         if bot_signals.BLOCKED in result.bot_signals:
             self._to_everyday_chrome(named_posting)
+        from apply.notify import WAITING
+
         if result.status in WAITING:
             # A Missing fact's reason starts with "Missing fact": its question says it all.
             # Its context line (apply.asking) follows its question, as in its Tracker reason.
@@ -600,9 +630,13 @@ def by_filler(
     A Posting behind a known sign-in wall is a Handoff before Claude fill
     starts where Gmail can't be read, unless its site is one of `signed_in`."""
     filler = FILLERS.get(posting.job_system)
-    if isinstance(filler, type):  # with a Rescue: Claude fills a field its own code fails on
-        rescue = Rescue(claude, sms_opt_in=profile.policy("sms_opt_in") is True,
-                        marketing_opt_in=profile.policy("marketing_opt_in") is True)
+    if isinstance(filler, type):  # with a Rescue, Claude filling a field its own code fails on; none in the Student build
+        rescue = None
+        if not build.STUDENT:
+            from apply.rescue import Rescue
+
+            rescue = Rescue(claude, sms_opt_in=profile.policy("sms_opt_in") is True,
+                            marketing_opt_in=profile.policy("marketing_opt_in") is True)
         # policies.yaml: workday_sign_in, email (the default) or google.
         options = {"sign_in": profile.policy("workday_sign_in") or "email"} if posting.job_system == "workday" else {}
         with OnePage(site) as page_site:
@@ -611,6 +645,10 @@ def by_filler(
         if hasattr(filler, "with_accounts"):  # it reads the Application's mail, yet opens its form afresh each time
             filler = filler.with_accounts(accounts())
         return apply(filler, site)
+    if build.STUDENT:  # no Claude fill (apply.build): its form is held for the student to fill in the Apply window
+        return apply(ForTheStudent(posting.job_system), site)
+    from apply.claude_fill import ClaudeFill, entry_history
+
     signing_in, agree = accounts(), bool(profile.policy("tick_consent_when_true"))
     no_mail = signing_in.mail_unavailable()
     if no_mail and walls.wall(posting.url) and walls.site(posting.url) not in signed_in:
@@ -648,7 +686,11 @@ def account_facts(profile: ApplicantProfile, agree_to_terms: bool) -> dict:
 
 def keep_repair_requests(adapters: Adapters, posting: Posting, result: Result) -> None:
     """Keep what went wrong of Apply's making for a Repair. A request that
-    can't be kept never costs the Application its row."""
+    can't be kept never costs the Application its row. The Student build has no Repairs, and keeps none."""
+    if build.STUDENT:
+        return
+    from apply.repair import requests_for
+
     try:
         for request in requests_for(posting, result):
             adapters.repairs.add(request)

@@ -129,11 +129,12 @@
 
   /* Layout --------------------------------------------------------------- */
   --container-auth: 22.5rem; /* 360px: the auth card, 310px of content inside p-6 and a 1px border */
-  /* 320px: every list or table that scrolls inside a dialog or a tile (the
-   * resume picker, Add Jobs, Top Matches), as `max-h-scroll-box` or
+  /* 320px: every list or table that scrolls inside a dialog (the resume
+   * picker, Add Jobs), as `max-h-scroll-box` or
    * `h-scroll-box`, so those boxes stop at one height. Each picked its own
    * until KAN-360: Add Jobs grew to 90% of the window. A full-page table
-   * never takes it; the page scrolls. */
+   * never takes it; the page scrolls. Nor does a list in a tile on a page:
+   * Top Matches shows five rows and See More (KAN-828). */
   --spacing-scroll-box: 20rem;
 
   /* -------------------------------------------------------------------------
@@ -1001,6 +1002,20 @@ body {
   overscroll-behavior-y: none;
 }
 
+/* And every scroll box inside a page, on both axes (2026-11-10): a table
+ * that scrolls sideways (the Tracker's, Auto Apply's) bounced at its ends,
+ * and a list in a dialog bounced at its foot. Matched by the classes that
+ * make a box scroll, so a new one needs nothing. Not the page's own
+ * scroller (<main>): on x it would take the trackpad's swipe to go back. */
+[data-slot="table-container"],
+[data-slot="scroll-area-viewport"],
+:not(main)[class*="overflow-auto"],
+:not(main)[class*="overflow-x-auto"],
+:not(main)[class*="overflow-y-auto"],
+:not(main)[class*="overflow-scroll"] {
+  overscroll-behavior: none;
+}
+
 /* The canvas — the strip a rubber-band scroll exposes past the top or bottom of
  * the document — is painted by <body>, and <body> is in the root layout, above
  * both shells. So it cannot inherit the page colour a shell sets on itself, and
@@ -1329,7 +1344,11 @@ body:has([data-skyline]) {
    * about Lucide's 2px line, with Phosphor's shapes kept. Phosphor draws on
    * a 256 grid and nothing else in the app does, which is what the selector
    * reads. custom-icons.tsx strokes its own glyphs to match (STROKE); change
-   * the two together. In base, so a utility on one icon can still undo it. */
+   * the two together. In base, so a utility on one icon can still undo it.
+   * A glyph drawn by hand never uses the 256 grid: this rule then sets its
+   * lines' width to 5, a 0.3px hairline. All Filters' three lines
+   * (`FilterIcon`) looked greyed out on every page that way until
+   * 2026-11-11; draw on a 24 grid at stroke 2, as custom-icons.tsx does. */
   svg[viewBox="0 0 256 256"] {
     stroke: currentColor;
     stroke-width: 5;
@@ -1455,6 +1474,16 @@ body:has([data-skyline]) {
   }
 }
 
+/* FOCUS on the vendored checkbox and switch: the app's one 2px solid brand
+ * ring (docs/design.md, Accessibility), in place of shadcn's 3px ring at half
+ * strength, from outside so the vendored files stay as `shadcn add` wrote
+ * them. The doubled attribute out-specifies the `ring-3` utility. */
+@layer utilities {
+  :is([data-slot="checkbox"], [data-slot="switch"])[data-slot]:focus-visible {
+    --tw-ring-shadow: 0 0 0 2px var(--color-brand-ring);
+  }
+}
+
 /* The checkbox (a 16px box) and the switch (32 by 18px) each have a ::after
  * 24px wider and 16px taller than themselves; on touch, that or 44px,
  * whichever is larger (the switch keeps its 54px width). */
@@ -1465,6 +1494,51 @@ body:has([data-skyline]) {
     left: 50%;
     width: max(100% + 24px, 44px);
     height: max(100% + 16px, 44px);
+    translate: -50% -50%;
+  }
+}
+
+/* THE VENDORED SLIDER (the resume editor's Format tab, 2026-11-11), set by
+ * data-slot as the checkbox and switch are, so `shadcn add slider` can
+ * regenerate its file. Base UI puts the focus on a range input inside the
+ * thumb, so shadcn's `focus-visible:ring-3` on the thumb itself never
+ * showed: the app's one 2px ring is drawn while the input has it, 2px off
+ * the thumb so it reads apart from the thumb's brand edge. The thumb is 16px
+ * with a 2px brand edge (shadcn's was 12px with 1px), and its half-strength
+ * halo on hover and press goes. The track's unfilled part is
+ * border-surface: shadcn's `bg-muted` is the well grey, 1.04:1 on a white
+ * card, so a slider at its first stop showed a lone dot. On touch the
+ * thumb's target is 44px. */
+[data-slot="slider-track"] {
+  background-color: var(--color-border-surface);
+}
+
+[data-slot="slider-thumb"] {
+  width: 1rem;
+  height: 1rem;
+  border-width: 2px;
+  border-color: var(--color-brand);
+  box-shadow: 0 1px 2px rgb(18 26 40 / 0.12);
+  cursor: grab;
+
+  &:active {
+    cursor: grabbing;
+  }
+
+  &:has(:focus-visible) {
+    box-shadow:
+      0 0 0 2px var(--color-panel),
+      0 0 0 4px var(--color-brand-ring);
+  }
+}
+
+@media (pointer: coarse) {
+  [data-slot="slider-thumb"]::after {
+    inset: auto;
+    top: 50%;
+    left: 50%;
+    width: 44px;
+    height: 44px;
     translate: -50% -50%;
   }
 }
@@ -1503,7 +1577,8 @@ body:has([data-skyline]) {
 
   /* What scrolls inside a dialog keeps its scrollbar's room, so the content
    * is one width whether or not it scrolls: Settings' cards were 608px on
-   * Personal Details and 600px on Sign-In & Security. */
+   * Personal Details and 600px on Sign-In & Security. `DialogBody` carries
+   * this slot too (KAN-820), and its padding counts on this room. */
   [data-slot="dialog-scroller"] {
     scrollbar-gutter: stable;
   }

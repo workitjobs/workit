@@ -124,10 +124,6 @@ export function ResumeStep({
   );
 }
 
-/** The Experiences page's heading action: a 32px round icon button
- *  (bank-screen's HEADING_ACTION). */
-const HEADING_ACTION = "hover:bg-hover size-8 rounded-full";
-
 /** The controls focus goes back to. */
 const editId = (index: number) => `preview-entry-${index}-edit`;
 const SKILLS_EDIT = "preview-skills-edit";
@@ -259,12 +255,13 @@ function Reading({
                         warn
                         actions={
                           <IconButton
+                            place="row"
                             id={editId(index)}
                             label={`Edit ${entry.title}`}
                             tooltip="Edit this entry"
                             onClick={() => edit(index)}
                           >
-                            <PencilSimpleIcon aria-hidden className="size-4" />
+                            <PencilSimpleIcon aria-hidden />
                           </IconButton>
                         }
                         badges={
@@ -318,16 +315,16 @@ function Reading({
                 </Button>
               ) : (
                 <IconButton
+                  place="heading"
                   id={SKILLS_EDIT}
                   label="Edit Skills"
                   tooltip="Edit this section"
-                  className={HEADING_ACTION}
                   onClick={() => {
                     setEditingSkills(true);
                     focusOn(SKILLS_DONE);
                   }}
                 >
-                  <PencilSimpleIcon aria-hidden className="size-5" />
+                  <PencilSimpleIcon aria-hidden />
                 </IconButton>
               ),
             )}

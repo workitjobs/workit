@@ -8,7 +8,14 @@ import {
 } from "@phosphor-icons/react/ssr";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useRef, useState, type FormEvent, type ReactNode } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ComponentType,
+  type FormEvent,
+  type ReactNode,
+} from "react";
 
 import { LocalDate } from "@/app/(seeker)/local-time";
 import { ResumeThumbnail } from "@/app/(seeker)/jobs/[jobId]/tailor/resume-preview";
@@ -30,6 +37,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/shadcn/dropdown-menu";
 import { ClickableRow } from "@/components/clickable-row";
+import { rowFill } from "@/components/fill-page";
+import { PickBox } from "@/components/selection-bar";
+import { Checkbox } from "@/components/shadcn/checkbox";
 import { CompanyLogo } from "@/components/company-logo";
 import { RESUME_TYPES, type ResumeType } from "@/components/resume-list";
 import { TableCell, TableRow } from "@/components/shadcn/table";
@@ -51,9 +61,6 @@ import type { ResumeItem } from "@/lib/resume-actions";
 export const RESUME_ROW =
   "border-border-subtle bg-well rounded-control @container mt-2 flex items-center gap-3 border p-2";
 
-/** A row's icon actions: 32px boxes. */
-export const ROW_ACTION = "rounded-control hover:bg-hover size-8";
-
 /** The row's icons, side by side with no gap: each is a 32px box already.
  *  On touch they stand 12px apart (KAN-575), so each icon's hit area
  *  (`IconButton`'s, 8px past its box) is 44px and no neighbour's covers
@@ -74,26 +81,34 @@ export const ROW_NAME = "min-w-1/2 flex-1";
 /** The Resumes table's heading and cell type: the Tracker table's
  *  (`applications/list.tsx`'s TH and TD), so the two read as one app. */
 export const RESUME_TH = "px-4 text-note text-ink-meta font-medium";
-const RESUME_TD = "px-4 text-note text-ink";
+export const RESUME_TD = "px-4 text-note text-ink";
+
+/** The Name column: two fifths of the table from `@4xl`, where Target Job
+ *  shows, and the room the other columns leave below that. Name took all
+ *  the room the fixed columns left (710px of a 1270px table, 2026-11-11),
+ *  so a short name stood far from its job and the job's title was cut at
+ *  256px; the user found the two too far apart. */
+export const RESUME_NAME_COL = "@4xl:w-2/5";
 
 /** The Target Job column, from `@4xl` of the table (896px: a laptop's
- *  window; narrower, the name kept under 200px). Below that it keeps its
+ *  window; narrower, the name kept under 200px): the room Name and the
+ *  fixed columns leave. Below that it keeps its
  *  place with no width and no padding, rather than leaving the table: a
  *  rename's row spans every column, which a missing column would break.
  *  The job then reads under the name ("<role> at <company>"). */
-export const RESUME_TARGET_COL = "w-0 overflow-hidden p-0 @4xl:w-64 @4xl:px-4";
+export const RESUME_TARGET_COL = "w-0 overflow-hidden p-0 @4xl:w-auto @4xl:px-4";
 
 /** The Type column, from `@2xl` of the table, folded as Target Job is. */
 export const RESUME_TYPE_COL = "w-0 overflow-hidden p-0 @2xl:w-32 @2xl:px-4";
 
-/** The Date Modified column: the day ("Nov 10"), and room for the four
- *  hover icons that cover it under the pointer (`CardActionIcons`). */
+/** The Date Modified column: the day ("Nov 10"), nothing over it. */
 export const RESUME_DATE_COL = "w-24 @2xl:w-32";
 
-/** The actions column: ⋮ alone (2026-11-10). It was five icons wide, the
- *  four that show on hover and ⋮, so at rest a 150px empty column stood
- *  between the date and ⋮. The hover icons now cover the date, as
- *  Gmail's do. */
+/** The actions column: ⋮ alone (2026-11-11). The picked rows' actions
+ *  are in the bar over the table (components/selection-bar.tsx). Four
+ *  icons on hover came before: over Date Modified, which they hid, then
+ *  in a 144px column of their own, empty at rest, with ⋮ beside them
+ *  holding the same four; the user found both wrong. */
 export const RESUME_ACTIONS_COL = "w-12";
 
 /** What a card's actions do, as its row hands them over. */
@@ -105,23 +120,24 @@ export type CardActions = {
   onDelete: () => Promise<void>;
 };
 
-/** The icons that wait for the pointer (Google Drive's rows): hidden until
- *  the card is hovered or holds the keyboard's focus, in place, so the row
- *  never shifts; on a touch screen, which has no hover, never, and ⋮ holds
- *  them. */
-const ON_HOVER =
-  "opacity-0 transition-opacity duration-150 group-focus-within:opacity-100 group-hover:opacity-100 pointer-coarse:hidden";
+/** A row's pick (2026-11-11, as Up Next's): its select box, and its
+ *  actions handed to the page, which the bar over the table runs for the
+ *  picked rows (components/selection-bar.tsx). */
+export type RowPick = {
+  checked: boolean;
+  onChange: (on: boolean) => void;
+  /** Keeps the row's current actions for the bar; null when it leaves. */
+  register: (actions: CardActions | null) => void;
+};
 
 /**
- * A row's actions (2026-11-10, after Google Drive): at rest only ⋮ (More
- * actions); on hover or focus, Make Primary (on a resume that is not the
- * primary), Rename, Download and Delete appear left of ⋮, over the Date
- * Modified cell, on the row's own hover fill, as Gmail's row actions take
- * the date's place. They took a column of their own, empty at rest. The primary says
- * so in a badge beside its name (`PrimaryBadge`, after Jobright's), not a
- * star here. ⋮ holds every action, worded (`RowMoreMenu` with `always`), so a
- * touch screen and a phone reach them all. Four icons on every card at all
- * times read busy to the user. Delete asks first, from either place.
+ * A row's actions: ⋮ (More actions) alone, every action worded (Open,
+ * Rename, Download PDF, Make Primary on a resume that is not the primary,
+ * then Delete in red, which asks first; `RowMoreMenu` with `always`), for
+ * one resume at a time. Several at once are picked with the select boxes,
+ * and the bar over the table acts on them (2026-11-11, after Notion's).
+ * Make Primary, Rename, Download and Delete showed as icons on hover until
+ * then. The primary says so in a badge beside its name (`PrimaryBadge`).
  */
 function CardActionIcons({
   name,
@@ -135,45 +151,6 @@ function CardActionIcons({
   const { primary, onMakePrimary, onRename, download, onDelete } = actions;
   return (
     <div className="relative z-10 flex items-center justify-end">
-      {/* Left of ⋮, over the date: the row's hover fill under it hides the
-          day; white while only the keyboard's focus shows it. */}
-      <div
-        className={cn(
-          "bg-panel group-hover:bg-hover absolute top-1/2 right-full flex -translate-y-1/2 items-center pl-2",
-          ON_HOVER,
-        )}
-      >
-        {!primary && <PrimaryStar name={name} primary={false} onMakePrimary={onMakePrimary} />}
-        <IconButton
-          label={`Rename ${name}`}
-          tooltip="Rename"
-          className={ROW_ACTION}
-          onClick={onRename}
-        >
-          <PencilIcon className="size-4" />
-        </IconButton>
-        <IconButton
-          label={`Download ${name}`}
-          tooltip={download.label}
-          className={ROW_ACTION}
-          disabled={download.busy}
-          onClick={download.onPick}
-        >
-          <FileArrowDownIcon aria-hidden className="size-4" />
-        </IconButton>
-        <DeleteResumeConfirm
-          onDelete={onDelete}
-          trigger={
-            <IconButton
-              label={`Delete ${name}`}
-              tooltip="Delete"
-              className={cn(ROW_ACTION, "hover:text-danger")}
-            >
-              <TrashIcon className="size-4" />
-            </IconButton>
-          }
-        />
-      </div>
       <RowMoreMenu
         always
         name={name}
@@ -195,9 +172,8 @@ function CardActionIcons({
  * badge on the primary), **Target Job** (a tailored resume's posting, as
  * the Tracker's Role cell draws a job: the company's logo, then the role
  * over the company; a faint dash for a resume made for no job), **Type**
- * (its grey glyph and word, `TypeLabel`), **Date Modified**, then ⋮ (the
- * other actions cover the date on hover)
- * (`CardActionIcons`). After Jobright's resume table, the name stands
+ * (its grey glyph and word, `TypeLabel`), **Date Modified**, then the
+ * actions (`CardActionIcons`). After Jobright's resume table, the name stands
  * alone, with no tile beside it: the Type column says what each resume is,
  * and the job has a column of its own, where the logos line up. The
  * headings name each column once: as cards, every resume said "Modified"
@@ -216,7 +192,7 @@ function CardActionIcons({
  * It went through wide white cards first (2026-11-10, after the Tracker's
  * board cards), each with a tile and its date in a labeled column, and
  * 52px grey strips before that. **Rename edits the name in its row**
- * (`rename`, `RenamingRow`).
+ * (`rename`, `RenamingRow`, the shared `RenameField`).
  *
  * **In the grid** (`layout="grid"`, KAN-766) the card is the resume's first
  * page over its name, its type and its Date Modified (`ResumeGridCard`).
@@ -235,9 +211,12 @@ export function ResumeCard({
   thumbnail,
   type,
   company,
+  pick,
 }: {
   name: string;
   href: string;
+  /** The row's select box and its actions for the bar (the list only). */
+  pick?: RowPick;
   /** A tailored resume's posting title, a link to it while it is open:
    *  the Target Job column's first line. */
   role?: ReactNode;
@@ -280,10 +259,12 @@ export function ResumeCard({
   const modified = edited ?? created;
   return (
     // 56px, so a row with a job's two lines and a row with a name alone
-    // stand the same height.
-    <ClickableRow href={href} className="group hover:bg-hover h-14">
+    // stand the same height. A picked row takes the brand tint, as Up
+    // Next's does.
+    <ClickableRow href={href} className={cn("group h-14", rowFill(pick?.checked ?? false))}>
       <TableCell className={cn(RESUME_TD, "overflow-hidden py-2")}>
         <div className="flex min-w-0 items-center gap-2">
+          {pick && <RowPickBox name={name} pick={pick} actions={actions} />}
           <Link
             href={href}
             title={name}
@@ -296,8 +277,10 @@ export function ResumeCard({
           </Link>
           {actions.primary && <PrimaryBadge />}
         </div>
-        {about && <p className="text-note text-ink-meta truncate @4xl:hidden">{about}</p>}
-        {notes && <div className="whitespace-normal">{notes}</div>}
+        <div className={cn(pick && "pl-6")}>
+          {about && <p className="text-note text-ink-meta truncate @4xl:hidden">{about}</p>}
+          {notes && <div className="whitespace-normal">{notes}</div>}
+        </div>
       </TableCell>
       <TableCell className={cn(RESUME_TD, RESUME_TARGET_COL)}>
         {/* A faint dash where the resume was made for no job: a blank in
@@ -310,25 +293,7 @@ export function ResumeCard({
             <span className="sr-only">No target job</span>
           </span>
         )}
-        {role && (
-          <div className="hidden min-w-0 items-center gap-3 @4xl:flex">
-            {company && (
-              <CompanyLogo
-                name={company.name}
-                src={jobLogo({ logo_url: company.logoUrl, company_domain: company.domain })}
-                className="text-meta size-8 rounded"
-              />
-            )}
-            <div className="min-w-0">
-              <p className="truncate">{role}</p>
-              {company && (
-                <p className="text-ink-meta truncate" title={company.name}>
-                  {company.name}
-                </p>
-              )}
-            </div>
-          </div>
-        )}
+        {role && <TargetJob role={role} company={company} className="hidden @4xl:flex" />}
       </TableCell>
       <TableCell className={cn(RESUME_TD, RESUME_TYPE_COL)}>
         {type && (
@@ -349,18 +314,104 @@ export function ResumeCard({
   );
 }
 
-/** The primary resume's badge, beside its name (after Jobright's PRIMARY
- *  pill, 2026-11-10): a star and "Primary", the star alone below `@2xl` of
- *  the table, a phone's, where the name needs the room. */
-function PrimaryBadge() {
+/** A row's select box (`PickBox`), which also keeps the row's current
+ *  actions with the page for the bar, and drops them when the row leaves. */
+function RowPickBox({
+  name,
+  pick,
+  actions,
+}: {
+  name: string;
+  pick: RowPick;
+  actions: CardActions;
+}) {
+  const { register } = pick;
+  useEffect(() => {
+    register(actions);
+  });
+  useEffect(() => () => register(null), [register]);
+  return (
+    <PickBox>
+      <Checkbox
+        className="border-ink-meta"
+        checked={pick.checked}
+        onCheckedChange={(on) => pick.onChange(on === true)}
+        aria-label={`Select ${name}`}
+      />
+    </PickBox>
+  );
+}
+
+/** A tailored resume's job in the Target Job column: the company's 32px
+ *  logo, then the posting's title over the company, as the Tracker's Job
+ *  cell draws a job. Documents' table and Generate Resume's list of
+ *  resumes to start from (app/(seeker)/resumes/new-resume-dialog.tsx). */
+export function TargetJob({
+  role,
+  company,
+  className,
+}: {
+  role: ReactNode;
+  company?: GridCompany | null;
+  className?: string;
+}) {
+  return (
+    <div className={cn("flex min-w-0 items-center gap-3", className)}>
+      {company && (
+        <CompanyLogo
+          name={company.name}
+          src={jobLogo({ logo_url: company.logoUrl, company_domain: company.domain })}
+          className="text-meta size-8 shrink-0 rounded"
+        />
+      )}
+      <div className="min-w-0">
+        <p className="truncate">{role}</p>
+        {company && (
+          <p className="text-ink-meta truncate" title={company.name}>
+            {company.name}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** The primary resume's badge (after Jobright's PRIMARY pill, 2026-11-10):
+ *  a star and "Primary". **The one mark for the primary resume** (KAN-825):
+ *  beside its name in the table, on a grid card's page corner, beside the
+ *  title on its own page (the editor's and an upload's), in the resume
+ *  pickers and on Experiences' Showing card. A black disc on the grid, a
+ *  star with the word on an upload's page, a bare purple star in the
+ *  pickers and nothing in the editor came before. `wordClassName` says
+ *  where the word shows: by default the star alone below `@2xl` of the
+ *  table, a phone's, where the name needs the room. */
+export function PrimaryBadge({
+  wordClassName = "sr-only @2xl:not-sr-only",
+}: {
+  wordClassName?: string;
+}) {
   return (
     <Badge tone="brand">
       <span title="Primary resume" className="flex items-center gap-1">
         <StarIcon aria-hidden weight="fill" className="size-3" />
-        <span className="sr-only @2xl:not-sr-only">Primary</span>
+        <span className={wordClassName}>Primary</span>
       </span>
     </Badge>
   );
+}
+
+/** Each resume type's glyph, the glyph of the button that makes that kind:
+ *  Upload Resume's arrow, Generate Resume's page and Tailor's pencil. The
+ *  table's Type column, the badges, Documents' Type filter and its group
+ *  headings all draw these, so a type reads the same everywhere. */
+export const RESUME_TYPE_ICON: Record<ResumeType, ComponentType<{ className?: string }>> = {
+  uploaded: UploadIcon,
+  generated: GeneratedIcon,
+  tailored: TailorIcon,
+};
+
+function GeneratedIcon({ className }: { className?: string }) {
+  return <FileTextIcon aria-hidden className={className} />;
 }
 
 /** A resume's type in the table's Type column: its glyph in grey and its
@@ -368,16 +419,10 @@ function PrimaryBadge() {
  *  colours beside the Primary pill, was the loudest thing in the table and
  *  read as statuses; the glyph alone tells the three apart. */
 function TypeLabel({ type }: { type: ResumeType }) {
-  const icon = "text-ink-meta size-4 shrink-0";
+  const Icon = RESUME_TYPE_ICON[type];
   return (
     <span className="text-ink-muted flex items-center gap-1.5">
-      {type === "uploaded" ? (
-        <UploadIcon className={icon} />
-      ) : type === "generated" ? (
-        <FileTextIcon aria-hidden className={icon} />
-      ) : (
-        <TailorIcon className={icon} />
-      )}
+      <Icon className="text-ink-meta size-4 shrink-0" />
       {RESUME_TYPES.find((t) => t.value === type)?.label}
     </span>
   );
@@ -400,17 +445,11 @@ export function TypeBadge({
    *  card drops it below its own `@md` (app/(seeker)/jobs/resume-picker.tsx). */
   wordClassName?: string;
 }) {
-  const icon = "size-3.5 shrink-0";
+  const Icon = RESUME_TYPE_ICON[type];
   return (
     <Badge tone={TYPE_TONE[type]}>
       <span className="flex items-center gap-1">
-        {type === "uploaded" ? (
-          <UploadIcon className={icon} />
-        ) : type === "generated" ? (
-          <FileTextIcon aria-hidden className={icon} />
-        ) : (
-          <TailorIcon className={icon} />
-        )}
+        <Icon className="size-3.5 shrink-0" />
         {/* `narrow`: the icon alone below a 12rem line (a grid card two or
             four to a row on a phone or tablet), where the word left the
             date no room; a screen reader still hears it. */}
@@ -447,8 +486,9 @@ const TYPE_TONE: Record<ResumeType, BadgeTone> = {
  * when the line is short of room, with the whole name on hover. ⋮ holds
  * every action (Open, Rename, Download, Make Primary, Delete): the grid
  * has no room for hover icons, as Drive's has none. The primary resume
- * wears a filled star on its page's corner, as Simplify's does. The whole
- * card opens the resume. Rename edits the name in place, under the page.
+ * wears the Primary badge on its page's corner, where Simplify puts its
+ * star (a black disc with a star until KAN-825). The whole card opens the
+ * resume. Rename puts `RenameField` under the page.
  *
  * A narrow card (two to a row on a phone, four on a tablet) shows the
  * type's icon without its word and the day without its own ("Modified",
@@ -488,17 +528,15 @@ function ResumeGridCard({
       <div className="border-border-subtle relative border-b">
         {thumbnail}
         {actions.primary && (
-          <span
-            title="Primary resume"
-            className="bg-ink text-on-inverse absolute top-2 right-2 flex size-7 items-center justify-center rounded-full shadow-sm"
-          >
-            <StarIcon aria-hidden weight="fill" className="size-3.5" />
-            <span className="sr-only">Primary resume</span>
+          <span className="absolute top-2 right-2 rounded-full shadow-sm">
+            <PrimaryBadge wordClassName="" />
           </span>
         )}
       </div>
       {rename ? (
-        <GridRename name={name} rename={rename} />
+        <div className="p-3">
+          <RenameField name={name} rename={rename} />
+        </div>
       ) : (
         // ⋮ shares the name's line only, so the line under it has the
         // card's whole width.
@@ -557,9 +595,39 @@ function ResumeGridCard({
   );
 }
 
-/** A grid card's rename: the name's field under the page, with Cancel and
- *  Save under it; Enter saves and Escape cancels, as on a list card. */
-function GridRename({ name, rename }: { name: string; rename: Rename }) {
+/** A card's rename, as its row hands it: the save in flight, the save of a
+ *  new name, and Cancel. */
+export type Rename = {
+  saving: boolean;
+  onSave: (name: string) => void;
+  onCancel: () => void;
+};
+
+/**
+ * **The one way to rename a resume** (KAN-825): the name becomes its field
+ * in its own place, selected, with Cancel and Save after it (a card edited
+ * in place: right, Save last, `docs/design.md`); Enter saves, Escape
+ * cancels, and a name left as it was closes it with no call. The table's
+ * row (`RenamingRow`), a grid card under its page, and the title on a
+ * resume's own page (`ResumeTitle`, the editor's and an upload's, and
+ * Tailor's review) all draw it. Where the field would fall under 9rem (a
+ * grid card on a phone, the phone editor's title row) Cancel and Save
+ * wrap under it, at its right; a phone's table row still fits them beside
+ * it. Until KAN-825 there were four: the editor's title saved on a
+ * click away with no buttons, an upload's page had a labeled field of its
+ * own (`RenameForm`), and the row and the grid card each drew theirs.
+ *
+ * `size="lg"` is the title's: a 26px name turned into a 14px field.
+ */
+export function RenameField({
+  name,
+  rename,
+  size = "default",
+}: {
+  name: string;
+  rename: Rename;
+  size?: "default" | "lg";
+}) {
   const [draft, setDraft] = useState(name);
   const trimmed = draft.trim();
 
@@ -570,20 +638,23 @@ function GridRename({ name, rename }: { name: string; rename: Rename }) {
   }
 
   return (
-    <form onSubmit={submit} className="flex flex-col gap-2 p-3">
-      <TextInput
-        aria-label="Resume name"
-        autoFocus
-        required
-        maxLength={80}
-        value={draft}
-        onChange={(event) => setDraft(event.target.value)}
-        onFocus={(event) => event.currentTarget.select()}
-        onKeyDown={(event) => {
-          if (event.key === "Escape") rename.onCancel();
-        }}
-      />
-      <div className="flex justify-end gap-2">
+    <form onSubmit={submit} className="flex flex-wrap items-center justify-end gap-x-3 gap-y-2">
+      <div className="min-w-0 flex-1 basis-36">
+        <TextInput
+          aria-label="Resume name"
+          size={size}
+          autoFocus
+          required
+          maxLength={80}
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          onFocus={(event) => event.currentTarget.select()}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") rename.onCancel();
+          }}
+        />
+      </div>
+      <div className="flex shrink-0 gap-2">
         <Button type="button" variant="secondary" size="sm" onClick={rename.onCancel}>
           Cancel
         </Button>
@@ -595,59 +666,20 @@ function GridRename({ name, rename }: { name: string; rename: Rename }) {
   );
 }
 
-/** A card's rename, as its row hands it: the save in flight, the save of a
- *  new name, and Cancel. */
-export type Rename = {
-  saving: boolean;
-  onSave: (name: string) => void;
-  onCancel: () => void;
-};
-
 /**
- * A row being renamed (2026-11-10): the name becomes its field, in place,
- * with Cancel and Save at the row's end; Enter saves and Escape cancels.
- * One cell spans the row, so the field and the buttons fit a phone's
- * table too. The row keeps its 56px, so the table does not move, and it opens nothing while it is open. It was a
- * form in the card's place, a labeled field across the list with "Save
- * Name", whose focus ring the list's scroll cut off, which the user found
- * horrible. A name left as it was closes it with no call.
+ * A row being renamed (2026-11-10): `RenameField` in one cell that spans
+ * the row, so the field and the buttons fit a phone's table too. The row
+ * keeps its 56px, so the table does not move, and it opens nothing while
+ * it is open. It was a form in the card's place, a labeled field across
+ * the list with "Save Name", whose focus ring the list's scroll cut off,
+ * which the user found horrible.
  */
 function RenamingRow({ name, rename }: { name: string; rename: Rename }) {
-  const [draft, setDraft] = useState(name);
-  const trimmed = draft.trim();
-
-  function submit(event: FormEvent) {
-    event.preventDefault();
-    if (trimmed === name) return rename.onCancel();
-    rename.onSave(trimmed);
-  }
-
   return (
     <TableRow className="bg-hover hover:bg-hover">
       {/* 7px: the 42px field, the row's 56px. */}
       <TableCell colSpan={5} className="px-4 py-[7px]">
-        <form onSubmit={submit} className="flex items-center gap-3">
-          <div className="min-w-0 flex-1">
-            <TextInput
-              aria-label="Resume name"
-              autoFocus
-              required
-              maxLength={80}
-              value={draft}
-              onChange={(event) => setDraft(event.target.value)}
-              onFocus={(event) => event.currentTarget.select()}
-              onKeyDown={(event) => {
-                if (event.key === "Escape") rename.onCancel();
-              }}
-            />
-          </div>
-          <Button type="button" variant="secondary" size="sm" onClick={rename.onCancel}>
-            Cancel
-          </Button>
-          <Button type="submit" size="sm" disabled={rename.saving || !trimmed}>
-            {rename.saving ? "Saving…" : "Save"}
-          </Button>
-        </form>
+        <RenameField name={name} rename={rename} />
       </TableCell>
     </TableRow>
   );
@@ -741,8 +773,10 @@ export function PendingResumeCard({
  * The primary resume's star. On the primary it is filled; on the others it
  * is an outline, always visible (KAN-268): it showed only while the row was
  * hovered, so a student did not know a resume could be made primary. With
- * no `onMakePrimary`, a resume that is not primary shows none. The Resumes
- * view's uploads and built resumes (KAN-258) draw it alike.
+ * no `onMakePrimary`, a resume that is not primary shows none. Only an
+ * upload's strip (`ResumeRow` without `page`) draws it now: every other
+ * place marks the primary with `PrimaryBadge` (KAN-825), the resume
+ * pickers and Experiences' Showing card among them.
  */
 export function PrimaryStar({
   name,
@@ -763,12 +797,12 @@ export function PrimaryStar({
   if (!onMakePrimary) return null;
   return (
     <IconButton
+      place="row"
       label={`Make ${name} your primary resume`}
       tooltip="Make primary"
-      className={ROW_ACTION}
       onClick={onMakePrimary}
     >
-      <StarIcon aria-hidden className="size-4" />
+      <StarIcon aria-hidden />
     </IconButton>
   );
 }
@@ -784,7 +818,13 @@ export function PrimaryStar({
  * The Resumes page's cards show it at every width (`always`, 2026-11-10,
  * after Google Drive's rows) with every action a card has: Open (`open`,
  * the card's own page), Rename, Download, Make Primary (`onMakePrimary`,
- * on a resume that is not the primary), then Delete.
+ * on a resume that is not the primary), then Delete. A resume's own page
+ * (the editor's and an upload's) shows it at the end of its title row
+ * with Rename, Make Primary and Delete (KAN-825, `ResumeMenu`).
+ *
+ * Rename, like Delete, runs once the menu has closed, and the menu then
+ * hands no focus back to ⋯ (`finalFocus`): on a resume's page the button
+ * stays, and its focus return took the focus from the title's new field.
  */
 export function RowMoreMenu({
   name,
@@ -806,32 +846,40 @@ export function RowMoreMenu({
   const router = useRouter();
   const button = useRef<HTMLButtonElement>(null);
   const [confirming, setConfirming] = useState(false);
-  // Delete opens the confirm only once the menu has closed, so the menu's
-  // focus return cannot land after the popover has opened.
-  const deleting = useRef(false);
+  // Delete opens the confirm, and Rename its field, only once the menu has
+  // closed, so the menu's focus return cannot land after either has opened.
+  const then = useRef<"delete" | "rename" | null>(null);
+  // Rename's field takes the focus, so none goes back to ⋯; a flag of its
+  // own, since the menu asks only after `then` has run
+  const keepFocus = useRef(false);
 
   return (
     <div className={always ? undefined : "@xl:hidden"}>
       <DropdownMenu
         onOpenChangeComplete={(open) => {
-          if (open || !deleting.current) return;
-          deleting.current = false;
-          setConfirming(true);
+          if (open || !then.current) return;
+          const next = then.current;
+          then.current = null;
+          if (next === "delete") setConfirming(true);
+          else onRename?.();
         }}
       >
         <DropdownMenuTrigger
           render={
-            <IconButton
-              ref={button}
-              label={`More actions for ${name}`}
-              tooltip="More actions"
-              className={ROW_ACTION}
-            >
-              <EllipsisIcon className="size-4" />
+            <IconButton place="row" ref={button} label={`More actions for ${name}`} tooltip={false}>
+              <EllipsisIcon />
             </IconButton>
           }
         />
-        <DropdownMenuContent align="end" className="w-48">
+        <DropdownMenuContent
+          align="end"
+          className="w-48"
+          finalFocus={() => {
+            const back = !keepFocus.current;
+            keepFocus.current = false;
+            return back;
+          }}
+        >
           {open && (
             <DropdownMenuItem onClick={() => router.push(open)}>
               <ArrowSquareOutIcon aria-hidden className="text-ink size-4" />
@@ -839,7 +887,12 @@ export function RowMoreMenu({
             </DropdownMenuItem>
           )}
           {onRename && (
-            <DropdownMenuItem onClick={onRename}>
+            <DropdownMenuItem
+              onClick={() => {
+                then.current = "rename";
+                keepFocus.current = true;
+              }}
+            >
               <PencilIcon className="text-ink size-4" />
               Rename
             </DropdownMenuItem>
@@ -861,7 +914,7 @@ export function RowMoreMenu({
             <DropdownMenuItem
               variant="destructive"
               onClick={() => {
-                deleting.current = true;
+                then.current = "delete";
               }}
             >
               <TrashIcon className="size-4" />
@@ -919,6 +972,8 @@ type ResumeRowProps = {
   layout?: "list" | "grid";
   /** A table row's messages under the name (`ResumeCard`'s `notes`). */
   notes?: ReactNode;
+  /** The page row's select box (`ResumeCard`'s `pick`). */
+  pick?: RowPick;
   onMakePrimary?: () => void;
   onRename?: () => void;
   onDownload?: () => void;
@@ -933,6 +988,7 @@ export function ResumeRow({
   rename,
   layout = "list",
   notes,
+  pick,
   onMakePrimary,
   onRename,
   onDownload,
@@ -947,23 +1003,13 @@ export function ResumeRow({
       <PrimaryStar name={name} primary={resume.is_default} onMakePrimary={onMakePrimary} />
       <div className={ROW_WIDE}>
         {onRename && (
-          <IconButton
-            label={`Rename ${name}`}
-            tooltip="Rename"
-            className={ROW_ACTION}
-            onClick={onRename}
-          >
-            <PencilIcon className="size-4" />
+          <IconButton place="row" label={`Rename ${name}`} tooltip={false} onClick={onRename}>
+            <PencilIcon />
           </IconButton>
         )}
         {onDownload && (
-          <IconButton
-            label={`Download ${name}`}
-            tooltip={downloadLabel}
-            className={ROW_ACTION}
-            onClick={onDownload}
-          >
-            <FileArrowDownIcon aria-hidden className="size-4" />
+          <IconButton place="row" label={`Download ${name}`} tooltip={false} onClick={onDownload}>
+            <FileArrowDownIcon aria-hidden />
           </IconButton>
         )}
         {onDelete && (
@@ -971,11 +1017,12 @@ export function ResumeRow({
             onDelete={onDelete}
             trigger={
               <IconButton
+                place="row"
                 label={`Delete ${name}`}
-                tooltip="Delete"
-                className={cn(ROW_ACTION, "hover:text-danger")}
+                tooltip={false}
+                className={cn("hover:text-danger")}
               >
-                <TrashIcon className="size-4" />
+                <TrashIcon />
               </IconButton>
             }
           />
@@ -1016,6 +1063,7 @@ export function ResumeRow({
           onDelete,
         }}
         rename={rename}
+        pick={pick}
       />
     );
   }

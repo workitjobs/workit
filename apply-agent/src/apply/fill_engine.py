@@ -239,12 +239,21 @@ class Plan:
     # Each attestation, certification or signature question, by name: its exact wording (KAN-676). Never answered,
     # by the plan, the Answer bank, Claude fill or the essay writer: Lisul ticks or signs it ("Yours to tick").
     attestations: dict[str, str] = field(default_factory=dict)
+    # Each attestation the attest_from_sources policy's rules settled from the profile's facts, by name: that fact
+    # (KAN-761). The plan answers it with the form's affirmative option; it goes on the Check before Submit list.
+    attested: dict[str, str] = field(default_factory=dict)
     # Optional questions that ask a fact of Lisul's no source holds, which may exist for him (KAN-759): asked in Needs
     # you with a Skip, never a Missing fact that stops the form. Each is in `blanks` too, until he answers it.
     optional: list[Question] = field(default_factory=list)
 
 
 TO_TICK = "Yours to tick"  # starts each line of the Check before Submit list that names an attestation
+ATTESTED = "Attested from sources"  # starts each line that names an attestation the plan answered from the facts
+
+
+def attested_line(label: str, fact: str) -> str:
+    """The Check before Submit line for an attestation the plan answered from the profile's facts (KAN-761)."""
+    return f"{ATTESTED}: {' '.join(fact.split())} ({' '.join(label.split()).replace('; ', ', ')})"
 
 
 def to_tick(wording: str) -> str:
@@ -328,15 +337,33 @@ def plan(questions: QuestionSet, posting: Posting, profile: ApplicantProfile, ba
             answer = answers.get(question.name)
             if isinstance(answer, str) and "|" in answer and source:
                 accepted[question.name] = (*accepted.get(question.name, ()), *answer.split("|"))
+    blanks = dict(result.get("blanks") or {})
+    for question in questions:  # a file, or a path on this Mac, goes only into an upload (KAN-785)
+        if question.kind != "file" and _local_path(answers.get(question.name)):
+            del answers[question.name]
+            blanks[question.name] = LOCAL_PATH
     return Plan(
         answers=answers,
         essays=result["essays"], missing=result["missing"], not_eligible=result["not_eligible"],
         high_stakes=result["high_stakes"], handoffs=result["handoffs"], drafts=result["drafts"], banked=result["banked"],
-        accepted=accepted, blanks=dict(result.get("blanks") or {}),
+        accepted=accepted, blanks=blanks,
         sections=dict(result.get("sections") or {}), filed=dict(result.get("filed") or {}),
         waiting=dict(result.get("waiting") or {}), attestations=dict(result.get("attestations") or {}),
+        attested=dict(result.get("attested") or {}),
         optional=list(result.get("optional") or []),
     )
+
+
+# Why a field was left blank rather than given a file's path (KAN-785).
+LOCAL_PATH = "A file on this Mac goes only into an upload, never typed into a field"
+# A path on this Mac or a teammate's Windows PC: never "/r/cscareerquestions", which may answer How did you hear.
+LOCAL = re.compile(r"^(~/|/(Users|private|tmp|var|Volumes|home|opt)/|[A-Za-z]:\\|file:)", re.IGNORECASE)
+
+
+def _local_path(answer: Any) -> bool:
+    """Whether a planned answer is a file, or names a path on this Mac. JPMorgan's Oracle form got the resume's
+    path in its "Link 1" box (2026-11-10)."""
+    return isinstance(answer, Path) or (isinstance(answer, str) and LOCAL.match(answer.strip()) is not None)
 
 
 def remember(profile: ApplicantProfile, posting: Posting, question: Question, answer: str) -> None:

@@ -22,14 +22,16 @@ import { EDITOR_ZOOM_KEY, readLocalDraft, writeLocalDraft } from "@/lib/local-dr
  *  page never grows past its column, so a high step on a narrow screen
  *  stops at the column's width. Each page draws again at its new width
  *  (`PageCanvas`), so text stays sharp at every step. An upload's page
- *  (../uploaded/[id]/viewer.tsx) draws the same control over its own
- *  state, opening at 100% and storing nothing. */
+ *  (../uploaded/[id]/viewer.tsx) draws the same control over the same
+ *  kept step (`useZoom`), so both resume pages open at one zoom (KAN-825:
+ *  an upload's opened at 100% and kept nothing until then). */
 const ZOOMS = [50, 75, 90, 100, 125, 150];
 const DEFAULT_ZOOM = 125;
 export const zoomWidth = (zoom: number) => `${(816 * zoom) / 100}px`;
 
-/** The page's zoom, kept per browser (`EDITOR_ZOOM_KEY`). The server and
- *  hydration draw the default, then the browser's own step. */
+/** The page's zoom, kept per browser (`EDITOR_ZOOM_KEY`) and shared by
+ *  the editor and an upload's page. The server and hydration draw the
+ *  default, then the browser's own step. */
 const zoomListeners = new Set<() => void>();
 // The pick this tab made, so the zoom still moves when storage refuses it
 let pickedZoom: number | null = null;
@@ -55,8 +57,9 @@ export function useZoom() {
   return [zoom, set] as const;
 }
 
-/** Zoom out, the zoom as a menu of its steps, and zoom in, as a PDF
- *  viewer has them. After KAN-421 widened every seeker page to 1440px,
+/** Zoom Out, the zoom as a menu of its steps, and Zoom In, as a PDF
+ *  viewer has them, at the slim bar's end (the bar draws the rule before
+ *  it). After KAN-421 widened every seeker page to 1440px,
  *  the page filled its column and took most of the screen; it now opens
  *  at 125% and the student picks. */
 export function Zoom({ zoom, onZoom }: { zoom: number; onZoom: (zoom: number) => void }) {
@@ -66,8 +69,7 @@ export function Zoom({ zoom, onZoom }: { zoom: number; onZoom: (zoom: number) =>
       <Button
         variant="ghost"
         size="icon-lg"
-        aria-label="Zoom out"
-        title="Zoom out"
+        aria-label="Zoom Out"
         disabled={at <= 0}
         onClick={() => onZoom(ZOOMS[at - 1])}
       >
@@ -94,14 +96,12 @@ export function Zoom({ zoom, onZoom }: { zoom: number; onZoom: (zoom: number) =>
       <Button
         variant="ghost"
         size="icon-lg"
-        aria-label="Zoom in"
-        title="Zoom in"
+        aria-label="Zoom In"
         disabled={at >= ZOOMS.length - 1}
         onClick={() => onZoom(ZOOMS[at + 1])}
       >
         <MagnifyingGlassPlusIcon aria-hidden />
       </Button>
-      <span aria-hidden className="bg-border-subtle mx-1 h-5 w-px" />
     </div>
   );
 }

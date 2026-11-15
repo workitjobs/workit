@@ -14,6 +14,11 @@ import { rememberStage } from "../jobs/shown-list";
 import { dequeueJob, queueJob, type ApplicationStage, type RunStage } from "./actions";
 import { openedNote } from "./opened-note";
 
+/** Taking a queued job out, by one name wherever it shows: the Queued
+ *  toggle's hover, the combined Apply button's menu (../jobs/
+ *  apply-split-button.tsx) and Up Next's ⋯ and pick bar (KAN-818). */
+export const REMOVE_FROM_QUEUE = "Remove From Queue";
+
 /** What the button says once the job posting has an application. */
 const STAGE_LABEL: Record<RunStage, string> = {
   queued: "Queued",
@@ -31,16 +36,21 @@ const STAGE_LABEL: Record<RunStage, string> = {
  * `stage` is the application the server read as it drew the page (null:
  * none). A saved job (its Save button, KAN-261) counts as none: a click
  * queues it. With one, the button names its stage. Queued is a toggle: a second
- * click takes the job out of the queue (dequeueJob) and the button reads
- * Auto Apply again. Any later stage is off: needs you, skipped and applied
+ * click is Remove From Queue, the one name it has everywhere (KAN-818): it
+ * takes the job out of the queue (dequeueJob) and the button reads Auto
+ * Apply again. Any later stage is off: needs you, skipped and applied
  * are what happened, not a plan, so the button never undoes them. A stale
  * `stage` is harmless: a click answers the real one.
  *
- * Queueing raises a toast (components/ui/toast.tsx), "<title> from <company>
- * is queued for Auto Apply.", with Undo, which takes the job out again
- * (dequeueJob) and turns the button back to Auto Apply: the same as Live
- * Activity's cross and its Undo, the other way round. Only a new queueing
- * raises one; a click that finds an earlier stage just shows it.
+ * Both ways raise a toast (components/ui/toast.tsx) with Undo, so neither
+ * asks first (docs/design.md, "A write that cannot be taken back asks first
+ * or offers Undo"). Queueing says "<title> from <company> is queued for Auto
+ * Apply.", and its Undo takes the job out again (dequeueJob). Removing says
+ * "<title> from <company> is removed from the queue.", as Up Next's Remove
+ * does, and its Undo queues it again (queueJob), at the queue's end. Only a
+ * new queueing raises one; a click that finds an earlier stage just shows it.
+ * Each toast closes the job's last one (`say`): a queued toast left beside
+ * the removal offered an Undo that could only fail.
  *
  * Every stage it sets goes to the shown list (`rememberStage`, KAN-217), so
  * the job's other buttons and every list follow: a saved job queued here
@@ -83,10 +93,13 @@ export function useAutoApply({
   // One click at a time: `disabled={pending}` lands a render late, so a
   // fast double click queued twice, raising two toasts and two opens.
   const busy = useRef(false);
+  // This job's last toast: a new one closes it, so a queued toast's Undo
+  // never shows beside the removal it would contradict.
+  const shown = useRef<number | null>(null);
   const inBrowser = useBrowserJobs().has(jobId);
 
-  /** The toast's Undo. A failure (a fill that began meanwhile) says so in a
-   *  toast and leaves the button Queued. */
+  /** The queueing toast's Undo. A failure (a fill that began meanwhile)
+   *  says so in a toast and leaves the button Queued. */
   async function undo() {
     const result = await dequeueJob(jobId);
     if (result.error) {
@@ -95,6 +108,33 @@ export function useAutoApply({
     }
     setStage(null);
     rememberStage(jobId, null);
+  }
+
+  /** The removal toast's Undo: the job joins the queue again, at its end. A
+   *  failure says so in a toast and leaves the button at Auto Apply. */
+  async function requeue() {
+    const result = await queueJob(jobId);
+    if (!result.stage) {
+      toast.show({ message: `Couldn't put ${title} back in the queue. ${result.error}` });
+      return;
+    }
+    setStage(hasApplied(result.stage) ? "applied" : result.stage);
+    rememberStage(jobId, result.stage);
+  }
+
+  /** "<title> from <company> <said>" in a toast with Undo, the job's
+   *  names in medium, in place of this job's last toast. */
+  function say(said: string, onUndo: () => Promise<void>) {
+    if (shown.current !== null) toast.dismiss(shown.current);
+    shown.current = toast.show({
+      message: (
+        <>
+          <span className="font-medium">{title}</span> from{" "}
+          <span className="font-medium">{company}</span> {said}
+        </>
+      ),
+      action: { label: "Undo", onClick: onUndo },
+    });
   }
 
   /** The tab opens in the background; only a failure is worth a line. */
@@ -116,10 +156,10 @@ export function useAutoApply({
         if (queued) {
           const result = await dequeueJob(jobId);
           setError(result.error);
-          if (!result.error) {
-            setStage(null);
-            rememberStage(jobId, null);
-          }
+          if (result.error) return;
+          setStage(null);
+          rememberStage(jobId, null);
+          say("is removed from the queue.", requeue);
           return;
         }
         const result = await queueJob(jobId);
@@ -133,15 +173,7 @@ export function useAutoApply({
         rememberStage(jobId, result.stage);
         if (result.stage === "queued") {
           void openInBrowser();
-          toast.show({
-            message: (
-              <>
-                <span className="font-medium">{title}</span> from{" "}
-                <span className="font-medium">{company}</span> is queued for Auto Apply.
-              </>
-            ),
-            action: { label: "Undo", onClick: undo },
-          });
+          say("is queued for Auto Apply.", undo);
         }
       } finally {
         busy.current = false;
@@ -201,7 +233,7 @@ export function AutoApplyButton(props: {
         disabled={auto.pending}
         // A toggle: pressed while queued, and the hover says what a click does.
         aria-pressed={auto.queued}
-        title={auto.queued ? "Remove from the queue" : undefined}
+        title={auto.queued ? REMOVE_FROM_QUEUE : undefined}
         onClick={auto.toggle}
       >
         {auto.queued ? (

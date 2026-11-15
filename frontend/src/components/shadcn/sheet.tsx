@@ -4,7 +4,7 @@ import * as React from "react";
 import { Dialog as SheetPrimitive } from "@base-ui/react/dialog";
 
 import { cn } from "@/lib/cn";
-import { Button } from "@/components/shadcn/button";
+import { IconButton } from "@/components/ui/icon-button";
 import { XIcon } from "@phosphor-icons/react/ssr";
 
 function Sheet({ ...props }: SheetPrimitive.Root.Props) {
@@ -69,13 +69,21 @@ function SheetContent({
       >
         {children}
         {showCloseButton && (
+          // WorkIt's own Close, as every panel's (ui/icon-button.tsx, `place`):
+          // shadcn's ghost Button here was 28px and square-cornered.
           <SheetPrimitive.Close
             data-slot="sheet-close"
-            render={<Button variant="ghost" className="absolute top-3 right-3" size="icon-sm" />}
-          >
-            <XIcon aria-hidden />
-            <span className="sr-only">Close</span>
-          </SheetPrimitive.Close>
+            render={
+              <IconButton
+                place="row"
+                label="Close"
+                tooltip={false}
+                className="absolute top-3 right-3"
+              >
+                <XIcon aria-hidden />
+              </IconButton>
+            }
+          />
         )}
       </SheetPrimitive.Popup>
     </SheetPortal>
@@ -102,11 +110,13 @@ function SheetFooter({ className, ...props }: React.ComponentProps<"div">) {
   );
 }
 
+/** WorkIt's type, as `DialogTitle`'s: `text-subtitle`, where shadcn's was
+ *  16px medium and every call site passed the token (KAN-820). */
 function SheetTitle({ className, ...props }: SheetPrimitive.Title.Props) {
   return (
     <SheetPrimitive.Title
       data-slot="sheet-title"
-      className={cn("font-heading text-foreground text-base font-medium", className)}
+      className={cn("font-heading text-foreground text-subtitle", className)}
       {...props}
     />
   );

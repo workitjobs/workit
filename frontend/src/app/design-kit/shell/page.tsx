@@ -47,7 +47,7 @@ export default function ShellPage() {
         </Row>
         <Row
           name="<AccountMenu>"
-          role="Company: the avatar alone. Seeker: the photo, name and email, with Settings and Help. Sign Out does nothing here"
+          role="Company: the avatar alone. Seeker: the photo, name and email, with Settings. Sign Out does nothing here"
         >
           <BarStrip>
             <AccountMenuSpecimen />

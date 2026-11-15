@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ComponentProps } from "react";
 
 import { FieldFacet } from "@/components/field-facet";
 import { BriefcaseIcon } from "@/components/icons";
@@ -15,6 +15,7 @@ import {
 } from "@/components/shadcn/popover";
 import { SortMenu } from "@/components/sort-menu";
 import { Button } from "@/components/ui/button";
+import { ConfirmButtons } from "@/components/ui/confirm-buttons";
 import { Select, SelectCheckboxItem, SelectContent, SelectTrigger } from "@/components/ui/select";
 import { FIELD_CONTROL } from "@/components/ui/text-field";
 import { cn } from "@/lib/cn";
@@ -172,7 +173,8 @@ export function CheckboxStates() {
   );
 }
 
-/** A small question asked in place, as Delete asks under a resume's trash. */
+/** A small question asked in place, as Delete asks under a resume's trash,
+ *  with every delete's answers (`ConfirmButtons`). */
 export function PopoverSpecimen() {
   const [open, setOpen] = useState(false);
   return (
@@ -183,15 +185,21 @@ export function PopoverSpecimen() {
           <PopoverTitle>Delete This Resume?</PopoverTitle>
           <PopoverDescription>Applications sent with it keep their copy.</PopoverDescription>
         </PopoverHeader>
-        <div className="flex justify-end gap-2">
-          <Button variant="secondary" size="sm" onClick={() => setOpen(false)}>
-            Keep It
-          </Button>
-          <Button variant="destructive" size="sm" onClick={() => setOpen(false)}>
-            Delete
-          </Button>
-        </div>
+        <ConfirmButtons
+          size="sm"
+          act="Delete Resume"
+          onKeep={() => setOpen(false)}
+          onAct={() => setOpen(false)}
+        />
       </PopoverContent>
     </Popover>
   );
+}
+
+/** The confirm pair (KAN-817) as a server page draws it: the kit passes
+ *  its look, and the answers do nothing here. */
+export function ConfirmSpecimen(
+  props: Omit<ComponentProps<typeof ConfirmButtons>, "onKeep" | "onAct">,
+) {
+  return <ConfirmButtons {...props} onKeep={() => {}} onAct={() => {}} />;
 }

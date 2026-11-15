@@ -25,6 +25,8 @@ class ResumeStatus(str, enum.Enum):
 class Education(PydanticBase):
     institution: str
     degree: str | None = None
+    # "Stony Brook, NY" after the school's name (it stayed in the name)
+    location: str | None = None
     field_of_study: str | None = None
     gpa: float | None = None
     # the "4.00" of "GPA: 3.81/4.00"
@@ -32,6 +34,8 @@ class Education(PydanticBase):
     start_date: date | None = None
     end_date: date | None = None
     description: str | None = None
+    # The dates given as a year alone (KAN-808): "start_date", "end_date"
+    year_only: list[str] = []
 
 class Experience(PydanticBase):
     company_name: str
@@ -39,6 +43,8 @@ class Experience(PydanticBase):
     location: str | None = None
     start_date: date | None = None
     end_date: date | None = None
+    # The dates given as a year alone (KAN-808): "start_date", "end_date"
+    year_only: list[str] = []
     description: str | None = None
     # the tools after the role: "Software Engineer Intern| C++, Python"
     technologies: list[str] = []
@@ -55,6 +61,8 @@ class Project(PydanticBase):
     start_date: date | None = None
     end_date: date | None = None
     description: str | None = None
+    # The dates given as a year alone (KAN-808): "start_date", "end_date"
+    year_only: list[str] = []
 
 class Certification(PydanticBase):
     cert_name: str
@@ -66,6 +74,8 @@ class Award(PydanticBase):
     title: str
     issuer: str | None = None
     date: _Date | None = None
+    # ["date"] when it is a year alone (KAN-808)
+    year_only: list[str] = []
 
 class OtherSection(PydanticBase):
     """A heading the bank has no section for ("Summary", "Interests"), as

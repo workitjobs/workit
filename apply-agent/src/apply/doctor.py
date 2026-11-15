@@ -9,17 +9,22 @@ refresh token on each use)."""
 
 import json
 import os
-import plistlib
 import subprocess
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TextIO
 
-from apply import cover_letter, gates, native_host, resume_check
-from apply.adapters import Mailbox, Tracker, Usage
+from apply import (
+    ask_model,
+    chrome_finder,
+    cover_letter,
+    gates,
+    native_host,
+    resume_check,
+)
+from apply.adapters import Mailbox, SetupError, Tracker, Usage
 from apply.browsers import (
-    CHROME,
     WORKER_PROFILES,
     WorkerBrowsers,
     google_account,
@@ -81,7 +86,7 @@ class Machine:
     """What the checks look at: live by default (cli.live_machine), fakes in tests."""
 
     profile: "ApplicantProfile | NoProfile"
-    chrome: Path = CHROME  # Chrome's Info.plist
+    chrome: Path | None = field(default_factory=chrome_finder.find)  # Google Chrome's binary (the Chrome finder)
     claude: Callable[[], str] = lambda: claude_auth_status()  # `claude auth status`'s output
     profiles: Path = field(default_factory=lambda: WorkerBrowsers().profiles)  # the Worker profiles' folder
     mailbox: Callable[[str], Mailbox] = live_mailbox  # Gmail for an address
@@ -89,17 +94,19 @@ class Machine:
     # The Records repo: its remote and GitRecords' clone of it. None: policies.yaml's records_remote, and CLONE.
     records: tuple[str | None, Path] | None = None
     engine: Path = ENGINE  # the Fill engine's built bundle
-    # Where Playwright keeps the Chromium the tests run (live runs use Chrome).
-    playwright: Path = Path(os.environ.get("PLAYWRIGHT_BROWSERS_PATH") or Path.home() / "Library/Caches/ms-playwright")
+    # Where Playwright keeps the Chromium the tests run (live runs use Chrome), in each OS's cache folder.
+    playwright: Path = field(default_factory=chrome_finder.playwright_browsers)
     workit: Callable[[], WorkIt] = WorkIt  # the WorkIt client, with the login in the data folder
     waiting_writes: Callable[[], WaitingWrites] = WaitingWrites  # the writes to the Applications Tracker still waiting
     usage: Usage | None = None  # read only when asked (`--usage`): reading it costs a tiny Haiku call
-    native_hosts: Path = native_host.CHROME_HOSTS  # everyday Chrome's NativeMessagingHosts folder
+    native_hosts: Path | None = native_host.CHROME_HOSTS  # everyday Chrome's NativeMessagingHosts folder (None: Windows)
     resume_check: Callable = resume_check.compare  # the resume against policies.yaml's resume_source
+    # A provider's API key, by its name in ask_model.PROVIDERS; never printed.
+    ask_key: Callable[[str], str | None] = lambda name: ask_model.key(ask_model.PROVIDERS[name])
 
 
 def diagnose(machine: Machine) -> list[Check]:
-    checks: list[Callable[[Machine], Check | list[Check]]] = [_claude, _chrome, _engine, _chromium, _workers, _facts, _resume_gate, _resume_source, _gmail, _records, _live_runs, _workit, _writes, _tracker, _accounts_host]
+    checks: list[Callable[[Machine], Check | list[Check]]] = [_claude, _ask_model, _chrome, _engine, _chromium, _workers, _facts, _resume_gate, _resume_source, _gmail, _records, _live_runs, _workit, _writes, _tracker, _accounts_host]
     return [found for c in checks for found in _safely(c, machine)]
 
 
@@ -153,11 +160,32 @@ def _claude(machine: Machine) -> Check:
                                f"{usage.weekly:.0%} of the week")
 
 
-def _chrome(machine: Machine) -> Check:
+def _ask_model(machine: Machine) -> list[Check]:
+    """Where `ask` goes (policies.yaml's ask_model): no line for claude; WorkIt for workit, the default,
+    whose sign-in the WorkIt line checks; for hosted providers, whether each has a key (apply.ask_model). A
+    key itself is never printed."""
+    name = "Ask model"
     try:
-        version = plistlib.loads(machine.chrome.read_bytes())["CFBundleShortVersionString"]
-    except (OSError, KeyError, plistlib.InvalidFileException):
-        return Check("Chrome", FAIL, f"Google Chrome isn't installed (no {machine.chrome})",
+        names = ask_model.chain({"ask_model": _policy(machine, "ask_model")})
+    except SetupError as e:
+        return [Check(name, FAIL, str(e), "set ask_model to workit, claude, groq, gemini or a list of the providers "
+                                          "in policies.yaml")]
+    if not names:
+        return []
+    if names == [ask_model.WORKIT]:
+        return [Check(name, OK, "WorkIt's Model route answers and writes (ask_model: workit), as the signed-in "
+                                "student; Claude fill, Rescue and company briefs stay on claude")]
+    if missing := [n for n in names if not machine.ask_key(n)]:
+        return [Check(name, FAIL, f"ask_model: {', '.join(names)}, but there is no {missing[0]} key",
+                      ask_model.no_key(ask_model.PROVIDERS[missing[0]]))]
+    return [Check(name, OK, f"{', then '.join(names)} answer and write (ask_model), with lean essay prompts; "
+                            "Claude fill, Rescue and company briefs stay on claude")]
+
+
+def _chrome(machine: Machine) -> Check:
+    if not (version := chrome_finder.version(machine.chrome)):
+        where = f"no {machine.chrome}" if machine.chrome else "none in " + ", ".join(map(str, chrome_finder.places()))
+        return Check("Chrome", FAIL, f"Google Chrome isn't installed ({where})",
                      "install it from https://www.google.com/chrome/")
     return Check("Chrome", OK, version)
 
@@ -442,6 +470,8 @@ def _accounts_host(machine: Machine) -> Check:
     """The Apply accounts host (KAN-592): optional, so never a fail. Without it, the WorkIt extension in
     Lisul's Chrome has no Sign In button for the Employer accounts Apply made."""
     name, fix = "Apply accounts host", "run `uv run apply chrome-passwords`"
+    if machine.native_hosts is None:
+        return Check(name, WARN, f"not built on Windows yet: Chrome finds a host there through {native_host.WINDOWS_KEY}")
     manifest = machine.native_hosts / f"{native_host.NAME}.json"
     try:
         written = json.loads(manifest.read_text())

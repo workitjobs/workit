@@ -16,7 +16,7 @@ applicant_profiles
   ├── experience_banks   one row per student: the bank embedding and when it was made, and the skills the student removed
   ├── bank_entries       one per job, degree, project, club role, award or certification
   │     └── bank_bullets the entry's lines, in order, in their original wording
-  └── bank_skills        a plain list, each with an optional group
+  └── bank_skills        a plain list, each with an optional group, in the student's order (KAN-816)
 ```
 
 - **Six entry sections, not seven.** Skills is the seventh section, but a
@@ -114,7 +114,7 @@ applicant_profiles
   └── built_resumes            name, template id, optional job posting
         ├── built_resume_entries   entry: shown, position in its section, GPA and coursework toggles
         ├── built_resume_bullets   bullet: shown, position in its entry, variant (null: the original)
-        └── built_resume_skills    skill: shown, position
+        └── built_resume_skills    skill: shown, position, its group on this resume (null: the bank's)
 ```
 
 - **No text on a built resume.** The view (`backend/app/services/resume_view.py`)

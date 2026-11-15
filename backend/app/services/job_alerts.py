@@ -56,6 +56,12 @@ async def build_digest(db: AsyncSession, account: AuthenticatedAccount) -> list[
     return pick_batch(scored, BATCH_SIZE)
 
 
+def _title(count: int) -> str:
+    """The digest's heading, in the bell and the email alike: one job is
+    one match ("Your 1 Best Match Today"), never "1 Best Matches"."""
+    return f"Your {count} Best {'Match' if count == 1 else 'Matches'} Today"
+
+
 # Band colors copied from frontend/src/app/globals.css's --color-match-* tokens
 # (frontend/CLAUDE.md, "A match score is red, orange, yellow or green"), so the
 # digest's badge reads the same as the Jobs page's ring.
@@ -209,7 +215,7 @@ def _digest_html(jobs: list[ScoredJob], web_url: str, descriptions: dict[str, st
     content = f"""
       <table style="width:100%;border-collapse:collapse"><tr>
         <td style="vertical-align:middle">
-          <h1 style="font-size:20px;color:#1a1625;margin:0">Your {len(jobs)} Best Matches Today</h1>
+          <h1 style="font-size:20px;color:#1a1625;margin:0">{_title(len(jobs))}</h1>
         </td>
         <td style="width:40px;text-align:right;vertical-align:middle">
           <img src="{web_url}/workit-icon.svg" width="32" height="32" alt="WorkIt">
@@ -266,7 +272,7 @@ async def send_job_alert(db: AsyncSession, account: AuthenticatedAccount) -> boo
         Notification(
             applicant_id=account.id,
             type="job_alert",
-            title=f"Your {len(jobs)} Best Matches Today",
+            title=_title(len(jobs)),
             body=f"{jobs[0].title} at {jobs[0].company} ({jobs[0].match}% match), and {len(jobs) - 1} more."
             if len(jobs) > 1
             else f"{jobs[0].title} at {jobs[0].company} ({jobs[0].match}% match).",
@@ -285,7 +291,7 @@ async def send_job_alert(db: AsyncSession, account: AuthenticatedAccount) -> boo
     descriptions = await _fetch_descriptions(db, [job.id for job in jobs])
     sent = await send_email(
         account.email,
-        f"Your {len(jobs)} best job matches today",
+        f"Your {len(jobs)} best job {'match' if len(jobs) == 1 else 'matches'} today",
         _digest_html(jobs, web_url, descriptions),
     )
     if not sent:

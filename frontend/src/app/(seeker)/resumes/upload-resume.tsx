@@ -3,12 +3,11 @@
 import Link from "next/link";
 import { useRef, useState, type ChangeEvent } from "react";
 
-import { UploadIcon } from "@/components/icons";
-import { PendingResumeCard, ResumeRow } from "@/components/resume-row";
+import { PendingResumeCard, ResumeRow, type RowPick } from "@/components/resume-row";
 import { RESUME_ACCEPT, resumeFileError } from "@/components/resume-upload";
-import { Button } from "@/components/ui/button";
 import { type ImportResponse } from "@/lib/bank-actions";
-import { importSummary } from "@/lib/import-summary";
+import { HeaderOffers } from "@/components/header-offers";
+import { headerSummary, importSummary } from "@/lib/import-summary";
 import { MAX_UPLOADS } from "@/lib/resume-limits";
 import { openDownload } from "@/lib/save-file";
 import {
@@ -107,19 +106,13 @@ export function useResumeUpload({
   const shownImport =
     imported && uploaded.some((resume) => resume.id === imported.resume_id) ? imported : null;
 
-  const button = (
-    <>
-      <Button
-        variant="secondary"
-        size="sm"
-        disabled={uploading !== null}
-        onClick={() => inputRef.current?.click()}
-      >
-        <UploadIcon className="size-4" />
-        {uploading ? "Reading…" : <ShortLabel verb="Upload" />}
-      </Button>
-      <input ref={inputRef} type="file" accept={RESUME_ACCEPT} onChange={handleSelect} hidden />
-    </>
+  // The file picker, opened by Generate Resume's Upload a Resume
+  // (./new-resume-dialog.tsx). Upload Resume was its own button beside
+  // Generate until 2026-11-11. The input lives on the page, so it outlasts
+  // the dialog that opened it.
+  const pick = () => inputRef.current?.click();
+  const input = (
+    <input ref={inputRef} type="file" accept={RESUME_ACCEPT} onChange={handleSelect} hidden />
   );
 
   const notes = (uploadError || shownImport) && (
@@ -132,11 +125,14 @@ export function useResumeUpload({
       {shownImport && (
         <p className="text-note text-ink-muted" aria-live="polite">
           {importSummary(shownImport, shownImport.filename)}{" "}
+          {/* What its header filled on the profile (KAN-436) */}
+          {headerSummary(shownImport.header) && `${headerSummary(shownImport.header)} `}
           <Link href="/experiences" className="text-brand hover:text-brand-hover underline">
             Open Experiences
           </Link>
         </p>
       )}
+      {shownImport && <HeaderOffers header={shownImport.header} />}
     </>
   );
 
@@ -147,7 +143,14 @@ export function useResumeUpload({
     return layout === "list" ? card : <li>{card}</li>;
   };
 
-  return { button, notes, pending, uploading: uploading !== null };
+  return {
+    pick,
+    input,
+    notes,
+    pending,
+    uploading: uploading !== null,
+    full: uploaded.length >= MAX_RESUMES,
+  };
 }
 
 /**
@@ -174,11 +177,14 @@ export function UploadedRow({
   reload,
   onDelete,
   layout = "list",
+  pick,
 }: {
   resume: ResumeItem;
   reload: () => Promise<void>;
   /** The Resumes tab's layout (KAN-766). */
   layout?: "list" | "grid";
+  /** The row's select box, in the list (`ResumeCard`'s `pick`). */
+  pick?: RowPick;
   /** The list hides the row and sends the delete (KAN-388). */
   onDelete: (send: () => Promise<{ error: string | null }>) => void;
 }) {
@@ -230,6 +236,7 @@ export function UploadedRow({
       page
       layout={layout}
       notes={layout === "list" ? notes : undefined}
+      pick={pick}
       rename={renaming ? { saving, onSave: rename, onCancel: () => setRenaming(false) } : undefined}
       onMakePrimary={makePrimary}
       onRename={() => setRenaming(true)}

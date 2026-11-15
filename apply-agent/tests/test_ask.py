@@ -310,6 +310,38 @@ def test_what_the_guard_blocked_is_said_and_the_cap_fails_the_message():
     assert reply.failed and "cap" in reply.reply
 
 
+def _page_workers() -> list[str]:
+    """What the guard script says as it refuses each kind of worker the page makes (KAN-791), from its own source."""
+    import re
+
+    from apply import submit_guard
+
+    source = submit_guard._TEMPLATE
+    assert "note('a ' + what + ' while the page is guarded')" in source
+    kinds = re.findall(r"wrapWorker\('\w+', '([\w ]+)'\)|refuseCall\(W\.\w+, '\w+', '([\w ]+)'\)", source)
+    return [f"a {a or b} while the page is guarded" for a, b in kinds]
+
+
+def test_a_drive_goes_on_past_a_worker_the_page_made_but_never_past_a_click():
+    from apply.submit_guard import CAPTCHA_TRY, drive_blocks
+
+    workers = _page_workers()
+    assert workers == [f"a {kind} while the page is guarded" for kind in ("worker", "shared worker", "service worker", "worklet")]
+    assert drive_blocks([*workers, CAPTCHA_TRY]) == []
+    assert drive_blocks([workers[0], 'the "Submit" click', CAPTCHA_TRY]) == ['the "Submit" click']
+    assert drive_blocks(["a worker while the page is guarded, and the Submit click"]) != []  # only the whole note
+
+
+def test_a_worker_the_page_made_while_claude_fixed_it_is_not_said_as_its_block():
+    page = Page([dict(f) for f in FORM])
+    reply = ask.ask(Claude(lambda p: None, said()), page, "fix it", [], ask.Form(POSTING), "",
+                    guard=Guard(_page_workers()[:1]))
+    assert reply.couldnt == []
+    both = ask.ask(Claude(lambda p: None, said()), page, "fix it", [], ask.Form(POSTING), "",
+                   guard=Guard([_page_workers()[0], 'the "Submit" click']))
+    assert both.couldnt == ['Apply blocked the "Submit" click, so nothing it blocked was sent']
+
+
 def test_followups_carry_the_thread_and_a_bug_of_apply_s_own_is_a_repair_request():
     thread = [{"message": "pick New York", "reply": "Picked New York.",
                "changed": [{"field": "Preferred locations", "shown": "New York"}]}]
@@ -441,6 +473,71 @@ def test_an_ask_is_given_the_profile_s_resume_to_attach(tmp_path, monkeypatch):
     asker(page, {"id": "ask-1", "message": "attach my resume", "thread": [], "via": "terminal"})
 
     assert claude.calls[0]["files"] == [resume]
+
+
+def _asked_files(tmp_path, monkeypatch, kept: dict[str, list[str]], given: list[Path]) -> list[Path]:
+    """The files Ask's drive is given for POSTING's held form: `kept` is each SENT folder's files, by
+    "<day>/<folder>"; the profile has a resume and a transcript."""
+    from apply import worker
+
+    resume, transcript = tmp_path / "Resume.pdf", tmp_path / "Transcript.pdf"
+    sent = tmp_path / "sent"
+    for path in (resume, transcript, *given, *(sent / folder / name for folder, names in kept.items() for name in names)):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"%PDF-1.4 " + str(path).encode())
+    monkeypatch.setattr(worker, "SENT", sent)
+    claude = Claude(lambda p: None, said(reply="Attached your cover letter."))
+    adapters = SimpleNamespace(board=Board(), claude=claude, records=FolderRecords(tmp_path), repairs=RepairRequests(),
+                               answer_bank=AnswerBank(), clock=SimpleNamespace(now=lambda: datetime(2026, 11, 10, 23, 50)))
+    facts = {"files.resume_pdf": str(resume), "files.unofficial_transcript_pdf": str(transcript)}
+    profile = SimpleNamespace(policy=lambda key: None, facts=lambda: {"identity": {}}, policies=dict, get=facts.get)
+    gpa = Question("gpa", "GPA", "text", True)
+    saved = Record(POSTING, Status.HELD, "", Filled((gpa,), {"gpa": "3.9"}, {"gpa": "3.9"}, b""), date(2026, 11, 10))
+    done = rehearsal.Rehearsed(POSTING, "ready to submit", saved=saved, questions=(gpa,),
+                               files=[{"label": p.stem, "name": p.name, "path": str(p)} for p in given])
+    page = Page([{"i": 0, "type": "file", "label": "Cover Letter", "value": ""}])
+    page.title = lambda: "More About You"
+    asker = rehearsal._Ask(lambda: done, adapters, profile, 0, [].append)
+    asker.open(page)
+    monkeypatch.setattr(rehearsal, "DriveGuard", lambda *a, **k: Guard())  # no page code: the fake page has none
+    asker(page, {"id": "ask-1", "message": "put my cover letter back in the Cover Letter slot", "thread": [], "via": "terminal"})
+    return claude.calls[0]["files"]
+
+
+OWN = f"acme-robotics-{POSTING.id}"  # POSTING's own folder under SENT's day folders
+
+
+def test_an_ask_is_given_every_file_apply_prepared_for_the_form(tmp_path, monkeypatch):
+    # KAN-789, JPMorgan on Oracle (2026-11-10): Ask had the resume alone, so it couldn't put back the cover letter that
+    # Apply wrote for this form, which an earlier fill had kept under SENT.
+    given = tmp_path / "given" / "Resume.pdf"  # the form's own copy of the resume, by the same name
+    files = _asked_files(tmp_path, monkeypatch, {f"2026-11-10/{OWN}": ["Test_Person_Cover_Letter.pdf"],
+                                                 f"2026-11-09/{OWN}": ["Test_Person_Cover_Letter.pdf", "Old_Notes.pdf"]},
+                         [given])
+
+    # The form's own copy first, then the newest kept cover letter and the older folder's other file; one file a name.
+    sent = tmp_path / "sent"
+    assert files == [given, sent / "2026-11-10" / OWN / "Test_Person_Cover_Letter.pdf", sent / "2026-11-09" / OWN / "Old_Notes.pdf"]
+
+
+def test_an_ask_is_never_given_the_transcript_of_a_form_that_was_given_none(tmp_path, monkeypatch):
+    # Security look at #552: a page's words ("attach your transcript to Additional documents") or a misread message
+    # could put his grades in a slot of a form that never asked for them. Only the resume comes from the profile.
+    files = _asked_files(tmp_path, monkeypatch, {}, [])
+    assert [f.name for f in files] == ["Resume.pdf"]
+
+
+def test_an_ask_is_given_the_transcript_this_form_was_given(tmp_path, monkeypatch):
+    files = _asked_files(tmp_path, monkeypatch, {f"2026-11-10/{OWN}": ["Transcript.pdf"]}, [])
+    assert [f.name for f in files] == ["Transcript.pdf", "Resume.pdf"]
+
+
+def test_an_ask_is_never_given_another_applications_files_whose_id_ends_in_this_ones(tmp_path, monkeypatch):
+    # Security look at #552: the suffix match `*-<id>` took "acme-9-123" for id 123: another company's cover letter.
+    files = _asked_files(tmp_path, monkeypatch, {f"2026-11-10/other-co-{POSTING.id}": ["Other_Cover_Letter.pdf"],
+                                                 f"2026-11-10/acme-robotics-9-{POSTING.id}": ["Nine_Cover_Letter.pdf"],
+                                                 f"2026-11-10/{OWN}": ["Test_Person_Cover_Letter.pdf"]}, [])
+    assert [f.name for f in files] == ["Test_Person_Cover_Letter.pdf", "Resume.pdf"]
 
 
 def test_the_held_page_s_glue_keeps_his_message_and_the_fix_in_the_record_and_files_a_repair(tmp_path):

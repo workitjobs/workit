@@ -24,9 +24,6 @@ import {
 } from "./entry-dialog";
 import type { BankRow } from "./holdings";
 
-/** A card heading's icon action: a 32px round target, as LinkedIn's. */
-export const HEADING_ACTION = "hover:bg-hover size-8 rounded-full";
-
 /** An item of the list's ⋯ that asks across the foot first: Clear All,
  *  Delete Section. On a yes it runs, and the list closes once it is done,
  *  since what it showed is gone. */
@@ -75,6 +72,7 @@ export function SectionDialog({
   noun,
   count,
   rows,
+  empty = "Nothing here yet.",
   renderRow,
   pane,
   actions = [],
@@ -91,6 +89,8 @@ export function SectionDialog({
   /** What the head's line counts: the rows, or a Lines section's lines. */
   count: number;
   rows: BankRow<BankEntry>[];
+  /** The line in place of an empty list: the card's own (KAN-814). */
+  empty?: string;
   /** An entry as the page draws it, with the pencil it is given. */
   renderRow: (row: BankRow<BankEntry>, pencil: { id: string; onEdit: () => void }) => ReactNode;
   /** The form's setup for an entry, or for a new one (`null`). */
@@ -198,25 +198,25 @@ export function SectionDialog({
           actions={
             <>
               <IconButton
+                place="heading"
                 id={ADD_ID}
                 label={`Add ${noun[0]}`}
                 tooltip={`Add ${noun[0].toLowerCase() === "entry" ? "an entry" : `a ${noun[0].toLowerCase()}`}`}
-                className={HEADING_ACTION}
                 onClick={() => setStep({ kind: "entry", entry: null, near: null })}
               >
-                <PlusIcon aria-hidden className="size-5" />
+                <PlusIcon aria-hidden />
               </IconButton>
               {(actions.length > 0 || rename) && (
                 <DropdownMenu>
                   <DropdownMenuTrigger
                     render={
                       <IconButton
+                        place="heading"
                         id={MORE_ID}
                         label={`More actions for ${name}`}
-                        tooltip="More actions"
-                        className={HEADING_ACTION}
+                        tooltip={false}
                       >
-                        <EllipsisIcon className="size-5" />
+                        <EllipsisIcon />
                       </IconButton>
                     }
                   />
@@ -258,7 +258,7 @@ export function SectionDialog({
         className="@container/main min-h-0 flex-1 overflow-y-auto overscroll-none px-4 sm:px-6"
       >
         {rows.length === 0 ? (
-          <p className="text-body text-ink-meta py-4">Nothing here yet.</p>
+          <p className="text-body text-ink-meta py-4">{empty}</p>
         ) : (
           <ul role="list" className="divide-border-subtle flex flex-col divide-y">
             {rows.map((row, at) => {

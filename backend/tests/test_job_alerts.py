@@ -149,6 +149,29 @@ def test_send_job_alert_keeps_the_notification_when_the_email_fails(monkeypatch)
     db.commit.assert_awaited_once()
 
 
+@pytest.mark.parametrize(
+    ("count", "title", "subject"),
+    [
+        (1, "Your 1 Best Match Today", "Your 1 best job match today"),
+        (3, "Your 3 Best Matches Today", "Your 3 best job matches today"),
+    ],
+)
+def test_the_bell_and_the_email_count_one_job_as_one_match(monkeypatch, count, title, subject):
+    # KAN-826: one job read "Your 1 Best Matches Today" in the bell and the email.
+    scored = [job(str(i), GH + str(i), company="Acme", title=str(i)) for i in range(count)]
+    monkeypatch.setattr(job_alerts, "fetch_recommended", fake_recommended(scored, []))
+    sent = []
+    monkeypatch.setattr(job_alerts, "send_email", AsyncMock(side_effect=lambda *a: sent.append(a) or True))
+    db = FakeDB()
+
+    asyncio.run(job_alerts.send_job_alert(db, ACCOUNT))
+
+    assert db.added[0].title == title
+    ((_, email_subject, html),) = sent
+    assert email_subject == subject
+    assert f">{title}</h1>" in html
+
+
 def test_digest_links_point_at_workitjobs_ai_by_default(monkeypatch):
     # KAN-483: every email link uses workitjobs.ai, never the old Vercel host.
     monkeypatch.delenv("WEB_URL", raising=False)

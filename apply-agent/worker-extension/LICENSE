@@ -1,0 +1,28 @@
+WorkIt Auto Apply Worker
+
+Copyright (c) 2026 Xiang Liu, Brian Cao, Andrew Shi, Lisul Elvitigala, Vedant Vyas. All rights reserved.
+
+This software is licensed, not sold. You may install it and run it only as part of
+WorkIt Auto Apply, under WorkIt's terms of use (https://workitjobs.ai/terms). You may not,
+in whole or in part:
+
+1. copy, modify, merge, publish, distribute, sublicense or sell it;
+2. reverse engineer, decompile or disassemble it, except where the law allows this
+   despite this limit;
+3. use it, its parts or its output to train, test or improve a machine learning or
+   artificial intelligence model, or put it in a dataset for one;
+4. give it, or any part of it, to an artificial intelligence system, model or tool to
+   read, analyze, summarize, explain or translate, in order to understand how it works,
+   or to reproduce it or make software that does what it does;
+5. remove or change this notice.
+
+Limits 3 and 4 don't bind the copyright holders, or the people they allow to work on this
+software, when they use AI tools in that work.
+
+Third-party code in it keeps its own license: see NOTICE.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
+PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE
+FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR ITS USE.

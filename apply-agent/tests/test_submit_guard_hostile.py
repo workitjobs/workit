@@ -2,8 +2,8 @@
 
 Each page is a fake job form whose application request is a POST to FINAL (or a known job system's final URL).
 Each click path is the real code that presses a button through the guards: plain code's Next (press_step), the
-profile pop-up's click, the account page's click, Ask Claude's press, and Fill again (a held page filled anew in a
-fresh guarded page). Every pair must leave the job system with no application request. The control tests show
+profile pop-up's click, the account page's click, Ask Claude's press, the keep-alive's press of a session dialog's
+stay-signed-in button (KAN-776; on any site by the generic rules, KAN-779), and Fill again (a held page filled anew in a fresh guarded page). Every pair must leave the job system with no application request. The control tests show
 each page does send without the guard, so a pass means the guard stopped it.
 
 A new click path joins PATHS, and a new trick joins PAGES, in the same PR (the root CLAUDE.md's review rule).
@@ -13,16 +13,20 @@ Fill again's case (KAN-682) opens its page in a real Worker browser. Three group
 - plain: a plain Worker on Chrome for Testing, skipped where there is none (CI).
 """
 
+import dataclasses
 import http.server
+import json
+import re
 import sys
 import threading
+import time
 from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
-from apply import amazon, ask, claude_fill, send_click, submit_guard
+from apply import amazon, ask, claude_fill, keepalive, send_click, submit_guard
 from apply.account_pages import AccountPages, _Click
 from apply.adapters import Drive
 from apply.claude_fill import ClaudeFill, press_step
@@ -466,10 +470,213 @@ PAGES |= {
         document.getElementById('b').addEventListener('click', () => {{ {_TWICE} }});</script>""",
         "/acme/jobs/123/step2": "<title>Two</title><input name=next>"},
 }
+# KAN-791: Ashby's submit, which the guard once found by one regex on the body's operationName. Each body here is a
+# submit Ashby's GraphQL server would run, or one the guard can't read (a duplicate key, a persisted query's hash
+# alone, text that is no JSON): the guard reads each as the server would, and any of them reaching Ashby is an
+# application (Site.applications).
+ASHBY_GQL = "https://jobs.ashbyhq.com/api/non-user-graphql"
+_ASHBY_SEND = """<script>const GQL = '@GQL@';
+const hide = (s) => s.replace(/submit/gi, (m) => '\\\\u00' + m.charCodeAt(0).toString(16) + m.slice(1));
+const post = (body, how) => {
+  if (how === 'xhr') { try { const x = new XMLHttpRequest(); x.open('POST', GQL); x.send(body); } catch (e) {} return; }
+  if (how === 'beacon') { try { navigator.sendBeacon(GQL, body); } catch (e) {} return; }
+  try { fetch(GQL, {method: 'POST', body}).catch(() => {}); } catch (e) {}
+};
+const SUBMIT = 'mutation { submitMultipleFormsAction(jobPostingId: "1") { __typename } }';
+document.getElementById('b').addEventListener('click', () => { @SENDS@ });</script>"""
+_ASHBY_JSON = """
+  post(JSON.stringify({query: 'mutation { submitSingleApplicationFormAction(formRenderIdentifier: "r") { __typename } }'}));
+  post(hide(JSON.stringify({operationName: 'ApiSubmitMultipleFormsAction', query: 'mutation ApiSubmitMultipleFormsAction { submitMultipleFormsAction { a } }'})));
+  post(JSON.stringify([{query: 'query A { jobPosting { title } }'}, {operationName: 'ApiSetFormValue', query: SUBMIT}]));
+  post(JSON.stringify({operationName: 'ApiSetFormValue', query: 'mutation ApiSetFormValue { ...F } fragment F on Mutation { submitMultipleFormsAction { a } }'}));
+  post(JSON.stringify({operationName: 'ApiSetFormValue', query: 'mutation ApiSetFormValue { # setFormValue\\n ... on Mutation @include(if: true) { setFormValue: submitSingleApplicationFormAction(note: "not a submit") { a } } }'}));
+  post('{"query": "' + SUBMIT.replace(/"/g, '\\\\"') + '", "query": "query { a }"}');
+  post(JSON.stringify({operationName: 'ApiSetFormValue', extensions: {persistedQuery: {version: 1, sha256Hash: 'ab12'}}}));
+  post(JSON.stringify({query: SUBMIT}), 'xhr');
+  post(new Blob([JSON.stringify({query: SUBMIT})], {type: 'application/json'}), 'beacon');"""
+_ASHBY_FORMS = """
+  post(new URLSearchParams({query: SUBMIT}));
+  post('operationName=ApiSetFormValue&query=' + encodeURIComponent(SUBMIT), 'xhr');
+  post(new URLSearchParams({query: SUBMIT}), 'beacon');
+  const multipart = () => { const f = new FormData(); f.append('operations', JSON.stringify({query: SUBMIT, variables: {file: null}}));
+    f.append('map', '{"0": ["variables.file"]}'); f.append('0', new Blob(['resume']), 'resume.pdf'); return f; };
+  post(multipart()); post(multipart(), 'xhr'); post(multipart(), 'beacon');
+  post(SUBMIT); post(SUBMIT, 'xhr');"""
+_ASHBY_NEXT = '<title>Apply</title><input name=first value=Test><button id=b type=button>Next</button>'
+PAGES |= {
+    "Ashby's submit in JSON the regex missed": {START: _ASHBY_NEXT + _ASHBY_SEND.replace("@GQL@", ASHBY_GQL).replace("@SENDS@", _ASHBY_JSON)},
+    "Ashby's submit in a form or multipart body": {START: _ASHBY_NEXT + _ASHBY_SEND.replace("@GQL@", ASHBY_GQL).replace("@SENDS@", _ASHBY_FORMS)},
+}
+# KAN-791: a worker runs none of the guard script, so its requests went unjudged. Each worker here posts the
+# application every way it can (fetch and XHR to the final URL and Greenhouse's, Ashby's submit by its body) as it
+# starts: a dedicated, shared or service worker, from the page's URL, a blob: or a data: script, and by constructors
+# the guard might not have wrapped. Each worker script is served from WORKER_JS.
+WORKER_JS = "/acme/worker.js"
+WORKER_CODE = f"""for (const u of ['{HOST}{FINAL}', '{GREENHOUSE}']) {{
+  fetch(u, {{method: 'POST', body: 'first=Test'}}).catch(() => {{}});
+  try {{ const x = new XMLHttpRequest(); x.open('POST', u); x.send('first=Test'); }} catch (e) {{}}
+}}
+fetch('{ASHBY_GQL}', {{method: 'POST', body: JSON.stringify({{query: 'mutation {{ submitMultipleFormsAction {{ a }} }}'}})}}).catch(() => {{}});
+self.onconnect = () => {{}};"""
+_WORKERS = f"""<title>Apply</title><input name=first value=Test><button id=b type=button>Next</button><script>
+const CODE = {json.dumps(WORKER_CODE)};
+const blob = () => URL.createObjectURL(new Blob([CODE], {{type: 'text/javascript'}}));
+const data = () => 'data:text/javascript,' + encodeURIComponent(CODE);
+const each = (fs) => {{ for (const f of fs) {{ try {{ f(); }} catch (e) {{}} }} }};
+document.getElementById('b').addEventListener('click', () => each(@MAKE@));</script>"""
+_MAKES = {
+    "a Next whose workers post the application": """[() => new Worker('/acme/worker.js'), () => new Worker(blob()),
+        () => new Worker(data()), () => new Worker('/acme/worker.js', {type: 'module'})]""",
+    "a Next whose shared worker posts the application": """[() => new SharedWorker('/acme/worker.js'),
+        () => new SharedWorker(blob(), 'b'), () => new SharedWorker(data(), 'd')]""",
+    "a Next whose service worker posts the application": """[() => navigator.serviceWorker.register('/acme/worker.js').catch(() => {})]""",
+    "a worker made by a constructor the guard never wrapped": """[() => new (Worker.prototype.constructor)(blob()),
+        () => new (SharedWorker.prototype.constructor)(blob(), 'c'), () => { class Mine extends Worker {} new Mine(blob()); },
+        () => { const i = document.createElement('iframe'); document.body.append(i); new i.contentWindow.Worker(blob()); },
+        () => Reflect.construct(Worker, [blob()]), () => Worker.call({}, blob())]""",
+}
+PAGES |= {name: {START: _WORKERS.replace("@MAKE@", make), WORKER_JS: WORKER_CODE} for name, make in _MAKES.items()}
+# A worker's timers keep real time on Playwright's clock (the adversarial review of #583): this page's post came 4 s
+# after the click on real time and never on the clock, where its case's 5 s wait took 1.6 s. It waits in real time
+# (on_clock), as every page that names a worker does.
+PAGES["a Next whose worker posts the application 4 s later"] = {START: f"""<title>Apply</title><form><input name=first
+    value=Test><button id=b type=button>Next</button></form><script>document.getElementById('b').addEventListener('click',
+    () => new Worker(URL.createObjectURL(new Blob([
+      "setTimeout(() => fetch('{HOST}{FINAL}', {{method: 'POST', body: 'first=Test'}}).catch(() => {{}}), 4000)"]))));</script>"""}
+# A frame of the page's own site at reCAPTCHA's path (captcha.PATHS), which the guard took for a captcha's frame and
+# left unguarded: the page posted through the frame's fetch and its Worker (KAN-791's review).
+# The review of #551: a frame of another site the page picks, at reCAPTCHA's path, ran no guard either. Its own script
+# posts the application: on a timer after it loads, by a form bound for the top page, or when the Next's click tells it.
+FOREIGN_CAPTCHA = "https://evilexample.com/recaptcha/api2/"
+_FOREIGN_SENDS = {
+    "a foreign frame at a captcha's path that posts on a timer":
+        f"setTimeout(() => fetch('{HOST}{FINAL}', {{method: 'POST', mode: 'no-cors', body: 'first=Test'}}).catch(() => {{}}), 2000);",
+    "a foreign frame at a captcha's path whose form posts to the top page":
+        f"addEventListener('message', () => {{ const f = document.createElement('form'); f.method = 'post';"
+        f" f.action = '{HOST}{FINAL}'; f.target = '_top'; f.innerHTML = '<input name=first value=Test>';"
+        f" document.body.append(f); f.submit(); }});",
+    "a foreign frame at a captcha's path told by the Next's click":
+        f"addEventListener('message', () => fetch('{HOST}{FINAL}', {{method: 'POST', mode: 'no-cors', body: 'first=Test'}}).catch(() => {{}}));",
+}
+for _i, (_name, _send) in enumerate(_FOREIGN_SENDS.items()):
+    PAGES[_name] = {
+        START: f"""<title>Apply</title><input name=first value=Test><button id=b type=button>Next</button>
+            <iframe id=f src="{FOREIGN_CAPTCHA}{_i}"></iframe><script>document.getElementById('b').addEventListener('click',
+            () => document.getElementById('f').contentWindow.postMessage('go', '*'));</script>""",
+        f"/recaptcha/api2/{_i}": f"<title>reCAPTCHA</title><body><script>{_send}</script></body>"}
+PAGES["a frame of the page's own at a captcha's path"] = {START: f"""<title>Apply</title><input name=first value=Test>
+    <button id=b type=button>Next</button><iframe id=f src="/recaptcha/api2/anchor"></iframe><script>
+    document.getElementById('b').addEventListener('click', () => {{
+      const w = document.getElementById('f').contentWindow;
+      try {{ w.fetch('{FINAL}', {{method: 'POST', body: 'first=Test'}}).catch(() => {{}}); }} catch (e) {{}}
+      try {{ new w.Worker(URL.createObjectURL(new w.Blob([{json.dumps(WORKER_CODE)}]))); }} catch (e) {{}}
+    }});</script>"""}
+# KAN-776: a held page's session dialog, whose stay-signed-in button the keep-alive presses. Each sends the application.
+_SESSION = ("<title>Apply</title><form id=f method=post action='" + FINAL + "'><input name=first value=Test></form>"
+            + SEND_ALL + "<div role=alertdialog aria-modal=true><p>Your session is about to expire. Do you want to "
+            "continue?</p>%s</div>")
+_LATER = """<script>document.getElementById('b').addEventListener('click', () => setTimeout(() => { sendAll();
+        document.getElementById('f').submit(); }, %d));</script>"""
+# The adversarial review of #541: a press that re-armed the guard for 3 s let a Continue that sent 3.5 s later through.
+# The hold lasts until Lisul's Dismiss, never for a time: a hold that ended after T seconds lets through every page
+# that sends later than T, so one page at 10 s catches every window a 3.5 s page did and more. The 3.5 s and 60 s
+# copies went (KAN-780, 2026-11-14): the 60 s ones took over a minute each, the slowest cases in the step.
+SENDS_AFTER = {"a session dialog whose Continue sends later": 1500,
+               "a session dialog whose Continue sends after 10 s": 10_000,
+               "a session dialog whose page dismisses the hold itself": 8000}
+SESSION_PAGES = {
+    # Its Continue is no form's, but its script sends the application and posts the form.
+    "a session dialog whose Continue sends": {START: _SESSION % "<button type=button id=b>Continue</button>" + """<script>
+        document.getElementById('b').addEventListener('click', () => { sendAll(); document.getElementById('f').submit(); });</script>"""},
+    # Its Stay signed in is the application form's own submit, by the form attribute.
+    "a session dialog whose stay button is the form's submit": {START: _SESSION % "<button form=f id=b>Stay signed in</button>"},
+    # Its Continue sends the application a while after the press, once a guard put back for the press could be gone.
+    **{name: {START: _SESSION % "<button type=button id=b>Continue</button>" + _LATER % ms} for name, ms in SENDS_AFTER.items()},
+    # Its Continue arms on the press, and sends 3.5 s after the next mouse move: the Keeper's own activity ping.
+    "a session dialog whose Continue sends after the next mouse move": {START: _SESSION % "<button type=button id=b>Continue</button>"
+        + """<script>let armed = false; document.getElementById('b').addEventListener('click', () => { armed = true; });
+        document.addEventListener('mousemove', () => { if (armed) { armed = false; setTimeout(() => { sendAll();
+          document.getElementById('f').submit(); }, 3500); } }, true);</script>"""},
+    # The re-review of #541: after the press, the page dismisses the hold itself, every way a script can (the old
+    # page-visible binding, a script's click and a made-up click on the note's Dismiss, a console line that looks like
+    # the guard's tell), then sends. Only Lisul's own press on the note gives Submit back (PR 477's tells).
+    "a session dialog whose page dismisses the hold itself": {START: _SESSION % "<button type=button id=b>Continue</button>"
+        + """<script>const free = () => {
+          try { window.__applyDismissHold && window.__applyDismissHold(); } catch (e) {}
+          for (const d of document.querySelectorAll('button')) if (d.textContent.trim() === 'Dismiss') {
+            try { d.click(); } catch (e) {}
+            try { d.dispatchEvent(new MouseEvent('click', {bubbles: true, cancelable: true})); } catch (e) {}
+          }
+          try { console.log('__apply:' + '0'.repeat(32) + ':["__applyDismissHold",[]]'); } catch (e) {}
+        };
+        document.getElementById('b').addEventListener('click', () => { for (const ms of [1500, 4000, 7000]) {
+          setTimeout(free, ms);
+          setTimeout(() => { sendAll(); document.getElementById('f').submit(); }, ms + 1000); } });</script>"""},
+    # Its Continue reads so when checked, and Submit application when pressed.
+    "a session dialog whose Continue becomes a Submit": {START: _SESSION % "<button type=button id=b>Continue</button>" + """<script>
+        const b = document.getElementById('b');
+        b.addEventListener('pointerdown', () => { b.textContent = 'Submit application'; }, true);
+        b.addEventListener('click', () => { sendAll(); document.getElementById('f').submit(); });</script>"""},
+}
+# KAN-779: the generic rules press a stay button on any site, by the words of the dialog it is in. Each trick here
+# sends the application by the button the generic press would find; the delayed ones are #541's review pages in
+# the generic words, for the hold that lasts until Dismiss on every site.
+_WARNING = "<p>Are you still there? You will be signed out in 2 minutes.</p>"
+_GENERIC = _SESSION.replace("Your session is about to expire. Do you want to continue?",
+                            "Are you still there? You will be signed out in 2 minutes.")
+_STILL = "<button type=button id=b>I'm still here</button>"
+GENERIC_SENDS_AFTER = {"a generic session dialog whose I'm still here sends after 10 s": 10_000,
+                       "a generic session dialog whose page dismisses the hold itself": 8000}
+# #541's page that dismisses the hold itself, every way a script can, then sends: its script, on the generic dialog.
+_FREES = SESSION_PAGES["a session dialog whose page dismisses the hold itself"][START].split("</div>", 1)[1]
+GENERIC_SESSION_PAGES = {
+    # A real session dialog, by role and words; its Continue sends the application by script.
+    "a generic session dialog whose Continue submits": {START: _GENERIC % "<button type=button id=b>Continue</button>" + """<script>
+        document.getElementById('b').addEventListener('click', () => { sendAll(); document.getElementById('f').submit(); });</script>"""},
+    **{name: {START: _GENERIC % _STILL + _LATER % ms} for name, ms in GENERIC_SENDS_AFTER.items()
+       if name != "a generic session dialog whose page dismisses the hold itself"},
+    "a generic session dialog whose page dismisses the hold itself": {START: _GENERIC % _STILL + _FREES},
+    # Its I'm still here arms on the press, and sends 3.5 s after the next mouse move: the Keeper's own activity ping.
+    "a generic session dialog whose I'm still here sends after the next mouse move": {START: _GENERIC % _STILL
+        + """<script>let armed = false; document.getElementById('b').addEventListener('click', () => { armed = true; });
+        document.addEventListener('mousemove', () => { if (armed) { armed = false; setTimeout(() => { sendAll();
+          document.getElementById('f').submit(); }, 3500); } }, true);</script>"""},
+    # The warning dialog sits inside the application form: its Stay signed in is the form's own submit.
+    "a Stay signed in inside the application form": {START: f"""<title>Apply</title><form id=f method=post action="{FINAL}">
+        <input name=first value=Test><div role=alertdialog aria-modal=true>{_WARNING}<button id=b>Stay signed in</button>
+        </div></form>"""},
+    # The warning dialog holds the application's fields, and its Keep me signed in sends them.
+    "a session warning dialog that holds fields": {START: f"""<title>Apply</title>{SEND_ALL}<div role=dialog aria-modal=true>
+        {_WARNING}<label>First name <input name=first value=Test></label>
+        <button type=button id=b>Keep me signed in</button></div>
+        <script>document.getElementById('b').addEventListener('click', () => sendAll());</script>"""},
+    # The words alone, in a box with no dialog role: its Continue sends.
+    "session warning words with no dialog role": {START: f"""<title>Apply</title>{SEND_ALL}<div class=modal>{_WARNING}
+        <button type=button id=b>Continue</button></div>
+        <script>document.getElementById('b').addEventListener('click', () => sendAll());</script>"""},
+    # Its accessible name is I'm still here, its words are Submit application.
+    "a stay button whose words are a Submit": {START: f"""<title>Apply</title>{SEND_ALL}<div role=dialog aria-modal=true>
+        {_WARNING}<button type=button id=b aria-label="I'm still here">Submit application</button></div>
+        <script>document.getElementById('b').addEventListener('click', () => sendAll());</script>"""},
+}
+# The generic pages whose stay button passes the structure check: the guard, kept whole until Dismiss, stops them.
+GENERIC_PRESSED = {"a generic session dialog whose Continue submits", *GENERIC_SENDS_AFTER,
+                   "a generic session dialog whose I'm still here sends after the next mouse move"}
+DELAYS = SENDS_AFTER | GENERIC_SENDS_AFTER
+MOVED = {"a session dialog whose Continue sends after the next mouse move",
+         "a generic session dialog whose I'm still here sends after the next mouse move"}
+PAGES |= SESSION_PAGES | GENERIC_SESSION_PAGES
 BUTTON = {"an Amazon card whose Continue sends": "Continue", "a review page's Apply with its answers hidden": "Apply", "a page that vouches for its own Apply": "Apply", "a Submit in another language beside a Submit": "Envoyer ma candidature", "a Submit in a shadow root": "Submit application",
           "a profile pop-up that is the application": "Submit", "a profile pop-up that turns into the application": "Submit",
           "a one-page form in a modal": "Continue", "an application that makes an account": "Continue",
-          "a button whose words change after the check": "Continue"}
+          "a button whose words change after the check": "Continue",
+          "a session dialog whose stay button is the form's submit": "Stay signed in",
+          **{name: "Continue" for name in SESSION_PAGES if name != "a session dialog whose stay button is the form's submit"},
+          "a generic session dialog whose Continue submits": "Continue",
+          **{name: "I'm still here" for name in GENERIC_PRESSED if name != "a generic session dialog whose Continue submits"},
+          "a Stay signed in inside the application form": "Stay signed in",
+          "a session warning dialog that holds fields": "Keep me signed in",
+          "session warning words with no dialog role": "Continue", "a stay button whose words are a Submit": "I'm still here"}
 
 
 def button(page_name: str) -> str:
@@ -492,12 +699,13 @@ class Site:
             except Exception:
                 self.bodies.append((path, ""))
         body = self.pages.get(path, "<title>Thanks</title><p>Thank you for applying</p>")
-        route.fulfill(body=body, content_type="text/html")
+        route.fulfill(body=body, content_type="text/javascript" if path.endswith(".js") else "text/html")
 
     def applications(self) -> list[str]:
         """The application requests that reached the job system: a final URL's (COMMIT's too, KAN-783), or SAVE's with
-        its Submit (submit=1)."""
-        return [p for p in self.sent if p in (FINAL, GREENHOUSE, COMMIT)] + [p for p, b in self.bodies if p == SAVE and "submit=1" in b]
+        its Submit (submit=1), or any post to Ashby's GraphQL (only the Ashby pages post there, KAN-791)."""
+        return [p for p in self.sent if p in (FINAL, GREENHOUSE, COMMIT) or p.startswith(ASHBY_GQL)] \
+            + [p for p, b in self.bodies if p == SAVE and "submit=1" in b]
 
 
 # --- the click paths, each the real code that presses through the guards
@@ -534,6 +742,17 @@ def ask_press(page, drive, name):
 def ask_press_listed(page, drive, name):
     """Ask Claude's press of a step in the form's list of steps (KAN-692): the name Claude gives, as ask.ask presses it."""
     press_step(page, drive, name, listed=True)
+
+
+def stay_press(page, drive, name):
+    """The keep-alive's press of a session dialog's stay-signed-in button (KAN-776), its allowlist at its worst: the
+    page's own button named as the stay button, and any dialog's words taken as a session warning."""
+    keepalive.press(page, keepalive.Site("Example", re.compile(r"example\.com$"), (name,), warns="."))
+
+
+def generic_stay_press(page, drive, name):
+    """The keep-alive's press on a site with no entry (KAN-779): the generic rules as they are, any stay name."""
+    keepalive.press(page, keepalive.ANY)
 
 
 # KAN-716: a plain Worker's two typing paths, each with every key that could send a form: Apply's own (fill, type,
@@ -602,7 +821,8 @@ def amazon_continue(page, drive, name):
 
 
 PATHS = {"plain code's Next": plain_next, "the Amazon Filler's Continue": amazon_continue, "the profile click": profile_click, "the account click": account_click,
-         "Ask Claude's press": ask_press, "Ask Claude's press of a listed step": ask_press_listed}
+         "Ask Claude's press": ask_press, "Ask Claude's press of a listed step": ask_press_listed,
+         "the keep-alive's stay press": stay_press, "the keep-alive's generic stay press": generic_stay_press}
 
 
 # PR 477's guard holes (KAN-710): each page a hole the guards had, so each runs on PRs, never only nightly. A page
@@ -627,6 +847,13 @@ GUARD_HOLES = frozenset({
     "a Submit whose own innerText throws", "a Submit whose value getter posts the form",
     "a Submit whose own getters and methods lie", "a Submit whose prototype is a Proxy", "prototype getters that lie",
     "prototype getters that throw", "built-ins the page replaced", "a request whose URL changes on a second read",
+    # KAN-791's: Ashby's submit the operationName regex missed, and the application posted from a worker.
+    "Ashby's submit in JSON the regex missed", "Ashby's submit in a form or multipart body",
+    "a Next whose workers post the application", "a Next whose shared worker posts the application",
+    "a Next whose service worker posts the application", "a worker made by a constructor the guard never wrapped",
+    "a frame of the page's own at a captcha's path", "a foreign frame at a captcha's path that posts on a timer",
+    "a foreign frame at a captcha's path whose form posts to the top page",
+    "a foreign frame at a captcha's path told by the Next's click",
 })
 
 
@@ -639,7 +866,25 @@ PLAIN_HOLES = frozenset({
     "a frame that forges the extension's touch", "a pointerdown handler that clicks the page's own button",
     "a page that vouches for its own Apply", "a page that lifts the guards by their install mark",
     "a page that hears the drive guard's control name", "requests sent around the guard",
+    # KAN-791's: a plain Worker's rules stand under the guard script for a worker's requests.
+    "a Next whose workers post the application", "a Next whose shared worker posts the application",
+    "a Next whose service worker posts the application", "a worker made by a constructor the guard never wrapped",
 })
+
+# The pages whose own timer posts every 100 ms from the moment they load, before any press: guarded before their
+# first load (submit_guard.on_open), as a rehearsal opens every page (KAN-682). Loaded first and guarded after, the
+# timer can post before the guard is on, and its post moves the page during the guard's reload: on CI (2026-11-14)
+# they failed as sends to SAVE and as net::ERR_ABORTED reloads, never past a guard that was on.
+SENDS_AS_IT_LOADS = frozenset({
+    "a form a timer posts while a Next is pressed", "a frame that forges the extension's touch",
+    "a page that fakes eventPhase",
+})
+
+# The pages that move their own URL as they load (history.replaceState): the guard's reload after a first load loads
+# that URL instead, the Site's thank-you page, and the case ran on a page with no form at all. The tile's typing
+# found no Next there and timed out (nightly, 2026-11-14, KAN-841). Guarded before their first load too.
+MOVES_ITS_URL = frozenset({"an empty formaction on a page at the final URL"})
+GUARDED_FIRST = SENDS_AS_IT_LOADS | MOVES_ITS_URL
 
 
 def first_page_on_prs() -> list:
@@ -650,24 +895,108 @@ def first_page_on_prs() -> list:
     return names[:1] + [pytest.param(name, marks=pytest.mark.nightly) for name in names[1:]]
 
 
+# Which pages each click path can press (KAN-780, 2026-11-14). A path presses only what its own code looks for. The
+# four that press a form's own button (plain code's Next, Amazon's Continue, the account click, Ask's press) apply to
+# every page. The others apply only to the pages that hold what they look for, where pressing nothing is itself the
+# check: a stay button that is the form's Submit, a step list clipped to nothing, a profile pop-up that is the
+# application. On any other page they found nothing to press, so the pair was the guarded page sitting still for
+# 3 s: 312 of the 728 pairs, measured by recording what each pair's path pressed. Worse, 12 pages' only PR pair was
+# one of those, so those pages had no real case on PRs.
+PROFILE_PAGES = frozenset({"a profile pop-up that is the application", "a profile pop-up that turns into the application"})
+LISTED_STEP_PAGES = frozenset({
+    "a step list's link to /apply on a page with more steps", "a step list's link that sends", "a step list clipped to nothing",
+    "Step 1 of 2 in text of no size", "a link that pings the final URL", "a ping in a shadow root", "a Submit in a shadow root",
+    "a page that vouches for its own Apply", "a review page's Apply with its answers hidden", "an Amazon card whose Continue sends",
+    *PROFILE_PAGES,
+})
+SESSION_DIALOG_PAGES = frozenset(SESSION_PAGES) | frozenset(GENERIC_SESSION_PAGES)
+AMAZON_PAGES = frozenset({"an Amazon card whose Continue sends"})
+APPLIES = {"the profile click": PROFILE_PAGES, "Ask Claude's press of a listed step": LISTED_STEP_PAGES,
+           "the keep-alive's stay press": SESSION_DIALOG_PAGES, "the keep-alive's generic stay press": SESSION_DIALOG_PAGES}
+# The kind of page each path was written against, in this order: a page's one PR pair takes the first that holds it.
+OWN = {"the Amazon Filler's Continue": AMAZON_PAGES, "the profile click": PROFILE_PAGES,
+       "Ask Claude's press of a listed step": LISTED_STEP_PAGES, "the keep-alive's stay press": frozenset(SESSION_PAGES),
+       "the keep-alive's generic stay press": frozenset(GENERIC_SESSION_PAGES)}
+
+
+def _timers(html: str) -> list:
+    """Each setTimeout's and setInterval's delay in a page's code: its number, or None where it is no number."""
+    delays = []
+    for found in re.finditer(r"\bset(?:Timeout|Interval)\s*\(", html):
+        depth, i, comma = 1, found.end(), None
+        while i < len(html) and depth:
+            depth += 1 if html[i] in "([{" else -1 if html[i] in ")]}" else 0
+            comma = i if html[i] == "," and depth == 1 else comma
+            i += 1
+        delay = html[comma + 1:i - 1].strip() if comma else ""
+        delays.append(int(delay) if delay.isdigit() else None)
+    return delays
+
+
+# How long a case waits after the press for the page's own late send (KAN-780, 2026-11-14): its latest timer and a
+# second more, and 1.5 s for a page with none, where every case once waited 3 s. Unguarded, 78 of the 91 pages sent
+# within 0.5 s of the click. A page's control waits as long, on the same clock (_run_out), so a page that sends later
+# than its wait fails its control (CONTROLS_ON_PRS on PRs, every control nightly), never passes a guarded case unseen.
+# A timer whose delay is no number says its latest here.
+LATEST = {"a form sent by script after a delay": 2500}
+# The session pages that send only after the case's 3 s once ended (3.5 s, 10 s, 60 s, 8 s, the next mouse move): in a
+# matrix they were the plain session dialog's pair again, since the guard is on throughout. Their own scenario, a
+# Submit held after the keep-alive's press however late the page sends, is the held-page tests'.
+HELD_ONLY = frozenset({name for name, ms in DELAYS.items() if ms > 3000} | MOVED)
+
+
+def wait_ms(page_name: str) -> int:
+    latest = DELAYS.get(page_name) or LATEST.get(page_name) or max(
+        [d for d in _timers(" ".join(PAGES[page_name].values())) if d is not None], default=0)
+    return max(1500, latest + 1000)
+
+
+def applies(page: str, path: str) -> bool:
+    """Whether `path` looks for something `page` holds: else the pair tests nothing. A HELD_ONLY page is in no matrix."""
+    return page not in HELD_ONLY and page in APPLIES.get(path, PAGES)
+
+
+# A page whose hole only some paths reach runs on the one it was found with. The mutation study (2026-11-14) found
+# one: the forged touch got past the submit-event block's removal only on a press the account click armed. And each
+# path runs on PRs at least once: plain code's Next on a Next of its own, whose case there caught all its Ask case did.
+PATH_FOR = {"a frame that forges the extension's touch": "the account click",
+            "a Next that sends by a hidden button": "plain code's Next"}
+# Else, a page any path presses runs on the first of these the matrix has. Ask Claude's press pressed on all 91 pages
+# and refused none, so it reaches the guard on every one; plain code's Next refused 52 before pressing.
+DEFAULT_PATHS = ("Ask Claude's press", "the account click", "plain code's Next", "the Amazon Filler's Continue")
+
+
+def own_path(i: int, page: str, paths: list) -> str:
+    """The path a page runs on in PR CI: PATH_FOR's, else the first in OWN whose kind of page it is, else the
+    first of DEFAULT_PATHS in `paths`. (`i`, the page's place, is unused since KAN-780's mutation study.)"""
+    if PATH_FOR.get(page) in paths:
+        return PATH_FOR[page]
+    for path, pages in OWN.items():
+        if path in paths and page in pages:
+            return path
+    return next(path for path in DEFAULT_PATHS if path in paths)
+
+
 def each_page_and_path_once_on_prs(paths=None) -> list:
-    """(page, path) pairs for a matrix: PR CI runs a diagonal, so every page and every path
-    runs at least once, and the nightly workflow runs the other pairs, marked `nightly` (KAN-780).
-    A guard hole's page (GUARD_HOLES) runs on PRs on every path."""
+    """(page, path) pairs for a matrix, only where the path applies: PR CI runs each page once, on its own path; the
+    nightly workflow runs the other pairs, marked `nightly` (KAN-780). A guard hole's page (GUARD_HOLES) ran on every
+    path on PRs until the mutation study (2026-11-14): on 54 of its 56 pages one path caught every fault the page's
+    other paths caught, and the two others are PATH_FOR's and Ask's press's."""
     paths = list(PATHS) if paths is None else list(paths)
-    return [(page, path) if page in GUARD_HOLES or i % len(paths) == paths.index(path)
+    return [(page, path) if path == own_path(i, page, paths)
             else pytest.param(page, path, marks=pytest.mark.nightly)
-            for i, page in enumerate(PAGES) for path in paths]
+            for i, page in enumerate(PAGES) for path in paths if applies(page, path)]
 
 
 def plain_pairs_on_prs(paths) -> list:
-    """(page, path) pairs for the plain-Worker click matrix: PR CI runs every path against the first page and each
-    plain Worker's guard hole (PLAIN_HOLES) on one path (a diagonal), and the nightly workflow runs the rest, marked
-    `nightly` (KAN-780)."""
+    """(page, path) pairs for the plain-Worker click matrix, only where the path applies: PR CI runs the first page on
+    each path that applies to it, each other path once on the first page of its kind, and each plain Worker's guard
+    hole (PLAIN_HOLES) on its own path; the nightly workflow runs the rest, marked `nightly` (KAN-780)."""
     paths, first = list(paths), next(iter(PAGES))
-    return [(page, path) if page == first or (page in PLAIN_HOLES and i % len(paths) == paths.index(path))
+    once = {path: next(page for page in PAGES if page in OWN[path] and applies(page, path)) for path in paths if path in OWN}
+    return [(page, path) if page == first or once.get(path) == page or (page in PLAIN_HOLES and path == own_path(i, page, paths))
             else pytest.param(page, path, marks=pytest.mark.nightly)
-            for i, page in enumerate(PAGES) for path in paths]
+            for i, page in enumerate(PAGES) for path in paths if applies(page, path)]
 
 
 def _settle(page, ms=3000) -> None:
@@ -675,6 +1004,43 @@ def _settle(page, ms=3000) -> None:
         page.wait_for_timeout(ms)
     except Exception:
         pass  # the page went on to another document
+
+
+# A CDP matrix case's page, and its control's, keeps time on Playwright's clock (cdp(clock=True), KAN-780): it flows
+# as unfaked while the path presses; then the case moves the page's clock through the wait in 250 ms steps, each with
+# 50 ms of real time for the requests a timer made and their replies, and 500 ms more at the end. A 1.5 s wait takes
+# 0.8 s and an 11.5 s one 2.8 s. Unguarded, each of the 87 pages sent on it as on real time, or more: timers that
+# never ran on real time, since the page had left, now run before it leaves. The guard on a CDP Worker reads no clock,
+# so only the page's timers move (test_a_cdp_guard_reads_no_clock_a_page_can_fake).
+CLOCK_STEP_MS, CLOCK_PAUSE_MS, CLOCK_DRAIN_MS = 250, 50, 500
+# What the clock never moves: a worker's timers (dedicated, shared, service, worklet), the scheduler's and an abort
+# signal's delays, CSS animations and transitions, a refresh, a socket. A page that names one waits in real time, for
+# a delay there would get a fifth of its wait (the adversarial review of #583). It takes the 6 worker pages, no other.
+REAL_TIME = re.compile(r"Worker\b|Worklet|postTask|AbortSignal\.timeout|animation|transition|\.animate\(|refresh"
+                       r"|requestVideoFrameCallback|WebSocket|EventSource|Atomics")
+
+
+def on_clock(page_name: str) -> bool:
+    return not REAL_TIME.search(" ".join(PAGES[page_name].values()))
+
+
+def _wait(page, page_name: str, ms: int) -> None:
+    """A matrix case's or a control's wait for the page's late send: on its clock, or in real time (REAL_TIME)."""
+    (_run_out if on_clock(page_name) else _settle)(page, ms)
+
+
+def _run_out(page, ms: int) -> None:
+    """The page's next `ms` on its clock, step by step, then the real time its last requests take. A step whose clock
+    didn't move (the page went on to another document mid-step, or broke the clock) gets the whole wait in real time
+    too, so a page can't skip its own timers: no case's step failed in 443 waits (2026-11-15)."""
+    stuck = False
+    for _ in range(-(-ms // CLOCK_STEP_MS)):
+        try:
+            page.clock.run_for(CLOCK_STEP_MS)
+        except Exception:
+            stuck = True
+        _settle(page, CLOCK_PAUSE_MS)
+    _settle(page, ms if stuck else CLOCK_DRAIN_MS)
 
 
 def _then(page, page_name) -> None:
@@ -715,18 +1081,24 @@ def test_a_link_sent_in_never_joins_a_cdp_worker():
 # --- CDP: Playwright's Chromium, the rehearsal's guard and the drive guard on the page
 
 @contextmanager
-def cdp(pages: dict[str, str], guarded: bool = True, first: bool = False):
+def cdp(pages: dict[str, str], guarded: bool = True, first: bool = False, clock: bool = False):
     """The pages in Playwright's Chromium, guarded as a rehearsal guards them: after a first load, or with `first`
-    before it (submit_guard.on_open, as a rehearsal opens each page: KAN-682), for a page that sends as it loads."""
+    before it (submit_guard.on_open, as a rehearsal opens each page: KAN-682), for a page that sends as it loads.
+    `clock`: the pages keep time on Playwright's clock, which _run_out moves on."""
+    from plain_fakes import https_fake
     from playwright.sync_api import sync_playwright
 
     site = Site(pages)
-    with sync_playwright() as playwright:
+    with sync_playwright() as playwright, https_fake(site.handle) as port:
         if not Path(playwright.chromium.executable_path).exists():
             pytest.skip("no Playwright Chromium here")
-        browser = playwright.chromium.launch()
+        # What Playwright never routes (a shared worker's requests, KAN-791) reaches the same Site on 127.0.0.1.
+        browser = playwright.chromium.launch(args=[f"--host-resolver-rules=MAP * 127.0.0.1:{port}",
+                                                   "--ignore-certificate-errors", "--disable-quic"])
         context = browser.new_context()
         context.route(lambda url: True, site.handle)  # every request: no real site is ever reached
+        if clock:
+            context.clock.install()
         page = context.new_page()
         if guarded and first:
             with submit_guard.guarding_on_open():
@@ -749,29 +1121,97 @@ def quick_steps(monkeypatch):
 
 @pytest.mark.parametrize(("page_name", "path"), each_page_and_path_once_on_prs())
 def test_no_click_path_sends_a_hostile_page_on_cdp(page_name, path):
-    with cdp(PAGES[page_name]) as (page, drive, site):
+    with cdp(PAGES[page_name], first=page_name in GUARDED_FIRST, clock=on_clock(page_name)) as (page, drive, site):
         try:
             PATHS[path](page, drive, button(page_name))
         except Handoff:
             pass  # the path refused: nothing pressed
         _then(page, page_name)
-        _settle(page)
+        _wait(page, page_name, wait_ms(page_name))
     assert site.applications() == []
 
 
-@pytest.mark.parametrize("page_name", list(PAGES))
+def control_ms(page_name: str) -> int:
+    """How long a page's control waits: its matrix wait, a held page's delay and 1.5 s, 5 s for the next mouse move."""
+    return max(wait_ms(page_name), DELAYS.get(page_name, 0) + 1500, 5000 if page_name in MOVED else 0)
+
+
+# The controls on PRs (KAN-780). The control runs no Apply code: only a change to what it reads (these pages, the fake
+# site, Chromium: ci.yml's hostile_pages filter, which then runs every control) or a runner too slow for the wait can
+# turn it red. These three check the runner on every PR, and the nightly workflow runs the rest. On the clock every
+# page's last send left about 0.8 s of its wait (2026-11-14): the least, a frame's timer (0.78 s), and the longest
+# wait, 40 steps; and a service worker's send, a page that waits in real time (REAL_TIME).
+CONTROLS_ON_PRS = ("a foreign frame at a captcha's path that posts on a timer", "a Next whose service worker posts the application",
+                   "a session dialog whose Continue sends after 10 s")
+
+
+@pytest.mark.parametrize("page_name", [name if name in CONTROLS_ON_PRS else pytest.param(name, marks=pytest.mark.nightly)
+                                       for name in PAGES])
 def test_without_the_guard_each_hostile_page_sends(page_name):
-    """The control: a plain click on the same button, unguarded, sends the application. A page whose timer posts
-    on its own keeps navigating unguarded, so on a slow runner the click may never land: it has sent all the same,
-    and the assertion is what counts (CI, 2026-11-11)."""
-    with cdp(PAGES[page_name], guarded=False) as (page, _, site):
+    """The control: a plain click on the same button, unguarded, sends the application, on the same clock and wait as
+    the page's matrix cases. A page whose timer posts on its own keeps navigating unguarded, so on a slow runner the
+    click may never land: it has sent all the same, and the assertion is what counts (CI, 2026-11-11)."""
+    with cdp(PAGES[page_name], guarded=False, clock=on_clock(page_name)) as (page, _, site):
         try:
             page.get_by_role("button", name=button(page_name)).click(timeout=10_000)
         except Exception:
             pass  # the page navigated away under the click: whether it sent is asserted below
         _then(page, page_name)
-        _settle(page)
+        if page_name in MOVED:
+            page.mouse.move(5, 5)
+            page.mouse.move(9, 9)
+        _wait(page, page_name, control_ms(page_name))
     assert site.applications()
+
+
+def test_a_cdp_guard_reads_no_clock_a_page_can_fake():
+    # The CDP cases keep the page's time on Playwright's clock, which replaces Date, the timers, `performance` and an
+    # event's timeStamp: the guard's now() would throw on it. A CDP guard takes `performance` once, reads it only in
+    # now(), and calls now() only on an element the extension touched, which only a plain Worker's copy (PORT_TOUCH)
+    # ever sets; it uses nothing else the clock replaces.
+    clocks = re.compile(r"\b(?:Date|setTimeout|setInterval|requestAnimationFrame|requestIdleCallback|timeStamp|timeOrigin)\b")
+    for script in (submit_guard.SCRIPT, submit_guard.drive_script(), submit_guard.drive_script(at_open=True),
+                   submit_guard.drive_script(late=True)):
+        assert not clocks.search(script)
+        assert re.findall(r"\bperf(?:ormance)?\b", script) == ["perf", "performance", "perf"]
+        assert not re.search(r"S\.touchAt = (?!null)", script)
+        assert script.count("now()") == script.count("S.touchAt !== null && now()")
+    assert re.search(r"S\.touchAt = (?!null)", submit_guard.rehearsal_script(port=True))
+    # What the clock never moves keeps real time: a worker's 4 s timer got 1.6 s on it.
+    assert not on_clock("a Next whose worker posts the application 4 s later")
+    assert sum(not on_clock(name) for name in PAGES) == 6
+
+
+# Ashby's own requests, which the guard must let through as it reads Ashby's bodies (KAN-791): its posting's query,
+# whose selections name a submit below the root, and each answer's and file's save, mutations whose root saves.
+ASHBY_OWN = {
+    "ApiOrganizationFromHostedJobsPageName": "query ApiOrganizationFromHostedJobsPageName($name: String!) { "
+        "organization: organizationFromHostedJobsPageName(organizationHostedJobsPageName: $name) { "
+        "theme { applicationSubmittedSuccessMessage } } }",
+    "ApiSetFormValue": "mutation ApiSetFormValue($id: String!, $path: String!, $value: JSON) { "
+        "setFormValue(formRenderIdentifier: $id, path: $path, value: $value) { id fieldEntries { submittedAt } } }",
+    "ApiSetFormValueToFile": "mutation ApiSetFormValueToFile($id: String!, $path: String!, $fileHandle: String!) { "
+        "setFormValueToFile(formRenderIdentifier: $id, path: $path, fileHandle: $fileHandle) { id } }",
+}
+
+
+def _ashby_own_page() -> dict[str, str]:
+    sends = "".join(f"fetch('{ASHBY_GQL}?op={op}', {{method: 'POST', headers: {{'Content-Type': 'application/json'}}, "
+                    f"body: JSON.stringify({{operationName: '{op}', variables: {{id: 'r', path: 'p'}}, query: {json.dumps(q)}}})}});"
+                    for op, q in ASHBY_OWN.items())
+    return {START: f"<title>Apply</title><button id=b type=button>Next</button><script>"
+                   f"document.getElementById('b').addEventListener('click', () => {{ {sends} }});</script>"}
+
+
+def _ashby_own_sent(page, site) -> list[str]:
+    page.click("#b")
+    _settle(page, 1500)
+    return sorted(p.split("op=")[-1] for p in site.sent if p.startswith(ASHBY_GQL))
+
+
+def test_ashbys_own_queries_and_saves_go_through():
+    with cdp(_ashby_own_page()) as (page, _, site):
+        assert _ashby_own_sent(page, site) == sorted(ASHBY_OWN)
 
 
 # Ask Claude's press of a listed step (KAN-692) against a TAL.net-like form, whose final Submit posts to the same
@@ -841,6 +1281,44 @@ HELD = {START: f"""<title>Apply</title><form id=f method=post action="{FINAL}"><
     setTimeout(() => {{ sendAll(); try {{ document.getElementById('f').submit(); }} catch (e) {{}} }}, 1500);</script>"""}
 
 
+# KAN-791: workers made while Lisul had the page (lifted, or paused mid-form), each waiting for a message to post the
+# application. Resume puts the guard back on (rearm): none of them may send after it.
+_ON_MESSAGE = "const send = () => {" + WORKER_CODE.replace("self.onconnect = () => {};", "") + "};" \
+    " self.onmessage = send; self.onconnect = (e) => { e.ports[0].onmessage = send; };"
+LIFTED_WORKERS = {START: f"""<title>Apply</title><input name=first value=Test><script>
+const CODE = {json.dumps(_ON_MESSAGE)};
+const blob = () => URL.createObjectURL(new Blob([CODE], {{type: 'text/javascript'}}));
+window.make = () => {{
+  window.w = new Worker(blob()); window.s = new SharedWorker(blob());
+  return navigator.serviceWorker.register('/acme/worker.js').then((r) => {{ window.reg = r; }}, () => {{}});
+}};
+window.go = () => {{
+  try {{ w.postMessage(1); }} catch (e) {{}}
+  try {{ s.port.postMessage(1); }} catch (e) {{}}
+  try {{ const sw = reg && (reg.active || reg.waiting || reg.installing); if (sw) sw.postMessage(1); }} catch (e) {{}}
+}};</script>""", WORKER_JS: _ON_MESSAGE}
+
+
+def _workers_after_rearm(page, site, rearmed: bool) -> list[str]:
+    lift(page)
+    page.evaluate("make()")
+    _settle(page, 1500)  # the service worker active
+    if rearmed:
+        submit_guard.rearm(page)
+    site.sent.clear()
+    site.bodies.clear()
+    page.evaluate("go()")
+    _settle(page, 2000)
+    return site.applications()
+
+
+@pytest.mark.parametrize("rearmed", [False, True])
+def test_a_worker_made_while_lifted_sends_nothing_once_rearmed(rearmed):
+    with cdp(LIFTED_WORKERS) as (page, _, site):
+        sent = _workers_after_rearm(page, site, rearmed)
+    assert (sent == []) == rearmed  # unrearmed, the page is Lisul's, and its workers send: the control
+
+
 def test_a_held_submit_stays_held_through_a_reload_and_a_script_that_sends_after_it():
     with cdp(HELD) as (page, _, site):
         lift(page, held="The legal name is wrong.")
@@ -862,6 +1340,113 @@ def test_no_click_path_sends_a_held_page_after_a_reload(path):
             pass
         _settle(page)
     assert site.applications() == []
+
+
+class _OnePage:
+    """A JobSite whose one page is already open: _Kept.open goes to the link in it."""
+
+    def __init__(self, page):
+        self.page = page
+
+    @contextmanager
+    def open(self, url, worker=0):
+        self.page.goto(url)
+        yield self.page
+
+
+def _held_with_keeper(page, monkeypatch, name: str, seconds: float) -> keepalive.Keeper:
+    """The page held for Lisul by _Kept.hold (lifted: no guard) for `seconds`, its Keeper allowlisting the page's
+    own button, with a mouse move every second (no GET: the fake host is not on loopback)."""
+    from apply.rehearsal import _Kept
+
+    monkeypatch.setattr(keepalive, "LOOK_S", 0.25)
+    monkeypatch.setattr(keepalive, "PING_S", 1.0)
+    site = keepalive.Site("Example", re.compile(r"example\.com$"), (name,), ping=False)
+    keep = keepalive.Keeper("Acme", lambda why: None, sites=(site,))
+    kept = _Kept(_OnePage(page), 0)
+    with kept.open(HOST + START):
+        release = threading.Event()
+        timer = threading.Timer(seconds, release.set)
+        timer.start()
+        try:
+            kept.hold(release, keep=keep)
+        finally:
+            timer.cancel()
+    return keep
+
+
+def _held_seconds(page_name: str) -> float:
+    return max(7.0, DELAYS.get(page_name, 0) / 1000 + 6)
+
+
+@pytest.mark.parametrize("page_name", list(SESSION_PAGES))
+def test_the_stay_press_on_a_held_page_sends_nothing(page_name, monkeypatch):
+    """The press goes in while the page is Lisul's: the guards go back on for it, and his Submit stays held after
+    it, the guard whole, however long the page waits to send, until his Dismiss."""
+    with cdp(PAGES[page_name]) as (page, _, site):
+        keep = _held_with_keeper(page, monkeypatch, button(page_name), _held_seconds(page_name))
+        _settle(page, 1500)
+    assert site.applications() == []
+    # The structure check passes all but the form's own submit: the guard, kept whole, is what stops them.
+    pressed = page_name != "a session dialog whose stay button is the form's submit"
+    assert ("pressed the site's" in keep.line()) is pressed
+    assert bool(keep.holding()) is pressed  # still held: only his Dismiss gives Submit back
+
+
+@pytest.mark.parametrize("page_name", ["a session dialog whose Continue sends after 10 s",
+                                       "a session dialog whose Continue sends after the next mouse move",
+                                       "a session dialog whose page dismisses the hold itself"])
+def test_the_stay_press_on_a_held_plain_page_sends_nothing(page_name, monkeypatch):
+    with plain(PAGES[page_name]) as (page, _, site):
+        keep = _held_with_keeper(page, monkeypatch, button(page_name), _held_seconds(page_name))
+        _settle(page, 1500)
+    assert site.applications() == []
+    assert "pressed the site's" in keep.line() and keep.holding()
+
+
+def _held_generically(page, monkeypatch, seconds: float) -> keepalive.Keeper:
+    """The page held by _Kept.hold for `seconds` on a site with no entry: the Keeper's generic rules as they are, with
+    a mouse move every second (no GET: the fake host is not on loopback)."""
+    from apply.rehearsal import _Kept
+
+    monkeypatch.setattr(keepalive, "LOOK_S", 0.25)
+    monkeypatch.setattr(keepalive, "PING_S", 1.0)
+    monkeypatch.setattr(keepalive, "ANY", dataclasses.replace(keepalive.ANY, ping=False))
+    keep = keepalive.Keeper("Acme", lambda why: None, sites=())
+    kept = _Kept(_OnePage(page), 0)
+    with kept.open(HOST + START):
+        release = threading.Event()
+        timer = threading.Timer(seconds, release.set)
+        timer.start()
+        try:
+            kept.hold(release, keep=keep)
+        finally:
+            timer.cancel()
+    return keep
+
+
+@pytest.mark.parametrize("page_name", list(GENERIC_SESSION_PAGES))
+def test_the_generic_stay_press_on_a_held_page_sends_nothing(page_name, monkeypatch):
+    """A site with no entry (KAN-779): the generic rules press only what passes STAY, with the guards back on, and
+    then hold Submit, the guard whole, however long the page waits to send, until Dismiss."""
+    with cdp(PAGES[page_name]) as (page, _, site):
+        keep = _held_generically(page, monkeypatch, _held_seconds(page_name))
+        _settle(page, 1500)
+    assert site.applications() == []
+    pressed = page_name in GENERIC_PRESSED  # the rest get no press at all
+    assert ("pressed the site's" in keep.line()) is pressed
+    assert bool(keep.holding()) is pressed  # still held: only Dismiss gives Submit back
+
+
+@pytest.mark.parametrize("page_name", ["a generic session dialog whose I'm still here sends after 10 s",
+                                       "a generic session dialog whose I'm still here sends after the next mouse move",
+                                       "a generic session dialog whose page dismisses the hold itself"])
+def test_the_generic_stay_press_on_a_held_plain_page_sends_nothing(page_name, monkeypatch):
+    with plain(PAGES[page_name]) as (page, _, site):
+        keep = _held_generically(page, monkeypatch, _held_seconds(page_name))
+        _settle(page, 1500)
+    assert site.applications() == []
+    assert "pressed the site's" in keep.line() and keep.holding()
 
 
 # --- Fill again: the held page closes, and the form opens anew in a fresh Worker browser under the guard
@@ -937,6 +1522,159 @@ def test_fill_again_opens_the_form_guarded_before_its_first_load(tmp_path):
         assert [p for p in sent if p.endswith("/apply") or "submit" in p] == []
 
 
+# KAN-855's review: Apply fills a held page's field (an answer from the window by the Fill engine in the Student build,
+# a Rescue in a checkout, a field the form didn't take tried once more) while the page is lifted, the student's. A
+# field that sends the application from its own input handler, the moment Apply types in it, sent it then.
+SENDS_AS_IT_IS_FILLED = f"""<title>Apply</title><form id=app method=post action="{FINAL}">
+    <label>Pronouns <input id=pronouns name=pronouns oninput="sendAll(); document.getElementById('app').submit()"></label>
+    <button id=b>Submit</button></form>{SEND_ALL}"""
+
+
+def test_a_field_that_sends_as_apply_fills_it_on_a_held_page_sends_nothing(monkeypatch):
+    from apply import build
+    from apply.rehearsal import _Kept
+
+    monkeypatch.setattr(build, "STUDENT", True)  # the Fill engine's fill of an answer (a checkout's Rescue guards itself)
+
+    class Opens:  # the held page is cdp()'s, guarded as a rehearsal guards it
+        @contextmanager
+        def open(self, url, worker=0):
+            yield page
+
+    with cdp({START: SENDS_AS_IT_IS_FILLED}) as (page, _, site):
+        kept, release, given, filled = _Kept(Opens(), 0), threading.Event(), [("Pronouns", "he/him")], []
+
+        def fill(on, question, answer):  # Apply typing the answer into its field, as the Fill engine does
+            on.locator("#pronouns").fill(answer)
+            filled.append(answer)
+            _settle(on, 800)
+            release.set()
+
+        threading.Timer(15, release.set).start()  # never hangs
+        with kept.open(HOST + START):
+            kept.hold(release, answers=lambda: [given.pop()] if given else [], fill=fill)
+        assert filled == ["he/him"] and site.applications() == []  # both guards were on while Apply typed
+        page.locator("#pronouns").fill("she/her")  # the page lifted, as the hold left it: the page does send
+        _settle(page, 800)
+        assert site.applications()
+
+
+class _Holds:
+    """cdp()'s page as a rehearsal's one job site: the page _Kept holds (rehearsal._Kept)."""
+
+    def __init__(self, page):
+        self.page = page
+
+    @contextmanager
+    def open(self, url, worker=0):
+        yield self.page
+
+
+# KAN-855's second review: a pop-up the student opened from the lifted page (Fix here shows no pop-up) takes no guard
+# (KAN-796), and the field Apply typed in on the held page told it to send. The Student build closes the held page's
+# pop-ups before Apply acts on it (rehearsal._close_pop_ups).
+POP = "/acme/jobs/123/help"
+OPENS_A_HELPER = {
+    START: f"""<title>Apply</title><form id=app method=post action="{FINAL}">
+      <label>Pronouns <input id=pronouns name=pronouns oninput="window.pop && window.pop.postMessage('go', '*')"></label>
+      <button type=button id=help onclick="window.pop = window.open('{POP}', 'helper')">Help</button>
+      <button id=b>Submit</button></form>{SEND_ALL}""",
+    POP: f"""<title>Help</title><p>Help</p>{SEND_ALL}<script>addEventListener('message', () => sendAll());</script>""",
+}
+
+
+def test_a_pop_up_the_student_opened_sends_nothing_while_apply_fills_the_held_page(monkeypatch):
+    from apply import build
+    from apply.rehearsal import _Kept
+
+    monkeypatch.setattr(build, "STUDENT", True)
+    with cdp(OPENS_A_HELPER) as (page, _, site):
+        kept, release, filled, opened, given = _Kept(_Holds(page), 0), threading.Event(), [], [], []
+
+        def tend(on):  # the student, on the lifted page, opens its Help pop-up, then answers in the window
+            if not opened:
+                with on.context.expect_page() as popup:
+                    on.click("#help")
+                opened.append(popup.value)
+                popup.value.wait_for_load_state()
+                _settle(on, 300)
+                given.append(("Pronouns", "he/him"))
+
+        def fill(on, question, answer):
+            on.locator("#pronouns").fill(answer)
+            filled.append(answer)
+            _settle(on, 800)
+            release.set()
+
+        threading.Timer(20, release.set).start()
+        with kept.open(HOST + START):
+            kept.hold(release, answers=lambda: [given.pop()] if given else [], fill=fill, tend=tend)
+        assert filled == ["he/him"] and site.applications() == []
+        kept.close()
+
+
+# KAN-855's second review: Add context and regenerate wrote its new answer on the lifted page, and Go to question
+# focused a field there, each with both guards off. A field whose own input or focus handler sends, sent.
+REGENERATED_SENDS = f"""<title>Apply</title><form id=app method=post action="{FINAL}">
+    <label>Why Acme? <textarea id=essay name=essay oninput="sendAll(); document.getElementById('app').submit()">old</textarea></label>
+    <button id=b>Submit</button></form>{SEND_ALL}"""
+FOCUSED_SENDS = f"""<title>Apply</title><form id=app method=post action="{FINAL}">
+    <label for=pronouns>Pronouns</label><input id=pronouns name=pronouns
+      onfocus="sendAll(); document.getElementById('app').submit()">
+    <button id=b>Submit</button></form>{SEND_ALL}"""
+
+
+def test_a_regenerated_answer_written_on_a_held_page_sends_nothing():
+    from apply import regenerate
+    from apply.rehearsal import _Kept
+
+    class Redo:  # one Regenerate press, and _Redo's write of the new answer (regenerate.done)
+        def __init__(self):
+            self.pressed, self.wrote = [("essay", "lead with the club")], []
+
+        def written(self):
+            return [{"name": "essay", "text": "old"}]
+
+        def asked(self):
+            out, self.pressed = self.pressed, []
+            return out
+
+        def __call__(self, on, name, context):
+            self.wrote.append(regenerate.done(on, name, "A new answer", "note", True))
+            _settle(on, 800)
+            release.set()
+
+    with cdp({START: REGENERATED_SENDS}) as (page, _, site):
+        kept, release, redo = _Kept(_Holds(page), 0), threading.Event(), Redo()
+        threading.Timer(15, release.set).start()
+        with kept.open(HOST + START):
+            kept.hold(release, redo=redo)
+        assert redo.wrote == ["A new answer"] and site.applications() == []
+        kept.close()
+
+
+def test_go_to_question_on_a_held_page_sends_nothing():
+    from apply import on_page
+    from apply.model import Question
+    from apply.rehearsal import _Kept
+
+    with cdp({START: FOCUSED_SENDS}) as (page, _, site):
+        kept, release, said = _Kept(_Holds(page), 0), threading.Event(), []
+
+        def tend(on):  # the window's Go to question, as the rehearsal's tend runs it: under the hold's acting()
+            if not said:
+                with kept.acting():
+                    said.append(on_page.go_to(on, Question("pronouns", "Pronouns", "text")))
+                _settle(on, 800)
+                release.set()
+
+        threading.Timer(15, release.set).start()
+        with kept.open(HOST + START):
+            kept.hold(release, tend=tend)
+        assert said == [""] and site.applications() == []
+        kept.close()
+
+
 # --- plain: a plain Worker on Chrome for Testing (no CDP), the same pages and paths
 
 # One test process takes every plain-Worker case, one at a time, beside the CDP cases in the others
@@ -951,37 +1689,57 @@ def _plain_or_skip():
 
 
 @contextmanager
-def plain(pages: dict[str, str]):
+def plain(pages: dict[str, str], first: bool = False):
+    """As cdp(), on a plain Worker: guarded after a first load, or with `first` before it (SENDS_AS_IT_LOADS)."""
     _plain_or_skip()
     from plain_fakes import fake_page
 
     site = Site(pages)
-    with fake_page(site.handle, url=HOST + START) as page:
+    with fake_page(site.handle) as page:
+        if first:
+            with submit_guard.guarding_on_open():
+                submit_guard.on_open(page)
+        page.goto(HOST + START)
         guard(page)
         yield page, DriveGuard(page), site
 
 
-PLAIN_PATHS = ["plain code's Next", "the Amazon Filler's Continue", "the profile click", "the account click", "Ask Claude's press of a listed step"]
+PLAIN_PATHS = ["plain code's Next", "the Amazon Filler's Continue", "the profile click", "the account click", "Ask Claude's press of a listed step",
+               "the keep-alive's stay press", "the keep-alive's generic stay press"]
 
 
 @pytest.mark.parametrize(("page_name", "path"), plain_pairs_on_prs(PLAIN_PATHS))
 @ONE_PLAIN_PROCESS
 def test_no_click_path_sends_a_hostile_page_on_a_plain_worker(page_name, path):
-    with plain(PAGES[page_name]) as (page, drive, site):
+    with plain(PAGES[page_name], first=page_name in GUARDED_FIRST) as (page, drive, site):
         try:
             PATHS[path](page, drive, button(page_name))
         except Handoff:
             pass
         _then(page, page_name)
-        _settle(page)
+        _settle(page, wait_ms(page_name))
     assert site.applications() == []
+
+
+@ONE_PLAIN_PROCESS
+def test_ashbys_own_queries_and_saves_go_through_on_a_plain_worker():
+    # The rule on workers' requests to Ashby's GraphQL (WORKER_RULES) holds no request of the tab's own.
+    with plain(_ashby_own_page()) as (page, _, site):
+        assert _ashby_own_sent(page, site) == sorted(ASHBY_OWN)
+
+
+@ONE_PLAIN_PROCESS
+def test_a_worker_made_while_lifted_sends_nothing_once_rearmed_on_a_plain_worker():
+    with plain(LIFTED_WORKERS) as (page, _, site):
+        sent = _workers_after_rearm(page, site, True)
+    assert sent == []
 
 
 @pytest.mark.parametrize("path", list(TYPING))
 @pytest.mark.parametrize("page_name", first_page_on_prs())
 @ONE_PLAIN_PROCESS
 def test_no_typing_path_sends_a_hostile_page_on_a_plain_worker(page_name, path):
-    with plain(PAGES[page_name]) as (page, drive, site):
+    with plain(PAGES[page_name], first=page_name in GUARDED_FIRST) as (page, drive, site):
         try:
             TYPING[path](page, drive, button(page_name))
         except Handoff:
@@ -989,6 +1747,107 @@ def test_no_typing_path_sends_a_hostile_page_on_a_plain_worker(page_name, path):
         _then(page, page_name)
         _settle(page, 1500)
     assert site.applications() == []
+
+
+# KAN-793, the review of #555: what outlives a press. A service worker the page started posts after its tab closed,
+# when the last guarded tab's rules had gone with it (its requests come from no tab, -1). A pop-up the extension opened
+# for a refused window.open (accounts.js, while something listens on the page) had no rules, and a worker its page
+# started posted. Each runs with plain code's Next; the control shows each page sends without the guard.
+SW = "/hostile-sw/sw.js"  # its own scope, so no other test's page is under it
+LATE_SW = {
+    START: f"""<title>Apply</title><form><input name=first value=Test><button id=b type=button>Next</button></form>
+        <script>try {{ navigator.serviceWorker.register('{SW}').catch(() => {{}}); }} catch (e) {{}}
+        // Reached by its registration, which a guarded page still has (KAN-791's guard refuses only a new one).
+        document.getElementById('b').addEventListener('click', () => navigator.serviceWorker.getRegistration('{SW}')
+          .then((r) => (r.active || r.waiting || r.installing).postMessage('go')));
+        </script>""",
+    SW: f"""self.addEventListener('install', () => self.skipWaiting());
+self.addEventListener('message', (e) => e.waitUntil(new Promise((done) => setTimeout(() =>
+  done(fetch('{FINAL}', {{method: 'POST', body: 'first=Test'}}).catch(() => {{}})), 4000))));""",
+}
+POPUP = "/acme/jobs/123/popup"
+POPUP_WORKER = {
+    START: f"""<title>Apply</title><form><input name=first value=Test>
+        <button id=b type=button onclick="window.open('{POPUP}')">Next</button></form>""",
+    POPUP: f"""<title>Sign in</title><p>Sign in</p><script>new Worker(URL.createObjectURL(new Blob([
+        "setTimeout(() => fetch('{HOST}{FINAL}', {{method: 'POST', body: 'a'}}).catch(() => {{}}), 1500)"])));</script>""",
+}
+
+
+def _fresh(page, url: str) -> None:
+    """No guard left in the run's one plain Worker (an earlier test's scripts, or a closed tab's rules on -1, would
+    stop a control), then the page."""
+    plain_guards.reset(page.worker)
+    page.goto(url)
+
+
+def _press(page, drive) -> None:
+    """The Next: plain code's on a guarded page, else a plain click (no drive guard to refuse the page's workers)."""
+    try:
+        plain_next(page, drive, "Next") if drive else page.get_by_role("button", name="Next").click()
+    except Handoff:
+        pass  # the step stays: its Next sends nothing the form shows
+
+
+def _late_sw(guarded: bool) -> list[str]:
+    _plain_or_skip()
+    from plain_fakes import fake_page
+
+    site = Site(LATE_SW)
+    with fake_page(site.handle) as page:
+        _fresh(page, HOST + START)
+        _settle(page, 1500)  # the service worker installed
+        if guarded:
+            guard(page)
+        _press(page, DriveGuard(page) if guarded else None)
+        worker = page.worker
+        page.close()  # the last guarded tab: its worker lives on
+    deadline = time.monotonic() + 8
+    while not site.applications() and time.monotonic() < deadline:
+        time.sleep(0.2)
+    if guarded:  # the set stays on -1 for it
+        assert worker.call("guard.status")["rules"] == len(plain_guards.RULES) + len(plain_guards.WORKER_RULES)
+    return site.applications()
+
+
+def _popup_worker(guarded: bool) -> list[str]:
+    _plain_or_skip()
+    from plain_fakes import fake_page
+
+    site = Site(POPUP_WORKER)
+    with fake_page(site.handle) as page:
+        _fresh(page, HOST + START)
+        if guarded:
+            guard(page)
+        page.on("request", lambda request: None)  # as Workday's _send listens on its account click
+        before = {t["tab"] for t in page.worker.call("tabs.query")}
+        _press(page, DriveGuard(page) if guarded else None)
+        _settle(page, 4000)
+        opened = [t["tab"] for t in page.worker.call("tabs.query") if t["tab"] not in before]
+        assert opened, "no pop-up opened"
+        if guarded:  # the opener's rules on it (the guard script, since KAN-791, refuses its worker too)
+            assert all(page.worker.call("guard.status", tab=t)["rules"] == len(plain_guards.RULES) for t in opened)
+    return site.applications()
+
+
+@ONE_PLAIN_PROCESS
+def test_a_service_worker_sends_without_the_guard_after_its_tab_closed():
+    assert _late_sw(guarded=False) == [FINAL]
+
+
+@ONE_PLAIN_PROCESS
+def test_a_service_worker_sends_nothing_after_the_last_guarded_tab_closed():
+    assert _late_sw(guarded=True) == []
+
+
+@ONE_PLAIN_PROCESS
+def test_a_worker_in_a_pop_up_sends_without_the_guard():
+    assert _popup_worker(guarded=False) == [FINAL]
+
+
+@ONE_PLAIN_PROCESS
+def test_a_worker_in_a_pop_up_the_extension_opened_sends_nothing():
+    assert _popup_worker(guarded=True) == []
 
 
 @pytest.mark.parametrize("path", list(TYPING))
@@ -1197,3 +2056,36 @@ def test_every_guard_hole_is_a_hostile_page():
     # A name in GUARD_HOLES that is no page would leave that hole to the nightly run alone.
     assert GUARD_HOLES <= set(PAGES)
     assert PLAIN_HOLES <= GUARD_HOLES
+
+
+def _pairs(matrix) -> tuple[list, list]:
+    """A matrix's (page, path) pairs, and those PR CI runs."""
+    every = [tuple(p.values) if hasattr(p, "values") else p for p in matrix]
+    return every, [p for p in matrix if not hasattr(p, "values")]
+
+
+def test_each_pair_is_a_path_on_a_page_it_can_press_and_every_page_and_path_runs_on_prs():
+    # Before KAN-780's table, 312 of the 728 pairs were a path that found nothing on its page, and 12 pages' only PR
+    # pair was one: a name here that is no page would take a path's pages away, and a page with no PR pair is untested.
+    assert all(pages <= set(PAGES) for pages in [*APPLIES.values(), *OWN.values()])
+    for matrix, paths, every_page in ((each_page_and_path_once_on_prs(), list(PATHS), True),
+                                      (plain_pairs_on_prs(PLAIN_PATHS), PLAIN_PATHS, False)):
+        every, on_prs = _pairs(matrix)
+        assert all(applies(page, path) for page, path in every)
+        assert len(set(every)) == len(every)
+        assert {path for _, path in on_prs} == set(paths)
+        if every_page:
+            assert {page for page, _ in on_prs} == set(PAGES) - HELD_ONLY
+            assert all(own_path(i, page, paths) in {path for p, path in on_prs if p == page}
+                       for i, page in enumerate(PAGES) if page not in HELD_ONLY)
+
+
+def test_each_page_says_how_late_it_sends_and_a_held_only_page_has_its_held_test():
+    # A case waits as long as its page's latest timer: one whose delay is no number would make it wait too little.
+    unsaid = [name for name, pages in PAGES.items() if None in _timers(" ".join(pages.values()))
+              and name not in DELAYS and name not in LATEST]
+    assert unsaid == []
+    assert all(wait_ms(name) >= 1500 for name in PAGES)
+    assert set(CONTROLS_ON_PRS) <= set(PAGES)
+    # A page in no matrix still runs: each HELD_ONLY page is a held-page test's (the stay press's or the generic one's).
+    assert HELD_ONLY <= set(SESSION_PAGES) | set(GENERIC_SESSION_PAGES)

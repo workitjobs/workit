@@ -8,6 +8,91 @@ import { cn } from "@/lib/cn";
 
 export type TabLink = { value: string; label: string; href: string };
 
+/** A tab's look, open or not, shared by the link tabs and the button tabs. */
+function tabClasses(open: boolean, ruled: boolean) {
+  return cn(
+    "text-subtitle hit-area focus-visible:ring-brand-ring relative rounded-xs py-2 whitespace-nowrap transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none",
+    ruled && "-mb-px",
+    "before:absolute before:inset-x-0 before:bottom-0 before:h-[3px] before:rounded-full before:transition-colors before:duration-150",
+    open
+      ? "text-brand before:bg-brand font-semibold"
+      : "text-ink-meta hover:text-ink hover:before:bg-border-strong font-medium before:bg-transparent",
+  );
+}
+
+/** The label at the semibold label's width, held by an invisible copy, so
+ *  a tab never shifts the row when it opens. */
+function TabLabel({ label }: { label: string }) {
+  return (
+    <span className="grid">
+      <span aria-hidden="true" className="invisible col-start-1 row-start-1 font-semibold">
+        {label}
+      </span>
+      <span className="col-start-1 row-start-1 text-center">{label}</span>
+    </span>
+  );
+}
+
+/**
+ * `TabLinks`' tabs as buttons, for content one screen switches between and
+ * the URL need not hold (the resume editor's side panel, Sections and
+ * Format, KAN-586): a `tablist` whose open tab is `aria-selected`, with the
+ * arrow keys moving between them. The same look as `TabLinks`.
+ */
+export function TabButtons<V extends string>({
+  label,
+  options,
+  value,
+  onChange,
+  ruled = false,
+  className,
+}: {
+  /** Names the tabs for a screen reader. */
+  label: string;
+  options: { value: V; label: string }[];
+  value: V;
+  onChange: (value: V) => void;
+  ruled?: boolean;
+  className?: string;
+}) {
+  return (
+    <div
+      role="tablist"
+      aria-label={label}
+      className={cn("flex items-center gap-7", ruled && "border-border-subtle border-b", className)}
+      onKeyDown={(event) => {
+        const at = options.findIndex((o) => o.value === value);
+        const step = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
+        if (!step) return;
+        event.preventDefault();
+        const next = options[(at + step + options.length) % options.length];
+        onChange(next.value);
+        requestAnimationFrame(() =>
+          event.currentTarget.querySelector<HTMLElement>(`[data-tab="${next.value}"]`)?.focus(),
+        );
+      }}
+    >
+      {options.map((option) => {
+        const open = option.value === value;
+        return (
+          <button
+            key={option.value}
+            type="button"
+            role="tab"
+            data-tab={option.value}
+            aria-selected={open}
+            tabIndex={open ? 0 : -1}
+            onClick={() => onChange(option.value)}
+            className={tabClasses(open, ruled)}
+          >
+            <TabLabel label={option.label} />
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 /**
  * Tabs that move between different content on one subject (KAN-766): a
  * job's Overview and Company, an application's own page and its job
@@ -90,22 +175,9 @@ export function TabLinks({
                 push(option.href);
               }
             }}
-            className={cn(
-              "text-subtitle hit-area focus-visible:ring-brand-ring relative rounded-xs py-2 whitespace-nowrap transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none",
-              ruled && "-mb-px",
-              "before:absolute before:inset-x-0 before:bottom-0 before:h-[3px] before:rounded-full before:transition-colors before:duration-150",
-              open
-                ? "text-brand before:bg-brand font-semibold"
-                : "text-ink-meta hover:text-ink hover:before:bg-border-strong font-medium before:bg-transparent",
-            )}
+            className={tabClasses(open, ruled)}
           >
-            {/* The semibold label's width, held by an invisible copy. */}
-            <span className="grid">
-              <span aria-hidden="true" className="invisible col-start-1 row-start-1 font-semibold">
-                {option.label}
-              </span>
-              <span className="col-start-1 row-start-1 text-center">{option.label}</span>
-            </span>
+            <TabLabel label={option.label} />
           </Link>
         );
       })}

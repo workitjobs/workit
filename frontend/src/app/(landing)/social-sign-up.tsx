@@ -44,7 +44,10 @@ export function SocialSignUpButton({ provider }: { provider: OAuthProvider }) {
   const google = provider === "google";
   const name = google ? "Google" : "LinkedIn";
   return (
-    <OAuthForm action={signInWithOAuth.bind(null, provider)} className="w-full max-w-72 sm:w-auto">
+    <OAuthForm
+      action={signInWithOAuth.bind(null, provider, null)}
+      className="w-full max-w-72 sm:w-auto"
+    >
       <OAuthSubmit
         label={`Sign up with ${name}`}
         pendingLabel={`Opening ${name}…`}

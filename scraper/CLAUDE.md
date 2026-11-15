@@ -36,10 +36,11 @@ boards.csv ─▶ __main__ ─▶ polite.Robots ─▶ providers.PROVIDERS ─�
 
 Each module owns one stage (its docstring says which); every network read goes
 through `web.get` (or Workday's and TikTok's `web.post`) behind `polite.Robots`.
-Greenhouse, Lever, Ashby, Workable, Recruitee and BambooHR return a whole board in
-one request. Workday sends 20 postings a request, which changes how its boards are
-read: `docs/workday.md`. Oracle, TikTok, Jibe and SuccessFactors page as well
-(`Provider.paged`): `docs/providers.md`.
+Greenhouse, Lever, Ashby, Workable, Recruitee, BambooHR and Pinpoint return a whole
+board in one request. JazzHR and Jobvite each return their list in one HTML page;
+each kept posting's detail page has JSON-LD. Workday sends 20 postings a request, which changes how its boards are
+read: `docs/workday.md`. Oracle, TikTok, Jibe, SmartRecruiters, SuccessFactors
+and Eightfold page as well (`Provider.paged`): `docs/providers.md`.
 
 ## This package imports only the standard library
 
@@ -55,9 +56,9 @@ runs pytest where the package is not installed.
 
 ## Adding a provider
 
-Read the provider's `robots.txt` before writing anything. SmartRecruiters is
-absent because it disallows us, and that is the whole reason (its API's
-robots.txt still said `Disallow: /` to every agent but LinkedIn's on 2026-10-26).
+Read the provider's `robots.txt` before writing anything. SmartRecruiters'
+API disallows all bots in robots.txt, but its reader sets `skip_robots=True`
+and accepts the risk for this educational project; pacing still applies.
 Rippling, iCIMS, Oracle, TikTok, Jibe and SuccessFactors, and the systems still
 not read, are in `docs/providers.md`.
 
@@ -139,7 +140,7 @@ landing page's `hiringSystems` yet: each needs its logo file in
   `[]` for the second. Collapsing them turns a typo in `boards.csv` into "this
   company stopped hiring", which nobody notices. **Only a board's first request
   can say it does not exist**: a paged reader turns a 404 on a later page into
-  `Incomplete` (Oracle's and Workday's). As "no such board", one bad page of a
+  `Incomplete` (Oracle, Workday, Jibe and SuccessFactors). As "no such board", one bad page of a
   large Oracle board closed every posting on it.
 - **Providers disagree about types.** Lever sends `createdAt` as an `int` in
   some records and a numeric string in others; trusting one shape silently
@@ -165,7 +166,7 @@ A posting's own text is one value, `providers.Page`: the description (its kept
 sections, cut to `DESCRIPTION_CHARS`), the card's `details.Facts`, and on Greenhouse
 its offices (on Workday, its places and requisition number). Lever, Ashby and
 Recruitee send it with the board's list. Greenhouse, Workable, BambooHR,
-Rippling, iCIMS, Oracle and Workday do not (`Provider.job_url`): Greenhouse's `content=true`
+Rippling, iCIMS, Oracle, SmartRecruiters, Eightfold, JazzHR, Jobvite and Workday do not (`Provider.job_url`): Greenhouse's `content=true`
 would send hundreds of megabytes a run to describe the ~2% we keep, and
 Workday's list has no description, exact date or places. So
 `__main__.with_page` reads each *kept* posting's page once, through the same
@@ -215,7 +216,7 @@ robots and pacing.
 - **Bump `providers.PAGE_VERSION` whenever a `Page` starts holding something
   new, or a fact's pattern changes**, or stored postings never get it.
   `with_page` re-reads any page under an older version, once per kept
-  Greenhouse, Workable, BambooHR, Rippling, iCIMS, Oracle and Workday posting.
+  Greenhouse, Workable, BambooHR, Rippling, iCIMS, Oracle, SmartRecruiters, Eightfold, JazzHR, Jobvite and Workday posting.
 - **Changing `DESCRIPTION_CHARS` does not re-cut stored Greenhouse
   descriptions.** Clear them so the next run fetches them again:
 
@@ -567,7 +568,7 @@ before merging them. Postings are always scraped from the employer.
   line: the vanshb03 list wraps every link in a `go.vansh.nyc` short link, and
   its 1,942 rows named no board without a word until 2026-10-27. The causes say
   where the next reader pays off: an employer's own site, a short link, a hiring
-  system behind a company's domain, SmartRecruiters, the other systems.
+  system behind a company's domain, the other systems.
 - **`--resolve` finds the boards behind three of those causes, each proved**:
   a short link by where it leads, a careers page with `?gh_jid=` by the
   Greenhouse board that holds that posting's number, one with `icims` by the

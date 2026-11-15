@@ -574,6 +574,49 @@ async def fetch_answered(
     return list(found.values())
 
 
+@dataclass(frozen=True)
+class CoverLetterRow:
+    """One saved written answer with what the Cover Letters tab shows
+    beside it (KAN-766): its job posting and the application's stage."""
+
+    answer: Written_Answer
+    company: str | None
+    title: str | None
+    logo_url: str | None
+    company_domain: str | None
+    listed: bool
+    stage: application_stage
+
+
+async def fetch_text_answers(db: AsyncSession, applicant_id: uuid.UUID) -> list[CoverLetterRow]:
+    """Every saved answer to a question asked in words, at any stage, with
+    its posting and its application's stage, last saved first. The caller
+    keeps the cover letters among them (written.cover_letters): a row's
+    Question type is its plan's, or its label's class, and neither is a
+    column."""
+    rows = await db.execute(
+        select(
+            Written_Answer, Job_Post.company_name, Job_Post.title, Job_Post.company_logo_url,
+            Job_Post.company_domain, LISTED.label("listed"), Job_Application.stage,
+        )
+        .join(
+            Job_Application,
+            and_(Job_Application.applicant_id == Written_Answer.applicant_id, Job_Application.job_id == Written_Answer.job_id),
+        )
+        .join(Job_Post, Job_Post.id == Written_Answer.job_id)
+        .where(
+            Written_Answer.applicant_id == applicant_id,
+            Written_Answer.answer.is_not(None),
+            is_text(Written_Answer.kind),
+        )
+        .order_by(Written_Answer.answered_at.desc().nulls_last(), Written_Answer.job_id, Written_Answer.position)
+    )
+    return [
+        CoverLetterRow(r, company, title, logo, domain, bool(listed), stage)
+        for r, company, title, logo, domain, listed, stage in rows
+    ]
+
+
 async def set_ask(db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID, name: str, ask: dict | None) -> None:
     """Keeps (or, with None, clears) the fact the student's Claude asks
     the student for on an unanswered question (KAN-369), as the row's

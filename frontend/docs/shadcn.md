@@ -150,18 +150,46 @@ page behind a panel read as broken. A panel from the right floats, inset
 12px from the window's edges, with `rounded-shell` corners, a full border
 and `shadow-lift`, where shadcn's stuck to the edge, full height and
 square. The application detail panel (`(seeker)/applications/detail-panel.tsx`)
-is the one today; a new right-side sheet gets the look for free. **Re-running
-`shadcn add sheet` undoes both**: diff the file after any `add`, and keep
+is the one today; a new right-side sheet gets the look for free. Its
+`SheetTitle` is `text-subtitle`, as `DialogTitle` is (KAN-820). **Re-running
+`shadcn add sheet` undoes all three**: diff the file after any `add`, and keep
 the fork's note at the top of `SheetOverlay`.
 
-#### Dialog is not forked: globals.css sets its margin and its overlay
+#### Dialog is forked: its Close, its title and its column
 
-`src/components/shadcn/dialog.tsx` is as `shadcn add` wrote it. Three rules
-in `globals.css`, keyed on its `data-slot`s, change it from outside
-(KAN-563): the popup keeps 16px from the window at every width, its
-overlay dims without blurring, as the Sheet's does, and a
-`data-slot="dialog-scroller"` box keeps its scrollbar's room. Each rule
-names the one class it overrides; check them after any `add dialog`.
+`src/components/shadcn/dialog.tsx` is edited in place, on purpose. Its
+Close is WorkIt's `IconButton` (`place="row"`), where shadcn's was a 28px
+square ghost Button. Its `DialogTitle` is `text-subtitle` (KAN-820), where
+shadcn's was 16px medium and every call site passed the token. Its
+`DialogContent` is a flex column no taller than the window less 16px a
+side, scrolling as a whole when nothing in it does, where shadcn's was a
+grid with no height cap; `DialogHeader` and `DialogFooter` never shrink;
+and `DialogBody`, WorkIt's own export, is the middle that scrolls, so the
+buttons stay in view (KAN-820, `docs/design.md`, "A dialog's middle
+scrolls"). **Re-running `shadcn add dialog` undoes all four**: diff the
+file after any `add`.
+
+Three rules in `globals.css`, keyed on its `data-slot`s, still change it
+from outside (KAN-563): the popup keeps 16px from the window at every
+width, its overlay dims without blurring, as the Sheet's does, and a
+`data-slot="dialog-scroller"` box (`DialogBody`, Settings' scroller) keeps
+its scrollbar's room. Each rule names the one class it overrides; check
+them after any `add dialog`.
+
+#### Slider is not forked: globals.css sets its thumb and track
+
+`src/components/shadcn/slider.tsx` is as `shadcn add` wrote it (2026-11-11,
+the resume editor's Format tab), but for its `cn` import (the `add` bug
+below). Rules in `globals.css`, keyed on its `data-slot`s, change it from
+outside: Base UI puts the focus on a range input inside the thumb, so the
+thumb's own `focus-visible:ring-3` never showed, and the app's 2px ring is
+drawn while the input has it (`:has(:focus-visible)`); the thumb is 16px
+with a 2px brand edge and no hover halo; the track's unfilled part is
+`border-surface`, since `bg-muted` is the well grey and vanished on a white
+card; and on touch the thumb's target is 44px. **Pass it an array
+`value`**: given a number, its `_values` falls back to `[min, max]` and it
+draws two thumbs. Check the rules after any `add slider`.
+
 #### Sidebar is forked: the phone sheet is named "Menu"
 
 `src/components/shadcn/sidebar.tsx` names the phone's sheet "Menu" (KAN-570),
@@ -291,9 +319,10 @@ row is WorkIt's body type rather than Tailwind's:
 | `text-base` | not bound: the 16px that stops iOS zooming on inputs |
 
 Size and line height only; a component that asks for `font-medium` keeps it. A
-vendored title (`DialogTitle`, `SheetTitle`) is 16px medium, which the scale
-has no token for, so each call site passes `text-subtitle font-semibold`. The
-rendered mapping is on `/design-kit/type`.
+stock title (`DialogTitle`, `SheetTitle`) was 16px medium, which the scale has
+no token for, so both forks set `text-subtitle` themselves (KAN-820) and no
+call site passes a size or weight. The rendered mapping is on
+`/design-kit/type`.
 
 `--chart-1…5` used to be `OPEN`. They are now the badge tones in a fixed
 order — brand, advanced, positive, danger, then a de-emphasis grey — so a stage

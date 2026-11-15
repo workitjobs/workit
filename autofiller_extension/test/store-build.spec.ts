@@ -1,6 +1,6 @@
 // The Chrome Web Store package (KAN-463, store/build.mjs): what the Store gets, read back out of the zip itself.
 import { execFileSync } from "node:child_process";
-import { appendFileSync, cpSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { appendFileSync, cpSync, existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { runInNewContext } from "node:vm";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -34,6 +34,13 @@ test("the zip holds what Chrome loads and nothing of the repo's own", () => {
   const list = files();
   for (const file of ["manifest.json", "src/background/background.js", "fill-engine/dist/engine.js", "icons/icon-128.png"]) expect(list).toContain(file);
   expect(list.filter((f) => /^(test|store)\/|CLAUDE\.md|README\.md|fill-engine\/(src|test)\//.test(f))).toEqual([]);
+});
+
+test("the zip carries the extension's own license and the font's", () => {
+  const list = files();
+  for (const file of ["LICENSE", "NOTICE", "fonts/OFL.txt"]) expect(list).toContain(file);
+  expect(read("LICENSE")).toContain("All rights reserved.");
+  expect(read("LICENSE")).toContain("reverse engineer");
 });
 
 test("every script in the zip is minified, starts with the copyright notice and has no source map", () => {
@@ -127,4 +134,23 @@ test("the build's check finds a job system's field-kind map or timeout written o
   const [waitName, ms] = Object.entries(full.systems.greenhouse.timeouts)[0] as [string, number];
   appendFileSync(join(copy, "src", "content", "overlay.js"), `\nconst k = ${JSON.stringify(kinds)};\nconst w = { ${waitName}: ${ms} };\n`);
   expect(perSiteData(copy)).toEqual([`src/content/overlay.js holds workable kinds ${kindsName}`, `src/content/overlay.js holds greenhouse timeouts ${waitName}`]);
+});
+
+// KAN-778: the extension's own scripts read their job system's names from the served table (content/site-data.js), so no
+// file is exempt, the stepped systems' walk included, and a class or attribute name of the table counts as much as a selector.
+test("no packaged file holds a job system's selector, pattern or class name, the stepped systems' scripts included", () => {
+  expect(perSiteData(join(out, "extension"))).toEqual([]);
+  expect(existsSync(join(EXTENSION, "store", "extension-site-data.json"))).toBe(false);
+  const full = JSON.parse(readFileSync(join(EXTENSION, "fill-engine", "dist", "rules-table.json"), "utf8"));
+  for (const [file, line, name, value] of [
+    ["src/content/workday.js", `const NEXT = ${JSON.stringify(full.systems.workday.strings.NEXT_BUTTONS)};`, "workday NEXT_BUTTONS", full.systems.workday.strings.NEXT_BUTTONS],
+    ["src/content/oracle.js", `const STEP = /${full.systems.oracle.patterns.STEP_NUMBER.source}/i;`, "oracle STEP_NUMBER", full.systems.oracle.patterns.STEP_NUMBER.source],
+    ["src/content/icims.js", `const CURRENT = "${full.systems.icims.strings.STEP_CURRENT}";`, "icims STEP_CURRENT", full.systems.icims.strings.STEP_CURRENT],
+    ["src/background/tab-load.js", `const SUBMIT = ${JSON.stringify(full.systems.workable.strings.SUBMIT)};`, "workable SUBMIT", full.systems.workable.strings.SUBMIT],
+  ]) {
+    const copy = join(out, `leaky-${name.replace(" ", "-")}`);
+    cpSync(join(out, "extension"), copy, { recursive: true });
+    appendFileSync(join(copy, file), `\n${line}\n`);
+    expect(perSiteData(copy), file).toContain(`${file} holds ${name}: ${value}`);
+  }
 });

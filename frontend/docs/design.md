@@ -96,7 +96,9 @@ open choices (Settled choices, near the end).
   (WCAG 2.2 SC 1.3.1 and 2.4.6; GOV.UK, "Headings"). On a section's page the
   h1 is the top bar title (`(seeker)/bar-title.tsx`); on a page under a
   section (a job, a resume, an application) the page draws its own h1 and the
-  bar shows a plain line. A job or a resume drawn beside its list (the Jobs
+  bar shows a plain line. A page split into parts by its own menu
+  (Application Info) keeps the bar title as the h1 on every part, each
+  part's card an h2 (KAN-822). A job or a resume drawn beside its list (the Jobs
   page's Split view) is an h2 under the list's h1. A modal never changes the
   bar title: the bar names the page behind it, and the dialog's title names
   the dialog, as its h2, with its cards' titles as h3. An h1 never
@@ -106,6 +108,15 @@ open choices (Settled choices, near the end).
   level skipped, so the outline is true. Pick the level by the outline and
   the size by the role: `SectionHeading`'s `as` changes the level, never the
   size.
+- **A section heading is `SectionHeading`, at 600, with a grey glyph**
+  (KAN-821). A card's or a section's title draws through
+  `ui/section-heading.tsx` (Home's cards through `home/section-header.tsx`,
+  which adds the link), never by copying its classes, which about a dozen
+  screens did. It is never bold: 700 names a page only (`globals.css`), and
+  the job page's sections and the application page's status line were
+  700. The job page's sections keep their 20px (`text-title`, Jobright's
+  size, 2026-11-10) at the same 600. A glyph beside a heading only informs,
+  so it is `ink-meta`, never `brand` (the job page's were purple).
 - **One primary action per view.** Two filled buttons make the student
   choose which one matters (Material 3, "Buttons": one high-emphasis
   action; Refactoring UI, "Not every button needs a background"). A view (a
@@ -120,6 +131,41 @@ open choices (Settled choices, near the end).
 
 ### Components
 
+- **Reuse before drawing** (2026-11-11, the user's rule): before a screen
+  draws a banner, a toolbar control, a group heading or a panel, find the
+  one the app already draws for that job and use it; when it lives inside
+  one page, move it to `components/` and point both pages at it. A second
+  look for the same job is a break, even when it is close. The shared
+  parts so far: `ui/notice.tsx` (a notice over a table, below),
+  `components/filter-actions.tsx` (Clear, All Filters),
+  `components/all-filters-dialog.tsx` (All Filters' panel, the Jobs page's
+  too since KAN-823, with `AllFiltersSkeleton` while its options load),
+  `components/table-settings.tsx` (Table Settings, Group By),
+  `components/table-group.tsx` (a group's heading row),
+  `components/fill-page.ts` (a table that scrolls inside itself; every
+  table row's fill, `rowFill`, and a frozen cell's, `frozenFill`, so a
+  picked row stays purple under the pointer, frozen cell and all; and
+  `FROZEN_EDGE`, a frozen column's line in `--color-border-surface`, a
+  step darker than the row rules, after Notion's),
+  `components/ui/option-row.tsx` (a row that is one way forward: Auto
+  Apply's setup, Generate Resume's ways to start),
+  `components/ui/or-divider.tsx` (the login card's "Or" rule),
+  `components/stat-tile.tsx` (a number with its label and a line under it:
+  Home's numbers, Activity's and an application's Open and Days Since;
+  `on` sets only its fill, by what it stands on, KAN-828),
+  `components/ui/tip.tsx` (a tooltip for any control), `components/side-nav.tsx`
+  (a page's menu of its parts: Settings, Application Info),
+  `profile/section-action.tsx` (a card's own action, a bare glyph with a
+  tooltip), `components/selection-bar.tsx` (a table's picked rows: the
+  row's `PickBox` and the bar of actions over the filters, after
+  Notion's: "N selected" in brand ink, then a glyph and word per action,
+  then a delete or remove as a glyph alone, with no close button;
+  Documents' resumes, Up Next and the Tracker's list), `components/views.tsx`,
+  `PAGE_SEARCH`, and `components/sortable-list.tsx` (rows dragged into
+  order or moved by the arrow keys: a handle and a drop line; the
+  editor's Sections panel and Experiences' Skills dialog, KAN-816). Tailor's resume picker (`ResumeLists`) is the one way
+  to pick a resume, in any dialog. A fix to one page table is checked on every other: the
+  Tracker, Auto Apply's Up Next and Documents' resumes.
 - **Pick a component by its role, never by its look.** A look picked by eye
   drifts from screen to screen (GOV.UK Design System; Material 3). The roles
   are:
@@ -127,9 +173,44 @@ open choices (Settled choices, near the end).
     `secondary` for the others beside it, `outline` for an action inside a
     recessed area, `ghost` for an inline text action, `section` for a
     section heading's action, `positive` and `decline` for an accept and
-    decline pair, `destructive` for a permanent delete. A link in running
+    decline pair, `destructive` for a permanent delete (drawn by
+    `ConfirmButtons` where it answers a question). A link in running
     text is `TextLink`. Sizes: "Pick a button's size by where it sits",
     below.
+  - **Which button look, by what it does and where it sits** (2026-11-10,
+    the user asked for one rule): **filled** (`default`) for the one main
+    action of a view or dialog, at most one in sight; **bordered**
+    (`secondary`) for an action that starts something new or opens a flow,
+    standing on its own in a toolbar, at a section heading's end, in a
+    card or a dialog's footer (Add Jobs, Upload Resume, Create Event,
+    Write Answers, Cancel); **text** (`section`, `ghost`, `TextLink`) for an
+    action on what is already shown (View, Edit, Show, Hide, Remove All,
+    See More), in a heading line, a sentence or a row; **glyph**
+    (`IconButton`) for a repeated per-item action with a known icon (Save,
+    ⋯).
+  - **An icon-only control shows a tooltip unless its glyph is read on
+    sight** (2026-11-12, the user's rule, which narrowed 2026-11-11's
+    "every one"). No tooltip, `tooltip={false}` on an `IconButton` and no
+    `Tip`, for: Close (×) and a chip's remove, Back, the bell, the account
+    photo, the menu's open and close, ⋯, Undo and Redo, Zoom In and Out,
+    Send and Dictate, Download, Rename, Remove and Delete, a Previous or
+    Next arrow, a drag handle, the split button's arrow, and a job card's
+    Save. A tooltip stays where the glyph alone could mean two things: the
+    Cards and Split view toggle, All Filters, the editor's panel buttons
+    and folded tools, Make Primary, Select By, column and table settings,
+    Not Interested, Ask Scout, and every "Coming Soon" button (its tooltip
+    is the only thing that says why it does nothing; `IconButton` keeps it
+    even with `tooltip={false}`). A disabled Send keeps one to say why.
+    Tooltips that showed on everything flickered across rows of close
+    icons, and one opened under the pointer mid-scroll on the Jobs page
+    and rode up over the sticky filter bar. **Tooltips open after 600ms**
+    (`TooltipProvider` in `shadcn/tooltip.tsx`, Base UI's own default;
+    it was 0), so a pass over a row or a scroll opens none; once one is
+    open, the next opens at once (the provider's group). The `aria-label`
+    stays on every icon-only control either way. A `title` alone is not
+    a tooltip (it shows late and never to touch or a keyboard). **A table row holds no bordered or filled
+    button and no dashed pill**: its actions are text buttons, glyphs or a
+    stage's pill menu, so every row stays one height and one weight.
   - A button acts and a chip is a choice made in place: "A button is a
     rounded rectangle; a pill is a chip", below. A filter over a page's
     items is a `FieldFacet` dropdown. A choice of one among a few is a
@@ -169,9 +250,11 @@ open choices (Settled choices, near the end).
     second click.
   - Empty: `ui/empty-state.tsx`, a title that names what will fill the space
     and an action where there is one.
-  - Error: a failed load is `EmptyState`; a field error is `danger` text
-    under the field, with `aria-invalid` and `aria-describedby`. A toast
-    never carries an error that a form can show beside its field.
+  - Error: a failed load is `LoadFailed` (`EmptyState` with Try Again); a
+    field error is `danger` text under the field, with `aria-invalid` and
+    `aria-describedby`. A toast never carries an error that a form can show
+    beside its field. Where each kind goes: "An error shows where the
+    student acted", below.
 - **Every route group has `loading.tsx`, `error.tsx` and `not-found.tsx`.**
   A route with none shows nothing while it reads, and a failure falls to
   the root's page, out of its shell. A child page whose shape differs from
@@ -184,15 +267,65 @@ open choices (Settled choices, near the end).
   as the only thing done: "A skeleton shows no heading or line of text the
   page replaces" (`frontend/CLAUDE.md`). Skeletons are `bg-ink/6` at the
   height of what replaces them, and copy the real layout: a list loads as
-  skeleton rows, never as a "Loading…" line.
-- **A write that cannot be taken back asks first or offers Undo.** A
+  skeleton rows, never as a "Loading…" line. A dialog that reads its
+  content draws the content's frame as a bar (View Resume's page).
+- **An error shows where the student acted** (KAN-819). The eye stays on
+  the control just used, so an error far from it goes unseen: Tailor's
+  "Tailor can't reach WorkIt's AI right now" sat at the foot of a page of
+  resumes while Next was in the bar at the top. Each kind has one place:
+  - **A read that failed** is `LoadFailed` (`ui/load-failed.tsx`) in the
+    place of what did not load: a page's content area, or inside the card,
+    tile or dialog whose part failed (`compact`: no card of its own, a
+    smaller glyph, a 14px title under the card's own heading). Its title
+    names what did not load ("Your Answers Aren't Loading Right Now"), its
+    line says to try again in a few minutes, and it always has **Try
+    Again**: never "Refresh the page" with no button, a grey line or a
+    banner. Try Again reads the page again on the server
+    (`router.refresh()`), or runs the part's own read in the browser
+    (`onRetry`), and reads "Loading…" while it works. The pages built
+    before it (Resumes, Experiences, Cover Letters, the job feed, the
+    editor, an uploaded resume, Tailor's page) draw the same card with Try
+    Again as a link that reloads the page.
+  - **A field's error** sits under its field (Components, "A field's error
+    sits under its field").
+  - **A button's error** (a run, a read or a write the button started) sits
+    under or beside that button, `danger` text in a `role="alert"` region:
+    Tailor's Next and Tailor Resume show theirs in the step bar under the
+    button (`TailorBar`'s `error`).
+  - **A form's error that is no one field's** (the API's answer) sits at
+    the form's foot, above its buttons; a wizard's above its footer.
+  - **A toast** carries a write's result the page does not show by itself,
+    or an error with nothing left on screen to sit beside (the row a
+    refresh removed), with Retry or Undo where it applies. Never an error a
+    field, a button or a card can show.
+- **A picker's "no matches" line is `NoMatches`** (`ui/no-matches.tsx`,
+  KAN-819): 14px in the meta grey, 12px above and below, `role="status"`,
+  when a picker's search or filters leave no row (the resume pickers, Pick
+  an Application, the editor's Experiences picker). The four had four sizes.
+  A page or list with nothing at all to show is an `EmptyState`.
+- **Every write asks first or offers Undo** (KAN-818). A
   student who slips must be able to recover (NN/g, "Preventing user
   errors"; GOV.UK, "Warning text"). A delete of the student's own content
-  asks first (`DeleteResumeConfirm`), or acts at once with Undo in its
+  asks first, answered by `ConfirmButtons` (Keep It, then the red act,
+  "A question before a delete", below), or acts at once with Undo in its
   toast (`useToast().show({ action })`, as Up Next's Remove does). A
   result the page does not show by itself is a toast, with Retry where it
   failed. A field error sits under its field, and the submit moves focus
   to the first bad field.
+- **A one-click write acts at once and offers Undo; a write that Undo
+  cannot reverse asks first** (KAN-818). A toggle, a menu row, a field
+  that saves on its pick (Apply By) and a Remove do not ask. Each says
+  what it did in a toast, and the toast's Undo writes the old value back
+  (a job goes back in the queue). Where nothing can write it back (a
+  removed photo, a removed answer, a deleted file), the write waits for
+  the toast to close (`onClose`), so Undo is the write never sent
+  (the toasts' rule, under Components). Marking a job applied asks first, from every place
+  that offers it: it opens Did You Apply? (`ApplyDialog`), which also
+  asks which resume went. A form's Save is its own question: the student
+  read the fields and pressed it. One action has one name on every
+  screen, in its button, menu row, hover and toast: Remove From Queue,
+  I Already Applied, and Remove (not Delete) for one item that a toast
+  can bring back.
 - **No inert or orphan UI.** A control that does nothing reads as broken.
   A control that cannot act now is disabled and says why, in a visible
   line or a tooltip (never `title` alone, which touch and keyboard never
@@ -228,7 +361,8 @@ open choices (Settled choices, near the end).
 - **The layout values are tokens too.** A page is `max-w-dashboard` with
   one top padding (`py-6`), never `max-w-app`. Prose is `--measure-prose`
   and a form `--measure-form`, never `max-w-[68ch]` or another arbitrary
-  width. A list or table in a dialog or a tile is `--spacing-scroll-box`.
+  width. A list or table in a dialog is `--spacing-scroll-box`; a list in
+  a tile on a page shows a fixed number of rows and See More (KAN-828).
   The second arbitrary value of one kind is a new token.
 
 ### Layout and spacing
@@ -250,8 +384,12 @@ open choices (Settled choices, near the end).
 - **Every seeker page has one frame.** Pages then start at the same left
   edge beside the rail. The frame is `SEEKER_GUTTER` (16px, 24px from sm,
   32px from lg), `max-w-dashboard` (1440px; the Applications Tracker has no
-  cap) and 24px under the bar (`py-6`). A page breaks on its own width
-  (`@container/main`, `@3xl/main:`), never the window's (`md:`).
+  cap) and 24px under the bar (`py-6`), its groups 24px apart (`gap-6`). A
+  page's `loading.tsx` uses the same width, or the frame jumps as the page
+  lands. Home was the last at 20px under the bar, 20px and 16px between its
+  groups, and Written Answers' skeleton was `max-w-app` (KAN-821). A page
+  breaks on its own width (`@container/main`, `@3xl/main:`), never the
+  window's (`md:`).
 - **Space shows what belongs together.** More space between groups than
   inside them (Gestalt proximity; Refactoring UI, "Start with too much white
   space"). Cards in a group sit 16px apart (`gap-4`, Settled choices) on
@@ -267,6 +405,14 @@ open choices (Settled choices, near the end).
   filters at the left, and the view switcher (a segmented control) and the
   page's actions at the right. Narrow, the row wraps, filters first. The
   Applications Tracker and the Resumes page are the model.
+- **One name and one glyph per view** (`components/views.tsx`, 2026-11-11,
+  the user's rule): List View (rows, one item a line), Card View (wide
+  cards, one a row), Grid View (small cards, several a row) and Split View
+  (a list beside the open item, the Jobs page's). A view switch builds its
+  options there, whatever its page calls its items; the same layout never
+  gets a second name or glyph (the Tracker's "Table View" and the Jobs
+  page's "Cards View" went). A layout none of them is joins that file
+  first.
 - **Check each screen at 375, 768, 1024 and 1440px, with no sideways
   scroll.** Students use phones, tablets and laptops, and WCAG 2.2 SC 1.4.10
   asks for no two-way scroll down to 320px. Only a wide table scrolls
@@ -290,7 +436,14 @@ open choices (Settled choices, near the end).
 - **Focus is always visible.** A keyboard user must see where they are
   (WCAG 2.2 SC 2.4.7 and 2.4.11). Every control draws the solid
   `--color-brand-ring` ring on `focus-visible` (6.26:1 on white, 5.75:1 on
-  `app`); `outline-none` never comes without a ring. A sticky bar never
+  `app`); `outline-none` never comes without a ring. **It is 2px on every
+  control** (2026-11-11): a field's border turns brand with a 1px ring on it,
+  one 2px edge (`FIELD_CONTROL`, the search field); a button, an icon button,
+  a check box and a switch take a 2px ring (`globals.css` sets the vendored
+  check box's and switch's), and a slider's thumb a 2px ring 2px off its
+  brand edge (`globals.css` too: the focus is on the range input inside it). A field shows focus on every click, and its 1px
+  border plus 3px ring read as a thick purple frame, beside 2px rings and
+  shadcn's half-strength 3px ring on one screen. A sticky bar never
   covers a focused control (`scroll-mt-*`).
 - **Every control has a name.** A screen reader reads the name, and a
   placeholder goes away while the student types (WCAG 2.2 SC 1.3.1, 2.5.3
@@ -330,11 +483,15 @@ open choices (Settled choices, near the end).
   entry form fill a phone's screen below sm (`BankDialog`, KAN-740), since
   a form of up to thirteen fields in a box 16px in from each edge showed a
   few fields at a time.
-- **A dialog's backdrop dims and blurs 4px; a panel from the right only
-  dims** ("A panel from the right floats", below). A dialog that leads the
-  student through steps over a busy page (Tailor's Your Resume Is Ready)
-  sets `data-backdrop="strong"` on its `DialogContent` for a 55% ink dim
-  (`globals.css`), so the page behind stops competing with the steps.
+- **A dialog keeps its header and its buttons in view**: only the middle,
+  `DialogBody`, scrolls (KAN-820, "A dialog's middle scrolls", below).
+- **No backdrop blurs; a dialog's and a panel's backdrop dims the page
+  lightly** (KAN-563, "A panel from the right floats", below). The one
+  stronger dim: a dialog that leads the student through steps over a busy
+  page (Tailor's Your Resume Is Ready) sets `data-backdrop="strong"` on its
+  `DialogContent` for a 55% ink dim (`globals.css`), so the page behind
+  stops competing with the steps. It does not blur either. This rule said
+  "dims and blurs 4px" until KAN-820, against the code and the rule below.
 - **A dialog of steps makes the next step its primary**, and moves the
   primary and focus on as each step is done (Your Resume Is Ready's
   Download PDF, then Open the Application).
@@ -348,17 +505,27 @@ open choices (Settled choices, near the end).
   `frontend/CLAUDE.md`, which lists what takes which.
 - **Plain words.** Students scan; they do not read every word (NN/g, "How
   users read on the web"; GOV.UK, "Writing for user interfaces"). A button
-  names its action with a verb ("Save Entry", never "OK" or "Submit"). An
+  names its action with a verb ("Save Entry", never "OK" or "Submit";
+  the duplicate resume's dialog says Make a Copy and Close, KAN-817). An
   error says what went wrong and what to do next. Put the key word first.
   Use the job terms from the root `CLAUDE.md` (a hiring system, never an
   ATS) and one name for one thing on every screen.
 - **One meaning per label.** Two fields on one flow never share a title, a
   label says "Optional" once per step when every field is optional, and an
   exit names what it does ("Skip" moves one step; "Skip Setup" leaves).
+  **A form with a required field marks one way**: a red * on each required
+  one (`RequiredMark`) and nothing on the rest, never "Optional" beside a *
+  (KAN-829; Settings' Job Preferences and onboarding's Role step did both).
   On the Jobs screens a posting is a "job" or "job posting", never a
   "role", tooltips and counts included. Labels are Title Case, tooltips
   too, in US spelling. A public page that looks like the app (a marketing
   card, a coming-soon page) follows the same copy rules.
+- **Say only what stays true** (KAN-826). Never list by hand what a
+  feature covers: Add Jobs said "It fills Greenhouse jobs only, for now"
+  after Auto Apply filled 13 hiring systems; let each row say whether it
+  can, from the API. Name a page only while it is live (`CALENDAR_LIVE`,
+  `INBOX_LIVE`), and count in the right number ("Your 1 Best Match
+  Today", never "1 Best Matches").
 
 ### Settled choices
 
@@ -367,7 +534,8 @@ rules here follow them; change one only with the user.
 
 - **Cards in a group are 16px apart** (`gap-4`), not 20px: the existing
   spacing rule, Home's gap, and a step of the 4px grid that matches the
-  `gap-6` between groups. My Profile's and Auto Apply's `gap-5` moves to it.
+  `gap-6` between groups. Auto Apply's sub-pages and the Tracker's Card
+  View moved to it in KAN-821.
 - **The prose measure is 68ch**, as `--measure-prose`, with
   `--measure-form` at 48rem (`max-w-3xl`'s width) for a single-column form.
   68ch is About the Role's measure today and sits inside Baymard's 50 to 75.
@@ -384,12 +552,11 @@ rules here follow them; change one only with the user.
 Breaks found on 2026-11-02, while these rules were written. The design
 audits (`design-audit/`, one report per area) add to this list.
 
-- `ink-faint` carries words: onboarding's Role step prints "Optional" in it
-  (3.11:1), and the Calendar's Month prints the days outside the month in it
-  (`calendar/month.tsx`). Both need `ink-meta`.
-- `ink-subtle` (2.95:1, under 3:1) on glyphs that inform: the stat tile's
-  icon (`components/stat-tile.tsx`) and the company range picker's chevron.
-  The icon rule makes them `ink-meta`.
+- `ink-faint` carries words: the Calendar's Month prints the days outside
+  the month in it (`calendar/month.tsx`). It needs `ink-meta`.
+- `ink-subtle` (2.95:1, under 3:1) on a glyph that informs: the company
+  range picker's chevron. The icon rule makes it `ink-meta`. (The stat
+  tile's grey glyph went with KAN-828: a tile's glyph is in its chip.)
 - Text under 11px: the score in onboarding's showcase ring is `text-[10px]`
   (`onboarding/applicant/showcase.tsx`).
 - `text-area-field.tsx` prints its hint, which can be a sentence, at
@@ -539,8 +706,9 @@ and email beside it from lg, at 40px like the bar's bare ink bell
 (`(seeker)/bar.ts`); it reads `getCurrentAccount()` in
 `lib/session.ts`, cached per render. The whole block is the trigger of
 `components/account-menu.tsx`, passed in as its `children`, and opens
-Settings, Help and Sign Out (with the account header only below lg, where the
-block shows just the photo). A "N New Roles Since Yesterday" pill used to sit
+Settings and Sign Out (with the account header only below lg, where the
+block shows just the photo). Help joins them once its page has guides
+(`HELP_LIVE`, KAN-826). A "N New Roles Since Yesterday" pill used to sit
 beside it from xl; it was removed as a distraction, along with the
 `/jobs?limit=500` fetch it made on every page.
 The greeting is Home's heading, and the resume nudge is the profile
@@ -550,8 +718,8 @@ the bar — deadlines go first once the tracker has a backend, and not before.
 The seeker panel holds only the search (Home, Jobs, Auto Apply,
 Tracker, Experiences, Documents (KAN-766), Inbox, Calendar, Profile:
 the tools for applying, then what comes back, KAN-426; the Inbox is
-archived for now, KAN-428), with no caption over it. Settings, Help and Sign Out, once its General
-group, live in the bar's account menu and nowhere else. The
+archived for now, KAN-428), with no caption over it. Settings and Sign Out (and Help, hidden
+until its page has guides), once its General group, live in the bar's account menu and nowhere else. The
 seeker layout redirects to /login when `getSessionUser()` finds no session,
 so the shell never draws a signed-out state and the bar's account block is
 always filled (from the session's email if /auth/me is down). The company panel keeps
@@ -602,14 +770,28 @@ shells use: shadcn's Sidebar with WorkIt's row spacing and current-item
 marking; each shell passes its own groups and its bar's height as the offset),
 `sidebar-brand.tsx` (the bar's corner cell: the panel toggle and the logo),
 `hover-sidebar.tsx` (the company panel's pinned and hover states, above),
-`notifications-menu.tsx` (the bell, a popover of its notifications, each a
-`Link` with IconButton's focus ring and its time, or an empty state) and
+`notifications-menu.tsx` (the bell, a popover titled Notifications with
+Mark All Read while anything is unread, then its notifications, each a
+`Link` with IconButton's focus ring and its time, a run of one kind as one
+row that counts the earlier ones, or an empty state; KAN-829) and
 `account-menu.tsx` (a name and email header, the shell's rows, then Sign Out;
 Sign In without `onSignOut`).
 
-`components/stat-tile.tsx` is shared by both dashboards, and both use its
-`plain` variant; its card form has no caller today; the seeker Home
-draws its own numbers (`home/headline.tsx`).
+**One stat tile** (`components/stat-tile.tsx`, KAN-828): a label in 14px
+medium ink, the figure in `--text-figure` with its unit beside it, then a
+line under it that is always drawn (a note, a date pill, or a change as a
+boxed figure and "vs last week"), so a row keeps one height. `on` sets
+only the fill, by what the tile stands on: `page` is Home's raised tile
+(`Card tone="tile"`), `card` a grey well inside a white card (Activity),
+and `tint` a white box with a hairline inside a tinted card (an
+application's Open and Days Since, drawn as the match box beside them).
+`href` makes the whole tile a link that lifts, and `Icon` with a
+`--color-kpi-*` `tone` puts the glyph in a chip that turns into an arrow
+under the pointer. `StatTileSkeleton` is its loading shape. Until KAN-828
+the three were three looks: white tiles with a chip, grey wells with a
+meta-grey label and a smaller figure, and white cards with the figure over
+its words in a third size. The company Overview keeps the tile's `plain`
+row.
 
 **One card on seeker pages** (KAN-558): every white block on a seeker page
 is `ui/card.tsx`, 16px from the next, titled with `SectionHeading` (16px at
@@ -838,7 +1020,7 @@ student clicks or picks (buttons, chips, segmented controls, menu rows,
 select and filter options, field labels), 600 to name a block (card and
 dialog titles, a job's title, captions, and `text-title`, 700 until
 2026-11-10), 700 to name a page. **A filter or sort trigger is 400**, not
-500 (`facetClasses`, `facetTriggerClasses`; 2026-11-10, as Jobright's
+500 (`facetClasses`, which the Jobs page's row shares since KAN-823; 2026-11-10, as Jobright's
 are): a row of medium filters read heavier than the job cards under it.
 The options in its list stay 500. A token that
 carries a weight already sets it; a size with none of its own (body, note)
@@ -1051,6 +1233,27 @@ rules, each with its own reason, and every form follows one of them:
   why Next is off goes above it, full width, as the sign-in pages' error
   banner.
 
+**A question before a delete answers with one pair, `ConfirmButtons`**
+(`components/ui/confirm-buttons.tsx`, KAN-817): **Keep It** first, the red
+button last, in every shape the question takes. A dialog (`DeleteDialog`,
+the Tracker's Remove), a popover (`DeleteResumeConfirm`), a bar across a
+dialog's foot (`ConfirmBar`, Settings' `DiscardBar`) and Settings' Delete
+Account step all draw their
+buttons with it; Delete Account keeps it left, as a Settings form, but in
+this order, not the primary first. The way out always says Keep It, never
+Cancel, OK or a name of its own ("Keep My Account"); only Discard Your
+Changes? says Keep Editing, since nothing is deleted yet and "Keep It"
+would not say what is kept (the prop's type allows nothing else). The red
+button names what it does to what ("Delete Resume", "Remove 3"), and while
+the delete runs both buttons hold and the red one says "Deleting…". So a
+dialog's first focus lands on Keep It, never on the delete. Until then the
+question came in four shapes and the red button moved: first in the
+popover, the line and Delete Account, last in the dialogs and the bars, so
+on Resumes deleting one resume and deleting several put Delete on opposite
+sides, and the way out said Keep It, Cancel or Keep My Account. A new
+delete question draws its buttons with the pair, never two Buttons of its
+own; the design kit's Buttons page shows it ("Before a Delete").
+
 Nielsen Norman Group's finding is that either order works and mixing them on
 like screens costs the user, so a new form takes its kind's rule. **A
 disabled Save is grey** (`ui/button.tsx`, DISABLED_FILL): a faded brand fill
@@ -1095,6 +1298,13 @@ its toast, or asks first** (KAN-562). Where Undo can write the old value
 back, the write goes at once (a writing sample is added again). Where it
 can't (a deleted file), the write waits for the toast's `onClose`, which
 runs once it is gone without its action, so Undo is the write never sent.
+Application Info's Transcript, Settings' Remove Photo and Written
+Answers' Remove hold theirs (KAN-818); a held write is sent at once when
+the page unmounts, or before a new upload that it would remove. **Copy
+says so in a toast** ("Link copied.", "Cover letter copied.") wherever it
+is, never in a tooltip or a status line beside the button (KAN-818).
+The toasts stand over every other layer (`z-60`, over the dialogs' and
+menus' `z-50`), so one raised from a dialog is not dimmed by its backdrop.
 `lib/format-count.ts` prints a headline figure ("1,234", "12.3K") in en-US so
 the server and the browser print the same.
 
@@ -1102,12 +1312,33 @@ the server and the browser print the same.
 content looks, or one setting; **tabs** (`ui/tabs.tsx`, `TabLinks`) move
 between different content on one subject. Material Design and Nielsen
 Norman Group draw the line the same way. Tabs: a job's Overview and
-Company, an application's Your Application and Job Description, and
+Company, an application's Your Application and Overview, and
 Documents' Resumes and Cover Letters, each a link kept in the URL, drawn as
 text with a brand underline on the open one, never the switcher's pill. A
+job's tabs and an application's sit in the same place, beside Back in the
+action bar, and the posting's tab has one name on both, Overview (KAN-824). A
 tab is 16px: the open one semibold in brand over a 3px underline, the
 others medium in `ink-meta` (2026-11-10). At 13px in ink with a 2px
 underline they read as small print beside the job bar's 36px buttons.
+
+**A table's cells are plain text** (2026-11-10, the Tracker, Documents and
+Auto Apply): the column's heading names a value, so a cell has no glyph of
+its own; a value a row does not have is a faint dash (`text-ink-faint`,
+its word for a screen reader), never "Not listed" in grey; a cell's
+control is a pill or a text button, never a bordered field or button that
+makes the row taller than its text; and a table wider than its card fades
+at the edge it runs on past. The cards keep their glyphs, where nothing
+else names a fact. **Alignment**: a column of text (a job, a status, a
+place, a date) is left-aligned with its heading; a column whose every cell
+is one control or one score (View, a match pill, ⋯) is centred, heading
+too. Centring every column floated each value far from its job on a wide
+window; left-aligning every one left View and the match pills hanging off
+their headings' left edges.
+
+**No scroll bounces, anywhere** (2026-11-02, widened 2026-11-10): the
+document and the page's scroller stop dead on y, and every scroll box
+inside a page (a table, a dialog's list) on both axes, by the classes that
+make a box scroll (`globals.css`), so a new one needs nothing.
 
 **A page's search is one width** (`PAGE_SEARCH` in
 `components/ui/search-field.tsx`, 2026-11-10): the Jobs page, Documents, the
@@ -1189,6 +1420,87 @@ screen's own `<input>`, `<textarea>` or `FIELD_CONTROL` string:
   (onboarding's steps); a pill in a row is the Chip.
 - A filter over a table is `SearchField` and `FieldFacet` (above), the
   company tables' toolbar included.
+- **Every page table has one toolbar** (2026-11-11): the Tracker, Auto
+  Apply's Up Next and Documents' resumes, in two rows. Row one: the search
+  (`PAGE_SEARCH`) with the page's actions at its right, the main one filled
+  (Add Jobs, Generate Resume), then the view switch (Auto Apply's second
+  view is still open, so it has none yet). Row two: **Sort first**
+  (`SortMenu`, 2026-11-12, KAN-827), then a `FieldFacet` dropdown per
+  filter, and at the row's right end Clear
+  (while anything is searched or picked), All Filters (a soft round icon
+  button, three lines, with a brand count of the picks) and Table
+  Settings (sliders), which holds Group By and any other setting of the
+  table. The dropdowns step out from the right as the row narrows; Sort
+  and All Filters, which holds them all, stay. The page's create actions
+  never sit in the filter row. **Sort is in that one place on every page
+  toolbar, the Jobs page's included**, and sorts every layout the page
+  has (the Tracker's cards too); a table's sortable headings move the
+  same order as well. It sat first on the Jobs page, last on Documents and
+  only in the Tracker's headings (Up Next had none) until KAN-827, so a
+  student looked for it in three places. Clear never resets it: an order
+  is not a filter.
+- **A field has one name wherever a student reads it**: its filter, its
+  column, its Group By, its All Filters section, its Settings question
+  and its Profile fact (2026-11-12, KAN-827). **Workplace**, never Work
+  Model (the Tracker's word until then); **Salary**, never Salary Range
+  (Settings) or Pay (the Tracker's Pay Range column, Profile's fact).
+  The code's own names (`workModel`, `?work=`, `pay`) stay. A posting
+  page's Pay section is the posting's own heading and stays. A page table has no section heading of its own over the
+  toolbar: Auto Apply's "Up Next" went on 2026-11-11.
+- **A card's facts read their value first** (2026-11-11,
+  `profile/field-styles.ts`, My Profile and Application Info): the name
+  small and grey (`FACT_LABEL`), the value in ink under it (`FACT_VALUE`),
+  a missing one a faint dash (`components/ui/missing.tsx`, the Tracker's
+  too), and no glyph per field where its name already says it. A card's
+  own action is `IconButton place="heading"` (next rule) with a tooltip,
+  wherever a card has one, never a glyph with a word: Job Preferences'
+  "Edit in Settings" was the one card on My Profile whose Edit had a word
+  until 2026-11-12 (`profile/section-action-link.tsx` for an Edit that
+  opens another page).
+- **Where a bare glyph button sits sets its size** (2026-11-12,
+  `IconButton`'s `place`, shown on `/design-kit/buttons`): `heading`, a
+  card's or section's own action at its heading's end, 32px round with a
+  20px glyph (Experiences' look); `row`, everything else (a row's actions,
+  a panel's or dialog's Close and Back, Undo, a filter's Clear), 32px round
+  with a 16px glyph. Both draw the grey disc on hover. Never a size class
+  at the call site: Close was 24, 28, 32 and 36px, ⋯ came in four looks
+  (a round 32px, a square 32px, a 28px disc, a bare glyph) and Tailor's
+  Undo in three sizes in one panel. The dialogs' and sheets' Close is
+  `place="row"` too (shadcn's 28px square ghost Button until then). Kept
+  apart on purpose: the job card's Save and ⋯ (`glyph`, which sit where a
+  bare glyph did), a chip's own small glyphs, the top bar's bell, Scout's
+  composer, the editor's toolbar (ghost Buttons beside worded ones) and
+  the ground's `soft` buttons (Clear Filters, All Filters, Table
+  Settings).
+- **One glyph, one meaning.** A glyph the sidebar or another screen uses
+  for one thing is never drawn for another (the Tracker's checklist on
+  Application Info, until 2026-11-11), and one thing is never drawn with
+  two glyphs. **`/design-kit/icons` lists every glyph the app draws with
+  its one meaning** (2026-11-12): look there before picking a glyph, and
+  add the new use to its group in the same change. The page flags a glyph
+  with two meanings, or a meaning with two glyphs, by itself (its To Fix
+  group). On 2026-11-12 it flagged twelve and five, Briefcase alone carrying
+  seven meanings, and all were fixed the same day: each sidebar section and
+  each Experiences page group kept its glyph, and every other use moved to
+  a glyph nothing else draws (Applied a paper plane, Remote a laptop, Job
+  type a clock with a person, Visa a stamp, Experience level steps, and so
+  on; the page lists them). Scout's intake draws the Experiences page's set.
+- **A table's column headings draw one rule under them** (2026-11-11): the
+  heading row has no border (`STICKY_HEAD`), each heading cell its inset
+  rule (`STICKY_TH`), and a frozen heading its rule and its edge together
+  (`STICKY_TH_FROZEN`), in `components/fill-page.ts`. A movable column's
+  heading fills grey under the pointer and drags from anywhere in it, as
+  Notion's do, on a track: its raised copy moves left and right along the
+  heading row only, never up or down the page.
+- **A grouped table draws the shared heading row** (`GroupHeadingRow`): a
+  fold, an optional glyph, the name in ink and its count on the row's
+  light band, and the group's own action at its right (Remove All on
+  Posting Closed).
+- **A notice over a table is `ui/notice.tsx`**: one amber band with a
+  glyph, one sentence and the actions that settle it, for something that
+  waits on the student (written questions, closed postings). The Tracker's
+  closed postings drew a white card with a black pill of their own until
+  2026-11-11.
 
 **Named exceptions**, each a control drawn for its place, not a form field:
 the resume editor's in-place lines, title rename, size stepper, phone sheet
@@ -1234,7 +1546,9 @@ Account) takes the section's place as a card with Back beside its title
 (`(seeker)/settings/settings-step.tsx`); Back, Cancel, Escape or the nav
 return to the section, with its scroll and focus as they were, and the
 section stays mounted under the step. The form's buttons follow a
-Settings form's rule (left, the primary first). **The one thing that may
+Settings form's rule (left, the primary first), except Delete Account's,
+which are every delete's (`ConfirmButtons`: Keep It, then Delete Account).
+**The one thing that may
 sit inside a dialog is a one-line confirm, and it is a bar, not a
 dialog**: Settings' "Discard Your Changes?" runs across the modal's foot
 with Keep Editing (which takes the focus) and Discard Changes, and Escape
@@ -1256,6 +1570,20 @@ and with it the margin rule, away), and keep the 16px from sm up. Their
 steps and questions follow the rules above: the entry form opened from a
 section's list is a step with Back, and Delete, Clear All, Delete Section
 and Discard Your Changes? are bars across the foot (`ConfirmBar`).
+
+**A dialog's middle scrolls; its header and its buttons stay** (KAN-820).
+The shared `DialogContent` is a column no taller than the window less 16px
+at the top and the foot, and `DialogBody` (`components/shadcn/dialog.tsx`)
+is what goes between `DialogHeader` and `DialogFooter`: it alone scrolls,
+from edge to edge with its scrollbar's room, and its content lines up with
+the header and the footer. Six dialogs scrolled whole until then (Home's
+day of applications, Add Jobs, Up Next's Choose a Resume, Create Event,
+Did You Apply? and Your Resume Is Ready's Did You Apply?), so a long list
+took Save below the window. A form wraps its fields in the body and keeps
+the footer inside the form, as a column (`create-event.tsx`). A dialog
+with a layout of its own (Settings, All Filters, the bank's) keeps it; a
+dialog with no body scrolls whole, as before. A list that scrolls inside
+the body at `max-h-scroll-box` (the resume list, Add Jobs) still does.
 
 **A field's error sits under its field and takes the focus** (KAN-563):
 the error names itself to the field through `aria-describedby`, an input
@@ -1279,10 +1607,13 @@ Its stock text sizes are bound the same way: `text-xs` is `--text-note` and
 `text-sm` is `--text-body`, so a menu row or a select option is body type by
 construction and moves when the scale does. WorkIt's own code still writes the
 token names, never `text-sm`. Where a vendored piece draws something the scale
-has no token for, the call site sets the token, since the file is not ours to
-edit: a `DialogTitle` or `SheetTitle` takes `text-subtitle font-semibold`
-(stock is 16px medium, a pairing nothing else uses), and a `Calendar` takes
-`[&_.rdp-weekday]:text-note` for its 12.8px weekday row. `text-base` stays
+has no token for, the call site sets the token: a `Calendar` takes
+`[&_.rdp-weekday]:text-note` for its 12.8px weekday row. **A `DialogTitle` or
+`SheetTitle` is `text-subtitle` by itself** (KAN-820): both files are forked
+(`docs/shadcn.md`), and stock was 16px medium, a pairing nothing else uses.
+Every title passed `text-subtitle font-semibold` until then, and Settings and
+the application panel passed `text-title`, so the titles differed; a call site
+passes no size or weight now, only layout (`truncate`, `pr-8`). `text-base` stays
 unbound on purpose: it is the 16px that keeps iOS from zooming into the text
 and search fields below sm. `/design-kit/type` shows what each stock size
 resolves to.
@@ -1310,7 +1641,9 @@ secondary buttons on white (a card, a sheet, the editor's slim bar on
 `FieldFacet`): a small secondary button with the field's glyph and name,
 tinted while it holds a pick, over checkbox rows, each option in its own
 glyph and colour where it has one, and a cross beside the row to clear it.
-None picked shows everything. The Applications Tracker's filter row, the
+None picked shows everything. The Jobs page's row (KAN-823: Workplace and
+Job Type, with Role as the Tracker's `SearchFacet` and Location's popover on
+the same button and rows), the Applications Tracker's filter row, the
 Inbox's Status, Live Activity's Status and the Calendar's Type all draw it,
 so filtering looks and works the same on every page. Never a row of chips
 for this: the Calendar drew one for a draft (KAN-429) and the Inbox before
@@ -1325,8 +1658,9 @@ a light dim of the page that stays sharp. It was a full-height square slab
 against the window's edge over a blurred page, which read as a different
 app from the rounded cards around it, and the blur hid what the panel was
 about. The application detail panel (the Calendar's) is the one today.
-**No overlay blurs, a dialog's included** (KAN-563): every overlay is the
-same light dim over a sharp page. The vendored dialog's `backdrop-blur-xs`
+**No overlay blurs, a dialog's included** (KAN-563): every overlay is a
+dim over a sharp page, the same light one but for Your Resume Is Ready's
+strong dim (Dialogs, above). The vendored dialog's `backdrop-blur-xs`
 is turned off by a `data-slot` rule in `globals.css`; it hid what a dialog
 is about too, as All Filters' list under it.
 about. The application detail panel (the Calendar's) is the modal one; the

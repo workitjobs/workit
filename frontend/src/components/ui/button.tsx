@@ -130,7 +130,7 @@ export const buttonVariants = cva(
       variant: {
         /** Brand fill — the primary action on a screen. */
         default: cn(
-          "bg-brand text-on-brand hover:bg-brand-hover active:bg-brand-active focus-visible:ring-brand-ring rounded-control border border-transparent focus-visible:ring-[3px] focus-visible:ring-offset-2",
+          "bg-brand text-on-brand hover:bg-brand-hover active:bg-brand-active focus-visible:ring-brand-ring rounded-control border border-transparent focus-visible:ring-2 focus-visible:ring-offset-2",
           DISABLED_FILL,
         ),
         /** Bordered neutral — alternatives sitting beside a primary action.
@@ -138,15 +138,15 @@ export const buttonVariants = cva(
          *  --color-surface itself, Google and LinkedIn sank into the card
          *  (KAN-259). On a white page the two are all but the same. */
         secondary:
-          "border-border-surface bg-panel text-ink hover:bg-hover focus-visible:ring-brand-ring rounded-control border focus-visible:ring-[3px]",
+          "border-border-surface bg-panel text-ink hover:bg-hover focus-visible:ring-brand-ring rounded-control border focus-visible:ring-2",
         /** Brand outline — an action inside an already-recessed area. */
         outline:
-          "border-brand text-brand hover:bg-brand/5 focus-visible:ring-brand-ring rounded-control border focus-visible:ring-[3px]",
+          "border-brand text-brand hover:bg-brand/5 focus-visible:ring-brand-ring rounded-control border focus-visible:ring-2",
         /** Positive fill — accepting an offer. The board's only green action,
          *  and the only place a control is not brand-coloured. No shadcn
          *  equivalent: its palette has no success role. */
         positive: cn(
-          "bg-positive-ink text-on-brand hover:bg-positive-hover active:bg-positive-active focus-visible:ring-positive-ring rounded-control border border-transparent focus-visible:ring-[3px] focus-visible:ring-offset-2",
+          "bg-positive-ink text-on-brand hover:bg-positive-hover active:bg-positive-active focus-visible:ring-positive-ring rounded-control border border-transparent focus-visible:ring-2 focus-visible:ring-offset-2",
           DISABLED_FILL,
         ),
         /** Danger tint with red text: declining something offered, beside
@@ -154,7 +154,7 @@ export const buttonVariants = cva(
          *  `destructive`, so the pair reads as two choices, not two alarms.
          *  WorkIt-only. */
         decline:
-          "bg-danger-tint text-danger hover:bg-danger/15 focus-visible:ring-destructive rounded-control border border-transparent focus-visible:ring-[3px]",
+          "bg-danger-tint text-danger hover:bg-danger/15 focus-visible:ring-destructive rounded-control border border-transparent focus-visible:ring-2",
         /** Text only, in brand, no chrome: an inline action such as a form's
          *  Add Question or a table's Clear Selection. A section heading's
          *  action is `section` instead.
@@ -179,7 +179,7 @@ export const buttonVariants = cva(
          *  aliases --color-danger, the Rejected chip's red (see globals.css),
          *  so the app has one red. Shaped and ringed like the other fills. */
         destructive: cn(
-          "bg-destructive text-on-brand hover:bg-destructive/90 focus-visible:ring-destructive rounded-control border border-transparent focus-visible:ring-[3px] focus-visible:ring-offset-2",
+          "bg-destructive text-on-brand hover:bg-destructive/90 focus-visible:ring-destructive rounded-control border border-transparent focus-visible:ring-2 focus-visible:ring-offset-2",
           DISABLED_FILL,
         ),
         /** UNMEASURED — provided because shadcn components ask for it. For a

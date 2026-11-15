@@ -22,10 +22,17 @@ Chrome he switched to is his, and it stays in front. A switch of his is one of:
 
 A click in his app itself (the Apply window's tiles, say) is no switch to the
 Chrome that comes forward a moment after: that Chrome goes back behind.
+
+FocusKeeper is the Mac's only (W4, KAN-850). Windows and Linux desktops stop a
+background program from taking the front (Windows flashes its taskbar button
+instead), so there KEEPER is a NoKeeper, which does nothing, and a Worker comes
+forward through Chrome itself (`browsers.activate`, the worker extension's
+`windows.focus`).
 """
 
 import ctypes
 import subprocess
+import sys
 import threading
 import time
 from collections.abc import Callable
@@ -204,6 +211,10 @@ class FocusKeeper:
             self._yours = pid
         return self._give(pid)
 
+    def front(self) -> int | None:
+        """The front app's pid, or None: whether Lisul is in a Worker's own window (each site's in_front, KAN-855)."""
+        return self._front()
+
     def turn(self) -> None:
         """One look at the front app."""
         front, now = self._front(), self._now()
@@ -251,4 +262,30 @@ class FocusKeeper:
             time.sleep(self._every)
 
 
-KEEPER = FocusKeeper()
+class NoKeeper:
+    """FocusKeeper's stand-in on Windows and Linux, where the OS keeps Apply's Chromes behind: it watches nothing,
+    and `bring` brings nothing, so its caller brings the Worker forward through Chrome."""
+
+    @contextmanager
+    def launching(self):
+        yield
+
+    def watch(self, pid: int, seconds: float | None = None) -> None:
+        pass
+
+    def forget(self, pid: int) -> None:
+        pass
+
+    def bring(self, pid: int) -> bool:
+        return False
+
+    def front(self) -> int | None:
+        return None  # it can't tell: the Apply window never comes back by itself (KAN-855)
+
+
+def keeper(system: str = sys.platform) -> "FocusKeeper | NoKeeper":
+    """FocusKeeper on the Mac, a NoKeeper on any other OS."""
+    return FocusKeeper() if system == "darwin" else NoKeeper()
+
+
+KEEPER = keeper()

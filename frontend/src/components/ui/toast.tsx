@@ -153,10 +153,15 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext value={api}>
       {children}
+      {/* z-60, one over the dialogs' and menus' z-50 (KAN-818): at 50 the
+          dialog's portal, later in the page, drew its backdrop over the
+          region, so a toast raised from a dialog (Cover Letters' Copy)
+          showed dimmed and blurred. Base UI leaves an aria-live region out
+          of what a modal hides, so a screen reader hears it either way. */}
       <section
         aria-label="Notifications"
         aria-live="polite"
-        className="pointer-events-none fixed right-4 bottom-4 z-50 flex w-[min(24rem,calc(100vw-2rem))] flex-col gap-2"
+        className="pointer-events-none fixed right-4 bottom-4 z-60 flex w-[min(24rem,calc(100vw-2rem))] flex-col gap-2"
       >
         {toasts.map((toast) => (
           <ToastCard
@@ -245,7 +250,7 @@ function ToastCard({
       <IconButton
         label="Close"
         variant="inverse"
-        tooltip="Close"
+        tooltip={false}
         className="size-7 shrink-0"
         onClick={() => dismiss(id)}
       >

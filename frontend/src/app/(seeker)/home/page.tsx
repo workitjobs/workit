@@ -4,7 +4,7 @@ import { Suspense } from "react";
 import { getAppliedApplications, getHeadline } from "./data";
 import { HomeFrame } from "./frame";
 import { Headline, HeadlineSkeleton } from "./headline";
-import { Streak, StreakSkeleton } from "./streak";
+import { Streak, StreakFailed, StreakSkeleton } from "./streak";
 import { loadTopMatches, TopMatches, TopMatchesSkeleton } from "./top-matches";
 
 export const metadata: Metadata = {
@@ -129,13 +129,13 @@ export default async function HomePage() {
         </Suspense>
       }
       topMatches={
-        <Suspense fallback={<TopMatchesSkeleton className="mt-4" />}>
-          <TopMatches data={topMatches} className="mt-4" />
+        <Suspense fallback={<TopMatchesSkeleton />}>
+          <TopMatches data={topMatches} />
         </Suspense>
       }
       activity={
-        <Suspense fallback={<StreakSkeleton className="mt-4" />}>
-          <Activity applied={applied} className="mt-4" />
+        <Suspense fallback={<StreakSkeleton />}>
+          <Activity applied={applied} />
         </Suspense>
       }
     />
@@ -150,7 +150,7 @@ async function HeadlineTiles({ stats }: { stats: ReturnType<typeof getHeadline> 
 }
 
 /** Activity once the tracker is in, which it alone waits on: never on the
- *  scores the numbers need. */
+ *  scores the numbers need. A failed read is its own card (KAN-819). */
 async function Activity({
   applied,
   className,
@@ -158,5 +158,7 @@ async function Activity({
   applied: ReturnType<typeof getAppliedApplications>;
   className?: string;
 }) {
-  return <Streak applied={await applied} className={className} />;
+  const read = await applied;
+  if (read === null) return <StreakFailed className={className} />;
+  return <Streak applied={read} className={className} />;
 }

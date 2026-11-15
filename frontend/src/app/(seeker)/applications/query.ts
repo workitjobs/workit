@@ -1,5 +1,5 @@
 import { STAGE_ORDER, type StageKey } from "../stage-colors";
-import type { Application } from "../tracker";
+import { sortKey, type Application } from "../tracker";
 
 /**
  * What the Applications page is showing, read from its URL: the layout, the
@@ -37,19 +37,67 @@ export const SORTS = ["applied", "match", "company", "status", "pay"] as const;
 export type Sort = (typeof SORTS)[number];
 export const DEFAULT_SORT: Sort = "applied";
 
+/** Each order as the filter row's Sort names it (KAN-827), the default
+ *  first. The Sort dropdown and the list's headings move the same ?sort=. */
+export const SORT_OPTIONS: { value: Sort; label: string }[] = [
+  { value: "applied", label: "Date Applied" },
+  { value: "match", label: "Best Match" },
+  { value: "status", label: "Status" },
+  { value: "pay", label: "Highest Salary" },
+  { value: "company", label: "Company (A to Z)" },
+];
+
+/** Which way each order runs, for the sort, aria-sort and the chevron. */
+export const SORT_DESC: Record<Sort, boolean> = {
+  company: false,
+  status: true,
+  applied: true,
+  match: true,
+  pay: true,
+};
+
+/** What each order sorts by; undefined sorts last. The company order keeps
+ *  a company's roles together, A to Z within it. */
+export const SORT_VALUE: Record<Sort, (app: Application) => string | number | undefined> = {
+  company: (app) => `${app.company}\u0000${app.role}`,
+  status: (app) => STAGE_ORDER.indexOf(app.stage),
+  applied: (app) => (app.appliedOn ? sortKey(app.appliedOn) : undefined),
+  match: (app) => app.match ?? undefined,
+  pay: (app) => app.payPerYear ?? undefined,
+};
+
+/** `apps` in `sort`'s order, as the list's own sort puts them (./list.tsx),
+ *  for the cards (./cards.tsx): text by its lower case, what has no value
+ *  last either way, ties in the order they came. */
+export function sortApplications<T extends Application>(apps: T[], sort: Sort): T[] {
+  const value = (app: T) => {
+    const v = SORT_VALUE[sort](app);
+    return typeof v === "string" ? v.toLowerCase() : v;
+  };
+  const sign = SORT_DESC[sort] ? -1 : 1;
+  return [...apps].sort((a, b) => {
+    const x = value(a);
+    const y = value(b);
+    if (x === undefined || y === undefined) return x === undefined ? (y === undefined ? 0 : 1) : -1;
+    return (x < y ? -1 : x > y ? 1 : 0) * sign;
+  });
+}
+
 /** The filter fields beside the stages (KAN-282): the Application field each one
  *  reads, its URL parameter and its label. A field takes any number of
  *  values, as Status does, and a value is the cell's own text. */
 export const FILTER_FIELDS = [
   { key: "company", param: "company", label: "Company" },
   { key: "track", param: "track", label: "Job Type" },
-  { key: "workModel", param: "work", label: "Work Model" },
-  { key: "source", param: "source", label: "Source" },
+  { key: "workModel", param: "work", label: "Workplace" },
+  // Source (the hiring system a job is posted on) went on 2026-11-10, the
+  // user's call: students do not pick jobs by it. An old ?source= link is
+  // ignored, so it filters nothing unseen.
 ] as const;
 export type FilterKey = (typeof FILTER_FIELDS)[number]["key"];
 export type Filters = Record<FilterKey, string[]>;
 
-export const NO_FILTERS: Filters = { company: [], track: [], workModel: [], source: [] };
+export const NO_FILTERS: Filters = { company: [], track: [], workModel: [] };
 
 export type ApplicationsQuery = {
   view: View;
@@ -63,6 +111,9 @@ export type ApplicationsQuery = {
   /** An old side-panel link's application, by id: ./page.tsx redirects it
    *  to the application's own page. */
   app: string | null;
+  /** Only the saved jobs whose postings closed (?closed=1, 2026-11-10), from
+   *  the closed postings' notice (./closed-saved.tsx, `ClosedNotice`). */
+  closed: boolean;
 };
 
 type SearchParams = Record<string, string | string[] | undefined>;
@@ -94,6 +145,7 @@ export function parseQuery(params: SearchParams): ApplicationsQuery {
       FILTER_FIELDS.map(({ key, param }) => [key, all(params[param])]),
     ) as Filters,
     app: first(params.app) || null,
+    closed: first(params.closed) === "1",
   };
 }
 
@@ -114,6 +166,7 @@ export function applicationsHref(query: ApplicationsQuery, patch: Partial<Applic
   }
   if (next.sort !== DEFAULT_SORT) params.set("sort", next.sort);
   if (next.app) params.set("app", next.app);
+  if (next.closed) params.set("closed", "1");
 
   const search = params.toString().replaceAll("%2C", ",");
   return search ? `/applications?${search}` : "/applications";

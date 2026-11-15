@@ -200,8 +200,8 @@ export function MatchRail({
           {score === null && (
             <>
               <p className="sr-only">
-                This role has no match score yet. Reasons it fits you will show here once matching
-                is built.
+                This job has no match score yet. Reasons it fits you will show here once matching is
+                built.
               </p>
               {/* Where the reasons will go: a caveat's dot and a bar per row, at
               the rows' own 15px rhythm. */}

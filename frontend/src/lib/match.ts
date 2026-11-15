@@ -44,6 +44,10 @@ const TIERS = [
   { min: 0, label: "Weak Match", color: "var(--color-match-weak)" },
 ] as const;
 
+/** The bands' names, best first: Up Next's Group By Match and its Match
+ *  filter list them (auto-apply/queue-table.tsx). */
+export const MATCH_TIERS = TIERS.map(({ label }) => label);
+
 function tierFor(score: number) {
   return TIERS.find((tier) => score >= tier.min) ?? TIERS[TIERS.length - 1];
 }

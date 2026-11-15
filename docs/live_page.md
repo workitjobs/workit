@@ -18,7 +18,7 @@ document again on each change.
 
 The round trip is the save, the network, the database read, Tectonic
 (about 0.3 to 0.5 s warm on a Mac, more on a cold instance) and the
-pdf.js draw. The editor's bar showed it after each save until the user found it noise; a phone still does ("Saved, 412 ms").
+pdf.js draw. The editor's bar showed it after each save until the user found it noise, and a phone until KAN-799 ("Saved, 412 ms"); it is now the "resume edit round trip" performance measure, read in the browser's developer tools.
 Today the typed line shows at once, because the field over it is HTML
 set in Latin Modern. The rest of the page (the lines below, the page
 break, the page count) waits for the compile.

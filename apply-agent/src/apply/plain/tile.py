@@ -31,8 +31,9 @@ from collections.abc import Callable
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Self
+from urllib.parse import urlsplit
 
-from apply import stuck
+from apply import stuck, upload_origin
 from apply.dashboard import ERRORS_EVERY, jpeg_size
 from apply.plain import window_capture
 from apply.plain.bridge import OUT_OF_DATE, Connection, PortError, PortTimeoutError
@@ -509,7 +510,16 @@ class FileChooser:
         return self._mode == "selectMultiple"
 
     def set_files(self, files, timeout: float | None = None, **_) -> None:
-        if not self._page.worker.call("chooser.set", tab=self._page.tab, frame=self._frame, files=file_payloads(files)):
+        """Only into a frame a file may go to (apply.upload_origin), checked by the worker extension on the frame's
+        own document, which takes the files: else Elsewhere."""
+        try:
+            given = self._page.worker.call("chooser.set", tab=self._page.tab, frame=self._frame, files=file_payloads(files),
+                                           hosts=upload_origin.hosts())
+        except PortError as error:
+            if error.kind == "UploadElsewhere":
+                raise upload_origin.Elsewhere(urlsplit(str(error)).hostname or "") from None
+            raise
+        if not given:
             raise PortError("NotFound", "FileChooser.set_files: the file input is gone")
 
 

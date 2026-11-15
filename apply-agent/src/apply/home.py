@@ -8,6 +8,13 @@ profiles). Every data path derives from it, read once at import.
 CODE is Apply's folder in the checkout (apply-agent/): only generic inputs live there (the
 answering guides, the default policies, the profile template, and SAMPLE, the
 Test Person data a first run starts from).
+
+APP_FOLDER is WorkIt Auto Apply's data folder (D25), in each OS's standard place
+as platformdirs gives it: ~/Library/Application Support/WorkIt Auto Apply on
+macOS, %LOCALAPPDATA%/WorkIt Auto Apply on Windows (local, not roaming: a Worker
+profile is a Chrome profile, which Chrome keeps there too), and $XDG_DATA_HOME or
+~/.local/share, then WorkIt Auto Apply, on Linux. W5 makes it the Student build's
+HOME; a Developer checkout keeps ~/.config/apply.
 """
 
 import os
@@ -15,7 +22,10 @@ import shutil
 import tempfile
 from pathlib import Path
 
+import platformdirs
+
 HOME = Path(os.environ.get("APPLY_HOME") or "~/.config/apply").expanduser()
+APP_FOLDER = platformdirs.user_data_path("WorkIt Auto Apply", appauthor=False, roaming=False)
 CODE = Path(__file__).resolve().parents[2]
 # The Story bank, read by essays, gates, stock answers and the story map: one path, so a test moves all of them.
 STORY_BANK = HOME / "story-bank.md"

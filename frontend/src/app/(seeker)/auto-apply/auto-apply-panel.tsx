@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 
 /**
  * The top of the Auto Apply page: `children` is the page's sections, the
- * setup strip and Up Next (./(queue)/page.tsx). The queue's line ("3 in
+ * setup row and Up Next (./(queue)/page.tsx). The queue's line ("3 in
  * progress · 2 queued") sat here, alone above the setup strip, until
  * 2026-11-10; it is beside Up Next's heading now (./up-next.tsx).
  *
@@ -14,12 +14,11 @@ import type { ReactNode } from "react";
  * from their own Auto Apply button or Up Next's Add Jobs, and open from Up
  * Next, where the student picks them and presses Auto Apply (./up-next.tsx).
  * Before it, Manage Resumes and Add to Claude sat here too (KAN-424): each
- * queued row shows and changes its own resume, and the setup strip
- * (./setup-strip.tsx) offers what a batch still needs.
+ * queued row shows and changes its own resume, and the setup row
+ * (./setup-strip.tsx) holds the extension, Application Info and Written
+ * Answers.
  */
 export function AutoApplyPanel({ children }: { children: ReactNode }) {
-  // The page's padding is the first section's top margin. The setup strip
-  // is always there, open or closed (./setup-strip.tsx), and holds the gap
-  // under itself, so the section after it drops its own.
-  return <div className="[&>:first-child]:mt-0 [&>[data-setup-strip]+*]:mt-0">{children}</div>;
+  // The page's padding is the first section's top margin.
+  return <div className="[&>:first-child]:mt-0">{children}</div>;
 }

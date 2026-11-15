@@ -1,4 +1,5 @@
 import csv
+import json
 from pathlib import Path
 
 import pytest
@@ -89,8 +90,6 @@ def test_every_type_loads_with_all_fields():
         assert g.stock == (name in STOCK)
         assert isinstance(g.high_stakes, bool)
         assert g.match or name == "general"
-        for heading in ("What the reader is checking", "Order", "Rules", "Pairs"):
-            assert f"## {heading}" in g.body, (name, heading)
 
 
 def test_every_type_has_slots_and_one_always_required():
@@ -105,13 +104,6 @@ def test_lengths_are_valid():
     for name, g in answering.load().items():
         low, high = g.length
         assert isinstance(low, int) and isinstance(high, int) and 0 < low < high <= 350, name
-
-
-def test_rules_and_guide_text():
-    assert "first sentence" in answering.rules()
-    text = answering.guide_text(["failure", "why-company", "failure"])
-    assert text.count("# Question type:") == 2
-    assert "swap test" in text
 
 
 @pytest.mark.parametrize("expected, question", REAL)
@@ -136,6 +128,34 @@ def test_why_a_field_is_not_why_a_company():
     assert answering.classify("Why are you interested in working at Stripe?") == "why-company"
 
 
-def test_every_type_has_a_yes_no_checklist_for_the_critic():
-    assert answering.checklist("values")[0] == "Is exactly one value named, in the company's own words?"
-    assert all(len(answering.checklist(t)) >= 5 for t in answering.load())
+
+
+def test_the_question_types_come_from_workit_and_stay_when_it_is_down():
+    from conftest import FIXTURES
+
+    from apply.adapters import SetupError
+    from apply.workit import Unreachable
+
+    served = json.loads((FIXTURES / "question-types.json").read_text())
+
+    class WorkIt:
+        def __init__(self, answer):
+            self.answer = answer
+
+        def logged_in(self):
+            return True
+
+        def call(self, method, path):
+            assert (method, path) == ("GET", "/apply-app/types")
+            if isinstance(self.answer, Exception):
+                raise self.answer
+            return self.answer
+
+    answering.CACHE.unlink()
+    answering._served.cache_clear()
+    with pytest.raises(SetupError):
+        answering.load()
+    answering.refresh(WorkIt(served))
+    assert answering.classify("Why do you want to work at Figma?") == "why-company"
+    answering.refresh(WorkIt(Unreachable("api.workitjobs.ai: 503", 503)))  # the copy Apply has stays
+    assert answering.classify("Why do you want to work at Figma?") == "why-company"

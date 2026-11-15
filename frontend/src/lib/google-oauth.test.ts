@@ -28,5 +28,6 @@ test("a missing or malformed flow cookie reads as no flow", () => {
     state: "s",
     nonce: "n",
     mode: "link",
+    next: null,
   });
 });

@@ -1,3 +1,4 @@
+// WorkIt Auto Apply Worker. Copyright (c) 2026 its authors. All rights reserved: see LICENSE.
 // Apply's worker extension: the service worker of one plain Worker Chrome.
 //
 // It connects to Apply's host relay (com.workit.apply_worker, in this Worker
@@ -11,14 +12,16 @@
 
 import { useCtx } from "./ops/guard.js";
 import { ops } from "./ops/index.js";
-import { useVendor, userScriptsOn } from "./ops/shared.js";
+import { useVendor } from "./ops/shared.js";
 
 const HOST = "com.workit.apply_worker";
 const PROTOCOL = 1;
 // What this code can do, in the hello (`features`): Apply compares it with what it expects
 // (bridge.FEATURES). 2: tile.shown (KAN-635) and extension.reload. 3: the welcome's vendor set and
-// vendor.use (KAN-645). Raise it with each new op or event.
-const FEATURES = 3;
+// vendor.use (KAN-645). 4: cdp.eval, cdp.load and cdp.script (KAN-839). 5: no user scripts: `eval` runs through the
+// debugger, the engine comes only by cdp.keep, and the hello names its packaged set and install type (KAN-839).
+// 6: windows.focus (KAN-850). Raise it with each new op or event.
+const FEATURES = 6;
 const RECONNECT_MS = 2000;
 
 let port = null;
@@ -41,17 +44,22 @@ const ctx = {
 };
 useCtx(ctx);
 
+const packagedFile = (name) => fetch(chrome.runtime.getURL(name)).then((response) => response.json()).catch(() => null);
+
 async function hello() {
-  const engine = await fetch(chrome.runtime.getURL("vendor/engine.json"))
-    .then((response) => response.json())
-    .catch(() => null);
+  const engine = await packagedFile("vendor/engine.json");
+  // The generated files built into this copy (`apply plain package`): a Chrome Web Store copy's, which Apply can't
+  // write to, so Apply uses them when they are its own and refuses the Worker when they aren't.
+  const packaged = (await packagedFile("vendor/set.json"))?.id ?? null;
+  const installType = await chrome.management?.getSelf?.().then((self) => self.installType).catch(() => null);
   send({
     type: "hello",
     protocol: PROTOCOL,
     extension: chrome.runtime.getManifest().version,
     features: FEATURES,
     engine,
-    userScripts: userScriptsOn(),
+    packaged,
+    installType: installType ?? null,
     webdriver: navigator.webdriver === true,
     userAgent: navigator.userAgent,
     brands: (navigator.userAgentData?.brands ?? []).map((b) => b.brand),

@@ -50,7 +50,14 @@ warrant", "I acknowledge" or "I affirm" except to a privacy or data
 notice, "under penalty", an electronic or typed-name signature, its date
 (a bare "Date" beside one, Workday's `dateSignedOn`), any statement that
 the application is true, accurate or complete, even beside privacy words
-or an "I agree") is Lisul's alone (Lisul, 2026-11-05, KAN-676). The
+or an "I agree", any agreeing to the employer's terms, conditions, an
+agreement or a policy that is not a privacy one: T&Cs, terms of use, of
+service or of employment, the User Agreement, a EULA, "the statement
+above", and a box's own bare "I agree" or "Accept" that names no privacy
+notice, check or messages, KAN-775) is Lisul's
+alone (Lisul, 2026-11-05, KAN-676). NVIDIA's Workday box ("By selecting the
+checkbox, you agree to our Terms and Conditions and Applicant Privacy
+Policy.") was ticked under `tick_consent_when_true` before (2026-11-10). The
 engine reads it in the label, the help text and the options, with
 zero-width characters and lookalike letters made plain. The engine's plan
 never answers one, whatever a rule, `tick_consent_when_true`, the Answer
@@ -60,10 +67,45 @@ with its exact wording. Apply keeps it out of every answer
 stays blank and unticked, and the form holds with a "Yours to tick:
 <wording>" line on its Check before Submit list (`_Planned.to_tick`,
 dashboard `TO_CHECK`). The pattern is the engine's (`asksAttestation`,
-`src/holds.ts`): keep no copy in Apply. A privacy or data consent ("I
-agree to the privacy policy") still follows `tick_consent_when_true`, and
-a background-check consent `willing_to_undergo_checks`, unless it attests
-that the application is true.
+`src/holds.ts`): keep no copy in Apply. Only a box that is solely a privacy
+or data consent ("I agree to the privacy policy", the terms of a company's
+privacy notice) still follows `tick_consent_when_true`, and one solely a
+background-check consent `willing_to_undergo_checks`. Anything more beside
+it in its label or help text makes the whole box Lisul's: a second thing
+joined to it ("and the Code of Conduct"), arbitration, a jury waiver, a
+non-compete, a probation, relocating, Ts&Cs (PR 543's re-review, KAN-775).
+Each sentence of the label and help text is judged alone: it either
+agrees to that consent in its own words and nothing more, or binds Lisul
+to nothing. "; I agree to work weekends", "which forms part of my
+employment contract", "including sharing it with partner companies" and
+a help text "I accept the offer letter" under a "Privacy" label each make
+the box his. When unsure, the box is his.
+
+Under the `attest_from_sources` policy (a list of rule names, none by
+default: `policies.default.yaml` says each), the engine's plan answers an
+attestation whose every claim the profile's facts settle (KAN-761). Its
+rules are the engine's (`src/attest.ts`): `sponsorship`,
+`work_authorization`, `age_18`, and `truthful_information` only when
+listed by name. It picks the form's one affirmative option ("I Confirm",
+"Yes", "I Affirm"), which must say yes and nothing more, matched whole
+(never "Yes, and I accept the offer terms"), and never signs, types a name, consents, opts in or
+answers a clause that no listed rule settles. Each clause, its lead-in
+("I certify that") left out, must match one of a rule's wordings whole,
+or an employer's notice whole: anything else in it, a second claim or
+commitment joined by "and", "&", "/", "or", "so", "with", a parenthesis
+or a comma ("I am at least 18 years old, a US citizen", "... and accept
+an unpaid trial period"), leaves the attestation to Lisul (PR fe#126's
+adversarial reviews). Each such answer is in
+`Plan.attested`, with its fact, and not in `Plan.attestations`. Apply puts
+it on the Check before Submit list as "Attested from sources: <fact>
+(<label>)" (`_Planned.to_tick`, `fill_engine.attested_line`), which holds a
+live run, and the window asks Lisul to check what Apply attested
+(`dashboard.ATTESTED_CHECK`). Claude fill gets it in <fields> marked
+`"attested": true`, so page gates let Claude pick it; Claude never ticks
+one on its own. A review fix never replaces it. An "I understand" or "I
+confirm" of a statement about sponsorship or work status is an attestation
+too: before, the sponsorship rule answered JPMorgan's "I understand that
+JPMorgan ... will not provide any assistance ... OPT/CPT" No (2026-11-10).
 
 A required one stops a stepped form on its page with one ask
 (`fill_engine.tick_ask`), and Apply fails closed there:
@@ -114,6 +156,21 @@ line. Tax District is `identity.home_address.tax_district`, else blank
 for a home in no local tax district (the engine's `LOCAL_TAX` table: the US
 states with local income taxes, and for New York only New York City and
 Yonkers), else asked. A home outside the US, or with no state, is asked.
+
+A file, or a path on this Mac (`/Users/...`, `~/...`, `C:\...`), goes only into an upload. When the
+engine's plan gives one to any other field, `fill_engine.plan` leaves that field blank (`LOCAL_PATH` in
+`Plan.blanks`, KAN-785). On JPMorgan's Oracle form (2026-11-10), "Resume or Additional Documents Link
+1" got the resume's path, and "Resume or Additional Documents: Cover Letter" got the resume. The
+engine's resume rule matched the heading. From engine v0.3.44, that rule takes only an upload that no
+heading names as another document. A cover letter slot under any heading follows the `cover_letter`
+policy, and "Link N" is the Nth of the profile's links (the portfolio first), else blank. In the same
+version, a master's plan question ("For those of you pursuing a master's degree, do you plan to start
+...?") reads `education.plans_masters_after_bachelors`, never the degree: the form's N/A for one who
+plans none or is undecided (KAN-786). Address Line 1 under Claude fill's heading-and-help label
+("Address\n\nPlease enter your home address.: Address Line 1") is the home's line 1 (KAN-787).
+These were not regressions: engine v0.3.32, v0.3.35 and v0.3.42 planned these labels the same way.
+Each run's Claude fill words the labels in its own way. JPMorgan's "I understand that JPMorgan
+... will not provide any assistance ... OPT/CPT" is fe#126's (KAN-761).
 
 A phone type question (Workday's Phone Device Type, iCIMS's Phones: Type,
 "Type of phone", a "Mobile or landline?" choice) is the profile's
