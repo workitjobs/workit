@@ -353,9 +353,10 @@ Find files with a directory listing; these are the rules for where code goes.
   **Until Apply's calls send kinds, each ported prompt has a copy in
   `apply-agent/`; a change goes into both in the same PR**
   (`apply-agent/docs/prompts-and-gates.md`, which lists the prompts already
-  gone from Apply). The guides' front matter
-  (`app/apply_prompts/answering/types/`) keeps a copy in Apply for good,
-  since Apply classifies questions and checks plans with it.
+  gone from Apply). The guides live only here: Apply classifies
+  questions and checks plans with their front matter, which it fetches
+  from `GET /apply-app/types` (`guides.served`) and keeps in its data
+  folder, so a change reaches every app with the deploy.
   Each kind's schema runs as data through `LLM.complete_schema`, on the
   chain size the kind names (Apply's Haiku calls on the small one, its
   Sonnet and Opus calls on the large one). The free-form
@@ -367,8 +368,9 @@ Find files with a directory listing; these are the rules for where code goes.
   model call, so no connection is held while the model writes, and adds
   the tokens after, a failed call's too. It never logs a prompt or an
   answer. It passes the seam the student's identity without the name
-  (the app replaces the name, D8; the server's name removal broke
-  prompts by taking words such as "will"), and the seam puts the masked
+  (the name is the app's to replace, D8, by its exact value: the design
+  doc's section 3.4; the server's name removal broke prompts by taking
+  words such as "will"), and the seam puts the masked
   email, phone and links back into the answer (`Masked`). **No route
   takes a schema from a student.** If one ever does again, it must refuse
   a `$ref` (or its dynamic forms), since `jsonschema` would fetch its URL;

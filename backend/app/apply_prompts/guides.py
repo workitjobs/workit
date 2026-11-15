@@ -1,10 +1,13 @@
-"""The answering guides, copied from Apply (apply-agent/answering/) with its
-prompts (D5): the rules for every answer (answering/README.md) and one guide
-per Question type (answering/types/<type>.md). A guide's front matter is data
-both sides read: Apply classifies a question and checks a plan with it. Its
-body is prompt text, which only the server sends.
+"""The answering guides, moved from Apply with its prompts (D5): the rules for
+every answer (answering/README.md) and one guide per Question type
+(answering/types/<type>.md). This is their one copy. A guide's front matter is
+data both sides read: the prompts list its slots and length, and Apply
+classifies a question and checks a plan with it, from the copy it fetches
+(`served`, GET /apply-app/types) and keeps in its data folder. Its body is
+prompt text, which only the server sends.
 """
 
+import json
 import re
 from collections.abc import Iterable
 from dataclasses import dataclass
@@ -14,6 +17,12 @@ from pathlib import Path
 import yaml
 
 ROOT = Path(__file__).with_name("answering")
+
+# Apply classifies a question by trying the types in this order, so the more specific win: a letter or an
+# "anything else" box before everything, a pick before an idea, both before why-company, and why-company late,
+# since most questions mention the company. "general" is the fallback, which no pattern picks.
+ORDER = ("cover-letter", "anything-else", "ai-tools", "values", "not-on-resume", "about-me", "preference",
+         "what-youd-build", "failure", "opinion", "why-field", "named-area", "best-project", "why-role", "why-company")
 
 
 @dataclass(frozen=True)
@@ -54,6 +63,16 @@ def load() -> dict[str, TypeGuide]:
             match=tuple(front.get("match") or ()),
             slots=tuple(Slot(s["name"], s["required"], s["holds"]) for s in front.get("slots") or ()), body=body)
     return guides
+
+@cache
+def served() -> str:
+    """Every type's front matter and the order Apply tries them in, as the JSON GET /apply-app/types answers:
+    {"order": [...], "types": {type: {company_link, stock, high_stakes, length, match, slots}}}. Never a body."""
+    types = {t: {"company_link": g.company_link, "stock": g.stock, "high_stakes": g.high_stakes, "length": list(g.length),
+                 "match": list(g.match), "slots": [{"name": s.name, "required": s.required, "holds": s.holds} for s in g.slots]}
+             for t, g in load().items()}
+    return json.dumps({"order": list(ORDER), "types": types}, sort_keys=True)
+
 
 @cache
 def rules(lean: bool = False) -> str:

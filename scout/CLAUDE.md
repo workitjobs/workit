@@ -109,6 +109,15 @@ before assuming the spec's chain. A laptop needs its own key from AI Studio.
 Training on prompts is acceptable to the team (2026-10-14), since identity
 data is removed on every call, so Gemini's and Z.ai's free tiers are open
 choices.
+**The Model route does not meet that condition yet** (WorkIt Auto Apply,
+`LLM.complete_schema`, 2026-11-15): the server masks only the email, the
+phone and the student's own links there, and the app replaces the rest
+before a call: every exact private value the student gave, theirs and
+their references' (PR #587). A form's self-ID answer that is exactly the
+student's is left out, but one the Fill engine typed in the form's own
+words still reaches the model there. The design doc's D8 and section 3.4
+list what goes, and its open questions ask whether Gemini's free tier
+stays in that chain.
 
 **Z.ai `GLM-4.7-Flash` is not in the chain.** It joins only after a person
 checks its console limits, its terms (may it train on prompts?) and the fixed

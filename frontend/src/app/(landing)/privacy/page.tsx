@@ -186,9 +186,9 @@ export default function PrivacyPage() {
           passwords.
         </li>
         <li>
-          <strong>What the app sends to WorkIt.</strong> What each of its AI calls needs, without
-          your private details (next item); your applications&apos; stages, the answers you approve
-          and your Auto Apply queue, as the Chrome extension does; and, only when you click
+          <strong>What the app sends to WorkIt.</strong> What each of its AI calls needs, with your
+          private details hidden (next item); your applications&apos; stages, the answers you
+          approve and your Auto Apply queue, as the Chrome extension does; and, only when you click
           &ldquo;Send report&rdquo;, one application&apos;s record and its step-by-step log, with
           your personal details hidden in the log. We use a report only to fix the problem it shows,
           and we delete it once that problem is fixed. The app sends no analytics and no automatic
@@ -198,9 +198,10 @@ export default function PrivacyPage() {
           <strong>What its AI calls send.</strong> The app writes and checks answers with AI through
           WorkIt. WorkIt builds each prompt from what the app sends and sends it to Groq or Google
           (Gemini) with WorkIt&apos;s own key, so the provider does not get your WorkIt account. The
-          app sends only what the answers need, such as the job posting, the form&apos;s questions
-          and your experiences, and leaves out private details such as your contact details, your
-          street address and your self-identification answers. Before a prompt goes on,
+          app sends what the answers need, such as the job posting, the form&apos;s questions, your
+          answers on it (self-identification answers included) and your experiences. It replaces
+          private details, such as your contact details and street address, with placeholders, and
+          puts the real values back into the answer on your Mac. Before a prompt goes on,
           WorkIt&apos;s server also hides contact details it finds in it. The app cannot find other
           people&apos;s names inside your stories, so leave out anything private about other people.
         </li>

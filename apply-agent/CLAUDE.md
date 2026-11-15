@@ -172,8 +172,11 @@ WorkIt Auto Apply's own data folder is `home.APP_FOLDER`, each OS's
 standard place from `platformdirs` (D25); W5 makes it the Student build's
 `APPLY_HOME`.
 
-The repo holds only generic inputs: the answering guides (`answering/`),
-`policies.default.yaml` (with `live_runs` off) and the profile template.
+The repo holds only generic inputs: `policies.default.yaml` (with
+`live_runs` off) and the profile template. The Question types come from
+WorkIt (`GET /apply-app/types`, `apply.answering`) into the data folder's
+`question-types.json` when a run starts; the answering guides live only on
+the server (`../backend/app/apply_prompts/answering/`).
 When `APPLY_HOME` has no profile, Apply copies the Test Person sample data
 into it and the window shows "Sample data".
 

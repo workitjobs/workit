@@ -198,7 +198,7 @@ def test_the_essay_call_knows_where_he_lives_so_it_never_leaves_a_placeholder_fo
     run(monkeypatch, ResearchForm("Northwood Space"), claude)
 
     [call] = [c for c in asks(claude) if c["data"]["questions"]]
-    assert "<home>\nSpringfield, IL 62701, United States\n</home>" in call["prompt"]
+    assert "<home>\nSpringfield, IL @ZIP@, United States\n</home>" in call["prompt"]  # its ZIP comes back in the answer
     assert "1 Main St" not in call["prompt"]  # an essay never needs his street
 
 
@@ -1209,7 +1209,7 @@ def test_a_cover_letter_is_written_to_the_template_slot_by_slot_then_edited():
     assert essay.text == edited
     assert [k["kind"] for k in claude.kinds] == ["essays.plan", "essays.write", "writing.check", "writing.edit"]
     editor = claude.kinds[-1]
-    assert editor["data"]["drafts"] == {"q1": drafted}
+    assert editor["data"]["drafts"] == {"q1": drafted.replace("Test Person", "@FIRST_NAME@ @LAST_NAME@")}  # D8
     assert "<story_bank>" in editor["data"]["sources"] and "style_card" in editor["data"]
 
 
@@ -1262,7 +1262,7 @@ def test_an_essay_about_an_answer_given_above_sees_that_answer(monkeypatch):
     assert not any(label.startswith("Resume") for label in shown)  # files never reach it
 
 
-def test_form_answers_leave_out_files_essays_self_id_and_secrets():
+def test_form_answers_leave_out_files_essays_secrets_and_the_students_own_self_id_answers():  # D8
     picked = {
         Question("a", FIGMA_AREAS, "select", True, ("Infrastructure",)): "Infrastructure",
         Question("b", "Resume", "file", True): Path("one-pager.pdf"),
@@ -1273,7 +1273,10 @@ def test_form_answers_leave_out_files_essays_self_id_and_secrets():
         Question("g", "Preferred languages", "multi_select", False, ("C", "Rust")): ["C", "Rust"],
     }
 
-    assert essays.form_answers(picked) == {FIGMA_AREAS: "Infrastructure", "Preferred languages": ["C", "Rust"]}
+    # "Male" is one of the student's own self-ID answers; a "No" says nothing on its own, so it stays (private.self_id).
+    assert essays.form_answers(picked, frozenset({"male"})) == {FIGMA_AREAS: "Infrastructure",
+                                                               "Are you a protected veteran?": "No",
+                                                               "Preferred languages": ["C", "Rust"]}
 
 
 @pytest.mark.parametrize("edited", ["", "Hi Figma,\n\nA different letter.", "Dear Figma Recruiting Team:\n\nCut short.",
@@ -1840,7 +1843,7 @@ def test_a_question_for_facts_apply_already_holds_never_reaches_lisul():
     [answer] = [b.quotes for b in essay.plan.slots if b.slot == "answer"]
     assert "GitHub: https://github.com/test-person" in answer and "LinkedIn: https://www.linkedin.com/in/test-person" in answer
     assert any("github.com/example-club/maze-bot" in line for line in answer)  # the Story bank's repo
-    assert "https://test-person.example.com" in _block_text(plans(claude)[0]["prompt"], "links")  # the planner sees them
+    assert "Portfolio: @LINK_PORTFOLIO_URL@" in _block_text(plans(claude)[0]["prompt"], "links")  # the planner sees them
     # A form's own field, a one-off left for Lisul and the bank's answer to a question asked again: answered, not asked.
     planned = worker._Planned.__new__(worker._Planned)
     planned.questions = [Question("g", "GitHub profile URL", "text", True), Question("w", "Why us?", "text", True)]
