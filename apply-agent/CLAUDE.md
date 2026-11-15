@@ -150,6 +150,8 @@ this folder's `CLAUDE.md` for its area.
 - `docs/ask-model.md`: `ask_model`, `ask_model.py` (Groq, Gemini), the lean essay prompts, or another model behind `ask` (`Adapters.claude`).
 - `docs/prompts-and-gates.md`: a prompt, a length, cap or names gate, or the catch-all box rule.
 - `docs/claude-fill.md`: Claude fill, its Next and profile clicks, its dropdowns, or a Filler's `form_url`.
+- `docs/generic-filler.md`: the generic Filler (`generic_fill.py`) and its reader (`form_tree.py`), the Student
+  build's Filler for a job system with no Filler of its own.
 - `docs/captchas-and-bot-blocks.md`: a captcha wait, a block's handoff, or `captcha.py`.
 - `docs/sign-in.md`: a sign-in page, an Employer account or its password (the one Lisul chooses, its rule, Show password), where secrets live (`keychain.py`, `keyring`), the Accounts tab, or `apply preflight`.
 - `docs/apply-window.md`: the window's lifetime, its Dock keeper, or what a Record keeps.
