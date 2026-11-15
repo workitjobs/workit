@@ -619,6 +619,31 @@ not a re-run.
   fails) Google's review — that's checked by hand in the Dashboard for
   now.
 
+## Harvest Common Crawl boards (`workflows/harvest-commoncrawl.yml`)
+
+Runs `scraper/harvest_commoncrawl.py` on the 1st and 15th of each month at
+09:17 UTC on `ubuntu-latest`, or manually on main. It queries Common Crawl's
+CDX index for ATS board URLs across 13 hiring systems, extracts board tokens
+with `board_keys()`, and writes `scraper/commoncrawl-boards.json`. If the CDX
+API fails (504s are common), it falls back to `--direct`, which reads the raw
+shard files instead.
+
+- **Runs only on `main`** (`github.ref == 'refs/heads/main'`), same as the
+  publish workflow. A dispatch from another branch is rejected.
+- **Timeout is 90 minutes.** The CDX API is slow (~1 s per request, 17
+  patterns, many pages each). A full harvest can take 30–60 minutes when the
+  API is healthy.
+- **Opens a PR if the pool changed.** Compares the committed
+  `commoncrawl-boards.json` against the harvest's output; if different, pushes
+  a `chore/commoncrawl-harvest-<crawl>` branch and opens a PR. A person
+  reviews the diff and merges; the daily `discover-boards.yml` reads the file
+  on main with no HTTP.
+- **No secrets needed.** Uses only `github.token` for the PR.
+- **Needs "Allow GitHub Actions to create and approve pull requests"**, same
+  as discovery and company-domains.
+- **It stops silently after 60 days without a commit** to `main`, like every
+  schedule here (`gh workflow enable harvest-commoncrawl.yml`).
+
 ## Company websites from Wikidata (`workflows/company-domains.yml`)
 
 Runs `scraper/domain_pr.py --publish` daily at 07:29 UTC on `ubuntu-latest`.
