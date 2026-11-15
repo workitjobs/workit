@@ -586,7 +586,7 @@ class Dashboard:
         self._into: Callable[[str, int], dict] | None = None  # takes a new link into a Worker (taking)
         quiet = quiet or (lambda k: False)
         self._quiet = lambda k: quiet(self.worker_of(k))
-        self.accounts = accounts  # the Accounts tab: each Employer account, its password only in Keychain
+        self.accounts = accounts  # the Accounts tab: each Employer account, its password in Keychain
         self._sample = sample
         self._frames = _Shown(frames, self)
         self.answers = answers
@@ -1285,6 +1285,10 @@ class _Handler(BaseHTTPRequestHandler):
             return self._account("copy a password", self.dashboard.accounts.copy)
         if parts.path == "/accounts/open" and self.dashboard.accounts:
             return self._account("open your Chrome", self.dashboard.accounts.open_sign_in)
+        if parts.path == "/accounts/show" and self.dashboard.accounts:
+            return self._account("show a password", self.dashboard.accounts.show, reply="password")
+        if parts.path == "/accounts/password" and self.dashboard.accounts:
+            return self._account("save your password", self.dashboard.accounts.choose, key="password")
         if parts.path.startswith("/show/") and self.dashboard.show:
             return self._show(parts.path.removeprefix("/show/"))
         if parts.path.startswith("/answers/") and self.dashboard.answers:
@@ -1671,22 +1675,24 @@ class _Handler(BaseHTTPRequestHandler):
         self._json(200, {"message": f"Opened {item.get('company') or 'the posting'} in your Chrome: "
                                     "the extension fills it there."})
 
-    def _account(self, does: str, press: Callable[[object], str]) -> None:
-        """Lisul pressed Copy password or Open sign-in page on an account in the Accounts tab (KAN-591). A password
-        goes only to the clipboard: the reply, and the line printed, never hold it."""
+    def _account(self, does: str, press: Callable[[object], str], key: str = "site", reply: str = "message") -> None:
+        """Lisul pressed a button in the Accounts tab (KAN-591): Copy password, Open sign-in page, Show password, or
+        Save on the password he chose (KAN-838). `key` names what the page sent; `reply` names what goes back: a
+        message, or the password he asked to see. The line printed never holds a password."""
         if not self._from_window():
             return self._json(403, {"error": f"Only the Apply window may {does}."})
         try:
             body = json.loads(self.rfile.read(min(int(self.headers.get("Content-Length") or 0), MAX_BODY)) or b"{}")
-            site = body["site"]
+            given = body[key]
         except (ValueError, KeyError, TypeError):
-            return self._json(400, {"error": "Not an account."})
+            return self._json(400, {"error": "Not an account." if key == "site" else "Not a password."})
         try:
-            message = press(site)
+            answer = press(given)
         except Refused as refused:
             return self._json(refused.status, {"error": str(refused)})
-        print(f"Accounts tab, {site}: {message}")
-        self._json(200, {"message": message})
+        named = given if key == "site" else "the password you chose"  # never the password itself
+        print(f"Accounts tab, {named}: {answer if reply == 'message' else 'showed its password'}")
+        self._json(200, {reply: answer})
 
     def _in_place(self, item: dict, key: str, question: str, answer: Path | None, message: str) -> None:
         """An answer for this form alone, not saved to his facts: a file to attach, or None for an

@@ -266,7 +266,7 @@ def test_a_workday_rehearsal_whose_create_account_goes_back_to_sign_in_resets_no
         [done] = rehearse([CACI_URL], server, world.profile, keychain=world.keychain, mailbox=world.mailbox)
 
     assert "may already have an account for your email: reset its password once, or save it with " \
-           f"security add-generic-password -U -s apply-ats -a {CACI} -w" in done.why, done.why
+           f"uv run keyring set apply-ats {CACI}" in done.why, done.why
     assert server.resets == [] and world.keychain.password(CACI) is None
 
 

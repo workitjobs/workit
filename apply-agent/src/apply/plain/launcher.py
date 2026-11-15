@@ -11,8 +11,9 @@ Worker, and the extension's debugger sends only text, Backspace/Delete and a cli
 
 Two Chromes (policies.yaml `plain_chrome`):
 - "chrome": branded Google Chrome. It ignores `--load-extension`, so the worker extension is
-  installed once by the user's clicks in the seed profile (APPLY_PROFILES/plain-seed: `apply plain seed`),
-  with Allow User Scripts on; each Worker profile starts as a copy of the seed.
+  installed once by the user's clicks in the seed profile (APPLY_PROFILES/plain-seed: `apply plain seed`:
+  Developer mode and Load unpacked; no user scripts since KAN-839), and each Worker profile starts as a
+  copy of the seed.
 - "testing": Chrome for Testing (the build Playwright installs), which still takes
   `--load-extension`: dev and tests. A seed is copied if there is one; else a fresh profile.
 
@@ -46,6 +47,7 @@ from apply.focus import KEEPER
 from apply.plain import extension, host
 from apply.plain.bridge import (
     OUT_OF_DATE,
+    PACKAGED,
     SETS_FROM,
     Bridge,
     Connection,
@@ -54,6 +56,7 @@ from apply.plain.bridge import (
     features,
     socket_path,
 )
+from apply.plain.script import keep_engine
 from apply.profile import load_policies
 
 BRANDED = Path("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome")
@@ -206,9 +209,11 @@ class PlainWorkers:
         return self.copy
 
     def prepare(self, worker: int | None = None) -> dict:
-        """Write the worker extension's generated files (the engine bundle, Playwright's injected script)
-        into this checkout's extension folder, and the same files as a write-once vendor set into the
-        folder Worker `worker` loads, which the bridge names in each welcome (KAN-645)."""
+        """Write the worker extension's generated files (the guards, the fixed page functions, Playwright's
+        injected script; never the engine, KAN-839) into this checkout's extension folder, and the same files
+        as a write-once vendor set into the folder Worker `worker` loads, which the bridge names in each
+        welcome (KAN-645). A store copy's folder is Chrome's and is never written: its own packaged files
+        are used when they are this Apply's (bridge.Bridge.packaged)."""
         identity = extension.engine_identity()
         files = extension.generated(identity)
         if self.direct:
@@ -228,6 +233,7 @@ class PlainWorkers:
                   f"load this folder's own copy ({self.copy}).", file=sys.stderr)
         self.bridge.folder = loaded
         self.bridge.vendor = roots.pop()  # one id: the same files
+        self.bridge.packaged = extension.set_id(extension.packaged_files(files))  # a package with these built in
         self.bridge._engine = identity
         return identity
 
@@ -260,7 +266,12 @@ class PlainWorkers:
                     running.code = code
                     said.append(f"its worker extension's code changed on disk but didn't reload ({error})")
                 return said
-        if self.bridge.vendor != before and running.connection.vendor:
+        if running.connection.vendor == PACKAGED:  # a store copy has no vendor sets: its built-in files stay
+            held = getattr(running.connection, "engine_kept", None)
+            keep_engine(running.connection)  # the engine is handed over again when the bundle on disk changed
+            if getattr(running.connection, "engine_kept", None) != held:
+                said.append(f"the Fill engine changed on disk: its pages load {self.bridge.engine['version']} now")
+        elif self.bridge.vendor != before and running.connection.vendor:
             running.connection.call("vendor.use", root=self.bridge.vendor)
             running.connection.vendor = self.bridge.vendor
             said.append(f"the Fill engine changed on disk: its pages load {self.bridge.engine['version']} now")
@@ -280,7 +291,7 @@ class PlainWorkers:
             "description": "Relays Apply's plain Worker extension to the Apply process on this Mac",
             "path": str(wrapper),
             "type": "stdio",
-            "allowed_origins": [extension.EXTENSION_ORIGIN],
+            "allowed_origins": list(extension.EXTENSION_ORIGINS),
         }, indent=1) + "\n")
         return manifest
 

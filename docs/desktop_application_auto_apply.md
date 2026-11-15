@@ -77,7 +77,7 @@ it.
 | **WorkIt Auto Apply Worker** | The **Worker extension** as it is listed on the Chrome Web Store (unlisted) |
 | **Seed** | The Worker profile that gets the Worker extension once; each plain Worker's profile starts as a copy of it |
 | **Model route** | WorkIt's API routes that make each model call for a Student build and count it |
-| **Usage cap** | The model use one student may spend in one month, shown in the app |
+| **Usage cap** | The model use one student may spend in one day (UTC), shown in the app |
 
 "Apply" stays the code's and the glossary's name for the agent itself.
 
@@ -222,7 +222,7 @@ stories. **Not caught:** other people's names inside a story.
 | What | Where |
 |---|---|
 | The data folder: Records, Traces, the Worker profiles, the seed, the local copy of the student's data | `~/Library/Application Support/WorkIt Auto Apply` (`%APPDATA%` on Windows) |
-| The WorkIt session; Employer account passwords (passwords Apply makes for job-site accounts) | `keyring`: macOS Keychain, Windows Credential Manager. The student can see and change them in Keychain Access |
+| The WorkIt session; Employer account passwords (passwords Apply makes for job-site accounts) | `keyring`: macOS Keychain, Windows Credential Manager. The student chooses the job-site password in the Accounts tab (KAN-838), sees each account's with Show password, and can see and change them in Keychain Access |
 | The Fill engine | Memory only, for one launch |
 
 WorkIt never holds a student's job-site passwords: a breach would expose
@@ -833,7 +833,7 @@ so the Windows port (F4) is a port, not a rewrite.
 
 | Module | macOS part today | Change |
 |---|---|---|
-| `keychain.py`, `brief.py`, `gmail.py` | `security` | `keyring` (Keychain on Mac, Credential Manager on Windows). Items left: Employer account passwords (`apply-ats`) and the WorkIt session |
+| `keychain.py` | `security` | Built (KAN-838): `keyring` (Keychain on Mac, Credential Manager on Windows) for every caller, `gmail.py` too; `brief.py` never called `security`. Items left in the Student build: Employer account passwords (`apply-ats`) and the WorkIt session (W5). One developer-only `security dump-keychain` stays in `cli._mac_keychain_sites`, the backfill of accounts made before KAN-592 |
 | `workit.py` | Session in `workit-login.json`; sign-in through Chrome's debugging port | Session in `keyring`; sign-in through the browser and `workit-auto-apply://` (W5) |
 | `notify.py` | `osascript` notifications, ntfy | Dropped: the window shows notices |
 | `schedule.py`, `cli.py` | `launchctl`, `~/Library/LaunchAgents` | Dropped |
@@ -963,9 +963,38 @@ user scripts off:
    answers shown). Next and file upload on a multi-step form are still to
    test.
 
-Left after the spike: item 3 in branded Chrome; the packaged files and a store build of the
-extension; turning the switch on by default and removing the
-`userScripts` path; the tile's screencast.
+**Built after the spike (KAN-839, 2026-11-14):**
+
+- No user scripts: the manifest asks for none, `eval` runs through the
+  debugger on every page, a code-only init script is refused, and the
+  seed's setup is Developer mode and Load unpacked only.
+- No engine file: Apply hands the engine to the extension's memory once
+  per connection (`cdp.keep`), and `vendor/` holds no `engine.js`.
+- The store package: `uv run apply plain package` builds the zip
+  (`apply-agent/dist/`) with the guard scripts, `fixed.js` and
+  `injected.js` built in, `LICENSE`, `NOTICE` and Playwright's
+  Apache-2.0 license, `store.json`'s name and version, and no manifest
+  `key`. The hello names the package's built-in files and its install
+  type; the bridge welcomes a package to its own files when they are
+  Apply's, and refuses a store copy whose files aren't. A test loads the
+  package in Chrome for Testing, guards a page from its files and loads
+  the engine.
+- Both extension IDs may connect (`extension.STORE_ID`, empty until the
+  store gives one).
+
+**The adversarial review (2026-11-14) found a blocker:** the guard scripts
+carry each Apply process's own random tokens (KAN-710), so a package built
+once never matches a student's app and the bridge refuses every store copy.
+It fails closed, but no store copy can be used until the guards learn their
+tokens another way (the to-do list's item 0, for the guards' owners). It
+also fixed two smaller issues: `refresh` and a store copy, and the `gesture`
+flag. A change to what the package holds now fails CI until `store.json`
+records a new version (`apply-agent/CLAUDE.md`).
+
+Left: `apply-agent/docs/plain-workers/worker-extension-todo.md` lists it,
+item by item: the first store upload and its ID, the seed from the store,
+releases and updates, item 3 in branded Chrome, a multi-step form on a
+plain Worker, and the tile's screencast.
 
 **If the spike passes:** list "WorkIt Auto Apply Worker", unlisted, from
 WorkIt's existing developer account: a privacy policy link, one stated
@@ -977,10 +1006,10 @@ on Chrome's schedule, so the app and the extension check one protocol
 version on hello (`PROTOCOL.md` already has a feature number) and the app
 says "Updating the Worker extension" while they differ.
 
-**If the spike fails:** v1 keeps today's extension off the store. First
-run guides the student through Developer mode, Load unpacked and Allow
-User Scripts (`plain/seed_setup.py` does this today), and the engine
-still reaches the Worker in memory, not in a file.
+**If the spike fails:** v1 keeps the extension off the store. First run
+guides the student through Developer mode and Load unpacked
+(`plain/seed_setup.py` does this today), and the engine still reaches the
+Worker in memory, not in a file.
 
 **Touches.** `apply-agent/worker-extension/` (`ops/cdp.js`, `ops/debug.js`,
 `ops/core.js`, `ops/guard.js`, `ops/engine.js`, `ops/tile.js`,
@@ -1083,20 +1112,123 @@ its facts, and one for a company with none still passes the gates.
 **Goal.** The app and the Worker extension go out with free, adequate
 terms (D16).
 
-- **App license (EULA):** adapt Basecamp's open-source policies (CC BY
-  4.0, archived; attribution required). Forbid copying, reverse
-  engineering and use of the app or its output to train AI models.
-- **WorkIt's `/terms`:** add a section for the desktop app.
-- **WorkIt's `/privacy`:** name each outside service (Groq, Google's
-  Gemini, Cloudflare, Supabase; Tavily when F2 is built) and section
-  3.4's flows, including that Google's free tier may use prompts.
-- **Third-party notices:** generated with `pip-licenses` (free) for the
-  Python packages, plus Playwright's driver, pywebview, Sparkle (MIT) and
-  Nuitka's runtime exception.
+**Written (KAN-848, 2026-11-14), waiting for the team's yes.** Legal text
+merges only once the team approves it.
+
+- **App license (EULA):** `apply-agent/legal/EULA.txt`, adapted from
+  Basecamp's open-source policies (CC BY 4.0; the repo was archived on
+  2026-10-06). Its Credits section is the attribution that CC BY needs:
+  the source, the license's link and what WorkIt changed. It forbids
+  copying, reverse engineering, using the app or its output to train AI
+  models, and giving the app to an AI tool to learn how it works, as the
+  Worker extension's `LICENSE` does. It also limits the app's AI, and the
+  WorkIt routes the app calls, to filling and checking the student's own
+  applications in the app: no other program, no prompts of the student's
+  own (decided 2026-11-14; the license's side of D5's reason, beside the
+  server's kinds and schema checks). The answers the app writes for a
+  student stay the student's to keep and send (decided 2026-11-14). **Why in
+  `apply-agent/legal/`:** the file ships with the app, which W8 builds
+  from Apply's folder, and W0's `git filter-repo --subdirectory-filter
+  apply-agent` takes only what is under `apply-agent/` to
+  `workitjobs/apply-agent`; a file at WorkIt's root would stay behind.
+  It covers the app as WorkIt distributes it and says nothing about the
+  MIT code: that code leaves public view (the MIT bullet below). The
+  five copyright holders approved licensing the compiled app under it
+  (2026-11-14).
+- **WorkIt's `/terms`:** a section "WorkIt Auto Apply for Mac" that sums
+  up the EULA (each line points to the EULA's rule), and the page's first
+  line names the app.
+- **WorkIt's `/privacy`:** a section "WorkIt Auto Apply for Mac": what
+  stays on the Mac; what goes to WorkIt (the AI calls' data, the Tracker,
+  the queue, Send report only on a click, no analytics); what the AI calls
+  send, after section 3.4 and W1's server (WorkIt builds each prompt and
+  sends it to Groq or Google with its own key, masks email, phone and
+  links a second time, and logs no prompt or answer); that Google's free
+  tier uses prompts to improve its products and lets people read them,
+  and that Groq can log them for 30 days; job sites; the Worker extension
+  (it sends only to the app, under the store's User Data Policy and its
+  Limited Use rules); Chrome; updates from Cloudflare; "Remove all my
+  data"; and the daily use counts, kept 90 days. The page already named
+  Supabase and Cloudflare. The website's AI section now says that only
+  the website and the extension keep form answers from the models.
+  Tavily joins the page with F2.
+- **Third-party notices:** `uv run python scripts/third_party_notices.py`
+  (in `apply-agent/`) writes `dist/THIRD-PARTY-NOTICES.txt`. It runs
+  `pip-licenses` on a new environment built from `uv.lock` without the
+  dev group, so a new dependency joins it with no edit, and adds
+  Playwright's driver (Node.js's license, playwright-core's and the
+  license files beside its bundles), Python's own license (Nuitka
+  compiles the runtime in), and a hand list, `BY_HAND`: pywebview
+  (BSD-3-Clause; its entry goes by itself once W5 adds the package),
+  Sparkle (MIT, with the notices for the code it includes), Nuitka's
+  runtime exception (AGPLv3; the compiled app is not bound by the AGPL)
+  and the cover letters' Latin Modern font (GUST Font License). A hand
+  entry's full text goes in `apply-agent/legal/licenses/`, copied from
+  the release that W5 or W8 uses; `--strict` fails until each is there.
+  On 2026-11-14 it listed 27 packages, each with its license text, in
+  about 400 KB.
+
+**Before the app ships, `/privacy` must be true of it (found
+2026-11-14).** The page describes the app as section 3.4 designs it, and
+the app does not do all of it yet:
+
+- **W1's app side (D8) is not built.** `presubmit.review` sends every
+  answer read back from the form to the model, self-ID answers and
+  contact details included, and nothing in the app replaces the street
+  address, ZIP code, birth date or student ID. The page says that the app
+  replaces them and never sends a self-ID answer. Only the name is a
+  placeholder today (`@NAME@`), and the server masks email, phone and
+  links.
+- **Send report's route (D26) is not built.** It takes the one
+  Application's Record and masked Trace that a student sends with the
+  window's "Send report". **WorkIt keeps a report until the problem it
+  shows is fixed, then deletes it** (decided 2026-11-14), and `/privacy`
+  says so. So the route's PR needs a way to mark a report's problem
+  fixed that deletes the report, not a period in
+  `backend/app/services/retention.py`. A report whose problem is never
+  fixed stays until the team deletes it.
+- **Merge the page after W1's PR (#577)**: it describes that PR's route.
+
+**Left.**
+
+- The team's yes on the final text of the EULA, the `/terms` section
+  and the `/privacy` section.
+- W5: show the EULA and the notices in the app (Settings), and the
+  EULA at first run. W8: put `EULA.txt` and `THIRD-PARTY-NOTICES.txt`
+  (made with `--strict`) in the app bundle and the DMG, and link both
+  from the download page.
+- W3: when the Student build leaves out a developer part, move the
+  packages only that part needs (`gspread` and `google-auth` for the
+  Google Sheet) to a dependency group, so the notices leave them out.
+- Groq: the team may turn off Groq's 30-day logging (Zero Data
+  Retention, in its Data Controls) for WorkIt's organization; then
+  `/privacy` changes.
+- A new provider in production's model chain (Cloudflare Workers AI is
+  in the spec, `scout/CLAUDE.md`) joins `/privacy` before it gets an app's
+  prompt.
+
+**Done before.**
+
 - **Chrome Web Store:** a privacy policy link and its user-data rules for
-  the Worker extension; a license header in each of its files.
-- **Not now:** a review of the hiring systems' terms on automated
-  applying.
+  the Worker extension. Done (KAN-839, approved by the team 2026-11-14):
+  its `LICENSE` (proprietary: no copying, reverse engineering or AI
+  training), `NOTICE` (Playwright's Apache-2.0 script) and a header line
+  in each file. `/privacy`'s Worker extension item (KAN-848) is the
+  policy that the store listing links to.
+- **The repo's MIT license (found 2026-11-14).** The WorkIt repo's root
+  `LICENSE` is MIT, held by five team members, and covers everything in
+  it, Apply and the Worker extension too. Every version already pushed
+  stays MIT: anyone may copy it, and a new license can't take that back.
+  The five holders agreed (2026-11-14) to license the Worker extension's
+  new versions under its own proprietary `LICENSE`, and the root
+  `README.md` says so until Apply moves to its private repo (W0). **The
+  team decided (2026-11-14) to make the WorkIt repo private and remove
+  the open MIT code from public view.** That stops new copies. It does
+  not take MIT back from a copy someone already has, so the EULA names
+  no MIT code at all.
+
+**Not now:** a review of the hiring systems' terms on automated
+applying.
 
 ### W11. The student's data
 

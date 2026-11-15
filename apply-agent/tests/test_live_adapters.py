@@ -18,7 +18,7 @@ from apply.claude_cli import ClaudeCLI
 from apply.clock import SystemClock
 from apply.feed import SimplifyFeed
 from apply.gmail import GmailMailbox
-from apply.keychain import GMAIL, PHONE_PUSH, MacKeychain
+from apply.keychain import GMAIL, PHONE_PUSH, SystemKeychain
 from apply.notify import MacNotifier, NtfyNotifier, RecordingNotifier
 from apply.profile import ApplicantProfile
 from apply.records import FolderRecords, GitRecords
@@ -62,7 +62,7 @@ def test_apply_run_without_fakes_wires_every_live_adapter(monkeypatch, tmp_path)
     monkeypatch.setattr(sheet, "SHEET_ID", sheet_id)
     monkeypatch.setattr(sheet, "open_sheet", lambda sheet_id: opened.append(sheet_id) or FakeSpreadsheet(tmp_path / "sheet", TABS))
     looked_up = []
-    monkeypatch.setattr(MacKeychain, "password", lambda self, account: looked_up.append((self._service, account)) or "app")
+    monkeypatch.setattr(SystemKeychain, "password", lambda self, account: looked_up.append((self._service, account)) or "app")
     runs = []
     monkeypatch.setattr(orchestrator, "run", lambda adapters, profile, workers, **kinds: runs.append(adapters))
 
@@ -82,7 +82,7 @@ def test_apply_run_without_fakes_wires_every_live_adapter(monkeypatch, tmp_path)
     assert isinstance(adapters.clock, SystemClock)
     assert isinstance(adapters.records, GitRecords)
     assert isinstance(adapters.notifier, MacNotifier)
-    assert isinstance(adapters.keychain, MacKeychain)
+    assert isinstance(adapters.keychain, SystemKeychain)
     cli.main(["run", "--profile", str(mine), "--workers", "4"])
     assert opened == ["the-sheet"]  # copied one time only
 
@@ -103,7 +103,7 @@ def test_with_no_records_remote_set_a_run_keeps_its_records_in_the_data_folder(m
 @pytest.mark.parametrize("live_runs", [False, None])
 def test_a_live_run_is_refused_until_lisul_switches_live_runs_on(monkeypatch, tmp_path, command, live_runs):
     monkeypatch.setattr(sheet, "open_sheet", lambda sheet_id: pytest.fail("a refused run opened the Sheet"))
-    monkeypatch.setattr(MacKeychain, "password", lambda self, account: pytest.fail("a refused run read Keychain"))
+    monkeypatch.setattr(SystemKeychain, "password", lambda self, account: pytest.fail("a refused run read Keychain"))
     monkeypatch.setattr(WorkerBrowsers, "seed", lambda self, count: pytest.fail("a refused run seeded a Worker profile"))
     monkeypatch.setattr(orchestrator, "run", lambda *args, **kinds: pytest.fail("a refused run started"))
 
@@ -125,7 +125,7 @@ def test_a_second_run_or_rehearsal_refuses_to_start_while_another_has_a_worker_p
     busy.mkdir(parents=True)
     os.symlink(f"host-{os.getpid()}", busy / "SingletonLock")  # the browser of the run going
     monkeypatch.setattr(sheet, "open_sheet", lambda sheet_id: FakeSpreadsheet(tmp_path / "sheet", {}))
-    monkeypatch.setattr(MacKeychain, "password", lambda self, account: "app")
+    monkeypatch.setattr(SystemKeychain, "password", lambda self, account: "app")
     monkeypatch.setattr(WorkerBrowsers, "seed", lambda self, count: pytest.fail("seeded a Worker profile"))
     monkeypatch.setattr(orchestrator, "run", lambda *args, **kinds: pytest.fail("a second run started"))
     monkeypatch.setattr(rehearsal, "rehearse", lambda *args, **kwargs: pytest.fail("a second rehearsal started"))
@@ -145,7 +145,7 @@ def test_apply_rehearse_uses_the_live_adapters_gmail_and_keychain_but_never_the_
     monkeypatch.setattr(sheet, "open_sheet", lambda sheet_id: pytest.fail("a rehearsal opened the Sheet otherwise"))
     # A rehearsal signs in and makes Employer accounts as a run does: Gmail's app password, and Keychain.
     looked_up = []
-    monkeypatch.setattr(MacKeychain, "password", lambda self, account: looked_up.append((self._service, account)) or "app")
+    monkeypatch.setattr(SystemKeychain, "password", lambda self, account: looked_up.append((self._service, account)) or "app")
     rehearsals, exits = [], []
     monkeypatch.setattr(rehearsal, "rehearse", lambda urls, adapters, profile, workers, on_done, submitted_to, together, **_:
                         rehearsals.append((urls, adapters, workers, submitted_to)))
@@ -172,7 +172,7 @@ def test_apply_rehearse_uses_the_live_adapters_gmail_and_keychain_but_never_the_
     assert isinstance(adapters.site, WorkerBrowsers)
     assert isinstance(adapters.claude, ClaudeCLI) and adapters.usage is adapters.claude
     assert isinstance(adapters.mailbox, GmailMailbox) and adapters.mailbox.unavailable() is None
-    assert isinstance(adapters.keychain, MacKeychain)
+    assert isinstance(adapters.keychain, SystemKeychain)
     assert looked_up == [(GMAIL, "test.person@example.com")]
 
 
@@ -180,7 +180,7 @@ def test_apply_rehearse_uses_the_live_adapters_gmail_and_keychain_but_never_the_
                                                (FIXTURES / "profile.yaml", False)])
 def test_a_rehearsal_on_the_sample_profile_says_sample_data_in_its_window(monkeypatch, windows, profile, says):
     monkeypatch.setattr(cli, "live_tracker", InMemoryTracker)
-    monkeypatch.setattr(MacKeychain, "password", lambda self, account: "app")
+    monkeypatch.setattr(SystemKeychain, "password", lambda self, account: "app")
     shown = []
     monkeypatch.setattr(rehearsal, "rehearse", lambda urls, adapters, *rest, **kwargs: shown.append(adapters.board.page()))
     monkeypatch.setattr(os, "_exit", lambda code: None)
@@ -252,7 +252,7 @@ def test_apply_answers_while_a_run_goes_opens_its_window_on_the_answers_tab(tmp_
 
 def test_a_runs_window_shows_its_answer_bank_and_profile_in_the_answers_tab(monkeypatch, tmp_path, windows):
     profile = a_profile_with_a_bank(tmp_path / "mine")
-    monkeypatch.setattr(MacKeychain, "password", lambda self, account: "app")
+    monkeypatch.setattr(SystemKeychain, "password", lambda self, account: "app")
     monkeypatch.setattr(cli, "live_tracker", InMemoryTracker)
     monkeypatch.setattr(rehearsal, "rehearse", lambda urls, adapters, profile, workers, on_done, submitted_to, together, **_: None)
     monkeypatch.setattr(os, "_exit", lambda code: None)
@@ -270,7 +270,7 @@ def test_a_runs_window_shows_its_answer_bank_and_profile_in_the_answers_tab(monk
 
 def test_a_live_run_fills_postings_on_the_sites_lisul_signed_the_worker_profiles_in_to(monkeypatch, tmp_path):
     WorkerBrowsers(tmp_path / "profiles").signed_in_to("lifeattiktok.com")  # by apply sign-in
-    monkeypatch.setattr(MacKeychain, "password", lambda self, account: "app")
+    monkeypatch.setattr(SystemKeychain, "password", lambda self, account: "app")
     rehearsals = []
     monkeypatch.setattr(cli, "live_tracker", InMemoryTracker)
     monkeypatch.setattr(rehearsal, "rehearse",
@@ -288,7 +288,7 @@ def test_a_live_run_fills_postings_on_the_sites_lisul_signed_the_worker_profiles
 def test_the_workers_run_headless_or_headed_as_policies_yaml_says(monkeypatch, tmp_path, command, worker_headless):
     # Measured before deciding: does a headed Chrome draw fewer Bot signals than a headless one?
     monkeypatch.setattr(sheet, "SHEET_ID", tmp_path / "no-sheet-id")  # no Sheet: nothing to copy
-    monkeypatch.setattr(MacKeychain, "password", lambda self, account: "app")
+    monkeypatch.setattr(SystemKeychain, "password", lambda self, account: "app")
     sites = []
     monkeypatch.setattr(orchestrator, "run", lambda adapters, *args, **kinds: sites.append(adapters.site))
     monkeypatch.setattr(rehearsal, "rehearse", lambda urls, adapters, *args, **kwargs: sites.append(adapters.site))

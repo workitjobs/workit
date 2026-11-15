@@ -1397,6 +1397,12 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   today; a business or legal decision is the team's (recorded on KAN-462),
   never a guess. A change to what WorkIt collects, shares or sends to a
   model updates `/privacy` in the same change, with `LEGAL_UPDATED`.
+  **The WorkIt Auto Apply sections are the exception** (KAN-848): they
+  describe the desktop app as it ships (section 3.4 of
+  `../docs/desktop_application_auto_apply.md`), not as Apply runs today,
+  and W10 there lists what the app must do before it ships for them to be
+  true. The `/terms` one sums up the app's license,
+  `../apply-agent/legal/EULA.txt`: change the two together.
 - **The Calendar is back** (KAN-413): events added on an application's
   page give it something to show, so `src/proxy.ts` no longer sends
   `/calendar` to Home and its sidebar row is restored. KAN-429 redid it

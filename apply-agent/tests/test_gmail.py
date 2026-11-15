@@ -299,7 +299,7 @@ def test_without_an_app_password_in_keychain_each_look_is_a_handoff_saying_how_t
 
     why = box.unavailable()
     assert "no Gmail app password in Keychain" in why
-    assert "security add-generic-password -s apply-gmail -a test.person@example.com -w" in why
+    assert "uv run keyring set apply-gmail test.person@example.com" in why
     with pytest.raises(Handoff, match="no Gmail app password in Keychain"):
         box.find_code(search="from:oraclecloud.com", since=NOW)
     with pytest.raises(Handoff, match="no Gmail app password in Keychain"):

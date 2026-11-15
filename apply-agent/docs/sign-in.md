@@ -113,6 +113,44 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
   phrase in quotes in the search stays escaped. Gmail can send a mail's
   INTERNALDATE before or after its body; `gmail._arrived` reads both.
 
+## Where the passwords live: `keyring` (KAN-838)
+
+Every secret Apply keeps (Employer account passwords under `apply-ats`, the
+Gmail app password, the ntfy topic, the Groq and Gemini keys) is one item
+in the system's keychain, through the `keyring` library: macOS Keychain on
+a Mac, Credential Manager on Windows. Each item's service is a
+`keychain.py` constant and its account is the site, address or host. This
+replaced the macOS `security` command (KAN-838, workstream W4 of
+`../../docs/desktop_application_auto_apply.md`), so the same code runs on
+Windows.
+
+- **Save an item by hand** from `apply-agent/` with `uv run keyring set
+  <service> <account>`. It asks for the value, so the value never lands in
+  shell history or argv. Each Handoff, doctor line and setup step that
+  gives a save command gives this one.
+- **Items saved before KAN-838 still work**: `keyring` reads the same
+  service and account. macOS can ask once to let Python read an item that
+  `security` saved; press Always Allow.
+- **A save is read back.** keyring's null backend drops a save and raises
+  no error, and a new account's password must be kept before its form is
+  sent. A save that did not keep the password raises.
+- **Every keyring error is a `RuntimeError`** (a locked keychain, access
+  denied, no keychain at all). Its message names the service and the site,
+  never the password. Callers catch `RuntimeError`, never keyring's own
+  errors.
+- **`keyring` can't list a keychain's items.** So the sites with an
+  Employer account password come from the Tracker's Employer accounts
+  list, which lists each account whose password Apply keeps
+  (`Accounts.created`, also after a reset). An item that Lisul saved by
+  hand, with no Tracker row, is still read when its site asks for a
+  password, but `apply preflight` does not count it.
+- **No test reaches the system's keychain.** `tests/conftest.py` puts
+  keyring's null backend in place. `tests/test_keychain_contract.py` runs
+  the contract on the in-memory keychain and on `SystemKeychain` over a
+  fake backend; with `APPLY_TEST_KEYCHAIN=1` it also runs on the real one,
+  under the service `apply-ats-test`, and removes each item. keyring's
+  macOS backend ignores a keychain file, so that is the login keychain.
+
 ## Employer account passwords in Chrome (KAN-592)
 
 Lisul's Employer account passwords reach Chrome's password manager only
@@ -143,30 +181,60 @@ through the WorkIt extension in his own Chrome. Never through a Worker.
 - A rehearsal lists each account it makes in the kept Tracker (the one that
   keeps what Lisul submits), not its throwaway one. `apply
   chrome-passwords` lists the Keychain items that the Tracker lacks
-  (`native_host.adopt`, from `Keychain.sites`, which reads no password).
+  (`native_host.adopt`): the accounts that rehearsals made before KAN-592.
+  `keyring` can't list items, so `cli._mac_keychain_sites` reads them from
+  `security dump-keychain` without `-d`: attributes only, never a password,
+  and never the chosen password's item. It is Apply's last `security` call, it runs on macOS only, and it goes
+  with this backfill.
 - `apply doctor` warns when the host is missing or its wrapper is gone,
   never a fail.
 
-## The Accounts tab: Copy password and Open sign-in page (KAN-591)
+## The Accounts tab: your password, Show, Copy and Open sign-in page (KAN-591, KAN-838)
 
 `src/apply/accounts_tab.py`. The tab lists each Employer account in the
 Tracker (`employer_accounts()`), newest first: company, site, login and the
 date Apply made it. Lisul uses it to sign in himself later, for example to
 check an application's status. It is step 1 of the plan for Apply's
-passwords in Lisul's own Chrome (KAN-236).
+passwords in Lisul's own Chrome (KAN-236). Above the list, he chooses the
+password for new accounts.
 
-- **A password stays in Keychain.** It is never in the page, the window's
-  HTML, a JSON reply, a printed line, a Trace or a Record. Only the window's
-  server reads it (`AccountsTab.copy`), and only to put it on the clipboard.
-  Do not add a route, a field or a log line that carries it.
-- A password never goes in argv, which `ps` shows. `MacKeychain.save` sends
-  its command to `security -i` on stdin, then reads the item back, as
-  `security -i` exits 0 when a command fails. `password()` gets it on
-  stdout. Neither prints it or puts it in an error.
-- `GET /accounts`, `POST /accounts/copy {site}` and `POST /accounts/open
-  {site}` check the window's token and Origin (`_Handler._from_window`), as
-  the window's other routes do. Each route reads only a site in the Employer
-  accounts list, so the page cannot name any other Keychain item.
+- **Your password for new accounts** (KAN-838). Lisul types one password
+  and presses Save (`POST /accounts/password {password}`,
+  `AccountsTab.choose`). It is saved under `apply-ats` as the item
+  `keychain.CHOSEN` ("all job sites"), a name that no site has.
+  - It must keep `accounts.RULE`: 12 to 16 characters, with an upper-case
+    letter, a lower-case letter, a digit and one of `! @ # $ % *`, and
+    nothing else. The rule is meant to suit almost every job site: some
+    sites take no more than 16 characters or refuse other symbols. A
+    password that breaks it is refused (400) and not saved.
+  - `Accounts.new_password(site)` uses it for each new account, and saves a
+    copy for that site before the sign-up form is sent. With none chosen,
+    Apply makes a random password of 16 characters that keeps the same
+    rule. Apply never chooses one for him.
+  - He can change it at any time, with the same field. Only accounts made
+    after that use the new one: each site keeps its own copy, which is what
+    Apply signs in with.
+  - A site that refuses the new account is a Handoff, which waits in Needs
+    you (`Accounts.refused`). Its saved password is forgotten, since no
+    account has it. Lisul makes the account on the page himself with a
+    password that the site takes.
+  - The reply and the line printed never hold the password.
+- **Show password** (`POST /accounts/show {site}`, `AccountsTab.show`)
+  sends that account's password to the window, which shows it in the card
+  until he presses Hide password. Until he presses it, no password is in
+  the page or its HTML. A password is never in a printed line, a Trace or
+  a Record. The rule that kept every password out of the page (KAN-591)
+  is gone: the page is the window's own, behind its token, and the
+  desktop app's window opens no port (D11).
+- A password never goes in argv, which `ps` shows. `SystemKeychain`
+  (`keychain.py`) calls the system's keychain through `keyring`, in Apply's
+  own process: no command runs. Neither read nor save prints the password
+  or puts it in an error.
+- `GET /accounts` and every `POST /accounts/...` route check the window's
+  token and Origin (`_Handler._from_window`), as the window's other routes
+  do. Show, Copy and Open read only a site in the Employer accounts list, so
+  the page cannot name any other Keychain item, the chosen password
+  included.
 - Copy password: `MacClipboard` writes NSPasteboard through `osascript -l
   JavaScript` (JXA, no new dependency). The password goes on stdin, never
   in argv, which `ps` shows. It is written as `NSPasteboardTypeString` with
@@ -183,15 +251,16 @@ passwords in Lisul's own Chrome (KAN-236).
   in Lisul's everyday Chrome with `open -a "Google Chrome"`
   (`captcha.to_everyday_chrome`), never over DevTools. Workday's job page has
   Sign In in its header. With no Posting, the site's home page.
-- With no Keychain password (an account made with Google), Copy password
-  says so (404) and the clipboard does not change.
+- With no Keychain password (an account made with Google), Show password
+  and Copy password say so (404), and the clipboard does not change.
 
 **Tests.** `tests/test_accounts_tab.py` (in CI, no browser) uses
 `InMemoryKeychain`, a fake clipboard and a fake runner for `MacClipboard`.
 Never read a real Keychain password in a test, and never write the real
-clipboard: to try the JXA, pass `MacClipboard("<a pasteboard name>")`. `tests/test_dashboard.py -k
-accounts_tab` clicks the tab in Chromium and checks that the page's HTML
-has no password.
+clipboard: to try the JXA, pass `MacClipboard("<a pasteboard name>")`.
+`tests/test_accounts.py` checks the rule and the chosen password.
+`tests/test_dashboard.py -k accounts_tab` clicks the tab in Chromium: no
+password in the page before Show, then Show, Hide, Copy, Open and Save.
 
 ## `apply preflight`: the sign-ins and the plan for a batch (KAN-668)
 
@@ -200,8 +269,10 @@ need before any form opens. **It opens no page and reads no job site.** The job 
 link and the engine's `jobOf` (Node, with no fetch); `test_preflight.py` fails on any socket.
 
 - A site is what one sign-in covers: a Workday tenant, a wall's domain (`walls.site`), or the host.
-- Each site says Sign-in (`preflight.NEEDS`: yes, maybe, no, can't tell), Keychain (`Keychain.sites`:
-  attributes only, never a password) and Profile (`WorkerBrowsers.signed_in`, with Worker profiles on disk).
+- Each site says Sign-in (`preflight.NEEDS`: yes, maybe, no, can't tell), Keychain (the Tracker lists an
+  Employer account there, so Apply keeps its password; `keyring` can't list items, and no password is
+  read) and Profile (`WorkerBrowsers.signed_in`, with Worker profiles on disk). The Gmail line reads the
+  Gmail app password, as `apply doctor` does, and never prints it.
 - "Sign-ins to do first" lists only what Lisul must do. A site with a Keychain password, or an account
   Apply can make with Gmail, goes under "Apply does these itself".
 - The plan puts sites that may need Lisul first, while he is there. Its pacing is turns, one site to a

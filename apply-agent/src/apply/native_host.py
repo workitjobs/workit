@@ -27,7 +27,7 @@ import json
 import shlex
 import struct
 import sys
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from datetime import date, datetime
 from pathlib import Path
 from typing import BinaryIO
@@ -124,15 +124,15 @@ def install(hosts: Path = CHROME_HOSTS, python: str = sys.executable, home: Path
     return manifest
 
 
-def adopt(keychain, tracker, login: str, today: date) -> list[str]:
-    """List in the Tracker each site Keychain has an Employer account password
-    for and the Tracker lacks (a Rehearsal before KAN-592 listed none). Its
-    company is a Tracker row's on that host, else the host's first word.
-    Reads only the sites, never a password. Returns those added."""
+def adopt(sites: Iterable[str], tracker, login: str, today: date) -> list[str]:
+    """List in the Tracker each of `sites` (the sites Keychain has an Employer
+    account password for) that the Tracker lacks (a Rehearsal before KAN-592
+    listed none). Its company is a Tracker row's on that host, else the host's
+    first word. Reads no password. Returns those added."""
     listed = {a.site for a in tracker.employer_accounts()}
     companies = {urlsplit(row.posting_url).hostname: row.company for row in tracker.rows()}
     added = []
-    for site in keychain.sites():
+    for site in sites:
         if site in listed:
             continue
         company = companies.get(site.split("/")[0]) or site.split(".")[0].capitalize()
@@ -142,10 +142,10 @@ def adopt(keychain, tracker, login: str, today: date) -> list[str]:
 
 
 def main() -> None:
-    from apply.keychain import MacKeychain
+    from apply.keychain import SystemKeychain
     from apply.tracker import FileTracker
 
-    serve(sys.argv[1:], sys.stdin.buffer, sys.stdout.buffer, FileTracker(), MacKeychain())
+    serve(sys.argv[1:], sys.stdin.buffer, sys.stdout.buffer, FileTracker(), SystemKeychain())
 
 
 if __name__ == "__main__":

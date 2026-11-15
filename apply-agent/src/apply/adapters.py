@@ -170,7 +170,7 @@ class Mailbox(Protocol):
 
 
 class Keychain(Protocol):
-    """Lisul's macOS Keychain: one Employer account password per site."""
+    """Lisul's keychain (macOS Keychain, Windows Credential Manager): one Employer account password per site."""
 
     def password(self, site: str) -> str | None: ...
 
