@@ -37,6 +37,7 @@ import email.utils
 import fcntl
 import json
 import os
+import re
 import subprocess
 import tempfile
 import time
@@ -51,7 +52,7 @@ from email.message import Message
 from enum import StrEnum
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 
 from apply.home import HOME
 
@@ -592,3 +593,18 @@ def _detail(answer: Any) -> str:
 def _account(answer: dict) -> Account:
     return Account(id=str(answer["id"]), email=answer["email"], full_name=answer.get("full_name", ""),
                    account_type=answer.get("account_type", ""))
+
+
+def job_key(url: str) -> str:
+    """One job's key, as WorkIt matches links (KAN-542): the Greenhouse job ID, else the link without its
+    scheme, www., query, fragment and trailing slash, lower case."""
+    parts = urlsplit(url)
+    query = parse_qs(parts.query)
+    if (parts.hostname or "").lower().endswith("greenhouse.io"):
+        if m := re.match(r"/[\w-]+/jobs/(\d+)(?:/|$)", parts.path):
+            return f"greenhouse:{m[1]}"
+        if parts.path.startswith("/embed/job_app") and query.get("token", [""])[0].isdigit():
+            return f"greenhouse:{query['token'][0]}"
+    if query.get("gh_jid", [""])[0].isdigit():
+        return f"greenhouse:{query['gh_jid'][0]}"
+    return re.sub(r"^[a-z][a-z0-9+.-]*://(www\.)?", "", url, flags=re.IGNORECASE).split("#")[0].split("?")[0].rstrip("/").lower()
