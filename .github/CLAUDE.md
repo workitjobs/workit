@@ -113,8 +113,9 @@ gitlink `git ls-tree HEAD` actually records, then `git -C
 autofiller_extension/fill-engine fetch --depth 1 origin <that SHA> &&
 checkout --detach <that SHA>`. This is the "Pin fill-engine to the commit
 this branch actually records" step in `ci.yml` (`extension-store-build`,
-`extension`, `apply`), `extension-nightly.yml`, `apply-nightly.yml`,
-`live-canary.yml` and `publish-extension.yml` — seven places, one pattern. If `actions/checkout`
+`extension`), the `apply-setup` action (`ci.yml`'s `apply` and
+`apply-hostile`, and `apply-nightly.yml`), `extension-nightly.yml`,
+`live-canary.yml` and `publish-extension.yml` — six places, one pattern. If `actions/checkout`
 ever fixes this upstream, these steps are redundant but harmless; don't
 remove them without confirming a real run's build log prints the version
 `git ls-tree HEAD` actually names, not just that the step exists.
@@ -139,7 +140,8 @@ pin step itself in every job that sets a non-root default (five of the six:
 all but `publish-extension.yml`, which sets no job-wide default and was
 never affected). A step's own `working-directory:` is always resolved from
 `$GITHUB_WORKSPACE`, never nested inside the job's default, so this is safe
-to copy into a sixth place if one is ever added.
+to copy into a sixth place if one is ever added. The `apply-setup` action's
+copy sets it too.
 
 The fill-engine repo has its own CI (its `.github/workflows/ci.yml`):
 typecheck, the same stale-`dist/` check, and its tests, on every PR.
@@ -153,13 +155,17 @@ with `uv sync --locked` and ruff, timed in a Linux container
 the engine's saved forms, so the job needs the fill-engine submodule: it
 needs `FILL_ENGINE_TOKEN` and is skipped without it. It runs only on a PR
 that touches `apply-agent/`, the engine pointer, `ci.yml` or
-`engine-token.yml` (the `changes` job). It then installs Chrome for Testing
-(cached by `uv.lock`) and runs `test_submit_guard_hostile.py`,
-`test_plain_focus.py`, `test_plain_guards.py`,
+`engine-token.yml` (the `changes` job). Its setup, the `apply-setup` action
+(`.github/actions/apply-setup/`, shared with `apply-hostile` and
+`apply-nightly.yml`), installs Chrome for Testing (cached by `uv.lock`); then
+it runs `test_plain_focus.py`, `test_plain_guards.py`,
 `test_plain_routing.py` and `test_upload_origin.py`, the last three on a real plain Worker (KAN-667;
 `test_upload_origin.py`'s hostile upload pages also run on CDP, KAN-795). macOS, because a
 plain Worker starts through `open` and the browser's `.app`; a step fails the
 job if the browser is missing, since these tests skip without it.
+**`test_submit_guard_hostile.py` runs in its own job, `apply-hostile`**, on a
+second runner beside `apply` (KAN-780, 2026-11-14), so a PR waits for the
+longer of the two, not their sum (the one job took 9 to 15 minutes).
 **Its limit is 25 minutes** (KAN-780, 2026-11-10; raised from 15 on
 2026-11-11, to 35 on 2026-11-13, and back to 25 on 2026-11-14): the job took 16 to 20 minutes once the hostile pages'
 plain-Worker cases ran there (it was raised to 35 for that), about 6 after
@@ -167,7 +173,13 @@ KAN-780 (below), about 13 once the guard holes' pages ran on every CDP
 path (KAN-710, KAN-783), and 22 once KAN-793's and KAN-795's pages
 took the hostile step to 710 cases (2026-11-14), and about 15 once each page
 ran once on PRs, for as long as it can send (303 cases, 486 s). Each step has its own
-limit too, so a hang fails in that step.
+limit too, so a hang fails in that step. But the steps' limits came to 38
+minutes under the job's 25, so the job's limit could stop a run whose every
+step was inside its own. **Since the split, every step of both jobs has a
+limit, setup included, and each job's limit is the sum of its steps'**
+(`apply` 29, `apply-hostile` 27): a hang fails in its own step, and the job's
+limit never fires first. A step added to either job adds its limit to the
+job's.
 **CI does not run the other 28 test files**, which hold the Filler tests
 (`test_*_filler.py`, `test_claude_fill.py`, `test_run.py`,
 `test_rehearse.py` and more). Most of them need Chromium or the macOS
@@ -176,8 +188,8 @@ minutes. Run the files that a change touches on a Mac, with `-k`
 (`apply-agent/CLAUDE.md`, Testing).
 
 Each test step has its own `timeout-minutes` and skips tests marked
-`nightly` (KAN-780). The fast tests and the hostile pages run in parallel
-(`pytest -n auto`, pytest-xdist), but plain-Worker cases always run one at
+`nightly` (KAN-780). The fast tests run in parallel (`pytest -n auto`,
+pytest-xdist) and the hostile pages in 8 processes (`-n 8`, below), but plain-Worker cases always run one at
 a time in one process (the hostile pages' `xdist_group`, `--dist
 loadgroup`, and the plain-Worker step without `-n`): in parallel, plain
 Workers' trusted typing missed its field. The tile's tests, which time
@@ -214,9 +226,16 @@ starts 3 processes): from 2026-11-11 every apply job stopped at 60 to 70% of the
 when the 12 minutes ran out, and PRs merged with it red. So its limit went
 to 25 minutes, and back to 12 once each page ran once (303 cases, 486 s,
 2026-11-14). The cases mostly wait (the 10-core run used about one core), so
-more processes than the runner's 3 would be faster, but a busier runner can
-delay a hostile page's send past a case's wait and pass a case that should
-fail: the guards' owners decide that, or which pairs run only nightly.
+the step runs 8 processes on the runner's 3 cores (KAN-780, 2026-11-14). A
+busier runner can delay a hostile page's send past a case's wait and pass a
+case that should fail, so the CDP cases keep the page's time on Playwright's
+clock, where a timed send fires by that clock whatever the runner's speed, and
+three controls on every PR fail if the real time left after the clock is too
+short (`apply-agent/CLAUDE.md`, "The submit guard's hostile pages"). The other
+controls run nightly, and every control on a PR that changes what the control
+reads (the `hostile_pages` filter: the hostile pages' file, the fake site,
+`uv.lock`'s Playwright, the setup), in a step of its own that runs even after a
+red hostile step.
 The Plain-Worker step's limit is 6 minutes (101 tests took 233 s,
 2026-11-14). While the hostile step ran out of time, no step after it ran
 on CI, so what broke there stayed hidden: a fixed 300 ms wait for an
