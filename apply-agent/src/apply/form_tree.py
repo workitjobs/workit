@@ -83,13 +83,16 @@ FILES = r"""() => [...document.querySelectorAll('input[type=file]')].map((el) =>
 
 
 # Whether a click on the element would submit a form: it is, sits in or holds a form's submit button (a <button> of
-# no type or type=submit, an <input type=submit|image>). A dropdown or option made of one submits its form as it
-# opens or is picked, and a GET form's own submit handler can post the application past the guards (the review of
-# KAN-861). Plain code never clicks one: its field is the student's.
+# no type or type=submit, an <input type=submit|image>), or a label for one (a click on a label clicks its control).
+# A dropdown or option made of one submits its form as it opens or is picked, and a GET form's own submit handler can
+# post the application past the guards (the review of KAN-861). Plain code never clicks one: its field is the
+# student's.
 SUBMITS = r"""el => {
   const submits = (b) => !!b && !!b.form && (b.tagName === 'BUTTON'
     ? (b.getAttribute('type') || 'submit').toLowerCase() === 'submit' : /^(submit|image)$/i.test(b.type || ''));
-  return submits(el.closest('button, input')) || [...el.querySelectorAll('button, input')].some(submits);
+  const labelled = (l) => !!l && submits(l.control);
+  return submits(el.closest('button, input')) || labelled(el.closest('label'))
+    || [...el.querySelectorAll('button, input')].some(submits) || [...el.querySelectorAll('label')].some(labelled);
 }"""
 
 

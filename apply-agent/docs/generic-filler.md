@@ -131,7 +131,8 @@ a live run opens with the guard lifted (`on_open`), and a pop-up's Close that wa
 adversarial review, 2026-11-15).
 
 **Plain code never clicks a control that would submit a form** (`form_tree.SUBMITS`): one that is, sits in or holds a
-form's submit button (a `<button>` of no type or `type=submit`, an `<input type=submit|image>`). A dropdown or radio
+form's submit button (a `<button>` of no type or `type=submit`, an `<input type=submit|image>`), or a label for one
+(a click on a label clicks its control). A dropdown or radio
 made of one submits its form as it opens or is ticked, and the review found that a GET form's own submit handler
 posts the application past both guards: the guard's submit block covers a POST form, or a press it reads as a send.
 The reader leaves such a dropdown closed, and the fill makes its field the student's (a `FillError`). The guard's
@@ -139,8 +140,17 @@ gap is older than the generic Filler: plain code's Next and Ask Claude's press s
 are tested on the generic Filler alone (`GENERIC_REFUSES`), outside the shared `PAGES`.
 
 **Nor does it press a Next that would submit the form its Submit is in** (`FORM_BUTTONS`): one of type submit whose
-form holds another button whose words send. On a GET form that Next sent the application through the same gap. The
-step is a Handoff. `tests/test_submit_guard_hostile.py` runs two paths on every hostile page:
+form holds another button whose words send, read as a person reads them (its text, value, `aria-label`, title,
+`aria-labelledby`, an image's alt or an icon's title). On a GET form that Next sent the application through the same
+gap. The step is a Handoff.
+
+**Still open: the guard's GET-form gap.** A check the Filler makes before it clicks can be raced: the review's
+second round made a dropdown a submit button on its own `pointerdown`, and added a Next's Submit as it was pressed,
+and both sent. Only the guard can stop those: it would block a GET form's submit while code drives a form that holds
+a button that sends, as it blocks a POST form's. That is a change to `submit_guard.py`'s page script, so it needs its
+own adversarial review and a Worker extension store release (`CLAUDE.md`, "A change to what the Worker extension's
+store package holds"). The two pages wait for it in `GUARD_GAP`, strict expected failures that turn red once it lands.
+Under KAN-666 this PR doesn't merge before that gap is closed or the team accepts it. `tests/test_submit_guard_hostile.py` runs two paths on every hostile page:
 "the generic Filler" (the whole fill, every question answered, its model the worst one: it picks the first option
 and the first button every time) and "the generic Filler's Apply press". Its two pages: an option that holds the
 form's own submit button, and a posting's Apply that is a one-click application's submit.

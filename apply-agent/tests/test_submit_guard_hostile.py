@@ -2185,21 +2185,30 @@ _GET_FORM = """<form id=f><label>First name <input name=first value=Test></label
   <button type=submit>Submit application</button></form>
 <script>f.addEventListener('submit', (e) => { e.preventDefault();
   fetch('""" + COMMIT + """', {method: 'POST', body: new URLSearchParams(new FormData(f))}); });</script>"""
+# Each page: the role and name of the control the control test clicks, and the page.
 GENERIC_REFUSES = {
     # Fault: the reader or the fill clicks a dropdown made of a <button> of no type, which submits its form.
-    "a dropdown that is its GET form's submit button": ("Country", _GET_FORM % """<span id=c>Country</span>
+    "a dropdown that is its GET form's submit button": ("combobox", "Country", _GET_FORM % """<span id=c>Country</span>
         <button role=combobox aria-labelledby=c aria-haspopup=listbox>Select...</button>"""),
     # Fault: the fill ticks a radio made of a <button>, which submits its form.
-    "radios that are their GET form's submit buttons": ("Yes", _GET_FORM % """<div role=radiogroup aria-label="Authorized?">
+    "radios that are their GET form's submit buttons": ("radio", "Yes", _GET_FORM % """<div role=radiogroup aria-label="Authorized?">
         <button role=radio aria-checked=false>Yes</button><button role=radio aria-checked=false>No</button></div>"""),
+    # Fault: the fill clicks an option that is a label for a hidden submit button: the label clicks it.
+    "an option that is a label for its GET form's hidden submit button": ("option", "Yes", _GET_FORM % """<div role=listbox
+        aria-label="Authorized?"><label role=option for=y>Yes</label><div role=option>No</div></div>
+        <button id=y style="position: absolute; left: -9999px" tabindex=-1>go</button>"""),
     # Fault: the generic Filler's Next presses a button that submits the form its Submit is in.
-    "a Next that submits its GET form beside its Submit": ("Next", _GET_FORM % "<button>Next</button>"),
+    "a Next that submits its GET form beside its Submit": ("button", "Next", _GET_FORM % "<button>Next</button>"),
+    # Fault: the Submit beside the Next named only by aria-labelledby, an icon's, read as no button that sends.
+    "a Next beside a Submit named by aria-labelledby": ("button", "Next", _GET_FORM.replace(
+        "<button type=submit>Submit application</button>", "") % """<button>Next</button><span id=sl hidden>Submit
+        application</span><button type=submit aria-labelledby=sl><svg width=16 height=16></svg></button>"""),
 }
 
 
 @pytest.mark.parametrize("page_name", list(GENERIC_REFUSES))
 def test_the_generic_filler_never_clicks_what_would_submit_its_form(page_name):
-    with cdp({START: f"<title>Apply</title>{GENERIC_REFUSES[page_name][1]}"}) as (page, drive, site):
+    with cdp({START: f"<title>Apply</title>{GENERIC_REFUSES[page_name][2]}"}) as (page, drive, site):
         try:
             generic_fill(page, drive, "")
         except Handoff:
@@ -2211,12 +2220,38 @@ def test_the_generic_filler_never_clicks_what_would_submit_its_form(page_name):
 @pytest.mark.parametrize("page_name", list(GENERIC_REFUSES))
 def test_without_the_guard_each_get_form_page_sends(page_name):
     """The control: a click on the control the generic Filler refuses sends the application."""
-    name, html = GENERIC_REFUSES[page_name]
+    role, name, html = GENERIC_REFUSES[page_name]
     with cdp({START: f"<title>Apply</title>{html}"}, guarded=False) as (page, _, site):
-        page.get_by_role("radio" if page_name.startswith("radios") else "combobox" if "dropdown" in page_name
-                         else "button", name=name).first.click(timeout=5_000)
+        page.get_by_role(role, name=name).first.click(timeout=5_000)
         _settle(page, 1500)
     assert COMMIT in site.applications()
+
+
+# The guard's GET-form gap, which no check of the Filler's own can close: the page changes the control as the press
+# lands, after the check read it (the adversarial review's second round of KAN-861). Until the guard blocks a GET
+# form's submit while code drives a form that holds a button that sends, these send: strict, so each turns red once
+# that guard fix lands, and joins GENERIC_REFUSES then.
+GUARD_GAP = {
+    "a dropdown that turns into its GET form's submit button as it is pressed": _GET_FORM % """<span id=c>Country</span>
+        <button id=d type=button role=combobox aria-labelledby=c aria-haspopup=listbox>Select...</button>
+        <script>d.addEventListener('pointerdown', (e) => e.currentTarget.type = 'submit', true);</script>""",
+    "a Next whose GET form gets its Submit as it is pressed": _GET_FORM.replace(
+        "<button type=submit>Submit application</button>", "") % """<button id=nx>Next</button><script>
+        nx.addEventListener('pointerdown', () => f.insertAdjacentHTML('beforeend',
+          '<button type=submit>Submit application</button>'), true);</script>""",
+}
+
+
+@pytest.mark.xfail(strict=True, reason="the guard's GET-form gap: submit_guard's submit block judges a POST form only")
+@pytest.mark.parametrize("page_name", list(GUARD_GAP))
+def test_the_guard_stops_a_get_form_the_page_turns_into_a_send_as_it_is_pressed(page_name):
+    with cdp({START: f"<title>Apply</title>{GUARD_GAP[page_name]}"}) as (page, drive, site):
+        try:
+            generic_fill(page, drive, "")
+        except Handoff:
+            pass
+        _settle(page, 1500)
+    assert site.applications() == []
 
 
 # A pop-up over a POST form whose Close is the form's own submit button: clear_pop_up presses Close as the Question

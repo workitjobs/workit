@@ -112,7 +112,11 @@ FORM_BUTTONS = r"""el => {
   if (!submits) return [];
   return [...b.form.elements].filter((x) => x !== b && /^(BUTTON|INPUT)$/.test(x.tagName) && (x.tagName === 'BUTTON'
       || /^(submit|image|button)$/i.test(x.type || '')))
-    .map((x) => [x.innerText, x.value, x.getAttribute('aria-label'), x.getAttribute('title')].filter(Boolean).join(' '));
+    .map((x) => [x.innerText, x.value, x.getAttribute('aria-label'), x.getAttribute('title'),
+      // a name it takes from elsewhere, or from a picture: aria-labelledby, an image's alt, an icon's <title>
+      ...(x.getAttribute('aria-labelledby') || '').split(/\s+/).filter(Boolean).map((id) => document.getElementById(id)?.textContent),
+      ...[...x.querySelectorAll('img[alt], svg title')].map((i) => i.getAttribute('alt') || i.textContent)]
+      .filter(Boolean).join(' '));
 }"""
 CHOSEN = "el => el.multiple ? [...el.selectedOptions].map((o) => o.text.trim()) : (el.selectedIndex >= 0 ? el.options[el.selectedIndex].text.trim() : '')"
 FILE_NAMES = "el => [...(el.files || [])].map((f) => f.name)"
