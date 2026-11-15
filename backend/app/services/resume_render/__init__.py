@@ -105,6 +105,8 @@ _MARK_LINES = (
     ),
 )
 MARKS = "\n".join(_MARK_LINES)
+# Space a box stopped short of its neighbour keeps from it, in PDF points
+_BESIDE_GAP = 4.0
 # Letter only (the spec), in PDF points; a box's y counts down from the top
 PAGE_HEIGHT = 792.0
 # A box reaches this far above and below a line's baseline: about the
@@ -749,7 +751,20 @@ def _boxes(positions: str) -> tuple[Box, ...]:
             boxes.append(box(name, page, sx, x, sy, y))
         else:
             boxes.append(box(name, page, sx, edge, sy, y))
-    return tuple(boxes)
+    return tuple(_short_of_beside(boxes))
+
+
+def _short_of_beside(boxes: list[Box]) -> list[Box]:
+    """Each box that runs past the start of another of its item's on its
+    first line, stopped short of it: a heading title wrapped beside its
+    dates (KAN-807) ran to the text's right edge, as a wrapped bullet does,
+    and covered them."""
+    out = []
+    for b in boxes:
+        beside = [o.x0 for o in boxes if o is not b and o.item_id == b.item_id and o.page == b.page
+                  and abs(o.y0 - b.y0) < 1 and b.x0 < o.x0 < b.x1]
+        out.append(replace(b, x1=round(min(beside) - _BESIDE_GAP, 2)) if beside else b)
+    return out
 
 
 #: On Windows a program cannot open a network connection without

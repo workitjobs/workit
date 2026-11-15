@@ -73,6 +73,25 @@ has neither.
     `code` and `files`, then build and upload the package after merge, and
     release an app that needs it only once the store publishes it
     (`docs/plain-workers/worker-extension-todo.md`, Releases).
+- **Code that differs by OS** (W4 of `../docs/desktop_application_auto_apply.md`,
+  KAN-850): Apply runs on the Mac today, and WorkIt Auto Apply ports to Windows
+  and Linux later (F4). A general library comes first: Python's standard
+  library, `psutil` (a process's arguments), `platformdirs` (each OS's data and
+  cache folders), `pyperclip` (the seed guide's clipboard), the window's own
+  `navigator.clipboard`, or Chrome itself (`/json/activate`, the worker
+  extension's `windows.focus`). Per-OS code lives in one place for each job,
+  with an entry for macOS, Windows and Linux picked by a `system` argument
+  (`sys.platform`): Chrome's places and version (`chrome_finder.py`, the one
+  Chrome finder), the native host's folder (`native_host.chrome_hosts`), a
+  Worker's background start (`plain/launcher.start_in_background`), a link in
+  the student's everyday Chrome (`captcha.to_everyday_chrome`: `open -a` on the
+  Mac, so Chrome never runs as Apply's child) and showing a folder
+  (`plain/seed_setup.Desk.reveal`). FocusKeeper (`focus.py`) is the
+  Mac's only: elsewhere `focus.KEEPER` is a `NoKeeper`. A new Chrome path or OS
+  call goes into one of these places, with a case for each OS in
+  `tests/test_each_os.py` (in CI); never a `/Applications/` path, `open`,
+  `osascript` or `ps` anywhere else. What W4 left for F4 is in its "Found on
+  the way" list.
 - **The Student build leaves the developer parts out** (KAN-723, W3,
   `src/apply/build.py`). WorkIt Auto Apply is compiled from `apply.student`
   without the modules in `build.DEVELOPER` (`claude -p`, Claude fill, Rescue,
@@ -128,7 +147,7 @@ this folder's `CLAUDE.md` for its area.
 - `docs/restart-recovery.md`: what survives a restart of the Mac: Workers' sign-ins across a quit, the open-forms list (`batch.py`), `apply reopen`, and `apply preflight --open`.
 - `docs/plain-workers/guide.md`: `apply/plain/`, `worker_mode`, `--into`, or the worker extension; `docs/plain-workers/worker-extension-todo.md` for its store package and what is left.
 - `docs/plain-workers/PROTOCOL.md`: a message between Apply and the worker extension.
-- `docs/research/`: the research behind plain Workers, Employer account sign-in and the held form's session keep-alive (`session-timeouts.md`). Each note's Status line says what was built.
+- `docs/research/`: the research behind plain Workers, Employer account sign-in, the held form's session keep-alive (`session-timeouts.md`), and keeping Workers out of the student's view (`workers-out-of-view.md`: hidden Workers, a virtual screen, F10). Each note's Status line says what was built.
 
 ## The data folder (`APPLY_HOME`)
 
@@ -147,6 +166,9 @@ person's data is in one folder, `APPLY_HOME` (default `~/.config/apply/`):
 Apply also writes its output there: rehearsal records, Repairs, Traces and
 the Chrome worker profiles (`APPLY_PROFILES`, under `APPLY_HOME` by
 default). `src/apply/home.py` derives every data path from `APPLY_HOME`.
+WorkIt Auto Apply's own data folder is `home.APP_FOLDER`, each OS's
+standard place from `platformdirs` (D25); W5 makes it the Student build's
+`APPLY_HOME`.
 
 The repo holds only generic inputs: `policies.default.yaml` (with
 `live_runs` off) and the profile template. The Question types come from

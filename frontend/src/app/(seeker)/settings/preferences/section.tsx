@@ -1,5 +1,6 @@
 import { getRoleOptions } from "@/app/onboarding/applicant/role-options";
 import { Card } from "@/components/ui/card";
+import { LoadFailed } from "@/components/ui/load-failed";
 import { SectionHeading } from "@/components/ui/section-heading";
 
 import { getSavedFilters } from "../../jobs/listings";
@@ -9,8 +10,8 @@ import { PreferencesForm } from "./preferences-form";
  * The job preferences onboarding saved, edited here with onboarding's own
  * fields (KAN-326, ./preferences-form). No other screen edits them: the
  * Jobs page reads them for a bare /jobs, then keeps its filters in the URL.
- * A failed read shows a notice, never an empty form whose Save would
- * replace what is saved.
+ * A failed read shows `LoadFailed` with Try Again (KAN-819), never an empty
+ * form whose Save would replace what is saved.
  */
 export async function PreferencesSection() {
   const [saved, options] = await Promise.all([getSavedFilters(), getRoleOptions()]);
@@ -26,9 +27,9 @@ export async function PreferencesSection() {
       {saved ? (
         <PreferencesForm initial={saved} {...options} />
       ) : (
-        <p role="status" className="text-body text-ink-meta">
-          Your job preferences didn&apos;t load. Refresh the page to try again.
-        </p>
+        <LoadFailed compact title="Your Job Preferences Aren't Loading Right Now">
+          We couldn&apos;t reach your saved preferences. Try again in a few minutes.
+        </LoadFailed>
       )}
     </Card>
   );

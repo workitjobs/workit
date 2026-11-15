@@ -11,6 +11,8 @@ line's plain text goes in it under the marker's name ("<id>.<kind>"), so a
 box carries the words it covers (`Box.text`).
 '''
 
+from collections.abc import Sequence
+
 from app.services.resume_render import (
     DEFAULT_PAGE,
     HEADER,
@@ -106,6 +108,49 @@ def _header(identity: HeaderIdentity, marks: bool, printed: Printed, page: PageS
     return lines
 
 
+# A heading's left side wraps only when it is wider than its row leaves
+# (KAN-807). Jake's \resumeSubheading and \resumeProjectHeading set it in an
+# `l` column, which never breaks, so a long title or organization ran under
+# the dates and off the page. \wifit{right}{right two}{left}{left two} sets
+# \wiw to the room the wider right side leaves and \ifwiwrap to whether a
+# left side is wider than that. A heading that fits keeps Jake's own table,
+# so no page that fits moves (a wrapping column for every heading set
+# headings with nothing between them up to 13 pt closer); one that does not
+# puts each left side in a \parbox of \wiw, which wraps under itself.
+_FIT_LINES = (
+    # Dimens, never \newlength's glue: a glue assignment looks ahead for
+    # "plus", which ran the next \ifdim before the value was set
+    r"\newdimen\wiw\newdimen\wiwr\newsavebox\wiboxa\newsavebox\wiboxb\newif\ifwiwrap",
+    (
+        r"\newcommand\wifit[4]{\settowidth\wiw{#1}\settowidth\wiwr{#2}\ifdim\wiw<\wiwr\wiw=\wiwr\fi"
+        r"\wiw=\dimexpr0.97\textwidth-\wiw-4\tabcolsep\relax"
+        r"\sbox\wiboxa{#3}\sbox\wiboxb{#4}\wiwrapfalse\ifdim\wd\wiboxa>\wiw\wiwraptrue\fi"
+        r"\ifdim\wd\wiboxb>\wiw\wiwraptrue\fi"
+        # A wrapped left side keeps 1em from the right one (Jake's
+        # \tabcolsep is 0), and at least 0.4 of the line
+        r"\advance\wiw-1em\relax\ifdim\wiw<0.4\textwidth\wiw=0.4\textwidth\fi}"
+    ),
+)
+FIT = "\n".join(_FIT_LINES)
+
+
+def _fitted(measure: tuple[str, str, str, str], item: str, rows: Sequence[tuple[str, str]], jakes: str) -> str:
+    """Jake's heading (`jakes`) when its left sides fit beside its right
+    ones, else the same table with each left side wrapped in \\wiw (`FIT`).
+    `rows` are (left, right) cells; `measure` is \\wifit's four arguments, the
+    cells as each is set."""
+    wrapped = (
+        item,
+        r"\begin{tabular*}{0.97\textwidth}[t]{l@{\extracolsep{\fill}}r}",
+        *(rf"\parbox[t]{{\wiw}}{{\raggedright {left}}} & {right} \\" for left, right in rows),
+        r"\end{tabular*}\vspace{-7pt}",
+    )
+    # The % ends the line with no space: the line's end, read as a space,
+    # set the next of two one-row headings 13.5 pt lower
+    return "\n".join((r"\wifit" + "".join(f"{{{m}}}" for m in measure) + "%", r"\ifwiwrap", *wrapped,
+                      r"\else", jakes, r"\fi"))
+
+
 def _entry(entry: ViewEntry, marks: bool, printed: Printed, page: PageSettings) -> list[str]:
     h = heading(entry, page.date_format, page.education_first)
     kinds = heading_fields(entry.section, degree_leads(entry, page.education_first))
@@ -130,14 +175,20 @@ def _entry(entry: ViewEntry, marks: bool, printed: Printed, page: PageSettings) 
             "subright": lambda: rf"\textit{{\small {slot('subright')}}}",
         }
         right = " $|$ ".join(styled[name]() for name in rights)
-        line = "\n".join((
+        title = rf"\textbf{{{slot('title')}}}"
+        line = _fitted((right, "", title, ""), r"\vspace{-2pt}\item", [(title, right)], "\n".join((
             r"\vspace{-2pt}\item",
             r"\begin{tabular*}{0.97\textwidth}[t]{l@{\extracolsep{\fill}}r}",
-            rf"\textbf{{{slot('title')}}} & {right} \\",
+            rf"{title} & {right} \\",
             r"\end{tabular*}\vspace{-7pt}",
-        ))
+        )))
     elif entry.section in TWO_ROW:
-        line = rf"\resumeSubheading{{{slot('title')}}}{{{slot('right')}}}{{{slot('subtitle')}}}{{{slot('subright')}}}"
+        title, right, subtitle, subright = (slot(name) for name in ("title", "right", "subtitle", "subright"))
+        rows = [(rf"\textbf{{{title}}}", right), (rf"\textit{{\small {subtitle}}}", rf"\textit{{\small {subright}}}")]
+        line = _fitted(
+            (right, rows[1][1], rows[0][0], rows[1][0]), r"\vspace{-2pt}\item", rows,
+            rf"\resumeSubheading{{{title}}}{{{right}}}{{{subtitle}}}{{{subright}}}",
+        )
     else:
         left = rf"\textbf{{{slot('title')}}}" + (rf" $|$ \emph{{{slot('tag')}}}" if h.tag else "")
         if h.subtitle:
@@ -145,15 +196,19 @@ def _entry(entry: ViewEntry, marks: bool, printed: Printed, page: PageSettings) 
             # \resumeProjectHeading with a second row in the italic of
             # \resumeSubheading's. Written out here, since jakes.tex stays
             # byte for byte and has no two-row project heading.
-            line = "\n".join((
-                r"\item",
-                r"\begin{tabular*}{0.97\textwidth}[t]{l@{\extracolsep{\fill}}r}",
-                rf"\small{left} & {slot('right')} \\",
-                rf"\textit{{\small {slot('subtitle')}}} & \\",
-                r"\end{tabular*}\vspace{-7pt}",
-            ))
+            right, subtitle = slot("right"), rf"\textit{{\small {slot('subtitle')}}}"
+            line = _fitted((right, "", rf"\small {left}", subtitle), r"\item", [(rf"\small {left}", right), (subtitle, "")],
+                           "\n".join((
+                               r"\item",
+                               r"\begin{tabular*}{0.97\textwidth}[t]{l@{\extracolsep{\fill}}r}",
+                               rf"\small{left} & {right} \\",
+                               rf"{subtitle} & \\",
+                               r"\end{tabular*}\vspace{-7pt}",
+                           )))
         else:
-            line = rf"\resumeProjectHeading{{{left}}}{{{slot('right')}}}"
+            right = slot("right")
+            line = _fitted((right, "", rf"\small {left}", ""), r"\item", [(rf"\small {left}", right)],
+                           rf"\resumeProjectHeading{{{left}}}{{{right}}}")
     items = [(entry.id, kind, escape(text), text) for kind, text in details(entry)]
     # A marked bullet's box carries its markers: the editor opens the line on
     # them, and saves it only when they change
@@ -210,7 +265,7 @@ def body(
     view: ResumeView, identity: HeaderIdentity, *, marks: bool = True, printed: Printed = None,
     page: PageSettings = DEFAULT_PAGE,
 ) -> str:
-    lines = [MARKS] if marks else []
+    lines = [MARKS, FIT] if marks else [FIT]
     lines += _header(identity, marks, printed, page)
     blocks: dict[str, list[str]] = {}
     for section in view.sections:

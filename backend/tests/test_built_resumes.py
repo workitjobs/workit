@@ -146,7 +146,7 @@ async def test_the_word_file_has_every_entry_in_section_order_newest_first(stude
         "EDUCATION",
         "Stony Brook University\tStony Brook, NY",
         "Bachelor of Science in Computer Science\tAug. 2023 – Expected May 2027",
-        "GPA: 3.8/4.0",
+        "GPA: 3.80/4.00",
         "Relevant Coursework: Data Structures, Algorithms",
         "EXPERIENCE",
         "Software Intern\tJune 2025 – Aug. 2025",

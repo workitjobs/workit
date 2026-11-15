@@ -129,11 +129,12 @@
 
   /* Layout --------------------------------------------------------------- */
   --container-auth: 22.5rem; /* 360px: the auth card, 310px of content inside p-6 and a 1px border */
-  /* 320px: every list or table that scrolls inside a dialog or a tile (the
-   * resume picker, Add Jobs, Top Matches), as `max-h-scroll-box` or
+  /* 320px: every list or table that scrolls inside a dialog (the resume
+   * picker, Add Jobs), as `max-h-scroll-box` or
    * `h-scroll-box`, so those boxes stop at one height. Each picked its own
    * until KAN-360: Add Jobs grew to 90% of the window. A full-page table
-   * never takes it; the page scrolls. */
+   * never takes it; the page scrolls. Nor does a list in a tile on a page:
+   * Top Matches shows five rows and See More (KAN-828). */
   --spacing-scroll-box: 20rem;
 
   /* -------------------------------------------------------------------------
@@ -1576,7 +1577,8 @@ body:has([data-skyline]) {
 
   /* What scrolls inside a dialog keeps its scrollbar's room, so the content
    * is one width whether or not it scrolls: Settings' cards were 608px on
-   * Personal Details and 600px on Sign-In & Security. */
+   * Personal Details and 600px on Sign-In & Security. `DialogBody` carries
+   * this slot too (KAN-820), and its padding counts on this room. */
   [data-slot="dialog-scroller"] {
     scrollbar-gutter: stable;
   }

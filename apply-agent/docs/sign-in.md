@@ -170,7 +170,9 @@ through the WorkIt extension in his own Chrome. Never through a Worker.
   `Login Data` database.
 - **The Apply accounts host** (`native_host.py`, `apply chrome-passwords`):
   a native messaging host (`com.workit.apply_accounts`) in everyday
-  Chrome's `NativeMessagingHosts`. Its manifest names only the WorkIt
+  Chrome's `NativeMessagingHosts` (`native_host.chrome_hosts`: the folder
+  for macOS and Linux; on Windows, Chrome reads a registry key instead,
+  and the host is not built there yet, F4). Its manifest names only the WorkIt
   extension's ID (`EXTENSION_ID`, pinned to manifest.json's `key` by a
   test), and the host checks the caller's origin again. One request names
   one tenant. It answers only for a tenant in the Tracker's Employer
@@ -232,35 +234,49 @@ password for new accounts.
   or puts it in an error.
 - `GET /accounts` and every `POST /accounts/...` route check the window's
   token and Origin (`_Handler._from_window`), as the window's other routes
-  do. Show, Copy and Open read only a site in the Employer accounts list, so
+  do. Show (and Copy, through it) and Open read only a site in the Employer accounts list, so
   the page cannot name any other Keychain item, the chosen password
   included.
-- Copy password: `MacClipboard` writes NSPasteboard through `osascript -l
-  JavaScript` (JXA, no new dependency). The password goes on stdin, never
-  in argv, which `ps` shows. It is written as `NSPasteboardTypeString` with
-  the markers `org.nspasteboard.ConcealedType` and
-  `org.nspasteboard.TransientType` (nspasteboard.org), so clipboard managers
-  (Maccy, Paste, Raycast, Alfred, 1Password) skip it and keep no history of
-  it. After 60 s (`CLEAR_AFTER`) the tab clears the clipboard, but only if
-  its `changeCount` is still the one after its own write: anything copied
-  since stays. The tab keeps that count, not the password. When the window
-  closes (`Dashboard.__exit__`), a password still on the clipboard is
-  cleared at once. An app that reads the clipboard itself can still read it
-  in that minute.
+- **Copy password** (D35 of `../../docs/desktop_application_auto_apply.md`,
+  2026-11-14): the page asks for the password as Show password does
+  (`POST /accounts/show`), and writes it to the clipboard itself with
+  `navigator.clipboard`, as the window's other copy buttons do. The write
+  starts inside the click, as a `ClipboardItem` that waits for the reply:
+  WebKit (the desktop app's window on the Mac, W5) lets a page write the
+  clipboard only while the click lasts, and refuses a write made after an
+  awaited reply.
+  Apply has no clipboard code, so it works on every OS. The passwords are
+  Lisul's own, and keeping one from him is not a requirement, so there are
+  no secret marks for clipboard managers and no clear after a minute: the
+  password stays on the clipboard as anything he copies does. This
+  replaced `MacClipboard` (`osascript` and NSPasteboard, with Concealed and
+  Transient marks and a clear after 60 s), which ran on the Mac only
+  (KAN-850). When the window can't write the clipboard, the card says to
+  use Show password; when the server refuses (no password), it says why, and
+  the clipboard does not change. W5 checks that pywebview's window lets the
+  page write it on each OS.
 - Open sign-in page: the newest Posting of that site in the Tracker, opened
-  in Lisul's everyday Chrome with `open -a "Google Chrome"`
-  (`captcha.to_everyday_chrome`), never over DevTools. Workday's job page has
-  Sign In in its header. With no Posting, the site's home page.
+  in Lisul's everyday Chrome (`captcha.to_everyday_chrome`), never over
+  DevTools: the Chrome finder's Chrome (`chrome_finder.find`) gets the
+  link with no profile flag. On the Mac it goes through `open -a` and that
+  Chrome's app, so Launch Services starts it as its own app: started from
+  its binary, a Chrome that wasn't running would be Apply's child process,
+  with Apply's privacy permissions (a site's camera request would name
+  Apply's app) and Apply's environment. On Windows and Linux the binary
+  itself starts, in a session of its own. A Chrome that runs takes the
+  link as a new tab in his own profile and comes to the front; one that
+  doesn't run starts on it. Workday's job
+  page has Sign In in its header. With no Posting, the site's home page.
+  With no Chrome installed, the card says how to get it (404).
 - With no Keychain password (an account made with Google), Show password
-  and Copy password say so (404), and the clipboard does not change.
+  and Copy password say so (404).
 
 **Tests.** `tests/test_accounts_tab.py` (in CI, no browser) uses
-`InMemoryKeychain`, a fake clipboard and a fake runner for `MacClipboard`.
-Never read a real Keychain password in a test, and never write the real
-clipboard: to try the JXA, pass `MacClipboard("<a pasteboard name>")`.
+`InMemoryKeychain`. Never read a real Keychain password in a test.
 `tests/test_accounts.py` checks the rule and the chosen password.
 `tests/test_dashboard.py -k accounts_tab` clicks the tab in Chromium: no
-password in the page before Show, then Show, Hide, Copy, Open and Save.
+password in the page before Show, then Show, Hide, Copy (read back from
+headless Chromium's own clipboard, never this computer's), Open and Save.
 
 ## `apply preflight`: the sign-ins and the plan for a batch (KAN-668)
 

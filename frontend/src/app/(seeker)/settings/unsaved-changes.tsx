@@ -11,7 +11,7 @@ import {
   type ReactNode,
 } from "react";
 
-import { Button } from "@/components/ui/button";
+import { ConfirmButtons } from "@/components/ui/confirm-buttons";
 
 type Api = {
   setDirty: (id: string, dirty: boolean) => void;
@@ -99,9 +99,11 @@ export function usePendingLeave(): { asking: boolean; keep: () => void } {
  * dialog over it (KAN-563, `docs/design.md`, "Never a dialog over a
  * dialog"). It was a dialog nested in the modal, which Base UI does not
  * dim, so it sat over the section with no edge of its own. As a bar the
- * edits it asks about stay in view above it. It takes the focus on Keep
- * Editing, the answer that loses nothing, and gives it back to where it
- * was when Keep Editing ends it.
+ * edits it asks about stay in view above it. Keep Editing comes first and
+ * Discard Changes last, as every delete's question has them
+ * (`ConfirmButtons`, KAN-817). It takes the focus on Keep Editing, the
+ * answer that loses nothing, and gives it back to where it was when Keep
+ * Editing ends it.
  */
 export function DiscardBar() {
   const api = useContext(Unsaved);
@@ -132,14 +134,13 @@ export function DiscardBar() {
         </span>{" "}
         You have changes you haven&apos;t saved. If you leave now, they&apos;re lost.
       </p>
-      <div className="flex shrink-0 gap-2 sm:justify-end">
-        <Button ref={keep} variant="secondary" onClick={() => api.resolve(false)}>
-          Keep Editing
-        </Button>
-        <Button variant="destructive" onClick={() => api.resolve(true)}>
-          Discard Changes
-        </Button>
-      </div>
+      <ConfirmButtons
+        keep="Keep Editing"
+        act="Discard Changes"
+        keepRef={keep}
+        onKeep={() => api.resolve(false)}
+        onAct={() => api.resolve(true)}
+      />
     </div>
   );
 }

@@ -1,7 +1,6 @@
-import { CloudSlashIcon } from "@phosphor-icons/react/ssr";
 import type { Metadata } from "next";
 
-import { EmptyState } from "@/components/ui/empty-state";
+import { LoadFailed } from "@/components/ui/load-failed";
 import { listBuiltResumes } from "@/lib/built-resume-actions";
 import { cn } from "@/lib/cn";
 import { listResumes } from "@/lib/resume-actions";
@@ -144,14 +143,13 @@ export default async function AutoApplyPage() {
       <RememberFeed />
       <AutoApplyPanel>
         {run.error != null ? (
-          <EmptyState
-            Icon={CloudSlashIcon}
-            title="Your Applications Aren't Loading"
+          <LoadFailed
+            title="Your Applications Aren't Loading Right Now"
             className="mt-8"
             detail={process.env.NODE_ENV === "development" ? run.error : undefined}
           >
-            We couldn&apos;t reach your applications. Refresh the page in a few minutes.
-          </EmptyState>
+            We couldn&apos;t reach your applications. Try again in a few minutes.
+          </LoadFailed>
         ) : (
           <>
             <SetupRow />

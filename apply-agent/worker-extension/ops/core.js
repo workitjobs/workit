@@ -36,6 +36,12 @@ export const ops = {
   // focused: false shows the window without activating Chrome, so it never takes Lisul's focus.
   "windows.create": async ({ url, left, top, width, height }) =>
     tabInfo((await chrome.windows.create({ url: url || "about:blank", focused: false, ...(await onScreen({ left, top, width, height })) })).tabs[0]),
+  // The Worker's window to the front: only Lisul's own Show calls it (PlainWorkers.show), on Windows and Linux,
+  // where Apply has no FocusKeeper, or on the Mac when FocusKeeper can't (W4, KAN-850).
+  "windows.focus": async () => {
+    await chrome.windows.update((await chrome.windows.getLastFocused()).id, { focused: true });
+    return null;
+  },
   "tabs.get": async ({ tab }) => tabInfo(await chrome.tabs.get(tab)),
   "tabs.close": async ({ tab }) => {
     await chrome.tabs.remove(tab);

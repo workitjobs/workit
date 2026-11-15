@@ -22,7 +22,8 @@ import { JOB_PAGE_WIDTH, JobViewHeaderSkeleton } from "../../jobs/[jobId]/job-vi
  * the scored tracker (./page.tsx).
  *
  * The page's own frame: the job page's width, the action bar with Back to
- * the tracker (live) and the tabs' pill as a bar, the job's header card
+ * the tracker (live) and the tabs' pill as a bar beside it, where the page
+ * draws them for every stage (KAN-824), the job's header card
  * (JobViewHeaderSkeleton, the job page's), then Your Application's card,
  * the tab that opens first, with its rail, and What You Sent.
  */
@@ -37,9 +38,8 @@ export default function ApplicationLoading() {
             className="group/back"
           />
         }
-      >
-        <Skeleton aria-hidden="true" className="h-9 w-64 rounded-full" />
-      </JobActionBar>
+        tabs={<Skeleton aria-hidden="true" className="h-9 w-64 rounded-full" />}
+      />
 
       <div role="status">
         <span className="sr-only">Loading the application</span>

@@ -281,7 +281,7 @@ function JobsRail({
       const gone = from.jobs.filter((job) => leavesFeed(from.stages?.[job.id])).length;
       const page = await nextPage({ ...from, offset: Math.max(0, from.offset - gone) });
       if (page.error != null) {
-        setError("Couldn't load more roles. Try again in a moment.");
+        setError("Couldn't load more jobs. Try again in a moment.");
         return;
       }
       setError(null);
