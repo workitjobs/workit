@@ -98,6 +98,9 @@ class JobListing(BaseModel):
     # it sponsors, it doesn't, or US citizens only. None when it says nothing,
     # which is most postings. Defaulted so an older feed.json still parses.
     sponsorship: dto.visa_sponsorship | None = None
+    # The employer refreshed this listing (posted_at >> first_seen_at).
+    # Defaulted so an older feed.json still parses.
+    repost: bool = False
     # Match score (0-100) and highlights, filled when a signed-in applicant
     # with a non-empty bank views the feed; None/[] for everyone else.
     match: int | None = None

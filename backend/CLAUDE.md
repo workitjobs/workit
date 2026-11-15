@@ -41,7 +41,9 @@ and still allow closure detection. Preserve listing work style when rebuilding
 provider jobs, and retain stored currency/period when absent from a page: both
 salary columns are non-null, so clearing either aborts the entire batch.
 Description is pure enrichment: it never filters
-a posting out.
+a posting out. **Repost detection is in `import_feed`, not the worker.**
+Both pipelines converge there, and the database computes repost from its
+own `posted_at` and `created_at` (`_REPOST_DAYS`, 7 days).
 
 Each board publishes independently right after it is scraped
 (`_checkpoint_board`): import_feed, update sources, advance reads and mark
