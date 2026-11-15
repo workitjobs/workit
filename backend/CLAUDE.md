@@ -63,6 +63,22 @@ closed with reason `gone_from_board`; a surge guard (the feed import's
 `_MASS_CLOSE_SHARE` and `_MASS_CLOSE_FLOOR`, imported, not copied) refuses
 mass closures. Tests: `tests/test_closures.py`.
 
+**Two bandwidth-saving mechanisms on `scraper_schedules`** (KAN-722,
+`app/scraper/schedules.py`). **Quiet board stagger**: boards that have never
+produced a kept posting (`has_kept` false) are read on only 1 in
+`QUIET_EVERY` (3) runs, staggered by CRC32 of the board key over 3-hour
+slots, so each run reads a different third; boards unread for over
+`QUIET_LONGEST` (1 day) are always read. `filter_quiet` is a pure function
+on rows. **Fingerprint rest**: hot boards (`has_kept` true) whose content
+hasn't changed rest for `FINGERPRINT_FIRST` (4 h) after the first unchanged
+read, doubling each time up to `FINGERPRINT_LONGEST` (24 h).
+`advance_fingerprint` is a single UPDATE with CASE expressions (no
+read-then-write race); `has_kept` is sticky (once true, never resets);
+`record_missing`'s second miss clears fingerprint state. Four columns:
+`fingerprint` (8-char hex CRC32), `unchanged_reads`, `fingerprint_until` and
+`has_kept`. `--full` bypasses both mechanisms but not health rest
+(`rest_until`). Tests: `tests/test_scrape_worker.py`.
+
 **Not PostgREST, deliberately.** Queries go to Postgres directly over asyncpg,
 because the job search needs ltree containment and trigram ranking, which
 PostgREST's filter syntax expresses badly. `supabase-py` is installed only for
@@ -95,7 +111,7 @@ uv run python -m app.scripts.rules_anomalies [--days 7]  accounts whose Rules ta
 uv run python -m app.scripts.import_apply_profile <applicant_id> [<apply_dir>]  a student's Apply data folder ($APPLY_HOME, else ~/.config/apply) into WorkIt (--dry-run rolls back; local DB only; app/models/CLAUDE.md, "The Fill engine's profile")
 uv run python -m app.scripts.label_resume_headings  label data/resume_heading_candidates.txt's resume headings once with Groq into app/utils/learned_headings.json (--dry-run lists them; review the diff; app/utils/CLAUDE.md, Learned headings)
 uv run python -m app.scripts.purge_old_data  delete rows past app/services/retention.py's periods, KAN-482 (--dry-run counts, deletes nothing; daily in CI)
-uv run python -m app.scripts.scrape_worker   one scraper worker cycle: sync catalog, claim boards, scrape, checkpoint (--dry-run shows what it would do)
+uv run python -m app.scripts.scrape_worker   one scraper worker cycle: sync catalog, claim boards, scrape, checkpoint (--dry-run shows what it would do; --full bypasses quiet board stagger and fingerprint rest)
 uv run python -m app.scripts.embed_banks     the bank job, KAN-726: listen and embed stale banks until stopped (--once sweeps once); the team computer only, with EMBEDDING_PROVIDER=ollama (app/services/matching/CLAUDE.md); it runs from its own checkout there, so a merge reaches it only after "After a merge to main" in docs/scraper_gh_action/plan.md
 python3 scripts/fetch_tectonic.py              Tectonic + warm cache into vendor/ (resume PDFs; once per checkout)
 ```

@@ -1,0 +1,46 @@
+{
+  "id": "743999900001001",
+  "uuid": "aaaaaaaa-1111-2222-3333-444444444444",
+  "name": "Software Engineering Intern - Summer 2027",
+  "active": true,
+  "postingUrl": "https://jobs.smartrecruiters.com/ExampleCorp/743999900001001",
+  "applyUrl": "https://jobs.smartrecruiters.com/ExampleCorp/743999900001001-software-engineering-intern",
+  "company": {"identifier": "ExampleCorp", "name": "Example Corp"},
+  "location": {
+    "city": "San Francisco",
+    "region": "California",
+    "country": "US",
+    "remote": false,
+    "hybrid": false
+  },
+  "department": {"id": "eng", "label": "Engineering"},
+  "typeOfEmployment": {"id": "full_time", "label": "Full-time"},
+  "experienceLevel": {"id": "internship", "name": "Internship"},
+  "compensation": {
+    "min": 30.0,
+    "max": 45.0,
+    "currency": "USD",
+    "period": "HOURLY"
+  },
+  "jobAd": {
+    "sections": {
+      "companyDescription": {
+        "title": "Company Description",
+        "text": "<p>Example Corp is a leading technology company.</p>"
+      },
+      "jobDescription": {
+        "title": "Job Description",
+        "text": "<p>Join our team as a Software Engineering Intern for Summer 2027. You will work on real projects with experienced engineers.</p><ul><li>Build and ship features</li><li>Participate in code reviews</li></ul>"
+      },
+      "qualifications": {
+        "title": "Qualifications",
+        "text": "<p>Currently pursuing a BS or MS in Computer Science or related field.</p><ul><li>Experience with Python or Java</li><li>Strong problem-solving skills</li></ul>"
+      },
+      "additionalInformation": {
+        "title": "Additional Information",
+        "text": "<p>This is a 12-week paid internship. Relocation assistance available.</p>"
+      }
+    }
+  },
+  "releasedDate": "2026-10-15T14:30:00.000Z"
+}
