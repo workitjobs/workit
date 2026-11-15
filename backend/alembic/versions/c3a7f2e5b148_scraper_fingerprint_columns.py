@@ -9,7 +9,7 @@ All nullable or defaulted, so applying early is safe; the running code never
 meets them.
 
 Revision ID: c3a7f2e5b148
-Revises: d8f3b6a1c947
+Revises: 3132c5026bf6
 Create Date: 2026-11-14 16:00:00.000000
 
 """
@@ -22,7 +22,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "c3a7f2e5b148"
-down_revision: str | Sequence[str] | None = "d8f3b6a1c947"
+down_revision: str | Sequence[str] | None = "3132c5026bf6"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
