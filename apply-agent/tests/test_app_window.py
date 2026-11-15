@@ -240,6 +240,8 @@ def test_a_run_rehearses_its_links_with_the_students_worker_count_and_closes_its
     runs.run(["https://jobs.lever.co/acme/1", "https://jobs.lever.co/acme/2"], shown.append)
     assert rehearsed == [(["https://jobs.lever.co/acme/1", "https://jobs.lever.co/acme/2"], first_run.MOST_WORKERS, True)]
     assert shown[0].url == NO_PORT and closed == [site]
+    # History's link goes to the student's Applications Tracker on WorkIt, opened in the default browser.
+    assert shown[0].state()["context"]["tracker_url"] == f"{workit.site().web}/applications"
 
 
 def test_remove_all_my_data_only_in_the_student_build_and_never_during_a_run(board, tmp_path, monkeypatch):

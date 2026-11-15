@@ -35,7 +35,7 @@ from apply.plain.site import live_site
 from apply.profile import ApplicantProfile
 from apply.records import FolderRecords
 from apply.tracker import InMemoryTracker
-from apply.workit import WorkIt
+from apply.workit import WorkIt, site
 
 RECORDS = HOME / "rehearsals"  # each held form's Record, as `apply rehearse` keeps them
 NO_MODEL = "WorkIt Auto Apply doesn't {what}: a person does it, or WorkIt's Model route"
@@ -121,6 +121,12 @@ def adapters(profile: ApplicantProfile) -> Adapters:
     )
 
 
+def tracker_url() -> str:
+    """The student's Applications Tracker on WorkIt, which History's link opens in the default browser: every
+    application is there, not only this Mac's."""
+    return f"{site().web}/applications"
+
+
 class Runs:
     """The window's runs (W5 step 4): each Start rehearses its links in the Workers and shows the run's own Apply
     window, its tiles, while it goes. Apply never presses Submit: each form is held for the student."""
@@ -142,7 +148,7 @@ class Runs:
             with worker_tiles.frames_for(site, len(links)) as frames, \
                     Dashboard(len(links), frames, answers, show=getattr(site, "show", None),
                               quiet=getattr(site, "plain", None), everyday=made.everyday, accounts=accounts,
-                              sample=self._profile.get("sample_data") is True,
+                              sample=self._profile.get("sample_data") is True, tracker_url=tracker_url(),
                               back=(lambda worker: in_front(worker) and app_window.bring_forward()) if in_front else None,
                               notify=app_window.notify, serve=False) as board:
                 made.board = board
@@ -167,7 +173,8 @@ def app() -> None:
     answers = AnswersTab(answer_sync.bank(profile.folder / ANSWER_BANK, profile.policies()), profile)
     runs = Runs(profile)
     try:
-        with Dashboard(0, NoFrames(), answers, sample=profile.get("sample_data") is True, serve=False) as board:
+        with Dashboard(0, NoFrames(), answers, sample=profile.get("sample_data") is True, tracker_url=tracker_url(),
+                       serve=False) as board:
             app_window.run(board, start=runs.run)
     finally:
         runs.close()

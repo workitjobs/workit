@@ -1198,9 +1198,20 @@ its usage line, and Settings. `tests/test_first_run.py` and
 `tests/test_app_window.py` (CI) and `tests/test_app_window_page.py`
 (Chromium: every page of the app runs with no script error) test them.
 
+**What the app's window keeps** (decided 2026-11-15): below the queue, the
+Apply window as it is, with the Answers tab, History and the developer
+run bar, for now. History's link opens the student's Applications Tracker
+on WorkIt in the default browser (`student.tracker_url`; pywebview opens
+every link to a new window there).
+
 Left from W5:
-- **Send Report's button** (D26): it calls `apply.report.send(row,
-  profile, note)` once #614 is on `main`.
+- **Report a problem** (D26, W1's #614): a form from Settings and from
+  each Application's tile ("Report this Application"): what it is about,
+  what happened, "WorkIt may email me about this" and, with an
+  Application, its record and log (on by default). `report.build`, then
+  `report.parts` shown before Send, then `report.send`; after it, the form
+  says WorkIt deletes the report once its problem is fixed. Built once
+  #614 is on `main`.
 - **Remove All My Data can't name every job-site password.** The Student
   build's Tracker is in memory, so it forgets the Employer accounts at each
   launch, and with them the keychain items to remove (`apply-ats`, one per

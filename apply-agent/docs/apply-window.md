@@ -53,6 +53,9 @@ docstring first.
   reason (`Bridge.status`).
 - Remove All My Data deletes the data folder only when `build.STUDENT`:
   in a Developer checkout it says the folder is the developer's.
+- A link to a new window (`target="_blank"`: a posting, History's
+  Applications Tracker on WorkIt) opens in the default browser: pywebview
+  does that itself. The app's windows pass `tracker_url` (`student.tracker_url`).
 - `pywebview` is imported only in `app_window.run`, so the bridge and its
   tests need no window. `tests/test_app_window.py` (no browser, CI) and
   `tests/test_app_window_page.py` (the shim in Chromium, with Playwright
