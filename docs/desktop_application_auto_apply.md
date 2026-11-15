@@ -660,11 +660,14 @@ left out) and `STUDENT_POLICIES`. `apply/student.py` is the Student
 path's root: W5's window starts there, and its `adapters()` replace each
 developer part with one that does nothing (`NoClaude`, `NoMailbox`,
 `Silent`, `NoRepairs`). `tests/test_student_build.py` (CI) imports the
-Student path in a new process and fails if any module in `DEVELOPER`
-loads. It also proves that a `policies.yaml` changes nothing. A developer
+Student path in a new process, builds its adapters and makes a plain
+Worker's first page call, and fails if any module in `DEVELOPER` loads.
+It also proves that a `policies.yaml` changes nothing. A developer
 module is now imported only inside the function that uses it, in a
-branch the Student build never reaches. What each part does in the
-Student build:
+branch the Student build never reaches. What the Student path needs from
+one moved out of it: Ask Claude's and the emailed code's page strings
+(`page_functions.py`), `OnePage`, `ClaudeError` and `job_key`. What each
+part does in the Student build:
 
 | Part | Developer checkout | Student build (until the workstream named) |
 |---|---|---|

@@ -77,7 +77,14 @@ has neither.
   `cli.py`). So a module on the Student path never imports one of them at its
   top: import it inside the function that uses it, behind `if build.STUDENT`
   or in a path the Student build never runs (a Developer checkout's command).
-  `tests/test_student_build.py` (in CI) fails when the Student path loads one.
+  A function the Student build does run counts too: `plain/fixed.functions()`
+  imported Ask Claude and the emailed code for their page strings, which loaded
+  Gmail and Claude fill at every plain Worker's first page call. A string or
+  class the Student path needs moves out of the developer module
+  (`page_functions.py`, `one_page.py`, `adapters.ClaudeError`,
+  `workit.job_key`), and its callers import it from there.
+  `tests/test_student_build.py` (in CI) fails when the Student path loads one,
+  as it imports, builds `student.adapters()` or makes that first page call.
   Read `build.STUDENT` when the code runs, never into a constant at import.
   The Student build reads no `policies.yaml`: `build.STUDENT_POLICIES` go over
   the defaults. A new developer part joins `DEVELOPER`, and the Student

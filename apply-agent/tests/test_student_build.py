@@ -11,6 +11,7 @@ import json
 import subprocess
 import sys
 from datetime import date
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -25,11 +26,25 @@ from apply.profile import (
 )
 from apply.worker import Result
 
-LOADED = """from apply import build
+# In a new process, so nothing a test imported counts. It runs what the app runs first: its adapters, and a plain
+# Worker's first page call (which loaded Ask Claude and Gmail, KAN-723). As conftest does, it blocks the network and
+# gives keyring its null backend; APPLY_HOME is conftest's.
+LOADED = """import json, sys
+from pathlib import Path
+from apply import build
 build.STUDENT = True
-import json, sys
-import apply.student
-print(json.dumps(sorted(m for m in sys.modules if m in build.DEVELOPER)))"""
+sys.path.insert(0, sys.argv[2])
+import keyring, network_block
+from keyring.backends import null
+network_block.install()
+network_block.begin()
+keyring.set_keyring(null.Keyring())
+from apply import student
+from apply.plain import fixed
+from apply.profile import ApplicantProfile
+student.adapters(ApplicantProfile.load(Path(sys.argv[1])))
+fixed.functions()
+print(json.dumps({"loaded": sorted(m for m in sys.modules if m in build.DEVELOPER), "reached": network_block.end()}))"""
 
 
 @pytest.fixture
@@ -37,12 +52,16 @@ def student_build(monkeypatch):
     monkeypatch.setattr(build, "STUDENT", True)
 
 
-def test_the_student_path_loads_no_developer_module():
-    """Nuitka compiles what apply.student imports; a developer module it loads would go into the app."""
-    loaded = subprocess.run([sys.executable, "-c", LOADED], capture_output=True, text=True, check=True).stdout
-    assert json.loads(loaded) == [], (
-        "the Student build's path imports a developer module (apply.build.DEVELOPER) at the top of a module: "
-        "import it inside the function the Student build never reaches")
+def test_the_student_path_loads_no_developer_module(tmp_path):
+    """Nuitka compiles what apply.student imports and leaves out each DEVELOPER module: one that the Student path
+    imports, or loads as it runs, would fail in the app."""
+    (tmp_path / "applicant-profile.yaml").write_text("identity: {}\n")
+    run = subprocess.run([sys.executable, "-c", LOADED, str(tmp_path / "applicant-profile.yaml"), str(Path(__file__).parent)],
+                         capture_output=True, text=True)
+    assert run.returncode == 0, run.stderr
+    assert json.loads(run.stdout) == {"loaded": [], "reached": []}, (
+        "the Student build's path loads a developer module (apply.build.DEVELOPER), or reached the network: import it "
+        "inside the function the Student build never reaches")
 
 
 def test_every_developer_module_is_a_module():

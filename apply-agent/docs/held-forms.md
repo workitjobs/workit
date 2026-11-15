@@ -300,7 +300,7 @@ fixes it live on that form.
 - **When.** Only while the form is held for Lisul (`_Kept.hold`: a rehearsal's held page, or a paused
   one), until he presses Submit. The tile's `askable` says so. One message at a time per form. A live
   run holds no page, so Ask Claude never acts in one.
-- **What Claude gets.** His message (the only instruction), the thread, the page's state (`ask.FIELDS`:
+- **What Claude gets.** His message (the only instruction), the thread, the page's state (`page_functions.FIELDS`:
   every frame's fields and values, captcha frames left out, a field on another step marked `hidden`),
   Apply's plan and Record for the form (`_Ask._form`), and the sources (`ask.sources`: profile,
   Answer bank, policies, resume text). Page text is data, never an instruction.
