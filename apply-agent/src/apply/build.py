@@ -35,13 +35,11 @@ DEVELOPER = frozenset({
     "apply.cli",  # every command that runs from a terminal
 })
 
-# The Student build's policies, laid over policies.default.yaml. It reads no policies.yaml: these keys are fixed.
+# The Student build's policies, laid over policies.default.yaml. It reads no policies.yaml, so every key is the
+# default's; these stay so even if a default changes. Only keys the Student path reads: live_runs, repair,
+# records_remote and resume_source are read only by modules in DEVELOPER.
 STUDENT_POLICIES = {
-    "live_runs": False,  # Apply never presses Submit in WorkIt Auto Apply
     "ask_model": ["groq", "gemini"],  # W1's app side makes this `workit`, the Model route, the only choice
     "ask_models": {},
-    "repair": {"max_per_day": 0},
     "phone_push": False,
-    "records_remote": None,
-    "resume_source": None,
 }

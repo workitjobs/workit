@@ -75,16 +75,11 @@ class Silent:
 
 
 class NoRepairs:
-    """No Repairs (apply.repair): nothing is kept for one."""
+    """No Repairs (apply.repair): nothing is kept for one. The Student path keeps none (keep_repair_requests), so
+    this only fills the slot, which would otherwise load apply.repair."""
 
     def add(self, request) -> bool:
         return False
-
-    def all(self) -> list:
-        return []
-
-    def waiting(self) -> list:
-        return []
 
 
 def adapters(profile: ApplicantProfile) -> Adapters:

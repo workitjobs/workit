@@ -71,15 +71,17 @@ def test_every_developer_module_is_a_module():
 
 def test_policies_in_the_data_folder_change_nothing(tmp_path, monkeypatch, student_build):
     monkeypatch.setattr(profile, "load_policies", real_policies)
-    mine = tmp_path / "policies.yaml"
+    mine, applicant = tmp_path / "policies.yaml", tmp_path / "applicant-profile.yaml"
+    monkeypatch.setattr(profile, "OVERRIDE", mine)  # the data folder's, and the one beside the profile
+    applicant.write_text("identity: {}\n")
+    policies = lambda: (profile.load_policies(), profile.ApplicantProfile.load(applicant).policies())
+    before = policies()
     mine.write_text("ask_model: claude\nlive_runs: true\nrepair: {max_per_day: 5}\nphone_push: true\n")
-    monkeypatch.setattr(profile, "OVERRIDE", mine)
-    (tmp_path / "applicant-profile.yaml").write_text("identity: {}\n")
-    for policies in (profile.load_policies(), profile.ApplicantProfile.load(tmp_path / "applicant-profile.yaml").policies()):
-        assert {key: policies[key] for key in build.STUDENT_POLICIES} == build.STUDENT_POLICIES
+    assert policies() == before
+    assert before[0]["ask_model"] == build.STUDENT_POLICIES["ask_model"]
     monkeypatch.setattr(build, "STUDENT", False)  # the same file does reach a Developer checkout
     assert profile.load_policies()["ask_model"] == "claude"
-    assert profile.ApplicantProfile.load(tmp_path / "applicant-profile.yaml").policies()["live_runs"] is True
+    assert profile.ApplicantProfile.load(applicant).policies()["live_runs"] is True
 
 
 def test_even_ask_model_claude_builds_no_claude_cli():
@@ -129,9 +131,8 @@ def test_no_emailed_code_no_ask_claude_no_repair_request(student_build):
     asker = rehearsal._Ask(lambda: None, SimpleNamespace(board=board), None, 0, print)
     asker.open(SimpleNamespace())
     assert board.updates == [] and asker.asked() == []  # its tile takes no message, and none reaches Claude
-    kept = student.NoRepairs()
-    orchestrator.keep_repair_requests(SimpleNamespace(repairs=kept), posting("https://x.example/1"), Result(Status.FAILED))
-    assert kept.all() == []
+    never = SimpleNamespace(add=lambda request: pytest.fail("the Student build kept a Repair request"))
+    orchestrator.keep_repair_requests(SimpleNamespace(repairs=never), posting("https://x.example/1"), Result(Status.FAILED))
 
 
 def test_a_brief_is_never_researched(student_build, tmp_path, monkeypatch):
