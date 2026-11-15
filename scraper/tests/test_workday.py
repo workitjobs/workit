@@ -528,7 +528,11 @@ class TestCappedBoards:
             facet_applied = payload["appliedFacets"]
             if facet_applied.get("jobFamilyGroup") == ["univ"]:
                 raise BoardNotFound(url)
-            key = tuple(sorted((k, v[0]) for k, v in facet_applied.items())) if facet_applied else ()
+            key = (
+                tuple(sorted((k, v[0]) for k, v in facet_applied.items()))
+                if facet_applied
+                else ()
+            )
             pages = {
                 ((), 0): first_page,
                 ((("jobFamilyGroup", "eng"),), 0): {"total": 2, "jobPostings": AXOS_ROWS[:2]},
