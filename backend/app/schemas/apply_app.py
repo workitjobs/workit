@@ -74,3 +74,32 @@ class AppSession(BaseModel):
     access_token: str
     refresh_token: str
     expires_at: int
+
+
+class EngineDownload(BaseModel):
+    """One download of the Fill engine (KAN-836, W7; app/services/engine_builds.py): the newest build that fits the
+    app, encrypted with AES-GCM under a key made for this download alone. The app asks for that key with
+    `key_id` and `expires_at` (POST /apply-app/engine-key), decrypts in memory, and checks `signature`, the
+    Ed25519 signature of the plain bundle, with the public key compiled into it. Bytes are base64."""
+
+    sha256: str
+    signature: str
+    key_id: str
+    expires_at: int
+    nonce: str
+    ciphertext: str
+
+
+class EngineKeyAsk(BaseModel):
+    """The download whose key the app asks for, as GET /apply-app/engine answered it."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    key_id: str = Field(pattern=r"^[A-Za-z0-9_-]{16,64}$")
+    expires_at: int
+
+
+class EngineKey(BaseModel):
+    """The download's AES-256 key, base64."""
+
+    key: str
