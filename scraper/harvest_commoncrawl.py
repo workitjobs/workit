@@ -293,7 +293,7 @@ def harvest_direct(crawl: str, *, verbose: bool = False) -> dict[str, list[str]]
                 code = getattr(exc, "code", type(exc).__name__)
                 print(f"    block {i + 1}/{len(unique)}: {code}, skipping")
                 continue
-            for label, filt in labels_filters:
+            for _label, filt in labels_filters:
                 for url in _parse_cdx_block(compressed, surt_prefix, filt):
                     if not url.startswith("http"):
                         url = "https://" + url
@@ -385,8 +385,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--crawl", help="crawl ID, e.g. CC-MAIN-2026-43; default: latest")
     parser.add_argument("--dry-run", action="store_true", help="print counts, don't write")
     parser.add_argument("--verbose", action="store_true")
-    parser.add_argument("--direct", action="store_true", help="bypass CDX API; read shards directly")
-    parser.add_argument("--boards", type=Path, default=BOARDS_CSV, help="catalog to compare against")
+    parser.add_argument(
+        "--direct", action="store_true", help="bypass CDX API; read shards directly",
+    )
+    parser.add_argument(
+        "--boards", type=Path, default=BOARDS_CSV, help="catalog to compare against",
+    )
     parser.add_argument("--output", type=Path, default=OUTPUT)
     args = parser.parse_args(argv)
 
