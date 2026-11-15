@@ -348,9 +348,10 @@ Find files with a directory listing; these are the rules for where code goes.
   **Until Apply's calls send kinds, each ported prompt has a copy in
   `apply-agent/`; a change goes into both in the same PR**
   (`apply-agent/docs/prompts-and-gates.md`, which lists the prompts already
-  gone from Apply). The guides' front matter
-  (`app/apply_prompts/answering/types/`) keeps a copy in Apply for good,
-  since Apply classifies questions and checks plans with it.
+  gone from Apply). The guides live only here: Apply classifies
+  questions and checks plans with their front matter, which it fetches
+  from `GET /apply-app/types` (`guides.served`) and keeps in its data
+  folder, so a change reaches every app with the deploy.
   Each kind's schema runs as data through `LLM.complete_schema`, on the
   chain size the kind names (Apply's Haiku calls on the small one, its
   Sonnet and Opus calls on the large one). The free-form

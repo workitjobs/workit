@@ -23,6 +23,7 @@
 /apply-records/
 /default-probes/
 /answer-ledger.jsonl
+/question-types.json
 /workday-trees.json
 /sheet-id
 /workit-login.*

@@ -41,6 +41,10 @@ ModelAnswer {answer, tokens, usage}.
             the API's model settings are wrong (a key, a model name).
      The tokens a failed call spent still count.
 GET  /apply-app/usage  Usage {used, cap, resets_at}: today's tokens.
+GET  /apply-app/types  The Question types Apply classifies questions and checks
+     plans with: each type's front matter and the order to try them in
+     (app/apply_prompts/guides.py, `served`), never a guide's body, which is
+     prompt text. The same for every student; the app keeps the last copy.
 
 Logs name the student, the call's kind and model size, and its tokens;
 never a prompt or an answer.
@@ -51,13 +55,13 @@ import datetime
 import logging
 import math
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from fastapi.exceptions import RequestValidationError
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 from workit_scout.llm import LLM, InvalidReply, RequestTooLarge, ScoutUnavailable
 
-from app.apply_prompts import KINDS, said
+from app.apply_prompts import KINDS, guides, said
 from app.config import get_settings
 from app.db import get_session
 from app.deps import get_current_account
@@ -97,6 +101,11 @@ async def usage(
 ) -> Usage:
     now = _now()
     return _usage(await model_usage.used_today(db, account.id, now), now)
+
+
+@router.get("/types")
+async def types(account: AuthenticatedAccount = Depends(_student)) -> Response:
+    return Response(guides.served(), media_type="application/json")
 
 
 @router.post("/ask")

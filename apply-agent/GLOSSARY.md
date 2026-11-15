@@ -185,7 +185,7 @@ Any free-text answer Claude writes for a form: a question's answer or a Cover le
 _Avoid_: unique answer, long answer, free-text response
 
 **Question type**:
-The kind of question an Essay answers, which decides what a great answer to it holds: why-company, what-youd-build, values, why-role, preference, best-project, named-area, failure, not-on-resume, ai-tools, opinion, why-field, about-me, anything-else or cover-letter, else the general fallback. Each has a guidance file in apply/answering/types/.
+The kind of question an Essay answers, which decides what a great answer to it holds: why-company, what-youd-build, values, why-role, preference, best-project, named-area, failure, not-on-resume, ai-tools, opinion, why-field, about-me, anything-else or cover-letter, else the general fallback. Each has a guidance file on WorkIt's server (backend/app/apply_prompts/answering/types/), whose front matter Apply fetches (apply.answering).
 _Avoid_: question category, prompt kind, essay kind
 
 **Essay plan**:

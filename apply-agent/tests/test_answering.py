@@ -1,4 +1,5 @@
 import csv
+import json
 from pathlib import Path
 
 import pytest
@@ -127,3 +128,34 @@ def test_why_a_field_is_not_why_a_company():
     assert answering.classify("Why are you interested in working at Stripe?") == "why-company"
 
 
+
+
+def test_the_question_types_come_from_workit_and_stay_when_it_is_down():
+    from conftest import FIXTURES
+
+    from apply.adapters import SetupError
+    from apply.workit import Unreachable
+
+    served = json.loads((FIXTURES / "question-types.json").read_text())
+
+    class WorkIt:
+        def __init__(self, answer):
+            self.answer = answer
+
+        def logged_in(self):
+            return True
+
+        def call(self, method, path):
+            assert (method, path) == ("GET", "/apply-app/types")
+            if isinstance(self.answer, Exception):
+                raise self.answer
+            return self.answer
+
+    answering.CACHE.unlink()
+    answering._served.cache_clear()
+    with pytest.raises(SetupError):
+        answering.load()
+    answering.refresh(WorkIt(served))
+    assert answering.classify("Why do you want to work at Figma?") == "why-company"
+    answering.refresh(WorkIt(Unreachable("api.workitjobs.ai: 503", 503)))  # the copy Apply has stays
+    assert answering.classify("Why do you want to work at Figma?") == "why-company"
