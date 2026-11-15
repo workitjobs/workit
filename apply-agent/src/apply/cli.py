@@ -160,8 +160,8 @@ def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
                         "site): you sign in yourself in the Chrome window it opens, and Apply never sees your password",
     )
     sign_in.add_argument("url", help="a Posting on that site, as a Handoff's reason gives it")
-    commands.add_parser("login", help="log in to WorkIt one time, in a Chrome window that it opens, so Apply can "
-                                      "write to your Applications Tracker; Apply keeps the login in the data folder")
+    commands.add_parser("login", help="log in to WorkIt one time, in your own browser, then paste the code it shows, "
+                                      "so Apply can call WorkIt as you; Apply keeps the login in the data folder")
     sync_answers = commands.add_parser(
         "sync-answers", help="send every answer in the Answer bank to your WorkIt account, so the extension fills "
                              "them: a one-time catch-up. With workit_sync.answers on in policies.yaml, each change "
@@ -365,12 +365,11 @@ def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
         sys.exit(doctor.run(live_machine(args.profile, usage=args.usage), sys.stdout))
     elif args.command == "login":
         client = workit.WorkIt()
-        print(f"Sign in to WorkIt in the Chrome window that opens ({client.site.web}). Apply never sees your password.")
         try:
             account = workit.login(client)
         except workit.WorkItError as error:
             sys.exit(f"apply login: {error}")
-        print(f"Logged in to WorkIt as {account.email}. The login is in {client.login}.")
+        print(f"Logged in to WorkIt as {account.email}. Apply keeps the login in your keychain (apply-workit).")
         if account.account_type != "applicant":
             print(f"That is a {account.account_type} account: the Applications Tracker needs a student account.")
     elif args.command == "sync-answers":

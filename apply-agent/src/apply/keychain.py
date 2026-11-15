@@ -1,4 +1,5 @@
-"""Where Apply's secrets live (Employer account passwords, the Gmail app password, the ntfy topic, API keys):
+"""Where Apply's secrets live (Employer account passwords, the WorkIt login, the Gmail app password, the ntfy
+topic, API keys):
 the system's keychain through `keyring`, which is macOS Keychain on a Mac and Credential Manager on
 Windows. One item per service and account, which Lisul can see in Keychain Access. Never in the
 Tracker, the repo or a log."""
@@ -16,6 +17,8 @@ EMPLOYER_ACCOUNTS = "apply-ats"
 # The item, under EMPLOYER_ACCOUNTS, that holds the password Lisul chose in the Accounts tab for every new
 # Employer account. No site has this name (a site is a host), so it never reads as an account.
 CHOSEN = "all job sites"
+# The WorkIt login's refresh token (apply.workit); the item's account is the Supabase URL it belongs to.
+WORKIT = "apply-workit"
 # The Gmail app password the mailbox signs in with; the item's account is the address.
 GMAIL = "apply-gmail"
 # The ntfy topic Lisul's phone subscribes to for pushes; the item's account is PHONE_PUSH_HOST.

@@ -47,6 +47,20 @@ GET  /apply-app/types  The Question types Apply classifies questions and checks
      (app/apply_prompts/guides.py, `served`), never a guide's body, which is
      prompt text. The same for every student; the app keeps the last copy.
 
+The app's sign-in (W5, D12; app/services/app_sign_in.py has the flow):
+POST /apply-app/sign-in  SignInStart {challenge} -> 201 SignInCode {code, expires_in, paste}
+     The website's /app-sign-in page, signed in as the student: a one-time
+     code bound to the app's PKCE challenge, for 5 minutes. `paste` is true
+     only for WorkIt's admins, whose page may show the code to copy.
+       403  not a student's account.
+       429  with Retry-After: 10 sign-ins this hour already.
+POST /apply-app/session  SessionTrade {code, verifier} -> AppSession
+     The app, with no session yet: a new Supabase session for the code's
+     account, once. The code goes at the first try, whatever its verifier.
+       400  no code to trade: traded already, expired, or the verifier is
+            not the challenge's. The app starts again.
+       503  Supabase did not make the session.
+
 Logs name the student, the call's kind and model size, and its tokens;
 never a prompt or an answer.
 """
@@ -65,10 +79,19 @@ from workit_scout.llm import LLM, InvalidReply, RequestTooLarge, ScoutUnavailabl
 from app.apply_prompts import KINDS, guides, said
 from app.config import get_settings
 from app.db import get_session
-from app.deps import get_current_account
+from app.deps import get_current_account, is_admin
 from app.queries import model_usage
-from app.schemas.apply_app import AskCall, ModelAnswer, Usage
+from app.schemas.apply_app import (
+    AppSession,
+    AskCall,
+    ModelAnswer,
+    SessionTrade,
+    SignInCode,
+    SignInStart,
+    Usage,
+)
 from app.schemas.auth import AccountType, AuthenticatedAccount
+from app.services import app_sign_in
 from app.services.identity import load_identity
 from app.services.models import get_large_llm, get_small_llm
 
@@ -102,6 +125,31 @@ async def usage(
 ) -> Usage:
     now = _now()
     return _usage(await model_usage.used_today(db, account.id, now), now)
+
+
+@router.post("/sign-in", status_code=status.HTTP_201_CREATED)
+async def sign_in(
+    body: SignInStart,
+    account: AuthenticatedAccount = Depends(_student),
+    db: AsyncSession = Depends(get_session),
+) -> SignInCode:
+    try:
+        code = await app_sign_in.start(db, account.id, body.challenge, _now())
+    except app_sign_in.TooMany as e:
+        raise _refused(status.HTTP_429_TOO_MANY_REQUESTS, "Too many sign-ins this hour. Try again later.",
+                       e.wait) from None
+    return SignInCode(code=code, expires_in=int(app_sign_in.CODE_TTL.total_seconds()), paste=is_admin(account))
+
+
+@router.post("/session")
+async def app_session(body: SessionTrade, db: AsyncSession = Depends(get_session)) -> AppSession:
+    try:
+        return AppSession(**await app_sign_in.trade(db, body.code, body.verifier, _now()))
+    except app_sign_in.Over:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST,
+                            "That sign-in is over. Sign in again from WorkIt Auto Apply.") from None
+    except app_sign_in.NoSession:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "WorkIt could not sign the app in. Try again.") from None
 
 
 @router.get("/types")

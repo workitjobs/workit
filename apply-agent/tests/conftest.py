@@ -45,7 +45,17 @@ keyring.set_keyring(null.Keyring())
 from fake_lever import FakeLeverServer
 from fakes import FakeJobServer
 
-from apply import answering, browsers, cli, cover_letter, doctor, gates, home, profile
+from apply import (
+    answering,
+    browsers,
+    cli,
+    cover_letter,
+    doctor,
+    gates,
+    home,
+    profile,
+    workit,
+)
 
 # Never the student's own data folder: data_folder() deletes HOME before each test. Were
 # Apply imported before APPLY_HOME was set above, HOME would be ~/.config/apply (it was,
@@ -154,6 +164,13 @@ def data_folder() -> Path:
     answering._patterns.cache_clear()
     gates.companies.cache_clear()  # read again from this test's briefs
     return home.HOME
+
+
+@pytest.fixture(autouse=True)
+def a_new_process_for_workit():
+    """Each test starts as a new process does: no WorkIt access token kept from an earlier test (workit._ACCESS),
+    whose fake WorkIt may have had the same port."""
+    workit._ACCESS.clear()
 
 
 @pytest.fixture(autouse=True)

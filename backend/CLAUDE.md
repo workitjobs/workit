@@ -222,6 +222,11 @@ module docstring has the steps.
   and the test uploads to the real bucket. `tests/test_sent_resumes.py`'s
   `storage` fixture is the pattern: an in-memory bucket that records uploads
   and removals.
+- **A test of the desktop app's sign-in monkeypatches
+  `app_sign_in.get_supabase` and `app_sign_in._verify`**
+  (`tests/test_app_sign_in.py`). The service calls both directly, not
+  through `Depends`, so an override misses them, and the test would make a
+  magic link and a session on the real Supabase project.
 - **A test that calls a model route swaps the model with
   `tests/fake_models.py`'s `use(fake)`**, which overrides all three
   sizes (`app/services/models.py`) at once, and `clear()` after; a test of
@@ -2173,6 +2178,18 @@ account may do. It never hashes a password or signs a token. Read
 Supabase Auth dashboard setting: it has the flow, the dashboard settings and
 why each rule exists.
 
+- **The desktop app's session is a new Supabase session, made by
+  `app/services/app_sign_in.py`** (KAN-723, W5; `../docs/auth.md`, "WorkIt
+  Auto Apply's sign-in"): the website's `/app-sign-in` gets a one-time code
+  bound to the app's PKCE challenge, and the app trades it with its
+  verifier at `POST /apply-app/session`. The service-role key makes a magic
+  link's token (`generate_link`, no email), and Auth's `/verify` trades it,
+  as a plain HTTP call: the shared client's `verify_otp` would keep the
+  student's session on the client every route uses. The only route that
+  answers a session; never hand out the website's own (Supabase rotates
+  refresh tokens, so two holders sign each other out). The code's answer
+  says `paste` only for `deps.is_admin`: a student's page shows no code,
+  so nobody can be talked into sending one.
 - **Signup goes through `POST /auth/signup`, never `supabase.auth.signUp()`**,
   so the account type lands in `app_metadata` (only the service-role key can
   write it). If any profile write fails, the route deletes the auth user it

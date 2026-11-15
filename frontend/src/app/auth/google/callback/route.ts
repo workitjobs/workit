@@ -77,5 +77,5 @@ export async function GET(request: NextRequest) {
   const { data, error } = await supabase.auth.signInWithIdToken(credentials);
   if (error || !data.session) return fail("id_token_failed", error?.code ?? error?.message);
 
-  return finishOAuthSignIn(supabase, origin, data.session.access_token, null);
+  return finishOAuthSignIn(supabase, origin, data.session.access_token, flow?.next ?? null);
 }
