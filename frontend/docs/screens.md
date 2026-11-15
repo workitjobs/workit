@@ -609,8 +609,10 @@ dialog does not need), then one list in one scroll five cards high. Each
 card is the Resumes page's box with a radio: the name, one line
 ("Uploaded Oct 21", "Last edited Oct 21 · For Backend Intern at Initech",
 "Made Oct 21 · For This Job"), the type's badge as the Resumes table draws
-it (in a 7rem column, so the stars line up; its icon alone on a phone)
-and the Primary star; Tailor's Preview eye shows on hover or focus, and
+it (in a 7rem column, so the badges line up; its icon alone on a phone),
+and the Primary badge beside the primary's name, as the Resumes table has
+it (`PrimaryBadge`; a bare purple star at the card's end until KAN-825);
+Tailor's Preview eye shows on hover or focus, and
 always on a touch screen. The list puts the resume tailored to this
 posting first, then the primary, then the newest. It drew Uploaded,
 Generated and Tailored groups under pill headings, each card with a PDF
@@ -3262,9 +3264,11 @@ step out of a narrow row from the right (Type from 488px of row, Company
 640); Sort stays. Upload and Generate sat at the right of the filter row
 until 2026-11-11, where the Tracker and Up Next end theirs with the table's
 controls. Then the list (below).
-**Generate Resume opens the ways to start a resume** (`resumes/new-resume-dialog.tsx`,
-2026-11-11, after Simplify's "How would you like to create this
-resume?"; the user wanted one button named for the main way): **Start
+**Generate Resume opens the ways to start a resume**, the **New Resume**
+dialog (`resumes/new-resume-dialog.tsx`, 2026-11-11, after Simplify's "How
+would you like to create this resume?"; the user wanted one button named
+for the main way, and the dialog was "Generate a Resume" until KAN-825
+named it for all three ways, Upload among them): **Start
 From Your Experiences** (Generate as it was: the duplicate check, the
 steps dialog, then the editor) and **Upload a Resume** (the page's file
 picker; off with the reason at five uploads) as the shared option rows
@@ -3333,7 +3337,8 @@ the table, a phone's, the Type column folds away, the date keeps only its
 day, the Primary badge keeps only its star, and the actions column holds
 only ⋮. Below `@4xl` (896px) Target Job folds
 too, and the job reads under the name ("<posting> at <company>"). Rename turns the
-row into the name's field with Cancel and Save, at the row's height.
+row into the name's field with Cancel and Save, at the row's height (the
+one rename every resume has, below).
 **Date Modified** (2026-11-10, after Google Drive's) is the latest of two
 events: the last edit, or when it was made or uploaded, for a resume never
 edited, on the student's clock, the year only when it is not this one. It
@@ -3378,12 +3383,14 @@ company (logo and name, which never wraps and trails off when short of
 room) and, at the line's right, the Date Modified as the list says it
 ("Modified" or "Created" and the day). A narrow card drops the badge's
 word and the date's, keeping the type's icon and the day.
-⋮ holds every action (no hover icons, as on Drive's grid), and a filled
-star sits on the primary's page corner, as on Simplify's. No card shows
+⋮ holds every action (no hover icons, as on Drive's grid), and the
+Primary badge sits on the primary's page corner, where Simplify puts its
+star (a black disc with a star until KAN-825). No card shows
 a Posting Closed badge: as one more line it made some grid cards taller
 than their row. A New Resume tile led the grid until the
-same day; Generate Resume above does the same (2026-11-10). Rename edits the name under the
-page. The pages (`ResumeThumbnail` in `resume-preview.tsx`) are drawn in
+same day; Generate Resume above does the same (2026-11-10). Rename puts
+the name's field under the page, Cancel and Save wrapping under it on a
+narrow card. The pages (`ResumeThumbnail` in `resume-preview.tsx`) are drawn in
 the browser from the preview the duplicate modal uses, asked for only once
 a card comes within a screen of view and at most two at a time (`inTurn`),
 and kept for the visit: an upload's file costs nothing, and a built
@@ -3406,7 +3413,11 @@ the date joins the line under the name ("Created Oct 23, 3:27 PM",
 browser adds the time after hydration (`LocalDateTime`). The pickers' rows
 keep their one-line strip (`ResumeRow` without `page`). On a phone the Sort
 button cuts "Recently Created" to "Recently Cre…". With no resume at
-all the list's place holds "No Resumes Yet"; filters that hide every
+all the list's place holds "No Resumes Yet" with **Upload Resume** (the
+file picker, at once) and **Generate Resume** (the New Resume dialog, as
+the button above opens it), both secondary under the page's one filled
+button (KAN-825): it said "Upload a resume…" with no button, and the only
+upload was inside that dialog. Filters that hide every
 card show "No Matching Resumes" with Clear Filters (`EmptyState`, as the
 Applications page's). The type and the order are the URL's (`?type=uploaded,tailored`,
 `?sort=created`, `oldest` or `name`; Date Modified has none), moved in place and
@@ -3620,14 +3631,22 @@ upload's page.
   bank changes every resume and does not count. The days are the student's
   own (`LocalDate` in `(seeker)/local-time.tsx`); the UTC day showed a
   resume sent on an evening as sent the next day.
-- **Rename** edits the name on its card (2026-11-10, `RenamingCard` in
-  `components/resume-row.tsx`): the name becomes its field, selected, with
-  Cancel and Save where the icons were, and the card keeps its height and
-  takes the brand edge; Enter saves, Escape cancels, and an unchanged name
-  saves nothing. It was a labeled field across the list with "Save Name",
-  whose focus ring the list's scroll cut off. An upload's own page keeps
-  that form (`RenameForm`), now with Save. A sent resume keeps the name it
-  went out under.
+- **Rename is one form on every resume** (KAN-825, `RenameField` in
+  `components/resume-row.tsx`): the name becomes its field in its own
+  place, selected, with Cancel and Save after it (a card edited in place,
+  `docs/design.md`); Enter saves, Escape cancels, and an unchanged name
+  saves nothing. A table row keeps its height; a grid card puts it under
+  its page, with the brand edge; a resume's own page (the editor's, an
+  upload's, Tailor's review) puts it in the title's place, opened by a
+  click on the title or by ⋯'s Rename. Where the field would fall under
+  9rem, Cancel and Save wrap under it. ⋯'s Rename opens it once the menu
+  has closed, so the menu's focus return never takes the field's focus.
+  Until KAN-825 there were four: the editor's title saved on a click away
+  with no buttons, an upload's page had a labeled form of its own
+  (`RenameForm`), and the row and the grid card each drew theirs. A
+  labeled field across the list with "Save Name" came first, whose focus
+  ring the list's scroll cut off. A sent resume keeps the name it went
+  out under.
 - **Delete asks first**, on every resume, in a popover hung from the
   trash that opened it (KAN-347, `DeleteResumeConfirm` in
   `delete-confirm.tsx`): the question, then Keep It and Delete Resume, in
@@ -3650,13 +3669,19 @@ upload's page.
 KAN-366: an upload's own page, opened from its card on the Resumes view,
 so every resume opens inside WorkIt (a built one opens the editor, next).
 Back (to the page that opened it, such as Experiences, else `/resumes`;
-`(seeker)/back-link.tsx`), then the title row, in the editor's layout
-(KAN-799): the file's name as the heading over "Uploaded Oct 21" and
-"★ Primary" on the primary, and at the right Make Primary (while it is
-not), Rename, Delete and **Download**, the page's one filled button. Under
+`(seeker)/back-link.tsx`), then **the editor's own title row** (KAN-825;
+the editor's layout since KAN-799): the file's name (`ResumeTitle`, the
+editor's h1 at the same size, renamed in place) with the Primary badge
+after it on the primary, then at the right "Uploaded Oct 21" (where the
+editor says "Saved"), **Download**, the page's one filled button, and ⋯
+(`ResumeMenu`: Rename, Make Primary while it is not, Delete). Until
+KAN-825 the name was larger, "★ Primary" sat under it, and Make Primary,
+Rename and Delete were bordered buttons. Under
 it a sticky bar in the editor's look (`SLIM_BAR`, `[resumeId]/slim-bar.ts`;
 a lavender bar with a ring and a shadow until KAN-576) holds the page's one
-tool, the zoom, at its end; then the PDF, drawn page by page with the
+tool, the zoom, at its end: the editor's control and its kept step
+(`useZoom`, opening at 125%), so both resume pages open at one zoom
+(KAN-825; it opened at 100% and kept nothing until then); then the PDF, drawn page by page with the
 editor's pdf.js preview (`PdfPages`, no click targets: an upload is read
 here, its facts are edited in Experiences). The buttons and the date sat in
 the bar until KAN-799, which wrapped the date under them on purpose. The
@@ -3664,15 +3689,15 @@ server reads the file
 (`readUploadedResume`, which asks for the list and the file link together,
 KAN-368), so the browser never opens the Storage link. A DOCX
 cannot be drawn, so its place holds "This File Can't Be Shown Here" and
-Download, and it has no bar. Rename turns the heading into the cards' Rename form; Delete
-asks in a popover under its button, as a card's trash does, and then
-returns to the Resumes view.
+Download, and it has no bar. Rename turns the heading into the one
+Rename form; Delete asks in a popover under ⋯, as a row's does, and
+then returns to the Resumes view.
 An id the student has no upload by is a 404; a list or file that fails
 to load shows "This Resume Isn't Loading Right Now" with Try Again. The
-title row's buttons never wrap: below `@3xl/main` Make Primary, Rename and
-Delete keep their glyph alone, named by a tooltip, and below `@md/main`
-Download does too and the bar goes, since even the zoom's 50% step is
-wider than the page there. On a phone the pages take the width.
+title row never wraps: below `@md/main` "Uploaded" and Download's word
+fold to the day and the glyph, the badge keeps its star, and the bar goes,
+since even the zoom's 50% step is wider than the page there. On a phone
+the pages take the width.
 
 ## Resume editor
 
@@ -3735,15 +3760,25 @@ student who opened a resume from Experiences landed on another view.
   the resume's name, renamed in place as on Tailor's review: plain text
   with its pencil in `ink-meta` at rest (KAN-574: shown on hover alone, touch
   never saw it, and the name read as a plain heading), a faint outline when
-  pointed at, and a click makes it a field in the same box; Enter or a click away saves
-  (`renameBuiltResume`), Esc cancels. It is the page's h1 here and an h2
-  on the review, under its step's sr-only h1. It spans the page and the
+  pointed at, and a click opens the one Rename form (`RenameField`, above
+  under Resumes: the field with Cancel and Save; Enter saves, Esc
+  cancels; it saved on a click away with no buttons until KAN-825). It is
+  the page's h1 here, at a sub-page's size (`text-heading`, `text-title` on
+  a phone's column), and an h2 on the review (`text-subtitle`), under its
+  step's sr-only h1. **The Primary badge** follows the name on the primary
+  (KAN-825: the editor showed no sign of it). It spans the page and the
   column beside it, so the review's panel starts level with the bar.
-  It was a plain h1 at heading size until KAN-411; a failed load still
+  It was a plain h1 at heading size until KAN-411, and `text-subtitle`
+  from then until KAN-825; a failed load still
   shows it over the error. At its right (KAN-799) the save status,
   "Saving…" or "✓ Saved" (`SaveStatus`; "Fitting to One Page…" during a
-  fit), and **Download** (PDF, Word or LaTeX, `../download-menu.tsx`), the
-  page's one filled button. Both sat in the bar until then: Download as a
+  fit), **Download** (PDF, Word or LaTeX, `../download-menu.tsx`), the
+  page's one filled button, and on this page (not the review) **⋯**
+  (`ResumeMenu`, `[resumeId]/resume-menu.tsx`, KAN-825): the Resumes
+  list's own menu with Rename, Make Primary while it is not, and Delete,
+  which asks first and returns to Resumes. An upload's page draws the same
+  row. Until KAN-825 a student could not make a resume primary, or delete
+  it, from the editor. Download and the status sat in the bar until KAN-799: Download as a
   secondary button among the tools, which left the bar while a line was
   open, and the status as "Saved, 412 ms", hidden below 58rem. Download
   keeps nothing (KAN-267) and holds a PDF with characters the font lacks
@@ -3825,7 +3860,7 @@ student who opened a resume from Experiences landed on another view.
 - **The phone layout has the desktop's two rows** (`phone.tsx`, KAN-586):
   on the page's ground, the title row (back arrow, the name renamed in
   place, the save status and Download, the one filled button, its word
-  folded under 22rem), then the toolbar in the desktop's white box
+  folded under 22rem, then on the editor's own page ⋯, KAN-825), then the toolbar in the desktop's white box
   (`SLIM_BAR`): Undo and Redo, Add Experiences, Fit to One Page (the
   shared `FitButton`), Cut From Resume, and at its end Suggestions on
   Tailor's review (`ReviewButtons`), the zoom toggle and the side panel's

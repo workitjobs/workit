@@ -304,7 +304,7 @@ const GROUPS: { title: string; note: string; entries: Entry[] }[] = [
         Icon: StarIcon,
         glyph: "Star",
         meaning: "Primary resume",
-        where: "Resume rows (filled for the primary one)",
+        where: "The Primary badge (filled), Make Primary",
       },
       {
         Icon: ProhibitIcon,

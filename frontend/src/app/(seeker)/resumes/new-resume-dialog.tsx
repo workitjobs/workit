@@ -46,11 +46,13 @@ import { ResumePreviewPane, sourceOfKey, ViewButton } from "../jobs/[jobId]/tail
 import type { Source } from "../jobs/resume-picker";
 
 /**
- * Generate Resume's dialog on the Resumes page (2026-11-11, after
- * Simplify's "How would you like to create this resume?"): the three ways
- * to start a resume in one place. Upload Resume was its own button beside
- * Generate Resume until then; the user wanted one button, named for the
- * main way.
+ * The New Resume dialog, which Generate Resume opens on the Resumes page
+ * (2026-11-11, after Simplify's "How would you like to create this
+ * resume?"): the three ways to start a resume in one place. Upload Resume
+ * was its own button beside Generate Resume until then; the user wanted
+ * one button, named for the main way. The dialog was titled "Generate a
+ * Resume" until KAN-825, which named it for all three, Upload among them;
+ * the button keeps its name.
  *
  *   Start From Your Experiences  Generate as it was: every bank entry, the
  *                                duplicate check, then the editor
@@ -232,7 +234,7 @@ function Body({
         </DialogHeader>
       ) : (
         <DialogHeader className="border-border-subtle border-b px-6 pt-5 pr-12 pb-4">
-          <DialogTitle>Generate a Resume</DialogTitle>
+          <DialogTitle>New Resume</DialogTitle>
           <DialogDescription>
             Start from your experiences, upload a resume, or start with one you already have.
           </DialogDescription>

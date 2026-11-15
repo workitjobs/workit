@@ -1957,8 +1957,33 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   (`lib/resumes-stale.ts`), and the Resumes list reads itself again on
   mount when it is set. A screen whose write already revalidates calls no
   `router.refresh()` after it (the editor's title, the upload's page),
-  which would render the page twice. The upload page's Delete passes
-  `leaving`: rendered again, that page is a 404 before its push.
+  which would render the page twice. A resume page's Delete (the ⋯ of the
+  editor and of an upload's page) passes `leaving`: rendered again, the
+  upload's page is a 404 and the editor's reads a resume that is gone
+  before the push. So the editor's Make Primary and Rename compile the PDF
+  once on the server, as its rename always did.
+- **A resume looks and acts the same on every page that shows it**
+  (KAN-825), through three shared pieces; a new place that shows a resume
+  uses them, never its own:
+  - **One Primary mark, `PrimaryBadge`** (`components/resume-row.tsx`): the
+    table row, a grid card's page corner, the title of the editor and of an
+    upload's page, the resume pickers and Experiences' Showing card.
+    `wordClassName` says where the word folds. There were five: the badge,
+    a black disc, a star with the word, a bare purple star and nothing.
+  - **One rename, `RenameField`**: the name's field in its own place with
+    Cancel and Save (a card edited in place), Enter and Escape, in the
+    table row, the grid card and `ResumeTitle`. There were four, the
+    editor's saving on a click away with no buttons.
+  - **One title row on both resume pages**: `ResumeTitle` (the name, an h1
+    at `text-heading`, and the badge), then the page's status ("Saved", or
+    an upload's date), the filled Download, and `ResumeMenu`
+    (`resumes/[resumeId]/resume-menu.tsx`), the list's ⋯ (`RowMoreMenu`)
+    with Rename, Make Primary and Delete. `TitleRowProvider` joins the two
+    ends: the menu's Rename opens the title's field, and a failed Make
+    Primary or Delete shows under the title. Tailor's review keeps its h2
+    title and has no ⋯ (the editor's `more` prop). **`RowMoreMenu` hands no
+    focus back to ⋯ after Rename** (`finalFocus`): on a resume's page the
+    button stays, and its focus return took the focus from the new field.
 - **Every other seeker Back goes to the page that opened it**
   (`(seeker)/back-link.tsx`, KAN-363): `BackLink`, or `useBack` for a
   control drawn its own way (the editor's phone arrow), given the page's
@@ -2698,10 +2723,11 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   was a pill of its own (`DOCS_BAR`) with zoom at its left, and the
   review's icons in the title row were 40px.
   **The bar holds editing tools only; the title row holds the file**
-  (KAN-799, `[resumeId]/toolbar.tsx`). The title row is the name, the save
-  status ("Saving…", "Saved"; `SaveStatus`) and Download, the page's one
-  filled button (secondary on Tailor's review, whose fill is Finish), with
-  the review's Original and Suggestions before it. The bar is three groups
+  (KAN-799, `[resumeId]/toolbar.tsx`). The title row is the name with the
+  Primary badge, the save status ("Saving…", "Saved"; `SaveStatus`) and
+  Download, the page's one filled button (secondary on Tailor's review,
+  whose fill is Finish), with the review's Original and Suggestions before
+  it, then on the editor's own page the resume's ⋯ (`more`, KAN-825). The bar is three groups
   that keep their places: Undo and Redo; the middle; the zoom and **the side
   panel's one button** (KAN-586), at the row's end above where the panel
   opens, never folded away. **Sections and Format are tabs of one side
@@ -2727,7 +2753,7 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   on this resume where the form lists it.
   **The phone editor has the desktop's two rows** (`phone.tsx`, KAN-586):
   the title row (the editor's `heading`, so the name renames in place, the
-  save status and Download) over the toolbar in `SLIM_BAR`, with the shared
+  save status, Download and the editor's ⋯) over the toolbar in `SLIM_BAR`, with the shared
   `FitButton`, `ReviewButtons` and `PanelToggle`; the side panel is a sheet
   whose title is the Sections and Format tabs (`TabButtons`), and a tap on
   the header line no longer opens anything but its field. It kept a
@@ -2771,11 +2797,13 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   Wording beside Original; the user wanted Original alone (2026-10-29).
   The API still accepts a switch to any wording the resume can show.
 - **The editor's page has a zoom** (`Zoom` in `[resumeId]/zoom.tsx`, on
-  the slim bar of both pages; an upload's page has the same control for a
-  PDF, opening at 100% and kept in its state only, never stored):
+  the slim bar of both pages; an upload's page has the same control and the
+  same kept step for a PDF, `useZoom`, so both resume pages open at one zoom:
+  it opened at 100% and kept nothing until KAN-825):
   steps of the page's printed size, 100% being 816px (8.5in at 96px an
   inch), opening at 125% (1020px), capped by its column, kept per browser through
-  `lib/local-drafts.ts` (`EDITOR_ZOOM_KEY`). The page filled its column
+  `lib/local-drafts.ts` (`EDITOR_ZOOM_KEY`, whose name stays so a kept step
+  survives). The page filled its column
   until then, and KAN-421's 1440px pages made it take most of the screen.
   Its steps are a `DropdownMenu`: a native `<select>` dropped the browser's own
   list, in the system's blue, in the middle of the app's menus.
@@ -2785,6 +2813,7 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   (`(seeker)/resumes/[resumeId]/editor.tsx`), and both pages draw one
   editor design (KAN-411): the title row (`heading`, `ResumeTitle`
   renamed in place) and the slim toolbar (`Bar`, `toolbar.tsx`). Only the
+  editor's own page passes `more` (the resume's ⋯, KAN-825). Only the
   review passes `suggestions` (the panel, and with it the margin dots and
   tints, Original and Suggestions in the title row (`ReviewButtons`), a
   secondary Download, no Experiences picker, and Scout's

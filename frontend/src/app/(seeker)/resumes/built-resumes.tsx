@@ -16,7 +16,7 @@ import { FieldFacet, type FacetOption } from "@/components/field-facet";
 import { AllFiltersButton, ClearFiltersButton } from "@/components/filter-actions";
 import { matches, RESUME_TYPES, searchWords, type ResumeType } from "@/components/resume-list";
 import { RESUME_TYPE_ICON, type CardActions, type RowPick } from "@/components/resume-row";
-import { CompanyIcon, PencilIcon, SearchIcon, TrashIcon } from "@/components/icons";
+import { CompanyIcon, PencilIcon, SearchIcon, TrashIcon, UploadIcon } from "@/components/icons";
 import { SELECTION_ROW, SelectionAction, SelectionBar } from "@/components/selection-bar";
 import { GroupHeadingRow, useFolds } from "@/components/table-group";
 import { GroupByOptions, TableSettingsMenu } from "@/components/table-settings";
@@ -207,7 +207,7 @@ export function BuiltResumes({
   // button says "Checking…".
   const [showSteps, setShowSteps] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // Generate Resume's dialog: the ways to start a resume.
+  // The New Resume dialog, which Generate Resume opens: the ways to start a resume.
   const [creating, setCreating] = useState(false);
   // The resume a Generate or an upload would copy, while its modal is open.
   const [duplicate, setDuplicate] = useState<Duplicate | null>(null);
@@ -634,7 +634,32 @@ export function BuiltResumes({
       </div>
 
       {rows.length === 0 && !upload.uploading ? (
-        <EmptyState Icon={FileTextIcon} title="No Resumes Yet" className="mt-4">
+        // A way out of the empty list (KAN-825): Upload Resume opens the
+        // file picker at once, and Generate Resume does what the button
+        // above does. It said "Upload a resume…" with no button, and the
+        // only upload was inside the New Resume dialog.
+        <EmptyState
+          Icon={FileTextIcon}
+          title="No Resumes Yet"
+          className="mt-4"
+          action={
+            <div className="flex flex-wrap justify-center gap-2">
+              <Button variant="secondary" size="sm" onClick={upload.pick}>
+                <UploadIcon className="size-4" />
+                Upload Resume
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setCreating(true)}
+                disabled={generating !== null}
+              >
+                <FileTextIcon aria-hidden className="size-4" />
+                Generate Resume
+              </Button>
+            </div>
+          }
+        >
           Upload a resume to add its experiences, or generate one from them.
         </EmptyState>
       ) : shown.length === 0 && !upload.uploading ? (
