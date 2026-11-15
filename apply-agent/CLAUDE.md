@@ -181,6 +181,7 @@ into it and the window shows "Sample data".
   (`pytest -n auto`), so a new test there can't share a fixed port or
   path with another. CI also installs Chrome for Testing and runs
   `test_plain_guards.py` and `test_plain_routing.py` on a real plain Worker.
+  The hostile pages run in a job of their own beside it, `apply-hostile`.
   CI never runs the Filler tests (`test_*_filler.py`, `test_claude_fill.py`
   and the other files that open Chromium). Run the ones that your change
   touches on your Mac, with `-k`.
@@ -214,9 +215,26 @@ into it and the window shows "Sample data".
   A case waits for the page's own late send as long as its latest timer
   and a second more, 1.5 s for a page with none (`wait_ms`; `LATEST` for a
   timer whose delay is no number), where every case once waited 3 s:
-  unguarded, 78 of the 91 pages sent within 0.5 s. A page's control waits
-  as long, so a page that sends later than its wait on the runner fails its
-  control, never passes unseen. The session pages that send after 3 s
+  unguarded, 78 of the 91 pages sent within 0.5 s. **On CDP the page keeps
+  that time on Playwright's clock** (`cdp(clock=True)`, `_run_out`; KAN-780):
+  time flows as unfaked while the path presses, then the clock moves through
+  the wait in 250 ms steps, each with 50 ms of real time for the requests a
+  timer made, and 0.5 s more at the end. A 1.5 s wait takes 0.8 s and an
+  11.5 s one 2.8 s, and a busy runner can't push a timed send past its wait,
+  which is what lets CI run 8 processes on 3 cores. Unguarded, each of the 87
+  pages sent on it as on real time, or more (timers that never ran on real
+  time, since the page had left, now run before it leaves). Playwright's clock replaces
+  `performance`, and the guard's `now()` throws on it, so a CDP guard reads
+  no clock: `test_a_cdp_guard_reads_no_clock_a_page_can_fake` fails once it
+  does. A plain Worker has no such clock and waits in real time, as do the
+  held-page tests, whose hold is Python's. A page's control waits on the same
+  clock as its cases, so a page that sends later than its wait fails its
+  control, never passes unseen. The control runs no Apply code: PRs run three
+  (`CONTROLS_ON_PRS`, a check that the runner leaves the real time the wait
+  needs), every control when the PR changes what the control reads (`ci.yml`'s
+  `hostile_pages` filter: this file, the fake site, `uv.lock`, the setup), and
+  the nightly workflow the rest. A new page whose send needs more real time
+  than these joins `CONTROLS_ON_PRS`. The session pages that send after 3 s
   (`HELD_ONLY`) are in no matrix: there the guard is on throughout, so they
   were the plain dialog's pair again; their scenario is the held-page
   tests'. One timed copy per dialog kind, at 10 s: a hold that ended after
