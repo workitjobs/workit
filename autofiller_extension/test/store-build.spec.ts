@@ -36,6 +36,13 @@ test("the zip holds what Chrome loads and nothing of the repo's own", () => {
   expect(list.filter((f) => /^(test|store)\/|CLAUDE\.md|README\.md|fill-engine\/(src|test)\//.test(f))).toEqual([]);
 });
 
+test("the zip carries the extension's own license and the font's", () => {
+  const list = files();
+  for (const file of ["LICENSE", "NOTICE", "fonts/OFL.txt"]) expect(list).toContain(file);
+  expect(read("LICENSE")).toContain("All rights reserved.");
+  expect(read("LICENSE")).toContain("reverse engineer");
+});
+
 test("every script in the zip is minified, starts with the copyright notice and has no source map", () => {
   const scripts = files().filter((f) => f.endsWith(".js"));
   expect(scripts.length).toBeGreaterThan(10);
