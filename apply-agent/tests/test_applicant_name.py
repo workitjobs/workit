@@ -8,8 +8,7 @@ import pytest
 from conftest import FIXTURES, POLICIES
 from fakes import FakeClaude
 
-from apply import answering, essays, gates, home, presubmit, story_map, writing
-from apply.applicant import personal
+from apply import answering, essays, gates, home, private, story_map, writing
 from apply.model import Posting, Question
 from apply.profile import ApplicantProfile
 
@@ -136,26 +135,33 @@ def test_a_kind_goes_with_the_pronouns_and_school_and_its_answer_gets_the_name_b
     assert answer == {"letter": 'Sincerely, Te"st'}
 
 
-def test_no_call_is_sent_who_the_applicant_is_or_their_self_id(test_persons_bank):
-    # D8: the Fill engine fills these from the profile, so no draft or review needs them.
-    profile = ApplicantProfile.load(PROFILE, POLICIES)
-    profile.set("voluntary_self_id.race", "East Asian")
-    profile.set("experience_facts.professional_references", [{"name": "Ref Erence", "email": "ref@example.org"}])
-    email, race = Question("email", "Email", "text", True), Question("race", "Race", "select", False, ("East Asian",))
-    planned = Question("why_now", "Why are you applying now?", "text", True)
-    adult = Question("adult", "Are you at least 18 years of age?", "select", True, ("Yes", "No"))  # eligibility: kept
+def test_a_kind_is_sent_placeholders_for_private_details_and_its_answer_gets_them_back(tmp_path):
+    # D8: no answer needs them, since the Fill engine types them; self-ID answers go (2026-11-14).
+    from apply.applicant import as_applicant
 
-    calls = written(profile, (planned,), {email: "test.person@example.com", race: "East Asian"})
-    reviewer = FakeClaude()
-    presubmit.review(reviewer, POSTING, [email, race, adult, WHY], {"email": "test.person@example.com", "race": "East Asian",
-                                                                    "adult": "Yes", "why": "Because I use it."},
-                     who=personal(profile))
+    class Kinds:
+        sent = []
 
-    [draft] = [c for c in calls if c.get("kind") == "essays.write"]
-    assert draft["data"]["short_questions"] and "Springfield" in draft["data"]["sources"]  # where they live: yes
-    assert [row["question"] for row in reviewer.kinds[0]["data"]["rows"]] == [adult.label, WHY.label]
-    # The facts and the form's answers every call is sent; a draft is the form's own text, sent whole.
-    sent = json.dumps([{part: c["data"].get(part) for part in ("sources", "form_answers", "rows")}
-                       for c in calls + reviewer.kinds if "kind" in c])
-    for kept in ("Person", "test.person@example.com", "5550100199", "1 Main St", "Test-ee", "East Asian", "Ref Erence"):
-        assert kept not in sent
+        def ask_kind(self, kind, data):
+            self.sent.append(data)
+            return {"note": "Reach @NAME@ at @EMAIL@ or @PHONE@."}
+
+    profile = ApplicantProfile({"identity": {"preferred_first_name": "Test", "email": "test.person@example.com",
+                                             "phone": "+15550100199", "home_address": {"line1": "1 Main St"}},
+                                "answered_questions": {"Date of Birth": "01/02/2005"}}, tmp_path, {})
+    rows = [{"question": "Email", "answer": "TEST.person@example.com"}, {"question": "Address", "answer": "1 Main St"},
+            {"question": "Date of Birth", "answer": "01/02/2005"}, {"question": "Race", "answer": "East Asian"}]
+    answer = as_applicant(Kinds(), profile).ask_kind("presubmit.review", {"rows": rows})
+
+    sent = json.dumps(Kinds.sent).casefold()
+    assert not any(value in sent for value in ("test.person@example.com", "1 main st", "01/02/2005"))
+    assert "east asian" in sent
+    assert answer == {"note": "Reach Test at test.person@example.com or +15550100199."}
+
+
+def test_an_essay_that_shares_something_private_is_flagged_for_the_student(tmp_path):
+    profile = ApplicantProfile({"identity": {"phone": "+15550100199"},
+                                "voluntary_self_id": {"race": "East Asian", "veteran": False}}, tmp_path, {})
+    essay = "Call me at (555) 010-0199. As a first-generation student, and East Asian, I build tools."
+    assert private.sensitive(essay, profile) == ("your phone number", "your race (East Asian)", '"As a first-generation"')
+    assert private.sensitive("I built a line-following robot.", profile) == ()

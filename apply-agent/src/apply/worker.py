@@ -34,7 +34,7 @@ from apply import (
 )
 from apply.adapters import Claude, JobSite, UsageLimitHit
 from apply.answer_bank import LISUL, AnswerBank
-from apply.applicant import as_applicant, personal
+from apply.applicant import as_applicant
 from apply.fill_engine import (
     attested_line,
     company_specific,
@@ -431,7 +431,7 @@ def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fi
                                               types=[e.plan.type for e in planned.written if e.plan], posting=posting) \
                         if planned.written or drafted else essays.profile_block(profile, posting)
                     found = review(as_applicant(claude, profile), posting, questions, readback, sources, planned.text,
-                                   planned.own(), personal(profile))  # its reasons say the applicant's own pronouns
+                                   planned.own())  # its reasons say the applicant's own pronouns
                     if not fixed and attempt < 2 and planned.fix(found.fixes, readback):
                         # The review named the right answer for a wrong one (an internship start in a school's
                         # From): it is filled in its place, and the form filled and reviewed again, before
@@ -950,6 +950,8 @@ class _Planned:
             holds.append(f"'{one_line(q.label)}' states {', '.join(essay.unsupported)}, which no source backs")
         if essay.claims:  # the truth check: held for Lisul to read, never cut or rewritten here
             holds.append(f"'{one_line(q.label)}' claims what no source backs: {'; '.join(essay.claims)}")
+        if essay.sensitive:  # for Lisul to look at: an essay may mean to say it, so it is never cut here
+            holds.append(f"'{one_line(q.label)}' may share something private: {'; '.join(essay.sensitive)}")
         if essay.giveaways:
             said = ", ".join(f"'{words}'" for words in essay.giveaways)
             holds.append(f"'{one_line(q.label)}' gives away how it was written ({said}), even drafted again")

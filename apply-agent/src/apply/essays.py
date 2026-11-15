@@ -30,6 +30,7 @@ from apply import (
     cover_letter,
     description,
     fill_engine,
+    private,
     probe,
     sameness,
     stock,
@@ -39,7 +40,7 @@ from apply import (
 )
 from apply import home as data_folder  # essays.home() is the applicant's town
 from apply.adapters import Claude, lean
-from apply.applicant import SELF_ID, WHO, as_applicant, kept_out, personal
+from apply.applicant import as_applicant
 from apply.model import Posting, Question, one_line
 from apply.profile import ApplicantProfile
 from apply.records import SECRET
@@ -111,6 +112,7 @@ class Essay:
     plan: "Plan | None" = None  # its Essay plan, as checked
     failed: tuple[str, ...] = ()  # the code gates it fails (apply.gates)
     claims: tuple[str, ...] = ()  # the names, dates and outcomes it states that no source backs (apply.truth)
+    sensitive: tuple[str, ...] = ()  # what it tells that most keep private (apply.private): held, never cut
 
 
 @dataclass(frozen=True)
@@ -176,7 +178,7 @@ def answer(claude: Claude, posting: Posting, essays: list[Question], drafts: lis
                                sections=sections)[1]
     claude = as_applicant(claude, profile)  # every prompt says the profile's name and school
     keys = {f"q{i}": q for i, q in enumerate(essays, 1)}
-    shown = form_answers(answered or {}, personal(profile))
+    shown = form_answers(answered or {})
     defaults = probe.typical(claude, posting, {key: _ask(q) for key, q in keys.items() if question_type(q) in probe.TYPES},
                              company, posting_text)
     if keys and planned is None:
@@ -233,7 +235,7 @@ def answer(claude: Claude, posting: Posting, essays: list[Question], drafts: lis
                     (written.get(key) or {}).get("needs_lisul") is True, giveaways(texts[key]),
                     _named(written.get(key) or {}, plans[key], texts[key], company), plans[key],
                     tuple(failed[key]) if texts[key] else (),
-                    tuple(c.said() for c in found[key] if c.kind != "number"))
+                    tuple(c.said() for c in found[key] if c.kind != "number"), private.sensitive(texts[key], profile))
               if key in keys else Essay(q, "", plan=plans[key])
               for key, q in {**keys, **waiting}.items()]
     result.sort(key=lambda e: essays.index(e.question))
@@ -587,14 +589,14 @@ def remember_fact(asked: str, answer: str, company: str, today: date) -> None:
     data_folder.STORY_BANK.write_text(f"{bank.rstrip()}\n{fact} (asked for {company}, {today.isoformat()})\n")
 
 
-def form_answers(answered: Mapping[Question, object], who: frozenset[str] = frozenset()) -> dict[str, str | list[str]]:
+def form_answers(answered: Mapping[Question, object]) -> dict[str, str | list[str]]:
     """The answers already given on the form that an essay may refer to ("the
     area you picked"), by question label: choices and short text only, never
-    a file, an essay, a secret, a self-identification (EEO) answer or one that
-    is who they are (`who`: applicant.personal)."""
+    a file, an essay or a secret. The private details in them go as
+    placeholders (apply.private)."""
     return {one_line(q.label): a for q, a in answered.items()
             if q.kind in ("select", "multi_select", "text") and a and isinstance(a, (str, list))
-            and not (kept_out(q.label, a, who) or SECRET.search(q.label) or SECRET.search(q.name))}
+            and not (SECRET.search(q.label) or SECRET.search(q.name))}
 
 
 def named_fact(name: object, company: str) -> str:
@@ -657,24 +659,18 @@ def home(profile: ApplicantProfile) -> str:
 
 
 # Profile sections a model call is never sent: files (paths on Lisul's Mac), Stock answers (given apart, in
-# <stock_answers>) and the self-identification (EEO) answers (D8). Nor, within identity, the private facts
-# (applicant.WHO), nor the references' contact details.
+# <stock_answers>) and the self-identification (EEO) answers (D8). The private details in the rest go as
+# placeholders (apply.private).
 NOT_FACTS = {"files", "stock_answers", "voluntary_self_id"}
 
 
 def profile_facts(profile: ApplicantProfile, posting: Posting | None = None) -> dict:
-    """Lisul's Applicant profile as data for Claude: every fact they gave but the private ones (NOT_FACTS,
-    applicant.WHO, references) and a self-identification question they answered. With `posting`, the Tracker's
-    past applications and interviews join the screeners as the plan joins them (fill_engine.with_past_applications)."""
+    """Lisul's Applicant profile as data for Claude: every fact they gave but NOT_FACTS and a secret they
+    answered. With `posting`, the Tracker's past applications and interviews join the screeners as the plan
+    joins them (fill_engine.with_past_applications)."""
     facts = {key: value for key, value in profile.facts().items() if key not in NOT_FACTS}
-    if isinstance(identity := facts.get("identity"), dict):
-        facts["identity"] = {key: value for key, value in identity.items() if key not in WHO}
-        if isinstance(address := identity.get("home_address"), dict):
-            facts["identity"]["home_address"] = {k: v for k, v in address.items() if f"home_address.{k}" not in WHO}
-    if isinstance(experience := facts.get("experience_facts"), dict):
-        facts["experience_facts"] = {key: value for key, value in experience.items() if key != "professional_references"}
     if isinstance(answered := facts.get("answered_questions"), dict):
-        facts["answered_questions"] = {q: a for q, a in answered.items() if not (SELF_ID.search(q) or SECRET.search(q))}
+        facts["answered_questions"] = {q: a for q, a in answered.items() if not SECRET.search(q)}
     return fill_engine.with_past_applications(facts, posting) if posting is not None else facts
 
 

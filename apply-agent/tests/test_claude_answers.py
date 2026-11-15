@@ -1262,7 +1262,7 @@ def test_an_essay_about_an_answer_given_above_sees_that_answer(monkeypatch):
     assert not any(label.startswith("Resume") for label in shown)  # files never reach it
 
 
-def test_form_answers_leave_out_files_essays_self_id_and_secrets():
+def test_form_answers_leave_out_files_essays_and_secrets_and_keep_self_id():  # self-ID open (D8, 2026-11-14)
     picked = {
         Question("a", FIGMA_AREAS, "select", True, ("Infrastructure",)): "Infrastructure",
         Question("b", "Resume", "file", True): Path("one-pager.pdf"),
@@ -1273,7 +1273,8 @@ def test_form_answers_leave_out_files_essays_self_id_and_secrets():
         Question("g", "Preferred languages", "multi_select", False, ("C", "Rust")): ["C", "Rust"],
     }
 
-    assert essays.form_answers(picked) == {FIGMA_AREAS: "Infrastructure", "Preferred languages": ["C", "Rust"]}
+    assert essays.form_answers(picked) == {FIGMA_AREAS: "Infrastructure", "What is your gender?": "Male",
+                                           "Are you a protected veteran?": "No", "Preferred languages": ["C", "Rust"]}
 
 
 @pytest.mark.parametrize("edited", ["", "Hi Figma,\n\nA different letter.", "Dear Figma Recruiting Team:\n\nCut short.",
