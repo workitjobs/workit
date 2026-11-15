@@ -531,9 +531,7 @@ class TestCappedBoards:
             if facet_applied.get("jobFamilyGroup") == ["univ"]:
                 raise BoardNotFound(url)
             key = (
-                tuple(sorted((k, v[0]) for k, v in facet_applied.items()))
-                if facet_applied
-                else ()
+                tuple(sorted((k, v[0]) for k, v in facet_applied.items())) if facet_applied else ()
             )
             pages = {
                 ((), 0): first_page,
