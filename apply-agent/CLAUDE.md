@@ -147,7 +147,7 @@ this folder's `CLAUDE.md` for its area.
 - `docs/restart-recovery.md`: what survives a restart of the Mac: Workers' sign-ins across a quit, the open-forms list (`batch.py`), `apply reopen`, and `apply preflight --open`.
 - `docs/plain-workers/guide.md`: `apply/plain/`, `worker_mode`, `--into`, or the worker extension; `docs/plain-workers/worker-extension-todo.md` for its store package and what is left.
 - `docs/plain-workers/PROTOCOL.md`: a message between Apply and the worker extension.
-- `docs/research/`: the research behind plain Workers, Employer account sign-in and the held form's session keep-alive (`session-timeouts.md`). Each note's Status line says what was built.
+- `docs/research/`: the research behind plain Workers, Employer account sign-in, the held form's session keep-alive (`session-timeouts.md`), and keeping Workers out of the student's view (`workers-out-of-view.md`: hidden Workers, a virtual screen, F10). Each note's Status line says what was built.
 
 ## The data folder (`APPLY_HOME`)
 
