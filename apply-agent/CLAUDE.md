@@ -412,16 +412,19 @@ into it and the window shows "Sample data".
   Keychain and the checkout's `.env`. The `.env` holds the team's real key,
   so `test_student_build.py` passed on a Mac and failed on CI, which has no
   key (2026-11-15).
-- **A plain Worker's Chrome a test starts closes when its test process ends,
-  even a killed one** (`tests/chrome_reaper.py`, wired in `conftest.py`). Such
-  a Chrome runs on its own (`launcher.start_in_background`), and a pytest run a
-  timeout, a stopped task or a second Ctrl-C ended left its Chrome for Testing
-  windows open: five of them (2026-11-15). conftest lists each one's profile
-  before it starts, and a reaper process beside the test process stops every
-  process with a listed profile once that test process is gone. A new way a
-  test starts a Chrome of its own goes through `start_in_background`, or calls
-  `chrome_reaper.watch` itself. A killed run still leaves its `/tmp/apw-*`
-  folders.
+- **Every Chrome a test starts closes when its test process ends, finished
+  or killed** (`tests/chrome_reaper.py`, wired in `conftest.py`). A plain
+  Worker's Chrome runs on its own (`launcher.start_in_background`), and pytest
+  runs that a timeout, a stopped task or a second Ctrl-C ended left their Chrome
+  for Testing windows open: five of them (2026-11-15). conftest lists each
+  Chrome's profile before it starts: every `start_in_background`, and every
+  Chrome command started through `subprocess` with a `--user-data-dir`. A
+  reaper outside the test process's tree (a stopped task kills the whole tree)
+  hears that process end through a pipe, however it ends, and stops each
+  listed browser still running, a fixture's leftover too. A new way a test
+  starts a browser outside those two calls `chrome_reaper.watch` itself. Test
+  runs leave their `/tmp/apw-*` folders, finished or not; the reaper stops
+  processes only.
 - **Prove a fix on the real form.** Rehearse the job posting that showed the
   bug (`uv run apply rehearse <url>`) and read its record. A rehearsal never
   submits. A unit test that passes is not the check that matters; the live

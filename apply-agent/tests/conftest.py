@@ -42,8 +42,11 @@ from keyring.backends import null
 
 keyring.set_keyring(null.Keyring())
 
-# A plain Worker's Chrome a test starts closes when the test process ends, even one a timeout or a stopped task
-# killed before its fixtures could stop it (chrome_reaper). Every launch goes through start_in_background.
+# Every Chrome a test starts closes when the test process ends, finished or killed (chrome_reaper): each plain Worker
+# (start_in_background, which every launch goes through), and any Chrome started with a profile of its own through
+# subprocess (network_block's test of a Chrome command). Its profile is listed before it starts.
+import subprocess
+
 import chrome_reaper
 
 from apply.plain import launcher as _launcher
@@ -57,6 +60,18 @@ def _started_and_watched(arguments, profile, log, *args, **kwargs):
 
 
 _launcher.start_in_background = _started_and_watched
+_popen_init = subprocess.Popen.__init__
+
+
+def _popen_watched(self, args, *rest, **kwargs):
+    if isinstance(args, (list, tuple)) and args and network_block._is_chrome([str(a) for a in args]):
+        for arg in map(str, args):
+            if arg.startswith("--user-data-dir="):
+                chrome_reaper.watch(arg.split("=", 1)[1])
+    _popen_init(self, args, *rest, **kwargs)
+
+
+subprocess.Popen.__init__ = _popen_watched
 
 from fake_lever import FakeLeverServer
 from fakes import FakeJobServer
