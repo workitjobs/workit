@@ -1,5 +1,6 @@
-"""Send report (D26, KAN-837, apply.report): what one Application's report holds. Only the Record's own files go,
-the Trace goes with the student's private values masked, and a long Trace keeps its start and its end."""
+"""Send report (D26, KAN-837, apply.report): what the window's support form sends. An Application's report holds only
+its Record's own files and its Trace with the student's private values masked, a long Trace keeps its start and its
+end, and a general question, or one that leaves the record out, holds only the student's words."""
 
 import base64
 import json
@@ -19,7 +20,7 @@ def _row(record: str) -> Row:
                posting_url="https://jobs.ashbyhq.com/harvey/123", job_system="ashby", status=Status.HELD, record=record)
 
 
-def test_a_report_holds_the_records_files_and_the_trace_with_private_values_masked(tmp_path):
+def test_an_applications_report_holds_its_records_files_and_its_trace_with_private_values_masked(tmp_path):
     record = tmp_path / "rehearsals" / "2026-11-15" / "harvey-123"
     record.mkdir(parents=True)
     (record / "answers.json").write_text('[{"question": "First Name", "planned": "Test", "on_page": "Test"}]')
@@ -34,13 +35,18 @@ def test_a_report_holds_the_records_files_and_the_trace_with_private_values_mask
     profile = tmp_path / "applicant-profile.yaml"
     shutil.copy(FIXTURES / "profile.yaml", profile)
 
-    sent = report.build(_row(str(record)), profile, " The essay box stayed empty. ", traces.parent)
+    sent = report.build("answer", " The essay box stayed empty. ", profile, _row(str(record)), contact_ok=True,
+                        traces=traces.parent)
 
+    assert (sent["category"], sent["note"], sent["contact_ok"], sent["outcome"]) == (
+        "answer", "The essay box stayed empty.", True, "held")
     assert set(sent["files"]) == {"answers.json"} and sent["screenshots"] == {"form.png": base64.b64encode(PNG).decode()}
-    assert (sent["outcome"], sent["note"]) == ("held", "The essay box stayed empty.")
     assert "harvey/123" in sent["trace"]  # the start says which posting
     for value in ("Person", "test.person@example.com"):
         assert value not in sent["trace"]
+    assert [line.split(" (")[0] for line in report.parts(sent)] == [
+        "Your words, and WorkIt may email you about them", "Which application: Harvey, Software Engineer Intern",
+        "answers.json", "form.png", "The step-by-step log"]
 
 
 def test_a_long_trace_keeps_its_start_and_its_end(tmp_path, monkeypatch):
@@ -51,6 +57,13 @@ def test_a_long_trace_keeps_its_start_and_its_end(tmp_path, monkeypatch):
     (traces / "harvey-123.jsonl").write_text("".join(json.dumps(e) + "\n" for e in events))
     monkeypatch.setattr(report, "TRACE_MAX", 2_000)
 
-    sent = report.build(_row(""), tmp_path / "no-profile.yaml", traces=traces.parent)["trace"]
+    sent = report.build("form", "It hung.", tmp_path / "no-profile.yaml", _row(""), traces=traces.parent)["trace"]
 
     assert len(sent) <= 2_000 and sent.startswith('{"t": 0, "kind": "start"') and "the submit never came back" in sent
+
+
+def test_a_general_question_and_a_report_without_the_record_hold_only_the_students_words(tmp_path):
+    asked = report.build("app", "How do I change my Worker count?", tmp_path / "no-profile.yaml")
+    assert asked == {"category": "app", "note": "How do I change my Worker count?", "contact_ok": False}
+    left_out = report.build("form", "It hung.", tmp_path / "no-profile.yaml", _row(str(tmp_path)), include=False)
+    assert left_out["application_id"] == "harvey-123" and not {"files", "screenshots", "trace"} & set(left_out)

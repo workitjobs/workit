@@ -1,8 +1,9 @@
 """
-WorkIt Auto Apply's Send report (D26, KAN-837; W1 of docs/desktop_application_auto_apply.md): when the student
-presses "Send report" in the app's window, the app sends that one Application's Record and its Trace, with the
-student's private values masked in the app (apply-agent/src/apply/report.py), and their note. Never sent
-automatically. The team reads it to fix the problem it shows, then deletes it: a report has no retention period,
+WorkIt Auto Apply's Send report (D26, KAN-837; W1 of docs/desktop_application_auto_apply.md): the support form in
+the app's window, opened from Settings or from an Application's tile. The student picks what it is about, writes
+what happened and says whether WorkIt may email them; when they include an Application, the app also sends its
+Record and its Trace, with the student's private values masked in the app (apply-agent/src/apply/report.py). Never
+sent automatically. The team reads it to fix the problem it shows, then deletes it: a report has no retention period,
 since the privacy policy says WorkIt keeps it until its problem is fixed.
 
 POST /apply-app/reports  ApplyReportRequest (app/schemas/apply_reports.py), from a student's account
@@ -10,7 +11,8 @@ POST /apply-app/reports  ApplyReportRequest (app/schemas/apply_reports.py), from
      BODY_MAX bytes (read in chunks, never whole), 422 for a key outside the shape, a file name the Record does not
      have, or a screenshot that is not a PNG. 429 past the account's daily cap (APPLY_REPORT_DAILY_CAP,
      app/services/daily_caps.py).
-GET  /admin/apply-reports            ?limit=&offset=: newest first, without files, screenshots or Trace (admins only, 403)
+GET  /admin/apply-reports            ?limit=&offset=: newest first, each with its student's email (for a reply when
+     contact_ok), without files, screenshots or Trace (admins only, 403)
 GET  /admin/apply-reports/{id}       one, whole: its files, the screenshots it has, its Trace
 GET  /admin/apply-reports/{id}/screenshots/{name}  form.png or after-submit.png, as image/png
 DELETE /admin/apply-reports/{id}     its problem is fixed, or the team drops it: the report is deleted (204)
@@ -65,17 +67,17 @@ async def _report_body(request: Request) -> ApplyReportRequest:
                             error.errors(include_url=False, include_input=False, include_context=False)) from None
 
 
-def _summary(row: Apply_Report) -> dict:
-    return {"id": str(row.id), "created_at": row.created_at, "applicant_id": str(row.applicant_id),
-            "application_id": row.application_id, "company": row.company, "role": row.role,
+def _summary(row: Apply_Report, email: str) -> dict:
+    return {"id": str(row.id), "created_at": row.created_at, "applicant_id": str(row.applicant_id), "email": email,
+            "category": row.category, "contact_ok": row.contact_ok, "application_id": row.application_id, "company": row.company, "role": row.role,
             "posting_url": row.posting_url, "outcome": row.outcome, "note": row.note}
 
 
-async def _found(db: AsyncSession, report_id: uuid.UUID) -> Apply_Report:
-    row = await get_report(db, report_id)
-    if row is None:
+async def _found(db: AsyncSession, report_id: uuid.UUID) -> tuple[Apply_Report, str]:
+    found = await get_report(db, report_id)
+    if found is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "No such report.")
-    return row
+    return found
 
 
 @router.post("/apply-app/reports", response_model=ApplyReportStored, status_code=status.HTTP_201_CREATED)
@@ -98,7 +100,7 @@ async def all_apply_reports(
     db: AsyncSession = Depends(get_session),
 ) -> ApplyReportList:
     rows, total = await list_reports(db, limit, offset)
-    return ApplyReportList(reports=[ApplyReportSummary(**_summary(r)) for r in rows], total=total)
+    return ApplyReportList(reports=[ApplyReportSummary(**_summary(r, email)) for r, email in rows], total=total)
 
 
 @router.get("/admin/apply-reports/{report_id}", response_model=ApplyReportDetail)
@@ -107,9 +109,9 @@ async def one_apply_report(
     _admin: AuthenticatedAccount = Depends(get_admin),
     db: AsyncSession = Depends(get_session),
 ) -> ApplyReportDetail:
-    row = await _found(db, report_id)
+    row, email = await _found(db, report_id)
     screenshots = [name for name, png in (("form.png", row.form_png), ("after-submit.png", row.after_submit_png)) if png]
-    return ApplyReportDetail(**_summary(row), files=row.files or {}, screenshots=screenshots, trace=row.trace)
+    return ApplyReportDetail(**_summary(row, email), files=row.files or {}, screenshots=screenshots, trace=row.trace)
 
 
 @router.get("/admin/apply-reports/{report_id}/screenshots/{name}")
@@ -119,7 +121,7 @@ async def apply_report_screenshot(
     _admin: AuthenticatedAccount = Depends(get_admin),
     db: AsyncSession = Depends(get_session),
 ) -> Response:
-    row = await _found(db, report_id)
+    row, _ = await _found(db, report_id)
     png = row.form_png if name == "form.png" else row.after_submit_png
     if not png:
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"The report has no {name}.")

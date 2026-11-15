@@ -1432,10 +1432,13 @@ Real, not forgotten. Do not treat their absence as a decision already made.
 
 ## WorkIt Auto Apply's reports — `apply_reports.py` (KAN-837)
 
-- **One row per report a student sent with "Send report"** (D26): the
-  Application as its Tracker row names it, the Record's text files
-  (`files`, JSONB by file name), the form's screenshots (`form_png`,
-  `after_submit_png`, `bytea`, deferred) and the Trace masked in the app.
+- **One row per report a student sent from the app's support form**
+  (D26): its `category` (a CHECK, not an enum, so a new one is one
+  migration), their words (`note`), `contact_ok`, and, when they included
+  an Application, that Application as its Tracker row names it, the
+  Record's text files (`files`, JSONB by file name), the form's
+  screenshots (`form_png`, `after_submit_png`, `bytea`, deferred) and the
+  Trace masked in the app. `application_id` is '' for a general question.
   CASCADE from `applicant_profiles`, so it goes with the account.
 - **No retention period, on purpose**: `/privacy` says WorkIt keeps a
   report until its problem is fixed, so an admin deletes it then

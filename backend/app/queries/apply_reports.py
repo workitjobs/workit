@@ -10,13 +10,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import undefer
 
 from app.models.apply_reports import Apply_Report
+from app.models.profiles import Applicant_Profile
 from app.schemas.apply_reports import ApplyReportRequest
 
 
 async def store_report(db: AsyncSession, report: ApplyReportRequest, applicant_id: uuid.UUID) -> uuid.UUID:
     '''adds the report from this student, commits, and answers its id'''
     row = Apply_Report(
-        applicant_id=applicant_id, application_id=report.application_id, company=report.company, role=report.role,
+        applicant_id=applicant_id, category=report.category, contact_ok=report.contact_ok,
+        application_id=report.application_id, company=report.company, role=report.role,
         posting_url=report.posting_url, outcome=report.outcome, note=report.note, files=dict(report.files),
         form_png=report.png("form.png"), after_submit_png=report.png("after-submit.png"), trace=report.trace,
     )
@@ -25,15 +27,22 @@ async def store_report(db: AsyncSession, report: ApplyReportRequest, applicant_i
     return row.id
 
 
-async def list_reports(db: AsyncSession, limit: int = 50, offset: int = 0) -> tuple[list[Apply_Report], int]:
-    '''the newest reports first, without their files, screenshots or Trace, and how many there are'''
-    rows = await db.scalars(select(Apply_Report).order_by(Apply_Report.created_at.desc()).limit(limit).offset(offset))
-    return list(rows), await db.scalar(select(func.count()).select_from(Apply_Report)) or 0
+def _with_email():
+    return select(Apply_Report, Applicant_Profile.email).join(
+        Applicant_Profile, Applicant_Profile.id == Apply_Report.applicant_id)
 
 
-async def get_report(db: AsyncSession, report_id: uuid.UUID) -> Apply_Report | None:
-    '''one report, whole'''
-    return await db.scalar(select(Apply_Report).where(Apply_Report.id == report_id).options(undefer("*")))
+async def list_reports(db: AsyncSession, limit: int = 50, offset: int = 0) -> tuple[list[tuple[Apply_Report, str]], int]:
+    '''the newest reports first, each with its student's email, without their files, screenshots or Trace, and how
+    many there are'''
+    rows = await db.execute(_with_email().order_by(Apply_Report.created_at.desc()).limit(limit).offset(offset))
+    return [(row, email) for row, email in rows], await db.scalar(select(func.count()).select_from(Apply_Report)) or 0
+
+
+async def get_report(db: AsyncSession, report_id: uuid.UUID) -> tuple[Apply_Report, str] | None:
+    '''one report, whole, with its student's email'''
+    found = (await db.execute(_with_email().where(Apply_Report.id == report_id).options(undefer("*")))).first()
+    return (found[0], found[1]) if found else None
 
 
 async def delete_report(db: AsyncSession, report_id: uuid.UUID) -> bool:

@@ -4,8 +4,9 @@ Revision ID: 36d339a2d6b4
 Revises: 076111eab7cb
 Create Date: 2026-11-15 16:01:39.372467
 
-One row per report a student sent from WorkIt Auto Apply with "Send report"
-(D26): the Application's Record, its masked Trace and their note
+One row per report a student sent from WorkIt Auto Apply's support form
+(D26): its category, their words and whether WorkIt may email them, and,
+when they included one Application, its Record and masked Trace
 (app/models/apply_reports.py). No retention period: the team deletes a
 report once its problem is fixed (DELETE /admin/apply-reports/{id}). A new
 table, so old code ignores it and it is safe to apply before or after the
@@ -32,7 +33,9 @@ def upgrade() -> None:
         sa.Column('id', sa.Uuid(), server_default=sa.text('gen_random_uuid()'), nullable=False),
         sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
         sa.Column('applicant_id', sa.Uuid(), nullable=False),
-        sa.Column('application_id', sa.String(length=200), nullable=False),
+        sa.Column('category', sa.String(length=16), nullable=False),
+        sa.Column('contact_ok', sa.Boolean(), server_default=sa.text('false'), nullable=False),
+        sa.Column('application_id', sa.String(length=200), server_default='', nullable=False),
         sa.Column('company', sa.Text(), server_default='', nullable=False),
         sa.Column('role', sa.Text(), server_default='', nullable=False),
         sa.Column('posting_url', sa.Text(), server_default='', nullable=False),
@@ -47,6 +50,8 @@ def upgrade() -> None:
     )
     op.create_index('ix_apply_reports_applicant_id', 'apply_reports', ['applicant_id'])
     op.create_index('ix_apply_reports_created_at', 'apply_reports', [sa.text('created_at DESC')])
+    op.create_check_constraint(
+        'apply_reports_category_check', 'apply_reports', "category IN ('form', 'answer', 'sign_in', 'app', 'other')")
     op.execute('ALTER TABLE public.apply_reports ENABLE ROW LEVEL SECURITY')
 
 

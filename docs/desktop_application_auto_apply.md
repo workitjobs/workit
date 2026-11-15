@@ -116,7 +116,7 @@ builds it.
 | D23 | **Jobs come from the student's Auto Apply queue on WorkIt**, plus a box to paste one posting's link | The queue is already on the website | W5 |
 | D24 | **Two Workers by default, one to three.** Each is a full Chrome, about 0.5 to 1 GB of memory | Student laptops | W5 |
 | D25 | **"Remove all my data"** in settings deletes the Worker profiles, the seed, Records, Traces and the app's `keyring` items. The data folder is in each OS's standard place | Mac apps have no uninstaller | W5 |
-| D26 | **"Send report"** sends one Application's Record and a masked Trace to WorkIt only when the student presses it. No automatic telemetry | Testers need a way to report; privacy first | W5, W1 |
+| D26 | **"Send report"** sends one Application's Record and a masked Trace to WorkIt only when the student presses it. No automatic telemetry. As built (KAN-837): a support form ("Report a problem", from Settings or an Application's tile): a category, the student's words, whether WorkIt may email them, and, if they include one, an Application's Record and masked Trace | Testers need a way to report; privacy first | W5, W1 |
 | D27 | **Engine signing:** the Fill engine's CI signs each build with an Ed25519 key; WorkIt serves the newest build that fits the app's version; the app holds only the public key | An unsigned download would let an attacker run code on every student's computer | W7 |
 | D28 | **Certificate pinning** to the certificate authorities Cloudflare uses for `api.workitjobs.ai`, with backups. Sparkle's feed is on another host without pinning, so an update can fix the set | A proxy on the student's computer can't read the engine download | W7 |
 | D29 | **Apply moves to the private repo `workitjobs/apply-agent`**, with its history | The WorkIt repo is public; compiling protects nothing while the source is public | W0 |
@@ -209,7 +209,7 @@ saw a block), and CDP Workers fill the rest (section 4.7).
 | WorkIt | What each model call needs, without private details; tokens used | Each call |
 | Groq, Google (Gemini) | The same prompt, sent by WorkIt with WorkIt's key | Each call |
 | WorkIt | Tracker writes, answers the student approves, the queue | As today (`apply-agent/docs/workit.md`) |
-| WorkIt | One Application's Record and masked Trace | Only when the student presses "Send report" |
+| WorkIt | A support report: the student's words and, if they include one, an Application's Record and masked Trace | Only when the student sends the "Report a problem" form |
 | Job sites | The form's answers, in the Worker's Chrome | As a person filling the form |
 
 **Replaced before a prompt leaves** (D8, as built in PR #587, 2026-11-15,
@@ -639,16 +639,20 @@ shapes and status codes.
 - **Logs** keep no prompt text: only the student, the kind, the model and
   the tokens. A provider's error is logged by its status and code only,
   since its body can hold the model's output.
-- **Send report** (D26, KAN-837): `POST /apply-app/reports` keeps one
-  Application's Record (its answers, essays, verification, the questions
+- **Send report** (D26, KAN-837) is a support form, "Report a problem",
+  from Settings or an Application's tile, which picks that Application:
+  a category (`report.CATEGORIES`), the student's own words, whether
+  WorkIt may email them, and, with an Application picked, whether to
+  include its Record (its answers, essays, verification, the questions
   asked of Claude, the page's HTML and the form's screenshots) and its
-  Trace, masked in the app, with the student's note, in `apply_reports`
-  (RLS on, no policies; migration `36d339a2d6b4`). Admins list and read
-  them (`/admin/apply-reports`) and `DELETE` one once its problem is
-  fixed, so a report has no retention period, as `/privacy` says. Up to
-  24 MB, 10 a day per student. `apply/report.py` builds a report from a
-  Tracker row and `WorkIt.send_report` sends it; the window's button is
-  W5's and calls `report.send`.
+  Trace, masked in the app. A general question names no Application.
+  `POST /apply-app/reports` keeps it in `apply_reports` (RLS on, no
+  policies; migration `36d339a2d6b4`). Admins list and read reports with
+  the student's email (`/admin/apply-reports`) and `DELETE` one once its
+  problem is fixed, so a report has no retention period, as `/privacy`
+  says. Up to 24 MB, 10 a day per student. The window (W5's) calls
+  `report.build` with the form's answers, shows `report.parts`, and on
+  Send calls `report.send` with that same report.
 
 **Prompts on the server (decided 2026-11-14, being built).** D5 changed:
 the app no longer sends a prompt and a schema, so a request can't carry
@@ -803,9 +807,9 @@ its own instructions or a hostile schema.
   Student build reads `GET /apply-app/usage` instead and pauses at the
   cap with its reset date.
 - **Send report** (D26) uploads one Record and masked Trace through a
-  WorkIt route; the server keeps it for the team. **Built** (KAN-837):
-  `report.send(row, profile, note)` reads the Record's files from its
-  folder and the Application's Trace, masks the Trace with
+  WorkIt route; the server keeps it for the team. **Built** (KAN-837)
+  as the support form above: `report.build` reads the Record's files from
+  its folder and the Application's Trace, masks the Trace with
   `masked.Known` (the profile's and Answer bank's own values, and every
   email, phone and id in a link) and keeps its start and its last 4 MB.
 

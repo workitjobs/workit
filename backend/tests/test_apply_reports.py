@@ -1,7 +1,8 @@
 """
-WorkIt Auto Apply's Send report (D26, KAN-837, routers/apply_reports.py): a student's report is stored, only an
-admin reads it, and deleting it once its problem is fixed removes it, since a report has no retention period. A
-report outside the shape is refused before anything is stored.
+WorkIt Auto Apply's Send report (D26, KAN-837, routers/apply_reports.py), the window's support form: a student's
+report is stored, with or without an Application, only an admin reads it, with the student's email for a reply,
+and deleting it once its problem is fixed removes it, since a report has no retention period. A report outside the
+shape is refused before anything is stored.
 """
 import base64
 import uuid
@@ -20,6 +21,7 @@ pytestmark = pytest.mark.anyio
 
 PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 16
 REPORT = {
+    "category": "answer", "contact_ok": True,
     "application_id": "harvey-123", "company": "Harvey", "role": "Software Engineer Intern",
     "posting_url": "https://jobs.ashbyhq.com/harvey/123", "outcome": "held", "note": "The essay box stayed empty.",
     "files": {"answers.json": '[{"question": "Why Harvey?", "planned": "...", "on_page": ""}]'},
@@ -63,6 +65,7 @@ async def test_a_report_is_read_only_by_an_admin_and_goes_once_its_problem_is_fi
         _as(people["admin"], "admin@example.com")
         [listed] = (await api.get("/admin/apply-reports")).json()["reports"]
         assert (listed["id"], listed["company"], listed["outcome"]) == (report, "Harvey", "held")
+        assert (listed["category"], listed["contact_ok"], listed["email"]) == ("answer", True, "sam@example.com")
         whole = (await api.get(f"/admin/apply-reports/{report}")).json()
         assert whole["files"] == REPORT["files"] and whole["trace"] == REPORT["trace"]
         assert whole["screenshots"] == ["form.png"]
@@ -72,12 +75,23 @@ async def test_a_report_is_read_only_by_an_admin_and_goes_once_its_problem_is_fi
         assert (await api.get(f"/admin/apply-reports/{report}")).status_code == 404
 
 
+async def test_a_general_question_names_no_application(people):
+    async with _api() as api:
+        _as(people["sam"], "sam@example.com")
+        asked = {"category": "app", "note": "How do I change my Worker count?"}
+        report = (await api.post("/apply-app/reports", json=asked)).json()["id"]
+        _as(people["admin"], "admin@example.com")
+        whole = (await api.get(f"/admin/apply-reports/{report}")).json()
+        assert (whole["category"], whole["application_id"], whole["files"], whole["trace"]) == ("app", "", {}, "")
+
+
 async def test_a_report_outside_the_shape_is_refused_and_nothing_is_stored(people, monkeypatch):
     async with _api() as api:
         _as(people["sam"], "sam@example.com")
         for refused in ({**REPORT, "files": {"applicant-profile.yaml": "identity: ..."}},
                         {**REPORT, "screenshots": {"form.png": base64.b64encode(b"not a png").decode()}},
                         {**REPORT, "posting_url": "javascript:alert(1)"},
+                        {**REPORT, "category": "billing"}, {**REPORT, "note": ""},
                         {**REPORT, "password": "hunter2"}):
             assert (await api.post("/apply-app/reports", json=refused)).status_code == 422, refused
         monkeypatch.setattr(apply_reports, "BODY_MAX", 100)

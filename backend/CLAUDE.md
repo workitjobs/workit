@@ -355,8 +355,10 @@ Find files with a directory listing; these are the rules for where code goes.
   `SCOUT_*` settings stay the one place a model is named
   (`../scout/CLAUDE.md`, "Which model, where").
 - **WorkIt Auto Apply's Send report** (`routers/apply_reports.py`, D26,
-  KAN-837): `POST /apply-app/reports` keeps one Application's Record and
-  masked Trace from a student's press; admins read them under
+  KAN-837): `POST /apply-app/reports` keeps a report from the app's
+  support form (a category, the student's words, whether WorkIt may email
+  them, and an Application's Record and masked Trace if they include
+  one); admins read them, with the student's email, under
   `/admin/apply-reports` and `DELETE` one once its problem is fixed, so the
   table has no retention period (`services/retention.py` says why).
 - **WorkIt Auto Apply's Model route** (`routers/apply_app.py`, KAN-723,
