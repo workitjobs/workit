@@ -141,5 +141,5 @@ def test_no_emailed_code_no_ask_claude_no_repair_request(student_build):
 def test_a_brief_is_never_researched(student_build, tmp_path, monkeypatch):
     monkeypatch.setattr(brief, "BRIEFS", tmp_path)
     monkeypatch.setattr(brief, "research", lambda *a, **k: pytest.fail("the Student build researched a company"))
-    claude = SimpleNamespace(ask=lambda **k: {"team": ""})
+    claude = SimpleNamespace(ask_kind=lambda kind, data: {"team": ""})  # brief.team, a WorkIt kind (D5)
     assert brief.brief(posting("https://x.example/1"), SimpleNamespace(), claude, date(2026, 11, 14)) == ""

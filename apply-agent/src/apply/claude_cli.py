@@ -29,7 +29,14 @@ from datetime import datetime
 from pathlib import Path
 
 from apply import send_click, stuck, trace
-from apply.adapters import ClaudeError, Drive, SetupError, UsageLimitHit, UsageReading
+from apply.adapters import (
+    NEEDS_WORKIT,
+    ClaudeError,
+    Drive,
+    SetupError,
+    UsageLimitHit,
+    UsageReading,
+)
 from apply.browsers import cdp_endpoint
 from apply.plain.page import PortPage
 from apply.plain.tools import ToolServer
@@ -177,6 +184,9 @@ class ClaudeCLI:
         self._reading: UsageReading | None = None
         self._lock = threading.Lock()
         self._spent = threading.local()  # tokens used by each thread's calls
+
+    def ask_kind(self, kind: str, data: dict) -> dict:
+        raise SetupError(NEEDS_WORKIT.format(kind=kind))
 
     def ask(self, *, model: str, system: str, prompt: str, schema: dict) -> dict:
         argv = _argv(model, system, schema)

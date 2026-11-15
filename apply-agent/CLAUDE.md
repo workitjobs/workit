@@ -22,8 +22,11 @@ the developer parts. Apply's code moves to the private repo
 `workitjobs/apply-agent` first (workstream W0). Read
 `../docs/desktop_application_auto_apply.md` before a change toward that:
 it splits the work into workstreams a session can take one at a time.
-`ask_model: [groq, gemini]` is the default (2026-11-10): the text answers
-and essays go to Groq, with Gemini as its backup, on shorter (lean) essay
+`ask_model: workit` is the default (2026-11-14, KAN-723 D5): each text
+call goes to WorkIt's Model route as a kind and its data, and WorkIt builds
+the prompt (`../backend/app/apply_prompts/`) and runs the models; Apply
+builds no `ask` prompt of its own. Before that,
+`ask_model: [groq, gemini]` (2026-11-10) sent them to Groq, with Gemini as its backup, on shorter (lean) essay
 prompts, with keys from the checkout's `.env` (`docs/ask-model.md`).
 
 Workers default to `worker_mode: protected` (2026-11-06, KAN-723): plain

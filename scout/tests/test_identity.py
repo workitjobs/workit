@@ -3,7 +3,9 @@ Identity-data removal (KAN-205): the one function every model call's text
 passes through. Run from backend/: `uv run pytest ../scout/tests`.
 """
 
-from workit_scout.identity import placeholders_in, remove_identity
+import json
+
+from workit_scout.identity import Identity, Masked, placeholders_in, remove_identity
 
 
 def test_the_students_name_becomes_a_placeholder():
@@ -99,3 +101,40 @@ def test_every_kind_together_with_the_name_inside_a_link():
 def test_placeholders_in_names_each_placeholder_the_text_holds():
     assert placeholders_in("Built [link] for [name], then [name] again") == ["[name]", "[link]"]
     assert placeholders_in("Built a link checker for names") == []
+
+
+# --- Masked: placeholders that come back (the Model route, KAN-723) --------------
+
+
+def test_a_mask_gives_each_value_its_own_placeholder_and_puts_each_back():
+    texts = ["Reach me at sam@example.com or (631) 555-0142; my reference is ann@corp.com.",
+             "Code: github.com/samseeker"]
+    mask = Masked(Identity(email="sam@example.com", links=("github.com/samseeker",)), texts)
+    hidden = [mask.hide(t) for t in texts]
+    assert hidden == ["Reach me at [email] or [phone]; my reference is [email2].", "Code: [link]"]
+    answer = "Write to [email2], cc [email], call [phone], see [link]."
+    assert mask.put_back(answer) == (
+        "Write to ann@corp.com, cc sam@example.com, call (631) 555-0142, see github.com/samseeker."
+    )
+
+
+def test_a_mask_never_uses_a_placeholder_already_in_the_text():
+    # The app's own placeholder stays the app's to fill.
+    texts = ["Sign as [email] or @NAME@; my old address was old@example.com."]
+    mask = Masked(Identity(), texts)
+    assert mask.hide(texts[0]) == "Sign as [email] or @NAME@; my old address was [email2]."
+    assert mask.put_back("[email] and [email2]") == "[email] and old@example.com"
+
+
+def test_a_mask_puts_values_back_escaped_and_never_reads_a_value_as_a_placeholder():
+    texts = ['See https://example.com/a"b?x=[link2]x now']
+    mask = Masked(Identity(links=('example.com/a"b?x=[link2]x',)), texts)
+    assert mask.hide(texts[0]) == "See [link] now"
+    restored = mask.put_back('{"a": "[link]"}', lambda v: json.dumps(v)[1:-1])
+    assert json.loads(restored) == {"a": 'https://example.com/a"b?x=[link2]x'}
+
+
+def test_a_mask_hides_the_students_own_links_and_leaves_an_employers_whole():
+    texts = ["<link>https://acme.example.com/jobs/123</link>\nGitHub: https://github.com/samseeker/robot\n"]
+    mask = Masked(Identity(links=("github.com/samseeker",)), texts)
+    assert mask.hide(texts[0]) == "<link>https://acme.example.com/jobs/123</link>\nGitHub: [link]\n"
