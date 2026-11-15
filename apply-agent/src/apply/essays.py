@@ -39,14 +39,10 @@ from apply import (
 )
 from apply import home as data_folder  # essays.home() is the applicant's town
 from apply.adapters import Claude, lean
-from apply.applicant import as_applicant
+from apply.applicant import SELF_ID, as_applicant, kept_out, personal
 from apply.model import Posting, Question, one_line
 from apply.profile import ApplicantProfile
 from apply.records import SECRET
-
-# A self-identification (EEO) question: its answer never reaches an essay call.
-SELF_ID = re.compile(r"gender|\bsex\b|pronoun|\brac(e|ial)\b|ethnic|hispanic|latin[oax]|veteran|disabilit|sexual orientation"
-                     r"|transgender|lgbt|self[- ]?identif|demographic|\bage\b|date of birth|birth ?date", re.IGNORECASE)
 
 # The text fields' kinds, as a question names them to Claude.
 FIELDS = {"text": "single-line", "textarea": "multi-line"}
@@ -180,7 +176,7 @@ def answer(claude: Claude, posting: Posting, essays: list[Question], drafts: lis
                                sections=sections)[1]
     claude = as_applicant(claude, profile)  # every prompt says the profile's name and school
     keys = {f"q{i}": q for i, q in enumerate(essays, 1)}
-    shown = form_answers(answered or {})
+    shown = form_answers(answered or {}, personal(profile))
     defaults = probe.typical(claude, posting, {key: _ask(q) for key, q in keys.items() if question_type(q) in probe.TYPES},
                              company, posting_text)
     if keys and planned is None:
@@ -591,13 +587,14 @@ def remember_fact(asked: str, answer: str, company: str, today: date) -> None:
     data_folder.STORY_BANK.write_text(f"{bank.rstrip()}\n{fact} (asked for {company}, {today.isoformat()})\n")
 
 
-def form_answers(answered: Mapping[Question, object]) -> dict[str, str | list[str]]:
+def form_answers(answered: Mapping[Question, object], who: frozenset[str] = frozenset()) -> dict[str, str | list[str]]:
     """The answers already given on the form that an essay may refer to ("the
     area you picked"), by question label: choices and short text only, never
-    a file, an essay, a self-identification (EEO) answer or a secret."""
+    a file, an essay, a secret, a self-identification (EEO) answer or one that
+    is who they are (`who`: applicant.personal)."""
     return {one_line(q.label): a for q, a in answered.items()
             if q.kind in ("select", "multi_select", "text") and a and isinstance(a, (str, list))
-            and not (SELF_ID.search(q.label) or SECRET.search(q.label) or SECRET.search(q.name))}
+            and not (kept_out(q.label, a, who) or SECRET.search(q.label) or SECRET.search(q.name))}
 
 
 def named_fact(name: object, company: str) -> str:
@@ -652,23 +649,36 @@ def profile_block(profile: ApplicantProfile, posting: Posting | None = None) -> 
 
 
 def home(profile: ApplicantProfile) -> str:
-    """Where they live, without the street: "Springfield, IL 62701, United States"."""
+    """Where they live, without the street: "Springfield, IL 62701, United States". The ZIP code stays: an essay
+    box can ask where they would move from (Applied Materials, live)."""
     a = profile.get("identity.home_address") or {}
     state_zip = " ".join(filter(None, [a.get("state"), a.get("zip")]))
     return ", ".join(filter(None, [a.get("city"), state_zip, a.get("country")]))
 
 
-# Profile sections a drafted answer never draws on: files (paths on Lisul's
-# Mac) and Stock answers (given apart, in <stock_answers>).
-NOT_FACTS = {"files", "stock_answers"}
+# The Applicant profile's sections a model call is sent (D8): only what a drafted answer or the Pre-submit review
+# reads. Never who they are (applicant.WHO), their self-identification (EEO) answers or their references' details:
+# the Fill engine fills those from the profile. Links go in <links> and Stock answers in <stock_answers>, and files
+# are paths on Lisul's Mac.
+SENT = ("education", "work_authorization", "logistics", "experience_facts", "screeners", "answered_questions")
+SENT_IDENTITY = re.compile(r"_location$|^current_company$|^age_18_or_over$|^languages$")  # where, not who
+NOT_SENT = {"experience_facts": {"professional_references"}}
 
 
 def profile_facts(profile: ApplicantProfile, posting: Posting | None = None) -> dict:
-    """Lisul's Applicant profile as data for Claude: every fact they gave, but
-    no file path (the profile refuses to hold secrets at all). With `posting`,
-    the Tracker's past applications and interviews join the screeners as the
-    plan joins them (fill_engine.with_past_applications)."""
-    facts = {key: value for key, value in profile.facts().items() if key not in NOT_FACTS}
+    """Lisul's Applicant profile facts that a model call is sent: the SENT sections, identity's SENT_IDENTITY
+    facts, and the questions they answered but a self-identification one. With `posting`, the Tracker's past
+    applications and interviews join the screeners as the plan joins them (fill_engine.with_past_applications)."""
+    every = profile.facts()
+    facts = {key: every[key] for key in SENT if every.get(key) is not None}
+    for section, left_out in NOT_SENT.items():
+        if isinstance(facts.get(section), dict):
+            facts[section] = {key: value for key, value in facts[section].items() if key not in left_out}
+    if isinstance(facts.get("answered_questions"), dict):
+        facts["answered_questions"] = {q: a for q, a in facts["answered_questions"].items()
+                                       if not (SELF_ID.search(q) or SECRET.search(q))}
+    if where := {key: value for key, value in (every.get("identity") or {}).items() if SENT_IDENTITY.search(key)}:
+        facts = {"identity": where, **facts}
     return fill_engine.with_past_applications(facts, posting) if posting is not None else facts
 
 

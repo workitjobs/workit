@@ -163,14 +163,14 @@ class FindsSomeFine(RecordingClaude):
 
 def test_answers_the_review_checked_and_found_right_are_no_problems():
     # Point72 (seen live): "consistent with each other - no problem found" came back as a problem, and held the form.
-    race = Question("race", "Ethnicity/Race", "select", options=("Asian", "White"))
-    claude = FindsSomeFine({"problems": ["Ethnicity/Race: says Asian, but Hispanic/Latinx says Yes"],
-                            "fine": ["Ethnicity/Race and Hispanic/Latinx are consistent - no problem found"]})
+    term = Question("term", "Internship term", "select", options=("Summer 2027", "Fall 2027"))
+    claude = FindsSomeFine({"problems": ["Internship term: says Fall 2027, but the posting is for Summer 2027"],
+                            "fine": ["Internship term and start date are consistent - no problem found"]})
 
-    found = review(claude, Posting("p", "Point72", "Intern", "https://boards.greenhouse.io/point72/jobs/1"), [race],
-                   {"race": "Asian"})
+    found = review(claude, Posting("p", "Point72", "Intern", "https://boards.greenhouse.io/point72/jobs/1"), [term],
+                   {"term": "Fall 2027"})
 
-    assert found == ["Ethnicity/Race: says Asian, but Hispanic/Latinx says Yes"]
+    assert found == ["Internship term: says Fall 2027, but the posting is for Summer 2027"]
 
 
 def test_review_is_told_which_answers_are_lisuls_own():

@@ -6,6 +6,7 @@ answers that are valid but wrong."""
 
 from apply import description, fill_engine
 from apply.adapters import Claude
+from apply.applicant import kept_out
 from apply.model import Answers, Posting, QuestionSet, Readback, one_line
 from apply.records import SECRET
 
@@ -20,13 +21,15 @@ class Found(list):
 
 
 def review(claude: Claude, posting: Posting, questions: QuestionSet, readback: Readback, sources: str = "",
-           posting_text: str = "", own: set[str] | frozenset[str] = frozenset()) -> Found:
+           posting_text: str = "", own: set[str] | frozenset[str] = frozenset(),
+           who: frozenset[str] = frozenset()) -> Found:
     """Claude's review of the filled form: the problems it found, with the fixes it
     gives for those the sources answer (Found.fixes). `sources` is
     what essays may draw on (essays.sources, with the Company material), given
     when the form has essays; `posting_text` is the Posting's own text
     (apply.description), always given; `own` names the questions answered in
-    Lisul's own words (his Answer bank answers). Secrets never leave Apply."""
+    Lisul's own words (his Answer bank answers). Secrets never leave Apply, and neither does a self-identification
+    answer or one that is who he is (`who`: applicant.personal, D8): the Fill engine filled those from his profile."""
     rows = [
         # Labelled, so a multi-select's ticked boxes never read as its options (Palantir, live).
         {"question": one_line(q.label),
@@ -36,7 +39,7 @@ def review(claude: Claude, posting: Posting, questions: QuestionSet, readback: R
              else readback[q.name],
          **({"options": list(q.options)} if q.options and len(q.options) <= MAX_OPTIONS_SHOWN else {}),
          **({"his_own_answer": True} if q.name in own else {})}
-        for q in questions if readback.get(q.name) not in (None, "", [])
+        for q in questions if readback.get(q.name) not in (None, "", []) and not kept_out(q.label, readback[q.name], who)
     ]
     if not rows:
         return Found()

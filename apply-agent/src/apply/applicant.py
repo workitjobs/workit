@@ -7,15 +7,46 @@ instead, wherever the prompt was built.
 """
 
 import json
+import re
 
 from apply.profile import ApplicantProfile
 
 NAME, SCHOOL = "@NAME@", "@SCHOOL@"
 
+# A self-identification (EEO) question: its answer never reaches a model call (D8).
+SELF_ID = re.compile(r"gender|\bsex\b|pronoun|\brac(e|ial)\b|ethnic|hispanic|latin[oax]|veteran|disabilit|sexual orientation"
+                     r"|transgender|lgbt|self[- ]?identif|demographic|\bage\b|date of birth|birth ?date", re.IGNORECASE)
+# The profile facts that say who the applicant is or where they live (D8). No model call needs them: the Fill engine
+# fills them from the profile, so a call is sent none of them, as a fact or as an answer on the form.
+WHO = ("legal_first_name", "legal_middle_name", "legal_last_name", "preferred_first_name", "preferred_last_name",
+       "name_pronunciation", "name_in_native_script", "email", "phone", "home_address.line1", "home_address.line2",
+       "home_address.zip")
+
 
 def first_name(profile: ApplicantProfile) -> str:
     """The name they go by, else their legal first name."""
     return profile.get("identity.preferred_first_name") or profile.get("identity.legal_first_name") or "the applicant"
+
+
+def _plain(value: object) -> str:
+    return " ".join(str(value).split()).casefold() if isinstance(value, (str, int)) else ""
+
+
+def personal(profile: ApplicantProfile) -> frozenset[str]:
+    """The answers a form shows that say who the applicant is (WHO), as plain text: each fact, and the name in
+    full, so an answer that is exactly one of them is never sent."""
+    said = {key: _plain(profile.get(f"identity.{key}")) for key in WHO}
+    firsts = (said["legal_first_name"], said["preferred_first_name"])
+    lasts = (said["legal_last_name"], said["preferred_last_name"])
+    full = {" ".join(filter(None, (first, middle, last))) for first in firsts for last in lasts if first and last
+            for middle in ("", said["legal_middle_name"])}
+    return frozenset(filter(None, {*said.values(), *full}))
+
+
+def kept_out(label: str, answer: object, who: frozenset[str]) -> bool:
+    """Whether an answer on the form stays out of every model call (D8): a self-identification answer, or one
+    that is exactly who the applicant is (`who`, from personal())."""
+    return bool(SELF_ID.search(label)) or (isinstance(answer, str) and _plain(answer) in who)
 
 
 def named(text: str, profile: ApplicantProfile) -> str:

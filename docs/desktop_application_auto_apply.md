@@ -728,6 +728,20 @@ its own instructions or a hostile schema.
   the values back into the answer. Self-ID answers are never in a
   prompt. Tests check that no profile value of the listed kinds reaches
   the request.
+  **Built first: a kind is sent only what it needs** (2026-11-14). No
+  call needs who the student is, since the Fill engine fills it from the
+  profile, so Apply leaves it out instead of replacing it
+  (`apply/applicant.py`): no name, email, phone, street, self-ID answer
+  or reference's details as a profile fact (`essays.profile_facts` sends
+  listed sections only), and no answer on the form that is a self-ID
+  answer or exactly one of those facts or the ZIP code (the essays' form
+  answers, the Pre-submit review's rows). `<home>` keeps the city, state
+  and ZIP code, since an essay box can ask where they would move from
+  (Applied Materials, live).
+  Main's essays and review had sent every profile fact, self-ID
+  included. Still open: free text the call needs whole, the Story bank
+  and a page's text, can hold the name; the server masks the email,
+  phone and links it knows there, and the name waits for this module.
 - **The Orchestrator's limit.** Today it pauses on Claude Code's 5-hour
   and weekly windows (`orchestrator._resume_at`, `adapters.usage`). The
   Student build reads `GET /apply-app/usage` instead and pauses at the

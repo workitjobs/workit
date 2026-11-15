@@ -8,7 +8,8 @@ import pytest
 from conftest import FIXTURES, POLICIES
 from fakes import FakeClaude
 
-from apply import answering, essays, gates, home, story_map, writing
+from apply import answering, essays, gates, home, presubmit, story_map, writing
+from apply.applicant import personal
 from apply.model import Posting, Question
 from apply.profile import ApplicantProfile
 
@@ -47,8 +48,9 @@ def test_persons_bank(monkeypatch, tmp_path):
     return bank
 
 
-def written(profile: ApplicantProfile) -> list[dict]:
-    """Every call Claude gets while Apply writes a why-company essay and a cover letter."""
+def written(profile: ApplicantProfile, drafts: tuple[Question, ...] = (), answered: dict | None = None) -> list[dict]:
+    """Every call Claude gets while Apply writes a why-company essay and a cover letter (and `drafts`, one-off
+    questions, with `answered` the form's other answers)."""
     claude = FakeClaude()
 
     def ask_kind(kind, data):
@@ -63,8 +65,8 @@ def written(profile: ApplicantProfile) -> list[dict]:
                          for key, asked in data["questions"].items()}}
 
     claude.ask_kind = ask_kind
-    essays.write(claude, POSTING, [WHY, LETTER], profile)
-    return claude.calls + claude.kinds  # every essay call is a WorkIt kind (D5)
+    essays.answer(claude, POSTING, [WHY, LETTER], list(drafts), profile, answered=answered)
+    return claude.asked  # every essay call is a WorkIt kind (D5)
 
 
 def said(call: dict) -> str:
@@ -132,3 +134,26 @@ def test_a_kind_goes_with_the_pronouns_and_school_and_its_answer_gets_the_name_b
     assert kinds.sent == [("essays.write", {"drafts": {}, "pronouns": "she/her/hers",
                                             "school": "Example State University"})]
     assert answer == {"letter": 'Sincerely, Te"st'}
+
+
+def test_no_call_is_sent_who_the_applicant_is_or_their_self_id(test_persons_bank):
+    # D8: the Fill engine fills these from the profile, so no draft or review needs them.
+    profile = ApplicantProfile.load(PROFILE, POLICIES)
+    profile.set("voluntary_self_id.race", "East Asian")
+    profile.set("experience_facts.professional_references", [{"name": "Ref Erence", "email": "ref@example.org"}])
+    email, race = Question("email", "Email", "text", True), Question("race", "Race", "select", False, ("East Asian",))
+    planned = Question("why_now", "Why are you applying now?", "text", True)
+
+    calls = written(profile, (planned,), {email: "test.person@example.com", race: "East Asian"})
+    reviewer = FakeClaude()
+    presubmit.review(reviewer, POSTING, [email, race, WHY], {"email": "test.person@example.com", "race": "East Asian",
+                                                             "why": "Because I use it."}, who=personal(profile))
+
+    [draft] = [c for c in calls if c.get("kind") == "essays.write"]
+    assert draft["data"]["short_questions"] and "Springfield" in draft["data"]["sources"]  # where they live: yes
+    assert [row["question"] for row in reviewer.kinds[0]["data"]["rows"]] == [WHY.label]
+    # The facts and the form's answers every call is sent; a draft is the form's own text, sent whole.
+    sent = json.dumps([{part: c["data"].get(part) for part in ("sources", "form_answers", "rows")}
+                       for c in calls + reviewer.kinds if "kind" in c])
+    for kept in ("Person", "test.person@example.com", "5550100199", "1 Main St", "Test-ee", "East Asian", "Ref Erence"):
+        assert kept not in sent

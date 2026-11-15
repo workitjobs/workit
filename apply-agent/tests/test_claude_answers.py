@@ -872,7 +872,7 @@ def test_a_form_with_only_one_off_questions_costs_one_small_call_from_the_profil
 
     [call] = asks(claude)
     assert not call["data"]["questions"] and call["data"]["short_questions"]
-    assert "<profile>" in call["prompt"] and "test.person@example.com" in call["prompt"]
+    assert "<profile>" in call["prompt"] and "authorized_to_work_us" in call["prompt"]
     assert "<story_bank>" in call["prompt"]
     assert "one-pager.pdf" not in call["prompt"]  # no file path ever leaves Apply
     assert "<short_questions>" in call["prompt"] and "<questions>" not in call["prompt"]
@@ -1075,7 +1075,7 @@ def test_the_pre_submit_review_checks_drafted_answers_against_the_profile(monkey
     run(monkeypatch, ResearchForm("MetOx International"), claude)
 
     [review] = [k for k in claude.kinds if k["kind"] == "presubmit.review"]
-    assert "<profile>" in review["prompt"] and "test.person@example.com" in review["prompt"]
+    assert "<profile>" in review["prompt"] and "authorized_to_work_us" in review["prompt"]
 
 
 def test_the_pre_submit_review_gets_the_profile_on_a_form_with_no_drafted_answer(monkeypatch):
@@ -1085,7 +1085,7 @@ def test_the_pre_submit_review_gets_the_profile_on_a_form_with_no_drafted_answer
     run(monkeypatch, ResearchForm("Anduril"), claude, site=Browser({POSTING_PAGE: f"<p>{PORTAL}</p>"}))
 
     [review] = [k for k in claude.kinds if k["kind"] == "presubmit.review"]
-    assert "<profile>" in review["prompt"] and "test.person@example.com" in review["prompt"]
+    assert "<profile>" in review["prompt"] and "authorized_to_work_us" in review["prompt"]
 
 
 def test_a_drafted_answer_in_the_calibration_run_is_held_like_any_other(monkeypatch, tmp_path):
