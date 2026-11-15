@@ -10,8 +10,9 @@ values masked (#577, #587); W3's Student path with no developer part
 (#581); W2's step 1, what Apply can't fill handed to the student in the
 window (#590); W4, no macOS-only code in the Student path (#576, #585); W6's
 store-ready Worker extension (#570, #578), which no app can use yet;
-W10's legal text (#579, #582); and W5's sign-in (#609). The rest of what a
-student downloads and runs (W5's window, W7, W8) is not built.
+W10's legal text (#579, #582); and W5's sign-in (#609) and window with no
+port (KAN-858). The rest of what a student downloads and runs (W5's first
+run, queue and settings, W7, W8) is not built.
 
 **How to use this doc.** Read sections 1 to 3 first. Then take one
 workstream from section 6: each one says what it changes, which files it
@@ -514,7 +515,7 @@ by hand (W8).
 | W2 | Filling with no model in the browser | None | Yes | Step 1 built (#590): what Apply can't fill is the student's, in the window's Fix here; a failed field is a Needs-you item with its planned answer; the emailed code's box. Next: step 2, the generic Filler |
 | W3 | What the Student build leaves out | None | Yes | Step 1 built (#581); `ask_model` fixed to `workit` (#590). Left: W8's compile flags |
 | W4 | Remove macOS-only code | None | Yes | Built (#576, #585). Left to others: `dashboard.py` (W5) and `window_capture` (W6); what stops Apply on Windows is F4's |
-| W5 | The app shell | W3, W4 (and W1 for sign-in and usage) | Yes | Step 1 of 5 built: sign-in. Next: the window on pywebview |
+| W5 | The app shell | W3, W4 (and W1 for sign-in and usage) | Yes | Steps 1 and 2 of 5 built: sign-in (#609), and the window with no port (KAN-858). Next: first run |
 | W6 | The Worker extension on the store (spike first) | None | Yes | The spike passed; the store package is built (#570, #578). Blocked: the guards' per-run tokens (`worker-extension-todo.md`, item 0), then the first upload |
 | W7 | The engine download and its protection | W1 (sign-in) | Yes | Not started |
 | W8 | Compile, sign, notarize, update, publish | W3, W4, W5 | Yes | Not started |
@@ -1089,14 +1090,18 @@ terminal step and no open port.
 **Steps**, each one PR:
 
 1. Sign-in (D12). **Built (2026-11-15).**
-2. The window on pywebview: `dashboard.py`'s routes as `js_api`
-   methods, no port, and `uv run apply app`; its paste box for the
-   sign-in code, which `workit.trade` takes.
+2. The window on pywebview, no port, and `uv run apply app`, with the
+   sign-in screen. **Built (KAN-858).**
 3. First run: the Chrome check, the disclosure, the seed, and macOS's
    Screen Recording permission, without which Fix here's view is about two
-   frames a second (W2).
+   frames a second (W2). The Student build's data folder becomes
+   `home.APP_FOLDER` here.
 4. A run: the Auto Apply queue, the paste box for a posting, the Usage
-   cap line.
+   cap line, with `student.adapters()`. The window passes its own `back`
+   to `Dashboard` (bring it to the front after a captcha, KAN-855), and a
+   tile added during a run reloads the page through the bridge, not
+   `location.reload()`. A refused engine (`fill_engine.EngineRefused`,
+   raised before any Worker opens, W7) is the run's error, in one sentence.
 5. Settings and notices.
 
 **Built (2026-11-15, step 1): sign-in.**
@@ -1123,6 +1128,35 @@ terminal step and no open port.
   sign-out everywhere, deleting the account, and a password change. An
   app sign-in cancels a password-reset link asked for just before
   (`docs/auth.md`).
+
+**Built (KAN-858, step 2): the window, with no port.** `uv run apply app`
+runs `apply.student.app`, the Student build's entry point.
+
+- **The routes stay; the port goes.** `Dashboard(serve=False)` listens
+  on nothing. `apply/app_window.py` loads the Apply window's own page as
+  a string (pywebview opens no server for that) with `SHIM` before its
+  scripts. The shim sends each `fetch` of a path to `Bridge.request`,
+  pywebview's `js_api`, which answers it in this process through the same
+  handler, checks and token as the server (`Dashboard.respond`). The
+  tiles' `/frames` stream comes from `Bridge.frames`, and a link to a file
+  a tile lists opens in the system's own app (`Bridge.open`, only what
+  `Dashboard.listed` allows). So the 28 routes did not become 28 bridge
+  methods, and the Developer checkout's Chrome window keeps the server.
+- **Signed out, the window shows the sign-in screen:** Sign In with
+  WorkIt opens `/app-sign-in` with a new PKCE challenge, and the box
+  takes the code (an admin's page shows it); then the window shows the
+  Apply window with the student's answers.
+- **Checked on this Mac in WKWebView:** the page's requests and a tile's
+  frames came through the bridge, and the process listened on no port.
+  `tests/test_app_window.py` (CI) and `tests/test_app_window_page.py`
+  (Chromium) test it.
+
+Left from step 2:
+- **The page loads its web font from Google Fonts**, a request the
+  privacy page doesn't name. Ship the fonts in the app (W8), or drop the
+  link in the Student build.
+- The window is the Apply window with no run: steps 3 to 5 add first
+  run, the queue and a run, and settings.
 
 Left from sign-in: **the built app's link.** W8 registers
 `workit-auto-apply://` in the bundle's `Info.plist`, and the app takes the
@@ -1400,7 +1434,8 @@ text merges only once the team approves it.
   Playwright's driver (Node.js's license, playwright-core's and the
   license files beside its bundles), Python's own license (Nuitka
   compiles the runtime in), and a hand list, `BY_HAND`: pywebview
-  (BSD-3-Clause; its entry goes by itself once W5 adds the package),
+  (BSD-3-Clause; left out since KAN-858 added the package, which
+  pip-licenses lists with the pyobjc packages and bottle it brings),
   Sparkle (MIT, with the notices for the code it includes), Nuitka's
   runtime exception (AGPLv3; the compiled app is not bound by the AGPL)
   and the cover letters' Latin Modern font (GUST Font License). A hand

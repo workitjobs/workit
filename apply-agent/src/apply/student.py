@@ -3,22 +3,26 @@
 
 `adapters()` gives a run everything outside Apply, with each developer part replaced by one that does nothing:
 no `claude -p` (no drive, no research), no Gmail, no notifications or phone push, and no Repairs. W5's window
-starts here and calls `rehearsal.rehearse` with them.
+starts here (`app`, which `uv run apply app` runs) and calls `rehearsal.rehearse` with them.
 """
 
 from apply import (  # noqa: F401 (rehearsal: W5 runs it)
     already_applied,
     answer_sync,
     answering,
+    app_window,
     captcha,
+    home,
     rehearsal,
     tailored,
 )
 from apply.adapters import Adapters, ClaudeError, UsageReading
 from apply.answer_bank import FILE as ANSWER_BANK
+from apply.answers_tab import AnswersTab
 from apply.applicant import as_applicant
 from apply.ask_model import live_claude
 from apply.clock import SystemClock
+from apply.dashboard import Dashboard, NoFrames
 from apply.feed import live_feed
 from apply.home import HOME
 from apply.keychain import SystemKeychain
@@ -110,3 +114,14 @@ def adapters(profile: ApplicantProfile) -> Adapters:
         everyday=captcha.to_everyday_chrome,
         applied_before=already_applied.Check(),
     )
+
+
+def app() -> None:
+    """WorkIt Auto Apply: its window (apply.app_window), with no port. It signs the student in, then shows the Apply
+    window with their answers (W5 step 2). First run, the queue and a run join it in W5's next steps."""
+    if home.fill_from_sample():
+        print(f"No Applicant profile yet: WorkIt Auto Apply runs as Test Person from {HOME} till yours is there.")
+    profile = ApplicantProfile.load(HOME / "applicant-profile.yaml")
+    answers = AnswersTab(answer_sync.bank(profile.folder / ANSWER_BANK, profile.policies()), profile)
+    with Dashboard(0, NoFrames(), answers, sample=profile.get("sample_data") is True, serve=False) as board:
+        app_window.run(board)

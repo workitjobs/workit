@@ -160,6 +160,8 @@ def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
                         "site): you sign in yourself in the Chrome window it opens, and Apply never sees your password",
     )
     sign_in.add_argument("url", help="a Posting on that site, as a Handoff's reason gives it")
+    commands.add_parser("app", help="open WorkIt Auto Apply's own window, with no port: sign in to WorkIt, then the "
+                                    "Apply window with your answers")
     commands.add_parser("login", help="log in to WorkIt one time, in your own browser, then paste the code it shows, "
                                       "so Apply can call WorkIt as you; Apply keeps the login in the data folder")
     sync_answers = commands.add_parser(
@@ -363,6 +365,10 @@ def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
         print(path if args.path else f"{path}\n{trace.timeline(path)}")
     elif args.command == "doctor":
         sys.exit(doctor.run(live_machine(args.profile, usage=args.usage), sys.stdout))
+    elif args.command == "app":
+        from apply import student
+
+        student.app()
     elif args.command == "login":
         client = workit.WorkIt()
         try:
