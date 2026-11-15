@@ -1,6 +1,6 @@
 "use client";
 
-import { GearIcon, QuestionIcon } from "@phosphor-icons/react/ssr";
+import { GearIcon } from "@phosphor-icons/react/ssr";
 import { useEffect, useState } from "react";
 
 import { AccountMenu, type AccountMenuItem } from "@/components/account-menu";
@@ -9,6 +9,7 @@ import { DateField } from "@/components/date-field";
 import { MonthField } from "@/components/month-field";
 import { ResumeUpload } from "@/components/resume-upload";
 import { ChoiceTile } from "@/components/ui/choice-tile";
+import { ConfirmButtons } from "@/components/ui/confirm-buttons";
 import { RemovableChip } from "@/components/ui/chip";
 import { RadioRow } from "@/components/ui/radio-row";
 import { SegmentedToggle } from "@/components/ui/segmented-control";
@@ -17,7 +18,6 @@ import { useShallowParams } from "@/components/shallow-routing";
 import { TabLinks } from "@/components/ui/tabs";
 import {
   Dialog,
-  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -55,21 +55,23 @@ import { STAGE_COLOR, STAGE_ICON, STAGE_LABEL } from "@/app/(seeker)/stage-color
  */
 
 export function DialogSpecimen() {
+  const [open, setOpen] = useState(false);
   return (
-    <Dialog>
+    <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger render={<Button variant="secondary">Withdraw Application</Button>} />
       <DialogContent>
         <DialogHeader>
-          <DialogTitle className="text-subtitle font-semibold">
-            Withdraw This Application?
-          </DialogTitle>
+          <DialogTitle>Withdraw This Application?</DialogTitle>
           <DialogDescription>
             Northwind will no longer see your profile for this role. You can apply again later.
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
-          <DialogClose render={<Button variant="secondary">Keep It</Button>} />
-          <DialogClose render={<Button variant="destructive">Withdraw</Button>} />
+          <ConfirmButtons
+            act="Withdraw"
+            onKeep={() => setOpen(false)}
+            onAct={() => setOpen(false)}
+          />
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -389,9 +391,10 @@ export function ResumeUploadSpecimen() {
   );
 }
 
+/** The seeker menu's rows as the app draws them: Help is hidden until its
+ *  page exists (`HELP_LIVE` in (seeker)/account-status.tsx). */
 const ACCOUNT_ROWS: AccountMenuItem[] = [
   { href: "/settings", label: "Settings", icon: <GearIcon aria-hidden className="size-4" /> },
-  { href: "/help", label: "Help", icon: <QuestionIcon aria-hidden className="size-4" /> },
 ];
 
 /** Signing out from the kit would end a real session, so its row does nothing. */

@@ -143,6 +143,7 @@ export function PhoneEditor({
   fitting,
   error,
   download,
+  more,
   bar,
   back: backTo,
   page,
@@ -187,6 +188,9 @@ export function PhoneEditor({
   onPage: (next: PageSettings) => void;
   /** The resume's downloads, the same as the desktop sticky bar's. */
   download: ResumeDownload;
+  /** The resume's ⋯ after Download, as the desktop's title row has it
+   *  (`ResumeMenu`, KAN-825); the editor's own page only. */
+  more?: ReactNode;
   /** The page's own row under the buttons: on Tailor's review the job,
    *  the step and Finish, which the layer covers on the page. */
   bar?: ReactNode;
@@ -282,6 +286,7 @@ export function PhoneEditor({
               secondary={Boolean(bar)}
             />
           </span>
+          {more && <span className={cn("flex shrink-0", TAP)}>{more}</span>}
         </div>
         {/* One row at every width: the words fold (`PHONE_FOLD`) */}
         <div className={cn(SLIM_BAR, "@container/bar static", TAP)}>

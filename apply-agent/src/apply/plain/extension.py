@@ -44,7 +44,6 @@ import base64
 import hashlib
 import json
 import os
-import re
 import shutil
 import subprocess
 import tempfile
@@ -52,6 +51,7 @@ import time
 from functools import cache
 from pathlib import Path
 
+import psutil
 from playwright._impl._driver import compute_driver_executable
 
 from apply import fill_engine
@@ -308,21 +308,23 @@ def guards_match(folder: Path) -> bool:
 def loaders(folder: Path) -> list[int]:
     """The PIDs of the running Chromes that load the worker extension from `folder`: by --load-extension, or by a
     profile (--user-data-dir) whose registration names it. Changing `folder` under one of them would change the code
-    of a Worker that runs: never done."""
+    of a Worker that runs: never done. psutil reads each process's arguments, on every OS (W4)."""
     try:
-        listed = subprocess.run(["ps", "-axo", "pid=,command="], capture_output=True, text=True, check=True).stdout
-    except (OSError, subprocess.SubprocessError):
+        processes = [p.info for p in psutil.process_iter(["pid", "cmdline"])]
+    except (psutil.Error, OSError):
         return [0]  # can't tell: as if one did
     target, pids = folder.resolve(), []
-    for line in listed.splitlines():
-        pid, _, command = line.strip().partition(" ")
-        if not pid.isdigit() or "--type=" in command:  # a Chrome's helpers name its profile too: the browser is enough
+    for process in processes:
+        arguments = process.get("cmdline") or []  # None: another user's process, or one gone
+        if any(a.startswith("--type=") for a in arguments):  # a Chrome's helpers name its profile too: the browser is enough
             continue
-        named = [Path(found.group(1)) for found in [re.search(r"--load-extension=(.+?)(?= --|$)", command)] if found]
-        if data := re.search(r"--user-data-dir=(.+?)(?= --|$)", command):
-            named += [registered] if (registered := loaded_folder(Path(data.group(1)))) else []
+        named = [Path(path) for a in arguments if a.startswith("--load-extension=")
+                 for path in a.partition("=")[2].split(",") if path]
+        for a in arguments:
+            if a.startswith("--user-data-dir=") and (registered := loaded_folder(Path(a.partition("=")[2]))):
+                named.append(registered)
         if any(path.resolve() == target for path in named):
-            pids.append(int(pid))
+            pids.append(process["pid"])
     return pids
 
 

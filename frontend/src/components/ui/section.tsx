@@ -8,11 +8,23 @@ import { cn } from "@/lib/cn";
  *
  * Moved here from the search detail pane once the job-detail pages became a
  * second and third consumer of the exact same shape.
+ *
+ * `action` is the section's one way onward, at its heading's right end
+ * (`SectionHeading`'s slot): an application's Interviews & Dates puts
+ * Create Event there, so it is built as What You Sent is (KAN-824).
  */
-export function Section({ title, children }: { title: string; children: ReactNode }) {
+export function Section({
+  title,
+  action,
+  children,
+}: {
+  title: string;
+  action?: ReactNode;
+  children: ReactNode;
+}) {
   return (
     <section className="mt-5">
-      <SectionHeading>{title}</SectionHeading>
+      <SectionHeading action={action}>{title}</SectionHeading>
       {children}
     </section>
   );

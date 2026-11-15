@@ -247,9 +247,19 @@ export async function deleteSection(sectionId: string): Promise<Result<null>> {
   return call<null>(`/sections/${id(sectionId)}`, { method: "DELETE" });
 }
 
-/** Clear All for the Skills card, as `deleteEntries`. */
+/** Deletes these skills in one call, all or none, as `deleteEntries`:
+ *  Skills' Clear All and a group's Delete Group (KAN-816). */
 export async function deleteSkills(skillIds: string[]): Promise<Result<null>> {
   return call<null>("/skills/delete", { method: "POST", body: JSON.stringify({ ids: skillIds }) });
+}
+
+/** The Skills dialog's save (KAN-816): these skills in this order, each in
+ *  its group (null: no group), so a rename, a merge and a move are one call.
+ *  They take the places they held in the bank; the rest keep theirs. */
+export async function orderSkills(
+  skills: { id: string; group: string | null }[],
+): Promise<Result<null>> {
+  return call<null>("/skills/order", { method: "PUT", body: JSON.stringify({ skills }) });
 }
 
 /** What one import wrote into the bank: an upload's own reading, or Import

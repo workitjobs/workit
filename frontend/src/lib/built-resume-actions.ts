@@ -234,8 +234,16 @@ export async function renameBuiltResume(
   );
 }
 
-export async function deleteBuiltResume(resumeId: string): Promise<{ error: string | null }> {
-  return revalidatingResumes(call<null>(`/${id(resumeId)}`, { method: "DELETE" }));
+/** `leaving`: the caller leaves the page once it is gone (the editor's ⋯,
+ *  KAN-825), so nothing clears the router's copies: in an action that also
+ *  renders the current page again, and the editor would read a resume that
+ *  is gone. `deleteResume` does the same for an upload's page. */
+export async function deleteBuiltResume(
+  resumeId: string,
+  { leaving = false }: { leaving?: boolean } = {},
+): Promise<{ error: string | null }> {
+  const sent = call<null>(`/${id(resumeId)}`, { method: "DELETE" });
+  return leaving ? sent : revalidatingResumes(sent);
 }
 
 export async function setDefaultBuiltResume(resumeId: string): Promise<{ error: string | null }> {

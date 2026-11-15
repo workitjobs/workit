@@ -14,6 +14,7 @@ import { ChevronDownIcon, CloseIcon } from "@/components/icons";
 import { Checkbox } from "@/components/shadcn/checkbox";
 import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
+import { NoMatches } from "@/components/ui/no-matches";
 import type { Bank } from "@/lib/bank-actions";
 import type { Choices, ChoicesUpdate } from "@/lib/built-resume-actions";
 import { cn } from "@/lib/cn";
@@ -183,7 +184,7 @@ export function ExperiencesPicker({
       )}
 
       {entries.length === 0 && skills.length === 0 && (
-        <p className="text-body text-ink-meta">Nothing here matches your filters.</p>
+        <NoMatches>Nothing here matches your filters.</NoMatches>
       )}
 
       {bankGroups.map((group) => {

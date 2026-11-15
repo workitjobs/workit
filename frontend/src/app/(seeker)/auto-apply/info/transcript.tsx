@@ -1,7 +1,7 @@
 "use client";
 
 import { ScrollIcon } from "@phosphor-icons/react/ssr";
-import { useEffect, useRef, useState, type ChangeEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
 
 import { FileIcon, TrashIcon, UploadIcon } from "@/components/icons";
 import { RESUME_ACCEPT, resumeFileError } from "@/components/resume-upload";
@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/shadcn/skeleton";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { LoadFailed } from "@/components/ui/load-failed";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { useToast } from "@/components/ui/toast";
 import {
@@ -51,17 +52,22 @@ export function Transcript() {
   // The toast whose close sends the held DELETE; null once it is sent or taken back.
   const held = useRef<number | null>(null);
 
+  const read = useCallback(
+    () =>
+      getTranscript()
+        .then(({ transcript: t, error: err }) => {
+          if (err) setStatus("error");
+          else {
+            setTranscript(t);
+            setStatus("loaded");
+          }
+        })
+        .catch(() => setStatus("error")),
+    [],
+  );
   useEffect(() => {
-    getTranscript()
-      .then(({ transcript: t, error: err }) => {
-        if (err) setStatus("error");
-        else {
-          setTranscript(t);
-          setStatus("loaded");
-        }
-      })
-      .catch(() => setStatus("error"));
-  }, []);
+    void read();
+  }, [read]);
 
   // Leaving the page sends a held DELETE at once: back here, the card would show the file it removes.
   useEffect(
@@ -198,13 +204,20 @@ export function Transcript() {
         </div>
       )}
       {status === "error" && (
-        <p role="status" className="text-note text-ink-meta mt-4">
-          Your transcript didn&apos;t load. Refresh the page to try again.
-        </p>
+        <LoadFailed
+          compact
+          title="Your Transcript Isn't Loading Right Now"
+          onRetry={read}
+          className="mt-4"
+        >
+          We couldn&apos;t reach your file. Try again in a few minutes.
+        </LoadFailed>
       )}
 
+      {/* A plain row under the line, not a bordered box: a card holds no
+          second card (docs/design.md, KAN-821). */}
       {transcript && (
-        <div className="bg-panel border-border-surface rounded-card mt-5 flex items-center gap-4 border p-4">
+        <div className="mt-4 flex items-center gap-4">
           <FileIcon className="text-ink-meta size-5 shrink-0" />
           <p className="text-body text-ink min-w-0 flex-1 truncate">
             {transcript.original_filename}

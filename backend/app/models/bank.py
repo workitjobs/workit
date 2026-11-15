@@ -180,6 +180,12 @@ class Bank_Skill(BaseModel):
     owner, ignoring case: once per upload, once per built resume, and once
     among the student's own (bank_skills_applicant_name_key, NULLS NOT
     DISTINCT).
+
+    `position` is the student's order of the bank's skills (KAN-816): the
+    Experiences page's Skills dialog sets it for every bank skill at once
+    (`services/bank.py`'s `order_skills`), and a group sits where its first
+    skill does. Null is a skill never placed (a reading's), listed after
+    the placed ones by group and name, as every skill was before.
     '''
     __tablename__ = "bank_skills"
     __table_args__ = (
@@ -198,4 +204,5 @@ class Bank_Skill(BaseModel):
     built_resume_id: Mapped[_uuid.UUID | None] = mapped_column(ForeignKey("built_resumes.id", ondelete="CASCADE"))
     name: Mapped[str]
     group: Mapped[str | None]
+    position: Mapped[int | None]
 

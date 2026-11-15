@@ -243,6 +243,7 @@ jobs:
             tests/test_cover_letter.py \
             tests/test_daily_cap.py \
             tests/test_dock_app.py \
+            tests/test_each_os.py \
             tests/test_eightfold_filler.py \
             tests/test_employer_mail.py \
             tests/test_fill_engine.py \

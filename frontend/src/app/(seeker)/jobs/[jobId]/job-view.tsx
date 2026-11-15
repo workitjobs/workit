@@ -36,7 +36,7 @@ import { jobLogo } from "@/lib/job-logo";
  * One live role as its job page draws it: the actions, the header and the
  * body (the sent and applied notes, the Key Requirements card, About the
  * Role). /jobs/[jobId] and the application's own page (/applications/[jobId],
- * its Job Description tab, KAN-256) both draw the role from here, so the two
+ * its Overview tab, KAN-256) both draw the role from here, so the two
  * look the same and cannot drift apart. ./page.tsx says what each part does.
  */
 export type JobView = Awaited<ReturnType<typeof loadJobView>>;
@@ -322,8 +322,8 @@ export function JobPanel({
   children,
   className,
 }: {
-  /** None on the application page's Job Description tab, whose header is
-   *  its own panel above the tabs. */
+  /** None on the application page's Overview tab, whose header is
+   *  its own panel above the pane. */
   header?: ReactNode;
   children?: ReactNode;
   className?: string;
@@ -343,8 +343,8 @@ export function JobPanel({
 /** Under the header, in the job's panel: what was sent and when it was
  *  applied to, the Key Requirements section, and About the Role, each a
  *  section of the panel with a rule between them, across its whole width.
- *  `descriptionOnly` keeps About the Role alone: the application page's Job
- *  Description tab (KAN-256), where the notes and the checklist are the
+ *  `descriptionOnly` keeps About the Role alone: the application page's
+ *  Overview tab (KAN-256), where the notes and the checklist are the
  *  application's business, not the posting's, and pushed the description
  *  down. */
 export function JobViewBody({
@@ -398,7 +398,7 @@ export function JobViewBody({
             applyUrl={job.apply_url}
             pay={factText(listingFacts(job).salary) || null}
             // The job's own page has a Company tab; the application's
-            // Job Description tab has none, so it keeps the section.
+            // Overview tab has none, so it keeps the section.
             companyElsewhere={!descriptionOnly}
           />
         ) : (

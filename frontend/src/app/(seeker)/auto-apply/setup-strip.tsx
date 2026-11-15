@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckIcon, NotepadIcon } from "@phosphor-icons/react/ssr";
+import { CheckIcon, NotepadIcon, PencilLineIcon } from "@phosphor-icons/react/ssr";
 import { useEffect, useState } from "react";
 
 import { ChromeIcon } from "@/components/icons";
@@ -13,10 +13,14 @@ import { EXTENSION_INSTALL_URL, extensionState } from "@/lib/autofill-extension"
  * Chrome extension and Application Info, what every application needs,
  * each with where it stands ("Added") and, where there is something to do,
  * a link. They were a card on top that showed only while the extension was
- * missing and a large Application Info card at the foot. Written Answers
- * sat here for a day and left: it is not setup but work a job asks for, so
- * it shows as a notice over the queue while questions wait (./up-next.tsx,
- * `QuestionsNotice`).
+ * missing and a large Application Info card at the foot.
+ *
+ * WRITTEN ANSWERS is the third cell, its one lasting way in (KAN-822). It
+ * sat here for a day and left for the notice over the queue while
+ * questions wait (./up-next.tsx, `QuestionsNotice`), since it is work a job
+ * asks for, not setup; but with no question waiting nothing reached the
+ * page, so the saved answers and their Delete were out of reach. The
+ * notice stays for the count.
  *
  * NO COUNT OF STEPS. It was "Set Up Auto Apply, 1 of 3 done" with a
  * Configure dialog until 2026-10-29, and students read all three as
@@ -35,7 +39,7 @@ export function SetupRow() {
       as="section"
       padding="none"
       aria-label="Setup"
-      className="divide-border-subtle grid divide-y overflow-hidden @3xl/main:grid-cols-2 @3xl/main:divide-x @3xl/main:divide-y-0"
+      className="divide-border-subtle grid divide-y overflow-hidden @3xl/main:grid-cols-3 @3xl/main:divide-x @3xl/main:divide-y-0"
     >
       <OptionRow
         icon={<ChromeIcon className="size-5" />}
@@ -62,6 +66,12 @@ export function SetupRow() {
         line={
           <span className="text-ink-meta">Work authorization, screening answers, transcript</span>
         }
+      />
+      <OptionRow
+        icon={<PencilLineIcon aria-hidden className="text-ink-meta size-5" />}
+        title="Written Answers"
+        href="/auto-apply/answers"
+        line={<span className="text-ink-meta">Questions to write, and the answers you gave</span>}
       />
     </Card>
   );

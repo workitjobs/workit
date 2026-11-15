@@ -13,9 +13,10 @@ export const metadata: Metadata = {
 };
 
 /**
- * /help, a row in the account menu the bar's photo opens, beside Settings. There are no
- * guides yet, so like /settings it says so inside the shell, rather than leaving a row that
- * opens a 404. Its title is in the top bar. It offers the one useful next step meanwhile: the feed. A
+ * /help, a row in the account menu the bar's photo opens, beside Settings, once it has
+ * guides. There are none yet, so the row is hidden (`HELP_LIVE` in ../account-status.tsx,
+ * KAN-826) and this page, reached only by its address, says so inside the shell rather
+ * than answering a 404. Its title is in the top bar. It offers the one useful next step meanwhile: the feed. A
  * <div>, since SidebarInset is already the <main>.
  */
 export default function HelpPage() {

@@ -1,84 +1,48 @@
 "use client";
 
-import { FileArrowDownIcon, StarIcon } from "@phosphor-icons/react/ssr";
-import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { FileArrowDownIcon } from "@phosphor-icons/react/ssr";
+import { useState } from "react";
 
-import { FileIcon, PencilIcon, TrashIcon } from "@/components/icons";
+import { FileIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
-import {
-  deleteResume,
-  getResumeFileUrl,
-  renameResume,
-  setPrimaryResume,
-  type ResumeItem,
-} from "@/lib/resume-actions";
+import { getResumeFileUrl, type ResumeItem } from "@/lib/resume-actions";
 import { cn } from "@/lib/cn";
 import { openDownload } from "@/lib/save-file";
 
 import { LocalDate } from "../../../local-time";
 import { PageSkeleton, PdfPages } from "../../[resumeId]/pdf-pages";
+import { ResumeMenu, TitleRowProvider } from "../../[resumeId]/resume-menu";
+import { ResumeTitle } from "../../[resumeId]/resume-title";
 import { SLIM_BAR } from "../../[resumeId]/slim-bar";
-import { Zoom, zoomWidth } from "../../[resumeId]/zoom";
-import { RenameForm } from "../../built-resume-row";
-import { DeleteResumeConfirm } from "../../delete-confirm";
-import { Tip } from "@/components/ui/tip";
+import { useZoom, Zoom, zoomWidth } from "../../[resumeId]/zoom";
 
 /**
- * An uploaded resume's page (KAN-366), in the editor's layout (KAN-799): a
- * title row with its name, when it was uploaded and whether it is the
- * primary resume, then its file actions at the right, Make Primary (while it
- * is not), Rename, Delete and Download, the page's one filled button; then
- * a sticky bar in the editor's own look (`SLIM_BAR`,
- * ../../[resumeId]/slim-bar.ts) holding the zoom; then the file. The actions
- * call what the upload's card on the Resumes view calls
- * (../../upload-resume.tsx), and the card keeps its icons. They sat in the
- * bar until KAN-799, which wrapped the date under them on purpose.
+ * An uploaded resume's page (KAN-366), in the editor's layout (KAN-799)
+ * and with the editor's title row (KAN-825): the name (`ResumeTitle`,
+ * renamed in place with the field every resume renames with) and the
+ * Primary badge on the primary, then at the right when it was uploaded
+ * (where the editor says whether it is saved), Download, the page's one
+ * filled button, and the resume's ⋯ (`ResumeMenu`: Rename, Make Primary,
+ * Delete, the Resumes list's own menu); then a sticky bar in the editor's
+ * own look (`SLIM_BAR`, ../../[resumeId]/slim-bar.ts) holding the zoom;
+ * then the file. Until KAN-825 its title was larger, Make Primary, Rename
+ * and Delete were bordered buttons, and "★ Primary" sat under the name.
  *
  * A PDF is drawn page by page with the editor's pdf.js preview
  * (`PdfPages`), with no click targets: an upload is read, not edited, and
  * its facts are edited in Experiences (ADR 0003). The bar holds the
- * editor's zoom control (`Zoom`) for a PDF; it opens at 100% and is not
- * stored, so each visit starts there. A DOCX cannot be drawn
- * that way, so its place holds the file's name and Download.
+ * editor's zoom control and its step (`useZoom`, kept per browser), so the
+ * two pages open at one zoom (KAN-825; this page opened at 100% and kept
+ * nothing until then). A DOCX cannot be drawn that way, so its place
+ * holds the file's name and Download.
  *
- * Rename edits the heading in place, with the form every resume's card
- * uses; Delete asks first, in a popover under its button, and returns to
- * the Resumes view.
+ * Delete asks first, under ⋯, and returns to the Resumes view.
  */
 export function UploadedViewer({ resume, pdf }: { resume: ResumeItem; pdf: string | null }) {
-  const router = useRouter();
   const name = resume.original_filename ?? "Resume";
-  const primary = resume.is_default;
-  const [renaming, setRenaming] = useState(false);
-  // A rename or a new star reads the page again, so the name and the star
-  // are always the API's: the action clears the router's copies, which in
-  // Next 16 renders this page again in its answer (lib/resume-revalidate.ts),
-  // so a `router.refresh()` after it would read the PDF twice. The form stays
-  // open until the new name is in, so the old one never flashes back.
-  const [saving, startSaving] = useTransition();
-  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // Opens at 100%, kept in this page's state only: not stored, not shared
-  const [zoom, setZoom] = useState(100);
-
-  function rename(next: string) {
-    setError(null);
-    startSaving(async () => {
-      const { error } = await renameResume(resume.id, next);
-      if (error) return setError(error);
-      setRenaming(false);
-    });
-  }
-
-  function makePrimary() {
-    setError(null);
-    startSaving(async () => {
-      const { error } = await setPrimaryResume(resume.id);
-      if (error) return setError(error);
-    });
-  }
+  const [zoom, setZoom] = useZoom();
 
   async function download() {
     setError(null);
@@ -87,84 +51,35 @@ export function UploadedViewer({ resume, pdf }: { resume: ResumeItem; pdf: strin
     else setError(error ?? "Could not download the resume.");
   }
 
-  // Delete stays disabled until the page leaves.
-  async function remove() {
-    setDeleting(true);
-    setError(null);
-    // `leaving`: rendered again, this page would be a 404 before the push
-    const { error } = await deleteResume(resume.id, { leaving: true });
-    if (!error) return router.push("/resumes");
-    setDeleting(false);
-    setError(error);
-  }
-
   return (
-    <>
-      {/* The title row, as the editor's (KAN-799): the name, then when it
-          was uploaded and whether it is primary, at the left; the file's
-          actions at the right, Download last and filled. They sat in the
-          bar until then, which wrapped on purpose */}
-      <div className="flex items-center gap-3">
+    <TitleRowProvider>
+      {/* The title row, the editor's (KAN-825): the name and the badge at
+          the left; when it was uploaded, Download and ⋯ at the right. One
+          row that never wraps: below @md Download keeps its glyph alone */}
+      <div className="mt-4 flex items-center gap-3">
         <div className="min-w-0 flex-1">
-          {renaming ? (
-            <RenameForm
-              id={resume.id}
-              name={name}
-              saving={saving}
-              onSave={rename}
-              onCancel={() => setRenaming(false)}
-            />
-          ) : (
-            <h1 className="text-heading text-ink break-words">{name}</h1>
-          )}
-          <p className="text-note text-ink-meta mt-0.5 flex items-center gap-3">
-            {resume.created_at && (
-              <span>
-                Uploaded <LocalDate at={resume.created_at} />
-              </span>
-            )}
-            {primary && (
-              <span className="text-brand inline-flex items-center gap-1">
-                <StarIcon aria-hidden weight="fill" className="size-3.5" />
-                Primary
-              </span>
-            )}
-          </p>
-        </div>
-        {/* One row that never wraps: below @3xl the three lesser buttons
-            keep their glyph alone, named by their tooltip */}
-        <div className="flex shrink-0 items-center gap-2">
-          {!primary && (
-            <Tip label="Make Primary">
-              <Button variant="secondary" size="sm" onClick={makePrimary} disabled={saving}>
-                <StarIcon aria-hidden className="size-4" />
-                <span className="@max-3xl/main:sr-only">Make Primary</span>
-              </Button>
-            </Tip>
-          )}
-          <Button variant="secondary" size="sm" onClick={() => setRenaming(true)}>
-            <PencilIcon className="size-4" />
-            <span className="@max-3xl/main:sr-only">Rename</span>
-          </Button>
-          <DeleteResumeConfirm
-            busy={deleting}
-            onDelete={remove}
-            tip="Delete"
-            trigger={
-              <Button variant="secondary" size="sm" disabled={deleting}>
-                <TrashIcon className="size-4" />
-                <span className="@max-3xl/main:sr-only">Delete</span>
-              </Button>
-            }
+          <ResumeTitle
+            as="h1"
+            kind="uploaded"
+            resumeId={resume.id}
+            name={name}
+            primary={resume.is_default}
           />
-          <Button size="sm" onClick={download}>
-            <FileArrowDownIcon aria-hidden className="size-4" />
-            <span className="@max-md/main:sr-only">Download</span>
-          </Button>
         </div>
+        {resume.created_at && (
+          <span className="text-note text-ink-meta shrink-0 whitespace-nowrap">
+            <span className="@max-md/main:sr-only">Uploaded </span>
+            <LocalDate at={resume.created_at} />
+          </span>
+        )}
+        <Button size="sm" onClick={download}>
+          <FileArrowDownIcon aria-hidden className="size-4" />
+          <span className="@max-md/main:sr-only">Download</span>
+        </Button>
+        <ResumeMenu kind="uploaded" resumeId={resume.id} name={name} primary={resume.is_default} />
       </div>
 
-      <div className="mt-4 flex flex-col gap-4">
+      <div className="mt-3 flex flex-col gap-4">
         {/* The editor's bar (`SLIM_BAR`), holding this page's one tool, the
             zoom, at its end where the editor's is. A DOCX has no page to
             zoom, so no bar, and nor does a column under @md, where even the
@@ -208,6 +123,6 @@ export function UploadedViewer({ resume, pdf }: { resume: ResumeItem; pdf: strin
           </EmptyState>
         )}
       </div>
-    </>
+    </TitleRowProvider>
   );
 }

@@ -7,10 +7,9 @@ from types import SimpleNamespace
 
 import pytest
 
-from apply import browsers, captcha, cli, dashboard
+from apply import browsers, captcha, cli, dashboard, focus
 from apply.browsers import WorkerBrowsers
 from apply.dashboard import Dashboard, NoFrames
-from apply.plain import launcher
 from apply.plain.launcher import PlainWorkers
 
 
@@ -56,12 +55,18 @@ def test_the_window_comes_back_only_while_the_workers_window_is_in_front(monkeyp
 
 def test_a_worker_is_in_front_when_its_chrome_is_the_front_app(monkeypatch, tmp_path):
     monkeypatch.setattr(browsers, "chrome_pid", lambda profile: 4242 if profile.name == "worker-1" else None)
-    monkeypatch.setattr(browsers, "front_pid", lambda: 4242)
+    monkeypatch.setattr(focus.KEEPER, "front", lambda: 4242)
     cdp = WorkerBrowsers(tmp_path / "profiles", headless=False, channel=None)
     assert cdp.in_front(0) and not cdp.in_front(1)
     assert not WorkerBrowsers(tmp_path / "profiles", headless=True, channel=None).in_front(0)  # no window at all
-    monkeypatch.setattr(launcher, "front_pid", lambda: 7)
+    monkeypatch.setattr(focus.KEEPER, "front", lambda: 7)
     plain = PlainWorkers(tmp_path / "plain", kind="testing")
     plain.running[0] = SimpleNamespace(pid=7)
     plain.running[1] = SimpleNamespace(pid=8)
     assert plain.in_front(0) and not plain.in_front(1) and not plain.in_front(2)
+
+
+def test_off_the_mac_no_worker_is_ever_in_front():
+    """Windows and Linux have no FocusKeeper (W4): it can't tell the front app, so the window never comes back by
+    itself, and no macOS command runs."""
+    assert focus.NoKeeper().front() is None

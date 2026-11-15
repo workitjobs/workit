@@ -36,6 +36,7 @@ import { OptionRow } from "@/components/ui/option-row";
 import { OrDivider } from "@/components/ui/or-divider";
 import { Radio } from "@/components/ui/radio-row";
 import { SearchField } from "@/components/ui/search-field";
+import { NoMatches } from "@/components/ui/no-matches";
 import { cn } from "@/lib/cn";
 import type { BuiltResume } from "@/lib/built-resume-actions";
 import type { ResumeItem } from "@/lib/resume-actions";
@@ -45,11 +46,13 @@ import { ResumePreviewPane, sourceOfKey, ViewButton } from "../jobs/[jobId]/tail
 import type { Source } from "../jobs/resume-picker";
 
 /**
- * Generate Resume's dialog on the Resumes page (2026-11-11, after
- * Simplify's "How would you like to create this resume?"): the three ways
- * to start a resume in one place. Upload Resume was its own button beside
- * Generate Resume until then; the user wanted one button, named for the
- * main way.
+ * The New Resume dialog, which Generate Resume opens on the Resumes page
+ * (2026-11-11, after Simplify's "How would you like to create this
+ * resume?"): the three ways to start a resume in one place. Upload Resume
+ * was its own button beside Generate Resume until then; the user wanted
+ * one button, named for the main way. The dialog was titled "Generate a
+ * Resume" until KAN-825, which named it for all three, Upload among them;
+ * the button keeps its name.
  *
  *   Start From Your Experiences  Generate as it was: every bank entry, the
  *                                duplicate check, then the editor
@@ -226,14 +229,12 @@ function Body({
           >
             <ArrowLeftIcon />
           </IconButton>
-          <DialogTitle className="text-subtitle min-w-0 truncate font-semibold">
-            {viewing.name}
-          </DialogTitle>
+          <DialogTitle className="min-w-0 truncate">{viewing.name}</DialogTitle>
           <DialogDescription className="sr-only">A preview of this resume.</DialogDescription>
         </DialogHeader>
       ) : (
         <DialogHeader className="border-border-subtle border-b px-6 pt-5 pr-12 pb-4">
-          <DialogTitle className="text-subtitle font-semibold">Generate a Resume</DialogTitle>
+          <DialogTitle>New Resume</DialogTitle>
           <DialogDescription>
             Start from your experiences, upload a resume, or start with one you already have.
           </DialogDescription>
@@ -309,7 +310,7 @@ function Body({
                 onChange={(event) => setQuery(event.target.value)}
               />
               {shown.length === 0 ? (
-                <p className="text-note text-ink-meta py-2">None of your resumes match.</p>
+                <NoMatches>None of your resumes match.</NoMatches>
               ) : (
                 <StartTable rows={shown} picked={picked} onPick={setPicked} onView={setViewing} />
               )}
