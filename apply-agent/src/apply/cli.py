@@ -908,7 +908,8 @@ def _back_to_window(site, window: Path) -> Callable[[int], bool] | None:
     in_front = getattr(site, "in_front", None)
     if in_front is None:
         return None
-    return lambda worker: in_front(worker) and dashboard.raise_window(window, timeout=2.0)
+    # One try, at once after the check: a raise retried for a while came up over the app he had switched to meanwhile.
+    return lambda worker: in_front(worker) and dashboard.raise_window(window, timeout=0)
 
 
 def _window_context() -> dict:

@@ -97,6 +97,7 @@ captcha wait and no `captcha` Bot signal.
 - Done, the Apply window comes back to the front 2 s later (`BACK_AFTER_S`,
   `Dashboard.come_back`, KAN-855), if the Worker's own window, where Lisul did
   the captcha, is still the front app. A switch of his to another app keeps it.
+  Once a form, and only for a challenge on view as the wait began.
 - After `captcha_wait_minutes` (policies, default 15), or when the tab
   closed, it is the usual Handoff: a run's ends, a rehearsal's pauses
   (KAN-551). `0` hands off at once; the test policies set 0.

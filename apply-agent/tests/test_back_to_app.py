@@ -32,6 +32,7 @@ class Board:
 @pytest.mark.parametrize("done", [True, False])
 def test_the_app_comes_back_a_breath_after_the_captcha_is_done(monkeypatch, done):
     monkeypatch.setattr(captcha, "BACK_AFTER_S", 0.2)
+    monkeypatch.setattr(captcha, "pending", lambda page: True)  # a challenge on view as the wait begins
     monkeypatch.setattr(captcha, "wait", lambda page, pressed, minutes: done)
     board = Board()
     waiter = captcha.Waiter(board, 1, None, SimpleNamespace(policy=lambda key: None), dict)
@@ -41,12 +42,30 @@ def test_the_app_comes_back_a_breath_after_the_captcha_is_done(monkeypatch, done
     assert board.back == ([1] if done else [])  # a wait that ended without it (time out, page closed): never
 
 
+def test_the_app_comes_back_once_and_only_for_a_captcha_on_view(monkeypatch):
+    """KAN-855's second review: a wait with no challenge on view ends at once (KAN-760) and calls no one back; a
+    challenge that comes back again on the same form pulls the student back once at most."""
+    monkeypatch.setattr(captcha, "BACK_AFTER_S", 0.05)
+    monkeypatch.setattr(captcha, "wait", lambda page, pressed, minutes: True)
+    on_view = [False]
+    monkeypatch.setattr(captcha, "pending", lambda page: on_view[0])
+    board = Board()
+    waiter = captcha.Waiter(board, 0, None, SimpleNamespace(policy=lambda key: None), dict)
+    assert waiter("Do the captcha", SimpleNamespace()) and not board.came.wait(0.3)  # nothing on view: no call back
+    on_view[0] = True
+    assert waiter("Do the captcha", SimpleNamespace()) and board.came.wait(1.0) and board.back == [0]
+    board.came.clear()
+    assert waiter("Do the captcha", SimpleNamespace()) and not board.came.wait(0.3)  # the same form again: no more
+
+
 def test_the_window_comes_back_only_while_the_workers_window_is_in_front(monkeypatch, tmp_path):
     raised, front = [], {0: True, 1: False}
-    monkeypatch.setattr(dashboard, "raise_window", lambda window, timeout=10.0: raised.append(window) or True)
+    tries = []
+    monkeypatch.setattr(dashboard, "raise_window", lambda window, timeout=10.0: tries.append(timeout) or raised.append(window) or True)
     back = cli._back_to_window(SimpleNamespace(in_front=lambda worker: front[worker]), tmp_path / "dashboard")
     with Dashboard(2, NoFrames(), back=back) as board:
         assert board.come_back(0) and raised == [tmp_path / "dashboard"]
+        assert tries == [0]  # one try at once after the check: never a while later, over an app he switched to
         assert not board.come_back(1) and len(raised) == 1  # he went on to another app: it stays there
     with Dashboard(1, NoFrames()) as board:
         assert not board.come_back(0)  # a window with no way back (a test's, the Student build's before W5)
