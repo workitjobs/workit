@@ -221,6 +221,32 @@ app      ──POST /apply-app/session {code, verifier}──▶ FastAPI
   Windows' Credential Manager takes at most 2,560 bytes an item, less than
   an access token can be.
 
+### Testing it
+
+- **In CI, with no Supabase:** `backend/tests/test_app_sign_in.py` (real
+  Postgres, a fake Supabase: a code trades once, another verifier spends
+  it, 5 minutes, no company account, 10 an hour, a refusal is a 503);
+  `apply-agent/tests/test_workit_login.py` and every file that signs in
+  through `fake_workit.py`, whose `/app-sign-in` binds its code to the
+  challenge and whose trade checks the verifier; `frontend/src/lib/
+  sign-in-next.test.ts` (no open redirect).
+- **Live, once the migration is applied and the API deployed:**
+  1. `uv run apply login` in `apply-agent/`. The browser opens
+     `/app-sign-in`; sign in, press Sign In to the App, Copy Code, paste.
+     It prints "Logged in to WorkIt as ...". `uv run apply doctor` says
+     "WorkIt: logged in as", and Keychain Access shows `apply-workit`.
+  2. Paste the same code again: "That sign-in is over". Wait 5 minutes
+     with a new code: the same.
+  3. Signed out, open the page's link: `/login` comes back to it after a
+     password, a Google and a LinkedIn sign-in. If LinkedIn lands on
+     Home, add a `**` entry for the origin's `/auth/callback` in
+     Supabase's redirect list.
+  4. Change the password in Settings: the next `apply doctor` says the
+     login expired.
+- Against a local stack, set `APPLY_WORKIT_WEB` and `APPLY_WORKIT_API`
+  (`apply-agent/docs/workit.md`); the local API's database needs the
+  migration too.
+
 ## Identity
 
 - **One email, one account.** A person cannot have both an applicant and a

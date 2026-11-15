@@ -222,6 +222,11 @@ module docstring has the steps.
   and the test uploads to the real bucket. `tests/test_sent_resumes.py`'s
   `storage` fixture is the pattern: an in-memory bucket that records uploads
   and removals.
+- **A test of the desktop app's sign-in monkeypatches
+  `app_sign_in.get_supabase` and `app_sign_in._verify`**
+  (`tests/test_app_sign_in.py`). The service calls both directly, not
+  through `Depends`, so an override misses them, and the test would make a
+  magic link and a session on the real Supabase project.
 - **A test that calls a model route swaps the model with
   `tests/fake_models.py`'s `use(fake)`**, which overrides all three
   sizes (`app/services/models.py`) at once, and `clear()` after; a test of

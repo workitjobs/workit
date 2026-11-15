@@ -85,7 +85,7 @@ A write to WorkIt's Applications Tracker that could not reach WorkIt (no answer,
 _Avoid_: retry queue, outbox
 
 **WorkIt client**:
-The one module in Apply that calls WorkIt's API, as the student that `apply login` signed in. The login is kept in the data folder.
+The one module in Apply that calls WorkIt's API, as the student that `apply login` signed in. Its login is kept in the system's keychain.
 _Avoid_: API wrapper, WorkIt SDK
 
 **Top 500**:

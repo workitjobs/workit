@@ -67,7 +67,7 @@ call WorkIt from another module; add a method to `WorkIt` that uses `call`.
 **Tests.** `tests/fake_workit.py` is a fake WorkIt: one local HTTP server
 that answers as Supabase Auth and WorkIt's API, and records each request
 (`fake.requests`). Use `with FakeWorkIt() as fake:` and
-`WorkIt(fake.site, tmp_path / "workit-login.json")`, and
+`WorkIt(fake.site, tmp_path / "workit-login.json", fake.keychain)`, and
 `workit.login(client, fake.browser)` to sign in: `fake.browser` is the
 student on `/app-sign-in`, giving a code bound to the page's challenge.
 `fake.session()` makes a session (`fake.lifetime` seconds),
