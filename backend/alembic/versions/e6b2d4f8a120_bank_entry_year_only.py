@@ -1,7 +1,7 @@
 """bank_entries.year_only: the dates given as a year alone (KAN-808)
 
 Revision ID: e6b2d4f8a120
-Revises: d8f3b6a1c947
+Revises: 3132c5026bf6
 Create Date: 2026-11-12 18:00:00.000000
 
 A date is stored as the first day of its month, so "2019 – 2023" read from
@@ -14,6 +14,10 @@ those three names.
 
 Apply it before the deploy: the model maps the column, so every read of a
 bank entry answers 500 until it exists. Old code never reads it.
+
+Re-parented onto 3132c5026bf6 (KAN-723's model_usage), which branched from
+d8f3b6a1c947 too and merged first: two heads fail `upgrade head` for
+everyone, CI included.
 """
 from typing import Sequence, Union
 
@@ -24,7 +28,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision: str = 'e6b2d4f8a120'
-down_revision: Union[str, Sequence[str], None] = 'd8f3b6a1c947'
+down_revision: Union[str, Sequence[str], None] = '3132c5026bf6'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
