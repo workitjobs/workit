@@ -121,9 +121,13 @@ Each is a Handoff whose words say what Apply saw, then "press Fix here and ... o
 
 ## The guards (KAN-666)
 
-The generic Filler's clicks are new click paths. It fills under the rehearsal's guard and puts a drive guard
-(`submit_guard.DriveGuard`) on the page as its fill starts, so a click that would send is blocked even where the
-page dresses a Submit as an option. `tests/test_submit_guard_hostile.py` runs two paths on every hostile page:
+The generic Filler's clicks are new click paths. It fills under the rehearsal's guard and drives under its own drive
+guard (`submit_guard.DriveGuard`), so a click that would send is blocked even where the page dresses a Submit as an
+option. The drive guard is armed (`arm`) as the Question set's read starts, before its first click (a dropdown
+opened, a pop-up's Close), and as each fill starts and after each Next, and rests when the code stops, so the
+student's own clicks go through on the held page. Armed only once the fill started, the read ran unguarded on a page
+a live run opens with the guard lifted (`on_open`), and a pop-up's Close that was the form's submit sent it (the
+adversarial review, 2026-11-15). `tests/test_submit_guard_hostile.py` runs two paths on every hostile page:
 "the generic Filler" (the whole fill, every question answered, its model the worst one: it picks the first option
 and the first button every time) and "the generic Filler's Apply press". Its two pages: an option that holds the
 form's own submit button, and a posting's Apply that is a one-click application's submit.

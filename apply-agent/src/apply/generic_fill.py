@@ -28,6 +28,7 @@ rehearsal's guard and the drive guard on the page, KAN-666).
 
 import re
 from collections.abc import Callable
+from contextlib import contextmanager
 from dataclasses import replace
 from pathlib import Path
 
@@ -156,7 +157,7 @@ class GenericFiller:
     # --- the Filler's shape (apply.fillers.Filler)
 
     def question_set(self, url: str, site: JobSite) -> QuestionSet:
-        with site.open(url) as page:
+        with site.open(url) as page, self._driving(page):  # its reads open dropdowns and close pop-ups: guarded
             self._settle(page)
             self._read_posting(page)
             self._clear(page)
@@ -178,7 +179,10 @@ class GenericFiller:
         labels = {q.name: q.label for q in questions}
         self._asked = (labels, answers)
         self._attests = fill_engine.attestations(questions)
-        self._guard_on(page)
+        with self._driving(page):
+            return self._fill(page, labels, answers)
+
+    def _fill(self, page: Page, labels: dict[str, str], answers: Answers) -> Readback:
         while True:
             self._clear(page)
             fields = form_tree.read(page, open_dropdowns=False)
@@ -202,6 +206,7 @@ class GenericFiller:
             if self._steps >= self._max_steps:
                 raise Handoff(TOO_MANY_STEPS)
             press_step(page, self._guard, nxt)
+            self._guard.arm()  # press_step rests the guard once its press is done: driving again
             self._blocked()
 
     def submit(self, page) -> None:
@@ -286,6 +291,18 @@ class GenericFiller:
     def _guard_on(self, page: Page) -> None:
         if self._guard is None:
             self._guard = DriveGuard(page, **self._opt_ins)
+
+    @contextmanager
+    def _driving(self, page: Page):
+        """The drive guard on and driving while code reads and fills (review of KAN-861): on a page the rehearsal
+        left lifted too, every click that could send is blocked, and a captcha's frame takes none. It rests when the
+        code stops, so the student's own clicks go through on the held page."""
+        self._guard_on(page)
+        self._guard.arm()
+        try:
+            yield
+        finally:
+            self._guard.rest()
 
     def _blocked(self) -> None:
         """Whatever the guards stopped while code pressed: a Handoff, since a press could have sent the form."""

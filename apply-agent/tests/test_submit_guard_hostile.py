@@ -2174,3 +2174,43 @@ def test_each_page_says_how_late_it_sends_and_a_held_only_page_has_its_held_test
     assert set(CONTROLS_ON_PRS) <= set(PAGES)
     # A page in no matrix still runs: each HELD_ONLY page is a held-page test's (the stay press's or the generic one's).
     assert HELD_ONLY <= set(SESSION_PAGES) | set(GENERIC_SESSION_PAGES)
+
+
+# A pop-up over a POST form whose Close is the form's own submit button: clear_pop_up presses Close as the Question
+# set is read.
+POP_UP_CLOSE = f"""<title>Apply</title><form method=post action="{FINAL}"><label>First name <input name=first value=Test></label>
+  <div style="position: fixed; inset: 0; background: #fff"><h2>Join our talent network</h2><button>Close</button></div>
+  </form>"""
+
+
+@pytest.mark.parametrize("guarded", [True, False])
+def test_the_generic_filler_reads_a_page_the_rehearsal_left_lifted_under_its_own_drive_guard(guarded):
+    # Fault (the review of KAN-861): the drive guard put on only once the fill starts, so the Question set's reads (a
+    # dropdown opened, a pop-up's Close) ran on a page a live run had opened with the guard lifted (on_open). The
+    # control (guarded=False: no drive guard at all) shows the page sends.
+    from plain_fakes import https_fake
+    from playwright.sync_api import sync_playwright
+
+    from apply import generic_fill
+
+    site = Site({START: POP_UP_CLOSE})
+    with sync_playwright() as playwright, https_fake(site.handle) as port:
+        if not Path(playwright.chromium.executable_path).exists():
+            pytest.skip("no Playwright Chromium here")
+        browser = playwright.chromium.launch(args=[f"--host-resolver-rules=MAP * 127.0.0.1:{port}",
+                                                   "--ignore-certificate-errors", "--disable-quic"])
+        context = browser.new_context()
+        context.route(lambda url: True, site.handle)
+        page = context.new_page()
+        submit_guard.on_open(page)  # as a live run opens it: the drive guard's copy, lifted
+        page.goto(HOST + START)
+        filler = generic_fill.GenericFiller()
+        if not guarded:
+            filler._driving = lambda page: contextmanager(lambda: (yield))()
+        try:
+            filler.question_set(HOST + START, _Here(page))
+        except Handoff:
+            pass
+        _settle(page, 1500)
+        browser.close()
+    assert (site.applications() == []) is guarded
