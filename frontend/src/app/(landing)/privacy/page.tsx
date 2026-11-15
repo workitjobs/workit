@@ -201,7 +201,8 @@ export default function PrivacyPage() {
           app sends what the answers need, such as the job posting, the form&apos;s questions, your
           answers on it (self-identification answers included) and your experiences. When the app
           can&apos;t match one of your answers to a field&apos;s choices, it sends that question, your
-          answer and the choices, and AI picks the one that fits. It replaces
+          answer and the choices, and AI picks the one that fits; when two buttons could go on to
+          a form&apos;s next page, it sends their names, and AI says which one. It replaces
           private details, such as your contact details and street address, with placeholders, and
           puts the real values back into the answer on your Mac. Before a prompt goes on,
           WorkIt&apos;s server also hides contact details it finds in it. The app cannot find other

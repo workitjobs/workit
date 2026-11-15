@@ -3,6 +3,7 @@ Filler for a job system with no Filler of its own. No model drives the browser: 
 click, and a model only picks.
 
 - **Read.** apply.form_tree reads each control's role and name from the page's accessibility tree, with no model.
+  A posting page with no field and one Apply button or link opens its form first (`_open_form`).
 - **Fill, with plain code.** A text box takes its planned answer; a native select, radio group, checkbox or set of
   checkboxes takes the option the plan fitted to its options (the Fill engine's fit.ts, in its planner); a
   dropdown is opened and its option clicked; a search box is typed into and its listed choice clicked; a file is
@@ -16,12 +17,13 @@ click, and a model only picks.
   (KAN-855, docs/held-forms.md).
 - **Hand over.** A page in a state the fill didn't expect (an error, a pop-up it can't close, a field that reset
   once filled), a widget the tree doesn't show (a drawing area, drag and drop), and a step whose end isn't clear
-  (no button that sends) are each a Handoff: the student goes on in the Apply window.
-- **One page.** The page with a button that sends is the form's last: the fill stops there. A form that goes on
-  past its first page is the student's from there, for now.
+  (no Next and no button that sends) are each a Handoff: the student goes on in the Apply window.
+- **Next.** Claude fill's NEXT and BACK patterns find the step's Next (apply.steps); plain code presses it through
+  the guards (`press_step`). When two buttons could go on, `generic_fill.next` asks which goes on without sending.
+  The step with a button that sends and no Next is the last: the fill stops there.
 
-The Filler never submits: its `submit` refuses, and no click it makes may send (the rehearsal's guard and the drive
-guard on the page, KAN-666).
+The Filler never submits: its `submit` refuses, and no button it presses may send (press_step's own check, the
+rehearsal's guard and the drive guard on the page, KAN-666).
 """
 
 import re
@@ -45,11 +47,15 @@ from apply.model import (
     QuestionSet,
     Readback,
 )
-from apply.steps import FIELD_TEXT, OPENS_MS, _owned_listbox
+from apply.steps import BACK, FIELD_TEXT, NEXT, OPENS_MS, _owned_listbox, press_step
 from apply.submit_guard import DriveGuard, drive_blocks
 
+MAX_STEPS = 20  # a guard against a loop, as Claude fill's
 MAX_CHOICES = 60  # the most options one model question lists; more is a Needs-you item
 PAGE_SETTLES_MS = 5_000
+# The button or link on a posting page that opens its form ("Apply for This Job", BambooHR's): its whole name.
+OPENS = re.compile(r"^\W*(apply( now| online| here)?|apply (for|to) (this|the) (job|position|role|opening|internship)"
+                   r"|start (your |an |my )?application|i'?m interested)\W*$", re.IGNORECASE)
 # An alert whose words say the page refused something: an unexpected state, never one to fill past.
 ERROR_WORDS = re.compile(r"\b(error|invalid|required|please (enter|select|provide|fix|correct)|must|failed|unable|"
                          r"couldn'?t|can ?not|cannot|went wrong|try again)\b", re.IGNORECASE)
@@ -62,15 +68,21 @@ CAPTCHA_BOX = "The form has a captcha (\"I'm not a robot\") to do before it can 
 FIX_HERE = "press Fix here and {} on the form in this window"
 FIX = FIX_HERE
 NO_FIELDS = "Apply found no form fields on the page it can read. " + "To go on, " + FIX.format("fill it in")
+NO_OPENER = ("The posting shows no form, and Apply found no one Apply button to open it ({}). To go on, "
+             + FIX.format("open and fill the form"))
 ALERT = "The form shows an error Apply didn't expect ({!r}). To go on, " + FIX.format("fix it")
 POP_UP = "A pop-up covers the form ({!r}) and Apply couldn't close it. To go on, " + FIX.format("close it and fill the form")
 RESET = ("{} went blank or changed after Apply filled it, so Apply stopped. To go on, "
          + FIX.format("check the page and fill it"))
 UNREAD = ("Page {} has {} that Apply can't read or fill. To go on, " + FIX.format("fill it"))
-ONE_PAGE = ("Apply fills one page of a form for now, and this form goes on past it. To go on, "
-            + FIX.format("fill the rest"))
+UNCLEAR = ("Apply found no Next and no button that sends on page {}, so it can't tell where the form goes on. "
+           "To go on, " + FIX.format("fill it"))
+MANY_NEXT = ("Page {} has more than one button that could go on ({}), and none is clearly the form's Next. To go on, "
+             + FIX.format("fill it"))
+TOO_MANY_STEPS = f"Apply went through {MAX_STEPS} pages without reaching the form's last. To go on, " + FIX.format("fill it")
 BLOCKED = ("The guard stopped a press that could have sent the form ({}). Nothing was sent. To go on, "
            + FIX.format("check the page"))
+TO_TICK = "Page {}: {}"
 NEVER_SUBMITS = "WorkIt Auto Apply never presses Submit"
 # A part of the page no tree shows: a drawing area (a signature pad, a canvas date picker) or a drag and drop.
 UNREADABLE = r"""() => {
@@ -81,22 +93,32 @@ UNREADABLE = r"""() => {
   return canvas.length ? 'a drawing area (a signature, or a date picker drawn on a canvas)'
     : drag.length > 1 ? 'a list to put in order by drag and drop' : '';
 }"""
+# An opener's own link, to go to with no click: an http(s) link of the page's, else "" (a script's link is pressed).
+OPENER_HREF = "el => (el.tagName === 'A' && /^https?:/.test(el.href) && !el.target) ? el.href : ''"
+# Whether a button sits in a form, or names one: its press could send that form.
+IN_A_FORM = "el => !!(el.form || el.closest('form') || el.getAttribute('form'))"
 CHOSEN = "el => el.multiple ? [...el.selectedOptions].map((o) => o.text.trim()) : (el.selectedIndex >= 0 ? el.options[el.selectedIndex].text.trim() : '')"
 FILE_NAMES = "el => [...(el.files || [])].map((f) => f.name)"
 
-# One field's question to the model: the options' place in `options` that is the answer, or None.
+# One field's question to the model: the options' place in `options` that is the answer, or None. A Next's: the
+# place in `buttons` of the one that goes on without sending, or None.
 Pick = Callable[[str, list[str], str], int | None]
+PickNext = Callable[[list[str]], int | None]
 
 
-def picker(claude) -> Pick:
-    """The model's small question, through WorkIt's Model route (`ask_kind`; the prompts are the server's,
+def picker(claude) -> tuple[Pick, PickNext]:
+    """The two small questions, through WorkIt's Model route (`ask_kind`; the prompts are the server's,
     backend/app/apply_prompts/generic_fill.py). `claude` is the run's, as the applicant (apply.applicant.as_applicant),
     so the student's private values go as placeholders."""
 
     def pick(question: str, options: list[str], answer: str) -> int | None:
         said = claude.ask_kind("generic_fill.pick", {"question": question, "answer": answer, "options": options})
         return _place(said.get("choice"), len(options))
-    return pick
+
+    def next_button(buttons: list[str]) -> int | None:
+        said = claude.ask_kind("generic_fill.next", {"buttons": buttons})
+        return _place(said.get("choice"), len(buttons))
+    return pick, next_button
 
 
 def _place(choice, count: int) -> int | None:
@@ -107,14 +129,15 @@ class GenericFiller:
     """A Filler for one Application on a job system with no Filler of its own. Its form stays open from its Question
     set to its last step, so the Orchestrator runs it on OnePage."""
 
-    def __init__(self, pick: Pick | None = None, resume: Path | None = None, sms_opt_in: bool = False,
-                 marketing_opt_in: bool = False):
-        """`pick` is the model's small question (`picker`); without it, what code can't match is a Needs-you item.
-        `resume` is for a pop-up that asks for it before
+    def __init__(self, pick: Pick | None = None, next_button: PickNext | None = None, resume: Path | None = None,
+                 sms_opt_in: bool = False, marketing_opt_in: bool = False, max_steps: int = MAX_STEPS):
+        """`pick` and `next_button` are the model's two small questions (`picker`); without them, what code can't
+        match is a Needs-you item, and two possible Nexts a Handoff. `resume` is for a pop-up that asks for it before
         the form can be used. The opt-ins are the student's policies: the drive guard refuses any other tick."""
-        self._pick = pick
+        self._pick, self._next_button = pick, next_button
         self._resume = resume
         self._opt_ins = {"sms_opt_in": sms_opt_in, "marketing_opt_in": marketing_opt_in}
+        self._max_steps = max_steps
         self._guard: DriveGuard | None = None
         self._fields: dict[str, Field] = {}  # each question the fill found, by its name
         self._found_at: dict[str, int] = {}  # the step each was found on
@@ -125,6 +148,7 @@ class GenericFiller:
         self._failed: set[str] = set()  # the fields that didn't take their answer: the student's now
         self._alerts: set[str] = set()  # the alerts the page showed before Apply filled anything
         self._asked: tuple[dict[str, str], Answers] = ({}, {})
+        self._attests: set[str] = set()  # the attestations and signatures: the student's own to tick (KAN-676)
         self.picked: list[tuple[str, str]] = []  # (label, option) of each choice the model picked, for the Record
         self.posting_text = ""
         self.names: tuple[str, str] = ("", "")
@@ -138,16 +162,22 @@ class GenericFiller:
             self._clear(page)
             fields = form_tree.read(page)
             if not fields:
+                self._open_form(page)
+                self._clear(page)
+                fields = form_tree.read(page)
+            if not fields:
                 raise Handoff(NO_FIELDS)
             self._read_posting(page)
             self._alerts = _alerts(page)
             return self._questions(fields)
 
     def fill(self, page: Page, questions: QuestionSet, answers: Answers) -> Readback:
-        """Fill the page showing and read each field back; the page is the form's last, with the button that sends.
-        Called again after MoreQuestions or a FillError, it goes on with what is not yet on the form."""
+        """Fill the step showing, read each field back, press its Next, and so on to the last step, the one with
+        the button that sends. Called again after MoreQuestions or a FillError, it goes on from the step the page is
+        on, with what is not yet on the form."""
         labels = {q.name: q.label for q in questions}
         self._asked = (labels, answers)
+        self._attests = fill_engine.attestations(questions)
         self._guard_on(page)
         while True:
             self._clear(page)
@@ -163,10 +193,16 @@ class GenericFiller:
                     continue
                 self._fill_one(page, name, labels.get(name, field.label), field, value)
             self._check_step(page, here)
-            self._last(page)  # it has the button that sends, which only the student presses
-            if captcha.pending(page):
-                raise Captcha(CAPTCHA_BOX, page)
-            return dict(self._readback)
+            nxt = self._next(page)
+            if nxt is None:  # the last step: it has the button that sends, which only the student presses
+                if captcha.pending(page):
+                    raise Captcha(CAPTCHA_BOX, page)
+                return dict(self._readback)
+            self._steps += 1
+            if self._steps >= self._max_steps:
+                raise Handoff(TOO_MANY_STEPS)
+            press_step(page, self._guard, nxt)
+            self._blocked()
 
     def submit(self, page) -> None:
         raise SetupError(NEVER_SUBMITS)
@@ -458,11 +494,57 @@ class GenericFiller:
             unread = ""
         if unread:
             raise Handoff(UNREAD.format(self._steps + 1, unread))
+        labels, answers = self._asked
+        now_shown = {name: (now[name].shows if name in now else field.shows) for name, field in here.items()}
+        required = [labels.get(name, field.label) for name, field in here.items()
+                    if field.required and name in self._attests and name not in answers
+                    and now_shown[name] in ("", (), "No")]
+        if required and self._next(page) is not None:
+            raise Handoff(TO_TICK.format(self._steps + 1, fill_engine.tick_ask(required)))
 
-    def _last(self, page: Page) -> None:
-        """The page is the form's last when it shows a button that sends; a form that goes on is a Handoff."""
-        if not any(SENDS.search(n) for n in _buttons(page)):
-            raise Handoff(ONE_PAGE)
+    def _next(self, page: Page) -> str | None:
+        """The step's Next by its words (apply.steps.NEXT, never one that says it sends or goes back), or None on the
+        last step, which shows a button that sends and no Next. Two that could go on: the model says which goes on
+        without sending (`generic_fill.next`), or it is a Handoff. Neither a Next nor a button that sends: a Handoff."""
+        names = _buttons(page)
+        nexts = list(dict.fromkeys(n for n in names if NEXT.search(n) and not SENDS.search(n) and not BACK.search(n)))
+        if len(nexts) == 1:
+            return nexts[0]
+        if not nexts:
+            if any(SENDS.search(n) for n in names):
+                return None
+            raise Handoff(UNCLEAR.format(self._steps + 1))
+        place = self._next_button(nexts) if self._next_button else None
+        if place is None:
+            raise Handoff(MANY_NEXT.format(self._steps + 1, ", ".join(repr(n) for n in nexts[:4])))
+        return nexts[place]
+
+    def _open_form(self, page: Page) -> None:
+        """A posting page that shows no field: its one Apply link is followed (a navigation, no click), or its one
+        Apply button pressed through the guards, and the form waited for. Its whole name must be an opener's
+        (OPENS: "Apply for This Job", BambooHR's). None, two that differ, a button in a form (its press would send
+        that form: opening a form never needs one sent), or one with a frame inside is a Handoff."""
+        links = [el for el in page.get_by_role("link", name=OPENS).all() if el.is_visible()]
+        buttons = [el for el in page.get_by_role("button", name=OPENS).all() if el.is_visible()]
+        names = {" ".join(str(el.aria_snapshot()).split()) for el in links + buttons}
+        if len(names) != 1:
+            raise Handoff(NO_OPENER.format(f"{len(names)} found" if names else "none found"))
+        target = (links or buttons)[0]
+        href = target.evaluate(OPENER_HREF)
+        if links and href:
+            page.goto(href)
+        else:
+            if target.evaluate(IN_A_FORM) is not False:
+                raise Handoff(NO_OPENER.format("the one found sits in a form, and its press could send it"))
+            self._guard_on(page)
+            if not self._guard.may_press(target):  # a frame inside it, where the press could land (KAN-710)
+                raise Handoff(NO_OPENER.format("a frame sits inside the one found"))
+            target.click(timeout=5_000)
+        for _ in range(int(PAGE_SETTLES_MS / 250)):
+            page.wait_for_timeout(250)
+            if form_tree.read(page, open_dropdowns=False):
+                break
+        self._blocked()
 
 
 def _said(label: str) -> str:

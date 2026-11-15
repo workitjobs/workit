@@ -666,7 +666,8 @@ DELAYS = SENDS_AFTER | GENERIC_SENDS_AFTER
 MOVED = {"a session dialog whose Continue sends after the next mouse move",
          "a generic session dialog whose I'm still here sends after the next mouse move"}
 PAGES |= SESSION_PAGES | GENERIC_SESSION_PAGES
-# The generic Filler's own clicks (KAN-861): it clicks the option its answer names.
+# The generic Filler's own clicks (KAN-861): it opens a dropdown and clicks the option its answer names, and on a
+# posting page with no field it presses the one Apply button that opens the form.
 GENERIC_FILL_PAGES = {
     # A list of options whose "Yes" holds the form's own submit button: the option's click lands on it.
     "an option that is the form's own submit button": {START: f"""<title>Apply</title><form method=post action="{FINAL}">
@@ -674,9 +675,15 @@ GENERIC_FILL_PAGES = {
         <div role=listbox aria-label="Are you authorized to work here?"><div role=option><button id=b style="width: 100%" name=submit
           value=1>Yes</button></div><div role=option>No</div></div></form>{SEND_ALL}
         <script>document.getElementById('b').addEventListener('click', () => sendAll());</script>"""},
+    # A posting page with no field whose one Apply button is a one-click application: a form's submit with the
+    # applicant's answers hidden beside it.
+    "a posting's Apply that posts the application": {START: f"""<title>Software Intern</title><h1>Software Intern</h1>
+        <p>Build robots.</p><form method=post action="{FINAL}"><input type=hidden name=first value=Test>
+        <button id=b>Apply for this job</button></form>{SEND_ALL}
+        <script>document.getElementById('b').addEventListener('click', () => sendAll());</script>"""},
 }
 PAGES |= GENERIC_FILL_PAGES
-BUTTON = {"an option that is the form's own submit button": "Yes",
+BUTTON = {"an option that is the form's own submit button": "Yes", "a posting's Apply that posts the application": "Apply for this job",
           "an Amazon card whose Continue sends": "Continue", "a review page's Apply with its answers hidden": "Apply", "a page that vouches for its own Apply": "Apply", "a Submit in another language beside a Submit": "Envoyer ma candidature", "a Submit in a shadow root": "Submit application",
           "a profile pop-up that is the application": "Submit", "a profile pop-up that turns into the application": "Submit",
           "a one-page form in a modal": "Continue", "an application that makes an account": "Continue",
@@ -853,12 +860,12 @@ class _Here:
 
 def generic_fill(page, drive, name):
     """The generic Filler (KAN-861) on the page from start to end: it reads the form, every question answered, fills
-    each field (an option's click, a box's check), under the guards. Its model is the worst one: it picks the first
-    option every time."""
+    each field (an option's click, a box's check) and presses each Next it finds, under the guards. Its model is the
+    worst one: it picks the first option and the first button every time."""
     from apply.generic_fill import GenericFiller
     from apply.model import MoreQuestions
 
-    filler = GenericFiller(pick=lambda question, options, answer: 0)
+    filler = GenericFiller(pick=lambda question, options, answer: 0, next_button=lambda names: 0)
     filler._guard = drive
     try:
         questions = filler.question_set(HOST + START, _Here(page))
@@ -876,10 +883,24 @@ def generic_fill(page, drive, name):
         raise Handoff(str(broke)) from broke
 
 
+def generic_apply_press(page, drive, name):
+    """The generic Filler's press of a posting page's one Apply button, which opens the form (KAN-861)."""
+    from apply.generic_fill import GenericFiller
+
+    filler = GenericFiller()
+    filler._guard = drive
+    try:
+        filler._open_form(page)
+    except Handoff:
+        raise
+    except Exception as broke:
+        raise Handoff(str(broke)) from broke
+
+
 PATHS = {"plain code's Next": plain_next, "the Amazon Filler's Continue": amazon_continue, "the profile click": profile_click, "the account click": account_click,
          "Ask Claude's press": ask_press, "Ask Claude's press of a listed step": ask_press_listed,
          "the keep-alive's stay press": stay_press, "the keep-alive's generic stay press": generic_stay_press,
-         "the generic Filler": generic_fill}
+         "the generic Filler": generic_fill, "the generic Filler's Apply press": generic_apply_press}
 
 
 # PR 477's guard holes (KAN-710): each page a hole the guards had, so each runs on PRs, never only nightly. A page
@@ -968,12 +989,17 @@ LISTED_STEP_PAGES = frozenset({
 })
 SESSION_DIALOG_PAGES = frozenset(SESSION_PAGES) | frozenset(GENERIC_SESSION_PAGES)
 AMAZON_PAGES = frozenset({"an Amazon card whose Continue sends"})
+# The pages whose button has an opener's name ("Apply"), which the generic Filler's Apply press looks for.
+OPENER_PAGES = frozenset({"a posting's Apply that posts the application", "a review page's Apply with its answers hidden",
+                          "a page that vouches for its own Apply"})
 APPLIES = {"the profile click": PROFILE_PAGES, "Ask Claude's press of a listed step": LISTED_STEP_PAGES,
-           "the keep-alive's stay press": SESSION_DIALOG_PAGES, "the keep-alive's generic stay press": SESSION_DIALOG_PAGES}
+           "the keep-alive's stay press": SESSION_DIALOG_PAGES, "the keep-alive's generic stay press": SESSION_DIALOG_PAGES,
+           "the generic Filler's Apply press": OPENER_PAGES}
 # The kind of page each path was written against, in this order: a page's one PR pair takes the first that holds it.
 OWN = {"the Amazon Filler's Continue": AMAZON_PAGES, "the profile click": PROFILE_PAGES,
        "Ask Claude's press of a listed step": LISTED_STEP_PAGES, "the keep-alive's stay press": frozenset(SESSION_PAGES),
-       "the keep-alive's generic stay press": frozenset(GENERIC_SESSION_PAGES)}
+       "the keep-alive's generic stay press": frozenset(GENERIC_SESSION_PAGES),
+       "the generic Filler's Apply press": OPENER_PAGES}
 
 
 def _timers(html: str) -> list:
@@ -1763,7 +1789,8 @@ def plain(pages: dict[str, str], first: bool = False):
 
 
 PLAIN_PATHS = ["plain code's Next", "the Amazon Filler's Continue", "the profile click", "the account click", "Ask Claude's press of a listed step",
-               "the keep-alive's stay press", "the keep-alive's generic stay press", "the generic Filler"]
+               "the keep-alive's stay press", "the keep-alive's generic stay press", "the generic Filler",
+               "the generic Filler's Apply press"]
 
 
 @pytest.mark.parametrize(("page_name", "path"), plain_pairs_on_prs(PLAIN_PATHS))

@@ -7,7 +7,7 @@ from contextlib import contextmanager
 import pytest
 from conftest import ARC_FORM, ARC_URL
 from fake_bamboohr import FakeBambooServer
-from fakes import FakeJobServer, RecordingBoard
+from fakes import FakeClaude, FakeJobServer, RecordingBoard
 from test_claude_fill import LUNAR_FORM, LUNAR_URL
 from test_rehearse import NeverSubmits, adapters, rehearse
 from test_run_answers import profile_with
@@ -39,13 +39,16 @@ def keeping(server):
     return pages
 
 
-def test_a_form_whose_form_shows_only_behind_its_apply_button_is_the_students(tmp_path):
-    """KAN-861: the generic Filler finds no field on BambooHR's posting page (its form shows once its Apply button is
-    pressed, which this step doesn't press yet), so the form is the student's, with nothing filled and nothing sent."""
+def test_a_form_apply_has_no_filler_for_is_filled_by_the_generic_filler_with_no_model_driving(tmp_path):
+    """KAN-861 (W2 step 2): a BambooHR form, a job system with no Filler, is read and filled by code. Nothing is sent,
+    no model drives the page (the fixture fails Rescue's), and what it can't fill is the student's."""
+    claude = FakeClaude()
+    claude.drive = lambda **_: pytest.fail("a model drove the page in the Student build")
     with FakeBambooServer(LUNAR_FORM) as server:
-        [done] = rehearse([LUNAR_URL], server, profile_with(tmp_path))
-    assert done.outcome == "handoff" and "found no form fields" in done.why, done.why
-    assert done.filled == 0 and server.submissions == []
+        [done] = rehearse([LUNAR_URL], server, profile_with(tmp_path), claude=claude)
+    assert done.outcome != "handoff" or "can't fill" not in done.why, done.why
+    assert done.filled >= 8, (done.outcome, done.why, done.filled, done.asked)
+    assert server.submissions == []
 
 
 class FailsEmailOnce(NeverSubmits):

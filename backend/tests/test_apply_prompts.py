@@ -43,6 +43,7 @@ SAMPLES = {
     ("claude_fill.sent", 1): {"url": "https://acme.com/apply", "page_text": "Application received."},
     ("generic_fill.pick", 1): {"question": "How did you hear about us?", "answer": "LinkedIn",
                                "options": ["Job Board", "Social Media"]},
+    ("generic_fill.next", 1): {"buttons": ["Save and continue later", "Continue"]},
     ("writing.check", 1): {"drafts": DRAFTS, "sources": SOURCES},
     ("writing.edit", 1): {"drafts": DRAFTS, "sources": SOURCES, "style_card": "Short sentences.",
                           "flagged": {"q1": ["a sentence over 30 words"]}, "questions": {"q1": "Why us?"},
@@ -137,7 +138,7 @@ def test_a_replan_schema_takes_a_list_only_for_a_multi_select():
     assert "multi_select" not in _built(("presubmit.replan", 1)).prompt
 
 
-@pytest.mark.parametrize(("key", "count"), [(("generic_fill.pick", 1), 2)])
+@pytest.mark.parametrize(("key", "count"), [(("generic_fill.pick", 1), 2), (("generic_fill.next", 1), 2)])
 def test_a_generic_fill_pick_is_a_number_in_its_list_or_none(key, count):
     # Fault: a schema that lets the model name a place past the list's end, or that has no way to say "none fits".
     check = Draft202012Validator(_built(key).schema)

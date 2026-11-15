@@ -273,6 +273,36 @@ def test_a_search_box_is_typed_into_and_its_listed_choice_clicked():
         assert page.locator("#s").input_value() == "State University of New York at Stony Brook"
 
 
+STEPS = """<form id=f onsubmit="event.preventDefault()"><div id=step>
+  <label>First name <input name=first></label><button type=button id=n onclick="go()">Next</button></div></form>
+<script>function go() { step.innerHTML = '<label>Major <input name=major></label>' + %s; }</script>"""
+
+
+def test_a_form_in_steps_is_filled_a_step_at_a_time_to_its_last_and_never_sent():
+    # Fault: a fill that stops at the first Next, misses the next step's questions, or presses the step that sends.
+    html = STEPS % """'<button type=submit onclick="window.sent = true">Submit application</button>'"""
+    with form(html) as page:
+        filler, readback, questions = filled(page, {"First name": "Test"}, more={"Major": "Physics"})
+        assert [q.label for q in questions] == ["First name", "Major"]
+        assert readback == {"g1": "Test", "g2": "Physics"} and filler.shown_so_far == readback
+        assert page.evaluate("window.sent") is None
+
+
+def test_two_buttons_that_could_go_on_are_the_models_pick_and_none_is_a_handoff():
+    # Fault: a step with "Save and continue later" beside "Continue" pressed on the first that says continue, or a
+    # step whose end isn't clear filled past instead of handed to the student.
+    two = """'<button type=button onclick="window.later = true">Save and continue later</button>'
+             + '<button type=button onclick="step.innerHTML = \\'<button type=submit>Submit</button>\\'">Continue</button>'"""
+    asked = []
+    with form(STEPS % two) as page:
+        filled(page, {"First name": "Test"}, GenericFiller(next_button=lambda names: asked.append(names) or 1))
+        assert asked == [["Save and continue later", "Continue"]] and page.evaluate("window.later") is None
+    with form(STEPS % two) as page, pytest.raises(Handoff, match="more than one button that could go on"):
+        filled(page, {"First name": "Test"})
+    with form(STEPS % "'<button type=button>Done</button>'") as page, pytest.raises(Handoff, match="no Next and no button that sends on page 2"):
+        filled(page, {"First name": "Test"}, more={"Major": "Physics"})
+
+
 @pytest.mark.parametrize(("trap", "said"), [
     ("""<div role=alert id=a></div><script>document.querySelector('input').addEventListener('change',
         () => a.textContent = 'Please enter a valid name')</script>""", "shows an error Apply didn't expect"),
@@ -285,6 +315,18 @@ def test_a_page_in_a_state_the_fill_didnt_expect_is_the_students(trap, said):
     html = f"<form><label>First name <input></label>{trap}{SUBMIT}</form>"
     with form(html) as page, pytest.raises(Handoff, match=said):
         filled(page, {"First name": "Test", "Last name": "Person"})
+
+
+def test_a_posting_page_with_one_apply_button_opens_its_form_and_never_sends():
+    # Fault (BambooHR's posting): a page whose form shows only once its Apply button is pressed read as no form, or
+    # a page with two Apply buttons pressed on either.
+    html = """<h1>Intern</h1><p>Build robots.</p><button id=a onclick="a.remove(); f.hidden = false">Apply for This Job</button>
+      <form id=f hidden><label>First name <input></label><button type=submit>Submit Application</button></form>"""
+    with form(html) as page:
+        _, readback, _ = filled(page, {"First name": "Test"})
+        assert readback == {"g1": "Test"}
+    with form(html.replace("<h1>", "<button>Apply now</button><h1>")) as page, pytest.raises(Handoff, match="no one Apply button"):
+        filled(page, {"First name": "Test"})
 
 
 def test_the_filler_never_submits():

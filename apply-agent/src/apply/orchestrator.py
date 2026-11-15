@@ -629,8 +629,8 @@ def by_filler(
             filler = filler.with_accounts(accounts())
         return apply(filler, site)
     if build.STUDENT:  # no Claude fill (apply.build): the generic Filler, where code fills and a model only picks
-        pick = picker(as_applicant(claude, profile))  # the student's private values masked (D8)
-        generic = GenericFiller(pick, resume=profile.get("files.resume_pdf"),
+        pick, next_button = picker(as_applicant(claude, profile))  # the student's private values masked (D8)
+        generic = GenericFiller(pick, next_button, resume=profile.get("files.resume_pdf"),
                                 sms_opt_in=profile.policy("sms_opt_in") is True,
                                 marketing_opt_in=profile.policy("marketing_opt_in") is True)
         with OnePage(site) as page_site:

@@ -90,6 +90,21 @@ An option is clicked only as an `option` in the dropdown's own list box (`aria-c
 the options that showed as it opened: never a button or link of the page's. Its read-back is the choice the field
 shows on a line of its own, else its tree value.
 
+## Next and the steps
+
+- **The step's Next is found by Claude fill's words** (`steps.NEXT`, never one that says it sends, `SENDS`, or goes
+  back, `BACK`), among the tree's buttons. Plain code presses it with `steps.press_step`, through the guards, as
+  Claude fill's Next is pressed: its own check refuses a button or page that may send. Two that could go on ("Save
+  and continue later" beside "Continue"): `generic_fill.next` asks which goes on without sending; null is a Handoff.
+- **The last step is the one that shows a button that sends and no Next.** The fill returns there; only the student
+  presses Submit. `submit` raises `SetupError`.
+- **A field no question names yet** (the next step's, or one an answer showed) is read with its dropdowns opened and
+  raised as `MoreQuestions`, for the Worker to plan.
+- **A posting page with no field** opens its form by its one Apply link (followed with no click) or button (pressed
+  through the guards), whose whole name is an opener's (`OPENS`: "Apply for This Job", BambooHR's). None, two, a
+  button in a `<form>` (its press would send that form: opening a form never needs one sent) or one with a frame
+  inside is a Handoff.
+
 ## What goes to the student
 
 Each is a Handoff whose words say what Apply saw, then "press Fix here and ... on the form in this window"
@@ -98,7 +113,9 @@ Each is a Handoff whose words say what Apply saw, then "press Fix here and ... o
 - A page in a state the fill didn't expect: an alert with an error's words that wasn't there before the fill, a
   pop-up it can't close (`attach.clear_pop_up`), a field that went blank or changed once filled.
 - A widget the tree doesn't show: a drawing area (a signature pad, a canvas date picker) or a drag and drop.
-- A form that goes on past its first page (no button that sends on it): for now, the student fills the rest.
+- A step whose end isn't clear: no Next and no button that sends; two Nexts the model can't tell apart; more than
+  20 steps.
+- A required attestation on a step with a Next: the student's own to tick (KAN-676, `fill_engine.tick_ask`).
 - Anything the guards stopped while code pressed.
 - A captcha's challenge, or its box on the last step, is the captcha wait (`model.Captcha`), as for Claude fill.
 
@@ -106,12 +123,15 @@ Each is a Handoff whose words say what Apply saw, then "press Fix here and ... o
 
 The generic Filler's clicks are new click paths. It fills under the rehearsal's guard and puts a drive guard
 (`submit_guard.DriveGuard`) on the page as its fill starts, so a click that would send is blocked even where the
-page dresses a Submit as an option. `tests/test_submit_guard_hostile.py` runs "the generic Filler" (the whole
-fill, every question answered, its model the worst one: it picks the first option every time) on every hostile
-page. Its page: an option that holds the form's own submit button.
+page dresses a Submit as an option. `tests/test_submit_guard_hostile.py` runs two paths on every hostile page:
+"the generic Filler" (the whole fill, every question answered, its model the worst one: it picks the first option
+and the first button every time) and "the generic Filler's Apply press". Its two pages: an option that holds the
+form's own submit button, and a posting's Apply that is a one-click application's submit.
 
 **Tests.** `tests/test_form_tree.py` (no browser, CI): the snapshot parser and how two fields of one label are
 asked. `tests/test_generic_filler.py` (Chromium, on a Mac): each kind of control, a box named by its placeholder,
 the six saved Lever forms against the engine's own read, the fill of each control and its read-back (on a plain
-Worker too), each Handoff, the model's pick on a radio group, a dropdown, a two-level list, a search box. `tests/test_student_build.py` (CI): a job system with no Filler gets the
-generic Filler, which never submits. `../backend/tests/test_apply_prompts.py`: the kind's schema.
+Worker too), each Handoff, the model's pick on a radio group, a dropdown, a two-level list, a search box, a form in
+steps, two possible Nexts, and the Apply press. `tests/test_student_handoffs.py`: the BambooHR fake filled in the
+Student build with no model driving. `tests/test_student_build.py` (CI): a job system with no Filler gets the
+generic Filler, which never submits. `../backend/tests/test_apply_prompts.py`: the two kinds' schemas.
