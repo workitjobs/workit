@@ -119,7 +119,7 @@ class LoginExpired(WorkItError):
 
 
 class Unreachable(WorkItError):
-    """No answer from WorkIt (or Supabase Auth), or a server error."""
+    """No answer from WorkIt (or Supabase Auth), or a server error, whose `status` it names."""
 
 
 class CapReached(WorkItError):
@@ -565,7 +565,7 @@ def _send(method: str, url: str, body: Any, token: str | None, apikey: str | Non
     except (OSError, urllib.error.URLError) as error:
         raise Unreachable(f"{urlsplit(url).netloc}: {getattr(error, 'reason', error)}") from None
     if status >= 500:
-        raise Unreachable(f"{urlsplit(url).netloc}: {status}")
+        raise Unreachable(f"{urlsplit(url).netloc}: {status}", status)
     try:
         return status, json.loads(raw) if raw else None, headers
     except ValueError:

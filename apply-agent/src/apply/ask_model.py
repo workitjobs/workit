@@ -152,6 +152,9 @@ def _from_dotenv(provider: Provider, path: Path) -> str | None:
 
 WORKIT = "workit"  # every ask goes to WorkIt's Model route as a kind (D5, KAN-723): WorkItAsk
 ASK_TIMEOUT = 300  # seconds: WorkIt tries its whole model chain before it answers
+# Seconds before each retry when WorkIt can't be reached or answers that every model is busy (503): a free
+# tier's per-minute limit clears within a minute, and failing there failed the whole Application.
+BUSY_WAITS = (5, 20, 60)
 
 
 def chain(policies: dict) -> list[str]:
@@ -426,30 +429,36 @@ class WorkItAsk:
         raise SetupError("ask_model: workit sends each call as a kind and its data, never a prompt (D5, KAN-723)")
 
     def ask_kind(self, kind: str, data: dict) -> dict:
-        """WorkIt's answer. Its per-minute limit is waited out once; its Usage cap raises UsageLimitHit,
-        which pauses the run until the cap resets (midnight UTC)."""
+        """WorkIt's answer. Its per-minute limit is waited out once, and WorkIt down or every model busy
+        (BUSY_WAITS); its Usage cap raises UsageLimitHit, which pauses the run until the cap resets (midnight
+        UTC)."""
         return self._post("/apply-app/ask", {"kind": kind, "version": 1, "data": data}, kind)
 
     def _post(self, path: str, body: dict, kind: str) -> dict:
-        for attempt in range(2):
+        waited, busy = False, list(BUSY_WAITS)
+        while True:
             try:
                 reply = self._workit.call("POST", path, body, timeout=ASK_TIMEOUT)
             except CapReached as capped:
                 wait = capped.until - self._now().timestamp()
-                if attempt == 0 and wait <= LONGEST_WAIT:
+                if not waited and wait <= LONGEST_WAIT:
+                    waited = True
                     self._sleep(max(wait, 1.0))
                     continue
                 raise UsageLimitHit(datetime.fromtimestamp(capped.until)) from None
             except (NotLoggedIn, LoginExpired):
                 raise SetupError("ask_model: workit needs a WorkIt sign-in: run uv run apply login") from None
-            except Unreachable as e:  # WorkIt's 5xx: every model busy or down, or no answer fit
+            except Unreachable as e:
+                # No answer, or every model busy (503): asked again. A 502 (no answer fit) would fail again.
+                if e.status in (None, 503) and busy:
+                    self._sleep(busy.pop(0))
+                    continue
                 raise ClaudeError(f"WorkIt's Model route: {e}") from None
             except WorkItError as e:
                 raise ClaudeError(f"WorkIt's Model route refused {kind}: {e}") from None
             self._spent.tokens = getattr(self._spent, "tokens", 0) + int(reply.get("tokens") or 0)
             trace.event("claude", block="ask", ask_kind=kind, backend=WORKIT, answer=reply.get("answer"))
             return reply["answer"]
-        raise AssertionError("unreachable")
 
 def _said(reply: dict) -> str:
     """The provider's error message, one line, without the organization's id (it lands in Records and Traces)."""

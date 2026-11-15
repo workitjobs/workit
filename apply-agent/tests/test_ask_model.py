@@ -315,8 +315,17 @@ def test_workit_waits_out_its_minute_limit_once_and_pauses_the_run_at_its_cap():
     assert hit.value.resets_at == midnight and slept == []
 
 
+def test_workit_busy_or_down_is_asked_again_and_a_misfit_is_not():
+    busy = workit.Unreachable("api.workitjobs.ai: 503", 503)
+    asks, _, slept = workit_ask(busy, workit.Unreachable("api.workitjobs.ai: timed out"), {"answer": {"a": 1}})
+    assert asks.ask_kind("brief.team", {}) == {"a": 1} and slept == [5, 20]
+    asks, _, slept = workit_ask(workit.Unreachable("api.workitjobs.ai: 502", 502))
+    with pytest.raises(ClaudeError):
+        asks.ask_kind("brief.team", {})
+    assert slept == []
+
+
 @pytest.mark.parametrize(("refusal", "raised"), [
-    (workit.Unreachable("api.workitjobs.ai: 503"), ClaudeError),
     (workit.WorkItError("413", 413), ClaudeError),
     (workit.LoginExpired("refused"), SetupError),
 ])
