@@ -31,6 +31,7 @@ from app.scraper.closures import (
     update_sources,
 )
 from app.scraper.schedules import (
+    advance_fingerprint,
     advance_reads,
     record_failure,
     record_missing,
@@ -132,7 +133,7 @@ def _work_style(job, facts) -> str | None:
     return None
 
 
-async def run_cycle(conn: AsyncConnection, *, dry_run: bool = False) -> dict:
+async def run_cycle(conn: AsyncConnection, *, dry_run: bool = False, full: bool = False) -> dict:
     """One full worker cycle. Returns a summary dict."""
     worker_id = f"worker-{uuid.uuid4().hex[:8]}"
     summary = {
@@ -160,7 +161,7 @@ async def run_cycle(conn: AsyncConnection, *, dry_run: bool = False) -> dict:
         logger.info("Expired %d stale task leases", expired)
 
     # 3. Select due schedules and create tasks.
-    due = await select_due(conn)
+    due = await select_due(conn, full=full)
     schedule_ids = [row.id for row in due]
     summary["tasks_created"] = await create_tasks(conn, schedule_ids)
 
@@ -206,6 +207,7 @@ class _Read:
     all_postings: list[tuple[str, str]]  # (apply_url, external_id)
     inline_urls: list[str]  # postings with inline descriptions (Lever, Ashby…)
     boards_s: float
+    fingerprint: str | None  # None = skip advance_fingerprint (quiet board)
 
 
 async def _checkpoint_board(conn: AsyncConnection, done: _Read, summary: dict) -> None:
@@ -228,6 +230,10 @@ async def _checkpoint_board(conn: AsyncConnection, done: _Read, summary: dict) -
             inline_versions={url: providers.PAGE_VERSION for url in done.inline_urls},
         )
         await advance_reads(conn, done.schedule_id)
+        if done.fingerprint is not None:
+            await advance_fingerprint(
+                conn, done.schedule_id, new_fingerprint=done.fingerprint
+            )
         await mark_done(conn, done.task_id, boards_s=done.boards_s)
         await conn.commit()
         summary["jobs_scraped"] += len(done.listings)
@@ -319,8 +325,19 @@ async def _process_task(conn: AsyncConnection, task, summary: dict) -> _Read | N
     )
 
     all_postings = [(job.apply_url, job.external_id) for job in result.jobs]
+
+    # Compute fingerprint only for hot boards (this read has kept OR board
+    # was already hot). Quiet boards skip the extra DB call.
+    has_kept = bool(jobs)
+    if has_kept or schedule.has_kept:
+        from workit_scraper.store import fingerprint as compute_fingerprint
+
+        fp = compute_fingerprint(job.external_id for job in jobs)
+    else:
+        fp = None
+
     return _Read(
-        task.id, task.schedule_id, listings, all_postings, inline_urls, boards_s
+        task.id, task.schedule_id, listings, all_postings, inline_urls, boards_s, fp
     )
 
 

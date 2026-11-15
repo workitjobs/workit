@@ -3,6 +3,7 @@
 Usage:
     uv run python -m app.scripts.scrape_worker              # one cycle
     uv run python -m app.scripts.scrape_worker --dry-run    # show what would happen
+    uv run python -m app.scripts.scrape_worker --full       # bypass stagger + fingerprint rest
 """
 
 from __future__ import annotations
@@ -22,10 +23,10 @@ logging.basicConfig(
 )
 
 
-async def main(*, dry_run: bool = False) -> None:
+async def main(*, dry_run: bool = False, full: bool = False) -> None:
     engine = get_engine()
     async with engine.connect() as conn:
-        summary = await run_cycle(conn, dry_run=dry_run)
+        summary = await run_cycle(conn, dry_run=dry_run, full=full)
     await engine.dispose()
     print(json.dumps(summary, indent=2))
     if summary.get("boards_failed"):
@@ -37,5 +38,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--dry-run", action="store_true", help="Show what would happen without scraping"
     )
+    parser.add_argument(
+        "--full", action="store_true", help="Bypass quiet board stagger and fingerprint rest"
+    )
     args = parser.parse_args()
-    asyncio.run(main(dry_run=args.dry_run))
+    asyncio.run(main(dry_run=args.dry_run, full=args.full))
