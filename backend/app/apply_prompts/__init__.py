@@ -18,6 +18,7 @@ from app.apply_prompts import (
     brief,
     claude_fill,
     essays,
+    generic_fill,
     own_application,
     presubmit,
     probe,
@@ -27,7 +28,7 @@ from app.apply_prompts import (
 from app.apply_prompts.kind import Built, Kind, said
 
 KINDS: dict[tuple[str, int], Kind] = {(k.name, k.version): k for k in (
-    *brief.KINDS, *claude_fill.KINDS, *essays.KINDS, *own_application.KINDS, *presubmit.KINDS, *probe.KINDS,
+    *brief.KINDS, *claude_fill.KINDS, *essays.KINDS, *generic_fill.KINDS, *own_application.KINDS, *presubmit.KINDS, *probe.KINDS,
     *story_map.KINDS, *writing.KINDS,
 )}
 

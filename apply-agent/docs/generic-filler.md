@@ -60,6 +60,17 @@ which held a form with no Filler unfilled. A Developer checkout keeps Claude fil
   the page.
 - **After the student's Resume**, `resumed` keeps as theirs each value they changed in a field Apply had filled.
 
+### The model's pick
+
+- **Code matches first.** An option of the answer's exact words, then its words in another case or spacing, then
+  the one the Fill engine's `shows` reads as the answer. Only then the model.
+- **The model's question is `generic_fill.pick`** through the Model route (`ask_kind`; the prompt and schema are the
+  server's, `../backend/app/apply_prompts/generic_fill.py`): the field's question, the planned answer and its
+  options, numbered. It answers `{"choice": <number> | null}`, and the schema bounds the number by the list.
+  About a hundred tokens. A list of more than 60 options, a null, or a failed call is no pick: the field is the
+  student's. The call goes through `applicant.as_applicant`, so the student's private values go as placeholders
+  (D8). At the Usage cap the call raises `UsageLimitHit`, and the run pauses.
+
 ## What goes to the student
 
 Each is a Handoff whose words say what Apply saw, then "press Fix here and ... on the form in this window"
@@ -77,11 +88,11 @@ Each is a Handoff whose words say what Apply saw, then "press Fix here and ... o
 The generic Filler's clicks are new click paths. It fills under the rehearsal's guard and puts a drive guard
 (`submit_guard.DriveGuard`) on the page as its fill starts, so a click that would send is blocked even where the
 page dresses a Submit as an option. `tests/test_submit_guard_hostile.py` runs "the generic Filler" (the whole
-fill, every question answered) on every hostile
+fill, every question answered, its model the worst one: it picks the first option every time) on every hostile
 page. Its page: an option that holds the form's own submit button.
 
 **Tests.** `tests/test_form_tree.py` (no browser, CI): the snapshot parser and how two fields of one label are
 asked. `tests/test_generic_filler.py` (Chromium, on a Mac): each kind of control, a box named by its placeholder,
 the six saved Lever forms against the engine's own read, the fill of each control and its read-back (on a plain
-Worker too), and each Handoff. `tests/test_student_build.py` (CI): a job system with no Filler gets the generic
-Filler, which never submits.
+Worker too), each Handoff, the model's pick on a radio group. `tests/test_student_build.py` (CI): a job system with no Filler gets the
+generic Filler, which never submits. `../backend/tests/test_apply_prompts.py`: the kind's schema.

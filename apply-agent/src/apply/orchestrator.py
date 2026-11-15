@@ -38,12 +38,14 @@ from apply.adapters import (
 )
 from apply.answer_bank import Entry
 from apply.answer_bank import key as bank_key
+from apply.applicant import as_applicant
 from apply.captcha import Waiter
 from apply.feed import repost_keys
 from apply.fillers import FILLERS
 from apply.generic_fill import (  # noqa: F401 (rehearsal reads FIX_HERE here)
     FIX_HERE,
     GenericFiller,
+    picker,
 )
 from apply.match_queue import match_queue, over_employer_limits
 from apply.model import Posting, Status, one_line
@@ -627,7 +629,8 @@ def by_filler(
             filler = filler.with_accounts(accounts())
         return apply(filler, site)
     if build.STUDENT:  # no Claude fill (apply.build): the generic Filler, where code fills and a model only picks
-        generic = GenericFiller(resume=profile.get("files.resume_pdf"),
+        pick = picker(as_applicant(claude, profile))  # the student's private values masked (D8)
+        generic = GenericFiller(pick, resume=profile.get("files.resume_pdf"),
                                 sms_opt_in=profile.policy("sms_opt_in") is True,
                                 marketing_opt_in=profile.policy("marketing_opt_in") is True)
         with OnePage(site) as page_site:

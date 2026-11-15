@@ -96,7 +96,8 @@ has neither.
 - **In the Student build no model drives the browser** (D13, KAN-861, W2
   step 2, `docs/generic-filler.md`). A job system with no Filler gets the
   generic Filler: code reads the form from the accessibility tree and does
-  every click. Its clicks are click paths:
+  every click, and a model only picks an option by its number
+  (`generic_fill.pick`). Its clicks are click paths:
   a change to them gets the adversarial review and joins
   `tests/test_submit_guard_hostile.py` (KAN-666).
 - **The Student build leaves the developer parts out** (KAN-723, W3,

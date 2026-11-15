@@ -7,8 +7,9 @@ click, and a model only picks.
   checkboxes takes the option the plan fitted to its options (the Fill engine's fit.ts, in its planner); a file is
   set (the résumé by apply.attach, any other through apply.upload_origin). A dropdown of the page's own making is
   the student's, for now.
-- **Match by code.** An option is matched by its exact words, then by the Fill engine's `shows`; with none, the
-  field is the student's.
+- **Pick, with a model, only when code can't.** An option is matched by its exact words, then by the Fill engine's
+  `shows`; with none, one small question goes to WorkIt's Model route (`generic_fill.pick`: which of these options
+  is the answer, about a hundred tokens), and code clicks the option it names.
 - **Read back.** Every field is read back right after its fill. One that doesn't show its answer is a FillError
   that names it: the Worker drops it, and in the Student build it is a Needs-you item with its planned answer
   (KAN-855, docs/held-forms.md).
@@ -23,6 +24,7 @@ guard on the page, KAN-666).
 """
 
 import re
+from collections.abc import Callable
 from dataclasses import replace
 from pathlib import Path
 
@@ -30,7 +32,7 @@ from playwright.sync_api import Page
 
 from apply import captcha, description, fill_engine, form_tree, upload_origin
 from apply.account_pages import SENDS
-from apply.adapters import JobSite, SetupError
+from apply.adapters import JobSite, SetupError, UsageLimitHit
 from apply.attach import RESUME, attach_resume, clear_pop_up
 from apply.form_tree import Field, locate
 from apply.model import (
@@ -44,6 +46,7 @@ from apply.model import (
 )
 from apply.submit_guard import DriveGuard, drive_blocks
 
+MAX_CHOICES = 60  # the most options one model question lists; more is a Needs-you item
 PAGE_SETTLES_MS = 5_000
 # An alert whose words say the page refused something: an unexpected state, never one to fill past.
 ERROR_WORDS = re.compile(r"\b(error|invalid|required|please (enter|select|provide|fix|correct)|must|failed|unable|"
@@ -79,13 +82,35 @@ UNREADABLE = r"""() => {
 CHOSEN = "el => el.multiple ? [...el.selectedOptions].map((o) => o.text.trim()) : (el.selectedIndex >= 0 ? el.options[el.selectedIndex].text.trim() : '')"
 FILE_NAMES = "el => [...(el.files || [])].map((f) => f.name)"
 
+# One field's question to the model: the options' place in `options` that is the answer, or None.
+Pick = Callable[[str, list[str], str], int | None]
+
+
+def picker(claude) -> Pick:
+    """The model's small question, through WorkIt's Model route (`ask_kind`; the prompts are the server's,
+    backend/app/apply_prompts/generic_fill.py). `claude` is the run's, as the applicant (apply.applicant.as_applicant),
+    so the student's private values go as placeholders."""
+
+    def pick(question: str, options: list[str], answer: str) -> int | None:
+        said = claude.ask_kind("generic_fill.pick", {"question": question, "answer": answer, "options": options})
+        return _place(said.get("choice"), len(options))
+    return pick
+
+
+def _place(choice, count: int) -> int | None:
+    return choice if isinstance(choice, int) and not isinstance(choice, bool) and 0 <= choice < count else None
+
+
 class GenericFiller:
     """A Filler for one Application on a job system with no Filler of its own. Its form stays open from its Question
     set to its last step, so the Orchestrator runs it on OnePage."""
 
-    def __init__(self, resume: Path | None = None, sms_opt_in: bool = False, marketing_opt_in: bool = False):
-        """`resume` is for a pop-up that asks for it before
+    def __init__(self, pick: Pick | None = None, resume: Path | None = None, sms_opt_in: bool = False,
+                 marketing_opt_in: bool = False):
+        """`pick` is the model's small question (`picker`); without it, what code can't match is a Needs-you item.
+        `resume` is for a pop-up that asks for it before
         the form can be used. The opt-ins are the student's policies: the drive guard refuses any other tick."""
+        self._pick = pick
         self._resume = resume
         self._opt_ins = {"sms_opt_in": sms_opt_in, "marketing_opt_in": marketing_opt_in}
         self._guard: DriveGuard | None = None
@@ -98,6 +123,7 @@ class GenericFiller:
         self._failed: set[str] = set()  # the fields that didn't take their answer: the student's now
         self._alerts: set[str] = set()  # the alerts the page showed before Apply filled anything
         self._asked: tuple[dict[str, str], Answers] = ({}, {})
+        self.picked: list[tuple[str, str]] = []  # (label, option) of each choice the model picked, for the Record
         self.posting_text = ""
         self.names: tuple[str, str] = ("", "")
 
@@ -320,10 +346,22 @@ class GenericFiller:
         raise FillError(f"{_said(label)}: Apply has no way to fill a {how}")
 
     def _choose(self, label: str, options: list[str], answer: str) -> str | None:
-        """The option that is the answer: its exact words, else one the Fill engine reads as showing it, else None."""
+        """The option that is the answer: its exact words, else one the Fill engine reads as showing it, else the
+        model's pick (one question, the field's options), else None."""
         if (found := _choice_in(options, answer)) is not None:
             return found
-        return None
+        if not options or self._pick is None or len(options) > MAX_CHOICES:
+            return None
+        try:
+            place = self._pick(label, options, answer)
+        except UsageLimitHit:
+            raise  # the day's model use is spent: the run pauses
+        except Exception:
+            return None  # no model's pick: the field is the student's, as one code can't match
+        if place is None:
+            return None
+        self.picked.append((label, options[place]))
+        return options[place]
 
     def _read_back(self, page: Page, field: Field, put) -> object:
         """What the field shows now, read by plain code from its own element."""

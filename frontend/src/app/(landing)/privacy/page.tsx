@@ -199,7 +199,9 @@ export default function PrivacyPage() {
           WorkIt. WorkIt builds each prompt from what the app sends and sends it to Groq or Google
           (Gemini) with WorkIt&apos;s own key, so the provider does not get your WorkIt account. The
           app sends what the answers need, such as the job posting, the form&apos;s questions, your
-          answers on it (self-identification answers included) and your experiences. It replaces
+          answers on it (self-identification answers included) and your experiences. When the app
+          can&apos;t match one of your answers to a field&apos;s choices, it sends that question, your
+          answer and the choices, and AI picks the one that fits. It replaces
           private details, such as your contact details and street address, with placeholders, and
           puts the real values back into the answer on your Mac. Before a prompt goes on,
           WorkIt&apos;s server also hides contact details it finds in it. The app cannot find other

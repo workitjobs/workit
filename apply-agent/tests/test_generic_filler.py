@@ -204,6 +204,22 @@ def test_a_field_that_doesnt_show_its_answer_is_a_fill_error_that_names_it():
         filled(page, {"Phone": "5551234567"})
 
 
+def test_a_radio_choice_code_cant_match_is_the_models_pick_and_a_none_is_the_students():
+    # Fault: a choice whose words aren't the answer's left blank though the model could name it, or a "none" from the
+    # model (or a failed call) taken as a pick.
+    html = f"""<form><fieldset><legend>How did you hear about us?</legend>
+      <label><input type=radio name=h> A friend</label><label><input type=radio name=h> Online job board</label>
+      </fieldset>{SUBMIT}</form>"""
+    asked = []
+    with form(html) as page:
+        filler = GenericFiller(pick=lambda q, options, a: asked.append((q, options, a)) or 1)
+        _, readback, _ = filled(page, {"How did you hear about us?": "LinkedIn"}, filler)
+        assert asked == [("How did you hear about us?", ["A friend", "Online job board"], "LinkedIn")]
+        assert readback == {"g1": "Online job board"} and filler.picked == [("How did you hear about us?", "Online job board")]
+    with form(html) as page, pytest.raises(FillError, match="^How did you hear about us[?]: no option fits 'LinkedIn'"):
+        filled(page, {"How did you hear about us?": "LinkedIn"}, GenericFiller(pick=lambda q, options, a: None))
+
+
 @pytest.mark.parametrize(("trap", "said"), [
     ("""<div role=alert id=a></div><script>document.querySelector('input').addEventListener('change',
         () => a.textContent = 'Please enter a valid name')</script>""", "shows an error Apply didn't expect"),

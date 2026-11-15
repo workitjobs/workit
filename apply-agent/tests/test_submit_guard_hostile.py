@@ -853,11 +853,12 @@ class _Here:
 
 def generic_fill(page, drive, name):
     """The generic Filler (KAN-861) on the page from start to end: it reads the form, every question answered, fills
-    each field (an option's click, a box's check), under the guards."""
+    each field (an option's click, a box's check), under the guards. Its model is the worst one: it picks the first
+    option every time."""
     from apply.generic_fill import GenericFiller
     from apply.model import MoreQuestions
 
-    filler = GenericFiller()
+    filler = GenericFiller(pick=lambda question, options, answer: 0)
     filler._guard = drive
     try:
         questions = filler.question_set(HOST + START, _Here(page))
