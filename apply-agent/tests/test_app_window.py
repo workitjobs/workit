@@ -240,3 +240,29 @@ def test_a_run_rehearses_its_links_with_the_students_worker_count_and_closes_its
     runs.run(["https://jobs.lever.co/acme/1", "https://jobs.lever.co/acme/2"], shown.append)
     assert rehearsed == [(["https://jobs.lever.co/acme/1", "https://jobs.lever.co/acme/2"], first_run.MOST_WORKERS, True)]
     assert shown[0].url == NO_PORT and closed == [site]
+
+
+def test_remove_all_my_data_only_in_the_student_build_and_never_during_a_run(board, tmp_path, monkeypatch):
+    """Fault: a Developer checkout's own data folder deleted, data removed under a running run, or the login left in
+    the keychain after the folder went."""
+    from types import SimpleNamespace
+
+    from apply import build, first_run
+
+    home = tmp_path / "WorkIt Auto Apply"
+    (home / "profiles" / "plain-seed").mkdir(parents=True)
+    forgot = []
+    client = SimpleNamespace(sign_out=lambda: forgot.append(True), logged_in=lambda: True)
+    window = Window()
+    window.destroy = lambda: None
+    bridge = Bridge(board, client, remove=lambda forget: first_run.remove_all_data(forget, home))
+    bridge._window = window
+
+    assert bridge.remove_data()["said"].startswith("Only WorkIt Auto Apply removes its data")
+    assert home.exists() and forgot == []
+    monkeypatch.setattr(build, "STUDENT", True)
+    bridge._running.set()
+    assert "error" in bridge.remove_data() and home.exists()
+    bridge._running.clear()
+    assert bridge.remove_data()["said"].startswith("Removed")
+    assert not home.exists() and forgot == [True]

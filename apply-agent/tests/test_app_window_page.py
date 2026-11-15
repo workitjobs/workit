@@ -46,7 +46,7 @@ def test_the_pages_requests_frames_and_file_links_go_through_the_bridge(tmp_path
 
 def test_the_apps_own_pages_run_without_a_script_error(monkeypatch):
     """Fault: a script error in a page of the app's own (a line break inside a string, say), which leaves its buttons
-    dead: the sign-in, first run, and the queue with the usage line."""
+    dead: the sign-in, first run, the queue with the usage line, and Settings."""
     from apply import dashboard
 
     monkeypatch.setattr(dashboard, "ThreadingHTTPServer", None)
@@ -57,11 +57,13 @@ def test_the_apps_own_pages_run_without_a_script_error(monkeypatch):
         "queue": [{"url": "https://jobs.lever.co/acme/1", "company": "Acme", "title": "Intern"}],
         "usage": {"used": 1200, "cap": 80000, "resets_at": "2026-11-16T00:00:00Z"},
         "status": {"running": False, "said": ""},
+        "settings_state": {"workers": 3, "notices": True},
     }
     with Dashboard(0, OneFrame(), serve=False) as board, sync_playwright() as playwright:
         browser = playwright.chromium.launch()
         pages = []
-        for html in (app_window.SIGN_IN, app_window.FIRST_RUN, app_window.page(board, panel=True, usage=True)):
+        for html in (app_window.SIGN_IN, app_window.FIRST_RUN, app_window.page(board, panel=True, usage=True),
+                     app_window.SETTINGS):
             page = browser.new_page()  # a page each, as the window loads each one anew
             page.on("pageerror", lambda error: errors.append(str(error)))
             page.route("**/*", lambda route: route.abort())
@@ -69,7 +71,7 @@ def test_the_apps_own_pages_run_without_a_script_error(monkeypatch):
             page.set_content(html, wait_until="domcontentloaded")
             page.evaluate(PYWEBVIEW)
             pages.append(page)
-        first_run, queue = pages[1], pages[2]
+        first_run, queue, settings = pages[1], pages[2], pages[3]
         first_run.wait_for_function("!document.getElementById('seed').hidden", timeout=5000)
         assert first_run.inner_text("#seed-lines") == "Now: Turn on Developer mode."
         assert first_run.is_visible("#seed-again") and not first_run.is_visible("#seed-start")
@@ -77,5 +79,9 @@ def test_the_apps_own_pages_run_without_a_script_error(monkeypatch):
         assert queue.inner_text("#queue").strip() == "Acme: Intern"
         queue.wait_for_function("document.getElementById('usage').textContent !== ''", timeout=5000)
         assert queue.inner_text("#usage") == "Model use today: 1,200 of 80,000 tokens"
+        settings.wait_for_function("document.getElementById('workers').value === '3'", timeout=5000)
+        assert settings.is_visible("#notices") and not settings.is_visible("#remove-sure")
+        settings.click("#remove")
+        assert settings.is_visible("#remove-sure")  # a second press removes: one press never does
         browser.close()
     assert errors == []

@@ -140,8 +140,10 @@ never submits.** Apply runs on macOS only. Before you change code here, read
    `uv run apply doctor` then says "WorkIt: logged in as" your email. If it
    says that the login expired, run `uv run apply login` again.
 
-   `uv run apply app` opens WorkIt Auto Apply's own window instead (being
-   built, W5): it signs you in the same way, then shows the Apply window.
+   `uv run apply app` opens WorkIt Auto Apply's own window instead (W5): it
+   signs you in the same way, takes you through first run (Chrome, what
+   leaves your Mac, Screen Recording, the seed), then runs your Auto Apply
+   queue.
 
    If you used a Tracker Sheet before, put its submitted applications into
    your Applications Tracker one time. Apply first lists each add and skip,

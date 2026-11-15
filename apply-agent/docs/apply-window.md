@@ -39,8 +39,20 @@ docstring first.
 - pywebview gives the page every public method and attribute of
   `Bridge`, nested ones too, and nothing whose name starts with `_`. Keep
   every reference the page must not call behind an underscore.
-- Signed out, the window shows `SIGN_IN`; `Bridge.trade` signs in with
-  this sign-in's PKCE verifier, then loads the Apply window.
+- What the window shows comes from one place, `Bridge._html`: `SIGN_IN`
+  signed out, `FIRST_RUN` while `first_run.FirstRun.step()` isn't
+  `READY`, else the Apply window (`Bridge._page`), with the queue on top
+  (`PANEL`) when no run goes, and `USAGE` (model use, Settings) on every
+  page. A new screen is a page constant here and one branch there.
+- First run's steps and the app's settings (`app.json` in the data folder:
+  the disclosure, the Screen Recording ask, the Worker count) are in
+  `apply/first_run.py`, each check a callable that tests replace.
+- A run is `student.Runs.run` in a thread of the bridge's: one at a time,
+  its own `Dashboard(serve=False)` shown while it goes, the queue's again
+  after. A `SetupError` (no engine, a profile in use) is its one-line
+  reason (`Bridge.status`).
+- Remove All My Data deletes the data folder only when `build.STUDENT`:
+  in a Developer checkout it says the folder is the developer's.
 - `pywebview` is imported only in `app_window.run`, so the bridge and its
   tests need no window. `tests/test_app_window.py` (no browser, CI) and
   `tests/test_app_window_page.py` (the shim in Chromium, with Playwright

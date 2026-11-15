@@ -10,9 +10,9 @@ values masked (#577, #587); W3's Student path with no developer part
 (#581); W2's step 1, what Apply can't fill handed to the student in the
 window (#590); W4, no macOS-only code in the Student path (#576, #585); W6's
 store-ready Worker extension (#570, #578), which no app can use yet;
-W10's legal text (#579, #582); and W5's sign-in (#609) and window with no
-port (KAN-858). The rest of what a student downloads and runs (W5's first
-run, queue and settings, W7, W8) is not built.
+W10's legal text (#579, #582); and W5, the app's window with no port:
+sign-in (#609), first run, a run and Settings (KAN-858). The rest of what
+a student downloads and runs (W7, W8) is not built.
 
 **How to use this doc.** Read sections 1 to 3 first. Then take one
 workstream from section 6: each one says what it changes, which files it
@@ -515,12 +515,12 @@ by hand (W8).
 | W2 | Filling with no model in the browser | None | Yes | Step 1 built (#590): what Apply can't fill is the student's, in the window's Fix here; a failed field is a Needs-you item with its planned answer; the emailed code's box. Next: step 2, the generic Filler |
 | W3 | What the Student build leaves out | None | Yes | Step 1 built (#581); `ask_model` fixed to `workit` (#590). Left: W8's compile flags |
 | W4 | Remove macOS-only code | None | Yes | Built (#576, #585). Left to others: `dashboard.py` (W5) and `window_capture` (W6); what stops Apply on Windows is F4's |
-| W5 | The app shell | W3, W4 (and W1 for sign-in and usage) | Yes | Steps 1 and 2 of 5 built: sign-in (#609), and the window with no port (KAN-858). Next: first run |
+| W5 | The app shell | W3, W4 (and W1 for sign-in and usage) | Yes | Built: sign-in (#609); the window with no port, first run, a run and Settings (KAN-858). Left: Send Report's button (waits for #614), and Remove All My Data's job-site passwords (W11) |
 | W6 | The Worker extension on the store (spike first) | None | Yes | The spike passed; the store package is built (#570, #578). Blocked: the guards' per-run tokens (`worker-extension-todo.md`, item 0), then the first upload |
 | W7 | The engine download and its protection | W1 (sign-in) | Yes | Not started |
 | W8 | Compile, sign, notarize, update, publish | W3, W4, W5 | Yes | Not started |
 | W9 | Company briefs in v1 | None | Yes | Not started. The Student build already does no research (#581) |
-| W10 | Legal | None | Yes | Text merged (#579; the WorkIt extension's license, #582). Left: the app's parts (W5, W8), and a `/privacy` that is true of the app |
+| W10 | Legal | None | Yes | Text merged (#579; the WorkIt extension's license, #582). Left: the license and notices in W8's bundle and DMG, and a `/privacy` that is true of the app |
 | W11 | The student's data | A teammate | Yes (not ours) | A teammate's |
 | W12 | One mode: remove Rehearsals and `live_runs` | W0 | No | Not started |
 | W13 | Measure quality and model use | W1 | Yes, for the cap | Not started |
@@ -1092,17 +1092,10 @@ terminal step and no open port.
 1. Sign-in (D12). **Built (2026-11-15).**
 2. The window on pywebview, no port, and `uv run apply app`, with the
    sign-in screen. **Built (KAN-858).**
-3. First run: the Chrome check, the disclosure, the seed, and macOS's
-   Screen Recording permission, without which Fix here's view is about two
-   frames a second (W2). The Student build's data folder becomes
-   `home.APP_FOLDER` here.
-4. A run: the Auto Apply queue, the paste box for a posting, the Usage
-   cap line, with `student.adapters()`. The window passes its own `back`
-   to `Dashboard` (bring it to the front after a captcha, KAN-855), and a
-   tile added during a run reloads the page through the bridge, not
-   `location.reload()`. A refused engine (`fill_engine.EngineRefused`,
-   raised before any Worker opens, W7) is the run's error, in one sentence.
-5. Settings and notices.
+3. First run. **Built (KAN-858).**
+4. A run. **Built (KAN-858).**
+5. Settings and notices. **Built (KAN-858), but Send Report's button,
+   which waits for #614.**
 
 **Built (2026-11-15, step 1): sign-in.**
 
@@ -1151,12 +1144,72 @@ runs `apply.student.app`, the Student build's entry point.
   `tests/test_app_window.py` (CI) and `tests/test_app_window_page.py`
   (Chromium) test it.
 
-Left from step 2:
-- **The page loads its web font from Google Fonts**, a request the
-  privacy page doesn't name. Ship the fonts in the app (W8), or drop the
-  link in the Student build.
-- The window is the Apply window with no run: steps 3 to 5 add first
-  run, the queue and a run, and settings.
+- **The app's page loads no web font** (`app_window.FONTS`): Google
+  Fonts would be a request the privacy page doesn't name. The system's
+  fonts stand in.
+
+**Built (KAN-858, step 3): first run** (`apply/first_run.py`, `FIRST_RUN`
+in `app_window.py`). After sign-in, one step at a time, before the Apply
+window:
+
+1. Google Chrome (D21): the Chrome finder's; missing, Download Google
+   Chrome, and the window goes on by itself once it is installed.
+2. What leaves the Mac (D8, section 3.4) and the license (W10): OK once
+   for each `first_run.DISCLOSURE`; Read the License opens `EULA.txt`.
+3. Screen Recording, on a Mac only: asked once (`Quartz`'s
+   `CGRequestScreenCaptureAccess`, which pywebview's pyobjc brings), or
+   Not Now. Without it, Fix here's view is about two frames a second (W2).
+4. The seed: `apply plain seed`'s wizard in its own thread, its lines in
+   the window and its "press Return" as Try Again, till a real Worker says
+   hello. The way in until a store copy can be used (W6).
+
+Chrome and the seed are looked at again at each launch; the disclosure,
+the Screen Recording ask and the Worker count are kept in the data
+folder's `app.json`. **The Student build's data folder is
+`home.APP_FOLDER`** (D25): `home.HOME` reads `build.STUDENT` once, at
+import, which the build script writes before it compiles.
+
+**Built (KAN-858, step 4): a run.** With no run going, the Apply window
+has the queue on top (`PANEL`): the student's queued, open jobs on WorkIt,
+oldest first, a job board's posting by its employer's form; a box for one
+pasted link; Start. Every page of the app shows today's model use against
+the Usage cap and a Settings button (`USAGE`). Start runs the ticked links
+in `student.Runs`: `student.adapters()`, the Worker count from Settings,
+and the run's own Apply window, its tiles, till every form it held is
+closed; then the queue again. One run at a time. The window comes back to
+the front after a captcha (Dashboard's `back`, `app_window.bring_forward`,
+a Mac only). A run that can't start (a refused engine, W7's
+`EngineRefused`; a Worker profile in use) says why in one line. The frame
+source and closing the plain Workers moved from `cli.py` to
+`worker_tiles.py`, so the Student path has them; quitting the app stops the
+plain Workers' Chromes, which outlive it.
+
+**Built (KAN-858, step 5): Settings and notices** (`SETTINGS`): the Worker
+count (one to three, D24), What Leaves Your Mac, the license and the
+third-party notices, Sign Out (`WorkIt.sign_out` ends this session at
+Supabase and forgets it), and Remove All My Data (D25): the login and the
+whole data folder, then the app closes, in the Student build only, since a
+Developer checkout's data folder is the developer's own. A second press
+removes. Notices of what newly waits on the student (Dashboard's
+`notify`) are macOS's own, which only an app bundle may post (W8).
+
+Checked on this Mac in WKWebView: first run's disclosure, the queue with
+its usage line, and Settings. `tests/test_first_run.py` and
+`tests/test_app_window.py` (CI) and `tests/test_app_window_page.py`
+(Chromium: every page of the app runs with no script error) test them.
+
+Left from W5:
+- **Send Report's button** (D26): it calls `apply.report.send(row,
+  profile, note)` once #614 is on `main`.
+- **Remove All My Data can't name every job-site password.** The Student
+  build's Tracker is in memory, so it forgets the Employer accounts at each
+  launch, and with them the keychain items to remove (`apply-ats`, one per
+  site). The Accounts tab forgets them too. A Tracker kept in the data
+  folder, or on WorkIt (W11), fixes both.
+- A tile added during a run (`--into`) reloads the page with
+  `location.reload()`, which a page loaded as a string can't do. The app
+  never sends a link into a run, so only the Developer checkout's window
+  does.
 
 Left from sign-in: **the built app's link.** W8 registers
 `workit-auto-apply://` in the bundle's `Info.plist`, and the app takes the
@@ -1471,8 +1524,8 @@ the app does not do all of it yet:
 
 **Left.**
 
-- W5: show the EULA and the notices in the app (Settings), and the
-  EULA at first run. W8: put `EULA.txt` and `THIRD-PARTY-NOTICES.txt`
+- W5 shows the EULA at first run and in Settings, with the notices
+  (KAN-858). W8: put `EULA.txt` and `THIRD-PARTY-NOTICES.txt`
   (made with `--strict`) in the app bundle and the DMG, and link both
   from the download page.
 - W3: when the Student build leaves out a developer part, move the

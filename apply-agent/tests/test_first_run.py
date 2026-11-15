@@ -84,3 +84,13 @@ def test_the_seed_runs_in_its_own_thread_and_try_again_answers_it(tmp_path):
     assert answered.wait(5)
     run._thread.join(5)
     assert not run.seeding() and "stopped" in run.state()["failed"]
+
+
+def test_the_worker_count_stays_within_one_to_three_and_is_kept(tmp_path):
+    """Fault: a count past D24's one to three reaching the run, or Settings' choice lost at the next launch."""
+    from apply.first_run import MOST_WORKERS, WORKERS, set_workers, workers
+
+    state = tmp_path / "app.json"
+    assert workers(state) == WORKERS
+    assert set_workers(9, state) == MOST_WORKERS and set_workers(0, state) == 1
+    assert workers(state) == 1
