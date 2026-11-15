@@ -95,7 +95,7 @@ builds it.
 | D5 | **WorkIt builds the prompts** (2026-11-14; a thin proxy was decided 2026-11-13). The app sends each call's kind and its data; WorkIt builds the system prompt, the prompt and the schema (`backend/app/apply_prompts/`), runs the provider chain and counts tokens. The prompts and answering guides leave the app | A call that carried its own prompt and schema let anyone with an account use WorkIt as a free general model and send schemas that attack the server (W1). A prompt change ships with the merge that deploys the API | W1 |
 | D6 | **A free beta with a Usage cap of 80,000 tokens per student per day**, reset at midnight UTC, always shown in the app. WorkIt can change it without an app update (2026-11-14; it was 3,000,000 a month) | The free tiers limit WorkIt's one key a day, shared by every student and feature: Groq allows 200,000 tokens a day for each model, about 400,000 for our two, so about five students at full use fill it. A monthly cap let one student spend a whole day's share. 80,000 is about thirteen 6,000-token calls, about three forms with essays; on Groq's paid tier it costs under 2 cents a student a day. W13 checks the number | W1 |
 | D7 | **The beta uses the providers' free tiers.** Paid tiers come later (F3). One account per provider, owned by the team Gmail with developers as members, as Cloudflare's is; the team does not pool developers' free keys | No paid keys for now. Groq's AI policy forbids use "beyond published parameters, rate limits, or use limitations, including by registering multiple accounts" (checked 2026-11-14); members share their organization's limits | W1, F3 |
-| D8 | **Personal data is replaced before a prompt leaves the computer**, and put back on the computer. Self-ID answers are never sent. The app shows a short disclosure | Prompts go to WorkIt and to Groq and Google, and Google's free tier may use prompts to improve its products | W1, W5 |
+| D8 | **Personal data is replaced before a prompt leaves the computer**, and put back on the computer. Self-ID answers are never sent. The app shows a short disclosure. As built (2026-11-14): the app leaves private details out, since no call needs them, and the server hides the contact details it finds (section 3.4) | Prompts go to WorkIt and to Groq and Google, and Google's free tier may use prompts to improve its products | W1, W5 |
 | D9 | **No Gmail.** A job site's emailed code becomes a Needs-you item that the student types | Reading Gmail needs an app password (a hard setup) or Google's paid security review | W3 |
 | D10 | **macOS-only code is removed or replaced.** Scheduled runs, phone push and the Dock bundle are dropped; Keychain becomes `keyring`; Chrome is found per OS | A simple app, and a later Windows port that is not a rewrite | W4 |
 | D11 | **The window is native (pywebview) and opens no port.** Its page talks to Python through pywebview's bridge, not through a server on `127.0.0.1` | It works like any other app; no local server that other programs can call | W5 |
@@ -202,20 +202,22 @@ saw a block), and CDP Workers fill the rest (section 4.7).
 
 | To | What | When |
 |---|---|---|
-| WorkIt | Each model call's prompt with personal data replaced; tokens used | Each call |
+| WorkIt | What each model call needs, without private details; tokens used | Each call |
 | Groq, Google (Gemini) | The same prompt, sent by WorkIt with WorkIt's key | Each call |
 | WorkIt | Tracker writes, answers the student approves, the queue | As today (`apply-agent/docs/workit.md`) |
 | WorkIt | One Application's Record and masked Trace | Only when the student presses "Send report" |
 | Job sites | The form's answers, in the Worker's Chrome | As a person filling the form |
 
-**Replaced before a prompt leaves** (D8): the name, email, phone, street
-address and ZIP code, birth date, links to personal profiles (LinkedIn,
-GitHub, portfolio) and student ID, each with a placeholder such as
-`@NAME@` (essays already use it). The app puts the real values back into
-the answer. **Never sent:** self-ID answers (gender, race, disability,
-veteran status). **Kept, because essays need them:** school, major,
-graduation date, city and state, employers and the text of the student's
-stories. **Not caught:** other people's names inside a story.
+**Left out before a prompt leaves** (D8, as built 2026-11-14, W1): the
+private details no call needs, since the Fill engine fills them from the
+profile: the name, email, phone, street address, birth date, self-ID
+answers and references' contact details. The server also hides the
+contact details it finds in a prompt (`Masked`) and puts them back in the
+answer. **Kept, because the answers need them:** everything else, such as
+the posting, the form's questions, school, major, graduation date, city,
+state and ZIP code, employers and the text of the student's stories.
+**Not caught:** other people's names inside a story. The privacy page
+says this in general terms (KAN-848).
 
 ### 3.5 What stays on the computer
 
