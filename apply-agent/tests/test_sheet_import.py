@@ -55,8 +55,8 @@ def workit_tracker(tmp_path):
         tracker.applied_before(tracker.listed(COBALT, "Cobalt", "Backend Intern"), "offer")
         tracker.listed(DYNAMO, "Dynamo", "Platform Intern")
         tracker.applied_before(tracker.listed(IRIS, "Iris", "Infra Intern"), "saved")
-        client = WorkIt(fake.site, tmp_path / "workit-login.json")
-        workit.login(client, lambda url, accept: accept(fake.cookies(fake.session())))
+        client = WorkIt(fake.site, tmp_path / "workit-login.json", fake.keychain)
+        workit.login(client, fake.browser)
         fake.requests.clear()
         yield fake, tracker, client
 

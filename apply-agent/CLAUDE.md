@@ -14,7 +14,8 @@ submits. It runs on the person's own Mac, with their own Chrome and their
 own Claude Code login. Today it is a developer and power-user tool, not a student
 feature: students apply through the extension and the connector (KAN-369).
 KAN-723 designs WorkIt Auto Apply, the Student build of Apply: a desktop
-app for students, beside the extension (decided 2026-11-13, not built). It
+app for students, beside the extension (decided 2026-11-13, being built;
+the design doc's section 6 says where each workstream stands). It
 makes every model call through WorkIt's Model route and does no research
 (ADR 0005), downloads the Fill engine encrypted, puts the Worker extension
 on the Chrome Web Store through the Debugger API, and is compiled without
@@ -138,7 +139,8 @@ person's data is in one folder, `APPLY_HOME` (default `~/.config/apply/`):
 - the applicant profile, answer bank, story bank, voice and story map;
 - the company briefs and stock answers;
 - a `policies.yaml` that overrides `policies.default.yaml` key by key.
-- the WorkIt login (`workit-login.json`), after `apply login`.
+- the WorkIt login's lock (`workit-login.lock`); the login itself is in
+  the system's keychain (`apply-workit`, `docs/workit.md`).
 - Apply's Tracker (`tracker.json`) and the writes that wait for WorkIt
   (`workit-queue.json`, and the Answer bank's changes in
   `workit-answers-queue.json`, KAN-746).

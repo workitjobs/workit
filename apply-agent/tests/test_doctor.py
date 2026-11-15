@@ -264,12 +264,12 @@ def test_gmail_with_no_email_in_the_profile_fails(tmp_path):
 
 
 def workit_check(tmp_path, fake: FakeWorkIt) -> doctor.Check:
-    return check(machine(tmp_path, workit=lambda: WorkIt(fake.site, tmp_path / "workit-login.json")), "WorkIt")
+    return check(machine(tmp_path, workit=lambda: WorkIt(fake.site, tmp_path / "workit-login.json", fake.keychain)), "WorkIt")
 
 
 def logged_in(tmp_path, fake: FakeWorkIt) -> None:
-    client = WorkIt(fake.site, tmp_path / "workit-login.json")
-    workit.login(client, lambda url, accept: accept(fake.cookies(fake.session())))
+    client = WorkIt(fake.site, tmp_path / "workit-login.json", fake.keychain)
+    workit.login(client, fake.browser)
 
 
 def test_workit_logged_in_says_as_whom(tmp_path):
@@ -320,7 +320,7 @@ def test_doctor_never_prints_the_workit_tokens(tmp_path):
         logged_in(tmp_path, fake)
         fake.expire()  # doctor refreshes it
         out = io.StringIO()
-        doctor.run(machine(tmp_path, workit=lambda: WorkIt(fake.site, tmp_path / "workit-login.json")), out)
+        doctor.run(machine(tmp_path, workit=lambda: WorkIt(fake.site, tmp_path / "workit-login.json", fake.keychain)), out)
     assert "WorkIt: logged in as test.person@example.com" in out.getvalue()
     assert "access-" not in out.getvalue() and "refresh-" not in out.getvalue()
 
@@ -355,7 +355,7 @@ def test_workit_writes_waiting_are_listed_with_when_they_go(tmp_path):
     from apply.workit import WaitingWrites, Write
 
     with FakeWorkIt() as fake:
-        waiting_writes = WaitingWrites(WorkIt(fake.site, tmp_path / "workit-login.json"), tmp_path / "workit-queue.json")
+        waiting_writes = WaitingWrites(WorkIt(fake.site, tmp_path / "workit-login.json", fake.keychain), tmp_path / "workit-queue.json")
         waiting_writes.send(Write("request-1", "https://jobs.example/1", "Lockheed Martin", "Intern", "applied"))
         waiting_writes.send(Write("request-2", "https://jobs.example/2", "Arc", "Intern", "needs_you"))  # not logged in
 

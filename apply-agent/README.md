@@ -130,10 +130,10 @@ never submits.** Apply runs on macOS only. Before you change code here, read
    uv run apply login
    ```
 
-   Apply opens WorkIt's sign-in page in a new Chrome window. Sign in there.
-   Apply keeps the login in your data folder (`workit-login.json`), never in
-   the repo, and closes the window. You log in one time; Apply refreshes the
-   login by itself.
+   Apply opens WorkIt's sign-in page in your browser. Sign in there, press
+   Sign In to the App, and paste the code it shows into the terminal. Apply
+   keeps the login in your keychain (`apply-workit`), never in the repo. You
+   log in one time; Apply refreshes the login by itself.
 
    `uv run apply doctor` then says "WorkIt: logged in as" your email. If it
    says that the login expired, run `uv run apply login` again.

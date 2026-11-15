@@ -1,19 +1,23 @@
 """The WorkIt client: the one module in Apply that calls WorkIt (KAN-541).
 
 Apply signs in to WorkIt as the student, with the same Supabase project as
-WorkIt's web app and extension. `apply login` opens WorkIt's sign-in page in a
-new Chrome with an empty, temporary profile. The student signs in there (password,
-Google or LinkedIn). Apply reads the web app's session cookie, as the
-extension does (`autofiller_extension/src/background/webapp-session.js`),
-checks it with `GET /auth/me`, and closes that Chrome and deletes its
-profile. Then only Apply has that session, so Apply can refresh it with no
-race against the web app (the extension cannot, see its CLAUDE.md, KAN-465).
+WorkIt's web app and extension, through the student's own browser and no port
+(KAN-723 W5, D12). Apply makes a PKCE verifier and opens WorkIt's
+`/app-sign-in` page with its challenge in the default browser. The student
+signs in there as they always do, and the page gives a one-time code: through
+the app's `workit-auto-apply://` link, or pasted by hand (`login`, a Developer
+checkout, which macOS can't hand a link). `trade` sends the code and the
+verifier to `POST /apply-app/session`, which answers a new Supabase session of
+Apply's own (`backend/app/services/app_sign_in.py`). Only Apply has that
+session, so Apply can refresh it with no race against the web app (the
+extension cannot, see its CLAUDE.md, KAN-465).
 
-The session is kept in `APPLY_HOME/workit-login.json` (mode 0600), never in
-the repo and never printed. The access token lasts about one hour; `call`
-refreshes it at Supabase Auth when it expires, and saves the new refresh
-token (Supabase rotates it on each use). A lock file stops two processes
-from using one refresh token.
+The session's refresh token is kept in the system's keychain (`keyring`,
+item `apply-workit`, its account the Supabase URL), never in the repo and
+never printed; the access token lives only in the process that uses it. The
+access token lasts about one hour; `call` refreshes it at Supabase Auth when
+it expires, and saves the new refresh token (Supabase rotates it on each
+use). A lock file stops two processes from using one refresh token.
 
 The API checks the bearer token itself (`backend/app/deps.py`,
 `security.py`): the token's signature, audience and issuer, then the
@@ -35,14 +39,15 @@ import base64
 import dataclasses
 import email.utils
 import fcntl
+import hashlib
 import json
 import os
 import re
-import subprocess
-import tempfile
+import secrets
 import time
 import urllib.error
 import urllib.request
+import webbrowser
 from collections.abc import Callable
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -51,11 +56,17 @@ from datetime import time as dtime
 from email.message import Message
 from enum import StrEnum
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from urllib.parse import parse_qs, urlsplit
 
 from apply.home import HOME
+from apply.keychain import WORKIT, SystemKeychain
 
+if TYPE_CHECKING:
+    from apply.adapters import Keychain
+
+# The login's lock (`.lock` beside it), and the file the session was kept in before 2026-11-15; the session is in
+# the keychain now (WORKIT).
 LOGIN = HOME / "workit-login.json"
 # Writes to the Applications Tracker that could not reach WorkIt yet.
 QUEUE = HOME / "workit-queue.json"
@@ -64,7 +75,6 @@ EARLY = 60
 TIMEOUT = 20
 # Cloudflare, in front of WorkIt's API, refuses Python-urllib's own user agent (error 1010).
 USER_AGENT = "WorkIt-Apply/1"
-CHROME_BINARY = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 
 
 @dataclass(frozen=True)
@@ -75,11 +85,6 @@ class Site:
     api: str
     auth: str
     anon_key: str
-
-    @property
-    def cookie(self) -> str:
-        """The web app's session cookie name, as supabase-js makes it from the Supabase URL."""
-        return f"sb-{urlsplit(self.auth).hostname.split('.')[0]}-auth-token"
 
 
 # The live WorkIt. The same public values as autofiller_extension/src/shared/config.js
@@ -133,8 +138,8 @@ class CapReached(WorkItError):
         self.until = until
 
 
-class SignInClosed(WorkItError):
-    """The sign-in browser closed, or the time ran out, before the student signed in."""
+class SignInOver(WorkItError):
+    """WorkIt refused the sign-in's code: traded already, expired, or not this sign-in's. Sign in again."""
 
 
 class Stage(StrEnum):
@@ -166,14 +171,17 @@ class Account:
 
 
 class WorkIt:
-    def __init__(self, at: Site | None = None, login: Path = LOGIN):
+    def __init__(self, at: Site | None = None, login: Path = LOGIN, keychain: "Keychain | None" = None):
+        """`login` names the lock beside it (`.lock`), and the session file Apply kept there before
+        2026-11-15, deleted at the next save. `keychain` holds the refresh token (the system's by default)."""
         self.site = at or site()
         self.login = login
-        self._tried: str | None = None  # the last access token `accept` checked
+        self.keychain = keychain or SystemKeychain(WORKIT)
+        self._access: tuple[str, float] | None = None  # this process's access token and when it expires
         self._account: Account | None = None  # the signed-in account, read once for the writes
 
     def logged_in(self) -> bool:
-        return self._saved() is not None
+        return self._refresh_token() is not None
 
     def me(self) -> Account:
         return _account(self.call("GET", "/auth/me"))
@@ -288,50 +296,58 @@ class WorkIt:
             self._account = self.me()
         return self._account.id
 
-    def accept(self, cookies: dict[str, str]) -> Account | None:
-        """For `login`: the account of the web app's session in `cookies`, kept, or None while it has none
-        that WorkIt accepts (not signed in yet, or a new Google sign-in that has no account type yet)."""
-        session = _session(cookies, self.site.cookie)
-        if session is None or session["access_token"] == self._tried:
-            return None
-        self._tried = session["access_token"]
-        status, answer, _ = _send("GET", self.site.api + "/auth/me", None, session["access_token"])
-        if status != 200:
-            return None
-        self._save(session)
-        return _account(answer)
+    def trade(self, code: str, verifier: str) -> Account:
+        """The sign-in page's one-time `code` and this sign-in's PKCE `verifier`, traded for a session of
+        Apply's own (`POST /apply-app/session`), which is kept; its account. For `login`, and W5's window."""
+        status, answer, _ = _send("POST", self.site.api + "/apply-app/session",
+                                  {"code": code.strip(), "verifier": verifier}, None)
+        if status in (400, 422):
+            raise SignInOver(_detail(answer), status)
+        if status >= 400:
+            raise WorkItError(f"POST /apply-app/session: {status} {_detail(answer)}", status)
+        self._save(answer)
+        self._account = None
+        return self.me()
 
     def _bearer(self, refresh: bool) -> str:
+        if not refresh and (fresh := self._fresh()):
+            return fresh
         with self._locked():
-            saved = self._saved()
-            if saved is None:
-                raise NotLoggedIn(f"no WorkIt login in {self.login}")
-            if not refresh and saved["expires_at"] - EARLY > time.time():
-                return saved["access_token"]
+            if not refresh and (fresh := self._fresh()):
+                return fresh  # another thread refreshed while this one waited
+            token = self._refresh_token()
+            if token is None:
+                raise NotLoggedIn("no WorkIt login in the keychain")
             status, answer, _ = _send("POST", self.site.auth + "/auth/v1/token?grant_type=refresh_token",
-                                   {"refresh_token": saved["refresh_token"]}, None, apikey=self.site.anon_key)
+                                   {"refresh_token": token}, None, apikey=self.site.anon_key)
             if status != 200:
                 raise LoginExpired(f"Supabase refused the refresh token: {_detail(answer)}")
             self._save(answer)
             return answer["access_token"]
 
-    def _saved(self) -> dict | None:
+    def _fresh(self) -> str | None:
+        """This process's access token, while it has more than EARLY seconds left."""
+        if self._access and self._access[1] - EARLY > time.time():
+            return self._access[0]
+        return None
+
+    def _refresh_token(self) -> str | None:
         try:
-            saved = json.loads(self.login.read_text())
-        except (OSError, ValueError):
-            return None
-        return saved if saved.get("auth") == self.site.auth else None  # a login to another WorkIt isn't this one's
+            return self.keychain.password(self.site.auth)  # one item per WorkIt: a local stack's is its own
+        except RuntimeError as error:
+            raise WorkItError(str(error)) from None
 
     def _save(self, session: dict) -> None:
-        kept = {"auth": self.site.auth, "access_token": session["access_token"],
-                "refresh_token": session["refresh_token"],
-                "expires_at": session.get("expires_at") or int(time.time()) + int(session.get("expires_in", 3600))}
-        self.login.parent.mkdir(parents=True, exist_ok=True)
-        part = self.login.with_suffix(".part")
-        part.unlink(missing_ok=True)
-        with os.fdopen(os.open(part, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), "w") as file:
-            json.dump(kept, file)
-        part.replace(self.login)
+        """The refresh token goes into the keychain, the access token stays in this process. Windows'
+        Credential Manager keeps at most 2,560 bytes an item, less than an access token can be, and an
+        access token kept nowhere can't be read from the disk."""
+        try:
+            self.keychain.save(self.site.auth, session["refresh_token"])
+        except RuntimeError as error:
+            raise WorkItError(str(error)) from None
+        expires_at = session.get("expires_at") or time.time() + int(session.get("expires_in", 3600))
+        self._access = (session["access_token"], float(expires_at))
+        self.login.unlink(missing_ok=True)  # the session file Apply kept before 2026-11-15
 
     @contextmanager
     def _locked(self):
@@ -468,82 +484,31 @@ class WaitingWrites:
             yield
 
 
-def login(client: WorkIt, browser: Callable[[str, Callable[[dict[str, str]], Account | None]], Account] | None = None
-          ) -> Account:
-    """Sign in to WorkIt in a browser and keep the session: `apply login`. `browser(url, accept)` opens
-    `url` and returns the first `accept(cookies)` that is not None (chrome_sign_in by default)."""
-    return (browser or chrome_sign_in)(f"{client.site.web}/login", client.accept)
+def pkce() -> tuple[str, str]:
+    """A new sign-in's PKCE verifier and its S256 challenge (RFC 7636): the page gets the challenge, and
+    only this verifier trades the code the page gives."""
+    verifier = secrets.token_urlsafe(64)
+    return verifier, base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).rstrip(b"=").decode()
 
 
-def chrome_sign_in(url: str, accept: Callable[[dict[str, str]], Account | None], chrome: str = CHROME_BINARY,
-                   args: tuple[str, ...] = (), timeout: float = 900) -> Account:
-    """Open `url` in a new Chrome with an empty profile and wait until the student signs in. Chrome is
-    started as a plain process, not by Playwright; Apply only reads its cookies through the DevTools port.
-    That port alone sets navigator.webdriver, and Google's sign-in then refuses the browser (2026-11-03), so
-    Chrome starts with --disable-blink-features=AutomationControlled. Apply never types into it. Then it
-    closes Chrome and deletes the profile."""
-    from playwright.sync_api import Error, sync_playwright
-
-    with tempfile.TemporaryDirectory(prefix="apply-workit-login-", ignore_cleanup_errors=True) as profile:
-        process = subprocess.Popen(
-            [chrome, f"--user-data-dir={profile}", "--remote-debugging-port=0", "--no-first-run",
-             "--no-default-browser-check", "--disable-blink-features=AutomationControlled", *args, url],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-        )
-        try:
-            port = _devtools_port(Path(profile), process)
-            with sync_playwright() as playwright:
-                browser = playwright.chromium.connect_over_cdp(f"http://127.0.0.1:{port}")
-                origin = f"{urlsplit(url).scheme}://{urlsplit(url).netloc}"
-                deadline = time.time() + timeout
-                while time.time() < deadline:
-                    try:
-                        context = browser.contexts[0]
-                        if not context.pages:
-                            break  # the student closed the window
-                        found = accept({c["name"]: c["value"] for c in context.cookies(origin)})
-                    except Error:
-                        break  # Chrome quit
-                    if found:
-                        return found
-                    time.sleep(1)
-            raise SignInClosed("the sign-in window closed, or 15 minutes passed, before you signed in")
-        finally:
-            process.terminate()
-            try:
-                process.wait(10)
-            except subprocess.TimeoutExpired:
-                process.kill()
+def sign_in_page(at: Site, challenge: str) -> str:
+    """WorkIt's sign-in page for the app (`frontend/src/app/app-sign-in/`)."""
+    return f"{at.web}/app-sign-in?challenge={challenge}"
 
 
-def _devtools_port(profile: Path, process: subprocess.Popen) -> int:
-    """The port Chrome picked (--remote-debugging-port=0 writes it to DevToolsActivePort)."""
-    for _ in range(300):
-        try:
-            return int((profile / "DevToolsActivePort").read_text().split()[0])
-        except (OSError, ValueError, IndexError):
-            if process.poll() is not None:
-                raise SignInClosed(f"Chrome stopped as it started (exit {process.returncode})") from None
-            time.sleep(0.1)
-    raise SignInClosed("Chrome did not open its DevTools port in 30 seconds")
+def _paste(url: str) -> str:
+    """A Developer checkout's sign-in: the page in the default browser, and the code it shows, pasted here.
+    macOS hands the page's `workit-auto-apply://` link only to the built app (W8)."""
+    print(f"Sign in to WorkIt in your browser ({url}), press Sign In to the App, then copy the code here.")
+    webbrowser.open(url)
+    return input("Code: ")
 
 
-def _session(cookies: dict[str, str], name: str) -> dict | None:
-    """The web app's session from its cookie, which @supabase/ssr may split into `<name>.0`, `<name>.1`, ..."""
-    raw = cookies.get(name) or "".join(cookies[f"{name}.{i}"] for i in range(10) if f"{name}.{i}" in cookies)
-    if not raw:
-        return None
-    try:
-        if raw.startswith("base64-"):
-            encoded = urllib.parse.unquote(raw.removeprefix("base64-"))
-            session = json.loads(base64.urlsafe_b64decode(encoded + "=" * (-len(encoded) % 4)))
-        else:
-            session = json.loads(urllib.parse.unquote(raw))
-    except (ValueError, TypeError):
-        return None  # half written as the web app changes it: read it again
-    if not isinstance(session, dict) or not session.get("access_token") or not session.get("refresh_token"):
-        return None
-    return session
+def login(client: WorkIt, browser: Callable[[str], str] = _paste) -> Account:
+    """Sign in to WorkIt in the student's own browser and keep the session: `apply login`. `browser(url)`
+    opens WorkIt's sign-in page and returns the code it gave (`_paste` by default)."""
+    verifier, challenge = pkce()
+    return client.trade(browser(sign_in_page(client.site, challenge)), verifier)
 
 
 def _send(method: str, url: str, body: Any, token: str | None, apikey: str | None = None,
