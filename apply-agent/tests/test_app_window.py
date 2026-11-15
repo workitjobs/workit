@@ -216,7 +216,7 @@ def test_a_run_rehearses_its_links_with_the_students_worker_count_and_closes_its
     from contextlib import nullcontext
     from types import SimpleNamespace
 
-    from apply import student, worker_tiles
+    from apply import first_run, student, worker_tiles
     from apply.keychain import InMemoryKeychain
     from apply.tracker import InMemoryTracker
 
@@ -227,7 +227,7 @@ def test_a_run_rehearses_its_links_with_the_students_worker_count_and_closes_its
     monkeypatch.setattr(student, "AnswersTab", lambda *a, **k: None)
     state = tmp_path / "app.json"
     state.write_text('{"workers": 9}')
-    monkeypatch.setattr(student, "STATE", state)
+    monkeypatch.setattr(first_run, "STATE", state)
     site = SimpleNamespace(show=lambda worker: True, plain=lambda worker: False)
     made = SimpleNamespace(site=site, answer_bank=None, tracker=InMemoryTracker(), keychain=InMemoryKeychain(),
                            everyday=lambda url: None, board=None)
@@ -238,5 +238,5 @@ def test_a_run_rehearses_its_links_with_the_students_worker_count_and_closes_its
 
     runs = student.Runs(profile, make=lambda profile: made, rehearse=rehearse)
     runs.run(["https://jobs.lever.co/acme/1", "https://jobs.lever.co/acme/2"], shown.append)
-    assert rehearsed == [(["https://jobs.lever.co/acme/1", "https://jobs.lever.co/acme/2"], student.MOST_WORKERS, True)]
+    assert rehearsed == [(["https://jobs.lever.co/acme/1", "https://jobs.lever.co/acme/2"], first_run.MOST_WORKERS, True)]
     assert shown[0].url == NO_PORT and closed == [site]

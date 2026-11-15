@@ -28,7 +28,7 @@ from apply.ask_model import live_claude
 from apply.clock import SystemClock
 from apply.dashboard import Dashboard, NoFrames
 from apply.feed import live_feed
-from apply.first_run import STATE
+from apply.first_run import workers
 from apply.home import HOME
 from apply.keychain import SystemKeychain
 from apply.plain.site import live_site
@@ -121,21 +121,6 @@ def adapters(profile: ApplicantProfile) -> Adapters:
     )
 
 
-# Workers at once (D24): two by default, one to three; Settings changes it (first_run.STATE's "workers").
-WORKERS, MOST_WORKERS = 2, 3
-
-
-def workers() -> int:
-    """The Worker count the student set, within one to MOST_WORKERS."""
-    import json
-
-    try:
-        count = int(json.loads(STATE.read_text()).get("workers", WORKERS))
-    except (OSError, ValueError, TypeError, AttributeError):
-        count = WORKERS
-    return min(max(count, 1), MOST_WORKERS)
-
-
 class Runs:
     """The window's runs (W5 step 4): each Start rehearses its links in the Workers and shows the run's own Apply
     window, its tiles, while it goes. Apply never presses Submit: each form is held for the student."""
@@ -159,7 +144,7 @@ class Runs:
                               quiet=getattr(site, "plain", None), everyday=made.everyday, accounts=accounts,
                               sample=self._profile.get("sample_data") is True,
                               back=(lambda worker: in_front(worker) and app_window.bring_forward()) if in_front else None,
-                              serve=False) as board:
+                              notify=app_window.notify, serve=False) as board:
                 made.board = board
                 show(board)
                 self._rehearse(links, made, self._profile, workers())

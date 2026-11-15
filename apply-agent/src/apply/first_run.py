@@ -9,24 +9,69 @@ the window checks after sign-in and before the Apply window, one step at a time,
    real Worker says hello. It stays the way in until a Chrome Web Store copy can be used (W6).
 
 Chrome and the seed are looked at again at each launch; the disclosure and the Screen Recording ask are kept as done
-in the data folder (STATE).
+in the data folder (STATE), with Settings' Worker count (`workers`).
+
+`remove_all_data` is Settings' Remove All My Data (D25), in the Student build only.
 """
 
 import json
+import shutil
 import sys
 import threading
 from collections.abc import Callable
 from pathlib import Path
 
-from apply import chrome_finder
+from apply import build, chrome_finder
 from apply.home import CODE, HOME
 
 STATE = HOME / "app.json"
 # The disclosure's version: a new text is shown again to everyone who accepted an older one.
 DISCLOSURE = 1
 EULA = CODE / "legal" / "EULA.txt"
+# The third-party notices: W8 puts them in the app's bundle; a checkout makes them with scripts/third_party_notices.py.
+NOTICES = CODE / "dist" / "THIRD-PARTY-NOTICES.txt"
 CHROME_DOWNLOAD = "https://www.google.com/chrome/"
+# Workers at once (D24): two by default, one to three.
+WORKERS, MOST_WORKERS = 2, 3
 CHROME, SHOWN, SCREEN, SEED, READY = "chrome", "disclosure", "screen", "seed", "ready"
+
+
+def _kept(state: Path) -> dict:
+    try:
+        kept = json.loads(state.read_text())
+    except (OSError, ValueError):
+        return {}
+    return kept if isinstance(kept, dict) else {}
+
+
+def _keep(state: Path, **values: object) -> None:
+    state.parent.mkdir(parents=True, exist_ok=True)
+    state.write_text(json.dumps(_kept(state) | values, indent=1) + "\n")
+
+
+def workers(state: Path | None = None) -> int:
+    """The Worker count the student set in Settings, within one to MOST_WORKERS."""
+    try:
+        count = int(_kept(state or STATE).get("workers", WORKERS))
+    except (TypeError, ValueError):
+        count = WORKERS
+    return min(max(count, 1), MOST_WORKERS)
+
+
+def set_workers(count: int, state: Path | None = None) -> int:
+    _keep(state or STATE, workers=min(max(int(count), 1), MOST_WORKERS))
+    return workers(state)
+
+
+def remove_all_data(forget: Callable[[], None], home: Path = HOME) -> str:
+    """Settings' Remove All My Data (D25): the app's login (`forget`, its keychain item) and its whole data folder,
+    which holds the Worker profiles, the seed, the Records, the Traces and the local copy of the student's data.
+    Only the Student build, whose data folder is its own (home.APP_FOLDER): a Developer checkout's is the developer's."""
+    if not build.STUDENT:
+        return f"Only WorkIt Auto Apply removes its data. This checkout's data folder is yours: {home}"
+    forget()
+    shutil.rmtree(home, ignore_errors=True)
+    return "Removed. WorkIt Auto Apply closes now; your WorkIt account stays."
 
 
 def screen_allowed() -> bool | None:
@@ -138,12 +183,7 @@ class FirstRun:
         return True
 
     def _kept(self) -> dict:
-        try:
-            kept = json.loads(self._state.read_text())
-        except (OSError, ValueError):
-            return {}
-        return kept if isinstance(kept, dict) else {}
+        return _kept(self._state)
 
     def _keep(self, **values: object) -> None:
-        self._state.parent.mkdir(parents=True, exist_ok=True)
-        self._state.write_text(json.dumps(self._kept() | values, indent=1) + "\n")
+        _keep(self._state, **values)

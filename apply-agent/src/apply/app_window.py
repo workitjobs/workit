@@ -32,11 +32,11 @@ import time
 import webbrowser
 from collections.abc import Callable
 
-from apply import workit
+from apply import first_run, workit
 from apply.adapters import SetupError
 from apply.dashboard import FRAME_GAP, Dashboard
 from apply.dashboard_page import STYLE
-from apply.first_run import CHROME_DOWNLOAD, EULA, READY, FirstRun
+from apply.first_run import CHROME_DOWNLOAD, EULA, NOTICES, READY, FirstRun
 
 TITLE = "WorkIt Auto Apply"
 # How long Bridge.frames waits for a new frame before it answers none, so the page asks again.
@@ -118,6 +118,18 @@ form.addEventListener('submit', async event => {
 });
 </script>""".replace("{style}", STYLE).replace("{ready}", READY_JS)
 
+# What leaves the computer (section 3.4, /privacy): first run and Settings show it.
+DISCLOSURE = """<ul>
+<li><b>To WorkIt:</b> what each AI call needs, without your private details such as your contact details, street
+address and self-identification answers; your applications' stages; the answers you approve; your Auto Apply queue.
+One application's record and log go only when you press Send Report.</li>
+<li><b>To Groq and Google (Gemini):</b> the same AI prompts, sent by WorkIt with WorkIt's own key. Google's free
+tier may use the prompts and answers it gets to improve its products, and people at Google may read them.</li>
+<li><b>To job sites:</b> your answers, typed into each form as you would type them.</li>
+</ul>
+<p>The records of each application, the Chrome windows' profiles and sign-ins, and your job-site passwords (in the
+Keychain) stay on your Mac. WorkIt Auto Apply never presses Submit: you do.</p>"""
+
 FIRST_RUN = """<!doctype html><meta charset="utf-8"><title>WorkIt Auto Apply</title>
 <meta name="color-scheme" content="light dark"><style>{style}
   main.first { max-width: 34rem; margin: 12vh auto; display: flex; flex-direction: column; gap: 0.9rem; }
@@ -134,16 +146,7 @@ WorkIt Auto Apply goes on by itself once Chrome is installed.</p>
 </section>
 <section id="disclosure" hidden>
 <h1>What Leaves Your Mac</h1>
-<ul>
-<li><b>To WorkIt:</b> what each AI call needs, without your private details such as your contact details, street
-address and self-identification answers; your applications' stages; the answers you approve; your Auto Apply queue.
-One application's record and log go only when you press Send Report.</li>
-<li><b>To Groq and Google (Gemini):</b> the same AI prompts, sent by WorkIt with WorkIt's own key. Google's free
-tier may use the prompts and answers it gets to improve its products, and people at Google may read them.</li>
-<li><b>To job sites:</b> your answers, typed into each form as you would type them.</li>
-</ul>
-<p>The records of each application, the Chrome windows' profiles and sign-ins, and your job-site passwords (in the
-Keychain) stay on your Mac. WorkIt Auto Apply never presses Submit: you do.</p>
+{disclosure}
 <p>By pressing OK you agree to WorkIt Auto Apply's license.</p>
 <div class="row"><button class="primary" data-do="accept_disclosure">OK</button>
 <button data-do="show_license">Read the License</button></div>
@@ -187,15 +190,59 @@ ready.then(async () => {
   show(await window.pywebview.api.first_run());
   setInterval(async () => show(await window.pywebview.api.first_run()), 1500);  // Chrome installed, the seed's steps
 });
-</script>""".replace("{style}", STYLE).replace("{ready}", READY_JS)
+</script>""".replace("{style}", STYLE).replace("{ready}", READY_JS).replace("{disclosure}", DISCLOSURE)
+
+SETTINGS = """<!doctype html><meta charset="utf-8"><title>WorkIt Auto Apply</title>
+<meta name="color-scheme" content="light dark"><style>{style}
+  main.settings { max-width: 34rem; margin: 8vh auto; display: flex; flex-direction: column; gap: 0.8rem; }
+  main.settings .row { display: flex; gap: 0.6rem; flex-wrap: wrap; }
+</style>
+<main class="settings">
+<h1>Settings</h1>
+<label>Workers at once <select id="workers"><option>1</option><option>2</option><option>3</option></select></label>
+<p>Each Worker is a full Chrome, about 0.5 to 1 GB of memory. The next Start uses the new count.</p>
+<div class="row"><button id="show-disclosure">What Leaves Your Mac</button>
+<button data-do="show_license">Read the License</button>
+<button data-do="show_notices" id="notices" hidden>Third-Party Notices</button></div>
+<div id="disclosure" hidden>{disclosure}</div>
+<div class="row"><button data-do="sign_out">Sign Out</button></div>
+<p>Remove All My Data deletes everything WorkIt Auto Apply keeps on this Mac: the Worker profiles and their
+sign-ins, the seed, the records and logs of your applications, and its WorkIt sign-in. Your WorkIt account stays.</p>
+<div class="row"><button id="remove">Remove All My Data</button>
+<button id="remove-sure" data-do="remove_data" hidden>Press Again to Remove Everything</button></div>
+<p id="said" role="status"></p>
+<div class="row"><button class="primary" data-do="back">Done</button></div>
+</main>
+<script>
+{ready}
+const said = document.getElementById('said'), count = document.getElementById('workers');
+document.getElementById('show-disclosure').addEventListener('click', () => {
+  const shown = document.getElementById('disclosure'); shown.hidden = !shown.hidden; });
+document.getElementById('remove').addEventListener('click', () => { document.getElementById('remove-sure').hidden = false; });
+count.addEventListener('change', async () => { await ready; await window.pywebview.api.set_workers(Number(count.value)); });
+document.addEventListener('click', async event => {
+  const button = event.target.closest('button[data-do]');
+  if (!button) return;
+  await ready;
+  const got = await window.pywebview.api[button.dataset.do]();
+  said.textContent = (got && (got.error || got.said)) || '';
+});
+ready.then(async () => {
+  const state = await window.pywebview.api.settings_state();
+  count.value = String(state.workers);
+  document.getElementById('notices').hidden = !state.notices;
+});
+</script>""".replace("{style}", STYLE).replace("{ready}", READY_JS).replace("{disclosure}", DISCLOSURE)
 
 
 # Today's model use against the Usage cap (W1, D6), on every page of the app, read again each minute.
-USAGE = """<div id="usage" role="status" style="position: fixed; top: 0.4rem; right: 0.8rem; font-size: 0.8rem;
-  opacity: 0.75; z-index: 20"></div>
+USAGE = """<div style="position: fixed; top: 0.4rem; right: 0.8rem; z-index: 20; display: flex; gap: 0.8rem;
+  align-items: center; font-size: 0.8rem"><span id="usage" role="status" style="opacity: 0.75"></span>
+<button id="open-settings">Settings</button></div>
 <script>(async () => {
   {ready}
   await ready;
+  document.getElementById('open-settings').addEventListener('click', () => window.pywebview.api.settings());
   const shown = document.getElementById('usage');
   const read = async () => { const use = await window.pywebview.api.usage();
     shown.textContent = use.error ? '' : `Model use today: ${use.used.toLocaleString()} of ${use.cap.toLocaleString()} tokens`; };
@@ -257,7 +304,8 @@ class Bridge:
 
     def __init__(self, dashboard: Dashboard, client: workit.WorkIt | None = None,
                  open_link: Callable[[str], object] = webbrowser.open, first_run: FirstRun | None = None,
-                 start: Callable[[list[str], Callable[[Dashboard], None]], None] | None = None):
+                 start: Callable[[list[str], Callable[[Dashboard], None]], None] | None = None,
+                 remove: Callable[[Callable[[], None]], str] = first_run.remove_all_data):
         """`start(links, show)`, when given, runs `links` and calls `show(board)` with the run's own Apply window
         (apply.student.Runs.run); the app's pages then have PANEL and USAGE."""
         self._dashboard = self._idle = dashboard
@@ -265,6 +313,7 @@ class Bridge:
         self._open_link = open_link
         self._first = first_run or FirstRun()
         self._start = start
+        self._remove = remove
         self._running = threading.Event()  # a run is going
         self._said = ""  # why the last run couldn't start or stopped
         self._verifier: str | None = None  # this sign-in's PKCE verifier, till its code is traded
@@ -415,6 +464,57 @@ class Bridge:
             self._running.clear()
             self.show_board(self._idle)
 
+    # Settings (W5 step 5).
+
+    def settings(self) -> dict:
+        if self._window is not None:
+            self._window.load_html(SETTINGS)
+        return {}
+
+    def settings_state(self) -> dict:
+        return {"workers": first_run.workers(), "notices": NOTICES.is_file()}
+
+    def set_workers(self, count: int) -> dict:
+        return {"workers": first_run.set_workers(count)}
+
+    def show_notices(self) -> dict:
+        if not NOTICES.is_file():
+            return {"error": "The third-party notices aren't in this copy of the app."}
+        self._open_link(NOTICES.as_uri())
+        return {}
+
+    def back(self) -> dict:
+        if self._window is not None:
+            self._window.load_html(self._page())
+        return {}
+
+    def sign_out(self) -> dict:
+        if self._running.is_set():
+            return {"error": "A run is going: close its forms first."}
+        try:
+            self._client.sign_out()
+        except workit.WorkItError as error:
+            return {"error": f"WorkIt Auto Apply couldn't sign out ({error})."}
+        if self._window is not None:
+            self._window.load_html(SIGN_IN)
+        return {}
+
+    def remove_data(self) -> dict:
+        """Remove All My Data (D25), then close the app: what it showed is gone."""
+        if self._running.is_set():
+            return {"error": "A run is going: close its forms first."}
+
+        def forget() -> None:
+            try:
+                self._client.sign_out()
+            except workit.WorkItError:
+                pass  # its keychain item couldn't be removed: the data folder still goes
+
+        said = self._remove(forget)
+        if said.startswith("Removed") and self._window is not None:
+            threading.Timer(2.0, self._window.destroy).start()
+        return {"said": said}
+
     def _page(self) -> str:
         board = self._dashboard
         return page(board, panel=board is self._idle and self._start is not None, usage=self._start is not None)
@@ -424,6 +524,22 @@ class Bridge:
         if not self.signed_in():
             return SIGN_IN
         return self._page() if self._first.step() == READY else FIRST_RUN
+
+
+def notify(title: str, message: str) -> None:
+    """macOS's own notice (Dashboard's `notify`). Only an app bundle may post one, so a Developer checkout's Python
+    posts none; W8's bundle does."""
+    if sys.platform != "darwin":
+        return
+    import Foundation
+
+    center = Foundation.NSUserNotificationCenter.defaultUserNotificationCenter()
+    if center is None:
+        return
+    notice = Foundation.NSUserNotification.alloc().init()
+    notice.setTitle_(title)
+    notice.setInformativeText_(message)
+    center.deliverNotification_(notice)
 
 
 def bring_forward() -> bool:
