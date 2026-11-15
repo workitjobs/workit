@@ -108,7 +108,10 @@ has neither.
   `workit.job_key`), and its callers import it from there.
   `tests/test_student_build.py` (in CI) fails when the Student path loads one,
   as it imports, builds `student.adapters()` or makes that first page call.
-  Read `build.STUDENT` when the code runs, never into a constant at import.
+  Read `build.STUDENT` when the code runs, never into a constant at import. The one
+  exception is `home.HOME`, which every data path is made from at import: the build
+  script writes STUDENT before it compiles (`tests/test_student_build.py` checks it in a
+  new process).
   The Student build reads no `policies.yaml`: `build.STUDENT_POLICIES` go over
   the defaults. A new developer part joins `DEVELOPER`, and the Student
   build's stand-in for it joins `apply.student.adapters()`.

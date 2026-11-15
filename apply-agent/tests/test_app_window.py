@@ -8,8 +8,9 @@ import pytest
 from fake_workit import FakeWorkIt
 
 from apply import app_window, dashboard, workit
-from apply.app_window import SHIM, Bridge
+from apply.app_window import FIRST_RUN, SHIM, Bridge
 from apply.dashboard import NO_PORT, Dashboard
+from apply.first_run import READY, SHOWN
 from apply.workit import WorkIt
 
 JPEG = b"\xff\xd8\xff\xe0 a frame"
@@ -42,6 +43,19 @@ class Window:
 
     def load_html(self, html: str) -> None:
         self.loaded.append(html)
+
+
+class Steps:
+    """First run (apply.first_run.FirstRun), at the step a test sets."""
+
+    def __init__(self, now: str):
+        self.now = now
+
+    def step(self) -> str:
+        return self.now
+
+    def state(self) -> dict:
+        return {"step": self.now, "lines": [], "running": False, "waiting": False, "failed": ""}
 
 
 def no_server(*_, **__):
@@ -104,10 +118,10 @@ def test_the_shim_comes_before_the_pages_scripts(board):
 
 
 def test_sign_in_opens_workits_page_and_its_code_signs_the_window_in(board, tmp_path):
-    """Fault: the window keeps no verifier, or never shows the Apply window after the code."""
+    """Fault: the window keeps no verifier, shows the Apply window before first run is done, or never after it."""
     with FakeWorkIt() as fake:
-        opened, window = [], Window()
-        bridge = Bridge(board, WorkIt(fake.site, tmp_path / "workit-login.json", fake.keychain), opened.append)
+        opened, window, steps = [], Window(), Steps(SHOWN)
+        bridge = Bridge(board, WorkIt(fake.site, tmp_path / "workit-login.json", fake.keychain), opened.append, steps)
         bridge._window = window
         assert "error" in bridge.trade("a code")  # no sign-in started
 
@@ -118,5 +132,15 @@ def test_sign_in_opens_workits_page_and_its_code_signs_the_window_in(board, tmp_
 
         url = bridge.sign_in()
         assert bridge.trade(fake.browser(url)) == {"email": "test.person@example.com"}
-        assert bridge.signed_in() and window.loaded == [app_window.page(board)]
+        assert bridge.signed_in() and window.loaded == [FIRST_RUN]
+        bridge.go_on()
+        assert window.loaded == [FIRST_RUN]  # a step is left: still first run
+        steps.now = READY
+        bridge.go_on()
+        assert window.loaded == [FIRST_RUN, app_window.page(board)]
+
+
+def test_the_apps_page_loads_no_web_font(board):
+    """Fault: the window asks Google Fonts for its font, a request the privacy page doesn't name."""
+    assert "fonts.googleapis.com" in board.page() and "fonts.googleapis.com" not in app_window.page(board)
 

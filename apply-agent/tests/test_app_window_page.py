@@ -42,3 +42,23 @@ def test_the_pages_requests_frames_and_file_links_go_through_the_bridge(tmp_path
         page.wait_for_timeout(300)
         assert opened == [sent.as_uri()]
         browser.close()
+
+
+def test_the_sign_in_and_first_run_pages_run_without_a_script_error():
+    """Fault: a script error in a screen's page (a line break inside a string, say), which leaves its buttons dead."""
+    errors = []
+    state = {"step": "seed", "lines": ["Now: Turn on Developer mode."], "running": True, "waiting": True, "failed": ""}
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch()
+        for html in (app_window.SIGN_IN, app_window.FIRST_RUN):
+            page = browser.new_page()  # a page each, as the window loads each one anew
+            page.on("pageerror", lambda error: errors.append(str(error)))
+            page.route("**/*", lambda route: route.abort())
+            page.expose_function("__bridge", lambda name, args: state)
+            page.set_content(html, wait_until="domcontentloaded")
+            page.evaluate(PYWEBVIEW)
+        page.wait_for_function("!document.getElementById('seed').hidden", timeout=5000)
+        assert page.inner_text("#seed-lines") == "Now: Turn on Developer mode."
+        assert page.is_visible("#seed-again") and not page.is_visible("#seed-start")
+        browser.close()
+    assert errors == []

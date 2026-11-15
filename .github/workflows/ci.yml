@@ -230,6 +230,7 @@ jobs:
             tests/test_answering.py \
             tests/test_applicant_name.py \
             tests/test_app_window.py \
+            tests/test_first_run.py \
             tests/test_ask.py \
             tests/test_apply_home.py \
             tests/test_approve.py \

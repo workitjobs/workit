@@ -10,12 +10,16 @@ link to a file a tile lists opens in the system's own app.
 Signed out, the window first shows SIGN_IN: Sign In with WorkIt opens WorkIt's /app-sign-in page in the default
 browser with this sign-in's PKCE challenge (workit.pkce). The built app takes the code back from the page's
 workit-auto-apply:// link (W8); a Developer checkout pastes it in the box, which only WorkIt's admins' page shows.
-Then Bridge.trade signs in (WorkIt.trade) and the window shows the Apply window.
+Then Bridge.trade signs in (WorkIt.trade). Next comes FIRST_RUN while any first-run step is left (apply.first_run:
+Chrome, the disclosure and license, Screen Recording, the seed), then the Apply window.
+
+The app's page loads no web font: Google Fonts would be a request the privacy page doesn't name (FONTS).
 
 pywebview gives the page every public method of Bridge, and nothing whose name starts with "_".
 """
 
 import base64
+import re
 import time
 import webbrowser
 from collections.abc import Callable
@@ -23,10 +27,15 @@ from collections.abc import Callable
 from apply import workit
 from apply.dashboard import FRAME_GAP, Dashboard
 from apply.dashboard_page import STYLE
+from apply.first_run import CHROME_DOWNLOAD, EULA, READY, FirstRun
 
 TITLE = "WorkIt Auto Apply"
 # How long Bridge.frames waits for a new frame before it answers none, so the page asks again.
 FRAMES_WAIT = 1.0
+# The Apply window's web font links, left out of the app's page: the system's fonts stand in.
+FONTS = re.compile(r'<link[^>]+fonts\.googleapis\.com[^>]*>')
+READY_JS = """const ready = new Promise(done => (window.pywebview && window.pywebview.api) ? done()
+                                   : addEventListener('pywebviewready', () => done(), {once: true}));"""
 
 # The page's requests through the bridge (D11): fetch of a path, the /frames stream, the close beacon, a file link.
 SHIM = r"""<script>
@@ -84,8 +93,7 @@ SIGN_IN = """<!doctype html><meta charset="utf-8"><title>WorkIt Auto Apply</titl
 <p id="said" role="status"></p>
 </main>
 <script>
-const ready = new Promise(done => (window.pywebview && window.pywebview.api) ? done()
-                                   : addEventListener('pywebviewready', () => done(), {once: true}));
+{ready}
 const said = document.getElementById('said'), form = document.getElementById('code');
 document.getElementById('start').addEventListener('click', async () => {
   await ready;
@@ -99,12 +107,83 @@ form.addEventListener('submit', async event => {
   const got = await window.pywebview.api.trade(document.getElementById('pasted').value);
   if (got.error) said.textContent = got.error;
 });
-</script>""".replace("{style}", STYLE)
+</script>""".replace("{style}", STYLE).replace("{ready}", READY_JS)
+
+FIRST_RUN = """<!doctype html><meta charset="utf-8"><title>WorkIt Auto Apply</title>
+<meta name="color-scheme" content="light dark"><style>{style}
+  main.first { max-width: 34rem; margin: 12vh auto; display: flex; flex-direction: column; gap: 0.9rem; }
+  main.first section { display: flex; flex-direction: column; gap: 0.8rem; }
+  main.first .row { display: flex; gap: 0.6rem; flex-wrap: wrap; }
+  main.first pre { white-space: pre-wrap; max-height: 16rem; overflow: auto; font: inherit; }
+</style>
+<main class="first">
+<section id="chrome" hidden>
+<h1>WorkIt Auto Apply Needs Google Chrome</h1>
+<p>It fills each form in a Chrome window of its own, never in your own Chrome profiles.
+WorkIt Auto Apply goes on by itself once Chrome is installed.</p>
+<div class="row"><button class="primary" data-do="get_chrome">Download Google Chrome</button></div>
+</section>
+<section id="disclosure" hidden>
+<h1>What Leaves Your Mac</h1>
+<ul>
+<li><b>To WorkIt:</b> what each AI call needs, without your private details such as your contact details, street
+address and self-identification answers; your applications' stages; the answers you approve; your Auto Apply queue.
+One application's record and log go only when you press Send Report.</li>
+<li><b>To Groq and Google (Gemini):</b> the same AI prompts, sent by WorkIt with WorkIt's own key. Google's free
+tier may use the prompts and answers it gets to improve its products, and people at Google may read them.</li>
+<li><b>To job sites:</b> your answers, typed into each form as you would type them.</li>
+</ul>
+<p>The records of each application, the Chrome windows' profiles and sign-ins, and your job-site passwords (in the
+Keychain) stay on your Mac. WorkIt Auto Apply never presses Submit: you do.</p>
+<p>By pressing OK you agree to WorkIt Auto Apply's license.</p>
+<div class="row"><button class="primary" data-do="accept_disclosure">OK</button>
+<button data-do="show_license">Read the License</button></div>
+</section>
+<section id="screen" hidden>
+<h1>Allow Screen Recording</h1>
+<p>WorkIt Auto Apply shows each form live in its window, so you can fix it there. With Screen Recording on, that
+view is smooth; without it, it shows about two frames a second. macOS asks you once, and System Settings keeps the
+switch (Privacy &amp; Security, Screen &amp; System Audio Recording).</p>
+<div class="row"><button class="primary" data-do="allow_screen">Allow</button>
+<button data-do="skip_screen">Not Now</button></div>
+</section>
+<section id="seed" hidden>
+<h1>Set Up the Worker Extension</h1>
+<p>WorkIt Auto Apply opens Chrome on a profile of its own. There you turn on Developer mode and load the Worker
+extension's folder; WorkIt Auto Apply watches, then checks one Worker. It takes about a minute.</p>
+<div class="row"><button class="primary" id="seed-start" data-do="start_seed">Set Up</button>
+<button id="seed-again" data-do="seed_again" hidden>Try Again</button></div>
+<pre id="seed-lines" role="log"></pre>
+<p id="seed-failed" role="alert"></p>
+</section>
+</main>
+<script>
+{ready}
+let going = false;
+const show = state => {
+  for (const section of document.querySelectorAll('section')) section.hidden = section.id !== state.step;
+  if (state.step === 'ready' && !going) { going = true; window.pywebview.api.go_on(); return; }
+  document.getElementById('seed-lines').textContent = state.lines.join('\\n');
+  document.getElementById('seed-start').hidden = state.running;
+  document.getElementById('seed-again').hidden = !state.waiting;
+  document.getElementById('seed-failed').textContent = state.failed;
+};
+document.addEventListener('click', async event => {
+  const button = event.target.closest('button[data-do]');
+  if (!button) return;
+  await ready;
+  show(await window.pywebview.api[button.dataset.do]());
+});
+ready.then(async () => {
+  show(await window.pywebview.api.first_run());
+  setInterval(async () => show(await window.pywebview.api.first_run()), 1500);  // Chrome installed, the seed's steps
+});
+</script>""".replace("{style}", STYLE).replace("{ready}", READY_JS)
 
 
 def page(dashboard: Dashboard) -> str:
-    """The Apply window's page with SHIM before its scripts."""
-    html = dashboard.page()
+    """The Apply window's page with SHIM before its scripts, and no web font."""
+    html = FONTS.sub("", dashboard.page())
     head = '<meta charset="utf-8">'
     return html.replace(head, head + SHIM, 1) if head in html else SHIM + html
 
@@ -114,10 +193,11 @@ class Bridge:
     the sign-in. `open_link` opens a URL in the default browser, or a file in the system's own app."""
 
     def __init__(self, dashboard: Dashboard, client: workit.WorkIt | None = None,
-                 open_link: Callable[[str], object] = webbrowser.open):
+                 open_link: Callable[[str], object] = webbrowser.open, first_run: FirstRun | None = None):
         self._dashboard = dashboard
         self._client = client or workit.WorkIt()
         self._open_link = open_link
+        self._first = first_run or FirstRun()
         self._verifier: str | None = None  # this sign-in's PKCE verifier, till its code is traded
         self._window = None  # the pywebview window, once run() made it
 
@@ -170,16 +250,62 @@ class Bridge:
             return {"error": f"WorkIt couldn't sign you in ({error}). Try again."}
         self._verifier = None
         if self._window is not None:
-            self._window.load_html(page(self._dashboard))
+            self._window.load_html(self._html())
         return {"email": account.email}
+
+    # First run (apply.first_run): each answers the steps' state, which FIRST_RUN shows.
+
+    def first_run(self) -> dict:
+        return self._first.state()
+
+    def get_chrome(self) -> dict:
+        self._open_link(CHROME_DOWNLOAD)
+        return self._first.state()
+
+    def accept_disclosure(self) -> dict:
+        self._first.accept()
+        return self._first.state()
+
+    def show_license(self) -> dict:
+        self._open_link(EULA.as_uri())
+        return self._first.state()
+
+    def allow_screen(self) -> dict:
+        self._first.allow_screen()
+        return self._first.state()
+
+    def skip_screen(self) -> dict:
+        self._first.skip_screen()
+        return self._first.state()
+
+    def start_seed(self) -> dict:
+        self._first.start_seed()
+        return self._first.state()
+
+    def seed_again(self) -> dict:
+        self._first.seed_again()
+        return self._first.state()
+
+    def go_on(self) -> dict:
+        """First run done: the Apply window."""
+        state = self._first.state()
+        if state["step"] == READY and self._window is not None:
+            self._window.load_html(page(self._dashboard))
+        return state
+
+    def _html(self) -> str:
+        """What the window shows now: SIGN_IN signed out, FIRST_RUN while a step is left, else the Apply window."""
+        if not self.signed_in():
+            return SIGN_IN
+        return page(self._dashboard) if self._first.step() == READY else FIRST_RUN
 
 
 def run(dashboard: Dashboard, client: workit.WorkIt | None = None) -> None:
-    """The window, till the student closes it: SIGN_IN while signed out, else the Apply window."""
+    """The window, till the student closes it: SIGN_IN, then FIRST_RUN, then the Apply window (Bridge._html)."""
     import webview  # here, not at the top: the bridge and its tests need no window
 
     bridge = Bridge(dashboard, client)
-    window = webview.create_window(TITLE, html=page(dashboard) if bridge.signed_in() else SIGN_IN, js_api=bridge,
-                                   width=1280, height=820, min_size=(900, 600))
+    window = webview.create_window(TITLE, html=bridge._html(), js_api=bridge, width=1280, height=820,
+                                   min_size=(900, 600))
     bridge._window = window
     webview.start()  # no http_server: the page is a string, so pywebview opens no port either
