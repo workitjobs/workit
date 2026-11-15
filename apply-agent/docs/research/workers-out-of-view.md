@@ -46,9 +46,20 @@ Also seen:
 
 - `system_profiler SPDisplaysDataType` lists it ("WorkIt Workers (test)", 1920 × 1080, Mirror Off), so System Settings, Displays, shows it too.
 - It sits beside the main screen, so the pointer can move onto it and seem to vanish.
-- It lives only while the process that made it runs. When that process ends, macOS moves its windows onto the screens that stay.
+- It lives only while the process that made it runs (section 4).
 
 **Mission Control: the Worker does not show** (checked by hand, 2026-11-15). With the helper and a Chrome window on the virtual screen running for 60 s, a three-finger swipe up on the main screen did not show that window: macOS shows each screen's own windows on that screen. The session itself could not check it (macOS refused `screencapture` without Screen Recording permission, and `osascript` may not send keys), so a person looked. To check again: run the helper and the Chrome start below, then swipe up with three fingers.
+
+## 4. When the screen's holder dies, its windows move to the student's screen
+
+The helper was killed with SIGKILL, as a crash ends a process, while a Chrome for Testing window was on its screen. Read over CDP:
+
+| | Window x | Screen the page sees | Chrome |
+|---|---|---|---|
+| Before | 2022 | 1920 × 1080 (virtual) | running, drawing |
+| 3 s after the helper died | 306 | 1512 × 982 (the main screen) | still running, drawing |
+
+macOS removes the screen as it removes an unplugged monitor, and moves its windows onto a screen that stays. Workers outlive Apply on purpose (restart recovery), so whatever holds the screen must outlive Apply too.
 
 ## The helper
 

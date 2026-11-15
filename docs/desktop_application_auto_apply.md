@@ -1593,13 +1593,55 @@ student sees one Chrome in the Dock and no Worker in Mission Control.
    - macOS treats it as a real screen. System Settings lists it, and it
      sat beside the main screen, so the pointer can move onto it and seem
      to vanish.
-   - It lives only while its process runs; then macOS moves its windows
-     onto the student's screen. Workers outlive Apply (restart recovery),
-     so a helper that lives as long as the Workers must hold it.
-   - It is a private Apple API: a macOS update can break it. The app
-     ships outside the Mac App Store (D17), which would refuse it.
+   - It lives only while the process that made it runs, as a monitor
+     lives only while it is plugged in. Tested: when that process died
+     with no clean exit, the screen went away at once, Chrome kept running
+     and drawing, and in under 3 s macOS moved its window onto the
+     student's screen (from x 2022 on the 1920 × 1080 screen to x 306 on
+     the 1512 × 982 one). Workers outlive Apply on purpose (restart
+     recovery), so a crash shows every Worker's window to the student.
+   - It is a private Apple API. Apple documents none of it, ships it in no
+     developer kit and promises nothing: the helper finds the classes by
+     name as it runs. Any macOS update can rename, change or remove them,
+     or allow them only to apps Apple approves. Other Mac apps
+     (BetterDisplay, DeskPad) use them today. The app ships outside the
+     Mac App Store (D17), which would refuse it.
    - The Dock and Cmd-Tab still show each Chrome, unless part 1 is built
      too. It is Mac only: Windows and Linux need their own way (F4).
+
+   Before it ships to Mac users, build:
+   - **A holder that outlives Apply.** A small helper, apart from Apply,
+     holds the screen while any Worker runs. When the helper itself dies,
+     Apply makes the screen again and moves the Workers back.
+   - **A fallback.** When the API is missing or refused, Workers open on
+     the student's screen, as today.
+   - **Window placement.** The Worker extension opens a plain Worker's
+     window on the primary screen (`onScreen` in `ops/core.js`), so it
+     must aim at the virtual screen: a store release. CDP Workers take a
+     start position. Pop-ups, such as a sign-in window, must open there
+     too.
+   - **Show and handoffs.** For a captcha or a sign-in, Show moves the
+     window onto the student's screen and back after; or the student works
+     in the tile, which already sends clicks and keys to the Worker.
+   - **The pointer.** The app places the screen where the pointer rarely
+     goes (`CGConfigureDisplayOrigin`, a public API), and again when the
+     student plugs in or removes a monitor.
+   - **Packaging.** The helper is Objective-C: it is signed and notarized
+     inside the app (W8), and must work under the hardened runtime.
+   - **Words for the student.** System Settings, Displays lists a screen
+     named "WorkIt Auto Apply"; the app says what it is.
+
+   And test:
+   - the Mac asleep, its lid closed and its screen locked: does the
+     screen still draw?
+   - a monitor plugged in or removed while Workers run;
+   - the oldest macOS the app supports, and each new macOS, betas too;
+   - the memory and graphics cost of a 1920 × 1080 screen;
+   - the bot checks: pages see this screen. HiDPI off gave a pixel ratio
+     of 1, where a MacBook's own screen gives 2, so the screen's settings
+     must look like a common Mac setup;
+   - FocusKeeper: Chrome can probably still take the keyboard focus when
+     a pop-up opens on a screen no one sees, so it likely stays.
 
 ## 8. Who can see the code
 
