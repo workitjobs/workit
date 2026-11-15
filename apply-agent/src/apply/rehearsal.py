@@ -38,7 +38,7 @@ from collections.abc import Callable
 from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass, field, replace
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, get_args
 from urllib.parse import urlsplit
 
 from apply import (
@@ -48,6 +48,7 @@ from apply import (
     bot_signals,
     build,
     captcha,
+    code_box,
     description,
     eightfold,
     embedded,
@@ -71,8 +72,14 @@ from apply.answers_tab import Refused
 from apply.asking import for_essay
 from apply.captcha import Waiter
 from apply.essays import ASK
-from apply.model import Posting, Question, Status, one_line
-from apply.orchestrator import CALIBRATION, WORKERS, by_filler, keep_repair_requests
+from apply.model import Posting, Question, Site, Status, one_line
+from apply.orchestrator import (
+    CALIBRATION,
+    FIX_HERE,
+    WORKERS,
+    by_filler,
+    keep_repair_requests,
+)
 from apply.profile import ApplicantProfile
 from apply.records import SECRET, Filled, Record
 from apply.request import resolve
@@ -122,6 +129,8 @@ SUBMITTED_BY_LISUL = "You submitted it yourself from a rehearsal; Apply filled i
 AGAIN, RESUME = "again", "resume"
 # A rehearsal that ruled Lisul out (Not eligible, Closed) offers this button on its tile: the form is filled all the
 # same, as in any rehearsal, and its note says why it was ruled out.
+# The Student build's Needs you for a code the job system emailed after the student's Submit (D9, KAN-855).
+TYPE_THE_CODE = "The job site emailed you a code: " + FIX_HERE.format("type it") + ", then press its own button"
 ANYWAY = "Fill it anyway"
 ANYWAY_WHY = f"{ANYWAY}: Apply opens the form and fills it as in any rehearsal. It never presses Submit"
 FILLED_ANYWAY = "Filled anyway: {}"
@@ -798,6 +807,7 @@ def _rehearse(url: str, site: "_Kept", adapters: Adapters, profile: ApplicantPro
                  filled=rehearsed.filled, asked=rehearsed.asked, missing=list(rehearsed.missing),
                  drafted=[f"{q} → {a}" for q, a in result.drafted], choices=result.choices, required=result.required,
                  where=result.where, history=list(history), blocked=bot_signals.BLOCKED in result.bot_signals,  # Open in my Chrome, on his press
+                 planned=_planned(rehearsed.left_behind),
                  written=rehearsed.form.shown() if rehearsed.form else [])
     _noted(url, site, adapters, posting, rehearsed.outcome, rehearsed)
     return rehearsed
@@ -844,11 +854,12 @@ def _step_named(page) -> str:
         return ""  # a page that went away
 
 
-def _email_code(adapters: Adapters, job_system: str, told: Callable[[str, str], None]) -> "EmailCode | None":
-    """What types a code the job system emails after his Submit, from Gmail (apply.email_code); None in the Student
-    build, which reads no mail (apply.build, D9): the student types the code."""
+def _email_code(adapters: Adapters, job_system: str,
+                told: Callable[[str, str], None]) -> "EmailCode | code_box.TypeTheCode":
+    """What types a code the job system emails after his Submit, from Gmail (apply.email_code). The Student build
+    reads no mail (apply.build, D9): once the code field comes, it tells the student to type the code (KAN-855)."""
     if build.STUDENT:
-        return None
+        return code_box.TypeTheCode(told, TYPE_THE_CODE)
     from apply.email_code import EmailCode
 
     return EmailCode(adapters.mailbox, adapters.clock, job_system, told)
@@ -875,19 +886,20 @@ def _fill_answer(page, question: str, answer: "str | Path | None", adapters: Ada
         answer = keep_sent(sent_folder(done.posting.company, done.posting.id, day), answer)
     held = _step_named(page)
     try:
-        if build.STUDENT:  # no Rescue (apply.build): the student types it on the page
-            raise SetupError("WorkIt Auto Apply can't fill an answer in place yet")
-        from apply.rescue import Rescue
+        if build.STUDENT:  # no Rescue (apply.build): the Fill engine puts it in, as it filled the form (KAN-855)
+            filled = _engine_fill(page, done, question, answer)
+            why = "the form doesn't show that field on this step, or it wouldn't take the answer"
+        else:
+            from apply.rescue import Rescue
 
-        rescue = Rescue(adapters.claude, sms_opt_in=profile.policy("sms_opt_in") is True,
-                        marketing_opt_in=profile.policy("marketing_opt_in") is True)
-        blank = RuntimeError("left blank: the applicant answered it in the Apply window after the form was filled")
-        # Not on the step showing: it may be on an earlier one, which a form in steps saved without it (KAN-686).
-        filled = rescue.field(page, question, answer, blank) or rescue.field(page, question, answer, blank, elsewhere=held)
+            rescue = Rescue(adapters.claude, sms_opt_in=profile.policy("sms_opt_in") is True,
+                            marketing_opt_in=profile.policy("marketing_opt_in") is True)
+            blank = RuntimeError("left blank: the applicant answered it in the Apply window after the form was filled")
+            # Not on the step showing: it may be on an earlier one, which a form in steps saved without it (KAN-686).
+            filled = rescue.field(page, question, answer, blank) or rescue.field(page, question, answer, blank, elsewhere=held)
+            why = "Claude couldn't find the field on this step or an earlier one, or it wouldn't take the answer"
     except Exception as error:
         filled, why = False, f"{type(error).__name__}: {error}"
-    else:
-        why = "Claude couldn't find the field on this step or an earlier one, or it wouldn't take the answer"
     if held and (now := _step_named(page)) != held:  # Claude went back for it and didn't come all the way again
         out(f"{name} | the form now shows '{one_line(now)}', not the step it was held on ('{one_line(held)}'): go back to it")
     if filled:
@@ -897,10 +909,38 @@ def _fill_answer(page, question: str, answer: "str | Path | None", adapters: Ada
         _filled_in(page, question, [question], answer, adapters, n, done)
         out(f"{name} | filled '{one_line(question)}' with your answer")
     else:
-        out(f"{name} | couldn't fill '{one_line(question)}' in place ({one_line(why)}): type it on the page, or press Fill again")
+        fix = FIX_HERE.format("type it") if build.STUDENT else "type it on the page"
+        out(f"{name} | couldn't fill '{one_line(question)}' in place ({one_line(why)}): {fix}, or press Fill again")
         # Its status again, so the window's item for it (kept when the form ended) stays as it is.
         adapters.board.update(n, status=done.outcome, filled=done.filled, missing=list(done.missing), files=done.files,
                               line=done.line(), why=one_line(done.why))
+
+
+def _engine_fill(page, done: Rehearsed, question: str, answer: "str | Path") -> bool:
+    """The Student build's fill of one answer the student gave in the Apply window (KAN-855): the Fill engine puts
+    it in as it filled the form, in the frame that shows the field (never a captcha's), with no model. Whether the
+    field shows it now. False where the form has no such field on its step, or the engine doesn't know its job
+    system (the student fills that one on the form, FIX_HERE)."""
+    q, site = _field_of(done, question), done.posting.job_system
+    if q is None or site not in get_args(Site):
+        return False
+    for frame in page.frames:
+        if frame is not page.main_frame and captcha.in_frame(frame.url):
+            continue
+        try:
+            shown = fill_engine.fill(frame, site, [q], {q.name: answer}).get(q.name)
+        except Exception:
+            continue  # not this frame's field
+        if fill_engine.shows(shown, answer):
+            return True
+    return False
+
+
+def _planned(left_behind: tuple[tuple[str, object], ...]) -> dict[str, str]:
+    """Each answer the form didn't take, by its question, as the window's Needs-you box starts with it (KAN-855):
+    several picks joined by "; ", as the window joins them; a file is the window's file box, which starts empty."""
+    return {label: "; ".join(map(str, a)) if isinstance(a, list) else str(a)
+            for label, a in left_behind if not isinstance(a, Path)}
 
 
 def _filled_in(page, field: str, asked: list[str], answer: "str | Path", adapters: Adapters, n: int,

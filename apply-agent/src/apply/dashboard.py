@@ -736,7 +736,7 @@ class Dashboard:
                 caption["files"] = list(caption["files"] or []) + [
                     f for f in self._picked[worker] if f not in (caption["files"] or [])]
             if caption.get("status") == "submitted":  # sent: its Missing facts and Essay facts ask him no more
-                caption = caption | {"missing": [], "choices": {}, "required": {}, "where": {}}
+                caption = caption | {"missing": [], "choices": {}, "required": {}, "where": {}, "planned": {}}
             tile.update(caption)
             status = str(tile.get("status") or "")
             ended = "status" in caption and status not in ("", "filling", "paused")
@@ -1094,6 +1094,7 @@ class Dashboard:
                 item["choices"] = {q: c for q, c in (item.get("choices") or {}).items() if q in item["questions"]}
                 item["required"] = {q: r for q, r in (item.get("required") or {}).items() if q in item["questions"]}
                 item["where"] = {q: w for q, w in (item.get("where") or {}).items() if q in item["questions"]}
+                item["planned"] = {q: a for q, a in (item.get("planned") or {}).items() if q in item["questions"]}
                 if not item["questions"] and item.get("kind") == "missing fact":
                     item["answered"] = True  # every question answered here: it waits on Lisul no more
         return {"summary": summary(captions, items if self._workers else None), "tiles": captions, "items": items,

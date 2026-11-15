@@ -784,7 +784,8 @@ const answerBox = (item, question) => {
   const wantsFile = choice && choice.kind === 'file', need = (item.required || {})[question];
   if (wantsFile) return fileBox(item, question, need);
   const picks = () => picked.get(key) || [];
-  const box = make('input', {className: 'answer', value: typed.get(key) || '', maxLength: 20000,
+  // An answer Apply planned that the form didn't take (KAN-855): there to save as it is, or to change first.
+  const box = make('input', {className: 'answer', value: typed.get(key) || (item.planned || {})[question] || '', maxLength: 20000,
                              placeholder: choice ? 'Or write your own answer (used instead of the options)' : 'Your answer',
                              oninput: () => typed.set(key, box.value)});
   box.dataset.key = key;
