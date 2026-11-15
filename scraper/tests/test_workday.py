@@ -514,6 +514,31 @@ class TestCappedBoards:
         with pytest.raises(TooLarge, match="no usable dimension at depth 1"):
             providers.workday(AXOS, "Axos", pace=lambda url: None)
 
+    def test_a_slice_not_found_is_incomplete(self, monkeypatch) -> None:
+        """A 404 on one slice is not 'board gone'; it is an incomplete read."""
+        monkeypatch.setattr(providers.systems.workday, "WORKDAY_CAP", 3)
+        facets = [
+            {"facetParameter": "jobFamilyGroup", "values": [
+                {"id": "eng", "count": 2}, {"id": "univ", "count": 1}]},
+            {"facetParameter": "timeType", "values": [{"id": "full", "count": 3}]},
+        ]  # fmt: skip
+        first_page = {"total": 3, "jobPostings": AXOS_ROWS[:2], "facets": facets}
+
+        def post(url: str, payload: dict) -> dict:
+            facet_applied = payload["appliedFacets"]
+            if facet_applied.get("jobFamilyGroup") == ["univ"]:
+                raise BoardNotFound(url)
+            key = tuple(sorted((k, v[0]) for k, v in facet_applied.items())) if facet_applied else ()
+            pages = {
+                ((), 0): first_page,
+                ((("jobFamilyGroup", "eng"),), 0): {"total": 2, "jobPostings": AXOS_ROWS[:2]},
+            }
+            return pages[(key, payload["offset"])]
+
+        monkeypatch.setattr(providers.fetch, "_post_json", post)
+        with pytest.raises(Incomplete):
+            providers.workday(AXOS, "Axos", pace=lambda url: None)
+
 
 class TestPostedOn:
     @pytest.mark.parametrize(

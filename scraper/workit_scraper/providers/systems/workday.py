@@ -200,7 +200,10 @@ def _split_capped(
     for v in values:
         pace(url)
         query = {**applied, dim: [v["id"]]}
-        sub = _workday_page(url, query, 0)
+        try:
+            sub = _workday_page(url, query, 0)
+        except BoardNotFound as error:
+            raise Incomplete(f"no page for slice {query}") from error
         total = int(sub.get("total") or 0)
         if total == 0:
             continue
