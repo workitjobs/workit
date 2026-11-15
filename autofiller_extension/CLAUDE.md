@@ -3001,7 +3001,8 @@ so it stays. The **Store** gets `node store/build.mjs [outDir]` instead
 - `src/shared/config.js`: `DEV_API_URL` and `DEV_WEB_URL` null (every user
   of them skips a null one, so nothing probes or calls localhost),
   `TEST_HOOKS` false, the Vercel site gone (KAN-296).
-- only what Chrome loads: `manifest.json`, `icons`, `fonts`, `src`, and
+- only what Chrome loads, plus the extension's own `LICENSE` and `NOTICE`
+  (KAN-849): `manifest.json`, `icons`, `fonts`, `src`, and
   the engine's Store bundle as `fill-engine/dist/engine.js` (KAN-777, "The
   Rules table from the API" above). Not its full bundle or the rest of its
   `dist/`: `rules-table.json` (fill-engine KAN-756) is for other hosts, and
