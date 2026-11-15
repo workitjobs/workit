@@ -35,6 +35,20 @@ fail, and the agent says so in its hand-off.
   picking the same issue again.
 - A pass that makes no commits ends the run (empty queue or all blocked).
 
+## Learned the hard way
+
+- Claude Code writes scratch files under `CLAUDE_CODE_TMPDIR` (default
+  `/tmp`), which Seatbelt denies: the agent exited at once with `EPERM ...
+  /tmp/claude-<uid>`. `main.mts` gives each sandbox its own mounted temp dir.
+- `npm install` in the sandbox rewrote `frontend/package-lock.json`, leaving
+  a change in every agent's worktree that it could commit. The hook runs
+  `npm ci`, which installs the lockfile as it is.
+- The Fill engine submodule is not in a fresh worktree, so apply-agent's
+  tests could not run. A host hook runs `git submodule update --init`; it
+  cannot run in the sandbox, where git's control files are read-only.
+- Jira comments and label changes appear under the name of whoever owns the
+  `JIRA_API_TOKEN`, not as a bot.
+
 ## Files
 
 - `main.mts` — the loop: sandbox, hooks, models, iteration count.

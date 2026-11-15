@@ -56,18 +56,19 @@ const MODEL = "claude-opus-5-5";
 // Each cycle works on one issue. Raise this to process more issues per run.
 const MAX_ITERATIONS = 10;
 
-// Hooks run inside the sandbox before the agent starts each iteration.
-// The root package.json has no dependencies; the JS build lives in frontend/.
+// Hooks run before the agent starts each iteration.
+// - On the host: fetch the Fill engine submodule, which apply-agent/ and the
+//   extension's tests load. The sandbox can't write git's control files, so
+//   this can't run inside it.
+// - In the sandbox: `npm ci` in frontend/ (the root package.json has no
+//   dependencies). It installs exactly the lockfile; `npm install` rewrote
+//   frontend/package-lock.json and left a change in every agent's worktree.
 // The Python packages sync on demand through `uv run`. Env files are not
 // copied in, so the agent never holds the team's secrets.
 const hooks = {
-  sandbox: { onSandboxReady: [{ command: "npm --prefix frontend install" }] },
+  host: { onWorktreeReady: [{ command: "git submodule update --init" }] },
+  sandbox: { onSandboxReady: [{ command: "npm --prefix frontend ci" }] },
 };
-
-// Copy frontend/node_modules from the host into the worktree before each
-// sandbox starts. Avoids a full install from scratch; the hook above handles
-// platform-specific binaries and any packages added since the last copy.
-const copyToWorktree = ["frontend/node_modules"];
 
 // ---------------------------------------------------------------------------
 // Main loop
@@ -86,7 +87,6 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
     branch,
     sandbox: sandboxProvider(claudeTmp),
     hooks,
-    copyToWorktree,
   });
 
   try {
