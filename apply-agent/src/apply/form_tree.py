@@ -63,10 +63,12 @@ FACTS = r"""el => {
 # that part, that is no upload button's own word (Greenhouse's "Attach", "Dropbox", "Enter manually" sit under
 # "Resume/CV").
 FILES = r"""() => [...document.querySelectorAll('input[type=file]')].map((el) => {
-  const verb = /^(attach|upload|browse|choose( a)? file|drop( files?)?( here)?|dropbox|google drive|enter manually|or|\(optional\)|no file chosen)\b/i;
+  const verb = /^(attach|upload|browse|choose( a)? file|drop( files?)?( here)?|dropbox|google drive|enter manually|or|\(optional\)|no files? (chosen|selected))\b/i;
   const lines = (s) => String(s || '').split('\n').map((l) => l.trim()).filter((l) => l && !verb.test(l));
   const clean = (s) => lines(s)[0] || '';
-  let name = clean(el.labels && el.labels[0] && el.labels[0].innerText) || clean(el.getAttribute('aria-label'));
+  const code = /^[a-z0-9]+([-_][a-z0-9]+)+$/i;  // a name for the page's code ("file-input", BambooHR's), not a person
+  const own = (s) => { const said = clean(s); return code.test(said) ? '' : said; };
+  let name = own(el.labels && el.labels[0] && el.labels[0].innerText) || own(el.getAttribute('aria-label'));
   for (let node = el.parentElement, up = 0; !name && node && up < 6; node = node.parentElement, up++) {
     for (const part of [node, node.previousElementSibling]) {
       const text = part ? clean(part.innerText) : '';

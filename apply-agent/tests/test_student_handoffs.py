@@ -9,7 +9,7 @@ from conftest import ARC_FORM, ARC_URL
 from fake_bamboohr import FakeBambooServer
 from fakes import FakeJobServer, RecordingBoard
 from test_claude_fill import LUNAR_FORM, LUNAR_URL
-from test_rehearse import NeverSubmits, adapters
+from test_rehearse import NeverSubmits, adapters, rehearse
 from test_run_answers import profile_with
 
 from apply import build, rehearsal, rescue
@@ -39,24 +39,13 @@ def keeping(server):
     return pages
 
 
-def test_a_form_apply_has_no_filler_for_is_held_for_the_student_to_fill_in_the_app(tmp_path):
-    class Board(RecordingBoard):
-        def answered(self, worker):  # each turn of the held page: once it is handed over, the student closes it
-            if self.captions.get(worker, {}).get("status") == "handoff" and pages:
-                pages.pop().close()
-            return []
-
-    board, lines = Board(), []
+def test_a_form_whose_form_shows_only_behind_its_apply_button_is_the_students(tmp_path):
+    """KAN-861: the generic Filler finds no field on BambooHR's posting page (its form shows once its Apply button is
+    pressed, which this step doesn't press yet), so the form is the student's, with nothing filled and nothing sent."""
     with FakeBambooServer(LUNAR_FORM) as server:
-        pages = keeping(server)
-        rehearsal.rehearse([LUNAR_URL], adapters(server, board=board), ApplicantProfile.load(profile_with(tmp_path)), 1,
-                           keep_open=True, out=lines.append)
-
-    caption = board.captions[0]
-    assert caption["status"] == "handoff", caption
-    assert "can't fill this job site's forms yet: press Fix here and fill it in on the form in this window" in caption["why"]
-    assert caption["filled"] == 0  # nothing typed: the form is the student's, whole
-    assert server.submissions == []
+        [done] = rehearse([LUNAR_URL], server, profile_with(tmp_path))
+    assert done.outcome == "handoff" and "found no form fields" in done.why, done.why
+    assert done.filled == 0 and server.submissions == []
 
 
 class FailsEmailOnce(NeverSubmits):

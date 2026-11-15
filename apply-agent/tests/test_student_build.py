@@ -30,7 +30,8 @@ from apply import (
 from apply.adapters import ClaudeError, SetupError
 from apply.ask_model import live_claude
 from apply.fillers import FILLERS
-from apply.model import FillError, Handoff, Posting, Question, Status
+from apply.generic_fill import GenericFiller
+from apply.model import FillError, Posting, Question, Status
 from apply.profile import (
     load_policies as real_policies,  # before conftest's fixture strips the switches
 )
@@ -123,14 +124,12 @@ def by_filler(url: str):
     return given[0] if given else result
 
 
-def test_a_job_system_with_no_filler_is_held_for_the_student_not_claude_fill(student_build):
-    """KAN-855: its form opens and is handed over whole; the student fills it from the Apply window (Fix here)."""
+def test_a_job_system_with_no_filler_gets_the_generic_filler_not_claude_fill(student_build):
+    """KAN-861 (W2 step 2): code reads and fills its form, a model only picks, through WorkIt's kinds; it never
+    submits. Fault: Claude fill (a model driving the page) or a Filler that can press Submit."""
     filler = by_filler("https://careers.example.com/jobs/1")
-    assert isinstance(filler, orchestrator.ForTheStudent)
-    assert filler.question_set("https://careers.example.com/jobs/1", SimpleNamespace()) == []  # nothing read, no model
-    with pytest.raises(Handoff, match="can't fill this job site's forms yet: press Fix here and fill it in"):
-        filler.fill(SimpleNamespace(), [], {})  # touches nothing on the page
-    with pytest.raises(SetupError):
+    assert isinstance(filler, GenericFiller)
+    with pytest.raises(SetupError, match="never presses Submit"):
         filler.submit(SimpleNamespace())
 
 

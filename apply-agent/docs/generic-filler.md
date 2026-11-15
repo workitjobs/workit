@@ -32,12 +32,56 @@ click; a model only picks.
   reader). Options that say they open more options (`aria-haspopup`, `aria-expanded`) make it a two-level list,
   asked as text. A box with no options until one types is a search box, asked as text.
 - **The top frame only.** An embedded form is opened in its own page first (`embedded.form_behind`).
-
 **Measured** (2026-11-15) on the Fill engine's saved Lever forms, whose questions the engine reads off the served
 page with no network: the reader finds 164 of the engine's 174 questions, nearly all of the same kind. The rest are
 a self-ID survey the page keeps collapsed and a signature's two parts. Greenhouse's and Ashby's saved forms read
 their questions from their APIs, which the saved form's server doesn't answer.
 
+## Filling (`generic_fill.py`)
+
+`GenericFiller` has the Filler shape (`fillers.py`). Its form stays open from its Question set to its last step, so
+`orchestrator.by_filler` runs it on `OnePage`. In the Student build it takes the place of `ForTheStudent` (KAN-855),
+which held a form with no Filler unfilled. A Developer checkout keeps Claude fill.
+
+| Control | Plain code |
+|---|---|
+| Text box, text area | `fill`, then `blur` as a person leaves the box; a box left empty (a mask, BambooHR's date) is typed key by key once |
+| Native `<select>` | `select_option` by the option the plan fitted (fit.ts, in the planner) |
+| Radio group | `check` the radio of the planned option |
+| One checkbox | `set_checked` for Yes or No |
+| Checkboxes | `set_checked` on each, ticked if planned |
+| File | The résumé by `attach.attach_resume`; any other by `upload_origin.give` |
+
+- **Every field is read back right after its fill**, from its own element: a box's value, a select's chosen text,
+  which radio or box is checked, a file input's file name, a dropdown's shown choice. One that doesn't show its
+  answer raises a `FillError` that names its label (colons taken out: the Worker reads the field up to the first
+  colon). The Worker drops it, and in the Student build it is a Needs-you item whose box starts with the planned
+  answer (`docs/held-forms.md`, KAN-855). A text box that read back wrong is emptied, so no wrong answer stays on
+  the page.
+- **After the student's Resume**, `resumed` keeps as theirs each value they changed in a field Apply had filled.
+
+## What goes to the student
+
+Each is a Handoff whose words say what Apply saw, then "press Fix here and ... on the form in this window"
+(`FIX_HERE`, which moved here from the Orchestrator).
+
+- A page in a state the fill didn't expect: an alert with an error's words that wasn't there before the fill, a
+  pop-up it can't close (`attach.clear_pop_up`), a field that went blank or changed once filled.
+- A widget the tree doesn't show: a drawing area (a signature pad, a canvas date picker) or a drag and drop.
+- A form that goes on past its first page (no button that sends on it): for now, the student fills the rest.
+- Anything the guards stopped while code pressed.
+- A captcha's challenge, or its box on the last step, is the captcha wait (`model.Captcha`), as for Claude fill.
+
+## The guards (KAN-666)
+
+The generic Filler's clicks are new click paths. It fills under the rehearsal's guard and puts a drive guard
+(`submit_guard.DriveGuard`) on the page as its fill starts, so a click that would send is blocked even where the
+page dresses a Submit as an option. `tests/test_submit_guard_hostile.py` runs "the generic Filler" (the whole
+fill, every question answered) on every hostile
+page. Its page: an option that holds the form's own submit button.
+
 **Tests.** `tests/test_form_tree.py` (no browser, CI): the snapshot parser and how two fields of one label are
 asked. `tests/test_generic_filler.py` (Chromium, on a Mac): each kind of control, a box named by its placeholder,
-and the six saved Lever forms against the engine's own read.
+the six saved Lever forms against the engine's own read, the fill of each control and its read-back (on a plain
+Worker too), and each Handoff. `tests/test_student_build.py` (CI): a job system with no Filler gets the generic
+Filler, which never submits.

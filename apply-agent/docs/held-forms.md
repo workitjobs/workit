@@ -479,9 +479,11 @@ press (`docs/plain-workers/guide.md`, Fix from the window). They never go to the
 Worker's own Chrome window, but for a captcha. Each message says so
 (`orchestrator.FIX_HERE`: "press Fix here and ... on the form in this window").
 
-- **A job system with no Filler.** `orchestrator.ForTheStudent` opens the form,
-  reads no question and fills nothing: its `fill` raises the Handoff
-  `NO_FILLER`, so the form is held as a paused one. Resume hands it over again.
+- **A job system with no Filler.** The generic Filler fills it (KAN-861,
+  `docs/generic-filler.md`): code reads and fills the form, and a model only
+  picks. Each field it can't fill is the next item's; a page it can't go on
+  from is a Handoff, held as a paused one. Until KAN-861,
+  `orchestrator.ForTheStudent` held the whole form unfilled.
 - **A field its Filler fails on.** The rehearsal leaves it out and goes on, as in
   a checkout (`_Planned.skip`). Its label and planned answer then join the
   Result's `left_behind`, so it is a Needs-you item. The held page tries it

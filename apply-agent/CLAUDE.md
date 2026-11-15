@@ -93,6 +93,12 @@ has neither.
   `tests/test_each_os.py` (in CI); never a `/Applications/` path, `open`,
   `osascript` or `ps` anywhere else. What W4 left for F4 is in its "Found on
   the way" list.
+- **In the Student build no model drives the browser** (D13, KAN-861, W2
+  step 2, `docs/generic-filler.md`). A job system with no Filler gets the
+  generic Filler: code reads the form from the accessibility tree and does
+  every click. Its clicks are click paths:
+  a change to them gets the adversarial review and joins
+  `tests/test_submit_guard_hostile.py` (KAN-666).
 - **The Student build leaves the developer parts out** (KAN-723, W3,
   `src/apply/build.py`). WorkIt Auto Apply is compiled from `apply.student`
   without the modules in `build.DEVELOPER` (`claude -p`, Claude fill, Rescue,
@@ -113,11 +119,12 @@ has neither.
   the defaults. A new developer part joins `DEVELOPER`, and the Student
   build's stand-in for it joins `apply.student.adapters()`.
 - **In the Student build, what Apply can't do is the student's, in the Apply
-  window** (KAN-855, W2 step 1, `docs/held-forms.md`). A form with no Filler,
-  a field the form didn't take and an emailed code are each held for the
-  student, who does it through Fix here; an answer they type in the window
-  goes in by the Fill engine, never a model. Every message says "press Fix
-  here" (`orchestrator.FIX_HERE`), never "your own Chrome". Only a captcha
+  window** (KAN-855, W2 step 1, `docs/held-forms.md`). A field the form
+  didn't take, a page the generic Filler can't go on from, and an emailed
+  code are each held for the student, who does it through Fix here; an
+  answer they type in the window goes in by the Fill engine, never a model.
+  Every message says "press Fix here" (`generic_fill.FIX_HERE`), never "your
+  own Chrome". Only a captcha
   takes the Worker's own window (Open in Chrome): the tile's clicks are
   synthetic, and Apply never makes one look like a person's.
 - **Lisul reports a problem with an open application in a Claude Code chat:**

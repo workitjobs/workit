@@ -666,7 +666,18 @@ DELAYS = SENDS_AFTER | GENERIC_SENDS_AFTER
 MOVED = {"a session dialog whose Continue sends after the next mouse move",
          "a generic session dialog whose I'm still here sends after the next mouse move"}
 PAGES |= SESSION_PAGES | GENERIC_SESSION_PAGES
-BUTTON = {"an Amazon card whose Continue sends": "Continue", "a review page's Apply with its answers hidden": "Apply", "a page that vouches for its own Apply": "Apply", "a Submit in another language beside a Submit": "Envoyer ma candidature", "a Submit in a shadow root": "Submit application",
+# The generic Filler's own clicks (KAN-861): it clicks the option its answer names.
+GENERIC_FILL_PAGES = {
+    # A list of options whose "Yes" holds the form's own submit button: the option's click lands on it.
+    "an option that is the form's own submit button": {START: f"""<title>Apply</title><form method=post action="{FINAL}">
+        <label>First name <input name=first value=Test></label>
+        <div role=listbox aria-label="Are you authorized to work here?"><div role=option><button id=b style="width: 100%" name=submit
+          value=1>Yes</button></div><div role=option>No</div></div></form>{SEND_ALL}
+        <script>document.getElementById('b').addEventListener('click', () => sendAll());</script>"""},
+}
+PAGES |= GENERIC_FILL_PAGES
+BUTTON = {"an option that is the form's own submit button": "Yes",
+          "an Amazon card whose Continue sends": "Continue", "a review page's Apply with its answers hidden": "Apply", "a page that vouches for its own Apply": "Apply", "a Submit in another language beside a Submit": "Envoyer ma candidature", "a Submit in a shadow root": "Submit application",
           "a profile pop-up that is the application": "Submit", "a profile pop-up that turns into the application": "Submit",
           "a one-page form in a modal": "Continue", "an application that makes an account": "Continue",
           "a button whose words change after the check": "Continue",
@@ -820,9 +831,54 @@ def amazon_continue(page, drive, name):
         raise Handoff(str(broke)) from broke  # checked all the same
 
 
+def _any_answer(q):
+    """An answer to every question, as a model that answers anything would: a box "Test", a choice its first option."""
+    if q.kind == "multi_select":
+        return list(q.options[:1])
+    if q.kind == "select":
+        return q.options[0] if q.options else "Yes"
+    return None if q.kind == "file" else "Test"
+
+
+class _Here:
+    """The open page as a job site, for the generic Filler's question set (OnePage gives it so)."""
+
+    def __init__(self, page):
+        self.page = page
+
+    @contextmanager
+    def open(self, url):
+        yield self.page
+
+
+def generic_fill(page, drive, name):
+    """The generic Filler (KAN-861) on the page from start to end: it reads the form, every question answered, fills
+    each field (an option's click, a box's check), under the guards."""
+    from apply.generic_fill import GenericFiller
+    from apply.model import MoreQuestions
+
+    filler = GenericFiller()
+    filler._guard = drive
+    try:
+        questions = filler.question_set(HOST + START, _Here(page))
+        for _ in range(12):
+            try:
+                filler.fill(page, questions, {q.name: _any_answer(q) for q in questions if _any_answer(q) is not None})
+                return
+            except MoreQuestions as more:
+                questions = [*questions, *more.questions]
+            except FillError:
+                continue  # that field is the student's: the fill goes on without it
+    except Handoff:
+        raise
+    except Exception as broke:  # a page built to break the read: what was sent is checked all the same
+        raise Handoff(str(broke)) from broke
+
+
 PATHS = {"plain code's Next": plain_next, "the Amazon Filler's Continue": amazon_continue, "the profile click": profile_click, "the account click": account_click,
          "Ask Claude's press": ask_press, "Ask Claude's press of a listed step": ask_press_listed,
-         "the keep-alive's stay press": stay_press, "the keep-alive's generic stay press": generic_stay_press}
+         "the keep-alive's stay press": stay_press, "the keep-alive's generic stay press": generic_stay_press,
+         "the generic Filler": generic_fill}
 
 
 # PR 477's guard holes (KAN-710): each page a hole the guards had, so each runs on PRs, never only nightly. A page
@@ -960,7 +1016,8 @@ def applies(page: str, path: str) -> bool:
 # one: the forged touch got past the submit-event block's removal only on a press the account click armed. And each
 # path runs on PRs at least once: plain code's Next on a Next of its own, whose case there caught all its Ask case did.
 PATH_FOR = {"a frame that forges the extension's touch": "the account click",
-            "a Next that sends by a hidden button": "plain code's Next"}
+            "a Next that sends by a hidden button": "plain code's Next",
+            "an option that is the form's own submit button": "the generic Filler"}
 # Else, a page any path presses runs on the first of these the matrix has. Ask Claude's press pressed on all 91 pages
 # and refused none, so it reaches the guard on every one; plain code's Next refused 52 before pressing.
 DEFAULT_PATHS = ("Ask Claude's press", "the account click", "plain code's Next", "the Amazon Filler's Continue")
@@ -1705,7 +1762,7 @@ def plain(pages: dict[str, str], first: bool = False):
 
 
 PLAIN_PATHS = ["plain code's Next", "the Amazon Filler's Continue", "the profile click", "the account click", "Ask Claude's press of a listed step",
-               "the keep-alive's stay press", "the keep-alive's generic stay press"]
+               "the keep-alive's stay press", "the keep-alive's generic stay press", "the generic Filler"]
 
 
 @pytest.mark.parametrize(("page_name", "path"), plain_pairs_on_prs(PLAIN_PATHS))
