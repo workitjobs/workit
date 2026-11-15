@@ -148,8 +148,8 @@ WORDS = {
                       "every job on that site."),
     "check": ("Answer to check before sending", "Before it sends, Apply checks every answer against your facts; "
               "one didn't match."),
-    "captcha": ("Do the captcha", "Apply never solves a captcha. Do it on the form's page; Apply waits, and goes on "
-                "by itself once it's gone."),
+    "captcha": ("Do the captcha", "Apply never solves a captcha. Press Open in Chrome and do it in the form's own "
+                "browser window, which a captcha needs; Apply waits, and goes on by itself once it's gone."),
     "blocked": ("Finish it in your Chrome", "The job site refused Apply's Chrome as a bot. Open the posting in "
                 "your own Chrome: the WorkIt extension fills it there, and you press Submit."),
     "handoff": ("Finish this one yourself", "Apply got as far as it could; the rest needs a person, such as a site that blocks it."),
