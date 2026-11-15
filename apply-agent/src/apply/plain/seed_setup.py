@@ -6,6 +6,11 @@ switch to turn on). This wizard opens the page, puts the folder's path on the cl
 shows the folder in Finder, and then watches the seed's preference files until each step is saved.
 It only reads those files, and it never clicks a chrome:// page.
 
+The Chrome Web Store install needs none of this (W6); this guide stays as the fallback. Its calls
+work on every OS (W4): the Chrome finder's Chrome, pyperclip for the clipboard and psutil for a
+process's arguments. Only showing a folder has an entry for each OS (`Desk.reveal`). Its words
+(Finder, Cmd+Shift+G) are still the Mac's: F4's.
+
 Chrome writes a change to disk about 10 s after the click (measured on Chrome for Testing), and only
 a clean exit writes the rest: SIGTERM saves, SIGKILL loses it (measured on both Chromes). So Apply
 quits the seed's Chrome with SIGTERM, never SIGKILL, reads the files again, and says "done" only
@@ -16,13 +21,18 @@ import os
 import shutil
 import signal
 import subprocess
+import sys
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
+import psutil
+import pyperclip
+
 from apply.adapters import SetupError
 from apply.browsers import ProfileInUse, chrome_pid
+from apply.chrome_finder import NO_CHROME
 from apply.plain import extension
 from apply.plain.bridge import BridgeBusy, Refused
 from apply.plain.launcher import BRANDED, FLAGS, PlainWorkers, developer_mode
@@ -113,7 +123,7 @@ class Desk:
     """What the wizard does outside its own files. Tests give fakes."""
 
     seed: Path
-    binary: Path = BRANDED
+    binary: Path | None = BRANDED
 
     def open_chrome(self, url: str) -> None:
         """Open `url` in the seed's Chrome, in front: the user works in it. A running one takes a new tab."""
@@ -121,19 +131,32 @@ class Desk:
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
 
     def copy(self, text: str) -> None:
-        subprocess.run(["pbcopy"], input=text.encode(), check=True)
+        """Put `text` on the clipboard (pyperclip: every OS). A Linux with no clipboard tool gets none: the
+        wizard prints the path too."""
+        try:
+            pyperclip.copy(text)
+        except pyperclip.PyperclipException:
+            pass
 
-    def reveal(self, path: Path) -> None:
-        subprocess.run(["open", "-R", str(path)], check=True)
+    def reveal(self, path: Path, system: str = sys.platform) -> None:
+        """Show `path` in the OS's file manager, selected where the OS can: no library does this on every OS.
+        macOS: Finder (`open -R`). Windows: File Explorer (`explorer /select,`). Linux: its parent folder in the
+        desktop's file manager (`xdg-open`)."""
+        command = {"darwin": ["open", "-R", str(path)], "win32": ["explorer", f"/select,{path}"]}.get(
+            system, ["xdg-open", str(path.parent)])
+        subprocess.run(command, check=system == "darwin")  # explorer's exit code is 1 even when it opens
 
     def chrome(self) -> int | None:
-        """The PID of the Chrome that runs this seed. The lock names a PID; `ps` proves that it is this
-        Chrome, not another program with a reused PID or a dead process that nothing has reaped."""
+        """The PID of the Chrome that runs this seed. The lock names a PID; its arguments (psutil) prove that
+        it is this Chrome, not another program with a reused PID or a dead process that nothing has reaped."""
         pid = chrome_pid(self.seed)
         if pid is None:
             return None
-        command = subprocess.run(["ps", "-o", "command=", "-p", str(pid)], capture_output=True, text=True).stdout
-        return pid if f"--user-data-dir={self.seed}" in command else None
+        try:
+            arguments = psutil.Process(pid).cmdline()
+        except psutil.Error:  # gone, a zombie, or another user's
+            return None
+        return pid if f"--user-data-dir={self.seed}" in arguments else None
 
     def terminate(self, pid: int) -> None:
         try:
@@ -285,6 +308,6 @@ class Wizard:
 def run(profiles: Path | None = None, out: Callable[[str], None] = print) -> bool:
     """`apply plain seed`, with branded Chrome."""
     workers = PlainWorkers(profiles, kind="chrome")
-    if not BRANDED.exists():
-        raise SetupError(f"no Google Chrome at {BRANDED}: install Chrome, then run this again")
+    if BRANDED is None or not BRANDED.exists():
+        raise SetupError(f"{NO_CHROME}, then run this again")
     return Wizard(workers, out=out).run()

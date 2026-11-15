@@ -1561,14 +1561,13 @@ def test_the_accounts_tab_shows_copies_and_takes_lisuls_password(window):
 
     password, posting = "Fake-Keychain-Pw-7x!Q", "https://asml.wd3.myworkdayjobs.com/en-US/ASMLExternal/job/X_R1"
     account = EmployerAccount("ASML", "asml.wd3.myworkdayjobs.com", "lisul@example.com", date(2026, 11, 2))
-    clipboard, opened = SimpleNamespace(text=""), []
-    clipboard.put_secret = lambda text: setattr(clipboard, "text", text) or 1
-    clipboard.clear = lambda written: setattr(clipboard, "text", "")
+    opened = []
     keychain = InMemoryKeychain({account.site: password})
     tab = AccountsTab(lambda: [account], keychain,
-                      rows=lambda: [SimpleNamespace(posting_url=posting)], everyday=opened.append,
-                      clipboard=clipboard, later=lambda seconds, then: None)
+                      rows=lambda: [SimpleNamespace(posting_url=posting)], everyday=opened.append)
     with Dashboard(0, NoFrames(), accounts=tab) as board:
+        # The window's own clipboard (D35), read back here: headless Chromium's, never this Mac's.
+        window.context.grant_permissions(["clipboard-read", "clipboard-write"], origin=board.url)
         window.goto(board.url)
         window.get_by_role("tab", name="Accounts").click()
         window.wait_for_selector("#accounts .account", timeout=10_000)
@@ -1580,8 +1579,9 @@ def test_the_accounts_tab_shows_copies_and_takes_lisuls_password(window):
         window.get_by_role("button", name="Hide password").click()
         window.wait_for_function(f"() => !document.body.innerText.includes({password!r})", timeout=5_000)
         window.get_by_role("button", name="Copy password").click()
-        window.wait_for_function("() => document.body.innerText.includes('Paste it within a minute')", timeout=5_000)
-        assert clipboard.text == password
+        window.wait_for_function("() => document.body.innerText.includes('Copied the password for ASML')", timeout=5_000)
+        assert window.evaluate("navigator.clipboard.readText()") == password
+        assert password not in window.inner_text("#accounts")  # copied, not shown
         window.get_by_role("button", name="Open sign-in page").click()
         window.wait_for_function("() => document.body.innerText.includes('press Sign In there')", timeout=5_000)
         window.get_by_label("Your password for new accounts").fill("short")

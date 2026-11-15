@@ -13,10 +13,12 @@ import time
 from collections.abc import Callable
 from contextlib import contextmanager
 from contextvars import ContextVar
+from pathlib import Path
 from urllib.parse import urlsplit
 
 from playwright.sync_api import Page
 
+from apply import chrome_finder
 from apply.model import Blocked, Handoff
 
 # A captcha's challenge, once shown on the page. Each one goes away when it is solved.
@@ -213,10 +215,19 @@ def as_block(handoff: Handoff, page: Page | None, company: str, url: str) -> Han
     return blocked(company, url, said) if said else handoff
 
 
-def to_everyday_chrome(url: str) -> None:
-    """Open `url` in the student's everyday Chrome, as a click in the Dock would: never over DevTools, and never
-    in a Worker profile, so the job system sees their own browser. The extension fills the form there."""
-    subprocess.run(["open", "-a", "Google Chrome", url], check=False)
+def to_everyday_chrome(url: str, chrome: Path | None = None,
+                       popen: Callable[..., subprocess.Popen] = subprocess.Popen) -> None:
+    """Open `url` in the student's everyday Chrome, as a click on a link would: never over DevTools, and never
+    in a Worker profile, so the job system sees their own browser. The extension fills the form there.
+
+    The Chrome finder's Chrome starts with the link and no profile flag, on every OS (W4): a Chrome that runs
+    takes the link as a new tab in the student's own profile, and one that doesn't starts on it. FileNotFoundError
+    when there is no Chrome."""
+    binary = chrome or chrome_finder.find()
+    if binary is None:
+        raise FileNotFoundError(chrome_finder.NO_CHROME)
+    popen([str(binary), url], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+          start_new_session=True)
 
 
 # The submit's wait for a captcha that shows once the form is sent (at_submit); none outside it.

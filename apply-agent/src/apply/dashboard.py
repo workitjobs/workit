@@ -692,8 +692,6 @@ class Dashboard:
     def __exit__(self, *exc) -> None:
         self._server.shutdown()
         self._server.server_close()
-        if self.accounts:
-            self.accounts.close()  # a password copied less than a minute ago leaves the clipboard
         self._quit_window()  # its page has no server now: a window left open shows a dead run
 
     def _quit_window(self) -> None:
@@ -1281,8 +1279,6 @@ class _Handler(BaseHTTPRequestHandler):
             return self._ask_remember()
         if parts.path == "/everyday" and self.dashboard.everyday:
             return self._everyday()
-        if parts.path == "/accounts/copy" and self.dashboard.accounts:
-            return self._account("copy a password", self.dashboard.accounts.copy)
         if parts.path == "/accounts/open" and self.dashboard.accounts:
             return self._account("open your Chrome", self.dashboard.accounts.open_sign_in)
         if parts.path == "/accounts/show" and self.dashboard.accounts:
@@ -1676,9 +1672,10 @@ class _Handler(BaseHTTPRequestHandler):
                                     "the extension fills it there."})
 
     def _account(self, does: str, press: Callable[[object], str], key: str = "site", reply: str = "message") -> None:
-        """Lisul pressed a button in the Accounts tab (KAN-591): Copy password, Open sign-in page, Show password, or
-        Save on the password he chose (KAN-838). `key` names what the page sent; `reply` names what goes back: a
-        message, or the password he asked to see. The line printed never holds a password."""
+        """Lisul pressed a button in the Accounts tab (KAN-591): Open sign-in page, Show password or Copy password
+        (the window writes the password it gets to the clipboard itself, D35), or Save on the password he chose
+        (KAN-838). `key` names what the page sent; `reply` names what goes back: a message, or the password he
+        asked for. The line printed never holds a password."""
         if not self._from_window():
             return self._json(403, {"error": f"Only the Apply window may {does}."})
         try:

@@ -336,13 +336,14 @@ def test_chrome_that_never_opens_is_a_setup_error(tmp_path):
 
 def test_the_desk_copies_reveals_and_opens_with_no_click(tmp_path, monkeypatch):
     calls = []
+    monkeypatch.setattr(seed_setup.pyperclip, "copy", lambda text: calls.append((["copy"], text)))
     monkeypatch.setattr(subprocess, "run", lambda argv, **kw: calls.append((argv, kw.get("input"))))
     monkeypatch.setattr(subprocess, "Popen", lambda argv, **kw: calls.append((argv, None)))
     desk = Desk(tmp_path, Path("/Chrome"))
     desk.copy("/a/folder")
-    desk.reveal(Path("/a/folder"))
+    desk.reveal(Path("/a/folder"), "darwin")  # each OS's own way: test_each_os.py
     desk.open_chrome(EXTENSIONS_PAGE)
-    assert calls[0] == (["pbcopy"], b"/a/folder")
+    assert calls[0] == (["copy"], "/a/folder")  # pyperclip: the clipboard on every OS
     assert calls[1] == (["open", "-R", "/a/folder"], None)
     assert calls[2][0][:2] == ["/Chrome", f"--user-data-dir={tmp_path}"] and calls[2][0][-1] == EXTENSIONS_PAGE
     assert not any(a.startswith(("--remote-debugging", "--enable-automation", "--headless", "--load-extension"))
@@ -368,16 +369,26 @@ def test_the_desk_knows_the_seeds_own_chrome(tmp_path, monkeypatch):
     (seed / "SingletonLock").symlink_to(f"this-mac-{os.getpid()}")  # a live PID
     asked = []
 
-    def ps(argv, **kw):
-        asked.append(argv)
-        return SimpleNamespace(stdout=f"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome --user-data-dir={seed} --no-first-run\n")
+    def process(pid):
+        asked.append(pid)
+        return SimpleNamespace(cmdline=lambda: ["/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+                                                f"--user-data-dir={seed}", "--no-first-run"])
 
-    monkeypatch.setattr(subprocess, "run", ps)
+    monkeypatch.setattr(seed_setup.psutil, "Process", process)  # a process's arguments, on every OS
     assert Desk(seed).chrome() == os.getpid()
-    assert asked == [["ps", "-o", "command=", "-p", str(os.getpid())]]
+    assert asked == [os.getpid()]
 
 
-def test_setup_needs_branded_chrome(tmp_path, monkeypatch):
-    monkeypatch.setattr(seed_setup, "BRANDED", tmp_path / "no-chrome")
-    with pytest.raises(seed_setup.SetupError, match="no Google Chrome"):
+def test_a_clipboard_the_os_cant_reach_leaves_the_printed_path(tmp_path, monkeypatch):
+    def no_clipboard(text):
+        raise seed_setup.pyperclip.PyperclipException("no xclip, xsel or wl-copy")  # a bare Linux
+
+    monkeypatch.setattr(seed_setup.pyperclip, "copy", no_clipboard)
+    Desk(tmp_path).copy("/a/folder")  # no crash: the step's words print the path too
+
+
+@pytest.mark.parametrize("found", ["missing", None])
+def test_setup_needs_branded_chrome(tmp_path, monkeypatch, found):
+    monkeypatch.setattr(seed_setup, "BRANDED", tmp_path / "no-chrome" if found else None)  # None: the finder found none
+    with pytest.raises(seed_setup.SetupError, match="Google Chrome isn't installed"):
         seed_setup.run(tmp_path)
