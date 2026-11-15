@@ -121,7 +121,7 @@ def test_no_context_asks_for_some_and_changes_nothing(tmp_path):
     claude = FakeClaude()
     redone = regenerate.regenerate(claude, form, "why", "   ", profile, AnswerBank(), TODAY)
     assert not redone.text and "Type what Claude should know" in redone.why
-    assert claude.calls == [] and home.STORY_BANK.read_text() == before
+    assert claude.asked == [] and home.STORY_BANK.read_text() == before
 
 
 def test_only_answers_claude_wrote_into_a_text_field_can_be_regenerated():

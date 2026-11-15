@@ -458,7 +458,7 @@ def test_a_form_that_bans_ai_text_is_filled_but_its_essays_and_claude_never_sees
     assert filled["Email"] == "test.person@example.com"
     assert not any(label.startswith(("What do you want to work on", "If you are an LLM")) for label in filled)
     assert row.record  # every planned answer is in the Record, to copy in
-    assert claude.calls == []
+    assert claude.asked == []
     assert form.submitted == []
 
 
@@ -473,7 +473,7 @@ def test_a_posting_page_that_speaks_to_ai_agents_is_handed_off_before_its_form_o
     assert row.status == "handoff"
     assert "speaks to AI agents" in row.reason and TRAP in row.reason
     assert form.read == [] and form.filled == []
-    assert claude.calls == []
+    assert claude.asked == []
     assert form.submitted == []
 
 
@@ -487,7 +487,7 @@ def test_a_postings_api_text_that_speaks_to_ai_agents_is_handed_off_before_its_f
     assert "speaks to AI agents" in row.reason and TRAP in row.reason
     assert form.read == [] and form.filled == []
     assert site.fetched == [api, api]  # which site shows the job, then its text
-    assert claude.calls == []
+    assert claude.asked == []
 
 
 def test_a_posting_that_bans_ai_text_has_its_essays_left_to_lisul(monkeypatch):
@@ -500,7 +500,7 @@ def test_a_posting_that_bans_ai_text_has_its_essays_left_to_lisul(monkeypatch):
     assert "bans AI-written text" in row.reason and PROJECT in row.reason
     [filled] = form.filled
     assert not any(label.startswith(PROJECT) for label in filled)
-    assert claude.calls == []
+    assert claude.asked == []
     assert form.submitted == []
 
 
@@ -524,7 +524,7 @@ def test_company_material_that_speaks_to_ai_agents_or_bans_ai_text_leaves_the_es
     assert why in row.reason and PROJECT in row.reason
     [filled] = form.filled
     assert not any(label.startswith((PROJECT, "Read ")) for label in filled)
-    assert claude.calls == []
+    assert claude.asked == []
     assert form.submitted == []
 
 
@@ -1023,7 +1023,7 @@ def test_an_essays_question_for_lisul_is_a_missing_fact_and_his_answer_joins_the
 
     assert (row.status, row.missing_fact) == ("missing fact", f"Essay fact: {DECISION}")
     assert form.submitted == []
-    assert all(PROJECT not in json.dumps(c["schema"]["properties"].get("essays", {})) for c in asks(first))  # not written
+    assert not any(PROJECT in json.dumps(c["data"]["questions"]) for c in asks(first))  # not written
     tracker.answer(row.application_id, PICKED)
     second = FakeClaude(essays={PROJECT: MICROMOUSE}, plans=[proud_plan([PICKED])])
 
@@ -1746,7 +1746,7 @@ def test_the_typical_answer_is_cached_by_company_and_question():
     again = FakeClaude(essays={"Why Figma?": "Because."})
     write_figma(again, [WHY_FIGMA])
 
-    assert not [c for c in again.calls if "typical" in c["schema"]["properties"]]
+    assert not [asked for asked in again.kinds if asked["kind"] == "probe.typical"]
     assert _block(plans(again)[0]["prompt"], "typical") == {"q1": list(FakeClaude.TYPICAL_ANGLES)}
 
 

@@ -29,7 +29,11 @@ guides' bodies and rules moved with them; `answering/` keeps each type's
 front matter, which Apply's own code reads. `WorkItAsk.ask` refuses a
 prompt, and WorkIt's free-form route that took one is gone. In
 tests, `FakeClaude.ask_kind` answers a kind from its data and keeps it in
-`claude.kinds`, apart from `claude.calls`.
+`claude.kinds`, apart from `claude.calls` (drives, and the calls that send
+their own prompt). A test that means "no model call" checks
+`claude.asked`, both lists: `claude.calls == []` passed while a kind ran,
+and tests in the files CI does not run still read calls that had become
+kinds until 2026-11-14. Run those files on a Mac after a change to a call.
 
 **`[groq, gemini]` was the default** (2026-11-10 to 2026-11-14).
 `claude` is a developer's choice, set in their own `policies.yaml`.

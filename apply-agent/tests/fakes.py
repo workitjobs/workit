@@ -591,6 +591,12 @@ class FakeClaude:
     def prompts(self) -> list[str]:
         return [call["prompt"] for call in self.calls]
 
+    @property
+    def asked(self) -> list[dict]:
+        """Every call Claude got: the ones that send their own prompt and the drives (`calls`), then WorkIt's
+        kinds (`kinds`). A test that means "no model call" checks this, since most calls are kinds now."""
+        return self.calls + self.kinds
+
     def ask_kind(self, kind: str, data: dict) -> dict:
         """One of WorkIt's kinds (D5, KAN-723), answered from its data as the call with its own prompt was.
         Kept in `kinds` as {"kind", "data", "prompt"}, apart from `calls` (the calls that send their own prompt):
