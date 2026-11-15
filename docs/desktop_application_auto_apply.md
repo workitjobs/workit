@@ -935,8 +935,24 @@ and `workit.py` (W5) and `plain/window_capture.*` (W6). `tests/test_each_os.py` 
 the Mac with paths of its own. The plain and CDP Worker tests and the
 Accounts tab's browser test pass on the Mac.
 
-Found on the way, left for F4, since each needs Windows to build and test:
+Found on the way, left for F4, since each needs Windows to build and test.
+The first three work on macOS and Linux (they are Unix's, not only the
+Mac's), so W4's search for macOS-only calls did not find them (2026-11-15);
+on Windows each one stops Apply:
 
+- **File locks.** `tracker.py`, `records.py`, `answer_bank.py`,
+  `answer_sync.py`, `batch.py`, `verify.py` and `workit.py` import `fcntl`
+  at their top, which Windows lacks, so Apply can't even start there. A
+  cross-platform lock library (such as `filelock`) does the job (W4's
+  rules).
+- **The channel between Apply and the plain Workers.** `plain/bridge.py`,
+  `plain/host.py`, `plain/mcp.py` and `plain/tools.py` use a Unix socket
+  (`AF_UNIX`, which Python lacks on Windows) in a folder named with
+  `os.getuid()`, which Windows lacks too. Windows needs a named pipe (F4's
+  table).
+- **"Is it still running?"** `into.py` checks a window's process with
+  `os.kill(pid, 0)`. On Windows that call ends the process: it would close
+  the Worker's Chrome. `psutil.pid_exists` does the job on every OS.
 - Chrome's profile lock. `browsers.chrome_pid` reads the profile's
   `SingletonLock`, a link that Chrome makes on macOS and Linux only; on
   Windows a profile has a `lockfile`, so a Worker's "in use" check and its
@@ -1463,8 +1479,9 @@ training, and `drive` (F1) needs the larger limits.
 
 Linux joined the port on 2026-11-14 (D10). W4 writes each per-OS entry
 for all three systems; F4 builds, packages and tests the app on Windows
-and Linux. W4's "Found on the way" list names what W4 left for it (Chrome's
-profile lock, signals, the hosts' wrappers, the seed guide's words).
+and Linux. W4's "Found on the way" list names what W4 left for it (file
+locks, the plain Workers' channel, the process check, Chrome's profile
+lock, signals, the hosts' wrappers, the seed guide's words).
 
 | Part | macOS | Windows | Linux |
 |---|---|---|---|
