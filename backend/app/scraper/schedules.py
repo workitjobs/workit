@@ -1,12 +1,15 @@
 """Board catalog sync, due-schedule selection and read advancement.
 
 Reimplements store.py's board health logic (rest_for, consecutive_failures)
-in Postgres, using the same constants.
+in Postgres, using the same constants. Adds quiet board stagger and fingerprint
+rest (KAN-722).
 """
 
 from __future__ import annotations
 
 import csv
+import time
+import zlib
 from datetime import timedelta
 from pathlib import Path
 
@@ -23,6 +26,17 @@ REST_AFTER = 3
 REST_FIRST = timedelta(hours=6)
 REST_LONGEST = timedelta(hours=24)
 
+# Quiet board stagger: boards with no kept postings are read 1 in QUIET_EVERY
+# runs, staggered by CRC32 of the board key over the run's slot.
+QUIET_EVERY = 3
+QUIET_LONGEST = timedelta(days=1)
+RUN_EVERY = timedelta(hours=3)
+
+# Fingerprint rest: hot boards whose content hasn't changed rest after
+# the first unchanged read, doubling each time.
+FINGERPRINT_FIRST = timedelta(hours=4)
+FINGERPRINT_LONGEST = timedelta(hours=24)
+
 BOARDS_CSV = Path(__file__).resolve().parents[3] / "scraper" / "boards.csv"
 
 
@@ -31,6 +45,34 @@ def rest_for(failures: int) -> timedelta | None:
     if failures < REST_AFTER:
         return None
     return min(REST_FIRST * 2 ** (failures - REST_AFTER), REST_LONGEST)
+
+
+def fingerprint_rest(unchanged_reads: int) -> timedelta | None:
+    """How long a board unchanged `unchanged_reads` times rests."""
+    if unchanged_reads < 1:
+        return None
+    return min(FINGERPRINT_FIRST * 2 ** (unchanged_reads - 1), FINGERPRINT_LONGEST)
+
+
+def filter_quiet(schedules: list, *, full: bool = False) -> list:
+    """Drop quiet boards not due this slot. Pure function on rows.
+
+    A board is kept if any of: full mode, never read, has_kept (hot),
+    last read > QUIET_LONGEST ago, or its CRC32 slot matches this run's slot.
+    """
+    if full:
+        return list(schedules)
+    now = time.time()
+    slot = int(now // RUN_EVERY.total_seconds())
+    quiet_longest_s = QUIET_LONGEST.total_seconds()
+    return [
+        row
+        for row in schedules
+        if row.last_read_at is None
+        or row.has_kept
+        or (now - row.last_read_at.timestamp()) > quiet_longest_s
+        or zlib.crc32(f"{row.ats}/{row.token}".encode()) % QUIET_EVERY == slot % QUIET_EVERY
+    ]
 
 
 async def sync_catalog(conn: AsyncConnection, boards_csv: Path = BOARDS_CSV) -> int:
@@ -47,13 +89,19 @@ async def sync_catalog(conn: AsyncConnection, boards_csv: Path = BOARDS_CSV) -> 
     return sum(1 for row in result if row[0])
 
 
-async def select_due(conn: AsyncConnection) -> list:
-    """Schedules due for a read: enabled, not resting."""
+async def select_due(conn: AsyncConnection, *, full: bool = False) -> list:
+    """Schedules due for a read: enabled, not health-resting, not fingerprint-resting."""
     stmt = select(_schedules).where(
         _schedules.c.enabled.is_(True),
         _schedules.c.rest_until.is_(None) | (_schedules.c.rest_until <= text("now()")),
     )
-    return (await conn.execute(stmt)).all()
+    if not full:
+        stmt = stmt.where(
+            _schedules.c.fingerprint_until.is_(None)
+            | (_schedules.c.fingerprint_until <= text("now()"))
+        )
+    rows = (await conn.execute(stmt)).all()
+    return filter_quiet(rows, full=full)
 
 
 async def advance_reads(
@@ -76,6 +124,41 @@ async def advance_reads(
     )
 
 
+async def advance_fingerprint(
+    conn: AsyncConnection, schedule_id, *, new_fingerprint: str
+) -> None:
+    """Update fingerprint state after a hot board read. Single UPDATE, no prior read.
+
+    Sets has_kept sticky to True. If the fingerprint is unchanged, increments
+    unchanged_reads and sets fingerprint_until. If changed, resets both.
+    The CASE reads unchanged_reads before the UPDATE sets the new value,
+    so the exponent is the pre-increment count.
+    """
+    await conn.execute(
+        update(_schedules)
+        .where(_schedules.c.id == schedule_id)
+        .values(
+            fingerprint=new_fingerprint,
+            has_kept=text("true"),
+            unchanged_reads=text(
+                "CASE WHEN fingerprint = :fp"
+                " THEN unchanged_reads + 1 ELSE 0 END"
+            ),
+            fingerprint_until=text(
+                "CASE WHEN fingerprint = :fp AND has_kept"
+                " THEN now() + make_interval("
+                "   secs => LEAST("
+                f"     {int(FINGERPRINT_FIRST.total_seconds())}"
+                "       * pow(2, unchanged_reads),"
+                f"     {int(FINGERPRINT_LONGEST.total_seconds())}"
+                "   ))"
+                " ELSE NULL END"
+            ),
+        ),
+        {"fp": new_fingerprint},
+    )
+
+
 async def record_missing(conn: AsyncConnection, schedule_id) -> None:
     """A board said 'no such board'. First time: note it. Second: treat as a
     complete read with nothing open (same logic as store.update)."""
@@ -94,7 +177,7 @@ async def record_missing(conn: AsyncConnection, schedule_id) -> None:
         )
     else:
         # Second miss: count as complete read with nothing listed.
-        # Clear failures and rest, same as advance_reads.
+        # Clear failures, rest and fingerprint state.
         await conn.execute(
             update(_schedules)
             .where(_schedules.c.id == schedule_id)
@@ -104,6 +187,9 @@ async def record_missing(conn: AsyncConnection, schedule_id) -> None:
                 missing_at=None,
                 consecutive_failures=0,
                 rest_until=None,
+                fingerprint=None,
+                unchanged_reads=0,
+                fingerprint_until=None,
             )
         )
 
@@ -124,10 +210,11 @@ async def record_failure(conn: AsyncConnection, schedule_id) -> None:
         .where(_schedules.c.id == schedule_id)
         .values(
             consecutive_failures=new_failures,
-            rest_until=text(f"now() + interval '{int(rest.total_seconds())} seconds'")
+            rest_until=text("now() + make_interval(secs => :rest_secs)")
             if rest
             else None,
-        )
+        ),
+        {"rest_secs": rest.total_seconds()} if rest else {},
     )
 
 
