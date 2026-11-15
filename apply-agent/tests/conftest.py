@@ -42,6 +42,22 @@ from keyring.backends import null
 
 keyring.set_keyring(null.Keyring())
 
+# A plain Worker's Chrome a test starts closes when the test process ends, even one a timeout or a stopped task
+# killed before its fixtures could stop it (chrome_reaper). Every launch goes through start_in_background.
+import chrome_reaper
+
+from apply.plain import launcher as _launcher
+
+_start_in_background = _launcher.start_in_background
+
+
+def _started_and_watched(arguments, profile, log, *args, **kwargs):
+    chrome_reaper.watch(profile)  # before it starts: killed while it starts, the run still leaves none
+    return _start_in_background(arguments, profile, log, *args, **kwargs)
+
+
+_launcher.start_in_background = _started_and_watched
+
 from fake_lever import FakeLeverServer
 from fakes import FakeJobServer
 
