@@ -50,12 +50,12 @@ def smartrecruiters(
         url = f"{listing_url('smartrecruiters', token)}?limit={SR_PAGE}&offset={offset}"
         if not first:
             pace(url)
-        first = False
         payload = fetch._get_json(url)
         assert isinstance(payload, dict)
         total = int(payload.get("totalFound") or 0)
         if first and total > SR_MAX:
             raise TooLarge(f"{token}: {total} postings")
+        first = False
         content = payload.get("content") or []
         for row in content:
             loc = row.get("location") or {}
