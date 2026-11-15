@@ -702,8 +702,9 @@ const action = (item) => {
                                            onclick: () => { tab('workers'); control(k); }});
     const chrome = (main) => ctx.show ? make('button', {className: main ? 'primary' : '', textContent: 'Open in Chrome',
                                                         title: 'Its own browser window', onclick: () => openChrome(k)}) : null;
-    // A sign-in wants the real window: password autofill, Sign in with Google, a code by text.
-    return item.kind === 'needs sign-in' && ctx.show ? [chrome(true), here(false)] : [here(true), chrome(false)];
+    // A sign-in wants the real window: password autofill, Sign in with Google, a code by text. So does a captcha:
+    // it takes no click the tile sends, and Apply never makes one look like a person's (KAN-855). All else is Fix here.
+    return ['needs sign-in', 'captcha'].includes(item.kind) && ctx.show ? [chrome(true), here(false)] : [here(true), chrome(false)];
   }
   if (item.kind === 'needs sign-in' && item.posting_url) return copyButton('Copy sign-in command', `apply sign-in ${item.posting_url}`);
   if (item.posting_url) return make('a', {className: 'button', href: item.posting_url, target: '_blank', textContent: 'Open the posting ↗'});
@@ -784,7 +785,8 @@ const answerBox = (item, question) => {
   const wantsFile = choice && choice.kind === 'file', need = (item.required || {})[question];
   if (wantsFile) return fileBox(item, question, need);
   const picks = () => picked.get(key) || [];
-  const box = make('input', {className: 'answer', value: typed.get(key) || '', maxLength: 20000,
+  // An answer Apply planned that the form didn't take (KAN-855): there to save as it is, or to change first.
+  const box = make('input', {className: 'answer', value: typed.get(key) || (item.planned || {})[question] || '', maxLength: 20000,
                              placeholder: choice ? 'Or write your own answer (used instead of the options)' : 'Your answer',
                              oninput: () => typed.set(key, box.value)});
   box.dataset.key = key;

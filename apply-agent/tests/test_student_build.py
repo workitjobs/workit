@@ -8,20 +8,29 @@ No browser: in CI.
 
 import importlib.util
 import json
-import os
 import subprocess
 import sys
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
-from apply import brief, build, orchestrator, profile, rehearsal, student
-from apply.adapters import ClaudeError
+from apply import (
+    brief,
+    build,
+    code_box,
+    fill_engine,
+    orchestrator,
+    profile,
+    rehearsal,
+    student,
+    upload_origin,
+)
+from apply.adapters import ClaudeError, SetupError
 from apply.ask_model import live_claude
 from apply.fillers import FILLERS
-from apply.model import Posting, Status
+from apply.model import FillError, Handoff, Posting, Question, Status
 from apply.profile import (
     load_policies as real_policies,  # before conftest's fixture strips the switches
 )
@@ -29,8 +38,8 @@ from apply.worker import Result
 
 # In a new process, so nothing a test imported counts. It runs what the app runs first: its adapters, and a plain
 # Worker's first page call (which loaded Ask Claude and Gmail, KAN-723). As conftest does, it blocks the network and
-# gives keyring its null backend; APPLY_HOME is conftest's. Its hosted models get stand-in keys (KEYS): an environment
-# variable comes before the Keychain and the checkout's .env, so no real key is read, and CI, which has none, passes.
+# gives keyring its null backend; APPLY_HOME is conftest's. It holds no model key, nor reads one: the app's calls go to
+# WorkIt's Model route (ask_model: workit), and CI has no key.
 LOADED = """import json, sys
 from pathlib import Path
 from apply import build
@@ -47,7 +56,6 @@ from apply.profile import ApplicantProfile
 student.adapters(ApplicantProfile.load(Path(sys.argv[1])))
 fixed.functions()
 print(json.dumps({"loaded": sorted(m for m in sys.modules if m in build.DEVELOPER), "reached": network_block.end()}))"""
-KEYS = {"GROQ_API_KEY": "not-a-key", "GEMINI_API_KEY": "not-a-key"}
 
 
 @pytest.fixture
@@ -60,7 +68,7 @@ def test_the_student_path_loads_no_developer_module(tmp_path):
     imports, or loads as it runs, would fail in the app."""
     (tmp_path / "applicant-profile.yaml").write_text("identity: {}\n")
     run = subprocess.run([sys.executable, "-c", LOADED, str(tmp_path / "applicant-profile.yaml"), str(Path(__file__).parent)],
-                         capture_output=True, text=True, env=os.environ | KEYS)
+                         capture_output=True, text=True)
     assert run.returncode == 0, run.stderr
     assert json.loads(run.stdout) == {"loaded": [], "reached": []}, (
         "the Student build's path loads a developer module (apply.build.DEVELOPER), or reached the network: import it "
@@ -115,9 +123,94 @@ def by_filler(url: str):
     return given[0] if given else result
 
 
-def test_a_job_system_with_no_filler_is_a_handoff_not_claude_fill(student_build):
-    result = by_filler("https://careers.example.com/jobs/1")
-    assert result.status == Status.HANDOFF and "WorkIt Auto Apply can't fill" in result.reason
+def test_a_job_system_with_no_filler_is_held_for_the_student_not_claude_fill(student_build):
+    """KAN-855: its form opens and is handed over whole; the student fills it from the Apply window (Fix here)."""
+    filler = by_filler("https://careers.example.com/jobs/1")
+    assert isinstance(filler, orchestrator.ForTheStudent)
+    assert filler.question_set("https://careers.example.com/jobs/1", SimpleNamespace()) == []  # nothing read, no model
+    with pytest.raises(Handoff, match="can't fill this job site's forms yet: press Fix here and fill it in"):
+        filler.fill(SimpleNamespace(), [], {})  # touches nothing on the page
+    with pytest.raises(SetupError):
+        filler.submit(SimpleNamespace())
+
+
+@pytest.fixture
+def code_field(monkeypatch):
+    """The held page's code-like boxes (apply.code_box): the form's own zip box; `came()` adds a code field."""
+    shown = [("0|zip", "box")]
+    monkeypatch.setattr(code_box, "boxes", lambda page: list(shown))
+    monkeypatch.setattr(code_box, "new_boxes", lambda page, form: [b for b in shown if b[0] not in form])
+    return SimpleNamespace(came=lambda: shown.append(("0|code", "box")))
+
+
+def test_the_student_types_an_emailed_code_into_the_form_in_the_app(student_build, code_field):
+    """KAN-855 (D9): no mail is read. Once a code field comes after the student's Submit, Needs you says so, once."""
+    told = []
+    watch = rehearsal._email_code(SimpleNamespace(), "greenhouse", lambda status, why: told.append((status, why)))
+    watch.tick(None)
+    code_field.came()
+    watch.tick(None)
+    assert told == []  # a code field with no press of the student's before it is the form's
+    watch.pressed("Submit")
+    watch.tick(None)
+    watch.tick(None)
+    assert told == [("needs code", rehearsal.TYPE_THE_CODE)]
+    assert "press Fix here and type it" in rehearsal.TYPE_THE_CODE
+
+
+def test_a_developer_checkouts_emailed_code_finds_its_field_through_code_box(code_field):
+    """email_code.EmailCode reads the field from apply.code_box too. Its tick once named a local `boxes`, which hid
+    the function and failed every held page's first turn (KAN-855): no browser here, so CI sees it."""
+    told = []
+    watch = rehearsal._email_code(SimpleNamespace(mailbox=SimpleNamespace(unavailable=lambda: "no Gmail here."),
+                                                  clock=SimpleNamespace(now=lambda: datetime(2026, 11, 15))),
+                                  "greenhouse", lambda status, why: told.append(status))
+    watch.tick(None)
+    watch.pressed("Submit")
+    code_field.came()
+    watch.tick(None)
+    assert told == ["needs code"]
+
+
+class Frame:
+    def __init__(self, url: str, shows: str | None):
+        self.url, self.shows = url, shows
+
+
+def held(url: str, q: Question) -> SimpleNamespace:
+    return SimpleNamespace(posting=posting(url), questions=(q,), where={})
+
+
+def test_an_answer_from_the_app_goes_in_by_the_fill_engine_only_on_the_forms_own_site(monkeypatch):
+    """KAN-855: no Rescue. The Fill engine fills the one field, in the frame that shows it. A captcha's frame never
+    gets Apply's code, and another site's frame (a hostile page can hold one) never gets the answer (KAN-795's rule,
+    upload_origin.frame_may_upload: here the form's own site is acme.example and Greenhouse's embedded form)."""
+    q, tried = Question("q1", "Pronouns", "text"), []
+
+    def fill(frame, site, questions, answers):
+        tried.append(frame.url)
+        if frame.shows is None:
+            raise FillError("Pronouns: not in this frame")
+        return {q.name: frame.shows}
+    monkeypatch.setattr(fill_engine, "fill", fill)
+    own = ("https://acme.example/", "https://boards.greenhouse.io/embed/")
+    monkeypatch.setattr(upload_origin, "frame_may_upload", lambda frame: frame.url.startswith(own))
+    page = SimpleNamespace(main_frame=Frame("https://acme.example/apply", None))
+    page.frames = [page.main_frame, Frame("https://www.google.com/recaptcha/api2/anchor", "he/him"),
+                   Frame("https://evil.example/frame", "he/him"), Frame("https://boards.greenhouse.io/embed/job_app", "he/him")]
+    form = held("https://job-boards.greenhouse.io/acme/jobs/1", q)
+    assert rehearsal._engine_fill(page, form, "Pronouns", "he/him")
+    assert tried == ["https://acme.example/apply", "https://boards.greenhouse.io/embed/job_app"]
+    assert not rehearsal._engine_fill(page, form, "Pronouns", "she/her")  # the field shows another answer
+    assert not rehearsal._engine_fill(page, form, "Not on this form", "x")
+    unknown = held("https://acme.taleo.net/careersection/2/jobdetail.ftl?job=1", q)
+    assert not rehearsal._engine_fill(page, unknown, "Pronouns", "he/him")  # a job system the engine doesn't know
+
+
+def test_a_field_the_form_didnt_take_starts_its_needs_you_box_with_the_planned_answer():
+    planned = rehearsal._planned((("Pronouns", "he/him"), ("Languages", ["English", "Sinhala"]),
+                                  ("Transcript", Path("/tmp/transcript.pdf"))))
+    assert planned == {"Pronouns": "he/him", "Languages": "English; Sinhala"}  # a file: the window's file box
 
 
 def test_a_filler_gets_no_rescue(student_build, monkeypatch):
@@ -127,8 +220,8 @@ def test_a_filler_gets_no_rescue(student_build, monkeypatch):
     assert by_filler("https://acme.wd1.myworkdayjobs.com/careers/job/1").rescue is not None
 
 
-def test_no_emailed_code_no_ask_claude_no_repair_request(student_build):
-    assert rehearsal._email_code(SimpleNamespace(), "greenhouse", lambda status, why: None) is None
+def test_no_gmail_no_ask_claude_no_repair_request(student_build):
+    assert isinstance(rehearsal._email_code(SimpleNamespace(), "greenhouse", lambda status, why: None), code_box.TypeTheCode)
     board = SimpleNamespace(updates=[], update=lambda n, **fields: board.updates.append(fields),
                             asks=lambda n: [{"id": "1", "message": "fix the email field"}])
     asker = rehearsal._Ask(lambda: None, SimpleNamespace(board=board), None, 0, print)

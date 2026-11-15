@@ -275,6 +275,11 @@ class WorkerBrowsers:
         pid = chrome_pid(self._profiles / f"worker-{worker + 1}")
         return bool(pid) and (KEEPER.bring(pid) or activate(self.endpoint(worker)))
 
+    def in_front(self, worker: int) -> bool:
+        """Whether Worker `worker`'s Chrome window is the front app: Lisul is in it (KAN-855)."""
+        pid = None if self._headless else chrome_pid(self._profiles / f"worker-{worker + 1}")
+        return bool(pid) and KEEPER.front() == pid
+
     def endpoint(self, worker: int) -> str | None:
         """Where another client (the dashboard) can reach Worker `worker`'s
         browser over CDP, while it is open."""

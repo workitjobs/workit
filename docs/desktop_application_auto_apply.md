@@ -856,6 +856,28 @@ share of fields filled right is measured against Claude fill's, and
 every field it can't place is a clear Needs-you item or Handoff. The
 generic Filler's clicks pass the adversarial review.
 
+**Built (2026-11-15, step 1, KAN-855: Handoffs first).** In the Student
+build, what Apply can't fill is the student's, and they do it in the
+Apply window, never in the Worker's own Chrome window. Fix here gives
+them the form's live view, which takes their clicks, keys, picks, files
+and the form's own Submit. Only a captcha takes the Worker's window:
+the tile's clicks are synthetic, so a captcha item's first button is
+Open in Chrome, and once Apply sees it done the app comes back to the
+front 2 seconds later, if that window is still in front. With no Screen Recording permission the view is about
+two frames a second, so W5's first run asks for the permission.
+
+| Case | Student build now |
+|---|---|
+| A job system with no Filler | The form opens and is held, nothing filled (`orchestrator.ForTheStudent`); the student fills and sends it through Fix here |
+| A field a Filler fails on | A Needs-you item whose box starts with the planned answer; the held page tries it once more by the Fill engine |
+| An answer typed in the window | The Fill engine puts it in its field (`rehearsal._engine_fill`), no model; else "press Fix here and type it on the form in this window" |
+| An emailed code after Submit | No mail read: once the code field comes, Needs you says to type the code (`code_box.TypeTheCode`) |
+
+`docs/held-forms.md` has the rules; `tests/test_student_build.py` (CI)
+and `tests/test_student_handoffs.py` (Chromium) test them. Left for
+step 2: the generic Filler, which fills a form with no Filler of its own
+(it waits for W1's Model route for its small questions).
+
 ### W3. What the Student build leaves out
 
 **Goal.** The Student build holds no developer part, and nothing in it
@@ -901,14 +923,14 @@ part does in the Student build:
 
 | Part | Developer checkout | Student build (until the workstream named) |
 |---|---|---|
-| A job system with no Filler | Claude fill | A Handoff: "WorkIt Auto Apply can't fill ... yet" (W2) |
-| A field a Filler fails on | Rescue | No Rescue: the Filler's own failure (W2) |
-| An answer typed in the window | Rescue fills it in place | "Type it on the page, or press Fill again" (W2) |
+| A job system with no Filler | Claude fill | Held for the student to fill through Fix here (W2 step 1); the generic Filler is W2 step 2 |
+| A field a Filler fails on | Rescue | A Needs-you item with its planned answer (W2 step 1) |
+| An answer typed in the window | Rescue fills it in place | The Fill engine fills it in place (W2 step 1) |
 | Ask Claude on a held form | On | The tile takes no message |
-| An emailed code after Submit | Gmail, typed by script | The student types it (W2's Needs-you item) |
+| An emailed code after Submit | Gmail, typed by script | A Needs-you item: the student types it through Fix here (W2 step 1) |
 | The company brief | Researched with `claude -p` | A kept brief only, never researched (W9) |
 | Repair requests, notifications, phone push | Kept, shown, pushed | None |
-| `ask_model` | `policies.yaml` | Fixed `[groq, gemini]` (W1 makes it `workit`) |
+| `ask_model` | `policies.yaml` | Fixed `workit`, WorkIt's Model route (W1) |
 
 Left: W8 passes `--nofollow-import-to` for each module in `DEVELOPER`
 and compiles from `apply.student`, and the build's smoke test fills one

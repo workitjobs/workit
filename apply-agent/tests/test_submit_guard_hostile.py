@@ -1522,6 +1522,159 @@ def test_fill_again_opens_the_form_guarded_before_its_first_load(tmp_path):
         assert [p for p in sent if p.endswith("/apply") or "submit" in p] == []
 
 
+# KAN-855's review: Apply fills a held page's field (an answer from the window by the Fill engine in the Student build,
+# a Rescue in a checkout, a field the form didn't take tried once more) while the page is lifted, the student's. A
+# field that sends the application from its own input handler, the moment Apply types in it, sent it then.
+SENDS_AS_IT_IS_FILLED = f"""<title>Apply</title><form id=app method=post action="{FINAL}">
+    <label>Pronouns <input id=pronouns name=pronouns oninput="sendAll(); document.getElementById('app').submit()"></label>
+    <button id=b>Submit</button></form>{SEND_ALL}"""
+
+
+def test_a_field_that_sends_as_apply_fills_it_on_a_held_page_sends_nothing(monkeypatch):
+    from apply import build
+    from apply.rehearsal import _Kept
+
+    monkeypatch.setattr(build, "STUDENT", True)  # the Fill engine's fill of an answer (a checkout's Rescue guards itself)
+
+    class Opens:  # the held page is cdp()'s, guarded as a rehearsal guards it
+        @contextmanager
+        def open(self, url, worker=0):
+            yield page
+
+    with cdp({START: SENDS_AS_IT_IS_FILLED}) as (page, _, site):
+        kept, release, given, filled = _Kept(Opens(), 0), threading.Event(), [("Pronouns", "he/him")], []
+
+        def fill(on, question, answer):  # Apply typing the answer into its field, as the Fill engine does
+            on.locator("#pronouns").fill(answer)
+            filled.append(answer)
+            _settle(on, 800)
+            release.set()
+
+        threading.Timer(15, release.set).start()  # never hangs
+        with kept.open(HOST + START):
+            kept.hold(release, answers=lambda: [given.pop()] if given else [], fill=fill)
+        assert filled == ["he/him"] and site.applications() == []  # both guards were on while Apply typed
+        page.locator("#pronouns").fill("she/her")  # the page lifted, as the hold left it: the page does send
+        _settle(page, 800)
+        assert site.applications()
+
+
+class _Holds:
+    """cdp()'s page as a rehearsal's one job site: the page _Kept holds (rehearsal._Kept)."""
+
+    def __init__(self, page):
+        self.page = page
+
+    @contextmanager
+    def open(self, url, worker=0):
+        yield self.page
+
+
+# KAN-855's second review: a pop-up the student opened from the lifted page (Fix here shows no pop-up) takes no guard
+# (KAN-796), and the field Apply typed in on the held page told it to send. The Student build closes the held page's
+# pop-ups before Apply acts on it (rehearsal._close_pop_ups).
+POP = "/acme/jobs/123/help"
+OPENS_A_HELPER = {
+    START: f"""<title>Apply</title><form id=app method=post action="{FINAL}">
+      <label>Pronouns <input id=pronouns name=pronouns oninput="window.pop && window.pop.postMessage('go', '*')"></label>
+      <button type=button id=help onclick="window.pop = window.open('{POP}', 'helper')">Help</button>
+      <button id=b>Submit</button></form>{SEND_ALL}""",
+    POP: f"""<title>Help</title><p>Help</p>{SEND_ALL}<script>addEventListener('message', () => sendAll());</script>""",
+}
+
+
+def test_a_pop_up_the_student_opened_sends_nothing_while_apply_fills_the_held_page(monkeypatch):
+    from apply import build
+    from apply.rehearsal import _Kept
+
+    monkeypatch.setattr(build, "STUDENT", True)
+    with cdp(OPENS_A_HELPER) as (page, _, site):
+        kept, release, filled, opened, given = _Kept(_Holds(page), 0), threading.Event(), [], [], []
+
+        def tend(on):  # the student, on the lifted page, opens its Help pop-up, then answers in the window
+            if not opened:
+                with on.context.expect_page() as popup:
+                    on.click("#help")
+                opened.append(popup.value)
+                popup.value.wait_for_load_state()
+                _settle(on, 300)
+                given.append(("Pronouns", "he/him"))
+
+        def fill(on, question, answer):
+            on.locator("#pronouns").fill(answer)
+            filled.append(answer)
+            _settle(on, 800)
+            release.set()
+
+        threading.Timer(20, release.set).start()
+        with kept.open(HOST + START):
+            kept.hold(release, answers=lambda: [given.pop()] if given else [], fill=fill, tend=tend)
+        assert filled == ["he/him"] and site.applications() == []
+        kept.close()
+
+
+# KAN-855's second review: Add context and regenerate wrote its new answer on the lifted page, and Go to question
+# focused a field there, each with both guards off. A field whose own input or focus handler sends, sent.
+REGENERATED_SENDS = f"""<title>Apply</title><form id=app method=post action="{FINAL}">
+    <label>Why Acme? <textarea id=essay name=essay oninput="sendAll(); document.getElementById('app').submit()">old</textarea></label>
+    <button id=b>Submit</button></form>{SEND_ALL}"""
+FOCUSED_SENDS = f"""<title>Apply</title><form id=app method=post action="{FINAL}">
+    <label for=pronouns>Pronouns</label><input id=pronouns name=pronouns
+      onfocus="sendAll(); document.getElementById('app').submit()">
+    <button id=b>Submit</button></form>{SEND_ALL}"""
+
+
+def test_a_regenerated_answer_written_on_a_held_page_sends_nothing():
+    from apply import regenerate
+    from apply.rehearsal import _Kept
+
+    class Redo:  # one Regenerate press, and _Redo's write of the new answer (regenerate.done)
+        def __init__(self):
+            self.pressed, self.wrote = [("essay", "lead with the club")], []
+
+        def written(self):
+            return [{"name": "essay", "text": "old"}]
+
+        def asked(self):
+            out, self.pressed = self.pressed, []
+            return out
+
+        def __call__(self, on, name, context):
+            self.wrote.append(regenerate.done(on, name, "A new answer", "note", True))
+            _settle(on, 800)
+            release.set()
+
+    with cdp({START: REGENERATED_SENDS}) as (page, _, site):
+        kept, release, redo = _Kept(_Holds(page), 0), threading.Event(), Redo()
+        threading.Timer(15, release.set).start()
+        with kept.open(HOST + START):
+            kept.hold(release, redo=redo)
+        assert redo.wrote == ["A new answer"] and site.applications() == []
+        kept.close()
+
+
+def test_go_to_question_on_a_held_page_sends_nothing():
+    from apply import on_page
+    from apply.model import Question
+    from apply.rehearsal import _Kept
+
+    with cdp({START: FOCUSED_SENDS}) as (page, _, site):
+        kept, release, said = _Kept(_Holds(page), 0), threading.Event(), []
+
+        def tend(on):  # the window's Go to question, as the rehearsal's tend runs it: under the hold's acting()
+            if not said:
+                with kept.acting():
+                    said.append(on_page.go_to(on, Question("pronouns", "Pronouns", "text")))
+                _settle(on, 800)
+                release.set()
+
+        threading.Timer(15, release.set).start()
+        with kept.open(HOST + START):
+            kept.hold(release, tend=tend)
+        assert said == [""] and site.applications() == []
+        kept.close()
+
+
 # --- plain: a plain Worker on Chrome for Testing (no CDP), the same pages and paths
 
 # One test process takes every plain-Worker case, one at a time, beside the CDP cases in the others
