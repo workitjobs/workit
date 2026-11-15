@@ -456,8 +456,8 @@ engine's `test/planner.spec.ts` has the planner's cases.
 
 ## An answer from the window, on a held form (`rehearsal._fill_answer`, KAN-686)
 
-Lisul's answer to a held form's question is filled by a Rescue: Claude
-puts that one answer in its field, under the drive guard. It tries the
+In a Developer checkout, Lisul's answer to a held form's question is filled by a Rescue: Claude
+puts that one answer in its field, under the drive guard (the Student build has no Rescue: below). It tries the
 step showing first. A form in steps may have saved an earlier step
 without it (TAL.net goes on past a required blank), so on a miss the
 Rescue tries once more with `elsewhere`, the step the form is held on
@@ -468,6 +468,41 @@ guard still blocks a button that sends the application. When the form
 ends on another step, the run says which one, so Lisul goes back to it.
 
 **Tests.** `tests/test_rescue_elsewhere.py` (in CI).
+
+## The Student build: what Apply can't do is the student's, in the Apply window (KAN-855)
+
+WorkIt Auto Apply has no Claude fill and no Rescue (`apply.build`). Where a
+Developer checkout would let a model drive the page, the student does it
+from the Apply window: Fix here gives them the form's live view, where their
+clicks, keys, picks and files go to the page, and its own Submit is theirs to
+press (`docs/plain-workers/guide.md`, Fix from the window). They never go to the
+Worker's own Chrome window, but for a captcha. Each message says so
+(`orchestrator.FIX_HERE`: "press Fix here and ... on the form in this window").
+
+- **A job system with no Filler.** `orchestrator.ForTheStudent` opens the form,
+  reads no question and fills nothing: its `fill` raises the Handoff
+  `NO_FILLER`, so the form is held as a paused one. Resume hands it over again.
+- **A field its Filler fails on.** The rehearsal leaves it out and goes on, as in
+  a checkout (`_Planned.skip`). Its label and planned answer then join the
+  Result's `left_behind`, so it is a Needs-you item. The held page tries it
+  once more, by the Fill engine, and the window's box for it starts with the
+  planned answer (the tile's `planned`, `rehearsal._planned`), to save as it is
+  or to change. A file's box starts empty.
+- **An answer from the window.** `rehearsal._engine_fill` puts it in with the
+  Fill engine, as it filled the form, in the frame that shows the field (never
+  a captcha's frame), and reads it back. Where the form has no such field on
+  its step, or the engine doesn't know its job system, the run says to type
+  it on the form (Fix here).
+- **An emailed code after Submit.** No mail is read (D9).
+  `code_box.TypeTheCode` watches the held page as `email_code.EmailCode` does,
+  and once the code field comes, Needs you says "needs code"
+  (`rehearsal.TYPE_THE_CODE`). Both find the field through `apply.code_box`.
+- **A captcha.** The tile's clicks are synthetic, and a captcha takes none, so a
+  captcha item's first button is Open in Chrome, as a sign-in's is. Apply never
+  makes a relayed click look like a person's (the bot rule).
+
+**Tests.** `tests/test_student_build.py` (in CI) and
+`tests/test_student_handoffs.py` (Chromium, on the fake job sites).
 
 ## Needs you on the page: Go to question, and answers typed there (KAN-600)
 
