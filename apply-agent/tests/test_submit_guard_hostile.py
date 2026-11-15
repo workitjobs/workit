@@ -536,6 +536,13 @@ _MAKES = {
         () => Reflect.construct(Worker, [blob()]), () => Worker.call({}, blob())]""",
 }
 PAGES |= {name: {START: _WORKERS.replace("@MAKE@", make), WORKER_JS: WORKER_CODE} for name, make in _MAKES.items()}
+# A worker's timers keep real time on Playwright's clock (the adversarial review of #583): this page's post came 4 s
+# after the click on real time and never on the clock, where its case's 5 s wait took 1.6 s. It waits in real time
+# (on_clock), as every page that names a worker does.
+PAGES["a Next whose worker posts the application 4 s later"] = {START: f"""<title>Apply</title><form><input name=first
+    value=Test><button id=b type=button>Next</button></form><script>document.getElementById('b').addEventListener('click',
+    () => new Worker(URL.createObjectURL(new Blob([
+      "setTimeout(() => fetch('{HOST}{FINAL}', {{method: 'POST', body: 'first=Test'}}).catch(() => {{}}), 4000)"]))));</script>"""}
 # A frame of the page's own site at reCAPTCHA's path (captcha.PATHS), which the guard took for a captcha's frame and
 # left unguarded: the page posted through the frame's fetch and its Worker (KAN-791's review).
 # The review of #551: a frame of another site the page picks, at reCAPTCHA's path, ran no guard either. Its own script
@@ -928,8 +935,9 @@ def _timers(html: str) -> list:
 
 # How long a case waits after the press for the page's own late send (KAN-780, 2026-11-14): its latest timer and a
 # second more, and 1.5 s for a page with none, where every case once waited 3 s. Unguarded, 78 of the 91 pages sent
-# within 0.5 s of the click. A page's control waits as long, so a page that sends later than its wait on the runner
-# fails its control, never passes a guarded case unseen. A timer whose delay is no number says its latest here.
+# within 0.5 s of the click. A page's control waits as long, on the same clock (_run_out), so a page that sends later
+# than its wait fails its control (CONTROLS_ON_PRS on PRs, every control nightly), never passes a guarded case unseen.
+# A timer whose delay is no number says its latest here.
 LATEST = {"a form sent by script after a delay": 2500}
 # The session pages that send only after the case's 3 s once ended (3.5 s, 10 s, 60 s, 8 s, the next mouse move): in a
 # matrix they were the plain session dialog's pair again, since the guard is on throughout. Their own scenario, a
@@ -998,6 +1006,43 @@ def _settle(page, ms=3000) -> None:
         pass  # the page went on to another document
 
 
+# A CDP matrix case's page, and its control's, keeps time on Playwright's clock (cdp(clock=True), KAN-780): it flows
+# as unfaked while the path presses; then the case moves the page's clock through the wait in 250 ms steps, each with
+# 50 ms of real time for the requests a timer made and their replies, and 500 ms more at the end. A 1.5 s wait takes
+# 0.8 s and an 11.5 s one 2.8 s. Unguarded, each of the 87 pages sent on it as on real time, or more: timers that
+# never ran on real time, since the page had left, now run before it leaves. The guard on a CDP Worker reads no clock,
+# so only the page's timers move (test_a_cdp_guard_reads_no_clock_a_page_can_fake).
+CLOCK_STEP_MS, CLOCK_PAUSE_MS, CLOCK_DRAIN_MS = 250, 50, 500
+# What the clock never moves: a worker's timers (dedicated, shared, service, worklet), the scheduler's and an abort
+# signal's delays, CSS animations and transitions, a refresh, a socket. A page that names one waits in real time, for
+# a delay there would get a fifth of its wait (the adversarial review of #583). It takes the 6 worker pages, no other.
+REAL_TIME = re.compile(r"Worker\b|Worklet|postTask|AbortSignal\.timeout|animation|transition|\.animate\(|refresh"
+                       r"|requestVideoFrameCallback|WebSocket|EventSource|Atomics")
+
+
+def on_clock(page_name: str) -> bool:
+    return not REAL_TIME.search(" ".join(PAGES[page_name].values()))
+
+
+def _wait(page, page_name: str, ms: int) -> None:
+    """A matrix case's or a control's wait for the page's late send: on its clock, or in real time (REAL_TIME)."""
+    (_run_out if on_clock(page_name) else _settle)(page, ms)
+
+
+def _run_out(page, ms: int) -> None:
+    """The page's next `ms` on its clock, step by step, then the real time its last requests take. A step whose clock
+    didn't move (the page went on to another document mid-step, or broke the clock) gets the whole wait in real time
+    too, so a page can't skip its own timers: no case's step failed in 443 waits (2026-11-15)."""
+    stuck = False
+    for _ in range(-(-ms // CLOCK_STEP_MS)):
+        try:
+            page.clock.run_for(CLOCK_STEP_MS)
+        except Exception:
+            stuck = True
+        _settle(page, CLOCK_PAUSE_MS)
+    _settle(page, ms if stuck else CLOCK_DRAIN_MS)
+
+
 def _then(page, page_name) -> None:
     """What the page does after the path's press: Enter in the next page's field, by a trusted key."""
     if page_name == "Enter on a page loaded during the drive":
@@ -1036,9 +1081,10 @@ def test_a_link_sent_in_never_joins_a_cdp_worker():
 # --- CDP: Playwright's Chromium, the rehearsal's guard and the drive guard on the page
 
 @contextmanager
-def cdp(pages: dict[str, str], guarded: bool = True, first: bool = False):
+def cdp(pages: dict[str, str], guarded: bool = True, first: bool = False, clock: bool = False):
     """The pages in Playwright's Chromium, guarded as a rehearsal guards them: after a first load, or with `first`
-    before it (submit_guard.on_open, as a rehearsal opens each page: KAN-682), for a page that sends as it loads."""
+    before it (submit_guard.on_open, as a rehearsal opens each page: KAN-682), for a page that sends as it loads.
+    `clock`: the pages keep time on Playwright's clock, which _run_out moves on."""
     from plain_fakes import https_fake
     from playwright.sync_api import sync_playwright
 
@@ -1051,6 +1097,8 @@ def cdp(pages: dict[str, str], guarded: bool = True, first: bool = False):
                                                    "--ignore-certificate-errors", "--disable-quic"])
         context = browser.new_context()
         context.route(lambda url: True, site.handle)  # every request: no real site is ever reached
+        if clock:
+            context.clock.install()
         page = context.new_page()
         if guarded and first:
             with submit_guard.guarding_on_open():
@@ -1073,22 +1121,37 @@ def quick_steps(monkeypatch):
 
 @pytest.mark.parametrize(("page_name", "path"), each_page_and_path_once_on_prs())
 def test_no_click_path_sends_a_hostile_page_on_cdp(page_name, path):
-    with cdp(PAGES[page_name], first=page_name in GUARDED_FIRST) as (page, drive, site):
+    with cdp(PAGES[page_name], first=page_name in GUARDED_FIRST, clock=on_clock(page_name)) as (page, drive, site):
         try:
             PATHS[path](page, drive, button(page_name))
         except Handoff:
             pass  # the path refused: nothing pressed
         _then(page, page_name)
-        _settle(page, wait_ms(page_name))
+        _wait(page, page_name, wait_ms(page_name))
     assert site.applications() == []
 
 
-@pytest.mark.parametrize("page_name", list(PAGES))
+def control_ms(page_name: str) -> int:
+    """How long a page's control waits: its matrix wait, a held page's delay and 1.5 s, 5 s for the next mouse move."""
+    return max(wait_ms(page_name), DELAYS.get(page_name, 0) + 1500, 5000 if page_name in MOVED else 0)
+
+
+# The controls on PRs (KAN-780). The control runs no Apply code: only a change to what it reads (these pages, the fake
+# site, Chromium: ci.yml's hostile_pages filter, which then runs every control) or a runner too slow for the wait can
+# turn it red. These three check the runner on every PR, and the nightly workflow runs the rest. On the clock every
+# page's last send left about 0.8 s of its wait (2026-11-14): the least, a frame's timer (0.78 s), and the longest
+# wait, 40 steps; and a service worker's send, a page that waits in real time (REAL_TIME).
+CONTROLS_ON_PRS = ("a foreign frame at a captcha's path that posts on a timer", "a Next whose service worker posts the application",
+                   "a session dialog whose Continue sends after 10 s")
+
+
+@pytest.mark.parametrize("page_name", [name if name in CONTROLS_ON_PRS else pytest.param(name, marks=pytest.mark.nightly)
+                                       for name in PAGES])
 def test_without_the_guard_each_hostile_page_sends(page_name):
-    """The control: a plain click on the same button, unguarded, sends the application. A page whose timer posts
-    on its own keeps navigating unguarded, so on a slow runner the click may never land: it has sent all the same,
-    and the assertion is what counts (CI, 2026-11-11)."""
-    with cdp(PAGES[page_name], guarded=False) as (page, _, site):
+    """The control: a plain click on the same button, unguarded, sends the application, on the same clock and wait as
+    the page's matrix cases. A page whose timer posts on its own keeps navigating unguarded, so on a slow runner the
+    click may never land: it has sent all the same, and the assertion is what counts (CI, 2026-11-11)."""
+    with cdp(PAGES[page_name], guarded=False, clock=on_clock(page_name)) as (page, _, site):
         try:
             page.get_by_role("button", name=button(page_name)).click(timeout=10_000)
         except Exception:
@@ -1097,8 +1160,26 @@ def test_without_the_guard_each_hostile_page_sends(page_name):
         if page_name in MOVED:
             page.mouse.move(5, 5)
             page.mouse.move(9, 9)
-        _settle(page, max(wait_ms(page_name), DELAYS.get(page_name, 0) + 1500, 5000 if page_name in MOVED else 0))
+        _wait(page, page_name, control_ms(page_name))
     assert site.applications()
+
+
+def test_a_cdp_guard_reads_no_clock_a_page_can_fake():
+    # The CDP cases keep the page's time on Playwright's clock, which replaces Date, the timers, `performance` and an
+    # event's timeStamp: the guard's now() would throw on it. A CDP guard takes `performance` once, reads it only in
+    # now(), and calls now() only on an element the extension touched, which only a plain Worker's copy (PORT_TOUCH)
+    # ever sets; it uses nothing else the clock replaces.
+    clocks = re.compile(r"\b(?:Date|setTimeout|setInterval|requestAnimationFrame|requestIdleCallback|timeStamp|timeOrigin)\b")
+    for script in (submit_guard.SCRIPT, submit_guard.drive_script(), submit_guard.drive_script(at_open=True),
+                   submit_guard.drive_script(late=True)):
+        assert not clocks.search(script)
+        assert re.findall(r"\bperf(?:ormance)?\b", script) == ["perf", "performance", "perf"]
+        assert not re.search(r"S\.touchAt = (?!null)", script)
+        assert script.count("now()") == script.count("S.touchAt !== null && now()")
+    assert re.search(r"S\.touchAt = (?!null)", submit_guard.rehearsal_script(port=True))
+    # What the clock never moves keeps real time: a worker's 4 s timer got 1.6 s on it.
+    assert not on_clock("a Next whose worker posts the application 4 s later")
+    assert sum(not on_clock(name) for name in PAGES) == 6
 
 
 # Ashby's own requests, which the guard must let through as it reads Ashby's bodies (KAN-791): its posting's query,
@@ -1852,5 +1933,6 @@ def test_each_page_says_how_late_it_sends_and_a_held_only_page_has_its_held_test
               and name not in DELAYS and name not in LATEST]
     assert unsaid == []
     assert all(wait_ms(name) >= 1500 for name in PAGES)
+    assert set(CONTROLS_ON_PRS) <= set(PAGES)
     # A page in no matrix still runs: each HELD_ONLY page is a held-page test's (the stay press's or the generic one's).
     assert HELD_ONLY <= set(SESSION_PAGES) | set(GENERIC_SESSION_PAGES)

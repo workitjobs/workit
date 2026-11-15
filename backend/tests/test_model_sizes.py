@@ -49,6 +49,9 @@ FEATURES = [
     ("company_jobs", "create_job", {"small"}),
     ("company_jobs", "update_job", {"small"}),
     ("company_jobs", "change_job_status", {"small"}),
+    # WorkIt Auto Apply's Model route (KAN-723): Apply's haiku calls take the
+    # small chain, its sonnet and opus calls the large one.
+    ("apply_app", "ask", {"large", "small"}),
 ]
 
 

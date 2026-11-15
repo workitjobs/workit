@@ -4,6 +4,16 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
 
 ## Prompts and gates
 
+- **Every prompt Apply's `ask` used is on WorkIt's server** (KAN-723,
+  2026-11-14; W1's "Prompts on the server" in
+  `../docs/desktop_application_auto_apply.md`): each call sends a kind and
+  its data, and `../backend/app/apply_prompts/` builds the prompt. Change a
+  prompt there. **The answering guides' front matter has two copies**
+  (`answering/types/` here, the server's `answering/types/`): Apply
+  classifies questions and checks plans with it, and the server lists slots
+  and lengths in prompts with it, so a change goes into both in the same
+  PR. The rules below still hold for the prompts on the server and for
+  the ones Apply still sends to Claude (Claude fill, Rescue, Ask Claude).
 - Every prompt names the applicant as `@NAME@` and their school as
   `@SCHOOL@`; `applicant.as_applicant` puts in the profile's own values.
   Say "they" for the applicant, or `@NAME@` where "they" already means the

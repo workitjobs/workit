@@ -7,15 +7,52 @@ instead, wherever the prompt was built.
 """
 
 import json
+import re
 
 from apply.profile import ApplicantProfile
 
 NAME, SCHOOL = "@NAME@", "@SCHOOL@"
 
+# A self-identification (EEO) question, or one asking the birth date: its answer never reaches a model call (D8).
+# Not "age" or "pronouns": "Are you 18 years of age?" is an eligibility question the Pre-submit review must check
+# (verify.LEGAL), and the pronouns go with every call.
+SELF_ID = re.compile(r"gender|\bsex\b|\brac(e|ial)\b|ethnic|hispanic|latin[oax]|veteran|disabilit|sexual orientation"
+                     r"|transgender|lgbt|self[- ]?identif|demographic|date of birth|birth ?date", re.IGNORECASE)
+# The private facts of the Applicant profile (D8): the name, the email, the phone and the street address. No model
+# call needs them, since the Fill engine fills them from the profile, so a call is sent none of them, as a fact or
+# as an answer on the form.
+# The pronouns WorkIt takes with a kind (backend apply_prompts/kind.py, Data.pronouns): one short line. Free text
+# longer than that would make WorkIt refuse every call; the neutral default goes in its place.
+PRONOUNS = re.compile(r"[^\n\r<>{}]{1,40}")
+WHO = ("legal_first_name", "legal_middle_name", "legal_last_name", "preferred_first_name", "preferred_last_name",
+       "name_pronunciation", "name_in_native_script", "email", "phone", "home_address.line1", "home_address.line2",
+       "home_address.zip")
+
 
 def first_name(profile: ApplicantProfile) -> str:
     """The name they go by, else their legal first name."""
     return profile.get("identity.preferred_first_name") or profile.get("identity.legal_first_name") or "the applicant"
+
+
+def _plain(value: object) -> str:
+    return " ".join(str(value).split()).casefold() if isinstance(value, (str, int)) else ""
+
+
+def personal(profile: ApplicantProfile) -> frozenset[str]:
+    """The answers a form shows that say who the applicant is (WHO), as plain text: each fact, and the name in
+    full, so an answer that is exactly one of them is never sent."""
+    said = {key: _plain(profile.get(f"identity.{key}")) for key in WHO}
+    firsts = (said["legal_first_name"], said["preferred_first_name"])
+    lasts = (said["legal_last_name"], said["preferred_last_name"])
+    full = {" ".join(filter(None, (first, middle, last))) for first in firsts for last in lasts if first and last
+            for middle in ("", said["legal_middle_name"])}
+    return frozenset(filter(None, {*said.values(), *full}))
+
+
+def kept_out(label: str, answer: object, who: frozenset[str]) -> bool:
+    """Whether an answer on the form stays out of every model call (D8): a self-identification answer, or one
+    that is exactly who the applicant is (`who`, from personal())."""
+    return bool(SELF_ID.search(label)) or (isinstance(answer, str) and _plain(answer) in who)
 
 
 def named(text: str, profile: ApplicantProfile) -> str:
@@ -40,10 +77,14 @@ class as_applicant:
     def __init__(self, claude, profile: ApplicantProfile):
         self._claude, self._profile = claude, profile
 
-    def ask(self, *, model: str, system: str, prompt: str, schema: dict) -> dict:
-        say = lambda text: named(text, self._profile)
-        return self._claude.ask(model=model, system=say(system + pronouns_note(self._profile)), prompt=say(prompt),
-                                schema=json.loads(say(json.dumps(schema))))
+    def ask_kind(self, kind: str, data: dict) -> dict:
+        """`kind` said as the applicant: WorkIt adds the pronouns note and names the school from what this
+        sends, and the name, which stays NAME in every prompt WorkIt builds (D8), goes back into the answer."""
+        pronouns = str(self._profile.get("identity.pronouns") or "").strip()
+        said = {"pronouns": pronouns if PRONOUNS.fullmatch(pronouns) else "they/them/theirs",
+                "school": self._profile.get("education.school") or ""}
+        given = self._claude.ask_kind(kind, {**data, **said})
+        return json.loads(json.dumps(given).replace(NAME, json.dumps(first_name(self._profile))[1:-1]))
 
     def __getattr__(self, name: str):
         return getattr(self._claude, name)

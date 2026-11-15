@@ -161,15 +161,20 @@ def _claude(machine: Machine) -> Check:
 
 
 def _ask_model(machine: Machine) -> list[Check]:
-    """Where `ask` goes (policies.yaml's ask_model): no line for claude, the default; for hosted providers,
-    whether each has a key (apply.ask_model). A key itself is never printed."""
+    """Where `ask` goes (policies.yaml's ask_model): no line for claude; WorkIt for workit, the default,
+    whose sign-in the WorkIt line checks; for hosted providers, whether each has a key (apply.ask_model). A
+    key itself is never printed."""
     name = "Ask model"
     try:
         names = ask_model.chain({"ask_model": _policy(machine, "ask_model")})
     except SetupError as e:
-        return [Check(name, FAIL, str(e), "set ask_model to claude, groq, gemini or a list of them in policies.yaml")]
+        return [Check(name, FAIL, str(e), "set ask_model to workit, claude, groq, gemini or a list of the providers "
+                                          "in policies.yaml")]
     if not names:
         return []
+    if names == [ask_model.WORKIT]:
+        return [Check(name, OK, "WorkIt's Model route answers and writes (ask_model: workit), as the signed-in "
+                                "student; Claude fill, Rescue and company briefs stay on claude")]
     if missing := [n for n in names if not machine.ask_key(n)]:
         return [Check(name, FAIL, f"ask_model: {', '.join(names)}, but there is no {missing[0]} key",
                       ask_model.no_key(ask_model.PROVIDERS[missing[0]]))]

@@ -191,6 +191,11 @@ class Waits:
         with waiting():
             return self._claude.ask(**call)
 
+    def ask_kind(self, kind: str, data: dict) -> dict:
+        # A WorkIt kind (D5) is a wait too. Its HTTP call can't be cut short: Resume takes effect once it answers.
+        with waiting():
+            return self._claude.ask_kind(kind, data)
+
     def research(self, **call):
         with waiting():
             return self._claude.research(**call)

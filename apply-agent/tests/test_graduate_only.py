@@ -194,7 +194,7 @@ def test_a_run_ends_a_graduate_only_posting_as_not_eligible_without_its_form_or_
 
     [row] = tracker.rows()
     assert (row.status, row.reason) == ("not eligible", WHY)
-    assert claude.calls == []
+    assert claude.asked == []
 
 
 def test_a_rehearsal_says_a_graduate_only_posting_is_not_eligible_without_its_form_or_claude(tmp_path):
@@ -205,7 +205,7 @@ def test_a_rehearsal_says_a_graduate_only_posting_is_not_eligible_without_its_fo
 
     assert (done.outcome, done.why) == ("not eligible", WHY)
     assert f"| not eligible: {WHY} |" in lines[0]
-    assert claude.calls == []
+    assert claude.asked == []
 
 
 class PressesFillItAnyway(RecordingBoard):

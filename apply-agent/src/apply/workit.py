@@ -120,7 +120,7 @@ class LoginExpired(WorkItError):
 
 
 class Unreachable(WorkItError):
-    """No answer from WorkIt (or Supabase Auth), or a server error."""
+    """No answer from WorkIt (or Supabase Auth), or a server error, whose `status` it names."""
 
 
 class CapReached(WorkItError):
@@ -178,11 +178,13 @@ class WorkIt:
     def me(self) -> Account:
         return _account(self.call("GET", "/auth/me"))
 
-    def call(self, method: str, path: str, body: Any = None) -> Any:
+    def call(self, method: str, path: str, body: Any = None, timeout: float = TIMEOUT) -> Any:
         """One API call as the signed-in student; its JSON answer. A refused token is refreshed one time.
-        Raises NotLoggedIn, LoginExpired, Unreachable, or WorkItError for another refusal."""
+        Raises NotLoggedIn, LoginExpired, Unreachable, or WorkItError for another refusal. `timeout` is
+        longer for a model call (apply.ask_model.WorkItAsk), which waits on WorkIt's whole model chain."""
         for attempt in range(2):
-            status, answer, headers = _send(method, self.site.api + path, body, self._bearer(refresh=attempt > 0))
+            status, answer, headers = _send(method, self.site.api + path, body, self._bearer(refresh=attempt > 0),
+                                            timeout=timeout)
             if status == 429:
                 raise CapReached(f"{method} {path}: 429 {_detail(answer)}", _retry_at(headers.get("Retry-After")))
             if status == 401 and attempt == 0:
@@ -544,8 +546,8 @@ def _session(cookies: dict[str, str], name: str) -> dict | None:
     return session
 
 
-def _send(method: str, url: str, body: Any, token: str | None, apikey: str | None = None
-          ) -> tuple[int, Any, Message]:
+def _send(method: str, url: str, body: Any, token: str | None, apikey: str | None = None,
+          timeout: float = TIMEOUT) -> tuple[int, Any, Message]:
     """The status, JSON answer and headers. No answer, or a 5xx, is Unreachable."""
     headers = {"Accept": "application/json", "User-Agent": USER_AGENT}
     if body is not None:
@@ -557,14 +559,14 @@ def _send(method: str, url: str, body: Any, token: str | None, apikey: str | Non
     data = json.dumps(body).encode() if body is not None else None
     request = urllib.request.Request(url, data=data, headers=headers, method=method)
     try:
-        with urllib.request.urlopen(request, timeout=TIMEOUT) as response:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
             status, raw, headers = response.status, response.read(), response.headers
     except urllib.error.HTTPError as error:
         status, raw, headers = error.code, error.read(), error.headers
     except (OSError, urllib.error.URLError) as error:
         raise Unreachable(f"{urlsplit(url).netloc}: {getattr(error, 'reason', error)}") from None
     if status >= 500:
-        raise Unreachable(f"{urlsplit(url).netloc}: {status}")
+        raise Unreachable(f"{urlsplit(url).netloc}: {status}", status)
     try:
         return status, json.loads(raw) if raw else None, headers
     except ValueError:
