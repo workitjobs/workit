@@ -313,6 +313,13 @@ change here must keep:
   section: a list's empty value is `[]`, never NULL, and a PATCH that sends
   null clears it to `[]`. A project's tools are the student's words for its
   stack, in order, kept beside the skills, never in place of them.
+- **`bank_skills.position` is the student's order of their skills**
+  (KAN-816, `e6a2c8f4b015`): nullable, null for a skill never ordered (a
+  reading's, and every row before the migration), which lists after the
+  ordered ones by group and name. A group sits where its first skill does,
+  so there is no group table: a group is a name its skills share. Only
+  `services/bank.py` writes it (`order_skills`, `add_skill`). No unique
+  constraint, as bullet positions have none.
 - **A skill name appears once per applicant, ignoring case**
   (`bank_skills_applicant_name_key` on `lower(name)`), so Tailor's "Have you
   used X?" and import can look a skill up by name.

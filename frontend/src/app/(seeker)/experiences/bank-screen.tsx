@@ -1,17 +1,7 @@
 "use client";
 
 import { FileTextIcon, PencilSimpleIcon, PlusIcon, TrashIcon } from "@phosphor-icons/react/ssr";
-import {
-  Fragment,
-  startTransition,
-  useEffect,
-  useOptimistic,
-  useRef,
-  useState,
-  type FormEvent,
-  type MouseEvent,
-  type ReactNode,
-} from "react";
+import { Fragment, useEffect, useRef, useState, type MouseEvent, type ReactNode } from "react";
 
 import { ArrowRightIcon, EllipsisIcon } from "@/components/icons";
 import { FILL_WITH_SCOUT_LIVE } from "@/components/scout/live";
@@ -28,19 +18,14 @@ import { SearchField } from "@/components/ui/search-field";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/cn";
 import { IconButton } from "@/components/ui/icon-button";
-import { TextField } from "@/components/ui/text-field";
 import {
-  addSkill,
   createEntry,
   deleteEntries,
   deleteEntry,
   deleteSection,
-  deleteSkill,
-  deleteSkills,
   entryResumeCount,
   getBank,
   importResume,
-  updateSkill,
   type Bank,
   type BankEntry,
   type BankResume,
@@ -51,7 +36,7 @@ import {
 
 import { DeleteDialog } from "../resumes/delete-confirm";
 import { RESUMES_SEARCH, ResumesHeader } from "../resumes/header";
-import { ClearAll, clearAllWords } from "./clear-all";
+import { clearAllWords } from "./clear-all";
 import { AddSection, RenameSection } from "./custom-sections";
 import { EntryDialog, type SaveOutcome } from "./entry-dialog";
 import { EntryRow } from "./entry-row";
@@ -85,6 +70,7 @@ import { SectionMark } from "./section-icons";
 import { SectionDialog, type PaneSetup, type SectionAction } from "./section-dialog";
 import { SectionNav } from "./section-nav";
 import { SkillGroups } from "./skill-groups";
+import { SkillsDialog } from "./skills-dialog";
 
 /**
  * The bank page's live screen: one card per section, each entry with its
@@ -164,13 +150,7 @@ export function BankScreen({
   /** The header's primary action, Fill With Scout. */
   action?: ReactNode;
 }) {
-  const [saved, setBank] = useState(initial);
-  // What the page draws: the bank less any skill whose delete is still on
-  // its way, so a removed skill leaves at once (KAN-388).
-  const [bank, hideSkill] = useOptimistic(saved, (b, id: string) => ({
-    ...b,
-    skills: b.skills.filter((s) => s.id !== id),
-  }));
+  const [bank, setBank] = useState(initial);
   const [pick, setPick] = useState<Pick>(() => openingPick(initial.resumes, resumeParam));
   const [open, setOpen] = useState<Open>(null);
   // Where the focus goes as a dialog closes: the control that opened it, or
@@ -376,20 +356,6 @@ export function BankScreen({
       return null;
     };
     setOpen(next);
-  }
-
-  // The skill leaves the page first and the delete runs behind it
-  // (KAN-388). A failed delete ends the transition with the skill still in
-  // the bank, so it comes back, with the error. A delete changes nothing
-  // else in the bank, so the page drops the skill itself and reads nothing
-  // back.
-  function removeSkill(id: string, onError: (error: string) => void) {
-    startTransition(async () => {
-      hideSkill(id);
-      const { error } = await deleteSkill(id);
-      if (error) return onError(error);
-      setBank((b) => ({ ...b, skills: b.skills.filter((s) => s.id !== id) }));
-    });
   }
 
   // An "Also on" name shows that resume (KAN-363). The entry it sat on is
@@ -669,7 +635,7 @@ export function BankScreen({
           resumes={bank.resumes}
           pick={current}
           reload={reload}
-          removeSkill={removeSkill}
+          bankSkills={bank.skills}
         />
       </div>
 
@@ -1082,18 +1048,19 @@ function ScoutMarked({
   );
 }
 
-/** Focus on a control once the page has drawn again. A control that takes
- *  another's place (the pencil and Done) or closes (Keep It, Cancel) took
- *  the focus with it, to the page's top, and lost a keyboard user's place. */
+/** Focus on a control once the page has drawn again. A control that closes
+ *  (Keep It, Cancel) took the focus with it, to the page's top, and lost a
+ *  keyboard user's place. */
 const focusSoon = (id: string) => requestAnimationFrame(() => document.getElementById(id)?.focus());
 
 /**
  * A card's heading actions (KAN-740, after LinkedIn's profile): a + that
  * adds, then a pencil that opens the section's whole list (`onList`). A
  * Lines section has no list: its one button edits its lines (`add.pencil`)
- * and its ⋯ holds Rename and Delete Section. Skills keep a ⋯ for Clear All
- * and their edit mode's pencil, which gives way to Done (`edit`). The ids
- * are `id` plus -add, -edit, -more and -done, where the focus goes back.
+ * and its ⋯ holds Rename and Delete Section. Skills' pencil opens their
+ * dialog as the others' opens the list (KAN-816; it turned the card into an
+ * edit mode with a Done until then). The ids are `id` plus -add, -edit and
+ * -more, where the focus goes back.
  *
  * Until KAN-740 the ⋯ sat on every card with Clear All, and each entry's
  * pencil opened its editor inline (KAN-732). Under KAN-363 the heading's
@@ -1106,9 +1073,7 @@ function CardActions({
   name,
   add,
   onList,
-  onClear,
   more = [],
-  edit,
 }: {
   id: string;
   /** The card's name, for the controls' labels. */
@@ -1116,16 +1081,10 @@ function CardActions({
   add: { label: string; tooltip: string; onAdd: () => void; pencil?: boolean };
   /** Opens the section's list. Unset leaves the pencil out. */
   onList?: () => void;
-  /** Opens Clear All's confirm. Unset, with no `more`, leaves the ⋯ out. */
-  onClear?: () => void;
-  /** More of the ⋯'s items, before Clear All: a Lines section's Rename and
-   *  Delete Section (KAN-498). */
+  /** The ⋯'s items: a Lines section's Rename and Delete Section (KAN-498).
+   *  None leaves the ⋯ out. */
   more?: { label: string; icon: ReactNode; destructive?: boolean; onSelect: () => void }[];
-  /** Skills' edit mode: the pencil, or Done while it is on. Unset leaves both out. */
-  edit?: { on: boolean; onEdit: () => void; onDone: () => void };
 }) {
-  const editId = `${id}-edit`;
-  const doneId = `${id}-done`;
   return (
     <div className="flex items-center gap-3">
       <IconButton
@@ -1140,7 +1099,7 @@ function CardActions({
       {onList && (
         <IconButton
           place="heading"
-          id={editId}
+          id={`${id}-edit`}
           label={`Edit ${name}`}
           tooltip="Edit this section"
           onClick={onList}
@@ -1148,7 +1107,7 @@ function CardActions({
           <PencilSimpleIcon aria-hidden />
         </IconButton>
       )}
-      {(onClear || more.length > 0) && (
+      {more.length > 0 && (
         <DropdownMenu>
           <DropdownMenuTrigger
             render={
@@ -1173,41 +1132,9 @@ function CardActions({
                 {item.label}
               </DropdownMenuItem>
             ))}
-            {onClear && (
-              <DropdownMenuItem variant="destructive" onClick={onClear}>
-                <TrashIcon aria-hidden className="size-4" />
-                Clear All
-              </DropdownMenuItem>
-            )}
           </DropdownMenuContent>
         </DropdownMenu>
       )}
-      {edit &&
-        (edit.on ? (
-          <Button
-            id={doneId}
-            variant="section"
-            onClick={() => {
-              edit.onDone();
-              focusSoon(editId);
-            }}
-          >
-            Done
-          </Button>
-        ) : (
-          <IconButton
-            place="heading"
-            id={editId}
-            label={`Edit ${name}`}
-            tooltip="Edit this section"
-            onClick={() => {
-              edit.onEdit();
-              focusSoon(doneId);
-            }}
-          >
-            <PencilSimpleIcon aria-hidden />
-          </IconButton>
-        ))}
     </div>
   );
 }
@@ -1338,77 +1265,40 @@ function ResumeLinks({
 
 /**
  * The skills, one row per group (`SkillGroups`, shared with onboarding's
- * resume preview). Drawn as the section cards are: the plus at the top right
- * opens the form, so the card is a list until the student adds or edits a
- * skill; a form always open under the list made Skills the only card that
- * never looked finished. The pencil opens edit mode, where each skill shows
- * its pencil and × (KAN-363); Clear All is in the ⋯, as on every card. The
- * form stays open after an add, for the next skill, and closes after an edit.
+ * resume preview), drawn as the section cards are and, like them, only read
+ * (KAN-816): the heading's + opens the Skills dialog on its add form, and the
+ * pencil the dialog (`SkillsDialog`), where groups are renamed, merged,
+ * ordered and deleted, skills added, moved and removed, and Clear All is in
+ * its ⋯. Until then the pencil turned the card itself into an edit mode, a
+ * pencil and × on every chip (KAN-363), with a form under the list: the one
+ * section that edited in place.
  */
 function SkillsCard({
   skills,
+  bankSkills,
   resumeId,
   resumes,
   pick,
   reload,
-  removeSkill,
 }: {
+  /** What the card shows: the pick's skills, a name once under All
+   *  Experiences, narrowed by the search. */
   skills: Skill[];
+  /** The whole bank's skills: the dialog lists every one the pick shows. */
+  bankSkills: Skill[];
   /** The picked resume: a skill added here goes into it. */
   resumeId: string | undefined;
-  /** For Clear All's confirm. */
   resumes: BankResume[];
   pick: Pick;
   reload: () => Promise<string | null>;
-  /** Takes the skill off the page at once, then deletes it; a failed
-   *  delete puts it back and hands over the error. */
-  removeSkill: (id: string, onError: (error: string) => void) => void;
 }) {
-  const [name, setName] = useState("");
-  const [group, setGroup] = useState("");
-  const [adding, setAdding] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [clearing, setClearing] = useState(false);
-  const [editMode, setEditMode] = useState(false);
-  const nameField = useRef<HTMLInputElement>(null);
-  const formOpen = adding || editingId !== null;
-  const editable = editMode && skills.length > 0;
-
-  function close() {
-    setName("");
-    setGroup("");
-    setAdding(false);
-    setEditingId(null);
-  }
-
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    setBusy(true);
-    const groupValue = group.trim() || null;
-    const res = editingId
-      ? await updateSkill(editingId, { name, group: groupValue })
-      : await addSkill(name, groupValue, resumeId);
-    setBusy(false);
-    if (res.error) return setError(res.error);
-    setError(null);
-    if (editingId) {
-      close();
-    } else {
-      // Ready for the next one, in the same group.
-      setName("");
-      nameField.current?.focus();
-    }
-    const reloadError = await reload();
-    if (reloadError) setError(reloadError);
-  }
-
-  function remove(skill: Skill) {
-    setError(null);
-    if (editingId === skill.id) close();
-    removeSkill(skill.id, setError);
-  }
+  const [open, setOpen] = useState<"list" | "add" | null>(null);
+  // Back on the control that opened the dialog
+  const returnTo = useRef<() => HTMLElement | null>(() => null);
+  const openFrom = (how: "list" | "add", from: string) => {
+    returnTo.current = () => document.getElementById(from);
+    setOpen(how);
+  };
 
   return (
     <Card as="section" id="section-skills" aria-labelledby="bank-skills" className="scroll-mt-16">
@@ -1417,113 +1307,35 @@ function SkillsCard({
           <SectionMark id="skills" />
           Skills
         </h2>
-        {!formOpen && (
-          <CardActions
-            id="bank-skills"
-            name="Skills"
-            add={{
-              label: "Add Skill",
-              tooltip: "Add a skill",
-              onAdd: () => {
-                setError(null);
-                setAdding(true);
-              },
-            }}
-            // A chip in All Experiences stands for every copy of its name:
-            // Clear All belongs to one resume's view. Its pencil and × act on
-            // the one copy, so a skill no resume holds can still be edited
-            onClear={pick !== ALL && skills.length > 0 ? () => setClearing(true) : undefined}
-            edit={
-              skills.length > 0
-                ? {
-                    on: editable,
-                    onEdit: () => setEditMode(true),
-                    onDone: () => setEditMode(false),
-                  }
-                : undefined
-            }
-          />
-        )}
-      </div>
-      {clearing && skills.length > 0 && (
-        <ClearAll
-          items={skills}
-          resumes={resumes}
-          noun={["skill", "skills"]}
-          pick={pick}
-          remove={deleteSkills}
-          onCleared={async () => {
-            setClearing(false);
-            setEditMode(false);
-            const reloadError = await reload();
-            if (reloadError) setError(reloadError);
+        <CardActions
+          id="bank-skills"
+          name="Skills"
+          add={{
+            label: "Add Skill",
+            tooltip: "Add a skill",
+            onAdd: () => openFrom("add", "bank-skills-add"),
           }}
-          onKeep={() => {
-            setClearing(false);
-            focusSoon("bank-skills-more");
-          }}
+          onList={() => openFrom("list", "bank-skills-edit")}
         />
-      )}
-      {skills.length === 0 && !formOpen && (
+      </div>
+      {skills.length === 0 ? (
         <p className="text-body text-ink-meta mt-2">
           {emptyLine("Skills", resumeId !== undefined, WHAT_GOES_HERE.skills)}
         </p>
+      ) : (
+        <SkillGroups skills={skills} keyOf={(skill) => skill.id} />
       )}
-      {skills.length > 0 && (
-        <SkillGroups
-          skills={skills}
-          keyOf={(skill) => skill.id}
-          editable={editable}
-          editing={editingId}
-          onEdit={(skill) => {
-            setError(null);
-            setAdding(false);
-            setEditingId(skill.id);
-            setName(skill.name);
-            setGroup(skill.group ?? "");
-          }}
-          onRemove={remove}
+      {open && (
+        <SkillsDialog
+          skills={bankSkills.filter((skill) => shows(pick, skill))}
+          pick={pick}
+          resumeId={resumeId}
+          resumes={resumes}
+          adding={open === "add"}
+          reload={reload}
+          returnTo={returnTo}
+          onClose={() => setOpen(null)}
         />
-      )}
-
-      {formOpen && (
-        <form
-          onSubmit={submit}
-          className="mt-3 grid items-end gap-3 @lg/main:grid-cols-[1fr_1fr_auto]"
-        >
-          <TextField
-            ref={nameField}
-            id="skill-name"
-            label="Skill"
-            required
-            autoFocus
-            maxLength={60}
-            placeholder="Python"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-          />
-          <TextField
-            id="skill-group"
-            label="Group"
-            maxLength={60}
-            placeholder="Languages"
-            value={group}
-            onChange={(e) => setGroup(e.target.value)}
-          />
-          <div className="flex gap-2">
-            <Button type="button" variant="secondary" onClick={close}>
-              {editingId ? "Cancel" : "Done"}
-            </Button>
-            <Button type="submit" disabled={busy}>
-              {editingId ? "Save Skill" : "Add Skill"}
-            </Button>
-          </div>
-        </form>
-      )}
-      {error && (
-        <p role="alert" className="text-note text-danger mt-2">
-          {error}
-        </p>
       )}
     </Card>
   );

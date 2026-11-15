@@ -2639,17 +2639,19 @@ in Docs (suggested answers in the chat, not a banner).
   /applicants/{id}/bank` through `src/lib/bank-actions.ts` on the server; if
   that fails it shows "Your Bank Isn't Loading Right Now" and a Try Again
   link, never fixture rows. A failed save or delete shows the API's message
-  beside the control and leaves the screen as it was. A skill's × is the
-  one exception (KAN-388): the skill leaves at once, and a failed delete
-  puts it back with the message under the card.
+  beside the control and leaves the screen as it was. The Skills dialog is
+  the one exception (KAN-388, KAN-816): a move, rename, merge, add or ×
+  shows at once and saves behind it, and a failed save puts the list back
+  as the bank has it, with the message in the dialog.
 - **One card per section, always**, in the fixed order (Education, Work
   Experience, Projects, Leadership & Activities, Awards, Certifications),
   then Skills, then the student's own sections; an empty one is a short
   card (KAN-814, above).
   Entries come back from the API ongoing first, then newest; the screen
   never sorts. After every change it reads the whole bank again, so the
-  order shown is always the API's; a skill's × only drops that skill,
-  which changes no order.
+  order shown is always the API's. Skills come in the student's order
+  (KAN-816), set in their dialog; a skill never ordered sorts after the
+  ordered ones by group and name, as every skill did before.
 - **Editing is two levels, after LinkedIn's profile** (KAN-740). A card
   shows its first three entries, then "Show All 17 Projects", full width
   under the rows; a search shows every entry it finds, open, with no Show
@@ -2680,19 +2682,22 @@ in Docs (suggested answers in the chat, not a banner).
   and a press outside ask "Discard Your Changes?" across the foot (Keep
   Editing, Discard Changes); Cancel discards at once. The page read 14 to
   17 rows a card on the shared test account, and every edit opened inline
-  in it with the other controls hidden. Skills keep their card: a + that
-  opens their form, a ⋯ with Clear All, and a pencil, shown while the card
-  lists something, that opens their edit mode: each skill shows its pencil
-  and ×, and the pencil gives way to Done. Every card had that mode until
-  KAN-732 (KAN-363), and entries showed their pencils only in it, which put
-  a press before every edit. Before KAN-363 each heading held Clear All and
-  Add as words, and every entry a pencil and a trash, so a card read as a
-  row of controls before what it holds.
+  in it with the other controls hidden. **Skills edit in a dialog too**
+  (KAN-816, below): the card's + opens it on its add form and the pencil
+  opens it, so the card only reads. Until then the pencil turned the card
+  into an edit mode, a pencil and × on every chip, with Done in the
+  pencil's place: the one section that edited in place. Every card had
+  that mode until KAN-732 (KAN-363), and entries showed their pencils only
+  in it, which put a press before every edit. Before KAN-363 each heading
+  held Clear All and Add as words, and every entry a pencil and a trash, so
+  a card read as a row of controls before what it holds.
 - **Clear All empties a section** (KAN-352): in the ⋯ of a section's list
-  (KAN-740) and of the Skills card, while one resume is picked. It deletes
-  what the section shows in one call (`POST .../experiences/entries/delete` or
-  `.../skills/delete`, all or none), after a question (`experiences/clear-all.tsx`:
-  across the list's foot, or a modal on Skills) that names the count and the built resumes that show them
+  (KAN-740) and of the Skills dialog (KAN-816), while one resume is picked.
+  It deletes what the section shows in one call (`POST
+  .../experiences/entries/delete` or `.../skills/delete`, all or none),
+  after a question across the dialog's foot (`experiences/clear-all.tsx`;
+  Skills' was a modal while they edited on the card) that names the count
+  and the built resumes that show them
   (`builtShowing` in `holdings.ts`, from the bank's `resume_ids`). It
   deletes from the whole bank, as Delete Entry does: under a built
   resume's pick the items belong to uploads (ADR 0005), so the confirm
@@ -2815,17 +2820,48 @@ in Docs (suggested answers in the chat, not a banner).
   call for one bullet dragged up or down. The resume editor's form skips
   the moves (`order: false`), since its order is that resume's.
 - **Delete asks once**, across the form's foot, with the count above.
-- **Skills are a plain list** with an optional group, one row per group.
-  A name appears once, ignoring case; the API answers 409 otherwise. The
-  group names make one column from `@md/main`, so every group's skills start
-  at one edge; on a phone each name sits over its skills. **Add opens the
-  form**, at the top right as on the section cards. It stays open after an
-  add, for the next skill, and closes after an edit; the skill being edited
-  takes the brand outline. A form always open under the list made Skills the
-  only card that never looked finished.
+- **Skills are a plain list** with an optional group, one row per group,
+  in the student's order. A name appears once per owner, ignoring case; the
+  API answers 409 otherwise. The group names make one column from
+  `@md/main`, so every group's skills start at one edge; on a phone each
+  name sits over its skills. The card only reads: no pencil or × on a chip.
+- **Edit Skills is a dialog in the bank's frame** (KAN-816,
+  `experiences/skills-dialog.tsx`, `BankDialog`), titled with the Skills
+  mark and "24 skills in 6 groups" ("Saving…" while a save runs), with a +
+  (Add Skill) and, under one resume's pick, a ⋯ with Clear All. Each group
+  is a row: a handle, its name and count, a + (a skill into it, typed after
+  its chips: Enter adds and leaves the field open), a pencil (Rename) and a
+  trash (Delete Group). Its skills are chips under it, each its own handle
+  with a ×. **A group drags whole and a chip drags within its group or into
+  another**; each handle's arrow keys do the same, a chip's step past its
+  group's edge going into the next group, as the editor's Sections panel
+  does (the drag parts are shared, `components/sortable-list.tsx`). The
+  focus stays on the moved handle. The head's + opens the add form at the
+  top (Skill and Group, as the card's form was; a group typed as an
+  existing one, ignoring case and "&" against "and", goes into it), which
+  stays open for the next skill; the card's + opens the dialog on it.
+  **Merging is one step**: a rename to another group's name says "…has
+  this name, so the two groups become one" and its button reads Merge
+  Groups; and two groups whose names are likely one (the same ignoring
+  case, spaces and "&" against "and"; no group reads as Other) get a notice
+  over the list with Merge, which keeps the earlier group's name and place.
+  The test account had "Frameworks & Libraries" beside "Frameworks and
+  Libraries", and a group named Other beside the skills with none ("You
+  have two groups named “Other”."). **Every change shows at once and saves
+  behind it, one at a time**: a move, rename or merge sends the whole order
+  (`PUT .../skills/order`), a × deletes, and once nothing is left to save
+  the bank is read back; nothing closes while a save runs. Delete Group and
+  Clear All ask across the foot (`ConfirmBar`: "Delete Languages? Its 6
+  skills go with it.", with where they are deleted from) and wait for the
+  API. Escape closes an open field first, then the dialog; the × and a
+  press outside ask "Discard Your Changes?" while a field holds typing.
+  **Under All Experiences a chip is every copy of its name** (ADR 0005), so
+  a move, rename, ×, or Delete Group takes every copy; under a resume's
+  pick, the skills that resume shows, and the order they take keeps every
+  other skill in its place.
 - **The entry editor has no skills field.** KAN-216's "Skills Used Here"
   toggles (skill links) were removed: a skill is one list per student,
-  edited on the Skills card only.
+  edited in the Skills dialog only.
 - **Intake** (`intake.tsx`, KAN-213), in the look of the intake prototype's
   variant G: a lavender chat with Scout's gradient mark and a chapter line
   per section. On the bank page it is in Scout's panel, in the three bands

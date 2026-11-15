@@ -2953,7 +2953,8 @@ are in `docs/auth.md`.
   leave the entry out), the bank's
   warning badges for what an entry lacks (`warn`, KAN-740), and
   the bank's skills (`SkillGroups`, `skill-groups.tsx`: purple chips, one
-  row per group), whose × shows only in Skills' edit mode. **Every entry is
+  row per group), whose × shows only in the preview's own Skills edit mode
+  (Experiences' card only reads since KAN-816). **Every entry is
   open, with no chevron** (`EntryRow`'s `open`), and **every card shows all
   its entries**, with no Show All and no section's list, unlike
   Experiences: the student checks all of a reading here, so none of it
@@ -3139,12 +3140,20 @@ are in `docs/auth.md`.
   modal over it (`docs/design.md`, Dialogs). A search shows every match on
   its card, and so does Scout's card, so a found entry is never behind Show
   All. On Experiences, 14 to 17 entries a card ran the page very long, and
-  each edit opened inline in it. Skills keep their card and edit mode:
-  their heading's pencil (hidden while the card is empty) shows each
-  skill's pencil and × and turns to Done, since a pencil and × on every
-  chip, always, made the list hard to read. Every card had that mode until
+  each edit opened inline in it. **Skills edit in a dialog of the same
+  frame** (KAN-816, `SkillsDialog`, `skills-dialog.tsx`; `docs/screens.md`,
+  Edit Skills): the card's + opens it on its add form and its pencil opens
+  it, so the card only reads. They kept an edit mode of the card's own
+  until then, a pencil and × on every chip with Done in the pencil's place:
+  the one section that edited in place. Every card had that mode until
   KAN-732 (KAN-363), and only in it did entries show their pencil: a press
-  before every edit. Never put Clear All back in a heading as a word: there
+  before every edit. **The dialog's groups, moves, renames and merges are
+  pure** (`skill-order.ts`, tested), and its drag parts are the editor's
+  Sections panel's (`components/sortable-list.tsx`): a new list the student
+  orders by drag uses them, never a third copy. **A chip under All
+  Experiences is every copy of its name** (`skillCopies`): a move, rename,
+  × or Delete Group sends every copy's id, or the next copy came back as
+  the chip, in its old group. Never put Clear All back in a heading as a word: there
   it sat one slip from Add. **One editor at a time** (KAN-732) now holds by
   itself: the form is modal. **Typing is never dropped without a
   question**: Escape, the × and a press outside ask "Discard Your
@@ -3157,16 +3166,28 @@ are in `docs/auth.md`.
   `finalFocus`), since the same render can draw what it changed (a new
   card's +, a deleted row's neighbour). A dialog's ids differ from the
   page's (`section-list-<id>-edit`), since the page stays in the document
-  under it. Skills' Clear All and a Lines section's Delete Section still
-  ask in a modal (`DeleteDialog`), since they sit on the page.
+  under it. A Lines section's Delete Section still asks in a modal
+  (`DeleteDialog`), since it sits on the page; Skills' Clear All asked
+  there too until it moved into their dialog's ⋯ (KAN-816).
 - **A skill's × and a resume's Delete Resume are optimistic** (KAN-388):
   the item leaves the screen at once and the delete runs behind it. The
-  screen that holds the list owns the delete, through `useOptimistic` in
-  a transition (`removeSkill` in `bank-screen.tsx`, `remove` in
-  `resumes/built-resumes.tsx`): a failed delete ends the transition with
-  the item still in state, so React puts it back, and the error shows
-  where the list's own errors show, since the row's error line left with
-  the row. A delete that worked drops the item from state itself before
+  screen that holds the list owns the delete: a resume's through
+  `useOptimistic` in a transition (`remove` in `resumes/built-resumes.tsx`),
+  where a failed delete ends the transition with the item still in state,
+  so React puts it back, and the error shows where the list's own errors
+  show, since the row's error line left with the row. **The Skills dialog
+  shows every change at once and saves behind it** (KAN-816,
+  `skills-dialog.tsx`): its groups as changed (`draft`) stand in for the
+  bank's, and its saves run one at a time, in the order made (`enqueue`):
+  a × deletes, + adds, and a move, rename or merge waits in line once and
+  sends the whole order as the dialog then has it, so six arrow presses
+  are two saves, never six that could land out of order. Once nothing is
+  left in line the bank is read back and the draft goes; a failed save
+  shows its message, and the read-back puts the list back. A field stays
+  read-only, never disabled, while its add saves: a disabled field drops
+  the focus, and the next skill is typed straight after. In a hidden
+  Browser pane a save can stand at "Saving…" for a minute (the page's
+  timers are throttled): check with the pane in view. A delete that worked drops the item from state itself before
   any read-back: a failed reload would otherwise bring back an item the
   API had deleted. Anything else a delete can change still reads back (a
   resume's delete can move the star). Clear All, Delete Entry and the

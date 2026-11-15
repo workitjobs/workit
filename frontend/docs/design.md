@@ -145,8 +145,10 @@ open choices (Settled choices, near the end).
   row's `PickBox` and the bar of actions over the filters, after
   Notion's: "N selected" in brand ink, then a glyph and word per action,
   then a delete or remove as a glyph alone, with no close button;
-  Documents' resumes, Up Next and the Tracker's list), `components/views.tsx`
-  and `PAGE_SEARCH`. Tailor's resume picker (`ResumeLists`) is the one way
+  Documents' resumes, Up Next and the Tracker's list), `components/views.tsx`,
+  `PAGE_SEARCH`, and `components/sortable-list.tsx` (rows dragged into
+  order or moved by the arrow keys: a handle and a drop line; the
+  editor's Sections panel and Experiences' Skills dialog, KAN-816). Tailor's resume picker (`ResumeLists`) is the one way
   to pick a resume, in any dialog. A fix to one page table is checked on every other: the
   Tracker, Auto Apply's Up Next and Documents' resumes.
 - **Pick a component by its role, never by its look.** A look picked by eye

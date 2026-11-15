@@ -258,6 +258,28 @@ class SkillUpdate(BaseModel):
     group: Name | None = None
 
 
+class SkillPlace(BaseModel):
+    """One skill in `SkillOrder`: its id and the group it goes in (null: no
+    group). The group is required, so a body that leaves it out never
+    clears one."""
+
+    id: UUID
+    group: Name | None
+
+
+class SkillOrder(BaseModel):
+    """PUT body (KAN-816): the skills the Skills dialog lists, in their new
+    order, each with its group. Each skill once."""
+
+    skills: list[SkillPlace] = Field(min_length=1, max_length=1000)
+
+    @model_validator(mode="after")
+    def _each_once(self) -> "SkillOrder":
+        if len({s.id for s in self.skills}) != len(self.skills):
+            raise ValueError("Each skill can be listed once")
+        return self
+
+
 class DeleteMany(BaseModel):
     """Clear All's body (KAN-352): the entries or skills a section shows."""
 

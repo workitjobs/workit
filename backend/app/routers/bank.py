@@ -35,6 +35,15 @@ DELETE /applicants/{id}/bank/skills/{skill_id}   -> 204
 POST   /applicants/{id}/bank/skills/delete       DeleteMany -> 204, as entries/delete
        A deleted skill is remembered as removed (KAN-369): no reading or
        Tailor adds it again until the student adds it here by hand.
+PUT    /applicants/{id}/bank/skills/order        SkillOrder -> 204
+       The Skills dialog's save (KAN-816): the skills it lists, in their
+       new order, each with its group, so one call renames a group, merges
+       two or moves groups and skills. They take the places they held among
+       the bank's skills; the rest keep theirs. One id that is not the
+       applicant's bank skill answers 404 and changes nothing; an id listed
+       twice is 422. GET /bank lists skills in this order, and a skill
+       never placed after the placed ones by group and name; a skill added
+       after an order goes last.
 POST   /applicants/{id}/bank/sections            CustomSectionCreate -> 201 CustomSectionResponse
        A section the student names (KAN-498): `layout` "entries" or
        "lines". ?resume_id= as for entries (an upload owns it; under a built
@@ -102,6 +111,7 @@ from app.schemas.bank import (
     ImportRequest,
     ImportResponse,
     SkillCreate,
+    SkillOrder,
     SkillResponse,
     SkillUpdate,
 )
@@ -337,6 +347,17 @@ async def delete_skills(
 ) -> Response:
     async with _writing(session):
         await service.delete_skills(session, applicant_id, body.ids)
+    return Response(status_code=204)
+
+
+@router.put("/skills/order", status_code=204)
+async def order_skills(
+    body: SkillOrder,
+    applicant_id: uuid.UUID = Depends(owned_applicant),
+    session: AsyncSession = Depends(get_session),
+) -> Response:
+    async with _writing(session):
+        await service.order_skills(session, applicant_id, [(s.id, s.group) for s in body.skills])
     return Response(status_code=204)
 
 
