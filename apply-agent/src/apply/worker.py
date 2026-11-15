@@ -35,7 +35,7 @@ from apply import (
 )
 from apply.adapters import Claude, JobSite, UsageLimitHit
 from apply.answer_bank import LISUL, AnswerBank
-from apply.applicant import as_applicant
+from apply.applicant import as_applicant, personal
 from apply.fill_engine import (
     attested_line,
     company_specific,
@@ -434,7 +434,7 @@ def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fi
                                               types=[e.plan.type for e in planned.written if e.plan], posting=posting) \
                         if planned.written or drafted else essays.profile_block(profile, posting)
                     found = review(as_applicant(claude, profile), posting, questions, readback, sources, planned.text,
-                                   planned.own())  # its reasons say the applicant's own pronouns
+                                   planned.own(), personal(profile))  # its reasons say the applicant's own pronouns
                     if not fixed and attempt < 2 and planned.fix(found.fixes, readback):
                         # The review named the right answer for a wrong one (an internship start in a school's
                         # From): it is filled in its place, and the form filled and reviewed again, before

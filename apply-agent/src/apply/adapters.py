@@ -119,6 +119,12 @@ class Claude(Protocol):
         """The structured answer. Raises UsageLimitHit when the Max limit is hit."""
         ...
 
+    def ask_kind(self, kind: str, data: dict) -> dict:
+        """The structured answer to one of WorkIt's kinds ("writing.check"): WorkIt builds its prompt
+        from `data` (D5, KAN-723; backend/app/apply_prompts/). Only `ask_model: workit` runs one; any
+        other adapter raises SetupError (NEEDS_WORKIT). Raises UsageLimitHit at WorkIt's Usage cap."""
+        ...
+
     def drive(self, *, page: Page, model: str, system: str, prompt: str, schema: dict, files: list[Path],
               max_turns: int, max_tokens: int, hook: tuple[str, ...] = ()) -> Drive:
         """Claude works the open `page` step by step (Playwright MCP, its only
@@ -204,6 +210,12 @@ def lean(claude) -> bool:
     prompts drop their examples, list only the Question types asked, and draft one-off questions in a call of
     their own. `claude -p` is never lean."""
     return getattr(claude, "lean", False) is True
+
+
+# A kind's prompt is on WorkIt's server (D5), so only ask_model: workit can run it. ask_model: claude
+# can again once the developer prompt route is built (urgent: ../docs/developer_apply_agent_testing_framework.md).
+NEEDS_WORKIT = ("{kind}'s prompt is on WorkIt's server: set ask_model: workit in policies.yaml "
+                "(a developer's own API with APPLY_WORKIT_API), and sign in with uv run apply login")
 
 
 class SetupError(Exception):

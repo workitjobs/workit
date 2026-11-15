@@ -1,16 +1,23 @@
-"""The essay writer's guidance: the rules for every answer (answering/README.md)
-and one file per Question type (answering/types/<type>.md).
+"""The Question types Apply's own code reads: one file per type
+(answering/types/<type>.md), each only its YAML front matter.
 
-Each type file opens with YAML front matter that code reads: company_link,
-stock, high_stakes, length (default words when the form states none), match
-(lowercase regexes that pick the type out of a question's text) and slots (the
-parts a great answer of that type holds, each of which the Essay plan backs with
-quoted lines; see Slot). The body
-below it is guidance for the writing model, put into the essay prompt as is.
+The writing guidance itself, each type's body and the rules for every answer,
+is prompt text on WorkIt's server (backend/app/apply_prompts/answering/, D5),
+which has the same front matter: a change to it goes into both copies. Apply
+reads the front matter to run its own steps:
+  match         lowercase regexes that pick a question's type (classify):
+                "Why do you want to work at Figma?" is why-company, and the
+                type goes to WorkIt with the question
+  slots         the parts a great answer of the type holds: the Essay plan
+                must back each required one with quoted lines (see Slot), or
+                the plan asks Lisul for the fact
+  length        the default words when the form states none (the length gate)
+  company_link  "never" types (about-me) may tie no company fact
+  stock         whether the type keeps an approved core answer (apply.stock)
+  high_stakes   whether its answer holds the Application for review
 """
 
 import re
-from collections.abc import Iterable
 from dataclasses import dataclass
 from functools import cache
 
@@ -65,13 +72,12 @@ class TypeGuide:
     length: tuple[int, int]
     match: tuple[str, ...]
     slots: tuple[Slot, ...]
-    body: str
 
 
-def _split(text: str) -> tuple[dict, str]:
-    """Front matter and body of a guidance file."""
-    _, front, body = text.split("---\n", 2)
-    return yaml.safe_load(front) or {}, body.strip()
+def _front(text: str) -> dict:
+    """A type file's front matter; the line after it only points to the server's copy."""
+    _, front, _ = text.split("---\n", 2)
+    return yaml.safe_load(front) or {}
 
 
 @cache
@@ -79,30 +85,13 @@ def load() -> dict[str, TypeGuide]:
     """Every type's guide, by type name."""
     guides = {}
     for path in sorted((ROOT / "types").glob("*.md")):
-        front, body = _split(path.read_text())
+        front = _front(path.read_text())
         guides[front["type"]] = TypeGuide(
             type=front["type"], company_link=front["company_link"], stock=bool(front["stock"]),
             high_stakes=bool(front["high_stakes"]), length=tuple(front["length"]),
             match=tuple(front.get("match") or ()),
-            slots=tuple(Slot(s["name"], s["required"], s["holds"]) for s in front.get("slots") or ()), body=body)
+            slots=tuple(Slot(s["name"], s["required"], s["holds"]) for s in front.get("slots") or ()))
     return guides
-
-
-@cache
-def rules(lean: bool = False) -> str:
-    """The rules for every answer. `lean` (a smaller model's prompt, apply.ask_model): each numbered rule cut to its
-    bold lead and the sentence after it, the Length section whole, and no Types list."""
-    text = (ROOT / "README.md").read_text().strip()
-    if not lean:
-        return text
-    text = re.split(r"^## Types\n", text, flags=re.MULTILINE)[0].strip()
-    length = text.index("## Length")
-    cut = lambda m: m[1] + (first[0] if (first := re.match(r"\s*[^.!?]*[.!?]", m[2])) else "")
-    return re.sub(r"^(\d+\. \*\*.+?\*\*)(.*)$", cut, text[:length], flags=re.MULTILINE) + text[length:]
-
-
-# The parts of a type's guide a lean prompt keeps: how the answer runs and its checks, not the quoted examples.
-LEAN_SECTIONS = ("Order", "Rules")
 
 
 @cache
@@ -121,19 +110,3 @@ def classify(question_text: str) -> str:
     return "general"
 
 
-def guide_text(types: Iterable[str], lean: bool = False) -> str:
-    """The guidance bodies of `types`, each once, headed by its name, for the prompt. `lean` keeps only each
-    guide's LEAN_SECTIONS: the reader's quotes, Pairs and Model letters are examples a smaller model's
-    prompt can't hold (apply.ask_model)."""
-    guides = load()
-    body = lambda t: guides[t].body if not lean else "\n\n".join(
-        section.strip() for section in re.split(r"^(?=## )", guides[t].body, flags=re.MULTILINE)
-        if section.startswith(tuple(f"## {name}\n" for name in LEAN_SECTIONS)))
-    return "\n\n".join(f"# Question type: {t}\n\n{body(t)}" for t in dict.fromkeys(types))
-
-
-def checklist(kind: str) -> tuple[str, ...]:
-    """The yes/no questions of the numbered rules under "## Rules" in `kind`'s guide
-    (each rule opens with its question in bold), for a per-type judge calibrated on Lisul's picks."""
-    section = re.search(r"^## Rules\n(.*?)(?=^## |\Z)", load()[kind].body, re.MULTILINE | re.DOTALL)
-    return tuple(re.findall(r"^\d+\. \*\*(.+?)\*\*", section.group(1), re.MULTILINE)) if section else ()

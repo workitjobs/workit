@@ -509,3 +509,20 @@ async def test_only_a_project_holds_tools(student):
     project = {"section": "projects", "title": "Robot"}
     assert (await client.post(f"{bank}/entries", json={**project, "tools": ["x" * 61]})).status_code == 422
     assert (await client.post(f"{bank}/entries", json={**project, "tools": ["Go"] * 31})).status_code == 422
+
+
+async def test_a_year_alone_stays_a_year_until_its_date_changes(student):
+    # KAN-808: the edit form sends every field on each save, so a date sent
+    # again keeps its mark, and only a new month takes it off
+    client, bank = student
+    school = {"section": "education", "title": "Hillcrest State University", "start_month": "2019-01",
+              "end_month": "2023-01", "year_only": ["start_month", "end_month"]}
+    created = (await client.post(f"{bank}/entries", json=school)).json()
+    assert created["year_only"] == ["start_month", "end_month"]
+
+    same = {"title": "Hillcrest State University", "start_month": "2019-01", "end_month": "2023-01"}
+    saved = (await client.patch(f"{bank}/entries/{created['id']}", json=same)).json()
+    assert saved["year_only"] == ["start_month", "end_month"]
+
+    moved = (await client.patch(f"{bank}/entries/{created['id']}", json={**same, "end_month": "2023-05"})).json()
+    assert moved["year_only"] == ["start_month"]

@@ -8,7 +8,8 @@ import pytest
 from conftest import FIXTURES, POLICIES
 from fakes import FakeClaude
 
-from apply import answering, essays, gates, home, story_map, writing
+from apply import answering, essays, gates, home, presubmit, story_map, writing
+from apply.applicant import personal
 from apply.model import Posting, Question
 from apply.profile import ApplicantProfile
 
@@ -47,30 +48,30 @@ def test_persons_bank(monkeypatch, tmp_path):
     return bank
 
 
-def written(profile: ApplicantProfile) -> list[dict]:
-    """Every call Claude gets while Apply writes a why-company essay and a cover letter."""
+def written(profile: ApplicantProfile, drafts: tuple[Question, ...] = (), answered: dict | None = None) -> list[dict]:
+    """Every call Claude gets while Apply writes a why-company essay and a cover letter (and `drafts`, one-off
+    questions, with `answered` the form's other answers)."""
     claude = FakeClaude()
-    sent = []
 
-    def ask(**call):
-        sent.append(call)
-        wanted = call["schema"]["properties"]
-        if "plan" in wanted:  # a plan that leads every essay with the club's story
-            types = answering.load()
-            return {"plan": {key: {"type": (kind := entry["properties"]["type"]["default"]), "parts": ["What it asks"],
-                                   "story": CLUB.removeprefix("## "), "company_fact": "", "angle": "His own robot.",
-                                   "link_kind": "",
-                                   "slots": [{"slot": s.name, "quotes": [BUILT.removeprefix("- ")], "ask": ""}
-                                             for s in types[kind].slots if s.required is True]}
-                             for key, entry in wanted["plan"]["properties"].items()}}
-        return FakeClaude.ask(claude, **call)
+    def ask_kind(kind, data):
+        if kind != "essays.plan":
+            return FakeClaude.ask_kind(claude, kind, data)
+        claude.kinds.append({"kind": kind, "data": data})
+        types = answering.load()  # a plan that leads every essay with the club's story
+        return {"plan": {key: {"type": (t := asked["type"]), "parts": ["What it asks"], "story": CLUB.removeprefix("## "),
+                               "company_fact": "", "angle": "His own robot.", "link_kind": "",
+                               "slots": [{"slot": s.name, "quotes": [BUILT.removeprefix("- ")], "ask": ""}
+                                         for s in types[t].slots if s.required is True]}
+                         for key, asked in data["questions"].items()}}
 
-    claude.ask = ask
-    essays.write(claude, POSTING, [WHY, LETTER], profile)
-    return sent
+    claude.ask_kind = ask_kind
+    essays.answer(claude, POSTING, [WHY, LETTER], list(drafts), profile, answered=answered)
+    return claude.asked  # every essay call is a WorkIt kind (D5)
 
 
 def said(call: dict) -> str:
+    if "kind" in call:
+        return json.dumps(call["data"])
     return "\n".join([call["system"], call["prompt"], json.dumps(call["schema"])])
 
 
@@ -80,9 +81,8 @@ def test_claude_writes_as_test_person_never_as_another_applicant(test_persons_ba
     assert len(calls) >= 4  # plan, draft, claim check, editor
     for call in calls:
         assert "Lisul" not in said(call) and "Stony Brook" not in said(call)
-    draft = next(c for c in calls if "essays" in c["schema"]["properties"])
-    assert "as Test, in the first person" in draft["system"]
-    assert "Example State University" in json.dumps(draft["schema"])
+    draft = next(c for c in calls if c.get("kind") == "essays.write")
+    assert draft["data"]["school"] == "Example State University"
 
 
 def test_every_call_says_the_applicants_own_pronouns(test_persons_bank):
@@ -92,25 +92,10 @@ def test_every_call_says_the_applicants_own_pronouns(test_persons_bank):
     calls = written(profile)
 
     for call in calls:
-        assert "Test's pronouns are they/them/theirs." in call["system"]
-
-
-def test_with_lisuls_profile_the_prompts_say_lisul_and_stony_brook_as_before(test_persons_bank, tmp_path):
-    profile = ApplicantProfile.load(PROFILE, POLICIES)
-    profile.set("identity.preferred_first_name", "Lisul")
-    profile.set("education.school", "Stony Brook University")
-
-    calls = written(profile)
-
-    draft = next(c for c in calls if "essays" in c["schema"]["properties"])
-    assert "as Lisul, in the first person" in draft["system"]
-    assert "never needs Lisul: answer it from what they did" in draft["system"]
-    assert "reads as Lisul typed it themselves" in draft["system"]
-    assert "a computer science student at Stony Brook University, and when they graduate" in json.dumps(draft["schema"])
-    editor = next(c for c in calls if "edited" in c["schema"]["properties"])
-    assert editor["system"].startswith("You edit Lisul's written answers")
-    for call in calls:
-        assert "@NAME@" not in said(call) and "@SCHOOL@" not in said(call)
+        if "kind" in call:  # WorkIt adds the note from the pronouns the kind goes with
+            assert call["data"]["pronouns"] == "they/them/theirs"
+        else:
+            assert "Test's pronouns are they/them/theirs." in call["system"]
 
 
 def test_test_persons_own_answers_are_the_samples_of_his_voice(test_persons_bank):
@@ -129,3 +114,48 @@ def test_a_company_named_only_in_test_persons_past_answers_is_still_a_leftover(m
 def test_test_persons_story_areas_come_from_his_bank_headings():
     assert story_map.episodes(BANK) == [("- Example State University, B.S. Computer Science, May 2028.", "education"),
                                         (BUILT, "example-robotics-club")]
+
+
+def test_a_kind_goes_with_the_pronouns_and_school_and_its_answer_gets_the_name_back(tmp_path):
+    from apply.applicant import as_applicant
+
+    class Kinds:
+        def __init__(self):
+            self.sent = []
+
+        def ask_kind(self, kind, data):
+            self.sent.append((kind, data))
+            return {"letter": 'Sincerely, @NAME@'}
+
+    profile = ApplicantProfile({"identity": {"preferred_first_name": 'Te"st', "pronouns": "she/her/hers"},
+                                "education": {"school": "Example State University"}}, tmp_path, {})
+    kinds = Kinds()
+    answer = as_applicant(kinds, profile).ask_kind("essays.write", {"drafts": {}})
+    assert kinds.sent == [("essays.write", {"drafts": {}, "pronouns": "she/her/hers",
+                                            "school": "Example State University"})]
+    assert answer == {"letter": 'Sincerely, Te"st'}
+
+
+def test_no_call_is_sent_who_the_applicant_is_or_their_self_id(test_persons_bank):
+    # D8: the Fill engine fills these from the profile, so no draft or review needs them.
+    profile = ApplicantProfile.load(PROFILE, POLICIES)
+    profile.set("voluntary_self_id.race", "East Asian")
+    profile.set("experience_facts.professional_references", [{"name": "Ref Erence", "email": "ref@example.org"}])
+    email, race = Question("email", "Email", "text", True), Question("race", "Race", "select", False, ("East Asian",))
+    planned = Question("why_now", "Why are you applying now?", "text", True)
+    adult = Question("adult", "Are you at least 18 years of age?", "select", True, ("Yes", "No"))  # eligibility: kept
+
+    calls = written(profile, (planned,), {email: "test.person@example.com", race: "East Asian"})
+    reviewer = FakeClaude()
+    presubmit.review(reviewer, POSTING, [email, race, adult, WHY], {"email": "test.person@example.com", "race": "East Asian",
+                                                                    "adult": "Yes", "why": "Because I use it."},
+                     who=personal(profile))
+
+    [draft] = [c for c in calls if c.get("kind") == "essays.write"]
+    assert draft["data"]["short_questions"] and "Springfield" in draft["data"]["sources"]  # where they live: yes
+    assert [row["question"] for row in reviewer.kinds[0]["data"]["rows"]] == [adult.label, WHY.label]
+    # The facts and the form's answers every call is sent; a draft is the form's own text, sent whole.
+    sent = json.dumps([{part: c["data"].get(part) for part in ("sources", "form_answers", "rows")}
+                       for c in calls + reviewer.kinds if "kind" in c])
+    for kept in ("Person", "test.person@example.com", "5550100199", "1 Main St", "Test-ee", "East Asian", "Ref Erence"):
+        assert kept not in sent

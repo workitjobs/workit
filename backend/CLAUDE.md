@@ -333,6 +333,45 @@ Find files with a directory listing; these are the rules for where code goes.
   feature picks a size there; it never builds an `LLM` itself, so the
   `SCOUT_*` settings stay the one place a model is named
   (`../scout/CLAUDE.md`, "Which model, where").
+- **WorkIt Auto Apply's Model route** (`routers/apply_app.py`, KAN-723,
+  `../docs/desktop_application_auto_apply.md`, W1) runs the desktop app's
+  `ask`s. **`POST /apply-app/ask` builds each prompt on the server** (D5):
+  the app sends a kind and its data, and `app/apply_prompts/` holds each
+  kind's data model, size and builder, ported from Apply's modules. A
+  kind's data fields never change in place (an app copy can be older than
+  the server): a change is a new version beside the old one. A new kind
+  joins its module's `KINDS` and a sample in `tests/test_apply_prompts.py`.
+  **A kind's build puts what is the same for many calls first** (its
+  instructions, then the student's sources, then the form's data), so the
+  providers' prompt cache matches more of it: half price on Groq, and not
+  counted against its rate limits (the design doc's W1).
+  **Until Apply's calls send kinds, each ported prompt has a copy in
+  `apply-agent/`; a change goes into both in the same PR**
+  (`apply-agent/docs/prompts-and-gates.md`, which lists the prompts already
+  gone from Apply). The guides' front matter
+  (`app/apply_prompts/answering/types/`) keeps a copy in Apply for good,
+  since Apply classifies questions and checks plans with it.
+  Each kind's schema runs as data through `LLM.complete_schema`, on the
+  chain size the kind names (Apply's Haiku calls on the small one, its
+  Sonnet and Opus calls on the large one). The free-form
+  `POST /apply-app/model`, which took the app's own prompt and schema,
+  went once every kind was built here (2026-11-14). It counts tokens a day (UTC)
+  in `model_usage` (`queries/model_usage.py`), not uses in
+  `services/usage.py`, against `APPLY_APP_DAILY_TOKENS`, and calls a
+  minute against `APPLY_APP_CALLS_PER_MINUTE`. It commits before the
+  model call, so no connection is held while the model writes, and adds
+  the tokens after, a failed call's too. It never logs a prompt or an
+  answer. It passes the seam the student's identity without the name
+  (the app replaces the name, D8; the server's name removal broke
+  prompts by taking words such as "will"), and the seam puts the masked
+  email, phone and links back into the answer (`Masked`). **No route
+  takes a schema from a student.** If one ever does again, it must refuse
+  a `$ref` (or its dynamic forms), since `jsonschema` would fetch its URL;
+  a `pattern` or `patternProperties`, since the answer's check runs it
+  with Python's backtracking `re` in the event loop (`^(a+)+$` on 40
+  characters takes hours, for every user); and more than 32 levels, where
+  `jsonschema`'s own check runs out of stack. The free-form route did,
+  until it went. Tests: `tests/test_apply_app.py`.
 - **Auto apply** (`app/auto_apply/`): KAN-223's layers 1 and 2. Layer 1
   is `rules.py` pure (no session) and `queries.py` database; layer 2 is
   the steps that call them, `pipeline.py`, which every caller imports.
@@ -978,8 +1017,16 @@ Find files with a directory listing; these are the rules for where code goes.
 - **Import Again** is `POST /applicants/{id}/bank/import`: the same read on
   a stored upload, replacing what it owns, from intake's Use One I
   Uploaded, the Jobs page's empty-bank card and the Experiences view's
-  prompt for an upload that owns nothing. It re-reads `raw_text`, so a
-  resume uploaded before a parser fix gets the fix.
+  prompt for an upload that owns nothing. **It reads the upload's file
+  again** (`_text_again`: `stored_files.read`, then `text_extraction.extract`),
+  so a resume uploaded before a fix to extraction or the parser gets the
+  fix, and keeps that text with its hash (KAN-809). It re-read `raw_text`
+  until then, so an upload from before KAN-303's `pdf_spaces` (2026-11-05)
+  kept its glued words for good. The hash stays empty when another upload
+  of the student holds it (the hash is unique per student), and the
+  stored text stands when Storage fails or the file is gone: Import Again
+  never fails over Storage. Tests reach no bucket (conftest's
+  `_storage_down`).
 - **Import Updated Resume** is `PUT /applicants/{id}/resumes/{resume_id}`
   with a file, from an upload's row on the Resumes view: a newer version replaces the row's
   file and is read as an upload is, replacing what the upload owned. The row keeps its id and
@@ -1287,7 +1334,11 @@ Find files with a directory listing; these are the rules for where code goes.
   so a live model asked a finished project for its team. It also writes
   bullets from the first answer that says what the student did, rather
   than asking for one. Education's include the GPA, so a school imported without one gets asked
-  for it. The GPA is optional (`_OPTIONAL`): a card without one still counts
+  for it. A degree said only by its level ("bachelor's") is listed as still
+  missing, with a note to ask once which one (Bachelor of Science or of
+  Arts) and keep it if the student does not know; `_has` still counts it,
+  so the `READY` guard below ends the visit rather than asking again
+  (KAN-812). The GPA is optional (`_OPTIONAL`): a card without one still counts
   as complete, so after the student declines it the `READY` guard below
   ends the visit instead of asking again. Two code
   guards back the prompt, each with a test, because the local 4B model
@@ -1365,6 +1416,13 @@ Find files with a directory listing; these are the rules for where code goes.
   the same name with the catalog's case, never another name for it):
   "numpy" is "NumPy" and "grpc" "gRPC"; title case had printed "Numpy",
   "Html5" and "Matlab" on tailored resumes (2026-11-12).
+- **A degree is never a keyword** (`keywords.is_degree`, in `_cleaned` and
+  `match`): "Bachelor's Degree", "BS/MS in Computer Science" and "PhD" are
+  requirements, not skills. The prompt asked for no degree names, but
+  keywords read before it stay cached, and Tailor saved a picked
+  "Bachelor's Degree" as a resume skill (KAN-811). Bare "Master" stays a
+  skill ("Scrum Master", "Master Data Management"), and so does
+  "360-degree".
 - **The keyword match** (KAN-215) is `GET .../built-resumes/{rid}/keyword-match`
   over `services/keywords.py`: a job posting's keywords, extracted once by
   the model and cached on the posting with a hash of its title and the

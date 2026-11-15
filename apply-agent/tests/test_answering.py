@@ -89,8 +89,6 @@ def test_every_type_loads_with_all_fields():
         assert g.stock == (name in STOCK)
         assert isinstance(g.high_stakes, bool)
         assert g.match or name == "general"
-        for heading in ("What the reader is checking", "Order", "Rules", "Pairs"):
-            assert f"## {heading}" in g.body, (name, heading)
 
 
 def test_every_type_has_slots_and_one_always_required():
@@ -105,13 +103,6 @@ def test_lengths_are_valid():
     for name, g in answering.load().items():
         low, high = g.length
         assert isinstance(low, int) and isinstance(high, int) and 0 < low < high <= 350, name
-
-
-def test_rules_and_guide_text():
-    assert "first sentence" in answering.rules()
-    text = answering.guide_text(["failure", "why-company", "failure"])
-    assert text.count("# Question type:") == 2
-    assert "swap test" in text
 
 
 @pytest.mark.parametrize("expected, question", REAL)
@@ -136,6 +127,3 @@ def test_why_a_field_is_not_why_a_company():
     assert answering.classify("Why are you interested in working at Stripe?") == "why-company"
 
 
-def test_every_type_has_a_yes_no_checklist_for_the_critic():
-    assert answering.checklist("values")[0] == "Is exactly one value named, in the company's own words?"
-    assert all(len(answering.checklist(t)) >= 5 for t in answering.load())

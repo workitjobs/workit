@@ -391,6 +391,7 @@ async def write_entry(
     statement updates the row, if it is the applicant's, and marks the bank
     embedding stale; NotFound for another's entry."""
     fixed = {"section": current["section"], "custom_section_id": current.get("custom_section_id")}
+    changes = with_years(current, changes)
     merged = EntryFields.model_validate({**current, **changes, **fixed}).model_dump()
     values = {k: merged[k] for k in changes if k not in fixed}
     if not values:
@@ -418,6 +419,27 @@ def entry_fields(row) -> dict[str, object]:
     return {name: getattr(row, name) for name in EntryFields.model_fields}
 
 
+def _month(value: object) -> str | None:
+    # A date or "YYYY-MM", as a change or a row holds it
+    return None if value is None else str(value)[:7]
+
+
+def with_years(current: Mapping[str, object], changes: Mapping[str, object]) -> dict[str, object]:
+    """`changes` with each date it changes taken off `year_only` (KAN-808):
+    a month the student picks names its month, so a year read from an upload
+    no longer stands for it. A date sent again unchanged keeps its mark (the
+    edit form sends every field on every save), and so does an edit that
+    names `year_only` itself."""
+    changes = dict(changes)
+    if "year_only" in changes:
+        return changes
+    marked = list(current.get("year_only") or ())
+    kept = [f for f in marked if f not in changes or _month(changes[f]) == _month(current.get(f))]
+    if kept != marked:
+        changes["year_only"] = kept
+    return changes
+
+
 def edit_entry(row: Bank_Entry, changes: Mapping[str, object]) -> None:
     """A partial edit on a loaded row, in memory: saved by the session's
     next flush. The merged entry is checked whole through EntryFields, so it
@@ -426,6 +448,7 @@ def edit_entry(row: Bank_Entry, changes: Mapping[str, object]) -> None:
     its bank already holds, so the PDF compiles before the write
     (routers/built_resumes.py, `save_line`)."""
     current = {name: getattr(row, name) for name in EntryFields.model_fields}
+    changes = with_years(current, changes)
     merged = EntryFields.model_validate(
         {**current, **changes, "section": row.section, "custom_section_id": row.custom_section_id})
     for name, value in merged.model_dump().items():

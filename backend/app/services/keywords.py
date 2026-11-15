@@ -92,6 +92,27 @@ def resume_case(keyword: str) -> str:
     return _WORD.sub(cased, keyword)
 
 
+# A degree a posting asks for is a requirement, never a skill to add. The
+# prompt says so, but keywords read before it stay cached, and a picked
+# "Bachelor's Degree" joined a tailored resume's skills (KAN-811). Bare
+# "Master" stays a skill ("Scrum Master", "Master Data Management"), and a
+# degree sign's "360-degree" is no degree.
+_DEGREE_RE = re.compile(
+    r"\b(?:bachelor|doctorate|doctoral|diploma)s?\b|(?<![\w-])degrees?\b"
+    r"|\b(?:master|associate)(?:'s|’s|s)?(?= (?:of|degree)\b)|\b(?:master|associate)(?:'s|’s|s)\b"
+    r"|\bph\.?\s?d\b"
+    r"|^(?:b\.?s|m\.?s|b\.?a|m\.?a|b\.?sc|m\.?sc|b\.?eng|m\.?eng|m\.?b\.?a)\.?(?:\s*/\s*[a-z.]+)*"
+    r"(?:\s+(?:in|degree)\b.*)?$",
+    re.IGNORECASE,
+)
+
+
+def is_degree(keyword: str) -> bool:
+    """Whether a keyword names a degree ("Bachelor's Degree", "BS/MS in
+    Computer Science", "PhD") rather than a skill."""
+    return _DEGREE_RE.search(" ".join(keyword.split())) is not None
+
+
 def _text(title: str, description: str | None) -> str:
     """What the model reads of a posting: its title and its job part, cut to size."""
     part = job_part(description, keep_headings=True)[:MAX_DESCRIPTION_CHARS]
@@ -123,7 +144,7 @@ def _cleaned(reading: KeywordReading) -> list[Keyword]:
     out: list[Keyword] = []
     for item in reading.keywords:
         word = resume_case(" ".join(item.keyword.split())[:_MAX_LENGTH].strip())
-        if not word or word.casefold() in seen:
+        if not word or word.casefold() in seen or is_degree(word):
             continue
         seen.add(word.casefold())
         out.append(Keyword(keyword=word, kind=item.kind))
@@ -184,9 +205,11 @@ def _shows(text: str, keyword: str) -> bool:
 
 
 def match(view: ResumeView, keywords: list[Keyword]) -> tuple[list[Keyword], list[Keyword]]:
-    """(matched, missing), each with the required keywords first."""
+    """(matched, missing), each with the required keywords first. A degree
+    keyword a posting's cached reading still holds is in neither
+    (`is_degree`), so Tailor never offers it as a skill to add."""
     text = _shown_text(view)
-    ordered = sorted(keywords, key=lambda k: k.kind != "required")
+    ordered = sorted((k for k in keywords if not is_degree(k.keyword)), key=lambda k: k.kind != "required")
     matched = [k for k in ordered if _shows(text, k.keyword)]
     missing = [k for k in ordered if not _shows(text, k.keyword)]
     return matched, missing

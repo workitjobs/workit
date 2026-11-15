@@ -186,9 +186,9 @@ export default function PrivacyPage() {
           passwords.
         </li>
         <li>
-          <strong>What the app sends to WorkIt.</strong> What each of its AI calls needs, with your
-          personal details replaced (next item); your applications&apos; stages, the answers you
-          approve and your Auto Apply queue, as the Chrome extension does; and, only when you click
+          <strong>What the app sends to WorkIt.</strong> What each of its AI calls needs, without
+          your private details (next item); your applications&apos; stages, the answers you approve
+          and your Auto Apply queue, as the Chrome extension does; and, only when you click
           &ldquo;Send report&rdquo;, one application&apos;s record and its step-by-step log, with
           your personal details hidden in the log. We use a report only to fix the problem it shows,
           and we delete it once that problem is fixed. The app sends no analytics and no automatic
@@ -197,17 +197,12 @@ export default function PrivacyPage() {
         <li>
           <strong>What its AI calls send.</strong> The app writes and checks answers with AI through
           WorkIt. WorkIt builds each prompt from what the app sends and sends it to Groq or Google
-          (Gemini) with WorkIt&apos;s own key, so the provider does not get your WorkIt account.
-          Before anything leaves your Mac, the app replaces your name, email address, phone number,
-          street address and ZIP code, date of birth, links to your own profiles (LinkedIn, GitHub,
-          portfolio) and student ID with placeholders, and puts the real values back into the answer
-          on your Mac. WorkIt&apos;s server replaces any email address, phone number or link again
-          before the prompt goes on. Your self-identification answers are never sent. Sent, because
-          the answers need them: the job posting and the form&apos;s questions, your other answers
-          on the form (such as work authorization), your school, major and graduation date, your
-          city and state, your employers, and your experiences and stories. The app cannot find
-          other people&apos;s names inside your stories, so leave out anything private about other
-          people.
+          (Gemini) with WorkIt&apos;s own key, so the provider does not get your WorkIt account. The
+          app sends only what the answers need, such as the job posting, the form&apos;s questions
+          and your experiences, and leaves out private details such as your contact details, your
+          street address and your self-identification answers. Before a prompt goes on,
+          WorkIt&apos;s server also hides contact details it finds in it. The app cannot find other
+          people&apos;s names inside your stories, so leave out anything private about other people.
         </li>
         <li>
           <strong>What the AI providers can do with it.</strong> Google&apos;s free tier lets Google
