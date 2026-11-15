@@ -95,7 +95,7 @@ builds it.
 | D5 | **WorkIt builds the prompts** (2026-11-14; a thin proxy was decided 2026-11-13). The app sends each call's kind and its data; WorkIt builds the system prompt, the prompt and the schema (`backend/app/apply_prompts/`), runs the provider chain and counts tokens. The prompts and answering guides leave the app | A call that carried its own prompt and schema let anyone with an account use WorkIt as a free general model and send schemas that attack the server (W1). A prompt change ships with the merge that deploys the API | W1 |
 | D6 | **A free beta with a Usage cap of 80,000 tokens per student per day**, reset at midnight UTC, always shown in the app. WorkIt can change it without an app update (2026-11-14; it was 3,000,000 a month) | The free tiers limit WorkIt's one key a day, shared by every student and feature: Groq allows 200,000 tokens a day for each model, about 400,000 for our two, so about five students at full use fill it. A monthly cap let one student spend a whole day's share. 80,000 is about thirteen 6,000-token calls, about three forms with essays; on Groq's paid tier it costs under 2 cents a student a day. W13 checks the number | W1 |
 | D7 | **The beta uses the providers' free tiers.** Paid tiers come later (F3). One account per provider, owned by the team Gmail with developers as members, as Cloudflare's is; the team does not pool developers' free keys | No paid keys for now. Groq's AI policy forbids use "beyond published parameters, rate limits, or use limitations, including by registering multiple accounts" (checked 2026-11-14); members share their organization's limits | W1, F3 |
-| D8 | **Personal data is replaced before a prompt leaves the computer**, and put back on the computer. Self-ID answers are never sent. The app shows a short disclosure. As built (2026-11-15): the app replaces the email, phone, street address and birth date with placeholders and puts them back, and the server hides the contact details it finds; self-ID answers on the form are sent, since filling and essays come first, and an essay that states something private is flagged for the student (section 3.4) | Prompts go to WorkIt and to Groq and Google, and Google's free tier may use prompts to improve its products | W1, W5 |
+| D8 | **Personal data is replaced before a prompt leaves the computer**, and put back on the computer. Self-ID answers are never sent. The app shows a short disclosure. **Proposed change, not agreed (2026-11-14): send the self-ID answers on the form**, so filling and essays come first. It needs the team's agreement before PR #587 merges, since that PR sends them. As built in PR #587 (2026-11-15): the email, phone, street address and a birth date are replaced and put back, and an essay that states something private is flagged; the name, the ZIP code and the references' names still reach the model, which this decision does not allow (section 3.4, open) | Prompts go to WorkIt and to Groq and Google, and Google's free tier may use prompts to improve its products | W1, W5 |
 | D9 | **No Gmail.** A job site's emailed code becomes a Needs-you item that the student types | Reading Gmail needs an app password (a hard setup) or Google's paid security review | W3 |
 | D10 | **macOS-only code is removed or replaced.** Scheduled runs, phone push and the Dock bundle are dropped; Keychain becomes `keyring`; Chrome is found per OS | A simple app, and a later Windows port that is not a rewrite | W4 |
 | D11 | **The window is native (pywebview) and opens no port.** Its page talks to Python through pywebview's bridge, not through a server on `127.0.0.1` | It works like any other app; no local server that other programs can call | W5 |
@@ -208,22 +208,46 @@ saw a block), and CDP Workers fill the rest (section 4.7).
 | WorkIt | One Application's Record and masked Trace | Only when the student presses "Send report" |
 | Job sites | The form's answers, in the Worker's Chrome | As a person filling the form |
 
-**Replaced before a prompt leaves** (D8, as built 2026-11-15, W1): the
-email, phone, street address and a birth date the student gave for a form,
-each with a placeholder (`@EMAIL@`, `@PHONE@`, `@STREET@`, `@BIRTH_DATE@`)
-wherever it is in what a call sends, and put back into the answer on the
-computer (`apply/private.py`). No answer needs them, since the Fill
-engine types them from the profile. The name stays `@NAME@` in the
-prompts. The server also hides the contact details it finds in a prompt
-(`Masked`) and puts them back. **Sent, because filling and essays come
-first:** everything else, the form's answers with their self-ID answers
-among them, school, major, graduation date, city, state and ZIP code,
-employers and the student's stories. The profile's own self-ID section is
-not sent as profile facts. **Flagged, not blocked:** an essay that states
-a private fact, a self-ID answer or a trait ("as a first-generation
-student") is held for the student to read (`private.sensitive`).
-**Not caught:** other people's names inside a story. The privacy page
-says this in general terms (KAN-848).
+**Replaced before a prompt leaves** (D8, as built in PR #587, 2026-11-15,
+W1): the email, phone, street address and a birth date the student gave
+for a form, each with a placeholder (`@EMAIL@`, `@PHONE@`, `@STREET@`,
+`@BIRTH_DATE@`) wherever it is in what a call sends, and put back into the
+answer on the computer (`apply/private.py`). No answer needs them, since
+the Fill engine types them from the profile. The server also hides any
+email or phone it finds, a reference's included, and the student's own
+links (`Masked`), and puts them back.
+
+**Not replaced yet, though D8 says they must be** (the review of PR
+#587): the student's name, the ZIP code and the references' names. The
+prompts call the student `@NAME@`, but the name itself reaches the model:
+in the profile facts (legal and preferred names), in the form's answers
+(First Name, Last Name) and in the Story bank's text. The ZIP code goes in
+`<home>`, in the profile facts and in the form's answers. All of it goes
+to Gemini's free tier too, which the team allowed on 2026-10-14 only
+because identity data is removed on every call (`scout/CLAUDE.md`). **Fix
+before PR #587 merges:** `apply/private.py` masks the name fields, the
+ZIP code and the references, and a test checks that a call sends none of
+them. Masking the ZIP code keeps the essay box that asks where the
+student would move from working (Applied Materials, live): the answer's
+placeholder comes back as the code.
+
+**Self-ID answers on the form are sent in PR #587, against D8**, which
+waits for the team's agreement (D8). The way that keeps D8: leave out a
+form answer whose value is one of the profile's `voluntary_self_id`
+values, not one whose label holds a self-ID word, which also dropped
+Rippling's school question ("…for demographic and outreach purposes").
+A value match catches a typed answer such as a race; a yes or no the
+Fill engine turned into an option's words ("I am not a protected
+veteran") needs the option's wording too. The profile's own self-ID
+section is never sent as profile facts.
+
+**Sent, because the answers need them:** the posting, the form's
+questions and its other answers, school, major, graduation date, city and
+state, employers and the student's stories. **Flagged, not blocked:** an
+essay that states a private fact, a self-ID answer or a trait ("as a
+first-generation student") is held for the student to read
+(`private.sensitive`). **Not caught:** other people's names inside a
+story. The privacy page says this in general terms (KAN-848).
 
 ### 3.5 What stays on the computer
 
@@ -583,7 +607,9 @@ shapes and status codes.
   removal takes each part of the name as a word in any case, so for a
   student named Will Mark, "You will write" reached the model as "You
   [name] write", and the prompt broke. The cost: a name the app misses
-  reaches Groq or Google.
+  reaches Groq or Google. **The app does not replace it yet** (PR #587):
+  the name reaches the model in profile facts, the form's answers and the
+  Story bank (section 3.4, open).
 - **No request carries a schema** (2026-11-14): the server builds each
   kind's. The free-form route's checks went with it. Its lesson stays for
   any route that takes a schema from outside: refuse a `$ref` (or its
@@ -727,8 +753,9 @@ its own instructions or a hostile schema.
   | `claude_fill.sent` | `claude_fill` | the page's text after a send |
 
   `applicant.as_applicant` (the name and the pronouns note on every
-  call) becomes a `pronouns` field the server reads; the name stays the
-  placeholder `@NAME@` in the prompt, which the app puts back (D8). The `claude_cli` probe ("Reply with
+  call) becomes a `pronouns` field the server reads. The prompts say
+  `@NAME@` where the name goes, and the app puts the first name into the
+  answer (D8); the name in a call's data is not masked yet (section 3.4). The `claude_cli` probe ("Reply with
   ok") is not a kind: `GET /apply-app/usage` checks the session.
 
 **The app (Apply).**
@@ -741,15 +768,17 @@ its own instructions or a hostile schema.
   the values back into the answer. Self-ID answers are never in a
   prompt. Tests check that no profile value of the listed kinds reaches
   the request.
-  **Built** (2026-11-15, section 3.4): `apply/private.py` replaces the
-  email, phone, street address and a birth date in every kind's data,
-  and `applicant.as_applicant`, which wraps every adapter where a run,
-  the window or a command builds it, puts them back. Self-ID answers are
-  sent: the student chose filling and essays over keeping them out
-  (2026-11-14), so the label pattern that dropped them went, with the
-  answers it dropped by mistake (a diversity essay, Rippling's school
-  question). An essay that states something private is flagged at the
-  Hold instead (`private.sensitive`), never cut or written again.
+  **Built in PR #587** (2026-11-15, section 3.4): `apply/private.py`
+  replaces the email, phone, street address and a birth date in every
+  kind's data, and `applicant.as_applicant`, which wraps every adapter
+  where a run, the window or a command builds it, puts them back. An
+  essay that states something private is flagged at the Hold
+  (`private.sensitive`), never cut or written again. **Open before it
+  merges** (its review): the name fields, the ZIP code and the
+  references' names still reach the model, and the form's self-ID
+  answers are sent against D8. The label pattern that dropped self-ID
+  answers went in that PR, with the answers it dropped by mistake (a
+  diversity essay, Rippling's school question).
 - **The Orchestrator's limit.** Today it pauses on Claude Code's 5-hour
   and weekly windows (`orchestrator._resume_at`, `adapters.usage`). The
   Student build reads `GET /apply-app/usage` instead and pauses at the
@@ -1226,12 +1255,15 @@ merges only once the team approves it.
 2026-11-14).** The page describes the app as section 3.4 designs it, and
 the app does not do all of it yet:
 
-- **W1's app side (D8) is built** (2026-11-15): the app replaces the
-  email, phone, street address and birth date with placeholders in every
-  call and puts them back, and the server masks contact details again.
-  Self-ID answers on the form are sent, and the page says so in general
-  terms. Not done: a student ID has no placeholder, since the profile
-  keeps none.
+- **W1's app side (D8) is partly built** (PR #587, 2026-11-15): the app
+  replaces the email, phone, street address and birth date with
+  placeholders in every call and puts them back, and the server masks
+  contact details again. Not done: the name, the ZIP code and the
+  references' names reach the model, and a student ID has no placeholder,
+  since the profile keeps none. The page says the app replaces private
+  details, so it is not true of the app until the name and the ZIP code
+  are replaced too (section 3.4). The page also says self-ID answers on
+  the form are sent, which D8 does not allow until the team agrees.
 - **Send report's route (D26) is not built.** It takes the one
   Application's Record and masked Trace that a student sends with the
   window's "Send report". **WorkIt keeps a report until the problem it
@@ -1530,6 +1562,13 @@ their value on their servers; WorkIt Auto Apply does the same.
 - The teammate's work on the engine's exposure through the WorkIt
   extension (W7's dependency).
 - When to enroll with Apple, and when to convert to an organization (F7).
+- **Whether the form's self-ID answers reach the model** (D8's proposed
+  change, 2026-11-14), or only answers whose value is not one of the
+  profile's self-ID answers (section 3.4). The team decides before PR
+  #587 merges.
+- **Whether Gemini's free tier stays in the Model route's chain** while
+  any identity data reaches it: the team allowed it on 2026-10-14 only
+  because identity data is removed on every call (`scout/CLAUDE.md`).
 
 ## 11. History
 

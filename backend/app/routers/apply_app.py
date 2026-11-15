@@ -22,8 +22,9 @@ and own links, and any email or phone found by pattern, go to the model
 as placeholders, whatever the app left out first, and come back in the
 answer as their values (workit_scout.identity.Masked). Other links stay:
 the calls read employers' links. The name is the
-app's to replace (D8): the server's name removal also took ordinary words
-("will" for a student named Will) and broke the prompt. It answers
+app's to replace (D8), which the app does not do yet (the design doc's
+section 3.4): the server's name removal also took ordinary words ("will"
+for a student named Will) and broke the prompt. It answers
 ModelAnswer {answer, tokens, usage}.
        403  not a student's account.
        422  a body outside AskCall, an unknown kind or version,
@@ -144,7 +145,7 @@ async def _call(db: AsyncSession, account: AuthenticatedAccount, llm: LLM, messa
         resets = model_usage.resets_at(now)
         raise _refused(status.HTTP_429_TOO_MANY_REQUESTS, "Today's model use is reached; it resets at midnight UTC.",
                        (resets - now).total_seconds())
-    # No name: the app replaces it (D8), and removing it here also took
+    # No name: it is the app's to replace (D8; not done yet, the design doc's 3.4), and removing it here also took
     # ordinary words that are a part of it, such as "will" or "mark".
     identity = dataclasses.replace(await load_identity(db, account), name=None)
     # Hold no connection while the model writes, which can take a minute.
