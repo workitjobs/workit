@@ -191,7 +191,11 @@ into it and the window shows "Sample data".
   network and no `claude` CLI. When you add a test file that needs none of
   them, add it to that list. Its test steps run in parallel
   (`pytest -n auto`), so a new test there can't share a fixed port or
-  path with another. CI also installs Chrome for Testing and runs
+  path with another. A test of `rehearse` with `keep_open` picks out the
+  lines it checks, and never counts all it printed: when a form's thread
+  is still running as the first line prints, the run also says "Apply
+  submitted nothing", and a test that unpacked every line failed 5 runs
+  in 400 on a busy machine (2026-11-14). CI also installs Chrome for Testing and runs
   `test_plain_guards.py` and `test_plain_routing.py` on a real plain Worker.
   CI never runs the Filler tests (`test_*_filler.py`, `test_claude_fill.py`
   and the other files that open Chromium). Run the ones that your change
