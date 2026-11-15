@@ -30,13 +30,24 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import TYPE_CHECKING
 from urllib.parse import urlsplit
 
 from apply import trace
-from apply.adapters import SetupError, UsageLimitHit
-from apply.claude_cli import ClaudeCLI, ClaudeError
+from apply.adapters import NEEDS_WORKIT, ClaudeError, SetupError, UsageLimitHit
 from apply.home import CODE
-from apply.keychain import GEMINI, GEMINI_HOST, GROQ, GROQ_HOST, MacKeychain
+from apply.keychain import GEMINI, GEMINI_HOST, GROQ, GROQ_HOST, SystemKeychain
+from apply.workit import (
+    CapReached,
+    LoginExpired,
+    NotLoggedIn,
+    Unreachable,
+    WorkIt,
+    WorkItError,
+)
+
+if TYPE_CHECKING:
+    from apply.claude_cli import ClaudeCLI
 
 
 @dataclass(frozen=True)
@@ -106,15 +117,15 @@ SCOUT_LISTS = ("SCOUT_ENDPOINTS_LARGE", "SCOUT_ENDPOINTS", "SCOUT_ENDPOINTS_SMAL
 def no_key(provider: Provider) -> str:
     service, account = provider.keychain
     return (f"no {provider.name} key: copy the team's .env into the checkout's root (Scout's SCOUT_ENDPOINTS hold it), "
-            f"set {provider.env}, or save it in Keychain with `security add-generic-password -s {service} -a {account} "
-            "-w` (it asks for the key); a developer can set ask_model: claude in policies.yaml instead")
+            f"set {provider.env}, or save it in Keychain with `uv run keyring set {service} {account}` "
+            "in apply-agent/ (it asks for the key); a developer can set ask_model: claude in policies.yaml instead")
 
 
 def key(provider: Provider, keychain=None, dotenv: Path = DOTENV) -> str | None:
     """`provider`'s API key: its environment variable, else its Keychain item, else the checkout's .env (Scout's
     endpoint on the provider's host); None with none of them."""
     service, account = provider.keychain
-    return (os.environ.get(provider.env) or (keychain or MacKeychain(service)).password(account)
+    return (os.environ.get(provider.env) or (keychain or SystemKeychain(service)).password(account)
             or _from_dotenv(provider, dotenv))
 
 
@@ -142,25 +153,44 @@ def _from_dotenv(provider: Provider, path: Path) -> str | None:
     return None
 
 
+WORKIT = "workit"  # every ask goes to WorkIt's Model route as a kind (D5, KAN-723): WorkItAsk
+ASK_TIMEOUT = 300  # seconds: WorkIt tries its whole model chain before it answers
+# Seconds before each retry when WorkIt can't be reached or answers that every model is busy (503): a free
+# tier's per-minute limit clears within a minute, and failing there failed the whole Application.
+BUSY_WAITS = (5, 20, 60)
+
+
 def chain(policies: dict) -> list[str]:
-    """The providers policies.yaml's ask_model names, in order; [] for claude. policies.default.yaml names
-    [groq, gemini] (2026-11-10, KAN-723); policies with no ask_model key (a test's) read as claude. Raises
-    SetupError on a name that is neither claude nor a provider."""
+    """The providers policies.yaml's ask_model names, in order; [] for claude, [workit] for WorkIt.
+    policies.default.yaml names [groq, gemini] (2026-11-10, KAN-723); policies with no ask_model key (a
+    test's) read as claude. Raises SetupError on a name that is neither claude, workit nor a provider, and on
+    workit beside another: WorkIt runs its own chain."""
     named = policies.get("ask_model") or "claude"
     names = [named] if isinstance(named, str) else list(named)
     if names == ["claude"]:
         return []
+    if names == [WORKIT]:
+        return names
+    if WORKIT in names:
+        raise SetupError("ask_model: workit stands alone: WorkIt runs its own model chain")
     if wrong := [n for n in names if n not in PROVIDERS]:
         raise SetupError(f"ask_model names {', '.join(map(str, wrong))}: use claude, or one or more of "
                          f"{', '.join(PROVIDERS)}")
     return names
 
 
-def live_claude(policies: dict, claude: ClaudeCLI | None = None, keychain=None, dotenv: Path = DOTENV):
-    """The Claude adapter policies.yaml's ask_model names: `claude` itself, or a HostedAsk over its providers."""
-    claude = claude or ClaudeCLI()
+def live_claude(policies: dict, claude: "ClaudeCLI | None" = None, keychain=None, dotenv: Path = DOTENV):
+    """The Claude adapter policies.yaml's ask_model names: `claude` itself, or a HostedAsk over its providers.
+    The Student build passes its own `claude` (apply.student.NoClaude): it has no `claude -p` (apply.build)."""
+    if claude is None:
+        from apply.claude_cli import (
+            ClaudeCLI,  # a Developer checkout's: never on the Student path
+        )
+        claude = ClaudeCLI()
     if not (names := chain(policies)):
         return claude
+    if names == [WORKIT]:
+        return WorkItAsk(claude)
     overrides = policies.get("ask_models") or {}
     endpoints = []
     for name in names:
@@ -186,7 +216,7 @@ class HostedAsk:
 
     lean = True  # apply.adapters.lean: the essay prompts shrink to fit a free tier
 
-    def __init__(self, endpoints: list[Endpoint], claude: ClaudeCLI, post: Post = https_post,
+    def __init__(self, endpoints: list[Endpoint], claude: "ClaudeCLI", post: Post = https_post,
                  sleep: Callable[[float], None] = time.sleep, now: Callable[[], datetime] = datetime.now):
         self._endpoints = endpoints
         self._claude = claude
@@ -200,6 +230,9 @@ class HostedAsk:
 
     def spent(self) -> int:
         return self._claude.spent() + getattr(self._spent, "tokens", 0)
+
+    def ask_kind(self, kind: str, data: dict) -> dict:
+        raise SetupError(NEEDS_WORKIT.format(kind=kind))
 
     def ask(self, *, model: str, system: str, prompt: str, schema: dict) -> dict:
         error: Exception = ClaudeError("no ask_model endpoint")
@@ -377,6 +410,63 @@ def _too_large(reply: dict) -> bool:
     return bool(re.search(r"too large|context length|context window|maximum context|token count", _said(reply),
                           re.IGNORECASE)) and "error" in reply
 
+
+
+class WorkItAsk:
+    """The Claude adapter for `ask_model: workit` (D5, KAN-723): each ask goes to WorkIt's Model route as a kind
+    and its data, and WorkIt builds the prompt (backend/app/apply_prompts/), runs its model chain and counts the
+    student's tokens against the daily Usage cap. `drive` and anything else go to `claude`; `spent` counts both."""
+
+    lean = True  # every model behind WorkIt is a hosted one
+
+    def __init__(self, claude: "ClaudeCLI", workit: WorkIt | None = None, sleep: Callable[[float], None] = time.sleep,
+                 now: Callable[[], datetime] = datetime.now):
+        self._claude = claude
+        self._workit = workit or WorkIt()
+        self._sleep = sleep
+        self._now = now
+        self._spent = threading.local()
+
+    def __getattr__(self, name: str):
+        return getattr(self._claude, name)
+
+    def spent(self) -> int:
+        return self._claude.spent() + getattr(self._spent, "tokens", 0)
+
+    def ask(self, *, model: str, system: str, prompt: str, schema: dict) -> dict:
+        raise SetupError("ask_model: workit sends each call as a kind and its data, never a prompt (D5, KAN-723)")
+
+    def ask_kind(self, kind: str, data: dict) -> dict:
+        """WorkIt's answer. Its per-minute limit is waited out once, and WorkIt down or every model busy
+        (BUSY_WAITS); its Usage cap raises UsageLimitHit, which pauses the run until the cap resets (midnight
+        UTC)."""
+        return self._post("/apply-app/ask", {"kind": kind, "version": 1, "data": data}, kind)
+
+    def _post(self, path: str, body: dict, kind: str) -> dict:
+        waited, busy = False, list(BUSY_WAITS)
+        while True:
+            try:
+                reply = self._workit.call("POST", path, body, timeout=ASK_TIMEOUT)
+            except CapReached as capped:
+                wait = capped.until - self._now().timestamp()
+                if not waited and wait <= LONGEST_WAIT:
+                    waited = True
+                    self._sleep(max(wait, 1.0))
+                    continue
+                raise UsageLimitHit(datetime.fromtimestamp(capped.until)) from None
+            except (NotLoggedIn, LoginExpired):
+                raise SetupError("ask_model: workit needs a WorkIt sign-in: run uv run apply login") from None
+            except Unreachable as e:
+                # No answer, or every model busy (503): asked again. A 502 (no answer fit) would fail again.
+                if e.status in (None, 503) and busy:
+                    self._sleep(busy.pop(0))
+                    continue
+                raise ClaudeError(f"WorkIt's Model route: {e}") from None
+            except WorkItError as e:
+                raise ClaudeError(f"WorkIt's Model route refused {kind}: {e}") from None
+            self._spent.tokens = getattr(self._spent, "tokens", 0) + int(reply.get("tokens") or 0)
+            trace.event("claude", block="ask", ask_kind=kind, backend=WORKIT, answer=reply.get("answer"))
+            return reply["answer"]
 
 def _said(reply: dict) -> str:
     """The provider's error message, one line, without the organization's id (it lands in Records and Traces)."""

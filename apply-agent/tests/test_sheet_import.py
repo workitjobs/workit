@@ -178,7 +178,7 @@ def test_the_resume_is_the_one_kept_on_the_day_it_was_applied(tmp_path):
 
 
 def test_a_link_matches_as_workit_matches_it():
-    key = sheet_import.job_key
+    key = workit.job_key
     assert key("https://job-boards.greenhouse.io/embed/job_app?for=acme&token=8000001") == key(ACME)
     assert key("https://www.Example.com/jobs/1/?src=x#top") == key("http://example.com/jobs/1")
     assert key("https://example.com/jobs/1") != key("https://example.com/jobs/2")

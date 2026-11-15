@@ -4,8 +4,8 @@ code). Apply reads that code from Gmail and types it into the code field. It
 never presses a button: the Submit or Verify after the code stays his.
 
 - The code field is one that shows after his press and was not on the form
-  when Apply handed him the page (so a postal code box is never one), with
-  each of its boxes empty (he did not type the code himself).
+  when Apply handed him the page (apply.code_box, which the Student build
+  keeps: it tells the student to type the code, KAN-855).
 - The mail is the newest from the job system's senders (else the page's own
   domain) that arrived after his press, read with gmail.sure_code: only a
   code the mail names as one. It is looked for every POLL, for at most WAIT,
@@ -24,13 +24,12 @@ never presses a button: the Submit or Verify after the code stays his.
 - What it says names only the sender's domain, never the code or the mail.
 """
 
-import re
 import threading
 from collections.abc import Callable
 from datetime import datetime, timedelta
 from urllib.parse import urlsplit
 
-from apply import account_pages, greenhouse, submit_guard, workday
+from apply import account_pages, code_box, greenhouse, submit_guard, workday
 from apply.adapters import Clock, Mailbox
 from apply.gmail import MailedCode
 
@@ -38,12 +37,6 @@ WAIT = timedelta(minutes=10)
 POLL = timedelta(seconds=5)
 # A mail stamped a little before the press still counts: Gmail dates it to the second.
 SLACK = timedelta(seconds=5)
-# Greenhouse's code boxes first, then any box a code goes in.
-FIELDS = f"{greenhouse.SECURITY_BOXES}, {greenhouse.SECURITY_BOX}, {account_pages.CODE_BOX}"
-# A box whose words name another code, which is never an emailed one.
-NOT_A_CODE = re.compile(r"zip|postal|post_code|country|area|promo|coupon|discount|referr|invite|dial", re.IGNORECASE)
-# The words of a box, read in the page: its id, name, label, placeholder and autocomplete.
-WORDS = "b => [b.id, b.name, b.getAttribute('aria-label'), b.placeholder, b.autocomplete].join(' ')"
 SETTLE_MS = 1000  # how long the guard stays on after the code is in, for a page that sends itself
 
 FILLED = "Code filled from an email from {sender}. Check it and press Submit yourself"
@@ -96,7 +89,7 @@ class EmailCode:
 
     def tick(self, page) -> None:
         if self._form is None:
-            self._form = {key for key, _ in _boxes(page)}
+            self._form = {key for key, _ in code_box.boxes(page)}
             return
         if self._thread is None:
             if self._press is None or not (boxes := self._new_boxes(page)):
@@ -151,12 +144,7 @@ class EmailCode:
             _GOING.get(self._search, set()).discard(self)
 
     def _new_boxes(self, page) -> list:
-        """The code field that came after the form: its visible boxes, each empty."""
-        boxes = [(key, box) for key, box in _boxes(page) if key not in (self._form or set())]
-        try:
-            return boxes if boxes and all(not box.input_value() for _, box in boxes) else []
-        except Exception:
-            return []
+        return code_box.new_boxes(page, self._form or set())
 
     def _look(self, since: datetime) -> None:
         until = self._clock.now() + WAIT
@@ -173,23 +161,6 @@ class EmailCode:
             if self._clock.now() >= until:
                 return
             self._clock.sleep_until(min(until, self._clock.now() + POLL))
-
-
-def _boxes(page) -> list:
-    """Every visible box a code could go in, in the first frame that has one,
-    as (a key that names it, its locator)."""
-    for n, frame in enumerate(page.frames):
-        try:
-            found = []
-            for box in frame.locator(FIELDS).all():
-                words = box.evaluate(WORDS)
-                if box.is_visible() and not NOT_A_CODE.search(words):
-                    found.append((f"{n}|{words}", box))
-        except Exception:
-            continue  # a frame gone or going
-        if found:
-            return found
-    return []
 
 
 def _type(page, boxes: list, code: str) -> bool:

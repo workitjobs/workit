@@ -46,12 +46,14 @@ DEFAULT_OPENING = 4  # words of the first 8 shared with the default's first 8 (S
 SHARED_RUN = 8  # words in a row shared with a past answer at another company (S7)
 RECENT_STORIES = 3  # stories an answer type led with lately that the plan steers away from
 CROSS_OVERLAP = 0.20  # share of 5-word runs shared with a past answer at another company (S7)
-SWAP_ALLOWED = 1  # company sentences that may survive the swap outside COMPANY_FACING types (S6)
+SWAP_ALLOWED = 1  # company sentences that may survive the swap outside company_facing() types (S6)
 
-# Question types about the company itself (company_link: same-kind in
-# apply/answering/types): none of their sentences may survive the swap, and
-# their wording is compared with every past answer, not only the same type.
-COMPANY_FACING = frozenset(t for t, guide in answering.load().items() if guide.company_link == "same-kind")
+# Question types about the company itself (company_link: same-kind, apply.answering): none of their
+# sentences may survive the swap, and their wording is compared with every past answer, not only the same type.
+def company_facing() -> frozenset[str]:
+    """The types whose answer ties the company (company_link same-kind), read when a check runs: WorkIt's types
+    are in the data folder only once a run fetched them (apply.answering)."""
+    return frozenset(t for t, guide in answering.load().items() if guide.company_link == "same-kind")
 
 # The submitted answers, kept outside the repo beside Apply's other local state
 # (~/.config/apply): they are Lisul's own answers and are never committed.
@@ -336,7 +338,7 @@ def check(answer: str, *, type: str, form_answers: dict[str, str] | list[str], s
         if shared_opening(answer, default) >= DEFAULT_OPENING:
             out.append(f"opens like the typical answer: \"{' '.join(answer.split()[:8])} ...\"; open on the applicant's own point")
     if ledger and company:
-        for hit in ledger.cross_overlap(answer, company, types=None if type in COMPANY_FACING else {type}):
+        for hit in ledger.cross_overlap(answer, company, types=None if type in company_facing() else {type}):
             how = f"\"{hit['run']} ...\"" if hit["run"] else f"{hit['overlap']:.0%} of its 5-word runs"
             out.append(f"reuses the applicant's {hit['company']} answer ({hit['date']}): {how}; say it afresh")
     others = form_answers if isinstance(form_answers, dict) else dict(enumerate(form_answers))
@@ -346,7 +348,7 @@ def check(answer: str, *, type: str, form_answers: dict[str, str] | list[str], s
             out.append(f"opens like another answer on this form ({b}): {reason}; open another way")
     if company:
         survivors = swap_survivors(answer, company, list(competitors), names)
-        if len(survivors) > (0 if type in COMPANY_FACING else SWAP_ALLOWED):
+        if len(survivors) > (0 if type in company_facing() else SWAP_ALLOWED):
             rival = competitors[0] if competitors else "a competitor"
             out += [f"would read true of {rival}: \"{s}\"; tie it to a specific fact from the sources"
                     for s, _ in survivors]

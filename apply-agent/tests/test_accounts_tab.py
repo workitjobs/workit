@@ -1,6 +1,7 @@
-"""The Apply window's Accounts tab (KAN-591): each Employer account Apply made, with Copy password and
-Open sign-in page. The password stays in Keychain (a fake one here): only the server reads it, for the
-clipboard. Needs no browser."""
+"""The Apply window's Accounts tab (KAN-591): each Employer account Apply made, with Show password, Copy password
+and Open sign-in page, and the password Lisul chooses for every new account (KAN-838). Passwords are in Keychain (a
+fake one here); one goes to the window only when he presses Show password or Copy password, and the window writes a
+copied one to the clipboard itself (D35). Needs no browser."""
 
 import json
 import urllib.error
@@ -10,9 +11,11 @@ from types import SimpleNamespace
 
 import pytest
 
-from apply.accounts_tab import CONCEALED, TRANSIENT, AccountsTab, MacClipboard
+from apply.accounts import RULE
+from apply.accounts_tab import AccountsTab
+from apply.chrome_finder import NO_CHROME
 from apply.dashboard import Dashboard, NoFrames
-from apply.keychain import InMemoryKeychain
+from apply.keychain import CHOSEN, InMemoryKeychain
 from apply.tracker import EmployerAccount
 
 ASML = EmployerAccount("ASML", "asml.wd3.myworkdayjobs.com", "lisul@example.com", date(2026, 11, 2))
@@ -50,6 +53,15 @@ def test_the_tab_lists_every_employer_account_apply_made():
     assert PASSWORD not in body
 
 
+def test_the_view_says_whether_lisul_chose_a_password_and_gives_the_rule_never_the_password():
+    for keychain, chosen in ((InMemoryKeychain(), False), (InMemoryKeychain({CHOSEN: "Fake!Chosen7xQ"}), True)):
+        with window(AccountsTab(lambda: [ASML], keychain)) as board:
+            _, body = call(board, "/accounts")
+        view = json.loads(body)
+        assert (view["chosen"], view["rule"]) == (chosen, RULE)
+        assert "Fake!Chosen7xQ" not in body
+
+
 def test_only_the_window_may_list_them():
     tab = AccountsTab(lambda: [ASML], InMemoryKeychain())
     with window(tab) as board:
@@ -57,115 +69,17 @@ def test_only_the_window_may_list_them():
         assert call(board, "/accounts", origin="https://evil.example")[0] == 403
 
 
-class FakeClipboard:
-    """The Mac's clipboard, held in memory, with its change count."""
-
-    def __init__(self, text: str = "what Lisul copied before"):
-        self.text, self.count = text, 0
-
-    def write(self, text: str) -> None:  # Lisul copies something
-        self.text, self.count = text, self.count + 1
-
-    def put_secret(self, text: str) -> int:
-        self.write(text)
-        return self.count
-
-    def clear(self, written: int) -> None:
-        if self.count == written:
-            self.write("")
-
-
-def copying(accounts=(ASML,), passwords=None):
-    """A tab over a fake Keychain and clipboard, and the clears it set to run later, as (seconds, clear)."""
-    clipboard, later = FakeClipboard(), []
-    keychain = InMemoryKeychain({ASML.site: PASSWORD} if passwords is None else passwords)
-    tab = AccountsTab(lambda: list(accounts), keychain, clipboard=clipboard, later=lambda s, f: later.append((s, f)))
-    return tab, clipboard, later
-
-
-def test_copy_password_puts_it_on_the_clipboard_and_nowhere_else(capsys):
-    tab, clipboard, _ = copying()
+def test_copy_password_is_the_windows_own_clipboard_write_of_the_shown_password():
+    # D35: no clipboard code in Apply. The page asks for the password as Show password does, and writes it with
+    # navigator.clipboard, as the window's other copy buttons do; no route copies, and nothing clears it later.
+    tab = AccountsTab(lambda: [ASML], InMemoryKeychain({ASML.site: PASSWORD}))
     with window(tab) as board:
-        status, body = call(board, "/accounts/copy", {"site": ASML.site})
         page = board.page()
-        assert clipboard.text == PASSWORD
-
-    assert status == 200
-    assert "Paste it within a minute" in json.loads(body)["message"]
-    printed = capsys.readouterr()
-    for shown in (body, page, printed.out, printed.err):
-        assert PASSWORD not in shown
-
-
-@pytest.mark.parametrize("token, origin", [("guessed", None), (None, "https://evil.example")])
-def test_only_the_window_may_copy_a_password(token, origin):
-    tab, clipboard, _ = copying()
-    with window(tab) as board:
-        status, body = call(board, "/accounts/copy", {"site": ASML.site}, token=token, origin=origin)
-
-    assert status == 403
-    assert clipboard.text == "what Lisul copied before"
-    assert PASSWORD not in body
-
-
-def test_a_site_apply_did_not_list_is_never_copied():
-    # Keychain holds it, yet it is not an Employer account Apply made: the page can't name any Keychain item.
-    tab, clipboard, _ = copying(accounts=[KLA], passwords={ASML.site: PASSWORD, KLA.site: "other"})
-    with window(tab) as board:
-        status, _ = call(board, "/accounts/copy", {"site": ASML.site})
-
-    assert status == 404
-    assert clipboard.text == "what Lisul copied before"
-
-
-def test_an_account_keychain_has_no_password_for_says_so():
-    tab, clipboard, _ = copying(passwords={})
-    with window(tab) as board:
         status, body = call(board, "/accounts/copy", {"site": ASML.site})
 
-    assert status == 404
-    assert "Keychain has no password" in json.loads(body)["error"]
-    assert clipboard.text == "what Lisul copied before"
-
-
-def test_the_clipboard_is_cleared_after_a_minute():
-    tab, clipboard, later = copying()
-    with window(tab) as board:
-        call(board, "/accounts/copy", {"site": ASML.site})
-        [(seconds, clear)] = later
-        clear()
-
-        assert seconds == 60
-        assert clipboard.text == ""
-
-
-def test_what_lisul_copied_since_stays_on_the_clipboard():
-    tab, clipboard, later = copying()
-    with window(tab) as board:
-        call(board, "/accounts/copy", {"site": ASML.site})
-        clipboard.write("a line from his notes")
-        later[0][1]()
-
-    assert clipboard.text == "a line from his notes"  # also once the window closed
-
-
-def test_a_second_copy_gets_its_own_minute():
-    tab, clipboard, later = copying()
-    with window(tab) as board:
-        call(board, "/accounts/copy", {"site": ASML.site})
-        call(board, "/accounts/copy", {"site": ASML.site})
-        later[0][1]()  # the first copy's minute is up
-        assert clipboard.text == PASSWORD
-        later[1][1]()
-        assert clipboard.text == ""
-
-
-def test_closing_the_window_clears_a_password_still_on_the_clipboard():
-    tab, clipboard, _ = copying()
-    with window(tab) as board:
-        call(board, "/accounts/copy", {"site": ASML.site})
-
-    assert clipboard.text == ""  # the run ended before the minute was up: its clear would never run
+    assert "navigator.clipboard.write([new ClipboardItem(" in page  # started inside the click, as WebKit needs
+    assert "post('/accounts/show', {site: account.site})" in page
+    assert status == 404 and PASSWORD not in body
 
 
 ASML_POSTING = "https://asml.wd3.myworkdayjobs.com/en-US/ASMLExternal/job/US-Wilton/Intern_R12345"
@@ -210,24 +124,90 @@ def test_only_the_window_may_open_a_sign_in_page_and_only_for_a_listed_account()
     assert opened == []
 
 
-def test_the_mac_clipboard_gets_the_password_on_stdin_marked_for_clipboard_managers_to_skip():
-    ran = []
+def test_open_sign_in_page_with_no_chrome_says_how_to_get_it():
+    def no_chrome(url):
+        raise FileNotFoundError(NO_CHROME)
 
-    def run(argv, stdin):
-        ran.append((argv, stdin))
-        return "7\n"
+    tab = AccountsTab(lambda: [ASML], InMemoryKeychain(), everyday=no_chrome)
+    with window(tab) as board:
+        status, body = call(board, "/accounts/open", {"site": ASML.site})
 
-    clipboard = MacClipboard(run=run)
-    written = clipboard.put_secret(PASSWORD)
-    clipboard.clear(written)
+    assert (status, json.loads(body)) == (404, {"error": NO_CHROME})
 
-    (put, given), (clear, _) = ran
-    assert written == 7
-    assert given == PASSWORD
-    assert not any(PASSWORD in arg for argv, _ in ran for arg in argv)  # argv shows in `ps`
-    assert put[:3] == ["osascript", "-l", "JavaScript"]
-    script = put[put.index("-e") + 1]
-    for marked in ("NSPasteboardTypeString", CONCEALED, TRANSIENT):
-        assert marked in script
-    assert (CONCEALED, TRANSIENT) == ("org.nspasteboard.ConcealedType", "org.nspasteboard.TransientType")
-    assert clear[-2:] == ["", "7"]  # clears only at the change count it wrote
+
+def showing(passwords=None):
+    """A tab over a fake Keychain that holds ASML's password."""
+    return AccountsTab(lambda: [ASML], InMemoryKeychain({ASML.site: PASSWORD} if passwords is None else passwords))
+
+
+def test_show_password_sends_the_listed_accounts_password_to_the_window_and_prints_none(capsys):
+    with window(showing()) as board:
+        page = board.page()
+        status, body = call(board, "/accounts/show", {"site": ASML.site})
+
+    assert (status, json.loads(body)) == (200, {"password": PASSWORD})
+    printed = capsys.readouterr()
+    for kept in (page, printed.out, printed.err):  # in no page until pressed, and in no printed line
+        assert PASSWORD not in kept
+
+
+@pytest.mark.parametrize("token, origin", [("guessed", None), (None, "https://evil.example")])
+def test_only_the_window_may_show_a_password(token, origin):
+    with window(showing()) as board:
+        status, body = call(board, "/accounts/show", {"site": ASML.site}, token=token, origin=origin)
+
+    assert status == 403 and PASSWORD not in body
+
+
+def test_a_site_apply_did_not_list_is_never_shown():
+    with window(showing({ASML.site: PASSWORD, "evil.wd1.myworkdayjobs.com": PASSWORD, CHOSEN: PASSWORD})) as board:
+        for site in ("evil.wd1.myworkdayjobs.com", CHOSEN):
+            status, body = call(board, "/accounts/show", {"site": site})
+            assert status == 404 and PASSWORD not in body
+
+
+def test_an_account_keychain_has_no_password_for_says_so():
+    with window(showing(passwords={})) as board:
+        status, body = call(board, "/accounts/show", {"site": ASML.site})
+
+    assert status == 404
+    assert "Keychain has no password" in json.loads(body)["error"]
+
+
+def test_the_password_lisul_chooses_is_saved_for_new_accounts_and_never_printed(capsys):
+    keychain = InMemoryKeychain()
+    with window(AccountsTab(lambda: [ASML], keychain)) as board:
+        status, body = call(board, "/accounts/password", {"password": "Fake!Chosen7xQ"})
+        assert json.loads(call(board, "/accounts")[1])["chosen"] is True
+
+    assert status == 200 and "Apply uses this password for each new account" in json.loads(body)["message"]
+    assert keychain.password(CHOSEN) == "Fake!Chosen7xQ"
+    printed = capsys.readouterr()
+    assert "Fake!Chosen7xQ" not in printed.out + printed.err + body
+
+
+def test_changing_the_chosen_password_keeps_each_accounts_own():
+    keychain = InMemoryKeychain({CHOSEN: "Fake!Chosen7xQ", ASML.site: "Fake!Chosen7xQ"})
+    with window(AccountsTab(lambda: [ASML], keychain)) as board:
+        assert call(board, "/accounts/password", {"password": "Fake@Changed9yR"})[0] == 200
+
+    assert keychain.password(CHOSEN) == "Fake@Changed9yR" and keychain.password(ASML.site) == "Fake!Chosen7xQ"
+
+
+@pytest.mark.parametrize("password", ["short1!A", "no-dash-allowed-1A", 12345678901234])
+def test_a_chosen_password_that_breaks_the_rule_is_refused_and_not_saved(password):
+    keychain = InMemoryKeychain()
+    with window(AccountsTab(lambda: [ASML], keychain)) as board:
+        status, body = call(board, "/accounts/password", {"password": password})
+
+    assert status == 400 and keychain.password(CHOSEN) is None
+    assert json.loads(body)["error"] in (f"Use {RULE}.", "Not a password.")
+
+
+@pytest.mark.parametrize("token, origin", [("guessed", None), (None, "https://evil.example")])
+def test_only_the_window_may_choose_the_password(token, origin):
+    keychain = InMemoryKeychain()
+    with window(AccountsTab(lambda: [ASML], keychain)) as board:
+        status, _ = call(board, "/accounts/password", {"password": "Fake!Chosen7xQ"}, token=token, origin=origin)
+
+    assert status == 403 and keychain.password(CHOSEN) is None

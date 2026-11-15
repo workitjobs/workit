@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
 import { RadioRow } from "@/components/ui/radio-row";
+import { SectionHeading } from "@/components/ui/section-heading";
 import { TextField } from "@/components/ui/text-field";
 import {
   createSection,
@@ -75,9 +76,7 @@ export function AddSection({
 
   return (
     <Card as="section" aria-labelledby={`${uid}-heading`} className="scroll-mt-16">
-      <h2 id={`${uid}-heading`} className="text-subtitle text-ink">
-        Add a Section
-      </h2>
+      <SectionHeading id={`${uid}-heading`}>Add a Section</SectionHeading>
       <form onSubmit={submit} className="mt-3 flex max-w-3xl flex-col gap-3">
         <TextField
           id={`${uid}-name`}

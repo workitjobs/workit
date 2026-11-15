@@ -14,6 +14,7 @@ one.
 """
 
 import asyncio
+import calendar
 import datetime
 import logging
 import re
@@ -26,11 +27,14 @@ from workit_scout.identity import PLACEHOLDERS, Identity, placeholders_in
 from workit_scout.llm import LLM
 
 from app.models.dto import Experience, ParsedResume, bank_section, entry_end_kind
-from app.schemas.bank import SECTION_FIELDS, DraftEntry, ModelReading
+from app.schemas.bank import SECTION_FIELDS, YEAR_DATES, DraftEntry, ModelReading
 from app.services import skill_catalog
 from app.utils.resume_parser import (
+    DEGREE_HONOR_RE,
     fix_symbols,
+    gpa_matches,
     is_tools_line,
+    major_gpas,
     parse_resume,
     section_of,
     split_tools,
@@ -39,7 +43,8 @@ from app.utils.resume_parser import (
 
 _SHORT, _LONG, _NAME = 200, 500, 60
 _COURSEWORK_RE = re.compile(r"^(?:Relevant\s+)?(?:Coursework|Courses)\s*:?\s*", re.IGNORECASE)
-_GPA_LINE_RE = re.compile(r"^GPA\b", re.IGNORECASE)
+# A line of GPAs ("GPA: 3.72", "Cumulative GPA: 3.72 | Major GPA: 3.95")
+_GPA_LINE_RE = re.compile(r"^(?:(?:cumulative|overall|major|in-major|departmental)\s+)?GPA\b", re.IGNORECASE)
 _YEAR_ALONE_RE = re.compile(r"\d{4}")
 _LINK_TAIL_RE = re.compile(r"[\s,;:|–—-]*\[link\]\s*$")
 _MINOR_JOIN_RE = re.compile(r"\s*[|;,–—-]?\s*\b(minors?)\s*(?:in\b|:)\s*", re.IGNORECASE)
@@ -95,11 +100,21 @@ def _tools(items: list[str]) -> list[str]:
     return out[:30]
 
 
-def _span(start: datetime.date | None, end: datetime.date | None) -> dict:
+# The parser's names for a year-alone date (`dto` "start_date", "end_date",
+# an award's "date") as the bank's (KAN-808)
+_YEAR_FIELDS = {"start_date": "start_month", "end_date": "end_month", "date": "award_date"}
+
+
+def _years(year_only: list[str]) -> list[str]:
+    return [_YEAR_FIELDS[f] for f in year_only if f in _YEAR_FIELDS]
+
+
+def _span(start: datetime.date | None, end: datetime.date | None, year_only: list[str] = ()) -> dict:
     """An ongoing role (a start, no end) runs to Present."""
+    years = {"year_only": _years(list(year_only))}
     if end is not None:
-        return {"start_month": start, "end_month": end, "end_kind": entry_end_kind.month}
-    return {"start_month": start, "end_month": None, "end_kind": entry_end_kind.present if start else None}
+        return {"start_month": start, "end_month": end, "end_kind": entry_end_kind.month, **years}
+    return {"start_month": start, "end_month": None, "end_kind": entry_end_kind.present if start else None, **years}
 
 
 def _role(section: bank_section, role: Experience) -> dict:
@@ -110,9 +125,36 @@ def _role(section: bank_section, role: Experience) -> dict:
         "title": title,
         "organization": organization if organization != title else None,
         "location": _clip(role.location),
-        **_span(role.start_date, role.end_date),
+        **_span(role.start_date, role.end_date, role.year_only),
         "bullets": _bullets(role.description),
     }
+
+
+def _gpa_kept(lines: list[str], kept: list[str] | None = None) -> list[str]:
+    """An education entry's lines less its GPA, which prints from the GPA
+    field: a line of GPAs keeps only a major's, as written ("Major GPA:
+    3.95/4.00"). Until KAN-813 a GPA line went whole, so a major GPA on one
+    was lost, and one written "Cumulative GPA: ..." printed twice."""
+    out: list[str] = []
+    for line in lines:
+        if not _GPA_LINE_RE.match(line):
+            out.append(line)
+            continue
+        out += [m for m in major_gpas(line) if m not in out and m not in (kept or [])]
+    return out
+
+
+# "Expected" is a graduation's word. The model also gave it to jobs and
+# projects, and "Expected May 2025" printed on a finished internship
+# (KAN-813): any other entry keeps it only where the resume writes it
+# before that date.
+def _says_expected(text: str, month: str) -> bool:
+    if not re.fullmatch(r"\d{4}-\d{2}", month):
+        return False
+    year, number = month[:4], int(month[5:7])
+    name = calendar.month_abbr[number]
+    return re.search(rf"\b(?:expected|anticipated)\b\W{{0,3}}(?:{name}[a-z]*\.?\s+|0?{number}/)?{year}\b",
+                     text, re.IGNORECASE) is not None
 
 
 def _raw_drafts(parsed: ParsedResume, today: datetime.date) -> list[dict]:
@@ -123,8 +165,8 @@ def _raw_drafts(parsed: ParsedResume, today: datetime.date) -> list[dict]:
         for line in _bullets(school.description):
             if _COURSEWORK_RE.match(line):
                 coursework += [c for c in (_clip(x) for x in _COURSEWORK_RE.sub("", line).split(",")) if c]
-            elif not _GPA_LINE_RE.match(line):
-                bullets.append(line)
+            else:
+                bullets += _gpa_kept([line], bullets)
         end = school.end_date
         drafts.append({
             "section": bank_section.education,
@@ -139,6 +181,7 @@ def _raw_drafts(parsed: ParsedResume, today: datetime.date) -> list[dict]:
             "end_month": end,
             # A graduation still to come is an expected one.
             "end_kind": None if end is None else entry_end_kind.expected if end > today else entry_end_kind.month,
+            "year_only": _years(school.year_only),
             "bullets": bullets,
         })
     drafts += [_role(bank_section.experience, job) for job in parsed.experience]
@@ -148,7 +191,7 @@ def _raw_drafts(parsed: ParsedResume, today: datetime.date) -> list[dict]:
             "title": _clip(project.project_name),
             "link": _clip(project.url, _LONG),
             "tools": _tools(project.technologies),
-            **_span(project.start_date, project.end_date),
+            **_span(project.start_date, project.end_date, project.year_only),
             "bullets": _bullets(project.description),
         })
     drafts += [_role(bank_section.leadership, role) for role in parsed.leadership]
@@ -158,6 +201,7 @@ def _raw_drafts(parsed: ParsedResume, today: datetime.date) -> list[dict]:
             "title": _clip(award.title),
             "organization": _clip(award.issuer),
             "award_date": award.date,
+            "year_only": _years(award.year_only),
         })
     for cert in parsed.certifications:
         drafts.append({
@@ -290,11 +334,14 @@ A publication or paper is "projects", with its whole citation as the title.
 organization: the company or group, and for an award the group that gives \
 it. Education: the school is the title.
 - Months are "YYYY-MM". end_kind is "month" (ended), "present" (still going, \
-no end_month) or "expected" (an expected end, such as graduation).
+no end_month) or "expected" (an expected end, such as graduation). Only a \
+school's end is "expected", unless the resume writes Expected before the date.
 - bullets: the resume's bullet lines for that entry, one per item, unchanged.
 - Education only: degree, field_of_study, gpa, gpa_scale, coursework, honors. \
 field_of_study is the major, with any minor after it as the resume writes it \
-("Computer Science, minor in Writing & Rhetoric"). \
+("Computer Science, minor in Writing & Rhetoric"), and honors written after \
+the major stay in it as written ("Computer Science, Honors"). gpa and \
+gpa_scale are the overall GPA; a major's GPA stays a bullet as written. \
 Projects only: tools, the list of tools the resume names for the project, \
 after its name, in parentheses or on a line of their own under it \
 ("Next.js, TypeScript, FastAPI"), each as written. A line that only lists \
@@ -364,9 +411,31 @@ def model_drafts(reading: ModelReading, text: str | None = None) -> list[DraftEn
         # "2022 - current": the model sends the year alone, which is no
         # "YYYY-MM", so the entry lost its dates (an award lost itself).
         # A year alone is January of it, as the parser reads it.
+        raw["year_only"] = []
         for field in ("start_month", "end_month", "award_date"):
             if isinstance(raw[field], str) and _YEAR_ALONE_RE.fullmatch(raw[field].strip()):
                 raw[field] = f"{raw[field].strip()}-01"
+                # and it prints as the year, not as January of it (KAN-808)
+                raw["year_only"].append(field)
+        if raw["section"] is bank_section.education:
+            raw["bullets"] = _gpa_kept(raw["bullets"])
+            # "Honors" alone, or "magna cum laude", is the degree's: it goes
+            # after the major as the resume writes it, not under "Honors:"
+            honor = (raw["honors"] or "").strip()
+            if raw["field_of_study"] and DEGREE_HONOR_RE.fullmatch(honor):
+                if honor.casefold() not in raw["field_of_study"].casefold():
+                    raw["field_of_study"] = f"{raw['field_of_study']}, {honor}"
+                raw["honors"] = None
+            # A major's GPA is no GPA: the parser's cumulative one fills it
+            if text and raw["gpa"] is not None:
+                found = gpa_matches(text)
+                majors = {float(m.group(1)) for m, line in found if line}
+                overall = {float(m.group(1)) for m, line in found if not line}
+                if raw["gpa"] in majors and raw["gpa"] not in overall:
+                    raw.update(gpa=None, gpa_scale=None)
+        elif raw["end_kind"] == entry_end_kind.expected and not (
+                text and raw["end_month"] and _says_expected(text, raw["end_month"])):
+            raw["end_kind"] = entry_end_kind.month
         if words is not None:
             raw = _backed_fields(raw, words)
         # A degree only as the resume writes it: "Bachelor's" for "Bachelor
@@ -529,6 +598,7 @@ def with_parsers_reading(drafts: list[DraftEntry], parsed: list[DraftEntry]) -> 
     # name, since the parser saves a line it misreads ("Stony Brook
     # University" under a project) as a bullet.
     held = [_bullet_words(b) for d in drafts for b in d.bullets] + [_name_words(d) for d in drafts]
+    headers = [_header_words(d) for d in drafts]
     for entry in parsed:
         twin = _twin(entry, drafts)
         if twin is None:
@@ -542,19 +612,66 @@ def with_parsers_reading(drafts: list[DraftEntry], parsed: list[DraftEntry]) -> 
             # model rightly leaves it out, and it reaches the skills instead.
             if not words or is_tools_line(bullet) or len(twin.bullets) >= 30:
                 continue
-            if any(len(words & theirs) * 4 >= len(words) * 3 for theirs in held):
+            if any(len(words & theirs) * 4 >= len(words) * 3 for theirs in held) or _is_header(bullet, headers):
                 continue
             twin.bullets.append(bullet)
             held.append(words)
     return out
 
 
+# "De- signed": a word the PDF broke at a line's end, read as two, so the
+# parser's bullet missed the model's "Designed" and printed twice (KAN-805)
+_BROKEN_RE = re.compile(r"(?<=\w)-\s+(?=[a-z])")
+
+
 def _bullet_words(text: str) -> set[str]:
-    return set(_words(text)) - _COMMON
+    return set(_words(_BROKEN_RE.sub("", text))) - _COMMON
+
+
+_DATE_WORDS = frozenset(
+    {m.lower() for m in (*calendar.month_name[1:], *calendar.month_abbr[1:])}
+    | {"sept", "present", "current", "now", "expected", "anticipated"})
+
+
+def _header_words(entry: DraftEntry) -> set[str]:
+    return set(_words(f"{entry.title} {entry.organization or ''} {entry.location or ''}")) - _COMMON
+
+
+def _is_header(bullet: str, headers: list[set[str]]) -> bool:
+    """Whether a parser bullet is an entry's own line it misread: its
+    words, dates aside, are three in four a model entry's name and place
+    ("Acme Robotics  Boston, MA  May 2024 – Aug 2024"). Checked against
+    the names alone, the place and dates kept it a bullet (KAN-805)."""
+    words = {w for w in _bullet_words(bullet) if w not in _DATE_WORDS and not (w.isdigit() and len(w) == 4)}
+    return not words or any(len(words & h) * 4 >= len(words) * 3 for h in headers)
 
 
 def _name_words(entry: DraftEntry) -> set[str]:
     return set(_words(f"{entry.title} {entry.organization or ''}")) - _COMMON
+
+
+# What an entry is, whatever its section: one role may be filed in two
+# sections (a Resident Assistant), but a role is never a school or an award
+_KINDS = {bank_section.experience: "role", bank_section.leadership: "role", bank_section.projects: "role",
+          bank_section.education: "school", bank_section.awards: "honor", bank_section.certifications: "honor"}
+
+
+def _role_words(entry: DraftEntry) -> set[str]:
+    return set(_words(entry.title)) - set(_words(entry.organization or "")) - _COMMON
+
+
+def _same_word(a: str, b: str) -> bool:
+    short, long = sorted((a, b), key=len)
+    return short == long or (len(short) >= 4 and long.startswith(short))
+
+
+def _one_role(entry: DraftEntry, own: set[str], draft: DraftEntry, theirs: set[str]) -> bool:
+    """Whether the two name one role, not two at one organization: one
+    side's title words, its organization's aside, are three in four in the
+    other's name ("Engineer" counts for "Engineering")."""
+    pairs = [(role, other) for role, other in ((_role_words(entry), theirs), (_role_words(draft), own)) if role]
+    return not pairs or any(
+        sum(any(_same_word(w, t) for t in other) for w in role) * 4 >= len(role) * 3 for role, other in pairs)
 
 
 def _twin(entry: DraftEntry, drafts: list[DraftEntry]) -> DraftEntry | None:
@@ -564,14 +681,19 @@ def _twin(entry: DraftEntry, drafts: list[DraftEntry]) -> DraftEntry | None:
     line on a layout it misreads ("Robotics Club - Software Lead" is the
     model's "Robotics Club"). "Cashier, Target" and "Cashier, Walmart" share
     one word, and are two jobs. The most words shared wins, then the same
-    section."""
+    section. Never an entry of another kind (`_KINDS`), and never another
+    role at the same organization (`_one_role`): a TA job matched the school
+    it shared three name words with, and "Teaching Assistant" the model's
+    "Research Assistant" at one university, and the job was lost (KAN-805)."""
     own = _name_words(entry)
     best: tuple[int, bool] = (0, False)
     twin = None
     for draft in drafts:
+        if _KINDS.get(draft.section, draft.section) != _KINDS.get(entry.section, entry.section):
+            continue
         theirs = _name_words(draft)
         shared = len(own & theirs)
-        if shared < 2 or shared * 4 < min(len(own), len(theirs)) * 3:
+        if shared < 2 or shared * 4 < min(len(own), len(theirs)) * 3 or not _one_role(entry, own, draft, theirs):
             continue
         score = (shared, draft.section is entry.section)
         if score > best:
@@ -604,6 +726,10 @@ def _fill_blanks(twin: DraftEntry, entry: DraftEntry) -> None:
             fill.update(start_month=entry.start_month, end_month=entry.end_month, end_kind=entry.end_kind)
     elif twin.start_month is None and entry.start_month and twin.end_month == entry.end_month:
         fill["start_month"] = entry.start_month
+    # A date filled from the parser keeps its year-alone mark (KAN-808)
+    if dated := {f for f in YEAR_DATES if f in fill}:
+        fill["year_only"] = [f for f in YEAR_DATES
+                             if f in (entry.year_only if f in dated else twin.year_only)]
     # A twin in another section takes only the fields its section holds.
     foreign = _SECTION_ONLY - set(SECTION_FIELDS.get(twin.section, ()))
     fill = {f: v for f, v in fill.items() if f not in foreign}

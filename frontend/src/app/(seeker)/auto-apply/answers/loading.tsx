@@ -10,16 +10,17 @@ import { SEEKER_GUTTER } from "../../gutter";
  * (./page.tsx) with Back live, then one job posting's card as bars: its
  * title and company, then two questions, each a label and an answer box.
  * Up Next's own skeleton sits in ../(queue), so it never stands in for
- * this page.
+ * this page. It is the page's own width (`max-w-dashboard`): at `max-w-app`
+ * the frame jumped wider as the page landed (KAN-821).
  */
 export default function WrittenAnswersLoading() {
   return (
-    <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
+    <div className={cn("max-w-dashboard mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
       <BackLink parent={{ href: "/auto-apply", name: "Auto Apply" }} named className="group/back" />
       <div role="status" className="mt-6">
         <span className="sr-only">Loading your written questions</span>
         <Card padding="lg" aria-hidden="true">
-          <div className="flex h-6 items-center">
+          <div className="flex h-5.5 items-center">
             <Skeleton className="h-4 w-56 max-w-full" />
           </div>
           <div className="flex h-5 items-center">

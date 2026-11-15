@@ -28,10 +28,10 @@ import { fileURLToPath } from "node:url";
 import { runInNewContext } from "node:vm";
 
 const EXTENSION = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-/** What Chrome loads, each [from, to]: never test/, store/, the docs, or the engine's source. Of the
+/** What Chrome loads, and the extension's LICENSE and NOTICE, each [from, to]: never test/, store/, the docs, or the engine's source. Of the
  *  engine's dist/ only the Store bundle, as engine.js: rules-table.json is for the API to serve (KAN-756),
  *  and the full engine.js bundles every job system's data, so neither is ever packaged. */
-const PARTS = [["manifest.json"], ["icons"], ["fonts"], ["src"], ["fill-engine/dist/engine.store.js", "fill-engine/dist/engine.js"]];
+const PARTS = [["manifest.json"], ["icons"], ["fonts"], ["src"], ["LICENSE"], ["NOTICE"], ["fill-engine/dist/engine.store.js", "fill-engine/dist/engine.js"]];
 /** The full Rules table, outside the package: what `perSiteData` looks for in it. */
 const FULL_TABLE = join(EXTENSION, "fill-engine", "dist", "rules-table.json");
 /** Job systems' table values that are also the engine's or the extension's own generic code: label patterns any
@@ -45,8 +45,8 @@ const NAMED_IN_CODE = new Set(["candidate-location", "data-field-path"]);
 const DEV_ONLY = /localhost|vercel\.app/;
 /** What no packaged file may contain. "Prototype" as a word: the engine's Object.getPrototypeOf is fine. */
 export const FORBIDDEN = /localhost|vercel\.app|\bPrototype\b/;
-/** The first line of every packaged script. The holders are the repo's LICENSE line. */
-export const BANNER = "/*! WorkIt. Copyright (c) 2026 Xiang Liu, Brian Cao, Andrew Shi, Lisul Elvitigala, Vedant Vyas. */";
+/** The first line of every packaged script: the holders and terms of the extension's own LICENSE (KAN-849). */
+export const BANNER = "/*! WorkIt. Copyright (c) 2026 Xiang Liu, Brian Cao, Andrew Shi, Lisul Elvitigala, Vedant Vyas. All rights reserved: see LICENSE. */";
 
 /** One packaged script, minified, with no source map. No `format`, so esbuild keeps a classic script's
  *  top-level names (the content scripts share them through `window.WIA`) and a module's imports and

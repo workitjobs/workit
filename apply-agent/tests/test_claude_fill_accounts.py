@@ -110,8 +110,7 @@ def test_claude_fill_makes_an_account_reads_its_code_from_gmail_and_submits():
     [sent] = server.submissions
     assert sent.application["first"] == "Test"
     # The password never reached Claude.
-    assert all(world.keychain.password(SITE) not in call["prompt"] + json.dumps(call["schema"])
-               for call in world.claude.calls)
+    assert all(world.keychain.password(SITE) not in json.dumps(call, default=str) for call in world.claude.asked)
 
 
 def test_a_site_whose_account_apply_made_is_signed_in_to_with_its_keychain_password():
@@ -146,7 +145,7 @@ def test_an_account_lisul_made_himself_that_keychain_has_no_password_for_is_a_ha
 
     assert row.status == "handoff"
     assert f"{SITE} already has an account for {EMAIL}, and Keychain has no password for it" in row.reason
-    assert "security add-generic-password -U -s apply-ats" in row.reason
+    assert "uv run keyring set apply-ats" in row.reason
     assert server.sign_ins == [] and server.accounts[EMAIL]["password"] == "Made-By-Hand1!"
     assert world.tracker.employer_accounts() == []
 

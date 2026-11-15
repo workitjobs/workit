@@ -1,8 +1,8 @@
 import {
   CertificateIcon,
-  DeskIcon,
   GraduationCapIcon,
   ListBulletsIcon,
+  PathIcon,
   RocketLaunchIcon,
   TrophyIcon,
   UsersThreeIcon,
@@ -16,8 +16,9 @@ import { cn } from "@/lib/cn";
 /**
  * Each experience group's mark (KAN-440), read wherever the groups are named:
  * the section nav, the section cards and the resume editor's panel, so a
- * group wears one icon everywhere. Experience is a desk, not the sidebar's
- * Jobs briefcase (2026-11-12, design-kit/icons); Scout's intake
+ * group wears one icon everywhere. Work Experience is a path (KAN-814): not
+ * the sidebar's Jobs briefcase (2026-11-12, design-kit/icons), and not the
+ * desk that replaced it, which read as a table. Scout's intake
  * (intake-steps.tsx) draws the same set. Skills is the seventh, a list of its own,
  * and every section the student named (KAN-498) wears one mark.
  */
@@ -28,7 +29,7 @@ export const SECTION_ICONS: Record<
   ComponentType<{ className?: string; weight?: "regular" | "duotone" }>
 > = {
   education: GraduationCapIcon,
-  experience: DeskIcon,
+  experience: PathIcon,
   projects: RocketLaunchIcon,
   leadership: UsersThreeIcon,
   awards: TrophyIcon,

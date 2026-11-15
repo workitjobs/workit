@@ -1,3 +1,4 @@
+// WorkIt Auto Apply Worker. Copyright (c) 2026 its authors. All rights reserved: see LICENSE.
 // S2 ops: navigation, load states, frames and screenshots of a Worker's tabs.
 
 import { capture, inPage, named, sleep } from "./shared.js";

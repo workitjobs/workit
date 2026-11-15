@@ -24,7 +24,7 @@ from email.utils import parseaddr
 from urllib.parse import urlsplit
 
 from apply.adapters import Keychain
-from apply.keychain import GMAIL, MacKeychain
+from apply.keychain import GMAIL, SystemKeychain
 from apply.model import Handoff
 
 HOST = "imap.gmail.com"
@@ -52,7 +52,7 @@ VERIFY = re.compile(r"verif|activat|confirm|reset", re.IGNORECASE)  # an account
 
 NOT_SET_UP = (
     "Gmail isn't set up for Apply: no Gmail app password in Keychain for {address}. Make one at "
-    "https://myaccount.google.com/apppasswords and save it with: security add-generic-password -s {service} -a {address} -w"
+    "https://myaccount.google.com/apppasswords and save it with: uv run keyring set {service} {address} (in apply-agent/)"
 )
 
 
@@ -245,4 +245,4 @@ def live_mailbox(address: str, keychain: Keychain | None = None) -> GmailMailbox
     (service apply-gmail, account `address`). Without one a run still goes,
     and an Application that needs a code or a link is a Handoff saying how
     to set it up."""
-    return GmailMailbox(address, (keychain or MacKeychain(GMAIL)).password(address))
+    return GmailMailbox(address, (keychain or SystemKeychain(GMAIL)).password(address))

@@ -31,9 +31,13 @@ async def fetch_notifications(
     return rows, unread_count or 0
 
 
-async def mark_all_read(session: AsyncSession, applicant_id: uuid.UUID) -> None:
-    await session.execute(
-        update(Notification)
-        .where(Notification.applicant_id == applicant_id, Notification.read_at.is_(None))
-        .values(read_at=func.now())
-    )
+async def mark_read(
+    session: AsyncSession, applicant_id: uuid.UUID, ids: list[uuid.UUID] | None = None
+) -> None:
+    """Marks the applicant's unread rows read: those in `ids` (a row the bell
+    opened), or every one when `ids` is None (Mark All Read). An id that is
+    not this applicant's matches nothing."""
+    where = [Notification.applicant_id == applicant_id, Notification.read_at.is_(None)]
+    if ids is not None:
+        where.append(Notification.id.in_(ids))
+    await session.execute(update(Notification).where(*where).values(read_at=func.now()))

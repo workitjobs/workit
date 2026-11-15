@@ -1,0 +1,7 @@
+WorkIt Auto Apply Worker includes third-party code under its own license:
+
+- vendor/injected.js: Playwright's injected script (injectedScriptSource), from the
+  playwright package's driver. Copyright (c) Microsoft Corporation. Licensed under the
+  Apache License, Version 2.0: see LICENSE-playwright, beside this file in the package.
+
+Everything else in this extension is under LICENSE.

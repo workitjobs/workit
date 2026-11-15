@@ -7,15 +7,47 @@ step from `claude -p` to a model a desktop app may call
 (`../../docs/desktop_application_auto_apply.md`, D1 and W1). The goal of a
 hosted model is a run that works and is usable, not Claude's quality.
 
-**`[groq, gemini]` is the default** (2026-11-10, `policies.default.yaml`).
+**`ask_model: workit`** (`WorkItAsk`, 2026-11-14) sends each call as a
+kind and its data (`Claude.ask_kind`), as the signed-in student
+(`apply login`; a developer's own API with `APPLY_WORKIT_API`). WorkIt
+builds the prompt (`../../backend/app/apply_prompts/`), so a call never
+carries one. Its per-minute limit is waited out once; its daily Usage cap
+raises `UsageLimitHit`, which pauses the run until midnight UTC. Every
+other adapter refuses a kind with a SetupError (`adapters.NEEDS_WORKIT`):
+`claude` can run one again only once the developer prompt route is built
+(urgent, `../../docs/developer_apply_agent_testing_framework.md`).
+A kind call is a wait the tile shows with Resume (`stuck.Waits.ask_kind`), but its HTTP call
+can't be cut short: Resume takes effect once WorkIt answers or the call times out.
+`as_applicant.ask_kind` adds the pronouns and the school to the data, and
+puts the first name back into the answer, since the prompts say `@NAME@`.
+**`workit` is the default** (2026-11-14, `policies.default.yaml`), and
+every one of Apply's calls sends a kind, with its prompt only on the
+server: the Essay plan and essay call, the claim check and editor's pass,
+the default probe, the Pre-submit review and its replan, the story map,
+the team name, Own application and Claude fill's sent check. The answering
+guides moved with them; Apply fetches each type's front matter, which its
+own code reads, from WorkIt (`GET /apply-app/types`, `apply.answering`). `WorkItAsk.ask` refuses a
+prompt, and WorkIt's free-form route that took one is gone. In
+tests, `FakeClaude.ask_kind` answers a kind from its data and keeps it in
+`claude.kinds`, apart from `claude.calls` (drives, and the calls that send
+their own prompt). A test that means "no model call" checks
+`claude.asked`, both lists: `claude.calls == []` passed while a kind ran,
+and tests in the files CI does not run still read calls that had become
+kinds until 2026-11-14. Run those files on a Mac after a change to a call.
+
+**`[groq, gemini]` was the default** (2026-11-10 to 2026-11-14).
 `claude` is a developer's choice, set in their own `policies.yaml`.
 Policies with no `ask_model` key (a test's) read as `claude`, and
 `conftest.py` drops the key, so a test never calls a provider. The
 launched desktop app calls hosted models only, through a WorkIt route
-that holds the keys.
+that holds the keys. The Student build (`apply/build.py`) reads no
+`policies.yaml`: its `ask_model` is fixed to `workit`, WorkIt's Model
+route, and behind it is `student.NoClaude`, never `claude -p`, so
+`drive` and `research` raise `ClaudeError` there.
 
 | `ask_model` | `ask` goes to | Essay prompts | Claude fill, Rescue, company briefs |
 |---|---|---|---|
+| `workit` (being built, KAN-723 D5) | WorkIt's Model route, `POST /apply-app/ask`, as a kind and its data; WorkIt builds the prompt and runs its own chain | lean, on the server | `claude -p`, still |
 | `[groq, gemini]` (default) | Groq, and Gemini for each call Groq can't take | lean | `claude -p`, still |
 | `groq` | Groq: `openai/gpt-oss-120b`, `gpt-oss-20b` for Haiku's calls | lean | `claude -p`, still |
 | `gemini` | Gemini: `gemini-3.5-flash-lite` | lean | `claude -p`, still |
@@ -53,12 +85,13 @@ that holds the keys.
 - **Lean essay prompts** (`adapters.lean`: a hosted adapter is lean,
   `claude -p` never is). They fit Groq's free tier: 8,000 tokens a minute
   per model, and a request over that is refused.
-  - The plan lists only the Question types its questions were matched to
-    (`LEAN_PLAN`), not all 16.
-  - The writer gets the rules for every answer cut to each rule's lead
-    (`answering.rules(lean=True)`) and each type's guide cut to its Order
-    and Rules (`answering.guide_text(..., lean=True)`); the quoted readers,
-    the Pairs and the model letters stay out.
+  - The plan lists only the Question types its questions were matched to,
+    not all 16.
+  - The writer gets the rules for every answer cut to each rule's lead and
+    each type's guide cut to its Order and Rules; the quoted readers, the
+    Pairs and the model letters stay out. Both are built on WorkIt's
+    server now (`../../backend/app/apply_prompts/essays.py` and
+    `guides.py`), always lean.
   - One-off questions are drafted in a call of their own, so the essay
     call holds no Applicant profile.
 
@@ -120,9 +153,9 @@ that holds the keys.
 With the team's `.env` in the checkout's root, nothing: `uv run apply
 doctor` says "Ask model: groq, then gemini". To keep `claude -p`, set
 `ask_model: claude` in `policies.yaml` in the data folder. Your own keys
-go in `GROQ_API_KEY` and `GEMINI_API_KEY`, or in Keychain:
+go in `GROQ_API_KEY` and `GEMINI_API_KEY`, or in Keychain, from `apply-agent/`:
 
 ```sh
-security add-generic-password -s apply-groq -a api.groq.com -w                      # asks for the key
-security add-generic-password -s apply-gemini -a generativelanguage.googleapis.com -w
+uv run keyring set apply-groq api.groq.com                      # asks for the key
+uv run keyring set apply-gemini generativelanguage.googleapis.com
 ```

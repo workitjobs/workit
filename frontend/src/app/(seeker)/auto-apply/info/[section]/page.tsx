@@ -1,8 +1,7 @@
-import { CloudSlashIcon } from "@phosphor-icons/react/ssr";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import { EmptyState } from "@/components/ui/empty-state";
+import { LoadFailed } from "@/components/ui/load-failed";
 import { getAutofillAnswers } from "@/lib/autofill-answers-actions";
 import { getBank } from "@/lib/bank-actions";
 
@@ -31,8 +30,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
  * page); Transcript (../transcript.tsx), Writing Samples
  * (../writing-samples.tsx) and Workday Sign-Up (../workday-signup.tsx,
  * which opens the extension's own page) read their own. A failed answers
- * read shows a notice, never a card of "Not answered" that would pass for
- * the student's real answers.
+ * read shows the failed read's card with Try Again (KAN-819), never a card
+ * of "Not answered" that would pass for the student's real answers.
  */
 export default async function InfoSectionPage({ params }: Props) {
   const section = infoSection((await params).section);
@@ -50,13 +49,12 @@ export default async function InfoSectionPage({ params }: Props) {
   const [answers, bank] = await Promise.all([getAutofillAnswers(), getBank()]);
   if (answers.error != null) {
     return (
-      <EmptyState
-        Icon={CloudSlashIcon}
-        title="Your Answers Aren't Loading"
+      <LoadFailed
+        title="Your Answers Aren't Loading Right Now"
         detail={process.env.NODE_ENV === "development" ? answers.error : undefined}
       >
-        We couldn&apos;t reach your application answers. Refresh the page in a few minutes.
-      </EmptyState>
+        We couldn&apos;t reach your application answers. Try again in a few minutes.
+      </LoadFailed>
     );
   }
   return (

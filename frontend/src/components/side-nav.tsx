@@ -23,8 +23,8 @@ export type SideNavItem = {
  * parts are pages, so a plain link). The column stays put while the part
  * scrolls (`sticky`), so a menu never leaves the screen.
  *
- * `head` sits above the items in the column, in their look (Application
- * Info's "Auto Apply" way back); `foot` under them.
+ * `head` sits above the items in the column (Application Info's
+ * `BackLink`); `foot` under them.
  */
 export function SideNav({
   label,
@@ -92,8 +92,8 @@ export function SideNav({
   );
 }
 
-/** An item's look, for a row drawn in the menu's place (`head`). */
-export const SIDE_NAV_ITEM =
+/** An item's look. */
+const SIDE_NAV_ITEM =
   "rounded-control text-label focus-visible:ring-brand-ring flex items-center gap-2 px-3 py-2 whitespace-nowrap transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none";
 const SIDE_NAV_CURRENT = "bg-brand-tint text-brand font-semibold";
-export const SIDE_NAV_IDLE = "text-ink-muted hover:bg-hover hover:text-ink";
+const SIDE_NAV_IDLE = "text-ink-muted hover:bg-hover hover:text-ink";

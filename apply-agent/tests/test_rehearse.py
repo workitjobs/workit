@@ -61,7 +61,7 @@ from test_employer_accounts import CACI, CACI_FORM, CACI_URL, XCEL_FORM, XCEL_UR
 from test_greenhouse_filler import board_listing_schools
 from test_run_answers import profile_with
 
-from apply import rehearsal, worker
+from apply import rehearsal, rescue, worker
 from apply.adapters import Adapters, Drive
 from apply.answer_bank import AnswerBank
 from apply.ashby import AshbyFiller
@@ -178,12 +178,12 @@ def test_holds_do_not_stop_a_rehearsal_and_claude_fill_never_clicks_submit(monke
 
     assert (done.posting.job_system, done.outcome) == ("other", "ready to submit")
     # Its High-stakes essay was written and filled anyway; a run would hold it for that, and for the Calibration run.
-    assert any("essays" in call["schema"]["properties"] for call in claude.calls)
+    assert any(asked["kind"] == "essays.write" for asked in claude.kinds)
     assert f"High-stakes essay: '{ESSAY}'" in done.why
     assert "Calibration run: Application 1 of 10" in done.why
     assert done.missing == ("Date Available",)
     # Two drives, then 1,000 for each other call: the essay's probe, plan, draft, checks and editor's passes, and the review.
-    assert done.tokens == 18_000 + 31_500 + 1_000 * (len(claude.calls) - 2)
+    assert done.tokens == 18_000 + 31_500 + 1_000 * (len(claude.calls) + len(claude.kinds) - 2)  # kinds spend too
     assert "Claude fill:" not in done.why  # its cost is in the tokens, not among the holds
     assert server.submissions == []
 
@@ -266,7 +266,7 @@ def test_a_workday_rehearsal_whose_create_account_goes_back_to_sign_in_resets_no
         [done] = rehearse([CACI_URL], server, world.profile, keychain=world.keychain, mailbox=world.mailbox)
 
     assert "may already have an account for your email: reset its password once, or save it with " \
-           f"security add-generic-password -U -s apply-ats -a {CACI} -w" in done.why, done.why
+           f"uv run keyring set apply-ats {CACI}" in done.why, done.why
     assert server.resets == [] and world.keychain.password(CACI) is None
 
 
@@ -407,7 +407,7 @@ def test_a_workday_rehearsal_answers_a_bare_from_for_its_school_and_banks_nothin
     saved = server.saved("xcelenergy.wd1.myworkdayjobs.com")
     # The school's start, not the internship's; the graduation on the first of its month, as its help text asks.
     assert (saved["from"], saved["graduation"]) == ("08/01/2024", "05/01/2028")
-    assert not any("drafts" in call["schema"]["properties"] for call in claude.calls)  # the plan answered it
+    assert not any(asked["data"]["short_questions"] for asked in claude.kinds if asked["kind"] == "essays.write")  # the plan answered it
     assert all("from" not in question.casefold() for question in bank.answers())
     assert server.submissions == []
 
@@ -423,10 +423,9 @@ def test_a_bare_from_claude_drafts_is_told_its_section_and_banked_only_under_it(
         [done] = rehearse([XCEL_URL], server, world.profile, claude, answer_bank=bank)
 
     assert done.outcome == "ready to submit", done.why
-    [drafts] = [json.loads(call["prompt"].split("<short_questions>\n")[1].split("\n</short_questions>")[0])
-                for call in claude.calls if "drafts" in call["schema"]["properties"]]
-    asked = {d["question"]: d for d in drafts.values()}
-    assert asked["From (MM/DD/YYYY)"]["about"] == "work experience" and "about" not in asked["Job Title"]
+    [drafts] = [k["data"]["short_questions"] for k in claude.kinds if k["kind"] == "essays.write" and k["data"]["short_questions"]]
+    asked = {d["label"]: d for d in drafts.values()}
+    assert asked["From"]["about"] == "work experience" and not asked["Job Title"]["about"]
     assert [entry.question for entry in bank.entries()] == ["Job Title", "work experience / From (MM/DD/YYYY)"]
     assert server.submissions == []
 
@@ -452,9 +451,9 @@ def test_the_pre_submit_reviews_fix_is_filled_before_the_form_shows_as_ready(mon
     assert "Pre-submit review" not in done.why
     saved = server.saved("xcelenergy.wd1.myworkdayjobs.com")
     assert saved["from"] == "08/01/2024" and saved["legalName--firstName"] != "Someone"
-    [drafts] = [call["prompt"] for call in claude.calls if "drafts" in call["schema"]["properties"]]
-    assert '"about": "unknown"' in drafts
-    assert sum("problems" in call["schema"]["properties"] for call in claude.calls) == 2  # reviewed again after the fix
+    [drafts] = [k["data"]["short_questions"] for k in claude.kinds if k["kind"] == "essays.write" and k["data"]["short_questions"]]
+    assert [d["about"] for d in drafts.values()] == ["unknown"]
+    assert sum(asked["kind"] == "presubmit.review" for asked in claude.kinds) == 2  # reviewed again after the fix
     assert bank.entries() == []
     assert server.submissions == []
 
@@ -479,7 +478,7 @@ def test_the_reviews_fix_for_a_legal_answer_is_filled_over_the_profiles(monkeypa
 
     shown = {a["question"].strip(): a["on_page"] for a in json.loads((Path(done.record) / "answers.json").read_text())}
     assert shown[AUTHORIZED] == "Yes" and shown["First Name"] != "Someone"
-    assert sum("problems" in call["schema"]["properties"] for call in claude.calls) == 2  # reviewed again after the fix
+    assert sum(asked["kind"] == "presubmit.review" for asked in claude.kinds) == 2  # reviewed again after the fix
     assert done.legal == ()
     assert fake.submissions == []
 
@@ -724,7 +723,7 @@ def test_a_held_form_lisul_sends_with_a_missing_fact_open_shows_as_sent_and_leav
         page.get_by_role("button", name="Submit application").click()
     monkeypatch.setattr(rehearsal, "lift", lift)
     rescued = []
-    monkeypatch.setattr(rehearsal.Rescue, "field", lambda self, page, label, value, error: rescued.append(label))
+    monkeypatch.setattr(rescue.Rescue, "field", lambda self, page, label, value, error: rescued.append(label))
     profile = ApplicantProfile.load(profile_with(tmp_path, **{"identity.legal_last_name": None}))
     asked = []
 
@@ -1320,9 +1319,9 @@ class PlansSlowly(FakeClaude):
         super().__init__()
         self._site, self.open_while_asked = site, []
 
-    def ask(self, *args, **kwargs):
+    def ask_kind(self, kind, data):
         self.open_while_asked.append(len(getattr(self._site, "opened", [])))
-        return super().ask(*args, **kwargs)
+        return super().ask_kind(kind, data)
 
 
 def test_a_rehearsal_opens_its_form_before_claude_writes_its_answers(monkeypatch, tmp_path):
@@ -1398,7 +1397,7 @@ def test_missing_facts_reach_the_window_before_claude_is_asked_anything(monkeypa
     class Board(RecordingBoard):
         def update(self, worker, **caption):
             if caption.get("missing") and caption.get("status") is None:  # while its form fills
-                heard.append((tuple(caption["missing"]), len(claude.calls)))
+                heard.append((tuple(caption["missing"]), len(claude.asked)))
             super().update(worker, **caption)
 
     board = Board()
@@ -1407,7 +1406,7 @@ def test_missing_facts_reach_the_window_before_claude_is_asked_anything(monkeypa
 
     assert heard[0] == (("Last Name", "Email"), 0)  # asked of Lisul with no Claude call made yet
     assert board.captions[0]["required"] == {"Last Name": True, "Email": True}  # the form's own flags
-    assert done.missing == ("Last Name", "Email") and claude.calls  # Claude still reviewed the form after
+    assert done.missing == ("Last Name", "Email") and claude.asked  # Claude still reviewed the form after
 
 
 def test_an_answer_given_in_the_window_is_filled_into_the_held_form(monkeypatch, tmp_path):
@@ -1423,7 +1422,7 @@ def test_an_answer_given_in_the_window_is_filled_into_the_held_form(monkeypatch,
         notes.append(page.inner_text("#apply-rehearsal-blocked"))
         return True
 
-    monkeypatch.setattr(rehearsal.Rescue, "field", field)
+    monkeypatch.setattr(rescue.Rescue, "field", field)
 
     class Board(RecordingBoard):
         given = [("Email", "lisul@example.com"), ("Pronouns", "he/him")]  # Pronouns: not a field this form left blank
@@ -1466,7 +1465,7 @@ def test_a_file_attached_in_the_window_is_listed_on_its_tile_kept_by_its_name_an
         held.append(page)
         return True
 
-    monkeypatch.setattr(rehearsal.Rescue, "field", field)
+    monkeypatch.setattr(rescue.Rescue, "field", field)
 
     class Board(RecordingBoard):
         given = [("Email", picked)]

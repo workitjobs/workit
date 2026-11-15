@@ -702,8 +702,9 @@ const action = (item) => {
                                            onclick: () => { tab('workers'); control(k); }});
     const chrome = (main) => ctx.show ? make('button', {className: main ? 'primary' : '', textContent: 'Open in Chrome',
                                                         title: 'Its own browser window', onclick: () => openChrome(k)}) : null;
-    // A sign-in wants the real window: password autofill, Sign in with Google, a code by text.
-    return item.kind === 'needs sign-in' && ctx.show ? [chrome(true), here(false)] : [here(true), chrome(false)];
+    // A sign-in wants the real window: password autofill, Sign in with Google, a code by text. So does a captcha:
+    // it takes no click the tile sends, and Apply never makes one look like a person's (KAN-855). All else is Fix here.
+    return ['needs sign-in', 'captcha'].includes(item.kind) && ctx.show ? [chrome(true), here(false)] : [here(true), chrome(false)];
   }
   if (item.kind === 'needs sign-in' && item.posting_url) return copyButton('Copy sign-in command', `apply sign-in ${item.posting_url}`);
   if (item.posting_url) return make('a', {className: 'button', href: item.posting_url, target: '_blank', textContent: 'Open the posting ↗'});
@@ -784,7 +785,8 @@ const answerBox = (item, question) => {
   const wantsFile = choice && choice.kind === 'file', need = (item.required || {})[question];
   if (wantsFile) return fileBox(item, question, need);
   const picks = () => picked.get(key) || [];
-  const box = make('input', {className: 'answer', value: typed.get(key) || '', maxLength: 20000,
+  // An answer Apply planned that the form didn't take (KAN-855): there to save as it is, or to change first.
+  const box = make('input', {className: 'answer', value: typed.get(key) || (item.planned || {})[question] || '', maxLength: 20000,
                              placeholder: choice ? 'Or write your own answer (used instead of the options)' : 'Your answer',
                              oninput: () => typed.set(key, box.value)});
   box.dataset.key = key;
@@ -1084,29 +1086,71 @@ const drawHistory = (state) => {
 </script>
 """
 
-# The Accounts tab (KAN-591): each Employer account Apply made, to sign in to it himself. A password is never in
-# the page: Copy password asks the server, which puts it on the clipboard and replies with a message alone.
+# The Accounts tab (KAN-591): each Employer account Apply made, to sign in to it himself, and the password Lisul
+# chooses for every new account (KAN-838). Show password asks the server for one account's password and shows it in
+# the card until he hides it; Copy password asks for it too and writes it to the clipboard through the window's own
+# navigator.clipboard, as the window's other copy buttons do (D35: no clipboard code in Apply, on any OS). Its write
+# starts inside the click (a ClipboardItem that waits for the reply), which WebKit's window needs.
 ACCOUNTS_TAB = '<button id="tab-accounts" role="tab">Accounts</button>'
 ACCOUNTS = r"""<div id="accounts" hidden><div class="inbox-wrap">
 <h2>Your accounts on job sites</h2>
-<p class="help">Apply made these to apply for you. Each password is only in your Mac's Keychain. Copy password puts
-it on the clipboard for a minute.</p>
+<div class="card chosen">
+<div class="q">Your password for new accounts</div>
+<p class="help" id="chosen-help"></p>
+<div class="actions"><input id="chosen-password" type="password" autocomplete="new-password"
+ aria-label="Your password for new accounts"> <button class="primary" id="chosen-save">Save</button>
+<span id="chosen-status" class="status"></span></div>
+</div>
+<p class="help">Apply made these accounts to apply for you. Each password is in your computer's keychain.</p>
 <div id="accounts-list"></div><span id="accounts-status" class="status"></span>
 </div></div>
 <script>
 (() => {
 const $ = (id) => document.getElementById(id);
+const NOT_ANSWERING = 'Apply is not answering: is it still running?';
+const post = async (path, body) => {
+  const reply = await fetch(path, {method: 'POST', body: JSON.stringify(body),
+                                   headers: {'Content-Type': 'application/json', 'X-Apply-Token': TOKEN}});
+  const data = await reply.json();
+  if (!reply.ok) throw new Error(data.error || 'Not done.');
+  return data;
+};
+const say = (status, text, ok) => { status.textContent = text; status.className = ok ? 'status ok' : 'status error'; };
 const press = async (path, site, status) => {
-  status.textContent = ''; status.className = 'status';
+  try { say(status, (await post(path, {site})).message, true); } catch (err) { say(status, err.message || NOT_ANSWERING, false); }
+};
+// The write starts inside the click, with the password still on its way: WebKit (the desktop app's window on the
+// Mac) lets a page write the clipboard only while the click lasts, so a write after the awaited reply was refused.
+const copy = async (account, status) => {
+  const asked = post('/accounts/show', {site: account.site}).then((reply) => reply.password);
+  asked.catch(() => {});  // its error is read below
   try {
-    const reply = await fetch(path, {method: 'POST', body: JSON.stringify({site}),
-                                     headers: {'Content-Type': 'application/json', 'X-Apply-Token': TOKEN}});
-    const data = await reply.json();
-    if (!reply.ok) throw new Error(data.error || 'Not done.');
-    status.textContent = data.message; status.className = 'status ok';
+    if (window.ClipboardItem) {
+      await navigator.clipboard.write([new ClipboardItem(
+        {'text/plain': asked.then((text) => new Blob([text], {type: 'text/plain'}))})]);
+    } else {
+      await navigator.clipboard.writeText(await asked);
+    }
+    say(status, `Copied the password for ${account.company || account.site}.`, true);
   } catch (err) {
-    status.textContent = err.message || 'Apply is not answering: is it still running?'; status.className = 'status error';
+    const refused = await asked.then(() => null, (why) => why);  // the server's no (no password) says why
+    say(status, refused ? (refused.message || NOT_ANSWERING)
+                        : "This window couldn't copy it: press Show password and copy it from there.", false);
   }
+};
+const toggle = async (site, shown, button, status) => {
+  if (shown.textContent) { shown.textContent = ''; button.textContent = 'Show password'; return; }
+  try {
+    shown.textContent = (await post('/accounts/show', {site})).password;
+    button.textContent = 'Hide password';
+  } catch (err) { say(status, err.message || NOT_ANSWERING, false); }
+};
+$('chosen-save').onclick = async () => {
+  try {
+    say($('chosen-status'), (await post('/accounts/password', {password: $('chosen-password').value})).message, true);
+    $('chosen-password').value = '';
+    loadAccounts();
+  } catch (err) { say($('chosen-status'), err.message || NOT_ANSWERING, false); }
 };
 window.loadAccounts = async () => {
   let view;
@@ -1114,14 +1158,21 @@ window.loadAccounts = async () => {
     const reply = await fetch('/accounts', {headers: {'X-Apply-Token': TOKEN}});
     if (!reply.ok) throw new Error();
     view = await reply.json();
-  } catch (e) { $('accounts-status').textContent = 'Apply is not answering: is it still running?'; return; }
+  } catch (e) { $('accounts-status').textContent = NOT_ANSWERING; return; }
+  $('chosen-help').textContent = view.chosen
+    ? `Apply uses it for each new account; accounts made before keep their own. To change it, type a new one: ${view.rule}.`
+    : `None yet, so Apply makes a random one for each account. Choose one: ${view.rule}.`;
   $('accounts-list').replaceChildren(...(view.accounts.length ? view.accounts.map(a => {
-    const status = make('span', {className: 'status'});
+    const status = make('span', {className: 'status'}), shown = make('code', {className: 'shown'});
+    const show = make('button', {className: 'tonal', textContent: 'Show password'});
+    show.onclick = () => toggle(a.site, shown, show, status);
     return make('div', {className: 'card account'},
       make('div', {className: 'q', textContent: a.company || a.site}),
       make('div', {className: 'meta', textContent: `${a.site} · ${a.login} · made ${a.created}`}),
+      shown,
       make('div', {className: 'actions'},
-        make('button', {className: 'primary', textContent: 'Copy password', onclick: () => press('/accounts/copy', a.site, status)}),
+        show,
+        make('button', {className: 'primary', textContent: 'Copy password', onclick: () => copy(a, status)}),
         make('button', {className: 'tonal', textContent: 'Open sign-in page', title: 'In your everyday Chrome',
                         onclick: () => press('/accounts/open', a.site, status)}),
         status));
@@ -1201,10 +1252,10 @@ STYLE = r"""
   button.danger:hover { background: var(--bad-tint); color: var(--bad); }
   button.close { width: 28px; height: 28px; padding: 0; border-radius: 50%; font-size: 18px; color: var(--faint); }
 
-  input:not([type]), input[type=search], textarea, select {
+  input:not([type]), input[type=search], input[type=password], textarea, select {
     box-sizing: border-box; width: 100%; padding: 9px 12px; border: 1px solid var(--control-line); border-radius: 8px;
     background: var(--panel); color: var(--ink); font: 400 14px/1.43 var(--sans); }
-  input:not([type]):focus, input[type=search]:focus, textarea:focus, select:focus {
+  input:not([type]):focus, input[type=search]:focus, input[type=password]:focus, textarea:focus, select:focus {
     outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px var(--tint); }
   input::placeholder, textarea::placeholder { color: var(--muted); }
   textarea { resize: vertical; min-height: 3.2em; }
@@ -1340,7 +1391,10 @@ STYLE = r"""
   #add-open { margin-top: 6px; }
   .card { margin: 0 0 10px; padding: 14px 18px; min-width: 0; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); box-shadow: var(--lift); }
   .card.add { display: grid; gap: 10px; }
-  .account .actions { margin-top: 10px; }
+  .account .actions, .chosen .actions { margin-top: 10px; }
+  .chosen input { max-width: 260px; }
+  .account .shown { display: block; margin-top: 6px; font: 500 14px/1.43 ui-monospace, monospace; user-select: all; }
+  .account .shown:empty { display: none; }
   .bank-entry { outline: none; }
   .bank-entry .head { cursor: pointer; }
   .bank-entry:hover { background: var(--hover); }

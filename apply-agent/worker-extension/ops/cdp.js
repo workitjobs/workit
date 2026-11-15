@@ -1,3 +1,4 @@
+// WorkIt Auto Apply Worker. Copyright (c) 2026 its authors. All rights reserved: see LICENSE.
 // Page code and early scripts through chrome.debugger (KAN-839, the W6 spike in
 // docs/desktop_application_auto_apply.md).
 //
@@ -36,6 +37,10 @@ const ALLOWED = new Set([
 const AUTO = { autoAttach: true, waitForDebuggerOnStart: true, flatten: true, filter: [{ type: "iframe" }, { exclude: true }] };
 
 const held = new Map(); // name -> source, from `cdp.keep`
+// An unpacked copy (a Developer checkout's, a test's): only there may `cdp.eval` run code as if the user had
+// clicked (`gesture`), so that a test can open a pop-up. A store copy never honours it (KAN-839's review).
+let unpacked = false;
+chrome.management?.getSelf?.().then((self) => { unpacked = self.installType === "development"; }).catch(() => {});
 const tabs = new Map(); // tab -> {scripts: Map(id -> source), main: Map(id -> identifier), children: Map(sessionId -> targetId)}
 
 function send(target, method, params = {}) {
@@ -142,16 +147,16 @@ async function run(params, body, expression) {
       send(at.target, "Runtime.releaseObject", { objectId: at.objectId }).catch(() => {});
     }
   } else {
-    reply = await untilNavigated(params, send(at.target, "Runtime.evaluate", { expression: body, awaitPromise: true, returnByValue: true, ...(params.gesture === true ? { userGesture: true } : {}) }));
+    reply = await untilNavigated(params, send(at.target, "Runtime.evaluate", { expression: body, awaitPromise: true, returnByValue: true, ...(params.gesture === true && unpacked ? { userGesture: true } : {}) }));
   }
   if (reply.exceptionDetails) throw thrown(reply);
   return reply.result?.value ?? null;
 }
 
 // One expression (Apply wraps the caller's code so it answers {ok}, {undef} or {err}, as for `eval`).
-// `gesture: true` runs it as if the user had just clicked, so a test can open a pop-up; Apply's own
-// code never sends it (apply.plain.script.evaluate).
-const evaluate = (params) => run(params, params.code, true);
+// `gesture: true` runs it as if the user had just clicked, so a test can open a pop-up: only in an unpacked copy
+// (`unpacked`). Apply's own code never sends it (apply.plain.script.evaluate).
+export const evaluate = (params) => run(params, params.code, true);
 
 // A whole script, given (`source`) or held (`name`), run once in the frame.
 export async function load(params) {

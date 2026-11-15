@@ -18,6 +18,7 @@ import { Switch } from "@/components/shadcn/switch";
 import { Button } from "@/components/ui/button";
 import { FIELD_CONTROL, FIELD_LABEL } from "@/components/ui/text-field";
 import { IconButton } from "@/components/ui/icon-button";
+import { SectionHeading } from "@/components/ui/section-heading";
 import { SegmentedToggle } from "@/components/ui/segmented-control";
 import type { BankEntry } from "@/lib/bank-actions";
 import type { FontFamily, PageSettings } from "@/lib/built-resume-actions";
@@ -712,7 +713,7 @@ export function SidePanel({
       className="sm:bg-brand-tint sm:ring-brand-pale sm:rounded-card flex min-h-0 flex-col gap-2 sm:p-3 sm:ring-1"
     >
       <div className="flex min-h-9 shrink-0 items-center justify-between gap-2">
-        <h2 className="text-subtitle text-ink font-semibold">{title}</h2>
+        <SectionHeading>{title}</SectionHeading>
         <IconButton place="row" label={`Close ${title}`} tooltip={false} onClick={onClose}>
           <CloseIcon />
         </IconButton>

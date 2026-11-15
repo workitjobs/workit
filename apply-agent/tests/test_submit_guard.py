@@ -39,10 +39,10 @@ from test_workday_filler import CACI_FORM, CACI_URL, NOW, ONE_PAGER, fill_all
 from apply import captcha, submit_guard
 from apply.accounts import Accounts
 from apply.ashby import AshbyFiller
-from apply.claude_fill import OnePage
 from apply.greenhouse import GreenhouseFiller
 from apply.keychain import InMemoryKeychain
 from apply.lever import LeverFiller
+from apply.one_page import OnePage
 from apply.submit_guard import CAPTCHA_TRY, DriveGuard, guard, lift, renote
 from apply.workday import WorkdayFiller
 

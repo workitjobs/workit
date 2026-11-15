@@ -1,3 +1,4 @@
+// WorkIt Auto Apply Worker. Copyright (c) 2026 its authors. All rights reserved: see LICENSE.
 // The isolated half of page/net-main.js: passes its news to the worker extension's service worker.
 (() => {
   if (globalThis.__applyNetRelay) return;

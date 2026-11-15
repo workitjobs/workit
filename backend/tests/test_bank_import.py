@@ -147,6 +147,9 @@ class _Bucket:
     def remove(self, paths):
         self.removed.extend(paths)
 
+    def download(self, path):
+        return self.files[path]
+
 
 @pytest.fixture
 def upload(monkeypatch):
@@ -518,6 +521,67 @@ async def test_import_again_writes_into_the_bank_and_replaces_on_a_second_run(st
     assert (len(saved["entries"]), len(saved["skills"])) == (6, 2)
     # New rows: the second reading replaced the first.
     assert first.isdisjoint(e["id"] for e in saved["entries"])
+
+
+GLUED = "Projects\nWorkIt  Jan 2026 - Present\n• Builtthe editor\n"
+SPACED = "Projects\nWorkIt  Jan 2026 - Present\n• Built the editor\n"
+
+
+def _file_says(monkeypatch, applicant_id, resume_id, said: str) -> None:
+    bucket = _Bucket()
+    bucket.files[f"{applicant_id}/{resume_id}.pdf"] = b"%PDF-1.4"
+    monkeypatch.setattr("app.routers.bank.get_supabase", lambda: bucket)
+
+    async def extract(contents, ext):
+        assert (contents, ext) == (b"%PDF-1.4", ".pdf")
+        return said
+
+    monkeypatch.setattr("app.routers.bank.extract", extract)
+
+
+async def _stored(database, resume_id):
+    async with database() as session:
+        return (await session.execute(
+            text("SELECT raw_text, text_hash FROM resumes WHERE id = :id"), {"id": resume_id})).one()
+
+
+async def test_import_again_reads_the_file_again_not_its_old_text(student, database, monkeypatch):
+    # KAN-809: an upload from before a fix to text extraction kept its old
+    # text, words glued together, and Import Again read that again
+    from app.routers.resumes import text_hash
+
+    client, applicant_id, bank = student
+    resume_id = await _seed_resume(database, applicant_id, GLUED, digest=text_hash(GLUED))
+    _file_says(monkeypatch, applicant_id, resume_id, SPACED)
+
+    assert (await client.post(f"{bank}/import", json={"resume_id": str(resume_id)})).status_code == 200
+    [project] = (await client.get(bank)).json()["entries"]
+    assert [b["text"] for b in project["bullets"]] == ["Built the editor"]
+    assert tuple(await _stored(database, resume_id)) == (SPACED, text_hash(SPACED))
+
+
+async def test_import_again_reads_the_stored_text_when_storage_fails(student, database):
+    # conftest's `_storage_down`: the stored text stands, and nothing fails
+    client, applicant_id, bank = student
+    resume_id = await _seed_resume(database, applicant_id, GLUED)
+
+    assert (await client.post(f"{bank}/import", json={"resume_id": str(resume_id)})).status_code == 200
+    [project] = (await client.get(bank)).json()["entries"]
+    assert [b["text"] for b in project["bullets"]] == ["Builtthe editor"]
+    assert tuple(await _stored(database, resume_id)) == (GLUED, None)
+
+
+async def test_a_text_read_again_that_another_upload_has_keeps_no_hash(student, database, monkeypatch):
+    # The hash is unique per student: the two uploads are one resume
+    from app.routers.resumes import text_hash
+
+    client, applicant_id, bank = student
+    await _seed_resume(database, applicant_id, SPACED, digest=text_hash(SPACED), minutes_ago=5)
+    resume_id = await _seed_resume(database, applicant_id, GLUED, digest=text_hash(GLUED))
+    _file_says(monkeypatch, applicant_id, resume_id, SPACED)
+
+    assert (await client.post(f"{bank}/import", json={"resume_id": str(resume_id)})).status_code == 200
+    assert tuple(await _stored(database, resume_id)) == (SPACED, None)
 
 
 async def test_without_a_resume_id_import_reads_the_default_resume_else_the_newest(student, database):
@@ -1523,6 +1587,77 @@ async def test_a_citation_ending_in_its_link_keeps_its_title_and_takes_the_parse
     assert paper.link == "https://arxiv.org/abs/2409.01234"
 
 
+def test_a_job_at_a_school_is_never_the_school_s_own_entry():
+    # KAN-805: the TA job shared the school's three name words, matched the
+    # model's education entry, and was lost
+    from app.schemas.bank import DraftEntry
+    from app.services.bank_import import with_parsers_reading
+
+    model = [DraftEntry(section="education", title="Hillcrest State University", degree="B.S.")]
+    parsed = [DraftEntry(section="experience", title="Teaching Assistant", organization="Hillcrest State University",
+                         bullets=["Graded 120 lab reports a week"])]
+    merged = with_parsers_reading(model, parsed)
+    assert [(d.section.value, d.title) for d in merged] == [
+        ("education", "Hillcrest State University"), ("experience", "Teaching Assistant")]
+    assert merged[0].bullets == []
+
+
+def test_two_roles_at_one_organization_stay_two():
+    # KAN-805: with the model's Teaching Assistant left out, the parser's
+    # matched the model's Research Assistant and was lost into it
+    from app.schemas.bank import DraftEntry
+    from app.services.bank_import import with_parsers_reading
+
+    model = [DraftEntry(section="experience", title="Research Assistant", organization="Hillcrest State University",
+                        bullets=["Ran 300 experiments"])]
+    parsed = [DraftEntry(section="experience", title="Teaching Assistant", organization="Hillcrest State University",
+                         bullets=["Graded 120 lab reports a week"])]
+    merged = with_parsers_reading(model, parsed)
+    assert [(d.title, d.bullets) for d in merged] == [
+        ("Research Assistant", ["Ran 300 experiments"]), ("Teaching Assistant", ["Graded 120 lab reports a week"])]
+
+
+def test_one_role_filed_in_two_sections_is_still_one():
+    from app.schemas.bank import DraftEntry
+    from app.services.bank_import import with_parsers_reading
+
+    model = [DraftEntry(section="leadership", title="Resident Assistant", organization="Campus Residences",
+                        bullets=["Ran 12 floor events"])]
+    parsed = [DraftEntry(section="experience", title="Resident Assistant",
+                         organization="Hillcrest State University Campus Residences",
+                         bullets=["Ran 12 floor events", "Mediated roommate conflicts"])]
+    merged = with_parsers_reading(model, parsed)
+    assert [(d.title, d.bullets) for d in merged] == [
+        ("Resident Assistant", ["Ran 12 floor events", "Mediated roommate conflicts"])]
+
+
+def test_an_entry_s_line_the_parser_read_as_a_bullet_is_not_added():
+    # KAN-805: the next job's line, with its place and dates, joined the
+    # job above as a bullet
+    from app.schemas.bank import DraftEntry
+    from app.services.bank_import import with_parsers_reading
+
+    model = [
+        DraftEntry(section="experience", title="Research Intern", organization="Signal Processing Lab",
+                   bullets=["Cut the spin error"]),
+        DraftEntry(section="experience", title="Software Engineer Intern", organization="Acme Robotics",
+                   location="Boston, MA", bullets=["Built a deploy script"]),
+    ]
+    parsed = [DraftEntry(section="experience", title="Research Intern", organization="Signal Processing Lab",
+                         bullets=["Cut the spin error", "Acme Robotics  Boston, Massachusetts  June 2024 – Aug 2024"])]
+    assert with_parsers_reading(model, parsed)[0].bullets == ["Cut the spin error"]
+
+
+def test_a_word_the_pdf_broke_in_two_is_the_same_bullet():
+    # KAN-805: "De- signed" read as two words, and the bullet printed twice
+    from app.schemas.bank import DraftEntry
+    from app.services.bank_import import with_parsers_reading
+
+    model = [DraftEntry(section="projects", title="Maze Robot", bullets=["Designed the robot's logo"])]
+    parsed = [DraftEntry(section="projects", title="Maze Robot", bullets=["De- signed the robot's logo"])]
+    assert with_parsers_reading(model, parsed)[0].bullets == ["Designed the robot's logo"]
+
+
 async def test_a_line_the_parser_misread_as_a_bullet_is_not_added():
     # The model reads "Stony Brook University" as the project's organization;
     # the parser saved it as the project's bullet.
@@ -1605,6 +1740,72 @@ def test_both_readings_space_a_bar_and_keep_a_repeated_entry_once():
     text = "PROJECTS\nThinkpad (Lab) |AI Notes Platform  Apr 2026 – Jul 2026\n• Built the editor\n"
     entries, _ = read(text + text.removeprefix("PROJECTS\n"))
     assert [e.title for e in entries] == ["Thinkpad (Lab) | AI Notes Platform"]
+
+
+def test_the_import_keeps_a_major_gpa_line_and_drops_the_gpa_it_prints():
+    # KAN-813: a line of GPAs went whole, so a major's on it was lost
+    entries, _ = read("Education\nRiverside State University  May 2027\nB.S. in Biology\n"
+                      "• GPA: 3.72/4.00 | Major GPA: 3.95/4.00\n")
+    [school] = entries
+    assert (float(school.gpa), school.bullets) == (3.72, ["Major GPA: 3.95/4.00"])
+
+
+def test_the_models_expected_stays_only_on_a_school_or_where_the_resume_writes_it():
+    # KAN-813: "Expected Aug 2025" printed on a finished internship
+    from app.models.dto import entry_end_kind
+    from app.schemas.bank import ModelReading
+    from app.services.bank_import import model_drafts
+
+    text = ("Experience\nAcme Analytics  May 2025 – Aug 2025\nData Analyst Intern\n• Cleaned survey rows\n"
+            "Projects\nMaze Robot  Sep 2026 – Expected Dec 2026\n• Built a planner\n")
+    reading = ModelReading.model_validate({"entries": [
+        {"section": "experience", "title": "Data Analyst Intern", "organization": "Acme Analytics",
+         "start_month": "2025-05", "end_month": "2025-08", "end_kind": "expected"},
+        {"section": "projects", "title": "Maze Robot", "start_month": "2026-09", "end_month": "2026-12",
+         "end_kind": "expected"},
+    ]})
+    job, project = model_drafts(reading, text)
+    assert (job.end_kind, project.end_kind) == (entry_end_kind.month, entry_end_kind.expected)
+
+
+def test_the_models_degree_honors_go_after_the_major():
+    from app.schemas.bank import ModelReading
+    from app.services.bank_import import model_drafts
+
+    text = "Education\nRiverside State University  May 2027\nB.S. in Biology, magna cum laude\n"
+    reading = ModelReading.model_validate({"entries": [
+        {"section": "education", "title": "Riverside State University", "degree": "B.S.",
+         "field_of_study": "Biology", "honors": "magna cum laude"},
+    ]})
+    [school] = model_drafts(reading, text)
+    assert (school.field_of_study, school.honors) == ("Biology, magna cum laude", None)
+
+
+def test_the_models_major_gpa_is_no_gpa_and_stays_a_line():
+    from app.schemas.bank import ModelReading
+    from app.services.bank_import import model_drafts
+
+    text = ("Education\nRiverside State University  May 2027\nB.S. in Biology\n"
+            "• Major GPA: 3.95/4.00\n• Cumulative GPA: 3.72/4.00\n")
+    reading = ModelReading.model_validate({"entries": [
+        {"section": "education", "title": "Riverside State University", "degree": "B.S.", "field_of_study": "Biology",
+         "gpa": 3.95, "gpa_scale": 4.0, "bullets": ["Major GPA: 3.95/4.00", "Cumulative GPA: 3.72/4.00"]},
+    ]})
+    [school] = model_drafts(reading, text)
+    assert school.gpa is None and school.bullets == ["Major GPA: 3.95/4.00"]
+
+
+def test_a_year_alone_is_marked_in_both_readings():
+    # KAN-808: the year alone was January of it, and every resume printed "Jan."
+    from app.schemas.bank import ModelReading
+    from app.services.bank_import import model_drafts
+
+    entries, _ = read("EDUCATION\nHillcrest State University  2019 – 2023\nB.S. in Biology\n")
+    assert entries[0].year_only == ["start_month", "end_month"]
+    reading = ModelReading.model_validate({"entries": [
+        {"section": "awards", "title": "Dean's List", "award_date": "2024"},
+    ]})
+    assert model_drafts(reading)[0].year_only == ["award_date"]
 
 
 # --- a project's tools (KAN-738) -------------------------------------------------

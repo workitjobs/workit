@@ -1,3 +1,4 @@
+// WorkIt Auto Apply Worker. Copyright (c) 2026 its authors. All rights reserved: see LICENSE.
 // The page's modal state for Claude's browser tools (S6), in the page's MAIN world from
 // document_start (a registered content script) and in pages already open (injected once).
 //

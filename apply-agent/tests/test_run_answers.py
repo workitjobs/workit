@@ -315,7 +315,7 @@ def test_an_if_yes_follow_up_to_a_no_claude_drafted_is_left_blank_never_asked_no
     assert planned.add([KNOWS, IF_YES]) is None  # no Missing fact
     assert planned.answers == {"knows": "No"} and planned.missing == ()
     assert planned.written == [] and "if_yes" in planned.left  # never an essay: blank on purpose
-    assert "your relationship" not in json.dumps(claude.calls)  # nor sent to Claude to draft
+    assert "your relationship" not in json.dumps(claude.asked, default=str)  # nor sent to Claude to draft
 
 
 def test_an_if_yes_follow_up_to_a_yes_is_asked_with_the_forms_own_label_and_required_flag(tmp_path):

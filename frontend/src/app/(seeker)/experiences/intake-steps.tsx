@@ -5,9 +5,9 @@ import {
   CaretLeftIcon,
   CertificateIcon,
   CheckIcon,
-  DeskIcon,
   GraduationCapIcon,
   MinusIcon,
+  PathIcon,
   RocketLaunchIcon,
   TrophyIcon,
   UsersThreeIcon,
@@ -17,6 +17,7 @@ import type { CSSProperties } from "react";
 import type { Section } from "@/lib/bank-actions";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 import { Button } from "@/components/ui/button";
+import { IconButton } from "@/components/ui/icon-button";
 import { cn } from "@/lib/cn";
 
 import { sectionOf } from "./sections";
@@ -58,7 +59,7 @@ import { sectionOf } from "./sections";
  * "Your Sections" and how many are done.
  */
 
-/** The order intake walks: not the bank's, which puts Experience second. */
+/** The order intake walks: not the bank's, which puts Work Experience second. */
 export const WALK: readonly Section[] = [
   "education",
   "projects",
@@ -75,7 +76,7 @@ export const WALK: readonly Section[] = [
  *  seal for Certifications) until 2026-11-12. Change both together. */
 export const ICONS: Record<Section, PhosphorIcon> = {
   education: GraduationCapIcon,
-  experience: DeskIcon,
+  experience: PathIcon,
   projects: RocketLaunchIcon,
   leadership: UsersThreeIcon,
   awards: TrophyIcon,
@@ -194,17 +195,19 @@ export function StepBar({
 
   return (
     <div className="flex flex-col gap-1">
-      {/* Back and Skip are 36px; up 2px, they centre on the 32px chips. */}
+      {/* Back is IconButton at a row's place (KAN-821), 32px as the chips
+          are; Skip is 36px, up 2px to centre on them. */}
       <div className="flex items-start gap-2">
-        <button
-          type="button"
-          aria-label={previous ? `Back to ${sectionOf(previous).label}` : "Back"}
+        <IconButton
+          place="row"
+          tooltip={false}
+          label={previous ? `Back to ${sectionOf(previous).label}` : "Back"}
           disabled={!previous || busy}
           onClick={() => previous && onJump(previous)}
-          className="text-brand hover:bg-brand-tint disabled:text-brand-pale focus-visible:ring-brand-ring -mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-full transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:hover:bg-transparent"
+          className="shrink-0"
         >
-          <CaretLeftIcon aria-hidden className="size-5" weight="bold" />
-        </button>
+          <CaretLeftIcon aria-hidden />
+        </IconButton>
 
         <div className="min-w-0 flex-1">{chips}</div>
 
@@ -220,11 +223,12 @@ export function StepBar({
             Skip
           </Button>
         ) : (
-          <span className="w-9 shrink-0" />
+          <span className="w-8 shrink-0" />
         )}
       </div>
 
-      <div className="flex items-center justify-between gap-3 px-11">
+      {/* In from each side by Back's 32px and the 8px gap, under the chips. */}
+      <div className="flex items-center justify-between gap-3 px-10">
         <p className="text-note text-ink-meta @3xl/main:hidden">{where}</p>
         <p className="text-note text-ink-meta ml-auto hidden @xl/main:block">
           {cheer} <span className="text-brand font-semibold tabular-nums">{percent}%</span>

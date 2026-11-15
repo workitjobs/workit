@@ -117,11 +117,10 @@ export function EntryEditor<S extends EntrySection = EntrySection>({
   /** A question in the foot's place while it is asked: Delete's or Discard
    *  Your Changes? (`ConfirmBar`), never a dialog over the dialog. */
   foot?: ReactNode;
-  /** The resume editor's form (KAN-586): each bullet has a handle that drags
-   *  it (or its arrow keys move it), and a saved bullet a check box, on this
-   *  resume or off, in place of its ×, which deletes from the bank. The order
-   *  and the boxes are that resume's; the Experiences page's form has
-   *  neither. */
+  /** The resume editor's form (KAN-586): a saved bullet has a check box, on
+   *  this resume or off, in place of its ×, which deletes from the bank, and
+   *  the bullets' order is that resume's. Every form has the handles
+   *  (KAN-815); on the Experiences page the order is the bank's. */
   resumeMode?: boolean;
   /** A school in the resume editor's form (KAN-586): whether that resume
    *  prints its GPA and its coursework. They were the toolbar's Hide GPA and
@@ -141,7 +140,7 @@ export function EntryEditor<S extends EntrySection = EntrySection>({
     onChange?.(next);
   };
   const field = (name: string) => `${uid}-${name}`;
-  // Resume mode's drag: the bullet dragged, and the gap it would land in
+  // The drag: the bullet dragged, and the gap it would land in
   const [dragged, setDragged] = useState<number | null>(null);
   const [gap, setGap] = useState<number | null>(null);
   function moveBullet(from: number, to: number) {
@@ -419,11 +418,9 @@ export function EntryEditor<S extends EntrySection = EntrySection>({
               className={cn(
                 "relative flex items-start gap-2",
                 dragged === i && "opacity-50",
-                resumeMode &&
-                  gap === i &&
+                gap === i &&
                   "before:bg-brand before:absolute before:inset-x-0 before:-top-1.5 before:h-0.5",
-                resumeMode &&
-                  gap === i + 1 &&
+                gap === i + 1 &&
                   i === draft.bullets.length - 1 &&
                   "after:bg-brand after:absolute after:inset-x-0 after:-bottom-1.5 after:h-0.5",
               )}
@@ -442,38 +439,36 @@ export function EntryEditor<S extends EntrySection = EntrySection>({
                 setGap(null);
               }}
             >
-              {resumeMode && (
-                <button
-                  type="button"
-                  draggable
-                  aria-label={`Move ${noun} ${i + 1}`}
-                  title="Drag to move, or use the arrow keys"
-                  className="text-ink-meta hover:text-ink focus-visible:ring-brand-ring mt-1.25 flex h-8 w-5 shrink-0 cursor-grab items-center justify-center rounded-xs focus-visible:ring-2 focus-visible:outline-none active:cursor-grabbing"
-                  onDragStart={(e) => {
-                    e.dataTransfer.effectAllowed = "move";
-                    e.dataTransfer.setData("text/plain", bullet.text.slice(0, 40));
-                    setDragged(i);
-                  }}
-                  onDragEnd={() => {
-                    setDragged(null);
-                    setGap(null);
-                  }}
-                  onKeyDown={(e) => {
-                    const to = e.key === "ArrowUp" ? i - 1 : e.key === "ArrowDown" ? i + 1 : null;
-                    if (to === null) return;
-                    e.preventDefault();
-                    moveBullet(i, to);
-                    // The handle keeps the focus at the bullet's new place
-                    requestAnimationFrame(() =>
-                      document
-                        .querySelector<HTMLElement>(`[aria-label="Move ${noun} ${to + 1}"]`)
-                        ?.focus(),
-                    );
-                  }}
-                >
-                  <DotsSixVerticalIcon aria-hidden weight="bold" className="size-4" />
-                </button>
-              )}
+              <button
+                type="button"
+                draggable
+                aria-label={`Move ${noun} ${i + 1}`}
+                title="Drag to move, or use the arrow keys"
+                className="text-ink-meta hover:text-ink focus-visible:ring-brand-ring mt-1.25 flex h-8 w-5 shrink-0 cursor-grab items-center justify-center rounded-xs focus-visible:ring-2 focus-visible:outline-none active:cursor-grabbing"
+                onDragStart={(e) => {
+                  e.dataTransfer.effectAllowed = "move";
+                  e.dataTransfer.setData("text/plain", bullet.text.slice(0, 40));
+                  setDragged(i);
+                }}
+                onDragEnd={() => {
+                  setDragged(null);
+                  setGap(null);
+                }}
+                onKeyDown={(e) => {
+                  const to = e.key === "ArrowUp" ? i - 1 : e.key === "ArrowDown" ? i + 1 : null;
+                  if (to === null) return;
+                  e.preventDefault();
+                  moveBullet(i, to);
+                  // The handle keeps the focus at the bullet's new place
+                  requestAnimationFrame(() =>
+                    document
+                      .querySelector<HTMLElement>(`[aria-label="Move ${noun} ${to + 1}"]`)
+                      ?.focus(),
+                  );
+                }}
+              >
+                <DotsSixVerticalIcon aria-hidden weight="bold" className="size-4" />
+              </button>
               <div
                 className={cn(
                   "relative min-w-0 flex-1 transition-opacity",
@@ -548,7 +543,7 @@ export function EntryEditor<S extends EntrySection = EntrySection>({
           ))}
           <div className="flex items-center gap-2">
             {/* Level with the bullets' boxes, past their handles */}
-            {resumeMode && <span aria-hidden className="w-5 shrink-0" />}
+            <span aria-hidden className="w-5 shrink-0" />
             <button
               type="button"
               onClick={addBullet}

@@ -178,9 +178,7 @@ export function ResumePreviewDialog({
       {/* Tall, so a page reads at once; its pages scroll under the title. */}
       <DialogContent className="flex h-[92vh] w-[92vw] max-w-none flex-col sm:max-w-3xl">
         <DialogHeader>
-          <DialogTitle className="text-subtitle pr-8 font-semibold break-words">
-            {label}
-          </DialogTitle>
+          <DialogTitle className="pr-8 break-words">{label}</DialogTitle>
           <DialogDescription className="sr-only">A preview of this resume.</DialogDescription>
         </DialogHeader>
         <ResumePreviewPane source={source} label={label} enabled={open} version={version} />

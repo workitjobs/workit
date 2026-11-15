@@ -19,9 +19,9 @@ from fakes import FakeClaude, FakeClock, FakeMailbox
 
 from apply import workday
 from apply.accounts import Accounts
-from apply.claude_fill import OnePage
 from apply.keychain import InMemoryKeychain
 from apply.model import FillError, Handoff, MoreQuestions
+from apply.one_page import OnePage
 from apply.plain.bridge import PortTimeoutError
 from apply.rescue import Rescue
 from apply.workday import WorkdayFiller

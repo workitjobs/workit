@@ -110,11 +110,13 @@ function SheetFooter({ className, ...props }: React.ComponentProps<"div">) {
   );
 }
 
+/** WorkIt's type, as `DialogTitle`'s: `text-subtitle`, where shadcn's was
+ *  16px medium and every call site passed the token (KAN-820). */
 function SheetTitle({ className, ...props }: SheetPrimitive.Title.Props) {
   return (
     <SheetPrimitive.Title
       data-slot="sheet-title"
-      className={cn("font-heading text-foreground text-base font-medium", className)}
+      className={cn("font-heading text-foreground text-subtitle", className)}
       {...props}
     />
   );

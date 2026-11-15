@@ -4,6 +4,7 @@ import argparse
 import imaplib
 import os
 import queue
+import re
 import signal
 import subprocess
 import sys
@@ -20,6 +21,7 @@ import yaml
 from apply import (
     already_applied,
     answer_sync,
+    answering,
     ask,
     batch,
     bot_signals,
@@ -54,6 +56,7 @@ from apply.adapters import Adapters
 from apply.answer_bank import FILE as ANSWER_BANK
 from apply.answer_bank import AnswerBank
 from apply.answers_tab import AnswersTab
+from apply.applicant import as_applicant
 from apply.ask_model import live_claude
 from apply.browsers import ProfileInUse, WorkerBrowsers
 from apply.claude_cli import ClaudeCLI
@@ -61,7 +64,7 @@ from apply.clock import SystemClock
 from apply.feed import live_feed
 from apply.gmail import live_mailbox
 from apply.home import HOME
-from apply.keychain import GMAIL, MacKeychain
+from apply.keychain import CHOSEN, EMPLOYER_ACCOUNTS, GMAIL, SystemKeychain
 from apply.match_queue import match_queue
 from apply.notify import SET_UP, TEST_PUSH, MacNotifier, RecordingNotifier, live_phone
 from apply.plain.site import live_site
@@ -223,7 +226,11 @@ def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
     tiled.add_argument("--seconds", type=float, default=300, help="how long the tile stays up after the fill")
     tiled.add_argument("--chrome", choices=("testing", "chrome"), default="testing",
                        help="Chrome for Testing (default), or branded Chrome from the seed profile")
-    plain.add_parser("prepare", help="write the worker extension's engine bundle and Playwright's injected script")
+    plain.add_parser("prepare", help="write the worker extension's generated files (the guards, the fixed page "
+                                     "functions, Playwright's injected script); never the engine")
+    packaged = plain.add_parser("package", help="build the worker extension's Chrome Web Store zip: its code, the "
+                                                "generated files built in, LICENSE and NOTICE; never the engine")
+    packaged.add_argument("--out", default="dist", help="the folder the zip and its unpacked copy go in (default: dist)")
     plain.add_parser("seed", help="guided one-time setup: open branded Chrome on the seed profile, confirm each step, check a real Worker")
     asked = commands.add_parser("ask", help="Ask Claude to fix an open form in a running Apply window, in your own "
                                             "words; prints what Claude changed. It never submits")
@@ -453,6 +460,17 @@ def _plain(args) -> None:
     elif args.action == "prepare":
         identity = PlainWorkers(kind="testing").prepare()
         print(f"Worker extension ready: Fill engine {identity['version']}.")
+    elif args.action == "package":
+        import json
+
+        from apply.plain import extension
+
+        archive = extension.package(Path(args.out))
+        print(f"Chrome Web Store package: {archive} (unpacked beside it). Upload it in the Developer Dashboard.")
+        recorded, stamp = json.loads(extension.STORE.read_text()), extension.store_stamp()
+        if any(recorded.get(key) != value for key, value in stamp.items()):
+            print(f"store.json doesn't record what this package holds ({stamp}): bump its version and record these "
+                  "before uploading (tests/test_worker_extension_store.py says how).")
     elif args.action == "seed":
         from apply.adapters import SetupError
         from apply.plain import seed_setup
@@ -549,7 +567,8 @@ def _story_map(args, claude) -> None:
         print("\n".join((story_map.check() if args.check else []) + (story_map.gaps() if args.gaps else [])) or
               ("No stale entries." if args.check else "No follow-ups the bank can't answer."))
         return
-    built = story_map.build(claude or live_claude(load_policies()))
+    answering.refresh(workit.WorkIt())  # the map tags stories by WorkIt's Question types
+    built = story_map.build(claude or as_applicant(live_claude(load_policies()), ApplicantProfile.load(DEFAULT_PROFILE)))
     old = yaml.safe_load(story_map.MAP.read_text()) if story_map.MAP.exists() else None
     print("\n".join(story_map.diff((old or {}).get("episodes") or [], built["episodes"])) or "No changes.")
     if built["dropped"]:
@@ -632,7 +651,7 @@ def _dashboard(adapters: Adapters, tiles: int, profile: ApplicantProfile, worker
                                 everyday=adapters.everyday, accounts=_accounts_tab(lambda: adapters.tracker,
                                                                                    adapters.keychain, adapters.everyday),
                                 quiet=getattr(site, "plain", None), remember=_remembering(adapters.answer_bank),
-                                **_window_context()) as board:
+                                back=_back_to_window(site, site.profiles / "dashboard"), **_window_context()) as board:
         adapters.board = board
         url = site.profiles / DASHBOARD_URL
         url.parent.mkdir(parents=True, exist_ok=True)
@@ -662,24 +681,28 @@ def _fill_again(target: str) -> int:
     print(" | ".join(str(caption.get(k) or "") for k in ("company", "role", "status", "why")))
     return 0
 def _gmail_set_up() -> bool:
-    """Whether Keychain lists a Gmail app password: attributes only, never the password."""
+    """Whether Keychain holds a Gmail app password for the profile's email. It reads the password, as doctor's
+    Gmail check does, and never prints it."""
     try:
-        return bool(MacKeychain(GMAIL).sites())
-    except (OSError, subprocess.SubprocessError):
+        address = ApplicantProfile.load(DEFAULT_PROFILE).get("identity.email")
+        return bool(address) and SystemKeychain(GMAIL).password(address) is not None
+    except Exception:  # no profile yet, one that won't load, or no keychain to read: the report says no Gmail
         return False
 
 
 def _preflight(urls: list[str], workers: int, adapters: Adapters | None) -> None:
-    """`apply preflight`: the sign-ins and the plan for `urls`, from the links, Keychain's attributes and the
-    Worker profiles' notes. Nothing here opens a page or reads a job site."""
+    """`apply preflight`: the sign-ins and the plan for `urls`, from the links, the Tracker's Employer accounts and
+    the Worker profiles' notes. Nothing here opens a page or reads a job site."""
     if wrong := [url for url in urls if not urlsplit(url).hostname or url.split() != [url]]:
         print(f"apply preflight: not a link: {wrong[0]}", file=sys.stderr)
         raise SystemExit(2)
-    keychain = adapters.keychain if adapters else MacKeychain()
+    # `keyring` can't list a keychain's items, so the sites with a password come from the Tracker, which lists
+    # each Employer account whose password Apply keeps (Accounts.created). No password is read.
+    tracker = adapters.tracker if adapters else FileTracker()
     try:
-        items = keychain.sites()
-    except (OSError, subprocess.SubprocessError):
-        items = None  # no Keychain here, or it would not list: the report says so
+        items = {account.site for account in tracker.employer_accounts()}
+    except (OSError, ValueError):
+        items = None  # the Tracker would not read: the report says so
     browsers = None if adapters else WorkerBrowsers()
     signed_in = adapters.site.signed_in() if adapters else browsers.signed_in()
     policies = load_policies()
@@ -779,11 +802,35 @@ def _close_workers(site) -> None:
             print(f"Couldn't stop every plain Worker ({type(error).__name__}: {error}).", file=sys.stderr)
 
 
+# One attribute line of `security dump-keychain` (no -d, so it prints no secret).
+_ATTRIBUTE = re.compile(r'^\s*"(svce|acct)"<blob>="(.*)"$')
+
+
+def _mac_keychain_sites(run: Callable[..., subprocess.CompletedProcess] = subprocess.run) -> list[str]:
+    """Each site with an Employer account password in the macOS login Keychain, from `security dump-keychain`
+    without -d: item attributes only, never a password, and no Keychain prompt. `keyring` can't list items, so
+    this one read stays macOS-only, for `_chrome_passwords`' backfill of the accounts that rehearsals made
+    before KAN-592 (2026-11-03) listed them in the Tracker. Elsewhere there are none. It goes with that
+    backfill."""
+    if sys.platform != "darwin":
+        return []
+    dumped = run(["security", "dump-keychain"], capture_output=True, text=True, check=True)
+    found, item = [], {}
+    for line in dumped.stdout.splitlines() + ["keychain: end"]:
+        if line.startswith("keychain:"):
+            if item.get("svce") == EMPLOYER_ACCOUNTS and item.get("acct") not in (None, "", CHOSEN):
+                found.append(item["acct"])
+            item = {}
+        elif attribute := _ATTRIBUTE.match(line):
+            item[attribute[1]] = attribute[2]
+    return found
+
+
 def _chrome_passwords(login: str) -> None:
     """Install the Apply accounts host for Lisul's everyday Chrome, and list each Employer account Keychain
     has in the Tracker, so the extension's Sign In button knows it (KAN-592). No password is read."""
     manifest = native_host.install()
-    added = native_host.adopt(MacKeychain(), FileTracker(), login, date.today())
+    added = native_host.adopt(_mac_keychain_sites(), FileTracker(), login, date.today())
     print(f"Installed the Apply accounts host: {manifest}, for the WorkIt extension only ({native_host.EXTENSION_ID}).")
     print(f"Listed {len(added)} more Employer accounts from Keychain in the Tracker" + (f": {', '.join(added)}." if added else "."))
     print("In Chrome, open the WorkIt extension's options page and turn on Use My Apply Accounts (Chrome asks once to "
@@ -805,7 +852,7 @@ def _answers_window(profile: Path, window: Path) -> None:
     with dashboard.Dashboard(0, dashboard.NoFrames(), tab, _applied_live, past=lambda: tracker().rows(),
                              answer=_answering(tracker, tab), approve=_approving(tracker),
                              everyday=captcha.to_everyday_chrome,
-                             accounts=_accounts_tab(tracker, MacKeychain(), captcha.to_everyday_chrome),
+                             accounts=_accounts_tab(tracker, SystemKeychain(), captcha.to_everyday_chrome),
                              **_window_context()) as board:
         dashboard.open_window(board.url, window)
         print(f"Answers: {board.url} (no run is going; close the window or press Ctrl-C to stop)")
@@ -856,6 +903,16 @@ def _approving(tracker: Callable[[], object]) -> Callable[[str], str]:
         tracker().approve(application_id, essay)
         return "Approved: it is sent at the next check, within 5 minutes."
     return approve
+
+
+def _back_to_window(site, window: Path) -> Callable[[int], bool] | None:
+    """The Apply window (its Chrome profile `window`) back in front of Worker `worker`'s own window, after a captcha
+    Lisul did there (Dashboard.come_back, KAN-855): only while that Worker's window is the front one."""
+    in_front = getattr(site, "in_front", None)
+    if in_front is None:
+        return None
+    # One try, at once after the check: a raise retried for a while came up over the app he had switched to meanwhile.
+    return lambda worker: in_front(worker) and dashboard.raise_window(window, timeout=0)
 
 
 def _window_context() -> dict:
@@ -930,8 +987,8 @@ def _applied(adapters: Adapters) -> Callable[[str], str]:
 
 def _applied_live(url: str) -> str:
     """An Own application pasted into the window with no run going, added to the live Tracker."""
-    return own_application.report(url, tracker=live_tracker(), claude=live_claude(load_policies()), site=WorkerBrowsers(),
-                                  clock=SystemClock())
+    claude = as_applicant(live_claude(load_policies()), ApplicantProfile.load(DEFAULT_PROFILE))  # apply.private
+    return own_application.report(url, tracker=live_tracker(), claude=claude, site=WorkerBrowsers(), clock=SystemClock())
 
 
 def _sign_in(url: str, browsers: WorkerBrowsers) -> None:
@@ -1022,18 +1079,20 @@ def live_adapters(profile: ApplicantProfile, tracker=None, records=None, notifie
     phone Notifier is given)."""
     claude = ClaudeCLI()  # also reads usage, off every call's rate-limit events
     site = live_site(profile.policies())  # policies.yaml: worker_mode (cdp, plain or protected)
+    answering.refresh(workit.WorkIt())  # WorkIt's Question types, for the run's essays
     return Adapters(
         feed=live_feed(),
         tracker=live_tracker() if tracker is None else tracker,
         site=site,
-        claude=live_claude(profile.policies(), claude),  # policies.yaml: ask_model (claude or groq)
+        # policies.yaml's ask_model; every kind said as the applicant, with no private detail (apply.private)
+        claude=as_applicant(live_claude(profile.policies(), claude), profile),
         mailbox=live_mailbox(profile.get("identity.email")) if mailbox is None else mailbox,
         usage=claude,
         clock=SystemClock(),
         records=_records(profile) if records is None else records,
         notifier=MacNotifier() if notifier is None else notifier,
         phone=live_phone() if phone is None else phone,
-        keychain=MacKeychain() if keychain is None else keychain,
+        keychain=SystemKeychain() if keychain is None else keychain,
         repairs=RepairRequests(REPAIRS),
         answer_bank=_answer_bank(profile.folder) if answer_bank is None else answer_bank,
         signed_in=site.signed_in(),  # by apply sign-in

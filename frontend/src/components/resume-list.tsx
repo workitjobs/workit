@@ -45,7 +45,7 @@ const FILL_PAGE = "max-h-[max(calc(0.25rem+5*3.75rem+0.75rem),var(--fill-height,
 
 /**
  * The list's one scroll, five cards high, not the shared
- * `max-h-scroll-box` (320px) that Top Matches uses, so a card is never cut
+ * `max-h-scroll-box` (320px) that Add Jobs uses, so a card is never cut
  * at the foot. With `fill`
  * (a page's list: the Resumes page, KAN-434, and Tailor's Pick a Resume,
  * KAN-576) it runs down to the foot of the page instead: five cards left

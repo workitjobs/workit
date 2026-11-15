@@ -20,7 +20,7 @@ import {
   DialogDescription,
   DialogTitle,
 } from "@/components/shadcn/dialog";
-import { Button } from "@/components/ui/button";
+import { ConfirmButtons } from "@/components/ui/confirm-buttons";
 import { IconButton } from "@/components/ui/icon-button";
 import type { BankEntry } from "@/lib/bank-actions";
 import { cn } from "@/lib/cn";
@@ -153,7 +153,7 @@ export function DialogHead({
         </IconButton>
       )}
       <div className="min-w-0 flex-1">
-        <DialogTitle className="text-subtitle text-ink flex min-w-0 items-center gap-2.5 font-semibold break-words">
+        <DialogTitle className="text-ink flex min-w-0 items-center gap-2.5 break-words">
           {title}
         </DialogTitle>
         {description && (
@@ -176,9 +176,9 @@ export function DialogHead({
  * A one-line question across a dialog's foot (`docs/design.md`, "Never a
  * dialog over a dialog"): Delete's, Clear All's, Delete Section's and
  * Discard Your Changes?. The question in bold, then what goes with it, then
- * the safe answer and the act, the act last. It takes the focus on the safe
- * answer; its owner gives it back once the question closes
- * (`useFocusOnClose`).
+ * the safe answer and the act, the act last (`ConfirmButtons`, KAN-817). It
+ * takes the focus on the safe answer; its owner gives it back once the
+ * question closes (`useFocusOnClose`).
  *
  * Every focus move here happens in the render that makes it (a layout
  * effect): the control that had the focus has just gone, and the dialog
@@ -190,7 +190,6 @@ export function ConfirmBar({
   children,
   keepLabel = "Keep It",
   actLabel,
-  destructive = true,
   busy = false,
   error,
   onKeep,
@@ -199,9 +198,8 @@ export function ConfirmBar({
   question: string;
   /** What goes with it, and what stays. */
   children?: ReactNode;
-  keepLabel?: string;
+  keepLabel?: "Keep It" | "Keep Editing";
   actLabel: string;
-  destructive?: boolean;
   busy?: boolean;
   error?: string | null;
   onKeep: () => void;
@@ -231,14 +229,14 @@ export function ConfirmBar({
           </p>
         )}
       </div>
-      <div className="flex shrink-0 justify-end gap-2">
-        <Button ref={keep} variant="secondary" onClick={onKeep} disabled={busy}>
-          {keepLabel}
-        </Button>
-        <Button variant={destructive ? "destructive" : "default"} onClick={onAct} disabled={busy}>
-          {busy ? "Deleting…" : actLabel}
-        </Button>
-      </div>
+      <ConfirmButtons
+        keep={keepLabel}
+        act={actLabel}
+        busy={busy}
+        keepRef={keep}
+        onKeep={onKeep}
+        onAct={onAct}
+      />
     </div>
   );
 }
@@ -452,7 +450,7 @@ export function EntryPane({
 }
 
 /**
- * The entry form on its own: a card's +, a quiet-line word, or a Lines
+ * The entry form on its own: a card's + (an empty card's too), or a Lines
  * section's pencil, on the page.
  * Escape, the × and a press outside leave through the form's guard
  * (`EntryPaneHandle`), so typing is never dropped without a question.

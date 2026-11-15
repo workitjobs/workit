@@ -65,17 +65,17 @@ under any other heading the parser found.
 
 ## The screens
 
-- **Experiences view**: a card per custom section after the fixed ones,
-  with the section mark every custom section wears. Add a Section sits at
-  the end of the quiet line under the cards; its card takes a name (with
+- **Experiences view**: a card per custom section after the fixed ones
+  and Skills (KAN-814), with the section mark every custom section wears.
+  Add a Section is a text button under the last card; its card takes a name (with
   Summary, Volunteering, Languages, Interests and Publications offered) and
   the layout, then opens the new section's form to fill. An Entries
   section's card is a fixed card's (KAN-740): its first three entries, a +
   that opens the entry form and a pencil that opens the section's whole
   list, whose ⋯ holds Rename Section, Delete Section (with its entries) and,
   under one resume, Clear All, each asked across the list's foot. Its
-  pencil shows while it is empty too, since the list is where it is
-  renamed or deleted. A Lines section has no list: its card's pencil (a +
+  pencil shows while it is empty, as every card's does (KAN-814), and the
+  list is where it is renamed or deleted. A Lines section has no list: its card's pencil (a +
   while it has no lines) opens its lines in the form, and its ⋯ keeps
   Rename Section and Delete Section, asked in a modal.
   Under All Experiences, two sections of one name each add their owner's
