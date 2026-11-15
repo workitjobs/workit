@@ -9,8 +9,9 @@ from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 
 _EMAIL = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
-# A path after a host, ending before any trailing punctuation.
-_TAIL = r"""(?:\S*[^\s.,;:!?)\]'"])?"""
+# A path after a host, ending before any trailing punctuation and before a
+# "<": a link never holds one, and in "<url>...</url>" it starts the tag.
+_TAIL = r"""(?:[^\s<]*[^\s<.,;:!?)\]'"])?"""
 _PATH = rf"(?:/{_TAIL})?"
 # The last label starts with a letter (".com", ".io"), so a number with a
 # slash ("GPA: 3.81/4.00", "1.5/2 days") is never a host.
@@ -18,7 +19,7 @@ _HOST = r"[\w-]+(?:\.[\w-]+)*\.[A-Za-z][\w-]*"
 # A scheme or "www." marks a link; a bare host counts only with a path
 # ("github.com/jd"), so tool names such as Node.js and ASP.NET survive.
 _URL = re.compile(
-    rf"""https?://\S*[^\s.,;:!?)\]'"]|(?<![\w@.])www\.{_HOST}{_PATH}"""
+    rf"""https?://[^\s<]*[^\s<.,;:!?)\]'"]|(?<![\w@.])www\.{_HOST}{_PATH}"""
     rf"|(?<![\w@./-]){_HOST}/{_TAIL}"
 )
 # Digit groups joined by at most one space, dot or dash, with an optional
@@ -85,15 +86,17 @@ def _removed(
     email: str | None,
     phone: str | None,
     links: Iterable[str | None],
+    any_link: bool = True,
 ) -> str:
     # The profile's own fields first, then any email, URL or phone by
     # pattern, the name last so a name inside an email or a link cannot
-    # break that match.
+    # break that match. Without `any_link`, only the profile's own links go.
     text = _literal(text, email, "email", put)
     text = _EMAIL.sub(lambda m: put("email", m[0]), text)
     for link in links:
         text = _profile_link(text, link or "", put)
-    text = _URL.sub(lambda m: put("link", m[0]), text)
+    if any_link:
+        text = _URL.sub(lambda m: put("link", m[0]), text)
     text = _profile_phone(text, phone, put)
     text = _PHONE.sub(
         lambda m: put("phone", m[0]) if 10 <= sum(c.isdigit() for c in m[0]) <= 15 else m[0], text
@@ -158,6 +161,9 @@ class Masked:
     placeholder, the first of a kind `[email]`, then `[email2]`, `[email3]`,
     so two emails come back as the right two. A placeholder already in the
     text (the app's own) is never used, so putting back never touches it.
+    Only the student's own links are hidden, never every link: the calls read
+    employers' links (the job posting among a page's links), which say
+    nothing about the student.
     """
 
     def __init__(self, identity: Identity, texts: Iterable[str]):
@@ -177,7 +183,7 @@ class Masked:
 
     def hide(self, text: str) -> str:
         i = self._identity
-        return _removed(text, self._put, name=i.name, email=i.email, phone=i.phone, links=i.links)
+        return _removed(text, self._put, name=i.name, email=i.email, phone=i.phone, links=i.links, any_link=False)
 
     def put_back(self, text: str, escape: Callable[[str], str] = lambda value: value) -> str:
         """`text` with each placeholder this mask made replaced by its value,

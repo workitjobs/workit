@@ -128,7 +128,13 @@ def test_a_mask_never_uses_a_placeholder_already_in_the_text():
 
 def test_a_mask_puts_values_back_escaped_and_never_reads_a_value_as_a_placeholder():
     texts = ['See https://example.com/a"b?x=[link2]x now']
-    mask = Masked(Identity(), texts)
+    mask = Masked(Identity(links=('example.com/a"b?x=[link2]x',)), texts)
     assert mask.hide(texts[0]) == "See [link] now"
     restored = mask.put_back('{"a": "[link]"}', lambda v: json.dumps(v)[1:-1])
     assert json.loads(restored) == {"a": 'https://example.com/a"b?x=[link2]x'}
+
+
+def test_a_mask_hides_the_students_own_links_and_leaves_an_employers_whole():
+    texts = ["<link>https://acme.example.com/jobs/123</link>\nGitHub: https://github.com/samseeker/robot\n"]
+    mask = Masked(Identity(links=("github.com/samseeker",)), texts)
+    assert mask.hide(texts[0]) == "<link>https://acme.example.com/jobs/123</link>\nGitHub: [link]\n"

@@ -18,9 +18,10 @@ POST /apply-app/ask  AskCall {kind, version?, data}
 The chain moves on at a 429, a 5xx, a request too large, a 400 or
 422 (the provider refused this request or its schema) or an answer outside
 the schema (workit_scout.llm.complete_schema). The student's email, phone
-and links, and any email, phone or link found by pattern, go to the model
-as placeholders, whatever the app replaced first, and come back in the
-answer as their values (workit_scout.identity.Masked). The name is the
+and own links, and any email or phone found by pattern, go to the model
+as placeholders, whatever the app left out first, and come back in the
+answer as their values (workit_scout.identity.Masked). Other links stay:
+the calls read employers' links. The name is the
 app's to replace (D8): the server's name removal also took ordinary words
 ("will" for a student named Will) and broke the prompt. It answers
 ModelAnswer {answer, tokens, usage}.

@@ -229,7 +229,10 @@ address or a friend's link goes too. Rules:
   page, not the model. The exception is `LLM.complete_schema` (the Model
   route), whose answers the desktop app types into forms: it masks through
   `identity.Masked`, the same patterns with a distinct placeholder per value
-  (`[email]`, `[email2]`), keeps the map in memory for that one call, and
+  (`[email]`, `[email2]`), but only the student's own links, never every
+  link: its calls read employers' links, and hiding them all left the
+  model unable to pick a job posting from a page's links (2026-11-14). It
+  keeps the map in memory for that one call, and
   puts the values back into the answer before its schema check. `Masked`
   never uses a placeholder the text already holds, so the app's own stay
   the app's.
@@ -290,7 +293,8 @@ them back. The tests that no identity data reaches the model stay.
 `tests/test_identity.py` tests `remove_identity` directly: each profile field,
 each pattern, and text with no identity data, which must come back unchanged,
 and `Masked`: one placeholder per value, each put back, the text's own
-placeholders untouched, a value put back JSON-escaped and never read again.
+placeholders untouched, a value put back JSON-escaped and never read again,
+and an employer's link left whole beside the student's own hidden.
 The API's side, the route, the daily uses and the prompt sent through it, is
 `backend/tests/test_scout.py` on the real-Postgres test database. None need a
 network or Ollama.
