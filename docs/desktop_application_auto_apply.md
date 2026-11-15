@@ -117,7 +117,7 @@ builds it.
 | D24 | **Two Workers by default, one to three.** Each is a full Chrome, about 0.5 to 1 GB of memory | Student laptops | W5 |
 | D25 | **"Remove all my data"** in settings deletes the Worker profiles, the seed, Records, Traces and the app's `keyring` items. The data folder is in each OS's standard place | Mac apps have no uninstaller | W5 |
 | D26 | **"Send report"** sends one Application's Record and a masked Trace to WorkIt only when the student presses it. No automatic telemetry | Testers need a way to report; privacy first | W5, W1 |
-| D27 | **Engine signing:** the Fill engine's CI signs each build with an Ed25519 key; WorkIt serves the newest build that fits the app's version; the app holds only the public key | An unsigned download would let an attacker run code on every student's computer | W7 |
+| D27 | **Engine signing:** each build is signed with WorkIt's Ed25519 engine key by a script a person runs (`backend/app/scripts/publish_engine.py`; 2026-11-15, it was the Fill engine's CI); WorkIt serves the build made for the nearest app version at or below the app's; the app holds only the public key | An unsigned download would let an attacker run code on every student's computer. A step in the engine's CI would need write access to WorkIt's Storage from another repo; a person publishes by hand, as W8 builds by hand (D32) | W7 |
 | D28 | **Certificate pinning** to the certificate authorities Cloudflare uses for `api.workitjobs.ai`, with backups. Sparkle's feed is on another host without pinning, so an update can fix the set | A proxy on the student's computer can't read the engine download | W7 |
 | D29 | **Apply moves to the private repo `workitjobs/apply-agent`**, with its history | The WorkIt repo is public; compiling protects nothing while the source is public | W0 |
 | D30 | **The Developer checkout uses the local API** (`ask_model: workit` against localhost by default after W0). `claude` stays a developer choice. There is no staging server | Simple; keys stay only in WorkIt's `backend/.env` | W0, W1 |
@@ -516,7 +516,7 @@ by hand (W8).
 | W4 | Remove macOS-only code | None | Yes | Built (#576, #585). Left to others: `dashboard.py` (W5) and `window_capture` (W6); what stops Apply on Windows is F4's |
 | W5 | The app shell | W3, W4 (and W1 for sign-in and usage) | Yes | Step 1 of 5 built: sign-in. Next: the window on pywebview |
 | W6 | The Worker extension on the store (spike first) | None | Yes | The spike passed; the store package is built (#570, #578). Blocked: the guards' per-run tokens (`worker-extension-todo.md`, item 0), then the first upload |
-| W7 | The engine download and its protection | W1 (sign-in) | Yes | Not started |
+| W7 | The engine download and its protection | W1 (sign-in) | Yes | Built (KAN-836): the two routes, the publish script, the app's download, decryption and signature check in memory, no engine file anywhere, and the pin. Left by hand: the signing key, the `ApplyEngine` bucket and the first publish. Open: the WorkIt extension's public copy of the engine |
 | W8 | Compile, sign, notarize, update, publish | W3, W4, W5 | Yes | Not started |
 | W9 | Company briefs in v1 | None | Yes | Not started. The Student build already does no research (#581) |
 | W10 | Legal | None | Yes | Text merged (#579; the WorkIt extension's license, #582). Left: the app's parts (W5, W8), and a `/privacy` that is true of the app |
@@ -1256,28 +1256,53 @@ Worker in memory, not in a file.
 **Goal.** The Fill engine never sits on the student's disk in plain text
 and comes only from WorkIt (D3, D27, D28).
 
-**Design.**
+**Built (KAN-836, 2026-11-15).**
 
-1. **Build and sign.** The Fill engine's CI builds `dist/engine.js` and
-   signs it with an Ed25519 key kept in its GitHub secrets, then uploads
-   the build and its signature to WorkIt (R2 or the API's storage) with
-   the app versions it fits. This step is in the engine's repo, so its
-   owners make it.
-2. **Serve.** `GET /apply-app/engine?app_version=…` (signed in) answers
-   the newest build that fits, encrypted with AES-GCM under a key made
-   for this launch; `POST /apply-app/engine-key` gives that key to this
-   session only, for a short time.
-3. **Load.** The app checks the signature with the public key compiled
-   into it, decrypts in memory, and never writes the plain text:
-   - the Node process gets the engine on stdin (today
-     `fill_engine.call_without_page` loads a file path);
-   - CDP Workers get it as text through `page.evaluate` and
-     `add_init_script` (today `fill_engine.ENGINE` is a file);
-   - plain Workers get it over native messaging (W6).
-4. **Pinning.** The app's HTTPS client trusts only the certificate
-   authorities that Cloudflare uses for `api.workitjobs.ai`, with backups.
-   Sparkle's feed is on another host without pinning.
-5. **No source maps** ship; they stay on WorkIt.
+1. **Sign and publish, by hand.** `uv run python -m
+   app.scripts.publish_engine publish --key <file> --min-app <version>`,
+   from `backend/`, signs the submodule's `dist/engine.js` with WorkIt's
+   Ed25519 engine key and puts it in the private Supabase Storage bucket
+   `ApplyEngine` (chosen over Cloudflare R2 on 2026-11-15: no new account
+   or cost): `<sha256>.js`, and a line in `builds.json` (`sha256`,
+   `signature`, `min_app`, `published_at`). It refuses a bundle that names a
+   source map, so no source map ships. `make-key <file>` makes the key once.
+   Who publishes and where the private key is kept are the team's to
+   decide; whoever holds it can make every app run their code.
+2. **Serve.** `GET /apply-app/engine?app_version=` (signed in) answers the
+   build made for the nearest app version at or below the app's (the
+   highest `min_app` that fits, then the last published), so a fix
+   published later for older apps never reaches a newer app. It is
+   encrypted with AES-GCM under a key for this account, this Supabase
+   session and this download. `POST /apply-app/engine-key` makes that key
+   again for two minutes, for the same account and session only. The key
+   is an HMAC under a key derived from the API's service key: nothing is
+   stored, and every API instance makes the same key
+   (`backend/app/services/engine_builds.py`). The server never checks a
+   signature; the app does.
+3. **Load.** `apply.engine_download` asks for both, decrypts in memory and
+   checks the signature with `PUBLIC_KEY`, compiled into the app. Every
+   reader takes the text from `fill_engine.source()`: Node on its stdin,
+   CDP Workers through `page.evaluate`, plain Workers over native
+   messaging. It runs once per process, and `rehearsal.rehearse` checks it
+   before any Worker opens, so a wrong signature, a changed download, no
+   sign-in or no build for this version stops the run with one sentence.
+   The Student build always uses it; a Developer checkout uses it with
+   `fill_engine: workit` in `policies.yaml` (`apply-agent/docs/fill-engine.md`).
+4. **Pinning.** `apply.workit` trusts only Cloudflare's CAs for
+   `api.workitjobs.ai` (Let's Encrypt, Google Trust Services, SSL.com, and
+   Sectigo, which Cloudflare uses for backup certificates), 13 roots from
+   certifi's copy of Mozilla's list (`apply-agent/scripts/workit_roots.py`;
+   `--check` connects to the live API with them). A local API is not
+   pinned. Sparkle's feed is on another host without pinning, so an update
+   can change the set. Cloudflare's own documentation advises against
+   pinning to its CAs, since it may change them: the set must ship before
+   it does.
+
+**Left, by hand, before a student can run it.** Make the key (`make-key`)
+and put its public half in `engine_download.PUBLIC_KEY`; make the private
+`ApplyEngine` bucket in the Supabase dashboard; publish the first build
+for `--min-app 0.1.0`. Each engine release then needs a publish. Until
+the key is in, the Student build refuses every download (`NO_KEY`).
 
 **A dependency outside this design.** The WorkIt extension ships the
 minified engine in its public store package today, so anyone can read
@@ -1290,6 +1315,9 @@ copying, but the code stays readable.
 **Done when.** A Developer checkout runs a form with the engine from
 the route, the data folder and the Worker extension's folder hold no
 engine file, and a wrong signature stops the run with a clear message.
+Checked on 2026-11-15 against the API on the same computer, with a
+stand-in bucket and sign-in (the route itself is not deployed until the
+merge).
 
 ### W8. Compile, sign, notarize, update, publish
 
@@ -1301,7 +1329,11 @@ itself (D17, D18, D20).
 - **Compile:** Nuitka, standalone, as a macOS app bundle, on Apple
   Silicon with macOS 13 as the minimum (`MACOSX_DEPLOYMENT_TARGET`). It
   holds Playwright's Node driver (`site-packages/playwright/driver/`) as
-  data, pywebview, and none of W3's modules. Nuitka is AGPLv3 with an
+  data, pywebview, and none of W3's modules. It also keeps Apply's own
+  package metadata (`--include-distribution-metadata=apply`): the engine
+  download names the app's version from it (`engine_download.app_version`,
+  W7), and without it no build fits. `cryptography`'s compiled module
+  (`_rust.abi3.so`) is a Mach-O file to sign like the others. Nuitka is AGPLv3 with an
   exception: the compiled app is not bound by the AGPL.
 - **The native host is a program of its own** (found 2026-11-14). Chrome
   starts the plain Workers' relay (`apply/plain/host.py`) through a
