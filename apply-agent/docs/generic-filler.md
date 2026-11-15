@@ -128,6 +128,30 @@ page dresses a Submit as an option. `tests/test_submit_guard_hostile.py` runs tw
 and the first button every time) and "the generic Filler's Apply press". Its two pages: an option that holds the
 form's own submit button, and a posting's Apply that is a one-click application's submit.
 
+## Measured
+
+How many of the Fill engine's own planned answers the page shows once each Filler filled it (2026-11-15,
+`scripts/generic_fill_measure.py`): each Filler reads and plans the form its own way, then the engine reads the page
+back for its own questions, so one ruler scores all three. The six saved Lever forms, as Test Person, on a plain
+Worker:
+
+| Form | Planned answers | Lever's own Filler (engine) | Generic Filler, code only | Claude fill |
+|---|---|---|---|---|
+| lever-belvedere | 26 | 26 | 24 | 26 |
+| lever-hermeus | 23 | 23 | 20 | 21 (stopped at its cap) |
+| lever-immuta | 15 | 15 | 14 | 15 |
+| lever-rhombus | 17 | 17 | 15 | 17 |
+| lever-shieldai | 28 | 28 | 26 | 26 (stopped at its cap) |
+| lever-xcimer | 17 | 17 | 15 | 17 |
+| **All six** | **126** | **126 (100%)** | **114 (90%)** | **122 (97%)** |
+
+Time per form: the generic Filler 3 to 13 s, Claude fill 28 to 63 s and about 40 Haiku turns, the engine under 1 s.
+The generic Filler's 12 misses are each a field it left for the student, never a wrong answer typed: Lever's
+location search on all six forms (its choices come from Lever's live API, which the saved form's server doesn't
+answer, so no model could pick one either), Lever's school list on three, and a self-ID survey the page keeps
+collapsed on two. Each is a Needs-you item with its planned answer in a run. The model's picks would add to the
+generic Filler's count only where code finds options but no match; on these forms it found none such.
+
 **Tests.** `tests/test_form_tree.py` (no browser, CI): the snapshot parser and how two fields of one label are
 asked. `tests/test_generic_filler.py` (Chromium, on a Mac): each kind of control, a box named by its placeholder,
 the six saved Lever forms against the engine's own read, the fill of each control and its read-back (on a plain
