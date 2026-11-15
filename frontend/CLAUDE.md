@@ -185,18 +185,24 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   segment, so two groups cannot both define `/profile` and both audiences need
   one; the prefix also makes the auth guard one path check. Auth screens
   (`login/`, `signup/`), the connector's consent page (`connect/claude/`,
-  KAN-377), `extension-setup/` (what a fresh Chrome Web Store install
+  KAN-377), the desktop app's sign-in page (`app-sign-in/`, KAN-723: it
+  gives WorkIt Auto Apply a one-time code for its PKCE challenge, as its
+  link and as text to paste; `../docs/auth.md`), `extension-setup/` (what
+  a fresh Chrome Web Store install
   opens, and the popup's "Set Up WorkIt" button, KAN-495) and
   `design-kit/` sit outside both shells. `/login?next=` goes back only to
-  `/connect/claude` and to onboarding's Extension step
+  `/connect/claude`, `/app-sign-in` and to onboarding's Extension step
   (`/onboarding/applicant?step=extension`, which leads to Practice --
   `/extension-setup`'s "I Already Have One" button sends a signed-out
   visitor through this, not plain `/login`, so a student who already
   finished onboarding keeps a route back to Practice instead of landing
   on /home with no way there, KAN-495; `login/actions.ts`): never widen
   it to any path, which would make the
-  sign-in page an open redirect. A Google or LinkedIn sign-in drops
-  `next` (`auth/callback` follows `/settings/` only).
+  sign-in page an open redirect. The list is `lib/sign-in-next.ts`, which
+  the Google and LinkedIn sign-ins started on `/login` use too: Google's
+  flow cookie carries `next` to `auth/google/callback`, and LinkedIn's
+  `redirectTo` carries it to `auth/callback`, which follows it besides
+  `/settings/` (KAN-723). A first OAuth sign-in still goes to onboarding.
   **Every way into the connector is one link**, `lib/claude-connector.ts`
   (KAN-383): Claude's Add Custom Connector dialog filled in with WorkIt's
   name and `<api>/mcp`, or the directory listing once
