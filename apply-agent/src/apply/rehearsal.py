@@ -38,14 +38,15 @@ from collections.abc import Callable
 from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass, field, replace
 from pathlib import Path
+from typing import TYPE_CHECKING
 from urllib.parse import urlsplit
 
 from apply import (
     already_applied,
     ashby,
-    ask,
     batch,
     bot_signals,
+    build,
     captcha,
     description,
     eightfold,
@@ -69,14 +70,12 @@ from apply.adapters import Adapters, JobSite, SetupError, Tracker
 from apply.answers_tab import Refused
 from apply.asking import for_essay
 from apply.captcha import Waiter
-from apply.email_code import EmailCode
 from apply.essays import ASK
 from apply.model import Posting, Question, Status, one_line
 from apply.orchestrator import CALIBRATION, WORKERS, by_filler, keep_repair_requests
 from apply.profile import ApplicantProfile
 from apply.records import SECRET, Filled, Record
 from apply.request import resolve
-from apply.rescue import Rescue
 from apply.submit_guard import (
     DriveGuard,
     applied_dismissed,
@@ -97,6 +96,10 @@ from apply.worker import (
     sent_files,
     sent_folder,
 )
+
+if TYPE_CHECKING:  # developer modules (apply.build): for their types only
+    from apply import ask
+    from apply.email_code import EmailCode
 
 # Claude fill's cost, which ends its reason; a rehearsal shows it as tokens.
 CLAUDE_FILL_COST = re.compile(r"(^|; )Claude fill: \d+ sessions, [^;]*tokens$")
@@ -497,7 +500,7 @@ def rehearse(
                     offered = not anyway and ruled_out()
                     how = site.hold(release, done.posting.job_system, submitted, done.warning(),
                                     done.wrong(), answers, fill,
-                                    EmailCode(adapters.mailbox, adapters.clock, done.posting.job_system, told),
+                                    _email_code(adapters, done.posting.job_system, told),
                                     resume=(lambda page: adapters.board.resumed(n)) if offered else None,
                                     challenged=challenged, refused=turned_down, redo=redo, tend=tend,
                                     ask=asker, **holds())
@@ -841,6 +844,16 @@ def _step_named(page) -> str:
         return ""  # a page that went away
 
 
+def _email_code(adapters: Adapters, job_system: str, told: Callable[[str, str], None]) -> "EmailCode | None":
+    """What types a code the job system emails after his Submit, from Gmail (apply.email_code); None in the Student
+    build, which reads no mail (apply.build, D9): the student types the code."""
+    if build.STUDENT:
+        return None
+    from apply.email_code import EmailCode
+
+    return EmailCode(adapters.mailbox, adapters.clock, job_system, told)
+
+
 def _fill_answer(page, question: str, answer: "str | Path | None", adapters: Adapters, profile: ApplicantProfile, n: int,
                  done: Rehearsed, out: Callable[[str], None]) -> None:
     """Lisul's answer in the window to a Missing fact the rehearsed form left
@@ -862,6 +875,10 @@ def _fill_answer(page, question: str, answer: "str | Path | None", adapters: Ada
         answer = keep_sent(sent_folder(done.posting.company, done.posting.id, day), answer)
     held = _step_named(page)
     try:
+        if build.STUDENT:  # no Rescue (apply.build): the student types it on the page
+            raise SetupError("WorkIt Auto Apply can't fill an answer in place yet")
+        from apply.rescue import Rescue
+
         rescue = Rescue(adapters.claude, sms_opt_in=profile.policy("sms_opt_in") is True,
                         marketing_opt_in=profile.policy("marketing_opt_in") is True)
         blank = RuntimeError("left blank: the applicant answered it in the Apply window after the form was filled")
@@ -1013,7 +1030,10 @@ class _Ask:
         self._open = False
 
     def open(self, page) -> None:
-        """The page is held for Lisul: its tile takes messages."""
+        """The page is held for Lisul: its tile takes messages. Not in the Student build, which has no Ask Claude
+        (apply.build): its tile never takes one."""
+        if build.STUDENT:
+            return
         self._open = True
         try:
             shown = f"{page.title().strip() or 'the form'} ({urlsplit(page.url).path or '/'})"
@@ -1027,6 +1047,8 @@ class _Ask:
             self._adapters.board.update(self._n, askable=False)
 
     def asked(self) -> list[dict]:
+        if build.STUDENT:  # no message ever reaches Claude there, even one the window kept
+            return []
         return getattr(self._adapters.board, "asks", lambda n: [])(self._n)
 
     def _files(self, done: "Rehearsed") -> list[Path]:
@@ -1058,6 +1080,9 @@ class _Ask:
             self._guard = (id(page), DriveGuard(page, sms_opt_in=policy("sms_opt_in") is True,
                                                 marketing_opt_in=policy("marketing_opt_in") is True))
         message = str(item["message"])
+        # Ask Claude is a Developer checkout's (apply.build): never on the Student path.
+        from apply import ask
+
         try:
             reply = ask.ask(adapters.claude, page, message, item.get("thread") or [], self._form(done),
                             ask.sources(self._profile, adapters.answer_bank, self._profile.get("files.resume_pdf")),
@@ -1079,7 +1104,9 @@ class _Ask:
                   + (f", and couldn't do {len(reply.couldnt)} things" if reply.couldnt else ""))
 
     @staticmethod
-    def _form(done: "Rehearsed") -> ask.Form:
+    def _form(done: "Rehearsed") -> "ask.Form":
+        from apply import ask
+
         filled = done.saved.filled if done.saved else None
         plan = [{"label": one_line(q.label), "kind": q.kind, "required": q.required, "options": list(q.options)[:40],
                  "planned": _plain(q, filled.answers.get(q.name)), "on_page": _plain(q, filled.readback.get(q.name))}
@@ -1294,7 +1321,7 @@ class _Kept:
     def hold(self, release: threading.Event, job_system: str = "", submitted: Callable[[object], None] = lambda page: None,
              warning: str = "", wrong: bool = True, answers: Callable[[], list[tuple[str, str]]] = list,
              fill: Callable[[object, str, str], None] = lambda page, question, answer: None,
-             code: EmailCode | None = None, resume: Callable[[object], bool] | None = None,
+             code: "EmailCode | None" = None, resume: Callable[[object], bool] | None = None,
              challenged: Callable[[], None] = lambda: None, refused: Callable[[str], None] = lambda why: None,
              redo: "_Redo | None" = None,
              tend: Callable[[object], None] = lambda page: None, ask: "_Ask | None" = None,

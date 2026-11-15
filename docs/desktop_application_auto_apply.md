@@ -655,6 +655,38 @@ Worker count) live in the window.
 above, and a test proves that setting `ask_model: claude` or `live_runs:
 true` in its data folder changes nothing.
 
+**Built (2026-11-14, step 1).** `apply/build.py` holds `STUDENT` (False
+in a checkout; the build script writes True), `DEVELOPER` (the modules
+left out) and `STUDENT_POLICIES`. `apply/student.py` is the Student
+path's root: W5's window starts there, and its `adapters()` replace each
+developer part with one that does nothing (`NoClaude`, `NoMailbox`,
+`Silent`, `NoRepairs`). `tests/test_student_build.py` (CI) imports the
+Student path in a new process, builds its adapters and makes a plain
+Worker's first page call, and fails if any module in `DEVELOPER` loads.
+It also proves that a `policies.yaml` changes nothing. A developer
+module is now imported only inside the function that uses it, in a
+branch the Student build never reaches. What the Student path needs from
+one moved out of it: Ask Claude's and the emailed code's page strings
+(`page_functions.py`), `OnePage`, `ClaudeError` and `job_key`. What each
+part does in the Student build:
+
+| Part | Developer checkout | Student build (until the workstream named) |
+|---|---|---|
+| A job system with no Filler | Claude fill | A Handoff: "WorkIt Auto Apply can't fill ... yet" (W2) |
+| A field a Filler fails on | Rescue | No Rescue: the Filler's own failure (W2) |
+| An answer typed in the window | Rescue fills it in place | "Type it on the page, or press Fill again" (W2) |
+| Ask Claude on a held form | On | The tile takes no message |
+| An emailed code after Submit | Gmail, typed by script | The student types it (W2's Needs-you item) |
+| The company brief | Researched with `claude -p` | A kept brief only, never researched (W9) |
+| Repair requests, notifications, phone push | Kept, shown, pushed | None |
+| `ask_model` | `policies.yaml` | Fixed `[groq, gemini]` (W1 makes it `workit`) |
+
+Left: W8 passes `--nofollow-import-to` for each module in `DEVELOPER`
+and compiles from `apply.student`, and the build's smoke test fills one
+form. Code a Student build never runs but still holds stays until its
+workstream: the research prompts in `brief.py` (W9), the window's
+`open_window` (W5).
+
 ### W4. Remove macOS-only code
 
 **Goal.** No macOS command or path in the code the Student build runs,

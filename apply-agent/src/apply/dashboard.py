@@ -51,7 +51,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Protocol, Self
 from urllib.parse import parse_qs, urlsplit
 
-from apply import bot_signals, captcha, dock_app, masked, stuck
+from apply import bot_signals, captcha, masked, stuck
 from apply.answers_tab import AnswersTab, Refused
 from apply.asking import IN
 from apply.dashboard_page import (
@@ -2098,6 +2098,10 @@ def open_window(url: str, profile: Path, front: bool = True) -> None:
                 raise_window(profile)
             return
         _quit(pid)
+    from apply import (
+        dock_app,  # a Developer checkout's (apply.build): W5's window replaces this one
+    )
+
     app = dock_app.install(profile.parent, dock_app.bundle_for(profile.parent))
     # The DevTools port lets the window's keeper (dock_app.keep) see its tabs (its port goes in the profile).
     command = ["open", "-na", str(app), "--args", f"--app={url}", f"--user-data-dir={profile}", "--remote-debugging-port=0"]

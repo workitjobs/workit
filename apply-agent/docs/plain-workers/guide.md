@@ -365,7 +365,7 @@ A plain Worker is a Chrome with no CDP, driven by the worker extension
   and a debugger command (KAN-839). So the page functions that the held
   page runs on each turn are fixed extension code: `on_page.FIELD` (Go to
   question and the Watch), `stuck.FIELD_ERROR` (Resume), and
-  `email_code.WORDS`, `ARM` and `DISARM`. `apply.plain.fixed` lists them.
+  `page_functions.WORDS` (the emailed code's), `ARM` and `DISARM`. `apply.plain.fixed` lists them.
   `apply plain prepare` writes them into `vendor/fixed.js` from these same
   strings. `PortPage.evaluate` and `Locator.evaluate` run the fixed copy when
   they get one of these strings (the `fixed.call` op). Thus `on_page`,
