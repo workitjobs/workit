@@ -121,10 +121,12 @@ jobs:
               - .github/actions/apply-browsers/**
             # What the hostile pages' control reads (KAN-780): the pages, the fake site, Chromium (uv.lock pins
             # Playwright) and the runner's setup. The control runs no Apply code, so no other change can turn it red.
+            # A module of tests/ that the hostile file or conftest.py imports joins the list.
             hostile_pages:
               - apply-agent/tests/test_submit_guard_hostile.py
               - apply-agent/tests/plain_fakes.py
               - apply-agent/tests/conftest.py
+              - apply-agent/tests/network_block.py
               - apply-agent/pyproject.toml
               - apply-agent/uv.lock
               - .github/workflows/ci.yml

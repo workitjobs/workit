@@ -241,8 +241,9 @@ runner's speed, and three controls on every PR fail if the real time left
 after the clock is too short (`apply-agent/CLAUDE.md`, "The submit guard's
 hostile pages"). The other controls run nightly, and every control on a PR
 that changes what the control reads (the `hostile_pages` filter: the hostile
-pages' file, the fake site, `uv.lock`'s Playwright, the setup), in a step of
-its own that runs even after a red hostile step.
+pages' file, the test modules it and `conftest.py` import, `uv.lock`'s
+Playwright, the setup), in a step of its own that runs even after a red
+hostile step.
 The Plain-Worker step's limit is 6 minutes (101 tests took 233 s,
 2026-11-14). While the hostile step ran out of time, no step after it ran
 on CI, so what broke there stayed hidden: a fixed 300 ms wait for an

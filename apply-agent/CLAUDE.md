@@ -231,7 +231,13 @@ into it and the window shows "Sample data".
   `performance`, and the guard's `now()` throws on it, so a CDP guard reads
   no clock: `test_a_cdp_guard_reads_no_clock_a_page_can_fake` fails once it
   does. A plain Worker has no such clock and waits in real time, as do the
-  held-page tests, whose hold is Python's. A page's control waits on the same
+  held-page tests, whose hold is Python's, and **a page whose send waits on
+  what the clock never moves** (a worker's timers, the scheduler's delay, an
+  animation, a refresh, a socket: `REAL_TIME`, found by its words, today the
+  6 worker pages): on the clock a worker's 4 s timer got 1.6 s of real time
+  and its post never came (the adversarial review of #583). A wait whose
+  clock fails to move in any step gets the whole wait in real time, so a page
+  can't skip its own timers by breaking the clock. A page's control waits on the same
   clock as its cases, so a page that sends later than its wait fails its
   control, never passes unseen. The control runs no Apply code: PRs run three
   (`CONTROLS_ON_PRS`, a check that the runner leaves the real time the wait
