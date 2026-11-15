@@ -1587,10 +1587,9 @@ student sees one Chrome in the Dock and no Worker in Mission Control.
    the Workers' windows go there. A 40-line helper made a 1920 × 1080
    screen. Chrome for Testing on it drew 181 frames in 3 s, its page was
    visible, and screenshots and the screencast worked: the tiles keep
-   working.
-   - **Not checked: Mission Control.** macOS shows each screen's own
-     windows there, so the main screen should show no Worker. The session
-     could not capture the screen. Check it by hand before building.
+   working. Mission Control on the main screen did not show its window
+   (checked by hand, 2026-11-15): macOS shows each screen's own windows
+   there.
    - macOS treats it as a real screen. System Settings lists it, and it
      sat beside the main screen, so the pointer can move onto it and seem
      to vanish.
@@ -1656,8 +1655,7 @@ their value on their servers; WorkIt Auto Apply does the same.
   extension (W7's dependency).
 - When to enroll with Apple, and when to convert to an organization (F7).
 - Whether to keep Workers out of the student's view (F10): one Chrome
-  process, a virtual screen, or both. First check Mission Control with the
-  virtual screen by hand.
+  process, a virtual screen, or both.
 
 ## 11. History
 
@@ -1676,6 +1674,6 @@ their value on their servers; WorkIt Auto Apply does the same.
   Mac-only; and keeping a job-site password from the student is not a
   requirement, so Copy password uses the window's clipboard (D35).
 - **2026-11-15:** five Workers are five Chrome apps on the Mac. Hiding a
-  Worker stops its drawing, and a virtual screen keeps it drawing out of
-  view. One Chrome process for every Worker and a virtual screen stay
-  future work (F10). Chrome on WorkIt's servers stays out (§4.6).
+  Worker stops its drawing, and a virtual screen keeps it drawing and out
+  of Mission Control. One Chrome process for every Worker and a virtual
+  screen stay future work (F10). Chrome on WorkIt's servers stays out (§4.6).

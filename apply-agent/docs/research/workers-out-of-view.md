@@ -48,7 +48,7 @@ Also seen:
 - It sits beside the main screen, so the pointer can move onto it and seem to vanish.
 - It lives only while the process that made it runs. When that process ends, macOS moves its windows onto the screens that stay.
 
-**Not checked: Mission Control.** macOS shows each screen's own windows on that screen in Mission Control, so the main screen should show none of the Workers. The session could not check it: macOS refused `screencapture` (no Screen Recording permission) and the Escape key (`osascript` may not send keys). Check it by hand: run the helper and the Chrome start below, then swipe up with three fingers.
+**Mission Control: the Worker does not show** (checked by hand, 2026-11-15). With the helper and a Chrome window on the virtual screen running for 60 s, a three-finger swipe up on the main screen did not show that window: macOS shows each screen's own windows on that screen. The session itself could not check it (macOS refused `screencapture` without Screen Recording permission, and `osascript` may not send keys), so a person looked. To check again: run the helper and the Chrome start below, then swipe up with three fingers.
 
 ## The helper
 
