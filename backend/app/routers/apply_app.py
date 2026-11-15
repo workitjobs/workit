@@ -43,9 +43,10 @@ ModelAnswer {answer, tokens, usage}.
 GET  /apply-app/usage  Usage {used, cap, resets_at}: today's tokens.
 
 The app's sign-in (W5, D12; app/services/app_sign_in.py has the flow):
-POST /apply-app/sign-in  SignInStart {challenge} -> 201 SignInCode {code, expires_in}
+POST /apply-app/sign-in  SignInStart {challenge} -> 201 SignInCode {code, expires_in, paste}
      The website's /app-sign-in page, signed in as the student: a one-time
-     code bound to the app's PKCE challenge, for 5 minutes.
+     code bound to the app's PKCE challenge, for 5 minutes. `paste` is true
+     only for WorkIt's admins, whose page may show the code to copy.
        403  not a student's account.
        429  with Retry-After: 10 sign-ins this hour already.
 POST /apply-app/session  SessionTrade {code, verifier} -> AppSession
@@ -73,7 +74,7 @@ from workit_scout.llm import LLM, InvalidReply, RequestTooLarge, ScoutUnavailabl
 from app.apply_prompts import KINDS, said
 from app.config import get_settings
 from app.db import get_session
-from app.deps import get_current_account
+from app.deps import get_current_account, is_admin
 from app.queries import model_usage
 from app.schemas.apply_app import (
     AppSession,
@@ -132,7 +133,7 @@ async def sign_in(
     except app_sign_in.TooMany as e:
         raise _refused(status.HTTP_429_TOO_MANY_REQUESTS, "Too many sign-ins this hour. Try again later.",
                        e.wait) from None
-    return SignInCode(code=code, expires_in=int(app_sign_in.CODE_TTL.total_seconds()))
+    return SignInCode(code=code, expires_in=int(app_sign_in.CODE_TTL.total_seconds()), paste=is_admin(account))
 
 
 @router.post("/session")

@@ -73,6 +73,8 @@ async def _code(api: httpx.AsyncClient, challenge: str = CHALLENGE) -> str:
     answer = await api.post("/apply-app/sign-in", json={"challenge": challenge})
     assert answer.status_code == 201, answer.text
     assert answer.json()["expires_in"] == 300
+    # A student's page shows no code: only an admin's Developer checkout pastes one.
+    assert answer.json()["paste"] is False
     return answer.json()["code"]
 
 
@@ -103,6 +105,13 @@ async def test_a_code_expires_after_five_minutes(student, monkeypatch):
         code = await _code(api)
         monkeypatch.setattr("app.routers.apply_app._now", lambda: NOW + datetime.timedelta(minutes=5))
         assert (await api.post("/apply-app/session", json={"code": code, "verifier": VERIFIER})).status_code == 400
+
+
+async def test_only_an_admin_may_paste_the_code(student, monkeypatch):
+    monkeypatch.setattr("app.routers.apply_app.is_admin", lambda account: True)
+    async with _api() as api:
+        answer = await api.post("/apply-app/sign-in", json={"challenge": CHALLENGE})
+    assert answer.json()["paste"] is True
 
 
 async def test_a_company_account_gets_no_code(student):

@@ -181,7 +181,7 @@ app      makes a PKCE verifier; opens /app-sign-in?challenge=<S256> in the defau
 page     signed out: /login?next=... and back.  Sign In to the App:
          Next action ──POST /apply-app/sign-in {challenge}, Bearer──▶ FastAPI
                                     one-time code, its sha256 kept 5 minutes (app_sign_ins)
-         shows workit-auto-apply://signed-in?code=... and the code itself
+         opens workit-auto-apply://signed-in?code=...; shows the code only to an admin (paste)
 app      ──POST /apply-app/session {code, verifier}──▶ FastAPI
                                     the code goes at the first try; S256(verifier) must match
          FastAPI ──admin get_user_by_id, generate_link(magiclink)──▶ Supabase Auth (no email sent)
@@ -194,10 +194,18 @@ app      ──POST /apply-app/session {code, verifier}──▶ FastAPI
   would sign each other out, and a reused token can end the session.
 - **PKCE makes a code useless to anyone but the app that asked.** A
   program that catches the `workit-auto-apply://` link, or a code pasted
-  anywhere else, has no verifier. A Developer checkout, which macOS
-  can't hand the link, pastes the code; the page shows it for that and
-  says to paste it only into the app. A code works once for 5 minutes,
-  and a wrong verifier spends it.
+  anywhere else, has no verifier. A code works once for 5 minutes, and a
+  wrong verifier spends it.
+- **A student's page shows no code** (found in review, 2026-11-15). PKCE
+  can't stop a phisher who starts the sign-in with their own challenge,
+  sends a signed-in student the page's link and asks for "the code to
+  verify your account": the phisher holds the verifier. So the page opens
+  the app's link by itself, and its Open WorkIt Auto Apply button opens
+  it again with no `href`: nothing on screen to copy or send. Only for
+  WorkIt's admins (`WORKIT_ADMINS`; the API answers `paste`) the page
+  shows the code with Copy Code, for a Developer checkout, which macOS
+  can't hand the link. A teammate who signs Apply in to the live site
+  needs their email on that list.
 - **Not the shared client's `verify_otp`**: it would keep the student's
   session on the service-role client that every route uses. `/verify`
   is a plain HTTP call, and no log holds its body.
@@ -232,7 +240,8 @@ app      ──POST /apply-app/session {code, verifier}──▶ FastAPI
   sign-in-next.test.ts` (no open redirect).
 - **Live, once the migration is applied and the API deployed:**
   1. `uv run apply login` in `apply-agent/`. The browser opens
-     `/app-sign-in`; sign in, press Sign In to the App, Copy Code, paste.
+     `/app-sign-in`; sign in, press Sign In to the App, Copy Code (an
+     admin's page only), paste.
      It prints "Logged in to WorkIt as ...". `uv run apply doctor` says
      "WorkIt: logged in as", and Keychain Access shows `apply-workit`.
   2. Paste the same code again: "That sign-in is over". Wait 5 minutes
@@ -243,6 +252,8 @@ app      ──POST /apply-app/session {code, verifier}──▶ FastAPI
      Supabase's redirect list.
   4. Change the password in Settings: the next `apply doctor` says the
      login expired.
+  5. Signed in as an account not on `WORKIT_ADMINS`, the page shows no
+     code after Sign In to the App, only Open WorkIt Auto Apply.
 - Against a local stack, set `APPLY_WORKIT_WEB` and `APPLY_WORKIT_API`
   (`apply-agent/docs/workit.md`); the local API's database needs the
   migration too.

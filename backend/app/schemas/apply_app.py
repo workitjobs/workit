@@ -48,10 +48,15 @@ class SignInStart(BaseModel):
 
 
 class SignInCode(BaseModel):
-    """The one-time code the page gives to the app, and its seconds to live."""
+    """The one-time code the page gives to the app, and its seconds to live.
+    `paste`: whether the page may show the code to copy. Only WorkIt's admins
+    (WORKIT_ADMINS), whose Developer checkout macOS can't hand the app's
+    link; a student's page opens the link and shows no code, so nobody can
+    talk a student into sending one."""
 
     code: str
     expires_in: int
+    paste: bool
 
 
 class SessionTrade(BaseModel):

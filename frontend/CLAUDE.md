@@ -186,8 +186,9 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   one; the prefix also makes the auth guard one path check. Auth screens
   (`login/`, `signup/`), the connector's consent page (`connect/claude/`,
   KAN-377), the desktop app's sign-in page (`app-sign-in/`, KAN-723: it
-  gives WorkIt Auto Apply a one-time code for its PKCE challenge, as its
-  link and as text to paste; `../docs/auth.md`), `extension-setup/` (what
+  gives WorkIt Auto Apply a one-time code for its PKCE challenge through
+  the app's link, and shows the code to paste only when the API says
+  `paste`, for WorkIt's admins; `../docs/auth.md`), `extension-setup/` (what
   a fresh Chrome Web Store install
   opens, and the popup's "Set Up WorkIt" button, KAN-495) and
   `design-kit/` sit outside both shells. `/login?next=` goes back only to

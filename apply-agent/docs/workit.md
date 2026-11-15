@@ -19,9 +19,15 @@ call WorkIt from another module; add a method to `WorkIt` that uses `call`.
   works once, for 5 minutes, and only with the verifier its challenge was
   made from; a refused one is `SignInOver`. Pasting is the Developer
   checkout's way, since macOS hands the page's `workit-auto-apply://` link
-  only to the built app (W8). This replaced a new Chrome with a debugging
-  port that read the website's cookie (KAN-541): D11 forbids the port, and
-  Chrome refuses one on the student's own profile.
+  only to the built app (W8), and the page shows the code only to
+  WorkIt's admins (`WORKIT_ADMINS`; `../docs/auth.md` says why). The link
+  itself, pasted in place of the code, works too. The line with the page's
+  link goes straight to the terminal, past the shell's mask
+  (`apply.masked` hides the challenge, a long opaque value): a developer
+  whose browser doesn't open needs it, and the challenge is no secret.
+  This replaced a new Chrome with a debugging port that read the
+  website's cookie (KAN-541): D11 forbids the port, and Chrome refuses one
+  on the student's own profile.
 - The session is Apply's alone, never the website's. Apply refreshes
   the access token itself at Supabase Auth
   (`/auth/v1/token?grant_type=refresh_token`, with the public anon key) and
@@ -32,9 +38,14 @@ call WorkIt from another module; add a method to `WorkIt` that uses `call`.
 - The session's refresh token is in the system's keychain (`keyring`:
   Keychain on a Mac, Credential Manager on Windows), item `apply-workit`,
   its account the Supabase URL it belongs to, so a local stack's login is
-  its own. The access token lives only in the process that uses it, so a
-  new process refreshes once: Windows keeps at most 2,560 bytes an item,
-  less than an access token can be. Never print, log or put either in a
+  its own. The access token lives only in memory (`workit._ACCESS`),
+  shared by every client in the process, so a new process refreshes once:
+  Windows keeps at most 2,560 bytes an item, less than an access token can
+  be. Tests start with it empty (`conftest.py`). **A keychain that won't
+  answer** (a locked one, a Deny on macOS's prompt) is `NotLoggedIn` on a
+  read and `LoginExpired` on a save, never a plain `WorkItError`, and
+  `logged_in()` is False: the writes and the Answer bank sync keep what
+  waits on those, and drop only what WorkIt refused. Never print, log or put either in a
   Record. To log out, delete the item in Keychain Access. The file Apply
   kept before 2026-11-15 (`workit-login.json`) goes at the next save.
   Tests give `WorkIt` a keychain (`fake.keychain`, `InMemoryKeychain`).

@@ -33,7 +33,12 @@ def test_login_keeps_only_the_refresh_token_in_the_keychain(tmp_path):
         assert account.email == "test.person@example.com"
         assert fake.keychain.password(fake.site.auth) == "refresh-1"
         assert not old.exists()
-        # Another process has no access token: it refreshes once, and keeps the rotated refresh token.
+        # Another client in this process shares its access token; another process refreshes once, and keeps
+        # the rotated refresh token.
+        fake.requests.clear()
+        assert WorkIt(fake.site, old, fake.keychain).me().email == "test.person@example.com"
+        assert [r.path for r in fake.requests] == ["/auth/me"]
+        workit._ACCESS.clear()
         assert WorkIt(fake.site, old, fake.keychain).me().email == "test.person@example.com"
         assert fake.keychain.password(fake.site.auth) == "refresh-2"
 
@@ -46,6 +51,14 @@ def test_a_code_another_sign_in_got_is_refused_and_keeps_no_login(tmp_path):
         with pytest.raises(SignInOver):
             workit.login(client, lambda url: other)
         assert not client.logged_in()
+
+
+def test_the_pages_link_pasted_in_place_of_its_code_signs_in(tmp_path):
+    """Fault: the pasted `workit-auto-apply://` link sent as the code, which WorkIt refuses."""
+    with FakeWorkIt() as fake:
+        client = WorkIt(fake.site, tmp_path / "workit-login.json", fake.keychain)
+        account = workit.login(client, lambda url: f"workit-auto-apply://signed-in?code={fake.browser(url)}\n")
+        assert account.email == "test.person@example.com"
 
 
 def test_an_expired_access_token_is_refreshed_without_a_new_sign_in(tmp_path):

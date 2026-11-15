@@ -186,6 +186,8 @@ into it and the window shows "Sample data".
   profile's and Answer bank's values, addresses, phone numbers, and the ids
   and tokens in a URL are masked. A print that carries a typed answer or a
   message gives only its size (`masked.sized`). Add new prints the same way.
+  The one line that skips the mask is `apply login`'s link to WorkIt's
+  sign-in page: its challenge is no secret, and the mask hid it.
   Traces and Records are files on this Mac and keep the real values; `apply
   trace` prints through the same mask, which can't catch a value that no data
   file holds.

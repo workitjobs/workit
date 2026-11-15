@@ -2185,7 +2185,9 @@ why each rule exists.
   as a plain HTTP call: the shared client's `verify_otp` would keep the
   student's session on the client every route uses. The only route that
   answers a session; never hand out the website's own (Supabase rotates
-  refresh tokens, so two holders sign each other out).
+  refresh tokens, so two holders sign each other out). The code's answer
+  says `paste` only for `deps.is_admin`: a student's page shows no code,
+  so nobody can be talked into sending one.
 - **Signup goes through `POST /auth/signup`, never `supabase.auth.signUp()`**,
   so the account type lands in `app_metadata` (only the service-role key can
   write it). If any profile write fails, the route deletes the auth user it

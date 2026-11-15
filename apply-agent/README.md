@@ -131,7 +131,9 @@ never submits.** Apply runs on macOS only. Before you change code here, read
    ```
 
    Apply opens WorkIt's sign-in page in your browser. Sign in there, press
-   Sign In to the App, and paste the code it shows into the terminal. Apply
+   Sign In to the App, and paste the code it shows into the terminal. The
+   page shows the code only to WorkIt's admins: ask the team to add your
+   email to the API's `WORKIT_ADMINS` first. Apply
    keeps the login in your keychain (`apply-workit`), never in the repo. You
    log in one time; Apply refreshes the login by itself.
 

@@ -990,8 +990,8 @@ on Windows each one stops Apply:
      `https://workitjobs.ai/app-sign-in?challenge=…` in the default
      browser (a new website page).
   2. The page signs the student in as the website does, then asks the
-     API for a one-time code bound to the challenge, and offers
-     `workit-auto-apply://signed-in?code=…` and the code itself.
+     API for a one-time code bound to the challenge, and opens
+     `workit-auto-apply://signed-in?code=…`. It shows no code to copy.
   3. The app (registered for the scheme in its `Info.plist`) sends the
      code and the verifier to the API and gets the session. The session
      goes into `keyring`; the app refreshes it as `workit.py` does today.
@@ -1001,7 +1001,10 @@ on Windows each one stops Apply:
   two holders of one session sign each other out. **A Developer checkout
   pastes the code** (decided 2026-11-15): it is no app bundle, so macOS
   can't hand it the link. PKCE makes a pasted or caught code useless
-  without the app's verifier, so no `state` goes with it. The flow and its
+  without the app's verifier, so no `state` goes with it. **Only an
+  admin's page shows the code** (found in review, 2026-11-15): a phisher
+  who starts a sign-in with their own challenge could talk a student into
+  sending a code they can see. The flow and its
   cases are in `docs/auth.md`, "WorkIt Auto Apply's sign-in".
 - **First run:** the Chrome check (D21), the disclosure (D8), the seed
   (W6), then Ready.
@@ -1038,9 +1041,10 @@ terminal step and no open port.
   page a one-time code for the app's challenge (5 minutes, 10 sign-ins an
   hour), and `POST /apply-app/session` trades it once, with the verifier,
   for a new Supabase session (`backend/app/services/app_sign_in.py`, table
-  `app_sign_ins`, migration `696b3a46ca95`). The page shows the account,
-  the app's link and the code with Copy Code (`frontend/src/app/app-sign-in/`);
-  `/login?next=` comes back to it.
+  `app_sign_ins`, migration `696b3a46ca95`). The page shows the account
+  and opens the app's link (`frontend/src/app/app-sign-in/`); only for
+  WorkIt's admins it shows the code with Copy Code. `/login?next=` comes
+  back to it.
 - Apply: `uv run apply login` is the Developer checkout's sign-in. It
   opens the page in the default browser and asks for the code in the
   terminal (`workit.login`, `workit.pkce`, `WorkIt.trade`). The Chrome

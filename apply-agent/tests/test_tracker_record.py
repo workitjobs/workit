@@ -155,6 +155,24 @@ def test_with_no_login_the_write_waits_for_apply_login(fake, tmp_path):
     assert fake.tracker.tracked() == []
 
 
+@pytest.mark.parametrize("fault", ["password", "save"])
+def test_a_keychain_that_wont_answer_keeps_the_write_waiting(fake, tmp_path, fault):
+    """Fault: a keychain error read as WorkIt's refusal, which drops the write for good (a Deny on macOS's
+    prompt, a locked keychain). It waits for `apply login` instead, and a failed read is no login."""
+    client = logged_in(fake, tmp_path)
+    workit._ACCESS.clear()  # a new process: it refreshes, so it reads the keychain and saves to it
+
+    def refuse(*_):
+        raise RuntimeError("the keychain would not answer")
+
+    setattr(fake.keychain, fault, refuse)
+    writes = WaitingWrites(client, tmp_path / "workit-queue.json")
+
+    assert "apply login" in writes.send(write("needs_you"))
+    assert [w.stage for w in writes.waiting()] == ["needs_you"]
+    assert client.logged_in() is (fault == "save")
+
+
 def test_a_waiting_write_is_replaced_by_a_later_one_for_the_same_application(fake, tmp_path):
     writes = WaitingWrites(WorkIt(fake.site, tmp_path / "workit-login.json", fake.keychain), tmp_path / "workit-queue.json")
     writes.send(write("needs_you"))

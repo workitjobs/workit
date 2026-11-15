@@ -1,13 +1,13 @@
 "use client";
 
 import { WarningCircleIcon } from "@phosphor-icons/react/ssr";
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 
-import { Button, buttonClasses } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 
 import { startAppSignIn, type AppSignInState } from "./actions";
 
-const INITIAL_STATE: AppSignInState = { code: null, error: null };
+const INITIAL_STATE: AppSignInState = { code: null, paste: false, error: null };
 
 /** The app's own link, which macOS opens in WorkIt Auto Apply (D12). */
 function appLink(code: string): string {
@@ -15,21 +15,39 @@ function appLink(code: string): string {
 }
 
 /**
- * Sign In asks for the code; then the page offers the app's link, and the
- * code itself for an app that macOS can't hand a link (a Developer checkout,
- * or a student who pressed Cancel on the browser's "Open" question).
+ * Sign In asks for the code; then the page opens the app's link, with no
+ * code on screen and no link to copy, so nobody can talk a student into
+ * sending one (docs/auth.md). Open WorkIt Auto Apply opens it again, a click
+ * of its own for a browser that wants one. Only for WorkIt's admins (the
+ * API's `paste`) the page shows the code too, for a Developer checkout,
+ * which macOS can't hand the link.
  */
 export function SignInForm({ challenge }: { challenge: string }) {
   const [state, formAction, pending] = useActionState(startAppSignIn, INITIAL_STATE);
   const [said, setSaid] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (state.code && !state.paste) window.location.assign(appLink(state.code));
+  }, [state.code, state.paste]);
+
   if (state.code) {
     const code = state.code;
+    const open = (
+      <Button onClick={() => window.location.assign(appLink(code))}>Open WorkIt Auto Apply</Button>
+    );
+    if (!state.paste)
+      return (
+        <div className="mt-6 flex flex-col gap-2.5">
+          {open}
+          <p className="text-note text-ink-meta mt-2">
+            WorkIt Auto Apply opens and finishes signing in. If it didn&apos;t open, press Open
+            WorkIt Auto Apply, or start again from the app.
+          </p>
+        </div>
+      );
     return (
       <div className="mt-6 flex flex-col gap-2.5">
-        <a href={appLink(code)} className={buttonClasses()}>
-          Open WorkIt Auto Apply
-        </a>
+        {open}
         <p className="text-note text-ink-meta mt-2">
           If the app didn&apos;t open, copy this code into it. Use it only in WorkIt Auto Apply on
           this computer: WorkIt never asks for it anywhere else. It works once, for 5 minutes.

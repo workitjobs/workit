@@ -44,6 +44,7 @@ import json
 import os
 import re
 import secrets
+import sys
 import time
 import urllib.error
 import urllib.request
@@ -75,6 +76,11 @@ EARLY = 60
 TIMEOUT = 20
 # Cloudflare, in front of WorkIt's API, refuses Python-urllib's own user agent (error 1010).
 USER_AGENT = "WorkIt-Apply/1"
+# The page's link, as `apply login` may get it pasted in place of the code (`frontend/src/app/app-sign-in/`).
+APP_LINK = "workit-auto-apply://"
+# This process's access token for each WorkIt (its Supabase URL) and when it expires, shared by every client in
+# the process, so a run refreshes once an hour, not once for each of its clients. Never on disk.
+_ACCESS: dict[str, tuple[str, float]] = {}
 
 
 @dataclass(frozen=True)
@@ -177,11 +183,14 @@ class WorkIt:
         self.site = at or site()
         self.login = login
         self.keychain = keychain or SystemKeychain(WORKIT)
-        self._access: tuple[str, float] | None = None  # this process's access token and when it expires
         self._account: Account | None = None  # the signed-in account, read once for the writes
 
     def logged_in(self) -> bool:
-        return self._refresh_token() is not None
+        """Whether the keychain holds a login. A keychain that won't answer is no login, as a missing one."""
+        try:
+            return self._refresh_token() is not None
+        except NotLoggedIn:
+            return False
 
     def me(self) -> Account:
         return _account(self.call("GET", "/auth/me"))
@@ -298,14 +307,19 @@ class WorkIt:
 
     def trade(self, code: str, verifier: str) -> Account:
         """The sign-in page's one-time `code` and this sign-in's PKCE `verifier`, traded for a session of
-        Apply's own (`POST /apply-app/session`), which is kept; its account. For `login`, and W5's window."""
-        status, answer, _ = _send("POST", self.site.api + "/apply-app/session",
-                                  {"code": code.strip(), "verifier": verifier}, None)
+        Apply's own (`POST /apply-app/session`), which is kept; its account. For `login`, and W5's window.
+        The page's `workit-auto-apply://` link, pasted in place of its code, is read for the code in it."""
+        code = code.strip()
+        if code.startswith(APP_LINK):
+            code = parse_qs(urlsplit(code).query).get("code", [""])[0]
+        status, answer, _ = _send("POST", self.site.api + "/apply-app/session", {"code": code, "verifier": verifier},
+                                  None)
         if status in (400, 422):
             raise SignInOver(_detail(answer), status)
         if status >= 400:
             raise WorkItError(f"POST /apply-app/session: {status} {_detail(answer)}", status)
-        self._save(answer)
+        with self._locked():  # a refresh in another process must not save its older login after this one
+            self._save(answer)
         self._account = None
         return self.me()
 
@@ -327,15 +341,18 @@ class WorkIt:
 
     def _fresh(self) -> str | None:
         """This process's access token, while it has more than EARLY seconds left."""
-        if self._access and self._access[1] - EARLY > time.time():
-            return self._access[0]
+        found = _ACCESS.get(self.site.auth)
+        if found and found[1] - EARLY > time.time():
+            return found[0]
         return None
 
     def _refresh_token(self) -> str | None:
+        """The keychain's refresh token. A keychain that won't answer (a locked one, a Deny on macOS's prompt) is
+        NotLoggedIn, never a plain WorkItError: callers keep a write waiting on that, and drop one WorkIt refused."""
         try:
             return self.keychain.password(self.site.auth)  # one item per WorkIt: a local stack's is its own
         except RuntimeError as error:
-            raise WorkItError(str(error)) from None
+            raise NotLoggedIn(str(error)) from None
 
     def _save(self, session: dict) -> None:
         """The refresh token goes into the keychain, the access token stays in this process. Windows'
@@ -344,9 +361,11 @@ class WorkIt:
         try:
             self.keychain.save(self.site.auth, session["refresh_token"])
         except RuntimeError as error:
-            raise WorkItError(str(error)) from None
+            # The refresh token just given is lost, and the one before was rotated: the login is over, and the
+            # writes wait for the next one (NotLoggedIn's reason, _refresh_token).
+            raise LoginExpired(str(error)) from None
         expires_at = session.get("expires_at") or time.time() + int(session.get("expires_in", 3600))
-        self._access = (session["access_token"], float(expires_at))
+        _ACCESS[self.site.auth] = (session["access_token"], float(expires_at))
         self.login.unlink(missing_ok=True)  # the session file Apply kept before 2026-11-15
 
     @contextmanager
@@ -499,7 +518,10 @@ def sign_in_page(at: Site, challenge: str) -> str:
 def _paste(url: str) -> str:
     """A Developer checkout's sign-in: the page in the default browser, and the code it shows, pasted here.
     macOS hands the page's `workit-auto-apply://` link only to the built app (W8)."""
-    print(f"Sign in to WorkIt in your browser ({url}), press Sign In to the App, then copy the code here.")
+    # Straight to the terminal: the shell's masked output (apply.masked) hides the challenge, a long opaque value,
+    # and a developer whose browser doesn't open needs the link. The challenge is no secret; its verifier is.
+    print(f"Sign in to WorkIt in your browser ({url}), press Sign In to the App, then copy the code here.",
+          file=sys.__stdout__ or sys.stdout)
     webbrowser.open(url)
     return input("Code: ")
 
