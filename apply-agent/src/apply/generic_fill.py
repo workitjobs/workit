@@ -84,6 +84,8 @@ TOO_MANY_STEPS = f"Apply went through {MAX_STEPS} pages without reaching the for
 BLOCKED = ("The guard stopped a press that could have sent the form ({}). Nothing was sent. To go on, "
            + FIX.format("check the page"))
 TO_TICK = "Page {}: {}"
+SENDING_FORM = ("Page {1}'s {0!r} would submit a form that also holds the button that sends it, so Apply didn't press "
+                "it. To go on, " + FIX.format("check the page and go on"))
 NEVER_SUBMITS = "WorkIt Auto Apply never presses Submit"
 # A part of the page no tree shows: a drawing area (a signature pad, a canvas date picker) or a drag and drop.
 UNREADABLE = r"""() => {
@@ -98,6 +100,17 @@ UNREADABLE = r"""() => {
 OPENER_HREF = "el => (el.tagName === 'A' && /^https?:/.test(el.href) && !el.target) ? el.href : ''"
 # Whether a button sits in a form, or names one: its press could send that form.
 IN_A_FORM = "el => !!(el.form || el.closest('form') || el.getAttribute('form'))"
+# The words of each other button of the form a click on this element would submit, or [] when it submits none: a Next
+# that submits the form its Submit is in could send it (a GET form's own submit handler, the review of KAN-861).
+FORM_BUTTONS = r"""el => {
+  const b = el.closest('button, input');
+  const submits = !!b && !!b.form && (b.tagName === 'BUTTON'
+    ? (b.getAttribute('type') || 'submit').toLowerCase() === 'submit' : /^(submit|image)$/i.test(b.type || ''));
+  if (!submits) return [];
+  return [...b.form.elements].filter((x) => x !== b && /^(BUTTON|INPUT)$/.test(x.tagName) && (x.tagName === 'BUTTON'
+      || /^(submit|image|button)$/i.test(x.type || '')))
+    .map((x) => [x.innerText, x.value, x.getAttribute('aria-label'), x.getAttribute('title')].filter(Boolean).join(' '));
+}"""
 CHOSEN = "el => el.multiple ? [...el.selectedOptions].map((o) => o.text.trim()) : (el.selectedIndex >= 0 ? el.options[el.selectedIndex].text.trim() : '')"
 FILE_NAMES = "el => [...(el.files || [])].map((f) => f.name)"
 
@@ -205,6 +218,8 @@ class GenericFiller:
             self._steps += 1
             if self._steps >= self._max_steps:
                 raise Handoff(TOO_MANY_STEPS)
+            if _submits_a_sending_form(page, nxt):
+                raise Handoff(SENDING_FORM.format(nxt, self._steps))
             press_step(page, self._guard, nxt)
             self._guard.arm()  # press_step rests the guard once its press is done: driving again
             self._blocked()
@@ -576,6 +591,18 @@ def _check(label: str, element, ticked: bool) -> None:
     if submits(element):
         raise FillError(f"{_said(label)}: its control would send the form, so Apply didn't click it")
     element.set_checked(ticked, timeout=5_000)
+
+
+def _submits_a_sending_form(page: Page, name: str) -> bool:
+    """Whether a button named `name` would submit a form that holds a button whose words send (FORM_BUTTONS). One
+    Apply can't read counts as one."""
+    try:
+        for button in page.get_by_role("button", name=name, exact=True).all():
+            if any(SENDS.search(words) for words in button.evaluate(FORM_BUTTONS, timeout=3_000)):
+                return True
+    except Exception:
+        return True
+    return False
 
 
 def _said(label: str) -> str:

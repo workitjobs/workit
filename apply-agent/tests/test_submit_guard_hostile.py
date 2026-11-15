@@ -2179,7 +2179,7 @@ def test_each_page_says_how_late_it_sends_and_a_held_only_page_has_its_held_test
 # --- The generic Filler's own refusals (the adversarial review of KAN-861). A GET form whose own submit handler posts
 # the application gets past the guards when the press that submits it isn't judged a send (submit_guard's submit
 # block covers a POST form, or a button that says it sends). So the generic Filler never clicks a control that would
-# submit a form. These pages stay out of PAGES: plain
+# submit a form, nor presses a Next that would submit the form its Submit is in. These pages stay out of PAGES: plain
 # code's Next and Ask's press still send on them through that gap, which is the guard's, older than the generic Filler.
 _GET_FORM = """<form id=f><label>First name <input name=first value=Test></label>%s
   <button type=submit>Submit application</button></form>
@@ -2192,6 +2192,8 @@ GENERIC_REFUSES = {
     # Fault: the fill ticks a radio made of a <button>, which submits its form.
     "radios that are their GET form's submit buttons": ("Yes", _GET_FORM % """<div role=radiogroup aria-label="Authorized?">
         <button role=radio aria-checked=false>Yes</button><button role=radio aria-checked=false>No</button></div>"""),
+    # Fault: the generic Filler's Next presses a button that submits the form its Submit is in.
+    "a Next that submits its GET form beside its Submit": ("Next", _GET_FORM % "<button>Next</button>"),
 }
 
 

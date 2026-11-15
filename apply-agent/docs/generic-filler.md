@@ -135,7 +135,11 @@ made of one submits its form as it opens or is ticked, and the review found that
 posts the application past both guards: the guard's submit block covers a POST form, or a press it reads as a send.
 The reader leaves such a dropdown closed, and the fill makes its field the student's (a `FillError`). The guard's
 gap is older than the generic Filler: plain code's Next and Ask Claude's press still reach it, so the review's pages
-are tested on the generic Filler alone (`GENERIC_REFUSES`), outside the shared `PAGES`. `tests/test_submit_guard_hostile.py` runs two paths on every hostile page:
+are tested on the generic Filler alone (`GENERIC_REFUSES`), outside the shared `PAGES`.
+
+**Nor does it press a Next that would submit the form its Submit is in** (`FORM_BUTTONS`): one of type submit whose
+form holds another button whose words send. On a GET form that Next sent the application through the same gap. The
+step is a Handoff. `tests/test_submit_guard_hostile.py` runs two paths on every hostile page:
 "the generic Filler" (the whole fill, every question answered, its model the worst one: it picks the first option
 and the first button every time) and "the generic Filler's Apply press". Its two pages: an option that holds the
 form's own submit button, and a posting's Apply that is a one-click application's submit.
