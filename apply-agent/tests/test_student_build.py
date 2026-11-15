@@ -8,7 +8,6 @@ No browser: in CI.
 
 import importlib.util
 import json
-import os
 import subprocess
 import sys
 from datetime import date, datetime
@@ -39,8 +38,8 @@ from apply.worker import Result
 
 # In a new process, so nothing a test imported counts. It runs what the app runs first: its adapters, and a plain
 # Worker's first page call (which loaded Ask Claude and Gmail, KAN-723). As conftest does, it blocks the network and
-# gives keyring its null backend; APPLY_HOME is conftest's. Its hosted models get stand-in keys (KEYS): an environment
-# variable comes before the Keychain and the checkout's .env, so no real key is read, and CI, which has none, passes.
+# gives keyring its null backend; APPLY_HOME is conftest's. It holds no model key, nor reads one: the app's calls go to
+# WorkIt's Model route (ask_model: workit), and CI has no key.
 LOADED = """import json, sys
 from pathlib import Path
 from apply import build
@@ -57,7 +56,6 @@ from apply.profile import ApplicantProfile
 student.adapters(ApplicantProfile.load(Path(sys.argv[1])))
 fixed.functions()
 print(json.dumps({"loaded": sorted(m for m in sys.modules if m in build.DEVELOPER), "reached": network_block.end()}))"""
-KEYS = {"GROQ_API_KEY": "not-a-key", "GEMINI_API_KEY": "not-a-key"}
 
 
 @pytest.fixture
@@ -70,7 +68,7 @@ def test_the_student_path_loads_no_developer_module(tmp_path):
     imports, or loads as it runs, would fail in the app."""
     (tmp_path / "applicant-profile.yaml").write_text("identity: {}\n")
     run = subprocess.run([sys.executable, "-c", LOADED, str(tmp_path / "applicant-profile.yaml"), str(Path(__file__).parent)],
-                         capture_output=True, text=True, env=os.environ | KEYS)
+                         capture_output=True, text=True)
     assert run.returncode == 0, run.stderr
     assert json.loads(run.stdout) == {"loaded": [], "reached": []}, (
         "the Student build's path loads a developer module (apply.build.DEVELOPER), or reached the network: import it "

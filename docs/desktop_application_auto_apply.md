@@ -890,7 +890,7 @@ part does in the Student build:
 | An emailed code after Submit | Gmail, typed by script | A Needs-you item: the student types it through Fix here (W2 step 1) |
 | The company brief | Researched with `claude -p` | A kept brief only, never researched (W9) |
 | Repair requests, notifications, phone push | Kept, shown, pushed | None |
-| `ask_model` | `policies.yaml` | Fixed `[groq, gemini]` (W1 makes it `workit`) |
+| `ask_model` | `policies.yaml` | Fixed `workit`, WorkIt's Model route (W1) |
 
 Left: W8 passes `--nofollow-import-to` for each module in `DEVELOPER`
 and compiles from `apply.student`, and the build's smoke test fills one
