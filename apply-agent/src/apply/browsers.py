@@ -33,7 +33,7 @@ from pathlib import Path
 from playwright.sync_api import BrowserContext, Page, sync_playwright
 
 from apply import submit_guard, trace
-from apply.focus import KEEPER
+from apply.focus import KEEPER, front_pid
 from apply.home import HOME
 from apply.profile import load_policies
 
@@ -278,6 +278,11 @@ class WorkerBrowsers:
         in the Apply window; False if it has none (headless, or not open)."""
         pid = None if self._headless else chrome_pid(self._profiles / f"worker-{worker + 1}")
         return bool(pid) and KEEPER.bring(pid)
+
+    def in_front(self, worker: int) -> bool:
+        """Whether Worker `worker`'s Chrome window is the front app: Lisul is in it (KAN-855)."""
+        pid = None if self._headless else chrome_pid(self._profiles / f"worker-{worker + 1}")
+        return bool(pid) and front_pid() == pid
 
     def endpoint(self, worker: int) -> str | None:
         """Where another client (the dashboard) can reach Worker `worker`'s

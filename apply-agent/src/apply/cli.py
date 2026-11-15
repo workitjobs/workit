@@ -648,7 +648,7 @@ def _dashboard(adapters: Adapters, tiles: int, profile: ApplicantProfile, worker
                                 everyday=adapters.everyday, accounts=_accounts_tab(lambda: adapters.tracker,
                                                                                    adapters.keychain, adapters.everyday),
                                 quiet=getattr(site, "plain", None), remember=_remembering(adapters.answer_bank),
-                                **_window_context()) as board:
+                                back=_back_to_window(site, site.profiles / "dashboard"), **_window_context()) as board:
         adapters.board = board
         url = site.profiles / DASHBOARD_URL
         url.parent.mkdir(parents=True, exist_ok=True)
@@ -900,6 +900,15 @@ def _approving(tracker: Callable[[], object]) -> Callable[[str], str]:
         tracker().approve(application_id, essay)
         return "Approved: it is sent at the next check, within 5 minutes."
     return approve
+
+
+def _back_to_window(site, window: Path) -> Callable[[int], bool] | None:
+    """The Apply window (its Chrome profile `window`) back in front of Worker `worker`'s own window, after a captcha
+    Lisul did there (Dashboard.come_back, KAN-855): only while that Worker's window is the front one."""
+    in_front = getattr(site, "in_front", None)
+    if in_front is None:
+        return None
+    return lambda worker: in_front(worker) and dashboard.raise_window(window, timeout=2.0)
 
 
 def _window_context() -> dict:

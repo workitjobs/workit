@@ -507,7 +507,11 @@ Worker's own Chrome window, but for a captcha. Each message says so
   which reads no captcha frame.
 - **A captcha.** The tile's clicks are synthetic, and a captcha takes none, so a
   captcha item's first button is Open in Chrome, as a sign-in's is. Apply never
-  makes a relayed click look like a person's (the bot rule).
+  makes a relayed click look like a person's (the bot rule). Once Apply sees the
+  captcha done, the Apply window comes back to the front `BACK_AFTER_S` (2 s)
+  later, a breath to see the page go on, and only while that Worker's window
+  is still the front app, so it never takes the student from another app
+  (`captcha.Waiter`, `Dashboard.come_back`, each site's `in_front`).
 
 **Tests.** `tests/test_student_build.py` (in CI) and
 `tests/test_student_handoffs.py` (Chromium, on the fake job sites).

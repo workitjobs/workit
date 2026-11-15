@@ -9,6 +9,7 @@ click or key of Claude's in a captcha's frame (apply.submit_guard). A bot block 
 import re
 import subprocess
 import sys
+import threading
 import time
 from collections.abc import Callable
 from contextlib import contextmanager
@@ -276,6 +277,11 @@ def wait(page: Page, pressed: Callable[[], bool], minutes: float, poll_ms: int =
     return False
 
 
+# After a captcha Lisul did in a Worker's own window, the Apply window comes back to the front this long after Apply
+# sees it done: a breath to see the page go on, not a jump (KAN-855). Only while that window is still in front.
+BACK_AFTER_S = 2.0
+
+
 class Waiter:
     """Waits on one Worker's page while Lisul does a captcha. Its tile shows it
     as a Handoff with the captcha reason and Resume; his phone gets one push.
@@ -299,6 +305,10 @@ class Waiter:
         done = wait(page, lambda: board.resumed(n), self.minutes)
         if done:  # filling again, which clears the tile: its caption anew, as a fill's start gives it
             board.update(n, **self._caption(), status="filling")
+            if back := getattr(board, "come_back", None):  # he did it in the Worker's own window: the app comes back
+                later = threading.Timer(BACK_AFTER_S, back, args=(n,))
+                later.daemon = True
+                later.start()
         else:
             board.update(n, captcha=False)
         return done

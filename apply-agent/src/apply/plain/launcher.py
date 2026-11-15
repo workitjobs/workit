@@ -43,7 +43,7 @@ from apply.browsers import (
     _no_saved_passwords,
     chrome_pid,
 )
-from apply.focus import KEEPER
+from apply.focus import KEEPER, front_pid
 from apply.plain import extension, host
 from apply.plain.bridge import (
     OUT_OF_DATE,
@@ -360,6 +360,11 @@ class PlainWorkers:
         """Bring Worker `worker`'s Chrome window to the front, as Lisul asked in the Apply window."""
         running = self.running.get(worker)
         return bool(running) and KEEPER.bring(running.pid)
+
+    def in_front(self, worker: int) -> bool:
+        """Whether Worker `worker`'s Chrome window is the front app: Lisul is in it (KAN-855)."""
+        running = self.running.get(worker)
+        return bool(running) and front_pid() == running.pid
 
     @contextmanager
     def open(self, url: str, worker: int = 0):

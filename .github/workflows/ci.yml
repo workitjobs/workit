@@ -232,6 +232,7 @@ jobs:
             tests/test_ask.py \
             tests/test_apply_home.py \
             tests/test_approve.py \
+            tests/test_back_to_app.py \
             tests/test_bot_signals.py \
             tests/test_captcha.py \
             tests/test_claude_answers.py \

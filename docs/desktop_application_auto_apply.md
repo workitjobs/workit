@@ -823,7 +823,8 @@ Apply window, never in the Worker's own Chrome window. Fix here gives
 them the form's live view, which takes their clicks, keys, picks, files
 and the form's own Submit. Only a captcha takes the Worker's window:
 the tile's clicks are synthetic, so a captcha item's first button is
-Open in Chrome. With no Screen Recording permission the view is about
+Open in Chrome, and once Apply sees it done the app comes back to the
+front 2 seconds later, if that window is still in front. With no Screen Recording permission the view is about
 two frames a second, so W5's first run asks for the permission.
 
 | Case | Student build now |

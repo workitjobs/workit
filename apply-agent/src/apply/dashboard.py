@@ -572,8 +572,10 @@ class Dashboard:
                  notify: Callable[[str, str], None] | None = None, show: Callable[[int], bool] | None = None,
                  sample: bool = False, approve: Callable[[str], str] | None = None,
                  everyday: Callable[[str], None] | None = None, accounts: "AccountsTab | None" = None,
-                 quiet: Callable[[int], bool] | None = None, remember: Callable[[str, str], str] | None = None):
+                 quiet: Callable[[int], bool] | None = None, remember: Callable[[str, str], str] | None = None,
+                 back: Callable[[int], bool] | None = None):
         self._workers = workers
+        self._back = back  # brings this window back after a captcha done in a Worker's own window (come_back)
         self._remember = remember
         # Ask Claude (apply.ask): each Application's thread, by its posting URL, and the messages waiting for its Worker.
         self._threads: dict[str, list[dict]] = {}
@@ -628,6 +630,12 @@ class Dashboard:
     def __enter__(self) -> Self:
         threading.Thread(target=self._server.serve_forever, daemon=True).start()
         return self
+
+    def come_back(self, tile: int) -> bool:
+        """Lisul did tile `tile`'s captcha in its Worker's own window (Open in Chrome), and Apply saw it done: this
+        window comes back to the front, only while that Worker's window is still the front one, so it never takes
+        him from another app (KAN-855). False when it stays where it is."""
+        return bool(self._back and self._back(self.worker_of(tile)))
 
     def worker_of(self, tile: int) -> int:
         """The Worker whose window tile `tile` shows."""
