@@ -100,8 +100,9 @@ shows on a line of its own, else its tree value.
   presses Submit. `submit` raises `SetupError`.
 - **A field no question names yet** (the next step's, or one an answer showed) is read with its dropdowns opened and
   raised as `MoreQuestions`, for the Worker to plan.
-- **A posting page with no field** opens its form by its one Apply link (followed with no click) or button (pressed
-  through the guards), whose whole name is an opener's (`OPENS`: "Apply for This Job", BambooHR's). None, two, a
+- **A posting page with no field** opens its form by its one Apply link on the page's own site (followed with no
+  click; one to another site is a Handoff, since the Filler would fill and give files to that site) or button
+  (pressed through the guards), whose whole name is an opener's (`OPENS`: "Apply for This Job", BambooHR's). None, two, a
   button in a `<form>` (its press would send that form: opening a form never needs one sent) or one with a frame
   inside is a Handoff.
 

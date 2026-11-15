@@ -98,6 +98,9 @@ UNREADABLE = r"""() => {
 }"""
 # An opener's own link, to go to with no click: an http(s) link of the page's, else "" (a script's link is pressed).
 OPENER_HREF = "el => (el.tagName === 'A' && /^https?:/.test(el.href) && !el.target) ? el.href : ''"
+# Its link's origin, and the page's: a link to another site is never followed (the review of KAN-861: the Filler would
+# then fill, and give files to, a site that isn't the posting's).
+SAME_ORIGIN = "el => new URL(el.href, location.href).origin === location.origin"
 # Whether a button sits in a form, or names one: its press could send that form.
 IN_A_FORM = "el => !!(el.form || el.closest('form') || el.getAttribute('form'))"
 # The words of each other button of the form a click on this element would submit, or [] when it submits none: a Next
@@ -552,9 +555,9 @@ class GenericFiller:
         return nexts[place]
 
     def _open_form(self, page: Page) -> None:
-        """A posting page that shows no field: its one Apply link is followed (a navigation, no click), or its one
-        Apply button pressed through the guards, and the form waited for. Its whole name must be an opener's
-        (OPENS: "Apply for This Job", BambooHR's). None, two that differ, a button in a form (its press would send
+        """A posting page that shows no field: its one Apply link on the page's own site is followed (a navigation,
+        no click), or its one Apply button pressed through the guards, and the form waited for. Its whole name must
+        be an opener's (OPENS: "Apply for This Job", BambooHR's). None, two that differ, a button in a form (its press would send
         that form: opening a form never needs one sent), or one with a frame inside is a Handoff."""
         links = [el for el in page.get_by_role("link", name=OPENS).all() if el.is_visible()]
         buttons = [el for el in page.get_by_role("button", name=OPENS).all() if el.is_visible()]
@@ -564,6 +567,8 @@ class GenericFiller:
         target = (links or buttons)[0]
         href = target.evaluate(OPENER_HREF)
         if links and href:
+            if target.evaluate(SAME_ORIGIN) is not True:
+                raise Handoff(NO_OPENER.format("the one found goes to another site"))
             page.goto(href)
         else:
             if target.evaluate(IN_A_FORM) is not False:

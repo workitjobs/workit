@@ -329,6 +329,14 @@ def test_a_posting_page_with_one_apply_button_opens_its_form_and_never_sends():
         filled(page, {"First name": "Test"})
 
 
+def test_an_apply_link_to_another_site_is_never_followed():
+    # Fault (the adversarial review): the Filler goes on to another site's page and fills it, and gives it files.
+    html = """<h1>Intern</h1><a href="https://elsewhere.example.org/apply">Apply now</a>"""
+    with form(html) as page, pytest.raises(Handoff, match="goes to another site"):
+        filled(page, {})
+    assert page.url == "about:blank"
+
+
 def test_the_filler_never_submits():
     with pytest.raises(SetupError, match="never presses Submit"):
         GenericFiller().submit(None)
