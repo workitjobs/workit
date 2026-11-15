@@ -144,3 +144,99 @@ def test_the_apps_page_loads_no_web_font(board):
     """Fault: the window asks Google Fonts for its font, a request the privacy page doesn't name."""
     assert "fonts.googleapis.com" in board.page() and "fonts.googleapis.com" not in app_window.page(board)
 
+
+
+def test_start_shows_the_runs_window_then_the_queue_again_and_says_why_one_stopped(board):
+    """Fault: a second run started over the first, the window left on a finished run, or a run that couldn't
+    start (no engine, W7) said nothing."""
+    import threading
+
+    from apply.adapters import SetupError
+
+    shown, go, runs = [], threading.Event(), []
+
+    def start(links, show):
+        runs.append(links)
+        with Dashboard(len(links), OneFrame(), serve=False) as run_board:
+            show(run_board)
+            shown.append(run_board)
+            go.wait(5)
+        if len(runs) == 2:
+            raise SetupError("WorkIt refused this Fill engine.")
+
+    window = Window()
+    bridge = Bridge(board, WorkIt(workit.LIVE), start=start)
+    bridge._window = window
+    assert "error" in bridge.start([])
+    assert bridge.start(["https://jobs.lever.co/acme/1"]) == {"started": 1}
+    assert "error" in bridge.start(["https://jobs.lever.co/acme/2"])  # one run at a time
+    for _ in range(100):
+        if shown:
+            break
+        threading.Event().wait(0.02)
+    assert window.loaded[-1] == app_window.page(shown[0], usage=True)  # the run's tiles, with no queue
+    go.set()
+    for _ in range(100):
+        if not bridge.status()["running"]:
+            break
+        threading.Event().wait(0.02)
+    assert window.loaded[-1] == app_window.page(board, panel=True, usage=True)  # the queue again
+    bridge.start(["https://jobs.lever.co/acme/3"])
+    for _ in range(100):
+        if bridge.status()["said"]:
+            break
+        threading.Event().wait(0.02)
+    assert bridge.status() == {"running": False, "said": "WorkIt refused this Fill engine."}
+
+
+def test_the_queue_is_the_students_open_queued_jobs_oldest_first(board, tmp_path):
+    """Fault: a closed job in the queue, or a job board's page where its employer's form was named."""
+    from fake_workit import Reply
+
+    rows = [
+        {"job": {"apply_url": "https://www.linkedin.com/jobs/3", "form_url": "https://jobs.lever.co/acme/3",
+                 "company": "Acme", "title": "Intern"}, "open": True},
+        {"job": {"apply_url": "https://boards.greenhouse.io/x/2", "company": "X", "title": "Gone"}, "open": False},
+        {"job": {"apply_url": "https://boards.greenhouse.io/y/1", "company": "Y", "title": "Analyst"}, "open": True},
+    ]
+    with FakeWorkIt() as fake:
+        fake.route("GET", f"/applicants/{fake.account['id']}/applications",
+                   lambda seen, fake: Reply(200, rows) if seen.path.endswith("stage=queued") else Reply(400))
+        client = WorkIt(fake.site, tmp_path / "workit-login.json", fake.keychain)
+        workit.login(client, fake.browser)
+        assert Bridge(board, client).queue() == [
+            {"url": "https://boards.greenhouse.io/y/1", "company": "Y", "title": "Analyst"},
+            {"url": "https://jobs.lever.co/acme/3", "company": "Acme", "title": "Intern"},
+        ]
+
+
+def test_a_run_rehearses_its_links_with_the_students_worker_count_and_closes_its_workers(monkeypatch, tmp_path):
+    """Fault: a run that ignores the Worker count (D24: one to three), shows no window of its own, or leaves its plain
+    Workers' Chromes running after it."""
+    from contextlib import nullcontext
+    from types import SimpleNamespace
+
+    from apply import student, worker_tiles
+    from apply.keychain import InMemoryKeychain
+    from apply.tracker import InMemoryTracker
+
+    monkeypatch.setattr(dashboard, "ThreadingHTTPServer", no_server)
+    monkeypatch.setattr(worker_tiles, "frames_for", lambda site, tiles: nullcontext(OneFrame()))
+    closed, shown, rehearsed = [], [], []
+    monkeypatch.setattr(worker_tiles, "close_workers", closed.append)
+    monkeypatch.setattr(student, "AnswersTab", lambda *a, **k: None)
+    state = tmp_path / "app.json"
+    state.write_text('{"workers": 9}')
+    monkeypatch.setattr(student, "STATE", state)
+    site = SimpleNamespace(show=lambda worker: True, plain=lambda worker: False)
+    made = SimpleNamespace(site=site, answer_bank=None, tracker=InMemoryTracker(), keychain=InMemoryKeychain(),
+                           everyday=lambda url: None, board=None)
+    profile = SimpleNamespace(get=lambda key: None)
+
+    def rehearse(links, adapters, profile, workers):
+        rehearsed.append((links, workers, adapters.board is shown[0]))
+
+    runs = student.Runs(profile, make=lambda profile: made, rehearse=rehearse)
+    runs.run(["https://jobs.lever.co/acme/1", "https://jobs.lever.co/acme/2"], shown.append)
+    assert rehearsed == [(["https://jobs.lever.co/acme/1", "https://jobs.lever.co/acme/2"], student.MOST_WORKERS, True)]
+    assert shown[0].url == NO_PORT and closed == [site]

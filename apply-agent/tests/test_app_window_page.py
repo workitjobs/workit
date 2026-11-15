@@ -44,21 +44,38 @@ def test_the_pages_requests_frames_and_file_links_go_through_the_bridge(tmp_path
         browser.close()
 
 
-def test_the_sign_in_and_first_run_pages_run_without_a_script_error():
-    """Fault: a script error in a screen's page (a line break inside a string, say), which leaves its buttons dead."""
+def test_the_apps_own_pages_run_without_a_script_error(monkeypatch):
+    """Fault: a script error in a page of the app's own (a line break inside a string, say), which leaves its buttons
+    dead: the sign-in, first run, and the queue with the usage line."""
+    from apply import dashboard
+
+    monkeypatch.setattr(dashboard, "ThreadingHTTPServer", None)
     errors = []
-    state = {"step": "seed", "lines": ["Now: Turn on Developer mode."], "running": True, "waiting": True, "failed": ""}
-    with sync_playwright() as playwright:
+    answers = {
+        "first_run": {"step": "seed", "lines": ["Now: Turn on Developer mode."], "running": True, "waiting": True,
+                      "failed": ""},
+        "queue": [{"url": "https://jobs.lever.co/acme/1", "company": "Acme", "title": "Intern"}],
+        "usage": {"used": 1200, "cap": 80000, "resets_at": "2026-11-16T00:00:00Z"},
+        "status": {"running": False, "said": ""},
+    }
+    with Dashboard(0, OneFrame(), serve=False) as board, sync_playwright() as playwright:
         browser = playwright.chromium.launch()
-        for html in (app_window.SIGN_IN, app_window.FIRST_RUN):
+        pages = []
+        for html in (app_window.SIGN_IN, app_window.FIRST_RUN, app_window.page(board, panel=True, usage=True)):
             page = browser.new_page()  # a page each, as the window loads each one anew
             page.on("pageerror", lambda error: errors.append(str(error)))
             page.route("**/*", lambda route: route.abort())
-            page.expose_function("__bridge", lambda name, args: state)
+            page.expose_function("__bridge", lambda name, args: answers.get(name, {}))
             page.set_content(html, wait_until="domcontentloaded")
             page.evaluate(PYWEBVIEW)
-        page.wait_for_function("!document.getElementById('seed').hidden", timeout=5000)
-        assert page.inner_text("#seed-lines") == "Now: Turn on Developer mode."
-        assert page.is_visible("#seed-again") and not page.is_visible("#seed-start")
+            pages.append(page)
+        first_run, queue = pages[1], pages[2]
+        first_run.wait_for_function("!document.getElementById('seed').hidden", timeout=5000)
+        assert first_run.inner_text("#seed-lines") == "Now: Turn on Developer mode."
+        assert first_run.is_visible("#seed-again") and not first_run.is_visible("#seed-start")
+        queue.wait_for_function("document.querySelectorAll('#queue input').length === 1", timeout=5000)
+        assert queue.inner_text("#queue").strip() == "Acme: Intern"
+        queue.wait_for_function("document.getElementById('usage').textContent !== ''", timeout=5000)
+        assert queue.inner_text("#usage") == "Model use today: 1,200 of 80,000 tokens"
         browser.close()
     assert errors == []

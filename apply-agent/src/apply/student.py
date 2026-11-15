@@ -6,7 +6,9 @@ no `claude -p` (no drive, no research), no Gmail, no notifications or phone push
 starts here (`app`, which `uv run apply app` runs) and calls `rehearsal.rehearse` with them.
 """
 
-from apply import (  # noqa: F401 (rehearsal: W5 runs it)
+from collections.abc import Callable
+
+from apply import (
     already_applied,
     answer_sync,
     answering,
@@ -15,7 +17,9 @@ from apply import (  # noqa: F401 (rehearsal: W5 runs it)
     home,
     rehearsal,
     tailored,
+    worker_tiles,
 )
+from apply.accounts_tab import AccountsTab
 from apply.adapters import Adapters, ClaudeError, UsageReading
 from apply.answer_bank import FILE as ANSWER_BANK
 from apply.answers_tab import AnswersTab
@@ -24,6 +28,7 @@ from apply.ask_model import live_claude
 from apply.clock import SystemClock
 from apply.dashboard import Dashboard, NoFrames
 from apply.feed import live_feed
+from apply.first_run import STATE
 from apply.home import HOME
 from apply.keychain import SystemKeychain
 from apply.plain.site import live_site
@@ -116,12 +121,68 @@ def adapters(profile: ApplicantProfile) -> Adapters:
     )
 
 
+# Workers at once (D24): two by default, one to three; Settings changes it (first_run.STATE's "workers").
+WORKERS, MOST_WORKERS = 2, 3
+
+
+def workers() -> int:
+    """The Worker count the student set, within one to MOST_WORKERS."""
+    import json
+
+    try:
+        count = int(json.loads(STATE.read_text()).get("workers", WORKERS))
+    except (OSError, ValueError, TypeError, AttributeError):
+        count = WORKERS
+    return min(max(count, 1), MOST_WORKERS)
+
+
+class Runs:
+    """The window's runs (W5 step 4): each Start rehearses its links in the Workers and shows the run's own Apply
+    window, its tiles, while it goes. Apply never presses Submit: each form is held for the student."""
+
+    def __init__(self, profile: ApplicantProfile, make: Callable[[ApplicantProfile], Adapters] = adapters,
+                 rehearse: Callable[..., object] = rehearsal.rehearse):
+        self._profile, self._make, self._rehearse = profile, make, rehearse
+        self._site = None  # the run's Workers, to stop when the app quits
+
+    def run(self, links: list[str], show: Callable[[Dashboard], None]) -> None:
+        """Rehearse `links` with the run's own Apply window shown (`show`), till every form it held is closed."""
+        made = self._make(self._profile)
+        self._site = site = made.site
+        try:
+            answers = AnswersTab(made.answer_bank, self._profile, held=made.tracker.rows)
+            accounts = AccountsTab(made.tracker.employer_accounts, made.keychain, rows=made.tracker.rows,
+                                   everyday=made.everyday)
+            in_front = getattr(site, "in_front", None)
+            with worker_tiles.frames_for(site, len(links)) as frames, \
+                    Dashboard(len(links), frames, answers, show=getattr(site, "show", None),
+                              quiet=getattr(site, "plain", None), everyday=made.everyday, accounts=accounts,
+                              sample=self._profile.get("sample_data") is True,
+                              back=(lambda worker: in_front(worker) and app_window.bring_forward()) if in_front else None,
+                              serve=False) as board:
+                made.board = board
+                show(board)
+                self._rehearse(links, made, self._profile, workers())
+        finally:
+            self.close()
+
+    def close(self) -> None:
+        """Stop the run's plain Workers' Chromes, which outlive the app (worker_tiles.close_workers)."""
+        if self._site is not None:
+            worker_tiles.close_workers(self._site)
+            self._site = None
+
+
 def app() -> None:
-    """WorkIt Auto Apply: its window (apply.app_window), with no port. It signs the student in, then shows the Apply
-    window with their answers (W5 step 2). First run, the queue and a run join it in W5's next steps."""
+    """WorkIt Auto Apply: its window (apply.app_window), with no port. It signs the student in, takes them through
+    first run, then shows their Auto Apply queue and runs it (W5)."""
     if home.fill_from_sample():
         print(f"No Applicant profile yet: WorkIt Auto Apply runs as Test Person from {HOME} till yours is there.")
     profile = ApplicantProfile.load(HOME / "applicant-profile.yaml")
     answers = AnswersTab(answer_sync.bank(profile.folder / ANSWER_BANK, profile.policies()), profile)
-    with Dashboard(0, NoFrames(), answers, sample=profile.get("sample_data") is True, serve=False) as board:
-        app_window.run(board)
+    runs = Runs(profile)
+    try:
+        with Dashboard(0, NoFrames(), answers, sample=profile.get("sample_data") is True, serve=False) as board:
+            app_window.run(board, start=runs.run)
+    finally:
+        runs.close()

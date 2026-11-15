@@ -13,6 +13,12 @@ workit-auto-apply:// link (W8); a Developer checkout pastes it in the box, which
 Then Bridge.trade signs in (WorkIt.trade). Next comes FIRST_RUN while any first-run step is left (apply.first_run:
 Chrome, the disclosure and license, Screen Recording, the seed), then the Apply window.
 
+A run (W5 step 4): with no run going, the Apply window has PANEL on top: the student's Auto Apply queue on WorkIt, a
+box to paste one posting's link, Start, and today's model use against the Usage cap (USAGE, on every page of the
+app). Start hands the links to `start` (apply.student.Runs), which rehearses them in the Workers and shows the run's
+own Apply window, its tiles, till every form it held is closed; then the window shows the queue again. A run that
+can't start (no engine, W7; a Worker profile in use) says why in one line.
+
 The app's page loads no web font: Google Fonts would be a request the privacy page doesn't name (FONTS).
 
 pywebview gives the page every public method of Bridge, and nothing whose name starts with "_".
@@ -20,11 +26,14 @@ pywebview gives the page every public method of Bridge, and nothing whose name s
 
 import base64
 import re
+import sys
+import threading
 import time
 import webbrowser
 from collections.abc import Callable
 
 from apply import workit
+from apply.adapters import SetupError
 from apply.dashboard import FRAME_GAP, Dashboard
 from apply.dashboard_page import STYLE
 from apply.first_run import CHROME_DOWNLOAD, EULA, READY, FirstRun
@@ -181,9 +190,63 @@ ready.then(async () => {
 </script>""".replace("{style}", STYLE).replace("{ready}", READY_JS)
 
 
-def page(dashboard: Dashboard) -> str:
-    """The Apply window's page with SHIM before its scripts, and no web font."""
+# Today's model use against the Usage cap (W1, D6), on every page of the app, read again each minute.
+USAGE = """<div id="usage" role="status" style="position: fixed; top: 0.4rem; right: 0.8rem; font-size: 0.8rem;
+  opacity: 0.75; z-index: 20"></div>
+<script>(async () => {
+  {ready}
+  await ready;
+  const shown = document.getElementById('usage');
+  const read = async () => { const use = await window.pywebview.api.usage();
+    shown.textContent = use.error ? '' : `Model use today: ${use.used.toLocaleString()} of ${use.cap.toLocaleString()} tokens`; };
+  read(); setInterval(read, 60000);
+})();</script>""".replace("{ready}", READY_JS)
+
+# With no run going: the queue, a pasted link, Start (Bridge.queue, Bridge.start).
+PANEL = """<section id="run" style="max-width: 46rem; margin: 2.6rem auto 1rem; display: flex; flex-direction: column;
+  gap: 0.6rem">
+<h2>Your Auto Apply Queue</h2>
+<p id="queue-said">Reading your queue on WorkIt…</p>
+<ul id="queue" style="list-style: none; padding: 0; margin: 0"></ul>
+<label>Or paste a job posting's link <input id="pasted" autocomplete="off" spellcheck="false" style="width: 100%"></label>
+<div><button class="primary" id="start">Start</button></div>
+<p id="run-said" role="alert"></p>
+</section>
+<script>(async () => {
+  {ready}
+  await ready;
+  const api = window.pywebview.api, list = document.getElementById('queue'), said = document.getElementById('queue-said');
+  const queued = await api.queue();
+  if (queued.error) said.textContent = queued.error;
+  else {
+    said.textContent = queued.length ? 'WorkIt Auto Apply fills the jobs you tick, then holds each form for you to check and send.'
+                                     : 'Your queue is empty: add jobs on WorkIt, or paste a link below.';
+    for (const job of queued) {
+      const row = document.createElement('li'), box = document.createElement('input'), name = document.createElement('label');
+      box.type = 'checkbox'; box.checked = true; box.value = job.url; box.id = 'job-' + list.children.length;
+      name.htmlFor = box.id; name.textContent = ` ${job.company}: ${job.title}`;
+      row.append(box, name); list.append(row);
+    }
+  }
+  const status = await api.status();
+  if (status.said) document.getElementById('run-said').textContent = status.said;
+  document.getElementById('start').addEventListener('click', async () => {
+    const links = [...list.querySelectorAll('input:checked')].map(box => box.value);
+    const pasted = document.getElementById('pasted').value.trim();
+    if (pasted) links.push(pasted);
+    const got = await api.start(links);
+    document.getElementById('run-said').textContent = got.error || 'Starting the Workers…';
+  });
+})();</script>""".replace("{ready}", READY_JS)
+
+
+def page(dashboard: Dashboard, panel: bool = False, usage: bool = False) -> str:
+    """The Apply window's page with SHIM before its scripts and no web font; with PANEL on top (no run going), and
+    USAGE."""
     html = FONTS.sub("", dashboard.page())
+    extra = (PANEL if panel else "") + (USAGE if usage else "")
+    if extra:
+        html = html.replace("</style>", "</style>" + extra, 1)
     head = '<meta charset="utf-8">'
     return html.replace(head, head + SHIM, 1) if head in html else SHIM + html
 
@@ -193,11 +256,17 @@ class Bridge:
     the sign-in. `open_link` opens a URL in the default browser, or a file in the system's own app."""
 
     def __init__(self, dashboard: Dashboard, client: workit.WorkIt | None = None,
-                 open_link: Callable[[str], object] = webbrowser.open, first_run: FirstRun | None = None):
-        self._dashboard = dashboard
+                 open_link: Callable[[str], object] = webbrowser.open, first_run: FirstRun | None = None,
+                 start: Callable[[list[str], Callable[[Dashboard], None]], None] | None = None):
+        """`start(links, show)`, when given, runs `links` and calls `show(board)` with the run's own Apply window
+        (apply.student.Runs.run); the app's pages then have PANEL and USAGE."""
+        self._dashboard = self._idle = dashboard
         self._client = client or workit.WorkIt()
         self._open_link = open_link
         self._first = first_run or FirstRun()
+        self._start = start
+        self._running = threading.Event()  # a run is going
+        self._said = ""  # why the last run couldn't start or stopped
         self._verifier: str | None = None  # this sign-in's PKCE verifier, till its code is traded
         self._window = None  # the pywebview window, once run() made it
 
@@ -290,21 +359,91 @@ class Bridge:
         """First run done: the Apply window."""
         state = self._first.state()
         if state["step"] == READY and self._window is not None:
-            self._window.load_html(page(self._dashboard))
+            self._window.load_html(self._page())
         return state
+
+    # A run (W5 step 4).
+
+    def queue(self) -> list[dict] | dict:
+        """The student's queued, open jobs on WorkIt, oldest first, as {url, company, title}; or {error}."""
+        try:
+            rows = self._client.call("GET", f"/applicants/{self._client.applicant_id()}/applications?stage=queued")
+        except workit.WorkItError as error:
+            return {"error": f"WorkIt Auto Apply couldn't read your queue ({error}). Paste a link instead."}
+        jobs = [row["job"] for row in reversed(rows) if row.get("open")]
+        return [{"url": job.get("form_url") or job["apply_url"], "company": job.get("company") or "",
+                 "title": job.get("title") or ""} for job in jobs]
+
+    def usage(self) -> dict:
+        """Today's model use: {used, cap, resets_at}, or {error}."""
+        try:
+            return self._client.call("GET", "/apply-app/usage")
+        except workit.WorkItError as error:
+            return {"error": str(error)}
+
+    def status(self) -> dict:
+        return {"running": self._running.is_set(), "said": self._said}
+
+    def start(self, links: list | None = None) -> dict:
+        """Start a run of `links` (Start), one at a time: {started} or {error}."""
+        links = [str(link).strip() for link in links or [] if str(link).strip()]
+        if self._start is None:
+            return {"error": "This window can't start a run."}
+        if not links:
+            return {"error": "Tick a job in your queue, or paste a job posting's link."}
+        if self._running.is_set():
+            return {"error": "A run is going: its forms are in the window."}
+        self._running.set()
+        self._said = ""
+        threading.Thread(target=self._run, args=(links,), daemon=True).start()
+        return {"started": len(links)}
+
+    def show_board(self, board: Dashboard) -> None:
+        """The window shows `board`: a run's own Apply window, or the queue again."""
+        self._dashboard = board
+        if self._window is not None:
+            self._window.load_html(self._page())
+
+    def _run(self, links: list[str]) -> None:
+        try:
+            self._start(links, self.show_board)
+        except SetupError as error:  # no engine (W7), a Worker profile in use, no Chrome: one sentence
+            self._said = str(error)
+        except Exception as error:
+            self._said = f"The run stopped: {type(error).__name__}: {error}"
+        finally:
+            self._running.clear()
+            self.show_board(self._idle)
+
+    def _page(self) -> str:
+        board = self._dashboard
+        return page(board, panel=board is self._idle and self._start is not None, usage=self._start is not None)
 
     def _html(self) -> str:
         """What the window shows now: SIGN_IN signed out, FIRST_RUN while a step is left, else the Apply window."""
         if not self.signed_in():
             return SIGN_IN
-        return page(self._dashboard) if self._first.step() == READY else FIRST_RUN
+        return self._page() if self._first.step() == READY else FIRST_RUN
 
 
-def run(dashboard: Dashboard, client: workit.WorkIt | None = None) -> None:
+def bring_forward() -> bool:
+    """The app's window in front of every other app's, for Dashboard's `back` after a captcha done in a Worker's own
+    window (KAN-855). On a Mac only, for now."""
+    if sys.platform != "darwin":
+        return False
+    import AppKit  # pyobjc, which pywebview brings on a Mac
+    from PyObjCTools import AppHelper
+
+    AppHelper.callAfter(AppKit.NSApplication.sharedApplication().activateIgnoringOtherApps_, True)
+    return True
+
+
+def run(dashboard: Dashboard, client: workit.WorkIt | None = None,
+        start: Callable[[list[str], Callable[[Dashboard], None]], None] | None = None) -> None:
     """The window, till the student closes it: SIGN_IN, then FIRST_RUN, then the Apply window (Bridge._html)."""
     import webview  # here, not at the top: the bridge and its tests need no window
 
-    bridge = Bridge(dashboard, client)
+    bridge = Bridge(dashboard, client, start=start)
     window = webview.create_window(TITLE, html=bridge._html(), js_api=bridge, width=1280, height=820,
                                    min_size=(900, 600))
     bridge._window = window

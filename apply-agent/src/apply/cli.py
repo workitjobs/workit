@@ -49,6 +49,7 @@ from apply import (
     trace,
     tracker_cleanup,
     walls,
+    worker_tiles,
     workit,
 )
 from apply.accounts_tab import AccountsTab
@@ -284,7 +285,7 @@ def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
                 with _dashboard(adapters, args.workers, profile):
                     orchestrator.run(adapters, profile, args.workers, **kinds)
             finally:
-                _close_workers(adapters.site)
+                worker_tiles.close_workers(adapters.site)
             repair_later(adapters.repairs, profile.policy("repair") or {})
     elif args.command == "fill-again":
         sys.exit(_fill_again(args.target))
@@ -333,7 +334,7 @@ def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
                                        submitted_to=kept, together=args.together, force=args.force,
                                        reopening=reopening)
             finally:
-                _close_workers(adapters.site)  # before os._exit below: plain Workers' Chromes outlive this process
+                worker_tiles.close_workers(adapters.site)  # before os._exit below: plain Workers' Chromes outlive this process
         else:
             rehearsal.rehearse(args.urls, adapters, profile, args.workers, submitted_to=adapters.tracker,
                                together=args.together, force=args.force, reopening=reopening)
@@ -648,7 +649,7 @@ def _dashboard(adapters: Adapters, tiles: int, profile: ApplicantProfile, worker
     the run's own Answer bank and profile) while a run goes, and open it in its own window."""
     site = adapters.site
     answers = AnswersTab(adapters.answer_bank, profile, held=adapters.tracker.rows)
-    with _frames(site, workers or tiles) as frames, \
+    with worker_tiles.frames_for(site, workers or tiles) as frames, \
             dashboard.Dashboard(tiles, frames, answers, _applied(adapters), past=adapters.tracker.rows,
                                 answer=_answering(lambda: adapters.tracker, answers),
                                 approve=_approving(lambda: adapters.tracker), notify=adapters.notifier.notify,
@@ -774,37 +775,6 @@ def _remembering(bank: AnswerBank) -> Callable[[str, str], str]:
         bank.answer(question, answer, date.today())
         return f"Saved to your answers: {question} → {answer}. Later forms that ask it get it."
     return remember
-
-
-def _worker_chrome(workers) -> Callable[[int], int | None]:
-    """The PID of the Chrome that has plain Worker k's profile open: its tile films that Chrome only (KAN-717)."""
-    from apply.browsers import chrome_pid
-
-    return lambda worker: chrome_pid(workers.profile(worker))
-
-
-def _frames(site, tiles: int):
-    """The window's frame source for `site`'s Workers (worker_mode): CDP Workers' screencast,
-    plain Workers' port (S3), or in `protected` mode whichever Worker k runs now."""
-    from apply.plain.site import PlainSite, RoutedSite
-    from apply.plain.tile import EitherFrames, PortFrames
-
-    if isinstance(site, PlainSite):
-        return PortFrames(tiles, site.workers.bridge.connection, chrome=_worker_chrome(site.workers))
-    if isinstance(site, RoutedSite):
-        return EitherFrames(dashboard.CdpFrames(tiles, site.endpoint),
-                            PortFrames(tiles, site.connection, chrome=_worker_chrome(site.plain_site.workers)), site.plain)
-    return dashboard.CdpFrames(tiles, site.endpoint)
-
-
-def _close_workers(site) -> None:
-    """Stop the plain Workers' Chromes the run started (by PID). A CDP Worker's closes with its page."""
-    close = getattr(site, "close", None)
-    if close:
-        try:
-            close()
-        except Exception as error:
-            print(f"Couldn't stop every plain Worker ({type(error).__name__}: {error}).", file=sys.stderr)
 
 
 # One attribute line of `security dump-keychain` (no -d, so it prints no secret).
