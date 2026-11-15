@@ -82,7 +82,6 @@ from apply.model import (
     QuestionSet,
     Readback,
 )
-from apply.one_page import OnePage  # noqa: F401 (claude_fill.OnePage, as before)
 from apply.submit_guard import PROFILE_DIALOG, DriveGuard, drive_blocks
 
 MODEL = "haiku"
