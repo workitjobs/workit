@@ -7,6 +7,7 @@ import {
   changesOf,
   draftOf,
   emptyDraft,
+  emptyLine,
   formatDates,
   holdsTools,
   isFixed,
@@ -15,6 +16,18 @@ import {
   TOOL_COMMA,
   toolsLine,
 } from "./sections.ts";
+
+test("an empty card says what it lacks under the pick, then what goes there", () => {
+  assert.equal(
+    emptyLine("Awards", false, "Add scholarships, honors and prizes."),
+    "No awards yet. Add scholarships, honors and prizes.",
+  );
+  assert.equal(
+    emptyLine("Jobs", true, "Add internships."),
+    "No jobs on this resume. Add internships.",
+  );
+  assert.equal(emptyLine("Lines", false), "No lines yet.");
+});
 
 test("only a project holds tools", () => {
   assert.equal(holdsTools("projects"), true);

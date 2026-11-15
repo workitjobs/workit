@@ -905,6 +905,19 @@ Find files with a directory listing; these are the rules for where code goes.
   Experiences view never see one. `add_local_skill` writes one and leaves
   the bank's embedding alone. Tests: `tests/test_tailor.py`, "Resume-local
   skills".
+- **The bank's skills are in the student's order** (KAN-816,
+  `bank_skills.position`): `load_bank` sorts by it (`SKILL_ORDER`), then a
+  skill never ordered by group and name, as all were before, then the id.
+  The Experiences page's Skills dialog sets it through `PUT
+  .../skills/order` (`order_skills`): the skills a pick shows, each with
+  its group, so a rename, a merge and a move are one call; they take the
+  places they held among all the bank's skills, so a pick's order never
+  moves another resume's skills, and every bank skill is then numbered.
+  A skill added by hand after that goes last (`add_skill`); a reading's
+  stay unnumbered, after the ordered ones. Generate positions a new
+  resume's skills in the bank's order (`all_chosen`), so it prints the
+  student's group order; existing resumes keep their own choice rows.
+  Tests: `tests/test_bank.py`, "the student's order of skills".
 - **The experience bank is written only through `services/bank.py`.** It
   holds the ownership scoping, the duplicate check and the marking of the
   bank embedding as stale, with its notify to the bank job, on every entry,
@@ -1607,6 +1620,9 @@ Find files with a directory listing; these are the rules for where code goes.
   (`models/CLAUDE.md`, "notifications") and sends one email through
   `services/email.py`'s `send_email` (AWS SES, the one place a provider
   swap would touch) from the same computed list — never scored twice.
+  The bell's title, the email's heading and its subject count the jobs
+  in one word form (`_title`): one job is "Your 1 Best Match Today",
+  never "1 Best Matches" (KAN-826).
   **Authenticates via the EC2 instance's IAM role, never a stored key**:
   `aws_region`/`ses_from_email` in `config.py` are the only settings, both
   plain values, nothing to rotate — a run from anywhere without that role
@@ -2045,6 +2061,16 @@ go then. A change needs to work on Cloudflare only.
   them: an upload never wrote one, and Tailor, the resume view, Generate,
   Scout, the recommender and the embedding all ignored them. A skill is
   one list per student.
+- **Apply `e6a2c8f4b015` (`bank_skills.position`, KAN-816) before the
+  deploy that maps it.** The model selects the column with every skill and
+  `load_bank` orders by it, so deployed first, `GET /bank`, uploads,
+  Import Again, Add skill, Generate and every resume answer 500. It only
+  adds a nullable column (null is a skill never ordered, listed as before),
+  so applying it early is safe. It goes to `main` in its own PR first (the
+  branch's first commit), then is applied, then KAN-816 merges.
+  `models/bank.py` and `services/bank.py` changed, so the bank job needs a
+  pull and a restart after the merge (above); its old code never reads the
+  column, so the order between the two is free once the migration is on.
 - **Apply `d8f3b6a1c947` (`built_resume_skills.group`, KAN-586) before
   the deploy that maps it.** The model selects the column with every skill
   choice, so deployed first, every built resume, Generate, Tailor and the

@@ -228,6 +228,17 @@ async def _bullets_of(session: AsyncSession, entry_ids: Sequence[uuid.UUID]) -> 
     return out
 
 
+# The bank's order of skills (KAN-816): the student's (`position`, set by the
+# Skills dialog), then a skill never placed by its group and name, as every
+# skill was listed before, then the id, so a tie reads the same every time.
+SKILL_ORDER = (
+    Bank_Skill.position.asc().nulls_last(),
+    Bank_Skill.group.asc().nulls_last(),
+    func.lower(Bank_Skill.name),
+    Bank_Skill.id,
+)
+
+
 async def load_bank(
     session: AsyncSession, applicant_id: uuid.UUID, *, local_to: Iterable[uuid.UUID] = ()
 ) -> Bank:
@@ -241,7 +252,10 @@ async def load_bank(
     same on every read (KAN-444): Generate shows the first copy of an entry
     or of a skill two uploads hold (`built_resumes.base_choices`), and its
     duplicate check compares ids, so with no tiebreaker a second read could
-    pick the other copy and miss a duplicate."""
+    pick the other copy and miss a duplicate.
+
+    Skills come in the student's order (`SKILL_ORDER`, KAN-816), so a new
+    resume's Generate prints the groups and skills in it."""
     rows = list(await session.scalars(
         select(Bank_Entry).where(Bank_Entry.applicant_id == applicant_id).order_by(Bank_Entry.id)))
     # A stable sort: the id order stays among entries that tie
@@ -254,7 +268,7 @@ async def load_bank(
             Bank_Skill.applicant_id == applicant_id,
             or_(Bank_Skill.built_resume_id.is_(None), Bank_Skill.built_resume_id.in_(local)),
         )
-        .order_by(Bank_Skill.group.asc().nulls_last(), func.lower(Bank_Skill.name), Bank_Skill.id)
+        .order_by(*SKILL_ORDER)
     )
     sections = await session.scalars(
         select(Bank_Custom_Section)
@@ -569,10 +583,19 @@ async def add_skill(
     session: AsyncSession, applicant_id: uuid.UUID, name: str, group: str | None = None,
     *, resume_id: uuid.UUID | None = None,
 ) -> Bank_Skill:
-    """Save a skill, owned as `create_entry`'s entry is."""
+    """Save a skill, owned as `create_entry`'s entry is. Once the student
+    has ordered their skills (KAN-816), a new one goes last, so it lands at
+    its group's end (or starts a group at the end); before that it stays
+    unplaced, in the bank's old order by group and name."""
     if await _skill_name_taken(session, applicant_id, resume_id, name):
         raise DuplicateSkillError
-    skill = Bank_Skill(id=uuid.uuid4(), applicant_id=applicant_id, resume_id=resume_id, name=name, group=group)
+    last = await session.scalar(
+        select(func.max(Bank_Skill.position))
+        .where(Bank_Skill.applicant_id == applicant_id, Bank_Skill.built_resume_id.is_(None))
+    )
+    skill = Bank_Skill(
+        id=uuid.uuid4(), applicant_id=applicant_id, resume_id=resume_id, name=name, group=group,
+        position=None if last is None else last + 1)
     session.add(skill)
     await clear_embedding(session, applicant_id)
     await session.flush()
@@ -618,6 +641,44 @@ async def update_skill(
     await clear_embedding(session, applicant_id)
     await session.flush()
     return skill
+
+
+async def order_skills(
+    session: AsyncSession, applicant_id: uuid.UUID, order: Sequence[tuple[uuid.UUID, str | None]]
+) -> None:
+    """The Skills dialog's save (KAN-816): the listed skills, each with its
+    group, in the order the student left them. One call renames a group,
+    merges two (one group's skills take the other's name) and moves groups
+    and skills, so a change is all or nothing.
+
+    The listed skills are the ones a resume pick shows, or every one under
+    All Experiences. They take the places they held among all the bank's
+    skills, in their new order, and every other skill keeps its place: a
+    pick's order never pushes another resume's skills about. Then every
+    bank skill is numbered, so none is left unplaced. Every id must be the
+    applicant's bank skill (a resume-local one is not), or `NotFound` and
+    nothing changes. The bank is marked stale only when a group or place
+    changed."""
+    skills = list(await session.scalars(
+        select(Bank_Skill)
+        .where(Bank_Skill.applicant_id == applicant_id, Bank_Skill.built_resume_id.is_(None))
+        .order_by(*SKILL_ORDER)
+    ))
+    by_id = {skill.id: skill for skill in skills}
+    groups = dict(order)
+    if any(skill_id not in by_id for skill_id in groups):
+        raise NotFound
+    listed = iter(skill_id for skill_id, _ in order)
+    arranged = [by_id[next(listed)] if skill.id in groups else skill for skill in skills]
+    changed = False
+    for position, skill in enumerate(arranged):
+        group = groups.get(skill.id, skill.group)
+        if skill.position != position or skill.group != group:
+            skill.position, skill.group = position, group
+            changed = True
+    if changed:
+        await clear_embedding(session, applicant_id)
+    await session.flush()
 
 
 async def delete_skill(session: AsyncSession, applicant_id: uuid.UUID, skill_id: uuid.UUID) -> None:

@@ -313,6 +313,13 @@ change here must keep:
   section: a list's empty value is `[]`, never NULL, and a PATCH that sends
   null clears it to `[]`. A project's tools are the student's words for its
   stack, in order, kept beside the skills, never in place of them.
+- **`bank_skills.position` is the student's order of their skills**
+  (KAN-816, `e6a2c8f4b015`): nullable, null for a skill never ordered (a
+  reading's, and every row before the migration), which lists after the
+  ordered ones by group and name. A group sits where its first skill does,
+  so there is no group table: a group is a name its skills share. Only
+  `services/bank.py` writes it (`order_skills`, `add_skill`). No unique
+  constraint, as bullet positions have none.
 - **A skill name appears once per applicant, ignoring case**
   (`bank_skills_applicant_name_key` on `lower(name)`), so Tailor's "Have you
   used X?" and import can look a skill up by name.
@@ -1239,11 +1246,12 @@ read and mark rows read.
   `schemas/jobs.py`'s `JobListing.id` shape), not a foreign key: a
   notification is a historical record of what was sent, and must still
   read correctly after the job posting it names closes or is deleted.
-- **`read_at` is null until the applicant opens the bell.** There is no
-  per-notification mark-read, only mark-all (`routers/notifications.py`),
-  matching the bell's own existing copy
-  (`frontend/src/components/notifications-menu.tsx`'s "You're All Caught
-  Up") already treating "opened it" as "now caught up."
+- **`read_at` is null until the applicant opens the row or presses Mark
+  All Read** (KAN-829). `POST .../notifications/read` takes the rows to
+  mark (`{"ids": [...]}`, a row the bell opened with its grouped repeats)
+  or, with no body, marks every unread row. Opening the bell marked
+  everything read until then, which left the bell's Mark All Read nothing
+  to do (`frontend/src/components/notifications-menu.tsx`).
 - **Its migration is `89d598a1667d`**, which also adds
   `applicant_profiles.job_alerts_enabled` (RLS on the new table, no
   policies). Nothing reads either before the deploy that adds the

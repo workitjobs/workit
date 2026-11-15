@@ -39,6 +39,12 @@ import { cn } from "@/lib/cn";
  * Jobs page's filter chips (`Choices`) in place of 56px tiles. Until
  * 2026-11-03 it only shrank the headings, and the section read as
  * onboarding dropped into Settings.
+ *
+ * ONE MARK: a red * on the three answers Save and Next need, and nothing on
+ * the four optional ones (`tag={false}`), as every form with a required
+ * field in the app marks it (ui/text-field.tsx's RequiredMark; Settings'
+ * Personal Details beside it). It marked both ways, * and "Optional", until
+ * KAN-829. "Optional" stays for a step with no required question, once.
  */
 
 type Glyph = ComponentType<{ className?: string }>;
@@ -105,7 +111,7 @@ export function RoleStep({
         </Choices>
       </Field>
       {interns && (
-        <Field dense={dense} Icon={CalendarIcon} label="Start Date">
+        <Field dense={dense} Icon={CalendarIcon} label="Start Date" tag={false}>
           {seasons.length === 0 ? (
             <p className="text-body text-ink-meta">No start dates in the feed yet.</p>
           ) : (
@@ -124,7 +130,7 @@ export function RoleStep({
       {/* After Job Type, which says what kind of job: this says how much
           experience it asks for, and internships count as Entry Level, so
           no pair of the two empties the feed (KAN-284). */}
-      <Field dense={dense} Icon={LevelIcon} label="Experience Level">
+      <Field dense={dense} Icon={LevelIcon} label="Experience Level" tag={false}>
         <Choices dense={dense} columns="grid-cols-1 sm:grid-cols-2">
           {EXPERIENCE_OPTIONS.map((o) => (
             <Choice
@@ -153,7 +159,7 @@ export function RoleStep({
           ))}
         </Choices>
       </Field>
-      <Field dense={dense} Icon={PinIcon} label="Location">
+      <Field dense={dense} Icon={PinIcon} label="Location" tag={false}>
         <SearchPicker
           size={size}
           label="Places"
@@ -166,7 +172,7 @@ export function RoleStep({
       </Field>
       {/* Pay is part of the role (KAN-283): its units follow the job types
           picked above. */}
-      <Field dense={dense} Icon={CoinIcon} label="Salary Range">
+      <Field dense={dense} Icon={CoinIcon} label="Salary" tag={false}>
         <SalaryPicker
           size={size}
           units={payUnits(answers.jobTypes)}
@@ -256,7 +262,8 @@ export function Field({
   required?: boolean;
   /** Whether the heading says "Optional" (or * when required). A heading over
    *  a result, not a question, says neither: on the resume preview "Optional"
-   *  read as if the reading were optional (KAN-732). */
+   *  read as if the reading were optional (KAN-732). Nor does an optional
+   *  question beside required ones, which carry the * (RoleStep, KAN-829). */
   tag?: boolean;
   /** Settings' size (RoleStep's `dense`): a 14px heading, 16px apart. */
   dense?: boolean;

@@ -11,6 +11,12 @@ import type {
  * them. Skills, the seventh, is a plain list with its own card, not entries.
  * `title` and `organization` name those two fields for the section: one
  * entry shape, worded the way a student thinks of each kind.
+ *
+ * `experience` is "Work Experience" on every screen (KAN-814): beside the
+ * page's name, Experiences, "Experience 14" in the section nav read as a
+ * count for the whole page. The printed resume keeps the heading
+ * "Experience" (`SECTION_LABELS` in `resumes/[resumeId]/model.ts`, and the
+ * API's `fields.py`).
  */
 export const SECTIONS: readonly {
   id: Section;
@@ -19,7 +25,7 @@ export const SECTIONS: readonly {
   organization: string;
 }[] = [
   { id: "education", label: "Education", title: "School", organization: "College or Department" },
-  { id: "experience", label: "Experience", title: "Job Title", organization: "Company" },
+  { id: "experience", label: "Work Experience", title: "Job Title", organization: "Company" },
   { id: "projects", label: "Projects", title: "Project Name", organization: "Team or Course" },
   {
     id: "leadership",
@@ -60,6 +66,30 @@ export const NOUNS: Record<EntrySection, readonly [string, string]> = {
   certifications: ["Certification", "Certifications"],
   custom: ["Entry", "Entries"],
 };
+
+/**
+ * What goes in each section, as its empty card says it (KAN-814): "No
+ * awards yet. Add scholarships, honors and prizes." A section the student
+ * named has none, since its name already says it.
+ */
+export const WHAT_GOES_HERE: Record<Section | "skills", string> = {
+  education: "Add your college, degree and graduation date.",
+  experience: "Add internships, part-time jobs and research positions.",
+  projects: "Add class, personal and hackathon projects.",
+  leadership: "Add clubs, teams and student groups you lead or belong to.",
+  awards: "Add scholarships, honors and prizes.",
+  certifications: "Add licenses and certificates you have earned.",
+  skills: "Add languages, tools and frameworks.",
+};
+
+/**
+ * An empty section card's one line (KAN-814): what it lacks, under the
+ * pick, then what goes there. `items` is the plural, "Awards" or "Lines".
+ */
+export function emptyLine(items: string, picked: boolean, hint?: string): string {
+  const none = `No ${items.toLowerCase()} ${picked ? "on this resume" : "yet"}.`;
+  return hint ? `${none} ${hint}` : none;
+}
 
 export function sectionOf(id: EntrySection) {
   return id === "custom" ? CUSTOM_FIELDS : SECTIONS.find((s) => s.id === id)!;

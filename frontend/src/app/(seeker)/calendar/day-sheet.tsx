@@ -38,9 +38,7 @@ export function DaySheet({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="bottom" className="rounded-t-shell max-h-[80svh] gap-0">
         <SheetHeader className="pr-12">
-          <SheetTitle className="text-subtitle text-ink font-semibold">
-            {format(parseISO(day), "EEEE, MMMM d")}
-          </SheetTitle>
+          <SheetTitle className="text-ink">{format(parseISO(day), "EEEE, MMMM d")}</SheetTitle>
         </SheetHeader>
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-none px-4">
           {entries.length ? (

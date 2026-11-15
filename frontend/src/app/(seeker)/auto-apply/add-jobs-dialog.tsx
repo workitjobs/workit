@@ -10,6 +10,7 @@ import { MatchBadge } from "@/components/match-badge";
 import { Checkbox } from "@/components/shadcn/checkbox";
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -34,7 +35,8 @@ export type SavedJob = {
   place: string | null;
   logoUrl: LogoSrc;
   match: number | null;
-  /** Its hiring system is one auto apply can fill (Greenhouse for now). */
+  /** Its hiring system is one auto apply can fill (the API's
+   *  `auto_apply`, from backend/app/auto_apply/hosts.py). */
   autoApply: boolean;
 };
 
@@ -48,9 +50,12 @@ export type SavedJob = {
  *
  * A row's checkbox, or a click on the row but its title (the job's link),
  * picks it; Select All picks every job auto apply can fill. One it can't
- * (not Greenhouse, for now) can't be picked and says why, on a line of its
- * own outside the dimmed row. Each row's second line is the company and the
- * place, so two saved jobs with one title at one company read apart. "Add N
+ * (its hiring system is not in the API's list) can't be picked and says
+ * why, on a line of its own outside the dimmed row. No line here names the
+ * hiring systems: the list grows in the API, and a sentence that named
+ * them ("Greenhouse jobs only") stayed after it did (KAN-826). Each row's
+ * second line is the company and the place, so two saved jobs with one
+ * title at one company read apart. "Add N
  * to Queue" queues each pick through the same call as a job's own Auto Apply
  * button (queueJob), in the list's order, then asks the extension to open the
  * oldest queued job (openNextApplication), says how many went in with a
@@ -119,104 +124,106 @@ export function AddJobsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+      <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle className="text-subtitle font-semibold">Add Jobs to the Queue</DialogTitle>
-          <DialogDescription>
-            Pick saved jobs for Auto Apply to fill. It fills Greenhouse jobs only, for now.
-          </DialogDescription>
+          <DialogTitle>Add Jobs to the Queue</DialogTitle>
+          <DialogDescription>Pick saved jobs for Auto Apply to fill.</DialogDescription>
         </DialogHeader>
 
-        {jobs.length === 0 ? (
-          <div className="flex flex-col items-start gap-3">
-            <p className="text-body text-ink-meta">
-              You have no saved jobs yet. Save jobs from the Jobs page, then add them here.
-            </p>
-            <ButtonLink href="/jobs?sort=match" variant="secondary" size="sm">
-              Find Jobs
-            </ButtonLink>
-          </div>
-        ) : (
-          <div className="border-border-subtle rounded-card overflow-hidden border">
-            <div className="border-border-subtle flex items-center gap-3 border-b px-4 py-2.5">
-              <Checkbox
-                className="border-ink-meta"
-                checked={allPicked}
-                indeterminate={pickedNow.length > 0 && !allPicked}
-                disabled={pickable.length === 0 || pending}
-                onCheckedChange={() =>
-                  setPicked(allPicked ? new Set() : new Set(pickable.map((job) => job.id)))
-                }
-                aria-label={allPicked ? "Unselect All" : "Select All That Auto Apply Can Fill"}
-              />
-              <span className="text-note text-ink-meta">
-                {pickable.length === 0
-                  ? "None of your saved jobs are on Greenhouse yet."
-                  : `${pickable.length} of ${jobs.length} saved jobs can be auto applied to`}
-              </span>
+        <DialogBody>
+          {jobs.length === 0 ? (
+            <div className="flex flex-col items-start gap-3">
+              <p className="text-body text-ink-meta">
+                You have no saved jobs yet. Save jobs from the Jobs page, then add them here.
+              </p>
+              <ButtonLink href="/jobs?sort=match" variant="secondary" size="sm">
+                Find Jobs
+              </ButtonLink>
             </div>
-            {/* The list scrolls under Select All at the scroll-box height,
-                as the resume picker's table does; it grew the dialog to
-                90% of the window before. */}
-            <ul className="divide-border-subtle max-h-scroll-box divide-y overflow-y-auto">
-              {jobs.map((job) => (
-                <li
-                  key={job.id}
-                  onClick={(event) => {
-                    if ((event.target as HTMLElement).closest("a, button")) return;
-                    if (job.autoApply && !pending) toggle(job.id);
-                  }}
-                  className={cn(
-                    "flex items-center gap-3 px-4 py-3 transition-colors duration-150",
-                    job.autoApply
-                      ? "hover:bg-hover has-[[data-checked]]:bg-brand-tint cursor-pointer"
-                      : "cursor-not-allowed",
-                  )}
-                >
-                  <Checkbox
-                    className="border-ink-meta"
-                    checked={picked.has(job.id) && job.autoApply}
-                    disabled={!job.autoApply || pending}
-                    onCheckedChange={() => toggle(job.id)}
-                    aria-label={
-                      job.autoApply
-                        ? `Select ${job.role} at ${job.company}`
-                        : `${job.role} at ${job.company}: Auto Apply can't fill this job's site yet`
-                    }
-                  />
-                  <CompanyLogo
-                    name={job.company}
-                    src={job.logoUrl}
+          ) : (
+            <div className="border-border-subtle rounded-card overflow-hidden border">
+              <div className="border-border-subtle flex items-center gap-3 border-b px-4 py-2.5">
+                <Checkbox
+                  className="border-ink-meta"
+                  checked={allPicked}
+                  indeterminate={pickedNow.length > 0 && !allPicked}
+                  disabled={pickable.length === 0 || pending}
+                  onCheckedChange={() =>
+                    setPicked(allPicked ? new Set() : new Set(pickable.map((job) => job.id)))
+                  }
+                  aria-label={allPicked ? "Unselect All" : "Select All That Auto Apply Can Fill"}
+                />
+                <span className="text-note text-ink-meta">
+                  {pickable.length === 0
+                    ? "Auto Apply can't fill any of your saved jobs yet."
+                    : `${pickable.length} of ${jobs.length} saved jobs can be auto applied to`}
+                </span>
+              </div>
+              {/* The list scrolls under Select All at the scroll-box height,
+                  as the resume picker's table does; it grew the dialog to
+                  90% of the window before. */}
+              <ul className="divide-border-subtle max-h-scroll-box divide-y overflow-y-auto">
+                {jobs.map((job) => (
+                  <li
+                    key={job.id}
+                    onClick={(event) => {
+                      if ((event.target as HTMLElement).closest("a, button")) return;
+                      if (job.autoApply && !pending) toggle(job.id);
+                    }}
                     className={cn(
-                      "text-meta size-8 shrink-0 rounded",
-                      !job.autoApply && "opacity-60",
+                      "flex items-center gap-3 px-4 py-3 transition-colors duration-150",
+                      job.autoApply
+                        ? "hover:bg-hover has-[[data-checked]]:bg-brand-tint cursor-pointer"
+                        : "cursor-not-allowed",
                     )}
-                  />
-                  <div className="min-w-0 flex-1">
-                    <div className={cn(!job.autoApply && "opacity-60")}>
-                      <Link
-                        href={`/jobs/${encodeURIComponent(job.id)}`}
-                        title={job.role}
-                        className="text-label text-ink hover:text-brand focus-visible:ring-brand-ring block truncate rounded-xs font-semibold transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none"
-                      >
-                        {job.role}
-                      </Link>
-                      <p className="text-note text-ink-meta truncate">
-                        {job.place ? `${job.company} · ${job.place}` : job.company}
-                      </p>
+                  >
+                    <Checkbox
+                      className="border-ink-meta"
+                      checked={picked.has(job.id) && job.autoApply}
+                      disabled={!job.autoApply || pending}
+                      onCheckedChange={() => toggle(job.id)}
+                      aria-label={
+                        job.autoApply
+                          ? `Select ${job.role} at ${job.company}`
+                          : `${job.role} at ${job.company}: Auto Apply can't fill this job's site yet`
+                      }
+                    />
+                    <CompanyLogo
+                      name={job.company}
+                      src={job.logoUrl}
+                      className={cn(
+                        "text-meta size-8 shrink-0 rounded",
+                        !job.autoApply && "opacity-60",
+                      )}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className={cn(!job.autoApply && "opacity-60")}>
+                        <Link
+                          href={`/jobs/${encodeURIComponent(job.id)}`}
+                          title={job.role}
+                          className="text-label text-ink hover:text-brand focus-visible:ring-brand-ring block truncate rounded-xs font-semibold transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none"
+                        >
+                          {job.role}
+                        </Link>
+                        <p className="text-note text-ink-meta truncate">
+                          {job.place ? `${job.company} · ${job.place}` : job.company}
+                        </p>
+                      </div>
+                      {/* Outside the dimmed block: it is the explanation, and
+                          at 60% it fell to about 2.9:1. */}
+                      {!job.autoApply && (
+                        <p className="text-note text-ink-meta">
+                          Auto Apply can&apos;t fill this one
+                        </p>
+                      )}
                     </div>
-                    {/* Outside the dimmed block: it is the explanation, and
-                        at 60% it fell to about 2.9:1. */}
-                    {!job.autoApply && (
-                      <p className="text-note text-ink-meta">Auto Apply can&apos;t fill this one</p>
-                    )}
-                  </div>
-                  {job.match != null && <MatchBadge score={job.match} />}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
+                    {job.match != null && <MatchBadge score={job.match} />}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </DialogBody>
 
         <DialogFooter>
           <Button variant="secondary" onClick={() => onOpenChange(false)} disabled={pending}>
