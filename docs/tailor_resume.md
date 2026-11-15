@@ -143,7 +143,11 @@ place. The reply has two lists:
 
 `rewords` keeps today's rules: the handle check, the truth rule, the
 overlap check (`keeps_its_bullet`), the token budget and the reply cap
-(`backend/CLAUDE.md`, "Tailor").
+(`backend/CLAUDE.md`, "Tailor"). **A rewording that changes only case,
+spacing or punctuation is no change** (`same_words`: the same words,
+numbers and symbols in order), so "Built X." for "built X" is skipped,
+not counted as dropped: until KAN-811 a period alone was marked as
+Tailor's rewrite.
 
 ## Skill placement
 
@@ -171,7 +175,8 @@ Code checks each placement on its own, so one bad line loses nothing else:
 | Two placements share one `after` | Both go there, in reply order |
 | `after` is out of range | End of its group |
 | `after` names a skill in another group | Trust the group: end of its group |
-| A new group name | Keep it if it is short, is not an existing group in other case ("tools" for "Tools"), holds no identity placeholder, and the run has made at most two new groups; else "Other" |
+| A near name of one group ("Programming Languages" for "Languages", "Cloud" for "Cloud & DevOps": one name's words hold the other's, plurals and "and" aside) | That group; two groups that match are no match |
+| A new group name | Keep it if it is short, is not an existing group in other case ("tools" for "Tools"), holds no identity placeholder, and the run has made at most two new groups; else "Other". Its words in lower case are written as a resume writes them ("cloud & devops" to "Cloud & DevOps") |
 | A picked skill with no placement, or a name the model changed | End of "Other" |
 
 **The group wins over the number**: the student sees the group label, and

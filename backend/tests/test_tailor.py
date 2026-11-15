@@ -262,6 +262,25 @@ def test_a_rewording_keeps_its_bullet_and_another_bullet_s_does_not():
     assert not tailor.keeps_its_bullet("Developed web endpoints with Flask", original)
 
 
+def test_a_rewording_that_changes_only_case_spacing_or_punctuation_is_no_change():
+    # KAN-811: a period or a capital letter alone was marked as Tailor's rewrite
+    assert tailor.same_words("Wrote billing services in Python.", "wrote billing  services in python")
+    assert tailor.same_words("Built a real-time, ‘live’ feed", "Built a real time 'live' feed")
+    assert not tailor.same_words("Wrote billing services in C++", "Wrote billing services in C")
+    assert not tailor.same_words("Cut load time by 50%", "Cut load time by 50")
+    assert not tailor.same_words("Built services in Go", "Built services in Python")
+
+
+async def test_a_run_skips_a_rewording_that_changes_only_case_or_a_period(student, database, use_model):
+    posting = await _seed_posting(database)
+    use_model(reply(rewords=[("b2", "Wrote billing services in Python.")]))
+
+    body = (await student.tailor(posting)).json()
+
+    assert "reword" not in _kinds(body)
+    assert body["dropped"] == 0
+
+
 async def test_a_prompt_over_budget_leaves_out_the_lowest_ranked_bullets(signed_in, database, use_model):
     # An entry holds at most 30 bullets: five of them, about 30,000 characters.
     for n in range(5):
@@ -987,6 +1006,26 @@ def test_a_group_too_long_or_holding_a_placeholder_is_no_group():
                      {"skill": "Go", "group": "x" * 41},
                      {"skill": "Rust", "group": "[name]'s tools"})
     assert placed[4:] == [("Go", None), ("Rust", None)]
+
+
+def test_a_near_name_of_a_group_joins_that_group():
+    # KAN-811: "Programming Languages" made a second group beside "Languages"
+    placed = _placed(SKILLS, ["Go", "Terraform"],
+                     {"skill": "Go", "group": "Programming Languages", "after": 0},
+                     {"skill": "Terraform", "group": "dev tool", "after": 0})
+    assert placed == [("Go", "Languages"), ("Python", "Languages"), ("Java", "Languages"),
+                      ("Terraform", "Tools"), ("Git", "Tools"), ("Docker", "Tools")]
+
+
+def test_a_name_near_two_groups_is_a_new_group():
+    placed = _placed(SKILLS, ["Bash"], {"skill": "Bash", "group": "Languages & Tools", "after": 0})
+    assert placed[-1] == ("Bash", "Languages & Tools")
+
+
+def test_a_new_group_in_lower_case_is_written_as_a_resume_writes_it():
+    # KAN-811: a group the model named in lower case printed in lower case
+    placed = _placed(SKILLS, ["AWS"], {"skill": "AWS", "group": "cloud & devops", "after": 0})
+    assert placed[-1] == ("AWS", "Cloud & DevOps")
 
 
 def test_a_skill_not_picked_placed_twice_or_left_out_is_handled_alone():

@@ -62,6 +62,12 @@ SECTION_FIELDS: dict[bank_section, tuple[str, ...]] = {
 _ALL_SECTION_FIELDS = {f for fields in SECTION_FIELDS.values() for f in fields}
 
 
+# A date given as a year alone (KAN-808): stored as January of it, which no
+# resume prints
+YearOnly = Literal["start_month", "end_month", "award_date"]
+YEAR_DATES: tuple[YearOnly, ...] = ("start_month", "end_month", "award_date")
+
+
 class EntryFields(BaseModel):
     """Every field of an entry, checked as a whole."""
 
@@ -82,11 +88,13 @@ class EntryFields(BaseModel):
     tools: list[Name] = Field(default_factory=list, max_length=30)
     issuer: Text | None = None
     award_date: Month | None = None
+    # Which of the dates above name a year alone (KAN-808)
+    year_only: list[YearOnly] = Field(default_factory=list, max_length=3)
     # The section the student named (KAN-498), on a `custom` entry only. It
     # is fixed once the entry exists, as `section` is.
     custom_section_id: UUID | None = None
 
-    @field_validator("coursework", "tools", mode="before")
+    @field_validator("coursework", "tools", "year_only", mode="before")
     @classmethod
     def _null_is_empty(cls, value: object) -> object:
         # PATCH clears a field with null; a list's empty value is []
@@ -112,6 +120,8 @@ class EntryFields(BaseModel):
 
         if self.gpa is not None and self.gpa_scale is not None and self.gpa > self.gpa_scale:
             raise ValueError("The GPA is higher than its scale")
+        # A mark only on a date the entry has, once each, in one order
+        self.year_only = [f for f in YEAR_DATES if f in self.year_only and getattr(self, f) is not None]
         return self
 
 
@@ -197,6 +207,8 @@ class EntryUpdate(BaseModel):
     tools: list[Name] | None = Field(None, max_length=30)
     issuer: Text | None = None
     award_date: Month | None = None
+    # Left out, a date the edit changes loses its mark (`bank.with_years`)
+    year_only: list[YearOnly] | None = Field(None, max_length=3)
 
 
 class BulletCreate(BaseModel):

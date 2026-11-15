@@ -54,6 +54,9 @@ export type EntryFields<S extends EntrySection = EntrySection> = {
   tools: string[];
   issuer: string | null;
   award_date: string | null;
+  /** The dates given as a year alone (KAN-808), shown as the year. Read
+   *  only: an edit leaves it out, and a date the edit changes loses its mark. */
+  year_only?: ("start_month" | "end_month" | "award_date")[];
 };
 
 export type Bullet = { id: string; position: number; text: string };

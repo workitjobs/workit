@@ -3757,7 +3757,10 @@ student who opened a resume from Experiences landed on another view.
   entry's, bullet's or skill's is a choice. **A skill moves within its group,
   into another group, or with its whole group**, and a group prints where its
   first skill does, so dragging a group renumbers its skills
-  (`arrangeSkills`). A move to another group is this resume's alone
+  (`arrangeSkills`). **The outline's groups are the printed ones**
+  (`printedSkills`, KAN-810): names that differ only in case or "&" are one
+  group under one label, as `fields.skill_lines` prints them, and a skill
+  already in its merged group is no move. A move to another group is this resume's alone
   (`built_resume_skills.group`: null the bank's, "" no group, else that
   group), never the bank's; a skill dropped on a closed group goes to its
   end, and a skill's arrow keys step past its group's edge into the next.
