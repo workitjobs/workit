@@ -188,8 +188,10 @@ def test_the_filler_fills_the_same_controls_on_a_plain_worker(tmp_path):
     html = f"""<form method=post action="/apply"><label>First name <input></label>
       <label>State <select><option value="">Select...</option><option>New York</option><option>Ohio</option></select></label>
       <fieldset><legend>Authorized?</legend><label><input type=radio name=a> Yes</label><label><input type=radio name=a> No</label></fieldset>
-      <label><input type=checkbox> I am at least 18 years old</label>{SUBMIT}</form>"""
-    answers = {"First name": "Test", "State": "Ohio", "Authorized?": "No", "I am at least 18 years old": "Yes"}
+      <label><input type=checkbox> I am at least 18 years old</label>
+      {DROPDOWN % '<li role=option>A friend</li><li role=option>Online job board</li>'}{SUBMIT}</form>"""
+    answers = {"First name": "Test", "State": "Ohio", "Authorized?": "No", "I am at least 18 years old": "Yes",
+               "How did you hear about us?": "A friend"}
     with fake_page(lambda route: route.fulfill(body=html, content_type="text/html"), url="https://jobs.example.com/1") as page:
         _, readback, questions = filled(page, answers)
     names = {q.label: q.name for q in questions}
@@ -218,6 +220,57 @@ def test_a_radio_choice_code_cant_match_is_the_models_pick_and_a_none_is_the_stu
         assert readback == {"g1": "Online job board"} and filler.picked == [("How did you hear about us?", "Online job board")]
     with form(html) as page, pytest.raises(FillError, match="^How did you hear about us[?]: no option fits 'LinkedIn'"):
         filled(page, {"How did you hear about us?": "LinkedIn"}, GenericFiller(pick=lambda q, options, a: None))
+
+
+DROPDOWN = """<div role=combobox aria-label="How did you hear about us?" aria-controls=hear tabindex=0
+  onclick="hear.hidden = false">Select</div>
+<ul role=listbox id=hear hidden>%s</ul>
+<script>for (const o of document.querySelectorAll('#hear [role=option]')) o.addEventListener('click', () => {
+  if (o.dataset.group) { hear.innerHTML = o.dataset.group.split('|').map((x) => '<li role=option>' + x + '</li>').join('');
+    for (const n of hear.children) n.addEventListener('click', () => { document.querySelector('[role=combobox]').textContent = n.textContent; hear.hidden = true; });
+    return; }
+  document.querySelector('[role=combobox]').textContent = o.textContent; hear.hidden = true; });</script>"""
+
+
+def test_a_dropdown_choice_code_cant_match_is_the_models_pick_and_code_clicks_it():
+    # Fault: a dropdown left blank when the answer's words aren't an option's, or a pick that never reaches the page.
+    asked = []
+
+    def pick(question, options, answer):
+        asked.append((question, options, answer))
+        return options.index("Online job board")
+    html = f"<form>{DROPDOWN % '<li role=option>A friend</li><li role=option>Online job board</li>'}{SUBMIT}</form>"
+    with form(html) as page:
+        filler = GenericFiller(pick=pick)
+        filled(page, {"How did you hear about us?": "LinkedIn"}, filler)
+        assert asked == [("How did you hear about us?", ["A friend", "Online job board"], "LinkedIn")]
+        assert page.get_by_role("combobox").inner_text() == "Online job board"
+        assert filler.picked == [("How did you hear about us?", "Online job board")]
+
+
+def test_a_two_level_list_opens_the_group_the_model_picks_and_code_finds_the_answer_in_it():
+    # Fault (W2's example, Workday's "How did you hear about us?"): the groups taken as the choices, so "LinkedIn"
+    # fits none and the field is the student's, though one group holds it.
+    groups = ('<li role=option aria-haspopup=listbox data-group="Indeed|LinkedIn">Job Board</li>'
+              '<li role=option aria-haspopup=listbox data-group="Instagram|TikTok">Social Media</li>')
+    picks = []
+    html = f"<form>{DROPDOWN % groups}{SUBMIT}</form>"
+    with form(html) as page:
+        filler = GenericFiller(pick=lambda q, options, a: picks.append(options) or 0)
+        filled(page, {"How did you hear about us?": "LinkedIn"}, filler)
+        assert picks == [["Job Board", "Social Media"]]  # one question, the groups; code found LinkedIn in Job Board
+        assert page.get_by_role("combobox").inner_text() == "LinkedIn"
+
+
+def test_a_search_box_is_typed_into_and_its_listed_choice_clicked():
+    # Fault: a search box (no choices until one types) typed into and left, its typed text read back as the answer.
+    html = f"""<form><label>School <input role=combobox aria-controls=sl id=s
+      oninput="sl.innerHTML = this.value ? '<li role=option>State University of New York at Stony Brook</li>' : ''"></label>
+      <ul role=listbox id=sl></ul><script>sl.addEventListener('click', (e) => {{ s.value = e.target.textContent; sl.innerHTML = ''; }});</script>{SUBMIT}</form>"""
+    with form(html) as page:
+        filler = GenericFiller(pick=lambda q, options, a: 0)
+        filled(page, {"School": "Stony Brook University"}, filler)
+        assert page.locator("#s").input_value() == "State University of New York at Stony Brook"
 
 
 @pytest.mark.parametrize(("trap", "said"), [

@@ -54,6 +54,9 @@ FACTS = r"""el => {
     multiple: !!el.multiple, readonly: !!el.readOnly || attr('aria-readonly') === 'true',
     disabled: !!el.disabled || attr('aria-disabled') === 'true',
     popup: (attr('aria-haspopup') || '').toLowerCase(), autocomplete: (attr('aria-autocomplete') || '').toLowerCase(),
+    // A list a combobox opens (its aria-controls or aria-owns): that combobox's, never a question of its own.
+    owned: !!el.id && [...document.querySelectorAll('[aria-controls], [aria-owns]')].some((other) => other !== el &&
+      `${other.getAttribute('aria-controls') || ''} ${other.getAttribute('aria-owns') || ''}`.split(/\s+/).includes(el.id)),
     options,
   };
 }"""
@@ -144,9 +147,10 @@ class Field:
 
     @property
     def key(self) -> tuple[str, str, int]:
-        """What tells this field from the others on a step, read after read: its kind of control, its label and its
-        place among those with that label."""
-        return (self.how, " ".join(self.label.lower().split()), self.nth)
+        """What tells this field from the others on a step, read after read: its role (a file input: "file"), its
+        label and its place. Never its `how`: a read that opens no dropdown can't tell a two-level list or a search
+        box from a dropdown."""
+        return (self.role or self.how, " ".join(self.label.lower().split()), self.nth)
 
     def question(self, name: str) -> Question:
         return Question(name, self.label, self.kind, self.required, self.options, section=self.section)
@@ -261,7 +265,7 @@ class _Reader:
                                       **common))
         elif role == "listbox":  # a list of options always open (aria): picked by clicking an option
             options = tuple(o.name for o in node.children if o.role == "option" and o.name)
-            if options:
+            if options and not facts.get("owned"):
                 self._fields.append(Field("dropdown", kind="select", options=options, shows=node.value, **common))
         else:  # a combobox of the page's own making
             self._fields.append(self._dropdown(node, facts, common))

@@ -4,10 +4,11 @@ click, and a model only picks.
 
 - **Read.** apply.form_tree reads each control's role and name from the page's accessibility tree, with no model.
 - **Fill, with plain code.** A text box takes its planned answer; a native select, radio group, checkbox or set of
-  checkboxes takes the option the plan fitted to its options (the Fill engine's fit.ts, in its planner); a file is
-  set (the résumé by apply.attach, any other through apply.upload_origin). A dropdown of the page's own making is
-  the student's, for now.
-- **Pick, with a model, only when code can't.** An option is matched by its exact words, then by the Fill engine's
+  checkboxes takes the option the plan fitted to its options (the Fill engine's fit.ts, in its planner); a
+  dropdown is opened and its option clicked; a search box is typed into and its listed choice clicked; a file is
+  set (the résumé by apply.attach, any other through apply.upload_origin).
+- **Pick, with a model, only when code can't.** A choice the page lists only as the fill opens or types (a search
+  box, a dropdown read late, a two-level list's groups) is matched by its exact words, then by the Fill engine's
   `shows`; with none, one small question goes to WorkIt's Model route (`generic_fill.pick`: which of these options
   is the answer, about a hundred tokens), and code clicks the option it names.
 - **Read back.** Every field is read back right after its fill. One that doesn't show its answer is a FillError
@@ -44,6 +45,7 @@ from apply.model import (
     QuestionSet,
     Readback,
 )
+from apply.steps import FIELD_TEXT, OPENS_MS, _owned_listbox
 from apply.submit_guard import DriveGuard, drive_blocks
 
 MAX_CHOICES = 60  # the most options one model question lists; more is a Needs-you item
@@ -343,7 +345,42 @@ class GenericFiller:
                 raise FillError(f"{_said(label)}: the plan gave it no file")
             upload_origin.give(page.locator("input[type=file]").nth(field.nth), value)
             return value
+        if how in ("dropdown", "search", "two-level"):
+            return self._pick_in(page, label, field, value)
         raise FillError(f"{_said(label)}: Apply has no way to fill a {how}")
+
+    def _pick_in(self, page: Page, label: str, field: Field, value) -> str:
+        """A dropdown of the page's own making: opened (a search box: typed into), its listed choice found by code
+        or picked by the model, and clicked. A two-level list's group is picked first, then its choice."""
+        if isinstance(value, list):
+            value = value[0] if value else ""
+        answer = str(value)
+        box = locate(page, field.role, field.name, field.nth)
+        if field.role == "listbox":  # always open: its own options, clicked where they are
+            choice = self._choose(label, list(field.options), answer)
+            if choice is None:
+                raise FillError(f"{_said(label)}: none of its {len(field.options)} choices fits {answer!r}")
+            box.get_by_role("option", name=choice, exact=True).first.click(timeout=OPENS_MS)
+            return choice
+        before = set(_visible_options(page))
+        box.click(timeout=5_000)
+        if field.how == "search":
+            box.fill(answer)
+        options = _listed(page, box, before)
+        if field.how == "two-level" and options and _choice_in(options, answer) is None:
+            group = self._choose(label, options, answer)
+            if group is None:
+                _close(page)
+                raise FillError(f"{_said(label)}: no group of its list holds {answer!r}")
+            shown = set(options)
+            _option(page, box, group).click(timeout=OPENS_MS)
+            options = [o for o in _listed(page, box, shown) if o not in shown] or _listed(page, box, set())
+        choice = self._choose(label, options, answer)
+        if choice is None:
+            _close(page)
+            raise FillError(f"{_said(label)}: none of its {len(options)} choices fits {answer!r}")
+        _option(page, box, choice).click(timeout=OPENS_MS)
+        return choice
 
     def _choose(self, label: str, options: list[str], answer: str) -> str | None:
         """The option that is the answer: its exact words, else one the Fill engine reads as showing it, else the
@@ -382,7 +419,10 @@ class GenericFiller:
             if field.how == "file":
                 names = page.locator("input[type=file]").nth(field.nth).evaluate(FILE_NAMES, timeout=3_000)
                 return names[0] if names else ""
-            return ""
+            box = locate(page, field.role, field.name, field.nth)
+            if field.role == "listbox":
+                return next((o for o in box.get_by_role("option", selected=True).all_inner_texts() if o.strip()), "").strip()
+            return _shown_choice(box, str(put))
         except Exception:
             return ""
 
@@ -471,3 +511,58 @@ def _flat(nodes):
     for node in nodes:
         yield node
         yield from _flat(node.children)
+
+
+def _visible_options(page: Page) -> list[str]:
+    return [o.strip() for o in page.get_by_role("option").filter(visible=True).all_inner_texts() if o.strip()]
+
+
+def _listed(page: Page, box, before: set[str]) -> list[str]:
+    """The choices an opened dropdown lists: its own listbox's (aria-controls, aria-owns), else the options that
+    showed once it opened and weren't showing before, as soon as any show."""
+    owned = _owned_listbox(page, box)
+    if owned is not None:
+        return list(dict.fromkeys(o.strip() for o in owned.get_by_role("option").all_inner_texts() if o.strip()))
+    for _ in range(max(1, OPENS_MS // 100)):
+        found = list(dict.fromkeys(o for o in _visible_options(page) if o not in before))
+        if found:
+            return found
+        page.wait_for_timeout(100)
+    return []
+
+
+def _option(page: Page, box, choice: str):
+    """The option named `choice` in the dropdown's own listbox, else among those showing: only an option, never a
+    button or a link of the page's."""
+    return (_owned_listbox(page, box) or page).get_by_role("option", name=choice, exact=True).filter(visible=True).first
+
+
+def _close(page: Page) -> None:
+    try:
+        page.keyboard.press("Escape")
+    except Exception:
+        pass
+
+
+def _shown_choice(box, choice: str) -> str:
+    """What a dropdown shows: `choice` when its field's text shows it on a line of its own (a chip, a value), else its
+    tree value."""
+    try:
+        text = box.evaluate(FIELD_TEXT, timeout=3_000)
+    except Exception:
+        text = ""
+    if any(line.strip() == choice for line in str(text).splitlines()):
+        return choice
+    try:
+        found = form_tree.parse(box.aria_snapshot(timeout=3_000))
+    except Exception:
+        return ""
+    value = found[0].value if found else ""
+    return value or (box.input_value(timeout=3_000) if _is_input(box) else "")
+
+
+def _is_input(box) -> bool:
+    try:
+        return box.evaluate("el => el.tagName === 'INPUT'", timeout=3_000) is True
+    except Exception:
+        return False

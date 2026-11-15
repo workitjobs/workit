@@ -41,4 +41,4 @@ def test_two_fields_of_one_label_are_asked_apart_and_keep_their_own_key():
     two = Field("text", "Phone", "text", False, role="textbox", name="Phone", nth=1)
     asked, by_name = form_tree.questions([one, two], first=3)
     assert [(q.name, q.label) for q in asked] == [("g3", "Phone"), ("g4", "Phone (2)")]
-    assert by_name["g4"].key == two.key == ("text", "phone", 1)
+    assert by_name["g4"].key == two.key == ("textbox", "phone", 1)

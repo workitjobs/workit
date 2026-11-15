@@ -32,6 +32,12 @@ click; a model only picks.
   reader). Options that say they open more options (`aria-haspopup`, `aria-expanded`) make it a two-level list,
   asked as text. A box with no options until one types is a search box, asked as text.
 - **The top frame only.** An embedded form is opened in its own page first (`embedded.form_behind`).
+- **A list a combobox opens is that combobox's** (its `aria-controls` or `aria-owns`), never a question of its own.
+  A dropdown the first read left open was read again as a nameless list, labelled by the words before it.
+- **Each field is found again by its key**: its role (a file input: "file"), its label and its place, never how it
+  fills. A read that opens no dropdown can't tell a two-level list or a search box from a dropdown, so the step's
+  quick read takes those from the Question set's read.
+
 **Measured** (2026-11-15) on the Fill engine's saved Lever forms, whose questions the engine reads off the served
 page with no network: the reader finds 164 of the engine's 174 questions, nearly all of the same kind. The rest are
 a self-ID survey the page keeps collapsed and a signature's two parts. Greenhouse's and Ashby's saved forms read
@@ -71,6 +77,19 @@ which held a form with no Filler unfilled. A Developer checkout keeps Claude fil
   student's. The call goes through `applicant.as_applicant`, so the student's private values go as placeholders
   (D8). At the Usage cap the call raises `UsageLimitHit`, and the run pauses.
 
+### Dropdowns, search boxes and two-level lists
+
+| Control | Plain code | The model's question, when code can't match |
+|---|---|---|
+| Dropdown | Click it, read the options it lists, click the planned one | Which option is the answer |
+| List box (always open) | Click its own option | Which option is the answer |
+| Search box | Click, type the answer, read what it lists, click one | Which listed choice is the answer |
+| Two-level list | Open it; a group opens its own options | Which group holds the answer, then which option |
+
+An option is clicked only as an `option` in the dropdown's own list box (`aria-controls`, `aria-owns`), else among
+the options that showed as it opened: never a button or link of the page's. Its read-back is the choice the field
+shows on a line of its own, else its tree value.
+
 ## What goes to the student
 
 Each is a Handoff whose words say what Apply saw, then "press Fix here and ... on the form in this window"
@@ -94,5 +113,5 @@ page. Its page: an option that holds the form's own submit button.
 **Tests.** `tests/test_form_tree.py` (no browser, CI): the snapshot parser and how two fields of one label are
 asked. `tests/test_generic_filler.py` (Chromium, on a Mac): each kind of control, a box named by its placeholder,
 the six saved Lever forms against the engine's own read, the fill of each control and its read-back (on a plain
-Worker too), each Handoff, the model's pick on a radio group. `tests/test_student_build.py` (CI): a job system with no Filler gets the
+Worker too), each Handoff, the model's pick on a radio group, a dropdown, a two-level list, a search box. `tests/test_student_build.py` (CI): a job system with no Filler gets the
 generic Filler, which never submits. `../backend/tests/test_apply_prompts.py`: the kind's schema.
