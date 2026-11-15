@@ -467,8 +467,8 @@ class TestCappedBoards:
         queried_dims = {dim for key, _ in asked for dim, _ in key}
         assert "location" not in queried_dims
 
-    def test_zero_total_slice_is_skipped(self, monkeypatch) -> None:
-        """A facet value whose filtered query returns total=0 is skipped."""
+    def test_zero_count_value_is_not_queried(self, monkeypatch) -> None:
+        """A facet value with count=0 is skipped without making a request."""
         monkeypatch.setattr(providers.systems.workday, "WORKDAY_CAP", 3)
         facets = [
             {"facetParameter": "dim", "values": [
@@ -476,17 +476,19 @@ class TestCappedBoards:
             {"facetParameter": "dim2", "values": [
                 {"id": "x", "count": 2}, {"id": "y", "count": 1}]},
         ]  # fmt: skip
-        board_pages(
+        asked = board_pages(
             monkeypatch,
             {
                 ((), 0): {"total": 3, "facets": facets, "jobPostings": []},
                 ((("dim", "a"),), 0): {"total": 2, "jobPostings": AXOS_ROWS[:2]},
                 ((("dim", "b"),), 0): {"total": 1, "jobPostings": AXOS_ROWS[2:]},
-                ((("dim", "c"),), 0): {"total": 0, "jobPostings": []},
             },
         )
         jobs = providers.workday(AXOS, "Axos", pace=lambda url: None)
         assert len(jobs) == 3
+        # "c" (count 0) was never queried.
+        queried_ids = {v for key, _ in asked for _, v in key}
+        assert "c" not in queried_ids
 
     def test_no_usable_dimension_mid_recursion_raises_too_large(self, monkeypatch) -> None:
         """When the first level splits but a still-capped slice has no unused

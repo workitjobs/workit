@@ -198,6 +198,8 @@ def _split_capped(
         raise TooLarge(f"capped at {WORKDAY_CAP:,}, no usable dimension at depth {depth}")
     dim, values = pick
     for v in values:
+        if v["count"] == 0:
+            continue
         pace(url)
         query = {**applied, dim: [v["id"]]}
         try:
@@ -207,7 +209,7 @@ def _split_capped(
         total = int(sub.get("total") or 0)
         if total == 0:
             continue
-        if total < WORKDAY_CAP:
+        if total != WORKDAY_CAP:
             _page_slice(url, pace, query, sub, rows)
         else:
             _split_capped(url, pace, sub, query, used | {dim}, depth + 1, rows)
