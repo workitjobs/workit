@@ -20,10 +20,11 @@ import tempfile
 from datetime import date
 from pathlib import Path
 
+from apply import chrome_finder
 from apply.model import Posting, Question
 from apply.profile import ApplicantProfile
 
-CHROME = Path("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome")
+CHROME = chrome_finder.find()  # Google Chrome, which prints the letter (the Chrome finder, W4), or None
 FONTS = Path(__file__).parent / "fonts"
 FILE_NAME = "{first}_{last}_Cover_Letter.pdf"  # beside Test_Person_Resume.pdf
 
@@ -108,10 +109,12 @@ def pdf(text: str, posting: Posting, profile: ApplicantProfile, path: Path, toda
     page = PAGE.format(
         fonts=FONTS.as_uri(), name=html.escape(name(profile)),
         contact=" | ".join(html.escape(str(c)) for c in contact if c),
-        today=(today or date.today()).strftime("%B %-d, %Y"),
+        today=_dated(today or date.today()),
         company=html.escape(posting.company.strip()), role=html.escape(posting.title.strip()),
         body="\n".join(f"<p>{_lines(b)}</p>" for b in blocks),
     )
+    if CHROME is None:
+        raise RuntimeError(chrome_finder.NO_CHROME)
     with tempfile.TemporaryDirectory(prefix="apply-letter-") as scratch:
         source = Path(scratch) / "letter.html"
         source.write_text(page)
@@ -120,6 +123,11 @@ def pdf(text: str, posting: Posting, profile: ApplicantProfile, path: Path, toda
                        capture_output=True, timeout=60, check=False)
     if not path.is_file() or not path.read_bytes().startswith(b"%PDF"):
         raise RuntimeError(f"Chrome printed no cover letter PDF to {path}")
+
+
+def _dated(day: date) -> str:
+    """November 4, 2026: the day with no leading zero. strftime's %-d is not on Windows."""
+    return f"{day:%B} {day.day}, {day:%Y}"
 
 
 def _lines(block: str) -> str:
