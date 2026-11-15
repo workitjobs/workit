@@ -82,6 +82,25 @@ FILES = r"""() => [...document.querySelectorAll('input[type=file]')].map((el) =>
 })"""
 
 
+# Whether a click on the element would submit a form: it is, sits in or holds a form's submit button (a <button> of
+# no type or type=submit, an <input type=submit|image>). A dropdown or option made of one submits its form as it
+# opens or is picked, and a GET form's own submit handler can post the application past the guards (the review of
+# KAN-861). Plain code never clicks one: its field is the student's.
+SUBMITS = r"""el => {
+  const submits = (b) => !!b && !!b.form && (b.tagName === 'BUTTON'
+    ? (b.getAttribute('type') || 'submit').toLowerCase() === 'submit' : /^(submit|image)$/i.test(b.type || ''));
+  return submits(el.closest('button, input')) || [...el.querySelectorAll('button, input')].some(submits);
+}"""
+
+
+def submits(element: Locator) -> bool:
+    """Whether a click on `element` would submit a form (SUBMITS). An element Apply can't read counts as one."""
+    try:
+        return element.evaluate(SUBMITS, timeout=3_000) is not False
+    except Exception:
+        return True
+
+
 @dataclass
 class Node:
     """One line of the ARIA snapshot and the lines under it."""
@@ -372,6 +391,8 @@ def _opened(page: Page, box: Locator) -> tuple[tuple[str, ...], bool]:
     """The choices a dropdown lists once opened (apply.steps._options_of: its own listbox's, else the ones that showed
     as it opened), and whether they open more choices of their own (a two-level list: an option that says it has a
     pop-up or that it expands)."""
+    if submits(box):  # opening it would submit its form: never clicked, and its field is the student's
+        return (), False
     try:
         options = _options_of(page, box)
     except Exception:

@@ -38,7 +38,7 @@ from apply import captcha, description, fill_engine, form_tree, upload_origin
 from apply.account_pages import SENDS
 from apply.adapters import JobSite, SetupError, UsageLimitHit
 from apply.attach import RESUME, attach_resume, clear_pop_up
-from apply.form_tree import Field, locate
+from apply.form_tree import Field, locate, submits
 from apply.model import (
     Answers,
     Captcha,
@@ -379,11 +379,11 @@ class GenericFiller:
             if choice is None:
                 raise FillError(f"{_said(label)}: no option fits {value!r}")
             role, name, nth = field.controls[field.options.index(choice)]
-            locate(page, role, name, nth).check(timeout=5_000)
+            _check(label, locate(page, role, name, nth), True)
             return choice
         if how == "checkbox":
             yes = str(value).strip().lower() in ("yes", "true")
-            locate(page, field.role, field.name, field.nth).set_checked(yes, timeout=5_000)
+            _check(label, locate(page, field.role, field.name, field.nth), yes)
             return "Yes" if yes else "No"
         if how == "checkboxes":
             wanted = value if isinstance(value, list) else [v.strip() for v in str(value).split(";")]
@@ -391,7 +391,7 @@ class GenericFiller:
             if not chosen:
                 raise FillError(f"{_said(label)}: no option fits {value!r}")
             for option, (role, name, nth) in zip(field.options, field.controls):
-                locate(page, role, name, nth).set_checked(option in chosen, timeout=5_000)
+                _check(label, locate(page, role, name, nth), option in chosen)
             return [o for o in field.options if o in chosen]
         if how == "file":
             if not isinstance(value, Path):
@@ -413,10 +413,10 @@ class GenericFiller:
             choice = self._choose(label, list(field.options), answer)
             if choice is None:
                 raise FillError(f"{_said(label)}: none of its {len(field.options)} choices fits {answer!r}")
-            box.get_by_role("option", name=choice, exact=True).first.click(timeout=OPENS_MS)
+            _click(label, box.get_by_role("option", name=choice, exact=True).first, OPENS_MS)
             return choice
         before = set(_visible_options(page))
-        box.click(timeout=5_000)
+        _click(label, box, 5_000)
         if field.how == "search":
             box.fill(answer)
         options = _listed(page, box, before)
@@ -426,13 +426,13 @@ class GenericFiller:
                 _close(page)
                 raise FillError(f"{_said(label)}: no group of its list holds {answer!r}")
             shown = set(options)
-            _option(page, box, group).click(timeout=OPENS_MS)
+            _click(label, _option(page, box, group), OPENS_MS)
             options = [o for o in _listed(page, box, shown) if o not in shown] or _listed(page, box, set())
         choice = self._choose(label, options, answer)
         if choice is None:
             _close(page)
             raise FillError(f"{_said(label)}: none of its {len(options)} choices fits {answer!r}")
-        _option(page, box, choice).click(timeout=OPENS_MS)
+        _click(label, _option(page, box, choice), OPENS_MS)
         return choice
 
     def _choose(self, label: str, options: list[str], answer: str) -> str | None:
@@ -562,6 +562,20 @@ class GenericFiller:
             if form_tree.read(page, open_dropdowns=False):
                 break
         self._blocked()
+
+
+def _click(label: str, element, timeout: float) -> None:
+    """Plain code's click on a dropdown or an option, never on one that would submit a form (form_tree.SUBMITS)."""
+    if submits(element):
+        raise FillError(f"{_said(label)}: its control would send the form, so Apply didn't click it")
+    element.click(timeout=timeout)
+
+
+def _check(label: str, element, ticked: bool) -> None:
+    """Plain code's tick of a radio or box, never one that would submit a form (form_tree.SUBMITS)."""
+    if submits(element):
+        raise FillError(f"{_said(label)}: its control would send the form, so Apply didn't click it")
+    element.set_checked(ticked, timeout=5_000)
 
 
 def _said(label: str) -> str:

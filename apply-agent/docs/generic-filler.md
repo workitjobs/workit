@@ -127,7 +127,15 @@ option. The drive guard is armed (`arm`) as the Question set's read starts, befo
 opened, a pop-up's Close), and as each fill starts and after each Next, and rests when the code stops, so the
 student's own clicks go through on the held page. Armed only once the fill started, the read ran unguarded on a page
 a live run opens with the guard lifted (`on_open`), and a pop-up's Close that was the form's submit sent it (the
-adversarial review, 2026-11-15). `tests/test_submit_guard_hostile.py` runs two paths on every hostile page:
+adversarial review, 2026-11-15).
+
+**Plain code never clicks a control that would submit a form** (`form_tree.SUBMITS`): one that is, sits in or holds a
+form's submit button (a `<button>` of no type or `type=submit`, an `<input type=submit|image>`). A dropdown or radio
+made of one submits its form as it opens or is ticked, and the review found that a GET form's own submit handler
+posts the application past both guards: the guard's submit block covers a POST form, or a press it reads as a send.
+The reader leaves such a dropdown closed, and the fill makes its field the student's (a `FillError`). The guard's
+gap is older than the generic Filler: plain code's Next and Ask Claude's press still reach it, so the review's pages
+are tested on the generic Filler alone (`GENERIC_REFUSES`), outside the shared `PAGES`. `tests/test_submit_guard_hostile.py` runs two paths on every hostile page:
 "the generic Filler" (the whole fill, every question answered, its model the worst one: it picks the first option
 and the first button every time) and "the generic Filler's Apply press". Its two pages: an option that holds the
 form's own submit button, and a posting's Apply that is a one-click application's submit.

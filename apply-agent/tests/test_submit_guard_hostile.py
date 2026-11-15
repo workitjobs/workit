@@ -2176,6 +2176,47 @@ def test_each_page_says_how_late_it_sends_and_a_held_only_page_has_its_held_test
     assert HELD_ONLY <= set(SESSION_PAGES) | set(GENERIC_SESSION_PAGES)
 
 
+# --- The generic Filler's own refusals (the adversarial review of KAN-861). A GET form whose own submit handler posts
+# the application gets past the guards when the press that submits it isn't judged a send (submit_guard's submit
+# block covers a POST form, or a button that says it sends). So the generic Filler never clicks a control that would
+# submit a form. These pages stay out of PAGES: plain
+# code's Next and Ask's press still send on them through that gap, which is the guard's, older than the generic Filler.
+_GET_FORM = """<form id=f><label>First name <input name=first value=Test></label>%s
+  <button type=submit>Submit application</button></form>
+<script>f.addEventListener('submit', (e) => { e.preventDefault();
+  fetch('""" + COMMIT + """', {method: 'POST', body: new URLSearchParams(new FormData(f))}); });</script>"""
+GENERIC_REFUSES = {
+    # Fault: the reader or the fill clicks a dropdown made of a <button> of no type, which submits its form.
+    "a dropdown that is its GET form's submit button": ("Country", _GET_FORM % """<span id=c>Country</span>
+        <button role=combobox aria-labelledby=c aria-haspopup=listbox>Select...</button>"""),
+    # Fault: the fill ticks a radio made of a <button>, which submits its form.
+    "radios that are their GET form's submit buttons": ("Yes", _GET_FORM % """<div role=radiogroup aria-label="Authorized?">
+        <button role=radio aria-checked=false>Yes</button><button role=radio aria-checked=false>No</button></div>"""),
+}
+
+
+@pytest.mark.parametrize("page_name", list(GENERIC_REFUSES))
+def test_the_generic_filler_never_clicks_what_would_submit_its_form(page_name):
+    with cdp({START: f"<title>Apply</title>{GENERIC_REFUSES[page_name][1]}"}) as (page, drive, site):
+        try:
+            generic_fill(page, drive, "")
+        except Handoff:
+            pass
+        _settle(page, 1500)
+    assert site.applications() == []
+
+
+@pytest.mark.parametrize("page_name", list(GENERIC_REFUSES))
+def test_without_the_guard_each_get_form_page_sends(page_name):
+    """The control: a click on the control the generic Filler refuses sends the application."""
+    name, html = GENERIC_REFUSES[page_name]
+    with cdp({START: f"<title>Apply</title>{html}"}, guarded=False) as (page, _, site):
+        page.get_by_role("radio" if page_name.startswith("radios") else "combobox" if "dropdown" in page_name
+                         else "button", name=name).first.click(timeout=5_000)
+        _settle(page, 1500)
+    assert COMMIT in site.applications()
+
+
 # A pop-up over a POST form whose Close is the form's own submit button: clear_pop_up presses Close as the Question
 # set is read.
 POP_UP_CLOSE = f"""<title>Apply</title><form method=post action="{FINAL}"><label>First name <input name=first value=Test></label>
