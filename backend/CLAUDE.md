@@ -354,6 +354,11 @@ Find files with a directory listing; these are the rules for where code goes.
   feature picks a size there; it never builds an `LLM` itself, so the
   `SCOUT_*` settings stay the one place a model is named
   (`../scout/CLAUDE.md`, "Which model, where").
+- **WorkIt Auto Apply's Send report** (`routers/apply_reports.py`, D26,
+  KAN-837): `POST /apply-app/reports` keeps one Application's Record and
+  masked Trace from a student's press; admins read them under
+  `/admin/apply-reports` and `DELETE` one once its problem is fixed, so the
+  table has no retention period (`services/retention.py` says why).
 - **WorkIt Auto Apply's Model route** (`routers/apply_app.py`, KAN-723,
   `../docs/desktop_application_auto_apply.md`, W1) runs the desktop app's
   `ask`s. **`POST /apply-app/ask` builds each prompt on the server** (D5):

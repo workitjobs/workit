@@ -366,3 +366,22 @@ tailored_resume` (the form gets the tailored file) and
 Sent resume) open Chromium. The backend test
 `backend/tests/test_sent_resumes.py -k tailored_resume_by_the_postings_link`
 runs the same routes on Postgres.
+
+## Send report (D26, KAN-837)
+
+One Application's report, sent only when the student presses "Send report"
+in the window (the button is W5's and calls `report.send(row, profile,
+note)`). `apply/report.py` builds it from the Tracker row: the Record's own
+files from its folder (answers, essays, verification, the questions asked of
+Claude, the page's HTML and the form's screenshots), and the Application's
+Trace with the student's private values masked here first (`masked.Known`,
+from the Applicant profile and the Answer bank beside it, and every email,
+phone and id in a link). A long Trace keeps its first line and its last
+`TRACE_MAX` characters. `WorkIt.send_report` posts it to `POST
+/apply-app/reports` and answers its id. WorkIt keeps it until the team fixes
+its problem, then deletes it (`backend/app/routers/apply_reports.py`), as
+`/privacy` says. A pushed Record's link is a web page, so a Developer
+checkout's report holds no files, only the Trace.
+
+**Tests.** `tests/test_report.py` (in CI) and
+`backend/tests/test_apply_reports.py`.

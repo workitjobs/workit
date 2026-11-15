@@ -510,7 +510,7 @@ by hand (W8).
 | # | Workstream | Waits for | v1 | Where it stands (2026-11-14) |
 |---|---|---|---|---|
 | W0 | Move Apply to `workitjobs/apply-agent` | KAN-723 merged into WorkIt's `main` | Yes, first | Not started. KAN-723's first parts are merged (#569, #577, #581); the open `apply-agent/` PRs (#554, #557, #403) merge or hold first |
-| W1 | Model route and Usage cap | None | Yes | Built (#577, #587): the Model route, the Usage cap, the 11 kinds and the Question types on the server, and the student's private values masked in every call. Left: reworded self-ID answers, which wait on the Fill engine saying which answers came from a self-ID fact (D8, section 3.4); Send report's route (D26); the Orchestrator's pause on `GET /apply-app/usage` |
+| W1 | Model route and Usage cap | None | Yes | Built (#577, #587, KAN-837): the Model route, the Usage cap, the 11 kinds and the Question types on the server, the student's private values masked in every call, and Send report's route (D26). Left: reworded self-ID answers, which wait on the Fill engine saying which answers came from a self-ID fact (D8, section 3.4); the Orchestrator's pause on `GET /apply-app/usage` |
 | W2 | Filling with no model in the browser | None | Yes | Step 1 built (#590): what Apply can't fill is the student's, in the window's Fix here; a failed field is a Needs-you item with its planned answer; the emailed code's box. Next: step 2, the generic Filler |
 | W3 | What the Student build leaves out | None | Yes | Step 1 built (#581); `ask_model` fixed to `workit` (#590). Left: W8's compile flags |
 | W4 | Remove macOS-only code | None | Yes | Built (#576, #585). Left to others: `dashboard.py` (W5) and `window_capture` (W6); what stops Apply on Windows is F4's |
@@ -639,7 +639,16 @@ shapes and status codes.
 - **Logs** keep no prompt text: only the student, the kind, the model and
   the tokens. A provider's error is logged by its status and code only,
   since its body can hold the model's output.
-- **Not built:** Send report's route (D26).
+- **Send report** (D26, KAN-837): `POST /apply-app/reports` keeps one
+  Application's Record (its answers, essays, verification, the questions
+  asked of Claude, the page's HTML and the form's screenshots) and its
+  Trace, masked in the app, with the student's note, in `apply_reports`
+  (RLS on, no policies; migration `36d339a2d6b4`). Admins list and read
+  them (`/admin/apply-reports`) and `DELETE` one once its problem is
+  fixed, so a report has no retention period, as `/privacy` says. Up to
+  24 MB, 10 a day per student. `apply/report.py` builds a report from a
+  Tracker row and `WorkIt.send_report` sends it; the window's button is
+  W5's and calls `report.send`.
 
 **Prompts on the server (decided 2026-11-14, being built).** D5 changed:
 the app no longer sends a prompt and a schema, so a request can't carry
@@ -794,7 +803,11 @@ its own instructions or a hostile schema.
   Student build reads `GET /apply-app/usage` instead and pauses at the
   cap with its reset date.
 - **Send report** (D26) uploads one Record and masked Trace through a
-  WorkIt route; the server keeps it for the team.
+  WorkIt route; the server keeps it for the team. **Built** (KAN-837):
+  `report.send(row, profile, note)` reads the Record's files from its
+  folder and the Application's Trace, masks the Trace with
+  `masked.Known` (the profile's and Answer bank's own values, and every
+  email, phone and id in a link) and keeps its start and its last 4 MB.
 
 **Waits for.** Nothing. Sign-in (W5) supplies the session in the app; a
 developer can test with an existing WorkIt token.
