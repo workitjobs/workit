@@ -227,14 +227,12 @@ function Body({
           >
             <ArrowLeftIcon />
           </IconButton>
-          <DialogTitle className="text-subtitle min-w-0 truncate font-semibold">
-            {viewing.name}
-          </DialogTitle>
+          <DialogTitle className="min-w-0 truncate">{viewing.name}</DialogTitle>
           <DialogDescription className="sr-only">A preview of this resume.</DialogDescription>
         </DialogHeader>
       ) : (
         <DialogHeader className="border-border-subtle border-b px-6 pt-5 pr-12 pb-4">
-          <DialogTitle className="text-subtitle font-semibold">Generate a Resume</DialogTitle>
+          <DialogTitle>Generate a Resume</DialogTitle>
           <DialogDescription>
             Start from your experiences, upload a resume, or start with one you already have.
           </DialogDescription>

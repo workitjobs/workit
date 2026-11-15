@@ -172,9 +172,7 @@ function useResumeViewer(resume: Viewed) {
         onClick={(event) => event.stopPropagation()}
       >
         <DialogHeader>
-          <DialogTitle className="text-subtitle truncate pr-8 font-semibold">
-            {resume.name}
-          </DialogTitle>
+          <DialogTitle className="truncate pr-8">{resume.name}</DialogTitle>
           {/* The title says which resume; a visible line saying it was sent
                 repeated the page around it. Kept for screen readers, which
                 announce a dialog by its description. */}

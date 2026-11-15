@@ -2070,7 +2070,12 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   `src/components/shadcn` (and its `hooks/`) is vendored by `shadcn add` and
   regenerated in place, so a hand edit there is a fork. shadcn's colour roles
   and stock text sizes are aliased onto WorkIt's tokens at the bottom of
-  `globals.css`; fix the mapping there, not the component. **Read
+  `globals.css`; fix the mapping there, not the component.
+  **The dialog is a fork** (KAN-820, `docs/shadcn.md`): its title is
+  `text-subtitle` by itself, so a call site passes no size or weight, and
+  what sits between a dialog's header and footer goes in `DialogBody`, the
+  one part that scrolls, so the buttons stay on screen. A dialog that
+  scrolled whole took its Save below a 700px window. **Read
   `docs/shadcn.md` before running any `shadcn` command**, and run it from this
   folder: `components.json` differs from a stock install and re-running `init`
   silently undoes it.

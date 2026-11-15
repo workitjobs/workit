@@ -403,7 +403,7 @@ export const SHADCN_SIZES: { token: string; cls: string; role: string }[] = [
   {
     token: "text-base · stock 16px, unbound",
     cls: "text-base",
-    role: "Inputs below sm, where less makes iOS zoom on focus. A dialog or sheet title takes text-subtitle font-semibold instead",
+    role: "Inputs below sm, where less makes iOS zoom on focus. A dialog or sheet title is text-subtitle instead, set in the forked component",
   },
 ];
 

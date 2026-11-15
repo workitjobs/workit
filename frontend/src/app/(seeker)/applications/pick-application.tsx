@@ -80,7 +80,7 @@ export function PickApplication({
     <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
       <DialogContent className="flex max-h-[85vh] flex-col sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle className="text-subtitle font-semibold">Choose Application</DialogTitle>
+          <DialogTitle>Choose Application</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
 

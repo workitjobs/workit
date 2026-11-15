@@ -75,7 +75,7 @@ export function AllFiltersPanel({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="flex max-h-[min(44rem,calc(100dvh-2rem))] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl">
         <div className="border-border-subtle flex items-center border-b px-5 py-3.5 pr-12">
-          <DialogTitle className="text-subtitle font-semibold">All Filters</DialogTitle>
+          <DialogTitle>All Filters</DialogTitle>
         </div>
         <Suspense
           fallback={<p className="text-body text-ink-meta px-5 py-8">Loading the filters…</p>}

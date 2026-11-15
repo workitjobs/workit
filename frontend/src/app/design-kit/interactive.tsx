@@ -61,9 +61,7 @@ export function DialogSpecimen() {
       <DialogTrigger render={<Button variant="secondary">Withdraw Application</Button>} />
       <DialogContent>
         <DialogHeader>
-          <DialogTitle className="text-subtitle font-semibold">
-            Withdraw This Application?
-          </DialogTitle>
+          <DialogTitle>Withdraw This Application?</DialogTitle>
           <DialogDescription>
             Northwind will no longer see your profile for this role. You can apply again later.
           </DialogDescription>

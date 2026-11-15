@@ -88,7 +88,7 @@ export function ClosedSavedControl({
       <Dialog open={asking} onOpenChange={setAsking}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-subtitle font-semibold">Remove {app.role}?</DialogTitle>
+            <DialogTitle>Remove {app.role}?</DialogTitle>
             <DialogDescription>
               Its posting at {app.company} has closed, so you can&apos;t save it again.
             </DialogDescription>
@@ -146,7 +146,7 @@ export function RemoveClosedButton({ apps }: { apps: Pick<Application, "id" | "r
       <Dialog open={asking} onOpenChange={setAsking}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-subtitle font-semibold">
+            <DialogTitle>
               Remove {count} closed {jobs}?
             </DialogTitle>
             <DialogDescription>

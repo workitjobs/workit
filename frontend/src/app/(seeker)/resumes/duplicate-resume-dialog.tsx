@@ -64,9 +64,7 @@ export function DuplicateResumeDialog({
     <Dialog open={duplicate != null} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="text-subtitle font-semibold">
-            You Already Have This Resume
-          </DialogTitle>
+          <DialogTitle>You Already Have This Resume</DialogTitle>
           <DialogDescription>
             {generate
               ? `${duplicate.name} has the same content. You can still make a copy.`

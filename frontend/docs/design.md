@@ -463,11 +463,15 @@ open choices (Settled choices, near the end).
   entry form fill a phone's screen below sm (`BankDialog`, KAN-740), since
   a form of up to thirteen fields in a box 16px in from each edge showed a
   few fields at a time.
-- **A dialog's backdrop dims and blurs 4px; a panel from the right only
-  dims** ("A panel from the right floats", below). A dialog that leads the
-  student through steps over a busy page (Tailor's Your Resume Is Ready)
-  sets `data-backdrop="strong"` on its `DialogContent` for a 55% ink dim
-  (`globals.css`), so the page behind stops competing with the steps.
+- **A dialog keeps its header and its buttons in view**: only the middle,
+  `DialogBody`, scrolls (KAN-820, "A dialog's middle scrolls", below).
+- **No backdrop blurs; a dialog's and a panel's backdrop dims the page
+  lightly** (KAN-563, "A panel from the right floats", below). The one
+  stronger dim: a dialog that leads the student through steps over a busy
+  page (Tailor's Your Resume Is Ready) sets `data-backdrop="strong"` on its
+  `DialogContent` for a 55% ink dim (`globals.css`), so the page behind
+  stops competing with the steps. It does not blur either. This rule said
+  "dims and blurs 4px" until KAN-820, against the code and the rule below.
 - **A dialog of steps makes the next step its primary**, and moves the
   primary and focus on as each step is done (Your Resume Is Ready's
   Download PDF, then Open the Application).
@@ -1507,6 +1511,20 @@ steps and questions follow the rules above: the entry form opened from a
 section's list is a step with Back, and Delete, Clear All, Delete Section
 and Discard Your Changes? are bars across the foot (`ConfirmBar`).
 
+**A dialog's middle scrolls; its header and its buttons stay** (KAN-820).
+The shared `DialogContent` is a column no taller than the window less 16px
+at the top and the foot, and `DialogBody` (`components/shadcn/dialog.tsx`)
+is what goes between `DialogHeader` and `DialogFooter`: it alone scrolls,
+from edge to edge with its scrollbar's room, and its content lines up with
+the header and the footer. Six dialogs scrolled whole until then (Home's
+day of applications, Add Jobs, Up Next's Choose a Resume, Create Event,
+Did You Apply? and Your Resume Is Ready's Did You Apply?), so a long list
+took Save below the window. A form wraps its fields in the body and keeps
+the footer inside the form, as a column (`create-event.tsx`). A dialog
+with a layout of its own (Settings, All Filters, the bank's) keeps it; a
+dialog with no body scrolls whole, as before. A list that scrolls inside
+the body at `max-h-scroll-box` (the resume list, Add Jobs) still does.
+
 **A field's error sits under its field and takes the focus** (KAN-563):
 the error names itself to the field through `aria-describedby`, an input
 is outlined red (`aria-invalid`), and the focus moves to the first field
@@ -1529,10 +1547,13 @@ Its stock text sizes are bound the same way: `text-xs` is `--text-note` and
 `text-sm` is `--text-body`, so a menu row or a select option is body type by
 construction and moves when the scale does. WorkIt's own code still writes the
 token names, never `text-sm`. Where a vendored piece draws something the scale
-has no token for, the call site sets the token, since the file is not ours to
-edit: a `DialogTitle` or `SheetTitle` takes `text-subtitle font-semibold`
-(stock is 16px medium, a pairing nothing else uses), and a `Calendar` takes
-`[&_.rdp-weekday]:text-note` for its 12.8px weekday row. `text-base` stays
+has no token for, the call site sets the token: a `Calendar` takes
+`[&_.rdp-weekday]:text-note` for its 12.8px weekday row. **A `DialogTitle` or
+`SheetTitle` is `text-subtitle` by itself** (KAN-820): both files are forked
+(`docs/shadcn.md`), and stock was 16px medium, a pairing nothing else uses.
+Every title passed `text-subtitle font-semibold` until then, and Settings and
+the application panel passed `text-title`, so the titles differed; a call site
+passes no size or weight now, only layout (`truncate`, `pr-8`). `text-base` stays
 unbound on purpose: it is the 16px that keeps iOS from zooming into the text
 and search fields below sm. `/design-kit/type` shows what each stock size
 resolves to.
@@ -1575,8 +1596,9 @@ a light dim of the page that stays sharp. It was a full-height square slab
 against the window's edge over a blurred page, which read as a different
 app from the rounded cards around it, and the blur hid what the panel was
 about. The application detail panel (the Calendar's) is the one today.
-**No overlay blurs, a dialog's included** (KAN-563): every overlay is the
-same light dim over a sharp page. The vendored dialog's `backdrop-blur-xs`
+**No overlay blurs, a dialog's included** (KAN-563): every overlay is a
+dim over a sharp page, the same light one but for Your Resume Is Ready's
+strong dim (Dialogs, above). The vendored dialog's `backdrop-blur-xs`
 is turned off by a `data-slot` rule in `globals.css`; it hid what a dialog
 is about too, as All Filters' list under it.
 about. The application detail panel (the Calendar's) is the modal one; the

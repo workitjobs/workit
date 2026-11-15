@@ -195,7 +195,7 @@ export function ChooseResume({
           list's fixed height pushed Cancel and Show past the window */}
       <DialogContent className="flex max-h-[90vh] flex-col overflow-hidden sm:max-w-3xl">
         <DialogHeader>
-          <DialogTitle className="text-subtitle font-semibold">Choose a Resume to Show</DialogTitle>
+          <DialogTitle>Choose a Resume to Show</DialogTitle>
           <DialogDescription>
             Experiences shows the entries and skills this resume holds.
           </DialogDescription>

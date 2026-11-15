@@ -153,7 +153,7 @@ export function DialogHead({
         </IconButton>
       )}
       <div className="min-w-0 flex-1">
-        <DialogTitle className="text-subtitle text-ink flex min-w-0 items-center gap-2.5 font-semibold break-words">
+        <DialogTitle className="text-ink flex min-w-0 items-center gap-2.5 break-words">
           {title}
         </DialogTitle>
         {description && (

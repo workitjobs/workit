@@ -163,9 +163,7 @@ export function StageMenu({
       <Dialog open={asking != null} onOpenChange={(open) => !open && setAsking(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-subtitle font-semibold">
-              Move to {asking && STAGE_LABEL[asking]}?
-            </DialogTitle>
+            <DialogTitle>Move to {asking && STAGE_LABEL[asking]}?</DialogTitle>
             <DialogDescription>
               Once it moves, it can&apos;t go back to Saved. It takes today as its applied date if
               it has none.

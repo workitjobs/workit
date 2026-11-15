@@ -264,7 +264,7 @@ function LetterDialog({ letter, onClose }: { letter: CoverLetter | null; onClose
         {letter && (
           <>
             <DialogHeader>
-              <DialogTitle className="text-subtitle pr-8 font-semibold">
+              <DialogTitle className="pr-8">
                 {letter.company ? `Cover Letter for ${letter.company}` : "Cover Letter"}
               </DialogTitle>
               <DialogDescription className="flex flex-wrap items-center gap-2">

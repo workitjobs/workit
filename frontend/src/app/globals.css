@@ -1576,7 +1576,8 @@ body:has([data-skyline]) {
 
   /* What scrolls inside a dialog keeps its scrollbar's room, so the content
    * is one width whether or not it scrolls: Settings' cards were 608px on
-   * Personal Details and 600px on Sign-In & Security. */
+   * Personal Details and 600px on Sign-In & Security. `DialogBody` carries
+   * this slot too (KAN-820), and its padding counts on this room. */
   [data-slot="dialog-scroller"] {
     scrollbar-gutter: stable;
   }

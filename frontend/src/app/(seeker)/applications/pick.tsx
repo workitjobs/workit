@@ -180,7 +180,7 @@ export function TrackerSelectionBar() {
       <Dialog open={asking != null} onOpenChange={(open) => !open && setAsking(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-subtitle font-semibold">
+            <DialogTitle>
               Move {rows.length} to {asking && STAGE_LABEL[asking]}?
             </DialogTitle>
             <DialogDescription>
@@ -206,7 +206,7 @@ export function TrackerSelectionBar() {
       <Dialog open={removing} onOpenChange={setRemoving}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-subtitle font-semibold">
+            <DialogTitle>
               Remove {rows.length} saved {jobs}?
             </DialogTitle>
             <DialogDescription>

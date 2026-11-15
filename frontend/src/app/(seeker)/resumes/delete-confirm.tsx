@@ -62,7 +62,7 @@ export function DeleteDialog({
     >
       <DialogContent>
         <DialogHeader>
-          <DialogTitle className="text-subtitle font-semibold break-words">{title}</DialogTitle>
+          <DialogTitle className="break-words">{title}</DialogTitle>
           <DialogDescription>{children}</DialogDescription>
         </DialogHeader>
         {error && (
