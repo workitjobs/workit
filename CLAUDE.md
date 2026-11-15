@@ -247,8 +247,8 @@ with the failure it prevents.
 - `docs/whats-new-2026-11-05.md` — what a teammate must do after the rename to
   `workitjobs`, and the new Apply settings and commands.
 - `docs/desktop_application_auto_apply.md` — KAN-723's design for WorkIt
-  Auto Apply, decided 2026-11-13, mostly not built (built: W1's server
-  side, the Model route and the Usage cap): Apply as a downloadable Mac
+  Auto Apply, decided 2026-11-13, being built (its section 6 says where
+  each workstream stands): Apply as a downloadable Mac
   app beside the extension. Its 34 decisions (every model call through
   WorkIt's Model route with a daily Usage cap and personal data
   replaced; no research in the app; the Fill engine downloaded encrypted;
