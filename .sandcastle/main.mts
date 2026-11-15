@@ -17,8 +17,8 @@
 // execution with a planning phase).
 //
 // Usage, from the repo root:
-//   npm run install:sandcastle   (once)
-//   npm run sandcastle
+//   npm --prefix .sandcastle install   (once)
+//   npm --prefix .sandcastle start
 
 import { fileURLToPath } from "node:url";
 import * as sandcastle from "@ai-hero/sandcastle";
@@ -45,7 +45,8 @@ const MAX_ITERATIONS = 10;
 
 // Hooks run inside the sandbox before the agent starts each iteration.
 // The root package.json has no dependencies; the JS build lives in frontend/.
-// The Python tiers (backend/, scraper/) sync on demand through `uv run`.
+// The Python packages sync on demand through `uv run`. Env files are not
+// copied in, so the agent never holds the team's secrets.
 const hooks = {
   sandbox: { onSandboxReady: [{ command: "npm --prefix frontend install" }] },
 };
