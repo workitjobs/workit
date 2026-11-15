@@ -39,7 +39,7 @@ from apply import (
 )
 from apply import home as data_folder  # essays.home() is the applicant's town
 from apply.adapters import Claude, lean
-from apply.applicant import SELF_ID, as_applicant, kept_out, personal
+from apply.applicant import SELF_ID, WHO, as_applicant, kept_out, personal
 from apply.model import Posting, Question, one_line
 from apply.profile import ApplicantProfile
 from apply.records import SECRET
@@ -656,29 +656,25 @@ def home(profile: ApplicantProfile) -> str:
     return ", ".join(filter(None, [a.get("city"), state_zip, a.get("country")]))
 
 
-# The Applicant profile's sections a model call is sent (D8): only what a drafted answer or the Pre-submit review
-# reads. Never who they are (applicant.WHO), their self-identification (EEO) answers or their references' details:
-# the Fill engine fills those from the profile. Links go in <links> and Stock answers in <stock_answers>, and files
-# are paths on Lisul's Mac.
-SENT = ("education", "work_authorization", "logistics", "experience_facts", "screeners", "answered_questions")
-SENT_IDENTITY = re.compile(r"_location$|^current_company$|^age_18_or_over$|^languages$")  # where, not who
-NOT_SENT = {"experience_facts": {"professional_references"}}
+# Profile sections a model call is never sent: files (paths on Lisul's Mac), Stock answers (given apart, in
+# <stock_answers>) and the self-identification (EEO) answers (D8). Nor, within identity, the private facts
+# (applicant.WHO), nor the references' contact details.
+NOT_FACTS = {"files", "stock_answers", "voluntary_self_id"}
 
 
 def profile_facts(profile: ApplicantProfile, posting: Posting | None = None) -> dict:
-    """Lisul's Applicant profile facts that a model call is sent: the SENT sections, identity's SENT_IDENTITY
-    facts, and the questions they answered but a self-identification one. With `posting`, the Tracker's past
-    applications and interviews join the screeners as the plan joins them (fill_engine.with_past_applications)."""
-    every = profile.facts()
-    facts = {key: every[key] for key in SENT if every.get(key) is not None}
-    for section, left_out in NOT_SENT.items():
-        if isinstance(facts.get(section), dict):
-            facts[section] = {key: value for key, value in facts[section].items() if key not in left_out}
-    if isinstance(facts.get("answered_questions"), dict):
-        facts["answered_questions"] = {q: a for q, a in facts["answered_questions"].items()
-                                       if not (SELF_ID.search(q) or SECRET.search(q))}
-    if where := {key: value for key, value in (every.get("identity") or {}).items() if SENT_IDENTITY.search(key)}:
-        facts = {"identity": where, **facts}
+    """Lisul's Applicant profile as data for Claude: every fact they gave but the private ones (NOT_FACTS,
+    applicant.WHO, references) and a self-identification question they answered. With `posting`, the Tracker's
+    past applications and interviews join the screeners as the plan joins them (fill_engine.with_past_applications)."""
+    facts = {key: value for key, value in profile.facts().items() if key not in NOT_FACTS}
+    if isinstance(identity := facts.get("identity"), dict):
+        facts["identity"] = {key: value for key, value in identity.items() if key not in WHO}
+        if isinstance(address := identity.get("home_address"), dict):
+            facts["identity"]["home_address"] = {k: v for k, v in address.items() if f"home_address.{k}" not in WHO}
+    if isinstance(experience := facts.get("experience_facts"), dict):
+        facts["experience_facts"] = {key: value for key, value in experience.items() if key != "professional_references"}
+    if isinstance(answered := facts.get("answered_questions"), dict):
+        facts["answered_questions"] = {q: a for q, a in answered.items() if not (SELF_ID.search(q) or SECRET.search(q))}
     return fill_engine.with_past_applications(facts, posting) if posting is not None else facts
 
 

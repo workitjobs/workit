@@ -13,11 +13,17 @@ from apply.profile import ApplicantProfile
 
 NAME, SCHOOL = "@NAME@", "@SCHOOL@"
 
-# A self-identification (EEO) question: its answer never reaches a model call (D8).
-SELF_ID = re.compile(r"gender|\bsex\b|pronoun|\brac(e|ial)\b|ethnic|hispanic|latin[oax]|veteran|disabilit|sexual orientation"
-                     r"|transgender|lgbt|self[- ]?identif|demographic|\bage\b|date of birth|birth ?date", re.IGNORECASE)
-# The profile facts that say who the applicant is or where they live (D8). No model call needs them: the Fill engine
-# fills them from the profile, so a call is sent none of them, as a fact or as an answer on the form.
+# A self-identification (EEO) question, or one asking the birth date: its answer never reaches a model call (D8).
+# Not "age" or "pronouns": "Are you 18 years of age?" is an eligibility question the Pre-submit review must check
+# (verify.LEGAL), and the pronouns go with every call.
+SELF_ID = re.compile(r"gender|\bsex\b|\brac(e|ial)\b|ethnic|hispanic|latin[oax]|veteran|disabilit|sexual orientation"
+                     r"|transgender|lgbt|self[- ]?identif|demographic|date of birth|birth ?date", re.IGNORECASE)
+# The private facts of the Applicant profile (D8): the name, the email, the phone and the street address. No model
+# call needs them, since the Fill engine fills them from the profile, so a call is sent none of them, as a fact or
+# as an answer on the form.
+# The pronouns WorkIt takes with a kind (backend apply_prompts/kind.py, Data.pronouns): one short line. Free text
+# longer than that would make WorkIt refuse every call; the neutral default goes in its place.
+PRONOUNS = re.compile(r"[^\n\r<>{}]{1,40}")
 WHO = ("legal_first_name", "legal_middle_name", "legal_last_name", "preferred_first_name", "preferred_last_name",
        "name_pronunciation", "name_in_native_script", "email", "phone", "home_address.line1", "home_address.line2",
        "home_address.zip")
@@ -74,7 +80,8 @@ class as_applicant:
     def ask_kind(self, kind: str, data: dict) -> dict:
         """`kind` said as the applicant: WorkIt adds the pronouns note and names the school from what this
         sends, and the name, which stays NAME in every prompt WorkIt builds (D8), goes back into the answer."""
-        said = {"pronouns": str(self._profile.get("identity.pronouns") or "they/them/theirs").strip(),
+        pronouns = str(self._profile.get("identity.pronouns") or "").strip()
+        said = {"pronouns": pronouns if PRONOUNS.fullmatch(pronouns) else "they/them/theirs",
                 "school": self._profile.get("education.school") or ""}
         given = self._claude.ask_kind(kind, {**data, **said})
         return json.loads(json.dumps(given).replace(NAME, json.dumps(first_name(self._profile))[1:-1]))

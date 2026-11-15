@@ -143,15 +143,17 @@ def test_no_call_is_sent_who_the_applicant_is_or_their_self_id(test_persons_bank
     profile.set("experience_facts.professional_references", [{"name": "Ref Erence", "email": "ref@example.org"}])
     email, race = Question("email", "Email", "text", True), Question("race", "Race", "select", False, ("East Asian",))
     planned = Question("why_now", "Why are you applying now?", "text", True)
+    adult = Question("adult", "Are you at least 18 years of age?", "select", True, ("Yes", "No"))  # eligibility: kept
 
     calls = written(profile, (planned,), {email: "test.person@example.com", race: "East Asian"})
     reviewer = FakeClaude()
-    presubmit.review(reviewer, POSTING, [email, race, WHY], {"email": "test.person@example.com", "race": "East Asian",
-                                                             "why": "Because I use it."}, who=personal(profile))
+    presubmit.review(reviewer, POSTING, [email, race, adult, WHY], {"email": "test.person@example.com", "race": "East Asian",
+                                                                    "adult": "Yes", "why": "Because I use it."},
+                     who=personal(profile))
 
     [draft] = [c for c in calls if c.get("kind") == "essays.write"]
     assert draft["data"]["short_questions"] and "Springfield" in draft["data"]["sources"]  # where they live: yes
-    assert [row["question"] for row in reviewer.kinds[0]["data"]["rows"]] == [WHY.label]
+    assert [row["question"] for row in reviewer.kinds[0]["data"]["rows"]] == [adult.label, WHY.label]
     # The facts and the form's answers every call is sent; a draft is the form's own text, sent whole.
     sent = json.dumps([{part: c["data"].get(part) for part in ("sources", "form_answers", "rows")}
                        for c in calls + reviewer.kinds if "kind" in c])
