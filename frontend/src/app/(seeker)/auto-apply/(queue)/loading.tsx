@@ -17,7 +17,7 @@ import { AutoApplyPanel } from "../auto-apply-panel";
  * so a click to either drew this page's skeleton first (KAN-561).
  *
  * The page's own frame: the width, then the page's panel
- * (./auto-apply-panel.tsx). Then the setup row's two cells
+ * (./auto-apply-panel.tsx). Then the setup row's three cells
  * (../setup-strip.tsx), Up Next's two toolbar rows as bars, and the
  * queue's card with rows in a row's shape.
  */
@@ -28,9 +28,9 @@ export default function AutoApplyLoading() {
         <Card
           padding="none"
           aria-hidden="true"
-          className="divide-border-subtle grid divide-y overflow-hidden @3xl/main:grid-cols-2 @3xl/main:divide-x @3xl/main:divide-y-0"
+          className="divide-border-subtle grid divide-y overflow-hidden @3xl/main:grid-cols-3 @3xl/main:divide-x @3xl/main:divide-y-0"
         >
-          {Array.from({ length: 2 }, (_, i) => (
+          {Array.from({ length: 3 }, (_, i) => (
             <div key={i} className="flex items-center gap-3 px-4 py-3.5">
               <Skeleton className="rounded-control size-10 shrink-0" />
               <span className="flex min-w-0 flex-1 flex-col gap-1.5">
@@ -42,16 +42,17 @@ export default function AutoApplyLoading() {
         </Card>
         <section aria-label="Up Next" aria-busy="true" className="mt-6">
           {/* The toolbar (../queue-filters.tsx): the search with Add Jobs
-              at its right, then Status, Company and Match with All Filters
-              and Table Settings at the right. */}
+              at its right, then Sort, Status, Company and Match with All
+              Filters and Table Settings at the right. */}
           <div aria-hidden="true" className="flex flex-wrap items-center gap-3">
             <Skeleton className={cn("h-10 rounded-full", PAGE_SEARCH)} />
             <Skeleton className="ml-auto h-9 w-28" />
           </div>
           <div aria-hidden="true" className="@container mt-3 flex items-center gap-2">
-            <Skeleton className="hidden h-9 w-36 @min-[27.5rem]:block" />
-            <Skeleton className="hidden h-9 w-36 @min-[37rem]:block" />
-            <Skeleton className="hidden h-9 w-36 @min-[46.5rem]:block" />
+            <Skeleton className="h-9 w-36 shrink-0" />
+            <Skeleton className="hidden h-9 w-36 @min-[30.5rem]:block" />
+            <Skeleton className="hidden h-9 w-36 @min-[40rem]:block" />
+            <Skeleton className="hidden h-9 w-36 @min-[49.5rem]:block" />
             <Skeleton className="ml-auto size-9 shrink-0 rounded-full" />
             <Skeleton className="size-9 shrink-0 rounded-full" />
           </div>

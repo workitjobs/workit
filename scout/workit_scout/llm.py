@@ -8,14 +8,18 @@ the reason this file exists; keep provider-specific behaviour out of the rest
 of this package.
 """
 
+import json
 import logging
 from collections.abc import AsyncIterator, Sequence
-from typing import TypeVar
+from dataclasses import dataclass
+from typing import Any, TypeVar
 
+from jsonschema import Draft202012Validator
 from openai import APIConnectionError, APIStatusError, AsyncOpenAI, RateLimitError
 from pydantic import BaseModel, ValidationError
+from referencing import Registry
 
-from workit_scout.identity import Identity
+from workit_scout.identity import Identity, Masked
 from workit_scout.settings import Endpoint, ScoutSettings, Size
 
 logger = logging.getLogger(__name__)
@@ -33,8 +37,37 @@ TOO_LARGE = "This is too long for the model to read. Try something shorter."
 TOO_LONG = "The model's answer ran past its length limit. Try again."
 
 
+@dataclass(frozen=True)
+class Spent:
+    """The tokens a call cost at the providers: what they read (the prompt)
+    and what they wrote (the reply, reasoning included)."""
+
+    input_tokens: int = 0
+    output_tokens: int = 0
+
+    def __add__(self, other: "Spent") -> "Spent":
+        return Spent(self.input_tokens + other.input_tokens, self.output_tokens + other.output_tokens)
+
+    @property
+    def total(self) -> int:
+        return self.input_tokens + self.output_tokens
+
+
+def _spent(usage) -> Spent:
+    # Reasoning tokens are in total_tokens but not always in
+    # completion_tokens (Gemini's compatibility endpoint), so the reply's
+    # share is the total less the prompt.
+    if usage is None:
+        return Spent()
+    read = usage.prompt_tokens or 0
+    return Spent(read, max((usage.total_tokens or 0) - read, usage.completion_tokens or 0))
+
+
 class ScoutUnavailable(Exception):
-    """No configured model could answer. The message is written for the user."""
+    """No configured model could answer. The message is written for the user.
+    `spent` is what the endpoints tried cost first (`complete_schema`)."""
+
+    spent: Spent = Spent()
 
 
 class InvalidReply(ScoutUnavailable):
@@ -90,6 +123,11 @@ def _unavailable(failure: str) -> ScoutUnavailable:
     return RequestTooLarge(failure) if failure == TOO_LARGE else ScoutUnavailable(failure)
 
 
+def _with(error: ScoutUnavailable, spent: Spent) -> ScoutUnavailable:
+    error.spent = spent
+    return error
+
+
 def _effort(endpoint: Endpoint) -> dict[str, str]:
     # Sent only when set: not every provider accepts the parameter.
     if endpoint.reasoning_effort:
@@ -98,9 +136,20 @@ def _effort(endpoint: Endpoint) -> dict[str, str]:
 
 
 def _log_failure(endpoint: Endpoint, exc: Exception) -> None:
+    # Never the error's text: the SDK puts the provider's whole error body in
+    # it, and Groq's holds the model's output (`failed_generation`); a
+    # pydantic ValidationError holds the reply.
+    if isinstance(exc, APIStatusError):
+        said = f"HTTP {exc.status_code} {exc.code or ''}".rstrip()
+    else:
+        said = type(exc).__name__
     logger.warning(
-        "Scout model %s at %s failed: %r", endpoint.model, endpoint.base_url, exc
+        "Scout model %s at %s failed: %s", endpoint.model, endpoint.base_url, said
     )
+
+
+def _in_json_string(value: str) -> str:
+    return json.dumps(value)[1:-1]
 
 
 def _deidentified(messages: Sequence[Message], identity: Identity) -> list[Message]:
@@ -193,6 +242,72 @@ class LLM:
                 raise InvalidReply(INVALID) from exc
         raise _unavailable(failure)
 
+    async def complete_schema(
+        self,
+        messages: Sequence[Message],
+        schema: dict[str, Any],
+        *,
+        identity: Identity,
+    ) -> tuple[Any, Spent]:
+        """
+        `complete_json` for a caller whose schema is JSON Schema data, not a
+        Pydantic class: WorkIt Auto Apply's prompts, through the Model route
+        (KAN-723). The caller has checked the schema
+        (`Draft202012Validator.check_schema`). A reply that is not JSON, fails
+        the schema or is cut off moves down the chain, as a 429 does, since
+        another model may well fit it, and so does a 400 or 422: it refuses
+        this request, not the endpoint (Groq's `json_validate_failed`, or a
+        schema the provider takes no part of). One that fails on every
+        endpoint raises `InvalidReply`. Returns the answer and the tokens
+        every endpoint tried spent; a failure carries them as `spent`.
+
+        Identity data goes to the model as placeholders (`Masked`) and comes
+        back in the answer as its values, since the caller types the answer
+        into forms. The answer is checked with the values back in, so what
+        the caller gets is what fits the schema.
+        """
+        mask = Masked(identity, (m["content"] for m in messages))
+        messages = [{**m, "content": mask.hide(m["content"])} for m in messages]
+        # An empty registry: by default jsonschema fetches a remote `$ref`'s
+        # URL, and this schema came from outside the API.
+        check = Draft202012Validator(schema, registry=Registry())
+        failure = OFFLINE
+        spent = Spent()
+        for endpoint, client in self._endpoints:
+            try:
+                text, used = await self._complete_schema(client, endpoint, messages, "answer", schema)
+            except ReplyCutOff as cut:
+                spent += cut.spent
+                failure = INVALID
+                continue
+            except (APIConnectionError, APIStatusError) as exc:
+                _log_failure(endpoint, exc)
+                if _worth_another_try(exc):
+                    failure = _user_message(exc)
+                elif isinstance(exc, APIStatusError) and exc.status_code in (400, 422):
+                    failure = INVALID
+                else:
+                    raise _with(ScoutUnavailable(OFFLINE), spent) from exc
+                continue
+            spent += used
+            try:
+                answer = json.loads(mask.put_back(text, _in_json_string))
+            # RecursionError: an answer nested thousands deep.
+            except (ValueError, RecursionError):
+                # Never the text itself in a log: it can echo the prompt.
+                logger.warning("Model %s at %s answered no JSON", endpoint.model, endpoint.base_url)
+                failure = INVALID
+                continue
+            if wrong := next(check.iter_errors(answer), None):
+                logger.warning(
+                    "Model %s at %s answered outside the schema: %s at %s",
+                    endpoint.model, endpoint.base_url, wrong.validator, list(wrong.absolute_path),
+                )
+                failure = INVALID
+                continue
+            return answer, spent
+        raise _with(InvalidReply(INVALID) if failure == INVALID else _unavailable(failure), spent)
+
     async def _complete_json(
         self,
         client: AsyncOpenAI,
@@ -201,20 +316,32 @@ class LLM:
         schema: type[BaseModel],
         max_tokens: int | None = None,
     ) -> str:
+        text, _ = await self._complete_schema(
+            client, endpoint, messages, schema.__name__, schema.model_json_schema(), max_tokens
+        )
+        return text
+
+    async def _complete_schema(
+        self,
+        client: AsyncOpenAI,
+        endpoint: Endpoint,
+        messages: Sequence[Message],
+        name: str,
+        schema: dict[str, Any],
+        max_tokens: int | None = None,
+    ) -> tuple[str, Spent]:
+        """One structured reply's text and what it cost."""
         # `max_tokens`, not `max_completion_tokens`: Ollama, Groq and Gemini's
         # compatibility endpoint all accept it. Sent only when set.
         limit = {"max_tokens": max_tokens} if max_tokens else {}
         # Not strict: providers disagree on which schemas strict mode accepts,
-        # and the check above is what decides anyway.
+        # and the caller's check is what decides anyway.
         response = await client.chat.completions.create(
             model=endpoint.model,
             messages=list(messages),
             response_format={
                 "type": "json_schema",
-                "json_schema": {
-                    "name": schema.__name__,
-                    "schema": schema.model_json_schema(),
-                },
+                "json_schema": {"name": name, "schema": schema},
             },
             **_effort(endpoint),
             **limit,
@@ -222,8 +349,8 @@ class LLM:
         choice = response.choices[0]
         if choice.finish_reason == "length":
             _log_failure(endpoint, ReplyCutOff(TOO_LONG))
-            raise ReplyCutOff(TOO_LONG)
-        return choice.message.content or ""
+            raise _with(ReplyCutOff(TOO_LONG), _spent(response.usage))
+        return choice.message.content or "", _spent(response.usage)
 
     async def _complete(
         self, client: AsyncOpenAI, endpoint: Endpoint, messages: Sequence[Message]

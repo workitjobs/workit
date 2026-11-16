@@ -1,3 +1,4 @@
+// WorkIt Auto Apply Worker. Copyright (c) 2026 its authors. All rights reserved: see LICENSE.
 // Fix from the window (S3, KAN-609): one of Lisul's tile events replayed on this frame, in the
 // worker extension's isolated world, as synthetic DOM events (isTrusted: false). The text he types
 // goes in trusted where it can (KAN-716): page/dom.js's keys and inserts answer a request that

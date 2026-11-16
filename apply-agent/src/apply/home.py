@@ -1,6 +1,6 @@
 """Where Apply keeps data: the applicant's own files in one data folder, its code's inputs in the checkout.
 
-HOME is $APPLY_HOME, else ~/.config/apply. It holds everything personal (the
+HOME is $APPLY_HOME, else APP_FOLDER in the Student build, else ~/.config/apply. It holds everything personal (the
 Applicant profile, Answer bank, Story bank, voice, policies override, company
 briefs) and everything Apply writes (Traces, rehearsals, Repairs, Worker
 profiles). Every data path derives from it, read once at import.
@@ -8,6 +8,15 @@ profiles). Every data path derives from it, read once at import.
 CODE is Apply's folder in the checkout (apply-agent/): only generic inputs live there (the
 answering guides, the default policies, the profile template, and SAMPLE, the
 Test Person data a first run starts from).
+
+APP_FOLDER is WorkIt Auto Apply's data folder (D25), in each OS's standard place
+as platformdirs gives it: ~/Library/Application Support/WorkIt Auto Apply on
+macOS, %LOCALAPPDATA%/WorkIt Auto Apply on Windows (local, not roaming: a Worker
+profile is a Chrome profile, which Chrome keeps there too), and $XDG_DATA_HOME or
+~/.local/share, then WorkIt Auto Apply, on Linux. It is the Student build's HOME
+(KAN-858); a Developer checkout keeps ~/.config/apply. HOME reads build.STUDENT
+once, at import, as every path here is made: the build script writes STUDENT
+before it compiles, so the compiled app's import already sees it.
 """
 
 import os
@@ -15,7 +24,12 @@ import shutil
 import tempfile
 from pathlib import Path
 
-HOME = Path(os.environ.get("APPLY_HOME") or "~/.config/apply").expanduser()
+import platformdirs
+
+from apply import build
+
+APP_FOLDER = platformdirs.user_data_path("WorkIt Auto Apply", appauthor=False, roaming=False)
+HOME = Path(os.environ.get("APPLY_HOME") or (APP_FOLDER if build.STUDENT else "~/.config/apply")).expanduser()
 CODE = Path(__file__).resolve().parents[2]
 # The Story bank, read by essays, gates, stock answers and the story map: one path, so a test moves all of them.
 STORY_BANK = HOME / "story-bank.md"

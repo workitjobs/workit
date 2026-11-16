@@ -109,6 +109,15 @@ before assuming the spec's chain. A laptop needs its own key from AI Studio.
 Training on prompts is acceptable to the team (2026-10-14), since identity
 data is removed on every call, so Gemini's and Z.ai's free tiers are open
 choices.
+**The Model route does not meet that condition yet** (WorkIt Auto Apply,
+`LLM.complete_schema`, 2026-11-15): the server masks only the email, the
+phone and the student's own links there, and the app replaces the rest
+before a call: every exact private value the student gave, theirs and
+their references' (PR #587). A form's self-ID answer that is exactly the
+student's is left out, but one the Fill engine typed in the form's own
+words still reaches the model there. The design doc's D8 and section 3.4
+list what goes, and its open questions ask whether Gemini's free tier
+stays in that chain.
 
 **Z.ai `GLM-4.7-Flash` is not in the chain.** It joins only after a person
 checks its console limits, its terms (may it train on prompts?) and the fixed
@@ -140,6 +149,23 @@ only when given (as `max_tokens`, which Ollama, Groq and Gemini all accept);
 a reply the provider stops at its cap (`finish_reason` "length") raises
 `ReplyCutOff`, an `InvalidReply`, since its JSON is cut off.
 
+`LLM.complete_schema(messages, schema, identity=...)` is the same call for
+a schema given as JSON data, not a Pydantic class: WorkIt Auto Apply's
+Model route (`backend/app/routers/apply_app.py`, KAN-723) passes each of
+the desktop app's kinds through it, with a schema the server builds
+(`backend/app/apply_prompts/`). Two differences, both because that
+caller can't ask again cheaply: an answer that is not JSON, fails the
+schema (`jsonschema`) or is cut off **moves down the chain** like a 429,
+and so does a 400 or 422, which refuses that request rather than the
+endpoint (Groq's `json_validate_failed`, a schema the provider does not
+take); a 401, 403 or 404 still stops it. The call returns the tokens it spent (`Spent`, from each reply's
+`usage`; reasoning counts as output), on a failure too, as the error's
+`spent`. Its validator has an empty `referencing.Registry`: by default
+`jsonschema` fetches a remote `$ref`'s URL, and a schema may come from
+outside the API again. Identity data is masked and put back (`Masked`, under
+"Identity data never reaches a model"), so the answer holds real values.
+Logs name the endpoint and the failed check, never the answer's text.
+
 ## How a failure behaves
 
 `LLM.stream` tries the chain in order, and moves to the next endpoint only
@@ -147,7 +173,9 @@ when one is rate-limited (429), erroring (5xx) or unreachable **before it has
 sent any text**. Once text has reached the user a retry would repeat it, so a
 failure mid-reply ends the reply with an `error` event. A 4xx other than 429 is
 misconfiguration — wrong key, model name or parameter — and is not retried; the
-server log says which endpoint failed. **A request too large for one endpoint
+server log says which endpoint failed, by its status and code only:
+never the error's text, since the SDK puts the provider's whole body in
+it and Groq's holds the model's output (`failed_generation`). **A request too large for one endpoint
 moves down the chain too**: a 413 (Groq's answer to a request over its
 tokens-a-minute limit), or a 400 whose code or message says the context
 length is exceeded (`_too_large`). Gemini reads far more than Groq's free
@@ -204,9 +232,19 @@ address or a friend's link goes too. Rules:
 - **A bare host's last label starts with a letter** (".com", ".io"). Without
   that, "GPA: 3.81/4.00" matched as a host with a path, and the model read
   every GPA as `[link]`.
-- **Placeholders are never swapped back.** The function returns only text;
-  nothing keeps a map from placeholder to value. A reply that needs the
-  student's name shows the placeholder or is filled by the page, not the model.
+- **Placeholders are never swapped back**, with one exception. The function
+  returns only text; nothing keeps a map from placeholder to value. A reply
+  that needs the student's name shows the placeholder or is filled by the
+  page, not the model. The exception is `LLM.complete_schema` (the Model
+  route), whose answers the desktop app types into forms: it masks through
+  `identity.Masked`, the same patterns with a distinct placeholder per value
+  (`[email]`, `[email2]`), but only the student's own links, never every
+  link: its calls read employers' links, and hiding them all left the
+  model unable to pick a job posting from a page's links (2026-11-14). It
+  keeps the map in memory for that one call, and
+  puts the values back into the answer before its schema check. `Masked`
+  never uses a placeholder the text already holds, so the app's own stay
+  the app's.
 - **Model text that is saved or shown is checked for placeholders first**,
   with `identity.placeholders_in` over the one `PLACEHOLDERS` list. A model
   that saw de-identified text can echo `[link]` back, and a saved
@@ -253,13 +291,19 @@ every prompt as the model received it, and joins a script's pieces as the
 answer to a structured call. It covers: moving down the chain on 429, 5xx,
 a dead endpoint and a request too large, no move on misconfiguration or mid-reply, the structured call
 (checked object, chain, rejected replies, no identity data, a reply cut off
-at its cap), the request body (a JSON schema, never `tool_choice`,
+at its cap), `complete_schema` (an answer outside the schema moves on and
+still costs, a 400 moves on, its tokens, no remote `$ref` fetched, an
+answer too deep to read, a failure log without the error's body;
+ScriptedLLM costs a token a character), the request body (a JSON schema, never `tool_choice`,
 `max_tokens` only when asked), the chain read from env, the reply cap
 and the privacy mapping (`facts.py`). Tests of the system prompt's wording
 and the facts block's text were removed on purpose (2026-10-18); do not add
 them back. The tests that no identity data reaches the model stay.
 `tests/test_identity.py` tests `remove_identity` directly: each profile field,
-each pattern, and text with no identity data, which must come back unchanged.
+each pattern, and text with no identity data, which must come back unchanged,
+and `Masked`: one placeholder per value, each put back, the text's own
+placeholders untouched, a value put back JSON-escaped and never read again,
+and an employer's link left whole beside the student's own hidden.
 The API's side, the route, the daily uses and the prompt sent through it, is
 `backend/tests/test_scout.py` on the real-Postgres test database. None need a
 network or Ollama.

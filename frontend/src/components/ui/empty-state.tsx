@@ -23,6 +23,13 @@ import { cn } from "@/lib/cn";
  *
  * `titleAs` is h1 where the state is the whole view, a 404 under a section
  * whose bar title is then a plain line; an h2 under the page's h1 otherwise.
+ *
+ * `compact` is the same look for a state inside a card, a tile or a dialog
+ * that already has its own edge and heading (KAN-819): no card of its own, a
+ * smaller glyph tile, the title as a 14px line rather than a heading (the
+ * card's own heading names the section), and a 12px line under it. Settings'
+ * sections, Home's tiles and Application Info's cards draw their failed reads
+ * this way, so a failed card reads as the page's failed read in small.
  */
 export function EmptyState({
   Icon,
@@ -30,7 +37,8 @@ export function EmptyState({
   children,
   detail,
   action,
-  titleAs: Title = "h2",
+  titleAs,
+  compact = false,
   className,
 }: {
   Icon: ComponentType<{ className?: string }>;
@@ -38,9 +46,30 @@ export function EmptyState({
   children?: ReactNode;
   detail?: ReactNode;
   action?: ReactNode;
-  titleAs?: "h1" | "h2";
+  titleAs?: "h1" | "h2" | "p";
+  compact?: boolean;
   className?: string;
 }) {
+  if (compact) {
+    const Title = titleAs ?? "p";
+    return (
+      <div
+        role="status"
+        className={cn("flex flex-col items-center px-4 py-6 text-center", className)}
+      >
+        <span className="bg-brand-tint text-brand rounded-control flex size-8 items-center justify-center">
+          <Icon aria-hidden className="size-4" />
+        </span>
+        <Title className="text-body text-ink mt-2 max-w-full font-semibold break-words">
+          {title}
+        </Title>
+        {children && <p className="text-note text-ink-meta mt-0.5 max-w-sm">{children}</p>}
+        {action && <div className="mt-3">{action}</div>}
+        {detail && <p className="text-note text-ink-meta mt-2 max-w-sm">{detail}</p>}
+      </div>
+    );
+  }
+  const Title = titleAs ?? "h2";
   return (
     <Card
       role="status"

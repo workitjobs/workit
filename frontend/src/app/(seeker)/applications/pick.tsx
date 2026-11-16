@@ -24,6 +24,7 @@ import {
   DialogTitle,
 } from "@/components/shadcn/dialog";
 import { Button } from "@/components/ui/button";
+import { ConfirmButtons } from "@/components/ui/confirm-buttons";
 import { useToast } from "@/components/ui/toast";
 
 import { STAGE_COLOR, STAGE_ICON, STAGE_LABEL } from "../stage-colors";
@@ -179,7 +180,7 @@ export function TrackerSelectionBar() {
       <Dialog open={asking != null} onOpenChange={(open) => !open && setAsking(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-subtitle font-semibold">
+            <DialogTitle>
               Move {rows.length} to {asking && STAGE_LABEL[asking]}?
             </DialogTitle>
             <DialogDescription>
@@ -205,7 +206,7 @@ export function TrackerSelectionBar() {
       <Dialog open={removing} onOpenChange={setRemoving}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-subtitle font-semibold">
+            <DialogTitle>
               Remove {rows.length} saved {jobs}?
             </DialogTitle>
             <DialogDescription>
@@ -215,10 +216,11 @@ export function TrackerSelectionBar() {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <DialogClose render={<Button variant="secondary">Cancel</Button>} />
-            <Button variant="destructive" onClick={remove}>
-              Remove {rows.length}
-            </Button>
+            <ConfirmButtons
+              act={`Remove ${rows.length}`}
+              onKeep={() => setRemoving(false)}
+              onAct={remove}
+            />
           </DialogFooter>
         </DialogContent>
       </Dialog>

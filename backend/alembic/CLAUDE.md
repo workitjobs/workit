@@ -224,6 +224,23 @@ his file, unchanged, on main beside a merge revision (`c4e8a2f6d1b3`)
 with both as parents: the shared database then upgrades through the one
 it lacks. **Never re-parent an applied migration** to clear two heads:
 Alembic would take its new parent as applied too and skip it.
+**And on 2026-11-15**, from two merged PRs: KAN-723's `696b3a46ca95` and
+KAN-722's `c3a7f2e5b148` were each moved onto `e6a2c8f4b015` before merging,
+so main had two heads; the merge revision `076111eab7cb` joins them. Before
+merging a PR that adds a migration, run `uv run alembic heads` on it with
+main merged in: it must print one.
+**The same day, the other way round:** the shared database had the
+`app_sign_ins` table, but its `alembic_version` did not hold
+`696b3a46ca95`, the migration that makes it. So `upgrade head` ran that
+migration again and failed with `DuplicateTableError: relation
+"app_sign_ins" already exists`. The table went in from the branch, and a
+later `stamp` took its revision out of the version table. The fix was to
+check that the table matched the migration (columns, indexes, constraints,
+`relrowsecurity`), then `alembic stamp 696b3a46ca95`, then `upgrade head`.
+On a chain with branches, a stamp onto a branch the version table doesn't
+hold adds a row beside the other head and changes no schema. A failed
+upgrade changes nothing: `env.py` runs the whole upgrade in one
+transaction, and Postgres rolls DDL back.
 
 Two habits follow:
 
@@ -267,7 +284,9 @@ Supabase's public keys, not the database.
 `--purge` erases the version table without first resolving the value in it,
 which is the lookup that fails. It rewrites only that bookkeeping table and
 touches no schema — but you are then responsible for making the database match
-whatever you stamped.
+whatever you stamped. Stamp the revision the tables match, never one below
+it: a stamp below a table's migration makes the next `upgrade` run that
+migration again (the 2026-11-15 `DuplicateTableError` above).
 
 **Never delete an applied migration.** If the database's `alembic_version`
 table points at a revision whose file is gone, `alembic upgrade head` fails

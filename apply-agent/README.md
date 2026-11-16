@@ -9,9 +9,14 @@ never submits.** Apply runs on macOS only. Before you change code here, read
 
 - A Mac with Google Chrome in `/Applications`.
 - [uv](https://docs.astral.sh/uv/) (`brew install uv`).
-- The team's `.env` in the checkout's root (Scout's Groq and Gemini keys):
-  Apply's answers and essays use them (`ask_model: [groq, gemini]`, the
-  default). `npm run worktree` copies it into a new worktree.
+- A WorkIt account, signed in with `uv run apply login` (below). Apply's
+  answers and essays go to WorkIt's Model route (`ask_model: workit`, the
+  default since 2026-11-14), which builds the prompts and runs the models.
+  Until the route is live on `api.workitjobs.ai`, run your own API
+  (`../backend/CLAUDE.md`, Commands) and set
+  `APPLY_WORKIT_API=http://localhost:8000`. That API reads its model keys
+  from the team's `.env` in the checkout's root (Scout's Groq and Gemini
+  keys); `npm run worktree` copies it into a new worktree.
 - Claude Code, logged in with your own Claude plan: `claude auth login`.
   Claude fill, Rescue and company briefs use your plan's usage, and so do
   the answers and essays if you set `ask_model: claude` in `policies.yaml`.
@@ -99,7 +104,8 @@ never submits.** Apply runs on macOS only. Before you change code here, read
    With `APPLY_HOME` or `APPLY_PROFILES` set, use the folder that `uv run
    apply doctor` prints. A run copies this profile to the other Workers.
 
-7. Optional Keychain items:
+7. Optional Keychain items. Save each one from `apply-agent/` with
+   `uv run keyring set <service> <account>`, which asks for the value:
    - `apply-gmail`: a Gmail app password, so Apply can read Workday and
      Greenhouse verification codes (also the code a job site emails after
      you press Submit on a rehearsal's page: Apply types it in, and Submit
@@ -109,7 +115,8 @@ never submits.** Apply runs on macOS only. Before you change code here, read
      (`./scripts/setup-wizard.sh` sets it up).
    - `apply-groq` (account `api.groq.com`) and `apply-gemini` (account
      `generativelanguage.googleapis.com`): your own Groq and Gemini API
-     keys, used before the `.env`'s
+     keys, only for `ask_model: groq` or `gemini`, which can't run a call
+     whose prompt moved to WorkIt; used before the `.env`'s
      ([docs/ask-model.md](docs/ask-model.md)). Doctor's "Ask model" line
      checks them.
 
@@ -123,13 +130,20 @@ never submits.** Apply runs on macOS only. Before you change code here, read
    uv run apply login
    ```
 
-   Apply opens WorkIt's sign-in page in a new Chrome window. Sign in there.
-   Apply keeps the login in your data folder (`workit-login.json`), never in
-   the repo, and closes the window. You log in one time; Apply refreshes the
-   login by itself.
+   Apply opens WorkIt's sign-in page in your browser. Sign in there, press
+   Sign In to the App, and paste the code it shows into the terminal. The
+   page shows the code only to WorkIt's admins: ask the team to add your
+   email to the API's `WORKIT_ADMINS` first. Apply
+   keeps the login in your keychain (`apply-workit`), never in the repo. You
+   log in one time; Apply refreshes the login by itself.
 
    `uv run apply doctor` then says "WorkIt: logged in as" your email. If it
    says that the login expired, run `uv run apply login` again.
+
+   `uv run apply app` opens WorkIt Auto Apply's own window instead (W5): it
+   signs you in the same way, takes you through first run (Chrome, what
+   leaves your Mac, Screen Recording, the seed), then runs your Auto Apply
+   queue.
 
    If you used a Tracker Sheet before, put its submitted applications into
    your Applications Tracker one time. Apply first lists each add and skip,

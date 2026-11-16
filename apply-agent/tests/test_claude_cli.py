@@ -15,8 +15,8 @@ import pytest
 from conftest import FIXTURES
 
 from apply import claude_cli
-from apply.adapters import Drive, UsageLimitHit
-from apply.claude_cli import ClaudeCLI, ClaudeError, run_claude
+from apply.adapters import ClaudeError, Drive, UsageLimitHit
+from apply.claude_cli import ClaudeCLI, run_claude
 
 SCHEMA = {"type": "object", "properties": {"answer": {"type": "string"}}}
 FIVE_HOUR_RESET = datetime.fromtimestamp(1792050600)

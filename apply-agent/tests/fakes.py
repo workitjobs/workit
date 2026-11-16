@@ -19,7 +19,7 @@ from playwright.sync_api import Route, sync_playwright
 
 from apply import answering, fill_engine, gates, submit_guard
 from apply.adapters import Drive, UsageReading
-from apply.gmail import MailedCode, on_hosts
+from apply.gmail import MailedCode, on_hosts, speaks_of_reset
 from apply.model import Question
 
 # Greenhouse loads reCAPTCHA Enterprise and asks it for a token at submit.
@@ -447,6 +447,54 @@ class FakeJobServer:
 
 # The Story bank headings a default essay plan leads with, one per essay in order: from the
 # tests' Story bank, which conftest.data_folder() puts in the data folder.
+# A kind's data field and the block the server's prompt holds it in (backend/app/apply_prompts/).
+_TAGS = {"plans": "plan", "rows": "form"}
+_PLAIN = ("sources", "posting", "company", "page_text")  # text that holds its own blocks
+
+
+def _given(data: dict) -> str:
+    """A kind's data as one text, each field in the block the server puts it in (`<replan>`, `<plan>`), so a
+    test reads what the app sent as it read the prompt Apply built before (D5)."""
+    out = [data[key] for key in _PLAIN if data.get(key)]
+    for key, value in data.items():
+        if key in _PLAIN or key in ("pronouns", "school") or not value:
+            continue
+        tag = _TAGS.get(key, key)
+        out.append(f"<{tag}>\n{value if isinstance(value, str) else json.dumps(value, indent=1)}\n</{tag}>")
+    return "\n".join(out)
+
+
+def _question(asked: dict) -> Question:
+    """A kind's question (apply.essays._sent) as Apply's Question."""
+    return Question("q", asked["label"], asked["kind"], asked.get("required", False), tuple(asked.get("options") or ()),
+                    asked.get("description", ""), asked.get("max_length"), asked.get("section", ""))
+
+
+def _label(asked: dict) -> str:
+    """How the essay call put a question first: its label on one line, a cover letter's marked."""
+    from apply import essays
+    return essays._ask(_question(asked))
+
+
+def _essay(asked: dict) -> dict:
+    """An essay question as FakeClaude's answers read it: the question as the call asks it, its type, and the
+    fields its answer has (a cover letter's slots, else the answer)."""
+    from apply import cover_letter
+    q = _question(asked)
+    fields = [*cover_letter.SLOTS] if cover_letter.is_cover_letter(q) else ["answer"]
+    return {"description": f"{_label(asked)} {{type: {asked['type']}}}", "properties": dict.fromkeys(fields)}
+
+
+def _draft(asked: dict) -> dict:
+    """A one-off question as FakeClaude's drafts read it: its label, and its options when it has some."""
+    from apply import essays
+    q = _question(asked)
+    options = list(dict.fromkeys(q.options)) if q.options and not essays._unread(q) else []
+    answer = ({"type": "array", "items": {"enum": options}} if q.kind == "multi_select" else {"type": "string", "enum": options}
+              ) if options else {"type": "string"}
+    return {"description": " ".join(q.label.split()), "properties": {"answer": answer}}
+
+
 PLAN_STORIES = tuple(line.lstrip("# ") for line in (Path(__file__).parent / "fixtures" / "story-bank.md").read_text().splitlines()
                      if line.startswith(("## Cloud Data Pro", "## Clever Devices", "## Micromouse", "## WorkIt")))
 
@@ -514,8 +562,9 @@ class FakeClaude:
                  sent: bool | Exception = False, facts: dict | None = None, brief: list[dict] | dict | None = None,
                  team: str = "", team_brief: list[dict] | dict | None = None, named: dict[str, str] | None = None,
                  story_map: list[dict] = (), plans: list[dict[str, dict]] = (),
-                 typical: dict[str, dict] | None = None, repairs: dict[str, str] | None = None):
+                 typical: dict[str, dict] | None = None, repairs: dict[str, str] | None = None, picks: list = ()):
         self._repairs = repairs or {}
+        self._picks = list(picks)  # the generic Filler's picks, in order (generic_fill.pick, generic_fill.next)
         self._typical = typical or {}
         self._sent = sent
         self._story_map = list(story_map)
@@ -537,10 +586,80 @@ class FakeClaude:
         self._drive_tokens = list(drive_tokens)
         self._drive_turns = drive_turns
         self.calls: list[dict] = []
+        self.kinds: list[dict] = []  # each WorkIt kind asked (ask_kind), as {"kind", "data"}
 
     @property
     def prompts(self) -> list[str]:
         return [call["prompt"] for call in self.calls]
+
+    @property
+    def asked(self) -> list[dict]:
+        """Every call Claude got: the ones that send their own prompt and the drives (`calls`), then WorkIt's
+        kinds (`kinds`). A test that means "no model call" checks this, since most calls are kinds now."""
+        return self.calls + self.kinds
+
+    def ask_kind(self, kind: str, data: dict) -> dict:
+        """One of WorkIt's kinds (D5, KAN-723), answered from its data as the call with its own prompt was.
+        Kept in `kinds` as {"kind", "data", "prompt"}, apart from `calls` (the calls that send their own prompt):
+        `prompt` is the data's text as one string, for a test that looks for a value the call was sent (WorkIt
+        builds the real prompt). A team's naming is kept apart, in `teams_named`, as its posting block."""
+        if kind == "brief.team":
+            self.teams_named.append(f"<posting>\n{data['title']}\n{data['posting_text']}\n</posting>")
+            return {"team": self._team}
+        self.kinds.append({"kind": kind, "data": data, "prompt": _given(data)})
+        self._spend(self._ask_tokens)
+        if kind == "writing.edit":  # the editor's pass: hands every answer back as it was, unless repaired
+            flagged = data.get("flagged") or {}
+            return {"edited": {key: next((fixed for start, fixed in self._repairs.items()
+                                          if key in flagged and text.startswith(start)), text)
+                               for key, text in data["drafts"].items()}}
+        if kind == "writing.check":  # the claim check: finds nothing
+            return {"unsupported": {key: [] for key in data["drafts"]}}
+        if kind == "story_map.tag":
+            return {"episodes": [dict(e) for e in self._story_map]}
+        if kind == "presubmit.review":  # its problems, or a dict of them with the fixes it gives
+            found = self._reviews.pop(0) if self._reviews else []
+            return found if isinstance(found, dict) else {"problems": found}
+        if kind == "presubmit.replan":
+            return {"replanned": {key: {"answer": next((a for start, a in self._replans.items()
+                                                        if field["question"].startswith(start)), "")}
+                                  for key, field in data["fields"].items()}}
+        if kind in ("generic_fill.pick", "generic_fill.next"):  # the generic Filler's small picks: none, unless given
+            return {"choice": self._picks.pop(0) if self._picks else None}
+        if kind == "claude_fill.sent":
+            if isinstance(self._sent, Exception):
+                raise self._sent
+            return {"sent": self._sent, "why": "it says so" if self._sent else "the form is still there"}
+        if kind == "probe.typical":  # the default probe: the stock typical answer, unless told otherwise
+            return {"typical": {key: next((t for start, t in self._typical.items() if asked.startswith(start)),
+                                          {"answer": self.TYPICAL, "angles": list(self.TYPICAL_ANGLES)})
+                                for key, asked in data["questions"].items()}}
+        if kind == "essays.plan":  # a valid plan, unless a test gave its own; no link_kind
+            given = self._plans.pop(0) if len(self._plans) > 1 else self._plans[0] if self._plans else {}
+            planned = {}
+            for n, (key, asked) in enumerate(data["questions"].items()):
+                story = PLAN_STORIES[n] if n < len(PLAN_STORIES) else ""
+                planned[key] = ({"type": asked["type"], "parts": ["What it asks"], "story": story, "company_fact": "",
+                                 "angle": "A point only his own facts support.", "link_kind": ""}
+                                | next((p for start, p in given.items() if _label(asked).startswith(start)), {}))
+                planned[key].setdefault("slots", [
+                    {"slot": slot.name, "quotes": [story or PLAN_STORIES[n % len(PLAN_STORIES)]], "ask": ""}
+                    for slot in answering.load()[planned[key]["type"]].slots if slot.required is True])
+            return {"plan": planned}
+        if kind == "essays.write":
+            given = {}
+            if essays_asked := data.get("questions"):
+                given["essays"] = {key: self._written(_essay(asked), n)
+                                   | {"named": named for start, named in self._named.items() if _label(asked).startswith(start)}
+                                   for n, (key, asked) in enumerate(essays_asked.items())}
+            if short := data.get("short_questions"):
+                given["drafts"] = {
+                    key: {"answer": "" if self._needs(_draft(asked)) else self._draft(_draft(asked)),
+                          "needs_lisul": self._needs(_draft(asked))}
+                    | {"facts": f for start, f in self._facts.items() if _label(asked).startswith(start)}
+                    for key, asked in short.items()}
+            return given
+        raise AssertionError(f"FakeClaude has no answer for the kind {kind}")
 
     def spent(self) -> int:
         return getattr(self._spent, "tokens", 0)
@@ -549,64 +668,9 @@ class FakeClaude:
         self._spent.tokens = self.spent() + tokens
 
     def ask(self, *, model: str, system: str, prompt: str, schema: dict) -> dict:
-        if "team" in schema["properties"]:
-            self.teams_named.append(prompt)
-            return {"team": self._team}
         self.calls.append({"model": model, "system": system, "prompt": prompt, "schema": schema})
         self._spend(self._ask_tokens)
         wanted = schema["properties"]
-        if "episodes" in wanted:  # the story map (apply.story_map)
-            return {"episodes": [dict(e) for e in self._story_map]}
-        if "essays" in wanted or "drafts" in wanted:
-            given = {}
-            if "essays" in wanted:
-                given["essays"] = {key: self._written(question, n)
-                                   | {"named": n for start, n in self._named.items() if question["description"].startswith(start)}
-                                   for n, (key, question) in enumerate(wanted["essays"]["properties"].items())}
-            if "drafts" in wanted:
-                given["drafts"] = {
-                    key: {"answer": "" if self._needs(question) else self._draft(question), "needs_lisul": self._needs(question)}
-                    | {"facts": f for start, f in self._facts.items() if question["description"].startswith(start)}
-                    for key, question in wanted["drafts"]["properties"].items()
-                }
-            return given
-        if "typical" in wanted:  # the default probe (apply.probe): the stock typical answer, unless told otherwise
-            return {"typical": {key: next((t for start, t in self._typical.items() if entry["description"].startswith(start)),
-                                          {"answer": self.TYPICAL, "angles": list(self.TYPICAL_ANGLES)})
-                                for key, entry in wanted["typical"]["properties"].items()}}
-        if "plan" in wanted:  # the essay plan (apply.essays): a valid one, unless a test gave its own; no link_kind
-            given = self._plans.pop(0) if len(self._plans) > 1 else self._plans[0] if self._plans else {}
-            planned = {}
-            for n, (key, entry) in enumerate(wanted["plan"]["properties"].items()):
-                story = PLAN_STORIES[n] if n < len(PLAN_STORIES) else ""
-                planned[key] = ({"type": entry["properties"]["type"].get("default", "general"), "parts": ["What it asks"],
-                                 "story": story, "company_fact": "", "angle": "A point only his own facts support.",
-                                 "link_kind": ""}
-                                | next((p for start, p in given.items() if entry["description"].startswith(start)), {}))
-                planned[key].setdefault("slots", [
-                    {"slot": slot.name, "quotes": [story or PLAN_STORIES[n % len(PLAN_STORIES)]], "ask": ""}
-                    for slot in answering.load()[planned[key]["type"]].slots if slot.required is True])
-            return {"plan": planned}
-        if "edited" in wanted:  # the editor's pass (apply.writing): hands every answer back as it was, unless repaired
-            drafts = json.loads(prompt.split("<drafts>\n", 1)[1].split("\n</drafts>", 1)[0])
-            flagged = json.loads(prompt.split("<flagged>\n", 1)[1].split("\n</flagged>", 1)[0]) if "<flagged>" in prompt else {}
-            return {"edited": {key: next((fixed for start, fixed in self._repairs.items()
-                                          if key in flagged and text.startswith(start)), text)
-                               for key, text in drafts.items()}}
-        if "unsupported" in wanted:  # the claim check (apply.writing): finds nothing
-            return {"unsupported": {key: [] for key in wanted["unsupported"]["properties"]}}
-        if "problems" in wanted:  # a review: its problems, or a dict of them with the fixes it gives
-            found = self._reviews.pop(0) if self._reviews else []
-            return found if isinstance(found, dict) else {"problems": found}
-        if "sent" in wanted:
-            if isinstance(self._sent, Exception):
-                raise self._sent
-            return {"sent": self._sent, "why": "it says so" if self._sent else "the form is still there"}
-        if "replanned" in wanted:
-            return {"replanned": {
-                key: {"answer": next((a for start, a in self._replans.items() if field["description"].startswith(start)), "")}
-                for key, field in wanted["replanned"]["properties"].items()
-            }}
         raise AssertionError(f"FakeClaude doesn't know this call: {sorted(wanted)}")
 
     def drive(self, *, page, model: str, system: str, prompt: str, schema: dict, files: list[Path],
@@ -700,8 +764,10 @@ class FakeMailbox:
         code = self._find(search, since, "code")
         return MailedCode(code, self._senders[code]) if code else None
 
-    def find_link(self, *, search: str, since: datetime, hosts: tuple[str, ...]) -> str | None:
+    def find_link(self, *, search: str, since: datetime, hosts: tuple[str, ...], resets: bool = True) -> str | None:
         link = self._find(search, since, "link")
+        if link and not resets and speaks_of_reset(link):
+            return None
         return link if link and on_hosts(link, hosts) else None
 
     def _find(self, search: str, since: datetime, kind: str) -> str | None:

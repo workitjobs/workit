@@ -9,8 +9,8 @@ import { INBOX_LIVE } from "../../inbox/live";
 
 /**
  * The application page's tabs (./page.tsx), Your Application, Emails and
- * Job Description, kept in ?tab= so a tab can be linked to and survives a
- * reload. Emails is hidden while the Inbox is archived (KAN-428), and its
+ * Overview (the job page's name for the posting's tab, KAN-824), kept in
+ * ?tab= so a tab can be linked to and survives a reload. Emails is hidden while the Inbox is archived (KAN-428), and its
  * ?tab= opens Your Application then.
  *
  * THE TABS MOVE IN PLACE (`shallow`, components/shallow-routing.tsx). The
@@ -36,20 +36,19 @@ function useTab(): Tab {
   return tab === "job" || (tab === "emails" && INBOX_LIVE) ? tab : "application";
 }
 
-/** The tabs, in the action bar or under the header (./page.tsx says
- *  which). `base` is the page's own address, with no query. */
-export function ApplicationTabs({ base, className }: { base: string; className?: string }) {
+/** The tabs, in the action bar beside Back, where the job page's sit.
+ *  `base` is the page's own address, with no query. */
+export function ApplicationTabs({ base }: { base: string }) {
   return (
     <TabLinks
       shallow
       label="Application Tabs"
       value={useTab()}
-      className={className}
       options={[
         { value: "application", label: "Your Application", href: base },
         // Archived with the Inbox (KAN-428, ../../inbox/live.ts).
         ...(INBOX_LIVE ? [{ value: "emails", label: "Emails", href: `${base}?tab=emails` }] : []),
-        { value: "job", label: "Job Description", href: `${base}?tab=job` },
+        { value: "job", label: "Overview", href: `${base}?tab=job` },
       ]}
     />
   );

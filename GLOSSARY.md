@@ -13,8 +13,8 @@ One thing in the experience bank, in one section: a job, degree, project, club r
 _Avoid_: experience (for the single item), item, record
 
 **Section**:
-One of the fixed kinds of entry in the experience bank: Education, Experience, Projects, Leadership & Activities, Awards, Certifications and Skills, or a **custom section**.
-_Avoid_: category, block
+One of the fixed kinds of entry in the experience bank: Education, Work Experience, Projects, Leadership & Activities, Awards, Certifications and Skills, or a **custom section**. A printed resume heads Work Experience "Experience" (KAN-814).
+_Avoid_: category, block; "Experience" for the section, beside the Experiences page
 
 **Custom section**:
 A section the student names, such as Volunteering, Languages or a Summary (KAN-498). It is **Entries** (each a title, organization, dates and bullets) or **Lines** (plain lines with no heading), picked when it is made. At most five for each resume that owns them.
@@ -229,6 +229,18 @@ A student's start page, at `/home`: their numbers, Top Matches and activity. Sig
 _Avoid_: Dashboard (the seeker's page was renamed; the company side keeps its Dashboard), Overview
 
 ## Jobs
+
+**Qualifying job posting**:
+A job posting with sufficient evidence to satisfy WorkIt's current eligibility rules.
+_Avoid_: raw posting, title match (as a synonym)
+
+**Verified-active qualifying inventory**:
+Qualifying job postings with a positive employer-source observation and eligibility evidence within their applicable freshness windows. Multiple sources supporting the same apply URL count once.
+_Avoid_: historical inventory, feed size (as synonyms)
+
+**Stale or unknown inventory**:
+Previously observed postings whose current activity or eligibility cannot be established within the applicable freshness windows. This uncertainty alone does not mean a posting is closed.
+_Avoid_: closed inventory (as a synonym)
 
 **Job Type**:
 What kind of job a job posting is: Full-Time, Part-Time, Contract or Internship. The Jobs page and the Tracker both filter on it under this name.

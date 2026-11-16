@@ -20,10 +20,10 @@ from fakes import FakeJobServer, RecordingBoard
 from test_rehearse import adapters
 from test_run_answers import profile_with
 
-from apply import email_code, on_page, rehearsal, stuck
+from apply import code_box, on_page, rehearsal, stuck
 from apply.fillers import FILLERS
 from apply.model import Handoff, Question
-from apply.plain.bridge import Bridge, PortError
+from apply.plain.bridge import Bridge
 from apply.plain.launcher import PlainWorkers, chrome_for_testing
 from apply.plain.page import PortPage
 from apply.profile import ApplicantProfile
@@ -152,9 +152,12 @@ def page(workers, site) -> PortPage:
     return page
 
 
-def test_page_code_is_refused_here_so_what_works_below_is_the_fixed_functions(page):
-    with pytest.raises(PortError):
-        page.evaluate("() => 1 + 1")
+def test_page_code_runs_through_the_debugger_and_the_held_pages_reads_take_the_fixed_functions(page, monkeypatch):
+    assert page.evaluate("() => 1 + 1") == 2  # the page's CSP forbids eval; the debugger isn't bound by it (KAN-839)
+    ops, real = [], page.worker.call
+    monkeypatch.setattr(page.worker, "call", lambda op, **params: (ops.append(op), real(op, **params))[1])
+    assert stuck.field_error(page) == "Enter a valid email address"
+    assert "fixed.call" in ops and "eval" not in ops  # one fixed function, no page code to send
 
 
 def test_a_full_page_screenshot_stitches_the_whole_page_with_its_sticky_header_once(page, tmp_path):
@@ -204,9 +207,8 @@ def test_go_to_question_and_the_watch_run_without_eval(page, monkeypatch):
 
 def test_resumes_field_error_and_the_emailed_codes_boxes_run_without_eval(page):
     assert stuck.field_error(page) == "Enter a valid email address"
-    boxes = email_code._boxes(page)
+    boxes = code_box.boxes(page)
     assert [key.split("|")[1].split()[0] for key, _ in boxes] == ["code"]  # the code box, never the zip
-    email_code._in_frames(page, email_code.ARM)  # the switches run too (S4's guard reads them)
 
 
 # --- a held rehearsal in a plain Worker

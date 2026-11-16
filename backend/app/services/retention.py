@@ -42,6 +42,12 @@ RETENTION: tuple[Rule, ...] = (
     # The extension's per-account daily write counts (KAN-478) only enforce
     # daily caps, as the AI counters do: 30 days.
     Rule("daily_counts", "day", 30, date=True),
+    # The Model route's daily counts (KAN-723) only enforce the Usage cap;
+    # 90 days of them show how use grows (W13).
+    Rule("model_usage", "day", 90, date=True),
+    # The desktop app's one-time sign-in codes (KAN-723) live 5 minutes, and
+    # each new sign-in deletes those over an hour old; this catches the rest.
+    Rule("app_sign_ins", "created_at", 1),
     # Uninstall survey answers (KAN-471), which name no account: 1 year.
     Rule("uninstall_answers", "created_at", 365),
     # The notice send log (KAN-483), an address per campaign with no account
@@ -55,6 +61,9 @@ RETENTION: tuple[Rule, ...] = (
     # The Rules table's fetch log (KAN-756), for anomaly review and tracing a
     # leaked table: 90 days, as fill events.
     Rule("rules_fetches", "created_at", 90),
+    # apply_reports (KAN-837, WorkIt Auto Apply's Send report) has no rule on
+    # purpose: the privacy policy says a report is kept until its problem is
+    # fixed, and the team then deletes it (DELETE /admin/apply-reports/{id}).
 )
 
 

@@ -2,7 +2,7 @@
 
 Repo-wide rules, always loaded. Each code folder below (`frontend/`,
 `backend/`, `scout/`, `scraper/`, `autofiller_extension/`, `apply-agent/`,
-`.github/`) has its own `CLAUDE.md` that loads on top of this one when you
+`.github/`, `.sandcastle/`) has its own `CLAUDE.md` that loads on top of this one when you
 touch a file in it; read it before writing code there. A rule lives at the
 deepest level that fully contains it, with a pointer above rather than a copy.
 
@@ -55,6 +55,9 @@ none.
   and has its own glossary and ADRs (`GLOSSARY-MAP.md`). Read
   `apply-agent/CLAUDE.md` before any change there.
 - `.github/` — CI and the scheduled scrape-and-import (KAN-160).
+- `.sandcastle/` — Sandcastle, an unattended agent loop that works through
+  KAN issues labelled `sandcastle` in a sandbox and leaves each on a branch
+  for a person to PR. Its own `package.json`; `.sandcastle/CLAUDE.md`.
 - `docs/` — team prose that spans the repo (below).
 
 ## The database
@@ -247,17 +250,25 @@ with the failure it prevents.
 - `docs/whats-new-2026-11-05.md` — what a teammate must do after the rename to
   `workitjobs`, and the new Apply settings and commands.
 - `docs/desktop_application_auto_apply.md` — KAN-723's design for WorkIt
-  Auto Apply, decided 2026-11-13, not built: Apply as a downloadable Mac
+  Auto Apply, decided 2026-11-13, being built (its section 6 says where
+  each workstream stands): Apply as a downloadable Mac
   app beside the extension. Its 34 decisions (every model call through
-  WorkIt's Model route with a monthly Usage cap and personal data
+  WorkIt's Model route with a daily Usage cap and personal data
   replaced; no research in the app; the Fill engine downloaded encrypted;
   the Worker extension on the Chrome Web Store through the Debugger API;
   a native window with no port; Apple Silicon only; Apply moved to the
   private repo `workitjobs/apply-agent`), the v1 app end to end,
   workstreams W0 to W13 that sessions can take one at a time, future work
   (a hosted `drive` loop next, the company brief pipeline with Tavily,
-  Windows), and the costs. Read it before changing Apply toward a
+  Windows and Linux), and the costs. Built (2026-11-14): Apply's prompts are on the
+  server (`backend/app/apply_prompts/`, D5): the app sends a kind and its
+  data, never a prompt. Read it before changing Apply toward a
   download, the Model route, or where Apply's data comes from.
+- `docs/developer_apply_agent_testing_framework.md` — urgent, not built:
+  how developers keep testing Apply once its prompts live on the server
+  (a prompt route for developer accounts, so `ask_model: claude` runs
+  the server's prompts). Read it before changing how a Developer
+  checkout reaches a model.
 - `docs/scraper_gh_action/plan.md` — KAN-726, built: the scheduled
   scrape runs on a team computer as a self-hosted runner (PR runs stay on
   GitHub's), with keywords from a local Qwen and every vector, jobs and

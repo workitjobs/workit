@@ -9,6 +9,7 @@ import os
 import plistlib
 import shutil
 import subprocess
+import sys
 from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
@@ -26,9 +27,12 @@ from apply.workit import WorkIt
 
 
 def chrome(tmp_path, version="141.0.7390.55"):
-    info = tmp_path / "Info.plist"
-    info.write_bytes(plistlib.dumps({"CFBundleShortVersionString": version}))
-    return info
+    """Google Chrome's binary, as the Chrome finder finds it on the Mac: its version in the app's Info.plist."""
+    contents = tmp_path / "Google Chrome.app" / "Contents"
+    (contents / "MacOS").mkdir(parents=True, exist_ok=True)
+    (contents / "Info.plist").write_bytes(plistlib.dumps({"CFBundleShortVersionString": version}))
+    (contents / "MacOS" / "Google Chrome").write_text("")
+    return contents / "MacOS" / "Google Chrome"
 
 
 def filled(tmp_path):
@@ -138,9 +142,10 @@ def test_chrome_says_its_version(tmp_path):
 
 
 def test_no_chrome_fails_with_how_to_install_it(tmp_path):
-    found = check(machine(tmp_path, chrome=tmp_path / "missing.plist"), "Chrome")
+    found = check(machine(tmp_path, chrome=None), "Chrome")  # the finder found none
     assert found.level == doctor.FAIL
     assert "google.com/chrome" in found.fix
+    assert "/Applications/Google Chrome.app" in found.detail or sys.platform != "darwin"  # where it looked
 
 
 def test_live_runs_on_warns_that_a_run_submits_for_real_as_the_applicant(tmp_path):
@@ -166,7 +171,7 @@ def test_prints_a_line_per_check_and_exits_zero_with_no_failure(tmp_path):
 
 
 def test_any_failure_exits_non_zero(tmp_path):
-    assert doctor.run(machine(tmp_path, chrome=tmp_path / "missing.plist"), io.StringIO()) == 1
+    assert doctor.run(machine(tmp_path, chrome=None), io.StringIO()) == 1
 
 
 def test_claude_logged_in_says_whose_login(tmp_path):
@@ -264,12 +269,12 @@ def test_gmail_with_no_email_in_the_profile_fails(tmp_path):
 
 
 def workit_check(tmp_path, fake: FakeWorkIt) -> doctor.Check:
-    return check(machine(tmp_path, workit=lambda: WorkIt(fake.site, tmp_path / "workit-login.json")), "WorkIt")
+    return check(machine(tmp_path, workit=lambda: WorkIt(fake.site, tmp_path / "workit-login.json", fake.keychain)), "WorkIt")
 
 
 def logged_in(tmp_path, fake: FakeWorkIt) -> None:
-    client = WorkIt(fake.site, tmp_path / "workit-login.json")
-    workit.login(client, lambda url, accept: accept(fake.cookies(fake.session())))
+    client = WorkIt(fake.site, tmp_path / "workit-login.json", fake.keychain)
+    workit.login(client, fake.browser)
 
 
 def test_workit_logged_in_says_as_whom(tmp_path):
@@ -320,7 +325,7 @@ def test_doctor_never_prints_the_workit_tokens(tmp_path):
         logged_in(tmp_path, fake)
         fake.expire()  # doctor refreshes it
         out = io.StringIO()
-        doctor.run(machine(tmp_path, workit=lambda: WorkIt(fake.site, tmp_path / "workit-login.json")), out)
+        doctor.run(machine(tmp_path, workit=lambda: WorkIt(fake.site, tmp_path / "workit-login.json", fake.keychain)), out)
     assert "WorkIt: logged in as test.person@example.com" in out.getvalue()
     assert "access-" not in out.getvalue() and "refresh-" not in out.getvalue()
 
@@ -355,7 +360,7 @@ def test_workit_writes_waiting_are_listed_with_when_they_go(tmp_path):
     from apply.workit import WaitingWrites, Write
 
     with FakeWorkIt() as fake:
-        waiting_writes = WaitingWrites(WorkIt(fake.site, tmp_path / "workit-login.json"), tmp_path / "workit-queue.json")
+        waiting_writes = WaitingWrites(WorkIt(fake.site, tmp_path / "workit-login.json", fake.keychain), tmp_path / "workit-queue.json")
         waiting_writes.send(Write("request-1", "https://jobs.example/1", "Lockheed Martin", "Intern", "applied"))
         waiting_writes.send(Write("request-2", "https://jobs.example/2", "Arc", "Intern", "needs_you"))  # not logged in
 

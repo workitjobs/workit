@@ -60,8 +60,8 @@ def test_an_entry_keeps_its_tags_and_a_hash_of_its_whole_anchor_line(bank):
     assert imu["hash"] == story_map.line_hash("- " + IMU) and imu["area"] == "micromouse"
     assert imu["related"] == ["micromouse/tof"] and tof["numbers"] == ["17%"]
     assert result["dropped"] == []
-    call = claude.calls[0]
-    assert call["model"] == "opus" and "<document>" in call["prompt"] and BANK in call["prompt"]
+    [call] = claude.kinds  # WorkIt's story_map.tag kind, with the whole Story bank
+    assert call["kind"] == "story_map.tag" and call["data"]["story_bank"] == BANK
 
 
 def test_an_anchor_that_is_not_exactly_one_bank_line_drops_its_entry(bank):

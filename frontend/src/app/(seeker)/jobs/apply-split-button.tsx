@@ -15,7 +15,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 
-import { useAutoApply } from "../auto-apply/auto-apply-button";
+import { REMOVE_FROM_QUEUE, useAutoApply } from "../auto-apply/auto-apply-button";
 import type { ApplicationStage } from "../auto-apply/actions";
 import { ApplyDialog } from "./apply-button";
 
@@ -31,7 +31,9 @@ import { ApplyDialog } from "./apply-button";
  * It is the brand fill while it can act, and steps down to the secondary
  * look once Auto Apply has the job (Queued, Working in Browser) or is done
  * with it (Needs You, Skipped, Applied), the states AutoApplyButton shows,
- * from the same hook (useAutoApply). Queued stays a toggle.
+ * from the same hook (useAutoApply). Queued stays a toggle, and taking the
+ * job out, from the main part or the menu, is Remove From Queue with the
+ * hook's toast and Undo.
  *
  * APPLY MANUALLY is a link that opens the employer's posting in a new tab,
  * from the click itself so no popup blocker stops it, and opens "Did You
@@ -95,7 +97,7 @@ export function ApplySplitButton({
       size="sm"
       disabled={auto.pending}
       aria-pressed={auto.queued}
-      title={auto.queued ? "Remove from the queue" : undefined}
+      title={auto.queued ? REMOVE_FROM_QUEUE : undefined}
       onClick={auto.toggle}
       segment="start"
     >
@@ -146,7 +148,7 @@ export function ApplySplitButton({
                 <LightningRoundedIcon aria-hidden className="text-brand mt-0.5 size-4" />
                 <span className="flex flex-col gap-0.5">
                   <span className="text-body text-ink font-medium">
-                    {auto.queued ? "Remove from Auto Apply" : "Auto Apply"}
+                    {auto.queued ? REMOVE_FROM_QUEUE : "Auto Apply"}
                   </span>
                   <span className="text-label text-ink-meta">
                     {auto.queued

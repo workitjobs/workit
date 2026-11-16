@@ -29,11 +29,15 @@ def fake_recommended(scored, calls):
 
 
 class FakeDB:
-    def __init__(self):
+    def __init__(self, descriptions=()):
         self.added = []
         self.commit = AsyncMock()
         # No address is suppressed (email_suppressions is looked up by key).
         self.get = AsyncMock(return_value=None)
+        # _fetch_descriptions' select(Job_Post.id, Job_Post.description);
+        # descriptions is an iterable of (id, description) rows to hand back.
+        rows = [SimpleNamespace(id=job_id, description=text) for job_id, text in descriptions]
+        self.execute = AsyncMock(return_value=SimpleNamespace(all=lambda: rows))
 
     def add(self, row):
         self.added.append(row)
@@ -65,6 +69,32 @@ def test_build_digest_drops_repeats_then_takes_batch_size(monkeypatch):
     assert len(digest) == BATCH_SIZE
     assert digest[0].id == "0"
     assert digest[1].id == "2"  # "1" was the same company+title as "0"
+
+
+# --- _degree_label ---
+
+
+@pytest.mark.parametrize(
+    "description,expected",
+    [
+        ("Currently pursuing a PhD in Computer Science or related field.", "PhD"),
+        ("Must be enrolled in a Master's degree program.", "Master's"),
+        ("Bachelor's degree in Engineering or equivalent experience required.", "Bachelor's"),
+        # A degree word with nothing requirement-shaped beside it is a miss,
+        # on purpose: better no tag than a wrong one.
+        ("Our CEO holds a PhD from MIT and founded the company in 2019.", None),
+        ("Join our fast-growing team of engineers.", None),
+        ("", None),
+        (None, None),
+    ],
+)
+def test_degree_label_reads_only_explicit_mentions(description, expected):
+    assert job_alerts._degree_label(description) == expected
+
+
+def test_degree_label_takes_the_highest_level_stated():
+    text = "Bachelor's degree required; a Master's degree or PhD candidate status is preferred."
+    assert job_alerts._degree_label(text) == "PhD"
 
 
 # --- send_job_alert ---
@@ -119,6 +149,29 @@ def test_send_job_alert_keeps_the_notification_when_the_email_fails(monkeypatch)
     db.commit.assert_awaited_once()
 
 
+@pytest.mark.parametrize(
+    ("count", "title", "subject"),
+    [
+        (1, "Your 1 Best Match Today", "Your 1 best job match today"),
+        (3, "Your 3 Best Matches Today", "Your 3 best job matches today"),
+    ],
+)
+def test_the_bell_and_the_email_count_one_job_as_one_match(monkeypatch, count, title, subject):
+    # KAN-826: one job read "Your 1 Best Matches Today" in the bell and the email.
+    scored = [job(str(i), GH + str(i), company="Acme", title=str(i)) for i in range(count)]
+    monkeypatch.setattr(job_alerts, "fetch_recommended", fake_recommended(scored, []))
+    sent = []
+    monkeypatch.setattr(job_alerts, "send_email", AsyncMock(side_effect=lambda *a: sent.append(a) or True))
+    db = FakeDB()
+
+    asyncio.run(job_alerts.send_job_alert(db, ACCOUNT))
+
+    assert db.added[0].title == title
+    ((_, email_subject, html),) = sent
+    assert email_subject == subject
+    assert f">{title}</h1>" in html
+
+
 def test_digest_links_point_at_workitjobs_ai_by_default(monkeypatch):
     # KAN-483: every email link uses workitjobs.ai, never the old Vercel host.
     monkeypatch.delenv("WEB_URL", raising=False)
@@ -128,6 +181,21 @@ def test_digest_links_point_at_workitjobs_ai_by_default(monkeypatch):
 
     assert 'href="https://workitjobs.ai/jobs/7"' in html
     assert "vercel.app" not in html
+
+
+def test_send_job_alert_reads_degree_level_from_the_posting_text(monkeypatch):
+    # KAN-790: no stored field for this, so it's read from the posting's own
+    # description, fetched for just the picked batch after build_digest.
+    scored = [job("1", GH + "1")]
+    monkeypatch.setattr(job_alerts, "fetch_recommended", fake_recommended(scored, []))
+    sent = []
+    monkeypatch.setattr(job_alerts, "send_email", AsyncMock(side_effect=lambda *a: sent.append(a) or True))
+    db = FakeDB(descriptions=[("1", "Must be pursuing a Master's degree.")])
+
+    asyncio.run(job_alerts.send_job_alert(db, ACCOUNT))
+
+    html = sent[0][2]
+    assert "Master&#x27;s" in html or "Master's" in html
 
 
 def test_send_job_alert_emails_no_suppressed_address(monkeypatch):

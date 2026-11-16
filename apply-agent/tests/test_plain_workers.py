@@ -50,3 +50,15 @@ def test_the_ping_demo_reports_each_worker(monkeypatch):
     lines = demo.ping(2, "testing")
     assert len(lines) == 2
     assert all("navigator.webdriver: false" in line and "DevToolsActivePort: none" in line for line in lines)
+
+
+def test_off_the_mac_show_brings_the_workers_window_through_its_extension(workers, monkeypatch):
+    """Windows and Linux have no FocusKeeper (W4): the worker extension's windows.focus brings the window
+    forward. Here on a Mac, with FocusKeeper left out, its window takes the front for a moment."""
+    from apply.focus import NoKeeper
+    from apply.plain import launcher
+
+    monkeypatch.setattr(launcher, "KEEPER", NoKeeper())
+    running = workers.launch(0)
+    assert running.connection.call("windows.focus") is None
+    assert workers.show(0)

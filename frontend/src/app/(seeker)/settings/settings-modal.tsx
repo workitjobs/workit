@@ -56,7 +56,44 @@ function sectionOf(pathname: string): SectionKey {
  * The section area is a `@container/main`, as the shell's page is, so the
  * sections' container queries (the name fields' three columns) read the
  * modal's width: the dialog is portalled outside the page.
+ *
+ * THE TAB TITLE FOLLOWS THE OPEN SECTION (KAN-829). The nav moves the address
+ * with no navigation, so Next never reads the next section's metadata: the
+ * tab said "Personal Details" over Sign-In & Security after a hard load, and
+ * the page behind's title after a soft one. The modal draws its own React
+ * `<title>` (`SectionTitle`), which React puts first in <head>, so it wins
+ * while the modal is open and goes with it on close (Next's docs give a
+ * React `<title>` for a client component).
+ *
+ * THE MODAL OPENS WITH THE FOCUS ON ITSELF, not on the first item of the nav
+ * (KAN-829). The default first tabbable item is Personal Details, and focus
+ * moved by script on a fresh load counts as `:focus-visible`: on a hard load
+ * of /settings/security it opened ringed beside the current section's tint,
+ * two items that looked picked. The dialog is read by its title; Tab goes on
+ * to the nav.
  */
+/**
+ * The tab's title while the modal is open, in the root layout's template
+ * ("%s · WorkIt"). The tab shows the first <title> in <head>, and React puts
+ * each one it mounts first. On a hard load Next's metadata streams in and
+ * can mount after this one, which put "Personal Details" back over Job
+ * Preferences, so a <title> put ahead of this one remounts it (`round`).
+ */
+function SectionTitle({ label }: { label: string }) {
+  const [round, setRound] = useState(0);
+  const own = useRef<HTMLTitleElement>(null);
+  useEffect(() => {
+    const watch = new MutationObserver(() => {
+      if (own.current && document.head.querySelector("title") !== own.current) {
+        setRound((n) => n + 1);
+      }
+    });
+    watch.observe(document.head, { childList: true });
+    return () => watch.disconnect();
+  }, []);
+  return <title key={round} ref={own}>{`${label} · WorkIt`}</title>;
+}
+
 export function SettingsModal({
   sections,
   closeTo,
@@ -83,6 +120,7 @@ function ModalFrame({
   const guard = useLeaveGuard();
   const active = sectionOf(usePathname());
   const leave = usePendingLeave();
+  const popup = useRef<HTMLDivElement>(null);
   const scroller = useRef<HTMLDivElement>(null);
   const stepBox = useRef<HTMLDivElement>(null);
   const [step, setStep] = useState<ReactNode>(null);
@@ -136,9 +174,14 @@ function ModalFrame({
         guard(() => (closeTo ? router.replace(closeTo) : router.back()));
       }}
     >
-      <DialogContent className="flex h-[min(46rem,calc(100dvh-2rem))] flex-col gap-0 overflow-hidden p-0 sm:max-w-4xl">
+      <DialogContent
+        ref={popup}
+        initialFocus={popup}
+        className="flex h-[min(46rem,calc(100dvh-2rem))] flex-col gap-0 overflow-hidden p-0 sm:max-w-4xl"
+      >
+        <SectionTitle label={SECTIONS.find((s) => s.key === active)?.label ?? "Settings"} />
         <DialogHeader className="border-border-subtle border-b px-6 py-4">
-          <DialogTitle className="text-title">Settings</DialogTitle>
+          <DialogTitle>Settings</DialogTitle>
           <DialogDescription className="sr-only">
             Your details, sign-in, notifications, integrations and job preferences.
           </DialogDescription>

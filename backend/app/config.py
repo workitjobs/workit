@@ -139,6 +139,8 @@ class Settings(BaseSettings):
     # Per-account daily caps on the extension's writes (KAN-478, app/services/daily_caps.py): one
     # account in a loop can't fill the database. Past one, the route answers 429. Days are UTC.
     fill_report_daily_cap: int = 30
+    # WorkIt Auto Apply's Send report (KAN-837): a report is up to 24 MB, mostly screenshots.
+    apply_report_daily_cap: int = 10
     job_system_request_daily_cap: int = 50
     # Fill events (KAN-476), one per fill: five batch tabs filling all day stay far below it.
     fill_event_daily_cap: int = 2000
@@ -149,6 +151,13 @@ class Settings(BaseSettings):
     # batch tabs at a time, stays far below; a scraper pulling the table over and over doesn't.
     rules_token_daily_cap: int = 400
     rules_fetch_daily_cap: int = 400
+
+    # WorkIt Auto Apply's Model route (KAN-723, routers/apply_app.py): each student's model use a
+    # day (UTC) in tokens, the Usage cap the app shows, and calls a minute, which keep one student
+    # from taking the free tiers' daily limits every student shares. 80,000 is about thirteen calls,
+    # about three forms with essays. Either changes with no app update.
+    apply_app_daily_tokens: int = Field(default=80_000, ge=0)
+    apply_app_calls_per_minute: int = Field(default=20, ge=1)
 
     # How long a site token fetches its job system's rules (KAN-756): long enough for the extension's
     # prefetch on posting open, short enough that a copied one dies quickly.

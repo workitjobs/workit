@@ -108,7 +108,7 @@ export default function FormsPage() {
         </Row>
         <Row
           name="<SortMenu>"
-          role="A list's order, drawn as a filter is; never tinted, since an order is always in force"
+          role="A list's order, first in every page toolbar's filter row, drawn as a filter is; never tinted, since an order is always in force"
         >
           <SortMenuSpecimen />
         </Row>

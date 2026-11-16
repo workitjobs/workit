@@ -144,6 +144,9 @@ class PlainSite:
         """Only Lisul's own Show brings a plain Worker forward."""
         return self.workers.show(worker)
 
+    def in_front(self, worker: int) -> bool:
+        return self.workers.in_front(worker)
+
     def plain(self, worker: int) -> bool:
         return True
 
@@ -263,6 +266,9 @@ class RoutedSite:
 
     def show(self, worker: int) -> bool:
         return (self.plain_site if self.plain(worker) else self.cdp).show(worker)
+
+    def in_front(self, worker: int) -> bool:
+        return (self.plain_site if self.plain(worker) else self.cdp).in_front(worker)
 
     @contextmanager
     def open(self, url: str, worker: int = 0):

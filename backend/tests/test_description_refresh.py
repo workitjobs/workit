@@ -46,6 +46,8 @@ def test_description_provider_receives_listing_work_style(monkeypatch, style, ex
 
 async def test_phase_two_failure_rolls_back_before_closures(monkeypatch):
     conn = AsyncMock()
+    conn.engine = Mock()
+    conn.engine.connect.return_value = AsyncMock()
     for name, result in (
         ("sync_catalog", 0),
         ("expire_leases", 0),

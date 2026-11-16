@@ -48,11 +48,14 @@ export default async function UploadedResumePage({ params }: PageProps<"/resumes
         <UploadedViewer resume={resume} pdf={pdf} />
       ) : (
         <>
-          <h1 className="text-heading text-ink">{resume?.original_filename ?? "Resume"}</h1>
+          {/* The title's size, as `ResumeTitle` draws an h1 (KAN-825) */}
+          <h1 className="text-title @3xl/main:text-heading text-ink mt-4">
+            {resume?.original_filename ?? "Resume"}
+          </h1>
           <EmptyState
             Icon={CloudSlashIcon}
             title="This Resume Isn't Loading Right Now"
-            className="mt-4"
+            className="mt-3"
             action={
               // A plain link, not <Link>: a full reload is what re-runs the fetch.
               <a

@@ -46,7 +46,12 @@ a posting out.
 Each board publishes independently right after it is scraped
 (`_checkpoint_board`): import_feed, update sources, advance reads and mark
 done in one commit per board, so fast boards checkpoint without waiting for
-slow ones and only one board's payload is in memory at a time. A failed
+slow ones and only one board's payload is in memory at a time. **Phase 4
+runs `BOARD_WORKERS` (4) concurrent asyncio tasks** (KAN-857): each opens
+its own `AsyncConnection` from the engine, runs the same claim-read-publish
+loop, and exits when `claim_task` returns None. `SKIP LOCKED` in
+`claim_task` ensures no two workers claim the same task. `--workers N`
+overrides the default. A failed
 checkpoint logs and continues: one board's failure never stops the rest or
 skips closure detection. Source tracking (`update_sources`) records every URL
 the board listed (with its `external_id`), not just the shortlisted ones
@@ -62,6 +67,22 @@ every enabled board (two complete reads without it,
 closed with reason `gone_from_board`; a surge guard (the feed import's
 `_MASS_CLOSE_SHARE` and `_MASS_CLOSE_FLOOR`, imported, not copied) refuses
 mass closures. Tests: `tests/test_closures.py`.
+
+**Two bandwidth-saving mechanisms on `scraper_schedules`** (KAN-722,
+`app/scraper/schedules.py`). **Quiet board stagger**: boards that have never
+produced a kept posting (`has_kept` false) are read on only 1 in
+`QUIET_EVERY` (3) runs, staggered by CRC32 of the board key over 3-hour
+slots, so each run reads a different third; boards unread for over
+`QUIET_LONGEST` (1 day) are always read. `filter_quiet` is a pure function
+on rows. **Fingerprint rest**: hot boards (`has_kept` true) whose content
+hasn't changed rest for `FINGERPRINT_FIRST` (4 h) after the first unchanged
+read, doubling each time up to `FINGERPRINT_LONGEST` (24 h).
+`advance_fingerprint` is a single UPDATE with CASE expressions (no
+read-then-write race); `has_kept` is sticky (once true, never resets);
+`record_missing`'s second miss clears fingerprint state. Four columns:
+`fingerprint` (8-char hex CRC32), `unchanged_reads`, `fingerprint_until` and
+`has_kept`. `--full` bypasses both mechanisms but not health rest
+(`rest_until`). Tests: `tests/test_scrape_worker.py`.
 
 **Not PostgREST, deliberately.** Queries go to Postgres directly over asyncpg,
 because the job search needs ltree containment and trigram ranking, which
@@ -95,7 +116,8 @@ uv run python -m app.scripts.rules_anomalies [--days 7]  accounts whose Rules ta
 uv run python -m app.scripts.import_apply_profile <applicant_id> [<apply_dir>]  a student's Apply data folder ($APPLY_HOME, else ~/.config/apply) into WorkIt (--dry-run rolls back; local DB only; app/models/CLAUDE.md, "The Fill engine's profile")
 uv run python -m app.scripts.label_resume_headings  label data/resume_heading_candidates.txt's resume headings once with Groq into app/utils/learned_headings.json (--dry-run lists them; review the diff; app/utils/CLAUDE.md, Learned headings)
 uv run python -m app.scripts.purge_old_data  delete rows past app/services/retention.py's periods, KAN-482 (--dry-run counts, deletes nothing; daily in CI)
-uv run python -m app.scripts.scrape_worker   one scraper worker cycle: sync catalog, claim boards, scrape, checkpoint (--dry-run shows what it would do)
+uv run python -m app.scripts.scrape_worker   one scraper worker cycle: sync catalog, claim boards, scrape, checkpoint (--dry-run shows what it would do; --full bypasses quiet board stagger and fingerprint rest; --workers N overrides the 4 parallel board workers)
+uv run python -m app.scripts.publish_engine publish --key <file> [--min-app <version>]  sign a Fill engine build and put it last in the ApplyEngine bucket for WorkIt Auto Apply, KAN-836 (`publish-engine.yml` runs it on each merge that moves the engine pointer; --min-app defaults to app/scripts/engine_min_app.txt; --dry-run uploads nothing; `make-key <file>` makes the signing key once; writes Storage: CI or the user runs it, never Claude)
 uv run python -m app.scripts.embed_banks     the bank job, KAN-726: listen and embed stale banks until stopped (--once sweeps once); the team computer only, with EMBEDDING_PROVIDER=ollama (app/services/matching/CLAUDE.md); it runs from its own checkout there, so a merge reaches it only after "After a merge to main" in docs/scraper_gh_action/plan.md
 python3 scripts/fetch_tectonic.py              Tectonic + warm cache into vendor/ (resume PDFs; once per checkout)
 ```
@@ -222,6 +244,15 @@ module docstring has the steps.
   and the test uploads to the real bucket. `tests/test_sent_resumes.py`'s
   `storage` fixture is the pattern: an in-memory bucket that records uploads
   and removals.
+- **A test of the desktop app's sign-in monkeypatches
+  `app_sign_in.get_supabase` and `app_sign_in._verify`**
+  (`tests/test_app_sign_in.py`). The service calls both directly, not
+  through `Depends`, so an override misses them, and the test would make a
+  magic link and a session on the real Supabase project.
+- **A test of the Fill engine's download monkeypatches
+  `apply_app.get_supabase`** with an in-memory bucket
+  (`tests/test_apply_engine.py`): the routes call it directly, so an
+  override misses it and the test reads the real `ApplyEngine` bucket.
 - **A test that calls a model route swaps the model with
   `tests/fake_models.py`'s `use(fake)`**, which overrides all three
   sizes (`app/services/models.py`) at once, and `clear()` after; a test of
@@ -333,6 +364,70 @@ Find files with a directory listing; these are the rules for where code goes.
   feature picks a size there; it never builds an `LLM` itself, so the
   `SCOUT_*` settings stay the one place a model is named
   (`../scout/CLAUDE.md`, "Which model, where").
+- **WorkIt Auto Apply's Send report** (`routers/apply_reports.py`, D26,
+  KAN-837): `POST /apply-app/reports` keeps a report from the app's
+  support form (a category, the student's words, whether WorkIt may email
+  them, and an Application's Record and masked Trace if they include
+  one); admins read them, with the student's email, under
+  `/admin/apply-reports` and `DELETE` one once its problem is fixed, so the
+  table has no retention period (`services/retention.py` says why).
+- **WorkIt Auto Apply's Model route** (`routers/apply_app.py`, KAN-723,
+  `../docs/desktop_application_auto_apply.md`, W1) runs the desktop app's
+  `ask`s. **`POST /apply-app/ask` builds each prompt on the server** (D5):
+  the app sends a kind and its data, and `app/apply_prompts/` holds each
+  kind's data model, size and builder, ported from Apply's modules. A
+  kind's data fields never change in place (an app copy can be older than
+  the server): a change is a new version beside the old one. A new kind
+  joins its module's `KINDS` and a sample in `tests/test_apply_prompts.py`.
+  **A kind's build puts what is the same for many calls first** (its
+  instructions, then the student's sources, then the form's data), so the
+  providers' prompt cache matches more of it: half price on Groq, and not
+  counted against its rate limits (the design doc's W1).
+  **Until Apply's calls send kinds, each ported prompt has a copy in
+  `apply-agent/`; a change goes into both in the same PR**
+  (`apply-agent/docs/prompts-and-gates.md`, which lists the prompts already
+  gone from Apply). The guides live only here: Apply classifies
+  questions and checks plans with their front matter, which it fetches
+  from `GET /apply-app/types` (`guides.served`) and keeps in its data
+  folder, so a change reaches every app with the deploy.
+  Each kind's schema runs as data through `LLM.complete_schema`, on the
+  chain size the kind names (Apply's Haiku calls on the small one, its
+  Sonnet and Opus calls on the large one). The free-form
+  `POST /apply-app/model`, which took the app's own prompt and schema,
+  went once every kind was built here (2026-11-14). It counts tokens a day (UTC)
+  in `model_usage` (`queries/model_usage.py`), not uses in
+  `services/usage.py`, against `APPLY_APP_DAILY_TOKENS`, and calls a
+  minute against `APPLY_APP_CALLS_PER_MINUTE`. It commits before the
+  model call, so no connection is held while the model writes, and adds
+  the tokens after, a failed call's too. It never logs a prompt or an
+  answer. It passes the seam the student's identity without the name
+  (the name is the app's to replace, D8, by its exact value: the design
+  doc's section 3.4; the server's name removal broke prompts by taking
+  words such as "will"), and the seam puts the masked
+  email, phone and links back into the answer (`Masked`). **The Fill
+  engine's download** (KAN-836, W7, D3 and D27) is two routes here:
+  `GET /apply-app/engine?app_version=` answers the build made for the
+  nearest app version at or below the app's (`engine_builds.newest_fit`),
+  encrypted with AES-GCM under a key for this account, this Supabase
+  session (the token's `session_id`) and this download, and `POST
+  /apply-app/engine-key` makes that key again for two minutes. The key is
+  an HMAC under a key derived from `SUPABASE_SERVICE_KEY`, so no key is
+  stored and both instances make the same one, with no new setting. The
+  builds live in the private `ApplyEngine` Storage bucket (made in the
+  dashboard), `<sha256>.js` beside `builds.json`, put there only by
+  `app.scripts.publish_engine`, which signs each with WorkIt's Ed25519
+  engine key; `.github/workflows/publish-engine.yml` runs it on each merge
+  that moves the engine pointer (`.github/CLAUDE.md`, "Publish the Fill
+  engine"). The server never checks a signature: the app does, with the
+  public key compiled in, so a bucket someone else wrote to still runs
+  nothing. **No route
+  takes a schema from a student.** If one ever does again, it must refuse
+  a `$ref` (or its dynamic forms), since `jsonschema` would fetch its URL;
+  a `pattern` or `patternProperties`, since the answer's check runs it
+  with Python's backtracking `re` in the event loop (`^(a+)+$` on 40
+  characters takes hours, for every user); and more than 32 levels, where
+  `jsonschema`'s own check runs out of stack. The free-form route did,
+  until it went. Tests: `tests/test_apply_app.py`.
 - **Auto apply** (`app/auto_apply/`): KAN-223's layers 1 and 2. Layer 1
   is `rules.py` pure (no session) and `queries.py` database; layer 2 is
   the steps that call them, `pipeline.py`, which every caller imports.
@@ -866,6 +961,19 @@ Find files with a directory listing; these are the rules for where code goes.
   Experiences view never see one. `add_local_skill` writes one and leaves
   the bank's embedding alone. Tests: `tests/test_tailor.py`, "Resume-local
   skills".
+- **The bank's skills are in the student's order** (KAN-816,
+  `bank_skills.position`): `load_bank` sorts by it (`SKILL_ORDER`), then a
+  skill never ordered by group and name, as all were before, then the id.
+  The Experiences page's Skills dialog sets it through `PUT
+  .../skills/order` (`order_skills`): the skills a pick shows, each with
+  its group, so a rename, a merge and a move are one call; they take the
+  places they held among all the bank's skills, so a pick's order never
+  moves another resume's skills, and every bank skill is then numbered.
+  A skill added by hand after that goes last (`add_skill`); a reading's
+  stay unnumbered, after the ordered ones. Generate positions a new
+  resume's skills in the bank's order (`all_chosen`), so it prints the
+  student's group order; existing resumes keep their own choice rows.
+  Tests: `tests/test_bank.py`, "the student's order of skills".
 - **The experience bank is written only through `services/bank.py`.** It
   holds the ownership scoping, the duplicate check and the marking of the
   bank embedding as stale, with its notify to the bank job, on every entry,
@@ -978,8 +1086,16 @@ Find files with a directory listing; these are the rules for where code goes.
 - **Import Again** is `POST /applicants/{id}/bank/import`: the same read on
   a stored upload, replacing what it owns, from intake's Use One I
   Uploaded, the Jobs page's empty-bank card and the Experiences view's
-  prompt for an upload that owns nothing. It re-reads `raw_text`, so a
-  resume uploaded before a parser fix gets the fix.
+  prompt for an upload that owns nothing. **It reads the upload's file
+  again** (`_text_again`: `stored_files.read`, then `text_extraction.extract`),
+  so a resume uploaded before a fix to extraction or the parser gets the
+  fix, and keeps that text with its hash (KAN-809). It re-read `raw_text`
+  until then, so an upload from before KAN-303's `pdf_spaces` (2026-11-05)
+  kept its glued words for good. The hash stays empty when another upload
+  of the student holds it (the hash is unique per student), and the
+  stored text stands when Storage fails or the file is gone: Import Again
+  never fails over Storage. Tests reach no bucket (conftest's
+  `_storage_down`).
 - **Import Updated Resume** is `PUT /applicants/{id}/resumes/{resume_id}`
   with a file, from an upload's row on the Resumes view: a newer version replaces the row's
   file and is read as an upload is, replacing what the upload owned. The row keeps its id and
@@ -1287,7 +1403,11 @@ Find files with a directory listing; these are the rules for where code goes.
   so a live model asked a finished project for its team. It also writes
   bullets from the first answer that says what the student did, rather
   than asking for one. Education's include the GPA, so a school imported without one gets asked
-  for it. The GPA is optional (`_OPTIONAL`): a card without one still counts
+  for it. A degree said only by its level ("bachelor's") is listed as still
+  missing, with a note to ask once which one (Bachelor of Science or of
+  Arts) and keep it if the student does not know; `_has` still counts it,
+  so the `READY` guard below ends the visit rather than asking again
+  (KAN-812). The GPA is optional (`_OPTIONAL`): a card without one still counts
   as complete, so after the student declines it the `READY` guard below
   ends the visit instead of asking again. Two code
   guards back the prompt, each with a test, because the local 4B model
@@ -1365,6 +1485,13 @@ Find files with a directory listing; these are the rules for where code goes.
   the same name with the catalog's case, never another name for it):
   "numpy" is "NumPy" and "grpc" "gRPC"; title case had printed "Numpy",
   "Html5" and "Matlab" on tailored resumes (2026-11-12).
+- **A degree is never a keyword** (`keywords.is_degree`, in `_cleaned` and
+  `match`): "Bachelor's Degree", "BS/MS in Computer Science" and "PhD" are
+  requirements, not skills. The prompt asked for no degree names, but
+  keywords read before it stay cached, and Tailor saved a picked
+  "Bachelor's Degree" as a resume skill (KAN-811). Bare "Master" stays a
+  skill ("Scrum Master", "Master Data Management"), and so does
+  "360-degree".
 - **The keyword match** (KAN-215) is `GET .../built-resumes/{rid}/keyword-match`
   over `services/keywords.py`: a job posting's keywords, extracted once by
   the model and cached on the posting with a hash of its title and the
@@ -1549,6 +1676,9 @@ Find files with a directory listing; these are the rules for where code goes.
   (`models/CLAUDE.md`, "notifications") and sends one email through
   `services/email.py`'s `send_email` (AWS SES, the one place a provider
   swap would touch) from the same computed list — never scored twice.
+  The bell's title, the email's heading and its subject count the jobs
+  in one word form (`_title`): one job is "Your 1 Best Match Today",
+  never "1 Best Matches" (KAN-826).
   **Authenticates via the EC2 instance's IAM role, never a stored key**:
   `aws_region`/`ses_from_email` in `config.py` are the only settings, both
   plain values, nothing to rotate — a run from anywhere without that role
@@ -1565,7 +1695,20 @@ Find files with a directory listing; these are the rules for where code goes.
   Settings opt-in, default off. One applicant's failure (empty bank, a
   bounced email) is caught and counted, never stopping the run;
   `--dry-run` builds and reports every digest, writing and sending
-  nothing. Tests: `tests/test_job_alerts.py`, `tests/test_notifications.py`,
+  nothing. **The email's design** (KAN-790): a purple rounded frame with a
+  small cartoon hand-and-handle SVG above it (`_BRIEFCASE_HANDLE`,
+  hand-authored, Outlook just shows the plain border since it can't render
+  inline SVG), a colored match-score badge (the same bands as the Jobs
+  page's ring), a company logo or initial, and up to three tags: work
+  style, job type, and a degree level read live from the posting's own
+  description text (`_degree_label`) — WorkIt stores no such field, so
+  rather than a migration, `_fetch_descriptions` pulls description text for
+  just the picked batch after `build_digest` (never widening
+  `LISTING_COLUMNS`, which every other `fetch_recommended` caller pays
+  for). Only an explicit "degree"/"pursuing" phrase next to the level
+  counts; a bare mention (a founder's bio, a lab name) is left untagged on
+  purpose, since a missed tag is far cheaper than a wrong one. Tests:
+  `tests/test_job_alerts.py`, `tests/test_notifications.py`,
   `tests/test_email.py`.
 - **Notices to every user** (KAN-483, `services/notices.py`;
   `docs/email-sending.md` has the SES and DNS steps). `scripts/send_notice.py`
@@ -1987,6 +2130,16 @@ go then. A change needs to work on Cloudflare only.
   them: an upload never wrote one, and Tailor, the resume view, Generate,
   Scout, the recommender and the embedding all ignored them. A skill is
   one list per student.
+- **Apply `e6a2c8f4b015` (`bank_skills.position`, KAN-816) before the
+  deploy that maps it.** The model selects the column with every skill and
+  `load_bank` orders by it, so deployed first, `GET /bank`, uploads,
+  Import Again, Add skill, Generate and every resume answer 500. It only
+  adds a nullable column (null is a skill never ordered, listed as before),
+  so applying it early is safe. It goes to `main` in its own PR first (the
+  branch's first commit), then is applied, then KAN-816 merges.
+  `models/bank.py` and `services/bank.py` changed, so the bank job needs a
+  pull and a restart after the merge (above); its old code never reads the
+  column, so the order between the two is free once the migration is on.
 - **Apply `d8f3b6a1c947` (`built_resume_skills.group`, KAN-586) before
   the deploy that maps it.** The model selects the column with every skill
   choice, so deployed first, every built resume, Generate, Tailor and the
@@ -2087,6 +2240,18 @@ account may do. It never hashes a password or signs a token. Read
 Supabase Auth dashboard setting: it has the flow, the dashboard settings and
 why each rule exists.
 
+- **The desktop app's session is a new Supabase session, made by
+  `app/services/app_sign_in.py`** (KAN-723, W5; `../docs/auth.md`, "WorkIt
+  Auto Apply's sign-in"): the website's `/app-sign-in` gets a one-time code
+  bound to the app's PKCE challenge, and the app trades it with its
+  verifier at `POST /apply-app/session`. The service-role key makes a magic
+  link's token (`generate_link`, no email), and Auth's `/verify` trades it,
+  as a plain HTTP call: the shared client's `verify_otp` would keep the
+  student's session on the client every route uses. The only route that
+  answers a session; never hand out the website's own (Supabase rotates
+  refresh tokens, so two holders sign each other out). The code's answer
+  says `paste` only for `deps.is_admin`: a student's page shows no code,
+  so nobody can be talked into sending one.
 - **Signup goes through `POST /auth/signup`, never `supabase.auth.signUp()`**,
   so the account type lands in `app_metadata` (only the service-role key can
   write it). If any profile write fails, the route deletes the auth user it

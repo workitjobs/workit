@@ -113,8 +113,9 @@ gitlink `git ls-tree HEAD` actually records, then `git -C
 autofiller_extension/fill-engine fetch --depth 1 origin <that SHA> &&
 checkout --detach <that SHA>`. This is the "Pin fill-engine to the commit
 this branch actually records" step in `ci.yml` (`extension-store-build`,
-`extension`, `apply`), `extension-nightly.yml`, `apply-nightly.yml`,
-`live-canary.yml` and `publish-extension.yml` — seven places, one pattern. If `actions/checkout`
+`extension`), the `apply-setup` action (`ci.yml`'s `apply` and
+`apply-hostile`, and `apply-nightly.yml`), `extension-nightly.yml`,
+`live-canary.yml`, `publish-extension.yml` and `publish-engine.yml` — seven places, one pattern. If `actions/checkout`
 ever fixes this upstream, these steps are redundant but harmless; don't
 remove them without confirming a real run's build log prints the version
 `git ls-tree HEAD` actually names, not just that the step exists.
@@ -135,11 +136,12 @@ for `autofiller_extension/test/autofiller_extension/fill-engine`, found
 nothing, and failed every run with "fatal: cannot change to
 'autofiller_extension/fill-engine': No such file or directory" right after a
 successful submodule checkout. Fixed by adding `working-directory: .` on the
-pin step itself in every job that sets a non-root default (five of the six:
-all but `publish-extension.yml`, which sets no job-wide default and was
-never affected). A step's own `working-directory:` is always resolved from
+pin step itself in every job that sets a non-root default (five of the seven:
+all but `publish-extension.yml` and `publish-engine.yml`, which set no
+job-wide default). A step's own `working-directory:` is always resolved from
 `$GITHUB_WORKSPACE`, never nested inside the job's default, so this is safe
-to copy into a sixth place if one is ever added.
+to copy into another place if one is ever added. The `apply-setup` action's
+copy sets it too.
 
 The fill-engine repo has its own CI (its `.github/workflows/ci.yml`):
 typecheck, the same stale-`dist/` check, and its tests, on every PR.
@@ -153,20 +155,36 @@ with `uv sync --locked` and ruff, timed in a Linux container
 the engine's saved forms, so the job needs the fill-engine submodule: it
 needs `FILL_ENGINE_TOKEN` and is skipped without it. It runs only on a PR
 that touches `apply-agent/`, the engine pointer, `ci.yml` or
-`engine-token.yml` (the `changes` job). It then installs Chrome for Testing
-(cached by `uv.lock`) and runs `test_submit_guard_hostile.py`,
-`test_plain_focus.py`, `test_plain_guards.py`,
+`engine-token.yml` (the `changes` job). Its setup is two actions it shares
+with `apply-hostile` and `apply-nightly.yml`: `apply-setup` (the engine pin,
+Python, `uv sync`) and, after the fast tests and the tile's, `apply-browsers`,
+which installs Chrome for Testing (cached by `uv.lock`). **The fast tests run
+before the browsers are installed**: some of their files have browser cases
+that skip without one, and with the browsers installed first they ran in
+parallel and hung the fast tests at 96% until the step's 5 minutes ran out
+(2026-11-15). Then it runs `test_plain_focus.py`, `test_plain_guards.py`,
 `test_plain_routing.py` and `test_upload_origin.py`, the last three on a real plain Worker (KAN-667;
-`test_upload_origin.py`'s hostile upload pages also run on CDP, KAN-795). macOS, because a
+`test_upload_origin.py`'s hostile upload pages also run on CDP, KAN-795, in a parallel step of their own,
+since only plain-Worker cases need one process). macOS, because a
 plain Worker starts through `open` and the browser's `.app`; a step fails the
 job if the browser is missing, since these tests skip without it.
-**Its limit is 35 minutes** (KAN-780, 2026-11-10; raised from 15 on
-2026-11-11, and from 20 on 2026-11-13): the job took 16 to 20 minutes once the hostile pages'
+**`test_submit_guard_hostile.py` runs in its own job, `apply-hostile`**, on a
+second runner beside `apply` (KAN-780, 2026-11-14), so a PR waits for the
+longer of the two, not their sum (the one job took 9 to 15 minutes).
+**Its limit is 25 minutes** (KAN-780, 2026-11-10; raised from 15 on
+2026-11-11, to 35 on 2026-11-13, and back to 25 on 2026-11-14): the job took 16 to 20 minutes once the hostile pages'
 plain-Worker cases ran there (it was raised to 35 for that), about 6 after
 KAN-780 (below), about 13 once the guard holes' pages ran on every CDP
 path (KAN-710, KAN-783), and 22 once KAN-793's and KAN-795's pages
-took the hostile step to 710 cases (2026-11-14). Each step has its own
-limit too, so a hang fails in that step.
+took the hostile step to 710 cases (2026-11-14), and about 15 once each page
+ran once on PRs, for as long as it can send (303 cases, 486 s). Each step has its own
+limit too, so a hang fails in that step. But the steps' limits came to 38
+minutes under the job's 25, so the job's limit could stop a run whose every
+step was inside its own. **Since the split, every step of both jobs has a
+limit, setup included, and each job's limit is the sum of its steps'**
+(`apply` 34, `apply-hostile` 29): a hang fails in its own step, and the job's
+limit never fires first. A step added to either job adds its limit to the
+job's.
 **CI does not run the other 28 test files**, which hold the Filler tests
 (`test_*_filler.py`, `test_claude_fill.py`, `test_run.py`,
 `test_rehearse.py` and more). Most of them need Chromium or the macOS
@@ -182,14 +200,23 @@ loadgroup`, and the plain-Worker step without `-n`): in parallel, plain
 Workers' trusted typing missed its field. The tile's tests, which time
 frames in real seconds, have their own one-process step too. Before KAN-780 the job took 16 to 20 minutes,
 10 to 15 of them in the hostile pages' matrix. PRs now run every hostile
-page and every path at least once; `workflows/apply-nightly.yml` (07:53
+page on its own path and every path at least once, a pair only where its path
+presses something the page holds (`APPLIES`, `apply-agent/CLAUDE.md`);
+`workflows/apply-nightly.yml` (07:53
 UTC, or `gh workflow run apply-nightly.yml`) runs every `nightly` test,
-with a 90-minute step: its 887 plain-Worker cases run one at a time, about
-65 minutes on the runner (KAN-841; at 30 it stopped at 57% every night).
+with a 90-minute step: its plain-Worker cases run one at a time. 887 took
+about 65 minutes on the runner (KAN-841; at 30 it stopped at 57% every
+night); leaving out the pairs whose path finds nothing took them to 574,
+and the timed session copies' going to 512 of 787 (KAN-780, 2026-11-14).
 The pages of PR 477's guard holes (KAN-710: `GUARD_HOLES` in
 `test_submit_guard_hostile.py`, among them a page that sets the guards' old
-`window.__apply*` flags itself) are never only nightly: PRs run each one on
-every CDP path. The holes that hang on how a plain Worker carries the guards'
+`window.__apply*` flags itself) are never only nightly: PRs run each one
+once, on the path that reaches its hole (until 2026-11-14, on every CDP path:
+a mutation study found the other paths caught no fault the one didn't,
+`apply-agent/CLAUDE.md`). Leaving out the pairs whose path finds nothing on
+its page, each page once on PRs, a wait as long as the page's own timers and
+one timed session copy took the step from 710 cases to 303 (KAN-780,
+2026-11-14). The holes that hang on how a plain Worker carries the guards'
 state, touches, controls and network rules (`PLAIN_HOLES`) also run on one
 plain-Worker path; the rest of their plain-Worker pairs run nightly, since the
 guard script is the same on both kinds of Worker. A page added for a new
@@ -201,11 +228,23 @@ KAN-783's eight pages joined (about five times its time on a 14-core Mac),
 so its limit was 12 minutes. KAN-793's and KAN-795's pages took it to 710
 cases, 1199 s on CI (2026-11-14; 6 minutes on a 10-core Mac, and the runner
 starts 3 processes): from 2026-11-11 every apply job stopped at 60 to 70% of them
-when the 12 minutes ran out, and PRs merged with it red. So its limit is 25
-minutes. The cases mostly wait (the 10-core run used about one core), so
-more processes than the runner's 3 would be faster, but a busier runner can
-delay a hostile page's send past a case's wait and pass a case that should
-fail: the guards' owners decide that, or which pairs run only nightly.
+when the 12 minutes ran out, and PRs merged with it red. So its limit went
+to 25 minutes, and back to 12 once each page ran once (303 cases, 486 s,
+2026-11-14). On a 10-core Mac the cases mostly wait (the run used about one
+core), but **not on the runner: 8 processes on its 3 cores were no faster**
+(2026-11-15: 220 cases in 237 s, as 303 had taken on 3). The held-page tests
+ran half again as long, and three plain-Worker cases missed their timing: a
+service worker's post came later than its control's 8 s and landed in the next
+test, before its guard was on, and trusted typing missed its field. So the step
+stays at one process per core. The CDP cases keep the page's time on
+Playwright's clock, where a timed send fires by that clock whatever the
+runner's speed, and three controls on every PR fail if the real time left
+after the clock is too short (`apply-agent/CLAUDE.md`, "The submit guard's
+hostile pages"). The other controls run nightly, and every control on a PR
+that changes what the control reads (the `hostile_pages` filter: the hostile
+pages' file, the test modules it and `conftest.py` import, `uv.lock`'s
+Playwright, the setup), in a step of its own that runs even after a red
+hostile step.
 The Plain-Worker step's limit is 6 minutes (101 tests took 233 s,
 2026-11-14). While the hostile step ran out of time, no step after it ran
 on CI, so what broke there stayed hidden: a fixed 300 ms wait for an
@@ -213,6 +252,24 @@ auto-save in `test_plain_typing.py` failed the first time it ran again. A
 fake that a page saves to keeps the newest save and the test waits for the
 answers, never a fixed time. A
 test safe only on its own (a fixed port or path) can't join a parallel step.
+
+**The `apply-window` job** (KAN-867) checks the student page, the Student
+build's window (`apply-agent/window/`, Vite + React). On Ubuntu, in that
+folder, it runs `npm ci`, `npm test` (the view model's and bridge's tests,
+Node's own runner), `npm run build`, then `git diff --exit-code` on
+`apply-agent/src/apply/student_page/`. That folder holds the built page,
+one self-contained HTML file committed into the Python package so a
+Student build ships it with no Node. So a PR that changes the page's source
+without rebuilding, or rebuilds it differently, fails here. The build bakes
+in Brandfetch's public client id from the repo variable
+`NEXT_PUBLIC_BRANDFETCH_CLIENT_ID`, as `deploy.yml` builds the website with
+it. The committed page is built with it too, so a local rebuild must set it
+(`apply-agent/docs/apply-window.md`), or the diff fails. It runs only when
+the `changes` job's **`apply_window` filter** matches: `apply-agent/window/**`,
+the built page, `.nvmrc` (its Node) or `ci.yml`. It needs no fill-engine
+submodule and no Python, so it is not in the `apply` filter, and an Apply
+change that leaves the page alone skips it. The build is deterministic on a
+Mac. A Linux build that differs from a Mac's would show here first.
 
 The frontend job runs `format:check`, so an unformatted file fails the PR.
 Run `npm run format` before pushing. Markdown docs are in
@@ -579,6 +636,98 @@ not a re-run.
 - **Still open:** no notification when a submitted version clears (or
   fails) Google's review — that's checked by hand in the Dashboard for
   now.
+
+## Publish the Fill engine (`workflows/publish-engine.yml`, KAN-836)
+
+Signs the engine that `main`'s fill-engine pointer records and puts it last
+in the private `ApplyEngine` Storage bucket's `builds.json`, where WorkIt
+Auto Apply downloads it (`GET /apply-app/engine`, W7 of
+`../docs/desktop_application_auto_apply.md`). It runs
+`backend/app/scripts/publish_engine.py publish`.
+
+- **When.** A push to `main` that moves the engine pointer or
+  `backend/app/scripts/engine_min_app.txt`, and by hand from `main`
+  (`gh workflow run publish-engine.yml`). Never on a PR: whoever holds the
+  key makes every app run what it signs, and a PR's run is the PR's code.
+  A run whose engine is already last in `builds.json` at that min app
+  uploads nothing, so a re-run is safe. A pointer moved back to an older
+  engine puts that build last again, so a revert rolls the engine back.
+  An edit to the workflow starts no publish.
+- **The min app** (`engine_min_app.txt`) is the oldest app version that the
+  pointer's engine fits. Raise it in the PR that moves the pointer to an
+  engine older apps can't run: they keep the build before it. The workflow
+  publishes only `main`'s engine, so a fix for older apps alone is a
+  hand-run publish with its own `--engine` and `--min-app`.
+- **It signs only a reviewed engine.** The pin step makes it the commit
+  `main` records, and on the pointer's PR `ci.yml`'s `extension` job
+  checked that this commit's `dist/` is what its `src/` builds.
+- **The script refuses a key whose public half Apply doesn't hold**
+  (`PUBLIC_KEY` in `apply-agent/src/apply/engine_download.py`). Signed by
+  another key, the build is refused by every app, with a message that
+  blames the student's network. When W0 moves Apply to its own repo,
+  `publish_engine.APP_KEY` must read the key from there.
+- **Secrets:**
+  - `APPLY_ENGINE_SIGNING_KEY`, the private key's PEM from `make-key`, is a
+    secret of the **`apply-engine` environment**, never a repo secret. The
+    environment takes jobs from `main` only, so a workflow pushed to any
+    other branch can't read it; a repo secret reaches every branch's
+    workflows. A job that names an environment that doesn't exist makes it
+    with no branch rule, so make the environment before the first run.
+  - `CF_API_SECRETS_JSON`: the step takes its `SUPABASE_URL` and
+    `SUPABASE_SERVICE_KEY`, so the build goes to the project the deployed
+    API reads, with no second copy of the service key. It masks the key it
+    takes out: GitHub masks only a secret's whole value.
+  - `FILL_ENGINE_TOKEN`, for the submodule, as in `publish-extension.yml`.
+    Without it the job fails at checkout.
+- **One run at a time** (group `publish-engine`): each run reads
+  `builds.json` and writes it back, so never run the script by hand while a
+  run is going.
+- **A failed run leaves the last build served.** GitHub emails the person
+  whose merge started it; nothing else tells the team.
+- **Setup, once, in this order.** The key and the bucket are the user's
+  steps (a script that writes production Storage, the dashboard), never
+  Claude's.
+  1. `cd backend && uv run python -m app.scripts.publish_engine make-key
+     <file outside every checkout>`, and a PR that puts the public half it
+     prints in `engine_download.PUBLIC_KEY`. Merge it before the first run.
+  2. The private `ApplyEngine` bucket: Supabase dashboard, Storage, New
+     bucket, Public off.
+  3. The environment, then its secret:
+     `gh api -X PUT repos/workitjobs/workit/environments/apply-engine -F
+     'deployment_branch_policy[protected_branches]=false' -F
+     'deployment_branch_policy[custom_branch_policies]=true'`, then
+     `gh api -X POST
+     repos/workitjobs/workit/environments/apply-engine/deployment-branch-policies
+     -f name=main -f type=branch`, then `gh secret set
+     APPLY_ENGINE_SIGNING_KEY --env apply-engine --repo workitjobs/workit <
+     <file>`.
+  4. `gh workflow run publish-engine.yml --ref main`, then check its log for
+     "Published".
+
+## Harvest Common Crawl boards (`workflows/harvest-commoncrawl.yml`)
+
+Runs `scraper/harvest_commoncrawl.py` on the 1st and 15th of each month at
+09:17 UTC on `ubuntu-latest`, or manually on main. It queries Common Crawl's
+CDX index for ATS board URLs across 13 hiring systems, extracts board tokens
+with `board_keys()`, and writes `scraper/commoncrawl-boards.json`. If the CDX
+API fails (504s are common), it falls back to `--direct`, which reads the raw
+shard files instead.
+
+- **Runs only on `main`** (`github.ref == 'refs/heads/main'`), same as the
+  publish workflow. A dispatch from another branch is rejected.
+- **Timeout is 90 minutes.** The CDX API is slow (~1 s per request, 17
+  patterns, many pages each). A full harvest can take 30–60 minutes when the
+  API is healthy.
+- **Opens a PR if the pool changed.** Compares the committed
+  `commoncrawl-boards.json` against the harvest's output; if different, pushes
+  a `chore/commoncrawl-harvest-<crawl>` branch and opens a PR. A person
+  reviews the diff and merges; the daily `discover-boards.yml` reads the file
+  on main with no HTTP.
+- **No secrets needed.** Uses only `github.token` for the PR.
+- **Needs "Allow GitHub Actions to create and approve pull requests"**, same
+  as discovery and company-domains.
+- **It stops silently after 60 days without a commit** to `main`, like every
+  schedule here (`gh workflow enable harvest-commoncrawl.yml`).
 
 ## Company websites from Wikidata (`workflows/company-domains.yml`)
 

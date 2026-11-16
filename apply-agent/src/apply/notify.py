@@ -8,7 +8,7 @@ from collections import Counter
 from collections.abc import Callable
 
 from apply.asking import IN
-from apply.keychain import PHONE_PUSH, PHONE_PUSH_HOST, MacKeychain
+from apply.keychain import PHONE_PUSH, PHONE_PUSH_HOST, SystemKeychain
 from apply.model import Status, one_line
 
 TITLE = "Apply run finished"
@@ -109,7 +109,7 @@ SET_UP = f"""No ntfy topic is set up, so Apply pushes nothing to your phone. To 
   1. Install the ntfy app on your phone (App Store or Google Play) and allow its notifications.
   2. In the app, tap + and subscribe to a topic on ntfy.sh with a name nobody could guess,
      such as the output of: echo apply-$(openssl rand -hex 12)
-  3. Save that name in Keychain: security add-generic-password -s {PHONE_PUSH} -a {PHONE_PUSH_HOST} -w <topic>
+  3. Save that name in Keychain: uv run keyring set {PHONE_PUSH} {PHONE_PUSH_HOST} (in apply-agent/; it asks for the topic)
   4. Run `apply push-test` again; the test push shows on your phone.
   5. Set `phone_push: true` in policies.yaml in your data folder ($APPLY_HOME), and every run pushes what waits on you."""
 
@@ -117,7 +117,7 @@ SET_UP = f"""No ntfy topic is set up, so Apply pushes nothing to your phone. To 
 def live_phone(keychain=None, post: Callable[[str, bytes, dict], None] = https_post) -> NtfyNotifier | None:
     """The push to Lisul's phone, to the ntfy topic saved in Keychain
     (service apply-ntfy, account ntfy.sh); None while there is none."""
-    topic = (keychain or MacKeychain(PHONE_PUSH)).password(PHONE_PUSH_HOST)
+    topic = (keychain or SystemKeychain(PHONE_PUSH)).password(PHONE_PUSH_HOST)
     return NtfyNotifier(topic, post) if topic else None
 
 

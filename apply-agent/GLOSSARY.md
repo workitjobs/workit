@@ -85,7 +85,7 @@ A write to WorkIt's Applications Tracker that could not reach WorkIt (no answer,
 _Avoid_: retry queue, outbox
 
 **WorkIt client**:
-The one module in Apply that calls WorkIt's API, as the student that `apply login` signed in. The login is kept in the data folder.
+The one module in Apply that calls WorkIt's API, as the student that `apply login` signed in. Its login is kept in the system's keychain.
 _Avoid_: API wrapper, WorkIt SDK
 
 **Top 500**:
@@ -185,7 +185,7 @@ Any free-text answer Claude writes for a form: a question's answer or a Cover le
 _Avoid_: unique answer, long answer, free-text response
 
 **Question type**:
-The kind of question an Essay answers, which decides what a great answer to it holds: why-company, what-youd-build, values, why-role, preference, best-project, named-area, failure, not-on-resume, ai-tools, opinion, why-field, about-me, anything-else or cover-letter, else the general fallback. Each has a guidance file in apply/answering/types/.
+The kind of question an Essay answers, which decides what a great answer to it holds: why-company, what-youd-build, values, why-role, preference, best-project, named-area, failure, not-on-resume, ai-tools, opinion, why-field, about-me, anything-else or cover-letter, else the general fallback. Each has a guidance file on WorkIt's server (backend/app/apply_prompts/answering/types/), whose front matter Apply fetches (apply.answering).
 _Avoid_: question category, prompt kind, essay kind
 
 **Essay plan**:
@@ -267,7 +267,7 @@ The last part of the Pre-submit check, in rehearsals and runs alike: Apply reads
 _Avoid_: validation, QA, double-check
 
 **Employer account**:
-A login the system creates for Lisul on one employer's careers site when that site requires one and offers no Sign in with Google. On Workday, the system creates one even when the site offers Sign in with Google, unless Lisul's policies say `workday_sign_in: google`. Its password is only in the macOS Keychain. The Accounts tab of the Apply window lists each one. Copy password puts the password on the clipboard for 60 s, and Open sign-in page opens the site in Lisul's own Chrome. The Tracker lists the account, also one that a Rehearsal made.
+A login the system creates for Lisul on one employer's careers site when that site requires one and offers no Sign in with Google. On Workday, the system creates one even when the site offers Sign in with Google, unless Lisul's policies say `workday_sign_in: google`. Its password is the one Lisul chose in the Accounts tab, or a random one when he chose none. Each account keeps its own copy in the system's keychain: macOS Keychain, or Windows Credential Manager. The Accounts tab of the Apply window lists each one. Show password shows its password, and Copy password puts it on the clipboard for 60 s. Open sign-in page opens the site in Lisul's own Chrome. The Tracker lists the account, also one that a Rehearsal made.
 _Avoid_: ATS account, candidate account
 
 **Not eligible**:

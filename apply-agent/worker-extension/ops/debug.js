@@ -1,3 +1,4 @@
+// WorkIt Auto Apply Worker. Copyright (c) 2026 its authors. All rights reserved: see LICENSE.
 // The one chrome.debugger attachment per tab that every op shares (KAN-839). Chrome lets an
 // extension attach to a tab once, so typing.js (trusted input) and cdp.js (page code and early
 // scripts through the Debugger API) both go through here.

@@ -1,11 +1,15 @@
-"""The worker extension (apply-agent/worker-extension/): its ID, and the files `prepare` writes.
+"""The worker extension (apply-agent/worker-extension/): its ID, the files `prepare` writes, and the
+Chrome Web Store package (`package`).
 
-The extension is private, never on the Store, and separate from the WorkIt extension. Its ID
-is fixed by manifest.json's `key`. `prepare` writes its generated files into vendor/:
+The extension is separate from the WorkIt extension. A Developer checkout loads it unpacked, with
+its ID fixed by manifest.json's `key`; WorkIt Auto Apply's students add the store copy
+(`package`, KAN-839), whose ID the store gives (STORE_ID). `prepare` writes its generated files
+into vendor/:
 
-- engine.js: the Fill engine bundle, copied from the extension submodule's build
-  (fill_engine.ENGINE), the very file the WorkIt extension and Apply's CDP Workers load;
-- engine.json: that bundle's version and sha256, which the extension reports in its hello;
+- engine.json: the Fill engine's version and sha256 (fill_engine.source), which the extension
+  reports in its hello. The engine itself is never a file here: Apply hands it to the extension's
+  memory over native messaging (`cdp.keep`, apply.plain.script.keep_engine), so no plain engine
+  sits on disk, and a store copy needs none in its package;
 - injected.js: Playwright's own injected script (playwright-core's injectedScriptSource,
   Apache-2.0), from the installed Python package's driver, wrapped to set
   `globalThis.__applyPW` in the extension's isolated world;
@@ -40,7 +44,6 @@ import base64
 import hashlib
 import json
 import os
-import re
 import shutil
 import subprocess
 import tempfile
@@ -48,6 +51,7 @@ import time
 from functools import cache
 from pathlib import Path
 
+import psutil
 from playwright._impl._driver import compute_driver_executable
 
 from apply import fill_engine
@@ -58,6 +62,9 @@ EXTENSION_DIR = CODE / "worker-extension"
 VENDOR = EXTENSION_DIR / "vendor"
 HOST_NAME = "com.workit.apply_worker"
 COPY = "worker-extension"  # APPLY_PROFILES/worker-extension/: the profiles folder's own copy (install)
+SET_FILE = "set.json"  # vendor/set.json in a package: the id of the generated files built into it (`package`)
+STORE = EXTENSION_DIR / "store.json"  # the store package's name, description and version
+LICENSES = ("LICENSE", "NOTICE")  # the extension's own license, and the third-party code it ships
 STAMP = ".apply-code"  # in a copy: the code_hash of the code it holds
 SETS = "sets"  # vendor/sets/<id>/: one write-once set of the generated files per Apply build
 SET_DAYS = 7  # a set unused this long is removed when a new one is written
@@ -76,9 +83,10 @@ if (at < 0) throw new Error("no injectedScriptSource in " + process.argv[1]);
 const start = bundle.indexOf("= '", at), end = bundle.indexOf("';\n", start);
 process.stdout.write((0, eval)(bundle.slice(start + 2, end + 1)));"""
 # The engine bundle's own version (FillEngine.version), read in Node.
+# Reads the bundle's text on stdin (it may be WorkIt's download, never a file) and prints FillEngine.version.
 VERSION = r"""const vm = require("vm"), fs = require("fs");
 const context = vm.createContext({URL});
-vm.runInContext(fs.readFileSync(process.argv[1], "utf8"), context);
+vm.runInContext(fs.readFileSync(0, "utf8"), context);
 process.stdout.write(String(vm.runInContext("FillEngine.version", context)));"""
 
 
@@ -90,21 +98,23 @@ def extension_id(manifest: Path = EXTENSION_DIR / "manifest.json") -> str:
 
 EXTENSION_ID = extension_id()
 EXTENSION_ORIGIN = f"chrome-extension://{EXTENSION_ID}/"
+# The Chrome Web Store copy's ID, which the store gives at the first upload: empty until then. A Worker
+# may connect from either ID (the native host's allowed_origins, the bridge's check).
+STORE_ID = ""
+EXTENSION_ORIGINS = (EXTENSION_ORIGIN, *([f"chrome-extension://{STORE_ID}/"] if STORE_ID else []))
 
 
-def engine_identity(engine: Path | None = None) -> dict:
-    """The engine bundle's version and sha256, as the hello carries them."""
-    engine = engine or fill_engine.ENGINE
-    return {"version": _engine_version(engine, engine.stat().st_mtime_ns), "sha256": _sha256(engine)}
+def engine_identity(source: str | None = None) -> dict:
+    """The engine bundle's version and sha256, as the hello carries them: of `source`, else of fill_engine.source()."""
+    source = fill_engine.source() if source is None else source
+    sha = hashlib.sha256(source.encode()).hexdigest()
+    return {"version": _engine_version(source), "sha256": sha}
 
 
 @cache
-def _engine_version(engine: Path, _mtime: int) -> str:
-    return subprocess.run([_node(), "-e", VERSION, str(engine)], capture_output=True, text=True, check=True).stdout
-
-
-def _sha256(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+def _engine_version(source: str) -> str:
+    return subprocess.run([_node(), "-e", VERSION], input=source, capture_output=True, text=True, encoding="utf-8",
+                          check=True).stdout
 
 
 def _node() -> str:
@@ -115,28 +125,58 @@ def _driver_bundle() -> Path:
     return Path(compute_driver_executable()[1]).parent / "lib" / "coreBundle.js"
 
 
+def _injected() -> str:
+    """vendor/injected.js: Playwright's injected script, from the installed package's driver."""
+    source = subprocess.run([_node(), "-e", EXTRACT, str(_driver_bundle())], capture_output=True, text=True, check=True).stdout
+    return ("// Playwright's injected script (Apache-2.0), from the installed playwright package.\n"
+            "(() => {\nif (globalThis.__applyPW) return;\nconst module = {};\n" + source +
+            f"\nglobalThis.__applyPW = new (module.exports.InjectedScript())(globalThis, {json.dumps(INJECTED_OPTIONS)});\n}})();\n")
+
+
+def _built_in(guard_files: dict[str, str]) -> dict[str, bytes]:
+    from apply.plain import guards
+
+    files = {"injected.js": _injected().encode(), "fixed.js": fixed.script().encode()}
+    return files | {f"{guards.FOLDER}/{name}": text.encode() for name, text in guard_files.items()}
+
+
 def generated(identity: dict | None = None) -> dict[str, bytes]:
     """Each generated file's path under vendor/ and its bytes."""
     from apply.plain import guards
 
-    fill_engine._built()
-    identity = identity or engine_identity()
-    bundle = _driver_bundle()
-    source = subprocess.run([_node(), "-e", EXTRACT, str(bundle)], capture_output=True, text=True, check=True).stdout
-    injected = ("// Playwright's injected script (Apache-2.0), from the installed playwright package.\n"
-                "(() => {\nif (globalThis.__applyPW) return;\nconst module = {};\n" + source +
-                f"\nglobalThis.__applyPW = new (module.exports.InjectedScript())(globalThis, {json.dumps(INJECTED_OPTIONS)});\n}})();\n")
-    files = {"engine.js": fill_engine.ENGINE.read_bytes(), "engine.json": (json.dumps(identity, indent=1) + "\n").encode(),
-             "injected.js": injected.encode(), "fixed.js": fixed.script().encode()}
-    files |= {f"{guards.FOLDER}/{name}": text.encode() for name, text in guards.FILES.items()}
-    return files
+    identity = identity or engine_identity()  # through fill_engine.source(), which checks the checkout's file
+    return {"engine.json": (json.dumps(identity, indent=1) + "\n").encode(), **_built_in(guards.FILES)}
+
+
+def store_stamp() -> dict[str, str]:
+    """What a store version of the extension holds, the same in every Apply process: the hash of its own code, and the
+    set id of its built-in files with each of the guards' per-run tokens (submit_guard.TOKENS, TOUCHES, MARKS, TELL,
+    wherever their values went) written as a fixed value. store.json records it for its version; a change means a new
+    store release (apply-agent/CLAUDE.md)."""
+    from apply import submit_guard
+    from apply.plain import guards
+
+    secrets = [*submit_guard.TOKENS.values(), *submit_guard.TOUCHES.values(), *submit_guard.MARKS.values(), submit_guard.TELL]
+    neutral = {}
+    for name, text in guards.FILES.items():
+        for secret in secrets:
+            text = text.replace(secret, "0" * len(secret))
+        neutral[name] = text
+    return {"code": code_hash(), "files": set_id(_built_in(neutral))}
+
+
+def packaged_files(files: dict[str, bytes] | None = None) -> dict[str, bytes]:
+    """The generated files a store package holds: all but the engine's identity, which changes with each engine
+    and is no part of the package. Their set_id is what a package's hello names (`packaged`)."""
+    return {name: data for name, data in (files if files is not None else generated()).items() if name != "engine.json"}
 
 
 def prepare(vendor: Path = VENDOR) -> dict:
-    """Write vendor/engine.js, engine.json, injected.js, fixed.js and guards/, each only when it changed.
-    Returns the engine's identity."""
+    """Write vendor/engine.json, injected.js, fixed.js and guards/, each only when it changed, and remove an
+    engine bundle an older Apply wrote there. Returns the engine's identity."""
     identity = engine_identity()
     vendor.mkdir(parents=True, exist_ok=True)
+    (vendor / "engine.js").unlink(missing_ok=True)
     for name, data in generated(identity).items():
         path = vendor / name
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -238,6 +278,8 @@ def install(dest: Path, files: dict[str, bytes], replace: bool, source: Path = E
             (building / "vendor" / name).write_bytes(data)
         if (dest / "vendor" / SETS).is_dir():
             shutil.copytree(dest / "vendor" / SETS, building / "vendor" / SETS)
+            for old_engine in (building / "vendor" / SETS).glob("*/engine.js"):  # an older Apply's: no engine on disk
+                old_engine.unlink()
         (building / STAMP).write_text(code + "\n")
         old = dest.with_name(f".{dest.name}-old-{os.getpid()}")
         if dest.exists():
@@ -264,21 +306,23 @@ def guards_match(folder: Path) -> bool:
 def loaders(folder: Path) -> list[int]:
     """The PIDs of the running Chromes that load the worker extension from `folder`: by --load-extension, or by a
     profile (--user-data-dir) whose registration names it. Changing `folder` under one of them would change the code
-    of a Worker that runs: never done."""
+    of a Worker that runs: never done. psutil reads each process's arguments, on every OS (W4)."""
     try:
-        listed = subprocess.run(["ps", "-axo", "pid=,command="], capture_output=True, text=True, check=True).stdout
-    except (OSError, subprocess.SubprocessError):
+        processes = [p.info for p in psutil.process_iter(["pid", "cmdline"])]
+    except (psutil.Error, OSError):
         return [0]  # can't tell: as if one did
     target, pids = folder.resolve(), []
-    for line in listed.splitlines():
-        pid, _, command = line.strip().partition(" ")
-        if not pid.isdigit() or "--type=" in command:  # a Chrome's helpers name its profile too: the browser is enough
+    for process in processes:
+        arguments = process.get("cmdline") or []  # None: another user's process, or one gone
+        if any(a.startswith("--type=") for a in arguments):  # a Chrome's helpers name its profile too: the browser is enough
             continue
-        named = [Path(found.group(1)) for found in [re.search(r"--load-extension=(.+?)(?= --|$)", command)] if found]
-        if data := re.search(r"--user-data-dir=(.+?)(?= --|$)", command):
-            named += [registered] if (registered := loaded_folder(Path(data.group(1)))) else []
+        named = [Path(path) for a in arguments if a.startswith("--load-extension=")
+                 for path in a.partition("=")[2].split(",") if path]
+        for a in arguments:
+            if a.startswith("--user-data-dir=") and (registered := loaded_folder(Path(a.partition("=")[2]))):
+                named.append(registered)
         if any(path.resolve() == target for path in named):
-            pids.append(int(pid))
+            pids.append(process["pid"])
     return pids
 
 
@@ -288,3 +332,36 @@ def refresh(folder: Path, files: dict[str, bytes], source: Path = EXTENSION_DIR)
     if not (folder / STAMP).is_file() or code_hash(folder) == code_hash(source) or loaders(folder):
         return False
     return install(folder, files, replace=True, source=source)
+
+
+def package(out: Path, store: bool = True) -> Path:
+    """The Chrome Web Store package of the extension, as a zip in `out`: its own code, the generated files that
+    packaged_files gives (never the engine) with their id in vendor/set.json, LICENSE, NOTICE and Playwright's
+    license, and a manifest with store.json's name, description and version. `store` drops the manifest's `key`,
+    which the store refuses (it gives its own ID); a test's package keeps it, so Chrome for Testing gives it
+    EXTENSION_ID and the native host lets it connect. Returns the zip; its unpacked folder is beside it."""
+    files = packaged_files()
+    meta = json.loads(STORE.read_text())
+    manifest = json.loads((EXTENSION_DIR / "manifest.json").read_text())
+    manifest |= {"name": meta["name"], "description": meta["description"], "version": meta["version"]}
+    if store:
+        manifest.pop("key", None)
+    folder = out / f"worker-extension-{meta['version']}"
+    if folder.exists():
+        shutil.rmtree(folder)
+    for part in CODE_FILES:
+        if (EXTENSION_DIR / part).is_dir():
+            shutil.copytree(EXTENSION_DIR / part, folder / part)
+        elif (EXTENSION_DIR / part).is_file():
+            folder.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(EXTENSION_DIR / part, folder / part)
+    (folder / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
+    for name, data in files.items():
+        (folder / "vendor" / name).parent.mkdir(parents=True, exist_ok=True)
+        (folder / "vendor" / name).write_bytes(data)
+    (folder / "vendor" / SET_FILE).write_text(json.dumps({"id": set_id(files)}) + "\n")
+    for name in LICENSES:
+        shutil.copy2(EXTENSION_DIR / name, folder / name)
+    shutil.copy2(_driver_bundle().parents[1] / "LICENSE", folder / "LICENSE-playwright")  # Apache-2.0, for injected.js
+    archive = shutil.make_archive(str(out / folder.name), "zip", root_dir=folder)
+    return Path(archive)

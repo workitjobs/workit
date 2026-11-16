@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 import { bounceToLogin, finishOAuthSignIn } from "@/lib/oauth-finish";
+import { signInNext } from "@/lib/sign-in-next";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 /**
@@ -15,7 +16,9 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
  * `?next=` sends a signed-in account back to Settings instead of its home:
  * linking Google or LinkedIn and confirming a new sign-in email both come
  * through here (KAN-326, lib/account-actions.ts). Only a path under
- * /settings/ is followed, so the parameter cannot send anyone off the site.
+ * /settings/ is followed, so the parameter cannot send anyone off the site,
+ * or a page that /login's `next` may go back to (lib/sign-in-next.ts), for a
+ * LinkedIn sign-in started on /login.
  */
 function settingsPath(next: string | null): string | null {
   return next?.startsWith("/settings/") && !next.includes("//") ? next : null;
@@ -25,6 +28,7 @@ export async function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get("code");
   const origin = request.nextUrl.origin;
   const next = settingsPath(request.nextUrl.searchParams.get("next"));
+  const back = next ?? signInNext(request.nextUrl.searchParams.get("next"));
 
   if (!code && next && request.nextUrl.searchParams.get("message")) {
     // Supabase's secure email change: the first of the two confirm links
@@ -55,5 +59,5 @@ export async function GET(request: NextRequest) {
     return bounceToLogin(origin, "exchange_failed", error?.message ?? error?.code);
   }
 
-  return finishOAuthSignIn(supabase, origin, data.session.access_token, next);
+  return finishOAuthSignIn(supabase, origin, data.session.access_token, back);
 }

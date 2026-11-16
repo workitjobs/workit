@@ -62,6 +62,18 @@ PAGES = {
         };</script>""",
     "/evil": EVIL,
     "/own": OWN,
+    # KAN-855's review: another site's frame holds the field an answer goes in, and its own FillEngine takes what the
+    # Fill engine is handed (an answer's text, a file's bytes).
+    "/answer": '<!doctype html><title>Apply</title><h1>Apply to Acme</h1>'
+               '<iframe id=w src="http://localhost:{port}/thief" width=400 height=200></iframe>',
+    "/thief": '<!doctype html><title>Widget</title><label>Resume <input type=file id=f name=f></label>'
+              '<script>window.FillEngine = {call: (name, args) => { window.took = JSON.stringify(args); return {}; }};'
+              '</script>',
+    # KAN-855's second review: another site's frame shows a code box after the student's Submit.
+    "/code": '<!doctype html><title>Apply</title><label>Name <input id=name></label>'
+             '<iframe id=w src="http://localhost:{port}/code-ad" width=300 height=100></iframe>',
+    "/code-ad": "<!doctype html><title>Ad</title><div id=d></div><script>window.show = () => { document.getElementById('d')"
+                ".innerHTML = '<label>Security code <input name=security_code></label>'; };</script>",
 }
 
 
@@ -290,6 +302,54 @@ def test_cdp_plain_code_gives_no_file_to_an_input_in_another_sites_frame(site, t
 
 
 @needs_chromium
+def test_cdp_an_answer_from_the_window_goes_to_no_frame_of_another_site(site, tmp_path):
+    """The Student build's fill of an answer from the Apply window (rehearsal._engine_fill, KAN-855) tries only the
+    form's own frames: another site's frame, whose own FillEngine would take the file, is handed nothing."""
+    from apply import rehearsal
+
+    with cdp_page() as (page, _):
+        page.goto(f"{site.url}/answer")
+        thief = _frame(page, "/thief")
+        assert not rehearsal._engine_fill(page, _held_resume(), "Resume", _resume(tmp_path))
+        assert thief.evaluate("() => window.took") is None
+
+
+@needs_chromium
+def test_cdp_an_answer_from_the_window_goes_nowhere_once_the_tab_left_the_forms_site(site, tmp_path):
+    """The top frame passes the frame rule whatever site it is on (KAN-795), so _engine_fill also checks the tab is
+    still on the form's own site, as Apply handed it over (KAN-855's second review)."""
+    from apply import rehearsal
+
+    with cdp_page() as (page, _):
+        page.goto(f"{site.url}/answer")
+        own = upload_origin.origin(page.url)
+        page.goto(f"{site.other}/thief")  # the student followed a link: the tab's top is another site's page now
+        assert not rehearsal._engine_fill(page, _held_resume(), "Resume", _resume(tmp_path), own)
+        assert page.evaluate("() => window.took") is None
+
+
+@needs_chromium
+def test_cdp_a_code_box_in_another_sites_frame_is_never_the_job_sites(site):
+    from apply import code_box
+
+    with cdp_page() as (page, _):
+        page.goto(f"{site.url}/code")
+        _frame(page, "/code-ad").evaluate("() => window.show()")
+        assert code_box.boxes(page) == []  # Needs you never tells him to type a code there
+
+
+def _held_resume():
+    """A held Greenhouse form whose one question is its resume: what _engine_fill reads of the form."""
+    from types import SimpleNamespace
+
+    from apply.model import Posting, Question
+
+    return SimpleNamespace(posting=Posting(id="1", company="Acme", title="Intern",
+                                           url="https://job-boards.greenhouse.io/acme/jobs/1"),
+                           questions=(Question("f", "Resume", "file"),), where={})
+
+
+@needs_chromium
 def test_cdp_the_guard_opens_no_picker_in_another_sites_frame_so_claude_has_no_chooser(site):
     """Playwright MCP's upload sets the files of the chooser a click opened: under the guard, a click in the other
     site's frame, on its input or on a button whose script clicks it, opens none."""
@@ -455,6 +515,27 @@ def test_plain_claudes_upload_gives_no_file_to_another_sites_frame(plain, site, 
     with pytest.raises(Elsewhere):  # the frame's own check, with no word from Apply's first
         evil.locator("#f").set_input_files(resume)
     assert evil.evaluate("() => document.getElementById('f').files.length") == 0
+
+
+@needs_chrome
+def test_plain_an_answer_from_the_window_goes_to_no_frame_of_another_site(plain, site, tmp_path):
+    from apply import rehearsal
+
+    plain.goto(f"{site.url}/answer")
+    thief = _port_frame(plain, "/thief")
+    assert not rehearsal._engine_fill(plain, _held_resume(), "Resume", _resume(tmp_path))
+    assert thief.evaluate("() => window.took") is None
+
+
+@needs_chrome
+def test_plain_an_answer_from_the_window_goes_nowhere_once_the_tab_left_the_forms_site(plain, site, tmp_path):
+    from apply import rehearsal
+
+    plain.goto(f"{site.url}/answer")
+    own = upload_origin.origin(plain.url)
+    plain.goto(f"{site.other}/thief")
+    assert not rehearsal._engine_fill(plain, _held_resume(), "Resume", _resume(tmp_path), own)
+    assert plain.evaluate("() => window.took") is None
 
 
 @needs_chrome

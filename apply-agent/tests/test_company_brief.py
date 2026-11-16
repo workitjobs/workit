@@ -9,8 +9,7 @@ from datetime import date
 from fakes import FakeClaude
 
 from apply import brief, essays
-from apply.adapters import Drive
-from apply.claude_cli import ClaudeError
+from apply.adapters import ClaudeError, Drive
 from apply.model import Posting, Question
 
 CLOUDFLARE = Posting("gh", "Cloudflare", "Software Engineer Intern", "https://job-boards.greenhouse.io/cloudflare/jobs/1")

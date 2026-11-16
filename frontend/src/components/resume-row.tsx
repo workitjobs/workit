@@ -192,7 +192,7 @@ function CardActionIcons({
  * It went through wide white cards first (2026-11-10, after the Tracker's
  * board cards), each with a tile and its date in a labeled column, and
  * 52px grey strips before that. **Rename edits the name in its row**
- * (`rename`, `RenamingRow`).
+ * (`rename`, `RenamingRow`, the shared `RenameField`).
  *
  * **In the grid** (`layout="grid"`, KAN-766) the card is the resume's first
  * page over its name, its type and its Date Modified (`ResumeGridCard`).
@@ -376,15 +376,25 @@ export function TargetJob({
   );
 }
 
-/** The primary resume's badge, beside its name (after Jobright's PRIMARY
- *  pill, 2026-11-10): a star and "Primary", the star alone below `@2xl` of
- *  the table, a phone's, where the name needs the room. */
-export function PrimaryBadge() {
+/** The primary resume's badge (after Jobright's PRIMARY pill, 2026-11-10):
+ *  a star and "Primary". **The one mark for the primary resume** (KAN-825):
+ *  beside its name in the table, on a grid card's page corner, beside the
+ *  title on its own page (the editor's and an upload's), in the resume
+ *  pickers and on Experiences' Showing card. A black disc on the grid, a
+ *  star with the word on an upload's page, a bare purple star in the
+ *  pickers and nothing in the editor came before. `wordClassName` says
+ *  where the word shows: by default the star alone below `@2xl` of the
+ *  table, a phone's, where the name needs the room. */
+export function PrimaryBadge({
+  wordClassName = "sr-only @2xl:not-sr-only",
+}: {
+  wordClassName?: string;
+}) {
   return (
     <Badge tone="brand">
       <span title="Primary resume" className="flex items-center gap-1">
         <StarIcon aria-hidden weight="fill" className="size-3" />
-        <span className="sr-only @2xl:not-sr-only">Primary</span>
+        <span className={wordClassName}>Primary</span>
       </span>
     </Badge>
   );
@@ -476,8 +486,9 @@ const TYPE_TONE: Record<ResumeType, BadgeTone> = {
  * when the line is short of room, with the whole name on hover. ⋮ holds
  * every action (Open, Rename, Download, Make Primary, Delete): the grid
  * has no room for hover icons, as Drive's has none. The primary resume
- * wears a filled star on its page's corner, as Simplify's does. The whole
- * card opens the resume. Rename edits the name in place, under the page.
+ * wears the Primary badge on its page's corner, where Simplify puts its
+ * star (a black disc with a star until KAN-825). The whole card opens the
+ * resume. Rename puts `RenameField` under the page.
  *
  * A narrow card (two to a row on a phone, four on a tablet) shows the
  * type's icon without its word and the day without its own ("Modified",
@@ -517,17 +528,15 @@ function ResumeGridCard({
       <div className="border-border-subtle relative border-b">
         {thumbnail}
         {actions.primary && (
-          <span
-            title="Primary resume"
-            className="bg-ink text-on-inverse absolute top-2 right-2 flex size-7 items-center justify-center rounded-full shadow-sm"
-          >
-            <StarIcon aria-hidden weight="fill" className="size-3.5" />
-            <span className="sr-only">Primary resume</span>
+          <span className="absolute top-2 right-2 rounded-full shadow-sm">
+            <PrimaryBadge wordClassName="" />
           </span>
         )}
       </div>
       {rename ? (
-        <GridRename name={name} rename={rename} />
+        <div className="p-3">
+          <RenameField name={name} rename={rename} />
+        </div>
       ) : (
         // ⋮ shares the name's line only, so the line under it has the
         // card's whole width.
@@ -586,9 +595,39 @@ function ResumeGridCard({
   );
 }
 
-/** A grid card's rename: the name's field under the page, with Cancel and
- *  Save under it; Enter saves and Escape cancels, as on a list card. */
-function GridRename({ name, rename }: { name: string; rename: Rename }) {
+/** A card's rename, as its row hands it: the save in flight, the save of a
+ *  new name, and Cancel. */
+export type Rename = {
+  saving: boolean;
+  onSave: (name: string) => void;
+  onCancel: () => void;
+};
+
+/**
+ * **The one way to rename a resume** (KAN-825): the name becomes its field
+ * in its own place, selected, with Cancel and Save after it (a card edited
+ * in place: right, Save last, `docs/design.md`); Enter saves, Escape
+ * cancels, and a name left as it was closes it with no call. The table's
+ * row (`RenamingRow`), a grid card under its page, and the title on a
+ * resume's own page (`ResumeTitle`, the editor's and an upload's, and
+ * Tailor's review) all draw it. Where the field would fall under 9rem (a
+ * grid card on a phone, the phone editor's title row) Cancel and Save
+ * wrap under it, at its right; a phone's table row still fits them beside
+ * it. Until KAN-825 there were four: the editor's title saved on a
+ * click away with no buttons, an upload's page had a labeled field of its
+ * own (`RenameForm`), and the row and the grid card each drew theirs.
+ *
+ * `size="lg"` is the title's: a 26px name turned into a 14px field.
+ */
+export function RenameField({
+  name,
+  rename,
+  size = "default",
+}: {
+  name: string;
+  rename: Rename;
+  size?: "default" | "lg";
+}) {
   const [draft, setDraft] = useState(name);
   const trimmed = draft.trim();
 
@@ -599,20 +638,23 @@ function GridRename({ name, rename }: { name: string; rename: Rename }) {
   }
 
   return (
-    <form onSubmit={submit} className="flex flex-col gap-2 p-3">
-      <TextInput
-        aria-label="Resume name"
-        autoFocus
-        required
-        maxLength={80}
-        value={draft}
-        onChange={(event) => setDraft(event.target.value)}
-        onFocus={(event) => event.currentTarget.select()}
-        onKeyDown={(event) => {
-          if (event.key === "Escape") rename.onCancel();
-        }}
-      />
-      <div className="flex justify-end gap-2">
+    <form onSubmit={submit} className="flex flex-wrap items-center justify-end gap-x-3 gap-y-2">
+      <div className="min-w-0 flex-1 basis-36">
+        <TextInput
+          aria-label="Resume name"
+          size={size}
+          autoFocus
+          required
+          maxLength={80}
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          onFocus={(event) => event.currentTarget.select()}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") rename.onCancel();
+          }}
+        />
+      </div>
+      <div className="flex shrink-0 gap-2">
         <Button type="button" variant="secondary" size="sm" onClick={rename.onCancel}>
           Cancel
         </Button>
@@ -624,59 +666,20 @@ function GridRename({ name, rename }: { name: string; rename: Rename }) {
   );
 }
 
-/** A card's rename, as its row hands it: the save in flight, the save of a
- *  new name, and Cancel. */
-export type Rename = {
-  saving: boolean;
-  onSave: (name: string) => void;
-  onCancel: () => void;
-};
-
 /**
- * A row being renamed (2026-11-10): the name becomes its field, in place,
- * with Cancel and Save at the row's end; Enter saves and Escape cancels.
- * One cell spans the row, so the field and the buttons fit a phone's
- * table too. The row keeps its 56px, so the table does not move, and it opens nothing while it is open. It was a
- * form in the card's place, a labeled field across the list with "Save
- * Name", whose focus ring the list's scroll cut off, which the user found
- * horrible. A name left as it was closes it with no call.
+ * A row being renamed (2026-11-10): `RenameField` in one cell that spans
+ * the row, so the field and the buttons fit a phone's table too. The row
+ * keeps its 56px, so the table does not move, and it opens nothing while
+ * it is open. It was a form in the card's place, a labeled field across
+ * the list with "Save Name", whose focus ring the list's scroll cut off,
+ * which the user found horrible.
  */
 function RenamingRow({ name, rename }: { name: string; rename: Rename }) {
-  const [draft, setDraft] = useState(name);
-  const trimmed = draft.trim();
-
-  function submit(event: FormEvent) {
-    event.preventDefault();
-    if (trimmed === name) return rename.onCancel();
-    rename.onSave(trimmed);
-  }
-
   return (
     <TableRow className="bg-hover hover:bg-hover">
       {/* 7px: the 42px field, the row's 56px. */}
       <TableCell colSpan={5} className="px-4 py-[7px]">
-        <form onSubmit={submit} className="flex items-center gap-3">
-          <div className="min-w-0 flex-1">
-            <TextInput
-              aria-label="Resume name"
-              autoFocus
-              required
-              maxLength={80}
-              value={draft}
-              onChange={(event) => setDraft(event.target.value)}
-              onFocus={(event) => event.currentTarget.select()}
-              onKeyDown={(event) => {
-                if (event.key === "Escape") rename.onCancel();
-              }}
-            />
-          </div>
-          <Button type="button" variant="secondary" size="sm" onClick={rename.onCancel}>
-            Cancel
-          </Button>
-          <Button type="submit" size="sm" disabled={rename.saving || !trimmed}>
-            {rename.saving ? "Saving…" : "Save"}
-          </Button>
-        </form>
+        <RenameField name={name} rename={rename} />
       </TableCell>
     </TableRow>
   );
@@ -770,8 +773,10 @@ export function PendingResumeCard({
  * The primary resume's star. On the primary it is filled; on the others it
  * is an outline, always visible (KAN-268): it showed only while the row was
  * hovered, so a student did not know a resume could be made primary. With
- * no `onMakePrimary`, a resume that is not primary shows none. The Resumes
- * view's uploads and built resumes (KAN-258) draw it alike.
+ * no `onMakePrimary`, a resume that is not primary shows none. Only an
+ * upload's strip (`ResumeRow` without `page`) draws it now: every other
+ * place marks the primary with `PrimaryBadge` (KAN-825), the resume
+ * pickers and Experiences' Showing card among them.
  */
 export function PrimaryStar({
   name,
@@ -813,7 +818,13 @@ export function PrimaryStar({
  * The Resumes page's cards show it at every width (`always`, 2026-11-10,
  * after Google Drive's rows) with every action a card has: Open (`open`,
  * the card's own page), Rename, Download, Make Primary (`onMakePrimary`,
- * on a resume that is not the primary), then Delete.
+ * on a resume that is not the primary), then Delete. A resume's own page
+ * (the editor's and an upload's) shows it at the end of its title row
+ * with Rename, Make Primary and Delete (KAN-825, `ResumeMenu`).
+ *
+ * Rename, like Delete, runs once the menu has closed, and the menu then
+ * hands no focus back to ⋯ (`finalFocus`): on a resume's page the button
+ * stays, and its focus return took the focus from the title's new field.
  */
 export function RowMoreMenu({
   name,
@@ -835,17 +846,22 @@ export function RowMoreMenu({
   const router = useRouter();
   const button = useRef<HTMLButtonElement>(null);
   const [confirming, setConfirming] = useState(false);
-  // Delete opens the confirm only once the menu has closed, so the menu's
-  // focus return cannot land after the popover has opened.
-  const deleting = useRef(false);
+  // Delete opens the confirm, and Rename its field, only once the menu has
+  // closed, so the menu's focus return cannot land after either has opened.
+  const then = useRef<"delete" | "rename" | null>(null);
+  // Rename's field takes the focus, so none goes back to ⋯; a flag of its
+  // own, since the menu asks only after `then` has run
+  const keepFocus = useRef(false);
 
   return (
     <div className={always ? undefined : "@xl:hidden"}>
       <DropdownMenu
         onOpenChangeComplete={(open) => {
-          if (open || !deleting.current) return;
-          deleting.current = false;
-          setConfirming(true);
+          if (open || !then.current) return;
+          const next = then.current;
+          then.current = null;
+          if (next === "delete") setConfirming(true);
+          else onRename?.();
         }}
       >
         <DropdownMenuTrigger
@@ -855,7 +871,15 @@ export function RowMoreMenu({
             </IconButton>
           }
         />
-        <DropdownMenuContent align="end" className="w-48">
+        <DropdownMenuContent
+          align="end"
+          className="w-48"
+          finalFocus={() => {
+            const back = !keepFocus.current;
+            keepFocus.current = false;
+            return back;
+          }}
+        >
           {open && (
             <DropdownMenuItem onClick={() => router.push(open)}>
               <ArrowSquareOutIcon aria-hidden className="text-ink size-4" />
@@ -863,7 +887,12 @@ export function RowMoreMenu({
             </DropdownMenuItem>
           )}
           {onRename && (
-            <DropdownMenuItem onClick={onRename}>
+            <DropdownMenuItem
+              onClick={() => {
+                then.current = "rename";
+                keepFocus.current = true;
+              }}
+            >
               <PencilIcon className="text-ink size-4" />
               Rename
             </DropdownMenuItem>
@@ -885,7 +914,7 @@ export function RowMoreMenu({
             <DropdownMenuItem
               variant="destructive"
               onClick={() => {
-                deleting.current = true;
+                then.current = "delete";
               }}
             >
               <TrashIcon className="size-4" />

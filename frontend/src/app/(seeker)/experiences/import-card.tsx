@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { SectionHeading } from "@/components/ui/section-heading";
 import { importResume, type ImportResponse } from "@/lib/bank-actions";
 import { HeaderOffers } from "@/components/header-offers";
 import { headerSummary, importSummary } from "@/lib/import-summary";
@@ -64,9 +65,7 @@ export function ImportCard({
 
   return (
     <Card as="section" aria-labelledby="bank-import">
-      <h2 id="bank-import" className="text-subtitle text-ink">
-        Import Your Resume
-      </h2>
+      <SectionHeading id="bank-import">Import Your Resume</SectionHeading>
 
       <p className="text-body text-ink-meta mt-1" aria-live="polite">
         {result
