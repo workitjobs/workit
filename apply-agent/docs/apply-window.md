@@ -117,6 +117,29 @@ for a student, not from `dashboard_page.py`.
   student applied to on WorkIt before (`Bridge.applied`:
   `GET /applicants/{id}/applications?stage=applied`), each once by its link,
   form address, or company and role. Its button is on the start screen too.
+- **Find jobs (KAN-882, `src/find.tsx`, `src/find-view.ts`).** When the
+  window has `Bridge.matches`, the start screen is Find jobs: the
+  student's best matches that Auto Apply fills and that they haven't
+  queued or applied to (`GET /applicants/{id}/auto-apply/matches?size=30`),
+  best first, drawn as the website's Jobs page draws them: its search
+  (asked half a second after the last key, and not again for the same
+  words), its filter row (location, role, workplace, job type, date
+  posted; Internship is picked at first), and its cards with the match
+  ring and up to two highlights. `Bridge.matches` passes on only the
+  Jobs page's own filters (`MATCH_FILTERS`), gives each match as the
+  queue names a job with its card's facts (`MATCH_FACTS`), and keeps each
+  one's logo by its link, as `Bridge.queue` does. An empty experience
+  bank (the route's 404) says to add experience on WorkIt first. A card's
+  click or Add to Auto Apply picks it, Add my top 5 picks the first five,
+  and Start applying runs the picked links through `Bridge.start`, as
+  ticked queued jobs run. The ✕ (Not interested) hides a card on this
+  page only: the website's Not Interested stores nothing yet
+  (`NOT_INTERESTED_LIVE` is off), so there is no route to send it to.
+  Matches read for a set of filters are kept while the window is open,
+  so coming back shows them at once while they are read again. "Your
+  queue · paste a link" opens the queue screen, and the header's Find
+  jobs comes back. A window with no `matches` keeps Add jobs and the
+  queue screen.
 - **Add jobs (decided, stories 33 and 41).** The header's Add jobs shows
   whenever no run is going (`addsJobs`) and is hidden during a run, because
   `Bridge.start` refuses a second run. The caught-up card has Add jobs too,
@@ -177,7 +200,7 @@ for a student, not from `dashboard_page.py`.
 - **`src/bridge.ts`** is the spec's bridge contract. `routes(token)`:
   `/state`, `/answer`, `/approve`, `/show/<k>`, `/fill-again`, `/stop` and
   `/remove` through plain `fetch` with `X-Apply-Token`, which app_window's SHIM carries to
-  `Dashboard.respond`. `app`: `app_window.Bridge`'s `js_api` methods (`queue`, `applied`, `start`,
+  `Dashboard.respond`. `app`: `app_window.Bridge`'s `js_api` methods (`queue`, `applied`, `matches`, `start`,
   `status`, `usage`, `settings`, `review_report`, `send_report`), feature-detected at
   `pywebviewready`; it never settles in a window that has none. With no
   `window.APPLY_TOKEN` the page runs on `src/mock.ts`.
@@ -215,8 +238,9 @@ for a student, not from `dashboard_page.py`.
   file. `npm run dev` serves the page on the mock; pick
   a fixture with `?scenario=start|needs|questions|ready|quiet|stopped`
   (`questions`: one question of each kind), the day's use with
-  `?usage=near|cap`, and the start screen's queue with
-  `?queue=empty|unread|refused`.
+  `?usage=near|cap`, the start screen's queue with
+  `?queue=empty|unread|refused`, and Find jobs' matches with
+  `?matches=empty|unread`.
 - **Token:** `app_window.student_page(board)` puts SHIM and
   `<script>window.APPLY_TOKEN = "<board.token>"</script>` right after the
   page's charset meta, before its module script (`_before_scripts`, which the

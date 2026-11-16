@@ -16,8 +16,9 @@ in the box, which only WorkIt's admins' page shows.
 Then Bridge.trade signs in (WorkIt.trade). Next comes FIRST_RUN while any first-run step is left (apply.first_run:
 Chrome, the disclosure and license, Screen Recording, the seed), then the Apply window.
 
-A run (W5 step 4): with no run going, the student page shows the student's Auto Apply queue on WorkIt
-(Bridge.queue), a box to paste one posting's link and Start (Bridge.start), and says when today's model use nears the
+A run (W5 step 4): with no run going, the student page shows Find jobs, the student's best matches to pick from
+(Bridge.matches, KAN-882), and a step away the student's Auto Apply queue on WorkIt (Bridge.queue), a box to paste
+one posting's link and Start (Bridge.start), and says when today's model use nears the
 Usage cap (Bridge.usage). Start hands the links to `start` (apply.student.Runs), which rehearses them in the Workers
 and shows the run's own board, till every form it held is closed; then the window shows the idle board again. The
 page reads its board's state through the routes (/state) either way. A run that can't start (no engine, W7; a Worker
