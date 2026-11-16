@@ -457,8 +457,8 @@ def test_report_a_problem_sends_only_the_report_the_window_showed(board, tmp_pat
 
 
 def test_report_this_application_finds_the_record_of_a_form_the_run_held(board, monkeypatch, tmp_path):
-    """Fault: a form held in this run, which a rehearsal keeps no Tracker row for, reported without its record, or an
-    Application the computer has nothing of reported as if it had."""
+    """Fault: a form held in this run, which a rehearsal keeps no Tracker row for, reported without its record, an
+    Application the computer has nothing of reported as if it had, or another form's Send Report sending it."""
     from apply import student
 
     monkeypatch.setattr(student, "RECORDS", tmp_path / "rehearsals")
@@ -472,4 +472,6 @@ def test_report_this_application_finds_the_record_of_a_form_the_run_held(board, 
     shown = bridge.review_report("form", "It picked the wrong school.", application_id="gh-1")
     assert shown["parts"][1:] == ["Which application: Acme, Intern", "answers.json (1 KB)"]
     assert bridge._report["outcome"] == "held" and bridge._report["files"] == {"answers.json": '{"day": "2026-11-15"}'}
+    # Send Report from Settings' form or another Application's card: not the report this card reviewed.
+    assert "error" in bridge.send_report() and "error" in bridge.send_report("gh-2")
     assert "error" in bridge.review_report("form", "It picked the wrong school.", application_id="gh-2")

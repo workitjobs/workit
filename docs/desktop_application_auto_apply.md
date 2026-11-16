@@ -11,8 +11,8 @@ values masked (#577, #587), and Send report (#614); W3's Student path with no de
 window (#590); W4, no macOS-only code in the Student path (#576, #585); W6's
 store-ready Worker extension (#570, #578), which no app can use yet;
 W10's legal text (#579, #582); W5, the app's window with no port:
-sign-in (#609), first run, a run, and Settings with Report a problem
-(KAN-858); and W2's step 2, the generic Filler (KAN-861). The rest of what
+sign-in (#609), first run, a run, and Report a problem in Settings and
+on each Application's card (KAN-858); and W2's step 2, the generic Filler (KAN-861). The rest of what
 a student downloads and runs (W7, W8) is not built.
 
 **How to use this doc.** Read sections 1 to 3 first. Then take one
@@ -521,7 +521,7 @@ by hand (W8).
 | W2 | Filling with no model in the browser | None | Yes | Step 1 built (#590): what Apply can't fill is the student's, in the window's Fix here; a failed field is a Needs-you item with its planned answer; the emailed code's box. Step 2 built (KAN-861): the generic Filler, code only but for two small picks; on the six saved Lever forms it fills 114 of 126 (90%, code only) of the engine's planned answers right, Claude fill 122 (97%), in 5 to 10 times the time. Left: frames other than the top one, and live long-tail postings ("Done when"); any further work stays with the teammate, beside the Fillers they write for each job system |
 | W3 | What the Student build leaves out | None | Yes | Step 1 built (#581); `ask_model` fixed to `workit` (#590). Left: W8's compile flags |
 | W4 | Remove macOS-only code | None | Yes | Built (#576, #585). Left to others: `dashboard.py` (W5) and `window_capture` (W6); what stops Apply on Windows is F4's |
-| W5 | The app shell | W3, W4 (and W1 for sign-in and usage) | Yes | Built: sign-in (#609); the window with no port, first run, a run, Settings with Report a problem, and the Student build's Tracker in the data folder (KAN-858), and a Student run's pause at the Usage cap (KAN-837). Left: the built app's sign-in link (W8) |
+| W5 | The app shell | W3, W4 (and W1 for sign-in and usage) | Yes | Built: sign-in (#609); the window with no port, first run, a run, Report a problem in Settings and on each Application's card, and the Student build's Tracker in the data folder (KAN-858), and a Student run's pause at the Usage cap (KAN-837). Left: the built app's sign-in link (W8) |
 | W6 | The Worker extension on the store (spike first) | None | Yes | The spike passed; the store package is built (#570, #578). Blocked: the guards' per-run tokens (`worker-extension-todo.md`, item 0), then the first upload |
 | W7 | The engine download and its protection | W1 (sign-in) | Yes | Built (KAN-836): the two routes, the publish script, the app's download, decryption and signature check in memory, no engine file anywhere, and the pin. Each merge that moves the engine pointer publishes it (`publish-engine.yml`). Left by hand: the signing key, the `ApplyEngine` bucket and the workflow's environment and secret. Open: the WorkIt extension's public copy of the engine |
 | W8 | Compile, sign, notarize, update, publish | W3, W4, W5 | Yes | Not started |
@@ -1309,6 +1309,16 @@ it can't open as no values, so a folder sent the student's name and street
 in the log. No words, `build`'s ValueError, and each of the send's errors
 (the daily cap's too) are each a one-line message.
 
+The student page has the same form on each Application's to-do card,
+its "Didn't go through" row and its Applied row (`window/src/report.tsx`),
+under "Report a problem". It calls `review_report` with the Application's
+id, and `send_report` with that id too, which refuses a report another
+form reviewed since: the window keeps one report, so without the id a
+second form's Review Report changed what the first one's Send Report sent.
+It shows only for a job with an `application_id`, in the app's window; its
+categories come in the page (`window.REPORT_CATEGORIES`, from
+`report.CATEGORIES`, put in by `student_page`).
+
 **Built (KAN-858): the Student build's Tracker is in the data folder**
 (`student.adapters`): `WorkItTracker(FileTracker(), WaitingWrites(), ...)`,
 as a Developer checkout's, in place of a Tracker in memory. So the
@@ -1320,9 +1330,6 @@ Employer account's keychain item (`apply-ats`, one per site) before the
 folder goes, and names any the keychain kept.
 
 Left from W5:
-- **"Report this Application" on each Application's card** (KAN-867's
-  page): the card calls `Bridge.review_report` with its Application's id,
-  then `send_report`, as Settings' form does (above).
 - A tile added during a run (`--into`) reloads the page with
   `location.reload()`, which a page loaded as a string can't do. The app
   never sends a link into a run, so only the Developer checkout's window

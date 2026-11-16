@@ -377,7 +377,7 @@ runs the same routes on Postgres.
 ## Send report (D26, KAN-837)
 
 The window's support form, "Report a problem": from Settings, or from an
-Application's tile, which picks that Application. The student chooses what
+Application's card or row on the student page, which picks that Application. The student chooses what
 it is about (`report.CATEGORIES`), writes what happened, says whether WorkIt
 may email them, and, with an Application picked, whether to include its
 record and log. Nothing is sent without their press. The form is W5's

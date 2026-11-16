@@ -26,7 +26,8 @@ student page carries its own Inter.
 
 Settings (W5 step 5) has Report a problem (D26, apply.report): the form's answers make a report (review_report),
 the window shows what it holds, and Send Report sends that same report (send_report). An Application's card sends
-its Application's id with the same call, for its record and log.
+its Application's id with the same call, for its record and log; its Send Report sends that id too, so a report
+another form reviewed since is never the one that goes.
 
 pywebview gives the page every public method of Bridge, and nothing whose name starts with "_".
 """
@@ -302,8 +303,10 @@ def page(dashboard: Dashboard) -> str:
 
 def student_page(dashboard: Dashboard) -> str:
     """The student page (KAN-867: window/, built into STUDENT_PAGE) for `dashboard`'s board, with SHIM and the
-    window's token before its scripts: the page reads the token as window.APPLY_TOKEN and sends it with each edit."""
-    token = f"<script>window.APPLY_TOKEN = {json.dumps(dashboard.token)};</script>"
+    window's token before its scripts: the page reads the token as window.APPLY_TOKEN and sends it with each edit,
+    and an Application's Report a problem lists window.REPORT_CATEGORIES (apply.report's, as Settings does)."""
+    token = (f"<script>window.APPLY_TOKEN = {json.dumps(dashboard.token)};"
+             f" window.REPORT_CATEGORIES = {json.dumps(report.CATEGORIES)};</script>")
     return _before_scripts(STUDENT_PAGE.read_text(encoding="utf-8"), SHIM + token)
 
 
@@ -559,10 +562,13 @@ class Bridge:
             return {"error": f"The report can't go as it is: {error}."}
         return {"parts": report.parts(self._report)}
 
-    def send_report(self) -> dict:
-        """Send Report: the report review_report showed, as it was shown. {said}, or {error}."""
+    def send_report(self, application_id: str = "") -> dict:
+        """Send Report: the report review_report showed, as it was shown. {said}, or {error}. `application_id` is the
+        Application the pressing form is about ("" for Settings'), so a report another form reviewed since doesn't go."""
         if self._report is None:
             return {"error": "Press Review Report first."}
+        if str(self._report.get("application_id") or "") != str(application_id):
+            return {"error": "Press Review Report again: another report was reviewed since."}
         try:
             report.send(self._report, self._client)
         except workit.CapReached:

@@ -2,11 +2,12 @@
 import { ArrowSquareOutIcon, CheckIcon, UploadSimpleIcon } from "@phosphor-icons/react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 
-import type { Bridge, Upload } from "./bridge.ts";
+import type { App, Bridge, Upload } from "./bridge.ts";
+import { Report } from "./report.tsx";
 import { Button, Logo, cx, pressed } from "./ui.tsx";
 import { type Asked, type Job, answerOf, asking, checks } from "./view.ts";
 
-type Props = { job: Job; bridge: Bridge; at: number; of: number; skip?: () => void; fail: (message: string) => void };
+type Props = { job: Job; bridge: Bridge; app: App; at: number; of: number; skip?: () => void; fail: (message: string) => void };
 
 export function TodoCard(props: Props) {
   const { job, at, of, skip } = props;
@@ -29,6 +30,7 @@ export function TodoCard(props: Props) {
       </div>
       <div className="px-6 pt-5 pb-6">
         <Body {...props} />
+        <Report key={job.key} job={job} app={props.app} at="mt-5" />
       </div>
     </div>
   );
