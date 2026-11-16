@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { ApplyState } from "./apply.ts";
 import type { App as AppMethods, Bridge, Queued } from "./bridge.ts";
 import { TodoCard } from "./cards.tsx";
-import { Button, Logo, cx } from "./ui.tsx";
+import { Button, Logo, cx, pressed } from "./ui.tsx";
 import { type Job, type View, chosen, headline, limit, queueNote, startWords, view } from "./view.ts";
 
 type Fail = (message: string) => void;
@@ -75,6 +75,13 @@ function Home({ v, bridge, fail }: { v: View; bridge: Bridge; fail: Fail }) {
   // Which to-do is on top. Skip moves it to the next one; a done one leaves the pile by itself.
   const [at, setAt] = useState(0);
   const i = v.todo.length ? at % v.todo.length : 0;
+  const more = v.todo.length > 1;
+  useEffect(() => {
+    if (!more) return;
+    const down = (e: KeyboardEvent) => pressed(e, 0) === "skip" && setAt(i + 1);
+    window.addEventListener("keydown", down);
+    return () => window.removeEventListener("keydown", down);
+  }, [more, i]);
   return (
     <>
       <h1 className="text-[28px] font-bold tracking-[-0.025em]">{headline(v)}</h1>

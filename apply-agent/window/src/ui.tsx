@@ -1,6 +1,8 @@
 // The window's small parts, styled as WorkIt's (frontend/src/components/ui).
 import type { ButtonHTMLAttributes } from "react";
 
+import { shortcut } from "./view.ts";
+
 const cx = (...c: (string | false | undefined)[]) => c.filter(Boolean).join(" ");
 
 type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & { tone?: "primary" | "secondary" | "quiet"; size?: "md" | "lg" };
@@ -43,6 +45,13 @@ export function Logo({ company, size = 36 }: { company: string; size?: number })
       {company.charAt(0).toUpperCase()}
     </span>
   );
+}
+
+// What a key pressed means on the to-do card, read from where the focus is (view.shortcut).
+export function pressed(e: KeyboardEvent, options: number) {
+  const at = e.target instanceof HTMLElement ? e.target : document.body;
+  const mods = e.metaKey || e.ctrlKey || e.altKey;
+  return shortcut({ key: e.key, tag: at.tagName, type: (at as HTMLInputElement).type, editable: at.isContentEditable, mods }, options);
 }
 
 export { cx };

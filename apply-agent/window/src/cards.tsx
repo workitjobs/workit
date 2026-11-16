@@ -1,10 +1,10 @@
 // The one card the student acts on: the to-do at the top of the pile.
-import { ArrowSquareOutIcon, CheckIcon } from "@phosphor-icons/react";
-import { type ReactNode, useState } from "react";
+import { ArrowSquareOutIcon, CheckIcon, UploadSimpleIcon } from "@phosphor-icons/react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 
-import type { Bridge } from "./bridge.ts";
-import { Button, Logo } from "./ui.tsx";
-import type { Job } from "./view.ts";
+import type { Bridge, Upload } from "./bridge.ts";
+import { Button, Logo, cx, pressed } from "./ui.tsx";
+import { type Asked, type Job, answerOf, asking } from "./view.ts";
 
 type Props = { job: Job; bridge: Bridge; at: number; of: number; skip?: () => void; fail: (message: string) => void };
 
@@ -39,7 +39,7 @@ function Body(props: Props) {
   const site = job.source.system;
   switch (job.ask) {
     case "question":
-      return <Question {...props} />;
+      return <Question key={job.key} {...props} />;
     case "approve":
       return <Approve {...props} />;
     case "submit":
@@ -98,40 +98,136 @@ function Open({ title, button, note, children, ...props }: Props & { title: stri
   );
 }
 
+// A job's questions, one at a time: once one is answered the next shows at once, before Apply's next state drops it.
 function Question(props: Props) {
-  const { job, bridge, fail } = props;
-  const question = job.source.questions?.[0] ?? "";
-  const choice = job.source.choices?.[question];
-  const [text, setText] = useState(job.source.planned?.[question] ?? "");
+  const [done, setDone] = useState<string[]>([]);
+  const asked = asking(props.job.source, done);
+  if (!asked) return <Title>Saved. We'll carry on with this application.</Title>;
+  return <Ask key={asked.question} asked={asked} answered={() => setDone([...done, asked.question])} {...props} />;
+}
+
+// A file from this Mac, as /answer's file field takes it: its name and its bytes in base64.
+const upload = (file: File) =>
+  new Promise<Upload>((done, fail) => {
+    const reader = new FileReader();
+    reader.onload = () => done({ name: file.name, data: String(reader.result).split(",")[1] ?? "" });
+    reader.onerror = () => fail(new Error(`Couldn't read ${file.name}.`));
+    reader.readAsDataURL(file);
+  });
+
+const pickClass = "hover:border-brand hover:bg-brand-tint hover:text-brand-ink";
+const picked = "border-brand bg-brand-tint text-brand-ink";
+
+function Ask(props: Props & { asked: Asked; answered: () => void }) {
+  const { job, bridge, fail, asked, answered } = props;
+  const { question, form, options } = asked;
+  const [text, setText] = useState(asked.planned);
+  const [picks, setPicks] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
-  const send = async (answer: string) => {
+  const file = useRef<HTMLInputElement>(null);
+  const send = async (answer: string | Upload) => {
     setBusy(true);
     try {
       await bridge.answer(job.id!, question, answer);
-      setText("");
+      answered();
     } catch (e) {
       fail((e as Error).message);
+      setBusy(false);
     }
-    setBusy(false);
   };
-  const buttons = choice && choice.kind !== "multi_select" && choice.options.length <= 4;
+  const save = () => {
+    if (busy) return;
+    if (form === "text") return text.trim() && send(text.trim());
+    if (form === "file") return file.current?.click();
+    const answer = answerOf(asked, picks);
+    if (answer) send(answer);
+  };
+  const pick = (option: string) => setPicks(form === "checks" ? (picks.includes(option) ? picks.filter((p) => p !== option) : [...picks, option]) : [option]);
+  const keys = useRef({ pick, save });
+  keys.current = { pick, save };
+  useEffect(() => {
+    const down = (e: KeyboardEvent) => {
+      const key = pressed(e, options.length);
+      if (key === "save") (e.preventDefault(), keys.current.save());
+      else if (key && key !== "skip") keys.current.pick(options[key.pick]);
+    };
+    window.addEventListener("keydown", down);
+    return () => window.removeEventListener("keydown", down);
+  }, [options]);
+  const skip = asked.optional && (
+    <Button tone="quiet" size="lg" disabled={busy} onClick={() => send("")}>
+      Skip
+    </Button>
+  );
   return (
     <>
       <Title>{question}</Title>
-      {buttons ? (
-        <div className="mt-5 grid gap-2.5" style={{ gridTemplateColumns: `repeat(${choice.options.length}, 1fr)` }}>
-          {choice.options.map((option) => (
-            <Button key={option} size="lg" disabled={busy} onClick={() => send(option)} className="h-12 hover:border-brand hover:bg-brand-tint hover:text-brand-ink">
+      {asked.optional && <p className="mt-1 text-ink-meta">Optional. Skip it and the form leaves it blank.</p>}
+      {form === "buttons" && (
+        <div className="mt-5 grid gap-2.5" style={{ gridTemplateColumns: `repeat(${options.length}, 1fr)` }}>
+          {options.map((option) => (
+            <Button key={option} size="lg" disabled={busy} onClick={() => send(option)} className={cx("h-12", picks.includes(option) ? picked : pickClass)}>
               {option}
             </Button>
           ))}
         </div>
-      ) : (
+      )}
+      {form === "list" && (
+        <div className="mt-5 grid gap-1.5">
+          {options.map((option, i) => (
+            <Button key={option} disabled={busy} onClick={() => send(option)} className={cx("h-10 justify-start", picks.includes(option) ? picked : pickClass)}>
+              {i < 9 && <span className="w-4 text-xs text-ink-faint">{i + 1}</span>}
+              {option}
+            </Button>
+          ))}
+        </div>
+      )}
+      {form === "checks" && (
+        <div className="mt-5 grid gap-1.5">
+          {options.map((option) => (
+            <label key={option} className="flex cursor-pointer items-center gap-3 rounded-control border border-border-surface px-3.5 py-2.5 hover:bg-hover">
+              <input type="checkbox" checked={picks.includes(option)} onChange={() => pick(option)} className="size-[18px] accent-brand" />
+              {option}
+            </label>
+          ))}
+        </div>
+      )}
+      {form === "checks" && (
+        <div className="mt-4 flex gap-2">
+          <Button tone="primary" size="lg" disabled={busy || !picks.length} onClick={save}>
+            Save
+          </Button>
+          {skip}
+        </div>
+      )}
+      {form === "file" && (
+        <>
+          <div className="mt-5 flex gap-2">
+            <Button tone="primary" size="lg" disabled={busy} onClick={() => file.current?.click()}>
+              <UploadSimpleIcon className="size-4" /> Choose a file
+            </Button>
+            {skip}
+          </div>
+          <input
+            ref={file}
+            type="file"
+            hidden
+            accept=".pdf,.doc,.docx,.txt,.rtf"
+            onChange={(e) => {
+              const chosen = e.target.files?.[0];
+              e.target.value = "";
+              if (chosen) upload(chosen).then(send, (err: Error) => fail(err.message));
+            }}
+          />
+          <Note>PDF, Word, text or RTF. We attach it to this application only.</Note>
+        </>
+      )}
+      {form === "text" && (
         <form
           className="mt-5 flex gap-2"
           onSubmit={(e) => {
             e.preventDefault();
-            if (text.trim()) send(text.trim());
+            save();
           }}
         >
           <input
@@ -139,14 +235,17 @@ function Question(props: Props) {
             value={text}
             onChange={(e) => setText(e.target.value)}
             placeholder="Type your answer"
+            aria-label={question}
             className="h-11 flex-1 rounded-control border border-border-surface bg-panel px-3.5 text-[15px] outline-none focus:border-brand focus:shadow-[0_0_0_3px_var(--color-brand-tint)]"
           />
           <Button tone="primary" size="lg" disabled={busy || !text.trim()}>
             Save
           </Button>
+          {skip}
         </form>
       )}
-      <Note>You answer this once. We'll use it on every application that asks.</Note>
+      {(form === "buttons" || form === "list") && skip && <div className="mt-3">{skip}</div>}
+      {form !== "file" && <Note>You answer this once. We'll use it on every application that asks.</Note>}
     </>
   );
 }
