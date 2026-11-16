@@ -1226,8 +1226,9 @@ built by Vite into one self-contained file committed in the package
 (`apply/student_page/index.html`), so the app ships it with no Node; CI
 checks the file matches its source. `app_window.student_page` puts SHIM
 and the window's token (`window.APPLY_TOKEN`) before its scripts. The page
-reads `/state` and sends `/answer`, `/approve`, `/show/<k>` and
-`/fill-again` with plain `fetch` and the token, which SHIM carries to the
+reads `/state` and sends `/answer`, `/approve`, `/show/<k>`,
+`/fill-again`, `/stop` (Stop applying) and `/remove` (one job not started
+yet) with plain `fetch` and the token, which SHIM carries to the
 same handler and checks, with no port; it uses the bridge's app methods
 (queue, start, status, usage, settings) only when the window has them. A
 Developer checkout's window, which runs nothing, keeps the developer page.

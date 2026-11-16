@@ -95,6 +95,16 @@ for a student, not from `dashboard_page.py`.
   on" as the form fills anew. A job whose Worker moved on, one never
   opened (already applied) and one paused at the usage limit (it goes on
   by itself) have none.
+- **Stop applying and Remove (KAN-874).** While a run goes (`run.mode`),
+  the header has Stop applying, asked once more before it posts `/stop`.
+  The run ends (`rehearse`'s stop): no job waiting starts, each held page
+  is let go unsubmitted, a fill under way ends on its own (a rehearsal
+  never submits) or when the run's Workers close, and #613 shows the queue
+  again. Below "Still working on", each job waiting to start (`run.waiting`,
+  named as the queue named it; a pasted link by its site) has Remove,
+  which posts `/remove` with its link: the run drops it before its turn
+  (`rehearse`'s remove), and refuses one that started already. Both routes
+  take only the window's token.
 - **`src/view.ts`** turns `Dashboard.state()` into that pile and that list
   (`view`), names the pile in the heading (`headline`) and says the Usage
   cap in words (`limit`). For the start screen it picks what Start runs
@@ -116,8 +126,8 @@ for a student, not from `dashboard_page.py`.
   Skip for now; none fires while typing in a box or with Cmd, Ctrl or
   Alt held.
 - **`src/bridge.ts`** is the spec's bridge contract. `routes(token)`:
-  `/state`, `/answer`, `/approve`, `/show/<k>` and `/fill-again` through
-  plain `fetch` with `X-Apply-Token`, which app_window's SHIM carries to
+  `/state`, `/answer`, `/approve`, `/show/<k>`, `/fill-again`, `/stop` and
+  `/remove` through plain `fetch` with `X-Apply-Token`, which app_window's SHIM carries to
   `Dashboard.respond`. `app`: #613's `js_api` methods, feature-detected at
   `pywebviewready`; it never settles in a window that has none. With no
   `window.APPLY_TOKEN` the page runs on `src/mock.ts`.
