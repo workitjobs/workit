@@ -98,9 +98,10 @@ textarea {
   outline: 2px solid var(--color-brand);
   outline-offset: 2px;
 }
+/* A card's rise moves it only, never fades it in: WKWebView pauses animations while the window is in the background,
+ * and a fade paused at its start left the to-do card at opacity 0, blank but for its accessibility text (KAN-887). */
 @keyframes rise {
   from {
-    opacity: 0;
     transform: translateY(6px);
   }
 }
