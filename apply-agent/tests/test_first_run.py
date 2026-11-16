@@ -94,3 +94,38 @@ def test_the_worker_count_stays_within_one_to_three_and_is_kept(tmp_path):
     assert workers(state) == WORKERS
     assert set_workers(9, state) == MOST_WORKERS and set_workers(0, state) == 1
     assert workers(state) == 1
+
+
+def test_remove_all_my_data_forgets_each_job_site_password_and_names_any_it_could_not(tmp_path, monkeypatch):
+    """Fault: Apply's job-site passwords left in the keychain once the list of their accounts went with the folder,
+    or a password the keychain kept left unsaid."""
+    from datetime import date
+
+    from apply import build
+    from apply.first_run import remove_all_data
+    from apply.keychain import InMemoryKeychain
+    from apply.tracker import EmployerAccount, FileTracker
+
+    monkeypatch.setattr(build, "STUDENT", True)
+    home = tmp_path / "WorkIt Auto Apply"
+    sites = ["acme.wd1.myworkdayjobs.com", "beta.wd5.myworkdayjobs.com"]
+
+    def made_accounts():
+        tracker = FileTracker(home / "tracker.json")
+        for site in sites:
+            tracker.add_employer_account(EmployerAccount("Acme", site, "test.person@example.com", date(2026, 11, 15)))
+
+    made_accounts()
+    keychain = InMemoryKeychain({sites[0]: "one", sites[1]: "two", "made-by-hand.example.com": "kept"})
+    said = remove_all_data(lambda: None, home, keychain)
+    assert said.startswith("Removed.") and "Keychain" not in said and not home.exists()
+    assert [keychain.password(site) for site in sites] == [None, None]
+    assert keychain.password("made-by-hand.example.com") == "kept"
+
+    class Locked(InMemoryKeychain):
+        def forget(self, site):
+            raise RuntimeError("the keychain is locked")
+
+    made_accounts()
+    said = remove_all_data(lambda: None, home, Locked())
+    assert said.startswith("Removed.") and all(site in said for site in sites) and not home.exists()

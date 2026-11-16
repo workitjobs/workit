@@ -11,7 +11,8 @@ the window checks after sign-in and before the Apply window, one step at a time,
 Chrome and the seed are looked at again at each launch; the disclosure and the Screen Recording ask are kept as done
 in the data folder (STATE), with Settings' Worker count (`workers`).
 
-`remove_all_data` is Settings' Remove All My Data (D25), in the Student build only.
+`remove_all_data` is Settings' Remove All My Data (D25), in the Student build only: with the data folder, it removes
+the job-site passwords the Tracker's Employer accounts name.
 """
 
 import json
@@ -23,6 +24,8 @@ from pathlib import Path
 
 from apply import build, chrome_finder
 from apply.home import CODE, HOME
+from apply.keychain import SystemKeychain
+from apply.tracker import TRACKER, FileTracker
 
 STATE = HOME / "app.json"
 # The disclosure's version: a new text is shown again to everyone who accepted an older one.
@@ -63,15 +66,33 @@ def set_workers(count: int, state: Path | None = None) -> int:
     return workers(state)
 
 
-def remove_all_data(forget: Callable[[], None], home: Path = HOME) -> str:
-    """Settings' Remove All My Data (D25): the app's login (`forget`, its keychain item) and its whole data folder,
+def remove_all_data(forget: Callable[[], None], home: Path = HOME, keychain=None) -> str:
+    """Settings' Remove All My Data (D25): the app's login (`forget`, its keychain item), each job-site password
+    Apply made (the keychain's apply-ats item of each Employer account in the Tracker), and its whole data folder,
     which holds the Worker profiles, the seed, the Records, the Traces and the local copy of the student's data.
     Only the Student build, whose data folder is its own (home.APP_FOLDER): a Developer checkout's is the developer's."""
     if not build.STUDENT:
         return f"Only WorkIt Auto Apply removes its data. This checkout's data folder is yours: {home}"
     forget()
+    kept = _forget_passwords(home / TRACKER.name, keychain or SystemKeychain())
     shutil.rmtree(home, ignore_errors=True)
-    return "Removed. WorkIt Auto Apply closes now; your WorkIt account stays."
+    stay = f" These job-site passwords stay in your Keychain, under apply-ats: {', '.join(kept)}." if kept else ""
+    return f"Removed.{stay} WorkIt Auto Apply closes now; your WorkIt account stays."
+
+
+def _forget_passwords(tracker: Path, keychain) -> list[str]:
+    """Forget the password of each Employer account `tracker` lists: the sites whose item the keychain kept."""
+    try:
+        accounts = FileTracker(tracker).employer_accounts() if tracker.is_file() else []
+    except Exception:  # a Tracker that won't read names no site: say so rather than leave them unsaid
+        return ["every job site's (the list of them would not read)"]
+    kept = []
+    for site in dict.fromkeys(account.site for account in accounts):
+        try:
+            keychain.forget(site)
+        except RuntimeError:  # a locked keychain, access denied
+            kept.append(site)
+    return kept
 
 
 def screen_allowed() -> bool | None:

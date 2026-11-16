@@ -7,6 +7,7 @@ starts here (`app`, which `uv run apply app` runs) and calls `rehearsal.rehearse
 """
 
 from collections.abc import Callable
+from pathlib import Path
 
 from apply import (
     already_applied,
@@ -34,8 +35,9 @@ from apply.keychain import SystemKeychain
 from apply.plain.site import live_site
 from apply.profile import ApplicantProfile
 from apply.records import FolderRecords
-from apply.tracker import InMemoryTracker
-from apply.workit import WorkIt, site
+from apply.tracker import FileTracker, WorkItTracker
+from apply.worker import sent_resume
+from apply.workit import WaitingWrites, WorkIt, site
 
 RECORDS = HOME / "rehearsals"  # each held form's Record, as `apply rehearse` keeps them
 NO_MODEL = "WorkIt Auto Apply doesn't {what}: a person does it, or WorkIt's Model route"
@@ -100,9 +102,13 @@ def adapters(profile: ApplicantProfile) -> Adapters:
     claude = NoClaude()
     site = live_site(policies)
     answering.refresh(WorkIt())  # WorkIt's Question types, for the run's essays
+    resume = Path(str(profile.get("files.resume_pdf") or "")).name
     return Adapters(
         feed=live_feed(),
-        tracker=InMemoryTracker(),
+        # Apply's Tracker in the data folder, as a Developer checkout's: the Employer accounts (and so their
+        # passwords' keychain items, for Remove All My Data) outlive a launch, and the student's own Submit is
+        # written to their Applications Tracker on WorkIt with the resume the form was given (KAN-544).
+        tracker=WorkItTracker(FileTracker(), WaitingWrites(), lambda application: sent_resume(application, resume)),
         site=site,
         claude=as_applicant(live_claude(policies, claude), profile),  # no private detail in a kind (apply.private)
         mailbox=NoMailbox(),
