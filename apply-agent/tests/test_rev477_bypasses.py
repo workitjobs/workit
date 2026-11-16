@@ -17,7 +17,7 @@ from test_submit_guard_hostile import (
     plain,
 )
 
-from apply import claude_fill
+from apply import steps
 from apply.model import Handoff
 
 STEP2 = "/acme/jobs/123/step2"
@@ -153,7 +153,7 @@ ALWAYS = {STEP2: STEP}
 
 @pytest.fixture(autouse=True)
 def quick_steps(monkeypatch):
-    monkeypatch.setattr(claude_fill, "STEP_SHOWS_MS", 1500)
+    monkeypatch.setattr(steps, "STEP_SHOWS_MS", 1500)
 
 
 def _press(path, page, drive, name="Next"):
