@@ -53,6 +53,10 @@ NO_RESET = (
     "{site} already has an account for {login}, and Keychain has no password for it. Apply resets its password "
     "through Gmail, but {why}. " + SAVE_PASSWORD
 )
+# A rehearsal (a reopened form's too) never resets a password (KAN-878's review): a reset changes the account
+# Lisul uses, and a rehearsal only fills a form.
+NO_RESET_IN_REHEARSAL = (NEEDS_SIGN_IN + "{site} already has an account for {login}, and Keychain has no password for it. "
+                         "A rehearsal resets no password. " + SAVE_PASSWORD)
 # A site refused a new account (KAN-838): its password is forgotten, and the form waits for Lisul in Needs you.
 REFUSED = ("{site} refused the new account ({why}). If it refused the password, make the account on the page "
            "yourself with a password it takes, then finish the form.")
@@ -108,7 +112,11 @@ class Accounts:
         """A new password for the account at `site` that Lisul made himself
         and Keychain has none for, already in Keychain before the site is
         asked to reset it. Its reset link comes by mail, so this is a
-        Handoff if Gmail can't be read."""
+        Handoff if Gmail can't be read, and in a rehearsal, which resets nothing: the new password it would have
+        used is forgotten."""
+        if self.rehearsal:
+            self.not_made(site)
+            raise Handoff(NO_RESET_IN_REHEARSAL.format(site=site, login=self.login))
         if why := self._mailbox.unavailable():
             raise Handoff(NO_RESET.format(site=site, login=self.login, why=why.rstrip(".")))
         return self.new_password(site)

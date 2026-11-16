@@ -1823,3 +1823,15 @@ def test_an_eightfold_page_claude_fill_filled_is_confirmed_by_eightfolds_own_che
     assert _eightfold(done) and _confirmed(done, "other")
     assert not _confirmed(_Shows(done.url, "Submit application"), "other")
     assert not _eightfold(_Shows("https://jobs.example.com/acme/1", "Application Submitted"))
+
+
+def test_a_rehearsal_never_resets_a_password_of_an_account_lisul_made(monkeypatch):
+    # KAN-878's review: Create Account's "already exists" pressed Forgot your password? in a rehearsal (a reopened
+    # form's too, now that it signs in), and changed the password of the account Lisul uses.
+    monkeypatch.setitem(FILLERS, "workday", NeverSubmittingWorkday)
+    world = World()
+    with FakeWorkdayServer(CACI_FORM, keychain=world.keychain, mailbox=world.mailbox,
+                           accounts={(CACI, "test.person@example.com"): "Made-By-Hand1!"}) as server:
+        [done] = rehearse([CACI_URL], server, world.profile, keychain=world.keychain, mailbox=world.mailbox)
+    assert done.outcome == rehearsal.SIGN_IN and "A rehearsal resets no password" in done.why, done.why
+    assert server.resets == [] and world.keychain.password(CACI) is None

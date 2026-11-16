@@ -537,7 +537,7 @@ class WorkdayFiller:
         reset not finish, that password is never tried (a sign-in failure). Both
         forms go through _send, since Workday may drop a click that comes
         straight after typing (Visa's and Northrop's, live)."""
-        password = self._accounts.reset_password(site)  # in Keychain; a rehearsal or no Gmail stops here
+        password = self._accounts.reset_password(site)  # in Keychain; a rehearsal or no Gmail stops here (Handoff)
         form = _auth_form(page, "signInLink", create=False)
         page.locator("[data-automation-id=forgotPasswordLink]").click()
         _until(page, lambda: form.locator("[data-automation-id=resetPasswordButton]").count() > 0)
