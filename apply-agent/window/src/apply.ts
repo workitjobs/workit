@@ -42,8 +42,12 @@ export type Shown = {
   status?: string;
 };
 
-// A job waiting to start, as Dashboard.state() names it: a pasted link has its link alone.
-export type Waiting = { link: string; company?: string; title?: string; logo_url?: string | null; company_domain?: string | null };
+// What names a queued job, one shape wherever it shows (dashboard.QUEUED_JOB): its WorkIt job's company and title
+// and its logo's sources. The queue lists it by `url` (bridge.Queued); a run names it by `link` while it waits to
+// start, where a pasted link has its link alone.
+export type QueuedJob = { company?: string; title?: string; logo_url?: string | null; company_domain?: string | null };
+
+export type Waiting = QueuedJob & { link: string };
 
 export type ApplyState = {
   tiles: Shown[];

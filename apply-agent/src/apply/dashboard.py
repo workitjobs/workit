@@ -234,6 +234,12 @@ def plain(why: str) -> str:
     return "; ".join(parts)
 
 
+# What names a queued job (app_window.Bridge.queue), in the student's queue and while it waits to start, as one
+# shape: its WorkIt job's company and title and its logo's sources. The window's own type is window/src/apply.ts's
+# QueuedJob.
+QUEUED_JOB = ("company", "title", "logo_url", "company_domain")
+LOGO = ("company_domain", "logo_url")  # what of it each tile and item of that job carries
+
 # Why a run is paused, in /state's run: a usage limit (the Usage cap in a Student build, the Max limit in a
 # Developer one) until paused_until.
 PAUSED_AT = "usage cap"
@@ -799,12 +805,12 @@ class Dashboard:
         `logo_url`), which each tile and item of that link carries, as the website draws its logo (KAN-871); and its
         `company` and `title`, which name it while it waits to start (the run's `waiting`, KAN-874)."""
         with self._lock:
-            self._logos = {link: {k: v for k, v in sources.items() if v} for link, sources in by_link.items()}
+            self._logos = {link: {k: v for k, v in job.items() if k in QUEUED_JOB and v} for link, job in by_link.items()}
 
     def _logo(self, shown: dict) -> dict:
         """The logo sources of a tile or item, by its link or its form's: none for a link no queue gave."""
         job = self._logos.get(str(shown.get("link") or "")) or self._logos.get(str(shown.get("posting_url") or "")) or {}
-        return {key: job[key] for key in ("company_domain", "logo_url") if key in job}
+        return {key: job[key] for key in LOGO if key in job}
 
     def focused(self, front: bool) -> None:
         """The window's page says whether it is in front, with each poll."""

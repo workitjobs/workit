@@ -304,7 +304,7 @@ function Start({ app }: { app: AppMethods }) {
                     onChange={() => setTicked(ticked.map((t, j) => (j === i ? !t : t)))}
                     className="size-[18px] accent-brand"
                   />
-                  <Logo company={q.company} src={q} size={32} />
+                  <Logo company={q.company ?? ""} src={q} size={32} />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate font-semibold">{q.title || "A job"}</span>
                     <span className="block text-xs text-ink-meta">{q.company}</span>
