@@ -161,18 +161,26 @@ def case_fill(target: str) -> None:
                       f"screencast {screencast_frames(context, behind)}")
 
 
-def chrome_rss(context) -> int:
-    """Total resident memory (bytes) of the Chrome this context runs: the browser and its children."""
-    root = next(p for p in psutil.process_iter(["cmdline"])
-                if any(str(SCRATCH / "worker-1") in a for a in (p.info["cmdline"] or []))
+def chrome_root() -> psutil.Process:
+    """The Worker's Chrome browser process: the one on its scratch profile with no `--type=`."""
+    profile = str(SCRATCH / "worker-1")
+    return next(p for p in psutil.process_iter(["cmdline"])
+                if any(profile in a for a in (p.info["cmdline"] or []))
                 and not any(a.startswith("--type=") for a in p.info["cmdline"]))
+
+
+def chrome_memory() -> tuple[int, int]:
+    """Total resident memory (bytes) of the Worker's Chrome, the browser and its children, and how
+    many processes that is."""
+    root = chrome_root()
+    processes = [root, *root.children(recursive=True)]
     total = 0
-    for process in [root, *root.children(recursive=True)]:
+    for process in processes:
         try:
             total += process.memory_info().rss
         except psutil.Error:
             pass
-    return total
+    return total, len(processes)
 
 
 def case_memory(target: str, held: int) -> None:
@@ -182,7 +190,7 @@ def case_memory(target: str, held: int) -> None:
     with replay(folder) as (url, real_url), worker([]) as context:
         blank = context.pages[0] if context.pages else context.new_page()
         time.sleep(2)
-        print(f"0 held (one blank tab): {chrome_rss(context) / 2**20:.0f} MiB")
+        print(f"0 held (one blank tab): {chrome_memory()[0] / 2**20:.0f} MiB")
         pages = []
         for n in range(1, held + 1):
             page = blank if n == 1 else context.new_page()
@@ -190,14 +198,8 @@ def case_memory(target: str, held: int) -> None:
             fill(page, target, real_url)
             pages.append(page)
             time.sleep(2)
-            print(f"{n} held: {chrome_rss(context) / 2**20:.0f} MiB in "
-                  f"{len(psutil.Process(chrome_root_pid()).children(recursive=True)) + 1} processes")
-
-
-def chrome_root_pid() -> int:
-    return next(p.pid for p in psutil.process_iter(["cmdline"])
-                if any(str(SCRATCH / "worker-1") in a for a in (p.info["cmdline"] or []))
-                and not any(a.startswith("--type=") for a in p.info["cmdline"]))
+            rss, processes = chrome_memory()
+            print(f"{n} held: {rss / 2**20:.0f} MiB in {processes} processes")
 
 
 def case_ticks() -> None:
