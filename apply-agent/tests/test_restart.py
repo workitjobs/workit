@@ -164,3 +164,22 @@ def test_preflight_open_lists_the_reopened_sites_that_wait_on_a_sign_in_now():
     assert "Acme (Browser 1)" in now and "Arc" not in said  # Greenhouse asks no sign-in, and its form is held
     assert "Beta (Browser 3)" in later
     assert preflight.open_report([], []).startswith("No open form")
+
+
+def test_a_reopened_form_never_tries_a_password_that_failed_before():
+    # KAN-878's review: a rehearsal's Accounts started with no failed sites, so a reopened form, now signing in, could
+    # try a password the Tracker says failed, once more, toward a lockout. Fault: the failed sites not read in.
+    from types import SimpleNamespace
+
+    import pytest
+
+    from apply import rehearsal
+    from apply.model import Handoff, Posting
+
+    tracker = SimpleNamespace(rows=lambda: [SimpleNamespace(reason="Sign-in failed at acme.example: refused.")])
+    adapters = SimpleNamespace(keychain=SimpleNamespace(password=lambda site: "Old-Pass1!"), mailbox=None, clock=None,
+                               tracker=tracker)
+    profile = SimpleNamespace(get=lambda key: "test.person@example.com")
+    accounts = rehearsal._Accounts(adapters, profile, tracker)(Posting("p1", "Acme", "Intern", "https://acme.example/1"))
+    with pytest.raises(Handoff, match="won't try that password again"):
+        accounts.password("acme.example")

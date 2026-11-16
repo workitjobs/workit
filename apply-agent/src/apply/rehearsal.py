@@ -68,7 +68,7 @@ from apply import (
     verify,
     workday,
 )
-from apply.accounts import NEEDS_SIGN_IN, Accounts
+from apply.accounts import NEEDS_SIGN_IN, Accounts, failed_sites
 from apply.adapters import Adapters, JobSite, SetupError, Tracker
 from apply.answers_tab import Refused
 from apply.asking import for_essay
@@ -1265,7 +1265,12 @@ class _Accounts:
         self._adapters = adapters
         self._listed_to = listed_to
         self._login = profile.get("identity.email")
-        self._failed: set[str] = set()
+        # The sites whose password sign-in failed before, as a run reads them (orchestrator): a reopened form never
+        # tries a failed password again, which could lock the account (KAN-878's review).
+        try:
+            self._failed: set[str] = failed_sites([row.reason for row in listed_to.rows()])
+        except Exception:
+            self._failed = set()  # a Tracker that can't be read: none known
         self._writing = threading.Lock()
 
     def __call__(self, posting: Posting) -> Accounts:
