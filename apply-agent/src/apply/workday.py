@@ -63,7 +63,7 @@ from urllib.parse import urlsplit
 from playwright.sync_api import Locator, Page
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
-from apply import feed, fill_engine, submit_guard, trace
+from apply import feed, fill_engine, google_sign_in, submit_guard, trace
 from apply.accounts import HANDS_OFF, NEEDS_SIGN_IN, Accounts
 from apply.adapters import JobSite
 from apply.confirmation import wait_for_confirmation
@@ -568,31 +568,31 @@ class WorkdayFiller:
 
     def _google(self, page: Page, button: Locator) -> None:
         button.click()
-        account = page.locator(f'[data-identifier="{self._accounts.login}"], [data-email="{self._accounts.login}"]')
+        account = google_sign_in.account(page, self._accounts.login)
         # A Worker profile that used it before may come straight back, signed in, without the
         # chooser; and Workday may take its time over that (over 20 s on Snap's tenant, live).
-        on_google = lambda: page.url.startswith("https://accounts.google.com/")
+        on_google = lambda: google_sign_in.on_google(page)
         try:
             shown = _until(page, lambda: _on_step(page) and "in" or account.first.is_visible() and "chooser"
-                           or on_google() and _google_asks(page) and "asks" or _google_rejected(page) and "rejected",
+                           or on_google() and google_sign_in.asks(page) and "asks" or google_sign_in.rejected(page) and "rejected",
                            GOOGLE_WAIT)
         except TimeoutError:
             if on_google():
-                raise Handoff(_google_wants(page)) from None
+                raise Handoff(google_sign_in.wants(page)) from None
             raise Handoff(f"Workday didn't come back signed in from Sign in with Google within {GOOGLE_WAIT:.0f} s "
                           f"({page.url}): finish the application yourself.") from None
         if shown == "asks":
-            raise Handoff(_google_wants(page))
+            raise Handoff(google_sign_in.wants(page))
         if shown == "rejected":
             raise Handoff(GOOGLE_REJECTED)
         if shown == "in":
             return
         account.first.click()
-        _until(page, lambda: not on_google() or _google_asks(page) or _google_rejected(page))
-        if _google_rejected(page):
+        _until(page, lambda: not on_google() or google_sign_in.asks(page) or google_sign_in.rejected(page))
+        if google_sign_in.rejected(page):
             raise Handoff(GOOGLE_REJECTED)
         if on_google():
-            raise Handoff(_google_wants(page))
+            raise Handoff(google_sign_in.wants(page))
         _until(page, lambda: _on_step(page))
 
     # --- Steps, through the engine ---------------------------------------------------
@@ -816,23 +816,6 @@ def _alert(page: Page) -> str:
     return alerts.first.inner_text().strip() if alerts.count() and alerts.first.is_visible() else ""
 
 
-def _google_asks(page: Page) -> bool:
-    """Whether Google's page asks for something typed (a password, a code, a phone number), or is one of
-    its challenges, such as a passkey, which has no box to type in (KLA, 2026-11-03)."""
-    return _google_challenge(page) or \
-        page.locator("input[type=password]:visible, input[type=tel]:visible, input[type=text]:visible").count() > 0
-
-
-def _google_challenge(page: Page) -> bool:
-    url = urlsplit(page.url)
-    return url.hostname == "accounts.google.com" and "/signin/challenge/" in url.path
-
-
-def _google_rejected(page: Page) -> bool:
-    """Whether Google refused to sign in this browser ("This browser or app may not be secure")."""
-    return urlsplit(page.url).hostname == "accounts.google.com" and "/signin/rejected" in urlsplit(page.url).path
-
-
 # Create Account went back to Sign In, or unanswered, in a rehearsal: the account may exist already.
 MAY_EXIST = (f"{NEEDS_SIGN_IN}{{company}} may already have an account for your email: reset its password once, or "
              "save it with uv run keyring set apply-ats {site} (in apply-agent/), then apply yourself.")
@@ -842,20 +825,7 @@ MADE_WITH_GOOGLE = (
     f"{NEEDS_SIGN_IN}{{company}}'s Workday account was made with Google; sign in once yourself, or reset its password"
 )
 
-GOOGLE_REJECTED = (
-    f"{NEEDS_SIGN_IN}Google refused Sign in with Google in the Worker's Chrome (\"This browser or app may not be "
-    "secure\"). Sign in with Google in your own Chrome and apply yourself."
-)
-
-
-def _google_wants(page: Page) -> str:
-    asked = "a password" if page.locator("input[type=password]").count() else "a passkey" if (
-        "/signin/challenge/pk" in urlsplit(page.url).path) else (
-        page.locator("h1").first.inner_text().strip() if page.locator("h1").count() else page.url)
-    return (
-        f"Google asked for more than an account pick ({asked}). Agents never type Google credentials: "
-        "sign the Worker profiles in to Google again by hand (see the setup checklist), then apply yourself."
-    )
+GOOGLE_REJECTED = google_sign_in.REJECTED
 
 
 def _until(page: Page, done, timeout: float = TIMEOUT):
