@@ -22,7 +22,14 @@ then a rehearsal, the Student build's run, opens no form
 time. Before (2026-11-15), the Student build's usage was never limited: at
 the cap each link left opened its form, was refused at its first ask and
 ended paused, and nothing started it again. WorkIt not answering reads as
-not limited, since the next ask reports it. Every
+not limited, since the next ask reports it. In a rehearsal a reading that
+fails (a Developer checkout's `claude -p` logged out, or its probe
+refused) is no limit too: raised before the link's `try`, it ended the
+link's thread holding its Worker's turn, and the run waited until Ctrl-C
+(2026-11-16). A form already filled is sent at a limit, since a submit
+makes no model call: WorkIt checks the cap before each call, so the
+pre-submit review can be the call that reaches it, and a pause at submit
+filled that form again after the reset. Every
 other adapter refuses a kind with a SetupError (`adapters.NEEDS_WORKIT`):
 `claude` can run one again only once the developer prompt route is built
 (urgent, `../../docs/developer_apply_agent_testing_framework.md`).

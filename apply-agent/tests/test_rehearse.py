@@ -62,7 +62,7 @@ from test_greenhouse_filler import board_listing_schools
 from test_run_answers import profile_with
 
 from apply import rehearsal, rescue, worker
-from apply.adapters import Adapters, Drive, UsageReading
+from apply.adapters import Adapters, ClaudeError, Drive, SetupError, UsageReading
 from apply.answer_bank import AnswerBank
 from apply.ashby import AshbyFiller
 from apply.claude_fill import ClaudeFill
@@ -163,6 +163,28 @@ def test_at_a_usage_limit_no_form_opens_until_it_resets(monkeypatch, tmp_path):
     assert done.outcome == "ready to submit", done.why
     paused = board.runs.index({"paused_until": reset.isoformat(timespec="minutes")})
     assert board.runs[paused + 1] == {"paused_until": None}
+
+
+@pytest.mark.parametrize("error", [ClaudeError("claude -p failed: overloaded"),  # its probe refused
+                                   SetupError("Claude isn't logged in")])  # ask_model: claude, logged out
+def test_a_usage_reading_that_fails_never_stops_the_link(monkeypatch, tmp_path, error):
+    # Fault: the reading's error reaching the link. Read before the link's try, it ended the link's thread holding
+    # its Worker's turn, and the run waited on its summary until Ctrl-C; the form's own calls say what is wrong.
+    monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
+
+    def fails() -> UsageReading:
+        raise error
+
+    ended = []
+    with FakeJobServer(ARC_FORM) as fake:
+        run = threading.Thread(target=lambda: ended.extend(
+            rehearse([ARC_URL], fake, profile_with(tmp_path), usage=ScriptedUsage(fails))), daemon=True)
+        run.start()
+        run.join(60)  # a fill here takes about 2 s
+
+    assert not run.is_alive(), "the run waited on the link's summary"
+    [done] = ended
+    assert done.outcome == "ready to submit", done.why
 
 
 def test_missing_facts_leave_their_fields_blank_and_are_listed(monkeypatch, tmp_path):

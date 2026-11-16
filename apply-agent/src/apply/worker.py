@@ -186,8 +186,7 @@ def apply_to(
     draft: dict | None = None,
 ) -> Result:
     """`before_submit` runs just before the form is submitted. It returns why
-    the Orchestrator holds the Application anyway (the Calibration run), or "";
-    it raises UsageLimitHit when the Orchestrator has paused every Worker. `answered`
+    the Orchestrator holds the Application anyway (the Calibration run), or "". `answered`
     holds Lisul's answers to Missing facts, by question; they join the
     Applicant profile first (the Orchestrator saves it). `approved` is the
     Essay cell of a Hold Lisul approved: his essays are sent as he left them,

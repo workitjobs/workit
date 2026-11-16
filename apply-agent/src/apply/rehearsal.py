@@ -69,7 +69,7 @@ from apply import (
     workday,
 )
 from apply.accounts import NEEDS_SIGN_IN, Accounts, failed_sites
-from apply.adapters import Adapters, JobSite, SetupError, Tracker
+from apply.adapters import Adapters, ClaudeError, JobSite, SetupError, Tracker
 from apply.answers_tab import Refused
 from apply.asking import for_essay
 from apply.captcha import Waiter
@@ -682,9 +682,19 @@ def rehearse(
 def _after_the_limit(adapters: Adapters) -> None:
     """Wait while a usage limit holds (the Student build's is WorkIt's Usage cap, ask_model.WorkItAsk.reading), the
     window saying until when. Without it, at the cap each link left opened its form, was refused at its first ask
-    and ended paused, never started again."""
+    and ended paused, never started again.
+
+    It never raises. A reading that fails (a Developer checkout's `claude -p` logged out, or its probe refused) is
+    no limit: the form's own calls say what is wrong, inside the link's try. Raised here, before that try, the
+    link's thread ended holding its Worker's turn, and the run waited on its summary until Ctrl-C."""
     paused = False
-    while (reading := adapters.usage.reading()).limited:
+    while True:
+        try:
+            reading = adapters.usage.reading()
+        except (SetupError, ClaudeError):
+            break
+        if not reading.limited:
+            break
         until = reading.resets_at or adapters.clock.now() + UNKNOWN_RESET_WAIT
         adapters.board.run(paused_until=until.isoformat(timespec="minutes"))
         adapters.clock.sleep_until(until)
