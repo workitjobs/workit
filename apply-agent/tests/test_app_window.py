@@ -261,6 +261,39 @@ def test_a_run_rehearses_its_links_with_the_students_worker_count_and_closes_its
     assert shown[0].state()["context"]["tracker_url"] == f"{workit.site().web}/applications"
 
 
+def test_a_runs_board_takes_the_students_answer_through_the_route(monkeypatch, tmp_path):
+    """Fault: a Student run's board has no answer, so /answer is 404 and the page's question card can't save."""
+    from contextlib import nullcontext
+    from types import SimpleNamespace
+
+    from apply import first_run, student, worker_tiles
+    from apply.keychain import InMemoryKeychain
+    from apply.tracker import InMemoryTracker
+
+    monkeypatch.setattr(dashboard, "ThreadingHTTPServer", no_server)
+    monkeypatch.setattr(worker_tiles, "frames_for", lambda site, tiles: nullcontext(OneFrame()))
+    monkeypatch.setattr(worker_tiles, "close_workers", lambda site: None)
+    monkeypatch.setattr(first_run, "STATE", tmp_path / "app.json")
+    saved = []
+    tab = SimpleNamespace(save_answered=lambda question, answer: saved.append((question, answer)))
+    monkeypatch.setattr(student, "AnswersTab", lambda *a, **k: tab)
+    site = SimpleNamespace(show=lambda worker: True, plain=lambda worker: False)
+    made = SimpleNamespace(site=site, answer_bank=None, tracker=InMemoryTracker(), keychain=InMemoryKeychain(),
+                           everyday=lambda url: None, board=None)
+    replies = []
+
+    def rehearse(links, adapters, profile, workers):
+        board = adapters.board
+        board.update(0, company="Acme", posting_url=links[0], status="filling", missing=["When can you start?"])
+        body = '{"id": "live-0", "question": "When can you start?", "answer": "June 2027"}'
+        replies.append(Bridge(board, WorkIt(workit.LIVE)).request("POST", "/answer", {"X-Apply-Token": board.token}, body))
+
+    student.Runs(SimpleNamespace(get=lambda key: None), make=lambda profile: made, rehearse=rehearse) \
+        .run(["https://jobs.lever.co/acme/1"], lambda board: None)
+    assert replies[0]["status"] == 200, replies[0]
+    assert saved == [("When can you start?", "June 2027")]
+
+
 def test_remove_all_my_data_only_in_the_student_build_and_never_during_a_run(board, tmp_path, monkeypatch):
     """Fault: a Developer checkout's own data folder deleted, data removed under a running run, or the login left in
     the keychain after the folder went."""

@@ -22,7 +22,7 @@ from apply import (
 from apply.accounts_tab import AccountsTab
 from apply.adapters import Adapters, ClaudeError, UsageReading
 from apply.answer_bank import FILE as ANSWER_BANK
-from apply.answers_tab import AnswersTab
+from apply.answers_tab import AnswersTab, saving_answers
 from apply.applicant import as_applicant
 from apply.ask_model import live_claude
 from apply.clock import SystemClock
@@ -150,7 +150,8 @@ class Runs:
                               quiet=getattr(site, "plain", None), everyday=made.everyday, accounts=accounts,
                               sample=self._profile.get("sample_data") is True, tracker_url=tracker_url(),
                               back=(lambda worker: in_front(worker) and app_window.bring_forward()) if in_front else None,
-                              notify=app_window.notify, serve=False) as board:
+                              notify=app_window.notify, answer=saving_answers(lambda: made.tracker, answers),
+                              serve=False) as board:
                 made.board = board
                 show(board)
                 self._rehearse(links, made, self._profile, workers())
