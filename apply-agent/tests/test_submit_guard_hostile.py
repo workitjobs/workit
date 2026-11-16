@@ -683,8 +683,131 @@ GENERIC_FILL_PAGES = {
         <script>document.getElementById('b').addEventListener('click', () => sendAll());</script>"""},
 }
 PAGES |= GENERIC_FILL_PAGES
+# A GET form (no method) whose own submit handler posts the application, as a React form's onSubmit does: the guard
+# judged only a POST form's submit, so any press that submitted this one sent it (the adversarial review of KAN-861,
+# KAN-868). Each holds a Submit; the press is on something else of the form's.
+# Code inside a declarative root that walks up to the root and listens there for submit, as the page loads.
+_ROOT_HOOK = ("""<img src="data:," onerror="let n = this; while (n.parentNode) n = n.parentNode; n.addEventListener('submit', """
+              """(e) => { e.preventDefault(); fetch('""" + COMMIT + """', {method: 'POST', body: 'first=Test'}); }, true);">""")
+_LOGIN_DRESS = """<title>Apply</title>%s<form id=f><label>Email <input type=email name=email value=t@example.com></label>
+  <button id=b>Next</button><button>Submit application</button></form>
+<script>f.addEventListener('submit', (e) => { e.preventDefault(); fetch('""" + COMMIT + """', {method: 'POST', body: 'why=x'}); });
+</script>"""
+_GET_FORM = """<title>Apply</title><form id=f><label>First name <input name=first value=Test></label>%s
+  <button type=submit>Submit application</button></form>
+<script>f.addEventListener('submit', (e) => { e.preventDefault();
+  fetch('""" + COMMIT + """', {method: 'POST', body: new URLSearchParams(new FormData(f))}); });</script>"""
+GET_FORM_PAGES = {
+    "a GET form a Next submits beside its Submit": {START: _GET_FORM % "<button id=b>Next</button>"},
+    "a GET form whose dropdown is a submit button": {START: _GET_FORM % '<button id=b aria-haspopup=listbox>Country</button>'},
+    "a GET form whose Next turns into a submit button as it is pressed": {START: _GET_FORM % """<button type=button id=b>Next</button>
+        <script>b.addEventListener('pointerdown', (e) => e.currentTarget.type = 'submit', true);
+        b.addEventListener('mousedown', (e) => e.currentTarget.type = 'submit', true);</script>"""},
+    # The Submit stops saying it sends during the press, before the submit fires (the review of KAN-868): the guard
+    # judges the form as it stood when the press went down or landed.
+    "a GET form whose Next renames its Submit as it submits": {START: _GET_FORM.replace("<button type=submit>", "<button id=s type=submit>")
+        % "<button id=b>Next</button><script>b.addEventListener('click', () => { s.textContent = 'Saving'; });</script>"},
+    "a GET form whose Next blanks its Submit as it submits": {START: _GET_FORM.replace("<button type=submit>", "<button id=s type=submit>")
+        % "<button id=b>Next</button><script>b.addEventListener('click', () => { s.textContent = ''; });</script>"},
+    "a GET form whose Next takes its Submit away as it submits": {START: _GET_FORM.replace("<button type=submit>", "<button id=s type=submit>")
+        % "<button id=b>Next</button><script>b.addEventListener('click', () => s.remove());</script>"},
+    "a GET form whose Submit is renamed as the Next goes down": {START: _GET_FORM.replace("<button type=submit>", "<button id=s type=submit>")
+        % """<button id=b>Next</button><script>for (const k of ['pointerdown', 'mousedown'])
+        b.addEventListener(k, () => { s.textContent = 'Saving'; }, true);</script>"""},
+    "a GET form a Next submits by script with its Submit renamed for the moment": {START: _GET_FORM.replace(
+        "<button type=submit>", "<button id=s type=submit>") % """<button id=b type=button>Next</button><script>
+        b.addEventListener('click', () => { s.textContent = 'Saving'; f.requestSubmit(); s.textContent = 'Submit application'; });
+        </script>"""},
+    # A Submit no test of the form's buttons sees, so a Next's submit went through as a step's (the review of KAN-868).
+    "a GET form whose Submit sits outside it with no form attribute": {START: _GET_FORM.replace(
+        "<button type=submit>Submit application</button>", "") % "<button id=b>Next</button>"
+        + "<footer><button type=button onclick='f.requestSubmit()'>Submit application</button></footer>"},
+    "a GET form whose Submit is a div of no role": {START: _GET_FORM.replace(
+        "<button type=submit>Submit application</button>", "") % """<button id=b>Next</button>
+        <div onclick='f.requestSubmit()'>Submit application</div>"""},
+    "a GET form whose Submit says so in its CSS alone": {START: "<style>#s::before { content: 'Submit application' }</style>"
+        + _GET_FORM.replace("<button type=submit>Submit application</button>", "") % """<button id=b>Next</button>
+        <button id=s type=button onclick='f.requestSubmit()'></button>"""},
+    # A GET form in a shadow root the page wrote, submitted by a Next outside it: its submit stays in the root.
+    "a GET form in a declarative shadow root that a Next outside it submits": {START: """<title>Apply</title>
+        <label>First name <input name=first value=Test></label><button id=b type=button>Next</button>
+        <div id=h><template shadowrootmode=open><form id=f><input name=first value=Test>
+        <button type=submit>Submit application</button></form></template></div>
+        <script>const f = h.shadowRoot.getElementById('f'); f.addEventListener('submit', (e) => { e.preventDefault();
+        fetch('""" + COMMIT + """', {method: 'POST', body: new URLSearchParams(new FormData(f))}); });
+        b.addEventListener('click', () => f.requestSubmit());</script>"""},
+    # Round 2 of the review of KAN-868: a form dressed as a sign-in step, with the answers outside it or moved out as
+    # the Next is pressed; a dialog's submit, which runs the page's handlers all the same; a closed root's Submit.
+    "a GET form dressed as a sign-in step with its answers outside it": {START: """<title>Apply</title>
+        <label>Why us? <textarea id=why>Because</textarea></label><label>Resume <input type=file name=resume></label>
+        <form id=f><label>Email <input type=email name=email value=t@example.com></label><button id=b>Next</button>
+        <button>Submit application</button></form><script>f.addEventListener('submit', (e) => { e.preventDefault();
+        fetch('""" + COMMIT + """', {method: 'POST', body: 'why=' + why.value}); });</script>"""},
+    "a GET form whose Next moves its answers out as it submits": {START: """<title>Apply</title><div id=out></div><form id=f>
+        <label>Email <input type=email name=email value=t@example.com></label><label>Why us? <textarea id=why>Because</textarea></label>
+        <button id=b>Next</button><button>Submit application</button></form><script>
+        b.addEventListener('click', () => out.append(why));
+        f.addEventListener('submit', (e) => { e.preventDefault();
+        fetch('""" + COMMIT + """', {method: 'POST', body: 'why=' + why.value}); });</script>"""},
+    "a GET form whose Next submits it as a dialog's": {START: _GET_FORM % "<button id=b formmethod=dialog>Next</button>"},
+    "a dialog's form whose own handler sends": {START: _GET_FORM.replace("<form id=f>", "<form id=f method=dialog>")
+        % "<button id=b>Next</button>"},
+    "a GET form in a closed declarative root whose Submit a Next outside it clicks": {START: """<title>Apply</title>
+        <label>First name <input name=first value=Test></label><button id=b type=button>Next</button>
+        <x-app><template shadowrootmode=closed><form id=f><input name=first value=Test>
+        <button type=submit>Submit application</button></form></template></x-app>
+        <script>customElements.define('x-app', class extends HTMLElement { constructor() { super();
+          const r = this.attachInternals().shadowRoot; const f = r.getElementById('f');
+          f.addEventListener('submit', (e) => { e.preventDefault();
+            fetch('""" + COMMIT + """', {method: 'POST', body: new URLSearchParams(new FormData(f))}); });
+          b.addEventListener('click', () => r.querySelector('button').click()); } });</script>"""},
+    # Round 3: a form dressed as a sign-in step (one email box), its answers held elsewhere on the page; and a page
+    # that listens on its declarative root before the guard has heard it.
+    "a GET form dressed as a sign-in step with its answers held in script": {START: _LOGIN_DRESS % ""},
+    "a GET form dressed as a sign-in step with its answers in an editable box": {START: _LOGIN_DRESS
+        % '<label>Why us? <div contenteditable role=textbox>Because</div></label>'},
+    "a GET form dressed as a sign-in step with its answers in radios": {START: _LOGIN_DRESS % """<fieldset>
+        <legend>Authorized to work?</legend><label><input type=radio name=auth checked>Yes</label>
+        <label><input type=radio name=auth>No</label></fieldset>"""},
+    "a GET form dressed as a sign-in step with its answers in a shadow root": {START: _LOGIN_DRESS
+        % "<div><template shadowrootmode=open><label>Phone <input name=phone value=555></label></template></div>"},
+    "a page listening on its declarative root before the guard": {START: """<title>Apply</title><div id=h>
+        <template shadowrootmode=open><form id=f><input name=first value=Test><button id=b>Next</button>
+        <button>Submit application</button></form></template></div><script>h.shadowRoot.addEventListener('submit',
+        (e) => { e.preventDefault(); fetch('""" + COMMIT + """', {method: 'POST', body: 'first=Test'}); }, true);</script>"""},
+    "a page listening on its declarative root whose form a Next outside submits": {START: """<title>Apply</title>
+        <label>First name <input name=first value=Test></label><button id=b type=button>Next</button><div id=h>
+        <template shadowrootmode=open><form id=f><input name=first value=Test><button>Submit application</button></form>
+        </template></div><script>const r = h.shadowRoot; r.addEventListener('submit', (e) => { e.preventDefault();
+        fetch('""" + COMMIT + """', {method: 'POST', body: 'first=Test'}); }, true);
+        b.addEventListener('click', () => r.getElementById('f').requestSubmit());</script>"""},
+    # Round 4: a page's listener on its declarative root, added from inside the root before any press, so the press
+    # itself is stopped at the window; a dressed-up sign-in whose answers sit in a frame or a closed root.
+    "a declarative root a script inside it listens on": {START: """<title>Apply</title><div id=h><template shadowrootmode=open>
+        <form id=f><input name=first value=Test><button id=b>Next</button><button>Submit application</button>
+        <x-hook></x-hook></form></template></div><script>customElements.define('x-hook', class extends HTMLElement {
+        connectedCallback() { let n = this; while (n.parentNode) n = n.parentNode; n.addEventListener('submit', (e) => {
+        e.preventDefault(); fetch('""" + COMMIT + """', {method: 'POST', body: 'first=Test'}); }, true); } });</script>"""},
+    "a GET form dressed as a sign-in step with its answers in a frame": {START: _LOGIN_DRESS
+        % '<iframe srcdoc="<label>Why us? <textarea>Because</textarea></label>"></iframe>'},
+    "a GET form dressed as a sign-in step with its answers in a closed root": {START: _LOGIN_DRESS % """<x-q></x-q><script>
+        customElements.define('x-q', class extends HTMLElement { constructor() { super();
+        this.attachShadow({mode: 'closed'}).innerHTML = '<label>Phone <input name=phone value=555></label>'; } });</script>"""},
+    # Round 5: a GET application with a password box (one that makes an account as it applies); and a declarative
+    # root that code inside it listens on, its form submitted by a Next the page turns into a submit as it is
+    # clicked, or by an Enter with no button at all.
+    "a GET application with a password box": {START: _GET_FORM % """<label>Why us? <textarea name=why>Because</textarea></label>
+        <label>Create a password <input type=password name=pw value=x></label><button id=b>Next</button>"""},
+    "a hooked declarative root whose Next turns into a submit as it is clicked": {START: """<title>Apply</title><div id=h>
+        <template shadowrootmode=open><form><input name=first value=Test><button id=b type=button onclick="this.type='submit'">Next</button>
+        <button>Submit application</button>""" + _ROOT_HOOK + """</form></template></div>"""},
+}
+PAGES |= GET_FORM_PAGES
+# An application that looks like a sign-in step to the page, its answers held in script, can't be told from one: under
+# plain code's own sign-in press (the account click) it goes on, the residual of the sign-in exemption (KAN-868).
+LOGIN_DRESSED_ALONE = frozenset({"a GET form dressed as a sign-in step with its answers held in script"})
 BUTTON = {"an option that is the form's own submit button": "Yes", "a posting's Apply that posts the application": "Apply for this job",
-          "an Amazon card whose Continue sends": "Continue", "a review page's Apply with its answers hidden": "Apply", "a page that vouches for its own Apply": "Apply", "a Submit in another language beside a Submit": "Envoyer ma candidature", "a Submit in a shadow root": "Submit application",
+          "a GET form whose dropdown is a submit button": "Country", "an Amazon card whose Continue sends": "Continue", "a review page's Apply with its answers hidden": "Apply", "a page that vouches for its own Apply": "Apply", "a Submit in another language beside a Submit": "Envoyer ma candidature", "a Submit in a shadow root": "Submit application",
           "a profile pop-up that is the application": "Submit", "a profile pop-up that turns into the application": "Submit",
           "a one-page form in a modal": "Continue", "an application that makes an account": "Continue",
           "a button whose words change after the check": "Continue",
@@ -932,6 +1055,8 @@ GUARD_HOLES = frozenset({
     "a frame of the page's own at a captcha's path", "a foreign frame at a captcha's path that posts on a timer",
     "a foreign frame at a captcha's path whose form posts to the top page",
     "a foreign frame at a captcha's path told by the Next's click",
+    # KAN-868's: a GET form whose own submit handler sends, submitted by a press of something else of the form's.
+    *GET_FORM_PAGES,
 })
 
 
@@ -992,7 +1117,7 @@ AMAZON_PAGES = frozenset({"an Amazon card whose Continue sends"})
 # The pages whose button has an opener's name ("Apply"), which the generic Filler's Apply press looks for.
 OPENER_PAGES = frozenset({"a posting's Apply that posts the application", "a review page's Apply with its answers hidden",
                           "a page that vouches for its own Apply"})
-APPLIES = {"the profile click": PROFILE_PAGES, "Ask Claude's press of a listed step": LISTED_STEP_PAGES,
+APPLIES = {"the account click": frozenset(PAGES) - LOGIN_DRESSED_ALONE, "the profile click": PROFILE_PAGES, "Ask Claude's press of a listed step": LISTED_STEP_PAGES,
            "the keep-alive's stay press": SESSION_DIALOG_PAGES, "the keep-alive's generic stay press": SESSION_DIALOG_PAGES,
            "the generic Filler's Apply press": OPENER_PAGES}
 # The kind of page each path was written against, in this order: a page's one PR pair takes the first that holds it.
@@ -2181,10 +2306,6 @@ def test_each_page_says_how_late_it_sends_and_a_held_only_page_has_its_held_test
 # block covers a POST form, or a button that says it sends). So the generic Filler never clicks a control that would
 # submit a form, nor presses a Next that would submit the form its Submit is in. These pages stay out of PAGES: plain
 # code's Next and Ask's press still send on them through that gap, which is the guard's, older than the generic Filler.
-_GET_FORM = """<form id=f><label>First name <input name=first value=Test></label>%s
-  <button type=submit>Submit application</button></form>
-<script>f.addEventListener('submit', (e) => { e.preventDefault();
-  fetch('""" + COMMIT + """', {method: 'POST', body: new URLSearchParams(new FormData(f))}); });</script>"""
 # Each page: the role and name of the control the control test clicks, and the page.
 GENERIC_REFUSES = {
     # Fault: the reader or the fill clicks a dropdown made of a <button> of no type, which submits its form.
@@ -2208,7 +2329,7 @@ GENERIC_REFUSES = {
 
 @pytest.mark.parametrize("page_name", list(GENERIC_REFUSES))
 def test_the_generic_filler_never_clicks_what_would_submit_its_form(page_name):
-    with cdp({START: f"<title>Apply</title>{GENERIC_REFUSES[page_name][2]}"}) as (page, drive, site):
+    with cdp({START: GENERIC_REFUSES[page_name][2]}) as (page, drive, site):
         try:
             generic_fill(page, drive, "")
         except Handoff:
@@ -2221,7 +2342,7 @@ def test_the_generic_filler_never_clicks_what_would_submit_its_form(page_name):
 def test_without_the_guard_each_get_form_page_sends(page_name):
     """The control: a click on the control the generic Filler refuses sends the application."""
     role, name, html = GENERIC_REFUSES[page_name]
-    with cdp({START: f"<title>Apply</title>{html}"}, guarded=False) as (page, _, site):
+    with cdp({START: html}, guarded=False) as (page, _, site):
         page.get_by_role(role, name=name).first.click(timeout=5_000)
         _settle(page, 1500)
     assert COMMIT in site.applications()
@@ -2245,7 +2366,7 @@ GUARD_GAP = {
 @pytest.mark.xfail(strict=True, reason="the guard's GET-form gap: submit_guard's submit block judges a POST form only")
 @pytest.mark.parametrize("page_name", list(GUARD_GAP))
 def test_the_guard_stops_a_get_form_the_page_turns_into_a_send_as_it_is_pressed(page_name):
-    with cdp({START: f"<title>Apply</title>{GUARD_GAP[page_name]}"}) as (page, drive, site):
+    with cdp({START: GUARD_GAP[page_name]}) as (page, drive, site):
         try:
             generic_fill(page, drive, "")
         except Handoff:
@@ -2291,4 +2412,20 @@ def test_the_generic_filler_reads_a_page_the_rehearsal_left_lifted_under_its_own
             pass
         _settle(page, 1500)
         browser.close()
+    assert (site.applications() == []) is guarded
+
+
+# Round 5 of KAN-868's review: an Enter in a lone box of a form in a declarative root that code inside it listens on.
+# Apply's typing presses Enter in every box it fills; the submit it starts needs no click, so only the guard's listener
+# on the root, added before the page's (the addEventListener wrapper), can stop it.
+ENTER_IN_A_HOOKED_ROOT = """<title>Apply</title><div id=h><template shadowrootmode=open><form>
+    <label>First name <input name=first value=Test></label>""" + _ROOT_HOOK + """</form></template></div>"""
+
+
+@pytest.mark.parametrize("guarded", [True, False])
+def test_an_enter_in_a_hooked_roots_form_sends_nothing(guarded):
+    with cdp({START: ENTER_IN_A_HOOKED_ROOT}, guarded=guarded) as (page, _, site):
+        page.wait_for_timeout(300)  # the hook's image errored, and its listener is on the root
+        page.get_by_label("First name").press("Enter")
+        _settle(page, 1500)
     assert (site.applications() == []) is guarded

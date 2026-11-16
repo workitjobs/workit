@@ -21,6 +21,7 @@ from app.connector.server import connector
 from app.db import get_sessionmaker
 from app.routers.applications import router as applications_router
 from app.routers.apply_app import router as apply_app_router
+from app.routers.apply_reports import router as apply_reports_router
 from app.routers.assistant import router as assistant_router
 from app.routers.auth import router as auth_router
 from app.routers.auto_apply import router as auto_apply_router
@@ -135,6 +136,7 @@ app.include_router(rules_anomalies_router)
 app.include_router(tracker_router)
 app.include_router(uninstall_answers_router)
 app.include_router(apply_app_router)
+app.include_router(apply_reports_router)
 # The connector's MCP server and its OAuth endpoints (app/connector/server.py).
 app.router.routes.extend(CONNECTOR_ROUTES)
 

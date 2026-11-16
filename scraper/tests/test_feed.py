@@ -29,6 +29,7 @@ def role(**changes: object) -> Role:
         "tags": (Tag.INTERN, Tag.SOFTWARE),
         "posted_at": "2026-09-26T02:53:16.063000+00:00",
         "new": False,
+        "repost": False,
         "department": None,
         "locations": ("Berkeley",),
         "description": None,

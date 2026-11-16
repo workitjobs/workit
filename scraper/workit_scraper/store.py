@@ -12,34 +12,21 @@ the store is what holds the timestamps.
 from __future__ import annotations
 
 import json
-import zlib
 from collections.abc import Iterable
 from dataclasses import asdict, dataclass, field, fields, replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from workit_scraper.providers import PROVIDERS, Board, Job
+from workit_scraper.scheduling import (
+    fingerprint,  # noqa: F401 — re-exported for __main__ and tests
+    fingerprint_rest,
+    is_quiet_board_due,
+    quiet_slot,
+    rest_for,
+)
 
 NEW_WINDOW = timedelta(hours=24)
-#: A quiet board -- read before, never a kept posting -- is read on one run in this
-#: many, and always once QUIET_LONGEST has passed since its last read.
-QUIET_EVERY = 3
-QUIET_LONGEST = timedelta(days=1)
-#: How often the scheduled run fires (.github/workflows/scrape.yml, every three
-#: hours): the slot that each quiet board's turn comes round in.
-RUN_EVERY = timedelta(hours=3)
-#: A board that went unread this many runs in a row -- it failed, said it does not
-#: exist, or robots.txt refused it -- rests: it is not asked for REST_FIRST, then
-#: twice that after each further miss, up to REST_LONGEST. Never for good.
-REST_AFTER = 3
-REST_FIRST = timedelta(hours=6)
-REST_LONGEST = timedelta(hours=24)
-#: A board whose kept postings hash to the same fingerprint as its last read
-#: rests after the first unchanged read, doubling from FINGERPRINT_FIRST to
-#: FINGERPRINT_LONGEST. No threshold: a board just read with identical content
-#: needs no second look in three hours.
-FINGERPRINT_FIRST = timedelta(hours=4)
-FINGERPRINT_LONGEST = timedelta(hours=24)
 
 
 @dataclass(frozen=True, slots=True)
@@ -214,7 +201,8 @@ class Store:
         board gets its turn. Other lanes read all.
         """
         at = _at(now)
-        slot = int(at.timestamp() // RUN_EVERY.total_seconds())
+        now_ts = at.timestamp()
+        slot = quiet_slot(now_ts)
         hot = {job.board_key for job in self.jobs}
         missed = self.missed_once()
         resting = self.resting(now)
@@ -226,12 +214,12 @@ class Store:
             if board.key in fp_resting:
                 continue
             reads = self.boards.get(board.key)
-            if (
-                everything
-                or reads is None
-                or board.key in hot
-                or at - _at(reads.last_read_at) >= QUIET_LONGEST
-                or zlib.crc32(board.key.encode()) % QUIET_EVERY == slot % QUIET_EVERY
+            if everything or is_quiet_board_due(
+                board.key,
+                slot,
+                _at(reads.last_read_at).timestamp() if reads else None,
+                now_ts,
+                has_kept=board.key in hot,
             ):
                 due.append(board)
         never = datetime.min.replace(tzinfo=UTC)
@@ -366,29 +354,6 @@ def update(
         websites=dict(previous.websites) if previous else {},
         addresses=dict(previous.addresses) if previous else {},
     )
-
-
-def rest_for(failures: int) -> timedelta | None:
-    """How long a board unread `failures` runs in a row rests: none below
-    REST_AFTER, then REST_FIRST, doubling each miss up to REST_LONGEST."""
-    if failures < REST_AFTER:
-        return None
-    return min(REST_FIRST * 2 ** (failures - REST_AFTER), REST_LONGEST)
-
-
-def fingerprint(external_ids: Iterable[str]) -> str:
-    """8-char hex CRC32 of the sorted strings in `external_ids`, joined with ``\\0``."""
-    joined = "\0".join(sorted(external_ids))
-    return f"{zlib.crc32(joined.encode()) & 0xFFFFFFFF:08x}"
-
-
-def fingerprint_rest(unchanged_reads: int) -> timedelta | None:
-    """How long a board unchanged `unchanged_reads` times rests: none on the
-    first read (nothing to compare), then FINGERPRINT_FIRST, doubling each
-    unchanged read up to FINGERPRINT_LONGEST."""
-    if unchanged_reads < 1:
-        return None
-    return min(FINGERPRINT_FIRST * 2 ** (unchanged_reads - 1), FINGERPRINT_LONGEST)
 
 
 def reread_missing_logos(run: Store, version: int) -> Store:

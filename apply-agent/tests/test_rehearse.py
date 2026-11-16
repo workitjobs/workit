@@ -1089,6 +1089,47 @@ def test_fill_again_from_the_window_fills_its_form_once_more_with_no_click_on_th
     assert filler.fills == 2 and submissions == []
 
 
+class FailsOnce(Counted):
+    """Counted whose first fill fails, as a page that broke mid-form."""
+
+    def fill(self, page, questions, answers):
+        if not self.fills:
+            self.fills += 1
+            raise RuntimeError("the page broke")
+        return super().fill(page, questions, answers)
+
+
+def test_try_again_in_a_student_window_fills_a_failed_form_anew(monkeypatch, tmp_path):
+    """KAN-873: a Student run has no Ask Claude, so its held page is never askable; its Worker still holds the
+    failed form's page, and Try again in the window (`/fill-again`) fills it anew."""
+    from apply import build
+    from apply.dashboard import Dashboard, NoFrames, Refused
+
+    monkeypatch.setattr(build, "STUDENT", True)
+    filler = FailsOnce(GreenhouseFiller())
+    monkeypatch.setitem(FILLERS, "greenhouse", filler)
+    lisul_on_the_held_page(monkeypatch, lambda n: [])
+    profile = ApplicantProfile.load(profile_with(tmp_path))
+    seen = []
+
+    with FakeJobServer(ARC_FORM) as fake, Dashboard(1, NoFrames()) as board:
+        def press() -> None:
+            for _ in range(300):
+                try:
+                    board.fill_again("tile-0")
+                    seen.append(board.state()["tiles"][0]["tone"])
+                    return
+                except Refused:
+                    time.sleep(0.2)  # not held yet
+        threading.Thread(target=press, daemon=True).start()
+        lines = hold_until(fake, profile, lambda lines: any("ready to submit" in line for line in lines),
+                           with_adapters={"board": board})
+        submissions = fake.submissions
+
+    assert seen == ["failed"]  # tried again from the failed form, not a held one
+    assert filler.fills == 2 and any("ready to submit" in line for line in lines) and submissions == []
+
+
 def test_a_field_the_filler_cannot_fill_is_reported_and_the_rest_still_filled(tmp_path):
     profile = profile_with(tmp_path, **{"education.school": "Example State University"})
     # A board whose school search names two Example States: the Filler won't guess between them.
@@ -1118,6 +1159,7 @@ def test_each_links_tile_on_the_dashboard_says_what_it_is_and_how_it_ended(monke
     files = board.captions[0].pop("files")  # a kept copy of each file the form was sent
     assert files and all(Path(f["path"]).is_file() for f in files)
     assert board.captions[0].pop("posting_url").startswith("http")  # so the window can link the Posting
+    assert board.captions[0].pop("link") == ARC_URL  # the link it was given, which the window finds its logo by
     assert board.captions[0].pop("application_id")
     assert board.captions[0].pop("verifying") is False  # verified once it was filled, before it stopped
     assert board.captions[0].pop("verification")["state"] in ("verified", "flagged")
@@ -1823,3 +1865,69 @@ def test_an_eightfold_page_claude_fill_filled_is_confirmed_by_eightfolds_own_che
     assert _eightfold(done) and _confirmed(done, "other")
     assert not _confirmed(_Shows(done.url, "Submit application"), "other")
     assert not _eightfold(_Shows("https://jobs.example.com/acme/1", "Application Submitted"))
+
+
+# Stop applying and Remove in the student's window (KAN-874).
+
+class StoppingBoard(RecordingBoard):
+    """The run's board, which the rehearsal hands its stop and remove; `then(stop, remove)` presses them."""
+
+    def __init__(self, then: Callable[[Callable[[], None], Callable[[str], bool]], None]):
+        super().__init__()
+        self._then, self._stop = then, None
+
+    def stopping(self, stop: Callable[[], None]) -> None:
+        self._stop = stop
+
+    def removing(self, remove: Callable[[str], bool]) -> None:
+        self.removed = []
+        self._then(self._stop, lambda link: self.removed.append(remove(link)) or self.removed[-1])
+
+
+def test_a_removed_job_leaves_waiting_to_start_and_never_runs(monkeypatch, tmp_path):
+    """Fault: a job the student removed still opens, or still counts as waiting to start."""
+    monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
+    later = ARC_URL + ("&" if "?" in ARC_URL else "?") + "copy=2"  # another Posting of the same form
+    board = StoppingBoard(lambda stop, remove: (remove(later), remove(later)))
+    lines = []
+    with FakeJobServer(ARC_FORM) as fake:
+        done = rehearsal.rehearse([ARC_URL, later], adapters(fake, board=board), ApplicantProfile.load(profile_with(tmp_path)),
+                                  1, keep_open=False, out=lines.append)
+        opened = len(fake.workers)
+
+    assert board.removed == [True, False]  # gone the first time: nothing left to remove after
+    assert [d.posting.url for d in done] == [ARC_URL]
+    assert lines[0] == f"{later} | removed: it won't run" and len(lines) == 2
+    assert opened == 1  # the removed job's page never opened
+    waiting = [run for run in board.runs if "waiting" in run]
+    assert waiting[0]["waiting"] == [ARC_URL, later] and waiting[-1]["waiting"] == []
+    assert [run["queued"] for run in board.runs if "queued" in run][-1] == 0
+    assert 1 not in board.captions  # no tile ever filled it
+
+
+def test_stop_applying_ends_the_run_with_nothing_submitted_and_no_waiting_job_started(monkeypatch, tmp_path):
+    """Fault: Stop leaves the run going till Ctrl-C, starts the job that waited, submits a form, or skips on_done."""
+    monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
+    later = ARC_URL + ("&" if "?" in ARC_URL else "?") + "copy=2"
+
+    class Board(StoppingBoard):
+        def update(self, worker: int, **caption: object) -> None:
+            super().update(worker, **caption)
+            if caption.get("status") == "filling" and self._stop:  # the student presses Stop mid-fill
+                self._stop()
+
+    board, lines, done = Board(lambda stop, remove: None), [], []
+    watchdog = threading.Timer(120, _thread.interrupt_main)  # a run Stop never ends fails, never hangs
+    watchdog.start()
+    try:
+        with FakeJobServer(ARC_FORM) as fake:
+            rehearsal.rehearse([ARC_URL, later], adapters(fake, board=board), ApplicantProfile.load(profile_with(tmp_path)),
+                               1, keep_open=True, out=lines.append, on_done=lambda: done.append(True))
+            opened, submissions = len(fake.workers), fake.submissions
+    finally:
+        watchdog.cancel()
+
+    assert submissions == [] and opened == 1  # the waiting job never started
+    assert lines[-1] == rehearsal.STOPPED_APPLYING
+    assert [run["waiting"] for run in board.runs if "waiting" in run][-1] == []
+    assert done == [True]  # what the run's ended jobs left to do (a Repair they filed) still runs, once

@@ -115,7 +115,7 @@ checkout --detach <that SHA>`. This is the "Pin fill-engine to the commit
 this branch actually records" step in `ci.yml` (`extension-store-build`,
 `extension`), the `apply-setup` action (`ci.yml`'s `apply` and
 `apply-hostile`, and `apply-nightly.yml`), `extension-nightly.yml`,
-`live-canary.yml` and `publish-extension.yml` — six places, one pattern. If `actions/checkout`
+`live-canary.yml`, `publish-extension.yml` and `publish-engine.yml` — seven places, one pattern. If `actions/checkout`
 ever fixes this upstream, these steps are redundant but harmless; don't
 remove them without confirming a real run's build log prints the version
 `git ls-tree HEAD` actually names, not just that the step exists.
@@ -136,11 +136,11 @@ for `autofiller_extension/test/autofiller_extension/fill-engine`, found
 nothing, and failed every run with "fatal: cannot change to
 'autofiller_extension/fill-engine': No such file or directory" right after a
 successful submodule checkout. Fixed by adding `working-directory: .` on the
-pin step itself in every job that sets a non-root default (five of the six:
-all but `publish-extension.yml`, which sets no job-wide default and was
-never affected). A step's own `working-directory:` is always resolved from
+pin step itself in every job that sets a non-root default (five of the seven:
+all but `publish-extension.yml` and `publish-engine.yml`, which set no
+job-wide default). A step's own `working-directory:` is always resolved from
 `$GITHUB_WORKSPACE`, never nested inside the job's default, so this is safe
-to copy into a sixth place if one is ever added. The `apply-setup` action's
+to copy into another place if one is ever added. The `apply-setup` action's
 copy sets it too.
 
 The fill-engine repo has its own CI (its `.github/workflows/ci.yml`):
@@ -252,6 +252,24 @@ auto-save in `test_plain_typing.py` failed the first time it ran again. A
 fake that a page saves to keeps the newest save and the test waits for the
 answers, never a fixed time. A
 test safe only on its own (a fixed port or path) can't join a parallel step.
+
+**The `apply-window` job** (KAN-867) checks the student page, the Student
+build's window (`apply-agent/window/`, Vite + React). On Ubuntu, in that
+folder, it runs `npm ci`, `npm test` (the view model's and bridge's tests,
+Node's own runner), `npm run build`, then `git diff --exit-code` on
+`apply-agent/src/apply/student_page/`. That folder holds the built page,
+one self-contained HTML file committed into the Python package so a
+Student build ships it with no Node. So a PR that changes the page's source
+without rebuilding, or rebuilds it differently, fails here. The build bakes
+in Brandfetch's public client id from the repo variable
+`NEXT_PUBLIC_BRANDFETCH_CLIENT_ID`, as `deploy.yml` builds the website with
+it. The committed page is built with it too, so a local rebuild must set it
+(`apply-agent/docs/apply-window.md`), or the diff fails. It runs only when
+the `changes` job's **`apply_window` filter** matches: `apply-agent/window/**`,
+the built page, `.nvmrc` (its Node) or `ci.yml`. It needs no fill-engine
+submodule and no Python, so it is not in the `apply` filter, and an Apply
+change that leaves the page alone skips it. The build is deterministic on a
+Mac. A Linux build that differs from a Mac's would show here first.
 
 The frontend job runs `format:check`, so an unformatted file fails the PR.
 Run `npm run format` before pushing. Markdown docs are in
@@ -618,6 +636,98 @@ not a re-run.
 - **Still open:** no notification when a submitted version clears (or
   fails) Google's review — that's checked by hand in the Dashboard for
   now.
+
+## Publish the Fill engine (`workflows/publish-engine.yml`, KAN-836)
+
+Signs the engine that `main`'s fill-engine pointer records and puts it last
+in the private `ApplyEngine` Storage bucket's `builds.json`, where WorkIt
+Auto Apply downloads it (`GET /apply-app/engine`, W7 of
+`../docs/desktop_application_auto_apply.md`). It runs
+`backend/app/scripts/publish_engine.py publish`.
+
+- **When.** A push to `main` that moves the engine pointer or
+  `backend/app/scripts/engine_min_app.txt`, and by hand from `main`
+  (`gh workflow run publish-engine.yml`). Never on a PR: whoever holds the
+  key makes every app run what it signs, and a PR's run is the PR's code.
+  A run whose engine is already last in `builds.json` at that min app
+  uploads nothing, so a re-run is safe. A pointer moved back to an older
+  engine puts that build last again, so a revert rolls the engine back.
+  An edit to the workflow starts no publish.
+- **The min app** (`engine_min_app.txt`) is the oldest app version that the
+  pointer's engine fits. Raise it in the PR that moves the pointer to an
+  engine older apps can't run: they keep the build before it. The workflow
+  publishes only `main`'s engine, so a fix for older apps alone is a
+  hand-run publish with its own `--engine` and `--min-app`.
+- **It signs only a reviewed engine.** The pin step makes it the commit
+  `main` records, and on the pointer's PR `ci.yml`'s `extension` job
+  checked that this commit's `dist/` is what its `src/` builds.
+- **The script refuses a key whose public half Apply doesn't hold**
+  (`PUBLIC_KEY` in `apply-agent/src/apply/engine_download.py`). Signed by
+  another key, the build is refused by every app, with a message that
+  blames the student's network. When W0 moves Apply to its own repo,
+  `publish_engine.APP_KEY` must read the key from there.
+- **Secrets:**
+  - `APPLY_ENGINE_SIGNING_KEY`, the private key's PEM from `make-key`, is a
+    secret of the **`apply-engine` environment**, never a repo secret. The
+    environment takes jobs from `main` only, so a workflow pushed to any
+    other branch can't read it; a repo secret reaches every branch's
+    workflows. A job that names an environment that doesn't exist makes it
+    with no branch rule, so make the environment before the first run.
+  - `CF_API_SECRETS_JSON`: the step takes its `SUPABASE_URL` and
+    `SUPABASE_SERVICE_KEY`, so the build goes to the project the deployed
+    API reads, with no second copy of the service key. It masks the key it
+    takes out: GitHub masks only a secret's whole value.
+  - `FILL_ENGINE_TOKEN`, for the submodule, as in `publish-extension.yml`.
+    Without it the job fails at checkout.
+- **One run at a time** (group `publish-engine`): each run reads
+  `builds.json` and writes it back, so never run the script by hand while a
+  run is going.
+- **A failed run leaves the last build served.** GitHub emails the person
+  whose merge started it; nothing else tells the team.
+- **Setup, once, in this order.** The key and the bucket are the user's
+  steps (a script that writes production Storage, the dashboard), never
+  Claude's.
+  1. `cd backend && uv run python -m app.scripts.publish_engine make-key
+     <file outside every checkout>`, and a PR that puts the public half it
+     prints in `engine_download.PUBLIC_KEY`. Merge it before the first run.
+  2. The private `ApplyEngine` bucket: Supabase dashboard, Storage, New
+     bucket, Public off.
+  3. The environment, then its secret:
+     `gh api -X PUT repos/workitjobs/workit/environments/apply-engine -F
+     'deployment_branch_policy[protected_branches]=false' -F
+     'deployment_branch_policy[custom_branch_policies]=true'`, then
+     `gh api -X POST
+     repos/workitjobs/workit/environments/apply-engine/deployment-branch-policies
+     -f name=main -f type=branch`, then `gh secret set
+     APPLY_ENGINE_SIGNING_KEY --env apply-engine --repo workitjobs/workit <
+     <file>`.
+  4. `gh workflow run publish-engine.yml --ref main`, then check its log for
+     "Published".
+
+## Harvest Common Crawl boards (`workflows/harvest-commoncrawl.yml`)
+
+Runs `scraper/harvest_commoncrawl.py` on the 1st and 15th of each month at
+09:17 UTC on `ubuntu-latest`, or manually on main. It queries Common Crawl's
+CDX index for ATS board URLs across 13 hiring systems, extracts board tokens
+with `board_keys()`, and writes `scraper/commoncrawl-boards.json`. If the CDX
+API fails (504s are common), it falls back to `--direct`, which reads the raw
+shard files instead.
+
+- **Runs only on `main`** (`github.ref == 'refs/heads/main'`), same as the
+  publish workflow. A dispatch from another branch is rejected.
+- **Timeout is 90 minutes.** The CDX API is slow (~1 s per request, 17
+  patterns, many pages each). A full harvest can take 30–60 minutes when the
+  API is healthy.
+- **Opens a PR if the pool changed.** Compares the committed
+  `commoncrawl-boards.json` against the harvest's output; if different, pushes
+  a `chore/commoncrawl-harvest-<crawl>` branch and opens a PR. A person
+  reviews the diff and merges; the daily `discover-boards.yml` reads the file
+  on main with no HTTP.
+- **No secrets needed.** Uses only `github.token` for the PR.
+- **Needs "Allow GitHub Actions to create and approve pull requests"**, same
+  as discovery and company-domains.
+- **It stops silently after 60 days without a commit** to `main`, like every
+  schedule here (`gh workflow enable harvest-commoncrawl.yml`).
 
 ## Company websites from Wikidata (`workflows/company-domains.yml`)
 

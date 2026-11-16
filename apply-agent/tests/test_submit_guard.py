@@ -432,7 +432,9 @@ def test_a_sign_in_or_new_accounts_button_claude_clicks_does_nothing_on_a_page_i
         page.evaluate("document.getElementById('login').requestSubmit()")
         page.wait_for_timeout(500)
         assert server.sign_ins == []
-        assert drive.blocked() == ['the "Sign In" click', "a sign-in"]
+        # The script's requestSubmit() of the GET sign-in form is refused before its submit (KAN-868), by its own note.
+        assert drive.blocked()[0] == 'the "Sign In" click' and len(drive.blocked()) == 2
+        assert drive.blocked()[1] in ("a sign-in", "a form submission (GET https://jobs.smartrecruiters.com/Acme/7431/login, by a script)")
 
 
 @pytest.mark.parametrize("invisible_captcha", [True, False])
@@ -452,8 +454,16 @@ def test_claudes_next_on_an_email_step_with_an_invisible_captcha_is_never_presse
             assert drive.blocked() and all(b.endswith(captcha.SIGN_IN_CLICK) for b in drive.blocked())
             assert drive.blocked()[0] == 'the "Next" click on a sign-in page with a captcha'
         else:
-            assert server.email_steps == ["test.person@example.com"] * 2
-            assert drive.blocked() == []
+            # A GET form's submit reaches the page's handler only under plain code's own sign-in press (KAN-868):
+            # Claude's press is stopped, and Apply's account click (apply.account_pages) goes through.
+            assert server.email_steps == []
+            assert drive.blocked() and all("a form submission (GET" in b for b in drive.blocked())
+            next_button = page.get_by_role("button", name="Next")
+            assert drive.let_account_click(next_button.element_handle(), sign_in=True)
+            next_button.click()
+            drive.arm()
+            page.wait_for_timeout(500)
+            assert server.email_steps == ["test.person@example.com"]
 
 
 def test_while_claude_drives_no_click_or_key_reaches_a_captchas_box_and_lisuls_do_once_it_stops():

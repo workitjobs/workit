@@ -235,6 +235,13 @@ claude_fill:
 ask_model: workit
 ask_models: {}
 
+# Where the Fill engine comes from. checkout: the engine checkout's built
+# bundle (autofiller_extension/fill-engine/dist/engine.js, or $APPLY_FILL_ENGINE).
+# workit: WorkIt's signed, encrypted download, as the Student build always does
+# (KAN-836, W7, apply.engine_download): downloaded at each start as the
+# signed-in student, checked with WorkIt's engine key, kept only in memory.
+fill_engine: checkout
+
 # Scheduled runs (`apply schedule install`, launchd): the Daily sweep, `apply
 # run`, once a day at daily_sweep_at, local time; and the Requests check,
 # `apply run --requests-only`, every 5 minutes. Keep the time quoted (YAML
