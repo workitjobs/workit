@@ -30,6 +30,7 @@ test("each refusal Apply's routes and app methods can send reads in the student'
 test("a line in Apply's developer words never reaches the student; plain ones pass as they are", () => {
   assert.equal(said("ask_model: workit needs a WorkIt sign-in: run uv run apply login"), "Something went wrong. Try again.");
   assert.equal(said("Worker 2's Chrome profile is in use by another Chrome"), "Something went wrong. Try again.");
+  assert.equal(said("handoff: Workday didn't answer its sign-in form (https://acme.wd5.myworkdayjobs.com/x)"), "Something went wrong. Try again.");
   assert.equal(said("Tick a job in your queue, or paste a job posting's link."), "Tick a job in your queue, or paste a job posting's link.");
 });
 

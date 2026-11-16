@@ -21,8 +21,10 @@ const SAID: [RegExp, string][] = [
   [/^Google Chrome isn't installed/, "Google Chrome isn't installed. Get it from google.com/chrome, then press Start again."],
 ];
 
-// Words only a developer's Apply uses: a line with any of them is never shown as it is.
-export const DEVELOPER = /\b(Claude|Workers?|[Rr]ehears\w*|Browser \d|ask_model|uv run|[A-Z]\w*(Error|Exception))\b|\bsetup:|\bapply [a-z]+/;
+// Words only a developer's Apply uses: a line with any of them is never shown as it is. A raw link and Apply's
+// "handoff" or "Pre-submit" (a Filler's stop, the review's check) are its detail too, which its logs keep.
+export const DEVELOPER =
+  /\b(Claude|Workers?|[Rr]ehears\w*|[Hh]andoffs?|Pre-submit|Browser \d|ask_model|uv run|[A-Z]\w*(Error|Exception))\b|\bsetup:|\bapply [a-z]+|\bhttps?:\/\//;
 
 export const SOMETHING_WRONG = "Something went wrong. Try again.";
 
