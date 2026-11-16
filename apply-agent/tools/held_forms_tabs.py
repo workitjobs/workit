@@ -246,6 +246,8 @@ def case_raw() -> None:
             try:
                 port_file = profile / "DevToolsActivePort"
                 while not port_file.exists():
+                    if process.poll() is not None:  # Chrome exited before it opened its port
+                        sys.exit(f"[{name}] Chrome exited with {process.returncode}")
                     time.sleep(0.1)
                 port = port_file.read_text().split()[0]
                 time.sleep(7)  # two counting windows, the first one partly before the pages loaded
