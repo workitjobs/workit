@@ -1,8 +1,9 @@
 """WorkIt Auto Apply's window (KAN-723, W5 of docs/desktop_application_auto_apply.md; D11, D12): one native window
 (pywebview: WKWebView on a Mac) and no port.
 
-The window shows the Apply window's own page (apply.dashboard's), served by no server: Dashboard(serve=False)
-listens on nothing, and SHIM, put in the page before its scripts, sends the page's requests to `Bridge`, pywebview's
+The app's window shows the student page (KAN-867: window/, built into STUDENT_PAGE); a window that can start no run
+(a Developer checkout's) shows the Apply window's own page (apply.dashboard's). Either is served by no server:
+Dashboard(serve=False) listens on nothing, and SHIM, put in the page before its scripts, sends the page's requests to `Bridge`, pywebview's
 JavaScript bridge (js_api), which answers each one in this process through the same routes, checks and token as
 the server (Dashboard.respond). The tiles' frames come from Bridge.frames as the server's /frames stream would; a
 link to a file a tile lists opens in the system's own app.
@@ -13,24 +14,28 @@ workit-auto-apply:// link (W8); a Developer checkout pastes it in the box, which
 Then Bridge.trade signs in (WorkIt.trade). Next comes FIRST_RUN while any first-run step is left (apply.first_run:
 Chrome, the disclosure and license, Screen Recording, the seed), then the Apply window.
 
-A run (W5 step 4): with no run going, the Apply window has PANEL on top: the student's Auto Apply queue on WorkIt, a
-box to paste one posting's link, Start, and today's model use against the Usage cap (USAGE, on every page of the
-app). Start hands the links to `start` (apply.student.Runs), which rehearses them in the Workers and shows the run's
-own Apply window, its tiles, till every form it held is closed; then the window shows the queue again. A run that
-can't start (no engine, W7; a Worker profile in use) says why in one line.
+A run (W5 step 4): with no run going, the student page shows the student's Auto Apply queue on WorkIt
+(Bridge.queue), a box to paste one posting's link and Start (Bridge.start), and says when today's model use nears the
+Usage cap (Bridge.usage). Start hands the links to `start` (apply.student.Runs), which rehearses them in the Workers
+and shows the run's own board, till every form it held is closed; then the window shows the idle board again. The
+page reads its board's state through the routes (/state) either way. A run that can't start (no engine, W7; a Worker
+profile in use) says why in one line (Bridge.status).
 
-The app's page loads no web font: Google Fonts would be a request the privacy page doesn't name (FONTS).
+The app's pages load no web font: Google Fonts would be a request the privacy page doesn't name (FONTS). The
+student page carries its own Inter.
 
 pywebview gives the page every public method of Bridge, and nothing whose name starts with "_".
 """
 
 import base64
+import json
 import re
 import sys
 import threading
 import time
 import webbrowser
 from collections.abc import Callable
+from pathlib import Path
 
 from apply import first_run, workit
 from apply.adapters import SetupError
@@ -39,6 +44,8 @@ from apply.dashboard_page import STYLE
 from apply.first_run import CHROME_DOWNLOAD, EULA, NOTICES, READY, FirstRun
 
 TITLE = "WorkIt Auto Apply"
+# The student page, built from window/ by Vite (`npm run build`) into one file: CI checks it matches its source.
+STUDENT_PAGE = Path(__file__).with_name("student_page") / "index.html"
 # How long Bridge.frames waits for a new frame before it answers none, so the page asks again.
 FRAMES_WAIT = 1.0
 # The Apply window's web font links, left out of the app's page: the system's fonts stand in.
@@ -235,69 +242,19 @@ ready.then(async () => {
 </script>""".replace("{style}", STYLE).replace("{ready}", READY_JS).replace("{disclosure}", DISCLOSURE)
 
 
-# Today's model use against the Usage cap (W1, D6), on every page of the app, read again each minute.
-USAGE = """<div style="position: fixed; top: 0.4rem; right: 0.8rem; z-index: 20; display: flex; gap: 0.8rem;
-  align-items: center; font-size: 0.8rem"><span id="usage" role="status" style="opacity: 0.75"></span>
-<button id="open-settings">Settings</button></div>
-<script>(async () => {
-  {ready}
-  await ready;
-  document.getElementById('open-settings').addEventListener('click', () => window.pywebview.api.settings());
-  const shown = document.getElementById('usage');
-  const read = async () => { const use = await window.pywebview.api.usage();
-    shown.textContent = use.error ? '' : `Model use today: ${use.used.toLocaleString()} of ${use.cap.toLocaleString()} tokens`; };
-  read(); setInterval(read, 60000);
-})();</script>""".replace("{ready}", READY_JS)
-
-# With no run going: the queue, a pasted link, Start (Bridge.queue, Bridge.start). Every id starts "queue-": the
-# Apply window's page has its own Start (#start, the together run's), and its state poll hid this one when it was
-# #start too.
-PANEL = """<section id="queue-panel" style="max-width: 46rem; margin: 2.6rem auto 1rem; display: flex; flex-direction: column;
-  gap: 0.6rem">
-<h2>Your Auto Apply Queue</h2>
-<p id="queue-said">Reading your queue on WorkIt…</p>
-<ul id="queue" style="list-style: none; padding: 0; margin: 0"></ul>
-<label>Or paste a job posting's link <input id="queue-pasted" autocomplete="off" spellcheck="false" style="width: 100%"></label>
-<div><button class="primary" id="queue-start">Start</button></div>
-<p id="queue-run-said" role="alert"></p>
-</section>
-<script>(async () => {
-  {ready}
-  await ready;
-  const api = window.pywebview.api, list = document.getElementById('queue'), said = document.getElementById('queue-said');
-  const queued = await api.queue();
-  if (queued.error) said.textContent = queued.error;
-  else {
-    said.textContent = queued.length ? 'WorkIt Auto Apply fills the jobs you tick, then holds each form for you to check and send.'
-                                     : 'Your queue is empty: add jobs on WorkIt, or paste a link below.';
-    for (const job of queued) {
-      const row = document.createElement('li'), box = document.createElement('input'), name = document.createElement('label');
-      box.type = 'checkbox'; box.checked = true; box.value = job.url; box.id = 'job-' + list.children.length;
-      name.htmlFor = box.id; name.textContent = ` ${job.company}: ${job.title}`;
-      row.append(box, name); list.append(row);
-    }
-  }
-  const status = await api.status();
-  if (status.said) document.getElementById('queue-run-said').textContent = status.said;
-  document.getElementById('queue-start').addEventListener('click', async () => {
-    const links = [...list.querySelectorAll('input:checked')].map(box => box.value);
-    const pasted = document.getElementById('queue-pasted').value.trim();
-    if (pasted) links.push(pasted);
-    const got = await api.start(links);
-    document.getElementById('queue-run-said').textContent = got.error || 'Starting the Workers…';
-  });
-})();</script>""".replace("{ready}", READY_JS)
-
-
-def page(dashboard: Dashboard, panel: bool = False, usage: bool = False) -> str:
-    """The Apply window's page with SHIM before its scripts and no web font; with PANEL on top (no run going), and
-    USAGE."""
+def page(dashboard: Dashboard) -> str:
+    """The Apply window's page with SHIM before its scripts and no web font: a Developer checkout's window."""
     html = FONTS.sub("", dashboard.page())
-    extra = (PANEL if panel else "") + (USAGE if usage else "")
-    if extra:
-        html = html.replace("</style>", "</style>" + extra, 1)
     head = '<meta charset="utf-8">'
     return html.replace(head, head + SHIM, 1) if head in html else SHIM + html
+
+
+def student_page(dashboard: Dashboard) -> str:
+    """The student page (KAN-867: window/, built into STUDENT_PAGE) for `dashboard`'s board, with SHIM and the
+    window's token before its scripts: the page reads the token as window.APPLY_TOKEN and sends it with each edit."""
+    token = f"<script>window.APPLY_TOKEN = {json.dumps(dashboard.token)};</script>"
+    head = '<meta charset="utf-8" />'
+    return STUDENT_PAGE.read_text(encoding="utf-8").replace(head, head + SHIM + token, 1)
 
 
 class Bridge:
@@ -309,7 +266,7 @@ class Bridge:
                  start: Callable[[list[str], Callable[[Dashboard], None]], None] | None = None,
                  remove: Callable[[Callable[[], None]], str] = first_run.remove_all_data):
         """`start(links, show)`, when given, runs `links` and calls `show(board)` with the run's own Apply window
-        (apply.student.Runs.run); the app's pages then have PANEL and USAGE."""
+        (apply.student.Runs.run); the window then shows the student page."""
         self._dashboard = self._idle = dashboard
         self._client = client or workit.WorkIt()
         self._open_link = open_link
@@ -518,8 +475,9 @@ class Bridge:
         return {"said": said}
 
     def _page(self) -> str:
-        board = self._dashboard
-        return page(board, panel=board is self._idle and self._start is not None, usage=self._start is not None)
+        """The app's window, which can start a run, shows the student page; one that can't keeps the developer
+        page."""
+        return student_page(self._dashboard) if self._start is not None else page(self._dashboard)
 
     def _html(self) -> str:
         """What the window shows now: SIGN_IN signed out, FIRST_RUN while a step is left, else the Apply window."""

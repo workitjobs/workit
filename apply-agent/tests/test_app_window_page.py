@@ -46,7 +46,7 @@ def test_the_pages_requests_frames_and_file_links_go_through_the_bridge(tmp_path
 
 def test_the_apps_own_pages_run_without_a_script_error(monkeypatch):
     """Fault: a script error in a page of the app's own (a line break inside a string, say), which leaves its buttons
-    dead: the sign-in, first run, the queue with the usage line, and Settings."""
+    dead: the sign-in, first run, the student page with the queue and the usage line, and Settings."""
     from apply import dashboard
 
     monkeypatch.setattr(dashboard, "ThreadingHTTPServer", None)
@@ -55,7 +55,7 @@ def test_the_apps_own_pages_run_without_a_script_error(monkeypatch):
         "first_run": {"step": "seed", "lines": ["Now: Turn on Developer mode."], "running": True, "waiting": True,
                       "failed": ""},
         "queue": [{"url": "https://jobs.lever.co/acme/1", "company": "Acme", "title": "Intern"}],
-        "usage": {"used": 1200, "cap": 80000, "resets_at": "2026-11-16T00:00:00Z"},
+        "usage": {"used": 72000, "cap": 80000, "resets_at": "2026-11-16T00:00:00Z"},
         "status": {"running": False, "said": ""},
         "settings_state": {"workers": 3, "notices": True},
     }
@@ -63,8 +63,7 @@ def test_the_apps_own_pages_run_without_a_script_error(monkeypatch):
         bridge = Bridge(board, WorkIt(workit.LIVE))  # the page's own requests (its state poll) get real answers
         browser = playwright.chromium.launch()
         pages = []
-        for html in (app_window.SIGN_IN, app_window.FIRST_RUN, app_window.page(board, panel=True, usage=True),
-                     app_window.SETTINGS):
+        for html in (app_window.SIGN_IN, app_window.FIRST_RUN, app_window.student_page(board), app_window.SETTINGS):
             page = browser.new_page()  # a page each, as the window loads each one anew
             page.on("pageerror", lambda error: errors.append(str(error)))
             page.route("**/*", lambda route: route.abort())
@@ -77,13 +76,18 @@ def test_the_apps_own_pages_run_without_a_script_error(monkeypatch):
         first_run.wait_for_function("!document.getElementById('seed').hidden", timeout=5000)
         assert first_run.inner_text("#seed-lines") == "Now: Turn on Developer mode."
         assert first_run.is_visible("#seed-again") and not first_run.is_visible("#seed-start")
-        queue.wait_for_function("document.querySelectorAll('#queue input').length === 1", timeout=5000)
-        assert queue.inner_text("#queue").strip() == "Acme: Intern"
-        queue.wait_for_function("document.getElementById('usage').textContent !== ''", timeout=5000)
-        assert queue.inner_text("#usage") == "Model use today: 1,200 of 80,000 tokens"
-        # Fault: the queue's Start shares an id with the window's own Start, whose state poll hides it each second.
-        queue.wait_for_timeout(2500)
-        assert queue.is_visible("#queue-start")
+        queue.wait_for_selector("text=What should we apply to?", timeout=5000)
+        queue.wait_for_selector("text=Intern", timeout=5000)
+        assert queue.is_visible("text=Start applying to 1 job")
+        # The Usage cap in words, never in tokens.
+        queue.wait_for_selector("text=You're close to today's limit.", timeout=5000)
+        assert "72" not in queue.inner_text("main")
+        assert queue.is_visible("text=Settings")
+        # An edit from the page, with the token it was served, gets past the route's check to the route itself.
+        sent = """token => fetch('/fill-again', {method: 'POST', headers: {'X-Apply-Token': token},
+                                                  body: JSON.stringify({id: 'tile-0'})}).then(r => r.status)"""
+        assert queue.evaluate(sent, "not the token") == 403
+        assert queue.evaluate(f"({sent})(window.APPLY_TOKEN)") != 403
         settings.wait_for_function("document.getElementById('workers').value === '3'", timeout=5000)
         assert settings.is_visible("#notices") and not settings.is_visible("#remove-sure")
         settings.click("#remove")

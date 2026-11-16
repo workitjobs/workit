@@ -117,6 +117,23 @@ def test_the_shim_comes_before_the_pages_scripts(board):
     assert page.index(SHIM) < page.index("const workers")
 
 
+def test_the_apps_window_shows_the_student_page_with_the_shim_and_the_token_before_its_scripts(board):
+    """Fault: the app's window still shows the developer page, or the student page's first fetch goes out before the
+    shim replaces fetch, or without the window's token, so every edit is refused."""
+    bridge = Bridge(board, WorkIt(workit.LIVE), start=lambda links, show: None)
+    page = bridge._page()
+    assert page == app_window.student_page(board)
+    assert "What should we apply to?" in page and "const workers" not in page
+    script = page.index("<script type=\"module\"")
+    assert page.index(SHIM) < script
+    assert page.index(f'window.APPLY_TOKEN = "{board.token}"') < script
+
+
+def test_a_window_that_runs_nothing_keeps_the_developer_page(board):
+    """Fault: a Developer checkout's window, which has no queue or Start, loses the developer page."""
+    assert Bridge(board, WorkIt(workit.LIVE))._page() == app_window.page(board)
+
+
 def test_sign_in_opens_workits_page_and_its_code_signs_the_window_in(board, tmp_path):
     """Fault: the window keeps no verifier, shows the Apply window before first run is done, or never after it."""
     with FakeWorkIt() as fake:
@@ -174,13 +191,13 @@ def test_start_shows_the_runs_window_then_the_queue_again_and_says_why_one_stopp
         if shown:
             break
         threading.Event().wait(0.02)
-    assert window.loaded[-1] == app_window.page(shown[0], usage=True)  # the run's tiles, with no queue
+    assert window.loaded[-1] == app_window.student_page(shown[0])  # the run's own board
     go.set()
     for _ in range(100):
         if not bridge.status()["running"]:
             break
         threading.Event().wait(0.02)
-    assert window.loaded[-1] == app_window.page(board, panel=True, usage=True)  # the queue again
+    assert window.loaded[-1] == app_window.student_page(board)  # the idle board: the queue again
     bridge.start(["https://jobs.lever.co/acme/3"])
     for _ in range(100):
         if bridge.status()["said"]:
