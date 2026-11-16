@@ -476,6 +476,24 @@ What changes on a plain Worker:
 - Tests: `tests/test_plain_routing.py`. Its live test rehearses the fake Greenhouse form twice in
   one reused plain Worker. `tests/test_plain_guards.py -k "held_submit or already_applied"`.
 
+## A Worker's Chrome after its Apply is gone (KAN-885)
+
+A plain Worker's Chrome runs on its own (`start_in_background`), so it outlives an Apply that crashed, was
+killed with SIGKILL, or quit while that Chrome was still starting. The next run then found the profile in use
+and failed the job (`ProfileInUse`, "Didn't go through").
+
+- **Ownership.** Before a Worker's Chrome starts, `launcher.own` writes `apply-owner.json` into its profile:
+  the Apply process's PID and its start time (psutil), so a PID the OS later gives to another process never
+  counts as that Apply.
+- **Reclaim.** `PlainWorkers.launch` and `PlainSite.refuse_in_use` call `launcher.reclaim` on each profile
+  first. It stops the Chrome that holds the profile (SIGTERM, then SIGKILL, as Apply's own stop) only when
+  all of these hold: the profile names an owner, that owner no longer runs, and the process the
+  SingletonLock names is a browser (no `--type=`) whose `--user-data-dir` is this very profile.
+- **Never reclaimed:** a Chrome a live Apply run or rehearsal owns (it stays `ProfileInUse`), a profile with
+  no owner file (a Chrome from before KAN-885, or one started another way), and a stale lock whose PID is
+  now another process, such as the student's own Chrome.
+- Tests: `tests/test_plain_orphans.py` (in CI), with stand-in processes for Chrome and the gone Apply.
+
 ## One sign-in per job site: `apply rehearse --into` (KAN-645)
 
 Job sites keep their sign-in only for the browser's session. A new Worker Chrome signs in again,

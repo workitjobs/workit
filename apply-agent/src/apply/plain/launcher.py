@@ -39,6 +39,8 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
+import psutil
+
 from apply.adapters import SetupError
 from apply.browsers import (
     BUSY,
@@ -87,6 +89,10 @@ START_WAIT = 20.0  # s from `open` to the Chrome holding the profile
 OPEN = "/usr/bin/open"
 WRAPPER = "apply-worker-host"
 CREATE_NEW_PROCESS_GROUP = 0x200  # Windows' flag (subprocess has it only on Windows)
+# In each plain Worker profile: the Apply process that started its Chrome, written before the Chrome starts
+# (KAN-885). A Worker's Chrome runs on its own, so it outlives an Apply that crashed or was killed; the next run
+# reclaims (stops) a Chrome whose owner is gone, never one a live Apply owns.
+OWNER = "apply-owner.json"
 
 
 def developer_mode(profile: Path) -> bool:
@@ -301,6 +307,7 @@ class PlainWorkers:
         if worker in self.running:
             return self.running[worker]
         profile = self.profile(worker)
+        reclaim(profile)
         if chrome_pid(profile):
             raise ProfileInUse(f"{profile.name} {BUSY}")
         if self.kind == "chrome" and not self.seed.exists():
@@ -316,6 +323,7 @@ class PlainWorkers:
         self.prepare(worker)  # into the folder its extension loads from too: its own vendor set
         self.bridge.start()
         self.install_host(worker)
+        own(profile)
         with KEEPER.launching():
             process = start_in_background(self.arguments(worker), profile, self.profiles / f"plain-{worker + 1}.log")
         KEEPER.watch(process.pid)
@@ -445,6 +453,57 @@ def start_in_background(arguments: list[str], profile: Path, log: Path, system: 
             raise TimeoutError(f"no Chrome took {profile.name} within {START_WAIT:.0f} s of `open`")
         time.sleep(0.1)
     return Chrome(pid)
+
+
+def own(profile: Path) -> None:
+    """Note in `profile` that this Apply process starts its Chrome: its PID and when it started, so a later PID
+    that the OS hands to another process is never taken for it."""
+    me = psutil.Process()
+    (profile / OWNER).write_text(json.dumps({"pid": me.pid, "started": me.create_time()}) + "\n")
+
+
+def _owner_alive(profile: Path) -> bool | None:
+    """Whether the Apply that started `profile`'s Chrome still runs; None when no Apply noted it (a Chrome from
+    before KAN-885, or one started some other way): not Apply's to judge."""
+    try:
+        owner = json.loads((profile / OWNER).read_text())
+        pid, started = int(owner["pid"]), float(owner["started"])
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+    try:
+        return abs(psutil.Process(pid).create_time() - started) < 1.0
+    except psutil.Error:
+        return False
+
+
+def orphan(profile: Path) -> int | None:
+    """The PID of the Chrome holding `profile` if its Apply is gone: a browser (not a helper) whose
+    `--user-data-dir` is this very profile, so a stale lock's PID reused by another process (the student's own
+    Chrome) never counts."""
+    pid = chrome_pid(profile)
+    if pid is None or _owner_alive(profile) is not False:
+        return None
+    try:
+        arguments = psutil.Process(pid).cmdline()
+    except psutil.Error:
+        return None
+    if any(a.startswith("--type=") for a in arguments):
+        return None
+    folders = [a.partition("=")[2] for a in arguments if a.startswith("--user-data-dir=")]
+    if not any(Path(folder).resolve() == profile.resolve() for folder in folders):
+        return None
+    return pid
+
+
+def reclaim(profile: Path) -> bool:
+    """Stop the orphan Chrome holding `profile` (orphan), as Apply stops its own: SIGTERM, then SIGKILL. Says
+    whether it stopped one."""
+    pid = orphan(profile)
+    if pid is None:
+        return False
+    print(f"Closed {profile.name}'s Chrome: the Apply that opened it is gone.", file=sys.stderr)
+    _stop(Chrome(pid))
+    return True
 
 
 def _copy(source: Path, profile: Path) -> None:
