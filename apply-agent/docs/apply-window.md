@@ -207,10 +207,12 @@ for a student, not from `dashboard_page.py`.
   `npm run build` and `npm test` are Node scripts (`window/scripts/`), so they
   run the same on Windows.
   Commit it with the source change: CI's `apply-window` job rebuilds it and
-  fails on any difference. Build it with WorkIt's Brandfetch client id,
-  `NEXT_PUBLIC_BRANDFETCH_CLIENT_ID`, in the environment or in
-  `frontend/.env.local` (CI sets it from the repo's variables); a build
-  without it leaves Brandfetch out and differs from the committed file. `npm run dev` serves the page on the mock; pick
+  fails on any difference. The page is built with WorkIt's public
+  Brandfetch client id, `NEXT_PUBLIC_BRANDFETCH_CLIENT_ID`: from the
+  environment (CI sets it from the repo's variables), else
+  `frontend/.env.local` or `frontend/.env`, else the id `vite.config.ts`
+  keeps as its default, so a plain `npm run build` matches the committed
+  file. `npm run dev` serves the page on the mock; pick
   a fixture with `?scenario=start|needs|questions|ready|quiet|stopped`
   (`questions`: one question of each kind), the day's use with
   `?usage=near|cap`, and the start screen's queue with
