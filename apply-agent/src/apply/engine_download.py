@@ -15,6 +15,8 @@ backend/app/scripts/publish_engine.py).
 
 import base64
 import hashlib
+import time
+from collections.abc import Callable
 from importlib.metadata import version
 from typing import TYPE_CHECKING
 
@@ -35,27 +37,55 @@ PUBLIC_KEY = ""
 NO_KEY = "this copy of WorkIt Auto Apply has no engine key, so it can't check the Fill engine"
 BAD_SIGNATURE = ("the Fill engine from WorkIt failed its signature check, so it did not run. Someone may be "
                  "changing your connection to WorkIt: try another network, then update WorkIt Auto Apply")
-UNOPENED = "the Fill engine from WorkIt could not be decrypted. Restart WorkIt Auto Apply to download it again"
+UNOPENED = "the Fill engine from WorkIt could not be decrypted. Start the run again"
 NOT_SIGNED_IN = "sign in to WorkIt first: WorkIt Auto Apply downloads its Fill engine from WorkIt at each launch"
+NO_BUILD = "no Fill engine fits this version of WorkIt Auto Apply: update the app"
+# A download that another try may get past (WorkIt not answering, a download that did not decrypt) is tried this
+# many times, the waits between tries growing by WAIT seconds.
+TRIES = 3
+WAIT = 2.0
 
 
 class EngineRefused(FillError, SetupError):
-    """The engine from WorkIt could not be had or failed its checks: nothing ran, and the run stops."""
+    """The engine from WorkIt could not be had or failed its checks: nothing ran, and the run stops. `lasting`: no
+    later try in this process can change it (no engine key, a wrong signature), so Apply keeps it until it restarts;
+    any other refusal is tried again at the next use."""
+
+    def __init__(self, message: str, lasting: bool = False):
+        super().__init__(message)
+        self.lasting = lasting
+
+
+class _Again(Exception):
+    """One try failed in a way another try may get past."""
 
 
 def app_version() -> str:
     return version("apply")
 
 
-def download(client: "WorkIt | None" = None, public_key: str | None = None) -> str:
-    """The engine bundle's text, checked: downloaded, decrypted and verified in memory. Raises EngineRefused with
-    a sentence for the student, WorkIt not answering included."""
-    from apply.workit import LoginExpired, NotLoggedIn, WorkIt, WorkItError
+def download(client: "WorkIt | None" = None, public_key: str | None = None,
+             sleep: Callable[[float], None] = time.sleep) -> str:
+    """The engine bundle's text, checked: downloaded, decrypted and verified in memory, in up to TRIES tries. Raises
+    EngineRefused with a sentence for the student."""
+    from apply.workit import WorkIt
 
     key = PUBLIC_KEY if public_key is None else public_key
     if not key:
-        raise EngineRefused(NO_KEY)
+        raise EngineRefused(NO_KEY, lasting=True)
     client = client or WorkIt()
+    for attempt in range(TRIES):
+        try:
+            return _once(client, key)
+        except _Again as again:
+            if attempt == TRIES - 1:
+                raise EngineRefused(str(again)) from None
+            sleep(WAIT * (attempt + 1))
+
+
+def _once(client: "WorkIt", key: str) -> str:
+    from apply.workit import LoginExpired, NotLoggedIn, WorkItError
+
     try:
         sent = client.call("GET", f"/apply-app/engine?app_version={app_version()}")
         opened = client.call("POST", "/apply-app/engine-key", {"key_id": sent["key_id"], "expires_at": sent["expires_at"]})
@@ -63,19 +93,19 @@ def download(client: "WorkIt | None" = None, public_key: str | None = None) -> s
         raise EngineRefused(NOT_SIGNED_IN) from None
     except WorkItError as refused:
         if refused.status == 404:
-            raise EngineRefused("no Fill engine fits this version of WorkIt Auto Apply: update the app") from None
-        raise EngineRefused(f"WorkIt did not send the Fill engine ({refused})") from None
+            raise EngineRefused(NO_BUILD) from None
+        raise _Again(f"WorkIt did not send the Fill engine ({refused}). Check your connection and start the run again") from None
     except (KeyError, TypeError):  # an answer of another shape: nothing in it is run
-        raise EngineRefused(UNOPENED) from None
+        raise _Again(UNOPENED) from None
     try:
         plain = AESGCM(base64.b64decode(opened["key"])).decrypt(
             base64.b64decode(sent["nonce"]), base64.b64decode(sent["ciphertext"]), None)
     except (InvalidTag, ValueError, KeyError, TypeError):
-        raise EngineRefused(UNOPENED) from None
+        raise _Again(UNOPENED) from None
     try:
         Ed25519PublicKey.from_public_bytes(base64.b64decode(key)).verify(base64.b64decode(sent["signature"]), plain)
     except (InvalidSignature, ValueError, KeyError, TypeError):
-        raise EngineRefused(BAD_SIGNATURE) from None
+        raise EngineRefused(BAD_SIGNATURE, lasting=True) from None
     if hashlib.sha256(plain).hexdigest() != sent.get("sha256"):
-        raise EngineRefused(BAD_SIGNATURE)
+        raise EngineRefused(BAD_SIGNATURE, lasting=True)
     return plain.decode()

@@ -147,8 +147,8 @@ def _policy_says_workit() -> bool:
 
 def source() -> str:
     """The engine bundle's text, from WorkIt or from the checkout (see the module's docstring). WorkIt's is
-    downloaded once per process and kept in memory; a refused download is refused again at once, with no new
-    download, until Apply restarts."""
+    downloaded once per process and kept in memory. A lasting refusal (a wrong signature, no engine key) is refused
+    again at once, with no new download, until Apply restarts; any other is tried again at the next use."""
     if not from_workit():
         _built()
         return ENGINE.read_text()
@@ -161,7 +161,8 @@ def source() -> str:
             try:
                 _download["text"] = download()
             except EngineRefused as refused:
-                _download["refused"] = refused
+                if refused.lasting:
+                    _download["refused"] = refused
                 raise
         return _download["text"]
 

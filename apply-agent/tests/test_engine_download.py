@@ -17,7 +17,7 @@ from apply import build, engine_download, fill_engine, workit
 from apply.adapters import SetupError
 from apply.engine_download import EngineRefused
 from apply.plain import extension
-from apply.workit import NotLoggedIn, WorkItError
+from apply.workit import NotLoggedIn, Unreachable, WorkItError
 
 SIGNER = Ed25519PrivateKey.generate()
 PUBLIC = base64.b64encode(SIGNER.public_key().public_bytes(serialization.Encoding.Raw,
@@ -31,18 +31,22 @@ def b64(data: bytes) -> str:
 class WorkIt:
     """WorkIt's two engine routes as the server answers them, with the bundle sealed under a fresh key."""
 
-    def __init__(self, bundle: bytes, signer=SIGNER, refuse: Exception | None = None):
+    def __init__(self, bundle: bytes, signer=SIGNER, refuse: Exception | None = None, failures: int = 0):
         self.key, nonce = secrets.token_bytes(32), secrets.token_bytes(12)
         self.sent = {"sha256": hashlib.sha256(bundle).hexdigest(), "signature": b64(signer.sign(bundle)),
                      "key_id": "k" * 22, "expires_at": 2_000_000_000, "nonce": b64(nonce),
                      "ciphertext": b64(AESGCM(self.key).encrypt(nonce, bundle, None))}
         self.refuse = refuse
+        self.failures = failures  # the first tries WorkIt doesn't answer
         self.calls = []
 
     def call(self, method, path, body=None, timeout=None):
         self.calls.append((method, path, body))
         if self.refuse:
             raise self.refuse
+        if self.failures and path.startswith("/apply-app/engine?"):
+            self.failures -= 1
+            raise Unreachable("api.workitjobs.ai: timed out")
         if path.startswith("/apply-app/engine?"):
             return self.sent
         assert body == {"key_id": self.sent["key_id"], "expires_at": self.sent["expires_at"]}
@@ -55,10 +59,29 @@ def test_a_signed_download_comes_back_as_its_text_and_names_the_apps_version():
     assert client.calls[0][1] == f"/apply-app/engine?app_version={engine_download.app_version()}"
 
 
-def test_a_wrong_signature_stops_it_with_its_one_sentence():
+def no_wait(seconds):
+    pass
+
+
+def test_a_wrong_signature_stops_it_at_once_with_its_one_sentence():
+    client = WorkIt(b"var FillEngine = {};", signer=Ed25519PrivateKey.generate())
     with pytest.raises(EngineRefused, match="signature check") as refused:
-        engine_download.download(WorkIt(b"var FillEngine = {};", signer=Ed25519PrivateKey.generate()), PUBLIC)
+        engine_download.download(client, PUBLIC, sleep=no_wait)
     assert isinstance(refused.value, SetupError)  # a run reports it as setup, never as a fill bug
+    assert refused.value.lasting and len(client.calls) == 2  # one try: another would get the same file
+
+
+def test_workit_not_answering_is_tried_again_with_growing_waits():
+    client, waits = WorkIt(b"var FillEngine = {};", failures=2), []
+    assert engine_download.download(client, PUBLIC, sleep=waits.append) == "var FillEngine = {};"
+    assert waits == [engine_download.WAIT, 2 * engine_download.WAIT]
+
+
+def test_after_its_last_try_it_says_to_check_the_connection_and_may_try_again_later():
+    client, waits = WorkIt(b"x", failures=engine_download.TRIES), []
+    with pytest.raises(EngineRefused, match="Check your connection") as refused:
+        engine_download.download(client, PUBLIC, sleep=waits.append)
+    assert not refused.value.lasting and len(waits) == engine_download.TRIES - 1
 
 
 def test_a_download_changed_on_the_way_is_never_run():
@@ -66,21 +89,24 @@ def test_a_download_changed_on_the_way_is_never_run():
     sealed = bytearray(base64.b64decode(client.sent["ciphertext"]))
     sealed[0] ^= 1
     client.sent["ciphertext"] = b64(bytes(sealed))
-    with pytest.raises(EngineRefused, match="could not be decrypted"):
-        engine_download.download(client, PUBLIC)
+    with pytest.raises(EngineRefused, match="could not be decrypted") as refused:
+        engine_download.download(client, PUBLIC, sleep=no_wait)
+    assert not refused.value.lasting
+    assert sum(path.startswith("/apply-app/engine?") for _, path, _ in client.calls) == engine_download.TRIES
 
 
 def test_an_answer_of_another_shape_is_refused_not_a_crash():
     client = WorkIt(b"var FillEngine = {};")
     client.sent = {"error": "not an engine"}
     with pytest.raises(EngineRefused, match="could not be decrypted"):
-        engine_download.download(client, PUBLIC)
+        engine_download.download(client, PUBLIC, sleep=no_wait)
 
 
 def test_with_no_engine_key_nothing_is_downloaded():
     client = WorkIt(b"var FillEngine = {};")
-    with pytest.raises(EngineRefused, match="no engine key"):
+    with pytest.raises(EngineRefused, match="no engine key") as refused:
         engine_download.download(client, "")
+    assert refused.value.lasting
     assert client.calls == []
 
 
@@ -91,7 +117,7 @@ def test_with_no_engine_key_nothing_is_downloaded():
 ])
 def test_workit_refusing_says_what_to_do(refusal, said):
     with pytest.raises(EngineRefused, match=said):
-        engine_download.download(WorkIt(b"x", refuse=refusal), PUBLIC)
+        engine_download.download(WorkIt(b"x", refuse=refusal), PUBLIC, sleep=no_wait)
 
 
 @pytest.fixture
@@ -125,16 +151,32 @@ def test_workits_engine_runs_in_node_from_memory_downloaded_once(from_workit):
     assert extension.engine_identity()["sha256"] == hashlib.sha256(fill_engine.source().encode()).hexdigest()
 
 
-def test_a_refused_download_is_refused_again_at_once(from_workit, monkeypatch):
+def test_a_wrong_signature_is_refused_again_at_once(from_workit, monkeypatch):
     def refuse():
         from_workit.append(1)
-        raise EngineRefused(engine_download.BAD_SIGNATURE)
+        raise EngineRefused(engine_download.BAD_SIGNATURE, lasting=True)
 
     monkeypatch.setattr(engine_download, "download", refuse)
     for _ in range(2):
         with pytest.raises(EngineRefused):
             fill_engine.ready()
     assert from_workit == [1]
+
+
+def test_a_network_refusal_is_tried_again_at_the_next_run(from_workit, monkeypatch):
+    real = engine_download.download
+
+    def once_down():
+        if not from_workit:
+            from_workit.append(1)
+            raise EngineRefused("WorkIt did not send the Fill engine")
+        return real()
+
+    monkeypatch.setattr(engine_download, "download", once_down)
+    with pytest.raises(EngineRefused):
+        fill_engine.ready()
+    fill_engine.ready()  # the next run: downloaded this time
+    assert from_workit == [1, 1]
 
 
 def test_the_student_build_always_runs_workits_engine(monkeypatch):
