@@ -1865,3 +1865,41 @@ def test_an_eightfold_page_claude_fill_filled_is_confirmed_by_eightfolds_own_che
     assert _eightfold(done) and _confirmed(done, "other")
     assert not _confirmed(_Shows(done.url, "Submit application"), "other")
     assert not _eightfold(_Shows("https://jobs.example.com/acme/1", "Application Submitted"))
+
+
+# Stop applying and Remove in the student's window (KAN-874).
+
+class StoppingBoard(RecordingBoard):
+    """The run's board, which the rehearsal hands its stop and remove; `then(stop, remove)` presses them."""
+
+    def __init__(self, then: Callable[[Callable[[], None], Callable[[str], bool]], None]):
+        super().__init__()
+        self._then, self._stop = then, None
+
+    def stopping(self, stop: Callable[[], None]) -> None:
+        self._stop = stop
+
+    def removing(self, remove: Callable[[str], bool]) -> None:
+        self.removed = []
+        self._then(self._stop, lambda link: self.removed.append(remove(link)) or self.removed[-1])
+
+
+def test_a_removed_job_leaves_waiting_to_start_and_never_runs(monkeypatch, tmp_path):
+    """Fault: a job the student removed still opens, or still counts as waiting to start."""
+    monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
+    later = ARC_URL + ("&" if "?" in ARC_URL else "?") + "copy=2"  # another Posting of the same form
+    board = StoppingBoard(lambda stop, remove: (remove(later), remove(later)))
+    lines = []
+    with FakeJobServer(ARC_FORM) as fake:
+        done = rehearsal.rehearse([ARC_URL, later], adapters(fake, board=board), ApplicantProfile.load(profile_with(tmp_path)),
+                                  1, keep_open=False, out=lines.append)
+        opened = len(fake.workers)
+
+    assert board.removed == [True, False]  # gone the first time: nothing left to remove after
+    assert [d.posting.url for d in done] == [ARC_URL]
+    assert lines[0] == f"{later} | removed: it won't run" and len(lines) == 2
+    assert opened == 1  # the removed job's page never opened
+    waiting = [run for run in board.runs if "waiting" in run]
+    assert waiting[0]["waiting"] == [ARC_URL, later] and waiting[-1]["waiting"] == []
+    assert [run["queued"] for run in board.runs if "queued" in run][-1] == 0
+    assert 1 not in board.captions  # no tile ever filled it

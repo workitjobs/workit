@@ -270,7 +270,7 @@ def rehearse(
     stopped: each opens in its own Worker, keeps what it held, and stops at
     a sign-in for Lisul (Accounts.hands_off). Returns the
     links' first summaries in the order they ended."""
-    adapters.board.run(mode="rehearsal", queued=len(urls))
+    adapters.board.run(mode="rehearsal", queued=len(urls), waiting=list(urls))
     if unchecked := adapters.applied_before.problem():  # no silent pass: the window and the terminal say so
         adapters.board.run(unchecked=already_applied.UNCHECKED.format(unchecked))
         out(already_applied.UNCHECKED.format(unchecked))
@@ -294,12 +294,34 @@ def rehearse(
             return settled.setdefault(n, threading.Event())
 
     writing = threading.Lock()
-    waiting = [len(urls)]  # links not started yet: the window's "queued"
+    waiting: dict[int, str] = dict(enumerate(urls))  # links not started yet, by tile: the window's "queued"
+    dropped: set[int] = set()  # links taken out of the run before they started (remove)
 
-    def started() -> None:  # a link got its Worker: one fewer queued
+    def told() -> None:  # under `writing`
+        adapters.board.run(queued=len(waiting), waiting=list(waiting.values()))
+
+    def started(n: int) -> bool:  # a link got its Worker: one fewer queued. False: it was removed, and never runs
         with writing:
-            waiting[0] -= 1
-            adapters.board.run(queued=waiting[0])
+            if n in dropped:
+                return False
+            waiting.pop(n, None)
+            told()
+            return True
+
+    def remove(link: str) -> bool:
+        """Take the link out of the run before it starts (Remove in the student's window). False: it started, or
+        isn't in the run."""
+        with writing:
+            n = next((n for n, url in waiting.items() if url == link), None)
+            if n is None:
+                return False
+            del waiting[n]
+            dropped.add(n)
+            told()
+        out(f"{link} | removed: it won't run")
+        return True
+    if removing := getattr(adapters.board, "removing", None):
+        removing(remove)
 
     def one(n: int, url: str, worker: int | None = None) -> None:
         """Link `url` on tile `n`, in Worker `worker` (default: Worker n, its own)."""
@@ -490,9 +512,14 @@ def rehearse(
 
         draft = reopening.drafts.get(url, {}) if reopening else None  # what a reopened form held (KAN-720)
         reopened = REOPENED.format(reopening.since.get(url) or "before") if reopening else ""
+        gate.acquire()
+        if not started(n):  # removed while it waited for its turn
+            gate.release()
+            start.leave(n)
+            settles(n).set()
+            return
         try:
-            with gate:
-                started()
+            with _Held(gate):
                 done = _rehearse(url, site, adapters, profile, calibration.hold, accounts, n, held,
                                  "getting ready" if together else "", pause=paused, force=force, draft=draft,
                                  reopened=reopened)
@@ -563,8 +590,8 @@ def rehearse(
                           "(worker_mode: plain), then send links into it.", 409)
         with writing:
             n = adapters.board.add_tile(worker)
-            waiting[0] += 1
-            adapters.board.run(queued=waiting[0])
+            waiting[n] = url
+            told()
             thread = threading.Thread(target=one, args=(n, url, worker), daemon=True)
             threads.append(thread)
         thread.start()
@@ -594,7 +621,7 @@ def rehearse(
     # The waits sleep rather than block on a lock: Ctrl-C landing inside
     # Thread.join() leaves that thread looking finished to a later join.
     try:
-        while len(ended) < len(urls):
+        while len(ended) + len(dropped & set(range(len(urls)))) < len(urls):
             try:
                 ended.append(finished.get_nowait())
             except queue.Empty:
@@ -619,6 +646,19 @@ def rehearse(
             thread.join(30)
         out("Closed the browsers.")
     return ended
+
+
+class _Held:
+    """A lock already acquired, released on leaving the `with`."""
+
+    def __init__(self, lock: threading.Semaphore):
+        self._lock = lock
+
+    def __enter__(self) -> None:
+        pass
+
+    def __exit__(self, *exc) -> None:
+        self._lock.release()
 
 
 def _until(release: threading.Event) -> str:
