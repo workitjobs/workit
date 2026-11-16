@@ -263,7 +263,7 @@ def rehearse(
     Application he submits from it is kept in `submitted_to` (the Tracker),
     and its note's Fill again fills the form once more, with a new summary
     line. `on_done` runs once every link has ended, before the pages are
-    held. With `together`, every link's form waits, open and planned, until
+    held, or once Stop applying ends the run. With `together`, every link's form waits, open and planned, until
     each link's form is (or its rehearsal ended) and Lisul presses the
     window's Start button; then all start filling at once, a Worker each:
     for filming. A link Lisul already applied to (adapters.applied_before)
@@ -645,7 +645,8 @@ def rehearse(
                 time.sleep(0.2)
                 continue
             out(ended[-1].line())
-        if not stopped.is_set():
+        ran_on_done = not stopped.is_set()
+        if ran_on_done:
             on_done()
             if keep_open and all(done.outcome == ALREADY for done in ended):
                 out("Apply opened no form: you already applied to each link. The Apply window shows it; "
@@ -662,6 +663,8 @@ def rehearse(
             ending = time.monotonic() + STOP_WAIT
             for thread in list(threads) + feeders:
                 thread.join(max(0.0, ending - time.monotonic()))
+            if not ran_on_done:  # Stopped before every link ended: what the ended ones left (a Repair) still runs
+                on_done()
             out(STOPPED_APPLYING)
     except KeyboardInterrupt:
         release.set()
