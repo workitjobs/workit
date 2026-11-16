@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import type { Shown } from "./apply.ts";
-import { answerOf, asking, chosen, classify, headline, limit, queueNote, shortcut, startWords, view } from "./view.ts";
+import { addsJobs, answerOf, asking, chosen, classify, headline, limit, queueNote, shortcut, startWords, view } from "./view.ts";
 
 const job = (over: Partial<Shown>): Shown => ({ tone: "filling", company: "Stripe", role: "SWE Intern", posting_url: "https://s", ...over });
 
@@ -326,4 +326,12 @@ test("each job waiting to start is named as the queue named it, a pasted one by 
 test("the idle board has no run to stop and nothing waiting", () => {
   const v = view({ tiles: [], items: [], run: {} });
   assert.deepEqual([v.running, v.waiting, v.queued], [false, [], 0]);
+});
+
+test("+ Add jobs shows whenever no run is going and the window can start one, never during a run", () => {
+  const idle = view({ tiles: [], items: [], run: {} });
+  const run = view({ tiles: [job({})], items: [], run: { mode: "rehearsal", queued: 0 } });
+  assert.equal(addsJobs(idle, true), true);
+  assert.equal(addsJobs(run, true), false); // app_window.Bridge.start refuses a second run
+  assert.equal(addsJobs(idle, false), false); // a Developer checkout's window has no queue or Start
 });

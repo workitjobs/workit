@@ -1,12 +1,12 @@
 // The window: one screen that answers "what do I do now?".
-import { ArrowClockwiseIcon, CheckIcon, GearSixIcon, StopIcon, XIcon } from "@phosphor-icons/react";
+import { ArrowClockwiseIcon, CheckIcon, GearSixIcon, PlusIcon, StopIcon, XIcon } from "@phosphor-icons/react";
 import { useEffect, useMemo, useState } from "react";
 
 import type { ApplyState, Run } from "./apply.ts";
 import type { App as AppMethods, Bridge, Queued, Usage } from "./bridge.ts";
 import { TodoCard } from "./cards.tsx";
 import { Button, Logo, cx, pressed } from "./ui.tsx";
-import { type Job, type View, type Waits, chosen, headline, limit, queueNote, startWords, view } from "./view.ts";
+import { type Job, type View, type Waits, addsJobs, chosen, headline, limit, queueNote, startWords, view } from "./view.ts";
 import { said } from "./words.ts";
 
 type Fail = (message: string) => void;
@@ -14,7 +14,7 @@ type Fail = (message: string) => void;
 export function App({ bridge }: { bridge: Bridge }) {
   const [state, setState] = useState<ApplyState | null>(null);
   const [app, setApp] = useState<AppMethods>({});
-  const [page, setPage] = useState<"home" | "applied">("home");
+  const [page, setPage] = useState<"home" | "applied" | "add">("home");
   const [toast, setToast] = useState("");
   const [lost, setLost] = useState(false); // /state's last ask got no answer: Apply stopped, or is restarting
   useEffect(
@@ -37,7 +37,10 @@ export function App({ bridge }: { bridge: Bridge }) {
   }, [v]);
   if (!v) return <Connecting lost={lost} />;
   // No run going: the queue, when the window has one to show (app_window.Bridge's app methods).
-  const first = !!app.queue && !v.todo.length && !v.working.length && !v.queued && !v.applied.length && !v.stopped.length;
+  // Add jobs brings it back once there is something else to show.
+  const first =
+    !!app.queue && (page === "add" || (!v.todo.length && !v.working.length && !v.queued && !v.applied.length && !v.stopped.length));
+  const add = () => setPage("add");
   return (
     <div className="min-h-dvh">
       <header className="sticky top-0 z-10 flex h-[52px] items-center gap-2 border-b border-border bg-app/90 pr-5 pl-[84px] backdrop-blur">
@@ -47,6 +50,11 @@ export function App({ bridge }: { bridge: Bridge }) {
         </button>
         <nav className="ml-auto flex items-center gap-1 text-[13px]">
           {v.running && !first && <Stop bridge={bridge} fail={setToast} />}
+          {addsJobs(v, !!app.start) && !first && (
+            <Button tone="quiet" className="h-8 px-3" onClick={add}>
+              <PlusIcon className="size-4" /> Add jobs
+            </Button>
+          )}
           {!first && (
             <Button tone="quiet" className={cx("h-8 px-3", page === "applied" && "bg-hover text-ink")} onClick={() => setPage(page === "applied" ? "home" : "applied")}>
               Applied
@@ -65,7 +73,13 @@ export function App({ bridge }: { bridge: Bridge }) {
             {NOT_RUNNING} This window shows what it last heard, and catches up once Apply is back.
           </p>
         )}
-        {first ? <Start app={app} /> : page === "applied" ? <Applied jobs={v.applied} /> : <Home v={v} bridge={bridge} fail={setToast} />}
+        {first ? (
+          <Start app={app} back={page === "add" ? () => setPage("home") : undefined} />
+        ) : page === "applied" ? (
+          <Applied jobs={v.applied} />
+        ) : (
+          <Home v={v} bridge={bridge} fail={setToast} add={app.queue && app.start ? add : undefined} />
+        )}
         <Limit app={app} run={state?.run} />
       </main>
       {toast && <div role="alert" className="rise fixed right-4 bottom-4 rounded-card bg-ink px-4 py-2.5 text-[13px] text-white shadow-[var(--shadow-focus)]">{toast}</div>}
@@ -133,7 +147,7 @@ function Limit({ app, run }: { app: AppMethods; run?: Run }) {
   return line ? <p className="mt-8 text-[13px] text-ink-faint">{line}</p> : null;
 }
 
-function Home({ v, bridge, fail }: { v: View; bridge: Bridge; fail: Fail }) {
+function Home({ v, bridge, fail, add }: { v: View; bridge: Bridge; fail: Fail; add?: () => void }) {
   // Which to-do is on top. Skip moves it to the next one; a done one leaves the pile by itself.
   const [at, setAt] = useState(0);
   const i = v.todo.length ? at % v.todo.length : 0;
@@ -163,6 +177,11 @@ function Home({ v, bridge, fail }: { v: View; bridge: Bridge; fail: Fail }) {
                 ? "Each one is below, with why. Try again where it's offered."
                 : "Every application is done."}
           </p>
+          {add && !v.working.length && !v.queued && (
+            <Button tone="primary" onClick={add}>
+              <PlusIcon className="size-4" /> Add jobs
+            </Button>
+          )}
         </div>
       )}
       {(v.working.length > 0 || v.queued > 0 || v.waiting.length > 0) && (
@@ -265,7 +284,7 @@ function Row({ job }: { job: Job }) {
 
 // The student's Auto Apply queue on WorkIt, every job ticked, and one pasted link: Start runs them. Once it is
 // pressed the queue leaves the view; app_window.Bridge swaps in the run's board, and this screen again when the run ends.
-function Start({ app }: { app: AppMethods }) {
+function Start({ app, back }: { app: AppMethods; back?: () => void }) {
   const [queue, setQueue] = useState<Queued[] | Error | null>(null);
   const [ticked, setTicked] = useState<boolean[]>([]);
   const [link, setLink] = useState("");
@@ -338,6 +357,13 @@ function Start({ app }: { app: AppMethods }) {
         </p>
       )}
       <p className="mt-4 text-center text-xs text-ink-faint">WorkIt never presses Submit for you.</p>
+      {back && !started && (
+        <div className="mt-6 text-center">
+          <Button tone="quiet" onClick={back}>
+            Back to your applications
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

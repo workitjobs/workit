@@ -131,6 +131,10 @@ export function view(state: ApplyState): View {
   };
 }
 
+// + Add jobs (the queue screen again): whenever no run is going, in a window that can start one. Never during a run,
+// since app_window.Bridge.start refuses a second while one goes.
+export const addsJobs = (v: View, canStart: boolean) => canStart && !v.running;
+
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
 // The page's heading: what the student should do now, in a few words. Questions count one by one, since a job
