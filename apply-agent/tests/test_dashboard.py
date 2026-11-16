@@ -1351,6 +1351,25 @@ def test_an_optional_question_saved_blank_is_skipped_and_kept_and_a_file_is_atta
         assert board.state()["items"][0]["questions"] == ["Pronouns"]
 
 
+def test_a_student_runs_file_question_is_answered_from_the_card_while_its_form_fills_or_once_it_is_held():
+    """Fault (KAN-867): a Student run's file question can't be answered from the window's card, because /answer
+    refuses a file for it ("Attach the file on the form itself", which is only a live run's Tracker row's)."""
+    pdf = base64.b64encode(b"%PDF-1.4 transcript").decode()
+    with Dashboard(2, FakeFrames({}), answer=lambda item, q, a: "Saved.") as board:  # a Student run's saving_answers
+        asked = {"missing": ["Transcript"], "choices": {"Transcript": {"kind": "file", "options": []}}}
+        board.update(0, company="Ramp", posting_url="https://r.example/1", status="filling", **asked)
+        board.update(1, company="Plaid", posting_url="https://p.example/1", status=rehearsal.READY, **asked)
+        live, held = sorted(board.state()["items"], key=lambda i: str(i["company"]) != "Ramp")
+        for item in (live, held):
+            body = json.dumps({"id": item["id"], "question": "Transcript", "answer": "",
+                               "file": {"name": "transcript.pdf", "data": pdf}}).encode()
+            urllib.request.urlopen(urllib.request.Request(board.url + "/answer", body, {"X-Apply-Token": board.token}))
+
+        assert live["live"] and not held.get("live")
+        assert [(q, f.read_bytes()) for q, f in board.answered(0)] == [("Transcript", b"%PDF-1.4 transcript")]
+        assert [(q, f.read_bytes()) for q, f in board.answered(1)] == [("Transcript", b"%PDF-1.4 transcript")]
+
+
 # History: what Apply did, and why.
 
 def test_history_lists_each_decision_newest_first_with_why(window, tmp_path):
