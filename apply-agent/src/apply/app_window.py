@@ -133,6 +133,8 @@ One application's record and log go only when you press Send Report.</li>
 <li><b>To Groq and Google (Gemini):</b> the same AI prompts, sent by WorkIt with WorkIt's own key. Google's free
 tier may use the prompts and answers it gets to improve its products, and people at Google may read them.</li>
 <li><b>To job sites:</b> your answers, typed into each form as you would type them.</li>
+<li><b>To Brandfetch:</b> the website of each company in your queue, to show its logo, as WorkIt's website does.
+Without one there, the logo comes from the company's job board or Google's website icons the same way.</li>
 </ul>
 <p>The records of each application, the Chrome windows' profiles and sign-ins, and your job-site passwords (in the
 Keychain) stay on your Mac. WorkIt Auto Apply never presses Submit: you do.</p>"""

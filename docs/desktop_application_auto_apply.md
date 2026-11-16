@@ -212,6 +212,8 @@ saw a block), and CDP Workers fill the rest (section 4.7).
 | WorkIt | Tracker writes, answers the student approves, the queue | As today (`apply-agent/docs/workit.md`) |
 | WorkIt | One Application's Record and masked Trace | Only when the student presses "Send report" |
 | Job sites | The form's answers, in the Worker's Chrome | As a person filling the form |
+| Brandfetch | Each company's website (its domain, from the WorkIt job posting), for its logo, with WorkIt's public client id | Each logo the window draws, straight from the window, as the website does (KAN-871) |
+| Job boards, Google (favicons) | The logo URL the scraper found, where Brandfetch has none | The same, as the website does |
 
 **Replaced before a prompt leaves** (D8, as built in PR #587, 2026-11-15,
 W1): the exact private values the student gave, by field, never a value
