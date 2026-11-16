@@ -331,7 +331,7 @@ async def _process_task(conn: AsyncConnection, task, summary: dict) -> _Read | N
     # was already hot). Quiet boards skip the extra DB call.
     has_kept = bool(jobs)
     if has_kept or schedule.has_kept:
-        from workit_scraper.store import fingerprint as compute_fingerprint
+        from workit_scraper.scheduling import fingerprint as compute_fingerprint
 
         fp = compute_fingerprint(job.external_id for job in jobs)
     else:

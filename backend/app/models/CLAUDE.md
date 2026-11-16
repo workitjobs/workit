@@ -1430,6 +1430,23 @@ Real, not forgotten. Do not treat their absence as a decision already made.
   table, safe before or after the deploy; until it is applied, the
   sign-in routes answer 500.
 
+## WorkIt Auto Apply's reports — `apply_reports.py` (KAN-837)
+
+- **One row per report a student sent from the app's support form**
+  (D26): its `category` (a CHECK, not an enum, so a new one is one
+  migration), their words (`note`), `contact_ok`, and, when they included
+  an Application, that Application as its Tracker row names it, the
+  Record's text files (`files`, JSONB by file name), the form's
+  screenshots (`form_png`, `after_submit_png`, `bytea`, deferred) and the
+  Trace masked in the app. `application_id` is '' for a general question.
+  CASCADE from `applicant_profiles`, so it goes with the account.
+- **No retention period, on purpose**: `/privacy` says WorkIt keeps a
+  report until its problem is fixed, so an admin deletes it then
+  (`DELETE /admin/apply-reports/{id}`). Only `app/queries/apply_reports.py`
+  writes or deletes it. Migration `36d339a2d6b4` (RLS on, no policies), a
+  new table, safe before or after the deploy; until it is applied, `POST
+  /apply-app/reports` answers 500.
+
 ## Scraper tables — `scraper.py`
 
 `Scraper_Schedule`, `Scraper_Task` and `Job_Source` (KAN-605, KAN-619,

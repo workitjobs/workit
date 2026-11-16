@@ -117,6 +117,7 @@ uv run python -m app.scripts.import_apply_profile <applicant_id> [<apply_dir>]  
 uv run python -m app.scripts.label_resume_headings  label data/resume_heading_candidates.txt's resume headings once with Groq into app/utils/learned_headings.json (--dry-run lists them; review the diff; app/utils/CLAUDE.md, Learned headings)
 uv run python -m app.scripts.purge_old_data  delete rows past app/services/retention.py's periods, KAN-482 (--dry-run counts, deletes nothing; daily in CI)
 uv run python -m app.scripts.scrape_worker   one scraper worker cycle: sync catalog, claim boards, scrape, checkpoint (--dry-run shows what it would do; --full bypasses quiet board stagger and fingerprint rest; --workers N overrides the 4 parallel board workers)
+uv run python -m app.scripts.publish_engine publish --key <file> [--min-app <version>]  sign a Fill engine build and put it last in the ApplyEngine bucket for WorkIt Auto Apply, KAN-836 (`publish-engine.yml` runs it on each merge that moves the engine pointer; --min-app defaults to app/scripts/engine_min_app.txt; --dry-run uploads nothing; `make-key <file>` makes the signing key once; writes Storage: CI or the user runs it, never Claude)
 uv run python -m app.scripts.embed_banks     the bank job, KAN-726: listen and embed stale banks until stopped (--once sweeps once); the team computer only, with EMBEDDING_PROVIDER=ollama (app/services/matching/CLAUDE.md); it runs from its own checkout there, so a merge reaches it only after "After a merge to main" in docs/scraper_gh_action/plan.md
 python3 scripts/fetch_tectonic.py              Tectonic + warm cache into vendor/ (resume PDFs; once per checkout)
 ```
@@ -248,6 +249,10 @@ module docstring has the steps.
   (`tests/test_app_sign_in.py`). The service calls both directly, not
   through `Depends`, so an override misses them, and the test would make a
   magic link and a session on the real Supabase project.
+- **A test of the Fill engine's download monkeypatches
+  `apply_app.get_supabase`** with an in-memory bucket
+  (`tests/test_apply_engine.py`): the routes call it directly, so an
+  override misses it and the test reads the real `ApplyEngine` bucket.
 - **A test that calls a model route swaps the model with
   `tests/fake_models.py`'s `use(fake)`**, which overrides all three
   sizes (`app/services/models.py`) at once, and `clear()` after; a test of
@@ -359,6 +364,13 @@ Find files with a directory listing; these are the rules for where code goes.
   feature picks a size there; it never builds an `LLM` itself, so the
   `SCOUT_*` settings stay the one place a model is named
   (`../scout/CLAUDE.md`, "Which model, where").
+- **WorkIt Auto Apply's Send report** (`routers/apply_reports.py`, D26,
+  KAN-837): `POST /apply-app/reports` keeps a report from the app's
+  support form (a category, the student's words, whether WorkIt may email
+  them, and an Application's Record and masked Trace if they include
+  one); admins read them, with the student's email, under
+  `/admin/apply-reports` and `DELETE` one once its problem is fixed, so the
+  table has no retention period (`services/retention.py` says why).
 - **WorkIt Auto Apply's Model route** (`routers/apply_app.py`, KAN-723,
   `../docs/desktop_application_auto_apply.md`, W1) runs the desktop app's
   `ask`s. **`POST /apply-app/ask` builds each prompt on the server** (D5):
@@ -392,7 +404,23 @@ Find files with a directory listing; these are the rules for where code goes.
   (the name is the app's to replace, D8, by its exact value: the design
   doc's section 3.4; the server's name removal broke prompts by taking
   words such as "will"), and the seam puts the masked
-  email, phone and links back into the answer (`Masked`). **No route
+  email, phone and links back into the answer (`Masked`). **The Fill
+  engine's download** (KAN-836, W7, D3 and D27) is two routes here:
+  `GET /apply-app/engine?app_version=` answers the build made for the
+  nearest app version at or below the app's (`engine_builds.newest_fit`),
+  encrypted with AES-GCM under a key for this account, this Supabase
+  session (the token's `session_id`) and this download, and `POST
+  /apply-app/engine-key` makes that key again for two minutes. The key is
+  an HMAC under a key derived from `SUPABASE_SERVICE_KEY`, so no key is
+  stored and both instances make the same one, with no new setting. The
+  builds live in the private `ApplyEngine` Storage bucket (made in the
+  dashboard), `<sha256>.js` beside `builds.json`, put there only by
+  `app.scripts.publish_engine`, which signs each with WorkIt's Ed25519
+  engine key; `.github/workflows/publish-engine.yml` runs it on each merge
+  that moves the engine pointer (`.github/CLAUDE.md`, "Publish the Fill
+  engine"). The server never checks a signature: the app does, with the
+  public key compiled in, so a bucket someone else wrote to still runs
+  nothing. **No route
   takes a schema from a student.** If one ever does again, it must refuse
   a `$ref` (or its dynamic forms), since `jsonschema` would fetch its URL;
   a `pattern` or `patternProperties`, since the answer's check runs it

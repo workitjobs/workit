@@ -61,29 +61,51 @@ POST /apply-app/session  SessionTrade {code, verifier} -> AppSession
             not the challenge's. The app starts again.
        503  Supabase did not make the session.
 
+The Fill engine's download (W7, D3, D27; app/services/engine_builds.py has
+the storage and the key):
+GET  /apply-app/engine?app_version=0.1.0 -> EngineDownload
+     The newest published build that fits the app's version, encrypted with
+     AES-GCM under a key made for this account, this Supabase session and
+     this download, for KEY_TTL (2 minutes). The app checks the signature;
+     the server never does.
+       403  not a student's account, or a token with no session.
+       404  no build fits this version: the app asks the student to update.
+       422  an app_version that is not a version.
+       503  Storage did not answer, or has no builds.json yet.
+POST /apply-app/engine-key  EngineKeyAsk {key_id, expires_at} -> EngineKey {key}
+     That download's key, for the same account and session only: another
+     session's token makes another key, which opens nothing.
+       410  past expires_at, or an expires_at further off than KEY_TTL.
+
 Logs name the student, the call's kind and model size, and its tokens;
 never a prompt or an answer.
 """
 
+import base64
 import dataclasses
 import datetime
 import logging
 import math
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+import jwt
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from fastapi.exceptions import RequestValidationError
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 from workit_scout.llm import LLM, InvalidReply, RequestTooLarge, ScoutUnavailable
 
 from app.apply_prompts import KINDS, guides, said
 from app.config import get_settings
-from app.db import get_session
+from app.db import get_session, get_supabase
 from app.deps import get_current_account, is_admin
 from app.queries import model_usage
 from app.schemas.apply_app import (
     AppSession,
     AskCall,
+    EngineDownload,
+    EngineKey,
+    EngineKeyAsk,
     ModelAnswer,
     SessionTrade,
     SignInCode,
@@ -91,7 +113,8 @@ from app.schemas.apply_app import (
     Usage,
 )
 from app.schemas.auth import AccountType, AuthenticatedAccount
-from app.services import app_sign_in
+from app.security import decode_access_token
+from app.services import app_sign_in, engine_builds
 from app.services.identity import load_identity
 from app.services.models import get_large_llm, get_small_llm
 
@@ -150,6 +173,62 @@ async def app_session(body: SessionTrade, db: AsyncSession = Depends(get_session
                             "That sign-in is over. Sign in again from WorkIt Auto Apply.") from None
     except app_sign_in.NoSession:
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "WorkIt could not sign the app in. Try again.") from None
+
+
+_bearer = HTTPBearer(auto_error=False)
+
+
+async def _session_id(credentials: HTTPAuthorizationCredentials | None = Depends(_bearer)) -> str:
+    """The Supabase session the token belongs to, which an engine key is made for. get_current_account
+    has already checked the token; this reads one more claim from it."""
+    try:
+        session = (await decode_access_token(credentials.credentials)).get("session_id") if credentials else None
+    except jwt.InvalidTokenError:
+        session = None
+    if not isinstance(session, str) or not session:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Sign in from WorkIt Auto Apply.")
+    return session
+
+
+def _engine_secret() -> str:
+    """What every engine key is made from: the service key, which only the API holds."""
+    secret = get_settings().supabase_service_key
+    if not secret:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "WorkIt can't send the Fill engine right now.")
+    return secret
+
+
+@router.get("/engine")
+async def engine(
+    app_version: str = Query(pattern=engine_builds.VERSION.pattern),
+    account: AuthenticatedAccount = Depends(_student),
+    session_id: str = Depends(_session_id),
+) -> EngineDownload:
+    try:
+        build = engine_builds.newest_fit(await engine_builds.builds(get_supabase), app_version)
+        data = await engine_builds.bundle(get_supabase, build["sha256"])
+    except engine_builds.NoBuild:
+        raise HTTPException(status.HTTP_404_NOT_FOUND,
+                            "No Fill engine fits this version of WorkIt Auto Apply. Update the app.") from None
+    except Exception:
+        logger.exception("Couldn't read the Fill engine's builds")
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE,
+                            "WorkIt can't send the Fill engine right now. Try again soon.") from None
+    download = engine_builds.encrypt(build, data, _engine_secret(), str(account.id), session_id, _now())
+    return EngineDownload(**dataclasses.asdict(download))
+
+
+@router.post("/engine-key")
+async def engine_key(
+    body: EngineKeyAsk,
+    account: AuthenticatedAccount = Depends(_student),
+    session_id: str = Depends(_session_id),
+) -> EngineKey:
+    now = _now().timestamp()
+    if not now < body.expires_at <= now + engine_builds.KEY_TTL.total_seconds():
+        raise HTTPException(status.HTTP_410_GONE, "That Fill engine download has expired. Download it again.")
+    key = engine_builds.key(_engine_secret(), str(account.id), session_id, body.key_id, body.expires_at)
+    return EngineKey(key=base64.b64encode(key).decode())
 
 
 @router.get("/types")

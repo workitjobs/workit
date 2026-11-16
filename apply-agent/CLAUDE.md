@@ -108,7 +108,10 @@ has neither.
   `workit.job_key`), and its callers import it from there.
   `tests/test_student_build.py` (in CI) fails when the Student path loads one,
   as it imports, builds `student.adapters()` or makes that first page call.
-  Read `build.STUDENT` when the code runs, never into a constant at import.
+  Read `build.STUDENT` when the code runs, never into a constant at import. The one
+  exception is `home.HOME`, which every data path is made from at import: the build
+  script writes STUDENT before it compiles (`tests/test_student_build.py` checks it in a
+  new process).
   The Student build reads no `policies.yaml`: `build.STUDENT_POLICIES` go over
   the defaults. A new developer part joins `DEVELOPER`, and the Student
   build's stand-in for it joins `apply.student.adapters()`.
@@ -135,6 +138,11 @@ has neither.
   touches a captcha. It hands them to the user.
 - **The Fill engine:** run `git submodule update --init` once per checkout.
   Without it, Apply cannot fill a form, and `uv run apply doctor` says so.
+  **Read the engine only through `fill_engine.source()`**, never
+  `fill_engine.ENGINE` (KAN-836, W7): with `fill_engine: workit`, and always
+  in the Student build, the engine is WorkIt's signed download, kept only in
+  memory, and no engine file may be written (`docs/fill-engine.md`, "Where
+  the bundle comes from").
 - **`README.md`** is a teammate's setup path, from a clone to a rehearsal. Its
   steps and doctor's fix lines say the same thing. When you change one,
   change the other.
@@ -152,11 +160,11 @@ this folder's `CLAUDE.md` for its area.
 - `docs/claude-fill.md`: Claude fill, its Next and profile clicks, its dropdowns, or a Filler's `form_url`.
 - `docs/captchas-and-bot-blocks.md`: a captcha wait, a block's handoff, or `captcha.py`.
 - `docs/sign-in.md`: a sign-in page, an Employer account or its password (the one Lisul chooses, its rule, Show password), where secrets live (`keychain.py`, `keyring`), the Accounts tab, or `apply preflight`.
-- `docs/apply-window.md`: the window's lifetime, its Dock keeper, or what a Record keeps.
+- `docs/apply-window.md`: the window's lifetime, its Dock keeper, WorkIt Auto Apply's window with no port (`apply app`, `app_window.py`), or what a Record keeps.
 - `docs/restart-recovery.md`: what survives a restart of the Mac: Workers' sign-ins across a quit, the open-forms list (`batch.py`), `apply reopen`, and `apply preflight --open`.
 - `docs/plain-workers/guide.md`: `apply/plain/`, `worker_mode`, `--into`, or the worker extension; `docs/plain-workers/worker-extension-todo.md` for its store package and what is left.
 - `docs/plain-workers/PROTOCOL.md`: a message between Apply and the worker extension.
-- `docs/research/`: the research behind plain Workers, Employer account sign-in, the held form's session keep-alive (`session-timeouts.md`), and keeping Workers out of the student's view (`workers-out-of-view.md`: hidden Workers, a virtual screen, F10). Each note's Status line says what was built.
+- `docs/research/`: the research behind plain Workers, Employer account sign-in, the held form's session keep-alive (`session-timeouts.md`), keeping Workers out of the student's view (`workers-out-of-view.md`: hidden Workers, a virtual screen, F10), held forms in tabs of a CDP Worker (`held-forms-in-tabs.md`, KAN-865 and KAN-876, with `tools/held_forms_tabs.py`: a form behind fills as one in front while Playwright drives it, on every saved form that fills; a window, not a tab, since a Playwright click in a tab behind waits about 2 s; a cap of 4 held forms per Worker on 8 GB), and what a Worker's Chrome crash costs held forms (`held-forms-after-a-crash.md`, KAN-866, with `tools/held_forms_crash.py`: no tab comes back; on Linux a plain Worker with `--no-startup-window` quits at once). Each note's Status line says what was built.
 
 ## The data folder (`APPLY_HOME`)
 
@@ -360,6 +368,49 @@ into it and the window shows "Sample data".
   goes through `judged` (a throw blocks). A request's URL, method and body
   are read once, and what was judged is what is sent: an XHR keeps what its
   `open()` took, and one opened by no `open()` of the guard's is not sent.
+- **A GET form's submit reaches none of the page's handlers while a guard
+  is on** (KAN-868). A form with no method whose own submit handler posts
+  the application (a React form's onSubmit, by fetch to any URL) sent it past
+  both guards when a press of anything else of the form's submitted it: a
+  Next, a dropdown made of a submit button, one the page turned into a submit
+  button as it was pressed (the adversarial review of KAN-861). A test of the
+  form's buttons was got round each way the review of KAN-868 tried: a
+  Submit the press renamed, blanked or took away, one renamed on pointerdown,
+  one outside the form with no `form=`, a `<div>` of no role, words only in
+  CSS. So every submit of a form that doesn't POST is stopped: a GET form's,
+  and a dialog's, whose submit runs the page's handlers all the same. Only a
+  sign-in step goes on, and only under plain code's own sign-in press
+  (`apply.account_pages`, `let_account_click(sign_in=True)`, never a Next's
+  account click): its only boxes are an email or user name and passwords
+  (iCIMS's email step), and the page shows no other answer box anywhere, an
+  editable box, a radio, a tick or one in an open shadow root too (rounds 2
+  and 3 of the review put the answers outside the form). The residual: an
+  app whose answers a script holds, behind one email box, looks like a
+  sign-in step under that press. A wizard whose Next submits a GET form is a
+  step no code or model presses: a Handoff, the student's on the held page,
+  whose own press goes through as before. A form in a shadow root the page
+  wrote is heard as a script submits it, clicks in it or dispatches an event
+  in its root, and a closed one as its element's internals hand it over
+  (`hearRootOf`), as one a press passes through always was; an open one as
+  a script first reaches it (`shadowRoot`, `getRootNode()`, an event's
+  `composedPath()`), so the guard's listener there is the first. That
+  order can still be beaten from inside a root (a custom element in it
+  that listens on its root as it connects: round 4 of the review), so the
+  press itself is stopped too: a click on a submit button of a form that
+  doesn't POST is cancelled at the window, before any of the page's
+  listeners, and a script's `requestSubmit()` of one is refused. The sign-in
+  step's page check also reads same-origin frames and every root the guard
+  has heard, closed ones too. Whenever page code adds a `submit` listener,
+  the guard first hears that node's root (the `addEventListener` wrapper),
+  so code inside a root that walks up to it can't get there first, and an
+  Enter that submits with no click is stopped there (round 5). Plain
+  code's sign-in with a password goes on for a form that doesn't POST only
+  under Apply's own sign-in press and as a sign-in step: an application
+  that makes an account as it applies is a GET form with a password box. The guard
+  scripts are one function each, built from shared parts: a name two parts
+  declare stops the whole script with no error Apply sees, and every page
+  is unguarded. That happened twice while KAN-868 was built;
+  `tests/test_guard_scripts_compile.py` (CI) compiles each script.
 - **A request body is read as its server reads it, never by a regex on
   its text** (KAN-791). One regex on Ashby's `operationName` let through
   escaped JSON, a submit named only in `query`, a batch, and form or

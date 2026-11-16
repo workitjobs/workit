@@ -109,6 +109,17 @@ def test_fill_again_still_works_on_a_form_whose_session_ended(window):
     assert board.fill_again_asked(0)
 
 
+def test_fill_again_works_on_a_failed_form_whose_page_is_still_held(window):
+    """KAN-873: a Student run has no Ask Claude, so no tile is askable, but its Worker still holds the page of a
+    form that failed or was ruled out: Try again in the window fills it anew. Once the page goes, it can't."""
+    board, _, _, _ = window
+    board.update(0, application_id="app-1", status="failed", why="TimeoutError: Page.goto", again=True)
+    assert post_fill_again(board, {"id": "tile-0"})[0] == 200
+    assert board.fill_again_asked(0)
+    board.update(0, again=False)
+    assert post_fill_again(board, {"id": "tile-0"})[0] == 409
+
+
 def test_only_apply_may_fill_a_form_again(window):
     board, _, _, _ = window
     board.update(0, status="held", askable=True)

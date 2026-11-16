@@ -32,6 +32,8 @@ class Capped(StrEnum):
     # The Fill engine's Rules table (KAN-756, routers/extension_rules.py): a site token, and a fetch with one.
     RULES_TOKEN = "rules_token"
     RULES_FETCH = "rules_fetch"
+    # WorkIt Auto Apply's Send report (KAN-837, routers/apply_reports.py).
+    APPLY_REPORT = "apply_report"
 
 
 _OPENED = "You've opened a lot of applications today. Try again tomorrow."
@@ -45,6 +47,7 @@ REFUSALS = {
     Capped.ADDED_JOB: "You've added a lot of jobs today. Write this answer yourself, or try again tomorrow.",
     Capped.RULES_TOKEN: _OPENED,
     Capped.RULES_FETCH: _OPENED,
+    Capped.APPLY_REPORT: "You've sent a lot of reports today. Try again tomorrow.",
 }
 
 
