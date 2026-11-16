@@ -8,6 +8,7 @@ No browser: in CI.
 
 import importlib.util
 import json
+import os
 import subprocess
 import sys
 from datetime import date, datetime
@@ -236,3 +237,27 @@ def test_a_brief_is_never_researched(student_build, tmp_path, monkeypatch):
     monkeypatch.setattr(brief, "research", lambda *a, **k: pytest.fail("the Student build researched a company"))
     claude = SimpleNamespace(ask_kind=lambda kind, data: {"team": ""})  # brief.team, a WorkIt kind (D5)
     assert brief.brief(posting("https://x.example/1"), SimpleNamespace(), claude, date(2026, 11, 14)) == ""
+
+
+def test_the_student_builds_data_folder_is_the_systems_own_place():
+    """Fault: WorkIt Auto Apply keeping a student's data in a Developer checkout's ~/.config/apply (D25). HOME is
+    read once at import, so a new process with STUDENT set, and no APPLY_HOME, shows it."""
+    environment = {k: v for k, v in os.environ.items() if k != "APPLY_HOME"}
+    shown = subprocess.run([sys.executable, "-c", "from apply import build; build.STUDENT = True\n"
+                            "from apply import home; print(home.HOME == home.APP_FOLDER)"],
+                           capture_output=True, text=True, env=environment, check=True).stdout.strip()
+    assert shown == "True"
+
+
+def test_the_student_builds_tracker_outlives_a_launch_and_writes_workit(student_build):
+    """Fault: the Student build's Tracker in memory, so its Employer accounts (and the passwords Remove All My Data
+    removes) were lost at each launch, and the student's own Submit never reached their Applications Tracker."""
+    from apply.home import HOME
+    from apply.tracker import EmployerAccount, WorkItTracker
+
+    applicant = profile.ApplicantProfile.load(HOME / "applicant-profile.yaml")
+    account = EmployerAccount("Acme", "acme.wd1.myworkdayjobs.com", "test.person@example.com", date(2026, 11, 15))
+    first = student.adapters(applicant)
+    assert isinstance(first.tracker, WorkItTracker)
+    first.tracker.add_employer_account(account)
+    assert student.adapters(applicant).tracker.employer_accounts() == [account]  # the next launch's

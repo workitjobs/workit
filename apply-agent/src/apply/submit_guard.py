@@ -256,7 +256,7 @@ _TEMPLATE = r"""
   // code. The guard hears it first, at the window, and stops it there.
   const S = {lifted: false, held: false, paused: false, note: null, account: null, profile: false, upload: false,
              asking: false, askTick: false, driving: false, touchUntil: 0, touchAt: null, applied: null, appliedDismissed: false,
-             start: false};
+             start: false, signIn: false};
   // The Posting's Apply that went through (KAN-725, below): the button, and whether its one post has left.
   // startSent: a post of it was let go (the guard's copy, or a form's submit()); startGone: one has left as a navigation.
   let starting = null, startSent = false, startGone = false;
@@ -281,7 +281,7 @@ _TEMPLATE = r"""
     // A copy put into a page already open (LATE: after the page's own code, which may have heard this event's name)
     // only ever blocks more: it takes no lift and no allowance (PR 477's second review).
     if (LATE && ((has(cmd, 'lift') && cmd.lift !== null) || (has(cmd, 'renote') && cmd.renote !== null)
-      || any(['account', 'profile', 'upload', 'start', 'askTick', 'optSms', 'optMarketing'], (k) => has(cmd, k) && !!cmd[k]))) return;
+      || any(['account', 'profile', 'upload', 'start', 'askTick', 'optSms', 'optMarketing', 'signIn'], (k) => has(cmd, k) && !!cmd[k]))) return;
     if (has(cmd, 'lift')) {
       const n = cmd.lift;
       S.lifted = n !== null && typeof n === 'object';
@@ -297,7 +297,7 @@ _TEMPLATE = r"""
       const at = targetGet(event);
       S.account = cmd.account === true ? true : cmd.account === 'element' && isEl(at) ? at : null;
     }
-    const FLAGS = ['profile', 'upload', 'asking', 'askTick', 'driving', 'appliedDismissed', 'start', 'optSms', 'optMarketing'];
+    const FLAGS = ['profile', 'upload', 'asking', 'askTick', 'driving', 'appliedDismissed', 'start', 'optSms', 'optMarketing', 'signIn'];
     for (let i = 0; i < FLAGS.length; i++) if (has(cmd, FLAGS[i])) S[FLAGS[i]] = cmd[FLAGS[i]] === true;
     if (has(cmd, 'applied')) S.applied = typeof cmd.applied === 'string' ? cmd.applied : null;
     for (let i = 0; i < onControl.length; i++) { try { onControl[i](cmd); } catch (e) {} }
@@ -364,6 +364,17 @@ _TEMPLATE = r"""
   // A frame inside the pressed element, a page's own click, or a click before the arming never counts.
   const armed = () => S.account;
   let press = null;  // {event, target, by, form}: the last press of Apply's (or, on a held page, Lisul's)
+  // The forms that had a button that sends as the last press went down (KAN-868): a page's pointerdown or mousedown
+  // handler can rename or take away a Submit before the click, which is when a press is recorded. The guard's own
+  // listener runs before any of the page's, so this is the form as it stood (pointerdown's, then mousedown's: each
+  // adds, as mousedown comes once a pointerdown handler may have renamed it). It only ever adds to what is blocked.
+  let downSending = [];
+  const wentDown = judged(() => {
+    const now_ = sendingForms();
+    for (let i = 0; i < now_.length; i++) if (!any(downSending, (f) => f === now_[i])) push(downSending, now_[i]);
+  });
+  on('pointerdown', wentDown);
+  on('mousedown', wentDown);
   let userClick = null;  // the click in dispatch that is Apply's or Lisul's own
   const user = (event) => event.isTrusted || event === userClick;
   on('click', judged((event) => {
@@ -376,8 +387,9 @@ _TEMPLATE = r"""
     if (!userClick) return;
     const target = targetGet(event);
     press = isEl(target) && (!at || at === true || contains(at, target))
-      ? {event, target, by: at, form: ownForm(up(target, 'button, input')) || up(target, 'form'), sending: sendingForms()}
+      ? {event, target, by: at, form: ownForm(up(target, 'button, input')) || up(target, 'form'), sending: sentAll()}
       : null;
+    downSending = [];  // each press's own: what went down before this click is in its record now
   }));
   // Plain code's press is on: armed, and the press came under this same arming.
   const accountClick = () => !!press && !!press.by && press.by === armed();
@@ -392,6 +404,8 @@ _TEMPLATE = r"""
   // The forms that had a button that sends as the press landed (KAN-710): the press's own handlers may rename or take
   // away a form's Submit, then post it, but a form that had one is never a step's.
   const sendingForms = () => { const out = [], forms = all(D, 'form'); for (let i = 0; i < forms.length; i++) if (formSends(forms[i])) push(out, forms[i]); return out; };
+  // Those as the press went down, and as it landed.
+  const sentAll = () => { const out = sendingForms(); for (let i = 0; i < downSending.length; i++) push(out, downSending[i]); return out; };
   const hadSends = (form) => formSends(form) || (!!press && any(press.sending, (f) => f === form));
   const password = (form) => !!form && !!one(form, 'input[type=password]');
   // A sign-in or new account's form: one with a password box, which no application's final button is in.
@@ -1024,9 +1038,63 @@ _TEMPLATE = r"""
   const BUTTONS = 'button, input[type=submit], input[type=image], input[type=button], [role=button]';
   const formSends = (form) => any(all(form, BUTTONS), (n) => buttonSends(n)) || any(fields(form), (n) => buttonSends(n));
   const buttonSends = (n) => (tag(n) === 'BUTTON' || test(/^(submit|image|button)$/i, typeOf(n)) || attr(n, 'role') === 'button') && sends(n);
-  const posts = (form, submitter) => {
-    const method = (isEl(submitter) && text(attr(submitter, 'formmethod'))) || text(attr(form, 'method')) || 'get';
-    return lower(method) === 'post';
+  const methodOf = (form, submitter) =>
+    lower((isEl(submitter) && text(attr(submitter, 'formmethod'))) || text(attr(form, 'method')) || 'get');
+  const posts = (form, submitter) => methodOf(form, submitter) === 'post';
+  // A form whose submit only its own handlers can send by (GET, an unknown method, or a dialog's: a dialog's submit
+  // event runs the page's handlers all the same, round 2 of KAN-868's review).
+  const gets = (form, submitter) => !posts(form, submitter);
+  // A sign-in or account step (iCIMS's email step, KAN-703): its only boxes are an email or user name, passwords,
+  // ticks and hidden ones, and the page shows no other answer box, in or out of the form (a textarea or file box
+  // anywhere, or a shown box another form doesn't hold: round 2 of KAN-868's review put the answers outside the
+  // form, or moved them out as the Next was pressed). Its GET submit goes on as before (KAN-868).
+  const LOGIN_BOX = /e-?mail|user|login|account/i;
+  const iframeDoc = get(HTMLIFrameElement.prototype, 'contentDocument'), frameDoc = get(HTMLFrameElement.prototype, 'contentDocument');
+  const frameDocOf = (f) => (tag(f) === 'IFRAME' ? iframeDoc : frameDoc)(f);
+  // A form with a password box that plain code's sign-in posts: a POST form, as ever, or one that doesn't POST only
+  // under Apply's own sign-in press and as a sign-in step (round 5 of KAN-868's review: an application that makes an
+  // account as it applies, a GET form with a password box, went through every path's account click).
+  const passwordStep = (form, by) => posts(form, by) || (S.signIn === true && loginForm(form));
+  const knownRoots = [];  // every shadow root the guard heard, closed ones too: a sign-in step's page check reads them
+  const loginForm = (form) => {
+    const all_ = fields(form);
+    let named = false;
+    for (let i = 0; i < all_.length; i++) {
+      const n = all_[i], kind = lower(typeOf(n));
+      if (test(/^(hidden|password|checkbox|submit|button|reset|image)$/, kind) || tag(n) === 'FIELDSET' || tag(n) === 'BUTTON') continue;
+      if (tag(n) !== 'INPUT' || !test(/^(email|text)$/, kind)) return false;
+      if (kind !== 'email' && !test(LOGIN_BOX, text(attr(n, 'name')) + ' ' + text(attr(n, 'id')) + ' ' + text(attr(n, 'autocomplete'))
+        + ' ' + text(attr(n, 'aria-label')))) return false;
+      if (named) return false;  // one such box: a second is a field of something else
+      named = true;
+    }
+    if (!named) return false;
+    if (one(D, 'textarea, input[type=file], [contenteditable]:not([contenteditable=false]), [role=textbox], '
+      + '[role=combobox], [role=listbox], [role=radiogroup], [role=checkbox], [role=radio]')) return false;
+    const boxes = all(D, 'input, select');
+    for (let i = 0; i < boxes.length; i++) {
+      const n = boxes[i];
+      if (test(/^(hidden|password|submit|button|reset|image)$/, lower(typeOf(n)))) continue;
+      if (formOf(n) !== form) return false;  // an answer box elsewhere, shown or not, a radio or tick too (round 3)
+    }
+    // An answer box in an open shadow root, which the document's own query doesn't reach (round 3). A closed one
+    // can't be read: the residual of this exemption, with answers a script holds.
+    const BOX = 'input:not([type=hidden]):not([type=submit]):not([type=button]), select, textarea, [contenteditable]';
+    // Every root the guard has heard, closed ones too, and each frame of the page's own origin (round 4).
+    for (let i = 0; i < knownRoots.length; i++) { try { if (qs(knownRoots[i], BOX)) return false; } catch (e) { return false; } }
+    const frames = all(D, 'iframe, frame');
+    for (let i = 0; i < frames.length; i++) {
+      let doc = null;
+      try { doc = frameDocOf(frames[i]); } catch (e) { continue; }  // another site's frame: null, its own document
+      try { if (doc && docQs(doc, BOX)) return false; } catch (e) { return false; }
+    }
+    const hosts = all(D, '*');
+    for (let i = 0; i < hosts.length; i++) {
+      let root = null;
+      try { root = apply(openRootOf.get, hosts[i], []); } catch (e) {}
+      if (root && qs(root, 'input:not([type=hidden]):not([type=submit]):not([type=button]), select, textarea, [contenteditable]')) return false;
+    }
+    return true;
   };
   // A submit that would send the application (by its Submit/Send button, or with no
   // button, as a script's requestSubmit() or a page's own Enter key does, from a form
@@ -1141,7 +1209,7 @@ _TEMPLATE = r"""
       const href = text(postTarget(form, by));
       const target = (isEl(by) && text(attr(by, 'formtarget'))) || text(attr(form, 'target'));
       const words = isEl(by) ? slice(trim(innerText(by) || valueOf(by) || text(attr(by, 'aria-label'))), 0, 40) : '';
-      return 'a form submission (POST ' + slice(href, 0, 160) + (target ? ', into frame ' + slice(target, 0, 60) : '')
+      return 'a form submission (' + (posts(form, by) ? 'POST ' : 'GET ') + slice(href, 0, 160) + (target ? ', into frame ' + slice(target, 0, 60) : '')
         + ', by ' + (words ? 'the "' + words + '" button' : 'a script') + ')';
     } catch (e) {
       return 'a form submission';
@@ -1175,28 +1243,106 @@ _TEMPLATE = r"""
     // Plain code's sign-in, as above, but never a POST bound for the final URL: an application that makes an
     // account as it applies has a password box too (KAN-681).
     const apply_ = fromPress(form, by);
-    if (apply_ && password(form) && !postsFinal(form, by)) return;
+    if (apply_ && password(form) && !postsFinal(form, by) && passwordStep(form, by)) return;
     if (profileClick() && profileStep(by || form) && (!postsFinal(form, by) || profileOwnPage(form, by))) return;  // plain code's profile step, as above
     const final = by ? sends(by) : formSends(form);
     // A held page is Lisul's but for its Submit: a Next goes on. A button that says nothing that sends, in a form
     // that has a Submit, goes on only by his own press of it, never by a script's requestSubmit() (KAN-710).
     if (held() && !final && (!by || !formSends(form) || (!!press && contains(by, press.target)))) return;
-    if (final) stopNow(event);
     // Plain code's press posts a step: never a form that has a button that sends, whatever its submitter says
     // (another language, Done, a hidden one), nor one bound for the final URL (KAN-710).
     const step = apply_ && !postsFinal(form, by) && !hadSends(form) && !inShadow(form);
-    if (final || (posts(form, by) && !step)) {
+    // A GET form's submit reaches none of the page's handlers, whatever pressed it (KAN-868). Its own submit handler
+    // is how it sends (a React form's onSubmit posts the application by fetch, to any URL), so it can't be told from
+    // a step by where it goes, and the review of KAN-868 sent it past every test of the form's buttons: a Submit the
+    // press renamed or took away, one outside the form, a <div> of no role, words only in CSS. Only a POST form was
+    // judged, and the adversarial review of KAN-861 sent the application this way past both guards. So a wizard
+    // whose Next submits a GET form is a step no code presses: a Handoff, and the student's press on the held page.
+    // A sign-in step goes on only under plain code's own sign-in press (apply.account_pages, `signIn`), never a Next's
+    // account click: a page alone can't be told from an app dressed as one (round 3 of the review: answers kept in
+    // script, and plain code's Next arms the account click too).
+    const scripted = gets(form, by) && !(apply_ && S.signIn === true && loginForm(form));
+    if (final || scripted) stopNow(event);
+    if (final || scripted || (posts(form, by) && !step)) {
       prevent(event);
       note(formNamed(form, by));
     }
   });
   on('submit', judgeSubmit);
+  // A press that would submit a form that doesn't POST is cancelled at the window, before the press reaches the page
+  // (round 4 of KAN-868's review): a listener of the page's own on a shadow root, added before the guard heard that
+  // root (by a script inside it), heard the submit first, so the submit event can't be the only place it is stopped.
+  // A sign-in step under plain code's own sign-in press goes on, as at the submit; a held page's own press too.
+  const wouldSubmit = (event) => {
+    const path = composedPath(event);
+    const at = path.length ? path[0] : targetGet(event);
+    const button = up(at, 'button, input');
+    if (!button || !submitButton(button)) return null;
+    const form = formOf(button);
+    return form && !posts(form, button) ? {form, button} : null;
+  };
+  // What the submit judge lets go on, judged as the press comes: the Posting's Apply (KAN-725), plain code's sign-in
+  // with a password, a profile step's own click (KAN-647), and a sign-in step under plain code's sign-in press.
+  const pressAllowed = (form, button) => (starting !== null && button === starting)
+    || (fromPress(form, button) && password(form) && !postsFinal(form, button) && passwordStep(form, button))
+    || (profileClick() && profileStep(button))
+    || (fromPress(form, button) && S.signIn === true && loginForm(form));
+  on('click', judged((event) => {
+    if (lifted() || held()) return;
+    const found = wouldSubmit(event);
+    if (!found) return;
+    if (pressAllowed(found.form, found.button)) return;
+    prevent(event);
+    note(formNamed(found.form, found.button));
+  }));
   // A form in a shadow root: its submit event stays in the root (it isn't composed), so the guard hears it at each
   // root a script makes, and at each one a press passes through (one the page wrote, KAN-710). Such a form is never a
   // step's, a relay or an upload's: the guard can't be sure what of it the window misses. Its post is judged as it
   // leaves (the navigate check) all the same.
   const heardRoots = new WeakSet(), wsHas = fn(WeakSet.prototype, 'has'), wsAdd = fn(WeakSet.prototype, 'add');
-  const hearRoot = (root) => { if (!wsHas(heardRoots, root)) { wsAdd(heardRoots, root); listen(root, 'submit', judgeSubmit, true); } };
+  const hearRoot = (root) => {
+    if (!wsHas(heardRoots, root)) { wsAdd(heardRoots, root); push(knownRoots, root); listen(root, 'submit', judgeSubmit, true); }
+  };
+  // A root the page wrote (a declarative shadow root) that no press passes through: heard as a script submits a form
+  // in it, or dispatches an event there (a submit event of its own making), before that event is (KAN-868: a Next
+  // outside the root called the form's requestSubmit(), and its submit stayed in the root, unjudged).
+  const hearRootOf = (node) => { try { const root = rootOf(node); if (isRoot(root)) hearRoot(root); } catch (e) {} };
+  // A listener the page adds for submit, anywhere: the guard hears that node's root first, so its own listener there
+  // comes before the page's whatever way the page reached the root (round 5 of KAN-868's review: code inside a
+  // declarative root walked parentNode up to it, past every wrapped getter).
+  const pageListen = EventTarget.prototype.addEventListener;
+  defineProp(EventTarget.prototype, 'addEventListener', {value: function addEventListener(...args) {
+    try { if (lower(Str(args[0])) === 'submit') { if (isRoot(this)) hearRoot(this); else hearRootOf(this); } } catch (e) {}
+    return apply(pageListen, this, args);
+  }, writable: true, configurable: true});
+  const pageRequestSubmit = HTMLFormElement.prototype.requestSubmit;
+  if (typeof pageRequestSubmit === 'function') defineProp(HTMLFormElement.prototype, 'requestSubmit', {value: function requestSubmit(...args) {
+    hearRootOf(this);
+    // A script's submit of a form that doesn't POST, while guarded: refused before any listener hears it (round 4),
+    // but a sign-in step's under plain code's own sign-in press.
+    try {
+      if (isForm(this) && !lifted() && !held() && !posts(this, args[0])
+          && !pressAllowed(this, args[0] || null)) {
+        return note(formNamed(this, args[0] || null));
+      }
+    } catch (e) { return note('what the guard could not read (a form a script submitted)'); }
+    return apply(pageRequestSubmit, this, args);
+  }, writable: true, configurable: true});
+  // A closed root the page wrote is reached only through its element's internals; a press there by script is its
+  // click(): both hear the root first (round 2 of KAN-868's review: a Next outside it clicked its Submit).
+  const pageClick = HTMLElement.prototype.click;
+  defineProp(HTMLElement.prototype, 'click', {value: function click(...args) {
+    hearRootOf(this);
+    return apply(pageClick, this, args);
+  }, writable: true, configurable: true});
+  const closedRootOf = typeof ElementInternals === 'function' && gopd(ElementInternals.prototype, 'shadowRoot');
+  if (closedRootOf && closedRootOf.get) defineProp(ElementInternals.prototype, 'shadowRoot', {...closedRootOf,
+    get() { const root = apply(closedRootOf.get, this, []); try { if (root) hearRoot(root); } catch (e) {} return root; }});
+  const pageDispatch = EventTarget.prototype.dispatchEvent;
+  defineProp(EventTarget.prototype, 'dispatchEvent', {value: function dispatchEvent(...args) {
+    hearRootOf(this);
+    return apply(pageDispatch, this, args);
+  }, writable: true, configurable: true});
   const attachShadowOf = EP.attachShadow;
   EP.attachShadow = function (...args) { const root = apply(attachShadowOf, this, args); try { hearRoot(root); } catch (e) {} return root; };
   const isRoot = (x) => { try { return x !== D && nodeTypeOf(x) === 11 && !!hostOf(x); } catch (e) { return false; } };
@@ -1204,6 +1350,24 @@ _TEMPLATE = r"""
   for (const kind of ['pointerdown', 'mousedown', 'keydown', 'click']) on(kind, (event) => {
     try { const path = composedPath(event); for (let i = 0; i < path.length; i++) if (isRoot(path[i])) hearRoot(path[i]); } catch (e) {}
   });
+  // A root the page wrote is heard as soon as a script reaches it, before it can add a listener of its own there: by
+  // an element's shadowRoot, getRootNode() or an event's composedPath() (round 3 of KAN-868's review: the page's
+  // listener on a declarative root, added first, heard the submit before the guard's).
+  const openRootOf = gopd(EP, 'shadowRoot');
+  if (openRootOf && openRootOf.get) defineProp(EP, 'shadowRoot', {...openRootOf,
+    get() { const root = apply(openRootOf.get, this, []); try { if (root) hearRoot(root); } catch (e) {} return root; }});
+  const pageRootNode = NP.getRootNode;
+  defineProp(NP, 'getRootNode', {value: function getRootNode(...args) {
+    const root = apply(pageRootNode, this, args);
+    try { if (isRoot(root)) hearRoot(root); } catch (e) {}
+    return root;
+  }, writable: true, configurable: true});
+  const pagePath = EvP.composedPath;
+  defineProp(EvP, 'composedPath', {value: function composedPath(...args) {
+    const path = apply(pagePath, this, args);
+    try { for (let i = 0; i < path.length; i++) if (isRoot(path[i])) hearRoot(path[i]); } catch (e) {}
+    return path;
+  }, writable: true, configurable: true});
   const inShadow = (form) => { try { return rootOf(form) !== ownerDoc(form); } catch (e) { return true; } };
   const submit = HTMLFormElement.prototype.submit;
   HTMLFormElement.prototype.submit = function () {
@@ -2167,8 +2331,9 @@ def _tells(page) -> dict:
 
 def let_account_click(page, let: bool = True) -> None:
     """Let Apply's own next click on an account form's button through both guards (Workday's "Submit" in its Sign
-    in with email view, Sonos's, live), in every frame; `let=False` puts the guards back."""
-    control(page, {"account": let})
+    in with email view, Sonos's, live), in every frame; `let=False` puts the guards back. It is a sign-in's press
+    (`signIn`, KAN-868), so a sign-in step's form that doesn't POST goes on too."""
+    control(page, {"account": let, "signIn": let})
 
 
 @contextmanager
@@ -2339,18 +2504,19 @@ class DriveGuard:
         again, for the captcha wait. The rest of the guard stays on."""
         self._set_driving(False)
 
-    def let_account_click(self, element=None) -> bool:
+    def let_account_click(self, element=None, sign_in: bool = False) -> bool:
         """Let plain code's next click sign in or make an account: its button,
         and its POST form, go through this guard and a rehearsal's. A button
         that sends the form, a form that has one, and the application request
         are blocked still. Given the `element` it presses, only in that
         element's frame and only for a press on it (KAN-710): a frame inside
         it, or another form a script posts meanwhile, is blocked still. False when
-        the element holds a frame, where the press could land: it must not be pressed."""
+        the element holds a frame, where the press could land: it must not be pressed. `sign_in`: the press is
+        a sign-in step's own (apply.account_pages), whose GET form may go on when it is one (KAN-868)."""
         if element is None:
-            control(self._page, {"account": True})
+            control(self._page, {"account": True, "signIn": sign_in})
             return True
-        return control(self._page, {"account": "element"}, element=element) != "frame"
+        return control(self._page, {"account": "element", "signIn": sign_in}, element=element) != "frame"
 
     def may_press(self, element) -> bool:
         """Whether plain code may press `element`: False when it holds a frame (KAN-710), where the press could land
@@ -2374,8 +2540,10 @@ class DriveGuard:
         control(self._page, {"start": True})
 
     def arm(self) -> None:
-        control(self._page, {"lift": None, "account": False, "profile": False, "upload": False, "start": False}, (DRIVE,))
-        control(self._page, {"account": False, "profile": False, "upload": False, "start": False}, (REHEARSAL,))
+        control(self._page, {"lift": None, "account": False, "profile": False, "upload": False, "start": False,
+                             "signIn": False}, (DRIVE,))
+        control(self._page, {"account": False, "profile": False, "upload": False, "start": False, "signIn": False},
+                (REHEARSAL,))
         self._set_driving(True)
 
     def asking(self, on: bool, may_tick: bool = False) -> None:

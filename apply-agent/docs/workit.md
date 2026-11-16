@@ -69,6 +69,13 @@ call WorkIt from another module; add a method to `WorkIt` that uses `call`.
   This is the only write that doctor makes.
 - Each request sends the `User-Agent` `WorkIt-Apply/1`. Cloudflare, in
   front of WorkIt's API, refuses the Python-urllib user agent (error 1010).
+- A request to the live API, and the session's refresh at the live
+  Supabase Auth, trust only Cloudflare's certificate authorities, never the
+  computer's store (`workit.PINNED`, D28, KAN-836): a proxy the computer
+  trusts can't read the session or the Fill engine's download. Supabase is
+  behind Cloudflare too. Pinning the API alone left the refresh token
+  readable, and with it the download. A local stack is not pinned. The set and when to change it:
+  `docs/fill-engine.md`, "The connection is pinned".
 - `workit.LIVE` holds the live URLs and the anon key. They are the same
   public values as `autofiller_extension/src/shared/config.js`, and
   `test_workit_login.py` checks this. For a local WorkIt stack, set
@@ -366,3 +373,39 @@ tailored_resume` (the form gets the tailored file) and
 Sent resume) open Chromium. The backend test
 `backend/tests/test_sent_resumes.py -k tailored_resume_by_the_postings_link`
 runs the same routes on Postgres.
+
+## Send report (D26, KAN-837)
+
+The window's support form, "Report a problem": from Settings, or from an
+Application's tile, which picks that Application. The student chooses what
+it is about (`report.CATEGORIES`), writes what happened, says whether WorkIt
+may email them, and, with an Application picked, whether to include its
+record and log. Nothing is sent without their press. The form is W5's
+(`app_window.Bridge.review_report`, then `send_report`); it calls three
+functions in `apply/report.py`:
+
+- `build(category, note, profile, row=None, include=True, contact_ok=False)`
+  makes the report. With `row` and `include`, it reads the Record's own
+  files from its folder (answers, essays, verification, the questions asked
+  of Claude, the page's HTML and the form's screenshots) and the
+  Application's Trace, masked here first (`masked.Known`, from the Applicant
+  profile and the Answer bank beside it, and every email, phone and id in a
+  link); a long Trace keeps its first line and its last `TRACE_MAX`
+  characters. A general question (`row` None) is the student's words alone.
+  `profile` is the Applicant profile's file (`home.HOME /
+  "applicant-profile.yaml"`), never its folder: the mask reads a file it
+  can't as no values, and a folder passed in its place sent the name in
+  the log, so `build` raises ValueError when a log goes and `profile` is
+  not a file.
+- `parts(report)` lists what it holds, a line each with its size, for the
+  form to show before Send.
+- `send(report)` posts that same report through `WorkIt.send_report` to
+  `POST /apply-app/reports` and answers its id.
+
+WorkIt keeps a report until the team fixes its problem, then deletes it
+(`backend/app/routers/apply_reports.py`), as `/privacy` says. A pushed
+Record's link is a web page, so a Developer checkout's report holds no
+files, only the Trace.
+
+**Tests.** `tests/test_report.py` (in CI) and
+`backend/tests/test_apply_reports.py`.
