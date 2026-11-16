@@ -35,6 +35,7 @@ FINGERPRINT_LONGEST = timedelta(hours=24)
 # Pure functions
 # ---------------------------------------------------------------------------
 
+
 def fingerprint(external_ids: Iterable[str]) -> str:
     """8-char hex CRC32 of the sorted strings in *external_ids*, joined with ``\\0``."""
     joined = "\0".join(sorted(external_ids))

@@ -91,6 +91,7 @@ class TestIsQuietBoardDue:
         for i in range(100):
             key = f"ats/token-{i}"
             import zlib
+
             if zlib.crc32(key.encode()) % QUIET_EVERY != slot % QUIET_EVERY:
                 assert not is_quiet_board_due(key, slot, recent, now, has_kept=False)
                 return
@@ -102,6 +103,7 @@ class TestIsQuietBoardDue:
         recent = now - 60.0
         slot = quiet_slot(now)
         import zlib
+
         for i in range(100):
             key = f"ats/token-{i}"
             if zlib.crc32(key.encode()) % QUIET_EVERY == slot % QUIET_EVERY:
