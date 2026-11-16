@@ -88,8 +88,10 @@ for a student, not from `dashboard_page.py`.
   or checking, so no job shows twice. Submitted jobs are under "Applied".
 - **`src/view.ts`** turns `Dashboard.state()` into that pile and that list
   (`view`), names the pile in the heading (`headline`) and says the Usage
-  cap in words (`limit`). A tile wins over its item for the same posting,
-  but the job keeps the item's `id` and questions (what `/answer` names),
+  cap in words (`limit`). For the start screen it picks what Start runs
+  (`chosen`: the ticked jobs, then a pasted link not ticked already) and
+  says why there is no queue to tick (`queueNote`). A tile wins over its
+  item for the same posting, but the job keeps the item's `id` and questions (what `/answer` names),
   and the tile's place on the board (what `/show/<k>` names). Its tests:
   `npm test` (Node's test runner, in CI).
 - **`src/bridge.ts`** is the spec's bridge contract. `routes(token)`:
@@ -102,8 +104,9 @@ for a student, not from `dashboard_page.py`.
   self-contained file into the package, `src/apply/student_page/index.html`.
   Commit it with the source change: CI's `apply-window` job rebuilds it and
   fails on any difference. `npm run dev` serves the page on the mock; pick
-  a fixture with `?scenario=start|needs|ready|quiet` and the day's use with
-  `?usage=near|cap`.
+  a fixture with `?scenario=start|needs|ready|quiet`, the day's use with
+  `?usage=near|cap`, and the start screen's queue with
+  `?queue=empty|unread|refused`.
 - **Token:** `app_window.student_page(board)` puts SHIM and
   `<script>window.APPLY_TOKEN = "<board.token>"</script>` right after the
   page's `<meta charset="utf-8" />`, before its module script. A board
