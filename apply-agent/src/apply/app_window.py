@@ -244,19 +244,27 @@ ready.then(async () => {
 </script>""".replace("{style}", STYLE).replace("{ready}", READY_JS).replace("{disclosure}", DISCLOSURE)
 
 
+# The page's charset meta, as the developer page (`<meta charset="utf-8">`) and Vite (`<meta charset="utf-8" />`)
+# write it: what goes before the page's scripts is put right after it.
+CHARSET = re.compile(r'<meta charset="?utf-8"?\s*/?>', re.IGNORECASE)
+
+
+def _before_scripts(html: str, inserted: str) -> str:
+    """`html` with `inserted` right after its charset meta, before any script; at the very start with none."""
+    head = CHARSET.search(html)
+    return html[:head.end()] + inserted + html[head.end():] if head else inserted + html
+
+
 def page(dashboard: Dashboard) -> str:
     """The Apply window's page with SHIM before its scripts and no web font: a Developer checkout's window."""
-    html = FONTS.sub("", dashboard.page())
-    head = '<meta charset="utf-8">'
-    return html.replace(head, head + SHIM, 1) if head in html else SHIM + html
+    return _before_scripts(FONTS.sub("", dashboard.page()), SHIM)
 
 
 def student_page(dashboard: Dashboard) -> str:
     """The student page (KAN-867: window/, built into STUDENT_PAGE) for `dashboard`'s board, with SHIM and the
     window's token before its scripts: the page reads the token as window.APPLY_TOKEN and sends it with each edit."""
     token = f"<script>window.APPLY_TOKEN = {json.dumps(dashboard.token)};</script>"
-    head = '<meta charset="utf-8" />'
-    return STUDENT_PAGE.read_text(encoding="utf-8").replace(head, head + SHIM + token, 1)
+    return _before_scripts(STUDENT_PAGE.read_text(encoding="utf-8"), SHIM + token)
 
 
 class Bridge:

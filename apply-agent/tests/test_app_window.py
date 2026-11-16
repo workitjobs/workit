@@ -129,6 +129,17 @@ def test_the_apps_window_shows_the_student_page_with_the_shim_and_the_token_befo
     assert page.index(f'window.APPLY_TOKEN = "{board.token}"') < script
 
 
+def test_a_student_page_built_without_its_charset_meta_still_gets_the_shim_and_token_first(board, tmp_path, monkeypatch):
+    """Fault: a build that writes <meta charset> another way leaves the shim and token out, so the page runs the mock."""
+    built = tmp_path / "index.html"
+    built.write_text('<!doctype html><meta charset=UTF-8><script type="module">go()</script>', encoding="utf-8")
+    monkeypatch.setattr(app_window, "STUDENT_PAGE", built)
+    page = app_window.student_page(board)
+    script = page.index('<script type="module"')
+    assert page.index(SHIM) < script
+    assert page.index(f'window.APPLY_TOKEN = "{board.token}"') < script
+
+
 def test_a_window_that_runs_nothing_keeps_the_developer_page(board):
     """Fault: a Developer checkout's window, which has no queue or Start, loses the developer page."""
     assert Bridge(board, WorkIt(workit.LIVE))._page() == app_window.page(board)
