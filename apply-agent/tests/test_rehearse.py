@@ -62,7 +62,7 @@ from test_greenhouse_filler import board_listing_schools
 from test_run_answers import profile_with
 
 from apply import rehearsal, rescue, worker
-from apply.adapters import Adapters, Drive
+from apply.adapters import Adapters, Drive, UsageReading
 from apply.answer_bank import AnswerBank
 from apply.ashby import AshbyFiller
 from apply.claude_fill import ClaudeFill
@@ -101,11 +101,9 @@ class NeverSubmits:
 
 
 def adapters(site, claude=None, **more) -> Adapters:
-    more = {"tracker": InMemoryTracker(), "mailbox": FakeMailbox(), **more}
-    return Adapters(
-        feed=SimplifyFeed(lambda: b"[]"), site=site, claude=claude or FakeClaude(), usage=ScriptedUsage(),
-        clock=FakeClock(NOW), **more,
-    )
+    more = {"tracker": InMemoryTracker(), "mailbox": FakeMailbox(), "usage": ScriptedUsage(), "clock": FakeClock(NOW),
+            **more}
+    return Adapters(feed=SimplifyFeed(lambda: b"[]"), site=site, claude=claude or FakeClaude(), **more)
 
 
 def rehearse(urls, site, profile, claude=None, workers=1, **more) -> list[rehearsal.Rehearsed]:
@@ -147,6 +145,24 @@ def test_a_rehearsal_fills_the_form_to_its_last_page_and_never_submits(monkeypat
     assert fake.submissions == []
     line = done.line()
     assert system in line and "ready to submit" in line and f"{done.filled}/{done.asked} fields filled" in line
+
+
+def test_at_a_usage_limit_no_form_opens_until_it_resets(monkeypatch, tmp_path):
+    # The Student build's limit is WorkIt's Usage cap (ask_model.WorkItAsk.reading). Opened at it, each form was
+    # refused at its first ask and ended paused, never started again.
+    monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
+    reset = datetime(2026, 10, 16, 0, 0)
+    opened_while_paused, board = [], RecordingBoard()
+    with FakeJobServer(ARC_FORM) as fake:
+        clock = FakeClock(NOW, on_sleep=lambda: opened_while_paused.append(list(fake.workers)))
+        usage = ScriptedUsage(lambda: UsageReading(limited=True, resets_at=reset) if clock.now() < reset
+                              else UsageReading())
+        [done] = rehearse([ARC_URL], fake, profile_with(tmp_path), usage=usage, clock=clock, board=board)
+
+    assert opened_while_paused == [[]] and clock.slept == [reset]
+    assert done.outcome == "ready to submit", done.why
+    paused = board.runs.index({"paused_until": reset.isoformat(timespec="minutes")})
+    assert board.runs[paused + 1] == {"paused_until": None}
 
 
 def test_missing_facts_leave_their_fields_blank_and_are_listed(monkeypatch, tmp_path):

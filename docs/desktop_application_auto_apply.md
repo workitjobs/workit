@@ -188,9 +188,9 @@ profiles, and nothing of theirs changes.
    Submit in the Worker's window. Apply writes the Tracker on WorkIt.
 5. At the Usage cap, the run pauses with "Today's model use is reached;
    it resets at midnight UTC". The window always shows the use so far.
-   (Not yet: a Student run, a rehearsal, ends the job that hits the cap
-   instead of pausing, so the student page says "Stopped at today's limit"
-   and when the student can apply again; pausing it is left from W5.)
+   A Student run, a rehearsal, waits before its next form until the cap
+   resets (`rehearsal._after_the_limit`, KAN-837), and the window shows
+   the pause and when it goes on (`paused_until`).
 
 ### 3.3 The processes
 
@@ -517,11 +517,11 @@ by hand (W8).
 | # | Workstream | Waits for | v1 | Where it stands (2026-11-14) |
 |---|---|---|---|---|
 | W0 | Move Apply to `workitjobs/apply-agent` | KAN-723 merged into WorkIt's `main` | Yes, first | Not started. KAN-723's first parts are merged (#569, #577, #581); the open `apply-agent/` PRs (#554, #557, #403) merge or hold first |
-| W1 | Model route and Usage cap | None | Yes | Built (#577, #587, KAN-837): the Model route, the Usage cap, the 11 kinds (13 with W2's two picks) and the Question types on the server, the student's private values masked in every call, and Send report's route (D26). Left: reworded self-ID answers, which wait on the Fill engine saying which answers came from a self-ID fact (D8, section 3.4); the Orchestrator's pause on `GET /apply-app/usage` |
+| W1 | Model route and Usage cap | None | Yes | Built (#577, #587, KAN-837): the Model route, the Usage cap, the 11 kinds (13 with W2's two picks) and the Question types on the server, the student's private values masked in every call, Send report's route (D26), and the run's pause at the Usage cap (`GET /apply-app/usage`). Left: reworded self-ID answers, which wait on the Fill engine saying which answers came from a self-ID fact (D8, section 3.4) |
 | W2 | Filling with no model in the browser | None | Yes | Step 1 built (#590): what Apply can't fill is the student's, in the window's Fix here; a failed field is a Needs-you item with its planned answer; the emailed code's box. Step 2 built (KAN-861): the generic Filler, code only but for two small picks; on the six saved Lever forms it fills 114 of 126 (90%, code only) of the engine's planned answers right, Claude fill 122 (97%), in 5 to 10 times the time. Left: frames other than the top one, and live long-tail postings ("Done when"); any further work stays with the teammate, beside the Fillers they write for each job system |
 | W3 | What the Student build leaves out | None | Yes | Step 1 built (#581); `ask_model` fixed to `workit` (#590). Left: W8's compile flags |
 | W4 | Remove macOS-only code | None | Yes | Built (#576, #585). Left to others: `dashboard.py` (W5) and `window_capture` (W6); what stops Apply on Windows is F4's |
-| W5 | The app shell | W3, W4 (and W1 for sign-in and usage) | Yes | Built: sign-in (#609); the window with no port, first run, a run, Settings with Report a problem, and the Student build's Tracker in the data folder (KAN-858). Left: a Student run's pause at the Usage cap; the built app's sign-in link (W8) |
+| W5 | The app shell | W3, W4 (and W1 for sign-in and usage) | Yes | Built: sign-in (#609); the window with no port, first run, a run, Settings with Report a problem, and the Student build's Tracker in the data folder (KAN-858), and a Student run's pause at the Usage cap (KAN-837). Left: the built app's sign-in link (W8) |
 | W6 | The Worker extension on the store (spike first) | None | Yes | The spike passed; the store package is built (#570, #578). Blocked: the guards' per-run tokens (`worker-extension-todo.md`, item 0), then the first upload |
 | W7 | The engine download and its protection | W1 (sign-in) | Yes | Built (KAN-836): the two routes, the publish script, the app's download, decryption and signature check in memory, no engine file anywhere, and the pin. Each merge that moves the engine pointer publishes it (`publish-engine.yml`). Left by hand: the signing key, the `ApplyEngine` bucket and the workflow's environment and secret. Open: the WorkIt extension's public copy of the engine |
 | W8 | Compile, sign, notarize, update, publish | W3, W4, W5 | Yes | Not started |
@@ -809,10 +809,16 @@ its own instructions or a hostile schema.
   (section 3.4, next). The label pattern that dropped self-ID answers went
   in that PR, with the answers it dropped by mistake (a diversity essay,
   Rippling's school question).
-- **The Orchestrator's limit.** Today it pauses on Claude Code's 5-hour
-  and weekly windows (`orchestrator._resume_at`, `adapters.usage`). The
-  Student build reads `GET /apply-app/usage` instead and pauses at the
-  cap with its reset date.
+- **The Orchestrator's limit.** **Built** (KAN-837): with `ask_model:
+  workit` the run's usage (`adapters.usage`) is `WorkItAsk.reading`, which
+  reads `GET /apply-app/usage`. Once `used` reaches `cap`, no form opens
+  until `resets_at`: a rehearsal, the Student build's run, waits before
+  each link (`rehearsal._after_the_limit`), `apply run` waits before each
+  Application (`orchestrator._resume_at`), and the window shows the pause
+  with its time. A Developer checkout keeps Claude Code's 5-hour and
+  weekly windows beside it. Before this, the Student build never paused:
+  at the cap each link left opened its form, was refused at its first
+  ask and ended paused, and nothing started it again.
 - **Send report** (D26) uploads one Record and masked Trace through a
   WorkIt route; the server keeps it for the team. **Built** (KAN-837)
   as the support form above: `report.build` reads the Record's files from
@@ -1314,9 +1320,6 @@ Employer account's keychain item (`apply-ats`, one per site) before the
 folder goes, and names any the keychain kept.
 
 Left from W5:
-- **A Student run pauses at the Usage cap** and goes on at the reset, as
-  a live run does (`paused_until`): today `rehearsal.rehearse` ends the
-  job that hits it (KAN-875's follow-up).
 - **"Report this Application" on each Application's card** (KAN-867's
   page): the card calls `Bridge.review_report` with its Application's id,
   then `send_report`, as Settings' form does (above).

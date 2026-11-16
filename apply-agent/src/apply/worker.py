@@ -249,7 +249,7 @@ def apply_to(
     except NotAPosting as what:
         result = Result(Status.FAILED, f"{NOT_A_POSTING}: {what}")
     except UsageLimitHit as hit:
-        result = Result(Status.PAUSED, f"Max usage limit hit; resumes after {hit.resets_at or 'the reset'}")
+        result = Result(Status.PAUSED, f"Usage limit reached until {hit.resets_at or 'it resets'}")
     if result.status == Status.SUBMITTED:  # only what an employer was sent: never a fill, a Hold or a rehearsal
         ledger = sameness.Ledger()
         for e in planned.written:
