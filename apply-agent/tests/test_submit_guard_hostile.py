@@ -666,7 +666,20 @@ DELAYS = SENDS_AFTER | GENERIC_SENDS_AFTER
 MOVED = {"a session dialog whose Continue sends after the next mouse move",
          "a generic session dialog whose I'm still here sends after the next mouse move"}
 PAGES |= SESSION_PAGES | GENERIC_SESSION_PAGES
-BUTTON = {"an Amazon card whose Continue sends": "Continue", "a review page's Apply with its answers hidden": "Apply", "a page that vouches for its own Apply": "Apply", "a Submit in another language beside a Submit": "Envoyer ma candidature", "a Submit in a shadow root": "Submit application",
+# A Sign in with Google in the application form, which the provider sign-in's Google press looks for (KAN-878).
+GOOGLE_PAGES = {
+    # Its Sign in with Google is the form's submit button: the press would post the application.
+    "a Sign in with Google that is the form's submit button": {START: f"""<title>Apply</title><form method=post action="{FINAL}">
+        <label>First name <input name=first value=Test></label><button id=b>Sign in with Google</button></form>{SEND_ALL}
+        <script>document.getElementById('b').addEventListener('click', () => sendAll());</script>"""},
+    # Its Sign in with Google is a type=button whose own click handler posts the application.
+    "a Sign in with Google whose click sends the application": {START: f"""<title>Apply</title><form method=post action="{FINAL}">
+        <label>First name <input name=first value=Test></label><button type=button id=b>Sign in with Google</button>
+        <button>Submit application</button></form>{SEND_ALL}
+        <script>document.getElementById('b').addEventListener('click', () => {{ sendAll(); document.forms[0].requestSubmit(); }});</script>"""},
+}
+PAGES |= GOOGLE_PAGES
+BUTTON = {**{name: "Sign in with Google" for name in GOOGLE_PAGES}, "an Amazon card whose Continue sends": "Continue", "a review page's Apply with its answers hidden": "Apply", "a page that vouches for its own Apply": "Apply", "a Submit in another language beside a Submit": "Envoyer ma candidature", "a Submit in a shadow root": "Submit application",
           "a profile pop-up that is the application": "Submit", "a profile pop-up that turns into the application": "Submit",
           "a one-page form in a modal": "Continue", "an application that makes an account": "Continue",
           "a button whose words change after the check": "Continue",
@@ -820,9 +833,17 @@ def amazon_continue(page, drive, name):
         raise Handoff(str(broke)) from broke  # checked all the same
 
 
+def google_press(page, drive, name):
+    """The provider sign-in's press of a page's Sign in with Google, then its wait for Google's chooser (KAN-878)."""
+    from apply import provider_sign_in
+
+    provider_sign_in.with_google(page, "test.person@example.com", "Example", drive, wait=2)
+
+
 PATHS = {"plain code's Next": plain_next, "the Amazon Filler's Continue": amazon_continue, "the profile click": profile_click, "the account click": account_click,
          "Ask Claude's press": ask_press, "Ask Claude's press of a listed step": ask_press_listed,
-         "the keep-alive's stay press": stay_press, "the keep-alive's generic stay press": generic_stay_press}
+         "the keep-alive's stay press": stay_press, "the keep-alive's generic stay press": generic_stay_press,
+         "the provider sign-in's Google press": google_press}
 
 
 # PR 477's guard holes (KAN-710): each page a hole the guards had, so each runs on PRs, never only nightly. A page
@@ -911,12 +932,15 @@ LISTED_STEP_PAGES = frozenset({
 })
 SESSION_DIALOG_PAGES = frozenset(SESSION_PAGES) | frozenset(GENERIC_SESSION_PAGES)
 AMAZON_PAGES = frozenset({"an Amazon card whose Continue sends"})
+GOOGLE_PAGE_SET = frozenset(GOOGLE_PAGES)
 APPLIES = {"the profile click": PROFILE_PAGES, "Ask Claude's press of a listed step": LISTED_STEP_PAGES,
-           "the keep-alive's stay press": SESSION_DIALOG_PAGES, "the keep-alive's generic stay press": SESSION_DIALOG_PAGES}
+           "the keep-alive's stay press": SESSION_DIALOG_PAGES, "the keep-alive's generic stay press": SESSION_DIALOG_PAGES,
+           "the provider sign-in's Google press": GOOGLE_PAGE_SET}
 # The kind of page each path was written against, in this order: a page's one PR pair takes the first that holds it.
 OWN = {"the Amazon Filler's Continue": AMAZON_PAGES, "the profile click": PROFILE_PAGES,
        "Ask Claude's press of a listed step": LISTED_STEP_PAGES, "the keep-alive's stay press": frozenset(SESSION_PAGES),
-       "the keep-alive's generic stay press": frozenset(GENERIC_SESSION_PAGES)}
+       "the keep-alive's generic stay press": frozenset(GENERIC_SESSION_PAGES),
+       "the provider sign-in's Google press": GOOGLE_PAGE_SET}
 
 
 def _timers(html: str) -> list:
@@ -1705,7 +1729,7 @@ def plain(pages: dict[str, str], first: bool = False):
 
 
 PLAIN_PATHS = ["plain code's Next", "the Amazon Filler's Continue", "the profile click", "the account click", "Ask Claude's press of a listed step",
-               "the keep-alive's stay press", "the keep-alive's generic stay press"]
+               "the keep-alive's stay press", "the keep-alive's generic stay press", "the provider sign-in's Google press"]
 
 
 @pytest.mark.parametrize(("page_name", "path"), plain_pairs_on_prs(PLAIN_PATHS))

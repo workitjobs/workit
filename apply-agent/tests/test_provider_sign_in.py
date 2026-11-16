@@ -5,7 +5,9 @@ provider button and sends nothing. On the fake Microsoft Careers (tests/fake_mic
 
 import json
 import re
+from contextlib import contextmanager
 
+import pytest
 from fake_microsoft import APPLY, URL, FakeMicrosoftServer, sign_in
 from fakes import FakeClaude, RecordingBoard
 from test_rehearse import adapters
@@ -14,6 +16,7 @@ from test_run_answers import profile_with
 
 from apply import provider_sign_in, rehearsal, worker
 from apply.claude_fill import ClaudeFill
+from apply.model import Handoff
 from apply.profile import ApplicantProfile
 
 QUESTIONS = [{"label": label, "kind": "text", "required": True, "options": []}
@@ -76,10 +79,10 @@ def test_a_claude_fill_stop_at_a_provider_sign_in_goes_on_by_itself_once_signed_
             return []
 
     board, lines = Lisul(), []
-    with FakeMicrosoftServer() as server:
+    with FakeMicrosoftServer() as server:  # provider_sign_in off: the sign-in is his (KAN-878)
         [first] = rehearsal.rehearse([URL], adapters(server, FakeClaude(driver=microsoft_driver), board=board),
-                                     ApplicantProfile.load(profile_with(tmp_path)), 1, keep_open=True,
-                                     out=lines.append)
+                                     ApplicantProfile.load(profile_with(tmp_path, {"provider_sign_in": "off"})), 1,
+                                     keep_open=True, out=lines.append)
 
     # Paused as a sign-in, not as Claude's free-text handoff, with Resume offered.
     assert first.outcome == rehearsal.SIGN_IN and "asks you to sign in (Google, Microsoft, LinkedIn, Facebook)" in first.why
@@ -101,3 +104,54 @@ def test_a_claude_fill_stop_with_no_provider_sign_in_keeps_no_signed_in_check():
     assert fill.signed_in is None and worker.ResumeCheck(fill).signed_in is None
     fill._at_provider = True  # the last drive stopped at a provider sign-in
     assert worker.ResumeCheck(fill).signed_in is provider_sign_in.signed_in
+
+
+# --- Sign in with Google by plain code (KAN-878)
+
+ACCOUNT = "test.person@example.com"
+
+
+@contextmanager
+def _at_sign_in(server):
+    """The fake's apply page at its sign-in window, under the drive guard, as Claude fill leaves it."""
+    from apply.submit_guard import DriveGuard
+
+    with server.open(URL) as page:
+        page.get_by_role("button", name="Apply now").click()
+        page.wait_for_url(APPLY)
+        yield page, DriveGuard(page)
+
+
+@pytest.mark.parametrize("google", ["chooser", "consent"])
+def test_a_google_sign_in_picks_the_applicants_account_and_comes_back_signed_in(google):
+    # Fault: the Google button not pressed, the chooser's pick missed in the window it opened, Google's Continue for
+    # the site left, or anything typed into Google's pages.
+    server = FakeMicrosoftServer(google=google, account=ACCOUNT)
+    with _at_sign_in(server) as (page, guard):
+        provider_sign_in.with_google(page, ACCOUNT, "Microsoft", guard, wait=15)
+        assert provider_sign_in.signed_in(page)
+    assert server.provider_opened == ["/oauth/google"] and server.picked == [ACCOUNT]
+    assert server.typed == [] and server.submissions == []
+
+
+@pytest.mark.parametrize(("google", "said"), [("password", "a password"), ("passkey", "a passkey"),
+                                              ("rejected", "may not be secure")])
+def test_a_google_page_that_asks_for_more_than_the_pick_is_the_applicants(google, said):
+    # Fault: Apply waiting out a Google page it must never answer, or typing into it.
+    server = FakeMicrosoftServer(google=google, account=ACCOUNT)
+    with _at_sign_in(server) as (page, guard), pytest.raises(Handoff, match=f"^Needs sign-in: .*{said}"):
+        provider_sign_in.with_google(page, ACCOUNT, "Microsoft", guard, wait=15)
+    assert server.typed == [] and server.submissions == []
+
+
+def test_a_claude_fill_form_behind_a_google_sign_in_is_signed_in_and_filled_with_no_pause(tmp_path):
+    # Fault (KAN-878): the policy's Google sign-in never tried, so the form waits for the applicant as before, or
+    # tried and the fill not driven again from the signed-in page.
+    profile = ApplicantProfile.load(profile_with(tmp_path))
+    login = profile.get("identity.email")
+    with FakeMicrosoftServer(google="chooser", account=login) as server:
+        [done] = rehearsal.rehearse([URL], adapters(server, FakeClaude(driver=microsoft_driver)), profile, 1,
+                                    keep_open=False, out=lambda line: None)
+    assert done.outcome == "ready to submit", done.why
+    assert server.provider_opened == ["/oauth/google"] and server.picked == [login]
+    assert server.typed == [] and server.submissions == []

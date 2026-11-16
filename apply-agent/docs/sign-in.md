@@ -37,11 +37,21 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
   Careers (apply.careers.microsoft.com, an Eightfold site) opens a window on Apply now that offers
   "Sign in using Google", Microsoft, LinkedIn and Facebook. When Claude fill says it is blocked and the
   page shows such a button (by its name, or Eightfold's `candidateAuth<Provider>LoginButton` class),
-  the Handoff is Needs sign-in and names the providers. Apply never presses a provider button, never
-  types into the sign-in and never sees a password: Lisul signs in on the page. Signed in means no
-  provider button shows and the account menu does (Eightfold's "Account manager for <name>", or a
-  Sign out); Microsoft's header shows a "Sign in" button until then. The pause then goes on by itself
-  (`docs/held-forms.md`). A site whose account menu has another name waits for Resume, as before.
+  Apply signs in with Google where it is offered and `policies.yaml: provider_sign_in` is `google`
+  (the default, KAN-878): plain code presses the one Google button, through the guards as its account
+  click, then picks Lisul's account (`identity.email`) in Google's chooser, in the page or the window
+  the button opened, and presses Continue on Google's consent for the site the first time
+  (`provider_sign_in.with_google`, sharing `google_sign_in.py` with Workday's Google sign-in). Claude
+  fill then drives again from the signed-in page, once per form. It never types into Google's pages
+  and never sees a password: a page that asks for a password, a code or a passkey, Google's refusal of
+  the browser, a site that doesn't come back signed in within 60 s, no or two Google buttons, and a
+  Google button that would submit a form are each a Needs sign-in Handoff. So is a sign-in that
+  offers no Google, and every sign-in when the policy is anything else: Lisul signs in on the page.
+  Signed in means no provider button shows and the account menu does (Eightfold's "Account manager
+  for <name>", or a Sign out); Microsoft's header shows a "Sign in" button until then. The pause then
+  goes on by itself (`docs/held-forms.md`). A site whose account menu has another name waits for
+  Resume, as before. The Worker's Chrome must be signed in to Google once by hand (the seed), as for
+  Workday's `google`. The Google press is a click path in `tests/test_submit_guard_hostile.py`.
 - Oracle's cookie banner covers the email step's Next button.
   `oracle.sign_in` declines the optional cookies first (`_decline_cookies`).
 - Workday's Create Account is a `POST <site>/register` that answers JSON
