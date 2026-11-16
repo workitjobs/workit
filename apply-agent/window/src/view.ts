@@ -1,7 +1,7 @@
 // Apply's state, as the student sees it: a pile of things to do, one at a
 // time, and the jobs WorkIt is still working on. A job is in one or the other.
 import type { ApplyState, Shown } from "./apply.ts";
-import type { Usage } from "./bridge.ts";
+import type { Queued, Usage } from "./bridge.ts";
 
 export type Status = "filling" | "checking" | "todo" | "submitted" | "stopped";
 
@@ -113,4 +113,19 @@ const clock = (d: Date) => d.toLocaleTimeString([], { hour: "numeric", minute: "
 export function limit(usage: Usage, at: (resets: Date) => string = clock): string {
   if (usage.used >= usage.cap) return `You've reached today's limit, so applying is paused. It starts again at ${at(new Date(usage.resets_at))}.`;
   return usage.used >= usage.cap * 0.8 ? "You're close to today's limit." : "";
+}
+
+// What Start runs: the queue's ticked jobs, then the pasted link if it is one and isn't ticked already.
+export function chosen(queue: Queued[], ticked: boolean[], pasted: string): string[] {
+  const links = queue.filter((_, i) => ticked[i]).map((q) => q.url);
+  const link = pasted.trim();
+  return /^https?:\/\/\S+$/.test(link) && !links.includes(link) ? [...links, link] : links;
+}
+
+export const startWords = (n: number) => `Start applying to ${plural(n, "job")}`;
+
+// The line over the paste box: why there is no queue to tick. Nothing while it is read, or once it lists jobs.
+export function queueNote(queue: Queued[] | Error | null): string {
+  if (queue instanceof Error) return queue.message;
+  return queue?.length === 0 ? "Your Auto Apply queue on WorkIt is empty. Add jobs to it on WorkIt, or paste a job's link below." : "";
 }

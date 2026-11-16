@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import type { Shown } from "./apply.ts";
-import { classify, headline, limit, view } from "./view.ts";
+import { chosen, classify, headline, limit, queueNote, startWords, view } from "./view.ts";
 
 const job = (over: Partial<Shown>): Shown => ({ tone: "filling", company: "Stripe", role: "SWE Intern", posting_url: "https://s", ...over });
 
@@ -104,4 +104,27 @@ test("the daily limit is said in words only from 80%, never as tokens", () => {
   assert.equal(limit(usage(800), at), "You're close to today's limit.");
   assert.equal(limit(usage(1000), at), "You've reached today's limit, so applying is paused. It starts again at 05:00.");
   assert.equal(limit(usage(1200), at), "You've reached today's limit, so applying is paused. It starts again at 05:00.");
+});
+
+const QUEUE = [
+  { url: "https://stripe/1", company: "Stripe", title: "SWE Intern" },
+  { url: "https://ramp/1", company: "Ramp", title: "New Grad SWE" },
+];
+
+test("Start sends the ticked jobs and the pasted link, and counts them", () => {
+  assert.deepEqual(chosen(QUEUE, [true, false], " https://figma/1 "), ["https://stripe/1", "https://figma/1"]);
+  assert.equal(startWords(2), "Start applying to 2 jobs");
+  assert.equal(startWords(1), "Start applying to 1 job");
+});
+
+test("a pasted job already ticked in the queue counts once, and text that isn't a link not at all", () => {
+  assert.deepEqual(chosen(QUEUE, [true, true], "https://ramp/1"), ["https://stripe/1", "https://ramp/1"]);
+  assert.deepEqual(chosen(QUEUE, [false, false], "ramp.com"), []);
+});
+
+test("an empty queue says so and points to WorkIt and the paste box; an unread one says #613's error", () => {
+  assert.equal(queueNote([]), "Your Auto Apply queue on WorkIt is empty. Add jobs to it on WorkIt, or paste a job's link below.");
+  assert.equal(queueNote(new Error("WorkIt Auto Apply couldn't read your queue (offline). Paste a link instead.")), "WorkIt Auto Apply couldn't read your queue (offline). Paste a link instead.");
+  assert.equal(queueNote(QUEUE), "");
+  assert.equal(queueNote(null), ""); // still reading it
 });
