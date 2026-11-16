@@ -7,6 +7,9 @@ which refuses every POST), filled as Test Person; nothing presses a Submit.
     uv run python tools/held_forms_tabs.py fill [--form lever-immuta]
     uv run python tools/held_forms_tabs.py memory [--form lever-immuta] [--held 5]
     uv run python tools/held_forms_tabs.py ticks
+    uv run python tools/held_forms_tabs.py raw
+
+Add --no-chrome-sandbox inside a container with no user namespaces (Chrome's own sandbox can't start).
 
 Each case starts Chrome for Testing (Playwright's build, channel None) headed, with the CDP
 Workers' own launch options (WorkerBrowsers.launch_options), on a scratch profile under
@@ -14,10 +17,13 @@ $TMPDIR/held-forms-tabs, and closes it after.
 """
 
 import argparse
+import json
 import shutil
+import subprocess
 import sys
 import tempfile
 import time
+import urllib.request
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -43,12 +49,19 @@ CASES = {  # name: (Playwright's three left in, extra flags, the second form in 
     "as Workers run (Playwright flags), tab": (True, [], False),
 }
 WINDOW = 3.0  # s each count runs
+CHROME_SANDBOX = True  # off with --no-chrome-sandbox: a container without user namespaces can't start it
 
-# Counts animation frames and 0.1 s timer ticks from the moment it runs; read with COUNTED.
-COUNTER = """() => { window.__held = {frames: 0, ticks: 0};
+# Counts animation frames and 0.1 s timer ticks from the moment it runs (run again, it starts the count
+# again, never a second loop); read with COUNTED.
+COUNTER = """() => { const again = !!window.__held; window.__held = {frames: 0, ticks: 0}; if (again) return;
   const frame = () => { window.__held.frames++; requestAnimationFrame(frame); }; requestAnimationFrame(frame);
   setInterval(() => window.__held.ticks++, 100); }"""
 COUNTED = "() => ({...window.__held, visibility: document.visibilityState})"
+# The same counts with no CDP client attached: each 3 s the page writes them to its title, which
+# Chrome's /json/list shows without attaching to the page.
+TITLED = ("data:text/html,<script>let f=0,t=0;const r=()=>{f++;requestAnimationFrame(r)};requestAnimationFrame(r);"
+          "setInterval(()=>t++,100);setInterval(()=>{document.title=NAME+' '+document.visibilityState+"
+          "' frames='+f+' ticks='+t;f=0;t=0},3000)</script>")
 
 
 @contextmanager
@@ -59,6 +72,7 @@ def worker(extra: list[str], playwrights: bool = True):
     browsers = WorkerBrowsers(profiles=SCRATCH, headless=False, channel=None)
     options = browsers.launch_options(0)
     options["args"] = options["args"] + extra
+    options["chromium_sandbox"] = CHROME_SANDBOX
     if not playwrights:
         options["ignore_default_args"] = PLAYWRIGHTS
     with sync_playwright() as playwright:
@@ -87,7 +101,7 @@ def second_page(context, front, window: bool):
 def counts(page, seconds: float = WINDOW) -> dict:
     """Frames and ticks on `page` over `seconds`."""
     page.evaluate(COUNTER)
-    time.sleep(seconds)
+    page.wait_for_timeout(seconds * 1000)
     return page.evaluate(COUNTED)
 
 
@@ -135,7 +149,9 @@ def screencast_frames(context, page, seconds: float = WINDOW) -> int:
     page.evaluate("""() => { const box = document.createElement('div'); box.id = '__held_box';
       box.style.cssText = 'position:fixed;top:0;left:0;z-index:99999;background:#ff0;font:20px sans-serif';
       document.body.appendChild(box); let n = 0; setInterval(() => box.textContent = String(n++), 50); }""")
-    time.sleep(seconds)
+    # The sync API delivers a CDP event only while the script is inside a Playwright call: time.sleep
+    # made none, so frames were neither delivered nor acknowledged (3 frames in 3 s, in front too).
+    page.wait_for_timeout(seconds * 1000)
     session.send("Page.stopScreencast")
     session.detach()
     return len(got)
@@ -211,12 +227,47 @@ def case_ticks() -> None:
             behind = second_page(context, front, window)
             behind.goto("data:text/html,<p>behind")
             print(f"[{name}] front {counts(front)}; behind {counts(behind)}; "
+                  f"front screencast {screencast_frames(context, front)}; "
                   f"behind screencast {screencast_frames(context, behind)}")
+
+
+def case_raw() -> None:
+    """Two tabs of a Chrome that no Playwright drives, read through /json/list; then the same Chrome
+    with Playwright attached (connect_over_cdp), which turns on focus emulation in each page."""
+    with sync_playwright() as playwright:
+        chrome = playwright.chromium.executable_path
+        for name, extra in (("Chrome defaults", []), ("no-throttle flags", NO_THROTTLE)):
+            shutil.rmtree(SCRATCH, ignore_errors=True)
+            profile = SCRATCH / "raw"
+            args = [chrome, f"--user-data-dir={profile}", "--remote-debugging-port=0", "--no-first-run", *extra,
+                    *([] if CHROME_SANDBOX else ["--no-sandbox"]),
+                    TITLED.replace("NAME", "'front'"), TITLED.replace("NAME", "'behind'")]  # the first is in front
+            process = subprocess.Popen(args, stderr=subprocess.DEVNULL)
+            try:
+                port_file = profile / "DevToolsActivePort"
+                while not port_file.exists():
+                    time.sleep(0.1)
+                port = port_file.read_text().split()[0]
+                time.sleep(7)  # two counting windows, the first one partly before the pages loaded
+                print(f"[{name}] no client attached: {titles(port)}")
+                browser = playwright.chromium.connect_over_cdp(f"http://127.0.0.1:{port}")
+                browser.contexts[0].pages[0].wait_for_timeout(7000)
+                print(f"[{name}] Playwright attached: {titles(port)}")
+                browser.close()
+            finally:
+                process.terminate()
+                process.wait()
+
+
+def titles(port: str) -> list[str]:
+    """Each page's title, from Chrome's /json/list: no CDP client attaches to read it."""
+    with urllib.request.urlopen(f"http://127.0.0.1:{port}/json/list") as reply:
+        return [target["title"] for target in json.load(reply) if target["type"] == "page"]
 
 
 def sync_version() -> str:
     with sync_playwright() as playwright:
-        browser = playwright.chromium.launch()
+        browser = playwright.chromium.launch(chromium_sandbox=CHROME_SANDBOX)
         try:
             return browser.version
         finally:
@@ -225,16 +276,21 @@ def sync_version() -> str:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("case", choices=("fill", "memory", "ticks"))
+    parser.add_argument("case", choices=("fill", "memory", "ticks", "raw"))
     parser.add_argument("--form", default="lever-immuta")
     parser.add_argument("--held", type=int, default=5)
+    parser.add_argument("--no-chrome-sandbox", action="store_true", help="for a container with no user namespaces")
     args = parser.parse_args()
+    global CHROME_SANDBOX
+    CHROME_SANDBOX = not args.no_chrome_sandbox
     if args.case == "fill":
         case_fill(args.form)
     elif args.case == "memory":
         case_memory(args.form, args.held)
-    else:
+    elif args.case == "ticks":
         case_ticks()
+    else:
+        case_raw()
 
 
 if __name__ == "__main__":
