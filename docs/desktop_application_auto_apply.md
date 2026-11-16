@@ -187,6 +187,9 @@ profiles, and nothing of theirs changes.
    Submit in the Worker's window. Apply writes the Tracker on WorkIt.
 5. At the Usage cap, the run pauses with "Today's model use is reached;
    it resets at midnight UTC". The window always shows the use so far.
+   (Not yet: a Student run, a rehearsal, ends the job that hits the cap
+   instead of pausing, so the student page says "Stopped at today's limit"
+   and when the student can apply again; pausing it is left from W5.)
 
 ### 3.3 The processes
 
@@ -1219,8 +1222,10 @@ its usage line, and Settings. `tests/test_first_run.py` and
 
 **The Student build's window shows the student page** (KAN-867,
 KAN-869), in place of the developer Apply window: one to-do card at a
-time, "Still working on", Applied, the queue and Start when no run goes,
-the Usage cap in words from 80%, and Settings. Its source is
+time, "Still working on", Applied (this run's, then those on WorkIt from
+before), the queue and Start when no run goes (Add jobs brings it back
+whenever no run is going; a run refuses a second), the Usage cap in words
+from 80%, and Settings. Its source is
 `apply-agent/window/` (React, Tailwind, the website's tokens and Inter),
 built by Vite into one self-contained file committed in the package
 (`apply/student_page/index.html`), so the app ships it with no Node; CI
@@ -1230,11 +1235,14 @@ reads `/state` and sends `/answer`, `/approve`, `/show/<k>`,
 `/fill-again`, `/stop` (Stop applying) and `/remove` (one job not started
 yet) with plain `fetch` and the token, which SHIM carries to the
 same handler and checks, with no port; it uses the bridge's app methods
-(queue, start, status, usage, settings) only when the window has them. A
+(queue, applied, start, status, usage, settings) only when the window has them. A
 Developer checkout's window, which runs nothing, keeps the developer page.
 A run's board takes the student's answers (`answers_tab.saving_answers`).
 
 Left from W5:
+- **A Student run pauses at the Usage cap** and goes on at the reset, as
+  a live run does (`paused_until`): today `rehearsal.rehearse` ends the
+  job that hits it (KAN-875's follow-up).
 - **Report a problem** (D26, W1's #614): a form from Settings and from
   each Application's tile ("Report this Application"): what it is about,
   what happened, "WorkIt may email me about this" and, with an
