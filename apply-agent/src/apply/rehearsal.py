@@ -536,10 +536,12 @@ def rehearse(
             settles(n).set()
             return
         try:
-            with _Held(gate):
+            try:
                 done = _rehearse(url, site, adapters, profile, calibration.hold, accounts, n, held,
                                  "getting ready" if together else "", pause=paused, force=force, draft=draft,
                                  reopened=reopened)
+            finally:
+                gate.release()  # its Worker's turn, taken above
         except SetupError as error:  # before the form opened (no Fill engine, say): one line, no traceback
             done = Rehearsed(Posting("", "", "", url), FAILED, f"setup: {error}")
         finally:
@@ -672,19 +674,6 @@ def rehearse(
             thread.join(30)
         out("Closed the browsers.")
     return ended
-
-
-class _Held:
-    """A lock already acquired, released on leaving the `with`."""
-
-    def __init__(self, lock: threading.Semaphore):
-        self._lock = lock
-
-    def __enter__(self) -> None:
-        pass
-
-    def __exit__(self, *exc) -> None:
-        self._lock.release()
 
 
 def _until(release: threading.Event) -> str:
