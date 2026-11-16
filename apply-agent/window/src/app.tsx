@@ -35,7 +35,7 @@ export function App({ bridge }: { bridge: Bridge }) {
     if (v) document.title = v.todo.length ? `WorkIt Auto Apply (${v.todo.length})` : "WorkIt Auto Apply";
   }, [v]);
   if (!v) return <Connecting lost={lost} />;
-  // No run going: the queue, when the window has one to show (#613's app methods).
+  // No run going: the queue, when the window has one to show (app_window.Bridge's app methods).
   const first = !!app.queue && !v.todo.length && !v.working.length && !v.queued && !v.applied.length && !v.stopped.length;
   return (
     <div className="min-h-dvh">
@@ -87,7 +87,7 @@ function Connecting({ lost }: { lost: boolean }) {
 }
 
 // Stop applying: asked once more, since the run ends. Nothing is submitted, and filled forms stay as they are;
-// #613 then shows the queue again (the page reloads).
+// app_window.Bridge then shows the queue again (the page reloads).
 function Stop({ bridge, fail }: { bridge: Bridge; fail: Fail }) {
   const [step, setStep] = useState<"idle" | "asking" | "stopping">("idle");
   const stop = () => {
@@ -259,7 +259,7 @@ function Row({ job }: { job: Job }) {
 }
 
 // The student's Auto Apply queue on WorkIt, every job ticked, and one pasted link: Start runs them. Once it is
-// pressed the queue leaves the view; #613 swaps in the run's board, and this screen again when the run ends.
+// pressed the queue leaves the view; app_window.Bridge swaps in the run's board, and this screen again when the run ends.
 function Start({ app }: { app: AppMethods }) {
   const [queue, setQueue] = useState<Queued[] | Error | null>(null);
   const [ticked, setTicked] = useState<boolean[]>([]);

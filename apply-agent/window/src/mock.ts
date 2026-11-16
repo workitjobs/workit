@@ -1,7 +1,7 @@
 // A pretend Apply, in the shape of `Dashboard.state()`, with a pretend queue and
 // Usage: the window's fixtures. Pick one with ?scenario=start|needs|questions|ready|quiet|stopped,
 // the day's model use with ?usage=near|cap, and the start screen's queue with
-// ?queue=empty|unread|refused (refused: Start gives #613's error), and how Apply answers with ?connect=slow|down
+// ?queue=empty|unread|refused (refused: Start gives app_window.Bridge's error), and how Apply answers with ?connect=slow|down
 // (slow: the first state after 2 s; down: no answer at all). Answers,
 // approvals, Remove and Stop change it as Apply would, so the whole flow can be clicked through.
 import type { ApplyState, Shown, Waiting } from "./apply.ts";
@@ -180,7 +180,7 @@ export function mock(
       push();
     },
     async stop() {
-      // The run ends, and #613 swaps in the idle board: the queue again.
+      // The run ends, and app_window.Bridge swaps in the idle board: the queue again.
       later(() => (state = structuredClone(SCENARIOS.start())), 800);
     },
     app: Promise.resolve({
@@ -197,7 +197,7 @@ export function mock(
       },
       status: async () => ({ running: false, said: "" }),
       usage: async (): Promise<Usage> => ({ used, cap: CAP, resets_at: new Date(Date.now() + 5 * 3600_000).toISOString() }),
-      settings: async () => alert("Settings: #613's page opens here."),
+      settings: async () => alert("Settings: app_window.Bridge's page opens here."),
     }),
   };
 }

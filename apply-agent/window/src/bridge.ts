@@ -1,8 +1,8 @@
 // How the window talks to Apply (the bridge contract in spec KAN-867).
 // - routes: the Apply window's existing routes, through plain fetch with the window's token. In WorkIt Auto Apply's
-//   window, #613's shim (app_window.SHIM) carries each fetch to Dashboard.respond, with no port; a window
+//   window, app_window.SHIM carries each fetch to Dashboard.respond, with no port; a window
 //   dashboard.py serves gets the same calls over its own address.
-// - app methods: #613's js_api methods (queue, start, status, usage, settings), used only when the window has them.
+// - app methods: app_window.Bridge's js_api methods (queue, start, status, usage, settings), used only when the window has them.
 //   A Developer checkout's window has none, so the page shows the run as it is.
 // - mock: fixtures, to design and screenshot the window with no Apply running (mock.ts).
 import type { ApplyState, QueuedJob } from "./apply.ts";
@@ -11,7 +11,7 @@ export type Upload = { name: string; data: string }; // a file's name and its by
 export type Queued = QueuedJob & { url: string }; // a job in the student's Auto Apply queue on WorkIt
 export type Usage = { used: number; cap: number; resets_at: string }; // model tokens today, and when the count resets
 
-// #613's app methods. Each is there only when the window gives it.
+// app_window.Bridge's app methods. Each is there only when the window gives it.
 export type App = Partial<{
   queue(): Promise<Queued[]>;
   start(links: string[]): Promise<number>;
@@ -26,7 +26,7 @@ export type Bridge = {
   approve(id: string, essays?: string[]): Promise<void>;
   open(worker: number): Promise<void>; // bring that form's Chrome window forward
   fillAgain(id: string): Promise<void>;
-  stop(): Promise<void>; // Stop applying: the run ends, nothing submitted, and #613 shows the queue again
+  stop(): Promise<void>; // Stop applying: the run ends, nothing submitted, and app_window.Bridge shows the queue again
   remove(link: string): Promise<void>; // take a job that hasn't started out of the run
   app: Promise<App>; // never settles in a window with no app methods
 };

@@ -195,7 +195,7 @@ test("a pasted job already ticked in the queue counts once, and text that isn't 
   assert.deepEqual(chosen(QUEUE, [false, false], "ramp.com"), []);
 });
 
-test("an empty queue says so and points to WorkIt and the paste box; an unread one says #613's error", () => {
+test("an empty queue says so and points to WorkIt and the paste box; an unread one says Bridge.queue's error", () => {
   assert.equal(queueNote([]), "Your Auto Apply queue on WorkIt is empty. Add jobs to it on WorkIt, or paste a job's link below.");
   assert.equal(queueNote(new Error("WorkIt Auto Apply couldn't read your queue (offline). Paste a link instead.")), "WorkIt Auto Apply couldn't read your queue (offline). Paste a link instead.");
   assert.equal(queueNote(QUEUE), "");
