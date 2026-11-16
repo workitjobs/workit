@@ -57,7 +57,9 @@ test("a failed or skipped job didn't go through, with its reason in the student'
     [{ tone: "ended", kind: "skipped", status: "closed", label: "Skipped: no longer taking applications" }, "No longer taking applications"],
     [{ tone: "ended", kind: "skipped", status: "already applied", label: "Already applied" }, "Already applied"],
     [{ tone: "ended", kind: "skipped", status: "skipped", label: "Skipped: you already applied to this job" }, "You already applied to this job"],
-    [{ tone: "ended", kind: "skipped", status: "paused", label: "Paused at Claude's usage limit; it goes on by itself" }, "Paused at today's limit; it goes on by itself"],
+    [{ tone: "ended", kind: "skipped", status: "paused", label: "Paused at Claude's usage limit; it goes on by itself" }, "Stopped at today's limit. Try again once it resets"],
+    // A Student run's job at WorkIt's Usage cap: rehearsal ends it failed, and nothing starts it again by itself.
+    [{ tone: "failed", kind: "failed", status: "failed", label: "Couldn't finish: Max usage limit hit; resumes after 2026-11-16 00:00:00" }, "Stopped at today's limit. Try again once it resets"],
   ];
   for (const [over, reason] of cases) {
     const v = view({ tiles: [], items: [job({ id: 3, ...over })] });
@@ -191,8 +193,9 @@ test("the daily limit is said in words only from 80%, never as tokens", () => {
   const usage = (used: number) => ({ used, cap: 1000, resets_at: "2026-11-16T05:00:00Z" });
   assert.equal(limit(usage(799), at), "");
   assert.equal(limit(usage(800), at), "You're close to today's limit.");
-  assert.equal(limit(usage(1000), at), "You've reached today's limit, so applying is paused. It starts again at 05:00.");
-  assert.equal(limit(usage(1200), at), "You've reached today's limit, so applying is paused. It starts again at 05:00.");
+  // A Student run doesn't wait for the reset by itself (rehearsal), so the reading says only when applying works again.
+  assert.equal(limit(usage(1000), at), "You've reached today's limit. You can apply again from 05:00.");
+  assert.equal(limit(usage(1200), at), "You've reached today's limit. You can apply again from 05:00.");
 });
 
 test("a run Apply paused at the cap says so, with or without a usage reading", () => {

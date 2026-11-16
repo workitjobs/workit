@@ -79,8 +79,10 @@ export function classify(shown: Shown): { status: Status; ask?: Ask } {
 // Why a job didn't go through, from verdict()'s label: "Skipped: " said by the list's own heading, and no
 // developer words (words.ts): a cause in Apply's own words is said plainly instead.
 export const reason = (shown: Shown) => {
-  const label = (shown.label ?? "").replace(/^Skipped: /, "").replace("Claude's usage limit", "today's limit");
+  const label = (shown.label ?? "").replace(/^Skipped: /, "");
   if (/^today's limit reached/.test(label)) return "Today's limit was reached before it started";
+  // At the Usage cap: a Student run ends the job there, and nothing starts it again by itself (KAN-875's follow-up).
+  if (shown.status === "paused" || /usage limit hit/i.test(label)) return "Stopped at today's limit. Try again once it resets";
   if (DEVELOPER.test(label)) return "We couldn't finish filling it out";
   return label ? label[0].toUpperCase() + label.slice(1) : "Something went wrong";
 };
@@ -150,11 +152,12 @@ const clock = (d: Date) => d.toLocaleTimeString([], { hour: "numeric", minute: "
 const pausedAt = (resets: Date, at: (resets: Date) => string) => `You've reached today's limit, so applying is paused. It starts again at ${at(resets)}.`;
 
 // Today's model use against the Usage cap, in words: nothing under 80%, and never a token count. A run Apply
-// paused at the cap says so too, from /state, when the usage isn't read (yet).
+// paused at the cap (a live run, which waits for the reset) says so, from /state; at the cap a reading says only when
+// applying works again, since a Student run doesn't wait for the reset by itself.
 export function limit(usage: Usage | null, at: (resets: Date) => string = clock, run?: Run): string {
   if (run?.paused && run.paused_until) return pausedAt(new Date(run.paused_until), at);
   if (!usage) return "";
-  if (usage.used >= usage.cap) return pausedAt(new Date(usage.resets_at), at);
+  if (usage.used >= usage.cap) return `You've reached today's limit. You can apply again from ${at(new Date(usage.resets_at))}.`;
   return usage.used >= usage.cap * 0.8 ? "You're close to today's limit." : "";
 }
 
