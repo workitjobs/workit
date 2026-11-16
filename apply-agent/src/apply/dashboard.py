@@ -234,6 +234,10 @@ def plain(why: str) -> str:
     return "; ".join(parts)
 
 
+# Why a run is paused, in /state's run: a usage limit (the Usage cap in a Student build, the Max limit in a
+# Developer one) until paused_until.
+PAUSED_AT = "usage cap"
+
 def verdict(caption: dict) -> dict[str, str]:
     """What a tile says at a glance of how its Application went: a tone
     (idle, filling, ready, submitted, needs, failed, ended) and a short label;
@@ -1114,6 +1118,10 @@ class Dashboard:
             run = dict(self._run)
             if "waiting" in run:  # each link not started yet, named as the queue named it
                 run["waiting"] = [{"link": link} | self._logos.get(link, {}) for link in run["waiting"]]
+        # Paused until a usage limit resets (paused_until): the student's window says so, and when it goes on.
+        run["paused"] = bool(run.get("paused_until"))
+        if run["paused"]:
+            run["reason"] = PAUSED_AT
         for k, caption in enumerate(captions):
             caption |= verify.without_dismissed(caption)  # a flag Lisul dismissed holds it no more
             if caption.get("status") == "filling" and not caption.get("verifying") and not caption.get("stage") \

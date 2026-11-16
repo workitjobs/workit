@@ -1056,6 +1056,22 @@ def test_a_run_paused_at_a_usage_limit_says_why_and_when_it_goes_on(window):
         assert window.inner_text("#runline") == "Paused: Claude's usage limit is reached. Picks up again at 14:05."
 
 
+def test_a_run_paused_at_the_usage_cap_carries_the_paused_flag_and_why():
+    with Dashboard(1, FakeFrames({})) as board:
+        board.run(mode="rehearsal", queued=2)
+        assert board.state()["run"]["paused"] is False
+        assert "reason" not in board.state()["run"]
+
+        board.run(paused_until="2026-11-16T00:00")
+        run = board.state()["run"]
+        assert run["paused"] is True
+        assert run["reason"] == "usage cap"
+        assert run["paused_until"] == "2026-11-16T00:00"
+
+        board.run(paused_until=None)  # the cap reset: it goes on
+        assert board.state()["run"]["paused"] is False
+
+
 def test_the_daily_cap_shows_in_the_status_bar(window):
     with Dashboard(1, FakeFrames({})) as board:
         board.run(mode="run", cap=25, capped=True, tomorrow=11)
