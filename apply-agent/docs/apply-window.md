@@ -112,10 +112,24 @@ for a student, not from `dashboard_page.py`.
   `Dashboard.respond`. `app`: #613's `js_api` methods, feature-detected at
   `pywebviewready`; it never settles in a window that has none. With no
   `window.APPLY_TOKEN` the page runs on `src/mock.ts`.
+- **Logos (KAN-871)** come as the website finds them (`jobLogo`):
+  Brandfetch's icon by `company_domain`, through `fallback/404` and
+  WorkIt's public client id, then the scraper's `logo_url`, then the
+  initials tile (`src/logo.ts`, `Logo` in `src/ui.tsx`). No domain is
+  guessed from a name: a pasted link has none, so it shows initials. Each
+  image stays hidden until it loads; one that fails moves on to the next
+  source, so no broken image shows. `Bridge.queue` passes on each job's
+  `logo_url` and `company_domain`, keeps them by link, and gives them to
+  every board it shows (`Dashboard.logos`). The board adds them to each
+  tile and item by the link the run was given (`link`, which a rehearsal
+  now puts in its captions) or by `posting_url`.
 - **Build:** in `window/`, `npm ci`, then `npm run build` writes one
   self-contained file into the package, `src/apply/student_page/index.html`.
   Commit it with the source change: CI's `apply-window` job rebuilds it and
-  fails on any difference. `npm run dev` serves the page on the mock; pick
+  fails on any difference. Build it with WorkIt's Brandfetch client id,
+  `NEXT_PUBLIC_BRANDFETCH_CLIENT_ID`, in the environment or in
+  `frontend/.env.local` (CI sets it from the repo's variables); a build
+  without it leaves Brandfetch out and differs from the committed file. `npm run dev` serves the page on the mock; pick
   a fixture with `?scenario=start|needs|questions|ready|quiet`
   (`questions`: one question of each kind), the day's use with
   `?usage=near|cap`, and the start screen's queue with
