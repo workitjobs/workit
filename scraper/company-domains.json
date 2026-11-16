@@ -5,6 +5,24 @@
   "item": "Q131980386",
   "looked_up": "2026-11-14"
  },
+ "ashby/envoy": {
+  "company": "Envoy",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
+ },
+ "ashby/taaraconnect": {
+  "company": "Taara",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
+ },
+ "bamboohr/apollomce": {
+  "company": "Apollo Mission Critical Engineering",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
+ },
  "bamboohr/armstrongfluidtechnology": {
   "company": "Armstrong Fluid Technology",
   "domain": null,
@@ -17,11 +35,53 @@
   "item": null,
   "looked_up": "2026-11-14"
  },
+ "bamboohr/calpionplutus": {
+  "company": "Calpion/Plutus Health",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
+ },
+ "bamboohr/fispan": {
+  "company": "FISPAN",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
+ },
+ "bamboohr/geospectrum": {
+  "company": "GeoSpectrum Technologies",
+  "domain": "geospectrum.ca",
+  "item": "Q30256998",
+  "looked_up": "2026-11-16"
+ },
  "bamboohr/lunaroutpost": {
   "company": "Lunar Outpost",
   "domain": "lunaroutpost.com",
   "item": "Q127220493",
   "looked_up": "2026-11-14"
+ },
+ "bamboohr/nomadgcs": {
+  "company": "Nomad GCS",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
+ },
+ "bamboohr/onearc": {
+  "company": "BAE Systems OneArc USA, Inc",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
+ },
+ "bamboohr/pencor": {
+  "company": "Pencor Services",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
+ },
+ "bamboohr/pictonmahoney": {
+  "company": "Picton Mahoney Asset Management",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
  },
  "bamboohr/ruekertmielke": {
   "company": "Ruekert & Mielke",
@@ -29,11 +89,23 @@
   "item": null,
   "looked_up": "2026-11-13"
  },
+ "bamboohr/safransed": {
+  "company": "Safran",
+  "domain": "safran-group.com",
+  "item": "Q1886126",
+  "looked_up": "2026-11-16"
+ },
  "bamboohr/specteraerospace": {
   "company": "Specter Aerospace",
   "domain": null,
   "item": null,
   "looked_up": "2026-11-14"
+ },
+ "bamboohr/tggaccounting": {
+  "company": "TGG Accounting",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
  },
  "bamboohr/upike": {
   "company": "University of Pikeville",
@@ -46,6 +118,24 @@
   "domain": null,
   "item": null,
   "looked_up": "2026-11-14"
+ },
+ "greenhouse/10alabs": {
+  "company": "10a Labs",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
+ },
+ "greenhouse/advancedtechnologyservices": {
+  "company": "Advanced Technology Services",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
+ },
+ "greenhouse/aevexaerospace": {
+  "company": "Aevex Aerospace",
+  "domain": "aevex.com",
+  "item": "Q111684066",
+  "looked_up": "2026-11-16"
  },
  "greenhouse/agoda": {
   "company": "Agoda",
@@ -65,6 +155,24 @@
   "item": null,
   "looked_up": "2026-11-14"
  },
+ "greenhouse/amendconsulting": {
+  "company": "AMEND Consulting",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
+ },
+ "greenhouse/amperesand": {
+  "company": "Amperesand",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
+ },
+ "greenhouse/apexcompanies": {
+  "company": "Apex Companies",
+  "domain": "apexcos.com",
+  "item": "Q121296066",
+  "looked_up": "2026-11-16"
+ },
  "greenhouse/arcboatcompany": {
   "company": "Arc",
   "domain": null,
@@ -77,11 +185,53 @@
   "item": "Q112659289",
   "looked_up": "2026-11-14"
  },
+ "greenhouse/awetomaton": {
+  "company": "Awetomaton",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
+ },
+ "greenhouse/axq": {
+  "company": "AXQ Capital",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
+ },
+ "greenhouse/beauhurst": {
+  "company": "Beauhurst",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
+ },
+ "greenhouse/botauto": {
+  "company": "Bot Auto",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
+ },
+ "greenhouse/bracebridgecapital": {
+  "company": "Bracebridge Capital",
+  "domain": "bracebridgecapital.com",
+  "item": "Q29097716",
+  "looked_up": "2026-11-16"
+ },
  "greenhouse/burnsengineeringinc": {
   "company": "Burns Engineering",
   "domain": null,
   "item": null,
   "looked_up": "2026-11-14"
+ },
+ "greenhouse/c3ascend": {
+  "company": "C3.ai",
+  "domain": "c3.ai",
+  "item": "Q104081972",
+  "looked_up": "2026-11-16"
+ },
+ "greenhouse/capitalderecherchetower": {
+  "company": "Capital de Recherche Tower",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
  },
  "greenhouse/capstoneinvestmentadvisors": {
   "company": "Capstone Investment Advisors",
@@ -101,6 +251,18 @@
   "item": "Q5013834",
   "looked_up": "2026-11-14"
  },
+ "greenhouse/clarityinnovates": {
+  "company": "Clarity Innovations",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
+ },
+ "greenhouse/clenera": {
+  "company": "Cl\u0113nera",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
+ },
  "greenhouse/cresta": {
   "company": "Cresta",
   "domain": null,
@@ -119,17 +281,41 @@
   "item": null,
   "looked_up": "2026-11-14"
  },
+ "greenhouse/dmcengineering": {
+  "company": "DMC Engineering",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
+ },
+ "greenhouse/drivewealth": {
+  "company": "DriveWealth",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
+ },
  "greenhouse/dvtrading": {
   "company": "DV Trading",
   "domain": null,
   "item": null,
   "looked_up": "2026-11-13"
  },
+ "greenhouse/eulerity": {
+  "company": "Eulerity",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
+ },
  "greenhouse/excelsportsmanagement": {
   "company": "Excel Sports Management",
   "domain": null,
   "item": null,
   "looked_up": "2026-11-13"
+ },
+ "greenhouse/fanaticscollectibles": {
+  "company": "Fanatics",
+  "domain": "fanaticsinc.com",
+  "item": "Q18150640",
+  "looked_up": "2026-11-16"
  },
  "greenhouse/faradayfuture": {
   "company": "Faraday Future",
@@ -161,17 +347,47 @@
   "item": null,
   "looked_up": "2026-11-13"
  },
+ "greenhouse/globalwebindex": {
+  "company": "Global Web Index",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
+ },
+ "greenhouse/gotion": {
+  "company": "Gotion",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
+ },
  "greenhouse/grassrootsanalytics": {
   "company": "Grassroots Analytics",
   "domain": null,
   "item": null,
   "looked_up": "2026-11-14"
  },
+ "greenhouse/gravitonresearchcapital": {
+  "company": "Graviton",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
+ },
  "greenhouse/grvty": {
   "company": "GRVTY",
   "domain": null,
   "item": null,
   "looked_up": "2026-11-14"
+ },
+ "greenhouse/harbingermotors": {
+  "company": "Harbinger Motors",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
+ },
+ "greenhouse/hivefinancialsystems": {
+  "company": "Hive Financial Systems",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
  },
  "greenhouse/idmeuniversityrecruiting": {
   "company": "ID.me",
@@ -203,11 +419,41 @@
   "item": null,
   "looked_up": "2026-11-14"
  },
+ "greenhouse/jencapinc": {
+  "company": "Jencap",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
+ },
  "greenhouse/kairospower": {
   "company": "Kairos Power",
   "domain": "kairospower.com",
   "item": "Q119857284",
   "looked_up": "2026-11-14"
+ },
+ "greenhouse/mantari": {
+  "company": "Mantari",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
+ },
+ "greenhouse/mavensecuritiesholdingltd": {
+  "company": "Maven Securities",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
+ },
+ "greenhouse/mcadams": {
+  "company": "McAdams",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
+ },
+ "greenhouse/moxxidigital": {
+  "company": "Moxxi Digital",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
  },
  "greenhouse/mw-tech-grad": {
   "company": "Marshall Wace",
@@ -233,11 +479,29 @@
   "item": null,
   "looked_up": "2026-11-14"
  },
+ "greenhouse/parallel": {
+  "company": "Parallel Systems",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
+ },
  "greenhouse/perpay": {
   "company": "Perpay",
   "domain": null,
   "item": null,
   "looked_up": "2026-11-14"
+ },
+ "greenhouse/prophet": {
+  "company": "Prophet",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
+ },
+ "greenhouse/quantiq": {
+  "company": "Quantiq",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
  },
  "greenhouse/quberesearchandtechnologies": {
   "company": "Qube Research & Technologies",
@@ -257,6 +521,12 @@
   "item": null,
   "looked_up": "2026-11-14"
  },
+ "greenhouse/rise8": {
+  "company": "Rise8",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
+ },
  "greenhouse/rocketlab": {
   "company": "Rocket Lab USA",
   "domain": null,
@@ -268,6 +538,12 @@
   "domain": "roku.com",
   "item": "Q15995436",
   "looked_up": "2026-11-14"
+ },
+ "greenhouse/rothesaygraduates": {
+  "company": "Rothesay",
+  "domain": "rothesay.ca",
+  "item": "Q3442975",
+  "looked_up": "2026-11-16"
  },
  "greenhouse/schonfeld": {
   "company": "Schonfeld",
@@ -287,6 +563,12 @@
   "item": null,
   "looked_up": "2026-11-14"
  },
+ "greenhouse/strandtherapeutics": {
+  "company": "Strand Therapeutics",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
+ },
  "greenhouse/syskahennessy": {
   "company": "Syska Hennessy Group",
   "domain": null,
@@ -298,6 +580,12 @@
   "domain": "tenstorrent.com",
   "item": "Q126456640",
   "looked_up": "2026-11-13"
+ },
+ "greenhouse/thehutgroup": {
+  "company": "The Hut Group",
+  "domain": "thehutgroup.com",
+  "item": "Q7741165",
+  "looked_up": "2026-11-16"
  },
  "greenhouse/thenewyorktimes": {
   "company": "The New York Times",
@@ -317,17 +605,35 @@
   "item": "Q24960045",
   "looked_up": "2026-11-13"
  },
+ "greenhouse/trillium": {
+  "company": "Trillium",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
+ },
  "greenhouse/vast": {
   "company": "VAST",
   "domain": null,
   "item": null,
   "looked_up": "2026-11-14"
  },
+ "greenhouse/voloridgeinvestmentmanagement": {
+  "company": "Voloridge",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
+ },
  "greenhouse/voyagertechnologiesinc": {
   "company": "Voyager Technologies",
   "domain": "voyagertechnologies.com",
   "item": "Q133802652",
   "looked_up": "2026-11-14"
+ },
+ "greenhouse/xai": {
+  "company": "xAI",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
  },
  "icims/americas-cookmedical": {
   "company": "Cook Group",
@@ -365,6 +671,12 @@
   "item": "Q7605667",
   "looked_up": "2026-11-14"
  },
+ "icims/careers-americansystems": {
+  "company": "AMERICAN SYSTEMS",
+  "domain": "americansystems.com",
+  "item": "Q64141477",
+  "looked_up": "2026-11-16"
+ },
  "icims/careers-americas": {
   "company": "Atlassian",
   "domain": "atlassian.com",
@@ -383,11 +695,23 @@
   "item": null,
   "looked_up": "2026-11-14"
  },
+ "icims/careers-barrios": {
+  "company": "Barrios",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
+ },
  "icims/careers-berrydunn": {
   "company": "BerryDunn",
   "domain": null,
   "item": null,
   "looked_up": "2026-11-14"
+ },
+ "icims/careers-blackhawknetwork": {
+  "company": "Blackhawk Network Holdings",
+  "domain": "blackhawknetwork.com",
+  "item": "Q22090238",
+  "looked_up": "2026-11-16"
  },
  "icims/careers-bnh": {
   "company": "Beyond New Horizons",
@@ -419,11 +743,29 @@
   "item": "Q5045283",
   "looked_up": "2026-11-14"
  },
+ "icims/careers-cfins": {
+  "company": "Crum & Forster Insurance",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
+ },
  "icims/careers-consoreng": {
   "company": "Consor",
   "domain": null,
   "item": null,
   "looked_up": "2026-11-14"
+ },
+ "icims/careers-cooperhealth": {
+  "company": "Cooper University Health Care",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
+ },
+ "icims/careers-cotiviti": {
+  "company": "Cotiviti",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
  },
  "icims/careers-covenanthealth": {
   "company": "Covenant Health of East Tennessee",
@@ -436,6 +778,12 @@
   "domain": "daktronics.com",
   "item": "Q1157767",
   "looked_up": "2026-11-14"
+ },
+ "icims/careers-dartmouth-hitchcock": {
+  "company": "Dartmouth Health",
+  "domain": "dartmouth-health.org",
+  "item": "Q123951819",
+  "looked_up": "2026-11-16"
  },
  "icims/careers-daytonfreight": {
   "company": "Dayton Freight Lines",
@@ -466,6 +814,12 @@
   "domain": null,
   "item": null,
   "looked_up": "2026-11-14"
+ },
+ "icims/careers-empowerai": {
+  "company": "Empower AI",
+  "domain": "empower.ai",
+  "item": "Q129571892",
+  "looked_up": "2026-11-16"
  },
  "icims/careers-enfra": {
   "company": "Bernhard",
@@ -527,6 +881,12 @@
   "item": null,
   "looked_up": "2026-11-13"
  },
+ "icims/careers-hexagonpositioning": {
+  "company": "Hexagon AB",
+  "domain": "hexagon.com",
+  "item": "Q820970",
+  "looked_up": "2026-11-16"
+ },
  "icims/careers-hhsys": {
   "company": "Star Dental Partners",
   "domain": null,
@@ -538,6 +898,12 @@
   "domain": "i3-corps.com",
   "item": "Q64141821",
   "looked_up": "2026-11-14"
+ },
+ "icims/careers-ita-intl": {
+  "company": "ITA International",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
  },
  "icims/careers-kci": {
   "company": "KCI Technologies",
@@ -551,17 +917,47 @@
   "item": "Q48801264",
   "looked_up": "2026-11-14"
  },
+ "icims/careers-magaero": {
+  "company": "MAG Aerospace",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
+ },
+ "icims/careers-magnera": {
+  "company": "Magnera",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
+ },
+ "icims/careers-markon": {
+  "company": "Markon",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
+ },
  "icims/careers-mci2": {
   "company": "MCI",
   "domain": null,
   "item": null,
   "looked_up": "2026-11-14"
  },
+ "icims/careers-nacg": {
+  "company": "North American Construction Group",
+  "domain": "nacg.ca",
+  "item": "Q30295325",
+  "looked_up": "2026-11-16"
+ },
  "icims/careers-northside": {
   "company": "Northside Hospital",
   "domain": "northside.com",
   "item": "Q7059745",
   "looked_up": "2026-11-14"
+ },
+ "icims/careers-odysseyconsult": {
+  "company": "Odyssey Systems",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
  },
  "icims/careers-ovg": {
   "company": "Oak View Group",
@@ -587,6 +983,12 @@
   "item": null,
   "looked_up": "2026-11-14"
  },
+ "icims/careers-riversideresearch": {
+  "company": "Riverside Research",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
+ },
  "icims/careers-ruralking": {
   "company": "Rural King",
   "domain": null,
@@ -598,6 +1000,12 @@
   "domain": "sas.com",
   "item": "Q1473820",
   "looked_up": "2026-11-14"
+ },
+ "icims/careers-scires": {
+  "company": "Scientific Research Corporation",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
  },
  "icims/careers-sentinel": {
   "company": "Sentinel Technologies",
@@ -622,6 +1030,18 @@
   "domain": null,
   "item": null,
   "looked_up": "2026-11-14"
+ },
+ "icims/careers-tatitlek": {
+  "company": "The Tatitlek Corporation",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
+ },
+ "icims/careers-thesilverlining": {
+  "company": "West Bend Insurance",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
  },
  "icims/careers-tighebond": {
   "company": "Tighe & Bond",
@@ -671,6 +1091,12 @@
   "item": "Q582418",
   "looked_up": "2026-11-13"
  },
+ "icims/early-careers-quiddity": {
+  "company": "Quiddity",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
+ },
  "icims/element-ext-row": {
   "company": "Element Materials Technology",
   "domain": "element.com",
@@ -706,6 +1132,12 @@
   "domain": "cloughharbour.com",
   "item": "Q5135797",
   "looked_up": "2026-11-14"
+ },
+ "icims/jobs-childrensmercykc": {
+  "company": "The Children's Mercy Hospital",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
  },
  "icims/jobs-selectmedicalcorp": {
   "company": "Select Medical",
@@ -779,6 +1211,12 @@
   "item": null,
   "looked_up": "2026-11-13"
  },
+ "jibe/discounttire.jibeapply.com": {
+  "company": "America's Tire",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
+ },
  "jibe/firstcitizens.jibeapply.com": {
   "company": "First Citizens BancShares",
   "domain": "firstcitizens.com",
@@ -815,11 +1253,29 @@
   "item": null,
   "looked_up": "2026-11-14"
  },
+ "lever/cimgroup": {
+  "company": "CIM Group",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
+ },
  "lever/eu/prima": {
   "company": "Prima",
   "domain": null,
   "item": null,
   "looked_up": "2026-11-14"
+ },
+ "lever/exowatt": {
+  "company": "Exowatt",
+  "domain": "exowatt.com",
+  "item": "Q134412832",
+  "looked_up": "2026-11-16"
+ },
+ "lever/ifm-us": {
+  "company": "Institute of Foundation Models",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
  },
  "lever/latitudeinc": {
   "company": "Latitude",
@@ -833,6 +1289,12 @@
   "item": null,
   "looked_up": "2026-11-13"
  },
+ "lever/wyetechllc": {
+  "company": "Wyetech",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
+ },
  "oracle/cva.fa.us1/CX_3": {
   "company": "Standard Aero",
   "domain": "standardaero.com",
@@ -845,11 +1307,23 @@
   "item": "Q7161507",
   "looked_up": "2026-11-13"
  },
+ "oracle/ebwb.fa.us2/CX": {
+  "company": "Hologic",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
+ },
  "oracle/ecnf.fa.us2/CX": {
   "company": "Tradeweb",
   "domain": "tradeweb.com",
   "item": "Q18754966",
   "looked_up": "2026-11-14"
+ },
+ "oracle/ecsr.fa.us2/CX_1": {
+  "company": "Vanderbilt University",
+  "domain": "vanderbilt.edu",
+  "item": "Q29052",
+  "looked_up": "2026-11-16"
  },
  "oracle/ecyq.fa.em2/CX_1": {
   "company": "DNV",
@@ -868,6 +1342,12 @@
   "domain": "caesars.com",
   "item": "Q18636524",
   "looked_up": "2026-11-13"
+ },
+ "oracle/edxn.fa.us2/CX_5001": {
+  "company": "Boston Properties",
+  "domain": "bxp.com",
+  "item": "Q4844439",
+  "looked_up": "2026-11-16"
  },
  "oracle/edyy.fa.us2/CX_2002": {
   "company": "Sinclair",
@@ -959,6 +1439,12 @@
   "item": "Q30254092",
   "looked_up": "2026-11-14"
  },
+ "oracle/ejcu.fa.us6/CX_1033": {
+  "company": "Consolidated Edison",
+  "domain": "coned.com",
+  "item": "Q1127536",
+  "looked_up": "2026-11-16"
+ },
  "oracle/ejko.fa.us2/CX_3": {
   "company": "Blue Cross Blue Shield of Michigan",
   "domain": "bcbsm.com",
@@ -971,6 +1457,12 @@
   "item": null,
   "looked_up": "2026-11-14"
  },
+ "oracle/ejrz.fa.us2/CX_5001": {
+  "company": "VITAS Healthcare",
+  "domain": "vitas.com",
+  "item": "Q19856497",
+  "looked_up": "2026-11-16"
+ },
  "oracle/ejta.fa.us6/CX_2001": {
   "company": "Fortive",
   "domain": "fortive.com",
@@ -982,6 +1474,12 @@
   "domain": "securitas.com",
   "item": "Q662174",
   "looked_up": "2026-11-13"
+ },
+ "oracle/ekiz.fa.em2/CX": {
+  "company": "Carmeuse",
+  "domain": "carmeuse.com",
+  "item": "Q599788",
+  "looked_up": "2026-11-16"
  },
  "oracle/ekkh.fa.us2/CX_2002": {
   "company": "Hormel Foods",
@@ -1001,6 +1499,12 @@
   "item": null,
   "looked_up": "2026-11-13"
  },
+ "oracle/eoce.fa.em3/CX_1004": {
+  "company": "Suffolk County",
+  "domain": "suffolkcountyny.gov",
+  "item": "Q54065",
+  "looked_up": "2026-11-16"
+ },
  "oracle/eoje.fa.us2/CX_1001": {
   "company": "Black Box",
   "domain": null,
@@ -1012,6 +1516,12 @@
   "domain": "northwell.edu",
   "item": "Q7056650",
   "looked_up": "2026-11-14"
+ },
+ "oracle/ertr.fa.us2/CX_3001": {
+  "company": "INTEGRIS Health",
+  "domain": "integrishealth.org",
+  "item": "Q19880883",
+  "looked_up": "2026-11-16"
  },
  "oracle/fa-emqh-saasfaprod1.fa.ocs/CX_1001": {
   "company": "Kent",
@@ -1037,6 +1547,12 @@
   "item": "Q5943971",
   "looked_up": "2026-11-13"
  },
+ "oracle/fa-ertb-saasfaprod1.fa.ocs/CX_2": {
+  "company": "Photon",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
+ },
  "oracle/fa-esgu-saasfaprod1.fa.ocs/CX_1": {
   "company": "Montenson",
   "domain": null,
@@ -1055,6 +1571,18 @@
   "item": "Q1419248",
   "looked_up": "2026-11-14"
  },
+ "oracle/fa-etum-saasfaprod1.fa.ocs/CX_1": {
+  "company": "GuideWell Mutual",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
+ },
+ "oracle/fa-etyr-saasfaprod1.fa.ocs/CX_2": {
+  "company": "City of Oklahoma City",
+  "domain": "okc.gov",
+  "item": "Q5589281",
+  "looked_up": "2026-11-16"
+ },
  "oracle/fa-euwp-saasfaprod1.fa.ocs/CX_1": {
   "company": "Mayo Clinic",
   "domain": "mayoclinic.org",
@@ -1066,6 +1594,12 @@
   "domain": "citco.com",
   "item": "Q85752543",
   "looked_up": "2026-11-13"
+ },
+ "oracle/fa-evdq-saasfaprod1.fa.ocs/CX_2001": {
+  "company": "Computershare",
+  "domain": "computershare.com",
+  "item": "Q176712",
+  "looked_up": "2026-11-16"
  },
  "oracle/fa-evfm-saasfaprod1.fa.ocs/CX_1029": {
   "company": "Zachry Group",
@@ -1084,6 +1618,12 @@
   "domain": null,
   "item": null,
   "looked_up": "2026-11-13"
+ },
+ "oracle/fa-ewjt-saasfaprod1.fa.ocs/CX_2": {
+  "company": "EXL",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
  },
  "oracle/fa-ewmy-saasfaprod1.fa.ocs/CX_1": {
   "company": "Verisk",
@@ -1109,6 +1649,12 @@
   "item": "Q621071",
   "looked_up": "2026-11-14"
  },
+ "oracle/fa-extu-saasfaprod1.fa.ocs/CX_1": {
+  "company": "Akamai Technologies",
+  "domain": "akamai.com",
+  "item": "Q415598",
+  "looked_up": "2026-11-16"
+ },
  "oracle/fa-eygo-saasfaprod1.fa.ocs/CX_2001": {
   "company": "Worthington Enterprises",
   "domain": null,
@@ -1120,6 +1666,12 @@
   "domain": "eagle.org",
   "item": "Q463645",
   "looked_up": "2026-11-14"
+ },
+ "oracle/hcjy.fa.us2/CX_1": {
+  "company": "Cooper Companies",
+  "domain": "coopercos.com",
+  "item": "Q1129792",
+  "looked_up": "2026-11-16"
  },
  "oracle/hckd.fa.us2/CX_1": {
   "company": "Molina Healthcare",
@@ -1139,6 +1691,12 @@
   "item": null,
   "looked_up": "2026-11-13"
  },
+ "oracle/hcor.fa.us2/CX_1": {
+  "company": "Midmark",
+  "domain": "midmark.com",
+  "item": "Q6842603",
+  "looked_up": "2026-11-16"
+ },
  "oracle/hcwp.fa.us2/CX_1": {
   "company": "Coherent",
   "domain": "coherent.com",
@@ -1151,17 +1709,41 @@
   "item": null,
   "looked_up": "2026-11-13"
  },
+ "oracle/hczw.fa.us2/CX_1001": {
+  "company": "CSC",
+  "domain": "csc.fi",
+  "item": "Q5014065",
+  "looked_up": "2026-11-16"
+ },
+ "oracle/hdde.fa.us2/CX": {
+  "company": "Rheem",
+  "domain": "rheem.com",
+  "item": "Q7320324",
+  "looked_up": "2026-11-16"
+ },
  "oracle/hdow.fa.us6/CX_1003": {
   "company": "Cantor Fitzgerald",
   "domain": "cantorfitzgerald.com",
   "item": "Q2936874",
   "looked_up": "2026-11-14"
  },
+ "oracle/hdsn.fa.us6/CX_1": {
+  "company": "American Tower",
+  "domain": "americantower.com",
+  "item": "Q4745263",
+  "looked_up": "2026-11-16"
+ },
  "oracle/iadugs.fa.ocs/CX_1001": {
   "company": "Legrand",
   "domain": "legrandgroup.com",
   "item": "Q636755",
   "looked_up": "2026-11-13"
+ },
+ "oracle/iazuqy.fa.ocs/CX_1": {
+  "company": "UCSF",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
  },
  "oracle/ibnjjb.fa.ocs/CX_1": {
   "company": "Lifepoint Health",
@@ -1175,6 +1757,18 @@
   "item": null,
   "looked_up": "2026-11-13"
  },
+ "oracle/tulane-ibqejb.fa.ocs/CX_1": {
+  "company": "Tulane University",
+  "domain": "tulane.edu",
+  "item": "Q1193547",
+  "looked_up": "2026-11-16"
+ },
+ "rippling/4ag": {
+  "company": "4AG Robotics",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
+ },
  "rippling/apexanalytix-careers": {
   "company": "APEX Analytix",
   "domain": null,
@@ -1187,11 +1781,59 @@
   "item": "Q24039775",
   "looked_up": "2026-11-14"
  },
+ "rippling/createmusicgroup": {
+  "company": "Create Music Group",
+  "domain": "createmusicgroup.com",
+  "item": "Q65081686",
+  "looked_up": "2026-11-16"
+ },
  "rippling/democratic-national-committee": {
   "company": "Democratic National Committee",
   "domain": "democrats.org",
   "item": "Q1185863",
   "looked_up": "2026-11-14"
+ },
+ "rippling/mei-employment": {
+  "company": "Middle East Institute",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
+ },
+ "rippling/omnis-corporation": {
+  "company": "Omnis",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
+ },
+ "rippling/petfolk": {
+  "company": "Petfolk",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
+ },
+ "rippling/plmrcareers": {
+  "company": "Palomar Holdings",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
+ },
+ "rippling/rippling": {
+  "company": "Rippling",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
+ },
+ "rippling/studyfetch": {
+  "company": "StudyFetch",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
+ },
+ "rippling/torus": {
+  "company": "Torus",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
  },
  "successfactors/assaabloy.jobs2web.com": {
   "company": "ASSA ABLOY",
@@ -1204,6 +1846,12 @@
   "domain": null,
   "item": null,
   "looked_up": "2026-11-14"
+ },
+ "successfactors/careers.bauschlomb.com": {
+  "company": "Bausch Lomb",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
  },
  "successfactors/careers.huntingtoningalls.com": {
   "company": "Huntington Ingalls Industries",
@@ -1277,11 +1925,29 @@
   "item": "Q644289",
   "looked_up": "2026-11-13"
  },
+ "workday/accuray.wd5/external": {
+  "company": "Accuray",
+  "domain": "accuray.com",
+  "item": "Q116701297",
+  "looked_up": "2026-11-16"
+ },
+ "workday/agiliti.wd5/careers": {
+  "company": "Agiliti",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
+ },
  "workday/airliquidehr.wd3/airgasexternalcareer": {
   "company": "Airgas",
   "domain": "airgas.com",
   "item": "Q80635",
   "looked_up": "2026-11-14"
+ },
+ "workday/albemarle.wd5/ketjenexternal": {
+  "company": "Ketjen",
+  "domain": "ketjen.com",
+  "item": "Q2032032",
+  "looked_up": "2026-11-16"
  },
  "workday/alcon.wd5/careers_alcon": {
   "company": "Alcon",
@@ -1313,6 +1979,12 @@
   "item": null,
   "looked_up": "2026-11-13"
  },
+ "workday/aritzia.wd3/external": {
+  "company": "Aritzia",
+  "domain": "aritzia.com",
+  "item": "Q4791147",
+  "looked_up": "2026-11-16"
+ },
  "workday/asmglobal.wd1/careers": {
   "company": "ASM Global",
   "domain": null,
@@ -1324,6 +1996,12 @@
   "domain": "aspentech.com",
   "item": "Q736091",
   "looked_up": "2026-11-14"
+ },
+ "workday/astreya.wd5/life-at-astreya-opportunities": {
+  "company": "Astreya",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
  },
  "workday/atcllc.wd5/atcllc": {
   "company": "ATC",
@@ -1343,17 +2021,35 @@
   "item": "Q167733",
   "looked_up": "2026-11-14"
  },
+ "workday/baystatehealth.wd12/external_careers": {
+  "company": "Baystate Health",
+  "domain": "baystatehealth.org",
+  "item": "Q4874850",
+  "looked_up": "2026-11-16"
+ },
  "workday/bdx.wd1/external_career_site_usa": {
   "company": "Becton Dickinson",
   "domain": "bd.com",
   "item": "Q30338736",
   "looked_up": "2026-11-14"
  },
+ "workday/beigene.wd5/beigene": {
+  "company": "BeOne",
+  "domain": "beone.es",
+  "item": "Q126180054",
+  "looked_up": "2026-11-16"
+ },
  "workday/bhs.wd1/careers": {
   "company": "Baptist Health",
   "domain": null,
   "item": null,
   "looked_up": "2026-11-14"
+ },
+ "workday/bird.wd3/birdconstructioncareers": {
+  "company": "Bird Construction",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
  },
  "workday/bmo.wd3/campus": {
   "company": "Bank of Montreal",
@@ -1372,6 +2068,12 @@
   "domain": null,
   "item": null,
   "looked_up": "2026-11-13"
+ },
+ "workday/brown.wd5/staff-careers-brown": {
+  "company": "Brown University",
+  "domain": "brown.edu",
+  "item": "Q49114",
+  "looked_up": "2026-11-16"
  },
  "workday/calibercollision.wd1/caliber": {
   "company": "Caliber",
@@ -1409,17 +2111,35 @@
   "item": null,
   "looked_up": "2026-11-14"
  },
+ "workday/charlottenc.wd12/citgov": {
+  "company": "City of Charlotte",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
+ },
  "workday/cigna.wd5/cignacareers": {
   "company": "Cigna Group",
   "domain": null,
   "item": null,
   "looked_up": "2026-11-13"
  },
+ "workday/cincinnatichildrens.wd5/careersatcincinnatichildrens": {
+  "company": "Cincinnati Children\u2019s Hospital and Medical Center",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
+ },
  "workday/cir.wd108/cir_external_career_site": {
   "company": "Cambridge Investment Research",
   "domain": null,
   "item": null,
   "looked_up": "2026-11-13"
+ },
+ "workday/clearesult.wd1/clearesult_external_careers": {
+  "company": "CLEAResult",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
  },
  "workday/clorox.wd1/clorox": {
   "company": "Clorox",
@@ -1432,6 +2152,30 @@
   "domain": null,
   "item": null,
   "looked_up": "2026-11-13"
+ },
+ "workday/costar.wd1/costar_campus": {
+  "company": "CoStar Group",
+  "domain": "costargroup.com",
+  "item": "Q16988748",
+  "looked_up": "2026-11-16"
+ },
+ "workday/davita.wd1/dkc_external": {
+  "company": "DaVita",
+  "domain": "davita.com",
+  "item": "Q5207184",
+  "looked_up": "2026-11-16"
+ },
+ "workday/denver.wd1/ccd-denver-denvergov-csc_jobs-civil_service_jobs-police_jobs-fire_jobs": {
+  "company": "Denver",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
+ },
+ "workday/desjardins.wd10/desjardins": {
+  "company": "Desjardins Group",
+  "domain": "desjardins.com",
+  "item": "Q2933350",
+  "looked_up": "2026-11-16"
  },
  "workday/eisneramper.wd1/eisneramperearlycareers": {
   "company": "EisnerAmper",
@@ -1463,11 +2207,29 @@
   "item": null,
   "looked_up": "2026-11-14"
  },
+ "workday/fifththird.wd5/53careers": {
+  "company": "Fifth Third Bank",
+  "domain": "53.com",
+  "item": "Q1411810",
+  "looked_up": "2026-11-16"
+ },
+ "workday/fiserv.wd5/ext": {
+  "company": "Fiserv",
+  "domain": "fiserv.com",
+  "item": "Q1420513",
+  "looked_up": "2026-11-16"
+ },
  "workday/flir.wd1/flircareers": {
   "company": "Teledyne",
   "domain": null,
   "item": null,
   "looked_up": "2026-11-13"
+ },
+ "workday/fnbcorp.wd501/fnbcorp": {
+  "company": "First National Bank",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
  },
  "workday/gartner.wd5/ext": {
   "company": "Gartner",
@@ -1475,11 +2237,23 @@
   "item": "Q174198",
   "looked_up": "2026-11-13"
  },
+ "workday/gcu.wd1/gcu": {
+  "company": "Grand Canyon University",
+  "domain": "gcu.edu",
+  "item": "Q4570025",
+  "looked_up": "2026-11-16"
+ },
  "workday/gi.wd1/global_infrastructure": {
   "company": "Global Infrastructure",
   "domain": null,
   "item": null,
   "looked_up": "2026-11-13"
+ },
+ "workday/greatamerica.wd12/greatamericacareers": {
+  "company": "GreatAmerica Financial Services",
+  "domain": "greatamerica.com",
+  "item": "Q5598601",
+  "looked_up": "2026-11-16"
  },
  "workday/hendrick.wd5/hmscareers": {
   "company": "Hendrick Motorsports",
@@ -1535,6 +2309,12 @@
   "item": "Q1061903",
   "looked_up": "2026-11-14"
  },
+ "workday/lplfinancial.wd1/external": {
+  "company": "LPL Financial Holdings",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
+ },
  "workday/lumentum.wd5/lite": {
   "company": "Lumentum",
   "domain": "lumentum.com",
@@ -1571,11 +2351,23 @@
   "item": "Q28228158",
   "looked_up": "2026-11-13"
  },
+ "workday/mosaic.wd5/mosaic": {
+  "company": "Mosaic",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
+ },
  "workday/nationwide.wd1/nationwide_career": {
   "company": "Nationwide",
   "domain": null,
   "item": null,
   "looked_up": "2026-11-14"
+ },
+ "workday/nationwidechildrens.wd5/nchcareers": {
+  "company": "Nationwide Children's Hospital",
+  "domain": "nationwidechildrens.org",
+  "item": "Q6979874",
+  "looked_up": "2026-11-16"
  },
  "workday/nb.wd1/nbcareers": {
   "company": "Neuberger Berman",
@@ -1631,11 +2423,23 @@
   "item": null,
   "looked_up": "2026-11-13"
  },
+ "workday/oregon.wd5/sor_external_career_site": {
+  "company": "Oregon State Government",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
+ },
  "workday/ourhrconnect.wd501/scblues": {
   "company": "BlueCross BlueShield of South Carolina",
   "domain": null,
   "item": null,
   "looked_up": "2026-11-14"
+ },
+ "workday/phinia.wd5/phinia_careers": {
+  "company": "PHINIA",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
  },
  "workday/polaris.wd5/polarisjobs": {
   "company": "Polaris",
@@ -1649,11 +2453,23 @@
   "item": null,
   "looked_up": "2026-11-13"
  },
+ "workday/primient.wd1/external_careers": {
+  "company": "Primient",
+  "domain": "primient.com",
+  "item": "Q136351861",
+  "looked_up": "2026-11-16"
+ },
  "workday/printpack.wd1/printpackcareers": {
   "company": "Printpack",
   "domain": "printpack.com",
   "item": "Q48795861",
   "looked_up": "2026-11-14"
+ },
+ "workday/pvh.wd1/pvh_careers": {
+  "company": "PVH",
+  "domain": "pvh.com",
+  "item": "Q1132272",
+  "looked_up": "2026-11-16"
  },
  "workday/q2ebanking.wd5/q2": {
   "company": "Q2",
@@ -1661,11 +2477,23 @@
   "item": null,
   "looked_up": "2026-11-14"
  },
+ "workday/quickenloans.wd5/rocket_careers": {
+  "company": "Rocket Mortgage",
+  "domain": "rocketmortgage.com",
+  "item": "Q2123099",
+  "looked_up": "2026-11-16"
+ },
  "workday/rbi.wd3/rbi_external_career_site": {
   "company": "RBI",
   "domain": "rbi.org.in",
   "item": "Q944085",
   "looked_up": "2026-11-13"
+ },
+ "workday/revvity.wd103/external": {
+  "company": "Revvity",
+  "domain": "revvity.com",
+  "item": "Q120467527",
+  "looked_up": "2026-11-16"
  },
  "workday/rrhs.wd5/rrh": {
   "company": "Rochester Regional Health",
@@ -1715,17 +2543,71 @@
   "item": null,
   "looked_up": "2026-11-14"
  },
+ "workday/sonos.wd1/sonos": {
+  "company": "Sonos",
+  "domain": "sonos.com",
+  "item": "Q3492619",
+  "looked_up": "2026-11-16"
+ },
+ "workday/starrcompanies.wd1/careers": {
+  "company": "Starr Insurance",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
+ },
+ "workday/stevens.wd5/external": {
+  "company": "Stevens Institute of Technology",
+  "domain": "stevens.edu",
+  "item": "Q657222",
+  "looked_up": "2026-11-16"
+ },
+ "workday/talentmanagementsolution.wd3/jonassoftwarecanada": {
+  "company": "Jonas Software",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
+ },
+ "workday/talentmanagementsolution.wd3/jonassoftwareusa": {
+  "company": "Jonas Software",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
+ },
  "workday/transperfect.wd5/transperfect": {
   "company": "TransPerfect",
   "domain": "transperfect.com",
   "item": "Q7833640",
   "looked_up": "2026-11-13"
  },
+ "workday/trimedx.wd1/tmx": {
+  "company": "TRIMEDX",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
+ },
+ "workday/ucar.wd5/ucar_careers": {
+  "company": "University Corporation for Atmospheric Research",
+  "domain": "ucar.edu",
+  "item": "Q3366349",
+  "looked_up": "2026-11-16"
+ },
+ "workday/uchicago.wd5/external": {
+  "company": "University of Chicago",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
+ },
  "workday/uhaul.wd1/uhauljobs": {
   "company": "Uhaul",
   "domain": "uhaul.com",
   "item": "Q7862902",
   "looked_up": "2026-11-13"
+ },
+ "workday/umd.wd1/umcp": {
+  "company": "University of Maryland - College Park",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
  },
  "workday/ummc.wd5/umccareers": {
   "company": "University of Mississippi Medical Center",
@@ -1763,6 +2645,12 @@
   "item": null,
   "looked_up": "2026-11-13"
  },
+ "workday/vfc.wd5/northface_careers": {
+  "company": "The North Face",
+  "domain": "thenorthface.com",
+  "item": "Q152784",
+  "looked_up": "2026-11-16"
+ },
  "workday/vfc.wd5/vfc_careers": {
   "company": "VF",
   "domain": null,
@@ -1774,6 +2662,18 @@
   "domain": "vizientinc.com",
   "item": "Q120486111",
   "looked_up": "2026-11-13"
+ },
+ "workday/volarisgroup.wd3/assetworks": {
+  "company": "AssetWorks",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
+ },
+ "workday/vst.wd5/vistra_careers": {
+  "company": "Vistra",
+  "domain": null,
+  "item": null,
+  "looked_up": "2026-11-16"
  },
  "workday/wisconsin.wd1/uw_comprehensives": {
   "company": "University of Wisconsin System",
