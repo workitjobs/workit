@@ -1,6 +1,6 @@
 # Held forms in tabs of a CDP Worker
 
-**Status (2026-11-16):** Research only, nothing built. KAN-865. Measured on a Mac (one run, 2026-11-15) and in a Linux container (2026-11-16). The helper `tools/held_forms_tabs.py` repeats every measurement.
+**Status (2026-11-17):** Research only, nothing built. KAN-865 (sections 1 to 5), then KAN-876 (sections 6 to 9: every saved form, Workday's steps, the keep-alive and memory behind a tab and behind a window). Measured on a Mac (one run, 2026-11-15) and in a Linux container (2026-11-16 and 2026-11-17). The helper `tools/held_forms_tabs.py` repeats every measurement.
 
 Two machines, both with Chrome for Testing 156.0.8078.4 from Playwright 1.64.0 (`chromium-1248`), headed, with the CDP Workers' launch options (`WorkerBrowsers.launch_options`):
 
@@ -17,7 +17,10 @@ From `apply-agent/`, with `git submodule update --init` and `uv run playwright i
 uv run python tools/held_forms_tabs.py ticks                 # section 1, under Playwright
 uv run python tools/held_forms_tabs.py raw                   # section 2, Chrome with no Playwright
 uv run python tools/held_forms_tabs.py fill --form lever-immuta   # section 3
-uv run python tools/held_forms_tabs.py memory --held 5       # section 4
+uv run python tools/held_forms_tabs.py memory --held 5       # section 4 (add --windows for section 9)
+uv run python tools/held_forms_tabs.py sweep --out rows.jsonl     # section 6, every saved form
+uv run python tools/held_forms_tabs.py workday                    # section 7
+uv run python tools/held_forms_tabs.py keepalive                  # section 8, 10 minutes
 ```
 
 Add `--no-chrome-sandbox` in a container with no user namespaces. Each case starts its own Chrome on a scratch profile under the temp folder and closes it after. The saved form is served on 127.0.0.1 by `plain.demo.replay`, which refuses every POST, and is filled as Test Person. Nothing presses Submit.
