@@ -15,7 +15,15 @@ export function App({ bridge }: { bridge: Bridge }) {
   const [app, setApp] = useState<AppMethods>({});
   const [page, setPage] = useState<"home" | "applied">("home");
   const [toast, setToast] = useState("");
-  useEffect(() => bridge.watch(setState), [bridge]);
+  const [lost, setLost] = useState(false); // /state's last ask got no answer: Apply stopped, or is restarting
+  useEffect(
+    () =>
+      bridge.watch(
+        (s) => (setState(s), setLost(false)),
+        () => setLost(true),
+      ),
+    [bridge],
+  );
   useEffect(() => void bridge.app.then(setApp), [bridge]);
   useEffect(() => {
     if (!toast) return;
@@ -26,7 +34,7 @@ export function App({ bridge }: { bridge: Bridge }) {
   useEffect(() => {
     if (v) document.title = v.todo.length ? `WorkIt Auto Apply (${v.todo.length})` : "WorkIt Auto Apply";
   }, [v]);
-  if (!v) return null;
+  if (!v) return <Connecting lost={lost} />;
   // No run going: the queue, when the window has one to show (#613's app methods).
   const first = !!app.queue && !v.todo.length && !v.working.length && !v.queued && !v.applied.length && !v.stopped.length;
   return (
@@ -51,10 +59,29 @@ export function App({ bridge }: { bridge: Bridge }) {
         </nav>
       </header>
       <main className="mx-auto max-w-[600px] px-6 pt-12 pb-16">
+        {lost && (
+          <p role="alert" className="mb-6 rounded-[14px] border border-border bg-panel px-4 py-3 text-[13px] text-ink-meta">
+            {NOT_RUNNING} This window shows what it last heard, and catches up once Apply is back.
+          </p>
+        )}
         {first ? <Start app={app} /> : page === "applied" ? <Applied jobs={v.applied} /> : <Home v={v} bridge={bridge} fail={setToast} />}
         <Limit app={app} run={state?.run} />
       </main>
       {toast && <div className="rise fixed right-4 bottom-4 rounded-card bg-ink px-4 py-2.5 text-[13px] text-white shadow-[var(--shadow-focus)]">{toast}</div>}
+    </div>
+  );
+}
+
+const NOT_RUNNING = "WorkIt Auto Apply isn't answering. If you quit it, open it again.";
+
+// Before Apply's first state: never a blank page. If Apply doesn't answer at all, say so.
+function Connecting({ lost }: { lost: boolean }) {
+  return (
+    <div role="status" className="grid min-h-dvh place-items-center px-6 text-center">
+      <div>
+        <span className="mx-auto grid size-10 place-items-center rounded-xl bg-brand text-lg font-semibold text-on-brand">W</span>
+        <p className={cx("mt-4 text-[15px] text-ink-meta", !lost && "animate-pulse")}>{lost ? NOT_RUNNING : "Connecting to WorkIt Auto Apply…"}</p>
+      </div>
     </div>
   );
 }

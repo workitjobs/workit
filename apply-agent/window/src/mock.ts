@@ -1,7 +1,8 @@
 // A pretend Apply, in the shape of `Dashboard.state()`, with a pretend queue and
 // Usage: the window's fixtures. Pick one with ?scenario=start|needs|questions|ready|quiet|stopped,
 // the day's model use with ?usage=near|cap, and the start screen's queue with
-// ?queue=empty|unread|refused (refused: Start gives #613's error). Answers,
+// ?queue=empty|unread|refused (refused: Start gives #613's error), and how Apply answers with ?connect=slow|down
+// (slow: the first state after 2 s; down: no answer at all). Answers,
 // approvals, Remove and Stop change it as Apply would, so the whole flow can be clicked through.
 import type { ApplyState, Shown, Waiting } from "./apply.ts";
 import type { Bridge, Queued, Usage } from "./bridge.ts";
@@ -132,6 +133,7 @@ export function mock(
   scenario: string,
   used = USED[new URLSearchParams(location.search).get("usage") ?? ""] ?? 52_000,
   queued = new URLSearchParams(location.search).get("queue") ?? "",
+  connect = new URLSearchParams(location.search).get("connect") ?? "",
 ): Bridge {
   let state = structuredClone((SCENARIOS[scenario] ?? SCENARIOS.needs)());
   const listeners = new Set<(s: ApplyState) => void>();
@@ -139,10 +141,13 @@ export function mock(
   const later = (change: () => void, ms = 1500) => setTimeout(() => (change(), push()), ms);
   const find = (id: string) => state.items.find((i) => String(i.id) === id);
   return {
-    watch(on) {
-      listeners.add(on);
-      on(structuredClone(state));
-      return () => listeners.delete(on);
+    watch(on, lost) {
+      if (connect === "down") {
+        const t = setTimeout(() => lost?.(), 1500);
+        return () => clearTimeout(t);
+      }
+      const t = setTimeout(() => (listeners.add(on), on(structuredClone(state))), connect === "slow" ? 2000 : 0);
+      return () => (clearTimeout(t), listeners.delete(on));
     },
     async answer(id, question) {
       const item = find(id);

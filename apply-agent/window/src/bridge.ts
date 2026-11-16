@@ -21,7 +21,7 @@ export type App = Partial<{
 }>;
 
 export type Bridge = {
-  watch(on: (state: ApplyState) => void): () => void;
+  watch(on: (state: ApplyState) => void, lost?: () => void): () => void; // lost: /state got no answer this time
   answer(id: string, question: string, answer: string | Upload): Promise<void>;
   approve(id: string, essays?: string[]): Promise<void>;
   open(worker: number): Promise<void>; // bring that form's Chrome window forward
@@ -39,6 +39,7 @@ declare global {
 }
 
 const failed = (said: unknown) => new Error(typeof said === "string" && said ? said : "Apply didn't take that.");
+const UNANSWERED = "Apply didn't take that. Is it still running?";
 
 // The app's answer, or its {error} as a thrown Error.
 async function called<T>(method: (...args: unknown[]) => Promise<unknown>, ...args: unknown[]): Promise<T> {
@@ -69,18 +70,23 @@ export function routes(token: string, app: Promise<App> = appMethods()): Bridge 
       method: "POST",
       body: JSON.stringify(body),
       headers: { "Content-Type": "application/json", "X-Apply-Token": token },
+    }).catch(() => {
+      throw new Error(UNANSWERED); // no answer at all: Apply stopped, or is restarting
     });
     if (!reply.ok) throw failed(((await reply.json().catch(() => ({}))) as { error?: string }).error);
   };
   return {
-    watch(on) {
+    watch(on, lost) {
       let stop = false;
       const tick = async () => {
         try {
           // front=1: the student is looking, so Apply sends no notice of what the window already shows.
-          on(await (await fetch(`/state${document.hasFocus() ? "?front=1" : ""}`)).json());
+          const reply = await fetch(`/state${document.hasFocus() ? "?front=1" : ""}`);
+          if (!reply.ok) throw new Error(`/state: ${reply.status}`);
+          const state = await reply.json();
+          if (!stop) on(state);
         } catch {
-          // Apply restarting: the next tick tries again.
+          if (!stop) lost?.(); // Apply stopped or restarting: the next tick tries again
         }
         if (!stop) setTimeout(tick, 1000);
       };

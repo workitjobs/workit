@@ -34,3 +34,28 @@ test("Stop applying and Remove reach /stop and /remove", async () => {
     { path: "/stop", token: "tok", body: {} },
   ]);
 });
+
+// /state as Apply answers it: each reply in turn, a thrown one a request that never got an answer.
+async function watched(replies: (() => Response)[]) {
+  const said: string[] = [];
+  globalThis.document = { hasFocus: () => false } as Document;
+  globalThis.fetch = (async () => replies.shift()!()) as typeof fetch;
+  const stop = routes("tok", Promise.resolve({})).watch(
+    () => said.push("state"),
+    () => said.push("lost"),
+  );
+  await new Promise((done) => setTimeout(done, 20));
+  stop();
+  return said;
+}
+
+test("a /state that gets no answer says Apply is lost, and a state means it's back", async () => {
+  assert.deepEqual(await watched([() => { throw new TypeError("Failed to fetch"); }]), ["lost"]);
+  assert.deepEqual(await watched([() => new Response("{}", { status: 500 })]), ["lost"]);
+  assert.deepEqual(await watched([() => new Response(JSON.stringify({ tiles: [], items: [] }))]), ["state"]);
+});
+
+test("an action Apply never got says Apply didn't take it, in words", async () => {
+  globalThis.fetch = (async () => { throw new TypeError("Failed to fetch"); }) as typeof fetch;
+  await assert.rejects(routes("tok", Promise.resolve({})).stop(), { message: "Apply didn't take that. Is it still running?" });
+});
