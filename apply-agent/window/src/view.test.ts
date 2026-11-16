@@ -155,6 +155,16 @@ test("the daily limit is said in words only from 80%, never as tokens", () => {
   assert.equal(limit(usage(1200), at), "You've reached today's limit, so applying is paused. It starts again at 05:00.");
 });
 
+test("a run Apply paused at the cap says so, with or without a usage reading", () => {
+  const at = (d: Date) => d.toISOString().slice(11, 16);
+  const paused = { paused: true, reason: "usage cap", paused_until: "2026-11-16T05:30:00Z" };
+  const words = "You've reached today's limit, so applying is paused. It starts again at 05:30.";
+  assert.equal(limit(null, at, paused), words);
+  assert.equal(limit({ used: 100, cap: 1000, resets_at: "2026-11-16T05:00:00Z" }, at, paused), words);
+  assert.equal(limit(null, at, { paused: false }), "");
+  assert.equal(limit(null, at), "");
+});
+
 const QUEUE = [
   { url: "https://stripe/1", company: "Stripe", title: "SWE Intern" },
   { url: "https://ramp/1", company: "Ramp", title: "New Grad SWE" },

@@ -48,15 +48,21 @@ export type Waiting = { link: string; company?: string; title?: string; logo_url
 export type ApplyState = {
   tiles: Shown[];
   items: Shown[];
-  run?: {
-    mode?: string; // "rehearsal" while a run goes; none on the idle board
-    queued?: number;
-    waiting?: Waiting[]; // the links not started yet, named as the queue named them
-    cap?: number;
-    today?: number;
-    start?: string;
-    capped?: boolean;
-    tomorrow?: number;
-  };
+  run?: Run;
   context?: Record<string, unknown>;
+};
+
+// The run as a whole.
+export type Run = {
+  mode?: string; // "rehearsal" while a run goes; none on the idle board
+  queued?: number;
+  waiting?: Waiting[]; // the links not started yet, named as the queue named them
+  paused?: boolean; // paused until a usage limit resets
+  reason?: string; // why it's paused: "usage cap"
+  paused_until?: string | null; // when it goes on (local time)
+  cap?: number;
+  today?: number;
+  start?: string;
+  capped?: boolean;
+  tomorrow?: number;
 };

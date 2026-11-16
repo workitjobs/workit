@@ -2,8 +2,8 @@
 import { ArrowClockwiseIcon, CheckIcon, GearSixIcon, StopIcon, XIcon } from "@phosphor-icons/react";
 import { useEffect, useMemo, useState } from "react";
 
-import type { ApplyState } from "./apply.ts";
-import type { App as AppMethods, Bridge, Queued } from "./bridge.ts";
+import type { ApplyState, Run } from "./apply.ts";
+import type { App as AppMethods, Bridge, Queued, Usage } from "./bridge.ts";
 import { TodoCard } from "./cards.tsx";
 import { Button, Logo, cx, pressed } from "./ui.tsx";
 import { type Job, type View, type Waits, chosen, headline, limit, queueNote, startWords, view } from "./view.ts";
@@ -52,7 +52,7 @@ export function App({ bridge }: { bridge: Bridge }) {
       </header>
       <main className="mx-auto max-w-[600px] px-6 pt-12 pb-16">
         {first ? <Start app={app} /> : page === "applied" ? <Applied jobs={v.applied} /> : <Home v={v} bridge={bridge} fail={setToast} />}
-        <Limit app={app} />
+        <Limit app={app} run={state?.run} />
       </main>
       {toast && <div className="rise fixed right-4 bottom-4 rounded-card bg-ink px-4 py-2.5 text-[13px] text-white shadow-[var(--shadow-focus)]">{toast}</div>}
     </div>
@@ -90,16 +90,18 @@ function Stop({ bridge, fail }: { bridge: Bridge; fail: Fail }) {
   );
 }
 
-// The Usage cap in words, read again each minute: nothing until the student is close to it.
-function Limit({ app }: { app: AppMethods }) {
-  const [said, setSaid] = useState("");
+// The Usage cap in words, read again each minute: nothing until the student is close to it. A run Apply paused
+// at the cap says so from /state as well.
+function Limit({ app, run }: { app: AppMethods; run?: Run }) {
+  const [usage, setUsage] = useState<Usage | null>(null);
   useEffect(() => {
     if (!app.usage) return;
-    const read = () => app.usage!().then((usage) => setSaid(limit(usage)), () => setSaid(""));
+    const read = () => app.usage!().then(setUsage, () => setUsage(null));
     read();
     const t = setInterval(read, 60_000);
     return () => clearInterval(t);
   }, [app]);
+  const said = limit(usage, undefined, run);
   return said ? <p className="mt-8 text-[13px] text-ink-faint">{said}</p> : null;
 }
 

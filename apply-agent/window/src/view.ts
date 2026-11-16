@@ -1,6 +1,6 @@
 // Apply's state, as the student sees it: a pile of things to do, one at a
 // time, and the jobs WorkIt is still working on. A job is in one or the other.
-import type { ApplyState, Shown, Waiting } from "./apply.ts";
+import type { ApplyState, Run, Shown, Waiting } from "./apply.ts";
 import type { Queued, Usage } from "./bridge.ts";
 
 export type Status = "filling" | "checking" | "todo" | "submitted" | "stopped";
@@ -138,9 +138,14 @@ export function headline(v: View): string {
 
 const clock = (d: Date) => d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 
-// Today's model use against the Usage cap, in words: nothing under 80%, and never a token count.
-export function limit(usage: Usage, at: (resets: Date) => string = clock): string {
-  if (usage.used >= usage.cap) return `You've reached today's limit, so applying is paused. It starts again at ${at(new Date(usage.resets_at))}.`;
+const pausedAt = (resets: Date, at: (resets: Date) => string) => `You've reached today's limit, so applying is paused. It starts again at ${at(resets)}.`;
+
+// Today's model use against the Usage cap, in words: nothing under 80%, and never a token count. A run Apply
+// paused at the cap says so too, from /state, when the usage isn't read (yet).
+export function limit(usage: Usage | null, at: (resets: Date) => string = clock, run?: Run): string {
+  if (run?.paused && run.paused_until) return pausedAt(new Date(run.paused_until), at);
+  if (!usage) return "";
+  if (usage.used >= usage.cap) return pausedAt(new Date(usage.resets_at), at);
   return usage.used >= usage.cap * 0.8 ? "You're close to today's limit." : "";
 }
 
