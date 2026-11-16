@@ -84,6 +84,7 @@ QUEUE = HOME / "workit-queue.json"
 # Refresh an access token this many seconds before it expires, so it does not expire on its way.
 EARLY = 60
 TIMEOUT = 20
+REPORT_TIMEOUT = 120  # seconds: a report's screenshots are megabytes on a home connection
 # Cloudflare, in front of WorkIt's API, refuses Python-urllib's own user agent (error 1010).
 USER_AGENT = "WorkIt-Apply/1"
 # The page's link, as `apply login` may get it pasted in place of the code (`frontend/src/app/app-sign-in/`).
@@ -301,6 +302,11 @@ class WorkIt:
         if resume is None:
             return None
         return base64.b64decode(self.call("GET", f"/applicants/{me}/built-resumes/{resume['id']}/render")["pdf"])
+
+    def send_report(self, report: dict) -> str:
+        """Send report (D26, KAN-837): one Application's Record and masked Trace, as apply.report builds it, to
+        WorkIt's `POST /apply-app/reports`, which keeps it until the team fixes its problem. Its id on WorkIt."""
+        return str(self.call("POST", "/apply-app/reports", report, timeout=REPORT_TIMEOUT)["id"])
 
     def sync_answers(self, answers: list[dict], deleted: list[dict]) -> dict:
         """Merge Answer bank entries (and deletes) into the student's answers on WorkIt, which the extension

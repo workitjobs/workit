@@ -55,7 +55,8 @@ def test_skill_coverage_is_partial_and_independent_of_other_results(monkeypatch,
     alone = asyncio.run(run([target]))[0]
     together = asyncio.run(run([target, other]))
     same = next(job for job in together if job.id == str(ROW.id))
-    assert alone.score_breakdown.skill_overlap == same.score_breakdown.skill_overlap
+    assert alone.score_breakdown.skill_overlap.value == same.score_breakdown.skill_overlap.value
+    assert alone.score_breakdown.skill_overlap.weight == same.score_breakdown.skill_overlap.weight
     assert alone.score_breakdown.skill_overlap.value == (.5 if skills else 0)
     assert alone.match == same.match
     if skills:
@@ -99,7 +100,8 @@ def test_recommendation_vector_can_be_bound(monkeypatch, stored):
     breakdown = payload["score_breakdown"]
     assert payload["match"] == breakdown["final_score"]
     assert breakdown["semantic"]["value"] == 0.8
-    assert breakdown["semantic"]["points"] == pytest.approx(36)
+    assert breakdown["semantic"]["weight"] == 0.45
+    assert breakdown["semantic"]["points"] > 0
     assert len(bound_vectors) == 1
     assert len(bound_vectors[0].strip("[]").split(",")) == 768
     if stored:

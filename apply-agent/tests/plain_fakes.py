@@ -193,9 +193,9 @@ class _Shared:
         flags = (f"--host-resolver-rules=MAP * 127.0.0.1:{port}", "--ignore-certificate-errors", "--disable-quic")
         workers = PlainWorkers(folder, kind="testing", bridge=Bridge(folder / "w.sock"), test_flags=flags)
         self._stack.callback(workers.stop_all)
+        atexit.register(self._stack.close)  # before the launch: a first tab that fails still stops its Chrome
         self.connection = workers.launch(0).connection
         self.base = PortPage.first(self.connection).tab  # kept on about:blank, so the window stays
-        atexit.register(self._stack.close)
 
     def _answer(self, route) -> None:
         if self.handle:  # else Chrome's own requests at launch, before any fake: no answer

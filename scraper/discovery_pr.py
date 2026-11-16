@@ -264,6 +264,8 @@ def run(root: Path, repository: str, *, publishing: bool = False) -> int:
                     "hn",
                     "--channel",
                     "openjobs",
+                    "--channel",
+                    "commoncrawl",
                     "--resolve",
                     "--resolve-limit",
                     str(discover_boards.RESOLVE_LIMIT),
