@@ -40,6 +40,7 @@ DEVELOPER = frozenset({
 # records_remote and resume_source are read only by modules in DEVELOPER.
 STUDENT_POLICIES = {
     "ask_model": "workit",  # WorkIt's Model route (W1, D5): the app holds no model key
+    "fill_engine": "workit",  # WorkIt's signed download (W7, D3): the app ships no engine
     "ask_models": {},
     "phone_push": False,
 }

@@ -333,6 +333,28 @@ def test_an_application_ending_again_takes_the_place_of_its_last_item():
     assert board.state()["summary"].startswith("2 sent")
 
 
+def test_tiles_and_items_carry_the_logo_sources_job_system_and_progress_apply_has():
+    """Fault: the Student window drew a queued job with its initials though WorkIt gave its logo, lost the logo once
+    the form's own link took the place of the queue's, or had no job system or progress to show (KAN-871)."""
+    queued = "https://www.linkedin.com/jobs/3"
+    sources = {"logo_url": "https://www.google.com/s2/favicons?domain=acme.com", "company_domain": "acme.com"}
+    with Dashboard(2, FakeFrames({})) as board:
+        board.logos({queued: sources, "https://boards.greenhouse.io/y/1": {"logo_url": None, "company_domain": None}})
+        board.update(0, company="Acme", role="Intern", link=queued, posting_url="https://jobs.lever.co/acme/3",
+                     job_system="lever", status="filling")
+        board.update(1, company="Pasted", role="Intern", link="https://jobs.ashbyhq.com/p/1",
+                     posting_url="https://jobs.ashbyhq.com/p/1", job_system="ashby", status="filling")
+        tiles = board.state()["tiles"]
+        board.update(0, status=rehearsal.READY, why=CALIBRATION, filled=17, asked=18, missing=[])
+        item = board.state()["items"][0]
+
+    assert (tiles[0]["logo_url"], tiles[0]["company_domain"], tiles[0]["system"]) == (
+        sources["logo_url"], "acme.com", "Lever")
+    assert "logo_url" not in tiles[1] and "company_domain" not in tiles[1]  # a pasted link: no WorkIt job, initials
+    assert (item["company"], item["logo_url"], item["company_domain"], item["system"], item["filled"], item["asked"]) \
+        == ("Acme", sources["logo_url"], "acme.com", "Lever", 17, 18)
+
+
 def test_the_windows_title_counts_what_waits_on_lisul(window):
     with Dashboard(2, FakeFrames({})) as board:
         board.update(0, company="Stripe", status="held", why="Target company: Stripe")
@@ -1034,6 +1056,22 @@ def test_a_run_paused_at_a_usage_limit_says_why_and_when_it_goes_on(window):
         assert window.inner_text("#runline") == "Paused: Claude's usage limit is reached. Picks up again at 14:05."
 
 
+def test_a_run_paused_at_the_usage_cap_carries_the_paused_flag_and_why():
+    with Dashboard(1, FakeFrames({})) as board:
+        board.run(mode="rehearsal", queued=2)
+        assert board.state()["run"]["paused"] is False
+        assert "reason" not in board.state()["run"]
+
+        board.run(paused_until="2026-11-16T00:00")
+        run = board.state()["run"]
+        assert run["paused"] is True
+        assert run["reason"] == "usage cap"
+        assert run["paused_until"] == "2026-11-16T00:00"
+
+        board.run(paused_until=None)  # the cap reset: it goes on
+        assert board.state()["run"]["paused"] is False
+
+
 def test_the_daily_cap_shows_in_the_status_bar(window):
     with Dashboard(1, FakeFrames({})) as board:
         board.run(mode="run", cap=25, capped=True, tomorrow=11)
@@ -1313,6 +1351,25 @@ def test_an_optional_question_saved_blank_is_skipped_and_kept_and_a_file_is_atta
         assert board.state()["items"][0]["questions"] == ["Pronouns"]
 
 
+def test_a_student_runs_file_question_is_answered_from_the_card_while_its_form_fills_or_once_it_is_held():
+    """Fault (KAN-867): a Student run's file question can't be answered from the window's card, because /answer
+    refuses a file for it ("Attach the file on the form itself", which is only a live run's Tracker row's)."""
+    pdf = base64.b64encode(b"%PDF-1.4 transcript").decode()
+    with Dashboard(2, FakeFrames({}), answer=lambda item, q, a: "Saved.") as board:  # a Student run's saving_answers
+        asked = {"missing": ["Transcript"], "choices": {"Transcript": {"kind": "file", "options": []}}}
+        board.update(0, company="Ramp", posting_url="https://r.example/1", status="filling", **asked)
+        board.update(1, company="Plaid", posting_url="https://p.example/1", status=rehearsal.READY, **asked)
+        live, held = sorted(board.state()["items"], key=lambda i: str(i["company"]) != "Ramp")
+        for item in (live, held):
+            body = json.dumps({"id": item["id"], "question": "Transcript", "answer": "",
+                               "file": {"name": "transcript.pdf", "data": pdf}}).encode()
+            urllib.request.urlopen(urllib.request.Request(board.url + "/answer", body, {"X-Apply-Token": board.token}))
+
+        assert live["live"] and not held.get("live")
+        assert [(q, f.read_bytes()) for q, f in board.answered(0)] == [("Transcript", b"%PDF-1.4 transcript")]
+        assert [(q, f.read_bytes()) for q, f in board.answered(1)] == [("Transcript", b"%PDF-1.4 transcript")]
+
+
 # History: what Apply did, and why.
 
 def test_history_lists_each_decision_newest_first_with_why(window, tmp_path):
@@ -1493,6 +1550,37 @@ def test_start_holds_until_the_window_presses_it_and_only_the_window_may():
         waited.join(2)
         assert not waited.is_alive()
         assert board.state()["run"]["start"] == "started"
+
+
+def test_stop_applying_ends_the_run_and_only_the_window_may():
+    """KAN-874. Fault: a page of another site stops the student's run, or Stop does nothing."""
+    stopped = []
+    with Dashboard(2, FakeFrames({})) as board:
+        assert _status(board.url + "/stop", data=b"{}", headers={"X-Apply-Token": board.token}) == 409  # no run
+        board.stopping(lambda: stopped.append(True))
+        assert _status(board.url + "/stop", data=b"{}", headers={"X-Apply-Token": "guessed"}) == 403
+        assert _status(board.url + "/stop", data=b"{}") == 403
+        assert stopped == []
+        assert _status(board.url + "/stop", data=b"{}", headers={"X-Apply-Token": board.token}) == 204
+
+    assert stopped == [True]
+
+
+def test_remove_takes_a_job_that_hasnt_started_out_of_the_run_and_only_the_window_may():
+    """KAN-874. Fault: another site's page removes a job, or Remove takes out one that already started."""
+    removed = []
+    post = lambda body, token: _status(board.url + "/remove", data=json.dumps(body).encode(),
+                                       headers={"X-Apply-Token": token})
+    with Dashboard(2, FakeFrames({})) as board:
+        assert post({"link": "https://jobs.example/2"}, board.token) == 409  # no run takes a removal
+        board.removing(lambda link: removed.append(link) or link == "https://jobs.example/2")
+        assert post({"link": "https://jobs.example/2"}, "guessed") == 403
+        assert removed == []
+        assert post({"link": "https://jobs.example/1"}, board.token) == 409  # started: it isn't waiting any more
+        assert post({}, board.token) == 400
+        assert post({"link": "https://jobs.example/2"}, board.token) == 204
+
+    assert removed == ["https://jobs.example/1", "https://jobs.example/2"]
 
 
 # A bot block (KAN-590): LinkedIn's SmartRecruiters form, refused by DataDome, finished in Lisul's own Chrome.

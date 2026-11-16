@@ -69,6 +69,13 @@ call WorkIt from another module; add a method to `WorkIt` that uses `call`.
   This is the only write that doctor makes.
 - Each request sends the `User-Agent` `WorkIt-Apply/1`. Cloudflare, in
   front of WorkIt's API, refuses the Python-urllib user agent (error 1010).
+- A request to the live API, and the session's refresh at the live
+  Supabase Auth, trust only Cloudflare's certificate authorities, never the
+  computer's store (`workit.PINNED`, D28, KAN-836): a proxy the computer
+  trusts can't read the session or the Fill engine's download. Supabase is
+  behind Cloudflare too. Pinning the API alone left the refresh token
+  readable, and with it the download. A local stack is not pinned. The set and when to change it:
+  `docs/fill-engine.md`, "The connection is pinned".
 - `workit.LIVE` holds the live URLs and the anon key. They are the same
   public values as `autofiller_extension/src/shared/config.js`, and
   `test_workit_login.py` checks this. For a local WorkIt stack, set
@@ -373,8 +380,9 @@ The window's support form, "Report a problem": from Settings, or from an
 Application's tile, which picks that Application. The student chooses what
 it is about (`report.CATEGORIES`), writes what happened, says whether WorkIt
 may email them, and, with an Application picked, whether to include its
-record and log. Nothing is sent without their press. The form is W5's; it
-calls three functions in `apply/report.py`:
+record and log. Nothing is sent without their press. The form is W5's
+(`app_window.Bridge.review_report`, then `send_report`); it calls three
+functions in `apply/report.py`:
 
 - `build(category, note, profile, row=None, include=True, contact_ok=False)`
   makes the report. With `row` and `include`, it reads the Record's own

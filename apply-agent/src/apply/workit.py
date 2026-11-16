@@ -23,6 +23,14 @@ The API checks the bearer token itself (`backend/app/deps.py`,
 `security.py`): the token's signature, audience and issuer, then the
 account row.
 
+A call to the live API or to the live Supabase Auth (the session's hourly
+refresh) trusts only the certificate authorities Cloudflare uses
+(`apply.workit_roots`, D28 and W7; Supabase is behind Cloudflare too), not
+the computer's store, so a proxy the computer trusts can't read the session
+or the Fill engine's download. Pinning the API alone left the refresh
+token readable, and with it the download. A local stack (APPLY_WORKIT_*)
+is not pinned.
+
 The Applications Tracker's reads and writes (find or add a job by its
 link, set a stage and the applied date, keep a Sent resume) are methods
 that use `call`. So is the read of the student's tailored resume for a
@@ -44,6 +52,7 @@ import json
 import os
 import re
 import secrets
+import ssl
 import sys
 import time
 import urllib.error
@@ -56,6 +65,7 @@ from datetime import UTC, date, datetime, timedelta
 from datetime import time as dtime
 from email.message import Message
 from enum import StrEnum
+from functools import cache
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from urllib.parse import parse_qs, urlsplit
@@ -329,6 +339,21 @@ class WorkIt:
         self._account = None
         return self.me()
 
+    def sign_out(self) -> None:
+        """End this login: its session at Supabase Auth (this one only, scope=local), then the keychain's item and
+        this process's access token. WorkIt not answering still forgets it here."""
+        if token := self._fresh():
+            try:
+                _send("POST", self.site.auth + "/auth/v1/logout?scope=local", None, token, apikey=self.site.anon_key)
+            except Unreachable:
+                pass  # forgotten here all the same; the session ends with its refresh token unused
+        try:
+            self.keychain.forget(self.site.auth)
+        except RuntimeError as error:
+            raise WorkItError(str(error)) from None
+        _ACCESS.pop(self.site.auth, None)
+        self._account = None
+
     def _bearer(self, refresh: bool) -> str:
         if not refresh and (fresh := self._fresh()):
             return fresh
@@ -552,7 +577,7 @@ def _send(method: str, url: str, body: Any, token: str | None, apikey: str | Non
     data = json.dumps(body).encode() if body is not None else None
     request = urllib.request.Request(url, data=data, headers=headers, method=method)
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
+        with urllib.request.urlopen(request, timeout=timeout, context=_pinned(url)) as response:
             status, raw, headers = response.status, response.read(), response.headers
     except urllib.error.HTTPError as error:
         status, raw, headers = error.code, error.read(), error.headers
@@ -564,6 +589,22 @@ def _send(method: str, url: str, body: Any, token: str | None, apikey: str | Non
         return status, json.loads(raw) if raw else None, headers
     except ValueError:
         return status, raw.decode(errors="replace")[:200], headers
+
+
+# The hosts whose TLS trusts only Cloudflare's CAs: the live API, and the live Supabase Auth, which sees the session.
+PINNED = frozenset(urlsplit(url).hostname for url in (LIVE.api, LIVE.auth))
+
+
+def _pinned(url: str) -> ssl.SSLContext | None:
+    """The TLS context of a PINNED host, which trusts only Cloudflare's CAs; None (the default) for any other."""
+    return _pinned_context() if urlsplit(url).hostname in PINNED else None
+
+
+@cache
+def _pinned_context() -> ssl.SSLContext:
+    from apply.workit_roots import ROOTS
+
+    return ssl.create_default_context(cadata=ROOTS)
 
 
 def _retry_at(retry_after: str | None) -> float:

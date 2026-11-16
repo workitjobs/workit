@@ -44,7 +44,7 @@ def keep_engine(connection) -> None:
 
     if features(getattr(connection, "hello", None) or {}) < HELD_FROM:
         return  # an older extension: stale, reloaded or told so by the bridge
-    source = fill_engine.ENGINE.read_text()
+    source = fill_engine.source()  # the checkout's file or WorkIt's download, from memory either way (W7)
     sha = hashlib.sha256(source.encode()).hexdigest()
     if getattr(connection, "engine_kept", None) == sha:
         return

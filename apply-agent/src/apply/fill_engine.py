@@ -10,6 +10,12 @@ it, so every call loads it again if the page no longer has it; a call a
 navigation cut short (Workday's Save and Continue loads the next step) is made
 again on the new page.
 
+Where the bundle comes from (`source`): the engine checkout's file in a Developer checkout, or WorkIt's
+download in the Student build and wherever the policies say `fill_engine: workit` (apply.engine_download, W7):
+fetched once per process, checked, and kept only in memory. Either way every reader takes its text from
+`source`: the page through page.evaluate, a plain Worker over native messaging, and Node on its stdin, so no
+plain engine file is written anywhere.
+
 What needs no page runs the bundle in Node, the copy that ships inside
 Playwright (call_without_page): reading a job from its link, the planner, which
 plans before the form opens, and the engine's other pure functions. They run in
@@ -68,16 +74,15 @@ CALL = "({name, args}) => FillEngine.call(name, args)"
 NAVIGATED = re.compile(r"context was destroyed|navigat|FillEngine is not defined", re.IGNORECASE)
 CALLS = 5  # times a call is made, each cut short by a navigation, before its error stands
 
-# Runs engine functions in one long-lived Node: the bundle's path is an argument; each call is a
-# line on stdin, {name, args, questions}, and its answer a line on stdout, {value} or {error}. Inside
-# args, {"$q": i} is questions[i], {"$date": "YYYY-MM-DD"} a Date, and {"$host": name} a function that
-# calls Apply back: it writes {"ask": name, "args": [...]} and reads Apply's {"answer": ...} or
-# {"failed": message} (a thrown Error) before going on. The answer's Questions go back as {"$q": i}.
-# Calls run in the bundle's own context (given URL, which the engine reads links with), so its Dates
-# are the engine's. The process stays because the engine's first plan compiles every rule's pattern.
+# Runs engine functions in one long-lived Node: its first line on stdin is the bundle's text, as a JSON string
+# (never a file: it may be WorkIt's download); each call is then a line on stdin, {name, args, questions}, and its
+# answer a line on stdout, {value} or {error}. Inside args, {"$q": i} is questions[i], {"$date": "YYYY-MM-DD"} a
+# Date, and {"$host": name} a function that calls Apply back: it writes {"ask": name, "args": [...]} and reads
+# Apply's {"answer": ...} or {"failed": message} (a thrown Error) before going on. The answer's Questions go back as
+# {"$q": i}. Calls run in the bundle's own context (given URL, which the engine reads links with), so its Dates are
+# the engine's. The process stays because the engine's first plan compiles every rule's pattern.
 NODE_SERVER = """const vm = require("vm"), fs = require("fs");
 const context = vm.createContext({URL});
-vm.runInContext(fs.readFileSync(process.argv[1], "utf8"), context);
 let pending = Buffer.alloc(0);  // bytes read past the last line: a character may straddle two reads
 function readLine() {
   const buffer = Buffer.alloc(65536);
@@ -90,6 +95,7 @@ function readLine() {
     pending = Buffer.concat([pending, buffer.subarray(0, n)]);
   }
 }
+vm.runInContext(JSON.parse(readLine()), context);
 const write = (value) => fs.writeSync(1, JSON.stringify(value) + "\\n");
 function askHost(name, args) {
   write({ask: name, args});
@@ -121,12 +127,60 @@ _nodes: dict[int, subprocess.Popen] = {}
 _node_locks: dict[int, threading.Lock] = {}  # Workers share each Node, a call at a time
 _depth = threading.local()
 _loaded: dict[str, object] = {}  # the bundle the Nodes run: its "stat" (mtime, size) and "sha256"
+_download: dict[str, object] = {}  # WorkIt's engine, once per process: its "text", or the "refused" error
+_download_lock = threading.Lock()
+
+
+def from_workit() -> bool:
+    """Whether this process runs WorkIt's downloaded engine, not the checkout's file: always in the Student build."""
+    from apply import build
+
+    return build.STUDENT or _policy_says_workit()
+
+
+@functools.cache
+def _policy_says_workit() -> bool:
+    from apply.profile import load_policies
+
+    return load_policies().get("fill_engine") == "workit"
+
+
+def source() -> str:
+    """The engine bundle's text, from WorkIt or from the checkout (see the module's docstring). WorkIt's is
+    downloaded once per process and kept in memory. A lasting refusal (a wrong signature, no engine key) is refused
+    again at once, with no new download, until Apply restarts; any other is tried again at the next use."""
+    if not from_workit():
+        _built()
+        return ENGINE.read_text()
+    with _download_lock:
+        if "text" not in _download:
+            if "refused" in _download:
+                raise _download["refused"]
+            from apply.engine_download import EngineRefused, download
+
+            try:
+                _download["text"] = download()
+            except EngineRefused as refused:
+                if refused.lasting:
+                    _download["refused"] = refused
+                raise
+        return _download["text"]
+
+
+def ready() -> None:
+    """Before a run opens any Worker: WorkIt's engine downloaded and checked, so a refusal stops the run with its
+    one sentence. Nothing for the checkout's file, whose absence each Application reports as it did."""
+    if from_workit():
+        source()
 
 
 def fresh() -> bool:
     """Before a new posting is planned: if the bundle on disk is not the one the long-lived Nodes run
     (a merged engine fix, `git submodule update`), stop them, so the next call starts a Node on the new
-    one. Waits for each Node's call in progress. True when it reloaded (KAN-645)."""
+    one. Waits for each Node's call in progress. True when it reloaded (KAN-645). WorkIt's engine stays the one
+    downloaded at launch."""
+    if from_workit():
+        return False
     try:
         stat = ENGINE.stat()
     except OSError:
@@ -183,11 +237,12 @@ def call_without_page(name: str, *args: Any, questions: QuestionSet = ()) -> Any
     with _node_locks.setdefault(depth, threading.Lock()):
         node = _nodes.get(depth)
         if node is None or node.poll() is not None:
-            _built()
+            bundle = source()
             if not _loaded:
                 fresh()  # what the first Node runs
-            node = _nodes[depth] = subprocess.Popen([compute_driver_executable()[0], "-e", NODE_SERVER, str(ENGINE)], stdin=subprocess.PIPE,
+            node = _nodes[depth] = subprocess.Popen([compute_driver_executable()[0], "-e", NODE_SERVER], stdin=subprocess.PIPE,
                                                     stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, encoding="utf-8")
+            node.stdin.write(json.dumps(bundle) + "\n")
         node.stdin.write(payload + "\n")
         node.stdin.flush()
         while (line := node.stdout.readline()) and "ask" in (asked := json.loads(line)):
@@ -584,12 +639,11 @@ def _returned(answer: dict, name: str) -> Any:
 
 def load(page: Page) -> None:
     """Put the engine in the page, unless it is there already."""
-    if hasattr(page, "load_engine"):  # a plain Worker's page: the extension loads the same bundle as a file
+    if hasattr(page, "load_engine"):  # a plain Worker's page: the extension runs the bundle Apply kept in it
         page.load_engine()
         return
     if not page.evaluate("() => typeof FillEngine !== 'undefined'"):
-        _built()
-        page.evaluate(ENGINE.read_text())
+        page.evaluate(source())
 
 
 class EngineMissing(FillError, SetupError):
