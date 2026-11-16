@@ -355,6 +355,20 @@ def test_tiles_and_items_carry_the_logo_sources_job_system_and_progress_apply_ha
         == ("Acme", sources["logo_url"], "acme.com", "Lever", 17, 18)
 
 
+def test_a_form_that_has_not_read_its_company_yet_is_named_by_its_queued_job():
+    """Fault: a picked job's row read "A job" while its form loaded, since only the queued job's logo came along."""
+    queued = "https://jobs.lever.co/motorolasolutions/1"
+    with Dashboard(1, FakeFrames({})) as board:
+        board.logos({queued: {"company": "Motorola Solutions", "title": "Software Intern", "company_domain": "motorolasolutions.com"}})
+        board.update(0, link=queued, status="filling")
+        named = board.state()["tiles"][0]
+        board.update(0, company="Motorola", role="SWE Intern")
+        read = board.state()["tiles"][0]
+
+    assert (named["company"], named["role"]) == ("Motorola Solutions", "Software Intern")
+    assert (read["company"], read["role"]) == ("Motorola", "SWE Intern")  # what the form says wins
+
+
 def test_the_windows_title_counts_what_waits_on_lisul(window):
     with Dashboard(2, FakeFrames({})) as board:
         board.update(0, company="Stripe", status="held", why="Target company: Stripe")
