@@ -207,12 +207,14 @@ def test_start_shows_the_runs_window_then_the_queue_again_and_says_why_one_stopp
 
 
 def test_the_queue_is_the_students_open_queued_jobs_oldest_first(board, tmp_path):
-    """Fault: a closed job in the queue, or a job board's page where its employer's form was named."""
+    """Fault: a closed job in the queue, a job board's page where its employer's form was named, or a job without the
+    logo sources the website draws it with."""
     from fake_workit import Reply
 
     rows = [
         {"job": {"apply_url": "https://www.linkedin.com/jobs/3", "form_url": "https://jobs.lever.co/acme/3",
-                 "company": "Acme", "title": "Intern"}, "open": True},
+                 "company": "Acme", "title": "Intern", "logo_url": "https://www.google.com/s2/favicons?domain=acme.com",
+                 "company_domain": "acme.com"}, "open": True},
         {"job": {"apply_url": "https://boards.greenhouse.io/x/2", "company": "X", "title": "Gone"}, "open": False},
         {"job": {"apply_url": "https://boards.greenhouse.io/y/1", "company": "Y", "title": "Analyst"}, "open": True},
     ]
@@ -222,8 +224,10 @@ def test_the_queue_is_the_students_open_queued_jobs_oldest_first(board, tmp_path
         client = WorkIt(fake.site, tmp_path / "workit-login.json", fake.keychain)
         workit.login(client, fake.browser)
         assert Bridge(board, client).queue() == [
-            {"url": "https://boards.greenhouse.io/y/1", "company": "Y", "title": "Analyst"},
-            {"url": "https://jobs.lever.co/acme/3", "company": "Acme", "title": "Intern"},
+            {"url": "https://boards.greenhouse.io/y/1", "company": "Y", "title": "Analyst", "logo_url": None,
+             "company_domain": None},
+            {"url": "https://jobs.lever.co/acme/3", "company": "Acme", "title": "Intern",
+             "logo_url": "https://www.google.com/s2/favicons?domain=acme.com", "company_domain": "acme.com"},
         ]
 
 

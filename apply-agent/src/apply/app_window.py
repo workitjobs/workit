@@ -373,14 +373,16 @@ class Bridge:
     # A run (W5 step 4).
 
     def queue(self) -> list[dict] | dict:
-        """The student's queued, open jobs on WorkIt, oldest first, as {url, company, title}; or {error}."""
+        """The student's queued, open jobs on WorkIt, oldest first, as {url, company, title, logo_url, company_domain}
+        (the logo sources the website draws each job with); or {error}."""
         try:
             rows = self._client.call("GET", f"/applicants/{self._client.applicant_id()}/applications?stage=queued")
         except workit.WorkItError as error:
             return {"error": f"WorkIt Auto Apply couldn't read your queue ({error}). Paste a link instead."}
         jobs = [row["job"] for row in reversed(rows) if row.get("open")]
         return [{"url": job.get("form_url") or job["apply_url"], "company": job.get("company") or "",
-                 "title": job.get("title") or ""} for job in jobs]
+                 "title": job.get("title") or "", "logo_url": job.get("logo_url"),
+                 "company_domain": job.get("company_domain")} for job in jobs]
 
     def usage(self) -> dict:
         """Today's model use: {used, cap, resets_at}, or {error}."""
