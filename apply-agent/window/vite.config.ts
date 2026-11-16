@@ -1,3 +1,5 @@
+import { join } from "node:path";
+
 import tailwind from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig, loadEnv } from "vite";
@@ -16,8 +18,8 @@ export default defineConfig(({ mode }) => ({
   plugins: [react(), tailwind(), viteSingleFile()],
   define: {
     __BRANDFETCH_CLIENT_ID__: JSON.stringify(
-      loadEnv(mode, "../../frontend", "NEXT_PUBLIC_").NEXT_PUBLIC_BRANDFETCH_CLIENT_ID ?? "",
+      loadEnv(mode, join(import.meta.dirname, "..", "..", "frontend"), "NEXT_PUBLIC_").NEXT_PUBLIC_BRANDFETCH_CLIENT_ID ?? "",
     ),
   },
-  build: { outDir: "../src/apply/student_page", emptyOutDir: true, assetsInlineLimit: Infinity },
+  build: { outDir: join(import.meta.dirname, "..", "src", "apply", "student_page"), emptyOutDir: true, assetsInlineLimit: Infinity },
 }));
