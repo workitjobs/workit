@@ -217,6 +217,7 @@ test("Start sends the ticked jobs and the pasted link, and counts them", () => {
   assert.deepEqual(chosen(QUEUE, [true, false], " https://figma/1 "), ["https://stripe/1", "https://figma/1"]);
   assert.equal(startWords(2), "Start applying to 2 jobs");
   assert.equal(startWords(1), "Start applying to 1 job");
+  assert.equal(startWords(0), "Start applying");
 });
 
 test("a pasted job already ticked in the queue counts once, and text that isn't a link not at all", () => {

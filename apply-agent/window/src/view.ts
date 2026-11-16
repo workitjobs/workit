@@ -202,7 +202,7 @@ export function chosen(queue: Queued[], ticked: boolean[], pasted: string): stri
   return /^https?:\/\/\S+$/.test(link) && !links.includes(link) ? [...links, link] : links;
 }
 
-export const startWords = (n: number) => `Start applying to ${plural(n, "job")}`;
+export const startWords = (n: number) => (n ? `Start applying to ${plural(n, "job")}` : "Start applying");
 
 // How long "Starting N applications…" waits for the run's board before it asks Apply whether the run is going.
 export const STARTING_WAIT = 30_000;

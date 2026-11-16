@@ -1,5 +1,5 @@
 // The window: one screen that answers "what do I do now?".
-import { ArrowClockwiseIcon, CheckIcon, GearSixIcon, PlusIcon, StopIcon, XIcon } from "@phosphor-icons/react";
+import { ArrowClockwiseIcon, CheckIcon, GearSixIcon, PlusIcon, StopCircleIcon, XIcon } from "@phosphor-icons/react";
 import { useEffect, useMemo, useState } from "react";
 
 import type { ApplyState, Run } from "./apply.ts";
@@ -70,6 +70,7 @@ export function App({ bridge }: { bridge: Bridge }) {
         </nav>
       </header>
       <main className="mx-auto max-w-window px-6 pt-12 pb-16">
+        <Limit app={app} run={state?.run} />
         {lost && (
           <p role="alert" className="mb-6 rounded-card border border-border bg-panel px-4 py-3 text-note text-ink-meta">
             {NOT_RUNNING} This window shows what it last heard, and catches up once Apply is back.
@@ -82,7 +83,6 @@ export function App({ bridge }: { bridge: Bridge }) {
         ) : (
           <Home v={v} bridge={bridge} fail={setToast} add={app.queue && addsJobs(v, !!app.start) ? add : undefined} />
         )}
-        <Limit app={app} run={state?.run} />
       </main>
       {toast && <div role="alert" className="rise fixed right-4 bottom-4 rounded-card bg-ink px-4 py-2.5 text-note text-on-brand shadow-lift">{toast}</div>}
     </div>
@@ -114,7 +114,7 @@ function Stop({ bridge, fail }: { bridge: Bridge; fail: Fail }) {
   if (step === "idle")
     return (
       <Button tone="quiet" className="h-8 px-3" onClick={() => setStep("asking")}>
-        <StopIcon className="size-4" /> Stop applying
+        <StopCircleIcon className="size-4" /> Stop applying
       </Button>
     );
   return (
@@ -146,7 +146,14 @@ function Limit({ app, run }: { app: AppMethods; run?: Run }) {
     return () => clearInterval(t);
   }, [app]);
   const line = limit(usage, undefined, run);
-  return line ? <p className="mt-8 text-note text-ink-meta">{line}</p> : null;
+  if (!line) return null;
+  // At the cap (or paused at it), a banner on top, so no "We're on it" below reads as if applying goes on.
+  const reached = !!run?.paused || (!!usage && usage.used >= usage.cap);
+  return reached ? (
+    <p role="status" className="mb-6 rounded-card bg-warning-tint px-4 py-3 font-semibold text-warning-deep">{line}</p>
+  ) : (
+    <p role="status" className="mb-6 text-note text-ink-meta">{line}</p>
+  );
 }
 
 function Home({ v, bridge, fail, add }: { v: View; bridge: Bridge; fail: Fail; add?: () => void }) {
@@ -243,10 +250,10 @@ function Waiting({ job, bridge, fail }: { job: Waits; bridge: Bridge; fail: Fail
     bridge.remove(job.link).catch((e: Error) => (setRemoving(false), fail(e.message)));
   };
   return (
-    <div className={cx("flex items-center gap-3 py-2", removing && "opacity-50")}>
-      <Logo company={job.company} src={job.source} size="sm" />
+    <div className={cx("flex items-center gap-3 py-2.5", removing && "opacity-50")}>
+      <Logo company={job.company} src={job.source} size="md" />
       <div className="min-w-0 flex-1">
-        <div className="truncate text-note font-semibold">{job.company}</div>
+        <div className="truncate font-semibold">{job.company}</div>
         {job.role && <div className="truncate text-note text-ink-meta">{job.role}</div>}
       </div>
       <Button tone="quiet" className="h-8 px-3 text-note" disabled={removing} onClick={remove} aria-label={`Remove ${job.company}`}>
