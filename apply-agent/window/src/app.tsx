@@ -6,7 +6,7 @@ import type { ApplyState } from "./apply.ts";
 import type { App as AppMethods, Bridge, Queued } from "./bridge.ts";
 import { TodoCard } from "./cards.tsx";
 import { Button, Logo, cx } from "./ui.tsx";
-import { type Job, type View, headline, limit, view } from "./view.ts";
+import { type Job, type View, chosen, headline, limit, queueNote, startWords, view } from "./view.ts";
 
 type Fail = (message: string) => void;
 
@@ -133,53 +133,74 @@ function Row({ job }: { job: Job }) {
   );
 }
 
-// The student's Auto Apply queue on WorkIt, every job ticked, and one pasted link: Start runs them.
+// The student's Auto Apply queue on WorkIt, every job ticked, and one pasted link: Start runs them. Once it is
+// pressed the queue leaves the view; #613 swaps in the run's board, and this screen again when the run ends.
 function Start({ app }: { app: AppMethods }) {
-  const [queue, setQueue] = useState<Queued[]>([]);
-  const [picked, setPicked] = useState<boolean[]>([]);
+  const [queue, setQueue] = useState<Queued[] | Error | null>(null);
+  const [ticked, setTicked] = useState<boolean[]>([]);
   const [link, setLink] = useState("");
-  const [said, setSaid] = useState("");
+  const [started, setStarted] = useState(false);
+  const [said, setSaid] = useState(""); // why the last run couldn't start or stopped
   useEffect(() => {
     app.queue!().then(
-      (jobs) => (setQueue(jobs), setPicked(jobs.map(() => true))),
-      (e: Error) => setSaid(e.message),
+      (jobs) => (setQueue(jobs), setTicked(jobs.map(() => true))),
+      (e: Error) => setQueue(e),
     );
-    app.status?.().then((s) => s.said && setSaid(s.said));
+    app.status?.().then(
+      (s) => s.said && setSaid(s.said),
+      () => {},
+    );
   }, [app]);
-  const pasted = /^https?:\/\//.test(link.trim()) ? [link.trim()] : [];
-  const links = [...queue.filter((_, i) => picked[i]).map((q) => q.url), ...pasted];
+  const jobs = Array.isArray(queue) ? queue : [];
+  const links = chosen(jobs, ticked, link);
+  const note = queueNote(queue);
+  const start = () => {
+    setStarted(true);
+    setSaid("");
+    app.start!(links).catch((e: Error) => (setStarted(false), setSaid(e.message)));
+  };
   return (
     <div className="pt-4">
       <h1 className="text-center text-[32px] font-bold tracking-[-0.025em]">What should we apply to?</h1>
       <p className="mt-1.5 text-center text-[15px] text-ink-meta">We fill out the applications. You check each one and press Submit.</p>
-      {queue.length > 0 && (
-        <div className="mt-8 rounded-[14px] border border-border bg-panel px-4 py-1.5">
-          {queue.map((q, i) => (
-            <label key={q.url} className="flex cursor-pointer items-center gap-3 border-b border-border py-2.5 last:border-0">
-              <input type="checkbox" checked={picked[i]} onChange={() => setPicked(picked.map((p, j) => (j === i ? !p : p)))} className="size-[18px] accent-brand" />
-              <Logo company={q.company} size={32} />
-              <span className="min-w-0 flex-1">
-                <span className="block font-semibold">{q.title}</span>
-                <span className="block text-xs text-ink-meta">{q.company}</span>
-              </span>
-            </label>
-          ))}
-        </div>
+      {started ? (
+        <p role="status" className="mt-8 text-center text-ink-meta">
+          Starting {links.length === 1 ? "your application" : `${links.length} applications`}…
+        </p>
+      ) : (
+        <>
+          {jobs.length > 0 && (
+            <div className="mt-8 rounded-[14px] border border-border bg-panel px-4 py-1.5">
+              {jobs.map((q, i) => (
+                <label key={q.url} className="flex cursor-pointer items-center gap-3 border-b border-border py-2.5 last:border-0">
+                  <input
+                    type="checkbox"
+                    checked={!!ticked[i]}
+                    onChange={() => setTicked(ticked.map((t, j) => (j === i ? !t : t)))}
+                    className="size-[18px] accent-brand"
+                  />
+                  <Logo company={q.company} size={32} />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-semibold">{q.title || "A job"}</span>
+                    <span className="block text-xs text-ink-meta">{q.company}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+          )}
+          {note && <p className="mt-8 rounded-[14px] border border-border bg-panel px-4 py-3.5 text-center text-[13px] text-ink-meta">{note}</p>}
+          <input
+            value={link}
+            onChange={(e) => setLink(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && links.length > 0 && start()}
+            placeholder={jobs.length ? "Or paste a job link" : "Paste a job link"}
+            aria-label="A job posting's link"
+            className={cx("h-10 w-full rounded-control border border-border-surface bg-panel px-3.5 outline-none focus:border-brand", queue ? "mt-3" : "mt-8")}
+          />
+        </>
       )}
-      <input
-        value={link}
-        onChange={(e) => setLink(e.target.value)}
-        placeholder={queue.length ? "Or paste a job link" : "Paste a job link"}
-        className="mt-3 h-10 w-full rounded-control border border-border-surface bg-panel px-3.5 outline-none focus:border-brand"
-      />
-      <Button
-        tone="primary"
-        size="lg"
-        className="mt-6 w-full"
-        disabled={!links.length}
-        onClick={() => app.start!(links).then(() => setSaid("Starting…"), (e: Error) => setSaid(e.message))}
-      >
-        Start applying to {links.length} {links.length === 1 ? "job" : "jobs"}
+      <Button tone="primary" size="lg" className="mt-6 w-full" disabled={started || !links.length} onClick={start}>
+        {startWords(links.length)}
       </Button>
       {said && (
         <p role="alert" className="mt-3 text-center text-[13px] text-ink-meta">
