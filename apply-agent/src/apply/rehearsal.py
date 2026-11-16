@@ -68,7 +68,7 @@ from apply import (
     verify,
     workday,
 )
-from apply.accounts import NEEDS_SIGN_IN, Accounts
+from apply.accounts import NEEDS_SIGN_IN, Accounts, failed_sites
 from apply.adapters import Adapters, JobSite, SetupError, Tracker
 from apply.answers_tab import Refused
 from apply.asking import for_essay
@@ -271,8 +271,8 @@ def rehearse(
     ends at once, its form never opened, unless `force`: then its held page
     keeps Submit blocked under a red note until he dismisses it. With
     `reopening` (`apply reopen`), the links are forms Apply held before it
-    stopped: each opens in its own Worker, keeps what it held, and stops at
-    a sign-in for Lisul (Accounts.hands_off). Returns the
+    stopped: each opens in its own Worker, keeps what it held, and signs in
+    as any rehearsal does (KAN-878). Returns the
     links' first summaries in the order they ended."""
     fill_engine.ready()  # WorkIt's engine downloaded and checked before any Worker opens: a refusal stops the run (W7)
     adapters.board.run(mode="rehearsal", queued=len(urls), waiting=list(urls))
@@ -288,7 +288,7 @@ def rehearse(
         release.set()
     finished: queue.Queue[Rehearsed] = queue.Queue()
     calibration = _Calibration(adapters, profile)
-    accounts = _Accounts(adapters, profile, submitted_to or adapters.tracker, hands_off=reopening is not None)
+    accounts = _Accounts(adapters, profile, submitted_to or adapters.tracker)
     if reopening and (aim := getattr(adapters.board, "aim", None)):
         aim(reopening.workers)  # tile n shows the Worker that holds link n's sign-in
     # Each tile's first fill has stopped for something other than a sign-in: a reopened Worker's next link goes in.
@@ -1342,18 +1342,22 @@ class _Accounts:
     Lisul submits: a live rehearsal's own is a throwaway, but the account is
     real), and a failed password sign-in never tried again by another link."""
 
-    def __init__(self, adapters: Adapters, profile: ApplicantProfile, listed_to: Tracker, hands_off: bool = False):
+    def __init__(self, adapters: Adapters, profile: ApplicantProfile, listed_to: Tracker):
         self._adapters = adapters
-        self._hands_off = hands_off  # a reopened batch's: every sign-in is Lisul's (KAN-720)
         self._listed_to = listed_to
         self._login = profile.get("identity.email")
-        self._failed: set[str] = set()
+        # The sites whose password sign-in failed before, as a run reads them (orchestrator): a reopened form never
+        # tries a failed password again, which could lock the account (KAN-878's review).
+        try:
+            self._failed: set[str] = failed_sites([row.reason for row in listed_to.rows()])
+        except Exception:
+            self._failed = set()  # a Tracker that can't be read: none known
         self._writing = threading.Lock()
 
     def __call__(self, posting: Posting) -> Accounts:
         a = self._adapters
         return Accounts(a.keychain, a.mailbox, a.clock, self._login, posting.company, self._add, self._failed,
-                        rehearsal=True, hands_off=self._hands_off)
+                        rehearsal=True)
 
     def _add(self, account) -> None:
         with self._writing:

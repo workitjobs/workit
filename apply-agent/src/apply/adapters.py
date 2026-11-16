@@ -163,8 +163,9 @@ class Mailbox(Protocol):
         """Only a code the mail names as one, never a guess, with the sender's domain."""
         ...
 
-    def find_link(self, *, search: str, since: datetime, hosts: tuple[str, ...]) -> str | None:
-        """Only a link to one of `hosts` (or a host under one) counts."""
+    def find_link(self, *, search: str, since: datetime, hosts: tuple[str, ...], resets: bool = True) -> str | None:
+        """Only a link to one of `hosts` (or a host under one) counts; without `resets`, none from a mail that
+        resets a password."""
         ...
 
 

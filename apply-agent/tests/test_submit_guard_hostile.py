@@ -666,6 +666,29 @@ DELAYS = SENDS_AFTER | GENERIC_SENDS_AFTER
 MOVED = {"a session dialog whose Continue sends after the next mouse move",
          "a generic session dialog whose I'm still here sends after the next mouse move"}
 PAGES |= SESSION_PAGES | GENERIC_SESSION_PAGES
+# A Sign in with Google in the application form, which the provider sign-in's Google press looks for (KAN-878).
+GOOGLE_PAGES = {
+    # Its Sign in with Google is the form's submit button: the press would post the application.
+    "a Sign in with Google that is the form's submit button": {START: f"""<title>Apply</title><form method=post action="{FINAL}">
+        <label>First name <input name=first value=Test></label><button id=b>Sign in with Google</button></form>{SEND_ALL}
+        <script>document.getElementById('b').addEventListener('click', () => sendAll());</script>"""},
+    # Its Sign in with Google is a type=button whose own click handler posts the application.
+    "a Sign in with Google whose click sends the application": {START: f"""<title>Apply</title><form method=post action="{FINAL}">
+        <label>First name <input name=first value=Test></label><button type=button id=b>Sign in with Google</button>
+        <button>Submit application</button></form>{SEND_ALL}
+        <script>document.getElementById('b').addEventListener('click', () => {{ sendAll(); document.forms[0].requestSubmit(); }});</script>"""},
+    # Eightfold's Google class on a wrapper whose inner button is the form's submit (KAN-878's review).
+    "a Google sign-in class around the form's submit button": {START: f"""<title>Apply</title><form method=post action="{FINAL}">
+        <label>First name <input name=first value=Test></label><div class="candidateAuthGoogleLoginButton"
+        style="display: inline-block"><button id=b style="all: unset">Sign in with Google</button></div></form>{SEND_ALL}
+        <script>document.getElementById('b').addEventListener('click', () => sendAll());</script>"""},
+    # Eightfold's Google class on a label for the form's hidden submit button: a click on it clicks that button.
+    "a Google sign-in label for the form's hidden submit button": {START: f"""<title>Apply</title><form method=post action="{FINAL}">
+        <label>First name <input name=first value=Test></label><button id=b hidden>Submit application</button></form>
+        <label role=button class="candidateAuthGoogleLoginButton" for=b>Sign in with Google</label>{SEND_ALL}
+        <script>document.getElementById('b').addEventListener('click', () => sendAll());</script>"""},
+}
+PAGES |= GOOGLE_PAGES
 # The generic Filler's own clicks (KAN-861): it opens a dropdown and clicks the option its answer names, and on a
 # posting page with no field it presses the one Apply button that opens the form.
 GENERIC_FILL_PAGES = {
@@ -806,7 +829,7 @@ PAGES |= GET_FORM_PAGES
 # An application that looks like a sign-in step to the page, its answers held in script, can't be told from one: under
 # plain code's own sign-in press (the account click) it goes on, the residual of the sign-in exemption (KAN-868).
 LOGIN_DRESSED_ALONE = frozenset({"a GET form dressed as a sign-in step with its answers held in script"})
-BUTTON = {"an option that is the form's own submit button": "Yes", "a posting's Apply that posts the application": "Apply for this job",
+BUTTON = {**{name: "Sign in with Google" for name in GOOGLE_PAGES}, "an option that is the form's own submit button": "Yes", "a posting's Apply that posts the application": "Apply for this job",
           "a GET form whose dropdown is a submit button": "Country", "an Amazon card whose Continue sends": "Continue", "a review page's Apply with its answers hidden": "Apply", "a page that vouches for its own Apply": "Apply", "a Submit in another language beside a Submit": "Envoyer ma candidature", "a Submit in a shadow root": "Submit application",
           "a profile pop-up that is the application": "Submit", "a profile pop-up that turns into the application": "Submit",
           "a one-page form in a modal": "Continue", "an application that makes an account": "Continue",
@@ -961,6 +984,13 @@ def amazon_continue(page, drive, name):
         raise Handoff(str(broke)) from broke  # checked all the same
 
 
+def google_press(page, drive, name):
+    """The provider sign-in's press of a page's Sign in with Google, then its wait for Google's chooser (KAN-878)."""
+    from apply import provider_sign_in
+
+    provider_sign_in.with_google(page, "test.person@example.com", "Example", drive, wait=2)
+
+
 def _any_answer(q):
     """An answer to every question, as a model that answers anything would: a box "Test", a choice its first option."""
     if q.kind == "multi_select":
@@ -1023,6 +1053,7 @@ def generic_apply_press(page, drive, name):
 PATHS = {"plain code's Next": plain_next, "the Amazon Filler's Continue": amazon_continue, "the profile click": profile_click, "the account click": account_click,
          "Ask Claude's press": ask_press, "Ask Claude's press of a listed step": ask_press_listed,
          "the keep-alive's stay press": stay_press, "the keep-alive's generic stay press": generic_stay_press,
+         "the provider sign-in's Google press": google_press,
          "the generic Filler": generic_fill, "the generic Filler's Apply press": generic_apply_press}
 
 
@@ -1114,16 +1145,18 @@ LISTED_STEP_PAGES = frozenset({
 })
 SESSION_DIALOG_PAGES = frozenset(SESSION_PAGES) | frozenset(GENERIC_SESSION_PAGES)
 AMAZON_PAGES = frozenset({"an Amazon card whose Continue sends"})
+GOOGLE_PAGE_SET = frozenset(GOOGLE_PAGES)
 # The pages whose button has an opener's name ("Apply"), which the generic Filler's Apply press looks for.
 OPENER_PAGES = frozenset({"a posting's Apply that posts the application", "a review page's Apply with its answers hidden",
                           "a page that vouches for its own Apply"})
 APPLIES = {"the account click": frozenset(PAGES) - LOGIN_DRESSED_ALONE, "the profile click": PROFILE_PAGES, "Ask Claude's press of a listed step": LISTED_STEP_PAGES,
            "the keep-alive's stay press": SESSION_DIALOG_PAGES, "the keep-alive's generic stay press": SESSION_DIALOG_PAGES,
-           "the generic Filler's Apply press": OPENER_PAGES}
+           "the provider sign-in's Google press": GOOGLE_PAGE_SET, "the generic Filler's Apply press": OPENER_PAGES}
 # The kind of page each path was written against, in this order: a page's one PR pair takes the first that holds it.
 OWN = {"the Amazon Filler's Continue": AMAZON_PAGES, "the profile click": PROFILE_PAGES,
        "Ask Claude's press of a listed step": LISTED_STEP_PAGES, "the keep-alive's stay press": frozenset(SESSION_PAGES),
        "the keep-alive's generic stay press": frozenset(GENERIC_SESSION_PAGES),
+       "the provider sign-in's Google press": GOOGLE_PAGE_SET,
        "the generic Filler's Apply press": OPENER_PAGES}
 
 
@@ -1914,7 +1947,7 @@ def plain(pages: dict[str, str], first: bool = False):
 
 
 PLAIN_PATHS = ["plain code's Next", "the Amazon Filler's Continue", "the profile click", "the account click", "Ask Claude's press of a listed step",
-               "the keep-alive's stay press", "the keep-alive's generic stay press", "the generic Filler",
+               "the keep-alive's stay press", "the keep-alive's generic stay press", "the provider sign-in's Google press", "the generic Filler",
                "the generic Filler's Apply press"]
 
 
