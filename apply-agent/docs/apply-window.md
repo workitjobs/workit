@@ -94,6 +94,18 @@ for a student, not from `dashboard_page.py`.
   item for the same posting, but the job keeps the item's `id` and questions (what `/answer` names),
   and the tile's place on the board (what `/show/<k>` names). Its tests:
   `npm test` (Node's test runner, in CI).
+- **Questions.** A question to-do asks its job's questions one at a time;
+  once one is answered the next shows at once, before Apply's next state
+  drops the answered one. `asking` picks each question's form from
+  `choices`: up to four options as buttons, more as a list, a
+  pick-all-that-apply as boxes to tick (sent joined by "; " in the form's
+  order, `answerOf`, as today's window sends them), a file as a file
+  picker (sent in `/answer`'s `file` field), else a box pre-filled with
+  the answer Apply planned but the form refused. A question the form
+  marks optional (`required` false) has Skip, which saves an empty
+  answer. Keys (`shortcut`): 1 to 9 pick an option, Enter saves, S is
+  Skip for now; none fires while typing in a box or with Cmd, Ctrl or
+  Alt held.
 - **`src/bridge.ts`** is the spec's bridge contract. `routes(token)`:
   `/state`, `/answer`, `/approve`, `/show/<k>` and `/fill-again` through
   plain `fetch` with `X-Apply-Token`, which app_window's SHIM carries to
@@ -104,7 +116,8 @@ for a student, not from `dashboard_page.py`.
   self-contained file into the package, `src/apply/student_page/index.html`.
   Commit it with the source change: CI's `apply-window` job rebuilds it and
   fails on any difference. `npm run dev` serves the page on the mock; pick
-  a fixture with `?scenario=start|needs|ready|quiet`, the day's use with
+  a fixture with `?scenario=start|needs|questions|ready|quiet`
+  (`questions`: one question of each kind), the day's use with
   `?usage=near|cap`, and the start screen's queue with
   `?queue=empty|unread|refused`.
 - **Token:** `app_window.student_page(board)` puts SHIM and
