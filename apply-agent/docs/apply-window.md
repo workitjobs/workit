@@ -24,6 +24,11 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
 (pywebview, WKWebView on a Mac) with no port (D11). Read the module's
 docstring first.
 
+- A run keeps the Mac awake (KAN-885): `student.Runs.run` runs inside
+  `awake.awake()`, which starts `caffeinate -dims -w <Apply's PID>` and
+  stops it when the run ends. `-w` ends it with Apply too, even on a crash
+  or SIGKILL. Windows and Linux do nothing yet (F4); `awake.py` is the one
+  place for that OS call (`tests/test_each_os.py`).
 - `Dashboard(serve=False)` binds nothing. The window loads the Apply
   window's page as a string, with `app_window.SHIM` right after its first
   `<meta charset="utf-8">`, before the page's scripts.
