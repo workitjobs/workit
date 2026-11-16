@@ -1041,10 +1041,13 @@ _TEMPLATE = r"""
   const methodOf = (form, submitter) =>
     lower((isEl(submitter) && text(attr(submitter, 'formmethod'))) || text(attr(form, 'method')) || 'get');
   const posts = (form, submitter) => methodOf(form, submitter) === 'post';
-  // A GET form (no method, or an unknown one, which a browser reads as GET); a dialog's form sends nothing.
-  const gets = (form, submitter) => !posts(form, submitter) && methodOf(form, submitter) !== 'dialog';
+  // A form whose submit only its own handlers can send by (GET, an unknown method, or a dialog's: a dialog's submit
+  // event runs the page's handlers all the same, round 2 of KAN-868's review).
+  const gets = (form, submitter) => !posts(form, submitter);
   // A sign-in or account step (iCIMS's email step, KAN-703): its only boxes are an email or user name, passwords,
-  // ticks and hidden ones. Nothing of an application is in it, so its GET submit goes on as before (KAN-868).
+  // ticks and hidden ones, and the page shows no other answer box, in or out of the form (a textarea or file box
+  // anywhere, or a shown box another form doesn't hold: round 2 of KAN-868's review put the answers outside the
+  // form, or moved them out as the Next was pressed). Its GET submit goes on as before (KAN-868).
   const LOGIN_BOX = /e-?mail|user|login|account/i;
   const loginForm = (form) => {
     const all_ = fields(form);
@@ -1058,7 +1061,15 @@ _TEMPLATE = r"""
       if (named) return false;  // one such box: a second is a field of something else
       named = true;
     }
-    return named;
+    if (!named) return false;
+    if (one(D, 'textarea, input[type=file]')) return false;
+    const boxes = all(D, 'input, select');
+    for (let i = 0; i < boxes.length; i++) {
+      const n = boxes[i];
+      if (test(/^(hidden|password|checkbox|radio|submit|button|reset|image)$/, lower(typeOf(n))) || !seen(n)) continue;
+      if (formOf(n) !== form) return false;
+    }
+    return true;
   };
   // A submit that would send the application (by its Submit/Send button, or with no
   // button, as a script's requestSubmit() or a page's own Enter key does, from a form
@@ -1245,6 +1256,16 @@ _TEMPLATE = r"""
     hearRootOf(this);
     return apply(pageRequestSubmit, this, args);
   }, writable: true, configurable: true});
+  // A closed root the page wrote is reached only through its element's internals; a press there by script is its
+  // click(): both hear the root first (round 2 of KAN-868's review: a Next outside it clicked its Submit).
+  const pageClick = HTMLElement.prototype.click;
+  defineProp(HTMLElement.prototype, 'click', {value: function click(...args) {
+    hearRootOf(this);
+    return apply(pageClick, this, args);
+  }, writable: true, configurable: true});
+  const closedRootOf = typeof ElementInternals === 'function' && gopd(ElementInternals.prototype, 'shadowRoot');
+  if (closedRootOf && closedRootOf.get) defineProp(ElementInternals.prototype, 'shadowRoot', {...closedRootOf,
+    get() { const root = apply(closedRootOf.get, this, []); try { if (root) hearRoot(root); } catch (e) {} return root; }});
   const pageDispatch = EventTarget.prototype.dispatchEvent;
   defineProp(EventTarget.prototype, 'dispatchEvent', {value: function dispatchEvent(...args) {
     hearRootOf(this);

@@ -712,6 +712,31 @@ GET_FORM_PAGES = {
         <script>const f = h.shadowRoot.getElementById('f'); f.addEventListener('submit', (e) => { e.preventDefault();
         fetch('""" + COMMIT + """', {method: 'POST', body: new URLSearchParams(new FormData(f))}); });
         b.addEventListener('click', () => f.requestSubmit());</script>"""},
+    # Round 2 of the review of KAN-868: a form dressed as a sign-in step, with the answers outside it or moved out as
+    # the Next is pressed; a dialog's submit, which runs the page's handlers all the same; a closed root's Submit.
+    "a GET form dressed as a sign-in step with its answers outside it": {START: """<title>Apply</title>
+        <label>Why us? <textarea id=why>Because</textarea></label><label>Resume <input type=file name=resume></label>
+        <form id=f><label>Email <input type=email name=email value=t@example.com></label><button id=b>Next</button>
+        <button>Submit application</button></form><script>f.addEventListener('submit', (e) => { e.preventDefault();
+        fetch('""" + COMMIT + """', {method: 'POST', body: 'why=' + why.value}); });</script>"""},
+    "a GET form whose Next moves its answers out as it submits": {START: """<title>Apply</title><div id=out></div><form id=f>
+        <label>Email <input type=email name=email value=t@example.com></label><label>Why us? <textarea id=why>Because</textarea></label>
+        <button id=b>Next</button><button>Submit application</button></form><script>
+        b.addEventListener('click', () => out.append(why));
+        f.addEventListener('submit', (e) => { e.preventDefault();
+        fetch('""" + COMMIT + """', {method: 'POST', body: 'why=' + why.value}); });</script>"""},
+    "a GET form whose Next submits it as a dialog's": {START: _GET_FORM % "<button id=b formmethod=dialog>Next</button>"},
+    "a dialog's form whose own handler sends": {START: _GET_FORM.replace("<form id=f>", "<form id=f method=dialog>")
+        % "<button id=b>Next</button>"},
+    "a GET form in a closed declarative root whose Submit a Next outside it clicks": {START: """<title>Apply</title>
+        <label>First name <input name=first value=Test></label><button id=b type=button>Next</button>
+        <x-app><template shadowrootmode=closed><form id=f><input name=first value=Test>
+        <button type=submit>Submit application</button></form></template></x-app>
+        <script>customElements.define('x-app', class extends HTMLElement { constructor() { super();
+          const r = this.attachInternals().shadowRoot; const f = r.getElementById('f');
+          f.addEventListener('submit', (e) => { e.preventDefault();
+            fetch('""" + COMMIT + """', {method: 'POST', body: new URLSearchParams(new FormData(f))}); });
+          b.addEventListener('click', () => r.querySelector('button').click()); } });</script>"""},
 }
 PAGES |= GET_FORM_PAGES
 BUTTON = {"a GET form whose dropdown is a submit button": "Country", "an Amazon card whose Continue sends": "Continue", "a review page's Apply with its answers hidden": "Apply", "a page that vouches for its own Apply": "Apply", "a Submit in another language beside a Submit": "Envoyer ma candidature", "a Submit in a shadow root": "Submit application",

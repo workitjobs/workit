@@ -369,12 +369,16 @@ into it and the window shows "Sample data".
   form's buttons was got round each way the review of KAN-868 tried: a
   Submit the press renamed, blanked or took away, one renamed on pointerdown,
   one outside the form with no `form=`, a `<div>` of no role, words only in
-  CSS. So every GET form's submit is stopped (a dialog's form, which sends
-  nothing, still closes, and so does a sign-in step whose only boxes are an
-  email or user name and passwords: iCIMS's email step), and a wizard whose Next submits a GET form is a
+  CSS. So every submit of a form that doesn't POST is stopped: a GET form's,
+  and a dialog's, whose submit runs the page's handlers all the same. Only a
+  sign-in step goes on: its only boxes are an email or user name and
+  passwords (iCIMS's email step), and the page shows no other answer box, in
+  or out of the form (round 2 of the review put the answers outside it, or
+  moved them out as the Next was pressed). A wizard whose Next submits a GET form is a
   step no code or model presses: a Handoff, the student's on the held page,
   whose own press goes through as before. A form in a shadow root the page
-  wrote is heard as a script submits it or dispatches an event in its root
+  wrote is heard as a script submits it, clicks in it or dispatches an event
+  in its root, and a closed one as its element's internals hand it over
   (`hearRootOf`), as one a press passes through always was. The guard
   scripts are one function each, built from shared parts: a name two parts
   declare stops the whole script with no error Apply sees, and every page
