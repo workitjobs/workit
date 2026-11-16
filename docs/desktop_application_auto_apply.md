@@ -10,9 +10,9 @@ values masked (#577, #587), and Send report (#614); W3's Student path with no de
 (#581); W2's step 1, what Apply can't fill handed to the student in the
 window (#590); W4, no macOS-only code in the Student path (#576, #585); W6's
 store-ready Worker extension (#570, #578), which no app can use yet;
-W10's legal text (#579, #582); and W5, the app's window with no port:
+W10's legal text (#579, #582); W5, the app's window with no port:
 sign-in (#609), first run, a run, and Settings with Report a problem
-(KAN-858). The rest of what
+(KAN-858); and W2's step 2, the generic Filler (KAN-861). The rest of what
 a student downloads and runs (W7, W8) is not built.
 
 **How to use this doc.** Read sections 1 to 3 first. Then take one
@@ -517,8 +517,8 @@ by hand (W8).
 | # | Workstream | Waits for | v1 | Where it stands (2026-11-14) |
 |---|---|---|---|---|
 | W0 | Move Apply to `workitjobs/apply-agent` | KAN-723 merged into WorkIt's `main` | Yes, first | Not started. KAN-723's first parts are merged (#569, #577, #581); the open `apply-agent/` PRs (#554, #557, #403) merge or hold first |
-| W1 | Model route and Usage cap | None | Yes | Built (#577, #587, KAN-837): the Model route, the Usage cap, the 11 kinds and the Question types on the server, the student's private values masked in every call, Send report's route (D26), and the run's pause at the Usage cap (`GET /apply-app/usage`). Left: reworded self-ID answers, which wait on the Fill engine saying which answers came from a self-ID fact (D8, section 3.4) |
-| W2 | Filling with no model in the browser | None | Yes | Step 1 built (#590): what Apply can't fill is the student's, in the window's Fix here; a failed field is a Needs-you item with its planned answer; the emailed code's box. Step 2, the generic Filler, is a teammate's, beside the Fillers they write for each job system |
+| W1 | Model route and Usage cap | None | Yes | Built (#577, #587, KAN-837): the Model route, the Usage cap, the 11 kinds (13 with W2's two picks) and the Question types on the server, the student's private values masked in every call, Send report's route (D26), and the run's pause at the Usage cap (`GET /apply-app/usage`). Left: reworded self-ID answers, which wait on the Fill engine saying which answers came from a self-ID fact (D8, section 3.4) |
+| W2 | Filling with no model in the browser | None | Yes | Step 1 built (#590): what Apply can't fill is the student's, in the window's Fix here; a failed field is a Needs-you item with its planned answer; the emailed code's box. Step 2 built (KAN-861): the generic Filler, code only but for two small picks; on the six saved Lever forms it fills 114 of 126 (90%, code only) of the engine's planned answers right, Claude fill 122 (97%), in 5 to 10 times the time. Left: frames other than the top one, and live long-tail postings ("Done when"); any further work stays with the teammate, beside the Fillers they write for each job system |
 | W3 | What the Student build leaves out | None | Yes | Step 1 built (#581); `ask_model` fixed to `workit` (#590). Left: W8's compile flags |
 | W4 | Remove macOS-only code | None | Yes | Built (#576, #585). Left to others: `dashboard.py` (W5) and `window_capture` (W6); what stops Apply on Windows is F4's |
 | W5 | The app shell | W3, W4 (and W1 for sign-in and usage) | Yes | Built: sign-in (#609); the window with no port, first run, a run, Settings with Report a problem, and the Student build's Tracker in the data folder (KAN-858), and a Student run's pause at the Usage cap (KAN-837). Left: the built app's sign-in link (W8) |
@@ -841,22 +841,15 @@ logs. Whether Apply's schemas need Groq's strict mode on the server (W13).
 
 **Goal.** v1 fills without `drive` (D13).
 
-**Who builds it.** Step 1 is built (below). Step 2 is a teammate's
-(2026-11-15), beside the Fillers they write for each job system: one
-person owns all filling, so the generic Filler and the Fillers never
-collide in `fillers.py` or `orchestrator._apply_with`. What step 2 can
-count on:
-
-- Only a Filler that fills with plain code runs in the Student build. A
-  job system that Claude fill fills in the Developer checkout (iCIMS,
-  Oracle, and every other one with no entry in `FILLERS`) is held for the
-  student until a Filler of its own or the generic Filler fills it.
-- W1's Model route is built: the small question below is a new kind in
-  `backend/app/apply_prompts/`, which deploys with the API.
-- What a Filler can't place goes to step 1's paths: a Needs-you item
-  with its planned answer, or the held form (`orchestrator.ForTheStudent`).
-- Each new click path needs the adversarial review (KAN-666) and its cases
-  in `tests/test_submit_guard_hostile.py`.
+**Who builds it.** Both steps are built (below): step 1 in KAN-855,
+step 2 in KAN-861. The generic Filler stays with this workstream, not
+with the teammate who writes a Filler for each job system (2026-11-16,
+reversing #617's hand-over). A Filler of a job system's own still comes
+first: `by_filler` uses the generic Filler only where `FILLERS` has none,
+so the two never meet in `fillers.py`. What a Filler can't place goes to
+step 1's paths: a Needs-you item with its planned answer, or a Handoff
+of the held form. Each new click path needs the adversarial review
+(KAN-666) and its cases in `tests/test_submit_guard_hostile.py`.
 
 **Design.**
 
@@ -924,9 +917,47 @@ two frames a second, so W5's first run asks for the permission.
 | An emailed code after Submit | No mail read: once the code field comes, Needs you says to type the code (`code_box.TypeTheCode`) |
 
 `docs/held-forms.md` has the rules; `tests/test_student_build.py` (CI)
-and `tests/test_student_handoffs.py` (Chromium) test them. Left for
-step 2, a teammate's (above): the generic Filler, which fills a form
-with no Filler of its own.
+and `tests/test_student_handoffs.py` (Chromium) test them. Step 2, below, fills a form with no Filler of its own.
+
+**Built (2026-11-15, step 2, KAN-861: the generic Filler).** In the Student build a job system with no Filler gets
+the generic Filler (`apply-agent/src/apply/generic_fill.py`, `apply-agent/docs/generic-filler.md`), in place of
+step 1's hold of the whole form. As designed above, with these choices made on the way:
+
+- **The tree is Playwright's ARIA snapshot**, not CDP's `Accessibility.getFullAXTree`: the same call runs on a plain
+  Worker, which has no op for Chrome's raw tree. Each control's element gives what the tree leaves out (a required
+  mark, a text area, a select's placeholder, a file input). Only the top frame is read.
+- **fit.ts is reached through the planner.** The engine exports no `fit`, so an option read before planning is
+  fitted by the planner as for any Filler; an option seen only as the fill opens or types is matched by its words,
+  then by the engine's `shows`, then by the model.
+- **Two kinds, not one:** `generic_fill.pick` (`{"choice": <number> | null}` for one field's options, the number
+  bounded by the list) and `generic_fill.next` (which of two or more Nexts goes on without sending). Both run on the
+  small chain and send no pronouns or school.
+- **A posting page with no field** opens its form by its one Apply link (followed with no click) or Apply button
+  outside any form (BambooHR's "Apply for This Job").
+- **Every field is read back as it is filled.** A wrong or empty one is a `FillError` naming it, so step 1's path
+  makes it a Needs-you item with the planned answer.
+
+**Measured** (`apply-agent/scripts/generic_fill_measure.py`): the Fill engine's six saved Lever forms, served on
+127.0.0.1 and refusing every POST, filled in a plain Worker as Test Person by each Filler in turn; then the engine
+reads each page back and counts how many of its own planned answers it shows. The generic Filler ran code only (a
+Developer checkout has no Model route), so every field it couldn't match counted as wrong.
+
+| Form | Planned answers | Lever's own Filler (engine) | Generic Filler, code only | Claude fill |
+|---|---|---|---|---|
+| lever-belvedere | 26 | 26 | 24 | 26 |
+| lever-hermeus | 23 | 23 | 20 | 21 (stopped at its cap) |
+| lever-immuta | 15 | 15 | 14 | 15 |
+| lever-rhombus | 17 | 17 | 15 | 17 |
+| lever-shieldai | 28 | 28 | 26 | 26 (stopped at its cap) |
+| lever-xcimer | 17 | 17 | 15 | 17 |
+| **All six** | **126** | **126 (100%)** | **114 (90%)** | **122 (97%)** |
+
+Time per form: the generic Filler 3 to 13 s, Claude fill 28 to 63 s and about 40 Haiku turns, the engine under 1 s.
+The generic Filler's 12 misses are each a field it left for the student, never a wrong answer typed: Lever's
+location search on all six forms (its choices come from Lever's live API, which the saved form's server doesn't
+answer, so no model could pick one either), Lever's school list on three, and a self-ID survey the page keeps
+collapsed on two. Each is a Needs-you item with its planned answer in a run. The model's picks would add to the
+generic Filler's count only where code finds options but no match; on these forms it found none such.
 
 ### W3. What the Student build leaves out
 

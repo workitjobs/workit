@@ -59,6 +59,7 @@ MAX_BOARD_LISTINGS = 5000
 MAX_DESCRIPTIONS_PER_CYCLE = 500
 DESCRIPTION_BATCH_SIZE = 50
 DESCRIPTION_WORKERS = 8
+BOARD_WORKERS = 4
 
 
 def read_board_listing(board: Board) -> tuple[BoardRead, list[Job], float]:
@@ -133,8 +134,10 @@ def _work_style(job, facts) -> str | None:
     return None
 
 
-async def run_cycle(conn: AsyncConnection, *, dry_run: bool = False, full: bool = False) -> dict:
+async def run_cycle(conn: AsyncConnection, *, dry_run: bool = False, full: bool = False, workers: int = BOARD_WORKERS) -> dict:
     """One full worker cycle. Returns a summary dict."""
+    if workers < 1:
+        raise ValueError(f"workers must be >= 1, got {workers}")
     worker_id = f"worker-{uuid.uuid4().hex[:8]}"
     summary = {
         "worker": worker_id,
@@ -171,16 +174,14 @@ async def run_cycle(conn: AsyncConnection, *, dry_run: bool = False, full: bool 
         return summary
     await conn.commit()
 
-    # 4. Claim, process and checkpoint each board independently.
-    while True:
-        task = await claim_task(conn, worker_id)
-        await conn.commit()
-        if task is None:
-            break
+    # 4. Claim, process and checkpoint boards in parallel.
+    engine = conn.engine
 
-        done = await _process_task(conn, task, summary)
-        if done is not None:
-            await _checkpoint_board(conn, done, summary)
+    async def _spawn(i: int) -> None:
+        async with engine.connect() as wconn:
+            await _board_worker(wconn, f"{worker_id}-{i}", summary)
+
+    await asyncio.gather(*(_spawn(i) for i in range(workers)))
 
     # 5. Enrich descriptions for postings that need them.
     try:
@@ -339,6 +340,18 @@ async def _process_task(conn: AsyncConnection, task, summary: dict) -> _Read | N
     return _Read(
         task.id, task.schedule_id, listings, all_postings, inline_urls, boards_s, fp
     )
+
+
+async def _board_worker(conn: AsyncConnection, worker_id: str, summary: dict) -> None:
+    """One worker: claim and process boards until none remain."""
+    while True:
+        task = await claim_task(conn, worker_id)
+        await conn.commit()
+        if task is None:
+            break
+        done = await _process_task(conn, task, summary)
+        if done is not None:
+            await _checkpoint_board(conn, done, summary)
 
 
 # ---------------------------------------------------------------------------

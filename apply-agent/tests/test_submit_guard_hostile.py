@@ -26,7 +26,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from apply import amazon, ask, claude_fill, keepalive, send_click, submit_guard
+from apply import amazon, ask, claude_fill, keepalive, send_click, steps, submit_guard
 from apply.account_pages import AccountPages, _Click
 from apply.adapters import Drive
 from apply.claude_fill import ClaudeFill, press_step
@@ -666,6 +666,23 @@ DELAYS = SENDS_AFTER | GENERIC_SENDS_AFTER
 MOVED = {"a session dialog whose Continue sends after the next mouse move",
          "a generic session dialog whose I'm still here sends after the next mouse move"}
 PAGES |= SESSION_PAGES | GENERIC_SESSION_PAGES
+# The generic Filler's own clicks (KAN-861): it opens a dropdown and clicks the option its answer names, and on a
+# posting page with no field it presses the one Apply button that opens the form.
+GENERIC_FILL_PAGES = {
+    # A list of options whose "Yes" holds the form's own submit button: the option's click lands on it.
+    "an option that is the form's own submit button": {START: f"""<title>Apply</title><form method=post action="{FINAL}">
+        <label>First name <input name=first value=Test></label>
+        <div role=listbox aria-label="Are you authorized to work here?"><div role=option><button id=b style="width: 100%" name=submit
+          value=1>Yes</button></div><div role=option>No</div></div></form>{SEND_ALL}
+        <script>document.getElementById('b').addEventListener('click', () => sendAll());</script>"""},
+    # A posting page with no field whose one Apply button is a one-click application: a form's submit with the
+    # applicant's answers hidden beside it.
+    "a posting's Apply that posts the application": {START: f"""<title>Software Intern</title><h1>Software Intern</h1>
+        <p>Build robots.</p><form method=post action="{FINAL}"><input type=hidden name=first value=Test>
+        <button id=b>Apply for this job</button></form>{SEND_ALL}
+        <script>document.getElementById('b').addEventListener('click', () => sendAll());</script>"""},
+}
+PAGES |= GENERIC_FILL_PAGES
 # A GET form (no method) whose own submit handler posts the application, as a React form's onSubmit does: the guard
 # judged only a POST form's submit, so any press that submitted this one sent it (the adversarial review of KAN-861,
 # KAN-868). Each holds a Submit; the press is on something else of the form's.
@@ -789,7 +806,8 @@ PAGES |= GET_FORM_PAGES
 # An application that looks like a sign-in step to the page, its answers held in script, can't be told from one: under
 # plain code's own sign-in press (the account click) it goes on, the residual of the sign-in exemption (KAN-868).
 LOGIN_DRESSED_ALONE = frozenset({"a GET form dressed as a sign-in step with its answers held in script"})
-BUTTON = {"a GET form whose dropdown is a submit button": "Country", "an Amazon card whose Continue sends": "Continue", "a review page's Apply with its answers hidden": "Apply", "a page that vouches for its own Apply": "Apply", "a Submit in another language beside a Submit": "Envoyer ma candidature", "a Submit in a shadow root": "Submit application",
+BUTTON = {"an option that is the form's own submit button": "Yes", "a posting's Apply that posts the application": "Apply for this job",
+          "a GET form whose dropdown is a submit button": "Country", "an Amazon card whose Continue sends": "Continue", "a review page's Apply with its answers hidden": "Apply", "a page that vouches for its own Apply": "Apply", "a Submit in another language beside a Submit": "Envoyer ma candidature", "a Submit in a shadow root": "Submit application",
           "a profile pop-up that is the application": "Submit", "a profile pop-up that turns into the application": "Submit",
           "a one-page form in a modal": "Continue", "an application that makes an account": "Continue",
           "a button whose words change after the check": "Continue",
@@ -943,9 +961,69 @@ def amazon_continue(page, drive, name):
         raise Handoff(str(broke)) from broke  # checked all the same
 
 
+def _any_answer(q):
+    """An answer to every question, as a model that answers anything would: a box "Test", a choice its first option."""
+    if q.kind == "multi_select":
+        return list(q.options[:1])
+    if q.kind == "select":
+        return q.options[0] if q.options else "Yes"
+    return None if q.kind == "file" else "Test"
+
+
+class _Here:
+    """The open page as a job site, for the generic Filler's question set (OnePage gives it so)."""
+
+    def __init__(self, page):
+        self.page = page
+
+    @contextmanager
+    def open(self, url):
+        yield self.page
+
+
+def generic_fill(page, drive, name):
+    """The generic Filler (KAN-861) on the page from start to end: it reads the form, every question answered, fills
+    each field (an option's click, a box's check) and presses each Next it finds, under the guards. Its model is the
+    worst one: it picks the first option and the first button every time."""
+    from apply.generic_fill import GenericFiller
+    from apply.model import MoreQuestions
+
+    filler = GenericFiller(pick=lambda question, options, answer: 0, next_button=lambda names: 0)
+    filler._guard = drive
+    try:
+        questions = filler.question_set(HOST + START, _Here(page))
+        for _ in range(12):
+            try:
+                filler.fill(page, questions, {q.name: _any_answer(q) for q in questions if _any_answer(q) is not None})
+                return
+            except MoreQuestions as more:
+                questions = [*questions, *more.questions]
+            except FillError:
+                continue  # that field is the student's: the fill goes on without it
+    except Handoff:
+        raise
+    except Exception as broke:  # a page built to break the read: what was sent is checked all the same
+        raise Handoff(str(broke)) from broke
+
+
+def generic_apply_press(page, drive, name):
+    """The generic Filler's press of a posting page's one Apply button, which opens the form (KAN-861)."""
+    from apply.generic_fill import GenericFiller
+
+    filler = GenericFiller()
+    filler._guard = drive
+    try:
+        filler._open_form(page)
+    except Handoff:
+        raise
+    except Exception as broke:
+        raise Handoff(str(broke)) from broke
+
+
 PATHS = {"plain code's Next": plain_next, "the Amazon Filler's Continue": amazon_continue, "the profile click": profile_click, "the account click": account_click,
          "Ask Claude's press": ask_press, "Ask Claude's press of a listed step": ask_press_listed,
-         "the keep-alive's stay press": stay_press, "the keep-alive's generic stay press": generic_stay_press}
+         "the keep-alive's stay press": stay_press, "the keep-alive's generic stay press": generic_stay_press,
+         "the generic Filler": generic_fill, "the generic Filler's Apply press": generic_apply_press}
 
 
 # PR 477's guard holes (KAN-710): each page a hole the guards had, so each runs on PRs, never only nightly. A page
@@ -1036,12 +1114,17 @@ LISTED_STEP_PAGES = frozenset({
 })
 SESSION_DIALOG_PAGES = frozenset(SESSION_PAGES) | frozenset(GENERIC_SESSION_PAGES)
 AMAZON_PAGES = frozenset({"an Amazon card whose Continue sends"})
+# The pages whose button has an opener's name ("Apply"), which the generic Filler's Apply press looks for.
+OPENER_PAGES = frozenset({"a posting's Apply that posts the application", "a review page's Apply with its answers hidden",
+                          "a page that vouches for its own Apply"})
 APPLIES = {"the account click": frozenset(PAGES) - LOGIN_DRESSED_ALONE, "the profile click": PROFILE_PAGES, "Ask Claude's press of a listed step": LISTED_STEP_PAGES,
-           "the keep-alive's stay press": SESSION_DIALOG_PAGES, "the keep-alive's generic stay press": SESSION_DIALOG_PAGES}
+           "the keep-alive's stay press": SESSION_DIALOG_PAGES, "the keep-alive's generic stay press": SESSION_DIALOG_PAGES,
+           "the generic Filler's Apply press": OPENER_PAGES}
 # The kind of page each path was written against, in this order: a page's one PR pair takes the first that holds it.
 OWN = {"the Amazon Filler's Continue": AMAZON_PAGES, "the profile click": PROFILE_PAGES,
        "Ask Claude's press of a listed step": LISTED_STEP_PAGES, "the keep-alive's stay press": frozenset(SESSION_PAGES),
-       "the keep-alive's generic stay press": frozenset(GENERIC_SESSION_PAGES)}
+       "the keep-alive's generic stay press": frozenset(GENERIC_SESSION_PAGES),
+       "the generic Filler's Apply press": OPENER_PAGES}
 
 
 def _timers(html: str) -> list:
@@ -1085,7 +1168,8 @@ def applies(page: str, path: str) -> bool:
 # one: the forged touch got past the submit-event block's removal only on a press the account click armed. And each
 # path runs on PRs at least once: plain code's Next on a Next of its own, whose case there caught all its Ask case did.
 PATH_FOR = {"a frame that forges the extension's touch": "the account click",
-            "a Next that sends by a hidden button": "plain code's Next"}
+            "a Next that sends by a hidden button": "plain code's Next",
+            "an option that is the form's own submit button": "the generic Filler"}
 # Else, a page any path presses runs on the first of these the matrix has. Ask Claude's press pressed on all 91 pages
 # and refused none, so it reaches the guard on every one; plain code's Next refused 52 before pressing.
 DEFAULT_PATHS = ("Ask Claude's press", "the account click", "plain code's Next", "the Amazon Filler's Continue")
@@ -1241,7 +1325,7 @@ def cdp(pages: dict[str, str], guarded: bool = True, first: bool = False, clock:
 
 @pytest.fixture(autouse=True)
 def quick_steps(monkeypatch):
-    monkeypatch.setattr(claude_fill, "STEP_SHOWS_MS", 1500)
+    monkeypatch.setattr(steps, "STEP_SHOWS_MS", 1500)
 
 
 @pytest.mark.parametrize(("page_name", "path"), each_page_and_path_once_on_prs())
@@ -1830,7 +1914,8 @@ def plain(pages: dict[str, str], first: bool = False):
 
 
 PLAIN_PATHS = ["plain code's Next", "the Amazon Filler's Continue", "the profile click", "the account click", "Ask Claude's press of a listed step",
-               "the keep-alive's stay press", "the keep-alive's generic stay press"]
+               "the keep-alive's stay press", "the keep-alive's generic stay press", "the generic Filler",
+               "the generic Filler's Apply press"]
 
 
 @pytest.mark.parametrize(("page_name", "path"), plain_pairs_on_prs(PLAIN_PATHS))
@@ -2214,6 +2299,103 @@ def test_each_page_says_how_late_it_sends_and_a_held_only_page_has_its_held_test
     assert set(CONTROLS_ON_PRS) <= set(PAGES)
     # A page in no matrix still runs: each HELD_ONLY page is a held-page test's (the stay press's or the generic one's).
     assert HELD_ONLY <= set(SESSION_PAGES) | set(GENERIC_SESSION_PAGES)
+
+
+# --- The generic Filler's own refusals (the adversarial review of KAN-861). A GET form whose own submit handler posts
+# the application gets past the guards when the press that submits it isn't judged a send (submit_guard's submit
+# block covered a POST form, or a button that says it sends, until KAN-868). So the generic Filler never clicks a
+# control that would submit a form, nor presses a Next that would submit the form its Submit is in. The guard's own
+# GET-form pages, for every path, are GET_FORM_PAGES; these test the generic Filler alone.
+# Each page: the role and name of the control the control test clicks, and the page.
+GENERIC_REFUSES = {
+    # Fault: the reader or the fill clicks a dropdown made of a <button> of no type, which submits its form.
+    "a dropdown that is its GET form's submit button": ("combobox", "Country", _GET_FORM % """<span id=c>Country</span>
+        <button role=combobox aria-labelledby=c aria-haspopup=listbox>Select...</button>"""),
+    # Fault: the fill ticks a radio made of a <button>, which submits its form.
+    "radios that are their GET form's submit buttons": ("radio", "Yes", _GET_FORM % """<div role=radiogroup aria-label="Authorized?">
+        <button role=radio aria-checked=false>Yes</button><button role=radio aria-checked=false>No</button></div>"""),
+    # Fault: the fill clicks an option that is a label for a hidden submit button: the label clicks it.
+    "an option that is a label for its GET form's hidden submit button": ("option", "Yes", _GET_FORM % """<div role=listbox
+        aria-label="Authorized?"><label role=option for=y>Yes</label><div role=option>No</div></div>
+        <button id=y style="position: absolute; left: -9999px" tabindex=-1>go</button>"""),
+    # Fault: the generic Filler's Next presses a button that submits the form its Submit is in.
+    "a Next that submits its GET form beside its Submit": ("button", "Next", _GET_FORM % "<button>Next</button>"),
+    # Fault: the Submit beside the Next named only by aria-labelledby, an icon's, read as no button that sends.
+    "a Next beside a Submit named by aria-labelledby": ("button", "Next", _GET_FORM.replace(
+        "<button type=submit>Submit application</button>", "") % """<button>Next</button><span id=sl hidden>Submit
+        application</span><button type=submit aria-labelledby=sl><svg width=16 height=16></svg></button>"""),
+    # Fault (the second round of the review of KAN-861): the page changes the control as the press lands, after the
+    # Filler's own check read it, so only the guard stops these: it judges a GET form's submit too since KAN-868.
+    "a dropdown that turns into its GET form's submit button as it is pressed": ("combobox", "Country", _GET_FORM
+        % """<span id=c>Country</span>
+        <button id=d type=button role=combobox aria-labelledby=c aria-haspopup=listbox>Select...</button>
+        <script>d.addEventListener('pointerdown', (e) => e.currentTarget.type = 'submit', true);</script>"""),
+    "a Next whose GET form gets its Submit as it is pressed": ("button", "Next", _GET_FORM.replace(
+        "<button type=submit>Submit application</button>", "") % """<button id=nx>Next</button><script>
+        nx.addEventListener('pointerdown', () => f.insertAdjacentHTML('beforeend',
+          '<button type=submit>Submit application</button>'), true);</script>"""),
+}
+
+
+@pytest.mark.parametrize("page_name", list(GENERIC_REFUSES))
+def test_the_generic_filler_never_clicks_what_would_submit_its_form(page_name):
+    with cdp({START: GENERIC_REFUSES[page_name][2]}) as (page, drive, site):
+        try:
+            generic_fill(page, drive, "")
+        except Handoff:
+            pass
+        _settle(page, 1500)
+    assert site.applications() == []
+
+
+@pytest.mark.parametrize("page_name", list(GENERIC_REFUSES))
+def test_without_the_guard_each_get_form_page_sends(page_name):
+    """The control: a click on the control the generic Filler refuses sends the application."""
+    role, name, html = GENERIC_REFUSES[page_name]
+    with cdp({START: html}, guarded=False) as (page, _, site):
+        page.get_by_role(role, name=name).first.click(timeout=5_000)
+        _settle(page, 1500)
+    assert COMMIT in site.applications()
+
+
+# A pop-up over a POST form whose Close is the form's own submit button: clear_pop_up presses Close as the Question
+# set is read.
+POP_UP_CLOSE = f"""<title>Apply</title><form method=post action="{FINAL}"><label>First name <input name=first value=Test></label>
+  <div style="position: fixed; inset: 0; background: #fff"><h2>Join our talent network</h2><button>Close</button></div>
+  </form>"""
+
+
+@pytest.mark.parametrize("guarded", [True, False])
+def test_the_generic_filler_reads_a_page_the_rehearsal_left_lifted_under_its_own_drive_guard(guarded):
+    # Fault (the review of KAN-861): the drive guard put on only once the fill starts, so the Question set's reads (a
+    # dropdown opened, a pop-up's Close) ran on a page a live run had opened with the guard lifted (on_open). The
+    # control (guarded=False: no drive guard at all) shows the page sends.
+    from plain_fakes import https_fake
+    from playwright.sync_api import sync_playwright
+
+    from apply import generic_fill
+
+    site = Site({START: POP_UP_CLOSE})
+    with sync_playwright() as playwright, https_fake(site.handle) as port:
+        if not Path(playwright.chromium.executable_path).exists():
+            pytest.skip("no Playwright Chromium here")
+        browser = playwright.chromium.launch(args=[f"--host-resolver-rules=MAP * 127.0.0.1:{port}",
+                                                   "--ignore-certificate-errors", "--disable-quic"])
+        context = browser.new_context()
+        context.route(lambda url: True, site.handle)
+        page = context.new_page()
+        submit_guard.on_open(page)  # as a live run opens it: the drive guard's copy, lifted
+        page.goto(HOST + START)
+        filler = generic_fill.GenericFiller()
+        if not guarded:
+            filler._driving = lambda page: contextmanager(lambda: (yield))()
+        try:
+            filler.question_set(HOST + START, _Here(page))
+        except Handoff:
+            pass
+        _settle(page, 1500)
+        browser.close()
+    assert (site.applications() == []) is guarded
 
 
 # Round 5 of KAN-868's review: an Enter in a lone box of a form in a declarative root that code inside it listens on.

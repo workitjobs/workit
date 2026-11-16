@@ -288,3 +288,48 @@ async def test_select_due_skips_fingerprint_resting(database, boards_csv):
         # full=True includes it
         due = await schedules.select_due(conn, full=True)
         assert len(due) == 1
+
+
+# ---------------------------------------------------------------------------
+# Parallel board workers
+# ---------------------------------------------------------------------------
+
+
+async def test_parallel_workers_claim_all_boards(database, tmp_path, monkeypatch):
+    """Four boards, four workers: every board is claimed and processed."""
+    from workit_scraper.board_read import BoardRead, ReadStatus
+
+    csv = tmp_path / "boards.csv"
+    csv.write_text(
+        "ats,token,company\n"
+        "greenhouse,a,A\n"
+        "greenhouse,b,B\n"
+        "greenhouse,c,C\n"
+        "greenhouse,d,D\n",
+        encoding="utf-8",
+    )
+
+    async def skip_descriptions(conn, summary):
+        pass
+
+    monkeypatch.setattr(worker, "_fetch_descriptions", skip_descriptions)
+    monkeypatch.setattr(worker, "sync_catalog", lambda conn: schedules.sync_catalog(conn, csv))
+
+    def fake_read(board):
+        n = ord(board.token)
+        job = _job("Software Engineering Intern", n)
+        return BoardRead(ReadStatus.OK, jobs=[job]), [job], 0.1
+
+    monkeypatch.setattr(worker, "read_board_listing", fake_read)
+
+    async with get_engine().connect() as conn:
+        summary = await worker.run_cycle(conn, workers=4)
+
+    assert summary["boards_ok"] == 4
+    assert summary["jobs_scraped"] == 4
+
+    async with get_engine().connect() as conn:
+        done = await conn.scalar(
+            text("SELECT count(*) FROM scraper_tasks WHERE status = 'done'")
+        )
+    assert done == 4

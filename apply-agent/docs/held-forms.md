@@ -332,7 +332,7 @@ fixes it live on that form.
   (`rearm`) for the drive and lifts the page again after it. Without that, a page the drive loads (going
   back a step) ran `lift()`'s script, and Enter there sent the application (KAN-638). So Claude's own click
   on a step's Next or Back that posts natively is blocked too. Claude names that button in `press` and
-  stops; plain code presses it (`claude_fill.press_step`, the rules of Claude fill's Next: KAN-639, with the
+  stops; plain code presses it (`steps.press_step`, the rules of Claude fill's Next: KAN-639, with the
   final-URL block) and a fresh drive goes on from there, up to `MAX_PRESSES` for one message (KAN-655).
 - **Read-back.** Plain code reads `FIELDS` again after the drive and compares (`ask.changes`), custom
   `[role=checkbox]` and `[role=switch]` boxes too (`aria-checked`, and `UNDO` clicks one back). Each change
@@ -479,9 +479,11 @@ press (`docs/plain-workers/guide.md`, Fix from the window). They never go to the
 Worker's own Chrome window, but for a captcha. Each message says so
 (`orchestrator.FIX_HERE`: "press Fix here and ... on the form in this window").
 
-- **A job system with no Filler.** `orchestrator.ForTheStudent` opens the form,
-  reads no question and fills nothing: its `fill` raises the Handoff
-  `NO_FILLER`, so the form is held as a paused one. Resume hands it over again.
+- **A job system with no Filler.** The generic Filler fills it (KAN-861,
+  `docs/generic-filler.md`): code reads and fills the form, and a model only
+  picks. Each field it can't fill is the next item's; a page it can't go on
+  from is a Handoff, held as a paused one. Until KAN-861,
+  `orchestrator.ForTheStudent` held the whole form unfilled.
 - **A field its Filler fails on.** The rehearsal leaves it out and goes on, as in
   a checkout (`_Planned.skip`). Its label and planned answer then join the
   Result's `left_behind`, so it is a Needs-you item. The held page tries it
