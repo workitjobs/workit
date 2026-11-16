@@ -360,6 +360,16 @@ into it and the window shows "Sample data".
   goes through `judged` (a throw blocks). A request's URL, method and body
   are read once, and what was judged is what is sent: an XHR keeps what its
   `open()` took, and one opened by no `open()` of the guard's is not sent.
+- **A GET form's submit is judged as a POST form's** (KAN-868). A form with
+  no method whose own submit handler posts the application (a React form's
+  onSubmit) sent it past both guards when a press of anything else of the
+  form's submitted it: a Next, a dropdown made of a submit button, one the
+  page turned into a submit button as it was pressed (the adversarial review
+  of KAN-861). While a guard is on, the submit of a GET form that has a
+  button that sends reaches none of the page's handlers, as a final one never
+  does; a held page's own press of the student's goes through as before. A
+  wizard whose Next submits the same GET form as its Submit is now a step
+  plain code can't press: a Handoff.
 - **A request body is read as its server reads it, never by a regex on
   its text** (KAN-791). One regex on Ashby's `operationName` let through
   escaped JSON, a submit named only in `query`, a batch, and form or

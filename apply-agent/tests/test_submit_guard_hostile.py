@@ -666,7 +666,22 @@ DELAYS = SENDS_AFTER | GENERIC_SENDS_AFTER
 MOVED = {"a session dialog whose Continue sends after the next mouse move",
          "a generic session dialog whose I'm still here sends after the next mouse move"}
 PAGES |= SESSION_PAGES | GENERIC_SESSION_PAGES
-BUTTON = {"an Amazon card whose Continue sends": "Continue", "a review page's Apply with its answers hidden": "Apply", "a page that vouches for its own Apply": "Apply", "a Submit in another language beside a Submit": "Envoyer ma candidature", "a Submit in a shadow root": "Submit application",
+# A GET form (no method) whose own submit handler posts the application, as a React form's onSubmit does: the guard
+# judged only a POST form's submit, so any press that submitted this one sent it (the adversarial review of KAN-861,
+# KAN-868). Each holds a Submit; the press is on something else of the form's.
+_GET_FORM = """<title>Apply</title><form id=f><label>First name <input name=first value=Test></label>%s
+  <button type=submit>Submit application</button></form>
+<script>f.addEventListener('submit', (e) => { e.preventDefault();
+  fetch('""" + COMMIT + """', {method: 'POST', body: new URLSearchParams(new FormData(f))}); });</script>"""
+GET_FORM_PAGES = {
+    "a GET form a Next submits beside its Submit": {START: _GET_FORM % "<button id=b>Next</button>"},
+    "a GET form whose dropdown is a submit button": {START: _GET_FORM % '<button id=b aria-haspopup=listbox>Country</button>'},
+    "a GET form whose Next turns into a submit button as it is pressed": {START: _GET_FORM % """<button type=button id=b>Next</button>
+        <script>b.addEventListener('pointerdown', (e) => e.currentTarget.type = 'submit', true);
+        b.addEventListener('mousedown', (e) => e.currentTarget.type = 'submit', true);</script>"""},
+}
+PAGES |= GET_FORM_PAGES
+BUTTON = {"a GET form whose dropdown is a submit button": "Country", "an Amazon card whose Continue sends": "Continue", "a review page's Apply with its answers hidden": "Apply", "a page that vouches for its own Apply": "Apply", "a Submit in another language beside a Submit": "Envoyer ma candidature", "a Submit in a shadow root": "Submit application",
           "a profile pop-up that is the application": "Submit", "a profile pop-up that turns into the application": "Submit",
           "a one-page form in a modal": "Continue", "an application that makes an account": "Continue",
           "a button whose words change after the check": "Continue",
@@ -854,6 +869,8 @@ GUARD_HOLES = frozenset({
     "a frame of the page's own at a captcha's path", "a foreign frame at a captcha's path that posts on a timer",
     "a foreign frame at a captcha's path whose form posts to the top page",
     "a foreign frame at a captcha's path told by the Next's click",
+    # KAN-868's: a GET form whose own submit handler sends, submitted by a press of something else of the form's.
+    *GET_FORM_PAGES,
 })
 
 

@@ -1141,7 +1141,7 @@ _TEMPLATE = r"""
       const href = text(postTarget(form, by));
       const target = (isEl(by) && text(attr(by, 'formtarget'))) || text(attr(form, 'target'));
       const words = isEl(by) ? slice(trim(innerText(by) || valueOf(by) || text(attr(by, 'aria-label'))), 0, 40) : '';
-      return 'a form submission (POST ' + slice(href, 0, 160) + (target ? ', into frame ' + slice(target, 0, 60) : '')
+      return 'a form submission (' + (posts(form, by) ? 'POST ' : 'GET ') + slice(href, 0, 160) + (target ? ', into frame ' + slice(target, 0, 60) : '')
         + ', by ' + (words ? 'the "' + words + '" button' : 'a script') + ')';
     } catch (e) {
       return 'a form submission';
@@ -1181,11 +1181,16 @@ _TEMPLATE = r"""
     // A held page is Lisul's but for its Submit: a Next goes on. A button that says nothing that sends, in a form
     // that has a Submit, goes on only by his own press of it, never by a script's requestSubmit() (KAN-710).
     if (held() && !final && (!by || !formSends(form) || (!!press && contains(by, press.target)))) return;
-    if (final) stopNow(event);
     // Plain code's press posts a step: never a form that has a button that sends, whatever its submitter says
     // (another language, Done, a hidden one), nor one bound for the final URL (KAN-710).
     const step = apply_ && !postsFinal(form, by) && !hadSends(form) && !inShadow(form);
-    if (final || (posts(form, by) && !step)) {
+    // A GET form that has a button that sends: its own submit handler is how it sends (a React form's onSubmit posts
+    // the application), so no handler of the page's hears its submit, whatever pressed it (a Next, a dropdown made
+    // of a submit button, one the page turned into one as it was pressed). Only a POST form was judged, and the
+    // adversarial review of KAN-861 sent the application this way past both guards (KAN-868).
+    const scripted = !posts(form, by) && !step && formSends(form);
+    if (final || scripted) stopNow(event);
+    if (final || scripted || (posts(form, by) && !step)) {
       prevent(event);
       note(formNamed(form, by));
     }
