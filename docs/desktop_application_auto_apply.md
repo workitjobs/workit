@@ -117,7 +117,7 @@ builds it.
 | D24 | **Two Workers by default, one to three.** Each is a full Chrome, about 0.5 to 1 GB of memory | Student laptops | W5 |
 | D25 | **"Remove all my data"** in settings deletes the Worker profiles, the seed, Records, Traces and the app's `keyring` items. The data folder is in each OS's standard place | Mac apps have no uninstaller | W5 |
 | D26 | **"Send report"** sends one Application's Record and a masked Trace to WorkIt only when the student presses it. No automatic telemetry | Testers need a way to report; privacy first | W5, W1 |
-| D27 | **Engine signing:** each build is signed with WorkIt's Ed25519 engine key by a script a person runs (`backend/app/scripts/publish_engine.py`; 2026-11-15, it was the Fill engine's CI); WorkIt serves the build made for the nearest app version at or below the app's; the app holds only the public key | An unsigned download would let an attacker run code on every student's computer. A step in the engine's CI would need write access to WorkIt's Storage from another repo; a person publishes by hand, as W8 builds by hand (D32) | W7 |
+| D27 | **Engine signing:** each build is signed with WorkIt's Ed25519 engine key by WorkIt's own CI on each merge that moves the engine pointer (`.github/workflows/publish-engine.yml` runs `backend/app/scripts/publish_engine.py`, with the key a secret of an environment that takes `main` only; 2026-11-15, it was the Fill engine's CI, then a person's hand run); WorkIt serves the build made for the nearest app version at or below the app's; the app holds only the public key | An unsigned download would let an attacker run code on every student's computer. A step in the engine's CI would need write access to WorkIt's Storage from another repo. WorkIt's CI signs only the engine a merged pointer names, which its PR's checks built, and no person's computer holds the key after setup | W7 |
 | D28 | **Certificate pinning** to the certificate authorities Cloudflare uses for `api.workitjobs.ai` and for the live Supabase Auth, which refreshes the session (2026-11-15: pinning the API alone left the refresh token readable, and with it the download), with backups. Sparkle's feed is on another host without pinning, so an update can fix the set | A proxy on the student's computer can't read the engine download | W7 |
 | D29 | **Apply moves to the private repo `workitjobs/apply-agent`**, with its history | The WorkIt repo is public; compiling protects nothing while the source is public | W0 |
 | D30 | **The Developer checkout uses the local API** (`ask_model: workit` against localhost by default after W0). `claude` stays a developer choice. There is no staging server | Simple; keys stay only in WorkIt's `backend/.env` | W0, W1 |
@@ -516,7 +516,7 @@ by hand (W8).
 | W4 | Remove macOS-only code | None | Yes | Built (#576, #585). Left to others: `dashboard.py` (W5) and `window_capture` (W6); what stops Apply on Windows is F4's |
 | W5 | The app shell | W3, W4 (and W1 for sign-in and usage) | Yes | Step 1 of 5 built: sign-in. Next: the window on pywebview |
 | W6 | The Worker extension on the store (spike first) | None | Yes | The spike passed; the store package is built (#570, #578). Blocked: the guards' per-run tokens (`worker-extension-todo.md`, item 0), then the first upload |
-| W7 | The engine download and its protection | W1 (sign-in) | Yes | Built (KAN-836): the two routes, the publish script, the app's download, decryption and signature check in memory, no engine file anywhere, and the pin. Left by hand: the signing key, the `ApplyEngine` bucket and the first publish. Open: the WorkIt extension's public copy of the engine |
+| W7 | The engine download and its protection | W1 (sign-in) | Yes | Built (KAN-836): the two routes, the publish script, the app's download, decryption and signature check in memory, no engine file anywhere, and the pin. Each merge that moves the engine pointer publishes it (`publish-engine.yml`). Left by hand: the signing key, the `ApplyEngine` bucket and the workflow's environment and secret. Open: the WorkIt extension's public copy of the engine |
 | W8 | Compile, sign, notarize, update, publish | W3, W4, W5 | Yes | Not started |
 | W9 | Company briefs in v1 | None | Yes | Not started. The Student build already does no research (#581) |
 | W10 | Legal | None | Yes | Text merged (#579; the WorkIt extension's license, #582). Left: the app's parts (W5, W8), and a `/privacy` that is true of the app |
@@ -1258,16 +1258,21 @@ and comes only from WorkIt (D3, D27, D28).
 
 **Built (KAN-836, 2026-11-15).**
 
-1. **Sign and publish, by hand.** `uv run python -m
-   app.scripts.publish_engine publish --key <file> --min-app <version>`,
-   from `backend/`, signs the submodule's `dist/engine.js` with WorkIt's
+1. **Sign and publish, on each merge.** `.github/workflows/publish-engine.yml`
+   runs `uv run python -m app.scripts.publish_engine publish --key <file>`
+   when a merge to `main` moves the engine pointer or
+   `backend/app/scripts/engine_min_app.txt` (the oldest app the engine
+   fits). It signs the submodule's `dist/engine.js` with WorkIt's
    Ed25519 engine key and puts it in the private Supabase Storage bucket
    `ApplyEngine` (chosen over Cloudflare R2 on 2026-11-15: no new account
    or cost): `<sha256>.js`, and a line in `builds.json` (`sha256`,
    `signature`, `min_app`, `published_at`). It refuses a bundle that names a
-   source map, so no source map ships. `make-key <file>` makes the key once.
-   Who publishes and where the private key is kept are the team's to
-   decide; whoever holds it can make every app run their code.
+   source map, so no source map ships, and a key whose public half Apply
+   doesn't hold. A run with nothing new uploads nothing, and a reverted
+   pointer serves the older build again. `make-key <file>` makes the key
+   once; its private half is a secret of the `apply-engine` environment,
+   which takes jobs from `main` only, since whoever holds it can make every
+   app run their code (`.github/CLAUDE.md`, "Publish the Fill engine").
 2. **Serve.** `GET /apply-app/engine?app_version=` (signed in) answers the
    build made for the nearest app version at or below the app's (the
    highest `min_app` that fits, then the last published), so a fix
@@ -1300,11 +1305,13 @@ and comes only from WorkIt (D3, D27, D28).
    pinning to its CAs, since it may change them: the set must ship before
    it does.
 
-**Left, by hand, before a student can run it.** Make the key (`make-key`)
-and put its public half in `engine_download.PUBLIC_KEY`; make the private
-`ApplyEngine` bucket in the Supabase dashboard; publish the first build
-for `--min-app 0.1.0`. Each engine release then needs a publish. Until
-the key is in, the Student build refuses every download (`NO_KEY`).
+**Left, by hand, before a student can run it** (the steps are in
+`.github/CLAUDE.md`, "Publish the Fill engine"). Make the key
+(`make-key`) and put its public half in `engine_download.PUBLIC_KEY`; make
+the private `ApplyEngine` bucket in the Supabase dashboard; make the
+`apply-engine` environment and its secret; run the workflow once by hand
+for the first build. Until the key is in, the Student build refuses every
+download (`NO_KEY`).
 
 **A dependency outside this design.** The WorkIt extension ships the
 minified engine in its public store package today, so anyone can read

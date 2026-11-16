@@ -112,7 +112,7 @@ uv run python -m app.scripts.import_apply_profile <applicant_id> [<apply_dir>]  
 uv run python -m app.scripts.label_resume_headings  label data/resume_heading_candidates.txt's resume headings once with Groq into app/utils/learned_headings.json (--dry-run lists them; review the diff; app/utils/CLAUDE.md, Learned headings)
 uv run python -m app.scripts.purge_old_data  delete rows past app/services/retention.py's periods, KAN-482 (--dry-run counts, deletes nothing; daily in CI)
 uv run python -m app.scripts.scrape_worker   one scraper worker cycle: sync catalog, claim boards, scrape, checkpoint (--dry-run shows what it would do; --full bypasses quiet board stagger and fingerprint rest)
-uv run python -m app.scripts.publish_engine publish --key <file> --min-app <version>  sign a Fill engine build and add it to the ApplyEngine bucket for WorkIt Auto Apply, KAN-836 (--dry-run uploads nothing; `make-key <file>` makes the signing key once; writes Storage: the user runs it, never Claude)
+uv run python -m app.scripts.publish_engine publish --key <file> [--min-app <version>]  sign a Fill engine build and put it last in the ApplyEngine bucket for WorkIt Auto Apply, KAN-836 (`publish-engine.yml` runs it on each merge that moves the engine pointer; --min-app defaults to app/scripts/engine_min_app.txt; --dry-run uploads nothing; `make-key <file>` makes the signing key once; writes Storage: CI or the user runs it, never Claude)
 uv run python -m app.scripts.embed_banks     the bank job, KAN-726: listen and embed stale banks until stopped (--once sweeps once); the team computer only, with EMBEDDING_PROVIDER=ollama (app/services/matching/CLAUDE.md); it runs from its own checkout there, so a merge reaches it only after "After a merge to main" in docs/scraper_gh_action/plan.md
 python3 scripts/fetch_tectonic.py              Tectonic + warm cache into vendor/ (resume PDFs; once per checkout)
 ```
@@ -404,7 +404,9 @@ Find files with a directory listing; these are the rules for where code goes.
   builds live in the private `ApplyEngine` Storage bucket (made in the
   dashboard), `<sha256>.js` beside `builds.json`, put there only by
   `app.scripts.publish_engine`, which signs each with WorkIt's Ed25519
-  engine key. The server never checks a signature: the app does, with the
+  engine key; `.github/workflows/publish-engine.yml` runs it on each merge
+  that moves the engine pointer (`.github/CLAUDE.md`, "Publish the Fill
+  engine"). The server never checks a signature: the app does, with the
   public key compiled in, so a bucket someone else wrote to still runs
   nothing. **No route
   takes a schema from a student.** If one ever does again, it must refuse

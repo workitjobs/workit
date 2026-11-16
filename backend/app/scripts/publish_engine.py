@@ -2,7 +2,9 @@
 Publish a Fill engine build for WorkIt Auto Apply to download (KAN-836, W7
 of docs/desktop_application_auto_apply.md; app/services/engine_builds.py).
 
-Run by hand, never in CI:
+.github/workflows/publish-engine.yml runs `publish` on each merge to main
+that moves the engine pointer or MIN_APP's file, with the key from its
+secret (.github/CLAUDE.md, "Publish the Fill engine"). By hand:
 
   uv run python -m app.scripts.publish_engine make-key <private key file>
       A new Ed25519 engine key: the private key to that file (mode 600,
@@ -10,19 +12,20 @@ Run by hand, never in CI:
       `engine_download.PUBLIC_KEY`. Done once. Keep the file outside every
       checkout; whoever holds it can make every app run their code.
 
-  uv run python -m app.scripts.publish_engine publish --key <file> --min-app 0.1.0 [--engine <dist/engine.js>] [--dry-run]
+  uv run python -m app.scripts.publish_engine publish --key <file> [--min-app <version>] [--engine <dist/engine.js>] [--dry-run]
       Signs the engine bundle (the submodule's dist/engine.js by default),
-      uploads it to the private `ApplyEngine` bucket as <sha256>.js and adds
-      it to builds.json. Apps at --min-app or later get it from their next
-      launch (within engine_builds.INDEX_TTL of the API reading it). A build
-      that would break older apps gets a higher --min-app, so they keep the
-      build before it. It prints the key's public half: it must be the one
-      Apply holds, or every app refuses the build.
+      uploads it to the private `ApplyEngine` bucket as <sha256>.js and puts
+      its line last in builds.json. Apps at --min-app (MIN_APP's file by
+      default) or later get it from their next launch (within
+      engine_builds.INDEX_TTL of the API reading it). A build that would
+      break older apps gets a higher --min-app, so they keep the build
+      before it. It refuses a key whose public half Apply doesn't hold:
+      every app would refuse its build.
 
-It writes to the Storage of the Supabase project the root .env names, as
-the import does to its database: the user runs it, never Claude. The
-`ApplyEngine` bucket is made once in the Supabase dashboard (Storage, New
-bucket, Public off; app/routers/CLAUDE.md).
+A real publish writes to the Storage of the Supabase project that
+SUPABASE_URL names, as the import does to its database: the workflow or
+the user runs it, never Claude. The `ApplyEngine` bucket is made once in
+the Supabase dashboard (Storage, New bucket, Public off).
 """
 
 import argparse
@@ -31,6 +34,7 @@ import datetime
 import hashlib
 import json
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -39,7 +43,13 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from app.services.engine_builds import BUCKET, INDEX, version
 
-ENGINE = Path(__file__).resolve().parents[3] / "autofiller_extension" / "fill-engine" / "dist" / "engine.js"
+ROOT = Path(__file__).resolve().parents[3]
+ENGINE = ROOT / "autofiller_extension" / "fill-engine" / "dist" / "engine.js"
+# The oldest app version the engine that main points at fits. Raise it in the PR that moves the pointer to an
+# engine older apps can't run.
+MIN_APP = Path(__file__).with_name("engine_min_app.txt")
+# Where Apply holds the public key its builds are checked with (W0 moves Apply to its own repo: then read it there).
+APP_KEY = ROOT / "apply-agent" / "src" / "apply" / "engine_download.py"
 
 
 def public_key(private: Ed25519PrivateKey) -> str:
@@ -78,18 +88,31 @@ def entry(bundle: bytes, private: Ed25519PrivateKey, min_app: str, now: datetime
     }
 
 
-def publish(storage, bundle: bytes, line: dict) -> list[dict]:
-    """Uploads the bundle, then the list with its line added; the new list."""
+def publish(storage, bundle: bytes, line: dict) -> list[dict] | None:
+    """Uploads the bundle, then the list with its line last; the new list, or None when the list already ends with
+    this bundle at this min_app. A bundle published before moves to the end, so a reverted engine pointer serves
+    the older build again."""
     bucket = storage.from_(BUCKET)
     builds = json.loads(bucket.download(INDEX)) if _has(bucket, INDEX) else []
-    if any(b["sha256"] == line["sha256"] for b in builds):
-        raise SystemExit(f"this bundle is already published ({line['sha256'][:12]})")
+    if builds and (builds[-1]["sha256"], builds[-1]["min_app"]) == (line["sha256"], line["min_app"]):
+        return None
     if not _has(bucket, f"{line['sha256']}.js"):
         bucket.upload(f"{line['sha256']}.js", bundle, {"content-type": "application/javascript"})
-    builds = [*builds, line]
+    builds = [*(b for b in builds if b["sha256"] != line["sha256"]), line]
     bucket.upload(INDEX, json.dumps(builds, indent=1).encode(),
                   {"content-type": "application/json", "upsert": "true"})
     return builds
+
+
+def check_app_holds(public: str) -> None:
+    """Refuses a key whose public half isn't the one Apply checks builds with: no app would run what it signs."""
+    held = re.search(r'^PUBLIC_KEY = "([^"]*)"$', APP_KEY.read_text(), re.MULTILINE) if APP_KEY.exists() else None
+    if held is None:
+        raise SystemExit(f"found no PUBLIC_KEY line in {APP_KEY}, so this can't check that Apply holds this key")
+    if held[1] != public:
+        raise SystemExit(f"Apply holds {held[1] or 'no engine key'} ({APP_KEY.name}'s PUBLIC_KEY), but this key's public"
+                         f" half is {public}: no app would run this build. Put the right key in, or sign with the"
+                         " one Apply holds")
 
 
 def _has(bucket, name: str) -> bool:
@@ -104,7 +127,7 @@ def main(argv: list[str] | None = None) -> None:
     made.add_argument("path", type=Path)
     sent = commands.add_parser("publish")
     sent.add_argument("--key", type=Path, required=True)
-    sent.add_argument("--min-app", required=True)
+    sent.add_argument("--min-app", default=MIN_APP.read_text().strip())
     sent.add_argument("--engine", type=Path, default=ENGINE)
     sent.add_argument("--dry-run", action="store_true")
     args = parser.parse_args(argv)
@@ -115,8 +138,9 @@ def main(argv: list[str] | None = None) -> None:
     private = load_key(args.key)
     bundle = args.engine.read_bytes()
     line = entry(bundle, private, args.min_app, datetime.datetime.now(datetime.UTC))
+    check_app_holds(public_key(private))
     print(f"Build {line['sha256'][:12]} ({len(bundle):,} bytes) for apps {args.min_app} and later,"
-          f" signed by the key whose public half is {public_key(private)}")
+          f" signed by the key Apply holds")
     if args.dry_run:
         print("Dry run: nothing uploaded.")
         return
@@ -128,7 +152,10 @@ def main(argv: list[str] | None = None) -> None:
         raise
     except Exception as error:
         sys.exit(f"Storage refused it: {error}. Is the private {BUCKET} bucket made in the Supabase dashboard?")
-    print(f"Published: {len(builds)} build(s) in {BUCKET}/{INDEX}.")
+    if builds is None:
+        print(f"{INDEX} already ends with this build for apps {args.min_app} and later: nothing uploaded.")
+    else:
+        print(f"Published: {len(builds)} build(s) in {BUCKET}/{INDEX}.")
 
 
 if __name__ == "__main__":

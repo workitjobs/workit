@@ -195,15 +195,37 @@ async def test_a_token_with_no_session_gets_no_key(monkeypatch):
     assert refused.value.status_code == 403
 
 
-def test_the_script_refuses_a_bundle_with_a_source_map_and_a_second_publish():
+def test_the_script_refuses_a_bundle_with_a_source_map():
     with pytest.raises(SystemExit):
         publish_engine.entry(BUNDLE + b"//# sourceMappingURL=engine.js.map\n", SIGNER, "0.1.0", NOW)
-    storage = Storage()
-    line = publish_engine.entry(BUNDLE, SIGNER, "0.1.0", NOW)
-    publish_engine.publish(storage, BUNDLE, line)
-    with pytest.raises(SystemExit):
-        publish_engine.publish(storage, BUNDLE, line)
-    assert len(json.loads(storage.bucket.files[engine_builds.INDEX])) == 1
+
+
+async def test_a_publish_again_adds_nothing_and_a_reverted_pointer_serves_the_older_build(supabase):
+    first, second = b"var FillEngine = 1;", b"var FillEngine = 2;"
+    old = _publish(supabase, first)
+    _publish(supabase, second)
+    again = publish_engine.entry(second, SIGNER, "0.1.0", NOW)
+    assert publish_engine.publish(supabase.storage, second, again) is None  # a re-run of the workflow
+    _publish(supabase, first)  # main's engine pointer moved back
+    _signed_in()
+    sent, _ = await _download()
+    assert sent["sha256"] == old["sha256"]
+    assert len(json.loads(supabase.storage.bucket.files[engine_builds.INDEX])) == 2
+
+
+def test_a_key_apply_does_not_hold_signs_nothing(tmp_path, monkeypatch, capsys):
+    key, engine, held = tmp_path / "key.pem", tmp_path / "engine.js", tmp_path / "engine_download.py"
+    public = publish_engine.make_key(key)
+    engine.write_bytes(BUNDLE)
+    monkeypatch.setattr(publish_engine, "APP_KEY", held)
+    dry_run = ["publish", "--key", str(key), "--engine", str(engine), "--dry-run"]
+    for text in ('PUBLIC_KEY = ""\n', f'PUBLIC_KEY = "{publish_engine.public_key(SIGNER)}"\n'):
+        held.write_text(text)
+        with pytest.raises(SystemExit):
+            publish_engine.main(dry_run)
+    held.write_text(f'PUBLIC_KEY = "{public}"\n')
+    publish_engine.main(dry_run)
+    assert "Dry run" in capsys.readouterr().out
 
 
 def test_a_new_key_is_never_written_over_an_old_one(tmp_path):
