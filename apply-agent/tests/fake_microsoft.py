@@ -50,13 +50,14 @@ FORM = ("<h1>Apply: Software Engineer Intern</h1><form onsubmit=\"event.preventD
 
 
 class FakeMicrosoftServer:
-    def __init__(self, google: str | None = None, account: str = "test.person@example.com"):
+    def __init__(self, google: str | None = None, account: str = "test.person@example.com", scope: str = "openid email profile"):
         """`google`: None (the Google button's window is a bare page), "chooser" (Google's account chooser, then
         back signed in), "consent" (the chooser, then Google's Continue for the site), "password", "passkey" or
         "rejected" (Google asks for more than the pick, or refuses the browser)."""
         self.submissions: list[str] = []
         self.provider_opened: list[str] = []  # each provider sign-in window that opened
         self.google, self.account = google, account
+        self.scope = scope  # what the site's OAuth request asks Google for
         self.picked: list[str] = []  # each account picked in Google's chooser
         self.typed: list[str] = []  # anything typed into a Google page: never
 
@@ -95,7 +96,7 @@ class FakeMicrosoftServer:
         if parts.path.startswith("/oauth/"):
             self.provider_opened.append(parts.path)
             if parts.path == "/oauth/google" and self.google:
-                chooser = f"{GOOGLE}/v3/signin/accountchooser?continue={quote(DONE)}"
+                chooser = f"{GOOGLE}/v3/signin/accountchooser?continue={quote(DONE)}&scope={quote(self.scope)}"
                 return route.fulfill(content_type="text/html", body=f"<script>location.replace({json.dumps(chooser)})</script>")
             return route.fulfill(content_type="text/html", body="<p>Provider sign-in</p>")
         if parts.path == "/api/apply":

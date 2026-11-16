@@ -155,3 +155,36 @@ def test_a_claude_fill_form_behind_a_google_sign_in_is_signed_in_and_filled_with
     assert done.outcome == "ready to submit", done.why
     assert server.provider_opened == ["/oauth/google"] and server.picked == [login]
     assert server.typed == [] and server.submissions == []
+
+
+@pytest.mark.parametrize(("scope", "said"), [
+    ("openid email https://www.googleapis.com/auth/drive", "asks Google for more than your name and email"),
+    ("", "didn't say what it asks Google for")])
+def test_a_google_sign_in_that_asks_for_more_than_name_and_email_or_says_nothing_is_the_applicants(scope, said):
+    # Fault (KAN-878's review): a page's Google button opened another app's OAuth request (Drive), and Apply picked
+    # the account and pressed Continue on it.
+    server = FakeMicrosoftServer(google="consent", account=ACCOUNT, scope=scope)
+    with _at_sign_in(server) as (page, guard), pytest.raises(Handoff, match=said):
+        provider_sign_in.with_google(page, ACCOUNT, "Microsoft", guard, wait=15)
+    assert server.picked == [] and server.typed == []
+
+
+def test_a_google_button_that_would_submit_a_form_is_never_pressed():
+    # Fault (KAN-878's review): Eightfold's Google class on a wrapper of the form's submit button, or on a label for
+    # it, pressed as Sign in with Google.
+    from fake_microsoft import (
+        FakeMicrosoftServer as _Server,  # noqa: F401 (the same browser setup)
+    )
+    from playwright.sync_api import sync_playwright
+
+    pages = ['<form><div class="candidateAuthGoogleLoginButton"><button>Sign in with Google</button></div></form>',
+             '<form><button id=s hidden>Submit</button></form><label class="candidateAuthGoogleLoginButton" for=s>'
+             "Sign in with Google</label>"]
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch()
+        for html in pages:
+            page = browser.new_page()
+            page.set_content(html)
+            with pytest.raises(Handoff, match="would submit a form"):
+                provider_sign_in.with_google(page, ACCOUNT, "Example", None, wait=2)
+        browser.close()

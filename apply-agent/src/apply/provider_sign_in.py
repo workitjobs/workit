@@ -13,6 +13,7 @@ within GOOGLE_WAIT_S are the applicant's: `shows` makes Claude fill's stop there
 
 import re
 import time
+from urllib.parse import unquote
 
 from playwright.sync_api import Locator, Page
 
@@ -83,8 +84,23 @@ IN_A_FORM = (NEEDS_SIGN_IN + "{site}'s Sign in with Google would submit a form, 
              "the page yourself: Apply goes on by itself once you have.")
 # Whether a press of it would submit a form: a submit button of one (a <button> of no type, an <input type=submit>).
 # A real Sign in with Google is a link or a button of type=button; one that submits could send the application.
-SUBMITS = """el => { const b = el.closest('button, input'); return !!b && !!b.form && (b.tagName === 'BUTTON'
-  ? (b.getAttribute('type') || 'submit').toLowerCase() === 'submit' : /^(submit|image)$/i.test(b.type || '')); }"""
+# It is, sits in or holds a form's submit button, or is a label for one (a click on a label clicks its control).
+SUBMITS = """el => {
+  const sub = (b) => !!b && !!b.form && (b.tagName === 'BUTTON'
+    ? (b.getAttribute('type') || 'submit').toLowerCase() === 'submit' : /^(submit|image)$/i.test(b.type || ''));
+  const lab = (l) => !!l && sub(l.control);
+  return sub(el.closest('button, input')) || lab(el.closest('label'))
+    || [...el.querySelectorAll('button, input')].some(sub) || [...el.querySelectorAll('label')].some(lab);
+}"""
+# What a sign-in with Google may share: the applicant's name and email, nothing more (KAN-878's review: a page's
+# Google button can open any app's OAuth request, such as one for Drive).
+BASIC_SCOPES = frozenset({"openid", "email", "profile", "https://www.googleapis.com/auth/userinfo.email",
+                          "https://www.googleapis.com/auth/userinfo.profile"})
+SCOPE = re.compile(r"[?&#]scope=([^&#]+)")
+MORE_THAN_SIGN_IN = (NEEDS_SIGN_IN + "{site}'s Sign in with Google asks Google for more than your name and email ({scopes}), "
+                     "so Apply didn't go on. Sign in on the page yourself if you mean to.")
+UNKNOWN_SCOPE = (NEEDS_SIGN_IN + "{site}'s Sign in with Google didn't say what it asks Google for, so Apply didn't pick "
+                 "your account. Sign in on the page yourself: Apply goes on by itself once you have.")
 A_FRAME = (NEEDS_SIGN_IN + "{site}'s Sign in with Google holds a frame, where Apply's press could land on another "
            "form. Sign in on the page yourself: Apply goes on by itself once you have.")
 
@@ -94,6 +110,18 @@ def google_button(page: Page) -> list[Locator]:
     found = [el for role in ("button", "link") for el in page.get_by_role(role, name=GOOGLE_NAME).all() if el.is_visible()]
     found += [el for el in page.locator(GOOGLE_CLASS).all() if el.is_visible()]
     return found
+
+
+def scopes(url: str) -> set[str] | None:
+    """The OAuth scopes a Google URL asks for, in itself or in the URLs nested in it (`continue`), or None when it
+    names none."""
+    found: set[str] = set()
+    seen = url
+    for _ in range(4):  # each level of nesting is one more quoting
+        for match in SCOPE.finditer(seen):
+            found |= {s for s in re.split(r"[\s+]+", unquote(match[1])) if s}
+        seen = unquote(seen)
+    return found or None
 
 
 def with_google(page: Page, login: str, site: str, guard=None, wait: float = GOOGLE_WAIT_S) -> None:
@@ -123,6 +151,7 @@ def with_google(page: Page, login: str, site: str, guard=None, wait: float = GOO
             guard.arm()  # the account click's flag off again
             guard.rest()
     picked, agreed = set(), set()
+    asked: set[str] = set()  # the scopes Google's pages have shown, across the windows
     end = time.monotonic() + wait
     while time.monotonic() < end:
         try:
@@ -139,8 +168,13 @@ def with_google(page: Page, login: str, site: str, guard=None, wait: float = GOO
                     raise Handoff(google_sign_in.REJECTED)
                 if google_sign_in.asks(window):
                     raise Handoff(NEEDS_SIGN_IN + google_sign_in.wants(window))
+                asked |= scopes(window.url) or set()
+                if more := asked - BASIC_SCOPES:
+                    raise Handoff(MORE_THAN_SIGN_IN.format(site=site, scopes=", ".join(sorted(more))))
                 account = google_sign_in.account(window, login).first
                 if id(window) not in picked and account.is_visible():
+                    if not asked:  # never pick the account for a request that says nothing of what it wants
+                        raise Handoff(UNKNOWN_SCOPE.format(site=site))
                     picked.add(id(window))
                     account.click()
                     continue

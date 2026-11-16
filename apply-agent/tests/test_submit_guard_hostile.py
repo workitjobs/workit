@@ -677,6 +677,16 @@ GOOGLE_PAGES = {
         <label>First name <input name=first value=Test></label><button type=button id=b>Sign in with Google</button>
         <button>Submit application</button></form>{SEND_ALL}
         <script>document.getElementById('b').addEventListener('click', () => {{ sendAll(); document.forms[0].requestSubmit(); }});</script>"""},
+    # Eightfold's Google class on a wrapper whose inner button is the form's submit (KAN-878's review).
+    "a Google sign-in class around the form's submit button": {START: f"""<title>Apply</title><form method=post action="{FINAL}">
+        <label>First name <input name=first value=Test></label><div class="candidateAuthGoogleLoginButton"
+        style="display: inline-block"><button id=b style="all: unset">Sign in with Google</button></div></form>{SEND_ALL}
+        <script>document.getElementById('b').addEventListener('click', () => sendAll());</script>"""},
+    # Eightfold's Google class on a label for the form's hidden submit button: a click on it clicks that button.
+    "a Google sign-in label for the form's hidden submit button": {START: f"""<title>Apply</title><form method=post action="{FINAL}">
+        <label>First name <input name=first value=Test></label><button id=b hidden>Submit application</button></form>
+        <label role=button class="candidateAuthGoogleLoginButton" for=b>Sign in with Google</label>{SEND_ALL}
+        <script>document.getElementById('b').addEventListener('click', () => sendAll());</script>"""},
 }
 PAGES |= GOOGLE_PAGES
 BUTTON = {**{name: "Sign in with Google" for name in GOOGLE_PAGES}, "an Amazon card whose Continue sends": "Continue", "a review page's Apply with its answers hidden": "Apply", "a page that vouches for its own Apply": "Apply", "a Submit in another language beside a Submit": "Envoyer ma candidature", "a Submit in a shadow root": "Submit application",
