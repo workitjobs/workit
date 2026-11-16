@@ -135,6 +135,11 @@ has neither.
   touches a captcha. It hands them to the user.
 - **The Fill engine:** run `git submodule update --init` once per checkout.
   Without it, Apply cannot fill a form, and `uv run apply doctor` says so.
+  **Read the engine only through `fill_engine.source()`**, never
+  `fill_engine.ENGINE` (KAN-836, W7): with `fill_engine: workit`, and always
+  in the Student build, the engine is WorkIt's signed download, kept only in
+  memory, and no engine file may be written (`docs/fill-engine.md`, "Where
+  the bundle comes from").
 - **`README.md`** is a teammate's setup path, from a clone to a rehearsal. Its
   steps and doctor's fix lines say the same thing. When you change one,
   change the other.

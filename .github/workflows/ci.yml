@@ -246,6 +246,7 @@ jobs:
             tests/test_dock_app.py \
             tests/test_each_os.py \
             tests/test_eightfold_filler.py \
+            tests/test_engine_download.py \
             tests/test_employer_mail.py \
             tests/test_fill_engine.py \
             tests/test_focus.py \
