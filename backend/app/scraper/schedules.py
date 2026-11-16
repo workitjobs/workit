@@ -9,49 +9,25 @@ from __future__ import annotations
 
 import csv
 import time
-import zlib
-from datetime import timedelta
 from pathlib import Path
 
 from sqlalchemy import select, text, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncConnection
+from workit_scraper.scheduling import (
+    FINGERPRINT_FIRST,
+    FINGERPRINT_LONGEST,
+    RUN_EVERY,  # noqa: F401 — re-exported for tests
+    is_quiet_board_due,
+    quiet_slot,
+    rest_for,
+)
 
 from app.models.scraper import Scraper_Schedule
 
 _schedules = Scraper_Schedule.__table__
 
-# Same constants as workit_scraper.store
-REST_AFTER = 3
-REST_FIRST = timedelta(hours=6)
-REST_LONGEST = timedelta(hours=24)
-
-# Quiet board stagger: boards with no kept postings are read 1 in QUIET_EVERY
-# runs, staggered by CRC32 of the board key over the run's slot.
-QUIET_EVERY = 3
-QUIET_LONGEST = timedelta(days=1)
-RUN_EVERY = timedelta(hours=3)
-
-# Fingerprint rest: hot boards whose content hasn't changed rest after
-# the first unchanged read, doubling each time.
-FINGERPRINT_FIRST = timedelta(hours=4)
-FINGERPRINT_LONGEST = timedelta(hours=24)
-
 BOARDS_CSV = Path(__file__).resolve().parents[3] / "scraper" / "boards.csv"
-
-
-def rest_for(failures: int) -> timedelta | None:
-    """How long a board unread `failures` runs in a row rests."""
-    if failures < REST_AFTER:
-        return None
-    return min(REST_FIRST * 2 ** (failures - REST_AFTER), REST_LONGEST)
-
-
-def fingerprint_rest(unchanged_reads: int) -> timedelta | None:
-    """How long a board unchanged `unchanged_reads` times rests."""
-    if unchanged_reads < 1:
-        return None
-    return min(FINGERPRINT_FIRST * 2 ** (unchanged_reads - 1), FINGERPRINT_LONGEST)
 
 
 def filter_quiet(schedules: list, *, full: bool = False) -> list:
@@ -63,15 +39,17 @@ def filter_quiet(schedules: list, *, full: bool = False) -> list:
     if full:
         return list(schedules)
     now = time.time()
-    slot = int(now // RUN_EVERY.total_seconds())
-    quiet_longest_s = QUIET_LONGEST.total_seconds()
+    slot = quiet_slot(now)
     return [
         row
         for row in schedules
-        if row.last_read_at is None
-        or row.has_kept
-        or (now - row.last_read_at.timestamp()) > quiet_longest_s
-        or zlib.crc32(f"{row.ats}/{row.token}".encode()) % QUIET_EVERY == slot % QUIET_EVERY
+        if is_quiet_board_due(
+            f"{row.ats}/{row.token}",
+            slot,
+            row.last_read_at.timestamp() if row.last_read_at else None,
+            now,
+            has_kept=row.has_kept,
+        )
     ]
 
 
