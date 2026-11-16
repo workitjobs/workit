@@ -41,9 +41,9 @@ docstring first.
   every reference the page must not call behind an underscore.
 - What the window shows comes from one place, `Bridge._html`: `SIGN_IN`
   signed out, `FIRST_RUN` while `first_run.FirstRun.step()` isn't
-  `READY`, else the Apply window (`Bridge._page`), with the queue on top
-  (`PANEL`) when no run goes, and `USAGE` (model use, Settings) on every
-  page. A new screen is a page constant here and one branch there.
+  `READY`, else the student page (`Bridge._page`, `student_page`; see
+  below). A window given no `start` (a Developer checkout's) keeps the
+  developer page (`page`). A new screen is a page constant here and one branch there.
 - First run's steps and the app's settings (`app.json` in the data folder:
   the disclosure, the Screen Recording ask, the Worker count) are in
   `apply/first_run.py`, each check a callable that tests replace.
@@ -74,3 +74,39 @@ a failure too, not only a filled form. A step Workday won't leave keeps what
 was planned and what each field showed up to there
 (`WorkdayFiller.shown_so_far`); an outcome before any form opened keeps a
 screenshot of the page it stopped on.
+
+## The student page (`window/`, KAN-867)
+
+The page WorkIt Auto Apply's window shows (design doc, W5). It is built
+for a student, not from `dashboard_page.py`.
+
+- **One screen, one pile.** Everything that waits on the student is a
+  to-do: a sign-in, a question, an emailed code, a captcha, an answer to
+  check, an Essay to approve, a form to finish or to submit. The window
+  shows one at a time, most blocking first, with "1 of 4" and Skip for
+  now. Below it, "Still working on" lists only the jobs WorkIt is filling
+  or checking, so no job shows twice. Submitted jobs are under "Applied".
+- **`src/view.ts`** turns `Dashboard.state()` into that pile and that list
+  (`view`), names the pile in the heading (`headline`) and says the Usage
+  cap in words (`limit`). A tile wins over its item for the same posting,
+  but the job keeps the item's `id` and questions (what `/answer` names),
+  and the tile's place on the board (what `/show/<k>` names). Its tests:
+  `npm test` (Node's test runner, in CI).
+- **`src/bridge.ts`** is the spec's bridge contract. `routes(token)`:
+  `/state`, `/answer`, `/approve`, `/show/<k>` and `/fill-again` through
+  plain `fetch` with `X-Apply-Token`, which app_window's SHIM carries to
+  `Dashboard.respond`. `app`: #613's `js_api` methods, feature-detected at
+  `pywebviewready`; it never settles in a window that has none. With no
+  `window.APPLY_TOKEN` the page runs on `src/mock.ts`.
+- **Build:** in `window/`, `npm ci`, then `npm run build` writes one
+  self-contained file into the package, `src/apply/student_page/index.html`.
+  Commit it with the source change: CI's `apply-window` job rebuilds it and
+  fails on any difference. `npm run dev` serves the page on the mock; pick
+  a fixture with `?scenario=start|needs|ready|quiet` and the day's use with
+  `?usage=near|cap`.
+- **Token:** `app_window.student_page(board)` puts SHIM and
+  `<script>window.APPLY_TOKEN = "<board.token>"</script>` right after the
+  page's `<meta charset="utf-8" />`, before its module script. A board
+  swap (`Bridge.show_board`) reloads the page with the new board's token.
+- **Look:** WorkIt's tokens from `frontend/src/app/globals.css`, under the
+  same names, and Inter's Latin subset inlined.

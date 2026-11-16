@@ -1057,9 +1057,10 @@ on Windows each one stops Apply:
 
 **Design.**
 
-- **pywebview, no port** (D11). The window's page is today's Apply
-  window (Start, Needs you, Answers, Accounts) without the Developer-only
-  parts. Its 28 routes in `dashboard.py` (`/state`, `/start`, `/answer`,
+- **pywebview, no port** (D11). The window's page is the student page
+  (KAN-867: one to-do at a time, what WorkIt is still working on, Applied,
+  the queue and Start), in place of today's Apply window, which a
+  Developer checkout's window keeps. Its 28 routes in `dashboard.py` (`/state`, `/start`, `/answer`,
   `/answers`, `/approve`, `/resume`, `/fill-again`, `/regenerate`,
   `/accounts`, `/frames`, `/stream/`, `/input/`, ...) become methods on
   pywebview's JavaScript bridge (`js_api`). Tiles' frames are pushed into
@@ -1186,11 +1187,10 @@ folder's `app.json`. **The Student build's data folder is
 `home.APP_FOLDER`** (D25): `home.HOME` reads `build.STUDENT` once, at
 import, which the build script writes before it compiles.
 
-**Built (KAN-858, step 4): a run.** With no run going, the Apply window
-has the queue on top (`PANEL`): the student's queued, open jobs on WorkIt,
+**Built (KAN-858, step 4): a run.** With no run going, the window shows
+the queue: the student's queued, open jobs on WorkIt (`Bridge.queue`),
 oldest first, a job board's posting by its employer's form; a box for one
-pasted link; Start. Every page of the app shows today's model use against
-the Usage cap and a Settings button (`USAGE`). Start runs the ticked links
+pasted link; Start (`Bridge.start`). Start runs the ticked links
 in `student.Runs`: `student.adapters()`, the Worker count from Settings,
 and the run's own Apply window, its tiles, till every form it held is
 closed; then the queue again. One run at a time. The window comes back to
@@ -1215,11 +1215,21 @@ its usage line, and Settings. `tests/test_first_run.py` and
 `tests/test_app_window.py` (CI) and `tests/test_app_window_page.py`
 (Chromium: every page of the app runs with no script error) test them.
 
-**What the app's window keeps** (decided 2026-11-15): below the queue, the
-Apply window as it is, with the Answers tab, History and the developer
-run bar, for now. History's link opens the student's Applications Tracker
-on WorkIt in the default browser (`student.tracker_url`; pywebview opens
-every link to a new window there).
+**The Student build's window shows the student page** (KAN-867,
+KAN-869), in place of the developer Apply window: one to-do card at a
+time, "Still working on", Applied, the queue and Start when no run goes,
+the Usage cap in words from 80%, and Settings. Its source is
+`apply-agent/window/` (React, Tailwind, the website's tokens and Inter),
+built by Vite into one self-contained file committed in the package
+(`apply/student_page/index.html`), so the app ships it with no Node; CI
+checks the file matches its source. `app_window.student_page` puts SHIM
+and the window's token (`window.APPLY_TOKEN`) before its scripts. The page
+reads `/state` and sends `/answer`, `/approve`, `/show/<k>` and
+`/fill-again` with plain `fetch` and the token, which SHIM carries to the
+same handler and checks, with no port; it uses the bridge's app methods
+(queue, start, status, usage, settings) only when the window has them. A
+Developer checkout's window, which runs nothing, keeps the developer page.
+A run's board takes the student's answers (`answers_tab.saving_answers`).
 
 Left from W5:
 - **Report a problem** (D26, W1's #614): a form from Settings and from
