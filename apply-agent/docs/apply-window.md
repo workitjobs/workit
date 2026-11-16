@@ -59,7 +59,10 @@ docstring first.
   two calls: `review_report` builds the report and keeps it, the page
   shows its `parts`, and `send_report` sends that kept report, never the
   form's answers again. A changed answer hides Send Report till it is
-  reviewed again. The log is masked with `app_window.PROFILE`, the
+  reviewed again. A card's `send_report` names its Application's id, and
+  one whose kept report is about another (or about none, Settings') is
+  refused: the window keeps one report, which another form's Review Report
+  replaces. The log is masked with `app_window.PROFILE`, the
   profile's file: a folder masks nothing (`report.build` refuses it).
 - A link to a new window (`target="_blank"`: a posting, History's
   Applications Tracker on WorkIt) opens in the default browser: pywebview
@@ -166,9 +169,19 @@ for a student, not from `dashboard_page.py`.
   `/state`, `/answer`, `/approve`, `/show/<k>`, `/fill-again`, `/stop` and
   `/remove` through plain `fetch` with `X-Apply-Token`, which app_window's SHIM carries to
   `Dashboard.respond`. `app`: `app_window.Bridge`'s `js_api` methods (`queue`, `applied`, `start`,
-  `status`, `usage`, `settings`), feature-detected at
+  `status`, `usage`, `settings`, `review_report`, `send_report`), feature-detected at
   `pywebviewready`; it never settles in a window that has none. With no
   `window.APPLY_TOKEN` the page runs on `src/mock.ts`.
+- **Report a problem (D26)** is under each to-do card, each "Didn't go
+  through" row and each Applied row whose job has an `application_id`
+  (`src/report.tsx`): what it is about (`window.REPORT_CATEGORIES`, which
+  `student_page` puts in from `report.CATEGORIES`), what happened, whether
+  to include what was filled in and the log (ticked), and whether WorkIt
+  may email the student. Review Report lists what goes; Send Report sends
+  that, named by the same id. A changed answer hides Send Report, and the
+  form is held still while a press is answered. A row's form opens under
+  the row, so its logo and button stay where they were. The Chromium test
+  (`tests/test_app_window_page.py`) drives it on the real page.
 - **Logos (KAN-871)** come as the website finds them (`jobLogo`):
   Brandfetch's icon by `company_domain`, through `fallback/404` and
   WorkIt's public client id, then the scraper's `logo_url`, then the

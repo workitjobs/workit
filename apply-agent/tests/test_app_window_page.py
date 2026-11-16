@@ -111,6 +111,51 @@ def test_the_apps_own_pages_run_without_a_script_error(monkeypatch):
     assert errors == []
 
 
+def test_report_a_problem_on_an_applications_row_reviews_and_sends_with_its_id(monkeypatch):
+    """Fault: the card's report reviewed without its Application's id, sent with no Review Report or under another
+    id, or a changed answer sent without being shown again."""
+    from apply import dashboard
+
+    monkeypatch.setattr(dashboard, "ThreadingHTTPServer", None)
+    answers = {"review_report": {"parts": ["Your words", "Which application: Acme, Intern"]},
+               "send_report": {"said": "Sent. WorkIt keeps your report until its problem is fixed, then deletes it."}}
+    calls, errors = [], []
+    with Dashboard(1, OneFrame(), serve=False) as board, sync_playwright() as playwright:
+        board.update(0, company="Acme", role="Intern", application_id="gh-1", status="failed",
+                     posting_url="https://boards.greenhouse.io/acme/jobs/1")
+        bridge = Bridge(board, WorkIt(workit.LIVE))
+
+        def call(name, args):
+            if name == "request":
+                return bridge.request(*args)
+            if name in answers:
+                calls.append([name, *args])
+            return answers.get(name, {})
+
+        browser = playwright.chromium.launch()
+        page = browser.new_page()
+        page.on("pageerror", lambda error: errors.append(str(error)))
+        page.route("**/*", lambda route: route.abort())
+        page.expose_function("__bridge", call)
+        page.set_content(app_window.student_page(board), wait_until="domcontentloaded")
+        page.evaluate(PYWEBVIEW)
+        page.click("text=Report a problem", timeout=5000)  # the "Didn't go through" row's
+        page.select_option("select", "answer")  # apply.report's categories, put in the page
+        page.fill("textarea", "It picked the wrong school.")
+        page.click("text=Review Report")
+        page.wait_for_selector("text=Which application: Acme, Intern", timeout=5000)
+        page.fill("textarea", "It picked the wrong school twice.")
+        assert not page.is_visible("text=Send Report")  # a changed answer is shown again first
+        page.click("text=Review Report")
+        page.click("text=Send Report")
+        page.wait_for_selector("text=Sent. WorkIt keeps your report", timeout=5000)
+        browser.close()
+    assert calls == [["review_report", "answer", "It picked the wrong school.", False, "gh-1", True],
+                     ["review_report", "answer", "It picked the wrong school twice.", False, "gh-1", True],
+                     ["send_report", "gh-1"]]
+    assert errors == []
+
+
 def test_a_logo_that_fails_to_load_falls_back_to_the_next_source_then_to_initials(monkeypatch):
     """Fault: a broken image in a queue row, or the initials kept when the scraper's logo loads (KAN-871)."""
     import base64

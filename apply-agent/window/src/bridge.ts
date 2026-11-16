@@ -2,7 +2,8 @@
 // - routes: the Apply window's existing routes, through plain fetch with the window's token. In WorkIt Auto Apply's
 //   window, app_window.SHIM carries each fetch to Dashboard.respond, with no port; a window
 //   dashboard.py serves gets the same calls over its own address.
-// - app methods: app_window.Bridge's js_api methods (queue, applied, start, status, usage, settings), used only when the window has them.
+// - app methods: app_window.Bridge's js_api methods (queue, applied, start, status, usage, settings, review_report,
+//   send_report), used only when the window has them.
 //   A Developer checkout's window has none, so the page shows the run as it is.
 // - mock: fixtures, to design and screenshot the window with no Apply running (mock.ts).
 import type { ApplyState, QueuedJob } from "./apply.ts";
@@ -21,6 +22,10 @@ export type App = Partial<{
   status(): Promise<{ running: boolean; said: string }>;
   usage(): Promise<Usage>;
   settings(): Promise<void>;
+  // Report a problem with one Application (D26): what the report holds, a line each; then Send Report sends that
+  // same report, named by the same id.
+  review_report(category: string, note: string, contact_ok: boolean, application_id: string, include: boolean): Promise<{ parts: string[] }>;
+  send_report(application_id: string): Promise<{ said: string }>;
 }>;
 
 export type Bridge = {
@@ -38,6 +43,7 @@ declare global {
   interface Window {
     pywebview?: { api?: Record<string, (...args: unknown[]) => Promise<unknown>> };
     APPLY_TOKEN?: string; // the window's token, put in the page when it is served
+    REPORT_CATEGORIES?: Record<string, string>; // what a report can be about (apply.report.CATEGORIES), put in with it
   }
 }
 
@@ -55,7 +61,7 @@ async function called<T>(method: (...args: unknown[]) => Promise<unknown>, ...ar
   return got as T;
 }
 
-export const NAMES = ["queue", "applied", "start", "status", "usage", "settings"] as const;
+export const NAMES = ["queue", "applied", "start", "status", "usage", "settings", "review_report", "send_report"] as const;
 
 function appMethods(): Promise<App> {
   return new Promise((done) => {

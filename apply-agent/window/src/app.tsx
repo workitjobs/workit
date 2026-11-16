@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { ApplyState, Run } from "./apply.ts";
 import type { AppliedJob, App as AppMethods, Bridge, Queued, Usage } from "./bridge.ts";
 import { TodoCard } from "./cards.tsx";
+import { Report } from "./report.tsx";
 import { Button, Logo, cx, pressed } from "./ui.tsx";
 import { type Job, type View, type Waits, addsJobs, appliedJobs, bar, chosen, headline, limit, notStarted, queueNote, STARTING_WAIT, startWords, view } from "./view.ts";
 import { said } from "./words.ts";
@@ -81,7 +82,7 @@ export function App({ bridge }: { bridge: Bridge }) {
         ) : first ? (
           <Start app={app} back={page === "add" ? () => setPage("home") : undefined} />
         ) : (
-          <Home v={v} bridge={bridge} fail={setToast} add={app.queue && addsJobs(v, !!app.start) ? add : undefined} />
+          <Home v={v} bridge={bridge} app={app} fail={setToast} add={app.queue && addsJobs(v, !!app.start) ? add : undefined} />
         )}
       </main>
       {toast && <div role="alert" className="rise fixed right-4 bottom-4 rounded-card bg-ink px-4 py-2.5 text-note text-on-brand shadow-lift">{toast}</div>}
@@ -156,7 +157,7 @@ function Limit({ app, run }: { app: AppMethods; run?: Run }) {
   );
 }
 
-function Home({ v, bridge, fail, add }: { v: View; bridge: Bridge; fail: Fail; add?: () => void }) {
+function Home({ v, bridge, app, fail, add }: { v: View; bridge: Bridge; app: AppMethods; fail: Fail; add?: () => void }) {
   // Which to-do is on top. Skip moves it to the next one; a done one leaves the pile by itself.
   const [at, setAt] = useState(0);
   const i = v.todo.length ? at % v.todo.length : 0;
@@ -172,7 +173,7 @@ function Home({ v, bridge, fail, add }: { v: View; bridge: Bridge; fail: Fail; a
       <h1 className="text-heading">{headline(v)}</h1>
       {v.todo.length ? (
         <div className="mt-6">
-          <TodoCard job={v.todo[i]} bridge={bridge} at={i} of={v.todo.length} skip={() => setAt(i + 1)} fail={fail} />
+          <TodoCard job={v.todo[i]} bridge={bridge} app={app} at={i} of={v.todo.length} skip={() => setAt(i + 1)} fail={fail} />
         </div>
       ) : (
         <div className="rise mt-6 flex items-center gap-4 rounded-shell border border-border bg-panel px-6 py-5">
@@ -209,7 +210,7 @@ function Home({ v, bridge, fail, add }: { v: View; bridge: Bridge; fail: Fail; a
         <section className="mt-10">
           <h3 className="mb-2 text-note font-semibold text-ink-meta">Didn't go through</h3>
           {v.stopped.map((job) => (
-            <Stopped key={job.key} job={job} bridge={bridge} fail={fail} />
+            <Stopped key={job.key} job={job} bridge={bridge} app={app} fail={fail} />
           ))}
         </section>
       )}
@@ -219,25 +220,28 @@ function Home({ v, bridge, fail, add }: { v: View; bridge: Bridge; fail: Fail; a
 
 // A job that failed or was skipped, with why, and Try again where Apply still holds its form to fill anew. Once
 // pressed, the job moves to "Still working on" as Apply starts filling it.
-function Stopped({ job, bridge, fail }: { job: Job; bridge: Bridge; fail: Fail }) {
+function Stopped({ job, bridge, app, fail }: { job: Job; bridge: Bridge; app: AppMethods; fail: Fail }) {
   const [trying, setTrying] = useState(false);
   const retry = () => {
     setTrying(true);
     bridge.fillAgain(job.retry!).catch((e: Error) => (setTrying(false), fail(e.message)));
   };
   return (
-    <div className="flex items-center gap-3 py-2.5">
-      <Logo company={job.company} src={job.source} size="md" />
-      <div className="min-w-0 flex-1">
-        <div className="font-semibold">{job.company}</div>
-        <div className="truncate text-note text-ink-meta">{job.role}</div>
-        <div className="mt-0.5 text-note text-ink-meta">{job.reason}</div>
+    <div className="py-2.5">
+      <div className="flex items-center gap-3">
+        <Logo company={job.company} src={job.source} size="md" />
+        <div className="min-w-0 flex-1">
+          <div className="font-semibold">{job.company}</div>
+          <div className="truncate text-note text-ink-meta">{job.role}</div>
+          <div className="mt-0.5 text-note text-ink-meta">{job.reason}</div>
+        </div>
+        {job.retry && (
+          <Button className="h-8 px-3 text-note" disabled={trying} onClick={retry}>
+            <ArrowClockwiseIcon className="size-3.5" /> {trying ? "Trying again…" : "Try again"}
+          </Button>
+        )}
       </div>
-      {job.retry && (
-        <Button className="h-8 px-3 text-note" disabled={trying} onClick={retry}>
-          <ArrowClockwiseIcon className="size-3.5" /> {trying ? "Trying again…" : "Try again"}
-        </Button>
-      )}
+      <Under job={job} app={app} />
     </div>
   );
 }
@@ -263,34 +267,45 @@ function Waiting({ job, bridge, fail }: { job: Waits; bridge: Bridge; fail: Fail
   );
 }
 
-function Row({ job }: { job: Job }) {
+// `app` on the Applied page, where a submitted Application has Report a problem; none for a job still being filled.
+function Row({ job, app }: { job: Job; app?: AppMethods }) {
   const submitted = job.status === "submitted";
   return (
-    <div className="flex items-center gap-3 py-2.5">
-      <Logo company={job.company} src={job.source} size="md" />
-      <div className="min-w-0 flex-1">
-        <div className="font-semibold">{job.company}</div>
-        <div className="truncate text-note text-ink-meta">{job.role}</div>
-      </div>
-      {submitted ? (
-        <span className="flex items-center gap-1.5 text-note font-semibold text-positive-ink">
-          <CheckIcon weight="bold" className="size-3.5" /> Submitted
-        </span>
-      ) : (
-        <span className="w-28 text-right">
-          <span className="block text-note text-ink-meta">{job.status === "checking" ? "Checking answers" : "Filling out"}</span>
-          <span className="mt-1.5 block h-1 overflow-hidden rounded-full bg-border">
-            {bar(job) === "unknown" ? (
-              <span className="sweep block h-full w-1/3 rounded-full bg-brand" />
-            ) : (
-              <span className="block h-full rounded-full bg-brand transition-[width] duration-700" style={{ width: `${Math.max(8, (bar(job) as number) * 100)}%` }} />
-            )}
+    <div className="py-2.5">
+      <div className="flex items-center gap-3">
+        <Logo company={job.company} src={job.source} size="md" />
+        <div className="min-w-0 flex-1">
+          <div className="font-semibold">{job.company}</div>
+          <div className="truncate text-note text-ink-meta">{job.role}</div>
+        </div>
+        {submitted ? (
+          <span className="flex items-center gap-1.5 text-note font-semibold text-positive-ink">
+            <CheckIcon weight="bold" className="size-3.5" /> Submitted
           </span>
-        </span>
-      )}
+        ) : (
+          <span className="w-28 text-right">
+            <span className="block text-note text-ink-meta">{job.status === "checking" ? "Checking answers" : "Filling out"}</span>
+            <span className="mt-1.5 block h-1 overflow-hidden rounded-full bg-border">
+              {bar(job) === "unknown" ? (
+                <span className="sweep block h-full w-1/3 rounded-full bg-brand" />
+              ) : (
+                <span className="block h-full rounded-full bg-brand transition-[width] duration-700" style={{ width: `${Math.max(8, (bar(job) as number) * 100)}%` }} />
+              )}
+            </span>
+          </span>
+        )}
+      </div>
+      {app && <Under job={job} app={app} />}
     </div>
   );
 }
+
+// A row's Report a problem, under its text: open, its form spans the row and leaves the logo and button in place.
+const Under = ({ job, app }: { job: Job; app: AppMethods }) => (
+  <div className="pl-11">
+    <Report job={job} app={app} />
+  </div>
+);
 
 // The student's Auto Apply queue on WorkIt, every job ticked, and one pasted link: Start runs them. Once it is
 // pressed the queue leaves the view; app_window.Bridge swaps in the run's board, and this screen again when the run ends.
@@ -402,7 +417,7 @@ function Applied({ jobs, app }: { jobs: Job[]; app: AppMethods }) {
     <>
       <h1 className="text-heading">Applied</h1>
       <p className="mt-1 text-body text-ink-meta">Everything you submitted, today and before. It's in your Tracker on WorkIt too.</p>
-      <div className="mt-6">{all.length ? all.map((job) => <Row key={job.key} job={job} />) : <p className="text-ink-meta">Nothing submitted yet.</p>}</div>
+      <div className="mt-6">{all.length ? all.map((job) => <Row key={job.key} job={job} app={app} />) : <p className="text-ink-meta">Nothing submitted yet.</p>}</div>
     </>
   );
 }
