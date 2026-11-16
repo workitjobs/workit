@@ -102,7 +102,7 @@ Read from the code, 2026-11-15.
 
 ## 6. Every saved form, behind a held form
 
-`sweep`, container, 2026-11-16, as Workers run (Playwright's flags). For each saved form with a `page.har`, one Worker's Chrome fills it in front, where it then stays as the held form. Then the same form fills in a new tab behind it, then in a new window behind it, and last, the control, in a new tab in front of them. The fill is section 3's. For each case the table gives: answered, shown on the page, read-back problems, left (a field the engine could not fill and was dropped), seconds. Questions are the same in every case. The fill engine's fixtures held 29 such forms at this commit; the issue counted 31.
+`sweep`, container, 2026-11-16, as Workers run (Playwright's flags). For each saved form with a `page.har`, one Worker's Chrome fills it in front, where it then stays as the held form. Then the same form fills in a new tab behind it, then in a new window behind it, and last, the control, in a new tab in front of them. The fill is section 3's. For each case the table gives: answered, shown on the page, read-back problems, left (a field the engine could not fill and was dropped), seconds. Questions are the same in every case. The Fill engine's fixtures held 29 such forms at this commit; the issue counted 31.
 
 | Saved form | Questions | Front | Tab behind | Window behind | Again, in front |
 |---|---|---|---|---|---|
@@ -136,7 +136,7 @@ Read from the code, 2026-11-15.
 | `workday-caci` | | step by step: section 7 | | | |
 | `workday-xcel` | | step by step: section 7 | | | |
 
-Each page was visible behind (`visibilityState`), in a tab and in a window. 17 forms filled; 12 could not be filled even in front and were skipped, as the issue says:
+Each page was visible behind (`visibilityState`), in a tab and in a window. 15 forms filled on one page, and section 7 fills the 2 Workday forms step by step. The other 12 could not be filled even in front and were skipped, as the issue says:
 
 - **Ashby (7):** the page draws its form from Ashby's GraphQL, which is a POST. The replay refuses every POST, so the page says "Application submission is unavailable" and the engine finds no form.
 - **Eightfold (2):** the page loads its questions with a POST (`/api/application/v2/questions`), refused the same way. The form never shows.
@@ -205,7 +205,7 @@ Each held form after the first adds one renderer process either way. In a window
 
 ## Verdict
 
-**Use a window for each form, in one kept Chrome per CDP Worker.** Under Playwright, every saved form that fills in front fills the same behind a held form, in a tab or in a window: 17 forms of 5 job systems (Greenhouse, Lever, Workable, and Workday step by step), the same answers, read-back and time (sections 6, 7). The one difference in the sweep, `workable-perryhomes`, is Workable's saved draft of a posting loaded twice in one profile, and it shows in front too. The keep-alive's pings, mouse moves and stay press reach a page behind a tab and behind a window alike (section 8). The reason to choose the window: a tab behind on a real job system's page draws about 1 animation frame a second, so each Playwright click there waits about 2 s, and Workday's sign-in took 4 to 6 times as long in a tab behind (section 7). Claude fill, Rescue, Next and every sign-in click through Playwright. A window behind draws in full, and costs about 30 MiB more per held form (section 9). Playwright's focus emulation is still what keeps either one visible (section 2), so the plan holds only while Playwright drives each page.
+**Use a window for each form, in one kept Chrome per CDP Worker.** Under Playwright, every saved form that fills in front fills the same behind a held form, in a tab or in a window: 17 forms of 4 hiring systems (Greenhouse, Lever, Workable, and Workday step by step), the same answers, read-back and time (sections 6, 7). The one difference in the sweep, `workable-perryhomes`, is Workable's saved draft of a posting loaded twice in one profile, and it shows in front too. The keep-alive's pings, mouse moves and stay press reach a page behind a tab and behind a window alike (section 8). The reason to choose the window: a tab behind on a real hiring system's page draws about 1 animation frame a second, so each Playwright click there waits about 2 s, and Workday's sign-in took 4 to 6 times as long in a tab behind (section 7). Claude fill, Rescue, Next and every sign-in click through Playwright. A window behind draws in full, and costs about 30 MiB more per held form (section 9). Playwright's focus emulation is still what keeps either one visible (section 2), so the plan holds only while Playwright drives each page.
 
 **A cap of 4 held forms per Worker on an 8 GB laptop with two Workers**, with the form being filled as the fifth window. One Worker's Chrome with 5 forms in windows held 0.9 GB of unique memory (2.6 GB resident, which counts shared pages more than once); two such Workers take about 1.8 to 2 GB, which leaves room beside macOS and the student's own Chrome on 8 GB. The base Chrome (about 420 MiB unique with its first form) is paid once per Worker, where a new Chrome per form pays it again for each. `lever-immuta` is a light page; a Greenhouse or Workday page holds more, so measure the cap again on the Mac with those before it is built.
 
