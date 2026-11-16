@@ -1210,8 +1210,12 @@ Left from W5:
   what happened, "WorkIt may email me about this" and, with an
   Application, its record and log (on by default). `report.build`, then
   `report.parts` shown before Send, then `report.send`; after it, the form
-  says WorkIt deletes the report once its problem is fixed. Built once
-  #614 is on `main`.
+  says WorkIt deletes the report once its problem is fixed. `build`'s
+  `profile` is the Applicant profile's file (`home.HOME /
+  "applicant-profile.yaml"`), never its folder: the log's mask reads a
+  path it can't open as no values, so a folder sent the student's name and
+  street in the log. Its ValueError, and each of the send's errors, is a
+  one-line message. Built once #614 is on `main`.
 - **Remove All My Data can't name every job-site password.** The Student
   build's Tracker is in memory, so it forgets the Employer accounts at each
   launch, and with them the keychain items to remove (`apply-ats`, one per
