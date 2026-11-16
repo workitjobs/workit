@@ -32,6 +32,7 @@ from fake_lever import FakeLeverServer
 from fake_workable import FakeWorkableServer
 from fake_workday import FakeWorkdayServer
 from fakes import FakeClock, FakeJobServer, FakeMailbox
+from plain_fakes import have_chrome_for_testing
 from playwright.sync_api import Error as PlaywrightError
 from test_claude_fill import LUNAR_FORM, LUNAR_URL
 from test_workday_filler import CACI_FORM, CACI_URL, NOW, ONE_PAGER, fill_all
@@ -355,6 +356,21 @@ def test_a_filled_workday_application_forced_to_submit_on_a_guarded_page_sends_n
 
     assert "one-pager.pdf" in readback.values()
     assert server.submissions == []
+
+
+@pytest.mark.parametrize("plain", [False, pytest.param(True, marks=pytest.mark.skipif(
+    not have_chrome_for_testing(), reason="needs Chrome for Testing (uv run playwright install chromium)"))])
+def test_a_guarded_workday_page_lets_apply_make_the_account_beside_its_bot_trap(plain):
+    # Trimble's, live (KAN-886): Workday's GET sign-in form sits beside an empty 1-pixel "website" box, which the
+    # guard took for an answer outside the form, so it stopped Create Account's submit and the run handed off.
+    keychain = InMemoryKeychain()
+    filler = WorkdayFiller(Accounts(keychain, FakeMailbox(), FakeClock(NOW), "test.person@example.com", "CACI"))
+
+    with FakeWorkdayServer(CACI_FORM, keychain=keychain, plain=plain) as server, OnePage(_Guarded(server)) as site:
+        questions = filler.question_set(CACI_URL, site)
+
+    assert [a["email"] for a in server.created] == ["test.person@example.com"]
+    assert questions and server.submissions == []
 
 
 def test_without_the_guard_the_forced_workday_submit_goes_through():

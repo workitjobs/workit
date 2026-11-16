@@ -189,14 +189,21 @@ AUTH_SCRIPT = r"""
       const box = document.getElementById('fake-auth-message');
       if (box) box.innerHTML = '';
     }
-    const button = event.target.closest && event.target.closest('[data-automation-id=click_filter],[data-automation-id=createAccountSubmitButton],[data-automation-id=signInSubmitButton]');
-    if (!button) return;
-    const form = button.closest('[data-automation-id=signInFormo]');
-    if (!form) return;
+    // A click Workday drops, sending nothing (Axiom's first Create Account, live).
+    const overlay = event.target.closest && event.target.closest('[data-automation-id=click_filter]');
+    if (overlay && overlay.closest('[data-automation-id=signInFormo]') && window.__fakeIgnoredClicks > 0) {
+      window.__fakeIgnoredClicks--;
+      event.stopImmediatePropagation();
+      event.preventDefault();
+    }
+  }, true);
+  // Workday's own code clicks the form's hidden submit button on a click on its overlay, and sends the form
+  // (no method: a GET form) from its submit handler, as on the live tenants (Trimble's, KAN-886).
+  document.addEventListener('submit', (event) => {
+    const form = event.target;
+    if (!form.matches || !form.matches('[data-automation-id=signInFormo]')) return;
     event.stopImmediatePropagation();
     event.preventDefault();
-    // A click Workday drops, sending nothing (Axiom's first Create Account, live).
-    if (window.__fakeIgnoredClicks > 0) { window.__fakeIgnoredClicks--; return; }
     const value = (id) => { const el = form.querySelector(`[data-automation-id=${id}]`); return el ? el.value : null; };
     const box = form.querySelector('[data-automation-id=createAccountCheckbox]');
     const creating = !!form.querySelector('[data-automation-id=verifyPassword]');
