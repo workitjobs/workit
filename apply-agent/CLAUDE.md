@@ -371,15 +371,21 @@ into it and the window shows "Sample data".
   one outside the form with no `form=`, a `<div>` of no role, words only in
   CSS. So every submit of a form that doesn't POST is stopped: a GET form's,
   and a dialog's, whose submit runs the page's handlers all the same. Only a
-  sign-in step goes on: its only boxes are an email or user name and
-  passwords (iCIMS's email step), and the page shows no other answer box, in
-  or out of the form (round 2 of the review put the answers outside it, or
-  moved them out as the Next was pressed). A wizard whose Next submits a GET form is a
+  sign-in step goes on, and only under plain code's own sign-in press
+  (`apply.account_pages`, `let_account_click(sign_in=True)`, never a Next's
+  account click): its only boxes are an email or user name and passwords
+  (iCIMS's email step), and the page shows no other answer box anywhere, an
+  editable box, a radio, a tick or one in an open shadow root too (rounds 2
+  and 3 of the review put the answers outside the form). The residual: an
+  app whose answers a script holds, behind one email box, looks like a
+  sign-in step under that press. A wizard whose Next submits a GET form is a
   step no code or model presses: a Handoff, the student's on the held page,
   whose own press goes through as before. A form in a shadow root the page
   wrote is heard as a script submits it, clicks in it or dispatches an event
   in its root, and a closed one as its element's internals hand it over
-  (`hearRootOf`), as one a press passes through always was. The guard
+  (`hearRootOf`), as one a press passes through always was; an open one as
+  a script first reaches it (`shadowRoot`, `getRootNode()`, an event's
+  `composedPath()`), so the guard's listener there is the first. The guard
   scripts are one function each, built from shared parts: a name two parts
   declare stops the whole script with no error Apply sees, and every page
   is unguarded. That happened twice while KAN-868 was built;

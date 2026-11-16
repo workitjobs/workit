@@ -256,7 +256,7 @@ _TEMPLATE = r"""
   // code. The guard hears it first, at the window, and stops it there.
   const S = {lifted: false, held: false, paused: false, note: null, account: null, profile: false, upload: false,
              asking: false, askTick: false, driving: false, touchUntil: 0, touchAt: null, applied: null, appliedDismissed: false,
-             start: false};
+             start: false, signIn: false};
   // The Posting's Apply that went through (KAN-725, below): the button, and whether its one post has left.
   // startSent: a post of it was let go (the guard's copy, or a form's submit()); startGone: one has left as a navigation.
   let starting = null, startSent = false, startGone = false;
@@ -281,7 +281,7 @@ _TEMPLATE = r"""
     // A copy put into a page already open (LATE: after the page's own code, which may have heard this event's name)
     // only ever blocks more: it takes no lift and no allowance (PR 477's second review).
     if (LATE && ((has(cmd, 'lift') && cmd.lift !== null) || (has(cmd, 'renote') && cmd.renote !== null)
-      || any(['account', 'profile', 'upload', 'start', 'askTick', 'optSms', 'optMarketing'], (k) => has(cmd, k) && !!cmd[k]))) return;
+      || any(['account', 'profile', 'upload', 'start', 'askTick', 'optSms', 'optMarketing', 'signIn'], (k) => has(cmd, k) && !!cmd[k]))) return;
     if (has(cmd, 'lift')) {
       const n = cmd.lift;
       S.lifted = n !== null && typeof n === 'object';
@@ -297,7 +297,7 @@ _TEMPLATE = r"""
       const at = targetGet(event);
       S.account = cmd.account === true ? true : cmd.account === 'element' && isEl(at) ? at : null;
     }
-    const FLAGS = ['profile', 'upload', 'asking', 'askTick', 'driving', 'appliedDismissed', 'start', 'optSms', 'optMarketing'];
+    const FLAGS = ['profile', 'upload', 'asking', 'askTick', 'driving', 'appliedDismissed', 'start', 'optSms', 'optMarketing', 'signIn'];
     for (let i = 0; i < FLAGS.length; i++) if (has(cmd, FLAGS[i])) S[FLAGS[i]] = cmd[FLAGS[i]] === true;
     if (has(cmd, 'applied')) S.applied = typeof cmd.applied === 'string' ? cmd.applied : null;
     for (let i = 0; i < onControl.length; i++) { try { onControl[i](cmd); } catch (e) {} }
@@ -1062,12 +1062,21 @@ _TEMPLATE = r"""
       named = true;
     }
     if (!named) return false;
-    if (one(D, 'textarea, input[type=file]')) return false;
+    if (one(D, 'textarea, input[type=file], [contenteditable]:not([contenteditable=false]), [role=textbox], '
+      + '[role=combobox], [role=listbox], [role=radiogroup], [role=checkbox], [role=radio]')) return false;
     const boxes = all(D, 'input, select');
     for (let i = 0; i < boxes.length; i++) {
       const n = boxes[i];
-      if (test(/^(hidden|password|checkbox|radio|submit|button|reset|image)$/, lower(typeOf(n))) || !seen(n)) continue;
-      if (formOf(n) !== form) return false;
+      if (test(/^(hidden|password|submit|button|reset|image)$/, lower(typeOf(n)))) continue;
+      if (formOf(n) !== form) return false;  // an answer box elsewhere, shown or not, a radio or tick too (round 3)
+    }
+    // An answer box in an open shadow root, which the document's own query doesn't reach (round 3). A closed one
+    // can't be read: the residual of this exemption, with answers a script holds.
+    const hosts = all(D, '*');
+    for (let i = 0; i < hosts.length; i++) {
+      let root = null;
+      try { root = apply(openRootOf.get, hosts[i], []); } catch (e) {}
+      if (root && qs(root, 'input:not([type=hidden]):not([type=submit]):not([type=button]), select, textarea, [contenteditable]')) return false;
     }
     return true;
   };
@@ -1233,7 +1242,10 @@ _TEMPLATE = r"""
     // press renamed or took away, one outside the form, a <div> of no role, words only in CSS. Only a POST form was
     // judged, and the adversarial review of KAN-861 sent the application this way past both guards. So a wizard
     // whose Next submits a GET form is a step no code presses: a Handoff, and the student's press on the held page.
-    const scripted = gets(form, by) && !loginForm(form);
+    // A sign-in step goes on only under plain code's own sign-in press (apply.account_pages, `signIn`), never a Next's
+    // account click: a page alone can't be told from an app dressed as one (round 3 of the review: answers kept in
+    // script, and plain code's Next arms the account click too).
+    const scripted = gets(form, by) && !(apply_ && S.signIn === true && loginForm(form));
     if (final || scripted) stopNow(event);
     if (final || scripted || (posts(form, by) && !step)) {
       prevent(event);
@@ -1278,6 +1290,24 @@ _TEMPLATE = r"""
   for (const kind of ['pointerdown', 'mousedown', 'keydown', 'click']) on(kind, (event) => {
     try { const path = composedPath(event); for (let i = 0; i < path.length; i++) if (isRoot(path[i])) hearRoot(path[i]); } catch (e) {}
   });
+  // A root the page wrote is heard as soon as a script reaches it, before it can add a listener of its own there: by
+  // an element's shadowRoot, getRootNode() or an event's composedPath() (round 3 of KAN-868's review: the page's
+  // listener on a declarative root, added first, heard the submit before the guard's).
+  const openRootOf = gopd(EP, 'shadowRoot');
+  if (openRootOf && openRootOf.get) defineProp(EP, 'shadowRoot', {...openRootOf,
+    get() { const root = apply(openRootOf.get, this, []); try { if (root) hearRoot(root); } catch (e) {} return root; }});
+  const pageRootNode = NP.getRootNode;
+  defineProp(NP, 'getRootNode', {value: function getRootNode(...args) {
+    const root = apply(pageRootNode, this, args);
+    try { if (isRoot(root)) hearRoot(root); } catch (e) {}
+    return root;
+  }, writable: true, configurable: true});
+  const pagePath = EvP.composedPath;
+  defineProp(EvP, 'composedPath', {value: function composedPath(...args) {
+    const path = apply(pagePath, this, args);
+    try { for (let i = 0; i < path.length; i++) if (isRoot(path[i])) hearRoot(path[i]); } catch (e) {}
+    return path;
+  }, writable: true, configurable: true});
   const inShadow = (form) => { try { return rootOf(form) !== ownerDoc(form); } catch (e) { return true; } };
   const submit = HTMLFormElement.prototype.submit;
   HTMLFormElement.prototype.submit = function () {
@@ -2413,18 +2443,19 @@ class DriveGuard:
         again, for the captcha wait. The rest of the guard stays on."""
         self._set_driving(False)
 
-    def let_account_click(self, element=None) -> bool:
+    def let_account_click(self, element=None, sign_in: bool = False) -> bool:
         """Let plain code's next click sign in or make an account: its button,
         and its POST form, go through this guard and a rehearsal's. A button
         that sends the form, a form that has one, and the application request
         are blocked still. Given the `element` it presses, only in that
         element's frame and only for a press on it (KAN-710): a frame inside
         it, or another form a script posts meanwhile, is blocked still. False when
-        the element holds a frame, where the press could land: it must not be pressed."""
+        the element holds a frame, where the press could land: it must not be pressed. `sign_in`: the press is
+        a sign-in step's own (apply.account_pages), whose GET form may go on when it is one (KAN-868)."""
         if element is None:
-            control(self._page, {"account": True})
+            control(self._page, {"account": True, "signIn": sign_in})
             return True
-        return control(self._page, {"account": "element"}, element=element) != "frame"
+        return control(self._page, {"account": "element", "signIn": sign_in}, element=element) != "frame"
 
     def may_press(self, element) -> bool:
         """Whether plain code may press `element`: False when it holds a frame (KAN-710), where the press could land
@@ -2448,8 +2479,10 @@ class DriveGuard:
         control(self._page, {"start": True})
 
     def arm(self) -> None:
-        control(self._page, {"lift": None, "account": False, "profile": False, "upload": False, "start": False}, (DRIVE,))
-        control(self._page, {"account": False, "profile": False, "upload": False, "start": False}, (REHEARSAL,))
+        control(self._page, {"lift": None, "account": False, "profile": False, "upload": False, "start": False,
+                             "signIn": False}, (DRIVE,))
+        control(self._page, {"account": False, "profile": False, "upload": False, "start": False, "signIn": False},
+                (REHEARSAL,))
         self._set_driving(True)
 
     def asking(self, on: bool, may_tick: bool = False) -> None:

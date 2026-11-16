@@ -669,6 +669,10 @@ PAGES |= SESSION_PAGES | GENERIC_SESSION_PAGES
 # A GET form (no method) whose own submit handler posts the application, as a React form's onSubmit does: the guard
 # judged only a POST form's submit, so any press that submitted this one sent it (the adversarial review of KAN-861,
 # KAN-868). Each holds a Submit; the press is on something else of the form's.
+_LOGIN_DRESS = """<title>Apply</title>%s<form id=f><label>Email <input type=email name=email value=t@example.com></label>
+  <button id=b>Next</button><button>Submit application</button></form>
+<script>f.addEventListener('submit', (e) => { e.preventDefault(); fetch('""" + COMMIT + """', {method: 'POST', body: 'why=x'}); });
+</script>"""
 _GET_FORM = """<title>Apply</title><form id=f><label>First name <input name=first value=Test></label>%s
   <button type=submit>Submit application</button></form>
 <script>f.addEventListener('submit', (e) => { e.preventDefault();
@@ -737,8 +741,31 @@ GET_FORM_PAGES = {
           f.addEventListener('submit', (e) => { e.preventDefault();
             fetch('""" + COMMIT + """', {method: 'POST', body: new URLSearchParams(new FormData(f))}); });
           b.addEventListener('click', () => r.querySelector('button').click()); } });</script>"""},
+    # Round 3: a form dressed as a sign-in step (one email box), its answers held elsewhere on the page; and a page
+    # that listens on its declarative root before the guard has heard it.
+    "a GET form dressed as a sign-in step with its answers held in script": {START: _LOGIN_DRESS % ""},
+    "a GET form dressed as a sign-in step with its answers in an editable box": {START: _LOGIN_DRESS
+        % '<label>Why us? <div contenteditable role=textbox>Because</div></label>'},
+    "a GET form dressed as a sign-in step with its answers in radios": {START: _LOGIN_DRESS % """<fieldset>
+        <legend>Authorized to work?</legend><label><input type=radio name=auth checked>Yes</label>
+        <label><input type=radio name=auth>No</label></fieldset>"""},
+    "a GET form dressed as a sign-in step with its answers in a shadow root": {START: _LOGIN_DRESS
+        % "<div><template shadowrootmode=open><label>Phone <input name=phone value=555></label></template></div>"},
+    "a page listening on its declarative root before the guard": {START: """<title>Apply</title><div id=h>
+        <template shadowrootmode=open><form id=f><input name=first value=Test><button id=b>Next</button>
+        <button>Submit application</button></form></template></div><script>h.shadowRoot.addEventListener('submit',
+        (e) => { e.preventDefault(); fetch('""" + COMMIT + """', {method: 'POST', body: 'first=Test'}); }, true);</script>"""},
+    "a page listening on its declarative root whose form a Next outside submits": {START: """<title>Apply</title>
+        <label>First name <input name=first value=Test></label><button id=b type=button>Next</button><div id=h>
+        <template shadowrootmode=open><form id=f><input name=first value=Test><button>Submit application</button></form>
+        </template></div><script>const r = h.shadowRoot; r.addEventListener('submit', (e) => { e.preventDefault();
+        fetch('""" + COMMIT + """', {method: 'POST', body: 'first=Test'}); }, true);
+        b.addEventListener('click', () => r.getElementById('f').requestSubmit());</script>"""},
 }
 PAGES |= GET_FORM_PAGES
+# An application that looks like a sign-in step to the page, its answers held in script, can't be told from one: under
+# plain code's own sign-in press (the account click) it goes on, the residual of the sign-in exemption (KAN-868).
+LOGIN_DRESSED_ALONE = frozenset({"a GET form dressed as a sign-in step with its answers held in script"})
 BUTTON = {"a GET form whose dropdown is a submit button": "Country", "an Amazon card whose Continue sends": "Continue", "a review page's Apply with its answers hidden": "Apply", "a page that vouches for its own Apply": "Apply", "a Submit in another language beside a Submit": "Envoyer ma candidature", "a Submit in a shadow root": "Submit application",
           "a profile pop-up that is the application": "Submit", "a profile pop-up that turns into the application": "Submit",
           "a one-page form in a modal": "Continue", "an application that makes an account": "Continue",
@@ -986,7 +1013,7 @@ LISTED_STEP_PAGES = frozenset({
 })
 SESSION_DIALOG_PAGES = frozenset(SESSION_PAGES) | frozenset(GENERIC_SESSION_PAGES)
 AMAZON_PAGES = frozenset({"an Amazon card whose Continue sends"})
-APPLIES = {"the profile click": PROFILE_PAGES, "Ask Claude's press of a listed step": LISTED_STEP_PAGES,
+APPLIES = {"the account click": frozenset(PAGES) - LOGIN_DRESSED_ALONE, "the profile click": PROFILE_PAGES, "Ask Claude's press of a listed step": LISTED_STEP_PAGES,
            "the keep-alive's stay press": SESSION_DIALOG_PAGES, "the keep-alive's generic stay press": SESSION_DIALOG_PAGES}
 # The kind of page each path was written against, in this order: a page's one PR pair takes the first that holds it.
 OWN = {"the Amazon Filler's Continue": AMAZON_PAGES, "the profile click": PROFILE_PAGES,
