@@ -30,6 +30,7 @@ export type Match = Queued & {
 };
 // The Jobs page's filters Find jobs passes on, each a list of the values the website's own URL carries.
 export type Filters = Partial<Record<"q" | "location" | "work_style" | "role" | "experience" | "job_type" | "posted_within", string[]>>;
+export type Frame = { tile: number; number: number; jpeg: string }; // one screen of a form being filled
 export type Usage = { used: number; cap: number; resets_at: string }; // model tokens today, and when the count resets
 
 // app_window.Bridge's app methods. Each is there only when the window gives it.
@@ -37,6 +38,8 @@ export type App = Partial<{
   queue(): Promise<Queued[]>;
   applied(): Promise<AppliedJob[]>;
   matches(filters: Filters): Promise<Match[]>;
+  // Each form's screen newer than the number `seen` has for its tile, as a JPEG: what a Worker's Chrome shows.
+  frames(seen: Record<number, number>): Promise<Frame[]>;
   start(links: string[]): Promise<number>;
   status(): Promise<{ running: boolean; said: string }>;
   usage(): Promise<Usage>;
@@ -80,7 +83,7 @@ async function called<T>(method: (...args: unknown[]) => Promise<unknown>, ...ar
   return got as T;
 }
 
-export const NAMES = ["queue", "applied", "matches", "start", "status", "usage", "settings", "review_report", "send_report"] as const;
+export const NAMES = ["queue", "applied", "matches", "frames", "start", "status", "usage", "settings", "review_report", "send_report"] as const;
 
 function appMethods(): Promise<App> {
   return new Promise((done) => {
