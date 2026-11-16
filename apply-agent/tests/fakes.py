@@ -19,7 +19,7 @@ from playwright.sync_api import Route, sync_playwright
 
 from apply import answering, fill_engine, gates, submit_guard
 from apply.adapters import Drive, UsageReading
-from apply.gmail import MailedCode, on_hosts
+from apply.gmail import RESET, MailedCode, on_hosts
 from apply.model import Question
 
 # Greenhouse loads reCAPTCHA Enterprise and asks it for a token at submit.
@@ -761,8 +761,10 @@ class FakeMailbox:
         code = self._find(search, since, "code")
         return MailedCode(code, self._senders[code]) if code else None
 
-    def find_link(self, *, search: str, since: datetime, hosts: tuple[str, ...]) -> str | None:
+    def find_link(self, *, search: str, since: datetime, hosts: tuple[str, ...], resets: bool = True) -> str | None:
         link = self._find(search, since, "link")
+        if link and not resets and RESET.search(link):
+            return None
         return link if link and on_hosts(link, hosts) else None
 
     def _find(self, search: str, since: datetime, kind: str) -> str | None:

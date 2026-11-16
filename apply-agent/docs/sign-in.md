@@ -56,7 +56,10 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
   for Drive from a page's Google button, and Apply picked the account and pressed Continue on it.
 - Claude never presses Forgot password (its rules), and a mailed link that resets a password is never
   opened (`account_pages.RESETS`): a reopened form now drives account pages, and a reset can end the
-  password Lisul uses. So is a sign-in that
+  password Lisul uses. Gmail takes a link by its words as well as its URL, so a rehearsal's `Accounts`
+  asks for none from a mail that speaks of resetting a password (`find_link(resets=False)`,
+  `gmail.RESET`): round 3 of the review got a "Reset your password" link with a bare URL taken as a
+  verification link. A run's own reset (Workday's `_reset_password`) still reads the reset link. So is a sign-in that
   offers no Google, and every sign-in when the policy is anything else: Lisul signs in on the page.
   Signed in means no provider button shows and the account menu does (Eightfold's "Account manager
   for <name>", or a Sign out); Microsoft's header shows a "Sign in" button until then. The pause then

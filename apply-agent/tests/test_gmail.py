@@ -12,7 +12,7 @@ from email.message import EmailMessage
 
 import pytest
 
-from apply import workday
+from apply import gmail, workday
 from apply.gmail import GmailMailbox, MailedCode, live_mailbox, sure_code
 from apply.keychain import InMemoryKeychain
 from apply.model import Handoff
@@ -333,3 +333,12 @@ def test_a_mails_arrival_is_read_when_gmail_sends_it_after_the_body():
     from apply.gmail import _arrived
     data = [(b"1960 (RFC822 {4}", b"mail"), b' INTERNALDATE "03-Nov-2026 03:11:37 +0000")']
     assert _arrived(data).astimezone(UTC).replace(tzinfo=None) == datetime(2026, 11, 3, 3, 11, 37)
+
+
+def test_a_rehearsals_link_is_never_from_a_mail_that_resets_a_password():
+    # Fault (KAN-878's review): a reset link whose URL says nothing ("/a/k7Gq2"), labelled "Reset your password", was
+    # taken as a verification link, and a reopened form, now signing in, opened it.
+    message = ('<p>We got a request to reset your password.</p>'
+               '<a href="https://acme.wd5.myworkdayjobs.com/a/k7Gq2?t=abc">Reset your password</a>')
+    assert gmail._link(message, (ACME,)) == "https://acme.wd5.myworkdayjobs.com/a/k7Gq2?t=abc"  # a run's reset flow
+    assert gmail._link(message, (ACME,), resets=False) is None

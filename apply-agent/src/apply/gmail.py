@@ -48,6 +48,10 @@ NOT_TEXT = re.compile(r"<(style|script)\b.*?</\1>|https?://\S+", re.IGNORECASE |
 CODE_WORDS = re.compile(r"code|pin|passcode|one-time|verif", re.IGNORECASE)
 LINK = re.compile(r"""<a\b[^>]*?href=["'](https://[^"']+)["'][^>]*>(.*?)</a>|(https://[^\s<>"']+)""", re.IGNORECASE | re.DOTALL)
 VERIFY = re.compile(r"verif|activat|confirm|reset", re.IGNORECASE)  # an account's link, or a password reset's
+# A mail or link that resets a password, which a rehearsal never opens (KAN-878's review: a reset link whose URL said
+# nothing, labelled "Reset your password", was taken as a verification link).
+RESET = re.compile(r"reset|forgot|recover|new password|change (?:your )?password|password (?:reset|change)",
+                   re.IGNORECASE)
 
 
 NOT_SET_UP = (
@@ -100,10 +104,11 @@ class GmailMailbox:
             return MailedCode(code, sender_domain(_header(message, "From"))) if code else None
         return self._newest(search, since, read)
 
-    def find_link(self, *, search: str, since: datetime, hosts: tuple[str, ...]) -> str | None:
+    def find_link(self, *, search: str, since: datetime, hosts: tuple[str, ...], resets: bool = True) -> str | None:
         """The verification link in the newest such mail, to one of `hosts`
-        (or a host under one): any other link is not followed."""
-        return self._newest(search, since, lambda message: _link(_text(message), hosts))
+        (or a host under one): any other link is not followed. Without
+        `resets`, a mail that speaks of resetting a password gives none."""
+        return self._newest(search, since, lambda message: _link(_text(message), hosts, resets))
 
     def read_mail(self, *, search: str) -> list[Mail]:
         """Every inbox mail matching `search` (Gmail search terms, such as
@@ -220,7 +225,9 @@ def sender_domain(sender: str) -> str:
     return parseaddr(sender)[1].rpartition("@")[2].lower()
 
 
-def _link(text: str, hosts: tuple[str, ...]) -> str | None:
+def _link(text: str, hosts: tuple[str, ...], resets: bool = True) -> str | None:
+    if not resets and RESET.search(re.sub(r"<[^>]+>", " ", text)):  # its words, its links' words or its URLs
+        return None
     for m in LINK.finditer(text):
         url = html.unescape(m[1] or m[3])
         label = re.sub(r"<[^>]+>", "", m[2] or "")
