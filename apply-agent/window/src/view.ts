@@ -82,7 +82,8 @@ export const reason = (shown: Shown) => {
   return said ? said[0].toUpperCase() + said.slice(1) : "Something went wrong";
 };
 
-const keyOf = (s: Shown) => String(s.posting_url || `${s.company}|${s.role}` || s.id);
+// One job, one key: its posting, else its company and role when it has both, else its own id.
+const keyOf = (s: Shown) => String(s.posting_url || (s.company && s.role ? `${s.company}|${s.role}` : s.id));
 
 export function view(state: ApplyState): View {
   // A tile is the form as it is now; an item is how an earlier pass ended, or a live form's questions. The tile

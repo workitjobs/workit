@@ -97,6 +97,20 @@ test("a job tried again is back among those still being worked on", () => {
   assert.deepEqual([v.stopped.length, v.working.map((j) => j.key)], [0, ["https://held"]]);
 });
 
+test("a job with no posting is told apart by company and role, or by its own id when either is missing", () => {
+  const bare = (over: Partial<Shown>): Shown => ({ tone: "needs", kind: "check", posting_url: undefined, ...over });
+  const v = view({
+    tiles: [],
+    items: [
+      bare({ id: 1, company: "Acme", role: undefined }),
+      bare({ id: 2, company: "Acme", role: undefined }),
+      bare({ id: 3, company: "Acme", role: "SWE" }),
+      bare({ id: 4, company: "Acme", role: "SWE" }),
+    ],
+  });
+  assert.deepEqual(v.todo.map((j) => j.id), ["1", "2", "3"]);
+});
+
 test("idle tiles and answered items are left out", () => {
   const v = view({ tiles: [job({ tone: "idle" })], items: [job({ tone: "needs", kind: "held", posting_url: "https://f", answered: true })] });
   assert.equal(v.todo.length + v.working.length, 0);
