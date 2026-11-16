@@ -56,9 +56,6 @@ NO_RESET = (
 # A site refused a new account (KAN-838): its password is forgotten, and the form waits for Lisul in Needs you.
 REFUSED = ("{site} refused the new account ({why}). If it refused the password, make the account on the page "
            "yourself with a password it takes, then finish the form.")
-# A reopened form at a sign-in (`apply reopen`, KAN-720): Lisul signs in himself, and Apply goes on once he has.
-HANDS_OFF = (NEEDS_SIGN_IN + "Sign in on the page yourself. Apply reopened this form after it stopped, and it types "
-             "nothing into a sign-in: it goes on by itself once you are in")
 NO_MAIL = (
     NEEDS_SIGN_IN + "Type the emailed code: no {what} from {search} came within about {minutes} minutes, and Apply "
     "never asks for another. Check Gmail (spam too), then sign in and finish the application yourself."
@@ -76,14 +73,12 @@ class Accounts:
         on_created: Callable[[EmployerAccount], None] = lambda account: None,
         failed: set[str] | None = None,
         rehearsal: bool = False,
-        hands_off: bool = False,
     ):
         """`login` is the email Lisul applies with. `on_created` lists a new
         account in the Tracker. `failed` holds the sites whose password
         sign-in has failed, shared by every Application of a run or
         Rehearsal. `rehearsal`: a Rehearsal's, which never resets a password
-        that only may exist (workday.MAY_EXIST). `hands_off`: a reopened form's (KAN-720): every Filler stops
-        at a sign-in as a Handoff (HANDS_OFF) before it types or clicks anything there."""
+        that only may exist (workday.MAY_EXIST)."""
         self._keychain = keychain
         self._mailbox = mailbox
         self.clock = clock
@@ -92,7 +87,6 @@ class Accounts:
         self._on_created = on_created
         self._failed = failed if failed is not None else set()
         self.rehearsal = rehearsal
-        self.hands_off = hands_off
 
     def password(self, site: str) -> str | None:
         """The site's password, if Apply made an account there. A Handoff if a
