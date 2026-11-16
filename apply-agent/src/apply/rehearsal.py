@@ -695,14 +695,15 @@ def _rehearse(url: str, site: "_Kept", adapters: Adapters, profile: ApplicantPro
         if not force:
             batch.done(url)  # sent before: no form of it is open (KAN-719)
             board.update(n, company=posting.company, role=posting.title, job_system=posting.job_system,
-                         posting_url=posting.url, application_id=posting.id, status=ALREADY, why=applied.said())
+                         posting_url=posting.url, link=url, application_id=posting.id, status=ALREADY, why=applied.said())
             return Rehearsed(posting, ALREADY, applied.said() + "; Apply didn't open the form. "
                              "`apply rehearse --force` rehearses it anyway, with Submit blocked")
         site.applied = applied.day()
         history.append(f"{adapters.clock.now().strftime('%H:%M')} {applied.said()}: rehearsed anyway (--force); "
                        "Submit stays blocked until you dismiss the red note on the page")
+    # `link`: the link the run was given, by which the window finds the queued job's logo (KAN-871).
     board.update(n, company=posting.company, role=posting.title, job_system=posting.job_system, posting_url=posting.url,
-                 application_id=posting.id, status="filling", files=[], stage=stage)
+                 link=url, application_id=posting.id, status="filling", files=[], stage=stage)
     _noted(url, site, adapters, posting, "filling")
     files: list[dict] = []
 
@@ -733,12 +734,12 @@ def _rehearse(url: str, site: "_Kept", adapters: Adapters, profile: ApplicantPro
         trace.event("resume", signed_in=went == SIGNED_IN)
         # Filling again: its caption anew, as a fill's start gives it (filling clears the tile).
         board.update(n, company=posting.company, role=posting.title, job_system=posting.job_system,
-                     posting_url=posting.url, application_id=posting.id, status="filling", files=list(files),
+                     posting_url=posting.url, link=url, application_id=posting.id, status="filling", files=list(files),
                      stage="", history=list(history))
         _noted(url, site, adapters, posting, "filling")
         return True
     caption = lambda: {"company": posting.company, "role": posting.title, "job_system": posting.job_system,
-                       "posting_url": posting.url, "application_id": posting.id, "files": list(files),
+                       "posting_url": posting.url, "link": url, "application_id": posting.id, "files": list(files),
                        "stage": "", "history": list(history)}
     waits = Waiter(board, n, adapters.phone, profile, caption)
 

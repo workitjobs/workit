@@ -275,6 +275,7 @@ class Bridge:
         self._remove = remove
         self._running = threading.Event()  # a run is going
         self._said = ""  # why the last run couldn't start or stopped
+        self._logos: dict[str, dict] = {}  # each queued job's logo sources by its link, for a run's window (KAN-871)
         self._verifier: str | None = None  # this sign-in's PKCE verifier, till its code is traded
         self._window = None  # the pywebview window, once run() made it
 
@@ -380,9 +381,12 @@ class Bridge:
         except workit.WorkItError as error:
             return {"error": f"WorkIt Auto Apply couldn't read your queue ({error}). Paste a link instead."}
         jobs = [row["job"] for row in reversed(rows) if row.get("open")]
-        return [{"url": job.get("form_url") or job["apply_url"], "company": job.get("company") or "",
-                 "title": job.get("title") or "", "logo_url": job.get("logo_url"),
-                 "company_domain": job.get("company_domain")} for job in jobs]
+        queued = [{"url": job.get("form_url") or job["apply_url"], "company": job.get("company") or "",
+                   "title": job.get("title") or "", "logo_url": job.get("logo_url"),
+                   "company_domain": job.get("company_domain")} for job in jobs]
+        self._logos |= {job["url"]: {"logo_url": job["logo_url"], "company_domain": job["company_domain"]}
+                        for job in queued}
+        return queued
 
     def usage(self) -> dict:
         """Today's model use: {used, cap, resets_at}, or {error}."""
@@ -409,7 +413,8 @@ class Bridge:
         return {"started": len(links)}
 
     def show_board(self, board: Dashboard) -> None:
-        """The window shows `board`: a run's own Apply window, or the queue again."""
+        """The window shows `board`: a run's own Apply window, or the queue again. It draws each queued job's logo."""
+        board.logos(self._logos)
         self._dashboard = board
         if self._window is not None:
             self._window.load_html(self._page())

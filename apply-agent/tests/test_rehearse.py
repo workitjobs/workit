@@ -1118,6 +1118,7 @@ def test_each_links_tile_on_the_dashboard_says_what_it_is_and_how_it_ended(monke
     files = board.captions[0].pop("files")  # a kept copy of each file the form was sent
     assert files and all(Path(f["path"]).is_file() for f in files)
     assert board.captions[0].pop("posting_url").startswith("http")  # so the window can link the Posting
+    assert board.captions[0].pop("link") == ARC_URL  # the link it was given, which the window finds its logo by
     assert board.captions[0].pop("application_id")
     assert board.captions[0].pop("verifying") is False  # verified once it was filled, before it stopped
     assert board.captions[0].pop("verification")["state"] in ("verified", "flagged")

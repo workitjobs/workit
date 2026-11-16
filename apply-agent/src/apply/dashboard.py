@@ -635,6 +635,7 @@ class Dashboard:
         self._to_fill: dict[int, list[tuple[str, str]]] = {}  # answers to fill on each Worker's open form (answered)
         self._resume: set[int] = set()  # the Workers whose paused form Lisul pressed Resume on (resumed)
         self._again: set[int] = set()  # the tiles whose held form was asked to fill again (fill_again_asked)
+        self._logos: dict[str, dict] = {}  # each queued job's logo sources by its link (logos)
         self._redo: dict[int, list[tuple[str, str]]] = {}  # answers to write again on each Worker's form (regenerations)
         self._goto: dict[int, list[tuple[str, Callable[[str], None]]]] = {}  # Go to question presses, by Worker (wanted)
 
@@ -764,6 +765,16 @@ class Dashboard:
                 self._end(worker, dict(tile), now)
         if ended and self._notify:
             self._tell()
+
+    def logos(self, by_link: dict[str, dict]) -> None:
+        """The logo sources WorkIt gave each queued job (`company_domain`, `logo_url`), by the link the run was
+        given: each tile and item of that link carries them, as the website draws its logo (KAN-871)."""
+        with self._lock:
+            self._logos = {link: {k: v for k, v in sources.items() if v} for link, sources in by_link.items()}
+
+    def _logo(self, shown: dict) -> dict:
+        """The logo sources of a tile or item, by its link or its form's: none for a link no queue gave."""
+        return self._logos.get(str(shown.get("link") or "")) or self._logos.get(str(shown.get("posting_url") or "")) or {}
 
     def focused(self, front: bool) -> None:
         """The window's page says whether it is in front, with each poll."""
@@ -1078,7 +1089,7 @@ class Dashboard:
             if caption.get("status") == "filling" and not caption.get("verifying") and not caption.get("stage") \
                     and (why := stuck.why(caption, getattr(self._frames, "field_error", lambda k: "")(k), time.time())):
                 caption["resume"] = {"ok": True, "why": why}  # stuck or waiting: Resume goes on from the page
-            caption |= verdict(caption)
+            caption |= verdict(caption) | self._logo(caption)
             with self._lock:  # Ask Claude's thread for the form the tile holds
                 caption["thread"] = [dict(t) for t in self._threads.get(str(caption.get("posting_url") or ""), [])]
             if chooser := self._frames.chooser(k):
@@ -1100,7 +1111,7 @@ class Dashboard:
         filling = {c.get("posting_url") for c in captions if c.get("tone") in ("filling", "verifying") and c.get("posting_url")}
         for item in items:
             item |= verify.without_dismissed(item)
-            item |= verdict(item)
+            item |= verdict(item) | self._logo(item)
             if not item.get("live") and item.get("from") != "tracker" and item.get("posting_url") in filling:
                 item["answered"] = True
             if item.get("kind") == "held":

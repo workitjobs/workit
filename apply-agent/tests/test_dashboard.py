@@ -333,6 +333,28 @@ def test_an_application_ending_again_takes_the_place_of_its_last_item():
     assert board.state()["summary"].startswith("2 sent")
 
 
+def test_tiles_and_items_carry_the_logo_sources_job_system_and_progress_apply_has():
+    """Fault: the Student window drew a queued job with its initials though WorkIt gave its logo, lost the logo once
+    the form's own link took the place of the queue's, or had no job system or progress to show (KAN-871)."""
+    queued = "https://www.linkedin.com/jobs/3"
+    sources = {"logo_url": "https://www.google.com/s2/favicons?domain=acme.com", "company_domain": "acme.com"}
+    with Dashboard(2, FakeFrames({})) as board:
+        board.logos({queued: sources, "https://boards.greenhouse.io/y/1": {"logo_url": None, "company_domain": None}})
+        board.update(0, company="Acme", role="Intern", link=queued, posting_url="https://jobs.lever.co/acme/3",
+                     job_system="lever", status="filling")
+        board.update(1, company="Pasted", role="Intern", link="https://jobs.ashbyhq.com/p/1",
+                     posting_url="https://jobs.ashbyhq.com/p/1", job_system="ashby", status="filling")
+        tiles = board.state()["tiles"]
+        board.update(0, status=rehearsal.READY, why=CALIBRATION, filled=17, asked=18, missing=[])
+        item = board.state()["items"][0]
+
+    assert (tiles[0]["logo_url"], tiles[0]["company_domain"], tiles[0]["system"]) == (
+        sources["logo_url"], "acme.com", "Lever")
+    assert "logo_url" not in tiles[1] and "company_domain" not in tiles[1]  # a pasted link: no WorkIt job, initials
+    assert (item["company"], item["logo_url"], item["company_domain"], item["system"], item["filled"], item["asked"]) \
+        == ("Acme", sources["logo_url"], "acme.com", "Lever", 17, 18)
+
+
 def test_the_windows_title_counts_what_waits_on_lisul(window):
     with Dashboard(2, FakeFrames({})) as board:
         board.update(0, company="Stripe", status="held", why="Target company: Stripe")
