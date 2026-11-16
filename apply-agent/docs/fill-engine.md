@@ -46,12 +46,14 @@ A new reader of the engine takes `fill_engine.source()`, never
 Student build has none.
 
 **The connection is pinned** (D28). `workit._send` gives the live API's
-host a TLS context that trusts only the roots in `workit_roots.py`:
+host, and the live Supabase Auth's (the session's hourly refresh, which a
+proxy could otherwise read and then download the engine with), a TLS
+context that trusts only the roots in `workit_roots.py`:
 Cloudflare's CAs (Let's Encrypt, Google Trust Services, SSL.com, and
 Sectigo for its backup certificates), taken from certifi by
 `scripts/workit_roots.py`. A local API is not pinned. When Cloudflare
 changes its CAs, run `uv run python scripts/workit_roots.py`, then
-`--check`, which connects to the live API with only those roots; the
+`--check`, which connects to both hosts with only those roots; the
 tests never reach the network. A set the live chain is not in stops
 every student's app, so this ships before Cloudflare moves.
 

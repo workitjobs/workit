@@ -108,11 +108,11 @@ def engine_identity(source: str | None = None) -> dict:
     """The engine bundle's version and sha256, as the hello carries them: of `source`, else of fill_engine.source()."""
     source = fill_engine.source() if source is None else source
     sha = hashlib.sha256(source.encode()).hexdigest()
-    return {"version": _engine_version(sha, source), "sha256": sha}
+    return {"version": _engine_version(source), "sha256": sha}
 
 
 @cache
-def _engine_version(_sha: str, source: str) -> str:
+def _engine_version(source: str) -> str:
     return subprocess.run([_node(), "-e", VERSION], input=source, capture_output=True, text=True, encoding="utf-8",
                           check=True).stdout
 

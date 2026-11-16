@@ -23,11 +23,13 @@ The API checks the bearer token itself (`backend/app/deps.py`,
 `security.py`): the token's signature, audience and issuer, then the
 account row.
 
-A call to the live API trusts only the certificate authorities Cloudflare
-uses for api.workitjobs.ai (`apply.workit_roots`, D28 and W7), not the
-computer's store, so a proxy the computer trusts can't read the Fill
-engine's download or the session. A local API (APPLY_WORKIT_API) is not
-pinned.
+A call to the live API or to the live Supabase Auth (the session's hourly
+refresh) trusts only the certificate authorities Cloudflare uses
+(`apply.workit_roots`, D28 and W7; Supabase is behind Cloudflare too), not
+the computer's store, so a proxy the computer trusts can't read the session
+or the Fill engine's download. Pinning the API alone left the refresh
+token readable, and with it the download. A local stack (APPLY_WORKIT_*)
+is not pinned.
 
 The Applications Tracker's reads and writes (find or add a job by its
 link, set a stage and the applied date, keep a Sent resume) are methods
@@ -568,9 +570,13 @@ def _send(method: str, url: str, body: Any, token: str | None, apikey: str | Non
         return status, raw.decode(errors="replace")[:200], headers
 
 
+# The hosts whose TLS trusts only Cloudflare's CAs: the live API, and the live Supabase Auth, which sees the session.
+PINNED = frozenset(urlsplit(url).hostname for url in (LIVE.api, LIVE.auth))
+
+
 def _pinned(url: str) -> ssl.SSLContext | None:
-    """The live API's TLS context, which trusts only Cloudflare's CAs; None (the default) for any other host."""
-    return _pinned_context() if urlsplit(url).hostname == urlsplit(LIVE.api).hostname else None
+    """The TLS context of a PINNED host, which trusts only Cloudflare's CAs; None (the default) for any other."""
+    return _pinned_context() if urlsplit(url).hostname in PINNED else None
 
 
 @cache

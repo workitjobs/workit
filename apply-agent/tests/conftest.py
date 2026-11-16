@@ -51,6 +51,7 @@ from apply import (
     cli,
     cover_letter,
     doctor,
+    fill_engine,
     gates,
     home,
     profile,
@@ -171,6 +172,19 @@ def a_new_process_for_workit():
     """Each test starts as a new process does: no WorkIt access token kept from an earlier test (workit._ACCESS),
     whose fake WorkIt may have had the same port."""
     workit._ACCESS.clear()
+
+
+# The checkout's engine, read once: what the Student build gets in tests as WorkIt's download.
+CHECKOUT_ENGINE = fill_engine.ENGINE.read_text() if fill_engine.ENGINE.is_file() else None
+
+
+@pytest.fixture(autouse=True)
+def engine_as_downloaded(monkeypatch):
+    """The Student build runs WorkIt's downloaded engine (KAN-836, fill_engine.source). In a test it is the
+    checkout's engine, as if downloaded and checked, so no test reaches WorkIt or needs the engine key. The
+    download's own tests set fill_engine._download themselves (tests/test_engine_download.py)."""
+    if CHECKOUT_ENGINE is not None:
+        monkeypatch.setattr(fill_engine, "_download", {"text": CHECKOUT_ENGINE})
 
 
 @pytest.fixture(autouse=True)

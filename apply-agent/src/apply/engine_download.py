@@ -14,7 +14,6 @@ backend/app/scripts/publish_engine.py).
 """
 
 import base64
-import hashlib
 import time
 from collections.abc import Callable
 from importlib.metadata import version
@@ -106,6 +105,4 @@ def _once(client: "WorkIt", key: str) -> str:
         Ed25519PublicKey.from_public_bytes(base64.b64decode(key)).verify(base64.b64decode(sent["signature"]), plain)
     except (InvalidSignature, ValueError, KeyError, TypeError):
         raise EngineRefused(BAD_SIGNATURE, lasting=True) from None
-    if hashlib.sha256(plain).hexdigest() != sent.get("sha256"):
-        raise EngineRefused(BAD_SIGNATURE, lasting=True)
-    return plain.decode()
+    return plain.decode()  # the signature holds for these exact bytes: no other check adds anything

@@ -118,7 +118,7 @@ builds it.
 | D25 | **"Remove all my data"** in settings deletes the Worker profiles, the seed, Records, Traces and the app's `keyring` items. The data folder is in each OS's standard place | Mac apps have no uninstaller | W5 |
 | D26 | **"Send report"** sends one Application's Record and a masked Trace to WorkIt only when the student presses it. No automatic telemetry | Testers need a way to report; privacy first | W5, W1 |
 | D27 | **Engine signing:** each build is signed with WorkIt's Ed25519 engine key by a script a person runs (`backend/app/scripts/publish_engine.py`; 2026-11-15, it was the Fill engine's CI); WorkIt serves the build made for the nearest app version at or below the app's; the app holds only the public key | An unsigned download would let an attacker run code on every student's computer. A step in the engine's CI would need write access to WorkIt's Storage from another repo; a person publishes by hand, as W8 builds by hand (D32) | W7 |
-| D28 | **Certificate pinning** to the certificate authorities Cloudflare uses for `api.workitjobs.ai`, with backups. Sparkle's feed is on another host without pinning, so an update can fix the set | A proxy on the student's computer can't read the engine download | W7 |
+| D28 | **Certificate pinning** to the certificate authorities Cloudflare uses for `api.workitjobs.ai` and for the live Supabase Auth, which refreshes the session (2026-11-15: pinning the API alone left the refresh token readable, and with it the download), with backups. Sparkle's feed is on another host without pinning, so an update can fix the set | A proxy on the student's computer can't read the engine download | W7 |
 | D29 | **Apply moves to the private repo `workitjobs/apply-agent`**, with its history | The WorkIt repo is public; compiling protects nothing while the source is public | W0 |
 | D30 | **The Developer checkout uses the local API** (`ask_model: workit` against localhost by default after W0). `claude` stays a developer choice. There is no staging server | Simple; keys stay only in WorkIt's `backend/.env` | W0, W1 |
 | D31 | **Developer setup is `git clone --recurse-submodules`, `uv sync`, `uv run apply app`.** The window's first run does the rest, as for a student | One path for everyone | W5, W0 |
@@ -1289,11 +1289,13 @@ and comes only from WorkIt (D3, D27, D28).
    The Student build always uses it; a Developer checkout uses it with
    `fill_engine: workit` in `policies.yaml` (`apply-agent/docs/fill-engine.md`).
 4. **Pinning.** `apply.workit` trusts only Cloudflare's CAs for
-   `api.workitjobs.ai` (Let's Encrypt, Google Trust Services, SSL.com, and
+   `api.workitjobs.ai` and for the live Supabase Auth, which is behind
+   Cloudflare too (Let's Encrypt, Google Trust Services, SSL.com, and
    Sectigo, which Cloudflare uses for backup certificates), 13 roots from
    certifi's copy of Mozilla's list (`apply-agent/scripts/workit_roots.py`;
-   `--check` connects to the live API with them). A local API is not
-   pinned. Sparkle's feed is on another host without pinning, so an update
+   `--check` connects to both with them). The session's hourly refresh goes
+   to Supabase, so pinning the API alone let a proxy read the refresh token
+   and then download the engine itself. A local stack is not pinned. Sparkle's feed is on another host without pinning, so an update
    can change the set. Cloudflare's own documentation advises against
    pinning to its CAs, since it may change them: the set must ship before
    it does.

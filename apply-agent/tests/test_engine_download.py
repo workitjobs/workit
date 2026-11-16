@@ -13,7 +13,7 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
-from apply import build, engine_download, fill_engine, workit
+from apply import build, engine_download, fill_engine, rehearsal, workit
 from apply.adapters import SetupError
 from apply.engine_download import EngineRefused
 from apply.plain import extension
@@ -179,6 +179,19 @@ def test_a_network_refusal_is_tried_again_at_the_next_run(from_workit, monkeypat
     assert from_workit == [1, 1]
 
 
+def test_a_refused_engine_stops_a_run_before_it_opens_anything(monkeypatch):
+    def refuse():
+        raise EngineRefused(engine_download.BAD_SIGNATURE, lasting=True)
+
+    class Untouched:  # the run's adapters and profile: any use of them comes after the engine check, too late
+        def __getattr__(self, name):
+            raise AssertionError(f"the run used {name} before its engine was checked")
+
+    monkeypatch.setattr(fill_engine, "ready", refuse)
+    with pytest.raises(EngineRefused, match="signature check"):
+        rehearsal.rehearse(["https://job-boards.greenhouse.io/acme/jobs/1"], Untouched(), Untouched())
+
+
 def test_the_student_build_always_runs_workits_engine(monkeypatch):
     monkeypatch.setattr(build, "STUDENT", True)
     monkeypatch.setattr(fill_engine, "_policy_says_workit", lambda: False)
@@ -186,8 +199,11 @@ def test_the_student_build_always_runs_workits_engine(monkeypatch):
     assert build.STUDENT_POLICIES["fill_engine"] == "workit"
 
 
-def test_only_the_live_api_is_pinned_to_cloudflares_cas():
+def test_the_live_api_and_its_session_refresh_are_pinned_to_cloudflares_cas_and_nothing_else():
     assert workit._pinned("http://localhost:8000/apply-app/engine") is None
+    assert workit._pinned("https://example.com/") is None
+    # The refresh at Supabase carries the session: unpinned, it gave the download away.
+    assert workit._pinned(workit.LIVE.auth + "/auth/v1/token?grant_type=refresh_token") is not None
     pinned = workit._pinned(workit.LIVE.api + "/apply-app/engine")
     names = {dict(part[0] for part in ca["subject"])["commonName"] for ca in pinned.get_ca_certs()}
     assert names == {"ISRG Root X1", "ISRG Root X2", "GTS Root R1", "GTS Root R3", "GTS Root R4",

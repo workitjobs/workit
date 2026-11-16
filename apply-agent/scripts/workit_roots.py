@@ -1,10 +1,10 @@
 """Write src/apply/workit_roots.py: the only certificate authorities Apply trusts for api.workitjobs.ai (D28, W7).
 
     uv run python scripts/workit_roots.py            write it
-    uv run python scripts/workit_roots.py --check    connect to the live API with only these roots
+    uv run python scripts/workit_roots.py --check    connect to each pinned host with only these roots
 
-Cloudflare issues api.workitjobs.ai's certificate from Let's Encrypt, Google Trust Services or SSL.com, and its
-backup certificates from Sectigo (https://developers.cloudflare.com/ssl/reference/certificate-authorities/,
+Cloudflare issues api.workitjobs.ai's certificate, and Supabase's (behind Cloudflare too), from Let's Encrypt,
+Google Trust Services or SSL.com, and its backup certificates from Sectigo (https://developers.cloudflare.com/ssl/reference/certificate-authorities/,
 read 2026-11-15). This takes those CAs' roots from certifi's copy of Mozilla's list, by subject, so the file holds
 Mozilla's bytes and nothing typed by hand. Run it again when Cloudflare's list changes, and ship the app: a
 pinned set the live chain is not in stops every student's app. `--check` tells you (the tests never reach the
@@ -13,6 +13,7 @@ network, tests/network_block.py).
 
 import re
 import sys
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -33,9 +34,14 @@ def check() -> None:
     sys.path.insert(0, str(OUT.parents[1]))
     from apply import workit
 
-    request = urllib.request.Request(workit.LIVE.api + "/health", headers={"User-Agent": workit.USER_AGENT})
-    with urllib.request.urlopen(request, timeout=20, context=workit._pinned(workit.LIVE.api)) as answer:
-        print(f"{workit.LIVE.api}: {answer.status}, its chain is in the pinned set")
+    for url in (workit.LIVE.api + "/health", workit.LIVE.auth + "/auth/v1/health"):
+        request = urllib.request.Request(url, headers={"User-Agent": workit.USER_AGENT, "apikey": workit.LIVE.anon_key})
+        try:
+            urllib.request.urlopen(request, timeout=20, context=workit._pinned(url)).close()
+        except urllib.error.HTTPError as answer:  # any HTTP answer: the TLS handshake, the part that's pinned, passed
+            print(f"{url}: {answer.code}, its chain is in the pinned set")
+        else:
+            print(f"{url}: its chain is in the pinned set")
 
 
 def main() -> None:
