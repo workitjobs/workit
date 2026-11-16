@@ -63,7 +63,7 @@ its company job boards, so we keep our own list.
 | | |
 |---|---|
 | **The list** | `scraper/boards.csv`: about 3,830 company job boards (table below) |
-| **Where it comes from** | Daily discovery (`scraper/docs/discovery.md`) reads the apply links in public GitHub internship lists and Hacker News hiring threads, and open-jobs' frozen list of company job boards (ADR 0007), then proposes new ones in a pull request a person reviews. `build_boards.py` is the older importer, run by hand |
+| **Where it comes from** | Daily discovery (`scraper/docs/discovery.md`) reads the apply links in public GitHub internship lists and Hacker News hiring threads, open-jobs' frozen list of company job boards (ADR 0007), and boards harvested from Common Crawl's CDX index (`harvest_commoncrawl.py`), then proposes new ones in a pull request a person reviews. `build_boards.py` is the older importer, run by hand |
 | **How often it's refreshed** | When a person merges the discovery pull request. The 3-hour scrape reads only the `boards.csv` on main |
 | **Slug** | A company job board's name in its address, like `stripe` in `boards.greenhouse.io/stripe` |
 
@@ -523,7 +523,7 @@ browser can't restore your place by itself. The app does it instead:
 | No law, consulting, teaching, arts, policy or customer support job postings, and none whose title names no field ("Engineering Intern") | Held off in KAN-172; a bare title can't be told apart (a civil firm's "Engineering Intern" from a software company's) | Add a category in the scraper, the API and the Jobs page together (no migration: `roles` is plain text) |
 | Some titles land in the wrong category | It is read from the title alone: a trading firm's "Systems Engineer" is IT work read as engineering | Read the description too, or the company's other job postings |
 | Many job postings lack pay, start date or visa | Companies don't state them | Nothing on our side; filters hide these job postings |
-| A company only arrives once a GitHub list names it | The lists are our only source of company job boards | `build_boards.py --resolve` finds the ones behind short links and companies' careers pages; next, proved guesses from company names (`scraper/docs/coverage.md`). Common Crawl's `robots.txt` disallows every bot |
+| A company only arrives once a GitHub list or Common Crawl names it | Curated lists and Common Crawl's CDX index are the discovery sources | `build_boards.py --resolve` finds the ones behind short links and companies' careers pages; `harvest_commoncrawl.py` harvests board slugs from Common Crawl's CDX index (~every 5 weeks) |
 | A new posting on a board that has not changed can be up to about 27 hours late; a closed one can stay about 30 hours | A board whose kept postings are unchanged rests up to 24 hours (KAN-502), and the 3-hour run gap adds to it; a close needs two reads | `--full` overrides fingerprint rest; a shorter cap in `FINGERPRINT_LONGEST` trades freshness for more requests |
 | A new job posting at a quiet company can be about nine hours late | Quiet company job boards are read one run in three | `--full` runs, or reading more often |
 
