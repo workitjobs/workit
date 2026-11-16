@@ -36,7 +36,7 @@ NO_MAIL = "WorkIt Auto Apply reads no email: type the code or open the link from
 class NoClaude:
     """The Student build's stand-in for `claude -p` (apply.claude_cli), which it doesn't have. A text call goes to
     the hosted models in front of it (ask_model.HostedAsk), never here; a model never drives a page or researches
-    the web in the app (D2, D13). It is also the run's usage, which W1 reads from the Model route."""
+    the web in the app (D2, D13). Its usage is never limited: the run's is WorkIt's Usage cap (WorkItAsk.reading)."""
 
     def ask(self, **_) -> dict:
         raise ClaudeError(NO_MODEL.format(what="call claude -p"))
@@ -88,16 +88,16 @@ class NoRepairs:
 def adapters(profile: ApplicantProfile) -> Adapters:
     """What a Student build's run touches. The policies are the Student build's own (apply.build.STUDENT_POLICIES)."""
     policies = profile.policies()
-    claude = NoClaude()
     site = live_site(policies)
     answering.refresh(WorkIt())  # WorkIt's Question types, for the run's essays
+    asks = as_applicant(live_claude(policies, NoClaude()), profile)  # no private detail in a kind (apply.private)
     return Adapters(
         feed=live_feed(),
         tracker=InMemoryTracker(),
         site=site,
-        claude=as_applicant(live_claude(policies, claude), profile),  # no private detail in a kind (apply.private)
+        claude=asks,
         mailbox=NoMailbox(),
-        usage=claude,
+        usage=asks,  # WorkIt's Usage cap: the run pauses there until it resets (ask_model.WorkItAsk.reading)
         clock=SystemClock(),
         records=FolderRecords(RECORDS),
         notifier=Silent(),

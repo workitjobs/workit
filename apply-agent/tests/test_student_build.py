@@ -53,9 +53,10 @@ keyring.set_keyring(null.Keyring())
 from apply import student
 from apply.plain import fixed
 from apply.profile import ApplicantProfile
-student.adapters(ApplicantProfile.load(Path(sys.argv[1])))
+run = student.adapters(ApplicantProfile.load(Path(sys.argv[1])))
 fixed.functions()
-print(json.dumps({"loaded": sorted(m for m in sys.modules if m in build.DEVELOPER), "reached": network_block.end()}))"""
+print(json.dumps({"loaded": sorted(m for m in sys.modules if m in build.DEVELOPER), "reached": network_block.end(),
+                  "usage": type(run.usage.reading.__self__).__name__}))"""
 
 
 @pytest.fixture
@@ -70,7 +71,9 @@ def test_the_student_path_loads_no_developer_module(tmp_path):
     run = subprocess.run([sys.executable, "-c", LOADED, str(tmp_path / "applicant-profile.yaml"), str(Path(__file__).parent)],
                          capture_output=True, text=True)
     assert run.returncode == 0, run.stderr
-    assert json.loads(run.stdout) == {"loaded": [], "reached": []}, (
+    loaded = json.loads(run.stdout)
+    assert loaded.pop("usage") == "WorkItAsk"  # the run pauses at WorkIt's Usage cap, never past it
+    assert loaded == {"loaded": [], "reached": []}, (
         "the Student build's path loads a developer module (apply.build.DEVELOPER), or reached the network: import it "
         "inside the function the Student build never reaches")
 

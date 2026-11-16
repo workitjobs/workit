@@ -510,7 +510,7 @@ by hand (W8).
 | # | Workstream | Waits for | v1 | Where it stands (2026-11-14) |
 |---|---|---|---|---|
 | W0 | Move Apply to `workitjobs/apply-agent` | KAN-723 merged into WorkIt's `main` | Yes, first | Not started. KAN-723's first parts are merged (#569, #577, #581); the open `apply-agent/` PRs (#554, #557, #403) merge or hold first |
-| W1 | Model route and Usage cap | None | Yes | Built (#577, #587, KAN-837): the Model route, the Usage cap, the 11 kinds and the Question types on the server, the student's private values masked in every call, and Send report's route (D26). Left: reworded self-ID answers, which wait on the Fill engine saying which answers came from a self-ID fact (D8, section 3.4); the Orchestrator's pause on `GET /apply-app/usage` |
+| W1 | Model route and Usage cap | None | Yes | Built (#577, #587, KAN-837): the Model route, the Usage cap, the 11 kinds and the Question types on the server, the student's private values masked in every call, Send report's route (D26), and the run's pause at the Usage cap (`GET /apply-app/usage`). Left: reworded self-ID answers, which wait on the Fill engine saying which answers came from a self-ID fact (D8, section 3.4) |
 | W2 | Filling with no model in the browser | None | Yes | Step 1 built (#590): what Apply can't fill is the student's, in the window's Fix here; a failed field is a Needs-you item with its planned answer; the emailed code's box. Step 2, the generic Filler, is a teammate's, beside the Fillers they write for each job system |
 | W3 | What the Student build leaves out | None | Yes | Step 1 built (#581); `ask_model` fixed to `workit` (#590). Left: W8's compile flags |
 | W4 | Remove macOS-only code | None | Yes | Built (#576, #585). Left to others: `dashboard.py` (W5) and `window_capture` (W6); what stops Apply on Windows is F4's |
@@ -802,10 +802,16 @@ its own instructions or a hostile schema.
   (section 3.4, next). The label pattern that dropped self-ID answers went
   in that PR, with the answers it dropped by mistake (a diversity essay,
   Rippling's school question).
-- **The Orchestrator's limit.** Today it pauses on Claude Code's 5-hour
-  and weekly windows (`orchestrator._resume_at`, `adapters.usage`). The
-  Student build reads `GET /apply-app/usage` instead and pauses at the
-  cap with its reset date.
+- **The Orchestrator's limit.** **Built** (KAN-837): with `ask_model:
+  workit` the run's usage (`adapters.usage`) is `WorkItAsk.reading`, which
+  reads `GET /apply-app/usage`. Once `used` reaches `cap`, no form opens
+  until `resets_at`: a rehearsal, the Student build's run, waits before
+  each link (`rehearsal._after_the_limit`), `apply run` waits before each
+  Application (`orchestrator._resume_at`), and the window shows the pause
+  with its time. A Developer checkout keeps Claude Code's 5-hour and
+  weekly windows beside it. Before this, the Student build never paused:
+  at the cap each link left opened its form, was refused at its first
+  ask and ended paused, and nothing started it again.
 - **Send report** (D26) uploads one Record and masked Trace through a
   WorkIt route; the server keeps it for the team. **Built** (KAN-837)
   as the support form above: `report.build` reads the Record's files from
