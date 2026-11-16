@@ -85,7 +85,28 @@ for a student, not from `dashboard_page.py`.
   check, an Essay to approve, a form to finish or to submit. The window
   shows one at a time, most blocking first, with "1 of 4" and Skip for
   now. Below it, "Still working on" lists only the jobs WorkIt is filling
-  or checking, so no job shows twice. Submitted jobs are under "Applied".
+  or checking, so no job shows twice. A job WorkIt hasn't counted the
+  questions of yet (Apply counts them when a fill pauses or ends) or is
+  checking has a bar that moves (`bar`), never a made-up share.
+- **The heading** (`headline`) counts the questions waiting, not the jobs
+  that ask them, and with only stopped jobs left it says how many didn't go
+  through. Apply's own lines (a route's refusal, an app method's error,
+  `Bridge.status`) reach the page in its own words (`src/words.ts`, `said`);
+  a line it doesn't know passes as it is unless it has a developer word.
+- **Applied** (`appliedJobs`) is this run's submitted jobs, then what the
+  student applied to on WorkIt before (`Bridge.applied`:
+  `GET /applicants/{id}/applications?stage=applied`), each once by its link,
+  form address, or company and role. Its button is on the start screen too.
+- **Add jobs (decided, stories 33 and 41).** The header's Add jobs shows
+  whenever no run is going (`addsJobs`) and is hidden during a run, because
+  `Bridge.start` refuses a second run. The caught-up card has Add jobs too,
+  which goes back to the queue screen (with Back to your applications).
+- **The Submit card** (`checks`) lists only what Apply says it did:
+  "Checked against your WorkIt profile" when `verified`, and "Resume
+  attached" when a file the form was given answers its resume question
+  (`files`' label).
+- **The Approve card stays (decided, stories 16 and 17)** with its mock,
+  though no Hold reaches a Student run yet: a rehearsal maps Held to ready.
 - **Didn't go through (KAN-873).** A failed or skipped job (not eligible,
   closed, already applied, paused, an employer's limit) is listed with its
   reason (`reason`: `verdict()`'s label, without "Skipped:" and with no
@@ -93,13 +114,21 @@ for a student, not from `dashboard_page.py`.
   job's page (the tile's `again`, `askable` or `refill`): it posts
   `/fill-again` for that tile, and the job moves back to "Still working
   on" as the form fills anew. A job whose Worker moved on, one never
-  opened (already applied) and one paused at the usage limit (it goes on
-  by itself) have none.
+  opened (already applied) and one paused have none.
+- **The Usage cap in a Student run.** A rehearsal doesn't wait for the cap
+  to reset: a job that hits it ends failed ("Max usage limit hit"), and the
+  jobs after it hit it too. So the page never says it goes on by itself:
+  such a job reads "Stopped at today's limit. Try again once it resets"
+  (Try again where its page is held), and a usage reading at the cap says
+  when the student can apply again. Only a run Apply paused itself
+  (`run.paused`, a live run's `paused_until`) says it starts again at the
+  reset. Pausing a Student run at the cap is a follow-up.
 - **Stop applying and Remove (KAN-874).** While a run goes (`run.mode`),
   the header has Stop applying, asked once more before it posts `/stop`.
   The run ends (`rehearse`'s stop): no job waiting starts, each held page
   is let go unsubmitted, a fill under way ends on its own (a rehearsal
-  never submits) or when the run's Workers close, and #613 shows the queue
+  never submits) or when the run's Workers close, `on_done` still runs, and
+  `app_window.Bridge` shows the queue
   again. Below "Still working on", each job waiting to start (`run.waiting`,
   named as the queue named it; a pasted link by its site) has Remove,
   which posts `/remove` with its link: the run drops it before its turn
@@ -128,7 +157,8 @@ for a student, not from `dashboard_page.py`.
 - **`src/bridge.ts`** is the spec's bridge contract. `routes(token)`:
   `/state`, `/answer`, `/approve`, `/show/<k>`, `/fill-again`, `/stop` and
   `/remove` through plain `fetch` with `X-Apply-Token`, which app_window's SHIM carries to
-  `Dashboard.respond`. `app`: #613's `js_api` methods, feature-detected at
+  `Dashboard.respond`. `app`: `app_window.Bridge`'s `js_api` methods (`queue`, `applied`, `start`,
+  `status`, `usage`, `settings`), feature-detected at
   `pywebviewready`; it never settles in a window that has none. With no
   `window.APPLY_TOKEN` the page runs on `src/mock.ts`.
 - **Logos (KAN-871)** come as the website finds them (`jobLogo`):
@@ -144,18 +174,25 @@ for a student, not from `dashboard_page.py`.
   now puts in its captions) or by `posting_url`.
 - **Build:** in `window/`, `npm ci`, then `npm run build` writes one
   self-contained file into the package, `src/apply/student_page/index.html`.
+  `npm run build` and `npm test` are Node scripts (`window/scripts/`), so they
+  run the same on Windows.
   Commit it with the source change: CI's `apply-window` job rebuilds it and
   fails on any difference. Build it with WorkIt's Brandfetch client id,
   `NEXT_PUBLIC_BRANDFETCH_CLIENT_ID`, in the environment or in
   `frontend/.env.local` (CI sets it from the repo's variables); a build
   without it leaves Brandfetch out and differs from the committed file. `npm run dev` serves the page on the mock; pick
-  a fixture with `?scenario=start|needs|questions|ready|quiet`
+  a fixture with `?scenario=start|needs|questions|ready|quiet|stopped`
   (`questions`: one question of each kind), the day's use with
   `?usage=near|cap`, and the start screen's queue with
   `?queue=empty|unread|refused`.
 - **Token:** `app_window.student_page(board)` puts SHIM and
   `<script>window.APPLY_TOKEN = "<board.token>"</script>` right after the
-  page's `<meta charset="utf-8" />`, before its module script. A board
+  page's charset meta, before its module script (`_before_scripts`, which the
+  developer page's `page` uses too; with no charset meta, at the very start). A board
   swap (`Bridge.show_board`) reloads the page with the new board's token.
 - **Look:** WorkIt's tokens from `frontend/src/app/globals.css`, under the
-  same names, and Inter's Latin subset inlined.
+  same names (`src/theme.css`), and Inter's Latin subset inlined. The page
+  follows `frontend/docs/design.md`: the type scale's `text-*` tokens, its
+  radii and shadows, no hex, px or arbitrary value. Its own tokens are
+  `--container-window` (its column) and `--color-updates-tint` (a logo
+  tile's pink, beside the website's tints).
