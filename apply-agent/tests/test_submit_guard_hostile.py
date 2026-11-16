@@ -672,6 +672,12 @@ PAGES |= SESSION_PAGES | GENERIC_SESSION_PAGES
 # Code inside a declarative root that walks up to the root and listens there for submit, as the page loads.
 _ROOT_HOOK = ("""<img src="data:," onerror="let n = this; while (n.parentNode) n = n.parentNode; n.addEventListener('submit', """
               """(e) => { e.preventDefault(); fetch('""" + COMMIT + """', {method: 'POST', body: 'first=Test'}); }, true);">""")
+# The same, its listener's type an object that says "submit" only when read a second time: once by a wrapper that
+# reads it, once by the browser (round 6 of KAN-868's review). Unguarded, the browser's one read says "submit".
+_TWICE_HOOK = ("""<img src="data:," onerror="let n = this; while (n.parentNode) n = n.parentNode; """
+               """let c = /native code/.test(Function.prototype.toString.call(EventTarget.prototype.addEventListener)) ? 1 : 0; """
+               """n.addEventListener({toString: () => c++ ? 'submit' : 'x'}, """
+               """(e) => { e.preventDefault(); fetch('""" + COMMIT + """', {method: 'POST', body: 'first=Test'}); }, true);">""")
 _LOGIN_DRESS = """<title>Apply</title>%s<form id=f><label>Email <input type=email name=email value=t@example.com></label>
   <button id=b>Next</button><button>Submit application</button></form>
 <script>f.addEventListener('submit', (e) => { e.preventDefault(); fetch('""" + COMMIT + """', {method: 'POST', body: 'why=x'}); });
@@ -784,6 +790,19 @@ GET_FORM_PAGES = {
     "a hooked declarative root whose Next turns into a submit as it is clicked": {START: """<title>Apply</title><div id=h>
         <template shadowrootmode=open><form><input name=first value=Test><button id=b type=button onclick="this.type='submit'">Next</button>
         <button>Submit application</button>""" + _ROOT_HOOK + """</form></template></div>"""},
+    # Round 6: an application with a password box whose Next posts it as a sign-in would, a GET form's by its
+    # formmethod or a POST form's own, its submit handler fetching the answers; and round 5's hooked root whose
+    # listener's type reads one way to the guard and another to the browser.
+    "a GET application with a password box whose Next posts": {START: _GET_FORM % """<label>Why us? <textarea name=why>Because</textarea></label>
+        <label>Create a password <input type=password name=pw value=x></label><button id=b formmethod=post>Next</button>"""},
+    "a POST application with a password box whose submit handler fetches it": {START: """<title>Apply</title>
+        <form id=f method=post action="/acme/jobs/123/step2"><label>First name <input name=first value=Test></label>
+        <label>Why us? <textarea name=why>Because</textarea></label><label>Create a password <input type=password name=pw value=x></label>
+        <button id=b>Next</button><button>Submit application</button></form><script>f.addEventListener('submit', (e) => {
+        e.preventDefault(); fetch('""" + COMMIT + """', {method: 'POST', body: new URLSearchParams(new FormData(f))}); });</script>"""},
+    "a hooked declarative root whose listener's type reads twice": {START: """<title>Apply</title><div id=h>
+        <template shadowrootmode=open><form><input name=first value=Test><button id=b type=button onclick="this.type='submit'">Next</button>
+        <button>Submit application</button>""" + _TWICE_HOOK + """</form></template></div>"""},
 }
 PAGES |= GET_FORM_PAGES
 # An application that looks like a sign-in step to the page, its answers held in script, can't be told from one: under
@@ -2220,12 +2239,13 @@ def test_each_page_says_how_late_it_sends_and_a_held_only_page_has_its_held_test
 # Apply's typing presses Enter in every box it fills; the submit it starts needs no click, so only the guard's listener
 # on the root, added before the page's (the addEventListener wrapper), can stop it.
 ENTER_IN_A_HOOKED_ROOT = """<title>Apply</title><div id=h><template shadowrootmode=open><form>
-    <label>First name <input name=first value=Test></label>""" + _ROOT_HOOK + """</form></template></div>"""
+    <label>First name <input name=first value=Test></label>%s</form></template></div>"""
 
 
+@pytest.mark.parametrize("hook", [_ROOT_HOOK, _TWICE_HOOK], ids=["a plain listener", "a type that reads twice"])
 @pytest.mark.parametrize("guarded", [True, False])
-def test_an_enter_in_a_hooked_roots_form_sends_nothing(guarded):
-    with cdp({START: ENTER_IN_A_HOOKED_ROOT}, guarded=guarded) as (page, _, site):
+def test_an_enter_in_a_hooked_roots_form_sends_nothing(guarded, hook):
+    with cdp({START: ENTER_IN_A_HOOKED_ROOT % hook}, guarded=guarded) as (page, _, site):
         page.wait_for_timeout(300)  # the hook's image errored, and its listener is on the root
         page.get_by_label("First name").press("Enter")
         _settle(page, 1500)

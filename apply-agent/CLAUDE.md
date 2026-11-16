@@ -398,7 +398,13 @@ into it and the window shows "Sample data".
   Enter that submits with no click is stopped there (round 5). Plain
   code's sign-in with a password goes on for a form that doesn't POST only
   under Apply's own sign-in press and as a sign-in step: an application
-  that makes an account as it applies is a GET form with a password box. The guard
+  that makes an account as it applies is a GET form with a password box.
+  A POST form with a password box and a button that sends goes on only as
+  a sign-in step, and a POST the guard refuses reaches no handler of the
+  page's either: round 6 sent the answers by fetch from the submit handler
+  of a refused post. A listener's type is read once and that string passed
+  on, so an object can't say one thing to the guard and "submit" to the
+  browser. The guard
   scripts are one function each, built from shared parts: a name two parts
   declare stops the whole script with no error Apply sees, and every page
   is unguarded. That happened twice while KAN-868 was built;

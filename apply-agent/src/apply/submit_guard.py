@@ -1053,8 +1053,11 @@ _TEMPLATE = r"""
   const frameDocOf = (f) => (tag(f) === 'IFRAME' ? iframeDoc : frameDoc)(f);
   // A form with a password box that plain code's sign-in posts: a POST form, as ever, or one that doesn't POST only
   // under Apply's own sign-in press and as a sign-in step (round 5 of KAN-868's review: an application that makes an
-  // account as it applies, a GET form with a password box, went through every path's account click).
-  const passwordStep = (form, by) => posts(form, by) || (S.signIn === true && loginForm(form));
+  // account as it applies, a GET form with a password box, went through every path's account click). A POST form
+  // with a button that sends is a sign-in only when it is a sign-in step (round 6: an application with a password
+  // box and a Submit, whose Next's submit handler fetched the application, went through as a sign-in).
+  const passwordStep = (form, by) => (posts(form, by) && (!hadSends(form) || loginForm(form)))
+    || (S.signIn === true && loginForm(form));
   const knownRoots = [];  // every shadow root the guard heard, closed ones too: a sign-in step's page check reads them
   const loginForm = (form) => {
     const all_ = fields(form);
@@ -1262,8 +1265,10 @@ _TEMPLATE = r"""
     // account click: a page alone can't be told from an app dressed as one (round 3 of the review: answers kept in
     // script, and plain code's Next arms the account click too).
     const scripted = gets(form, by) && !(apply_ && S.signIn === true && loginForm(form));
-    if (final || scripted) stopNow(event);
+    // A POST the guard refuses reaches no handler of the page's either (round 6: a POST form with a password box and
+    // a Submit, whose submit handler fetched the answers as its post was refused).
     if (final || scripted || (posts(form, by) && !step)) {
+      stopNow(event);
       prevent(event);
       note(formNamed(form, by));
     }
@@ -1312,7 +1317,10 @@ _TEMPLATE = r"""
   // declarative root walked parentNode up to it, past every wrapped getter).
   const pageListen = EventTarget.prototype.addEventListener;
   defineProp(EventTarget.prototype, 'addEventListener', {value: function addEventListener(...args) {
-    try { if (lower(Str(args[0])) === 'submit') { if (isRoot(this)) hearRoot(this); else hearRootOf(this); } } catch (e) {}
+    // The type is read once and that string passed on: an object whose toString() said one thing to the guard and
+    // "submit" to the browser added its listener unheard (round 6 of the review).
+    if (args.length) { try { args[0] = Str(args[0]); } catch (e) { return apply(pageListen, this, args); } }
+    try { if (lower(args[0]) === 'submit') { if (isRoot(this)) hearRoot(this); else hearRootOf(this); } } catch (e) {}
     return apply(pageListen, this, args);
   }, writable: true, configurable: true});
   const pageRequestSubmit = HTMLFormElement.prototype.requestSubmit;
@@ -1376,7 +1384,8 @@ _TEMPLATE = r"""
     try {
       // Under plain code's click, a page script may post a step's form, but never one with a button that sends
       // or one bound for the final URL (a Continue whose handler calls the application form's submit()).
-      const step = !inShadow(this) && fromPress(this, null) && !postsFinal(this, null) && (password(this) || !hadSends(this));
+      const step = !inShadow(this) && fromPress(this, null) && !postsFinal(this, null)
+        && (!hadSends(this) || (password(this) && loginForm(this)));
       go = lifted() || step || !posts(this, null)
         || (!inShadow(this) && (relay(this, null) || frameLoad(this, null) || uploadPost(this, null)))
         || (!startSent && !inShadow(this) && posts(this, null) && intoItself(this, null)  // KAN-725's copy, once, into this page
