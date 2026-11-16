@@ -107,7 +107,11 @@ for a student, not from `dashboard_page.py`.
   now. Below it, "Still working on" lists only the jobs WorkIt is filling
   or checking, so no job shows twice. A job WorkIt hasn't counted the
   questions of yet (Apply counts them when a fill pauses or ends) or is
-  checking has a bar that moves (`bar`), never a made-up share.
+  checking has a bar that moves (`bar`), never a made-up share. Each one's
+  Watch shows its form as the Worker's Chrome has it now, under the row:
+  Workers run headless, so this is the only place to see one being filled.
+  The page asks `Bridge.frames` for a newer screen of that tile, again and
+  again, while it is open.
 - **The heading** (`headline`) counts the questions waiting, not the jobs
   that ask them, and with only stopped jobs left it says how many didn't go
   through. Apply's own lines (a route's refusal, an app method's error,

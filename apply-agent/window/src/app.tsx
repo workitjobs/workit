@@ -213,7 +213,7 @@ function Home({ v, bridge, app, fail, add }: { v: View; bridge: Bridge; app: App
         <section className="mt-10">
           <h3 className="mb-2 text-note font-semibold text-ink-meta">Still working on</h3>
           {v.working.map((job) => (
-            <Row key={job.key} job={job} />
+            <Row key={job.key} job={job} watch={app.frames} />
           ))}
           {v.queued > 0 && <p className="px-0.5 pt-2 text-note text-ink-meta">and {v.queued} more waiting to start</p>}
           {v.waiting.map((w) => (
@@ -283,8 +283,11 @@ function Waiting({ job, bridge, fail }: { job: Waits; bridge: Bridge; fail: Fail
 }
 
 // `app` on the Applied page, where a submitted Application has Report a problem; none for a job still being filled.
-function Row({ job, app }: { job: Job; app?: AppMethods }) {
+// `watch`, on a job still being filled: Watch shows its form as the Worker's Chrome has it now.
+function Row({ job, app, watch }: { job: Job; app?: AppMethods; watch?: AppMethods["frames"] }) {
   const submitted = job.status === "submitted";
+  const [watching, setWatching] = useState(false);
+  const live = !!watch && job.worker !== undefined && !submitted;
   return (
     <div className="py-2.5">
       <div className="flex items-center gap-3">
@@ -299,6 +302,11 @@ function Row({ job, app }: { job: Job; app?: AppMethods }) {
           </span>
         ) : (
           <span className="w-28 text-right">
+            {live && (
+              <button onClick={() => setWatching(!watching)} className="mb-1 text-note font-semibold text-brand-ink hover:underline">
+                {watching ? "Hide" : "Watch"}
+              </button>
+            )}
             <span className="block text-note text-ink-meta">{job.status === "checking" ? "Checking answers" : "Filling out"}</span>
             <span className="mt-1.5 block h-1 overflow-hidden rounded-full bg-border">
               {bar(job) === "unknown" ? (
@@ -311,6 +319,36 @@ function Row({ job, app }: { job: Job; app?: AppMethods }) {
         )}
       </div>
       {app && <Under job={job} app={app} />}
+      {live && watching && <Live tile={job.worker!} frames={watch!} />}
+    </div>
+  );
+}
+
+// A form as its Worker's Chrome shows it, newest screen first: each call waits for a newer one than it has.
+function Live({ tile, frames }: { tile: number; frames: NonNullable<AppMethods["frames"]> }) {
+  const [shot, setShot] = useState("");
+  useEffect(() => {
+    let on = true;
+    const seen: Record<number, number> = {}; // every tile's last screen, or each call answers at once with the others'
+    (async () => {
+      while (on) {
+        const found = await frames(seen).catch(() => []);
+        if (!on) return;
+        for (const f of found) seen[f.tile] = f.number;
+        const mine = found.find((f) => f.tile === tile);
+        if (mine) setShot(`data:image/jpeg;base64,${mine.jpeg}`);
+        if (!found.length) await new Promise((r) => setTimeout(r, 500));
+      }
+    })();
+    return () => void (on = false);
+  }, [tile, frames]);
+  return (
+    <div className="mt-3 overflow-hidden rounded-card border border-border bg-panel">
+      {shot ? (
+        <img src={shot} alt="The form as it's being filled" className="block w-full" />
+      ) : (
+        <p className="px-4 py-10 text-center text-note text-ink-meta">Waiting for the form's screen…</p>
+      )}
     </div>
   );
 }

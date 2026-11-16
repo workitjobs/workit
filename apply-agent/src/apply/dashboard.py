@@ -808,9 +808,11 @@ class Dashboard:
             self._logos = {link: {k: v for k, v in job.items() if k in QUEUED_JOB and v} for link, job in by_link.items()}
 
     def _logo(self, shown: dict) -> dict:
-        """The logo sources of a tile or item, by its link or its form's: none for a link no queue gave."""
+        """The logo sources of a tile or item, by its link or its form's: none for a link no queue gave. A form that
+        hasn't read its company or role yet takes the queued job's, so its row names it."""
         job = self._logos.get(str(shown.get("link") or "")) or self._logos.get(str(shown.get("posting_url") or "")) or {}
-        return {key: job[key] for key in LOGO if key in job}
+        names = {"company": job.get("company"), "role": job.get("title")}
+        return {key: job[key] for key in LOGO if key in job} | {k: v for k, v in names.items() if v and not shown.get(k)}
 
     def focused(self, front: bool) -> None:
         """The window's page says whether it is in front, with each poll."""
