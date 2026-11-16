@@ -3,10 +3,10 @@ import { ArrowClockwiseIcon, CheckIcon, GearSixIcon, PlusIcon, StopIcon, XIcon }
 import { useEffect, useMemo, useState } from "react";
 
 import type { ApplyState, Run } from "./apply.ts";
-import type { App as AppMethods, Bridge, Queued, Usage } from "./bridge.ts";
+import type { AppliedJob, App as AppMethods, Bridge, Queued, Usage } from "./bridge.ts";
 import { TodoCard } from "./cards.tsx";
 import { Button, Logo, cx, pressed } from "./ui.tsx";
-import { type Job, type View, type Waits, addsJobs, chosen, headline, limit, queueNote, startWords, view } from "./view.ts";
+import { type Job, type View, type Waits, addsJobs, appliedJobs, chosen, headline, limit, queueNote, startWords, view } from "./view.ts";
 import { said } from "./words.ts";
 
 type Fail = (message: string) => void;
@@ -39,7 +39,9 @@ export function App({ bridge }: { bridge: Bridge }) {
   // No run going: the queue, when the window has one to show (app_window.Bridge's app methods).
   // Add jobs brings it back once there is something else to show.
   const first =
-    !!app.queue && (page === "add" || (!v.todo.length && !v.working.length && !v.queued && !v.applied.length && !v.stopped.length));
+    !!app.queue &&
+    page !== "applied" &&
+    (page === "add" || (!v.todo.length && !v.working.length && !v.queued && !v.applied.length && !v.stopped.length));
   const add = () => setPage("add");
   return (
     <div className="min-h-dvh">
@@ -55,7 +57,7 @@ export function App({ bridge }: { bridge: Bridge }) {
               <PlusIcon className="size-4" /> Add jobs
             </Button>
           )}
-          {!first && (
+          {(!first || app.applied) && (
             <Button tone="quiet" className={cx("h-8 px-3", page === "applied" && "bg-hover text-ink")} onClick={() => setPage(page === "applied" ? "home" : "applied")}>
               Applied
             </Button>
@@ -73,10 +75,10 @@ export function App({ bridge }: { bridge: Bridge }) {
             {NOT_RUNNING} This window shows what it last heard, and catches up once Apply is back.
           </p>
         )}
-        {first ? (
+        {page === "applied" ? (
+          <Applied jobs={v.applied} app={app} />
+        ) : first ? (
           <Start app={app} back={page === "add" ? () => setPage("home") : undefined} />
-        ) : page === "applied" ? (
-          <Applied jobs={v.applied} />
         ) : (
           <Home v={v} bridge={bridge} fail={setToast} add={app.queue && app.start ? add : undefined} />
         )}
@@ -368,12 +370,18 @@ function Start({ app, back }: { app: AppMethods; back?: () => void }) {
   );
 }
 
-function Applied({ jobs }: { jobs: Job[] }) {
+// What the student submitted: this run's, then what WorkIt has from before (app_window.Bridge.applied), each once.
+function Applied({ jobs, app }: { jobs: Job[]; app: AppMethods }) {
+  const [earlier, setEarlier] = useState<AppliedJob[] | null>(null);
+  useEffect(() => {
+    app.applied?.().then(setEarlier, () => setEarlier(null));
+  }, [app]);
+  const all = appliedJobs(jobs, earlier);
   return (
     <>
       <h1 className="text-[28px] font-bold tracking-[-0.025em]">Applied</h1>
-      <p className="mt-1 text-[15px] text-ink-meta">Everything you submitted. It's in your Tracker on WorkIt too.</p>
-      <div className="mt-6">{jobs.length ? jobs.map((job) => <Row key={job.key} job={job} />) : <p className="text-ink-meta">Nothing submitted yet.</p>}</div>
+      <p className="mt-1 text-[15px] text-ink-meta">Everything you submitted, today and before. It's in your Tracker on WorkIt too.</p>
+      <div className="mt-6">{all.length ? all.map((job) => <Row key={job.key} job={job} />) : <p className="text-ink-meta">Nothing submitted yet.</p>}</div>
     </>
   );
 }

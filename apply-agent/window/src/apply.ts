@@ -16,6 +16,7 @@ export type Shown = {
   company?: string;
   role?: string;
   posting_url?: string;
+  link?: string; // the link the run was given (the queue's url), when it differs from the form's posting_url
   system?: string; // the job system: Greenhouse, Workday...
   company_domain?: string; // the logo's sources, from the WorkIt job posting when Apply has one (logo.ts)
   logo_url?: string;

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import type { Shown } from "./apply.ts";
-import { addsJobs, answerOf, asking, chosen, classify, headline, limit, queueNote, shortcut, startWords, view } from "./view.ts";
+import { addsJobs, answerOf, appliedJobs, asking, chosen, classify, headline, limit, queueNote, shortcut, startWords, view } from "./view.ts";
 
 const job = (over: Partial<Shown>): Shown => ({ tone: "filling", company: "Stripe", role: "SWE Intern", posting_url: "https://s", ...over });
 
@@ -334,4 +334,20 @@ test("+ Add jobs shows whenever no run is going and the window can start one, ne
   assert.equal(addsJobs(idle, true), true);
   assert.equal(addsJobs(run, true), false); // app_window.Bridge.start refuses a second run
   assert.equal(addsJobs(idle, false), false); // a Developer checkout's window has no queue or Start
+});
+
+test("Applied lists this run's submitted jobs, then what WorkIt has from before, each once", () => {
+  const sent = view({
+    tiles: [job({ tone: "submitted", company: "Stripe", posting_url: "https://boards.greenhouse.io/stripe/1", link: "https://stripe.com/jobs/1" })],
+    items: [],
+  }).applied;
+  const earlier = [
+    { url: "https://stripe.com/jobs/1", company: "Stripe", title: "SWE Intern", applied_at: "2026-11-15T10:00:00Z" }, // this run's, already on WorkIt
+    { url: "https://jobs.lever.co/acme/3", company: "Acme", title: "Intern", company_domain: "acme.com", applied_at: "2026-11-02T10:00:00Z" },
+    { url: "https://jobs.lever.co/acme/3", company: "Acme", title: "Intern", applied_at: null }, // WorkIt listing it twice
+  ];
+  const all = appliedJobs(sent, earlier);
+  assert.deepEqual(all.map((j) => [j.company, j.status]), [["Stripe", "submitted"], ["Acme", "submitted"]]);
+  assert.equal(all[1].source.company_domain, "acme.com");
+  assert.deepEqual(appliedJobs(sent, null).map((j) => j.company), ["Stripe"]); // WorkIt not read (yet)
 });

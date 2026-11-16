@@ -195,6 +195,10 @@ export function mock(
         push();
         return links.length;
       },
+      applied: async () => [
+        { url: "https://vercel/1", company: "Vercel", title: "Software Engineer, New Grad", company_domain: "vercel.com", applied_at: "2026-11-15T09:00:00Z" },
+        { url: "https://jobs.lever.co/palantir/1", company: "Palantir", title: "Forward Deployed Engineer Intern", company_domain: "palantir.com", applied_at: "2026-11-02T14:00:00Z" },
+      ],
       status: async () => ({ running: false, said: "" }),
       usage: async (): Promise<Usage> => ({ used, cap: CAP, resets_at: new Date(Date.now() + 5 * 3600_000).toISOString() }),
       settings: async () => alert("Settings: app_window.Bridge's page opens here."),

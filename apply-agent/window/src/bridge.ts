@@ -2,7 +2,7 @@
 // - routes: the Apply window's existing routes, through plain fetch with the window's token. In WorkIt Auto Apply's
 //   window, app_window.SHIM carries each fetch to Dashboard.respond, with no port; a window
 //   dashboard.py serves gets the same calls over its own address.
-// - app methods: app_window.Bridge's js_api methods (queue, start, status, usage, settings), used only when the window has them.
+// - app methods: app_window.Bridge's js_api methods (queue, applied, start, status, usage, settings), used only when the window has them.
 //   A Developer checkout's window has none, so the page shows the run as it is.
 // - mock: fixtures, to design and screenshot the window with no Apply running (mock.ts).
 import type { ApplyState, QueuedJob } from "./apply.ts";
@@ -10,11 +10,13 @@ import { said } from "./words.ts";
 
 export type Upload = { name: string; data: string }; // a file's name and its bytes in base64
 export type Queued = QueuedJob & { url: string }; // a job in the student's Auto Apply queue on WorkIt
+export type AppliedJob = Queued & { applied_at?: string | null }; // one the student applied to, on WorkIt
 export type Usage = { used: number; cap: number; resets_at: string }; // model tokens today, and when the count resets
 
 // app_window.Bridge's app methods. Each is there only when the window gives it.
 export type App = Partial<{
   queue(): Promise<Queued[]>;
+  applied(): Promise<AppliedJob[]>;
   start(links: string[]): Promise<number>;
   status(): Promise<{ running: boolean; said: string }>;
   usage(): Promise<Usage>;
@@ -53,7 +55,7 @@ async function called<T>(method: (...args: unknown[]) => Promise<unknown>, ...ar
   return got as T;
 }
 
-export const NAMES = ["queue", "start", "status", "usage", "settings"] as const;
+export const NAMES = ["queue", "applied", "start", "status", "usage", "settings"] as const;
 
 function appMethods(): Promise<App> {
   return new Promise((done) => {

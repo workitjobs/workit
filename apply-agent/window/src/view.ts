@@ -1,7 +1,7 @@
 // Apply's state, as the student sees it: a pile of things to do, one at a
 // time, and the jobs WorkIt is still working on. A job is in one or the other.
 import type { ApplyState, Run, Shown, Waiting } from "./apply.ts";
-import type { Queued, Usage } from "./bridge.ts";
+import type { AppliedJob, Queued, Usage } from "./bridge.ts";
 import { DEVELOPER } from "./words.ts";
 
 export type Status = "filling" | "checking" | "todo" | "submitted" | "stopped";
@@ -129,6 +129,22 @@ export function view(state: ApplyState): View {
     waiting: (state.run?.waiting ?? []).map((w) => ({ link: w.link, company: w.company || site(w.link), role: w.title || "", source: w })),
     running: !!state.run?.mode,
   };
+}
+
+// The Applied page: this run's submitted jobs, then what the student applied to on WorkIt before (Bridge.applied),
+// each once. A job is the same by its link or its form's address, or by its company and role.
+export function appliedJobs(thisRun: Job[], earlier: AppliedJob[] | null): Job[] {
+  const seen = new Set(thisRun.flatMap((j) => [j.source.link, j.source.posting_url, `${j.company}|${j.role}`]).filter(Boolean));
+  const jobs = [...thisRun];
+  for (const a of earlier ?? []) {
+    const company = a.company || site(a.url);
+    const role = a.title ?? "";
+    if (seen.has(a.url) || (role && seen.has(`${company}|${role}`))) continue;
+    seen.add(a.url).add(`${company}|${role}`);
+    const source: Shown = { tone: "submitted", company, role, posting_url: a.url, logo_url: a.logo_url ?? undefined, company_domain: a.company_domain ?? undefined };
+    jobs.push({ key: a.url, company, role, status: "submitted", source });
+  }
+  return jobs;
 }
 
 // + Add jobs (the queue screen again): whenever no run is going, in a window that can start one. Never during a run,
