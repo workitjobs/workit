@@ -11,17 +11,17 @@ type Props = { job: Job; bridge: Bridge; at: number; of: number; skip?: () => vo
 export function TodoCard(props: Props) {
   const { job, at, of, skip } = props;
   return (
-    <div key={job.key} className="rise overflow-hidden rounded-[18px] border border-border bg-panel shadow-[var(--shadow-focus)]">
+    <div key={job.key} className="rise overflow-hidden rounded-shell border border-border bg-panel shadow-lift">
       <div className="flex items-center gap-3 px-6 pt-5">
         <Logo company={job.company} src={job.source} />
         <div className="min-w-0">
           <div className="font-semibold">{job.company}</div>
-          <div className="truncate text-xs text-ink-meta">{job.role}</div>
+          <div className="truncate text-note text-ink-meta">{job.role}</div>
         </div>
         {of > 1 && (
-          <div className="ml-auto flex items-center gap-1 text-xs text-ink-faint">
+          <div className="ml-auto flex items-center gap-1 text-note text-ink-meta">
             {at + 1} of {of}
-            <Button tone="quiet" className="h-7 px-2 text-xs" onClick={skip}>
+            <Button tone="quiet" className="h-7 px-2 text-note" onClick={skip}>
               Skip for now
             </Button>
           </div>
@@ -79,8 +79,8 @@ function Body(props: Props) {
   }
 }
 
-const Title = ({ children }: { children: ReactNode }) => <h2 className="text-xl font-semibold tracking-[-0.015em]">{children}</h2>;
-const Note = ({ children }: { children: ReactNode }) => <p className="mt-3 text-xs text-ink-faint">{children}</p>;
+const Title = ({ children }: { children: ReactNode }) => <h2 className="text-title">{children}</h2>;
+const Note = ({ children }: { children: ReactNode }) => <p className="mt-3 text-note text-ink-meta">{children}</p>;
 
 const show = ({ job, bridge, fail }: Props) => job.worker !== undefined && bridge.open(job.worker).catch((e) => fail(e.message));
 
@@ -176,7 +176,7 @@ function Ask(props: Props & { asked: Asked; answered: () => void }) {
         <div className="mt-5 grid gap-1.5">
           {options.map((option, i) => (
             <Button key={option} disabled={busy} onClick={() => send(option)} className={cx("h-10 justify-start", picks.includes(option) ? picked : pickClass)}>
-              {i < 9 && <span className="w-4 text-xs text-ink-faint">{i + 1}</span>}
+              {i < 9 && <span className="w-4 text-note text-ink-meta">{i + 1}</span>}
               {option}
             </Button>
           ))}
@@ -186,7 +186,7 @@ function Ask(props: Props & { asked: Asked; answered: () => void }) {
         <div className="mt-5 grid gap-1.5">
           {options.map((option) => (
             <label key={option} className="flex cursor-pointer items-center gap-3 rounded-control border border-border-surface px-3.5 py-2.5 hover:bg-hover">
-              <input type="checkbox" checked={picks.includes(option)} onChange={() => pick(option)} className="size-[18px] accent-brand" />
+              <input type="checkbox" checked={picks.includes(option)} onChange={() => pick(option)} className="size-4.5 accent-brand" />
               {option}
             </label>
           ))}
@@ -236,7 +236,7 @@ function Ask(props: Props & { asked: Asked; answered: () => void }) {
             onChange={(e) => setText(e.target.value)}
             placeholder="Type your answer"
             aria-label={question}
-            className="h-11 flex-1 rounded-control border border-border-surface bg-panel px-3.5 text-[15px] outline-none focus:border-brand focus:shadow-[0_0_0_3px_var(--color-brand-tint)]"
+            className="h-11 flex-1 rounded-control border border-border-surface bg-panel px-3.5 text-body outline-none focus:border-brand focus:ring-1 focus:ring-brand"
           />
           <Button tone="primary" size="lg" disabled={busy || !text.trim()}>
             Save
@@ -268,17 +268,17 @@ function Approve(props: Props) {
       <p className="mt-1 text-ink-meta">We wrote this answer from your profile. Change anything you like.</p>
       {essays.map((essay, i) => (
         <div key={essay.question} className="mt-4">
-          <div className="mb-1.5 text-[13px] font-semibold">{essay.question}</div>
+          <div className="mb-1.5 text-note font-semibold">{essay.question}</div>
           {editing ? (
             <textarea
               autoFocus={i === 0}
               value={texts[i]}
               onChange={(e) => setTexts(texts.map((t, j) => (j === i ? e.target.value : t)))}
               rows={5}
-              className="w-full resize-y rounded-card border border-border-surface p-3 text-[13px] leading-relaxed outline-none focus:border-brand"
+              className="w-full resize-y rounded-card border border-border-surface p-3 text-body leading-6 outline-none focus:border-brand"
             />
           ) : (
-            <p className="rounded-card bg-surface p-3.5 text-[13px] leading-relaxed text-ink-muted">{texts[i]}</p>
+            <p className="rounded-card bg-surface p-3.5 text-body leading-6 text-ink-muted">{texts[i]}</p>
           )}
         </div>
       ))}
@@ -304,7 +304,7 @@ function Submit(props: Props) {
       <ul className="mt-3 grid gap-2">
         {checks(s).map((line) => (
           <li key={line} className="flex items-center gap-2.5 text-ink-muted">
-            <span className="grid size-[18px] place-items-center rounded-full bg-positive-tint text-positive-ink">
+            <span className="grid size-4.5 place-items-center rounded-full bg-positive-tint text-positive-ink">
               <CheckIcon weight="bold" className="size-3" />
             </span>
             {line}

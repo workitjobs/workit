@@ -13,8 +13,8 @@ export function Button({ tone = "secondary", size = "md", className, ...props }:
     <button
       {...props}
       className={cx(
-        "inline-flex cursor-pointer items-center justify-center gap-2 rounded-control font-medium whitespace-nowrap transition active:scale-[.98] disabled:cursor-default disabled:opacity-50",
-        size === "lg" ? "h-11 px-5 text-[15px]" : "h-9 px-4",
+        "inline-flex cursor-pointer items-center justify-center gap-2 rounded-control font-medium whitespace-nowrap transition active:scale-98 disabled:cursor-default disabled:opacity-50",
+        size === "lg" ? "h-11 px-5 text-body" : "h-9 px-4",
         tone === "primary" && "bg-brand font-semibold text-on-brand hover:bg-brand-hover active:bg-brand-active",
         tone === "secondary" && "border border-border-surface bg-panel text-ink hover:bg-hover",
         tone === "quiet" && "text-ink-meta hover:bg-hover hover:text-ink",
@@ -24,15 +24,19 @@ export function Button({ tone = "secondary", size = "md", className, ...props }:
   );
 }
 
-// A company's tile: its initial on its own soft colour, so rows are told apart at a glance.
+// A company's tile: its initial on its own soft colour, so rows are told apart at a glance. The website's tints and
+// their inks (theme.css), as class pairs Tailwind can see.
 const TINTS = [
-  ["#efeaff", "#5b30c0"],
-  ["#e3f7f0", "#107a52"],
-  ["#fdf0d9", "#a16207"],
-  ["#e3ebff", "#2f5fd6"],
-  ["#fbe7f3", "#a01f81"],
-  ["#e8ecef", "#465266"],
+  "bg-brand-tint text-brand-ink",
+  "bg-positive-tint text-positive-ink",
+  "bg-warning-tint text-warning-deep",
+  "bg-advanced-tint text-advanced",
+  "bg-updates-tint text-updates-ink",
+  "bg-inert-tint text-ink-meta",
 ];
+
+// A tile's size and its initial's: a to-do card's, a row's, a waiting job's.
+const SIZES = { lg: "size-9 text-body", md: "size-8 text-label", sm: "size-7 text-note" };
 
 // A logo this close to square is a mark that fills the tile; a wider one is a wordmark, fitted on white.
 const SQUARE = { min: 0.8, max: 1.25 };
@@ -40,7 +44,7 @@ const SQUARE = { min: 0.8, max: 1.25 };
 // The company's real logo, as the website's CompanyLogo draws it: the first source that loads (logo.ts), with the
 // initials under it until it shows. A source that fails moves on to the next, then to the initials alone, so a
 // broken image never shows. Brandfetch's client id is put in at build time (vite.config.ts).
-export function Logo({ company, src = {}, size = 36 }: { company: string; src?: LogoFields; size?: number }) {
+export function Logo({ company, src = {}, size = "lg" }: { company: string; src?: LogoFields; size?: keyof typeof SIZES }) {
   const sources = logoSources(src, __BRANDFETCH_CLIENT_ID__);
   const key = sources.join(" ");
   // Kept against the list they were for, so a tile reused for another company starts again.
@@ -49,12 +53,14 @@ export function Logo({ company, src = {}, size = 36 }: { company: string; src?: 
   const url = sources[failed.key === key ? failed.count : 0];
   const square = url && shape?.url === url ? shape.square : null;
   const sum = [...company].reduce((n, c) => n + c.charCodeAt(0), 0);
-  const [bg, fg] = TINTS[sum % TINTS.length];
   return (
     <span
       aria-hidden
-      className="relative grid shrink-0 place-items-center overflow-hidden rounded-[9px] font-semibold"
-      style={{ width: size, height: size, background: square == null ? bg : "#fff", color: fg, fontSize: size * 0.42 }}
+      className={cx(
+        "relative grid shrink-0 place-items-center overflow-hidden rounded-control font-semibold",
+        SIZES[size],
+        square == null ? TINTS[sum % TINTS.length] : "bg-panel",
+      )}
     >
       {square == null && company.charAt(0).toUpperCase()}
       {url && (
@@ -63,11 +69,10 @@ export function Logo({ company, src = {}, size = 36 }: { company: string; src?: 
           src={url}
           alt=""
           className={cx(
-            "absolute inset-0 size-full",
+            "absolute inset-0 size-full rounded-control",
             square ? "object-cover" : "border border-border object-contain p-[10%]",
             square == null && "opacity-0",
           )}
-          style={{ borderRadius: 9 }}
           onLoad={(e) => {
             const ratio = e.currentTarget.naturalWidth / e.currentTarget.naturalHeight;
             setShape({ url, square: ratio >= SQUARE.min && ratio <= SQUARE.max });

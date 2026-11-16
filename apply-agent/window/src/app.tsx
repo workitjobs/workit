@@ -45,12 +45,12 @@ export function App({ bridge }: { bridge: Bridge }) {
   const add = () => setPage("add");
   return (
     <div className="min-h-dvh">
-      <header className="sticky top-0 z-10 flex h-[52px] items-center gap-2 border-b border-border bg-app/90 pr-5 pl-[84px] backdrop-blur">
+      <header className="sticky top-0 z-10 flex h-13 items-center gap-2 border-b border-border bg-app/90 pr-5 pl-21 backdrop-blur">
         <button className="flex cursor-pointer items-center gap-2 font-semibold" onClick={() => setPage("home")}>
-          <span className="grid size-[22px] place-items-center rounded-md bg-brand text-xs text-on-brand">W</span>
+          <span className="grid size-5.5 place-items-center rounded-control bg-brand text-note text-on-brand">W</span>
           WorkIt Auto Apply
         </button>
-        <nav className="ml-auto flex items-center gap-1 text-[13px]">
+        <nav className="ml-auto flex items-center gap-1 text-note">
           {v.running && !first && <Stop bridge={bridge} fail={setToast} />}
           {addsJobs(v, !!app.start) && !first && (
             <Button tone="quiet" className="h-8 px-3" onClick={add}>
@@ -69,9 +69,9 @@ export function App({ bridge }: { bridge: Bridge }) {
           )}
         </nav>
       </header>
-      <main className="mx-auto max-w-[600px] px-6 pt-12 pb-16">
+      <main className="mx-auto max-w-window px-6 pt-12 pb-16">
         {lost && (
-          <p role="alert" className="mb-6 rounded-[14px] border border-border bg-panel px-4 py-3 text-[13px] text-ink-meta">
+          <p role="alert" className="mb-6 rounded-card border border-border bg-panel px-4 py-3 text-note text-ink-meta">
             {NOT_RUNNING} This window shows what it last heard, and catches up once Apply is back.
           </p>
         )}
@@ -84,7 +84,7 @@ export function App({ bridge }: { bridge: Bridge }) {
         )}
         <Limit app={app} run={state?.run} />
       </main>
-      {toast && <div role="alert" className="rise fixed right-4 bottom-4 rounded-card bg-ink px-4 py-2.5 text-[13px] text-white shadow-[var(--shadow-focus)]">{toast}</div>}
+      {toast && <div role="alert" className="rise fixed right-4 bottom-4 rounded-card bg-ink px-4 py-2.5 text-note text-on-brand shadow-lift">{toast}</div>}
     </div>
   );
 }
@@ -96,8 +96,8 @@ function Connecting({ lost }: { lost: boolean }) {
   return (
     <div role="status" className="grid min-h-dvh place-items-center px-6 text-center">
       <div>
-        <span className="mx-auto grid size-10 place-items-center rounded-xl bg-brand text-lg font-semibold text-on-brand">W</span>
-        <p className={cx("mt-4 text-[15px] text-ink-meta", !lost && "animate-pulse")}>{lost ? NOT_RUNNING : "Connecting to WorkIt Auto Apply…"}</p>
+        <span className="mx-auto grid size-10 place-items-center rounded-card bg-brand text-subtitle font-semibold text-on-brand">W</span>
+        <p className={cx("mt-4 text-body text-ink-meta", !lost && "animate-pulse")}>{lost ? NOT_RUNNING : "Connecting to WorkIt Auto Apply…"}</p>
       </div>
     </div>
   );
@@ -146,7 +146,7 @@ function Limit({ app, run }: { app: AppMethods; run?: Run }) {
     return () => clearInterval(t);
   }, [app]);
   const line = limit(usage, undefined, run);
-  return line ? <p className="mt-8 text-[13px] text-ink-faint">{line}</p> : null;
+  return line ? <p className="mt-8 text-note text-ink-meta">{line}</p> : null;
 }
 
 function Home({ v, bridge, fail, add }: { v: View; bridge: Bridge; fail: Fail; add?: () => void }) {
@@ -162,13 +162,13 @@ function Home({ v, bridge, fail, add }: { v: View; bridge: Bridge; fail: Fail; a
   }, [more, i]);
   return (
     <>
-      <h1 className="text-[28px] font-bold tracking-[-0.025em]">{headline(v)}</h1>
+      <h1 className="text-heading">{headline(v)}</h1>
       {v.todo.length ? (
         <div className="mt-6">
           <TodoCard job={v.todo[i]} bridge={bridge} at={i} of={v.todo.length} skip={() => setAt(i + 1)} fail={fail} />
         </div>
       ) : (
-        <div className="rise mt-6 flex items-center gap-4 rounded-[18px] border border-border bg-panel px-6 py-5">
+        <div className="rise mt-6 flex items-center gap-4 rounded-shell border border-border bg-panel px-6 py-5">
           <span className="grid size-10 shrink-0 place-items-center rounded-full bg-positive-tint text-positive-ink">
             <CheckIcon weight="bold" className="size-5" />
           </span>
@@ -188,11 +188,11 @@ function Home({ v, bridge, fail, add }: { v: View; bridge: Bridge; fail: Fail; a
       )}
       {(v.working.length > 0 || v.queued > 0 || v.waiting.length > 0) && (
         <section className="mt-10">
-          <h3 className="mb-2 text-[13px] font-semibold text-ink-meta">Still working on</h3>
+          <h3 className="mb-2 text-note font-semibold text-ink-meta">Still working on</h3>
           {v.working.map((job) => (
             <Row key={job.key} job={job} />
           ))}
-          {v.queued > 0 && <p className="px-0.5 pt-2 text-[13px] text-ink-faint">and {v.queued} more waiting to start</p>}
+          {v.queued > 0 && <p className="px-0.5 pt-2 text-note text-ink-meta">and {v.queued} more waiting to start</p>}
           {v.waiting.map((w) => (
             <Waiting key={w.link} job={w} bridge={bridge} fail={fail} />
           ))}
@@ -200,7 +200,7 @@ function Home({ v, bridge, fail, add }: { v: View; bridge: Bridge; fail: Fail; a
       )}
       {v.stopped.length > 0 && (
         <section className="mt-10">
-          <h3 className="mb-2 text-[13px] font-semibold text-ink-meta">Didn't go through</h3>
+          <h3 className="mb-2 text-note font-semibold text-ink-meta">Didn't go through</h3>
           {v.stopped.map((job) => (
             <Stopped key={job.key} job={job} bridge={bridge} fail={fail} />
           ))}
@@ -220,14 +220,14 @@ function Stopped({ job, bridge, fail }: { job: Job; bridge: Bridge; fail: Fail }
   };
   return (
     <div className="flex items-center gap-3 py-2.5">
-      <Logo company={job.company} src={job.source} size={32} />
+      <Logo company={job.company} src={job.source} size="md" />
       <div className="min-w-0 flex-1">
         <div className="font-semibold">{job.company}</div>
-        <div className="truncate text-xs text-ink-meta">{job.role}</div>
-        <div className="mt-0.5 text-xs text-ink-faint">{job.reason}</div>
+        <div className="truncate text-note text-ink-meta">{job.role}</div>
+        <div className="mt-0.5 text-note text-ink-meta">{job.reason}</div>
       </div>
       {job.retry && (
-        <Button className="h-8 px-3 text-[13px]" disabled={trying} onClick={retry}>
+        <Button className="h-8 px-3 text-note" disabled={trying} onClick={retry}>
           <ArrowClockwiseIcon className="size-3.5" /> {trying ? "Trying again…" : "Try again"}
         </Button>
       )}
@@ -244,12 +244,12 @@ function Waiting({ job, bridge, fail }: { job: Waits; bridge: Bridge; fail: Fail
   };
   return (
     <div className={cx("flex items-center gap-3 py-2", removing && "opacity-50")}>
-      <Logo company={job.company} src={job.source} size={28} />
+      <Logo company={job.company} src={job.source} size="sm" />
       <div className="min-w-0 flex-1">
-        <div className="truncate text-[13px] font-semibold">{job.company}</div>
-        {job.role && <div className="truncate text-xs text-ink-meta">{job.role}</div>}
+        <div className="truncate text-note font-semibold">{job.company}</div>
+        {job.role && <div className="truncate text-note text-ink-meta">{job.role}</div>}
       </div>
-      <Button tone="quiet" className="h-8 px-3 text-[13px]" disabled={removing} onClick={remove} aria-label={`Remove ${job.company}`}>
+      <Button tone="quiet" className="h-8 px-3 text-note" disabled={removing} onClick={remove} aria-label={`Remove ${job.company}`}>
         <XIcon className="size-3.5" /> Remove
       </Button>
     </div>
@@ -260,18 +260,18 @@ function Row({ job }: { job: Job }) {
   const submitted = job.status === "submitted";
   return (
     <div className="flex items-center gap-3 py-2.5">
-      <Logo company={job.company} src={job.source} size={32} />
+      <Logo company={job.company} src={job.source} size="md" />
       <div className="min-w-0 flex-1">
         <div className="font-semibold">{job.company}</div>
-        <div className="truncate text-xs text-ink-meta">{job.role}</div>
+        <div className="truncate text-note text-ink-meta">{job.role}</div>
       </div>
       {submitted ? (
-        <span className="flex items-center gap-1.5 text-[13px] font-semibold text-positive-ink">
+        <span className="flex items-center gap-1.5 text-note font-semibold text-positive-ink">
           <CheckIcon weight="bold" className="size-3.5" /> Submitted
         </span>
       ) : (
         <span className="w-28 text-right">
-          <span className="block text-xs text-ink-meta">{job.status === "checking" ? "Checking answers" : "Filling out"}</span>
+          <span className="block text-note text-ink-meta">{job.status === "checking" ? "Checking answers" : "Filling out"}</span>
           <span className="mt-1.5 block h-1 overflow-hidden rounded-full bg-border">
             {bar(job) === "unknown" ? (
               <span className="sweep block h-full w-1/3 rounded-full bg-brand" />
@@ -313,8 +313,8 @@ function Start({ app, back }: { app: AppMethods; back?: () => void }) {
   };
   return (
     <div className="pt-4">
-      <h1 className="text-center text-[32px] font-bold tracking-[-0.025em]">What should we apply to?</h1>
-      <p className="mt-1.5 text-center text-[15px] text-ink-meta">We fill out the applications. You check each one and press Submit.</p>
+      <h1 className="text-center text-heading">What should we apply to?</h1>
+      <p className="mt-1.5 text-center text-body text-ink-meta">We fill out the applications. You check each one and press Submit.</p>
       {started ? (
         <p role="status" className="mt-8 text-center text-ink-meta">
           Starting {links.length === 1 ? "your application" : `${links.length} applications`}…
@@ -322,25 +322,25 @@ function Start({ app, back }: { app: AppMethods; back?: () => void }) {
       ) : (
         <>
           {jobs.length > 0 && (
-            <div className="mt-8 rounded-[14px] border border-border bg-panel px-4 py-1.5">
+            <div className="mt-8 rounded-card border border-border bg-panel px-4 py-1.5">
               {jobs.map((q, i) => (
                 <label key={q.url} className="flex cursor-pointer items-center gap-3 border-b border-border py-2.5 last:border-0">
                   <input
                     type="checkbox"
                     checked={!!ticked[i]}
                     onChange={() => setTicked(ticked.map((t, j) => (j === i ? !t : t)))}
-                    className="size-[18px] accent-brand"
+                    className="size-4.5 accent-brand"
                   />
-                  <Logo company={q.company ?? ""} src={q} size={32} />
+                  <Logo company={q.company ?? ""} src={q} size="md" />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate font-semibold">{q.title || "A job"}</span>
-                    <span className="block text-xs text-ink-meta">{q.company}</span>
+                    <span className="block text-note text-ink-meta">{q.company}</span>
                   </span>
                 </label>
               ))}
             </div>
           )}
-          {note && <p className="mt-8 rounded-[14px] border border-border bg-panel px-4 py-3.5 text-center text-[13px] text-ink-meta">{note}</p>}
+          {note && <p className="mt-8 rounded-card border border-border bg-panel px-4 py-3.5 text-center text-note text-ink-meta">{note}</p>}
           <input
             value={link}
             onChange={(e) => setLink(e.target.value)}
@@ -355,11 +355,11 @@ function Start({ app, back }: { app: AppMethods; back?: () => void }) {
         {startWords(links.length)}
       </Button>
       {why && (
-        <p role="alert" className="mt-3 text-center text-[13px] text-ink-meta">
+        <p role="alert" className="mt-3 text-center text-note text-ink-meta">
           {why}
         </p>
       )}
-      <p className="mt-4 text-center text-xs text-ink-faint">WorkIt never presses Submit for you.</p>
+      <p className="mt-4 text-center text-note text-ink-meta">WorkIt never presses Submit for you.</p>
       {back && !started && (
         <div className="mt-6 text-center">
           <Button tone="quiet" onClick={back}>
@@ -380,8 +380,8 @@ function Applied({ jobs, app }: { jobs: Job[]; app: AppMethods }) {
   const all = appliedJobs(jobs, earlier);
   return (
     <>
-      <h1 className="text-[28px] font-bold tracking-[-0.025em]">Applied</h1>
-      <p className="mt-1 text-[15px] text-ink-meta">Everything you submitted, today and before. It's in your Tracker on WorkIt too.</p>
+      <h1 className="text-heading">Applied</h1>
+      <p className="mt-1 text-body text-ink-meta">Everything you submitted, today and before. It's in your Tracker on WorkIt too.</p>
       <div className="mt-6">{all.length ? all.map((job) => <Row key={job.key} job={job} />) : <p className="text-ink-meta">Nothing submitted yet.</p>}</div>
     </>
   );
