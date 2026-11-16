@@ -1,5 +1,5 @@
 // A pretend Apply, in the shape of `Dashboard.state()`, with a pretend queue and
-// Usage: the window's fixtures. Pick one with ?scenario=start|needs|ready|quiet,
+// Usage: the window's fixtures. Pick one with ?scenario=start|needs|questions|ready|quiet,
 // the day's model use with ?usage=near|cap, and the start screen's queue with
 // ?queue=empty|unread|refused (refused: Start gives #613's error). Answers and
 // approvals change it as Apply would, so the whole flow can be clicked through.
@@ -16,9 +16,31 @@ const ramp: Shown = {
   system: "Ashby",
   worker: 1,
   live: true,
-  questions: ["Are you authorized to work in the US?", "When can you start?"],
-  choices: { "Are you authorized to work in the US?": { kind: "single", options: ["Yes", "No"] } },
-  required: { "Are you authorized to work in the US?": true, "When can you start?": true },
+  // One question of each kind the card answers: buttons, a list, boxes to tick, a file, a planned answer the form
+  // refused, and optional ones to skip.
+  questions: [
+    "Are you authorized to work in the US?",
+    "Which offices could you work from?",
+    "How did you hear about us?",
+    "Upload your unofficial transcript",
+    "When can you start?",
+    "Anything else you'd like us to know?",
+  ],
+  choices: {
+    "Are you authorized to work in the US?": { kind: "single", options: ["Yes", "No"] },
+    "Which offices could you work from?": { kind: "multi_select", options: ["New York", "San Francisco", "Miami", "Remote"] },
+    "How did you hear about us?": { kind: "single", options: ["LinkedIn", "Handshake", "A friend", "Career fair", "WorkIt", "Other"] },
+    "Upload your unofficial transcript": { kind: "file", options: [] },
+  },
+  required: {
+    "Are you authorized to work in the US?": true,
+    "Which offices could you work from?": true,
+    "How did you hear about us?": false,
+    "Upload your unofficial transcript": true,
+    "When can you start?": true,
+    "Anything else you'd like us to know?": false,
+  },
+  planned: { "When can you start?": "Jun 2027" },
 };
 const nvidia: Shown = {
   id: "7",
@@ -71,6 +93,7 @@ const datadog: Shown = { tone: "submitted", company: "Datadog", role: "Software 
 
 const SCENARIOS: Record<string, () => ApplyState> = {
   start: () => ({ tiles: [], items: [], run: { queued: 0 } }),
+  questions: () => ({ tiles: [stripe], items: [ramp], run: { queued: 2 } }),
   needs: () => ({ tiles: [stripe, linear], items: [ramp, nvidia, figma, notion, vercel, datadog], run: { queued: 6 } }),
   ready: () => ({ tiles: [stripe], items: [notion, vercel], run: { queued: 3 } }),
   quiet: () => ({ tiles: [stripe, { ...linear }], items: [vercel, datadog], run: { queued: 4 } }),
