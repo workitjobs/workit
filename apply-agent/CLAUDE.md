@@ -368,6 +368,49 @@ into it and the window shows "Sample data".
   goes through `judged` (a throw blocks). A request's URL, method and body
   are read once, and what was judged is what is sent: an XHR keeps what its
   `open()` took, and one opened by no `open()` of the guard's is not sent.
+- **A GET form's submit reaches none of the page's handlers while a guard
+  is on** (KAN-868). A form with no method whose own submit handler posts
+  the application (a React form's onSubmit, by fetch to any URL) sent it past
+  both guards when a press of anything else of the form's submitted it: a
+  Next, a dropdown made of a submit button, one the page turned into a submit
+  button as it was pressed (the adversarial review of KAN-861). A test of the
+  form's buttons was got round each way the review of KAN-868 tried: a
+  Submit the press renamed, blanked or took away, one renamed on pointerdown,
+  one outside the form with no `form=`, a `<div>` of no role, words only in
+  CSS. So every submit of a form that doesn't POST is stopped: a GET form's,
+  and a dialog's, whose submit runs the page's handlers all the same. Only a
+  sign-in step goes on, and only under plain code's own sign-in press
+  (`apply.account_pages`, `let_account_click(sign_in=True)`, never a Next's
+  account click): its only boxes are an email or user name and passwords
+  (iCIMS's email step), and the page shows no other answer box anywhere, an
+  editable box, a radio, a tick or one in an open shadow root too (rounds 2
+  and 3 of the review put the answers outside the form). The residual: an
+  app whose answers a script holds, behind one email box, looks like a
+  sign-in step under that press. A wizard whose Next submits a GET form is a
+  step no code or model presses: a Handoff, the student's on the held page,
+  whose own press goes through as before. A form in a shadow root the page
+  wrote is heard as a script submits it, clicks in it or dispatches an event
+  in its root, and a closed one as its element's internals hand it over
+  (`hearRootOf`), as one a press passes through always was; an open one as
+  a script first reaches it (`shadowRoot`, `getRootNode()`, an event's
+  `composedPath()`), so the guard's listener there is the first. That
+  order can still be beaten from inside a root (a custom element in it
+  that listens on its root as it connects: round 4 of the review), so the
+  press itself is stopped too: a click on a submit button of a form that
+  doesn't POST is cancelled at the window, before any of the page's
+  listeners, and a script's `requestSubmit()` of one is refused. The sign-in
+  step's page check also reads same-origin frames and every root the guard
+  has heard, closed ones too. Whenever page code adds a `submit` listener,
+  the guard first hears that node's root (the `addEventListener` wrapper),
+  so code inside a root that walks up to it can't get there first, and an
+  Enter that submits with no click is stopped there (round 5). Plain
+  code's sign-in with a password goes on for a form that doesn't POST only
+  under Apply's own sign-in press and as a sign-in step: an application
+  that makes an account as it applies is a GET form with a password box. The guard
+  scripts are one function each, built from shared parts: a name two parts
+  declare stops the whole script with no error Apply sees, and every page
+  is unguarded. That happened twice while KAN-868 was built;
+  `tests/test_guard_scripts_compile.py` (CI) compiles each script.
 - **A request body is read as its server reads it, never by a regex on
   its text** (KAN-791). One regex on Ashby's `operationName` let through
   escaped JSON, a submit named only in `query`, a batch, and form or
