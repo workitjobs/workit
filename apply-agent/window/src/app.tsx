@@ -1,10 +1,11 @@
 // The window: one screen that answers "what do I do now?".
-import { ArrowClockwiseIcon, CheckIcon, GearSixIcon, PlusIcon, StopCircleIcon, XIcon } from "@phosphor-icons/react";
+import { ArrowClockwiseIcon, CheckIcon, GearSixIcon, MagnifyingGlassIcon, PlusIcon, StopCircleIcon, XIcon } from "@phosphor-icons/react";
 import { useEffect, useMemo, useState } from "react";
 
 import type { ApplyState, Run } from "./apply.ts";
 import type { AppliedJob, App as AppMethods, Bridge, Queued, Usage } from "./bridge.ts";
 import { TodoCard } from "./cards.tsx";
+import { Find } from "./find.tsx";
 import { Report } from "./report.tsx";
 import { Button, Logo, cx, pressed } from "./ui.tsx";
 import { type Job, type View, type Waits, addsJobs, appliedJobs, bar, chosen, headline, limit, notStarted, queueNote, STARTING_WAIT, startWords, view } from "./view.ts";
@@ -15,7 +16,7 @@ type Fail = (message: string) => void;
 export function App({ bridge }: { bridge: Bridge }) {
   const [state, setState] = useState<ApplyState | null>(null);
   const [app, setApp] = useState<AppMethods>({});
-  const [page, setPage] = useState<"home" | "applied" | "add">("home");
+  const [page, setPage] = useState<"home" | "applied" | "add" | "find">("home");
   const [toast, setToast] = useState("");
   const [lost, setLost] = useState(false); // /state's last ask got no answer: Apply stopped, or is restarting
   useEffect(
@@ -36,14 +37,21 @@ export function App({ bridge }: { bridge: Bridge }) {
   useEffect(() => {
     if (v) document.title = v.todo.length ? `WorkIt Auto Apply (${v.todo.length})` : "WorkIt Auto Apply";
   }, [v]);
+  // A run started from Find jobs or the queue: its board is home now.
+  useEffect(() => {
+    if (v?.running && (page === "add" || page === "find")) setPage("home");
+  }, [v?.running, page]);
   if (!v) return <Connecting lost={lost} />;
   // No run going: the queue, when the window has one to show (app_window.Bridge's app methods).
   // Add jobs brings it back once there is something else to show.
   const first =
     !!app.queue &&
     page !== "applied" &&
-    (page === "add" || (!v.todo.length && !v.working.length && !v.queued && !v.applied.length && !v.stopped.length));
+    (page === "add" || page === "find" || (!v.todo.length && !v.working.length && !v.queued && !v.applied.length && !v.stopped.length));
   const add = () => setPage("add");
+  // Find jobs (find.tsx) is where a student picks jobs, when the window can read their matches; the queue and a
+  // pasted link stay a click away from it.
+  const finds = !!app.matches && page !== "add";
   return (
     <div className="min-h-dvh">
       <header className="sticky top-0 z-10 flex h-13 items-center gap-2 border-b border-border bg-app/90 pr-5 pl-21 backdrop-blur">
@@ -53,7 +61,12 @@ export function App({ bridge }: { bridge: Bridge }) {
         </button>
         <nav className="ml-auto flex items-center gap-1 text-note">
           {v.running && !first && <Stop bridge={bridge} fail={setToast} />}
-          {addsJobs(v, !!app.start) && !first && (
+          {addsJobs(v, !!app.start) && !!app.matches && (
+            <Button tone="quiet" className={cx("h-8 px-3", first && finds && "bg-hover text-ink")} onClick={() => setPage("find")}>
+              <MagnifyingGlassIcon className="size-4" /> Find jobs
+            </Button>
+          )}
+          {addsJobs(v, !!app.start) && !app.matches && !first && (
             <Button tone="quiet" className="h-8 px-3" onClick={add}>
               <PlusIcon className="size-4" /> Add jobs
             </Button>
@@ -70,7 +83,7 @@ export function App({ bridge }: { bridge: Bridge }) {
           )}
         </nav>
       </header>
-      <main className="mx-auto max-w-window px-6 pt-12 pb-16">
+      <main className={cx("mx-auto px-6 pb-16", first && finds ? "max-w-3xl pt-6" : "max-w-window pt-12")}>
         <Limit app={app} run={state?.run} />
         {lost && (
           <p role="alert" className="mb-6 rounded-card border border-border bg-panel px-4 py-3 text-note text-ink-meta">
@@ -79,6 +92,8 @@ export function App({ bridge }: { bridge: Bridge }) {
         )}
         {page === "applied" ? (
           <Applied jobs={v.applied} app={app} />
+        ) : first && finds ? (
+          <Find app={app} queue={add} />
         ) : first ? (
           <Start app={app} back={page === "add" ? () => setPage("home") : undefined} />
         ) : (

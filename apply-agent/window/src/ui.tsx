@@ -35,8 +35,8 @@ const TINTS = [
   "bg-inert-tint text-ink-meta",
 ];
 
-// A tile's size and its initial's: a to-do card's, a row's, a waiting job's.
-const SIZES = { lg: "size-9 text-body", md: "size-8 text-label", sm: "size-7 text-note" };
+// A tile's size and its initial's: a Find jobs card's, a to-do card's, a row's, a waiting job's.
+const SIZES = { xl: "size-13 text-title", lg: "size-9 text-body", md: "size-8 text-label", sm: "size-7 text-note" };
 
 // A logo this close to square is a mark that fills the tile; a wider one is a wordmark, fitted on white.
 const SQUARE = { min: 0.8, max: 1.25 };

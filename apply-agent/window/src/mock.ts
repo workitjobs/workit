@@ -1,12 +1,12 @@
 // A pretend Apply, in the shape of `Dashboard.state()`, with a pretend queue and
 // Usage: the window's fixtures. Pick one with ?scenario=start|needs|questions|ready|quiet|stopped,
 // the day's model use with ?usage=near|cap, and the start screen's queue with
-// ?queue=empty|unread|refused (refused: Start gives app_window.Bridge's error), and how Apply answers with ?connect=slow|down
+// ?queue=empty|unread|refused (refused: Start gives app_window.Bridge's error), Find jobs' matches with ?matches=empty|unread, and how Apply answers with ?connect=slow|down
 // (slow: the first state after 2 s; down: no answer at all). Answers,
 // approvals, Remove and Stop change it as Apply would, so the whole flow can be clicked through. Report a problem
 // shows on the jobs with an application_id (Figma, Notion, Plaid) and sends nothing.
 import type { ApplyState, Shown, Waiting } from "./apply.ts";
-import type { Bridge, Queued, Usage } from "./bridge.ts";
+import type { Bridge, Match, Queued, Usage } from "./bridge.ts";
 
 const ramp: Shown = {
   id: "live-1",
@@ -129,6 +129,23 @@ const QUEUE: Queued[] = [
   { url: "https://nvidia.wd5.myworkdayjobs.com/1", company: "NVIDIA", title: "SWE Intern, Summer 2027", company_domain: "nvidia.com" },
 ];
 
+// Find jobs' matches (?matches=empty|unread for none, or the empty-bank refusal).
+const match = (company: string, company_domain: string, title: string, score: number, over: Partial<Match> = {}): Match => ({
+  id: company, url: `https://jobs.example/${company}`, company, company_domain, title, match: score,
+  highlights: [{ text: `Uses ${Math.round(score / 9)} of your skills`, met: true }, { text: "Fits your experience", met: true }],
+  location: "New York, NY", work_style: "hybrid", job_type: "internship", experience_level: "student",
+  salary_min: 45, salary_max: 55, salary_period: "hour", start_term: "Summer 2027",
+  posted_at: new Date(Date.now() - (score % 7) * 86_400_000).toISOString(), ...over,
+});
+const MATCHES: Match[] = [
+  match("Stripe", "stripe.com", "Software Engineer Intern (Summer 2027)", 94),
+  match("Datadog", "datadoghq.com", "Software Engineer Intern", 89, { salary_min: 48, salary_max: 48 }),
+  match("Waymo", "waymo.com", "ML Engineer Intern", 86, { location: "Mountain View, CA", work_style: "onsite", highlights: [{ text: "Uses 7 of your skills", met: true }, { text: "Prefers a PhD", met: false }] }),
+  match("Formlabs", "formlabs.com", "Embedded Software Intern", 84, { location: "Somerville, MA", work_style: "onsite", salary_min: null, salary_max: null }),
+  match("Ramp", "ramp.com", "Backend Engineer, New Grad", 81, { job_type: "full_time", experience_level: "new_grad", salary_min: 150000, salary_max: 180000, salary_period: "year", start_term: "Aug 2027" }),
+  match("Zillow", "zillow.com", "Data Engineer Intern", 72, { location: "Remote (US)", work_style: "remote", highlights: [{ text: "Uses 4 of your skills", met: true }, { text: "Missing Spark", met: false }] }),
+];
+
 const CAP = 400_000;
 const USED: Record<string, number> = { near: 340_000, cap: CAP };
 
@@ -191,6 +208,14 @@ export function mock(
       async queue() {
         if (queued === "unread") throw new Error("WorkIt Auto Apply couldn't read your queue (WorkIt didn't answer). Paste a link instead.");
         return queued === "empty" ? [] : QUEUE;
+      },
+      async matches(filters) {
+        await new Promise((done) => setTimeout(done, 1200));
+        const matches = new URLSearchParams(location.search).get("matches");
+        if (matches === "unread") throw new Error("Add your experience on WorkIt first, so we can find jobs that fit you.");
+        if (matches === "empty") return [];
+        const q = filters.q?.[0]?.toLowerCase();
+        return MATCHES.filter((m) => (!q || `${m.title} ${m.company}`.toLowerCase().includes(q)) && (!filters.job_type?.length || filters.job_type.includes(m.job_type!)) && (!filters.work_style?.length || filters.work_style.includes(m.work_style!)));
       },
       async start(links: string[]) {
         await new Promise((done) => setTimeout(done, 800));

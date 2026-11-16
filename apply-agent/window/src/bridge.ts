@@ -2,7 +2,7 @@
 // - routes: the Apply window's existing routes, through plain fetch with the window's token. In WorkIt Auto Apply's
 //   window, app_window.SHIM carries each fetch to Dashboard.respond, with no port; a window
 //   dashboard.py serves gets the same calls over its own address.
-// - app methods: app_window.Bridge's js_api methods (queue, applied, start, status, usage, settings, review_report,
+// - app methods: app_window.Bridge's js_api methods (queue, applied, matches, start, status, usage, settings, review_report,
 //   send_report), used only when the window has them.
 //   A Developer checkout's window has none, so the page shows the run as it is.
 // - mock: fixtures, to design and screenshot the window with no Apply running (mock.ts).
@@ -12,12 +12,31 @@ import { said } from "./words.ts";
 export type Upload = { name: string; data: string }; // a file's name and its bytes in base64
 export type Queued = QueuedJob & { url: string }; // a job in the student's Auto Apply queue on WorkIt
 export type AppliedJob = Queued & { applied_at?: string | null }; // one the student applied to, on WorkIt
+// One of Find jobs' matches (app_window.Bridge.matches): a job as the queue names it, with its card's facts.
+export type Match = Queued & {
+  id: string;
+  match: number | null;
+  highlights: { text: string; detail?: string | null; met: boolean }[];
+  location?: string | null;
+  location_label?: string | null;
+  work_style?: "onsite" | "hybrid" | "remote" | null;
+  job_type?: string | null;
+  experience_level?: "student" | "new_grad" | "experienced" | null;
+  salary_min?: number | null;
+  salary_max?: number | null;
+  salary_period?: string | null;
+  start_term?: string | null;
+  posted_at?: string | null;
+};
+// The Jobs page's filters Find jobs passes on, each a list of the values the website's own URL carries.
+export type Filters = Partial<Record<"q" | "location" | "work_style" | "role" | "experience" | "job_type" | "posted_within", string[]>>;
 export type Usage = { used: number; cap: number; resets_at: string }; // model tokens today, and when the count resets
 
 // app_window.Bridge's app methods. Each is there only when the window gives it.
 export type App = Partial<{
   queue(): Promise<Queued[]>;
   applied(): Promise<AppliedJob[]>;
+  matches(filters: Filters): Promise<Match[]>;
   start(links: string[]): Promise<number>;
   status(): Promise<{ running: boolean; said: string }>;
   usage(): Promise<Usage>;
@@ -61,7 +80,7 @@ async function called<T>(method: (...args: unknown[]) => Promise<unknown>, ...ar
   return got as T;
 }
 
-export const NAMES = ["queue", "applied", "start", "status", "usage", "settings", "review_report", "send_report"] as const;
+export const NAMES = ["queue", "applied", "matches", "start", "status", "usage", "settings", "review_report", "send_report"] as const;
 
 function appMethods(): Promise<App> {
   return new Promise((done) => {
