@@ -203,10 +203,10 @@ def test_a_held_page_with_something_to_fix_says_so_in_red(job_server):
         guard(page)
         lift(page, warning="Pre-submit review: Postgrad Discipline(s) ticked, but he is an undergraduate")
         note = page.locator("#apply-rehearsal-blocked")
-        text, color = note.inner_text(), note.evaluate("e => getComputedStyle(e).backgroundColor")
+        text, tone = note.inner_text(), note.get_attribute("data-tone")
 
-    assert text.startswith("Apply rehearsal: fix this before you submit. Pre-submit review: Postgrad Discipline(s)")
-    assert color == "rgb(176, 0, 32)"
+    assert text.startswith("WorkIt Please fix this before you submit\nPre-submit review: Postgrad Discipline(s)")
+    assert tone == "fix"
 
 
 US_PERSON_WRONG = ('The U.S. Person status question is answered "No", but the profile says he is a U.S. citizen, '
@@ -231,16 +231,16 @@ def test_a_legal_answer_the_review_found_wrong_holds_lisuls_submit_until_he_dism
         page.get_by_role("button", name="Submit application").click()
         page.wait_for_timeout(1000)
         _post(page, FINAL_POST["greenhouse"][2])
-        held = (note.inner_text(), note.evaluate("e => getComputedStyle(e).backgroundColor"), len(job_server.submissions))
+        held = (note.inner_text(), note.get_attribute("data-tone"), len(job_server.submissions))
         page.get_by_role("button", name="Dismiss").click()
         page.wait_for_timeout(300)
         renote(page, held="")  # what the hold's loop does once the dismissal is saved
         page.get_by_role("button", name="Submit application").click()
         page.wait_for_timeout(1500)
 
-    text, color, sent = held
-    assert text.startswith("Apply rehearsal: Submit is held. Fix this answer, then press Dismiss: The U.S. Person")
-    assert color == "rgb(176, 0, 32)" and sent == 0 and pressed == ["Submit application"]
+    text, tone, sent = held
+    assert text.startswith("WorkIt Check this answer before you submit\nThe U.S. Person")
+    assert tone == "fix" and sent == 0 and pressed == ["Submit application"]
     assert dismissed == [True]
     assert len(job_server.submissions) == 1
 
@@ -255,18 +255,18 @@ def test_a_held_submit_stays_held_on_the_pages_lisul_loads_next():
             _post(page, script)
             shown = page.locator("#apply-rehearsal-blocked").inner_text()
         assert fake.submissions == []
-    assert "Submit is held" in shown
+    assert "Check this answer before you submit" in shown
 
 
 def test_a_held_page_with_only_a_field_left_blank_says_so_in_amber(job_server):
     with job_server.open(ARC_URL) as page:
         guard(page)
-        lift(page, warning="Left blank: If referred by an employee, their name", wrong=False)
+        lift(page, warning="Please fill in: If referred by an employee, their name", wrong=False)
         note = page.locator("#apply-rehearsal-blocked")
-        text, color = note.inner_text(), note.evaluate("e => getComputedStyle(e).backgroundColor")
+        text, tone = note.inner_text(), note.get_attribute("data-tone")
 
-    assert text.startswith("Apply rehearsal: check before you submit. Left blank:")
-    assert color == "rgb(138, 90, 0)"
+    assert text.startswith("WorkIt Please check before you submit\nPlease fill in:")
+    assert tone == "check"
 
 
 class _Guarded:

@@ -1,7 +1,7 @@
 {
   "name": "WorkIt Auto Apply Worker",
   "description": "Lets the WorkIt Auto Apply app fill job applications in its own Chrome windows. It works only with the app.",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "code": "c19ba62227b33dbb",
-  "files": "061f5b090b633919"
+  "files": "05aee96a8c415d01"
 }
