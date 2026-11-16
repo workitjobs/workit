@@ -250,6 +250,7 @@ jobs:
             tests/test_fill_engine.py \
             tests/test_focus.py \
             tests/test_form_steps.py \
+            tests/test_guard_scripts_compile.py \
             tests/test_gates.py \
             tests/test_gmail.py \
             tests/test_graduate_only.py \
