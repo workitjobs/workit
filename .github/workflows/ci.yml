@@ -87,6 +87,7 @@ jobs:
     outputs:
       extension: ${{ steps.filter.outputs.extension }}
       apply: ${{ steps.filter.outputs.apply }}
+      apply_window: ${{ steps.filter.outputs.apply_window }}
       hostile_pages: ${{ steps.filter.outputs.hostile_pages }}
       backend: ${{ steps.filter.outputs.backend }}
     steps:
@@ -119,6 +120,12 @@ jobs:
               - .github/workflows/engine-token.yml
               - .github/actions/apply-setup/**
               - .github/actions/apply-browsers/**
+            # The student page's source and the built file a Student build ships (KAN-867)
+            apply_window:
+              - apply-agent/window/**
+              - apply-agent/src/apply/student_page/**
+              - .nvmrc
+              - .github/workflows/ci.yml
             # What the hostile pages' control reads (KAN-780): the pages, the fake site, Chromium (uv.lock pins
             # Playwright) and the runner's setup. The control runs no Apply code, so no other change can turn it red.
             # A module of tests/ that the hostile file or conftest.py imports joins the list.
@@ -343,6 +350,33 @@ jobs:
             tests/test_plain_routing.py \
             tests/test_plain_typing.py \
             tests/test_upload_origin.py
+
+  # The student page (apply-agent/window/, KAN-867): its view model's tests, then its build, which must match the file
+  # committed into the package (apply/student_page/index.html), so the page a Student build ships can't drift from its
+  # source. Rebuild it with `npm run build` in apply-agent/window and commit the file.
+  apply-window:
+    needs: changes
+    if: needs.changes.outputs.apply_window == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: apply-agent/window
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: apply-agent/window/package-lock.json
+      - run: npm ci
+      - run: npm test
+      # The page's logos load from Brandfetch with the website's public client id (KAN-871), as deploy.yml builds
+      # the website with it; the committed page is built with it too.
+      - run: npm run build
+        env:
+          NEXT_PUBLIC_BRANDFETCH_CLIENT_ID: ${{ vars.NEXT_PUBLIC_BRANDFETCH_CLIENT_ID }}
+      - run: git diff --exit-code -- ../src/apply/student_page
 
   # The submit guard's hostile pages (KAN-666) on a runner of their own, beside the apply job, so a PR waits for the
   # longer of the two, not their sum (KAN-780). Limits as in the apply job: the job's is its steps' sum.

@@ -249,6 +249,37 @@ def test_the_student_builds_data_folder_is_the_systems_own_place():
     assert shown == "True"
 
 
+def test_a_stopped_run_ends_only_once_its_workers_profiles_are_free(monkeypatch):
+    """KAN-874. Fault: Stop takes the window back to the queue while a stopped fill's Chrome still holds its Worker
+    profile, so a Start right after it fails with "worker-1 open in another browser"."""
+    from apply.browsers import ProfileInUse
+
+    class Site:
+        busy = 3  # the stopped fill's Chrome quits after three looks
+
+        def endpoint(self, worker):
+            return None
+
+        def close(self):
+            pass
+
+        def refuse_in_use(self):
+            if self.busy:
+                self.busy -= 1
+                raise ProfileInUse("worker-1 open in another browser")
+
+    site = Site()
+    made = SimpleNamespace(site=site, answer_bank=None, keychain=None, everyday=None,
+                           tracker=SimpleNamespace(rows=list, employer_accounts=list))
+    monkeypatch.setattr(student, "FREE_POLL", 0.0)
+    monkeypatch.setattr(student, "workers", lambda: 1)
+    runs = student.Runs({}, make=lambda profile: made, rehearse=lambda *args: None)
+
+    runs.run(["https://jobs.lever.co/acme/1"], lambda board: None)
+
+    assert site.busy == 0
+
+
 def test_the_student_builds_tracker_outlives_a_launch_and_writes_workit(student_build):
     """Fault: the Student build's Tracker in memory, so its Employer accounts (and the passwords Remove All My Data
     removes) were lost at each launch, and the student's own Submit never reached their Applications Tracker."""

@@ -6,6 +6,7 @@ no `claude -p` (no drive, no research), no Gmail, no notifications or phone push
 starts here (`app`, which `uv run apply app` runs) and calls `rehearsal.rehearse` with them.
 """
 
+import time
 from collections.abc import Callable
 from pathlib import Path
 
@@ -23,9 +24,10 @@ from apply import (
 from apply.accounts_tab import AccountsTab
 from apply.adapters import Adapters, ClaudeError, UsageReading
 from apply.answer_bank import FILE as ANSWER_BANK
-from apply.answers_tab import AnswersTab
+from apply.answers_tab import AnswersTab, saving_answers
 from apply.applicant import as_applicant
 from apply.ask_model import live_claude
+from apply.browsers import ProfileInUse
 from apply.clock import SystemClock
 from apply.dashboard import Dashboard, NoFrames
 from apply.feed import live_feed
@@ -133,6 +135,27 @@ def tracker_url() -> str:
     return f"{site().web}/applications"
 
 
+# A stopped run ends once its Workers' Chromes have let go of their profiles, so a Start right after Stop finds them
+# free (KAN-874): a fill under way when Stop came runs on to its own end. At most FREE_WAIT seconds, looked at each
+# FREE_POLL.
+FREE_WAIT = 60.0
+FREE_POLL = 0.5
+
+
+def free(site) -> None:
+    """Wait till no Worker profile of `site` is open in a Chrome, at most FREE_WAIT seconds."""
+    refuse = getattr(site, "refuse_in_use", None)
+    ending = time.monotonic() + FREE_WAIT
+    while refuse:
+        try:
+            refuse()
+            return
+        except ProfileInUse:
+            if time.monotonic() >= ending:
+                return
+            time.sleep(FREE_POLL)
+
+
 class Runs:
     """The window's runs (W5 step 4): each Start rehearses its links in the Workers and shows the run's own Apply
     window, its tiles, while it goes. Apply never presses Submit: each form is held for the student."""
@@ -156,12 +179,14 @@ class Runs:
                               quiet=getattr(site, "plain", None), everyday=made.everyday, accounts=accounts,
                               sample=self._profile.get("sample_data") is True, tracker_url=tracker_url(),
                               back=(lambda worker: in_front(worker) and app_window.bring_forward()) if in_front else None,
-                              notify=app_window.notify, serve=False) as board:
+                              notify=app_window.notify, answer=saving_answers(lambda: made.tracker, answers),
+                              serve=False) as board:
                 made.board = board
                 show(board)
                 self._rehearse(links, made, self._profile, workers())
         finally:
             self.close()
+            free(site)
 
     def close(self) -> None:
         """Stop the run's plain Workers' Chromes, which outlive the app (worker_tiles.close_workers)."""

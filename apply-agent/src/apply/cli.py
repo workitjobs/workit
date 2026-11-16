@@ -30,12 +30,10 @@ from apply import (
     data_command,
     doctor,
     employer_mail,
-    essays,
     home,
     into,
     masked,
     native_host,
-    on_page,
     orchestrator,
     own_application,
     preflight,
@@ -57,6 +55,7 @@ from apply.adapters import Adapters
 from apply.answer_bank import FILE as ANSWER_BANK
 from apply.answer_bank import AnswerBank
 from apply.answers_tab import AnswersTab
+from apply.answers_tab import saving_answers as _answering
 from apply.applicant import as_applicant
 from apply.ask_model import live_claude
 from apply.browsers import ProfileInUse, WorkerBrowsers
@@ -841,35 +840,6 @@ def _answers_window(profile: Path, window: Path) -> None:
 def _accounts_tab(tracker: Callable[[], object], keychain, everyday: Callable[[str], None]) -> AccountsTab:
     """The window's Accounts tab over the Tracker's Employer accounts, their passwords in Keychain (KAN-591)."""
     return AccountsTab(lambda: tracker().employer_accounts(), keychain, rows=lambda: tracker().rows(), everyday=everyday)
-
-
-def _answering(tracker: Callable[[], object], tab: AnswersTab) -> Callable[[dict, str, str], str]:
-    """Save Lisul's answer typed in the Inbox where Apply reads it: a run's
-    Missing fact in its Tracker row's Answer cell, as if he typed it in the
-    Sheet, so the next check fills that Application again with it; a
-    rehearsal's into his Applicant profile, for every form after, or, for
-    what an essay asked him, into the Story bank, for every essay after. A
-    bare date (From, To) is that form's alone: never saved by its label.
-    The same for his answer typed on the held form itself (Board.typed).
-    An empty answer is his Skip of an optional question (KAN-759): kept as
-    an empty answer in his profile, so no later form asks it again."""
-    def answer(item: dict, question: str, text: str) -> str:
-        if not text.strip():
-            if question.startswith(essays.ASK) or on_page.bare(question):
-                return "Skipped: it's optional, so this form leaves it blank."
-            tab.save_skipped(question)
-            return "Skipped: the form leaves it blank, and Apply won't ask it again."
-        if item.get("status") == "missing fact" and item.get("application_id"):
-            tracker().answer(item["application_id"], text)
-            return f"Saved your answer for {item.get('company') or 'it'}: it goes on at the next check."
-        if question.startswith(essays.ASK):
-            essays.remember_fact(question, text, item.get("company") or "", SystemClock().now().date())
-            return "Saved to your Story bank: the essay is written with it next time."
-        if on_page.bare(question):  # a bare From or To: true of one section of this form only (KAN-595)
-            return "Kept on this form only: a bare date isn't saved to your facts without what it is for."
-        tab.save_answered(question, text)
-        return "Saved to your facts: every form that asks it gets this answer."
-    return answer
 
 
 def _approving(tracker: Callable[[], object]) -> Callable[[str], str]:

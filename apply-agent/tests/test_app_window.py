@@ -117,6 +117,34 @@ def test_the_shim_comes_before_the_pages_scripts(board):
     assert page.index(SHIM) < page.index("const workers")
 
 
+def test_the_apps_window_shows_the_student_page_with_the_shim_and_the_token_before_its_scripts(board):
+    """Fault: the app's window still shows the developer page, or the student page's first fetch goes out before the
+    shim replaces fetch, or without the window's token, so every edit is refused."""
+    bridge = Bridge(board, WorkIt(workit.LIVE), start=lambda links, show: None)
+    page = bridge._page()
+    assert page == app_window.student_page(board)
+    assert "What should we apply to?" in page and "const workers" not in page
+    script = page.index("<script type=\"module\"")
+    assert page.index(SHIM) < script
+    assert page.index(f'window.APPLY_TOKEN = "{board.token}"') < script
+
+
+def test_a_student_page_built_without_its_charset_meta_still_gets_the_shim_and_token_first(board, tmp_path, monkeypatch):
+    """Fault: a build that writes <meta charset> another way leaves the shim and token out, so the page runs the mock."""
+    built = tmp_path / "index.html"
+    built.write_text('<!doctype html><meta charset=UTF-8><script type="module">go()</script>', encoding="utf-8")
+    monkeypatch.setattr(app_window, "STUDENT_PAGE", built)
+    page = app_window.student_page(board)
+    script = page.index('<script type="module"')
+    assert page.index(SHIM) < script
+    assert page.index(f'window.APPLY_TOKEN = "{board.token}"') < script
+
+
+def test_a_window_that_runs_nothing_keeps_the_developer_page(board):
+    """Fault: a Developer checkout's window, which has no queue or Start, loses the developer page."""
+    assert Bridge(board, WorkIt(workit.LIVE))._page() == app_window.page(board)
+
+
 def test_sign_in_opens_workits_page_and_its_code_signs_the_window_in(board, tmp_path):
     """Fault: the window keeps no verifier, shows the Apply window before first run is done, or never after it."""
     with FakeWorkIt() as fake:
@@ -174,13 +202,13 @@ def test_start_shows_the_runs_window_then_the_queue_again_and_says_why_one_stopp
         if shown:
             break
         threading.Event().wait(0.02)
-    assert window.loaded[-1] == app_window.page(shown[0], usage=True)  # the run's tiles, with no queue
+    assert window.loaded[-1] == app_window.student_page(shown[0])  # the run's own board
     go.set()
     for _ in range(100):
         if not bridge.status()["running"]:
             break
         threading.Event().wait(0.02)
-    assert window.loaded[-1] == app_window.page(board, panel=True, usage=True)  # the queue again
+    assert window.loaded[-1] == app_window.student_page(board)  # the idle board: the queue again
     bridge.start(["https://jobs.lever.co/acme/3"])
     for _ in range(100):
         if bridge.status()["said"]:
@@ -189,13 +217,46 @@ def test_start_shows_the_runs_window_then_the_queue_again_and_says_why_one_stopp
     assert bridge.status() == {"running": False, "said": "WorkIt refused this Fill engine."}
 
 
+def test_stop_applying_through_the_bridge_returns_the_window_to_the_queue(board):
+    """KAN-874. Fault: the shim can't reach /stop, or the window stays on a stopped run's board."""
+    import threading
+
+    shown, stopped = [], threading.Event()
+
+    def start(links, show):
+        with Dashboard(len(links), OneFrame(), serve=False) as run_board:
+            run_board.stopping(stopped.set)  # as rehearsal.rehearse hands it its stop
+            show(run_board)
+            shown.append(run_board)
+            stopped.wait(5)
+
+    window = Window()
+    bridge = Bridge(board, WorkIt(workit.LIVE), start=start)
+    bridge._window = window
+    bridge.start(["https://jobs.lever.co/acme/1"])
+    for _ in range(100):
+        if shown:
+            break
+        threading.Event().wait(0.02)
+    assert bridge.request("POST", "/stop", {"X-Apply-Token": "guessed"}, "")["status"] == 403
+    assert not stopped.is_set()
+    assert bridge.request("POST", "/stop", {"X-Apply-Token": shown[0].token}, "")["status"] == 204
+    for _ in range(100):
+        if not bridge.status()["running"]:
+            break
+        threading.Event().wait(0.02)
+    assert window.loaded[-1] == app_window.student_page(board)  # the idle board: the queue again
+
+
 def test_the_queue_is_the_students_open_queued_jobs_oldest_first(board, tmp_path):
-    """Fault: a closed job in the queue, or a job board's page where its employer's form was named."""
+    """Fault: a closed job in the queue, a job board's page where its employer's form was named, or a job without the
+    logo sources the website draws it with."""
     from fake_workit import Reply
 
     rows = [
         {"job": {"apply_url": "https://www.linkedin.com/jobs/3", "form_url": "https://jobs.lever.co/acme/3",
-                 "company": "Acme", "title": "Intern"}, "open": True},
+                 "company": "Acme", "title": "Intern", "logo_url": "https://www.google.com/s2/favicons?domain=acme.com",
+                 "company_domain": "acme.com"}, "open": True},
         {"job": {"apply_url": "https://boards.greenhouse.io/x/2", "company": "X", "title": "Gone"}, "open": False},
         {"job": {"apply_url": "https://boards.greenhouse.io/y/1", "company": "Y", "title": "Analyst"}, "open": True},
     ]
@@ -205,9 +266,82 @@ def test_the_queue_is_the_students_open_queued_jobs_oldest_first(board, tmp_path
         client = WorkIt(fake.site, tmp_path / "workit-login.json", fake.keychain)
         workit.login(client, fake.browser)
         assert Bridge(board, client).queue() == [
-            {"url": "https://boards.greenhouse.io/y/1", "company": "Y", "title": "Analyst"},
-            {"url": "https://jobs.lever.co/acme/3", "company": "Acme", "title": "Intern"},
+            {"url": "https://boards.greenhouse.io/y/1", "company": "Y", "title": "Analyst", "logo_url": None,
+             "company_domain": None},
+            {"url": "https://jobs.lever.co/acme/3", "company": "Acme", "title": "Intern",
+             "logo_url": "https://www.google.com/s2/favicons?domain=acme.com", "company_domain": "acme.com"},
         ]
+
+
+def test_applied_is_what_the_student_applied_to_on_workit_newest_first(board, tmp_path):
+    """Fault (story 36): the Applied page lists only this run's jobs, not what the student applied to before."""
+    from fake_workit import Reply
+
+    rows = [
+        {"job": {"apply_url": "https://jobs.lever.co/acme/3", "company": "Acme", "title": "Intern",
+                 "company_domain": "acme.com"}, "stage": "applied", "applied_at": "2026-11-14T10:00:00Z", "open": False},
+        {"job": {"apply_url": "https://www.linkedin.com/jobs/2", "form_url": "https://boards.greenhouse.io/y/1",
+                 "company": "Y", "title": "Analyst"}, "stage": "applied", "applied_at": None, "open": True},
+    ]
+    with FakeWorkIt() as fake:
+        fake.route("GET", f"/applicants/{fake.account['id']}/applications",
+                   lambda seen, fake: Reply(200, rows) if seen.path.endswith("stage=applied") else Reply(400))
+        client = WorkIt(fake.site, tmp_path / "workit-login.json", fake.keychain)
+        workit.login(client, fake.browser)
+        assert Bridge(board, client).applied() == [
+            {"url": "https://jobs.lever.co/acme/3", "company": "Acme", "title": "Intern", "logo_url": None,
+             "company_domain": "acme.com", "applied_at": "2026-11-14T10:00:00Z"},
+            {"url": "https://boards.greenhouse.io/y/1", "company": "Y", "title": "Analyst", "logo_url": None,
+             "company_domain": None, "applied_at": None},
+        ]
+        fake.route("GET", f"/applicants/{fake.account['id']}/applications", lambda seen, fake: Reply(500))
+        assert "error" in Bridge(board, client).applied()
+
+
+def test_a_runs_window_draws_each_queued_job_with_the_logo_the_queue_gave(board, tmp_path):
+    """Fault: a job ticked in the queue lost its logo once its run started (KAN-871)."""
+    from fake_workit import Reply
+
+    rows = [{"job": {"apply_url": "https://jobs.lever.co/acme/3", "company": "Acme", "title": "Intern",
+                     "logo_url": "https://www.google.com/s2/favicons?domain=acme.com", "company_domain": "acme.com"},
+             "open": True}]
+    with FakeWorkIt() as fake:
+        fake.route("GET", f"/applicants/{fake.account['id']}/applications", lambda seen, fake: Reply(200, rows))
+        client = WorkIt(fake.site, tmp_path / "workit-login.json", fake.keychain)
+        workit.login(client, fake.browser)
+        bridge = Bridge(board, client, start=lambda links, show: None)
+        bridge.queue()
+    with Dashboard(1, OneFrame(), serve=False) as run_board:
+        bridge.show_board(run_board)
+        run_board.update(0, company="Acme", link="https://jobs.lever.co/acme/3", status="filling")
+        tile = run_board.state()["tiles"][0]
+    assert (tile["company_domain"], tile["logo_url"]) == ("acme.com", "https://www.google.com/s2/favicons?domain=acme.com")
+
+
+def test_a_runs_window_names_each_job_waiting_to_start_as_the_queue_did(board, tmp_path):
+    """KAN-874. Fault: the jobs waiting to start show as bare links, so the student can't tell which to remove."""
+    from fake_workit import Reply
+
+    rows = [{"job": {"apply_url": "https://jobs.lever.co/acme/3", "company": "Acme", "title": "Intern",
+                     "logo_url": "https://www.google.com/s2/favicons?domain=acme.com", "company_domain": "acme.com"},
+             "open": True}]
+    with FakeWorkIt() as fake:
+        fake.route("GET", f"/applicants/{fake.account['id']}/applications", lambda seen, fake: Reply(200, rows))
+        client = WorkIt(fake.site, tmp_path / "workit-login.json", fake.keychain)
+        workit.login(client, fake.browser)
+        bridge = Bridge(board, client, start=lambda links, show: None)
+        bridge.queue()
+    with Dashboard(2, OneFrame(), serve=False) as run_board:
+        bridge.show_board(run_board)
+        run_board.run(waiting=["https://jobs.lever.co/acme/3", "https://jobs.example/pasted"])
+        run_board.update(0, company="Acme Corp", link="https://jobs.lever.co/acme/3", status="filling")
+        state = run_board.state()
+    assert state["run"]["waiting"] == [
+        {"link": "https://jobs.lever.co/acme/3", "company": "Acme", "title": "Intern", "company_domain": "acme.com",
+         "logo_url": "https://www.google.com/s2/favicons?domain=acme.com"},
+        {"link": "https://jobs.example/pasted"},  # a pasted link: no WorkIt job to name it
+    ]
+    assert state["tiles"][0]["company"] == "Acme Corp"  # the queue's name never covers the form's own
 
 
 def test_a_run_rehearses_its_links_with_the_students_worker_count_and_closes_its_workers(monkeypatch, tmp_path):
@@ -242,6 +376,39 @@ def test_a_run_rehearses_its_links_with_the_students_worker_count_and_closes_its
     assert shown[0].url == NO_PORT and closed == [site]
     # History's link goes to the student's Applications Tracker on WorkIt, opened in the default browser.
     assert shown[0].state()["context"]["tracker_url"] == f"{workit.site().web}/applications"
+
+
+def test_a_runs_board_takes_the_students_answer_through_the_route(monkeypatch, tmp_path):
+    """Fault: a Student run's board has no answer, so /answer is 404 and the page's question card can't save."""
+    from contextlib import nullcontext
+    from types import SimpleNamespace
+
+    from apply import first_run, student, worker_tiles
+    from apply.keychain import InMemoryKeychain
+    from apply.tracker import InMemoryTracker
+
+    monkeypatch.setattr(dashboard, "ThreadingHTTPServer", no_server)
+    monkeypatch.setattr(worker_tiles, "frames_for", lambda site, tiles: nullcontext(OneFrame()))
+    monkeypatch.setattr(worker_tiles, "close_workers", lambda site: None)
+    monkeypatch.setattr(first_run, "STATE", tmp_path / "app.json")
+    saved = []
+    tab = SimpleNamespace(save_answered=lambda question, answer: saved.append((question, answer)))
+    monkeypatch.setattr(student, "AnswersTab", lambda *a, **k: tab)
+    site = SimpleNamespace(show=lambda worker: True, plain=lambda worker: False)
+    made = SimpleNamespace(site=site, answer_bank=None, tracker=InMemoryTracker(), keychain=InMemoryKeychain(),
+                           everyday=lambda url: None, board=None)
+    replies = []
+
+    def rehearse(links, adapters, profile, workers):
+        board = adapters.board
+        board.update(0, company="Acme", posting_url=links[0], status="filling", missing=["When can you start?"])
+        body = '{"id": "live-0", "question": "When can you start?", "answer": "June 2027"}'
+        replies.append(Bridge(board, WorkIt(workit.LIVE)).request("POST", "/answer", {"X-Apply-Token": board.token}, body))
+
+    student.Runs(SimpleNamespace(get=lambda key: None), make=lambda profile: made, rehearse=rehearse) \
+        .run(["https://jobs.lever.co/acme/1"], lambda board: None)
+    assert replies[0]["status"] == 200, replies[0]
+    assert saved == [("When can you start?", "June 2027")]
 
 
 def test_remove_all_my_data_only_in_the_student_build_and_never_during_a_run(board, tmp_path, monkeypatch):
