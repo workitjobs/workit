@@ -354,6 +354,13 @@ Find files with a directory listing; these are the rules for where code goes.
   feature picks a size there; it never builds an `LLM` itself, so the
   `SCOUT_*` settings stay the one place a model is named
   (`../scout/CLAUDE.md`, "Which model, where").
+- **WorkIt Auto Apply's Send report** (`routers/apply_reports.py`, D26,
+  KAN-837): `POST /apply-app/reports` keeps a report from the app's
+  support form (a category, the student's words, whether WorkIt may email
+  them, and an Application's Record and masked Trace if they include
+  one); admins read them, with the student's email, under
+  `/admin/apply-reports` and `DELETE` one once its problem is fixed, so the
+  table has no retention period (`services/retention.py` says why).
 - **WorkIt Auto Apply's Model route** (`routers/apply_app.py`, KAN-723,
   `../docs/desktop_application_auto_apply.md`, W1) runs the desktop app's
   `ask`s. **`POST /apply-app/ask` builds each prompt on the server** (D5):
@@ -1662,7 +1669,20 @@ Find files with a directory listing; these are the rules for where code goes.
   Settings opt-in, default off. One applicant's failure (empty bank, a
   bounced email) is caught and counted, never stopping the run;
   `--dry-run` builds and reports every digest, writing and sending
-  nothing. Tests: `tests/test_job_alerts.py`, `tests/test_notifications.py`,
+  nothing. **The email's design** (KAN-790): a purple rounded frame with a
+  small cartoon hand-and-handle SVG above it (`_BRIEFCASE_HANDLE`,
+  hand-authored, Outlook just shows the plain border since it can't render
+  inline SVG), a colored match-score badge (the same bands as the Jobs
+  page's ring), a company logo or initial, and up to three tags: work
+  style, job type, and a degree level read live from the posting's own
+  description text (`_degree_label`) — WorkIt stores no such field, so
+  rather than a migration, `_fetch_descriptions` pulls description text for
+  just the picked batch after `build_digest` (never widening
+  `LISTING_COLUMNS`, which every other `fetch_recommended` caller pays
+  for). Only an explicit "degree"/"pursuing" phrase next to the level
+  counts; a bare mention (a founder's bio, a lab name) is left untagged on
+  purpose, since a missed tag is far cheaper than a wrong one. Tests:
+  `tests/test_job_alerts.py`, `tests/test_notifications.py`,
   `tests/test_email.py`.
 - **Notices to every user** (KAN-483, `services/notices.py`;
   `docs/email-sending.md` has the SES and DNS steps). `scripts/send_notice.py`

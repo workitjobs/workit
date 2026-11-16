@@ -237,6 +237,7 @@ jobs:
             tests/test_back_to_app.py \
             tests/test_bot_signals.py \
             tests/test_captcha.py \
+            tests/test_chrome_reaper.py \
             tests/test_claude_answers.py \
             tests/test_claude_cli.py \
             tests/test_clock.py \
@@ -278,6 +279,7 @@ jobs:
             tests/test_records_contract.py \
             tests/test_regenerate.py \
             tests/test_repair_requests.py \
+            tests/test_report.py \
             tests/test_requests.py \
             tests/test_rescue_elsewhere.py \
             tests/test_resume_check.py \

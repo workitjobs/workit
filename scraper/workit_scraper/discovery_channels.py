@@ -13,6 +13,7 @@ import re
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from html.parser import HTMLParser
+from pathlib import Path
 from typing import Protocol
 from urllib.parse import parse_qs, urlencode, urlsplit
 
@@ -264,6 +265,16 @@ POOL_PAGES = {
 }
 
 
+def _pool_evidence(ats_map: dict, source: str) -> list[Evidence]:
+    """Board evidence from a pool's ``{ats: [slug, ...]}`` map, using POOL_PAGES."""
+    return [
+        Evidence(page.format(slug), "", source)
+        for ats, page in POOL_PAGES.items()
+        for slug in ats_map.get(ats, [])
+        if isinstance(slug, str) and slug
+    ]
+
+
 def open_jobs(read: Read) -> CollectionResult:
     """Every live board open-jobs lists on a pool system, unnamed: discovery names
     one by its hiring system, and proposes it only for an early-career posting."""
@@ -271,14 +282,25 @@ def open_jobs(read: Read) -> CollectionResult:
     live = payload.get("ats") if isinstance(payload, dict) else None
     if not isinstance(live, dict):
         raise DiscoveryError("expected open-jobs' slugs.json with an `ats` object")
-    return CollectionResult(
-        [
-            Evidence(page.format(slug), "", OPEN_JOBS)
-            for ats, page in POOL_PAGES.items()
-            for slug in live.get(ats, [])
-            if isinstance(slug, str) and slug
-        ]
-    )
+    return CollectionResult(_pool_evidence(live, OPEN_JOBS))
+
+
+#: Output of ``harvest_commoncrawl.py``, committed. Same shape as open-jobs'
+#: ``slugs.json``: ``{"crawl": "...", "ats": {"greenhouse": [...], ...}}``.
+COMMONCRAWL_PATH = Path(__file__).resolve().parent.parent / "commoncrawl-boards.json"
+
+
+def commoncrawl() -> CollectionResult:
+    """Pool boards harvested from Common Crawl's CDX index. No HTTP: reads the
+    committed ``commoncrawl-boards.json`` the same way ``open_jobs`` reads its
+    pinned ``slugs.json``."""
+    if not COMMONCRAWL_PATH.exists():
+        raise DiscoveryError(f"{COMMONCRAWL_PATH.name} not found; run harvest_commoncrawl.py first")
+    payload = json.loads(COMMONCRAWL_PATH.read_bytes())
+    if not isinstance(payload, dict) or not isinstance(payload.get("ats"), dict):
+        raise DiscoveryError("expected commoncrawl-boards.json with an `ats` object")
+    source = f"commoncrawl:{payload.get('crawl', '')}"
+    return CollectionResult(_pool_evidence(payload["ats"], source))
 
 
 @dataclass(frozen=True)
@@ -301,6 +323,7 @@ CHANNELS = {
     "curated": Channel(lambda read, o: curated(read, o.sources)),
     "hn": Channel(lambda read, o: hn(read, o.months)),
     "openjobs": Channel(lambda read, _: open_jobs(read)),
+    "commoncrawl": Channel(lambda _read, _: commoncrawl()),
     "ddg": Channel(lambda read, o: ddg(read, o.query), True, True),
     "github": Channel(lambda read, o: github(read, o.query, o.limit, o.environ), True, True),
     "google": Channel(lambda read, o: google(read, o.query, o.limit, o.environ), True, True),

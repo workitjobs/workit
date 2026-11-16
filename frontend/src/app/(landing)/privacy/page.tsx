@@ -188,11 +188,12 @@ export default function PrivacyPage() {
         <li>
           <strong>What the app sends to WorkIt.</strong> What each of its AI calls needs, with your
           private details hidden (next item); your applications&apos; stages, the answers you
-          approve and your Auto Apply queue, as the Chrome extension does; and, only when you click
-          &ldquo;Send report&rdquo;, one application&apos;s record and its step-by-step log, with
-          your personal details hidden in the log. We use a report only to fix the problem it shows,
-          and we delete it once that problem is fixed. The app sends no analytics and no automatic
-          crash reports.
+          approve and your Auto Apply queue, as the Chrome extension does; and, only when you send a
+          report from the app&apos;s &ldquo;Report a problem&rdquo; form, what you write there and,
+          if you choose to include them, one application&apos;s record and its step-by-step log,
+          with your personal details hidden in the log. If you allow it, we may email you about your
+          report. We use a report only to fix the problem it shows, and we delete it once that
+          problem is fixed. The app sends no analytics and no automatic crash reports.
         </li>
         <li>
           <strong>What its AI calls send.</strong> The app writes and checks answers with AI through

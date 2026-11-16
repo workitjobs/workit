@@ -117,7 +117,7 @@ builds it.
 | D23 | **Jobs come from the student's Auto Apply queue on WorkIt**, plus a box to paste one posting's link | The queue is already on the website | W5 |
 | D24 | **Two Workers by default, one to three.** Each is a full Chrome, about 0.5 to 1 GB of memory | Student laptops | W5 |
 | D25 | **"Remove all my data"** in settings deletes the Worker profiles, the seed, Records, Traces and the app's `keyring` items. The data folder is in each OS's standard place | Mac apps have no uninstaller | W5 |
-| D26 | **"Send report"** sends one Application's Record and a masked Trace to WorkIt only when the student presses it. No automatic telemetry | Testers need a way to report; privacy first | W5, W1 |
+| D26 | **"Send report"** sends one Application's Record and a masked Trace to WorkIt only when the student presses it. No automatic telemetry. As built (KAN-837): a support form ("Report a problem", from Settings or an Application's tile): a category, the student's words, whether WorkIt may email them, and, if they include one, an Application's Record and masked Trace | Testers need a way to report; privacy first | W5, W1 |
 | D27 | **Engine signing:** the Fill engine's CI signs each build with an Ed25519 key; WorkIt serves the newest build that fits the app's version; the app holds only the public key | An unsigned download would let an attacker run code on every student's computer | W7 |
 | D28 | **Certificate pinning** to the certificate authorities Cloudflare uses for `api.workitjobs.ai`, with backups. Sparkle's feed is on another host without pinning, so an update can fix the set | A proxy on the student's computer can't read the engine download | W7 |
 | D29 | **Apply moves to the private repo `workitjobs/apply-agent`**, with its history | The WorkIt repo is public; compiling protects nothing while the source is public | W0 |
@@ -210,7 +210,7 @@ saw a block), and CDP Workers fill the rest (section 4.7).
 | WorkIt | What each model call needs, without private details; tokens used | Each call |
 | Groq, Google (Gemini) | The same prompt, sent by WorkIt with WorkIt's key | Each call |
 | WorkIt | Tracker writes, answers the student approves, the queue | As today (`apply-agent/docs/workit.md`) |
-| WorkIt | One Application's Record and masked Trace | Only when the student presses "Send report" |
+| WorkIt | A support report: the student's words and, if they include one, an Application's Record and masked Trace | Only when the student sends the "Report a problem" form |
 | Job sites | The form's answers, in the Worker's Chrome | As a person filling the form |
 
 **Replaced before a prompt leaves** (D8, as built in PR #587, 2026-11-15,
@@ -511,8 +511,8 @@ by hand (W8).
 | # | Workstream | Waits for | v1 | Where it stands (2026-11-14) |
 |---|---|---|---|---|
 | W0 | Move Apply to `workitjobs/apply-agent` | KAN-723 merged into WorkIt's `main` | Yes, first | Not started. KAN-723's first parts are merged (#569, #577, #581); the open `apply-agent/` PRs (#554, #557, #403) merge or hold first |
-| W1 | Model route and Usage cap | None | Yes | Built (#577, #587): the Model route, the Usage cap, the 11 kinds and the Question types on the server, and the student's private values masked in every call. Left: reworded self-ID answers, which wait on the Fill engine saying which answers came from a self-ID fact (D8, section 3.4); Send report's route (D26); the Orchestrator's pause on `GET /apply-app/usage` |
-| W2 | Filling with no model in the browser | None | Yes | Step 1 built (#590): what Apply can't fill is the student's, in the window's Fix here; a failed field is a Needs-you item with its planned answer; the emailed code's box. Next: step 2, the generic Filler |
+| W1 | Model route and Usage cap | None | Yes | Built (#577, #587, KAN-837): the Model route, the Usage cap, the 11 kinds and the Question types on the server, the student's private values masked in every call, and Send report's route (D26). Left: reworded self-ID answers, which wait on the Fill engine saying which answers came from a self-ID fact (D8, section 3.4); the Orchestrator's pause on `GET /apply-app/usage` |
+| W2 | Filling with no model in the browser | None | Yes | Step 1 built (#590): what Apply can't fill is the student's, in the window's Fix here; a failed field is a Needs-you item with its planned answer; the emailed code's box. Step 2, the generic Filler, is a teammate's, beside the Fillers they write for each job system |
 | W3 | What the Student build leaves out | None | Yes | Step 1 built (#581); `ask_model` fixed to `workit` (#590). Left: W8's compile flags |
 | W4 | Remove macOS-only code | None | Yes | Built (#576, #585). Left to others: `dashboard.py` (W5) and `window_capture` (W6); what stops Apply on Windows is F4's |
 | W5 | The app shell | W3, W4 (and W1 for sign-in and usage) | Yes | Built: sign-in (#609); the window with no port, first run, a run and Settings (KAN-858). Left: Send Report's button (waits for #614), and Remove All My Data's job-site passwords (W11) |
@@ -640,7 +640,20 @@ shapes and status codes.
 - **Logs** keep no prompt text: only the student, the kind, the model and
   the tokens. A provider's error is logged by its status and code only,
   since its body can hold the model's output.
-- **Not built:** Send report's route (D26).
+- **Send report** (D26, KAN-837) is a support form, "Report a problem",
+  from Settings or an Application's tile, which picks that Application:
+  a category (`report.CATEGORIES`), the student's own words, whether
+  WorkIt may email them, and, with an Application picked, whether to
+  include its Record (its answers, essays, verification, the questions
+  asked of Claude, the page's HTML and the form's screenshots) and its
+  Trace, masked in the app. A general question names no Application.
+  `POST /apply-app/reports` keeps it in `apply_reports` (RLS on, no
+  policies; migration `36d339a2d6b4`). Admins list and read reports with
+  the student's email (`/admin/apply-reports`) and `DELETE` one once its
+  problem is fixed, so a report has no retention period, as `/privacy`
+  says. Up to 24 MB, 10 a day per student. The window (W5's) calls
+  `report.build` with the form's answers, shows `report.parts`, and on
+  Send calls `report.send` with that same report.
 
 **Prompts on the server (decided 2026-11-14, being built).** D5 changed:
 the app no longer sends a prompt and a schema, so a request can't carry
@@ -795,7 +808,11 @@ its own instructions or a hostile schema.
   Student build reads `GET /apply-app/usage` instead and pauses at the
   cap with its reset date.
 - **Send report** (D26) uploads one Record and masked Trace through a
-  WorkIt route; the server keeps it for the team.
+  WorkIt route; the server keeps it for the team. **Built** (KAN-837)
+  as the support form above: `report.build` reads the Record's files from
+  its folder and the Application's Trace, masks the Trace with
+  `masked.Known` (the profile's and Answer bank's own values, and every
+  email, phone and id in a link) and keeps its start and its last 4 MB.
 
 **Waits for.** Nothing. Sign-in (W5) supplies the session in the app; a
 developer can test with an existing WorkIt token.
@@ -811,6 +828,23 @@ logs. Whether Apply's schemas need Groq's strict mode on the server (W13).
 ### W2. Filling with no model in the browser
 
 **Goal.** v1 fills without `drive` (D13).
+
+**Who builds it.** Step 1 is built (below). Step 2 is a teammate's
+(2026-11-15), beside the Fillers they write for each job system: one
+person owns all filling, so the generic Filler and the Fillers never
+collide in `fillers.py` or `orchestrator._apply_with`. What step 2 can
+count on:
+
+- Only a Filler that fills with plain code runs in the Student build. A
+  job system that Claude fill fills in the Developer checkout (iCIMS,
+  Oracle, and every other one with no entry in `FILLERS`) is held for the
+  student until a Filler of its own or the generic Filler fills it.
+- W1's Model route is built: the small question below is a new kind in
+  `backend/app/apply_prompts/`, which deploys with the API.
+- What a Filler can't place goes to step 1's paths: a Needs-you item
+  with its planned answer, or the held form (`orchestrator.ForTheStudent`).
+- Each new click path needs the adversarial review (KAN-666) and its cases
+  in `tests/test_submit_guard_hostile.py`.
 
 **Design.**
 
@@ -879,8 +913,8 @@ two frames a second, so W5's first run asks for the permission.
 
 `docs/held-forms.md` has the rules; `tests/test_student_build.py` (CI)
 and `tests/test_student_handoffs.py` (Chromium) test them. Left for
-step 2: the generic Filler, which fills a form with no Filler of its own
-(it waits for W1's Model route for its small questions).
+step 2, a teammate's (above): the generic Filler, which fills a form
+with no Filler of its own.
 
 ### W3. What the Student build leaves out
 
