@@ -1056,6 +1056,20 @@ _TEMPLATE = r"""
   // account as it applies, a GET form with a password box, went through every path's account click).
   const passwordStep = (form, by) => posts(form, by) || (S.signIn === true && loginForm(form));
   const knownRoots = [];  // every shadow root the guard heard, closed ones too: a sign-in step's page check reads them
+  // A bot trap beside a sign-in form (Workday's "beecatcher", a 1-pixel "website" box on every tenant, KAN-886): an
+  // empty text box no person sees that says it is one ("This input is for robots only"). It holds no answer, so it
+  // doesn't make the page an application's. A box with a value, now or in its markup, one a person sees, or one that
+  // doesn't say it is a trap (a dropdown's see-through typing box beside its hidden answer) still does.
+  const TRAP = /robot|\bbots?\b|human|honey ?pot|beecatcher|leave (?:this |it )?(?:blank|empty)/i;
+  const labelsOf = get(HTMLInputElement.prototype, 'labels');
+  const trapSays = (n) => {
+    let said = text(attr(n, 'data-automation-id')) + ' ' + text(attr(n, 'aria-label'));
+    const found = labelsOf(n), labels = found ? nodes(found) : [];
+    for (let i = 0; i < labels.length; i++) { try { said += ' ' + text(textOf(labels[i])); } catch (e) { /* says nothing */ } }
+    return test(TRAP, said);
+  };
+  const trap = (n) => tag(n) === 'INPUT' && test(/^(text|email|url|tel|search)$/, lower(typeOf(n))) && valueOf(n) === ''
+    && text(attr(n, 'value')) === '' && !visibly(n) && trapSays(n);
   const loginForm = (form) => {
     const all_ = fields(form);
     let named = false;
@@ -1075,7 +1089,8 @@ _TEMPLATE = r"""
     for (let i = 0; i < boxes.length; i++) {
       const n = boxes[i];
       if (test(/^(hidden|password|submit|button|reset|image)$/, lower(typeOf(n)))) continue;
-      if (formOf(n) !== form) return false;  // an answer box elsewhere, shown or not, a radio or tick too (round 3)
+      if (formOf(n) === form || trap(n)) continue;
+      return false;  // an answer box elsewhere, shown or not, a radio or tick too (round 3)
     }
     // An answer box in an open shadow root, which the document's own query doesn't reach (round 3). A closed one
     // can't be read: the residual of this exemption, with answers a script holds.
