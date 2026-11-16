@@ -1,9 +1,9 @@
 // A pretend Apply, in the shape of `Dashboard.state()`, with a pretend queue and
 // Usage: the window's fixtures. Pick one with ?scenario=start|needs|questions|ready|quiet|stopped,
 // the day's model use with ?usage=near|cap, and the start screen's queue with
-// ?queue=empty|unread|refused (refused: Start gives #613's error). Answers and
-// approvals change it as Apply would, so the whole flow can be clicked through.
-import type { ApplyState, Shown } from "./apply.ts";
+// ?queue=empty|unread|refused (refused: Start gives #613's error). Answers,
+// approvals, Remove and Stop change it as Apply would, so the whole flow can be clicked through.
+import type { ApplyState, Shown, Waiting } from "./apply.ts";
 import type { Bridge, Queued, Usage } from "./bridge.ts";
 
 const ramp: Shown = {
@@ -101,13 +101,21 @@ const duolingo: Shown = { tone: "ended", kind: "skipped", status: "not eligible"
 const airbnb: Shown = { tone: "ended", kind: "skipped", status: "closed", label: "Skipped: no longer taking applications", company: "Airbnb", company_domain: "airbnb.com", role: "Software Engineer Intern", posting_url: "https://airbnb/1", id: 21 };
 const coinbase: Shown = { tone: "ended", kind: "skipped", status: "already applied", label: "Already applied", company: "Coinbase", company_domain: "coinbase.com", role: "Software Engineer Intern", posting_url: "https://coinbase/1", id: 22 };
 
+// A run's jobs not started yet: two from the queue and a pasted link. A scenario waits on at most these three.
+const WAITING: Waiting[] = [
+  { link: "https://jobs.lever.co/spotify/1", company: "Spotify", title: "Backend Engineer Intern", company_domain: "spotify.com" },
+  { link: "https://jobs.ashbyhq.com/openai/1", company: "OpenAI", title: "Software Engineer, New Grad", company_domain: "openai.com" },
+  { link: "https://careers.example.com/jobs/42" },
+];
+const running = (queued: number) => ({ mode: "rehearsal", queued, waiting: WAITING.slice(0, queued) });
+
 const SCENARIOS: Record<string, () => ApplyState> = {
   start: () => ({ tiles: [], items: [], run: { queued: 0 } }),
-  questions: () => ({ tiles: [stripe], items: [ramp], run: { queued: 2 } }),
-  needs: () => ({ tiles: [stripe, linear], items: [ramp, nvidia, figma, notion, vercel, datadog], run: { queued: 6 } }),
-  ready: () => ({ tiles: [stripe], items: [notion, vercel], run: { queued: 3 } }),
-  quiet: () => ({ tiles: [stripe, { ...linear }], items: [vercel, datadog], run: { queued: 4 } }),
-  stopped: () => ({ tiles: [stripe, plaid, duolingo], items: [airbnb, coinbase, vercel], run: { queued: 1 } }),
+  questions: () => ({ tiles: [stripe], items: [ramp], run: running(2) }),
+  needs: () => ({ tiles: [stripe, linear], items: [ramp, nvidia, figma, notion, vercel, datadog], run: running(3) }),
+  ready: () => ({ tiles: [stripe], items: [notion, vercel], run: running(3) }),
+  quiet: () => ({ tiles: [stripe, { ...linear }], items: [vercel, datadog], run: running(3) }),
+  stopped: () => ({ tiles: [stripe, plaid, duolingo], items: [airbnb, coinbase, vercel], run: running(1) }),
 };
 
 const QUEUE: Queued[] = [
@@ -158,6 +166,17 @@ export function mock(
       // Apply opens the form anew a moment later, on the tile that held it.
       const held = id.startsWith("tile-") ? state.tiles[Number(id.slice(5))] : find(id);
       if (held) later(() => Object.assign(held, { tone: "filling", kind: undefined, status: "filling", label: undefined, again: false, filled: 2, asked: 22 }), 800);
+    },
+    async remove(link) {
+      const run = state.run!;
+      if (!run.waiting?.some((w) => w.link === link)) throw new Error("That job has started already: it isn't waiting any more.");
+      run.waiting = run.waiting.filter((w) => w.link !== link);
+      run.queued = (run.queued ?? 1) - 1;
+      push();
+    },
+    async stop() {
+      // The run ends, and #613 swaps in the idle board: the queue again.
+      later(() => (state = structuredClone(SCENARIOS.start())), 800);
     },
     app: Promise.resolve({
       async queue() {

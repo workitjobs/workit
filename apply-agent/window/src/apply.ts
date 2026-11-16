@@ -42,9 +42,21 @@ export type Shown = {
   status?: string;
 };
 
+// A job waiting to start, as Dashboard.state() names it: a pasted link has its link alone.
+export type Waiting = { link: string; company?: string; title?: string; logo_url?: string | null; company_domain?: string | null };
+
 export type ApplyState = {
   tiles: Shown[];
   items: Shown[];
-  run?: { queued?: number; cap?: number; today?: number; start?: string; capped?: boolean; tomorrow?: number };
+  run?: {
+    mode?: string; // "rehearsal" while a run goes; none on the idle board
+    queued?: number;
+    waiting?: Waiting[]; // the links not started yet, named as the queue named them
+    cap?: number;
+    today?: number;
+    start?: string;
+    capped?: boolean;
+    tomorrow?: number;
+  };
   context?: Record<string, unknown>;
 };

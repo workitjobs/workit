@@ -26,6 +26,8 @@ export type Bridge = {
   approve(id: string, essays?: string[]): Promise<void>;
   open(worker: number): Promise<void>; // bring that form's Chrome window forward
   fillAgain(id: string): Promise<void>;
+  stop(): Promise<void>; // Stop applying: the run ends, nothing submitted, and #613 shows the queue again
+  remove(link: string): Promise<void>; // take a job that hasn't started out of the run
   app: Promise<App>; // never settles in a window with no app methods
 };
 
@@ -89,6 +91,8 @@ export function routes(token: string, app: Promise<App> = appMethods()): Bridge 
     approve: (id, essays) => post("/approve", essays ? { id, essays } : { id }),
     open: (worker) => post(`/show/${worker}`, {}),
     fillAgain: (id) => post("/fill-again", { id }),
+    stop: () => post("/stop", {}),
+    remove: (link) => post("/remove", { link }),
     app,
   };
 }
