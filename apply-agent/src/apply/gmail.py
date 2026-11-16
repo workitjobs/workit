@@ -16,6 +16,7 @@ import html
 import imaplib
 import re
 import time
+import unicodedata
 from dataclasses import dataclass
 from datetime import datetime
 from email.header import decode_header, make_header
@@ -52,15 +53,16 @@ VERIFY = re.compile(r"verif|activat|confirm|reset", re.IGNORECASE)  # an account
 # A word list of reset phrases lost each round ("Reset your password" in a bare-URL link, "Set" or "Update your
 # password", the word split by tags or entities), so any mention of a password counts; a verification mail that
 # mentions one makes the sign-in Lisul's, the safe way to be wrong.
-RESET = re.compile(r"pass\s*word|passcode|reset|forgot|recover", re.IGNORECASE)
+RESET = re.compile(r"pass\W{0,3}word|passcode|reset|forgot|recover", re.IGNORECASE)
 
 
 def _plain_words(text: str) -> tuple[str, ...]:
-    """A mail's words as a reader sees them, two ways: its tags taken out, and its tags turned to spaces; its
-    entities decoded and soft hyphens and zero-width marks dropped."""
+    """A mail's words as a reader sees them, three ways: its tags taken out, its tags turned to spaces, and its tags
+    kept (an image's alt, a link's title); each with entities decoded, Unicode folded (NFKC: fullwidth letters) and
+    soft hyphens and zero-width marks dropped."""
     out = []
-    for joined in ("", " "):
-        words = html.unescape(re.sub(r"<[^>]+>", joined, text))
+    for words in (re.sub(r"<[^>]+>", "", text), re.sub(r"<[^>]+>", " ", text), text):
+        words = unicodedata.normalize("NFKC", html.unescape(words))
         out.append(re.sub(r"[\u00ad\u200b-\u200d\u2060\ufeff]", "", words))
     return tuple(out)
 
@@ -125,7 +127,7 @@ class GmailMailbox:
         (or a host under one): any other link is not followed. Without
         `resets`, a mail that speaks of resetting a password gives none."""
         return self._newest(search, since,
-                            lambda message: _link(f"{message.get('Subject', '')}\n{_text(message)}", hosts, resets))
+                            lambda message: _link(_subject_and_text(message), hosts, resets))
 
     def read_mail(self, *, search: str) -> list[Mail]:
         """Every inbox mail matching `search` (Gmail search terms, such as
@@ -194,6 +196,11 @@ def _authentic(message: Message) -> bool:
 def _header(message: Message, name: str) -> str:
     """A header as a mail app shows it, encoded words decoded."""
     return str(make_header(decode_header(message.get(name, ""))))
+
+
+def _subject_and_text(message: Message) -> str:
+    """The mail's subject, decoded (round 5 of KAN-878's review read it encoded, "=?UTF-8?B?...?="), and its text."""
+    return f"{_header(message, 'Subject')}\n{_text(message)}"
 
 
 def _text(message: Message) -> str:

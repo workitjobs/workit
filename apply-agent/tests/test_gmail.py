@@ -351,7 +351,9 @@ def test_a_rehearsals_link_is_never_from_a_mail_that_resets_a_password():
     '<p>Re&shy;set your pass&#8203;word</p><a href="https://acme.wd5.myworkdayjobs.com/confirm?t=x">Continue</a>',
     '<p>Set your password here:</p><a href="https://acme.wd5.myworkdayjobs.com/l/abc">Confirm</a>',
     '<p>Update your password</p><a href="https://acme.wd5.myworkdayjobs.com/account/confirm/abc">Confirm</a>',
-    'Subject: Your password\n<a href="https://acme.wd5.myworkdayjobs.com/confirm/abc">Confirm</a>'])
+    'Subject: Your password\n<a href="https://acme.wd5.myworkdayjobs.com/confirm/abc">Confirm</a>',
+    '<a href="https://acme.wd5.myworkdayjobs.com/confirm/abc"><img alt="Reset password" src="b.png"></a>',
+    '<p>Choose a new ｐａｓｓ-ｗｏｒｄ</p><a href="https://acme.wd5.myworkdayjobs.com/confirm/abc">Confirm</a>'])
 def test_no_reset_mail_gives_a_rehearsal_its_link_however_it_is_written(message):
     # Fault (round 4 of KAN-878's review): reset words split by tags or entities, worded "set" or "update", or said in
     # the subject alone, so a rehearsal took the reset's link as a verification link.
@@ -363,3 +365,18 @@ def test_a_verification_mail_still_gives_a_rehearsal_its_link():
     message = ('<p>Thanks for creating an account. Verify your email to finish.</p>'
                '<a href="https://acme.wd5.myworkdayjobs.com/External/activate/abc123">Verify email</a>')
     assert gmail._link(message, (ACME,), resets=False) == "https://acme.wd5.myworkdayjobs.com/External/activate/abc123"
+
+
+
+def test_an_encoded_subject_that_speaks_of_a_reset_gives_a_rehearsal_no_link():
+    # Fault (round 5 of KAN-878's review): the subject was read undecoded ("=?UTF-8?B?...?="), so a reset said only
+    # there went unseen.
+    from email.message import EmailMessage
+
+    message = EmailMessage()
+    message["Subject"] = "Reset your password – Acme"  # the dash makes the mailer encode it
+    message.set_content('<a href="https://acme.wd5.myworkdayjobs.com/l/abc?confirm=1">Continue</a>', subtype="html")
+    raw = message.as_bytes()
+    assert b"=?utf-8?" in raw.lower()
+    parsed = __import__("email").message_from_bytes(raw)
+    assert gmail._link(gmail._subject_and_text(parsed), (ACME,), resets=False) is None
