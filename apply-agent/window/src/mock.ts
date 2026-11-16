@@ -68,10 +68,10 @@ const vercel: Shown = { tone: "submitted", company: "Vercel", role: "Software En
 const datadog: Shown = { tone: "submitted", company: "Datadog", role: "Software Engineer Intern", posting_url: "https://datadog/1", from: "tracker" };
 
 const SCENARIOS: Record<string, () => ApplyState> = {
-  start: () => ({ tiles: [], items: [], run: { queued: 0, today: 0, cap: 25 } }),
-  needs: () => ({ tiles: [stripe, linear], items: [ramp, nvidia, figma, notion, vercel, datadog], run: { queued: 6, today: 12, cap: 25 } }),
-  ready: () => ({ tiles: [stripe], items: [notion, vercel], run: { queued: 3, today: 12, cap: 25 } }),
-  quiet: () => ({ tiles: [stripe, { ...linear }], items: [vercel, datadog], run: { queued: 4, today: 9, cap: 25 } }),
+  start: () => ({ tiles: [], items: [], run: { queued: 0 } }),
+  needs: () => ({ tiles: [stripe, linear], items: [ramp, nvidia, figma, notion, vercel, datadog], run: { queued: 6 } }),
+  ready: () => ({ tiles: [stripe], items: [notion, vercel], run: { queued: 3 } }),
+  quiet: () => ({ tiles: [stripe, { ...linear }], items: [vercel, datadog], run: { queued: 4 } }),
 };
 
 export function mock(scenario: string): Bridge {

@@ -58,7 +58,6 @@ function Home({ v, bridge, fail, add }: { v: View; bridge: Bridge; fail: Fail; a
   // Which to-do is on top. Skip moves it to the next one; a done one leaves the pile by itself.
   const [at, setAt] = useState(0);
   const i = v.todo.length ? at % v.todo.length : 0;
-  const near = v.today >= v.cap * 0.8;
   return (
     <>
       <h1 className="text-[28px] font-bold tracking-[-0.025em]">{headline(v)}</h1>
@@ -89,11 +88,6 @@ function Home({ v, bridge, fail, add }: { v: View; bridge: Bridge; fail: Fail; a
           ))}
           {v.queued > 0 && <p className="px-0.5 pt-2 text-[13px] text-ink-faint">and {v.queued} more waiting to start</p>}
         </section>
-      )}
-      {near && (
-        <p className="mt-8 text-[13px] text-ink-faint">
-          {v.today >= v.cap ? `That's ${v.cap} applications today, the most in a day. The rest start tomorrow.` : `${v.today} of ${v.cap} applications used today.`}
-        </p>
       )}
     </>
   );

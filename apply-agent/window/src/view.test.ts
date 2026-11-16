@@ -75,3 +75,24 @@ test("the heading names the one kind of to-do there is, or that there is none", 
   assert.equal(headline(view({ tiles: [], items: [], run: { queued: 2 } })), "We're on it");
   assert.equal(headline(view({ tiles: [], items: [] })), "You're all caught up");
 });
+
+test("a tile's to-do is answered through its item and opened through its tile", () => {
+  // A form still filling asks its Missing fact at once: the tile says so, and its live item carries the question.
+  const tile = job({ tone: "needs", kind: "missing fact" });
+  const live = job({ tone: "needs", kind: "missing fact", id: "live-1", worker: 1, questions: ["When can you start?"] });
+  const [todo] = view({ tiles: [job({ tone: "idle", posting_url: "" }), tile], items: [live] }).todo;
+  assert.equal(todo.id, "live-1");
+  assert.equal(todo.worker, 1);
+  assert.deepEqual(todo.source.questions, ["When can you start?"]);
+});
+
+test("a tile with no item is opened through its own place on the board", () => {
+  const [todo] = view({ tiles: [job({ tone: "idle", posting_url: "" }), job({ tone: "ready" })], items: [] }).todo;
+  assert.equal(todo.worker, 1);
+});
+
+test("a question answered in the window leaves the pile while its form fills it in", () => {
+  const tile = job({ tone: "needs", kind: "missing fact" });
+  const live = job({ tone: "needs", kind: "missing fact", id: "live-0", questions: ["When can you start?"], answered: true });
+  assert.equal(view({ tiles: [tile], items: [live] }).todo.length, 0);
+});

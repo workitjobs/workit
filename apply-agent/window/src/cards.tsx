@@ -82,7 +82,7 @@ function Body(props: Props) {
 const Title = ({ children }: { children: ReactNode }) => <h2 className="text-xl font-semibold tracking-[-0.015em]">{children}</h2>;
 const Note = ({ children }: { children: ReactNode }) => <p className="mt-3 text-xs text-ink-faint">{children}</p>;
 
-const show = ({ job, bridge, fail }: Props) => job.source.worker !== undefined && bridge.open(job.source.worker).catch((e) => fail(e.message));
+const show = ({ job, bridge, fail }: Props) => job.worker !== undefined && bridge.open(job.worker).catch((e) => fail(e.message));
 
 function Open({ title, button, note, children, ...props }: Props & { title: string; button: string; note?: string; children: ReactNode }) {
   return (
@@ -107,7 +107,7 @@ function Question(props: Props) {
   const send = async (answer: string) => {
     setBusy(true);
     try {
-      await bridge.answer(String(job.source.id), question, answer);
+      await bridge.answer(job.id!, question, answer);
       setText("");
     } catch (e) {
       fail((e as Error).message);
@@ -158,7 +158,7 @@ function Approve(props: Props) {
   const [editing, setEditing] = useState(false);
   const approve = async () => {
     try {
-      await bridge.approve(String(job.source.id), editing ? texts : undefined);
+      await bridge.approve(job.id!, editing ? texts : undefined);
     } catch (e) {
       fail((e as Error).message);
     }

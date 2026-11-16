@@ -14,16 +14,16 @@ export type Job = {
   status: Status;
   ask?: Ask;
   progress?: number; // 0..1 while filling
-  source: Shown;
+  id?: string; // what /answer and /approve name it by: its item's id
+  worker?: number; // what /show/<k> names its form's Chrome window by: its tile's place on the board
+  source: Shown; // the tile over its item, so a tile's to-do keeps the item's questions
 };
 
 export type View = {
   todo: Job[]; // what waits on the student, most blocking first
   working: Job[]; // filling or checking: nothing to do
   applied: Job[];
-  queued: number;
-  today: number;
-  cap: number;
+  queued: number; // waiting to start
 };
 
 const ASKS: Record<string, Ask> = {
@@ -60,31 +60,38 @@ export function classify(shown: Shown): { status: Status; ask?: Ask } {
 const keyOf = (s: Shown) => String(s.posting_url || `${s.company}|${s.role}` || s.id);
 
 export function view(state: ApplyState): View {
-  const byKey = new Map<string, Job>();
-  // A tile is the form as it is now; an item is how an earlier pass ended. The tile wins.
-  for (const shown of [...state.tiles, ...state.items]) {
-    if (shown.tone === "idle" || shown.answered) continue;
-    const key = keyOf(shown);
-    if (byKey.has(key)) continue;
+  // A tile is the form as it is now; an item is how an earlier pass ended, or a live form's questions. The tile
+  // says where the job is; the item keeps what the student answers it through.
+  const tiles = new Map<string, Shown>();
+  const items = new Map<string, Shown>();
+  state.tiles.forEach((tile, k) => {
+    if (tile.tone !== "idle" && !tiles.has(keyOf(tile))) tiles.set(keyOf(tile), { ...tile, worker: k });
+  });
+  for (const item of state.items) if (!items.has(keyOf(item))) items.set(keyOf(item), item);
+  const jobs: Job[] = [];
+  for (const key of new Set([...tiles.keys(), ...items.keys()])) {
+    const tile = tiles.get(key);
+    const item = items.get(key);
+    const shown = tile ? { ...item, ...tile } : item!;
+    if (!tile && item!.tone === "idle") continue;
     const c = classify(shown);
-    byKey.set(key, {
+    if (item?.answered && (!tile || c.status === "todo")) continue; // answered in the window: it waits on the student no more
+    jobs.push({
       key,
       company: shown.company || "A job",
       role: shown.role || "",
       ...c,
       progress: c.status === "filling" && shown.asked ? (shown.filled ?? 0) / shown.asked : undefined,
-      source: shown,
+      id: item?.id === undefined ? undefined : String(item.id),
+      worker: tile ? tile.worker : item?.worker,
+      source: { ...shown, questions: item?.questions ?? tile?.questions },
     });
   }
-  const jobs = [...byKey.values()];
-  const applied = jobs.filter((j) => j.status === "submitted");
   return {
     todo: jobs.filter((j) => j.ask).sort((a, b) => ORDER.indexOf(a.ask!) - ORDER.indexOf(b.ask!)),
     working: jobs.filter((j) => j.status === "filling" || j.status === "checking"),
-    applied,
+    applied: jobs.filter((j) => j.status === "submitted"),
     queued: state.run?.queued ?? 0,
-    today: state.run?.today ?? applied.length,
-    cap: state.run?.cap ?? 25,
   };
 }
 
