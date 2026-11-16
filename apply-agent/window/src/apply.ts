@@ -37,7 +37,8 @@ export type Shown = {
   planned?: Record<string, string>;
   essays?: { question: string; text: string }[];
   flags?: { field: string; why: string }[];
-  verified?: boolean;
+  verified?: boolean; // the Pre-submit check found every answer agrees with the profile
+  files?: { label?: string; name?: string }[]; // each file the form was given, by the form's question for it
   filled?: number;
   asked?: number;
   status?: string;

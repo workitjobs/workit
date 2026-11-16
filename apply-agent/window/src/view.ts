@@ -147,6 +147,16 @@ export function appliedJobs(thisRun: Job[], earlier: AppliedJob[] | null): Job[]
   return jobs;
 }
 
+// What the Submit card says WorkIt checked: only what Apply says it did. A resume went in when a file the form was
+// given answers its resume question.
+export function checks(s: Shown): string[] {
+  return [
+    s.asked ? `All ${s.asked} questions answered` : "Every question answered",
+    s.verified && "Checked against your WorkIt profile",
+    s.files?.some((f) => /r[eé]sum[eé]|\bcv\b/i.test(f.label ?? "")) && "Resume attached",
+  ].filter((line): line is string => !!line);
+}
+
 // + Add jobs (the queue screen again): whenever no run is going, in a window that can start one. Never during a run,
 // since app_window.Bridge.start refuses a second while one goes.
 export const addsJobs = (v: View, canStart: boolean) => canStart && !v.running;

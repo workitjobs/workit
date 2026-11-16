@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import type { Shown } from "./apply.ts";
-import { addsJobs, answerOf, appliedJobs, asking, chosen, classify, headline, limit, queueNote, shortcut, startWords, view } from "./view.ts";
+import { addsJobs, answerOf, appliedJobs, checks, asking, chosen, classify, headline, limit, queueNote, shortcut, startWords, view } from "./view.ts";
 
 const job = (over: Partial<Shown>): Shown => ({ tone: "filling", company: "Stripe", role: "SWE Intern", posting_url: "https://s", ...over });
 
@@ -350,4 +350,15 @@ test("Applied lists this run's submitted jobs, then what WorkIt has from before,
   assert.deepEqual(all.map((j) => [j.company, j.status]), [["Stripe", "submitted"], ["Acme", "submitted"]]);
   assert.equal(all[1].source.company_domain, "acme.com");
   assert.deepEqual(appliedJobs(sent, null).map((j) => j.company), ["Stripe"]); // WorkIt not read (yet)
+});
+
+test("the Submit card lists only what Apply says it did: checked against the profile, a resume attached", () => {
+  const resume = [{ label: "Resume/CV", name: "Resume.pdf" }];
+  assert.deepEqual(checks(job({ tone: "ready", asked: 22, verified: true, files: resume })), [
+    "All 22 questions answered",
+    "Checked against your WorkIt profile",
+    "Resume attached",
+  ]);
+  assert.deepEqual(checks(job({ tone: "ready", files: [{ label: "Unofficial transcript", name: "t.pdf" }] })), ["Every question answered"]);
+  assert.deepEqual(checks(job({ tone: "ready", files: [{ label: "Upload your résumé", name: "r.pdf" }] })), ["Every question answered", "Resume attached"]);
 });

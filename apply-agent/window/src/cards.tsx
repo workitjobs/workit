@@ -4,7 +4,7 @@ import { type ReactNode, useEffect, useRef, useState } from "react";
 
 import type { Bridge, Upload } from "./bridge.ts";
 import { Button, Logo, cx, pressed } from "./ui.tsx";
-import { type Asked, type Job, answerOf, asking } from "./view.ts";
+import { type Asked, type Job, answerOf, asking, checks } from "./view.ts";
 
 type Props = { job: Job; bridge: Bridge; at: number; of: number; skip?: () => void; fail: (message: string) => void };
 
@@ -302,7 +302,7 @@ function Submit(props: Props) {
     <>
       <Title>Take a quick look</Title>
       <ul className="mt-3 grid gap-2">
-        {[s.asked ? `All ${s.asked} questions answered` : "Every question answered", "Checked against your WorkIt profile", "Resume attached"].map((line) => (
+        {checks(s).map((line) => (
           <li key={line} className="flex items-center gap-2.5 text-ink-muted">
             <span className="grid size-[18px] place-items-center rounded-full bg-positive-tint text-positive-ink">
               <CheckIcon weight="bold" className="size-3" />

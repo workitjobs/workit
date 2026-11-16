@@ -84,6 +84,7 @@ const notion: Shown = {
   verified: true,
   filled: 22,
   asked: 22,
+  files: [{ label: "Resume/CV", name: "Resume.pdf" }],
   essays: [
     {
       question: "Why Notion?",
