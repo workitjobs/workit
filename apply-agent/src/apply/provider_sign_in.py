@@ -75,7 +75,13 @@ GOOGLE_WAIT_S = 60.0  # for the site to come back signed in from Google, as Work
 GOOGLE_NAME = re.compile(r"^\s*(?:sign in|sign up|log in|continue)\s+(?:using|with)\s+google\s*$", re.IGNORECASE)
 GOOGLE_CLASS = "[class*=candidateAuthGoogleLoginButton]"
 # Google's consent for this site ("Sign in to <site>" with Continue), shown once per site: its Continue only.
-CONSENT = re.compile(r"^\s*continue\s*$", re.IGNORECASE)
+# Google's consent for a site (its first sign-in there, or any request for more): the applicant's own (KAN-878's
+# review: a request whose scopes a redirect hid reached a Drive consent, and Apply pressed its Continue).
+CONSENT_PAGE = re.compile(r"accounts\.google\.com/(?:signin/oauth|o/oauth2)[^?#]*(?:consent|/id\b|/v2/consentsummary)",
+                          re.IGNORECASE)
+GRANTED = re.compile(r"[?&#]include_granted_scopes=(?:true|1)\b", re.IGNORECASE)
+CONSENT_IS_YOURS = (NEEDS_SIGN_IN + "Google asks you to let {site} in (its first sign-in there). Press Continue on "
+                    "Google's page yourself if you mean to: Apply goes on by itself once you have.")
 NOT_BACK = (NEEDS_SIGN_IN + "{site} didn't come back signed in from Sign in with Google within {seconds:.0f} s. Sign in on "
             "the page yourself: Apply goes on by itself once you have.")
 NO_BUTTON = (NEEDS_SIGN_IN + "{site} offers Sign in with Google, but Apply found {found} button for it. Sign in on the "
@@ -126,8 +132,9 @@ def scopes(url: str) -> set[str] | None:
 
 def with_google(page: Page, login: str, site: str, guard=None, wait: float = GOOGLE_WAIT_S) -> None:
     """Sign in with Google (KAN-878): press the site's one Google button, through the guards as plain code's
-    account click, then pick `login` in Google's account chooser, in the page or the window the button opened, and
-    press Continue on Google's consent for the site, the first time. Returns once the page is past the provider
+    account click, then pick `login` in Google's account chooser, in the page or the window the button opened, once,
+    and only where that window's own URL asks for a sign-in alone (BASIC_SCOPES, no earlier grants). Google's consent
+    page is never Apply's to press. Returns once the page is past the provider
     sign-in (`signed_in`). Raises a Needs sign-in Handoff where Google asks for a password, a code or a passkey,
     refuses the browser, or the site doesn't come back in `wait` seconds: the applicant signs in."""
     buttons = google_button(page)
@@ -145,13 +152,14 @@ def with_google(page: Page, login: str, site: str, guard=None, wait: float = GOO
     context = getattr(page, "context", None)
     before = list(context.pages) if context is not None else []
     try:
-        buttons[0].click()
+        buttons[0].click(timeout=5_000)
+    except Exception as missed:  # the page moved or swapped it as the press came: nothing pressed
+        raise Handoff(NO_BUTTON.format(site=site, found="no pressable")) from missed
     finally:
         if guard is not None:
             guard.arm()  # the account click's flag off again
             guard.rest()
-    picked, agreed = set(), set()
-    asked: set[str] = set()  # the scopes Google's pages have shown, across the windows
+    picked = False  # one account pick in all, in one window that asked for nothing more than a sign-in
     end = time.monotonic() + wait
     while time.monotonic() < end:
         try:
@@ -168,20 +176,19 @@ def with_google(page: Page, login: str, site: str, guard=None, wait: float = GOO
                     raise Handoff(google_sign_in.REJECTED)
                 if google_sign_in.asks(window):
                     raise Handoff(NEEDS_SIGN_IN + google_sign_in.wants(window))
-                asked |= scopes(window.url) or set()
-                if more := asked - BASIC_SCOPES:
+                own = scopes(window.url)
+                if own and (more := own - BASIC_SCOPES):
                     raise Handoff(MORE_THAN_SIGN_IN.format(site=site, scopes=", ".join(sorted(more))))
+                if CONSENT_PAGE.search(window.url):  # Google asks to let the site in: never Apply's to press
+                    raise Handoff(CONSENT_IS_YOURS.format(site=site))
                 account = google_sign_in.account(window, login).first
-                if id(window) not in picked and account.is_visible():
-                    if not asked:  # never pick the account for a request that says nothing of what it wants
+                if not picked and account.is_visible():
+                    # Only for a request this window itself shows as a sign-in alone: none that names no scope, or
+                    # adds the app's earlier grants (KAN-878's review: a redirect hides what it asks for).
+                    if not own or GRANTED.search(unquote(unquote(window.url))):
                         raise Handoff(UNKNOWN_SCOPE.format(site=site))
-                    picked.add(id(window))
-                    account.click()
-                    continue
-                consent = window.get_by_role("button", name=CONSENT)
-                if id(window) not in agreed and "/signin/oauth" in window.url and consent.count() == 1 and consent.is_visible():
-                    agreed.add(id(window))
-                    consent.click()
+                    picked = True
+                    account.click(timeout=5_000)
             except Handoff:
                 raise
             except Exception:

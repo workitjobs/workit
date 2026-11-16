@@ -97,6 +97,10 @@ class FakeMicrosoftServer:
             self.provider_opened.append(parts.path)
             if parts.path == "/oauth/google" and self.google:
                 chooser = f"{GOOGLE}/v3/signin/accountchooser?continue={quote(DONE)}&scope={quote(self.scope)}"
+                if self.google == "granted":  # the app's earlier grants come with it, unseen
+                    chooser += "&include_granted_scopes=true"
+                if self.google == "straight":  # a login_hint: Google goes straight to its consent, scopes hidden
+                    chooser = f"{GOOGLE}/signin/oauth/v2/consentsummary?part=opaque&continue={quote(DONE)}"
                 return route.fulfill(content_type="text/html", body=f"<script>location.replace({json.dumps(chooser)})</script>")
             return route.fulfill(content_type="text/html", body="<p>Provider sign-in</p>")
         if parts.path == "/api/apply":
@@ -128,7 +132,7 @@ class FakeMicrosoftServer:
         if parts.path == "/picked":
             self.picked.append(parts.query)
             return route.fulfill(body="")
-        if parts.path == "/signin/oauth/id":
+        if parts.path in ("/signin/oauth/id", "/signin/oauth/v2/consentsummary"):
             done = parse_qs(parts.query)["continue"][0]
             return page(f"<h1>Sign in to Microsoft Careers</h1><p>Google will share your name and email.</p>"
                         f"<button onclick='location.href={json.dumps(done)}'>Continue</button><button>Cancel</button>")

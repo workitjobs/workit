@@ -122,11 +122,10 @@ def _at_sign_in(server):
         yield page, DriveGuard(page)
 
 
-@pytest.mark.parametrize("google", ["chooser", "consent"])
-def test_a_google_sign_in_picks_the_applicants_account_and_comes_back_signed_in(google):
-    # Fault: the Google button not pressed, the chooser's pick missed in the window it opened, Google's Continue for
-    # the site left, or anything typed into Google's pages.
-    server = FakeMicrosoftServer(google=google, account=ACCOUNT)
+def test_a_google_sign_in_picks_the_applicants_account_and_comes_back_signed_in():
+    # Fault: the Google button not pressed, the chooser's pick missed in the window it opened, or anything typed into
+    # Google's pages.
+    server = FakeMicrosoftServer(google="chooser", account=ACCOUNT)
     with _at_sign_in(server) as (page, guard):
         provider_sign_in.with_google(page, ACCOUNT, "Microsoft", guard, wait=15)
         assert provider_sign_in.signed_in(page)
@@ -157,16 +156,21 @@ def test_a_claude_fill_form_behind_a_google_sign_in_is_signed_in_and_filled_with
     assert server.typed == [] and server.submissions == []
 
 
-@pytest.mark.parametrize(("scope", "said"), [
-    ("openid email https://www.googleapis.com/auth/drive", "asks Google for more than your name and email"),
-    ("", "didn't say what it asks Google for")])
-def test_a_google_sign_in_that_asks_for_more_than_name_and_email_or_says_nothing_is_the_applicants(scope, said):
-    # Fault (KAN-878's review): a page's Google button opened another app's OAuth request (Drive), and Apply picked
-    # the account and pressed Continue on it.
-    server = FakeMicrosoftServer(google="consent", account=ACCOUNT, scope=scope)
+@pytest.mark.parametrize(("google", "scope", "said"), [
+    ("chooser", "openid email https://www.googleapis.com/auth/drive", "asks Google for more than your name and email"),
+    ("chooser", "", "didn't say what it asks Google for"),
+    ("granted", "openid email", "didn't say what it asks Google for"),
+    ("consent", "openid email profile", "Google asks you to let"),
+    ("straight", "openid email profile", "Google asks you to let")])
+def test_a_google_sign_in_that_asks_for_more_than_name_and_email_or_says_nothing_is_the_applicants(google, scope, said):
+    # Fault (KAN-878's review, two rounds): a page's Google button opened another app's OAuth request (Drive), with
+    # its scopes in the URL, hidden by a redirect straight to Google's consent, or added by the app's earlier grants,
+    # and Apply picked the account or pressed Continue on Google's consent.
+    server = FakeMicrosoftServer(google=google, account=ACCOUNT, scope=scope)
     with _at_sign_in(server) as (page, guard), pytest.raises(Handoff, match=said):
         provider_sign_in.with_google(page, ACCOUNT, "Microsoft", guard, wait=15)
-    assert server.picked == [] and server.typed == []
+    # The account is picked only on a chooser that asked for a sign-in alone; Google's Continue is never pressed.
+    assert server.picked == ([ACCOUNT] if google == "consent" else []) and server.typed == []
 
 
 def test_a_google_button_that_would_submit_a_form_is_never_pressed():
@@ -188,3 +192,4 @@ def test_a_google_button_that_would_submit_a_form_is_never_pressed():
             with pytest.raises(Handoff, match="would submit a form"):
                 provider_sign_in.with_google(page, ACCOUNT, "Example", None, wait=2)
         browser.close()
+
