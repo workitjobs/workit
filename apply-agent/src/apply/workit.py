@@ -339,6 +339,21 @@ class WorkIt:
         self._account = None
         return self.me()
 
+    def sign_out(self) -> None:
+        """End this login: its session at Supabase Auth (this one only, scope=local), then the keychain's item and
+        this process's access token. WorkIt not answering still forgets it here."""
+        if token := self._fresh():
+            try:
+                _send("POST", self.site.auth + "/auth/v1/logout?scope=local", None, token, apikey=self.site.anon_key)
+            except Unreachable:
+                pass  # forgotten here all the same; the session ends with its refresh token unused
+        try:
+            self.keychain.forget(self.site.auth)
+        except RuntimeError as error:
+            raise WorkItError(str(error)) from None
+        _ACCESS.pop(self.site.auth, None)
+        self._account = None
+
     def _bearer(self, refresh: bool) -> str:
         if not refresh and (fresh := self._fresh()):
             return fresh

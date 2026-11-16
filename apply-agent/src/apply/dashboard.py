@@ -31,6 +31,7 @@ same Frames shape: apply.plain.tile.PortFrames, over each Worker's port.
 
 import base64
 import hmac
+import io
 import json
 import math
 import os
@@ -46,6 +47,7 @@ import time
 from collections import Counter
 from collections.abc import Callable
 from datetime import datetime
+from email.message import Message
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol, Self
@@ -93,6 +95,10 @@ FRAME_GAP = 0.015  # s between turns of /frames: at most about 60 frames a secon
 PUMP = 30  # ms the frames thread waits each turn, letting screencast frames and input through
 GO_TO_WAIT = 8.0  # s Go to question waits for the held form's hold loop to show the field
 ERRORS_EVERY = 2.0  # s between reads of each Worker's page for a field error it shows (apply.stuck)
+
+
+# The window's address when it has no server (Dashboard(serve=False), apply.app_window).
+NO_PORT = "http://apply.window"
 
 
 def jpeg_size(frame: bytes) -> tuple[int, int] | None:
@@ -564,7 +570,9 @@ class Dashboard:
     `approve`, when given, approves a Hold from the Inbox (its Application ID, and
     `essay=` the Essay cell with his edit of its essays' text if he edited them), as
     editing the Essay cell and ticking Approve did in the retired Tracker Sheet (KAN-544),
-    and says how it went."""
+    and says how it went.
+    `serve=False` opens no port: the page reaches this window only through WorkIt Auto Apply's own window
+    (apply.app_window, D11), which answers its requests in this process."""
 
     def __init__(self, workers: int, frames: Frames, answers: AnswersTab | None = None,
                  applied: Callable[[str], str] | None = None, now: Callable[[], datetime] = datetime.now,
@@ -574,7 +582,7 @@ class Dashboard:
                  sample: bool = False, approve: Callable[[str], str] | None = None,
                  everyday: Callable[[str], None] | None = None, accounts: "AccountsTab | None" = None,
                  quiet: Callable[[int], bool] | None = None, remember: Callable[[str, str], str] | None = None,
-                 back: Callable[[int], bool] | None = None):
+                 back: Callable[[int], bool] | None = None, serve: bool = True):
         self._workers = workers
         self._back = back  # brings this window back after a captcha done in a Worker's own window (come_back)
         self._remember = remember
@@ -614,9 +622,11 @@ class Dashboard:
         self._run: dict[str, object] = {}  # what the run as a whole is doing (Board.run)
         self._lock = threading.Lock()
         handler = type("Handler", (_Handler,), {"dashboard": self})
-        self._server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
-        self._server.daemon_threads = True  # an open stream never holds up the run's end
-        self.url = f"http://127.0.0.1:{self._server.server_address[1]}"
+        self._server = ThreadingHTTPServer(("127.0.0.1", 0), handler) if serve else None
+        if self._server:
+            self._server.daemon_threads = True  # an open stream never holds up the run's end
+        # With no server, the name app_window's requests give as their Host: an address nothing listens on.
+        self.url = f"http://127.0.0.1:{self._server.server_address[1]}" if self._server else NO_PORT
         # Proof that an edit comes from the page itself: a page of another site
         # in Lisul's browser can send requests here, but never read this.
         self.token = secrets.token_urlsafe(24)
@@ -629,7 +639,8 @@ class Dashboard:
         self._goto: dict[int, list[tuple[str, Callable[[str], None]]]] = {}  # Go to question presses, by Worker (wanted)
 
     def __enter__(self) -> Self:
-        threading.Thread(target=self._server.serve_forever, daemon=True).start()
+        if self._server:
+            threading.Thread(target=self._server.serve_forever, daemon=True).start()
         return self
 
     def come_back(self, tile: int) -> bool:
@@ -699,6 +710,8 @@ class Dashboard:
         return self._into(url, worker)
 
     def __exit__(self, *exc) -> None:
+        if not self._server:
+            return  # app_window's window closes with its own process
         self._server.shutdown()
         self._server.server_close()
         self._quit_window()  # its page has no server now: a window left open shows a dead run
@@ -1122,6 +1135,27 @@ class Dashboard:
         waiting = [_waiting(row) for row in rows if _waits(row) or row.date_applied == today]  # and today's, for History
         sent = sum(str(row.status) == "submitted" and row.date_applied == today for row in rows)
         return waiting, {"rows": len(rows), "sent_today": sent}
+
+    def respond(self, method: str, path: str, headers: dict[str, str], body: bytes = b"") -> tuple[int, str, bytes]:
+        """One of the page's requests answered in this process as the server answers it: (status, type, body). For
+        apply.app_window, whose window has no port (D11). Not the frame streams: the window asks new_frames."""
+        if urlsplit(path).path in ("/frames",) or path.startswith("/stream/"):
+            return 404, "text/plain", b"not found"
+        return _InProcess.serve(self, method, path, headers, body)
+
+    def new_frames(self, seen: dict[int, int]) -> list[tuple[int, int, bytes]]:
+        """Each tile's frame newer than the number `seen` has for it, as (tile, number, JPEG): the window's tiles, over
+        the port (/frames) or apply.app_window's bridge."""
+        found = []
+        for worker in range(self._workers):  # a tile added since (--into) has frames too
+            frame, number = self._frames.wait(worker, seen.get(worker, 0), 0)
+            if frame is not None and number != seen.get(worker, 0):
+                found.append((worker, number, frame))
+        return found
+
+    def listed(self, path: str) -> Path | None:
+        """The file the page's link `path` names (/file/k/i, /file/item/n/i), only if a tile or History lists it."""
+        return _InProcess.serve_listed(self, path)
 
     def page(self) -> str:
         columns, rows = grid(self._workers)
@@ -1766,15 +1800,11 @@ class _Handler(BaseHTTPRequestHandler):
         seen: dict[int, int] = {}
         try:
             while True:
-                sent = False
-                for worker in range(self.dashboard._workers):  # a tile added since (--into) streams too
-                    seen.setdefault(worker, 0)
-                    frame, number = self.dashboard._frames.wait(worker, seen[worker], 0)
-                    if frame is not None and number != seen[worker]:
-                        seen[worker] = number
-                        self.wfile.write(struct.pack(">II", worker, len(frame)) + frame)
-                        sent = True
-                if sent:
+                found = self.dashboard.new_frames(seen)
+                for worker, number, frame in found:
+                    seen[worker] = number
+                    self.wfile.write(struct.pack(">II", worker, len(frame)) + frame)
+                if found:
                     self.wfile.flush()
                 time.sleep(FRAME_GAP)  # every tile changing at once is still frames the window can draw
         except (BrokenPipeError, ConnectionResetError):
@@ -1793,6 +1823,42 @@ class _Handler(BaseHTTPRequestHandler):
 
     def log_message(self, *args):
         pass
+
+
+class _InProcess(_Handler):
+    """_Handler with no socket (Dashboard.respond): a request from apply.app_window's bridge, its answer kept rather
+    than sent. The same routes, checks and token as the server's; the Host is the window's own."""
+
+    sent: tuple[int, str, bytes]
+
+    @classmethod
+    def made(cls, dashboard: Dashboard, path: str = "/", method: str = "GET", headers: dict[str, str] | None = None,
+             body: bytes = b"") -> "_InProcess":
+        handler = cls.__new__(cls)
+        handler.dashboard, handler.path, handler.command = dashboard, path, method
+        handler.headers = Message()
+        for name, value in (headers or {}).items():
+            if name.lower() not in ("host", "content-length", "origin"):  # the page names none of these itself
+                handler.headers[name] = value
+        handler.headers["Host"] = dashboard.url.removeprefix("http://")
+        handler.headers["Content-Length"] = str(len(body))
+        handler.rfile = io.BytesIO(body)
+        handler.sent = (500, "text/plain", b"no answer")
+        return handler
+
+    @classmethod
+    def serve(cls, dashboard: Dashboard, method: str, path: str, headers: dict[str, str], body: bytes
+              ) -> tuple[int, str, bytes]:
+        handler = cls.made(dashboard, path, method, headers, body)
+        handler.do_POST() if method == "POST" else handler.do_GET()
+        return handler.sent
+
+    @classmethod
+    def serve_listed(cls, dashboard: Dashboard, path: str) -> Path | None:
+        return cls.made(dashboard, path)._listed(path)
+
+    def _send(self, status: int, kind: str, body: bytes) -> None:
+        self.sent = (status, kind, body)
 
 
 class _Shown:

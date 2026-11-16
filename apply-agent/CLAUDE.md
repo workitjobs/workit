@@ -108,7 +108,10 @@ has neither.
   `workit.job_key`), and its callers import it from there.
   `tests/test_student_build.py` (in CI) fails when the Student path loads one,
   as it imports, builds `student.adapters()` or makes that first page call.
-  Read `build.STUDENT` when the code runs, never into a constant at import.
+  Read `build.STUDENT` when the code runs, never into a constant at import. The one
+  exception is `home.HOME`, which every data path is made from at import: the build
+  script writes STUDENT before it compiles (`tests/test_student_build.py` checks it in a
+  new process).
   The Student build reads no `policies.yaml`: `build.STUDENT_POLICIES` go over
   the defaults. A new developer part joins `DEVELOPER`, and the Student
   build's stand-in for it joins `apply.student.adapters()`.
@@ -157,7 +160,7 @@ this folder's `CLAUDE.md` for its area.
 - `docs/claude-fill.md`: Claude fill, its Next and profile clicks, its dropdowns, or a Filler's `form_url`.
 - `docs/captchas-and-bot-blocks.md`: a captcha wait, a block's handoff, or `captcha.py`.
 - `docs/sign-in.md`: a sign-in page, an Employer account or its password (the one Lisul chooses, its rule, Show password), where secrets live (`keychain.py`, `keyring`), the Accounts tab, or `apply preflight`.
-- `docs/apply-window.md`: the window's lifetime, its Dock keeper, or what a Record keeps.
+- `docs/apply-window.md`: the window's lifetime, its Dock keeper, WorkIt Auto Apply's window with no port (`apply app`, `app_window.py`), or what a Record keeps.
 - `docs/restart-recovery.md`: what survives a restart of the Mac: Workers' sign-ins across a quit, the open-forms list (`batch.py`), `apply reopen`, and `apply preflight --open`.
 - `docs/plain-workers/guide.md`: `apply/plain/`, `worker_mode`, `--into`, or the worker extension; `docs/plain-workers/worker-extension-todo.md` for its store package and what is left.
 - `docs/plain-workers/PROTOCOL.md`: a message between Apply and the worker extension.
