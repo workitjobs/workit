@@ -511,7 +511,7 @@ by hand (W8).
 |---|---|---|---|---|
 | W0 | Move Apply to `workitjobs/apply-agent` | KAN-723 merged into WorkIt's `main` | Yes, first | Not started. KAN-723's first parts are merged (#569, #577, #581); the open `apply-agent/` PRs (#554, #557, #403) merge or hold first |
 | W1 | Model route and Usage cap | None | Yes | Built (#577, #587): the Model route, the Usage cap, the 11 kinds and the Question types on the server, and the student's private values masked in every call. Left: reworded self-ID answers, which wait on the Fill engine saying which answers came from a self-ID fact (D8, section 3.4); Send report's route (D26); the Orchestrator's pause on `GET /apply-app/usage` |
-| W2 | Filling with no model in the browser | None | Yes | Step 1 built (#590): what Apply can't fill is the student's, in the window's Fix here; a failed field is a Needs-you item with its planned answer; the emailed code's box. Next: step 2, the generic Filler |
+| W2 | Filling with no model in the browser | None | Yes | Step 1 built (#590): what Apply can't fill is the student's, in the window's Fix here; a failed field is a Needs-you item with its planned answer; the emailed code's box. Step 2, the generic Filler, is a teammate's, beside the Fillers they write for each job system |
 | W3 | What the Student build leaves out | None | Yes | Step 1 built (#581); `ask_model` fixed to `workit` (#590). Left: W8's compile flags |
 | W4 | Remove macOS-only code | None | Yes | Built (#576, #585). Left to others: `dashboard.py` (W5) and `window_capture` (W6); what stops Apply on Windows is F4's |
 | W5 | The app shell | W3, W4 (and W1 for sign-in and usage) | Yes | Step 1 of 5 built: sign-in. Next: the window on pywebview |
@@ -811,6 +811,23 @@ logs. Whether Apply's schemas need Groq's strict mode on the server (W13).
 
 **Goal.** v1 fills without `drive` (D13).
 
+**Who builds it.** Step 1 is built (below). Step 2 is a teammate's
+(2026-11-15), beside the Fillers they write for each job system: one
+person owns all filling, so the generic Filler and the Fillers never
+collide in `fillers.py` or `orchestrator._apply_with`. What step 2 can
+count on:
+
+- Only a Filler that fills with plain code runs in the Student build. A
+  job system that Claude fill fills in the Developer checkout (iCIMS,
+  Oracle, and every other one with no entry in `FILLERS`) is held for the
+  student until a Filler of its own or the generic Filler fills it.
+- W1's Model route is built: the small question below is a new kind in
+  `backend/app/apply_prompts/`, which deploys with the API.
+- What a Filler can't place goes to step 1's paths: a Needs-you item
+  with its planned answer, or the held form (`orchestrator.ForTheStudent`).
+- Each new click path needs the adversarial review (KAN-666) and its cases
+  in `tests/test_submit_guard_hostile.py`.
+
 **Design.**
 
 1. **Handoffs first** (needed in every case): in the Student build, a job
@@ -878,8 +895,8 @@ two frames a second, so W5's first run asks for the permission.
 
 `docs/held-forms.md` has the rules; `tests/test_student_build.py` (CI)
 and `tests/test_student_handoffs.py` (Chromium) test them. Left for
-step 2: the generic Filler, which fills a form with no Filler of its own
-(it waits for W1's Model route for its small questions).
+step 2, a teammate's (above): the generic Filler, which fills a form
+with no Filler of its own.
 
 ### W3. What the Student build leaves out
 
