@@ -7,6 +7,7 @@ import type { App as AppMethods, Bridge, Queued, Usage } from "./bridge.ts";
 import { TodoCard } from "./cards.tsx";
 import { Button, Logo, cx, pressed } from "./ui.tsx";
 import { type Job, type View, type Waits, chosen, headline, limit, queueNote, startWords, view } from "./view.ts";
+import { said } from "./words.ts";
 
 type Fail = (message: string) => void;
 
@@ -128,8 +129,8 @@ function Limit({ app, run }: { app: AppMethods; run?: Run }) {
     const t = setInterval(read, 60_000);
     return () => clearInterval(t);
   }, [app]);
-  const said = limit(usage, undefined, run);
-  return said ? <p className="mt-8 text-[13px] text-ink-faint">{said}</p> : null;
+  const line = limit(usage, undefined, run);
+  return line ? <p className="mt-8 text-[13px] text-ink-faint">{line}</p> : null;
 }
 
 function Home({ v, bridge, fail }: { v: View; bridge: Bridge; fail: Fail }) {
@@ -265,14 +266,14 @@ function Start({ app }: { app: AppMethods }) {
   const [ticked, setTicked] = useState<boolean[]>([]);
   const [link, setLink] = useState("");
   const [started, setStarted] = useState(false);
-  const [said, setSaid] = useState(""); // why the last run couldn't start or stopped
+  const [why, setWhy] = useState(""); // why the last run couldn't start or stopped
   useEffect(() => {
     app.queue!().then(
       (jobs) => (setQueue(jobs), setTicked(jobs.map(() => true))),
       (e: Error) => setQueue(e),
     );
     app.status?.().then(
-      (s) => s.said && setSaid(s.said),
+      (s) => s.said && setWhy(said(s.said)),
       () => {},
     );
   }, [app]);
@@ -281,8 +282,8 @@ function Start({ app }: { app: AppMethods }) {
   const note = queueNote(queue);
   const start = () => {
     setStarted(true);
-    setSaid("");
-    app.start!(links).catch((e: Error) => (setStarted(false), setSaid(e.message)));
+    setWhy("");
+    app.start!(links).catch((e: Error) => (setStarted(false), setWhy(e.message)));
   };
   return (
     <div className="pt-4">
@@ -327,9 +328,9 @@ function Start({ app }: { app: AppMethods }) {
       <Button tone="primary" size="lg" className="mt-6 w-full" disabled={started || !links.length} onClick={start}>
         {startWords(links.length)}
       </Button>
-      {said && (
+      {why && (
         <p role="alert" className="mt-3 text-center text-[13px] text-ink-meta">
-          {said}
+          {why}
         </p>
       )}
       <p className="mt-4 text-center text-xs text-ink-faint">WorkIt never presses Submit for you.</p>

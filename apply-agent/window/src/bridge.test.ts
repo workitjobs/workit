@@ -71,5 +71,5 @@ test("an app method that breaks says Apply didn't take it, and one that refuses 
   } as unknown as Window & typeof globalThis;
   const app = await routes("tok").app;
   await assert.rejects(app.start!(["https://a/1"]), { message: "Apply didn't take that." });
-  await assert.rejects(app.queue!(), { message: "WorkIt Auto Apply couldn't read your queue." });
+  await assert.rejects(app.queue!(), { message: "We couldn't read your Auto Apply queue on WorkIt. Paste a job's link instead." });
 });

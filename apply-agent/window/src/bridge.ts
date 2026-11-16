@@ -6,6 +6,7 @@
 //   A Developer checkout's window has none, so the page shows the run as it is.
 // - mock: fixtures, to design and screenshot the window with no Apply running (mock.ts).
 import type { ApplyState, QueuedJob } from "./apply.ts";
+import { said } from "./words.ts";
 
 export type Upload = { name: string; data: string }; // a file's name and its bytes in base64
 export type Queued = QueuedJob & { url: string }; // a job in the student's Auto Apply queue on WorkIt
@@ -38,7 +39,8 @@ declare global {
   }
 }
 
-const failed = (said: unknown) => new Error(typeof said === "string" && said ? said : "Apply didn't take that.");
+// Apply's refusal, in the student's words (words.ts).
+const failed = (raw: unknown) => new Error(typeof raw === "string" && raw ? said(raw) : "Apply didn't take that.");
 const UNANSWERED = "Apply didn't take that. Is it still running?";
 
 // The app's answer, or its {error} as a thrown Error. A method that broke (a Python exception) says only that
