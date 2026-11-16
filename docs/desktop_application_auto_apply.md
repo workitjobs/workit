@@ -1048,7 +1048,7 @@ built 2026-11-14 except where a row below says what waits.
 | Module | macOS part today | Change |
 |---|---|---|
 | `keychain.py` | `security` | Built (KAN-838): `keyring` (Keychain on Mac, Credential Manager on Windows, the Secret Service on Linux) for every caller, `gmail.py` too; `brief.py` never called `security`. Items left in the Student build: Employer account passwords (`apply-ats`) and the WorkIt session (W5). One developer-only `security dump-keychain` stays in `cli._mac_keychain_sites`, the backfill of accounts made before KAN-592 |
-| `workit.py` | Session in `workit-login.json`; sign-in through Chrome's debugging port | Built (W5's sign-in, 2026-11-15): the refresh token in `keyring` (`apply-workit`), the access token in memory; sign-in in the default browser with a one-time code, pasted or through `workit-auto-apply://` once W8 builds the bundle |
+| `workit.py` | Session in `workit-login.json`; sign-in through Chrome's debugging port | Built (W5's sign-in, 2026-11-15): the refresh token in `keyring` (`apply-workit`), the access token in memory; sign-in in the default browser with a one-time code, pasted or through `workit-auto-apply://`: a checkout's window takes the link through a helper applet (`sign_in_link.py`, KAN-883), and the built app will claim it once W8 builds the bundle |
 | `notify.py` | `osascript` notifications, ntfy | Dropped: the window shows notices |
 | `schedule.py`, `cli.py` | `launchctl`, `~/Library/LaunchAgents` | Dropped |
 | `dock_app.py` | The Dock bundle | Dropped: the app is its own bundle |
@@ -1337,7 +1337,9 @@ Left from W5:
 
 Left from sign-in: **the built app's link.** W8 registers
 `workit-auto-apply://` in the bundle's `Info.plist`, and the app takes the
-URL that macOS hands it; until a bundle exists, nothing can receive it.
+URL that macOS hands it. Until a bundle exists, a checkout's window has a
+helper applet claim the scheme for it (`apply-agent/src/apply/sign_in_link.py`,
+KAN-883); the built app must not make that helper.
 
 ### W6. The Worker extension on the store
 

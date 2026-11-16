@@ -9,8 +9,10 @@ the server (Dashboard.respond). The tiles' frames come from Bridge.frames as the
 link to a file a tile lists opens in the system's own app.
 
 Signed out, the window first shows SIGN_IN: Sign In with WorkIt opens WorkIt's /app-sign-in page in the default
-browser with this sign-in's PKCE challenge (workit.pkce). The built app takes the code back from the page's
-workit-auto-apply:// link (W8); a Developer checkout pastes it in the box, which only WorkIt's admins' page shows.
+browser with this sign-in's PKCE challenge (workit.pkce). The page's Open WorkIt Auto Apply opens its
+workit-auto-apply:// link, which the window takes and trades by itself: the built app claims the link (W8), and a
+checkout's window has a helper app claim it for it (apply.sign_in_link). Where there is no helper, the code is pasted
+in the box, which only WorkIt's admins' page shows.
 Then Bridge.trade signs in (WorkIt.trade). Next comes FIRST_RUN while any first-run step is left (apply.first_run:
 Chrome, the disclosure and license, Screen Recording, the seed), then the Apply window.
 
@@ -43,7 +45,7 @@ import webbrowser
 from collections.abc import Callable
 from pathlib import Path
 
-from apply import first_run, report, workit
+from apply import first_run, report, sign_in_link, workit
 from apply.adapters import SetupError
 from apply.dashboard import FRAME_GAP, QUEUED_JOB, Dashboard
 from apply.dashboard_page import STYLE
@@ -122,11 +124,18 @@ SIGN_IN = """<!doctype html><meta charset="utf-8"><title>WorkIt Auto Apply</titl
 <script>
 {ready}
 const said = document.getElementById('said'), form = document.getElementById('code');
+let poll;
 document.getElementById('start').addEventListener('click', async () => {
   await ready;
+  clearInterval(poll);
   await window.pywebview.api.sign_in();
   form.hidden = false;
-  said.textContent = 'Sign in on the WorkIt page that opened in your browser.';
+  said.textContent = 'Sign in on the WorkIt page that opened in your browser, then press Open WorkIt Auto Apply.';
+  // The page's link comes back through the helper (apply.sign_in_link): the window signs in by itself.
+  poll = setInterval(async () => {
+    const got = await window.pywebview.api.take_link();
+    if (got.error) { clearInterval(poll); said.textContent = got.error; }
+  }, 1000);
 });
 form.addEventListener('submit', async event => {
   event.preventDefault();
@@ -317,7 +326,8 @@ class Bridge:
     def __init__(self, dashboard: Dashboard, client: workit.WorkIt | None = None,
                  open_link: Callable[[str], object] = webbrowser.open, first_run: FirstRun | None = None,
                  start: Callable[[list[str], Callable[[Dashboard], None]], None] | None = None,
-                 remove: Callable[[Callable[[], None]], str] = first_run.remove_all_data):
+                 remove: Callable[[Callable[[], None]], str] = first_run.remove_all_data, link=sign_in_link,
+                 forward: Callable[[], object] = lambda: bring_forward()):
         """`start(links, show)`, when given, runs `links` and calls `show(board)` with the run's own Apply window
         (apply.student.Runs.run); the window then shows the student page."""
         self._dashboard = self._idle = dashboard
@@ -326,6 +336,8 @@ class Bridge:
         self._first = first_run or FirstRun()
         self._start = start
         self._remove = remove
+        self._link = link  # the sign-in page's link, handed to this window (apply.sign_in_link: ready, clear, take)
+        self._forward = forward  # the window brought in front of the browser
         self._running = threading.Event()  # a run is going
         self._said = ""  # why the last run couldn't start or stopped
         self._queued: dict[str, dict] = {}  # each queued job (QUEUED_JOB) by its link, for a run's window (KAN-871)
@@ -363,6 +375,8 @@ class Bridge:
 
     def sign_in(self) -> str:
         """WorkIt's sign-in page in the default browser, for a new sign-in: its URL."""
+        self._link.ready()  # before the page opens: its link must find the helper registered
+        self._link.clear()
         self._verifier, challenge = workit.pkce()
         url = workit.sign_in_page(self._client.site, challenge)
         self._open_link(url)
@@ -384,6 +398,19 @@ class Bridge:
         if self._window is not None:
             self._window.load_html(self._html())
         return {"email": account.email}
+
+    def take_link(self) -> dict:
+        """The sign-in page's link, if the helper was handed it, traded as a pasted code is: {email} or {error};
+        {} while there is none (the page asks again each second). The window then comes in front of the browser the
+        student pressed Open WorkIt Auto Apply in, signed in or saying why not."""
+        if self._verifier is None:
+            return {}
+        link = self._link.take()
+        if not link:
+            return {}
+        got = self.trade(link)
+        self._forward()
+        return got
 
     # First run (apply.first_run): each answers the steps' state, which FIRST_RUN shows.
 

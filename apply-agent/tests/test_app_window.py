@@ -168,6 +168,58 @@ def test_sign_in_opens_workits_page_and_its_code_signs_the_window_in(board, tmp_
         assert window.loaded == [FIRST_RUN, app_window.page(board)]
 
 
+class Link:
+    """apply.sign_in_link, as the bridge uses it: the helper's link, handed once."""
+
+    def __init__(self):
+        self.calls: list[str] = []
+        self.handed: str | None = None
+
+    def ready(self) -> bool:
+        self.calls.append("ready")
+        return True
+
+    def clear(self) -> None:
+        self.calls.append("clear")
+        self.handed = None
+
+    def take(self) -> str | None:
+        link, self.handed = self.handed, None
+        return link
+
+
+def test_the_sign_in_pages_link_signs_the_window_in_with_nothing_pasted(board, tmp_path):
+    """Fault: the page's Open WorkIt Auto Apply led nowhere from a checkout (macOS hands workit-auto-apply:// only to
+    a bundle), so a student who isn't an admin, shown no code, couldn't sign in."""
+    with FakeWorkIt() as fake:
+        window, link, fronts = Window(), Link(), []
+        bridge = Bridge(board, WorkIt(fake.site, tmp_path / "workit-login.json", fake.keychain), lambda url: None,
+                        Steps(SHOWN), link=link, forward=lambda: fronts.append(1))
+        bridge._window = window
+        link.handed = "workit-auto-apply://signed-in?code=stale"
+        assert bridge.take_link() == {} and link.handed  # no sign-in started: nothing taken
+
+        url = bridge.sign_in()
+        assert link.calls == ["ready", "clear"] and link.handed is None  # registered, and the old link forgotten
+        assert bridge.take_link() == {} and fronts == []  # the student hasn't pressed Open WorkIt Auto Apply yet
+        link.handed = "workit-auto-apply://signed-in?code=" + fake.browser(url)
+        assert bridge.take_link() == {"email": "test.person@example.com"}
+        assert bridge.signed_in() and window.loaded == [FIRST_RUN]
+        assert fronts == [1]  # Fault: the window stayed behind the browser, so the student didn't see it sign in
+
+
+def test_a_link_for_another_sign_in_signs_nothing_in(board, tmp_path):
+    """Fault: a link another program wrote for the helper to hand on signs the window in to its account."""
+    with FakeWorkIt() as fake:
+        link = Link()
+        bridge = Bridge(board, WorkIt(fake.site, tmp_path / "workit-login.json", fake.keychain), lambda url: None,
+                        Steps(SHOWN), link=link, forward=lambda: None)
+        other = fake.browser(workit.sign_in_page(fake.site, workit.pkce()[1]))  # a code for someone else's challenge
+        bridge.sign_in()
+        link.handed = f"workit-auto-apply://signed-in?code={other}"
+        assert "error" in bridge.take_link() and not bridge.signed_in()
+
+
 def test_the_apps_page_loads_no_web_font(board):
     """Fault: the window asks Google Fonts for its font, a request the privacy page doesn't name."""
     assert "fonts.googleapis.com" in board.page() and "fonts.googleapis.com" not in app_window.page(board)
