@@ -105,7 +105,8 @@ with the guards of any rehearsal. It never submits.
   Keychain password, the code from Gmail, or Google where the policy says so. Until KAN-878 it stopped
   at every sign-in for Lisul (KAN-720's `Accounts.hands_off`), with no reason beyond caution. A
   rehearsal never resets a password that only may exist (`Accounts.rehearsal`), so a stale password
-  can't lock the account; a captcha on a sign-in page stays his.
+  can't lock the account, and a site whose password sign-in failed before (the Tracker's
+  "Sign-in failed at") is never tried again, as in a run; a captcha on a sign-in page stays his.
 - **History.** Each reopened tile's first line is "Reopened after Apply stopped (open since ...)",
   and it is in the new Record.
 - Forms Lisul pressed Submit on (`sent`) are listed, never reopened. Forms of another profiles folder

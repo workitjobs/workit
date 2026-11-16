@@ -45,7 +45,10 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
   fill then drives again from the signed-in page, once per form. It never types into Google's pages
   and never sees a password: a page that asks for a password, a code or a passkey, Google's refusal of
   the browser, a site that doesn't come back signed in within 60 s, no or two Google buttons, and a
-  Google button that would submit a form are each a Needs sign-in Handoff. So is a sign-in that
+  Google button that is, holds or labels a form's submit button are each a Needs sign-in Handoff. So
+  is a sign-in whose Google URLs ask for more than `openid`, `email` and `profile`, or say nothing of
+  what they ask (`provider_sign_in.BASIC_SCOPES`): the review of KAN-878 opened another app's request
+  for Drive from a page's Google button, and Apply picked the account and pressed Continue on it. So is a sign-in that
   offers no Google, and every sign-in when the policy is anything else: Lisul signs in on the page.
   Signed in means no provider button shows and the account menu does (Eightfold's "Account manager
   for <name>", or a Sign out); Microsoft's header shows a "Sign in" button until then. The pause then
@@ -75,7 +78,9 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
   a reset that does not finish forgets the password. This holds on a
   tenant that offers Google too (Lisul, 2026-11-03). A rehearsal resets
   nothing: it forgets the new password and stops with `workday.MAY_EXIST`
-  (`Accounts.rehearsal`). No answer at all after the form was sent
+  (`Accounts.rehearsal`), and Create Account's "already exists" stops it too
+  (`accounts.NO_RESET_IN_REHEARSAL`, in `Accounts.reset_password`, which
+  every reset goes through: KAN-878's review found it reset there). No answer at all after the form was sent
   (`_send(unanswered=...)`) goes to `_may_exist` too.
 - A tenant that mails a link goes to Sign In by way of `/login/warning`
   (Zillow's, Sonos's), so `_create_account` watches the requests for that
