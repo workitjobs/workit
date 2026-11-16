@@ -747,8 +747,8 @@ def _print_report(report: Report, *, dry_run: bool) -> None:
     if report.duplicates:
         print(f"  duplicate apply_urls skipped {report.duplicates}")
     print(f"  jobs naming no place {report.no_place}, of which unresolved strings:")
-    for text, pieces in sorted(report.unresolved.items()):
-        print(f"    {text!r}  (unknown: {', '.join(pieces)})")
+    for loc_text, pieces in sorted(report.unresolved.items()):
+        print(f"    {loc_text!r}  (unknown: {', '.join(pieces)})")
     untagged = sum(report.untagged.values())
     print(f"  jobs naming no role {untagged}, by title (add aliases in services/role_resolver.py):")
     for title, jobs in sorted(report.untagged.items(), key=lambda item: (-item[1], item[0])):

@@ -2,7 +2,7 @@
 
 Repo-wide rules, always loaded. Each code folder below (`frontend/`,
 `backend/`, `scout/`, `scraper/`, `autofiller_extension/`, `apply-agent/`,
-`.github/`) has its own `CLAUDE.md` that loads on top of this one when you
+`.github/`, `.sandcastle/`) has its own `CLAUDE.md` that loads on top of this one when you
 touch a file in it; read it before writing code there. A rule lives at the
 deepest level that fully contains it, with a pointer above rather than a copy.
 
@@ -55,6 +55,9 @@ none.
   and has its own glossary and ADRs (`GLOSSARY-MAP.md`). Read
   `apply-agent/CLAUDE.md` before any change there.
 - `.github/` — CI and the scheduled scrape-and-import (KAN-160).
+- `.sandcastle/` — Sandcastle, an unattended agent loop that works through
+  KAN issues labelled `sandcastle` in a sandbox and leaves each on a branch
+  for a person to PR. Its own `package.json`; `.sandcastle/CLAUDE.md`.
 - `docs/` — team prose that spans the repo (below).
 
 ## The database

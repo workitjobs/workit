@@ -31,6 +31,15 @@ local preview of 40 pool boards:
 python3 discover_boards.py --channel openjobs --pool-limit 40 --report /tmp/pool.json
 ```
 
+**The Common Crawl pool** is a fourth source: board tokens harvested from
+Common Crawl's CDX index by `harvest_commoncrawl.py`, stored in
+`scraper/commoncrawl-boards.json` (about 19,395 tokens from CC-MAIN-2026-43).
+It goes through the same review PR and the same pool distribution
+(`--pool-days 16`), proposed only when a board lists a posting the shortlist
+keeps, under the name its own hiring system gives it. A GitHub Actions
+workflow (`harvest-commoncrawl.yml`) re-harvests twice a month; a person
+reviews and merges the resulting PR to update the file on main.
+
 **The repository must let GitHub Actions open pull requests** (Settings →
 Actions → General → Workflow permissions → "Allow GitHub Actions to create and
 approve pull requests"). With it off, the first scheduled run (2026-10-29)
@@ -141,6 +150,7 @@ python discover_boards.py --channel hn --months 3 --limit 20
 python discover_boards.py --channel ddg --query "site:jobs.ashbyhq.com fintech"
 python discover_boards.py --channel github --query "jobs.lever.co in:file"
 python discover_boards.py --channel google --query "site:jobs.ashbyhq.com fintech"
+python discover_boards.py --channel commoncrawl --pool-limit 40 --pool-days 1 --pool-day 0
 ```
 
 Repeat `--channel` to combine sources. Curated discovery includes the existing

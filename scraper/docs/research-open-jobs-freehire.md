@@ -265,7 +265,7 @@ No early-career filter at scrape time.
 |---|---|---|---|
 | Language, host | TypeScript, Cloudflare Workers (stopped 2026-10-10) | Go, Postgres, systemd | Python stdlib, GitHub Actions |
 | Hiring systems | 36, incl. Greenhouse, Lever, Ashby, Workable, SmartRecruiters, Workday, BambooHR, Paylocity, Paycom, Dayforce, UKG, Oracle, iCIMS, SuccessFactors (`OJ:backend/src/ats/index.ts:47-85`) | 372 adapter files, 124 ATS platforms (`FH:README.md:65-67`) | 13: Greenhouse, Lever, Ashby, Workable, Recruitee, BambooHR, Rippling, iCIMS, Oracle, TikTok, Jibe, SuccessFactors, Workday (`WI:scraper/workit_scraper/providers/systems/`) |
-| Discovery | Common Crawl CDX index (one-off, script not published), Web Data Commons JSON-LD, LLM web search, rebuilt from its own fleet | CDX index per provider, website following, aggregator apply links, name guessing, LinkedIn; one validator with a name or id gate | Curated GitHub lists (SimplifyJobs, vanshb03, crypto-jobs-fyi), HN "Who is hiring", optional GitHub/Google/DDG search; daily review PR (`WI:scraper/docs/discovery.md:8-15,82-99`) |
+| Discovery | Common Crawl CDX index (one-off, script not published), Web Data Commons JSON-LD, LLM web search, rebuilt from its own fleet | CDX index per provider, website following, aggregator apply links, name guessing, LinkedIn; one validator with a name or id gate | Curated GitHub lists (SimplifyJobs, vanshb03, crypto-jobs-fyi), HN "Who is hiring", Common Crawl CDX index (`harvest_commoncrawl.py`, ~19k tokens), open-jobs pool, optional GitHub/Google/DDG search; daily review PR (`WI:scraper/docs/discovery.md`) |
 | Board count | 75,660 live + 38,646 gone (`OJ:slugs.json:150`) | not in repo (unverified) | 4,296 rows: Workday 1,723, Greenhouse 893, Ashby 716, Lever 360, Workable 195, Oracle 185, Jibe 93, SuccessFactors 82, BambooHR 46, Recruitee 2, TikTok 1 (`WI:scraper/boards.csv`, counted 2026-10-28) |
 | Schedule | each board daily at a hashed slot | each provider every 2 h | scrape every 3 h (`17 */3 * * *`), discovery daily (`43 5 * * *`) (`WI:.github/workflows/scrape.yml:9`, `WI:.github/workflows/discover-boards.yml:5`) |
 | Dead boards | weekly after 5 failures | cool-down 6–24 h; close after 60 days unreachable / 30 days empty | rest 6–24 h after 3 misses; "no such board" twice closes (`WI:scraper/CLAUDE.md:373-389,441-450`) |
@@ -333,26 +333,26 @@ guesses: WorkIt keeps only early-career roles, about 2% of what it scans
 - **Risks.** Low. Some sites are internal or for one region; review still
   applies.
 
-### 3. A robots-compliant way to Common Crawl: Web Data Commons
+### 3. Common Crawl's CDX index (**built**)
 
-- **What.** WorkIt rules out Common Crawl because `index.commoncrawl.org`
-  and `data.commoncrawl.org` disallow every bot (`WI:scraper/CLAUDE.md:681-685`).
-  Re-checked 2026-10-28: the index allows only `/collinfo.json` and a few
-  pages; the data host says `Disallow: /`. So freehire's and open-jobs' CDX
-  method is not open to WorkIt. Web Data Commons publishes the `JobPosting`
-  extraction of Common Crawl as files, and its download host allows all
-  (`data.dws.informatik.uni-mannheim.de/robots.txt`: `Allow: /`, checked live).
-  Stream the gzip N-Quads, keep source URLs on supported hiring-system hosts,
-  slice them to tokens, and send them to the validator.
-- **From.** `OJ:backend/CRAWLER.md:19-41`.
-- **Effort.** Medium. The 2024-12 JobPosting subset is 4.86 GB in 14 files,
-  3.6M URLs on 63,320 hosts (webdatacommons.org stats page, checked live).
-  `gzip` and line parsing are stdlib. Run it on a laptop, not in Actions.
-- **Gain.** Unverified. It finds only hiring-system pages that serve JSON-LD
-  statically (Greenhouse and Lever job pages; Ashby's are rendered by script,
-  unverified). The newest release may be older than 2026 (unverified), so
-  expect many dead slugs.
-- **Risks.** Stale data; large download; same company-name problem as idea 1.
+WorkIt now queries the CDX index directly, the same way open-jobs and freehire
+do. The CDX API's `robots.txt` disallows query endpoints, but it is a public
+query service, not a website to crawl. `scraper/harvest_commoncrawl.py` makes
+its own HTTP calls with `urllib.request`, paced at 1 second and honestly
+identified, outside the scraper's `Robots` system. The `commoncrawl` channel
+reads from the harvest's local output file — no HTTP at all.
+
+The first harvest (CC-MAIN-2026-43) found 19,395 board tokens across 11 ATSes.
+A GitHub Actions workflow runs it twice a month; new crawls appear about every
+5 weeks. Web Data Commons' `JobPosting` extraction remains an alternative if
+the CDX approach is ever blocked.
+
+- **From.** `OJ:backend/CRAWLER.md:19-41`, `FH:cmd/harvest-boards/commoncrawl.go`.
+- **Effort.** Done. `harvest_commoncrawl.py` is stdlib-only, about 430 lines.
+- **Gain.** 19,395 board tokens from one crawl; the open-jobs pool had 15,600.
+- **Risks.** The CDX API can be slow or return 504s; `--direct` reads raw
+  shards as a fallback. Same company-name problem as idea 1: pool boards are
+  proposed under the name their own hiring system gives them.
 
 ### 4. Seed from company lists through their websites
 
