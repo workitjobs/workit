@@ -2,12 +2,12 @@
 
 import json
 import urllib.error
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
 from apply import ask_model, doctor, workit
-from apply.adapters import ClaudeError, SetupError, UsageLimitHit, lean
+from apply.adapters import ClaudeError, SetupError, UsageLimitHit, UsageReading, lean
 from apply.ask_model import PROVIDERS, Endpoint, HostedAsk, live_claude, strict
 from apply.claude_cli import ClaudeCLI
 from apply.keychain import InMemoryKeychain
@@ -280,15 +280,23 @@ class FakeWorkIt:
         return reply
 
 
-def workit_ask(*replies, now=datetime(2026, 11, 14, 10, 0)):
+def workit_ask(*replies, now=datetime(2026, 11, 14, 10, 0), claude=None):
     slept = []
     fake = FakeWorkIt(*replies)
-    return ask_model.WorkItAsk(_NoClaude(), fake, slept.append, lambda: now), fake, slept
+    return ask_model.WorkItAsk(claude or _NoClaude(), fake, slept.append, lambda: now), fake, slept
 
 
 class _NoClaude:
+    def __init__(self, reading: UsageReading | Exception = UsageReading()):
+        self._reading = reading
+
     def spent(self) -> int:
         return 5
+
+    def reading(self) -> UsageReading:
+        if isinstance(self._reading, Exception):
+            raise self._reading
+        return self._reading
 
 
 def test_workit_sends_a_kind_and_its_data_and_counts_its_tokens():
@@ -313,6 +321,26 @@ def test_workit_waits_out_its_minute_limit_once_and_pauses_the_run_at_its_cap():
     with pytest.raises(UsageLimitHit) as hit:
         asks.ask_kind("brief.team", {})
     assert hit.value.resets_at == midnight and slept == []
+
+
+def test_workit_at_its_usage_cap_pauses_the_run_until_it_resets():
+    # A limited reading starts no Application until resets_at (orchestrator._resume_at).
+    midnight = datetime.fromtimestamp(datetime(2026, 11, 15, tzinfo=UTC).timestamp())  # local, as the Clock's
+    usage = {"used": 80_000, "cap": 80_000, "resets_at": "2026-11-15T00:00:00Z"}
+    asks, fake, _ = workit_ask(usage)
+    assert asks.reading() == UsageReading(limited=True, resets_at=midnight)
+    assert fake.calls[0][:2] == ("GET", "/apply-app/usage")
+    asks, _, _ = workit_ask({**usage, "used": 79_999})
+    assert asks.reading() == UsageReading()
+    asks, _, _ = workit_ask(workit.Unreachable("api.workitjobs.ai: timed out"))  # the next ask says so
+    assert asks.reading() == UsageReading()
+    # A Developer checkout's Max limit, past WorkIt's reset, still holds the run.
+    later = midnight + timedelta(hours=3)
+    asks, _, _ = workit_ask(usage, claude=_NoClaude(UsageReading(weekly=1.0, limited=True, resets_at=later)))
+    assert asks.reading() == UsageReading(weekly=1.0, limited=True, resets_at=later)
+    # A Developer checkout with no claude CLI: WorkIt's cap alone, never a rehearsal that fails at setup.
+    asks, _, _ = workit_ask(usage, claude=_NoClaude(SetupError("install claude")))
+    assert asks.reading() == UsageReading(limited=True, resets_at=midnight)
 
 
 def test_workit_busy_or_down_is_asked_again_and_a_misfit_is_not():

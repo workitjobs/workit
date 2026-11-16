@@ -1022,16 +1022,18 @@ def live_adapters(profile: ApplicantProfile, tracker=None, records=None, notifie
     Gmail app password is read from Keychain for the Applicant profile's
     email (unless a Mailbox is given), and so is the ntfy topic (unless a
     phone Notifier is given)."""
-    claude = ClaudeCLI()  # also reads usage, off every call's rate-limit events
     site = live_site(profile.policies())  # policies.yaml: worker_mode (cdp, plain or protected)
     answering.refresh(workit.WorkIt())  # WorkIt's Question types, for the run's essays
+    # policies.yaml's ask_model; every kind said as the applicant, with no private detail (apply.private)
+    claude = as_applicant(live_claude(profile.policies(), ClaudeCLI()), profile)
     return Adapters(
         feed=live_feed(),
         tracker=live_tracker() if tracker is None else tracker,
         site=site,
-        # policies.yaml's ask_model; every kind said as the applicant, with no private detail (apply.private)
-        claude=as_applicant(live_claude(profile.policies(), claude), profile),
+        claude=claude,
         mailbox=live_mailbox(profile.get("identity.email")) if mailbox is None else mailbox,
+        # The Max windows, off every claude -p call's rate-limit events, and with ask_model: workit also WorkIt's
+        # Usage cap (ask_model.WorkItAsk.reading).
         usage=claude,
         clock=SystemClock(),
         records=_records(profile) if records is None else records,

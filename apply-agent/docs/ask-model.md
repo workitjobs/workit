@@ -12,7 +12,17 @@ kind and its data (`Claude.ask_kind`), as the signed-in student
 (`apply login`; a developer's own API with `APPLY_WORKIT_API`). WorkIt
 builds the prompt (`../../backend/app/apply_prompts/`), so a call never
 carries one. Its per-minute limit is waited out once; its daily Usage cap
-raises `UsageLimitHit`, which pauses the run until midnight UTC. Every
+raises `UsageLimitHit`, which pauses the run until midnight UTC. It is
+also the run's usage (`Adapters.usage`, in the Student build and in a
+Developer checkout): `WorkItAsk.reading` reads `GET /apply-app/usage` and
+is limited from the moment `used` reaches `cap` until `resets_at`. Until
+then a rehearsal, the Student build's run, opens no form
+(`rehearsal._after_the_limit`), `apply run` starts no Application
+(`orchestrator._resume_at`), and the window shows the pause with its
+time. Before (2026-11-15), the Student build's usage was never limited: at
+the cap each link left opened its form, was refused at its first ask and
+ended paused, and nothing started it again. WorkIt not answering reads as
+not limited, since the next ask reports it. Every
 other adapter refuses a kind with a SetupError (`adapters.NEEDS_WORKIT`):
 `claude` can run one again only once the developer prompt route is built
 (urgent, `../../docs/developer_apply_agent_testing_framework.md`).

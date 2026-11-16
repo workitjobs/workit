@@ -78,6 +78,7 @@ from apply.model import Posting, Question, Site, Status, one_line
 from apply.orchestrator import (
     CALIBRATION,
     FIX_HERE,
+    UNKNOWN_RESET_WAIT,
     WORKERS,
     by_filler,
     keep_repair_requests,
@@ -531,6 +532,7 @@ def rehearse(
         draft = reopening.drafts.get(url, {}) if reopening else None  # what a reopened form held (KAN-720)
         reopened = REOPENED.format(reopening.since.get(url) or "before") if reopening else ""
         gate.acquire()
+        _after_the_limit(adapters)  # holding its Worker's turn: no form opens while the usage is limited
         if not started(n):  # removed while it waited for its turn
             gate.release()
             start.leave(n)
@@ -675,6 +677,20 @@ def rehearse(
             thread.join(30)
         out("Closed the browsers.")
     return ended
+
+
+def _after_the_limit(adapters: Adapters) -> None:
+    """Wait while a usage limit holds (the Student build's is WorkIt's Usage cap, ask_model.WorkItAsk.reading), the
+    window saying until when. Without it, at the cap each link left opened its form, was refused at its first ask
+    and ended paused, never started again."""
+    paused = False
+    while (reading := adapters.usage.reading()).limited:
+        until = reading.resets_at or adapters.clock.now() + UNKNOWN_RESET_WAIT
+        adapters.board.run(paused_until=until.isoformat(timespec="minutes"))
+        adapters.clock.sleep_until(until)
+        paused = True
+    if paused:
+        adapters.board.run(paused_until=None)
 
 
 def _until(release: threading.Event) -> str:
