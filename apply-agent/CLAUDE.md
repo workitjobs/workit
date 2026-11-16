@@ -164,7 +164,7 @@ this folder's `CLAUDE.md` for its area.
 - `docs/restart-recovery.md`: what survives a restart of the Mac: Workers' sign-ins across a quit, the open-forms list (`batch.py`), `apply reopen`, and `apply preflight --open`.
 - `docs/plain-workers/guide.md`: `apply/plain/`, `worker_mode`, `--into`, or the worker extension; `docs/plain-workers/worker-extension-todo.md` for its store package and what is left.
 - `docs/plain-workers/PROTOCOL.md`: a message between Apply and the worker extension.
-- `docs/research/`: the research behind plain Workers, Employer account sign-in, the held form's session keep-alive (`session-timeouts.md`), and keeping Workers out of the student's view (`workers-out-of-view.md`: hidden Workers, a virtual screen, F10). Each note's Status line says what was built.
+- `docs/research/`: the research behind plain Workers, Employer account sign-in, the held form's session keep-alive (`session-timeouts.md`), keeping Workers out of the student's view (`workers-out-of-view.md`: hidden Workers, a virtual screen, F10), held forms in tabs of a CDP Worker (`held-forms-in-tabs.md`, KAN-865 and KAN-876, with `tools/held_forms_tabs.py`: a form behind fills as one in front while Playwright drives it, on every saved form that fills; a window, not a tab, since a Playwright click in a tab behind waits about 2 s; a cap of 4 held forms per Worker on 8 GB), and what a Worker's Chrome crash costs held forms (`held-forms-after-a-crash.md`, KAN-866, with `tools/held_forms_crash.py`: no tab comes back; on Linux a plain Worker with `--no-startup-window` quits at once). Each note's Status line says what was built.
 
 ## The data folder (`APPLY_HOME`)
 
