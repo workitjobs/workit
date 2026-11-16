@@ -244,3 +244,33 @@ test("a ticked box or a focused button still takes the shortcuts, but Enter ther
   assert.equal(press("s", { tag: "BUTTON" }), "skip");
   assert.equal(press("Enter", { tag: "BUTTON" }), null);
 });
+
+test("each job waiting to start is named as the queue named it, a pasted one by its site", () => {
+  const v = view({
+    tiles: [],
+    items: [],
+    run: {
+      mode: "rehearsal",
+      queued: 2,
+      waiting: [
+        { link: "https://jobs.lever.co/acme/2", company: "Acme", title: "Intern", company_domain: "acme.com" },
+        { link: "https://www.careers.example.com/jobs/42" },
+      ],
+    },
+  });
+  assert.deepEqual(
+    v.waiting.map((w) => [w.link, w.company, w.role]),
+    [
+      ["https://jobs.lever.co/acme/2", "Acme", "Intern"],
+      ["https://www.careers.example.com/jobs/42", "careers.example.com", ""],
+    ],
+  );
+  assert.equal(v.waiting[0].source.company_domain, "acme.com");
+  assert.equal(v.running, true);
+  assert.equal(headline(v), "We're on it");
+});
+
+test("the idle board has no run to stop and nothing waiting", () => {
+  const v = view({ tiles: [], items: [], run: {} });
+  assert.deepEqual([v.running, v.waiting, v.queued], [false, [], 0]);
+});

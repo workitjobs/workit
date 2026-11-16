@@ -1,6 +1,6 @@
 // Apply's state, as the student sees it: a pile of things to do, one at a
 // time, and the jobs WorkIt is still working on. A job is in one or the other.
-import type { ApplyState, Shown } from "./apply.ts";
+import type { ApplyState, Shown, Waiting } from "./apply.ts";
 import type { Queued, Usage } from "./bridge.ts";
 
 export type Status = "filling" | "checking" | "todo" | "submitted" | "stopped";
@@ -28,6 +28,20 @@ export type View = {
   applied: Job[];
   stopped: Job[]; // failed or skipped: "Didn't go through"
   queued: number; // waiting to start
+  waiting: Waits[]; // those of them Apply names: Remove takes one out
+  running: boolean; // a run's board, which Stop applying ends; not the idle board
+};
+
+// A job waiting to start, as a row shows it. `link` is what /remove names it by.
+export type Waits = { link: string; company: string; role: string; source: Waiting };
+
+// A pasted link has no WorkIt job to name it: its site does.
+const site = (link: string) => {
+  try {
+    return new URL(link).hostname.replace(/^www\./, "");
+  } catch {
+    return link;
+  }
 };
 
 const ASKS: Record<string, Ask> = {
@@ -106,6 +120,8 @@ export function view(state: ApplyState): View {
     applied: jobs.filter((j) => j.status === "submitted"),
     stopped: jobs.filter((j) => j.status === "stopped"),
     queued: state.run?.queued ?? 0,
+    waiting: (state.run?.waiting ?? []).map((w) => ({ link: w.link, company: w.company || site(w.link), role: w.title || "", source: w })),
+    running: !!state.run?.mode,
   };
 }
 
