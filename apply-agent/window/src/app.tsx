@@ -1,12 +1,12 @@
 // The window: one screen that answers "what do I do now?".
-import { ArrowClockwiseIcon, CheckIcon, GearSixIcon } from "@phosphor-icons/react";
+import { ArrowClockwiseIcon, CheckIcon, GearSixIcon, StopIcon, XIcon } from "@phosphor-icons/react";
 import { useEffect, useMemo, useState } from "react";
 
 import type { ApplyState } from "./apply.ts";
 import type { App as AppMethods, Bridge, Queued } from "./bridge.ts";
 import { TodoCard } from "./cards.tsx";
 import { Button, Logo, cx, pressed } from "./ui.tsx";
-import { type Job, type View, chosen, headline, limit, queueNote, startWords, view } from "./view.ts";
+import { type Job, type View, type Waits, chosen, headline, limit, queueNote, startWords, view } from "./view.ts";
 
 type Fail = (message: string) => void;
 
@@ -37,6 +37,7 @@ export function App({ bridge }: { bridge: Bridge }) {
           WorkIt Auto Apply
         </button>
         <nav className="ml-auto flex items-center gap-1 text-[13px]">
+          {v.running && !first && <Stop bridge={bridge} fail={setToast} />}
           {!first && (
             <Button tone="quiet" className={cx("h-8 px-3", page === "applied" && "bg-hover text-ink")} onClick={() => setPage(page === "applied" ? "home" : "applied")}>
               Applied
@@ -55,6 +56,37 @@ export function App({ bridge }: { bridge: Bridge }) {
       </main>
       {toast && <div className="rise fixed right-4 bottom-4 rounded-card bg-ink px-4 py-2.5 text-[13px] text-white shadow-[var(--shadow-focus)]">{toast}</div>}
     </div>
+  );
+}
+
+// Stop applying: asked once more, since the run ends. Nothing is submitted, and filled forms stay as they are;
+// #613 then shows the queue again (the page reloads).
+function Stop({ bridge, fail }: { bridge: Bridge; fail: Fail }) {
+  const [step, setStep] = useState<"idle" | "asking" | "stopping">("idle");
+  const stop = () => {
+    setStep("stopping");
+    bridge.stop().catch((e: Error) => (setStep("idle"), fail(e.message)));
+  };
+  if (step === "idle")
+    return (
+      <Button tone="quiet" className="h-8 px-3" onClick={() => setStep("asking")}>
+        <StopIcon className="size-4" /> Stop applying
+      </Button>
+    );
+  return (
+    <span role="group" aria-label="Stop applying" className="flex items-center gap-1">
+      <span className="px-1 text-ink-meta">{step === "stopping" ? "Stopping…" : "Stop every application? Nothing gets submitted."}</span>
+      {step === "asking" && (
+        <>
+          <Button tone="primary" className="h-8 px-3" onClick={stop}>
+            Stop
+          </Button>
+          <Button tone="quiet" className="h-8 px-3" onClick={() => setStep("idle")}>
+            Keep going
+          </Button>
+        </>
+      )}
+    </span>
   );
 }
 
@@ -99,13 +131,16 @@ function Home({ v, bridge, fail }: { v: View; bridge: Bridge; fail: Fail }) {
           </p>
         </div>
       )}
-      {(v.working.length > 0 || v.queued > 0) && (
+      {(v.working.length > 0 || v.queued > 0 || v.waiting.length > 0) && (
         <section className="mt-10">
           <h3 className="mb-2 text-[13px] font-semibold text-ink-meta">Still working on</h3>
           {v.working.map((job) => (
             <Row key={job.key} job={job} />
           ))}
           {v.queued > 0 && <p className="px-0.5 pt-2 text-[13px] text-ink-faint">and {v.queued} more waiting to start</p>}
+          {v.waiting.map((w) => (
+            <Waiting key={w.link} job={w} bridge={bridge} fail={fail} />
+          ))}
         </section>
       )}
       {v.stopped.length > 0 && (
@@ -141,6 +176,27 @@ function Stopped({ job, bridge, fail }: { job: Job; bridge: Bridge; fail: Fail }
           <ArrowClockwiseIcon className="size-3.5" /> {trying ? "Trying again…" : "Try again"}
         </Button>
       )}
+    </div>
+  );
+}
+
+// A job not started yet. Remove takes it out of this run; it leaves the list once Apply drops it.
+function Waiting({ job, bridge, fail }: { job: Waits; bridge: Bridge; fail: Fail }) {
+  const [removing, setRemoving] = useState(false);
+  const remove = () => {
+    setRemoving(true);
+    bridge.remove(job.link).catch((e: Error) => (setRemoving(false), fail(e.message)));
+  };
+  return (
+    <div className={cx("flex items-center gap-3 py-2", removing && "opacity-50")}>
+      <Logo company={job.company} src={job.source} size={28} />
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-[13px] font-semibold">{job.company}</div>
+        {job.role && <div className="truncate text-xs text-ink-meta">{job.role}</div>}
+      </div>
+      <Button tone="quiet" className="h-8 px-3 text-[13px]" disabled={removing} onClick={remove} aria-label={`Remove ${job.company}`}>
+        <XIcon className="size-3.5" /> Remove
+      </Button>
     </div>
   );
 }
