@@ -492,6 +492,8 @@ and failed the job (`ProfileInUse`, "Didn't go through").
 - **Never reclaimed:** a Chrome a live Apply run or rehearsal owns (it stays `ProfileInUse`), a profile with
   no owner file (a Chrome from before KAN-885, or one started another way), and a stale lock whose PID is
   now another process, such as the student's own Chrome.
+- **A quit mid-launch.** `PlainWorkers.stop_all` (the app's quit, `Runs.close`) also stops a Chrome that
+  started but hasn't said hello yet (`_starting`), so a quit during a Worker's launch leaves none behind.
 - Tests: `tests/test_plain_orphans.py` (in CI), with stand-in processes for Chrome and the gone Apply.
 
 ## One sign-in per job site: `apply rehearse --into` (KAN-645)

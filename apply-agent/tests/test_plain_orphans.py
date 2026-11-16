@@ -131,3 +131,13 @@ def test_a_run_reclaims_orphans_and_still_refuses_a_live_runs_profile(tmp_path, 
     assert "plain-1" not in str(refused.value)
     assert ended(left)
     assert live.is_running()
+
+
+def test_stop_all_stops_a_chrome_still_starting(tmp_path, started):
+    """The app quits while a Worker's Chrome is up but hasn't said hello yet: the quit's stop_all closes it too."""
+    workers = PlainWorkers(tmp_path, kind="testing")
+    started.append(process := chrome(tmp_path / "plain-1"))
+    workers._starting[0] = launcher.Chrome(process.pid)
+    workers.stop_all()
+    assert ended(process)
+    assert not workers._starting

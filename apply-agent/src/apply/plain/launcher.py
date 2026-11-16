@@ -161,6 +161,8 @@ class PlainWorkers:
             raise ValueError("test_flags are for Chrome for Testing in tests only")
         self.test_flags = tuple(test_flags)
         self.running: dict[int, PlainWorker] = {}
+        # Chromes started but not yet saying hello: stop_all stops these too, so a quit mid-launch leaves none (KAN-885)
+        self._starting: dict[int, Chrome | subprocess.Popen] = {}
 
     @property
     def seed(self) -> Path:
@@ -327,6 +329,7 @@ class PlainWorkers:
         with KEEPER.launching():
             process = start_in_background(self.arguments(worker), profile, self.profiles / f"plain-{worker + 1}.log")
         KEEPER.watch(process.pid)
+        self._starting[worker] = process
         try:
             connection = self.bridge.wait_for(worker, HELLO_WAIT)
             folder = self.loaded_folder(worker)
@@ -348,6 +351,8 @@ class PlainWorkers:
                 raise TimeoutError(f"{error}: is the worker extension installed in {self.seed}? "
                                    "(`uv run apply plain seed`)") from None
             raise
+        finally:
+            self._starting.pop(worker, None)
         code = extension.code_hash(folder)
         self.running[worker] = PlainWorker(worker, profile, process, connection, folder, code)
         return self.running[worker]
@@ -361,8 +366,13 @@ class PlainWorkers:
             _stop(running.process)
 
     def stop_all(self) -> None:
+        """Stop every Worker's Chrome this process started, those still starting too (an app quit mid-launch)."""
         for worker in list(self.running):
             self.stop(worker)
+        for worker, process in list(self._starting.items()):
+            self._starting.pop(worker, None)
+            KEEPER.forget(process.pid)
+            _stop(process)
         self.bridge.stop()
 
     def show(self, worker: int) -> bool:
