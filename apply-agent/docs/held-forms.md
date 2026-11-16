@@ -661,13 +661,15 @@ uv run apply fill-again <application id>  # the form on that tile
 ```
 
 - `POST /fill-again` takes `X-Apply-Token` and `{"id": "tile-0"}`. `Dashboard.fill_again` accepts it only
-  while the tile's `askable` is on: a rehearsal's held or paused page, before Lisul presses Submit. Else it
-  is a 409 or a 404 with the why.
+  while the tile's `askable`, `refill` or `again` is on: a rehearsal's held or paused page, before Lisul presses
+  Submit. Else it is a 409 or a 404 with the why. `again` is on while the Worker holds the page, whatever
+  stopped the fill (failed, ruled out, ready), so a Student run, which has no Ask Claude and so no `askable`,
+  can fill it again too: the student window's Try again (KAN-873).
 - `_Kept.hold` takes it at its next turn (`Board.fill_again_asked`) and returns AGAIN, as the page's button
   does. The form fills anew under the same guards. It never submits.
 - A port with several held forms is refused, and the error lists their Application IDs. `into.fill_again`
   never guesses. The command then waits for the new fill to stop and prints how it stopped.
-- Tests: `tests/test_into.py` (in CI), `tests/test_rehearse.py -k fill_again` (Chromium).
+- Tests: `tests/test_into.py` (in CI), `tests/test_rehearse.py -k "fill_again or try_again"` (Chromium).
 
 ## A fresh page is guarded before its first load (KAN-682)
 

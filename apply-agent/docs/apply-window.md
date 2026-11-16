@@ -86,6 +86,15 @@ for a student, not from `dashboard_page.py`.
   shows one at a time, most blocking first, with "1 of 4" and Skip for
   now. Below it, "Still working on" lists only the jobs WorkIt is filling
   or checking, so no job shows twice. Submitted jobs are under "Applied".
+- **Didn't go through (KAN-873).** A failed or skipped job (not eligible,
+  closed, already applied, paused, an employer's limit) is listed with its
+  reason (`reason`: `verdict()`'s label, without "Skipped:" and with no
+  developer words). Try again shows only where Apply still holds the
+  job's page (the tile's `again`, `askable` or `refill`): it posts
+  `/fill-again` for that tile, and the job moves back to "Still working
+  on" as the form fills anew. A job whose Worker moved on, one never
+  opened (already applied) and one paused at the usage limit (it goes on
+  by itself) have none.
 - **`src/view.ts`** turns `Dashboard.state()` into that pile and that list
   (`view`), names the pile in the heading (`headline`) and says the Usage
   cap in words (`limit`). For the start screen it picks what Start runs
