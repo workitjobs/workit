@@ -24,6 +24,11 @@ export type Shown = {
   from?: string; // "tracker": an Application from an earlier run
   live?: boolean; // a form still filling that asks its questions now
   answered?: boolean; // resolved in the window: it waits on the student no more
+  // A tile's page Apply holds, so /fill-again fills it anew: Ask Claude's (askable), one whose session ended
+  // (refill), or any held once its fill stopped (again).
+  askable?: boolean;
+  refill?: boolean;
+  again?: boolean;
   application_id?: string;
   questions?: string[];
   choices?: Record<string, Choice>;

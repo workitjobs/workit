@@ -46,6 +46,55 @@ test("a job shows once: its tile over its earlier item", () => {
 test("stopped jobs are in neither the pile nor the working list", () => {
   const v = view({ tiles: [job({ tone: "failed" })], items: [job({ tone: "ended", posting_url: "https://e" })] });
   assert.equal(v.todo.length + v.working.length + v.applied.length, 0);
+  assert.equal(v.stopped.length, 2);
+});
+
+test("a failed or skipped job didn't go through, with its reason in the student's words", () => {
+  // Each label as verdict() in dashboard.py gives it, by the Application's status.
+  const cases: [Partial<Shown>, string][] = [
+    [{ tone: "failed", kind: "failed", status: "failed", label: "Couldn't finish: the page took too long to respond" }, "Couldn't finish: the page took too long to respond"],
+    [{ tone: "ended", kind: "skipped", status: "not eligible", label: "Skipped: you don't qualify (needs US work authorization)" }, "You don't qualify (needs US work authorization)"],
+    [{ tone: "ended", kind: "skipped", status: "closed", label: "Skipped: no longer taking applications" }, "No longer taking applications"],
+    [{ tone: "ended", kind: "skipped", status: "already applied", label: "Already applied" }, "Already applied"],
+    [{ tone: "ended", kind: "skipped", status: "skipped", label: "Skipped: you already applied to this job" }, "You already applied to this job"],
+    [{ tone: "ended", kind: "skipped", status: "paused", label: "Paused at Claude's usage limit; it goes on by itself" }, "Paused at today's limit; it goes on by itself"],
+  ];
+  for (const [over, reason] of cases) {
+    const v = view({ tiles: [], items: [job({ id: 3, ...over })] });
+    assert.deepEqual(
+      v.stopped.map((j) => [j.company, j.reason]),
+      [["Stripe", reason]],
+      String(over.status),
+    );
+  }
+});
+
+test("Try again is offered only where Apply still holds the job's page to fill again", () => {
+  const v = view({
+    tiles: [
+      job({ tone: "failed", posting_url: "https://held", again: true }),
+      job({ tone: "ended", status: "not eligible", posting_url: "https://ruled-out", again: true }),
+      job({ tone: "ended", status: "already applied", posting_url: "https://before" }), // never opened: no page held
+      job({ tone: "ended", status: "paused", posting_url: "https://paused" }), // goes on by itself
+    ],
+    items: [job({ tone: "failed", posting_url: "https://gone", id: 7 })], // its Worker moved on: no tile
+  });
+  assert.deepEqual(
+    v.stopped.map((j) => [j.key, j.retry]),
+    [
+      ["https://held", "tile-0"],
+      ["https://ruled-out", "tile-1"],
+      ["https://before", undefined],
+      ["https://paused", undefined],
+      ["https://gone", undefined],
+    ],
+  );
+});
+
+test("a job tried again is back among those still being worked on", () => {
+  // Its item still says how it failed; its tile fills it anew.
+  const v = view({ tiles: [job({ tone: "filling", posting_url: "https://held" })], items: [job({ tone: "failed", posting_url: "https://held", id: 2 })] });
+  assert.deepEqual([v.stopped.length, v.working.map((j) => j.key)], [0, ["https://held"]]);
 });
 
 test("idle tiles and answered items are left out", () => {

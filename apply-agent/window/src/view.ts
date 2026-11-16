@@ -17,6 +17,8 @@ export type Job = {
   progress?: number; // 0..1 while filling
   id?: string; // what /answer and /approve name it by: its item's id
   worker?: number; // what /show/<k> names its form's Chrome window by: its tile's place on the board
+  reason?: string; // why it didn't go through, in the student's words
+  retry?: string; // what /fill-again names it by, when Apply holds its page to fill again: Try again
   source: Shown; // the tile over its item, so a tile's to-do keeps the item's questions
 };
 
@@ -24,6 +26,7 @@ export type View = {
   todo: Job[]; // what waits on the student, most blocking first
   working: Job[]; // filling or checking: nothing to do
   applied: Job[];
+  stopped: Job[]; // failed or skipped: "Didn't go through"
   queued: number; // waiting to start
 };
 
@@ -58,6 +61,13 @@ export function classify(shown: Shown): { status: Status; ask?: Ask } {
   }
 }
 
+// Why a job didn't go through, from verdict()'s label: "Skipped: " said by the list's own heading, and no
+// developer words.
+export const reason = (shown: Shown) => {
+  const said = (shown.label ?? "").replace(/^Skipped: /, "").replace("Claude's usage limit", "today's limit");
+  return said ? said[0].toUpperCase() + said.slice(1) : "Something went wrong";
+};
+
 const keyOf = (s: Shown) => String(s.posting_url || `${s.company}|${s.role}` || s.id);
 
 export function view(state: ApplyState): View {
@@ -85,6 +95,8 @@ export function view(state: ApplyState): View {
       progress: c.status === "filling" && shown.asked ? (shown.filled ?? 0) / shown.asked : undefined,
       id: item?.id === undefined ? undefined : String(item.id),
       worker: tile ? tile.worker : item?.worker,
+      reason: c.status === "stopped" ? reason(shown) : undefined,
+      retry: c.status === "stopped" && tile && (tile.again || tile.askable || tile.refill) ? `tile-${tile.worker}` : undefined,
       source: { ...shown, questions: item?.questions ?? tile?.questions },
     });
   }
@@ -92,6 +104,7 @@ export function view(state: ApplyState): View {
     todo: jobs.filter((j) => j.ask).sort((a, b) => ORDER.indexOf(a.ask!) - ORDER.indexOf(b.ask!)),
     working: jobs.filter((j) => j.status === "filling" || j.status === "checking"),
     applied: jobs.filter((j) => j.status === "submitted"),
+    stopped: jobs.filter((j) => j.status === "stopped"),
     queued: state.run?.queued ?? 0,
   };
 }
