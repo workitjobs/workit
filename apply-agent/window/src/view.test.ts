@@ -69,6 +69,17 @@ test("a failed or skipped job didn't go through, with its reason in the student'
   }
 });
 
+test("a reason in Apply's developer words is said plainly, never as it is", () => {
+  const cases: [Partial<Shown>, string][] = [
+    [{ tone: "failed", status: "failed", label: "Couldn't finish: setup: ask_model: workit needs a WorkIt sign-in" }, "We couldn't finish filling it out"],
+    [{ tone: "failed", status: "failed", label: "Couldn't finish: the rehearsal stopped" }, "We couldn't finish filling it out"],
+    [{ tone: "failed", status: "failed", label: "Couldn't finish: Claude fill gave up on the page" }, "We couldn't finish filling it out"],
+    [{ tone: "ended", kind: "skipped", status: "skipped", label: "Skipped: today's limit reached; 3 more go tomorrow" }, "Today's limit was reached before it started"],
+    [{ tone: "ended", kind: "skipped", status: "skipped", label: "Skipped: OpenAI takes at most 5 applications in any 180 days" }, "OpenAI takes at most 5 applications in any 180 days"],
+  ];
+  for (const [over, reason] of cases) assert.equal(view({ tiles: [], items: [job({ id: 3, ...over })] }).stopped[0].reason, reason, String(over.label));
+});
+
 test("Try again is offered only where Apply still holds the job's page to fill again", () => {
   const v = view({
     tiles: [

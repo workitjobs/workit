@@ -2,6 +2,7 @@
 // time, and the jobs WorkIt is still working on. A job is in one or the other.
 import type { ApplyState, Run, Shown, Waiting } from "./apply.ts";
 import type { Queued, Usage } from "./bridge.ts";
+import { DEVELOPER } from "./words.ts";
 
 export type Status = "filling" | "checking" | "todo" | "submitted" | "stopped";
 
@@ -76,10 +77,12 @@ export function classify(shown: Shown): { status: Status; ask?: Ask } {
 }
 
 // Why a job didn't go through, from verdict()'s label: "Skipped: " said by the list's own heading, and no
-// developer words.
+// developer words (words.ts): a cause in Apply's own words is said plainly instead.
 export const reason = (shown: Shown) => {
-  const said = (shown.label ?? "").replace(/^Skipped: /, "").replace("Claude's usage limit", "today's limit");
-  return said ? said[0].toUpperCase() + said.slice(1) : "Something went wrong";
+  const label = (shown.label ?? "").replace(/^Skipped: /, "").replace("Claude's usage limit", "today's limit");
+  if (/^today's limit reached/.test(label)) return "Today's limit was reached before it started";
+  if (DEVELOPER.test(label)) return "We couldn't finish filling it out";
+  return label ? label[0].toUpperCase() + label.slice(1) : "Something went wrong";
 };
 
 // One job, one key: its posting, else its company and role when it has both, else its own id.
