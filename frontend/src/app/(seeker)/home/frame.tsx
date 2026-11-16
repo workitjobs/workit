@@ -19,10 +19,14 @@ import { RangeSwitch } from "./range-switch";
  * between cards, so the page jumped against the others in the sidebar.
  */
 export function HomeFrame({
+  installedToast,
   tiles,
   topMatches,
   activity,
 }: {
+  /** The extension's one-time "installed" toast (./installed-toast.tsx,
+   *  KAN-864); draws nothing itself, so ./loading.tsx passes none. */
+  installedToast?: ReactNode;
   /** The four numbers, each a cell of the grid. */
   tiles: ReactNode;
   topMatches: ReactNode;
@@ -35,6 +39,8 @@ export function HomeFrame({
         SEEKER_GUTTER,
       )}
     >
+      {installedToast}
+
       <header className="flex justify-end">
         {/* Find Jobs sat beside it until KAN-261: the sidebar's Jobs row and
             the Excellent Matches tile already lead there. */}
