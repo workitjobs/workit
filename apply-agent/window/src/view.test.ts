@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import type { Shown } from "./apply.ts";
-import { answerOf, asking, chosen, classify, headline, limit, queueNote, startWords, view } from "./view.ts";
+import { answerOf, asking, chosen, classify, headline, limit, queueNote, shortcut, startWords, view } from "./view.ts";
 
 const job = (over: Partial<Shown>): Shown => ({ tone: "filling", company: "Stripe", role: "SWE Intern", posting_url: "https://s", ...over });
 
@@ -168,4 +168,30 @@ test("ticked boxes are sent as one answer, in the form's order, as today's windo
   const asked = asking(fact({ questions: ["q"], choices: { q: { kind: "multi_select", options: ["NYC", "SF", "Remote"] } } }), [])!;
   assert.equal(answerOf(asked, ["Remote", "NYC"]), "NYC; Remote");
   assert.equal(answerOf(asked, []), "");
+});
+
+const press = (key: string, over: Partial<Parameters<typeof shortcut>[0]> = {}) => shortcut({ key, tag: "BODY", ...over }, 3);
+
+test("1 to 9 pick an option, Enter saves and S skips the to-do", () => {
+  assert.deepEqual(press("1"), { pick: 0 });
+  assert.deepEqual(press("3"), { pick: 2 });
+  assert.equal(press("4"), null); // the question has three options
+  assert.equal(press("0"), null);
+  assert.equal(press("Enter"), "save");
+  assert.equal(press("s"), "skip");
+  assert.equal(press("S"), "skip");
+  assert.equal(press("x"), null);
+});
+
+test("no shortcut fires while the student types in a box, or with a modifier held", () => {
+  for (const at of [{ tag: "INPUT", type: "text" }, { tag: "INPUT" }, { tag: "TEXTAREA" }, { tag: "SELECT" }, { tag: "DIV", editable: true }])
+    for (const key of ["1", "Enter", "s"]) assert.equal(press(key, at), null, `${key} in ${at.tag}`);
+  assert.equal(press("s", { mods: true }), null); // Cmd-S, Ctrl-1...
+  assert.equal(press("1", { mods: true }), null);
+});
+
+test("a ticked box or a focused button still takes the shortcuts, but Enter there presses the button itself", () => {
+  assert.deepEqual(press("2", { tag: "INPUT", type: "checkbox" }), { pick: 1 });
+  assert.equal(press("s", { tag: "BUTTON" }), "skip");
+  assert.equal(press("Enter", { tag: "BUTTON" }), null);
 });

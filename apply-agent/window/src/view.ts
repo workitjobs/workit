@@ -149,3 +149,17 @@ export function asking(source: Shown, done: string[]): Asked | undefined {
 
 // What /answer gets for the options picked: several joined by "; " in the form's order, as the Answer cell holds them.
 export const answerOf = (asked: Asked, picks: string[]) => asked.options.filter((o) => picks.includes(o)).join("; ");
+
+// The to-do card's keys: 1 to 9 pick an option, Enter saves, S skips the to-do. None while the student types in a
+// box, or with Cmd, Ctrl or Alt held (the window's own shortcuts). Enter on a focused button is that button's.
+export type Key = { pick: number } | "save" | "skip" | null;
+
+const TICKS = ["checkbox", "radio", "button", "submit", "file"];
+
+export function shortcut(e: { key: string; tag: string; type?: string; editable?: boolean; mods?: boolean }, options: number): Key {
+  const typing = e.editable || e.tag === "TEXTAREA" || e.tag === "SELECT" || (e.tag === "INPUT" && !TICKS.includes(e.type ?? "text"));
+  if (typing || e.mods) return null;
+  if (/^[1-9]$/.test(e.key)) return Number(e.key) <= options ? { pick: Number(e.key) - 1 } : null;
+  if (e.key === "Enter") return e.tag === "BUTTON" ? null : "save";
+  return e.key.toLowerCase() === "s" ? "skip" : null;
+}
