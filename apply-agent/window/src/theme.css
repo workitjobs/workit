@@ -1,0 +1,86 @@
+@import "tailwindcss";
+
+/* Inter, WorkIt's face, latin only: the window ships it inside its one HTML file. */
+@font-face {
+  font-family: "Inter Variable";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url(@fontsource-variable/inter/files/inter-latin-wght-normal.woff2) format("woff2-variations");
+}
+
+/* WorkIt's design kit (frontend/src/app/globals.css), the tokens this window uses,
+ * under the same names, so a class reads the same here as on the website. */
+@theme static {
+  --font-sans: "Inter Variable", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --font-weight-normal: 400;
+  --font-weight-medium: 450;
+
+  --color-app: #fcfcfc;
+  --color-panel: #ffffff;
+  --color-surface: #f8f8f8;
+  --color-hover: #f0f0f0;
+  --color-border: #e8e8e8;
+  --color-border-surface: #d9d9d9;
+  --color-border-control: #929292;
+
+  --color-ink: #121a28;
+  --color-ink-muted: #3b3e46;
+  --color-ink-meta: #465266;
+  --color-ink-faint: #8893a4;
+
+  --color-brand: #6d3fd8;
+  --color-brand-hover: #5b30c0;
+  --color-brand-active: #4c27a3;
+  --color-brand-tint: #efeaff;
+  --color-brand-pale: #ddd2ff;
+  --color-brand-ink: #5b30c0;
+  --color-on-brand: #ffffff;
+
+  --color-positive: #17b076;
+  --color-positive-ink: #107a52;
+  --color-positive-tint: #e3f7f0;
+  --color-warning-deep: #a16207;
+  --color-warning-tint: #fdf0d9;
+  --color-warning-fill: #f2a516;
+
+  --radius-control: 0.5rem;
+  --radius-card: 0.625rem;
+  --radius-shell: 1.25rem;
+  --shadow-card: 0 1px 2px rgb(18 26 40 / 0.04), 0 8px 20px rgb(18 26 40 / 0.06);
+  --shadow-focus: 0 1px 2px rgb(18 26 40 / 0.04), 0 16px 40px rgb(18 26 40 / 0.08);
+}
+
+html,
+body {
+  background: var(--color-app);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  -webkit-font-smoothing: auto;
+  user-select: none;
+  -webkit-user-select: none;
+}
+input,
+textarea {
+  user-select: text;
+  -webkit-user-select: text;
+}
+:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+}
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+.rise {
+  animation: rise 0.25s ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .rise {
+    animation: none;
+  }
+}

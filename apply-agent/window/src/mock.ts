@@ -1,0 +1,116 @@
+// A pretend Apply, in the shape of `Dashboard.state()`: the window's fixtures.
+// Pick one with ?scenario=start|needs|ready|quiet. Answers and approvals change
+// it as Apply would, so the whole flow can be clicked through.
+import type { ApplyState, Shown } from "./apply.ts";
+import type { Bridge } from "./bridge.ts";
+
+const ramp: Shown = {
+  id: "live-1",
+  tone: "needs",
+  kind: "missing fact",
+  company: "Ramp",
+  role: "New Grad Software Engineer",
+  posting_url: "https://jobs.ashbyhq.com/ramp/1",
+  system: "Ashby",
+  worker: 1,
+  live: true,
+  questions: ["Are you authorized to work in the US?", "When can you start?"],
+  choices: { "Are you authorized to work in the US?": { kind: "single", options: ["Yes", "No"] } },
+  required: { "Are you authorized to work in the US?": true, "When can you start?": true },
+};
+const nvidia: Shown = {
+  id: "7",
+  tone: "needs",
+  kind: "needs sign-in",
+  company: "NVIDIA",
+  role: "SWE Intern, Summer 2027",
+  posting_url: "https://nvidia.wd5.myworkdayjobs.com/1",
+  system: "Workday",
+  worker: 2,
+  do: "Sign in to NVIDIA's Workday site once",
+};
+const figma: Shown = {
+  id: "8",
+  tone: "needs",
+  kind: "held",
+  company: "Figma",
+  role: "Software Engineer Intern",
+  posting_url: "https://boards.greenhouse.io/figma/1",
+  system: "Greenhouse",
+  application_id: "a8",
+  essays: [
+    {
+      question: "Why Figma?",
+      text: "I started using Figma to lay out the dashboard for my robotics team's micromouse, and what kept me there was how the multiplayer cursors turned design reviews into something the whole team joined…",
+    },
+  ],
+};
+const notion: Shown = {
+  tone: "ready",
+  company: "Notion",
+  role: "Software Engineer",
+  posting_url: "https://jobs.ashbyhq.com/notion/1",
+  system: "Ashby",
+  worker: 0,
+  verified: true,
+  filled: 22,
+  asked: 22,
+  essays: [
+    {
+      question: "Why Notion?",
+      text: "I've used Notion to run my robotics team's build season, from part tracking to match notes, and what stuck with me is how one tool bent to fit four different ways of working…",
+    },
+  ],
+};
+const stripe: Shown = { tone: "filling", company: "Stripe", role: "Software Engineer Intern", posting_url: "https://stripe/1", worker: 0, filled: 14, asked: 22 };
+const linear: Shown = { tone: "verifying", company: "Linear", role: "Backend Engineer Intern", posting_url: "https://linear/1", worker: 2 };
+const vercel: Shown = { tone: "submitted", company: "Vercel", role: "Software Engineer, New Grad", posting_url: "https://vercel/1", from: "tracker" };
+const datadog: Shown = { tone: "submitted", company: "Datadog", role: "Software Engineer Intern", posting_url: "https://datadog/1", from: "tracker" };
+
+const SCENARIOS: Record<string, () => ApplyState> = {
+  start: () => ({ tiles: [], items: [], run: { queued: 0, today: 0, cap: 25 } }),
+  needs: () => ({ tiles: [stripe, linear], items: [ramp, nvidia, figma, notion, vercel, datadog], run: { queued: 6, today: 12, cap: 25 } }),
+  ready: () => ({ tiles: [stripe], items: [notion, vercel], run: { queued: 3, today: 12, cap: 25 } }),
+  quiet: () => ({ tiles: [stripe, { ...linear }], items: [vercel, datadog], run: { queued: 4, today: 9, cap: 25 } }),
+};
+
+export function mock(scenario: string): Bridge {
+  let state = structuredClone((SCENARIOS[scenario] ?? SCENARIOS.needs)());
+  const listeners = new Set<(s: ApplyState) => void>();
+  const push = () => listeners.forEach((on) => on(structuredClone(state)));
+  const later = (change: () => void, ms = 1500) => setTimeout(() => (change(), push()), ms);
+  const find = (id: string) => state.items.find((i) => String(i.id) === id);
+  return {
+    watch(on) {
+      listeners.add(on);
+      on(structuredClone(state));
+      return () => listeners.delete(on);
+    },
+    async answer(id, question) {
+      const item = find(id);
+      if (!item) return;
+      item.questions = (item.questions ?? []).filter((q) => q !== question);
+      if (!item.questions.length) Object.assign(item, { tone: "filling", kind: undefined, filled: 18, asked: 22 });
+      push();
+      if (item.tone === "filling") later(() => Object.assign(item, { tone: "ready", verified: true, filled: 22 }), 4000);
+    },
+    async approve(id) {
+      const item = find(id);
+      if (item) Object.assign(item, { tone: "ready", kind: undefined, verified: true });
+      push();
+    },
+    async open(worker) {
+      // The student presses Submit in that form's Chrome window a moment later.
+      const ready = [...state.tiles, ...state.items].find((s) => s.worker === worker && s.tone === "ready");
+      if (ready) later(() => Object.assign(ready, { tone: "submitted" }), 2500);
+    },
+    async add(link) {
+      state.tiles.push({ tone: "filling", company: new URL(link).hostname.split(".").at(-2) ?? "New job", role: "Opening the posting…", posting_url: link, filled: 0, asked: 1 });
+      push();
+    },
+    async start() {
+      state = structuredClone(SCENARIOS.quiet());
+      push();
+    },
+  };
+}
