@@ -2303,9 +2303,9 @@ def test_each_page_says_how_late_it_sends_and_a_held_only_page_has_its_held_test
 
 # --- The generic Filler's own refusals (the adversarial review of KAN-861). A GET form whose own submit handler posts
 # the application gets past the guards when the press that submits it isn't judged a send (submit_guard's submit
-# block covers a POST form, or a button that says it sends). So the generic Filler never clicks a control that would
-# submit a form, nor presses a Next that would submit the form its Submit is in. These pages stay out of PAGES: plain
-# code's Next and Ask's press still send on them through that gap, which is the guard's, older than the generic Filler.
+# block covered a POST form, or a button that says it sends, until KAN-868). So the generic Filler never clicks a
+# control that would submit a form, nor presses a Next that would submit the form its Submit is in. The guard's own
+# GET-form pages, for every path, are GET_FORM_PAGES; these test the generic Filler alone.
 # Each page: the role and name of the control the control test clicks, and the page.
 GENERIC_REFUSES = {
     # Fault: the reader or the fill clicks a dropdown made of a <button> of no type, which submits its form.
@@ -2324,6 +2324,16 @@ GENERIC_REFUSES = {
     "a Next beside a Submit named by aria-labelledby": ("button", "Next", _GET_FORM.replace(
         "<button type=submit>Submit application</button>", "") % """<button>Next</button><span id=sl hidden>Submit
         application</span><button type=submit aria-labelledby=sl><svg width=16 height=16></svg></button>"""),
+    # Fault (the second round of the review of KAN-861): the page changes the control as the press lands, after the
+    # Filler's own check read it, so only the guard stops these: it judges a GET form's submit too since KAN-868.
+    "a dropdown that turns into its GET form's submit button as it is pressed": ("combobox", "Country", _GET_FORM
+        % """<span id=c>Country</span>
+        <button id=d type=button role=combobox aria-labelledby=c aria-haspopup=listbox>Select...</button>
+        <script>d.addEventListener('pointerdown', (e) => e.currentTarget.type = 'submit', true);</script>"""),
+    "a Next whose GET form gets its Submit as it is pressed": ("button", "Next", _GET_FORM.replace(
+        "<button type=submit>Submit application</button>", "") % """<button id=nx>Next</button><script>
+        nx.addEventListener('pointerdown', () => f.insertAdjacentHTML('beforeend',
+          '<button type=submit>Submit application</button>'), true);</script>"""),
 }
 
 
@@ -2346,33 +2356,6 @@ def test_without_the_guard_each_get_form_page_sends(page_name):
         page.get_by_role(role, name=name).first.click(timeout=5_000)
         _settle(page, 1500)
     assert COMMIT in site.applications()
-
-
-# The guard's GET-form gap, which no check of the Filler's own can close: the page changes the control as the press
-# lands, after the check read it (the adversarial review's second round of KAN-861). Until the guard blocks a GET
-# form's submit while code drives a form that holds a button that sends, these send: strict, so each turns red once
-# that guard fix lands, and joins GENERIC_REFUSES then.
-GUARD_GAP = {
-    "a dropdown that turns into its GET form's submit button as it is pressed": _GET_FORM % """<span id=c>Country</span>
-        <button id=d type=button role=combobox aria-labelledby=c aria-haspopup=listbox>Select...</button>
-        <script>d.addEventListener('pointerdown', (e) => e.currentTarget.type = 'submit', true);</script>""",
-    "a Next whose GET form gets its Submit as it is pressed": _GET_FORM.replace(
-        "<button type=submit>Submit application</button>", "") % """<button id=nx>Next</button><script>
-        nx.addEventListener('pointerdown', () => f.insertAdjacentHTML('beforeend',
-          '<button type=submit>Submit application</button>'), true);</script>""",
-}
-
-
-@pytest.mark.xfail(strict=True, reason="the guard's GET-form gap: submit_guard's submit block judges a POST form only")
-@pytest.mark.parametrize("page_name", list(GUARD_GAP))
-def test_the_guard_stops_a_get_form_the_page_turns_into_a_send_as_it_is_pressed(page_name):
-    with cdp({START: GUARD_GAP[page_name]}) as (page, drive, site):
-        try:
-            generic_fill(page, drive, "")
-        except Handoff:
-            pass
-        _settle(page, 1500)
-    assert site.applications() == []
 
 
 # A pop-up over a POST form whose Close is the form's own submit button: clear_pop_up presses Close as the Question

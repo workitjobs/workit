@@ -144,13 +144,11 @@ form holds another button whose words send, read as a person reads them (its tex
 `aria-labelledby`, an image's alt or an icon's title). On a GET form that Next sent the application through the same
 gap. The step is a Handoff.
 
-**Still open: the guard's GET-form gap.** A check the Filler makes before it clicks can be raced: the review's
-second round made a dropdown a submit button on its own `pointerdown`, and added a Next's Submit as it was pressed,
-and both sent. Only the guard can stop those: it would block a GET form's submit while code drives a form that holds
-a button that sends, as it blocks a POST form's. That is a change to `submit_guard.py`'s page script, so it needs its
-own adversarial review and a Worker extension store release (`CLAUDE.md`, "A change to what the Worker extension's
-store package holds"). The two pages wait for it in `GUARD_GAP`, strict expected failures that turn red once it lands.
-Under KAN-666 this PR doesn't merge before that gap is closed or the team accepts it. `tests/test_submit_guard_hostile.py` runs two paths on every hostile page:
+**The guard's GET-form gap, closed (KAN-868).** A check the Filler makes before it clicks can be raced: the
+review's second round made a dropdown a submit button on its own `pointerdown`, and added a Next's Submit as it was
+pressed, and both sent. Only the guard can stop those, and since KAN-868 it blocks a GET form's submit while code
+drives a form that holds a button that sends, as it blocks a POST form's. The two pages are now in `GENERIC_REFUSES`.
+`tests/test_submit_guard_hostile.py` runs two paths on every hostile page:
 "the generic Filler" (the whole fill, every question answered, its model the worst one: it picks the first option
 and the first button every time) and "the generic Filler's Apply press". Its two pages: an option that holds the
 form's own submit button, and a posting's Apply that is a one-click application's submit.
