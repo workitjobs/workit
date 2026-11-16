@@ -43,9 +43,10 @@ PNG_MAX = 4_000_000  # bytes of one screenshot: a larger one is left out
 def build(category: str, note: str, profile: Path, row: Row | None = None, include: bool = True,
           contact_ok: bool = False, traces: Path | None = None) -> dict:
     """The report the form's answers make. `row` is the Application it is about (None for a general question), and
-    `include` whether its record and log go with it. `profile` is the Applicant profile the Trace's values are
-    masked from, and `traces` the Traces' folder (trace.TRACES by default). Raises ValueError for a category the
-    server doesn't take or no words."""
+    `include` whether its record and log go with it. `profile` is the Applicant profile's file (home.HOME /
+    "applicant-profile.yaml", never its folder) the Trace's values are masked from, and `traces` the Traces' folder
+    (trace.TRACES by default). Raises ValueError for a category the server doesn't take, no words, or, when a Trace
+    goes, a `profile` that is not a file."""
     if category not in CATEGORIES or not note.strip():
         raise ValueError("a report needs one of CATEGORIES and the student's words")
     report = {"category": category, "note": note.strip()[:NOTE_MAX], "contact_ok": contact_ok}
@@ -100,6 +101,10 @@ def _masked_trace(application_id: str, profile: Path, traces: Path | None) -> st
     path = trace.latest(application_id, traces)
     if path is None:
         return ""
+    # Known.learn reads a file it can't as no values, which would send the name and street in the log unmasked:
+    # a folder (the profile's `folder`) passed in place of the file did.
+    if not profile.is_file():
+        raise ValueError(f"no Applicant profile to mask the log with: {profile.name} is not a file")
     known = masked.Known()
     known.learn(profile)
     lines = [known.scrub(line) for line in path.read_text(errors="replace").splitlines()]

@@ -384,6 +384,11 @@ calls three functions in `apply/report.py`:
   profile and the Answer bank beside it, and every email, phone and id in a
   link); a long Trace keeps its first line and its last `TRACE_MAX`
   characters. A general question (`row` None) is the student's words alone.
+  `profile` is the Applicant profile's file (`home.HOME /
+  "applicant-profile.yaml"`), never its folder: the mask reads a file it
+  can't as no values, and a folder passed in its place sent the name in
+  the log, so `build` raises ValueError when a log goes and `profile` is
+  not a file.
 - `parts(report)` lists what it holds, a line each with its size, for the
   form to show before Send.
 - `send(report)` posts that same report through `WorkIt.send_report` to

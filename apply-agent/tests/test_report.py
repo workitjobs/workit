@@ -1,11 +1,13 @@
 """Send report (D26, KAN-837, apply.report): what the window's support form sends. An Application's report holds only
 its Record's own files and its Trace with the student's private values masked, a long Trace keeps its start and its
-end, and a general question, or one that leaves the record out, holds only the student's words."""
+end, a log is never sent without the profile to mask it with, and a general question, or one that leaves the
+record out, holds only the student's words."""
 
 import base64
 import json
 import shutil
 
+import pytest
 from conftest import FIXTURES
 
 from apply import report
@@ -32,8 +34,7 @@ def test_an_applications_report_holds_its_records_files_and_its_trace_with_priva
         {"t": 0, "kind": "start", "posting": "https://jobs.ashbyhq.com/harvey/123"},
         {"t": 4, "kind": "request", "body": "first=Test&last=Person&email=test.person@example.com"},
     )) + "\n")
-    profile = tmp_path / "applicant-profile.yaml"
-    shutil.copy(FIXTURES / "profile.yaml", profile)
+    profile = _profile(tmp_path)
 
     sent = report.build("answer", " The essay box stayed empty. ", profile, _row(str(record)), contact_ok=True,
                         traces=traces.parent)
@@ -49,6 +50,12 @@ def test_an_applications_report_holds_its_records_files_and_its_trace_with_priva
         "answers.json", "form.png", "The step-by-step log"]
 
 
+def _profile(tmp_path):
+    profile = tmp_path / "applicant-profile.yaml"
+    shutil.copy(FIXTURES / "profile.yaml", profile)
+    return profile
+
+
 def test_a_long_trace_keeps_its_start_and_its_end(tmp_path, monkeypatch):
     traces = tmp_path / "traces" / "2026-11-15"
     traces.mkdir(parents=True)
@@ -57,9 +64,22 @@ def test_a_long_trace_keeps_its_start_and_its_end(tmp_path, monkeypatch):
     (traces / "harvey-123.jsonl").write_text("".join(json.dumps(e) + "\n" for e in events))
     monkeypatch.setattr(report, "TRACE_MAX", 2_000)
 
-    sent = report.build("form", "It hung.", tmp_path / "no-profile.yaml", _row(""), traces=traces.parent)["trace"]
+    sent = report.build("form", "It hung.", _profile(tmp_path), _row(""), traces=traces.parent)["trace"]
 
     assert len(sent) <= 2_000 and sent.startswith('{"t": 0, "kind": "start"') and "the submit never came back" in sent
+
+
+def test_a_log_never_goes_without_the_profile_to_mask_it(tmp_path):
+    # The fault: Known.learn reads a folder as no values, so `profile.folder` in place of the file sent the
+    # student's name in the log.
+    traces = tmp_path / "traces" / "2026-11-15"
+    traces.mkdir(parents=True)
+    (traces / "harvey-123.jsonl").write_text('{"t": 1, "kind": "console", "text": "saved Test Person"}\n')
+    profile = _profile(tmp_path)
+
+    with pytest.raises(ValueError, match="not a file"):
+        report.build("form", "It hung.", profile.parent, _row(""), traces=traces.parent)
+    assert "Person" not in report.build("form", "It hung.", profile, _row(""), traces=traces.parent)["trace"]
 
 
 def test_a_general_question_and_a_report_without_the_record_hold_only_the_students_words(tmp_path):
