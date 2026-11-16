@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 from test_plain_reload import turn_on_developer_mode
 
-from apply import submit_guard
+from apply import steps, submit_guard
 from apply.plain import guards
 from apply.plain.bridge import FEATURES, Bridge
 from apply.plain.launcher import PlainWorkers, chrome_for_testing
@@ -697,11 +697,11 @@ def test_ask_s_drive_on_a_plain_page_refuses_the_real_submit_whatever_claude_cal
 def test_ask_s_press_on_a_plain_worker_goes_through_a_native_post_step_but_never_to_a_final_url(page, site, monkeypatch):
     from types import SimpleNamespace
 
-    from apply import ask, claude_fill
+    from apply import ask
     from apply.adapters import Drive
     from apply.model import Posting
 
-    monkeypatch.setattr(claude_fill, "STEP_SHOWS_MS", 1_000)
+    monkeypatch.setattr(steps, "STEP_SHOWS_MS", 1_000)
     page.goto(f"{site.url}/native")
     drive = DriveGuard(page)
     guard(page)
