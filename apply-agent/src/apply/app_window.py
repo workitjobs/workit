@@ -38,7 +38,9 @@ pywebview gives the page every public method of Bridge, and nothing whose name s
 import base64
 import html
 import json
+import os
 import re
+import signal
 import sys
 import threading
 import time
@@ -715,4 +717,25 @@ def run(dashboard: Dashboard, client: workit.WorkIt | None = None,
     window = webview.create_window(TITLE, html=bridge._html(), js_api=bridge, width=1280, height=820,
                                    min_size=(900, 600))
     bridge._window = window
+    closing(window)
     webview.start()  # no http_server: the page is a string, so pywebview opens no port either
+
+
+def closing(window) -> None:
+    """`kill <pid>` closes the window, so webview.start returns and each `finally` stops what it started. The CLI's own
+    SIGTERM raises KeyboardInterrupt, which lands inside a Cocoa callback here: PyObjC turns it into an Objective-C
+    exception and macOS aborts the app ("python quit unexpectedly"). A Python handler only runs once the main thread
+    runs Python, and Cocoa's run loop may not for a long while, so the signal wakes a thread of its own instead."""
+    if threading.current_thread() is not threading.main_thread():
+        return
+    read, write = os.pipe()
+    os.set_blocking(write, False)
+    signal.signal(signal.SIGTERM, lambda signum, frame: None)  # no KeyboardInterrupt: the thread below closes
+    signal.set_wakeup_fd(write)
+
+    def close() -> None:
+        while os.read(read, 1) != bytes([signal.SIGTERM]):
+            pass
+        window.destroy()
+
+    threading.Thread(target=close, daemon=True, name="close-on-kill").start()

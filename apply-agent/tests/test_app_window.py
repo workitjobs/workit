@@ -557,3 +557,31 @@ def test_report_this_application_finds_the_record_of_a_form_the_run_held(board, 
     # Send Report from Settings' form or another Application's card: not the report this card reviewed.
     assert "error" in bridge.send_report() and "error" in bridge.send_report("gh-2")
     assert "error" in bridge.review_report("form", "It picked the wrong school.", application_id="gh-2")
+
+
+def test_kill_closes_the_window_instead_of_raising_inside_cocoa():
+    """Fault: `kill <pid>` raised KeyboardInterrupt inside a Cocoa callback, and macOS showed "python quit
+    unexpectedly"."""
+    import os
+    import signal
+
+    class Closable:
+        closed = False
+
+        def destroy(self):
+            self.closed = True
+
+    import time
+
+    window, before = Closable(), signal.getsignal(signal.SIGTERM)
+    try:
+        app_window.closing(window)
+        os.kill(os.getpid(), signal.SIGTERM)
+        deadline = time.monotonic() + 2
+        while not window.closed and time.monotonic() < deadline:
+            time.sleep(0.01)
+    finally:
+        signal.set_wakeup_fd(-1)
+        signal.signal(signal.SIGTERM, before)
+
+    assert window.closed
