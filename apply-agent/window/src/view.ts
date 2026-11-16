@@ -129,3 +129,23 @@ export function queueNote(queue: Queued[] | Error | null): string {
   if (queue instanceof Error) return queue.message;
   return queue?.length === 0 ? "Your Auto Apply queue on WorkIt is empty. Add jobs to it on WorkIt, or paste a job's link below." : "";
 }
+
+// How a question is answered on the card: buttons for a few options, a list beyond, boxes to tick for
+// pick-all-that-apply, a file picker, or a box to type in.
+export type Form = "buttons" | "list" | "checks" | "file" | "text";
+
+export type Asked = { question: string; form: Form; options: string[]; optional: boolean; planned: string };
+
+// The job's next question, skipping those the student answered already (`done`), which Apply drops a moment later.
+export function asking(source: Shown, done: string[]): Asked | undefined {
+  const question = source.questions?.find((q) => !done.includes(q));
+  if (question === undefined) return undefined;
+  const choice = source.choices?.[question];
+  const options = choice?.kind === "file" ? [] : (choice?.options ?? []);
+  const form: Form =
+    choice?.kind === "file" ? "file" : !options.length ? "text" : choice?.kind === "multi_select" ? "checks" : options.length > 4 ? "list" : "buttons";
+  return { question, form, options, optional: source.required?.[question] === false, planned: source.planned?.[question] ?? "" };
+}
+
+// What /answer gets for the options picked: several joined by "; " in the form's order, as the Answer cell holds them.
+export const answerOf = (asked: Asked, picks: string[]) => asked.options.filter((o) => picks.includes(o)).join("; ");

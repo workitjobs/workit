@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import type { Shown } from "./apply.ts";
-import { chosen, classify, headline, limit, queueNote, startWords, view } from "./view.ts";
+import { answerOf, asking, chosen, classify, headline, limit, queueNote, startWords, view } from "./view.ts";
 
 const job = (over: Partial<Shown>): Shown => ({ tone: "filling", company: "Stripe", role: "SWE Intern", posting_url: "https://s", ...over });
 
@@ -127,4 +127,45 @@ test("an empty queue says so and points to WorkIt and the paste box; an unread o
   assert.equal(queueNote(new Error("WorkIt Auto Apply couldn't read your queue (offline). Paste a link instead.")), "WorkIt Auto Apply couldn't read your queue (offline). Paste a link instead.");
   assert.equal(queueNote(QUEUE), "");
   assert.equal(queueNote(null), ""); // still reading it
+});
+
+const fact = (over: Partial<Shown>): Shown => job({ tone: "needs", kind: "missing fact", id: "4", ...over });
+
+test("a question with no options is a box, pre-filled with the answer the form refused", () => {
+  const source = fact({ questions: ["When can you start?"], planned: { "When can you start?": "June 2027" } });
+  assert.deepEqual(asking(source, []), { question: "When can you start?", form: "text", options: [], optional: false, planned: "June 2027" });
+});
+
+test("each kind of choice gets its own form: up to four buttons, a list beyond, boxes to tick, a file picker", () => {
+  const four = ["Yes", "No", "Maybe", "Later"];
+  const six = ["LinkedIn", "Handshake", "A friend", "Career fair", "WorkIt", "Other"];
+  const cases: [Shown["choices"], string, string[]][] = [
+    [{ q: { kind: "single", options: four } }, "buttons", four],
+    [{ q: { options: ["Yes", "No"] } }, "buttons", ["Yes", "No"]],
+    [{ q: { kind: "single", options: six } }, "list", six],
+    [{ q: { kind: "multi_select", options: ["NYC", "SF"] } }, "checks", ["NYC", "SF"]],
+    [{ q: { kind: "file", options: [] } }, "file", []],
+    [{ q: { kind: "single", options: [] } }, "text", []],
+  ];
+  for (const [choices, form, options] of cases) {
+    const asked = asking(fact({ questions: ["q"], choices }), []);
+    assert.deepEqual([asked?.form, asked?.options], [form, options], form);
+  }
+});
+
+test("a question is optional only when the form says so", () => {
+  const source = fact({ questions: ["a", "b", "c"], required: { a: false, b: true } });
+  assert.deepEqual(["a", "b", "c"].map((q) => asking(source, ["a", "b", "c"].filter((o) => o !== q))?.optional), [true, false, false]);
+});
+
+test("once a question is answered the job's next one is asked, and none once all are", () => {
+  const source = fact({ questions: ["Authorized?", "Start date?"] });
+  assert.equal(asking(source, ["Authorized?"])?.question, "Start date?");
+  assert.equal(asking(source, ["Authorized?", "Start date?"]), undefined);
+});
+
+test("ticked boxes are sent as one answer, in the form's order, as today's window sends them", () => {
+  const asked = asking(fact({ questions: ["q"], choices: { q: { kind: "multi_select", options: ["NYC", "SF", "Remote"] } } }), [])!;
+  assert.equal(answerOf(asked, ["Remote", "NYC"]), "NYC; Remote");
+  assert.equal(answerOf(asked, []), "");
 });
