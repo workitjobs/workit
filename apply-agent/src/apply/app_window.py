@@ -16,8 +16,9 @@ in the box, which only WorkIt's admins' page shows.
 Then Bridge.trade signs in (WorkIt.trade). Next comes FIRST_RUN while any first-run step is left (apply.first_run:
 Chrome, the disclosure and license, Screen Recording, the seed), then the Apply window.
 
-A run (W5 step 4): with no run going, the student page shows the student's Auto Apply queue on WorkIt
-(Bridge.queue), a box to paste one posting's link and Start (Bridge.start), and says when today's model use nears the
+A run (W5 step 4): with no run going, the student page shows Find jobs, the student's best matches to pick from
+(Bridge.matches, KAN-882), and a step away the student's Auto Apply queue on WorkIt (Bridge.queue), a box to paste
+one posting's link and Start (Bridge.start), and says when today's model use nears the
 Usage cap (Bridge.usage). Start hands the links to `start` (apply.student.Runs), which rehearses them in the Workers
 and shows the run's own board, till every form it held is closed; then the window shows the idle board again. The
 page reads its board's state through the routes (/state) either way. A run that can't start (no engine, W7; a Worker
@@ -44,6 +45,7 @@ import time
 import webbrowser
 from collections.abc import Callable
 from pathlib import Path
+from urllib.parse import urlencode
 
 from apply import first_run, report, sign_in_link, workit
 from apply.adapters import SetupError
@@ -475,6 +477,25 @@ class Bridge:
             return {"error": f"WorkIt Auto Apply couldn't read what you applied to ({error})."}
         return [_job(row["job"]) | {"applied_at": row.get("applied_at")} for row in rows]
 
+    def matches(self, filters: dict | None = None) -> list[dict] | dict:
+        """Find jobs: the student's best matches that Auto Apply fills and they haven't queued or applied to, best
+        first, under the Jobs page's own filters (MATCH_FILTERS); each as queue() names a job, with the facts its
+        card shows (MATCH_FACTS), or {error}. Scoring takes WorkIt a while, so this waits up to MATCHES_WAIT."""
+        query = [("size", MATCHES)] + [
+            (key, value) for key, values in (filters or {}).items() if key in MATCH_FILTERS
+            for value in (values if isinstance(values, list) else [values]) if value not in (None, "")]
+        try:
+            rows = self._client.call("GET", f"/applicants/{self._client.applicant_id()}/auto-apply/matches?"
+                                     f"{urlencode(query)}", timeout=MATCHES_WAIT)
+        except workit.WorkItError as error:
+            if "experience bank is empty" in str(error):  # jobs.EmptyBank's 404
+                return {"error": "Add your experience on WorkIt first, so we can find jobs that fit you."}
+            return {"error": f"WorkIt Auto Apply couldn't find jobs for you ({error})."}
+        jobs = [_job(row) | {key: row.get(key) for key in MATCH_FACTS} for row in rows]
+        # A run started from these shows each job's logo, as one from the queue does.
+        self._queued |= {job["url"]: {key: job[key] for key in QUEUED_JOB} for job in jobs}
+        return jobs
+
     def _applications(self, stage: str) -> list[dict]:
         return self._client.call("GET", f"/applicants/{self._client.applicant_id()}/applications?stage={stage}")
 
@@ -639,6 +660,15 @@ class Bridge:
         if not self.signed_in():
             return SIGN_IN
         return self._page() if self._first.step() == READY else FIRST_RUN
+
+
+# Find jobs (Bridge.matches): how many to show, the Jobs page's filters it passes on, and what each card shows.
+MATCHES = 30
+MATCHES_WAIT = 90
+MATCH_FILTERS = frozenset({"q", "location", "work_style", "role", "experience", "job_type", "posted_within",
+                           "start_term", "visa"})
+MATCH_FACTS = ("id", "location", "location_label", "work_style", "job_type", "experience_level", "salary_min",
+               "salary_max", "salary_period", "start_term", "posted_at", "match", "highlights")
 
 
 def _job(job: dict) -> dict:

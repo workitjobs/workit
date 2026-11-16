@@ -1260,6 +1260,14 @@ source and closing the plain Workers moved from `cli.py` to
 `worker_tiles.py`, so the Student path has them; quitting the app stops the
 plain Workers' Chromes, which outlive it.
 
+**Built (KAN-882): Find jobs.** With no run going, the window first
+shows Find jobs: the student's best Auto Apply matches they haven't queued
+or applied to (`Bridge.matches`, the `auto-apply/matches` route), with the
+website's Jobs page search, filters and cards. The student picks jobs and
+presses Start applying, which runs them as ticked queued jobs run; the
+queue and a pasted link are one click away
+(`apply-agent/docs/apply-window.md`).
+
 **Built (KAN-858, step 5): Settings and notices** (`SETTINGS`): the Worker
 count (one to three, D24), What Leaves Your Mac, the license and the
 third-party notices, Sign Out (`WorkIt.sign_out` ends this session at

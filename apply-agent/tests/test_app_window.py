@@ -325,6 +325,36 @@ def test_the_queue_is_the_students_open_queued_jobs_oldest_first(board, tmp_path
         ]
 
 
+def test_find_jobs_lists_the_students_matches_with_their_filters_and_logos(board, tmp_path):
+    """Find jobs. Fault: the filters the student picked never reach WorkIt, a filter WorkIt doesn't take is passed
+    on, a card lacks its match or facts, or a run started from a match loses its logo."""
+    from fake_workit import Reply
+
+    rows = [{"id": "j1", "apply_url": "https://www.linkedin.com/jobs/3", "form_url": "https://jobs.lever.co/acme/3",
+             "company": "Acme", "title": "Intern", "company_domain": "acme.com", "logo_url": None, "match": 91,
+             "highlights": [{"text": "Uses 4 of your skills", "met": True}], "job_type": "internship",
+             "work_style": "hybrid", "location": "New York, NY", "salary_min": 40, "salary_max": 50,
+             "salary_period": "hour", "start_term": "Summer 2027", "posted_at": "2026-11-14T00:00:00+00:00",
+             "description": "not for the card"}]
+    asked = []
+    with FakeWorkIt() as fake:
+        fake.route("GET", f"/applicants/{fake.account['id']}/auto-apply/matches",
+                   lambda seen, fake: (asked.append(seen.path), Reply(200, rows))[1])
+        client = WorkIt(fake.site, tmp_path / "workit-login.json", fake.keychain)
+        workit.login(client, fake.browser)
+        bridge = Bridge(board, client, start=lambda links, show: None)
+        jobs = bridge.matches({"job_type": ["internship"], "work_style": ["hybrid", "remote"], "q": "",
+                               "min_pay": 1})
+        assert asked[0].endswith("?size=30&job_type=internship&work_style=hybrid&work_style=remote")
+        assert jobs == [{"url": "https://jobs.lever.co/acme/3", "company": "Acme", "title": "Intern",
+                         "logo_url": None, "company_domain": "acme.com"}
+                        | {key: rows[0].get(key) for key in app_window.MATCH_FACTS}]
+        assert bridge._queued["https://jobs.lever.co/acme/3"]["company_domain"] == "acme.com"
+        fake.route("GET", f"/applicants/{fake.account['id']}/auto-apply/matches",
+                   lambda seen, fake: Reply(404, {"detail": "Your experience bank is empty"}))
+        assert "Add your experience" in bridge.matches()["error"]
+
+
 def test_applied_is_what_the_student_applied_to_on_workit_newest_first(board, tmp_path):
     """Fault (story 36): the Applied page lists only this run's jobs, not what the student applied to before."""
     from fake_workit import Reply
