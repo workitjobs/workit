@@ -220,3 +220,11 @@ def test_a_scope_nested_redirects_deep_is_still_read():
         deep = "https://accounts.google.com/ServiceLogin?continue=" + quote(deep, safe="")
     url = "https://accounts.google.com/v3/signin/accountchooser?scope=openid&continue=" + quote(deep, safe="")
     assert "https://www.googleapis.com/auth/drive" in provider_sign_in.scopes(url)
+
+
+
+def test_a_scope_written_in_another_case_or_after_a_semicolon_is_read():
+    # Fault (round 4 of KAN-878's review): "Scope=" or ";scope=" read as no scope at all.
+    for url in ("https://accounts.google.com/x?Scope=https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fdrive",
+                "https://accounts.google.com/x?a=1;scope=https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fdrive"):
+        assert provider_sign_in.scopes(url) == {"https://www.googleapis.com/auth/drive"}

@@ -102,7 +102,7 @@ SUBMITS = """el => {
 # Google button can open any app's OAuth request, such as one for Drive).
 BASIC_SCOPES = frozenset({"openid", "email", "profile", "https://www.googleapis.com/auth/userinfo.email",
                           "https://www.googleapis.com/auth/userinfo.profile"})
-SCOPE = re.compile(r"[?&#]scope=([^&#]+)")
+SCOPE = re.compile(r"[?&#;]scope=([^&#;]+)", re.IGNORECASE)  # any case, and ";" as a separator too
 MORE_THAN_SIGN_IN = (NEEDS_SIGN_IN + "{site}'s Sign in with Google asks Google for more than your name and email ({scopes}), "
                      "so Apply didn't go on. Sign in on the page yourself if you mean to.")
 UNKNOWN_SCOPE = (NEEDS_SIGN_IN + "{site}'s Sign in with Google didn't say what it asks Google for, so Apply didn't pick "
