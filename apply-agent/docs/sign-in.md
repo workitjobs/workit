@@ -58,7 +58,10 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
   opened (`account_pages.RESETS`): a reopened form now drives account pages, and a reset can end the
   password Lisul uses. Gmail takes a link by its words as well as its URL, so a rehearsal's `Accounts`
   asks for none from a mail that mentions a password or a reset at all (`find_link(resets=False)`,
-  `gmail.speaks_of_reset`: entities decoded, tags taken out two ways, the subject read too). Rounds 3
+  `gmail.speaks_of_reset`: entities decoded, tags taken out two ways and kept (alt, title), Unicode
+  folded, the subject decoded and read too). Not caught: a reset spelled with lookalike letters, or one
+  that never says password, reset, forgot or recover; DMARC and the host check keep other senders out,
+  and an honest site's mail says one of them. Rounds 3
   and 4 of the review got reset links past a word list ("Reset your password" on a bare URL, the word
   split by tags or entities, "Set" or "Update your password"). A verification mail that mentions a
   password makes the sign-in Lisul's, the safe way to be wrong. A run's own reset (Workday's
