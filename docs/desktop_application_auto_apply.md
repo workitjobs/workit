@@ -6,12 +6,13 @@ table says where each workstream stands. Merged so far: Workers default
 to `worker_mode: protected` (2026-11-06); W1, the Model route, the Usage
 cap and the prompts on WorkIt's server, so each call sends a kind and its
 data, with `ask_model: workit` the default and the student's private
-values masked (#577, #587); W3's Student path with no developer part
+values masked (#577, #587), and Send report (#614); W3's Student path with no developer part
 (#581); W2's step 1, what Apply can't fill handed to the student in the
 window (#590); W4, no macOS-only code in the Student path (#576, #585); W6's
 store-ready Worker extension (#570, #578), which no app can use yet;
 W10's legal text (#579, #582); and W5, the app's window with no port:
-sign-in (#609), first run, a run and Settings (KAN-858). The rest of what
+sign-in (#609), first run, a run, and Settings with Report a problem
+(KAN-858). The rest of what
 a student downloads and runs (W7, W8) is not built.
 
 **How to use this doc.** Read sections 1 to 3 first. Then take one
@@ -515,7 +516,7 @@ by hand (W8).
 | W2 | Filling with no model in the browser | None | Yes | Step 1 built (#590): what Apply can't fill is the student's, in the window's Fix here; a failed field is a Needs-you item with its planned answer; the emailed code's box. Step 2, the generic Filler, is a teammate's, beside the Fillers they write for each job system |
 | W3 | What the Student build leaves out | None | Yes | Step 1 built (#581); `ask_model` fixed to `workit` (#590). Left: W8's compile flags |
 | W4 | Remove macOS-only code | None | Yes | Built (#576, #585). Left to others: `dashboard.py` (W5) and `window_capture` (W6); what stops Apply on Windows is F4's |
-| W5 | The app shell | W3, W4 (and W1 for sign-in and usage) | Yes | Built: sign-in (#609); the window with no port, first run, a run and Settings (KAN-858). Left: Send Report's button (waits for #614), and Remove All My Data's job-site passwords (W11) |
+| W5 | The app shell | W3, W4 (and W1 for sign-in and usage) | Yes | Built: sign-in (#609); the window with no port, first run, a run, Settings with Report a problem, and the Student build's Tracker in the data folder (KAN-858). Left: a Student run's pause at the Usage cap; the built app's sign-in link (W8) |
 | W6 | The Worker extension on the store (spike first) | None | Yes | The spike passed; the store package is built (#570, #578). Blocked: the guards' per-run tokens (`worker-extension-todo.md`, item 0), then the first upload |
 | W7 | The engine download and its protection | W1 (sign-in) | Yes | Not started |
 | W8 | Compile, sign, notarize, update, publish | W3, W4, W5 | Yes | Not started |
@@ -1128,8 +1129,7 @@ terminal step and no open port.
    sign-in screen. **Built (KAN-858).**
 3. First run. **Built (KAN-858).**
 4. A run. **Built (KAN-858).**
-5. Settings and notices. **Built (KAN-858), but Send Report's button,
-   which waits for #614.**
+5. Settings and notices, with Report a problem. **Built (KAN-858).**
 
 **Built (2026-11-15, step 1): sign-in.**
 
@@ -1238,23 +1238,36 @@ run bar, for now. History's link opens the student's Applications Tracker
 on WorkIt in the default browser (`student.tracker_url`; pywebview opens
 every link to a new window there).
 
+**Built (KAN-858): Report a problem** (D26, W1's #614), in Settings: what
+it is about (`report.CATEGORIES`), what happened, "WorkIt may email me
+about this". Review Report makes the report (`Bridge.review_report`, which
+calls `report.build`) and lists what goes (`report.parts`); Send Report
+sends that same report (`Bridge.send_report`), and a changed answer hides
+Send Report till it is reviewed again. After it, the form says WorkIt
+deletes the report once its problem is fixed. With an Application's id,
+the report is about that Application, with its record and log unless the
+student unticks them: its Tracker row, or, for a form this run held (a
+rehearsal keeps no Tracker row for one), its tile with its newest Record
+under `student.RECORDS`. `build`'s `profile` is the Applicant profile's
+file (`app_window.PROFILE`), never its folder: the log's mask reads a path
+it can't open as no values, so a folder sent the student's name and street
+in the log. No words, `build`'s ValueError, and each of the send's errors
+(the daily cap's too) are each a one-line message.
+
+**Built (KAN-858): the Student build's Tracker is in the data folder**
+(`student.adapters`): `WorkItTracker(FileTracker(), WaitingWrites(), ...)`,
+as a Developer checkout's, in place of a Tracker in memory. So the
+Employer accounts outlive a launch (the Accounts tab shows them), a
+submitted job is found as already applied, and the student's own Submit
+from a held form is written to their Applications Tracker on WorkIt with
+the resume the form was given (KAN-544). Remove All My Data (`first_run.remove_all_data`) forgets each
+Employer account's keychain item (`apply-ats`, one per site) before the
+folder goes, and names any the keychain kept.
+
 Left from W5:
-- **Report a problem** (D26, W1's #614): a form from Settings and from
-  each Application's tile ("Report this Application"): what it is about,
-  what happened, "WorkIt may email me about this" and, with an
-  Application, its record and log (on by default). `report.build`, then
-  `report.parts` shown before Send, then `report.send`; after it, the form
-  says WorkIt deletes the report once its problem is fixed. `build`'s
-  `profile` is the Applicant profile's file (`home.HOME /
-  "applicant-profile.yaml"`), never its folder: the log's mask reads a
-  path it can't open as no values, so a folder sent the student's name and
-  street in the log. Its ValueError, and each of the send's errors, is a
-  one-line message. Built once #614 is on `main`.
-- **Remove All My Data can't name every job-site password.** The Student
-  build's Tracker is in memory, so it forgets the Employer accounts at each
-  launch, and with them the keychain items to remove (`apply-ats`, one per
-  site). The Accounts tab forgets them too. A Tracker kept in the data
-  folder, or on WorkIt (W11), fixes both.
+- **"Report this Application" on each Application's card** (KAN-867's
+  page): the card calls `Bridge.review_report` with its Application's id,
+  then `send_report`, as Settings' form does (above).
 - A tile added during a run (`--into`) reloads the page with
   `location.reload()`, which a page loaded as a string can't do. The app
   never sends a link into a run, so only the Developer checkout's window
@@ -1560,14 +1573,12 @@ the app does not do all of it yet:
   the page says self-ID answers are included; once the engine reports
   its sources and Apply leaves those out, the page changes with it. Not
   done: a student ID has no placeholder, since the profile keeps none.
-- **Send report's route (D26) is not built.** It takes the one
-  Application's Record and masked Trace that a student sends with the
-  window's "Send report". **WorkIt keeps a report until the problem it
-  shows is fixed, then deletes it** (decided 2026-11-14), and `/privacy`
-  says so. So the route's PR needs a way to mark a report's problem
-  fixed that deletes the report, not a period in
-  `backend/app/services/retention.py`. A report whose problem is never
-  fixed stays until the team deletes it.
+- **Send report is built** (W1's #614, and its form in W5's Settings):
+  **WorkIt keeps a report until the problem it shows is fixed, then
+  deletes it** (decided 2026-11-14), and `/privacy` says so. The team's
+  `DELETE /admin/apply-reports/{id}` marks it fixed and deletes it; there
+  is no period in `backend/app/services/retention.py`. A report whose
+  problem is never fixed stays until the team deletes it.
 - **The page merged before W1's PR (#577)**, whose route it describes.
   Both are on `main` now.
 

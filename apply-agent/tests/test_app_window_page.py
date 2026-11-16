@@ -46,7 +46,7 @@ def test_the_pages_requests_frames_and_file_links_go_through_the_bridge(tmp_path
 
 def test_the_apps_own_pages_run_without_a_script_error(monkeypatch):
     """Fault: a script error in a page of the app's own (a line break inside a string, say), which leaves its buttons
-    dead: the sign-in, first run, the queue with the usage line, and Settings."""
+    dead: the sign-in, first run, the queue with the usage line, and Settings with its Report a Problem form."""
     from apply import dashboard
 
     monkeypatch.setattr(dashboard, "ThreadingHTTPServer", None)
@@ -58,6 +58,8 @@ def test_the_apps_own_pages_run_without_a_script_error(monkeypatch):
         "usage": {"used": 1200, "cap": 80000, "resets_at": "2026-11-16T00:00:00Z"},
         "status": {"running": False, "said": ""},
         "settings_state": {"workers": 3, "notices": True},
+        "review_report": {"parts": ["Your words"]},
+        "send_report": {"said": "Sent. WorkIt keeps your report until its problem is fixed, then deletes it."},
     }
     with Dashboard(0, OneFrame(), serve=False) as board, sync_playwright() as playwright:
         bridge = Bridge(board, WorkIt(workit.LIVE))  # the page's own requests (its state poll) get real answers
@@ -88,5 +90,17 @@ def test_the_apps_own_pages_run_without_a_script_error(monkeypatch):
         assert settings.is_visible("#notices") and not settings.is_visible("#remove-sure")
         settings.click("#remove")
         assert settings.is_visible("#remove-sure")  # a second press removes: one press never does
+        # Report a problem: what goes is shown before Send Report, and a changed answer is shown again first.
+        settings.fill("#report-note", "The window froze.")
+        settings.click("#report button")
+        settings.wait_for_selector("#report-send", state="visible", timeout=5000)
+        assert settings.inner_text("#report-parts") == "Your words"
+        settings.fill("#report-note", "The window froze twice.")
+        assert not settings.is_visible("#report-send")
+        settings.click("#report button")
+        settings.click("#report-send")
+        settings.wait_for_function("document.getElementById('report-said').textContent.startsWith('Sent.')",
+                                   timeout=5000)
+        assert not settings.is_visible("#report-send") and settings.input_value("#report-note") == ""
         browser.close()
     assert errors == []

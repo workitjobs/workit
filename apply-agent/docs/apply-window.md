@@ -52,7 +52,15 @@ docstring first.
   after. A `SetupError` (no engine, a profile in use) is its one-line
   reason (`Bridge.status`).
 - Remove All My Data deletes the data folder only when `build.STUDENT`:
-  in a Developer checkout it says the folder is the developer's.
+  in a Developer checkout it says the folder is the developer's. It
+  forgets each job-site password the Tracker's Employer accounts name
+  first: once the folder goes, nothing names them.
+- Report a problem (Settings, and an Application's card with its id) is
+  two calls: `review_report` builds the report and keeps it, the page
+  shows its `parts`, and `send_report` sends that kept report, never the
+  form's answers again. A changed answer hides Send Report till it is
+  reviewed again. The log is masked with `app_window.PROFILE`, the
+  profile's file: a folder masks nothing (`report.build` refuses it).
 - A link to a new window (`target="_blank"`: a posting, History's
   Applications Tracker on WorkIt) opens in the default browser: pywebview
   does that itself. The app's windows pass `tracker_url` (`student.tracker_url`).

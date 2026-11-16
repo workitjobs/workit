@@ -21,10 +21,15 @@ can't start (no engine, W7; a Worker profile in use) says why in one line.
 
 The app's page loads no web font: Google Fonts would be a request the privacy page doesn't name (FONTS).
 
+Settings (W5 step 5) has Report a problem (D26, apply.report): the form's answers make a report (review_report),
+the window shows what it holds, and Send Report sends that same report (send_report). An Application's card sends
+its Application's id with the same call, for its record and log.
+
 pywebview gives the page every public method of Bridge, and nothing whose name starts with "_".
 """
 
 import base64
+import html
 import re
 import sys
 import threading
@@ -32,13 +37,18 @@ import time
 import webbrowser
 from collections.abc import Callable
 
-from apply import first_run, workit
+from apply import first_run, report, workit
 from apply.adapters import SetupError
 from apply.dashboard import FRAME_GAP, Dashboard
 from apply.dashboard_page import STYLE
 from apply.first_run import CHROME_DOWNLOAD, EULA, NOTICES, READY, FirstRun
+from apply.home import HOME
+from apply.model import Status
+from apply.tracker import FileTracker, Row
 
 TITLE = "WorkIt Auto Apply"
+# The Applicant profile's file, whose values a report's log is masked with (apply.report.build): never its folder.
+PROFILE = HOME / "applicant-profile.yaml"
 # How long Bridge.frames waits for a new frame before it answers none, so the page asks again.
 FRAMES_WAIT = 1.0
 # The Apply window's web font links, left out of the app's page: the system's fonts stand in.
@@ -205,6 +215,16 @@ SETTINGS = """<!doctype html><meta charset="utf-8"><title>WorkIt Auto Apply</tit
 <button data-do="show_license">Read the License</button>
 <button data-do="show_notices" id="notices" hidden>Third-Party Notices</button></div>
 <div id="disclosure" hidden>{disclosure}</div>
+<h2>Report a Problem</h2>
+<form id="report">
+<label>What is it about <select id="report-category">{categories}</select></label>
+<label>What happened <textarea id="report-note" rows="4" maxlength="2000" style="width: 100%"></textarea></label>
+<label><input type="checkbox" id="report-contact"> WorkIt may email me about this</label>
+<div class="row"><button>Review Report</button></div>
+</form>
+<div id="report-review" hidden><p>What goes to WorkIt, and nothing else:</p><ul id="report-parts"></ul>
+<div class="row"><button class="primary" id="report-send">Send Report</button></div></div>
+<p id="report-said" role="status"></p>
 <div class="row"><button data-do="sign_out">Sign Out</button></div>
 <p>Remove All My Data deletes everything WorkIt Auto Apply keeps on this Mac: the Worker profiles and their
 sign-ins, the seed, the records and logs of your applications, and its WorkIt sign-in. Your WorkIt account stays.</p>
@@ -227,12 +247,32 @@ document.addEventListener('click', async event => {
   const got = await window.pywebview.api[button.dataset.do]();
   said.textContent = (got && (got.error || got.said)) || '';
 });
+const report = document.getElementById('report'), review = document.getElementById('report-review');
+const reportSaid = document.getElementById('report-said');
+report.addEventListener('input', () => { review.hidden = true; });  // a changed answer: Review Report again
+report.addEventListener('submit', async event => {
+  event.preventDefault();
+  await ready;
+  const got = await window.pywebview.api.review_report(document.getElementById('report-category').value,
+    document.getElementById('report-note').value, document.getElementById('report-contact').checked);
+  reportSaid.textContent = got.error || '';
+  const parts = document.getElementById('report-parts');
+  parts.replaceChildren(...(got.parts || []).map(part => Object.assign(document.createElement('li'), {textContent: part})));
+  review.hidden = !got.parts;
+});
+document.getElementById('report-send').addEventListener('click', async () => {
+  await ready;
+  const got = await window.pywebview.api.send_report();
+  reportSaid.textContent = got.error || got.said;
+  if (!got.error) { review.hidden = true; report.reset(); }
+});
 ready.then(async () => {
   const state = await window.pywebview.api.settings_state();
   count.value = String(state.workers);
   document.getElementById('notices').hidden = !state.notices;
 });
-</script>""".replace("{style}", STYLE).replace("{ready}", READY_JS).replace("{disclosure}", DISCLOSURE)
+</script>""".replace("{style}", STYLE).replace("{ready}", READY_JS).replace("{disclosure}", DISCLOSURE).replace(
+    "{categories}", "".join(f'<option value="{key}">{html.escape(words)}</option>' for key, words in report.CATEGORIES.items()))
 
 
 # Today's model use against the Usage cap (W1, D6), on every page of the app, read again each minute.
@@ -319,6 +359,7 @@ class Bridge:
         self._running = threading.Event()  # a run is going
         self._said = ""  # why the last run couldn't start or stopped
         self._verifier: str | None = None  # this sign-in's PKCE verifier, till its code is traded
+        self._report: dict | None = None  # the report the window showed, till Send Report sends it
         self._window = None  # the pywebview window, once run() made it
 
     def request(self, method: str, path: str, headers: dict | None = None, body: str = "") -> dict:
@@ -516,6 +557,61 @@ class Bridge:
         if said.startswith("Removed") and self._window is not None:
             threading.Timer(2.0, self._window.destroy).start()
         return {"said": said}
+
+    # Report a problem (D26): Settings' form, and an Application's card with its id.
+
+    def review_report(self, category: str, note: str, contact_ok: bool = False, application_id: str = "",
+                      include: bool = True) -> dict:
+        """The report the form's answers make, kept for send_report: what it holds, a line each ({parts}); or
+        {error}. With `application_id` it is about that Application, with its record and log when `include`."""
+        self._report = None
+        if not str(note).strip():
+            return {"error": "Write what happened first."}
+        row = self._application(str(application_id)) if application_id else None
+        if application_id and row is None:
+            return {"error": "WorkIt Auto Apply has nothing of that application on this computer."}
+        try:
+            self._report = report.build(str(category), str(note), PROFILE, row, bool(include), bool(contact_ok))
+        except ValueError as error:  # a category the server doesn't take, or no profile file to mask the log with
+            return {"error": f"The report can't go as it is: {error}."}
+        return {"parts": report.parts(self._report)}
+
+    def send_report(self) -> dict:
+        """Send Report: the report review_report showed, as it was shown. {said}, or {error}."""
+        if self._report is None:
+            return {"error": "Press Review Report first."}
+        try:
+            report.send(self._report, self._client)
+        except workit.CapReached:
+            return {"error": "You've sent a lot of reports today. Send this one tomorrow."}
+        except workit.WorkItError as error:
+            return {"error": f"WorkIt didn't take the report ({error}). Try again."}
+        self._report = None
+        return {"said": "Sent. WorkIt keeps your report until its problem is fixed, then deletes it."}
+
+    def _application(self, application_id: str) -> Row | None:
+        """The Application a report is about: its Tracker row; else, for a form this run held (a rehearsal keeps no
+        row for it), its tile with its newest Record."""
+        from apply.student import RECORDS  # here: apply.student imports this module
+
+        try:
+            if row := FileTracker().get(application_id):
+                return row
+        except Exception:  # a Tracker that won't read: the run's tile may still name it
+            pass
+        state = self._dashboard.state()
+        seen = next((c for c in state["tiles"] + state["items"] if c.get("application_id") == application_id), None)
+        if seen is None:
+            return None
+        records = sorted((path for path in RECORDS.glob("*/*") if path.name.endswith(f"-{application_id}")),
+                         key=lambda path: path.parent.name)
+        try:
+            status = Status(str(seen.get("status")))
+        except ValueError:  # a rehearsal's "ready": held for the student to send
+            status = Status.HELD
+        return Row(application_id, str(seen.get("company") or ""), str(seen.get("role") or ""),
+                   str(seen.get("posting_url") or ""), str(seen.get("job_system") or ""), status,
+                   record=str(records[-1]) if records else "")
 
     def _page(self) -> str:
         board = self._dashboard

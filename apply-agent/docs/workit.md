@@ -373,8 +373,9 @@ The window's support form, "Report a problem": from Settings, or from an
 Application's tile, which picks that Application. The student chooses what
 it is about (`report.CATEGORIES`), writes what happened, says whether WorkIt
 may email them, and, with an Application picked, whether to include its
-record and log. Nothing is sent without their press. The form is W5's; it
-calls three functions in `apply/report.py`:
+record and log. Nothing is sent without their press. The form is W5's
+(`app_window.Bridge.review_report`, then `send_report`); it calls three
+functions in `apply/report.py`:
 
 - `build(category, note, profile, row=None, include=True, contact_ok=False)`
   makes the report. With `row` and `include`, it reads the Record's own
