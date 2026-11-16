@@ -241,7 +241,8 @@ def _text(value: Any, files: bool = False) -> str:
 
 
 def saving_answers(tracker: Callable[[], object], tab: AnswersTab) -> Callable[[dict, str, str], str]:
-    """Save Lisul's answer typed in the Inbox where Apply reads it: a run's
+    """Save Lisul's answer typed in the Apply window (Needs you, or the
+    student page's question card) where Apply reads it: a run's
     Missing fact in its Tracker row's Answer cell, as if he typed it in the
     Sheet, so the next check fills that Application again with it; a
     rehearsal's into his Applicant profile, for every form after, or, for
